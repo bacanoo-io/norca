@@ -326,7 +326,9 @@ type Config struct {
 	// place, and a small jitter is applied to avoid a thundering herd.
 	RPCHoldTimeout time.Duration
 
-	// TLSConfig holds various TLS related configurations
+	// TLSConfig holds various TLS related configurations. It is the initial
+	// configuration only: the server swaps in reloaded TLS configurations
+	// separately, so server code must read it through Server.getTLSConfig.
 	TLSConfig *config.TLSConfig
 
 	// ACLEnabled controls if ACL enforcement and management is enabled.

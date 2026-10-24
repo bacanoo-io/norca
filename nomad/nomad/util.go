@@ -347,7 +347,8 @@ func validateLocalServerTLSCertificate(srv *Server, ctx *RPCContext) error {
 // validateTLSCertificate checks if the RPC connection mTLS certificates are
 // valid for the given name.
 func validateTLSCertificate(srv *Server, ctx *RPCContext, name string) error {
-	if srv.config.TLSConfig == nil || !srv.config.TLSConfig.VerifyServerHostname {
+	tlsConf := srv.getTLSConfig()
+	if tlsConf == nil || !tlsConf.VerifyServerHostname {
 		return nil
 	}
 
