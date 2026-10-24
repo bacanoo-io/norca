@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
+	"path/filepath"
 
 	gg "github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2/hclsimple"
@@ -21,7 +21,7 @@ import (
 func Vendor(ctx context.Context, ui terminal.UI, targetPath string) error {
 	// attempt to read metadata.hcl
 	metadata := &pack.Metadata{}
-	err := hclsimple.DecodeFile(path.Join(targetPath, "metadata.hcl"), nil, metadata)
+	err := hclsimple.DecodeFile(filepath.Join(targetPath, "metadata.hcl"), nil, metadata)
 	if err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func Vendor(ctx context.Context, ui terminal.UI, targetPath string) error {
 	}
 
 	for _, d := range metadata.Dependencies {
-		targetDir := path.Join(targetPath, "deps", d.Name)
+		targetDir := filepath.Join(targetPath, "deps", d.Name)
 		url := d.Source
 
 		if !d.IsLatest() {

@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -88,6 +87,9 @@ func newClientAgentConfigFunc(region string, nodeClass string, srvRPCAddr string
 }
 
 func TestDebug_NodeClass(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	// Start test server and API client
 	srv, _, url := testServer(t, false, nil)
@@ -137,6 +139,9 @@ func TestDebug_NodeClass(t *testing.T) {
 }
 
 func TestDebug_ClientToServer(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	// Start test server and API client
 	srv, _, url := testServer(t, false, nil)
@@ -185,6 +190,9 @@ func TestDebug_ClientToServer(t *testing.T) {
 }
 
 func TestDebug_MultiRegion(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	region1 := "region1"
 	region2 := "region2"
@@ -283,6 +291,9 @@ func TestDebug_MultiRegion(t *testing.T) {
 }
 
 func TestDebug_SingleServer(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	srv, _, url := testServer(t, false, nil)
 	testutil.WaitForLeader(t, srv.Agent.RPC)
@@ -556,6 +567,9 @@ func TestDebug_ExistingOutput(t *testing.T) {
 }
 
 func TestDebug_Fail_Pprof(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	// Setup agent config with debug endpoints disabled
 	agentConfFunc := func(c *agent.Config) {
@@ -852,6 +866,9 @@ func TestDebug_RedirectError(t *testing.T) {
 // complete a debug run have their query options configured with the
 // -stale flag
 func TestDebug_StaleLeadership(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	srv, _, url := testServerWithoutLeader(t, false, nil)
 	addrServer := srv.HTTPAddr()
@@ -891,6 +908,7 @@ func testServerWithoutLeader(t *testing.T, runClient bool, cb func(*agent.Config
 		config.Server.Enabled = true
 		config.Server.NumSchedulers = pointer.Of(0)
 		config.Server.BootstrapExpect = 3
+		testAgentLocalVaultAddr(config)
 
 		if cb != nil {
 			cb(config)
@@ -975,7 +993,6 @@ func TestDebug_EventStream_TopicsFromString(t *testing.T) {
 func TestDebug_EventStream(t *testing.T) {
 	ci.Parallel(t)
 
-	// TODO dmay: specify output directory to allow inspection of eventstream.json
 	// TODO dmay: require specific events in the eventstream.json file(s)
 	// TODO dmay: scenario where no events are expected, verify "No events captured"
 	// TODO dmay: verify event topic filtering only includes expected events
@@ -990,12 +1007,21 @@ func TestDebug_EventStream(t *testing.T) {
 	testutil.WaitForLeader(t, srv.Agent.RPC)
 	t.Logf("%s: Leadership established\n", time.Since(start))
 
+	// Wait for the client so that the test job can be placed
+	waitForNodes(t, client)
+
 	// Setup mock UI
 	ui := cli.NewMockUi()
 	cmd := &OperatorDebugCommand{Meta: Meta{Ui: ui}}
 
-	// Return command output back to the main test goroutine
-	chOutput := make(chan testOutput)
+	// Write the capture into a temp directory instead of an archive in the
+	// working directory (the source tree)
+	outputDir := t.TempDir()
+
+	// Return command output back to the main test goroutine. The goroutine
+	// must not use t, since it can outlive a test that already failed, and
+	// the channel is buffered so that it never blocks in that case.
+	chOutput := make(chan testOutput, 1)
 
 	// Set duration for capture
 	duration := 5 * time.Second
@@ -1005,9 +1031,7 @@ func TestDebug_EventStream(t *testing.T) {
 	// Run debug in a goroutine so we can start the capture before we run the test job
 	t.Logf("%s: Starting nomad operator debug in goroutine\n", time.Since(start))
 	go func() {
-		code := cmd.Run([]string{"-address", url, "-duration", duration.String(), "-interval", "5s", "-event-topic", "Job:*"})
-		assert.Equal(t, 0, code)
-
+		code := cmd.Run([]string{"-address", url, "-output", outputDir, "-duration", duration.String(), "-interval", "5s", "-event-topic", "Job:*"})
 		chOutput <- testOutput{
 			name:   "yo",
 			code:   code,
@@ -1025,8 +1049,9 @@ func TestDebug_EventStream(t *testing.T) {
 	// Ensure job registered
 	require.NoError(t, err)
 
-	// Wait for the job to complete
-	if code := waitForSuccess(ui, client, fullId, t, resp.EvalID); code != 0 {
+	// Wait for the job to complete. The monitor gets its own UI so that its
+	// output does not mix with the output of the debug command.
+	if code := waitForSuccess(cli.NewMockUi(), client, fullId, t, resp.EvalID); code != 0 {
 		switch code {
 		case 1:
 			t.Fatalf("status code 1: All other failures (API connectivity, internal errors, etc)\n")
@@ -1049,25 +1074,9 @@ func TestDebug_EventStream(t *testing.T) {
 
 	t.Logf("Values from struct -- code: %d, len(out): %d, len(outerr): %d\n", testOut.code, len(testOut.output), len(testOut.error))
 
+	require.Equal(t, 0, testOut.code)
 	require.Empty(t, testOut.error)
-
-	archive := extractArchiveName(testOut.output)
-	require.NotEmpty(t, archive)
-	fmt.Println(archive)
+	require.Contains(t, testOut.output, "Created debug directory: "+outputDir)
 
 	// TODO dmay: verify evenstream.json output file contains expected content
-}
-
-// extractArchiveName searches string s for the archive filename
-func extractArchiveName(captureOutput string) string {
-	file := ""
-
-	r := regexp.MustCompile(`Created debug archive: (.+)?\n`)
-	res := r.FindStringSubmatch(captureOutput)
-	// If found, there will be 2 elements, where element [1] is the desired text from the submatch
-	if len(res) == 2 {
-		file = res[1]
-	}
-
-	return file
 }

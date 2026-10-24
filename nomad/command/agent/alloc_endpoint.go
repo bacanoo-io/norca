@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/golang/snappy"
 	"github.com/gorilla/websocket"
@@ -586,6 +587,10 @@ func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExec
 		// don't close ws - wait to drain messages
 	}()
 
+	// Both the streaming goroutine below and the error path at the end of
+	// this function write to the websocket, so all writes go through wsw.
+	wsw := &wsSyncWriter{ws: ws}
+
 	// Create a channel that decodes the results
 	errCh := make(chan HTTPCodedError, 2)
 
@@ -605,7 +610,7 @@ func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExec
 			var res cstructs.StreamErrWrapper
 			err := decoder.Decode(&res)
 			if isClosedError(err) {
-				ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				wsw.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				errCh <- nil
 				return
 			}
@@ -625,7 +630,7 @@ func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExec
 				return
 			}
 
-			if err := ws.WriteMessage(websocket.TextMessage, res.Payload); err != nil {
+			if err := wsw.WriteMessage(websocket.TextMessage, res.Payload); err != nil {
 				errCh <- CodedError(500, err.Error())
 				return
 			}
@@ -649,12 +654,33 @@ func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExec
 	if isClosedError(codedErr) {
 		codedErr = nil
 	} else if codedErr != nil {
-		ws.WriteMessage(websocket.CloseMessage,
+		// The error may come from forwardExecInput while the streaming
+		// goroutine is still writing output, so this write must be serialized
+		// with it.
+		wsw.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(toWsCode(codedErr.Code()), codedErr.Error()))
 	}
+	// Close may be called concurrently with writes; it must not wait for the
+	// write lock, so that it can unblock a write stuck on a stalled peer.
 	ws.Close()
 
 	return nil, codedErr
+}
+
+// wsSyncWriter serializes writes to a websocket connection. A gorilla
+// websocket connection supports only one concurrent writer and panics with
+// "concurrent write to websocket connection" when two goroutines write at the
+// same time.
+type wsSyncWriter struct {
+	mu sync.Mutex
+	ws *websocket.Conn
+}
+
+// WriteMessage writes a data or control message while holding the write lock.
+func (w *wsSyncWriter) WriteMessage(messageType int, data []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.ws.WriteMessage(messageType, data)
 }
 
 func toWsCode(httpCode int) int {
@@ -705,6 +731,7 @@ func forwardExecInput(encoder *codec.Encoder, ws *websocket.Conn, errCh chan<- H
 		err = encoder.Encode(sf)
 		if err != nil {
 			errCh <- CodedError(500, err.Error())
+			return
 		}
 	}
 }

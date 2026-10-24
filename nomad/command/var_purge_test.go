@@ -65,9 +65,9 @@ func TestVarPurgeCommand_Fails(t *testing.T) {
 func TestVarPurgeCommand_Online(t *testing.T) {
 	ci.Parallel(t)
 
-	// Create a server
-	srv, client, url := testServer(t, true, nil)
-	defer srv.Shutdown()
+	// Create a server. testServer shuts it down with t.Cleanup, which runs
+	// after the parallel subtests; a deferred Shutdown would run before them.
+	_, client, url := testServer(t, true, nil)
 
 	t.Run("unchecked", func(t *testing.T) {
 		ui := cli.NewMockUi()
@@ -88,7 +88,7 @@ func TestVarPurgeCommand_Online(t *testing.T) {
 		require.Len(t, vars, 0)
 	})
 
-	t.Run("unchecked", func(t *testing.T) {
+	t.Run("checked", func(t *testing.T) {
 		ci.Parallel(t)
 		ui := cli.NewMockUi()
 		cmd := &VarPurgeCommand{Meta: Meta{Ui: ui}}
@@ -107,7 +107,9 @@ func TestVarPurgeCommand_Online(t *testing.T) {
 		code = cmd.Run([]string{"-address=" + url, fmt.Sprintf("-check-index=%v", sv.ModifyIndex), sv.Path})
 		require.Equal(t, 0, code, "expected exit 0, got: %d; %v", code, ui.ErrorWriter.String())
 
-		vars, _, err := client.Variables().List(nil)
+		// Only look at this variable: the autocomplete subtest creates its own
+		// variable in parallel.
+		vars, _, err := client.Variables().PrefixList(sv.Path, nil)
 		require.NoError(t, err)
 		require.Len(t, vars, 0)
 	})

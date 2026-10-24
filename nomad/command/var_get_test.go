@@ -66,9 +66,9 @@ func TestVarGetCommand_Fails(t *testing.T) {
 func TestVarGetCommand(t *testing.T) {
 	ci.Parallel(t)
 
-	// Create a server
-	srv, client, url := testServer(t, true, nil)
-	defer srv.Shutdown()
+	// Create a server. testServer shuts it down with t.Cleanup, which runs
+	// after the parallel subtests; a deferred Shutdown would run before them.
+	_, client, url := testServer(t, true, nil)
 
 	testCases := []struct {
 		name     string

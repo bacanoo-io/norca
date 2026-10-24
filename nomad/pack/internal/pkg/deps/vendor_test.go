@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -67,7 +67,7 @@ func TestVendor(t *testing.T) {
 
 	// run against a metadata file with empty dependencies
 	tmpDir2 := t.TempDir()
-	f, err := os.Create(path.Join(tmpDir2, "metadata.hcl"))
+	f, err := os.Create(filepath.Join(tmpDir2, "metadata.hcl"))
 	if err != nil {
 		t.Error(err)
 	}
@@ -78,6 +78,7 @@ func TestVendor(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	must.NoError(t, f.Close())
 
 	err = Vendor(ctx, ui, tmpDir2)
 	must.NotNil(t, err)
@@ -85,14 +86,14 @@ func TestVendor(t *testing.T) {
 
 	// test overwriting a vendored pack
 	tmpPackDir2 := t.TempDir()
-	f, err = os.Create(path.Join(tmpPackDir2, "metadata.hcl"))
+	f, err = os.Create(filepath.Join(tmpPackDir2, "metadata.hcl"))
 	if err != nil {
 		t.Error(err)
 	}
 
 	tmpDependencySourceDir2 := t.TempDir()
 	must.NoError(t, createTestDepRepo(t, tmpDependencySourceDir2))
-	goodMetadata.Dependencies[0].Source = path.Join(
+	goodMetadata.Dependencies[0].Source = filepath.Join(
 		tmpDependencySourceDir2,
 		"simple_raw_exec",
 	)
@@ -103,6 +104,7 @@ func TestVendor(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	must.NoError(t, f.Close())
 
 	err = Vendor(ctx, ui, tmpPackDir2)
 	must.Nil(t, err, must.Sprintf("vendoring failure: %v", err))
@@ -115,7 +117,7 @@ func createTestDepRepo(t *testing.T, dst string) error {
 
 	err := filesystem.CopyDir(
 		testfixture.AbsPath(t, "v2/test_registry/packs/simple_raw_exec"),
-		path.Join(dst, "simple_raw_exec"),
+		filepath.Join(dst, "simple_raw_exec"),
 		false,
 		NoopLogger{},
 	)

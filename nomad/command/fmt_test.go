@@ -140,12 +140,7 @@ func TestFmtCommand_FromStdin(t *testing.T) {
 func TestFmtCommand_FromWorkingDirectory(t *testing.T) {
 	tmpDir := fmtFixtureWriteDir(t)
 
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-
-	err = os.Chdir(tmpDir)
-	require.NoError(t, err)
-	defer os.Chdir(cwd)
+	t.Chdir(tmpDir)
 
 	tests := []struct {
 		name       string

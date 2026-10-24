@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/client/allocdir"
 	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
+	clienttestutil "github.com/hashicorp/nomad/client/testutil"
 	"github.com/hashicorp/nomad/helper/testlog"
 	"github.com/hashicorp/nomad/helper/users"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -139,13 +140,11 @@ func TestAPIHook_Ok(t *testing.T) {
 			// We're root and nobody exists! Check perms
 			must.Eq(t, fs.FileMode(0o600), stat.Mode().Perm())
 
-			sysStat, ok := stat.Sys().(*syscall.Stat_t)
-			must.True(t, ok, must.Sprintf("expected stat.Sys() to be a *syscall.Stat_t on %s but found %T",
-				runtime.GOOS, stat.Sys()))
+			uid, _ := clienttestutil.FileOwner(t, stat)
 
 			nobodyUID, err := strconv.Atoi(nobody.Uid)
 			must.NoError(t, err)
-			must.Eq(t, nobodyUID, int(sysStat.Uid))
+			must.Eq(t, nobodyUID, uid)
 		}
 	}
 
