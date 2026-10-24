@@ -3427,6 +3427,18 @@ func TestTaskGroupDiff(t *testing.T) {
 										New:  "tcp",
 									},
 									{
+										Type: DiffTypeNone,
+										Name: "Role",
+										Old:  "",
+										New:  "",
+									},
+									{
+										Type: DiffTypeNone,
+										Name: "StartupTimeout",
+										Old:  "0",
+										New:  "0",
+									},
+									{
 										Type: DiffTypeEdited,
 										Name: "SuccessBeforePassing",
 										Old:  "3",
@@ -6863,6 +6875,12 @@ func TestTaskDiff(t *testing.T) {
 									},
 									{
 										Type: DiffTypeAdded,
+										Name: "StartupTimeout",
+										Old:  "",
+										New:  "0",
+									},
+									{
+										Type: DiffTypeAdded,
 										Name: "SuccessBeforePassing",
 										Old:  "",
 										New:  "2",
@@ -6937,6 +6955,12 @@ func TestTaskDiff(t *testing.T) {
 										Type: DiffTypeDeleted,
 										Name: "Protocol",
 										Old:  "http",
+										New:  "",
+									},
+									{
+										Type: DiffTypeDeleted,
+										Name: "StartupTimeout",
+										Old:  "0",
 										New:  "",
 									},
 									{
@@ -7191,6 +7215,18 @@ func TestTaskDiff(t *testing.T) {
 										Name: "Protocol",
 										Old:  "http",
 										New:  "http",
+									},
+									{
+										Type: DiffTypeNone,
+										Name: "Role",
+										Old:  "",
+										New:  "",
+									},
+									{
+										Type: DiffTypeNone,
+										Name: "StartupTimeout",
+										Old:  "0",
+										New:  "0",
 									},
 									{
 										Type: DiffTypeNone,

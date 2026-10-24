@@ -6950,6 +6950,12 @@ func (tg *TaskGroup) Validate(j *Job) error {
 		mErr.Errors = append(mErr.Errors, outer)
 	}
 
+	// Validate check roles (Norca)
+	if err := tg.validateCheckRoles(); err != nil {
+		outer := fmt.Errorf("Task group service check validation failed: %v", err)
+		mErr.Errors = append(mErr.Errors, outer)
+	}
+
 	// Validate the scaling policy
 	if err := tg.validateScalingPolicy(j); err != nil {
 		outer := fmt.Errorf("Task group scaling policy validation failed: %v", err)
@@ -7269,6 +7275,11 @@ func (tg *TaskGroup) Warnings(j *Job) error {
 			err = multierror.Prefix(err, fmt.Sprintf("Task %q:", t.Name))
 			mErr.Errors = append(mErr.Errors, err)
 		}
+	}
+
+	// Check roles conflicting with on_update (Norca)
+	if err := tg.checkRoleWarnings(); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
 	}
 
 	return mErr.ErrorOrNil()
