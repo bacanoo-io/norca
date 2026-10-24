@@ -38,6 +38,8 @@ server {
     include_keyring    = true
     verify_checksum    = true
     browse_cache_ttl   = "1m"
+    require_approval   = true
+    approval_ttl       = "30m"
 
     destination "primary" {
       type    = "s3"
@@ -93,7 +95,18 @@ server {
 	must.Eq(t, 2, cfg.UploadConcurrency)
 	must.True(t, cfg.VerifyChecksum)
 	must.Eq(t, time.Minute, cfg.BrowseCacheTTL)
+	must.True(t, cfg.RequireApproval)
+	must.Eq(t, 30*time.Minute, cfg.ApprovalTTL)
 	must.Len(t, 2, cfg.Destinations)
+
+	// Two-person approval of full restores can't be turned off.
+	noApproval := c.Server.Backup.Copy()
+	noApproval.RequireApproval = pointer.Of(false)
+	_, err = noApproval.toServerConfig()
+	must.ErrorContains(t, err, "require_approval")
+	merged := c.Server.Backup.Merge(&BackupConfig{ApprovalTTL: "2h"})
+	must.Eq(t, "2h", merged.ApprovalTTL)
+	must.True(t, *merged.RequireApproval)
 
 	primary := cfg.Destination("primary")
 	must.Eq(t, "norca/${region}", primary.Prefix)

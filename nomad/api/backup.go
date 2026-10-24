@@ -13,8 +13,18 @@ const (
 	// TopicBackup is the event stream topic of backups and restores.
 	TopicBackup Topic = "Backup"
 
-	BackupTriggerSchedule = "schedule"
-	BackupTriggerManual   = "manual"
+	BackupTriggerSchedule   = "schedule"
+	BackupTriggerManual     = "manual"
+	BackupTriggerPreRestore = "pre-restore"
+
+	// Statuses of a restore.
+	BackupRestoreStatusPending  = "pending"
+	BackupRestoreStatusApproved = "approved"
+	BackupRestoreStatusRejected = "rejected"
+	BackupRestoreStatusExpired  = "expired"
+	BackupRestoreStatusRunning  = "running"
+	BackupRestoreStatusComplete = "complete"
+	BackupRestoreStatusFailed   = "failed"
 
 	BackupStatusComplete = "complete"
 	BackupStatusPartial  = "partial"
@@ -239,8 +249,10 @@ type BackupRestoreItem struct {
 	CheckIndex *uint64
 }
 
-// BackupRestoreRequest restores items from a backup. Only the selective mode
-// is implemented.
+// BackupRestoreRequest restores items from a backup (selective mode), or
+// requests a full restore of the region (full mode) that a second
+// administrator approves. Confirm must be the name of the region for a full
+// restore.
 type BackupRestoreRequest struct {
 	Mode        string
 	Items       []*BackupRestoreItem
@@ -254,6 +266,48 @@ type BackupRestoreRequest struct {
 type BackupRestoreResponse struct {
 	Restore *BackupRestore
 	Results []*BackupRestoreItemResult
+	Preview *BackupRestorePreview
+}
+
+// BackupRestorePreview summarizes what a full restore would change. Counts
+// are keyed by "<content type>/<removed|restored|reverted>".
+type BackupRestorePreview struct {
+	BackupID           string
+	Region             string
+	BackupIndex        uint64
+	CurrentIndex       uint64
+	Counts             map[string]int
+	AllocationsStopped int
+	ACLTokensRemoved   int
+	KeysAdded          []string
+	Warnings           []string
+	Objects            []*BackupObjectDiff
+	Truncated          bool
+}
+
+// BackupRestoreApproveRequest approves a pending full restore, which then
+// runs. The approver supplies the age identity of the backup.
+type BackupRestoreApproveRequest struct {
+	AgeIdentity string
+}
+
+// BackupRestoreRejectRequest rejects a pending full restore.
+type BackupRestoreRejectRequest struct {
+	Reason string
+}
+
+// RootKey is a root key of the keyring with its key material, as restored
+// from a backup.
+type RootKey struct {
+	Meta *RootKeyMeta
+	Key  []byte
+}
+
+// KeyringRestoreResponse lists the servers that hold the restored keys.
+type KeyringRestoreResponse struct {
+	Added   []string
+	Servers []string
+	Errors  map[string]string
 }
 
 // BackupRestoreItemResult is the outcome of restoring an item.
@@ -268,19 +322,26 @@ type BackupRestoreItemResult struct {
 
 // BackupRestore is the record of a restore.
 type BackupRestore struct {
-	ID                string
-	BackupID          string
-	Mode              string
-	Items             []*BackupRestoreItem
-	Status            string
-	StatusDescription string
-	Results           []*BackupRestoreItemResult
-	RequestedBy       string
-	Approvals         []string
-	CreateTime        time.Time
-	ModifyTime        time.Time
-	CreateIndex       uint64
-	ModifyIndex       uint64
+	ID                 string
+	BackupID           string
+	Mode               string
+	Items              []*BackupRestoreItem
+	Status             string
+	StatusDescription  string
+	Results            []*BackupRestoreItemResult
+	RequestedBy        string
+	RequestedByName    string
+	Approvals          []string
+	ApprovedAt         time.Time
+	RejectedBy         string
+	Destination        string
+	ExpiresAt          time.Time
+	PreRestoreBackupID string
+	Preview            *BackupRestorePreview
+	CreateTime         time.Time
+	ModifyTime         time.Time
+	CreateIndex        uint64
+	ModifyIndex        uint64
 }
 
 // BackupDownloadURL is a short-lived pre-signed URL of a backup object.
@@ -457,4 +518,77 @@ func (b *Backups) DownloadURL(id, destination, object string, q *QueryOptions) (
 		return nil, nil, err
 	}
 	return &resp, qm, nil
+}
+
+// GetRestore returns a restore record, with the preview of a full restore.
+func (b *Backups) GetRestore(restoreID string, q *QueryOptions) (*BackupRestore, *QueryMeta, error) {
+	if restoreID == "" {
+		return nil, nil, errors.New("missing restore ID")
+	}
+	var resp BackupRestore
+	qm, err := b.client.query("/v1/operator/backup/restore/"+url.PathEscape(restoreID), &resp, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &resp, qm, nil
+}
+
+// ListRestores returns the restore records of the region, newest first.
+func (b *Backups) ListRestores(q *QueryOptions) ([]*BackupRestore, *QueryMeta, error) {
+	var resp []*BackupRestore
+	qm, err := b.client.query("/v1/operator/backup/restores", &resp, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resp, qm, nil
+}
+
+// ApproveRestore approves a pending full restore as a second administrator
+// and waits for the restore to finish.
+func (b *Backups) ApproveRestore(restoreID string, req *BackupRestoreApproveRequest, w *WriteOptions) (*BackupRestore, *WriteMeta, error) {
+	if restoreID == "" {
+		return nil, nil, errors.New("missing restore ID")
+	}
+	if req == nil {
+		req = &BackupRestoreApproveRequest{}
+	}
+	var resp BackupRestore
+	wm, err := b.client.post("/v1/operator/backup/restore/"+url.PathEscape(restoreID)+"/approve", req, &resp, w)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &resp, wm, nil
+}
+
+// RejectRestore rejects (or withdraws) a pending full restore.
+func (b *Backups) RejectRestore(restoreID string, req *BackupRestoreRejectRequest, w *WriteOptions) (*BackupRestore, *WriteMeta, error) {
+	if restoreID == "" {
+		return nil, nil, errors.New("missing restore ID")
+	}
+	if req == nil {
+		req = &BackupRestoreRejectRequest{}
+	}
+	var resp BackupRestore
+	wm, err := b.client.post("/v1/operator/backup/restore/"+url.PathEscape(restoreID)+"/reject", req, &resp, w)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &resp, wm, nil
+}
+
+// Restore adds root keys of a backup to the keystore of every server of the
+// region, alongside the existing keys. It is used before the Raft state of
+// the backup is restored, for example when building a new cluster from a
+// backup.
+func (k *Keyring) Restore(keys []*RootKey, w *WriteOptions) (*KeyringRestoreResponse, *WriteMeta, error) {
+	if len(keys) == 0 {
+		return nil, nil, errors.New("no root keys to restore")
+	}
+	req := struct{ Keys []*RootKey }{keys}
+	var resp KeyringRestoreResponse
+	wm, err := k.client.put("/v1/operator/keyring/restore", &req, &resp, w)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &resp, wm, nil
 }

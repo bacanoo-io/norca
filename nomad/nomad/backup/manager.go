@@ -105,6 +105,20 @@ type Manager struct {
 
 	// cache holds the most recently loaded backup.
 	cache loadCache
+
+	// restoreLock serializes full restores and their approvals.
+	restoreLock sync.Mutex
+}
+
+// TryLockRestore takes the lock of full restores, without waiting. It
+// returns false if a full restore request is being created or run.
+func (m *Manager) TryLockRestore() bool {
+	return m.restoreLock.TryLock()
+}
+
+// UnlockRestore releases the lock taken by TryLockRestore.
+func (m *Manager) UnlockRestore() {
+	m.restoreLock.Unlock()
 }
 
 // New returns a manager. An invalid configuration is reported by SetConfig
@@ -749,8 +763,7 @@ func (m *Manager) ReadDestination(record *structs.BackupRecord, name string) (De
 // LoadRecord reads the manifest of a backup that is not in the
 // backup_status table from a destination (the first one by default).
 func (m *Manager) LoadRecord(ctx context.Context, id, destName string) (*structs.BackupRecord, error) {
-	backupPath, err := PathFor(id)
-	if err != nil {
+	if _, err := PathFor(id); err != nil {
 		return nil, err
 	}
 	cfg, _, err := m.configAndDestinations()
@@ -767,26 +780,61 @@ func (m *Manager) LoadRecord(ctx context.Context, id, destName string) (*structs
 		if err != nil {
 			return nil, err
 		}
-		rc, err := dest.Get(ctx, path.Join(backupPath, ManifestKey))
-		if err != nil {
+		record, err := ReadRecord(ctx, dest, id)
+		if errors.Is(err, ErrNotFound) {
 			lastErr = err
 			continue
 		}
-		var manifest Manifest
-		err = json.NewDecoder(io.LimitReader(rc, 1<<20)).Decode(&manifest)
-		rc.Close()
 		if err != nil {
-			return nil, fmt.Errorf("invalid manifest of backup %s: %w", id, err)
+			return nil, err
 		}
-		if manifest.ID != id {
-			return nil, fmt.Errorf("manifest of backup %s has ID %q", id, manifest.ID)
-		}
-		return manifest.Record(dest, backupPath), nil
+		return record, nil
 	}
 	if errors.Is(lastErr, ErrNotFound) {
 		return nil, fmt.Errorf("backup %s not found", id)
 	}
 	return nil, lastErr
+}
+
+// ReadRecord reads the manifest of a backup from a destination and returns
+// the backup record it describes. A missing manifest is ErrNotFound.
+func ReadRecord(ctx context.Context, dest Destination, id string) (*structs.BackupRecord, error) {
+	backupPath, err := PathFor(id)
+	if err != nil {
+		return nil, err
+	}
+	rc, err := dest.Get(ctx, path.Join(backupPath, ManifestKey))
+	if err != nil {
+		return nil, err
+	}
+	var manifest Manifest
+	err = json.NewDecoder(io.LimitReader(rc, 1<<20)).Decode(&manifest)
+	rc.Close()
+	if err != nil {
+		return nil, fmt.Errorf("invalid manifest of backup %s: %w", id, err)
+	}
+	if manifest.ID != id {
+		return nil, fmt.Errorf("manifest of backup %s has ID %q", id, manifest.ID)
+	}
+	return manifest.Record(dest, backupPath), nil
+}
+
+// ReadLatest reads the latest.json pointer of a destination and returns
+// the ID of the most recent successful backup.
+func ReadLatest(ctx context.Context, dest Destination) (string, error) {
+	rc, err := dest.Get(ctx, LatestKey)
+	if err != nil {
+		return "", err
+	}
+	defer rc.Close()
+	var latest Latest
+	if err := json.NewDecoder(io.LimitReader(rc, 1<<20)).Decode(&latest); err != nil {
+		return "", fmt.Errorf("invalid %s: %w", LatestKey, err)
+	}
+	if _, _, err := ParseID(latest.ID); err != nil {
+		return "", err
+	}
+	return latest.ID, nil
 }
 
 // Open returns the decrypted content of a backup object. The SHA-256 of the
@@ -797,6 +845,15 @@ func (m *Manager) Open(ctx context.Context, record *structs.BackupRecord, destNa
 	if err != nil {
 		return nil, err
 	}
+	return OpenObject(ctx, dest, record, st, object, ids)
+}
+
+// OpenObject returns the decrypted content of an object of a backup on a
+// destination, as Manager.Open. st is the status of the backup on the
+// destination, which lists its objects and their checksums.
+func OpenObject(ctx context.Context, dest Destination, record *structs.BackupRecord,
+	st *structs.BackupDestinationStatus, object string, ids Identities) (io.ReadCloser, error) {
+
 	obj := st.Objects[object]
 	if obj == nil {
 		return nil, fmt.Errorf("backup %s has no %s object: %w", record.ID, object, ErrNotFound)

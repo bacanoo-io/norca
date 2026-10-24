@@ -43,6 +43,7 @@ const (
 	DefaultPartSize          = 16 << 20 // 16 MiB: 128 parts for 2 GB, 160 GB at most
 	DefaultUploadConcurrency = 4
 	DefaultBrowseCacheTTL    = 5 * time.Minute
+	DefaultApprovalTTL       = time.Hour
 
 	// minPartSize is the S3 minimum part size of a multipart upload.
 	minPartSize = 5 << 20
@@ -88,6 +89,14 @@ type Config struct {
 	// BrowseCacheTTL is how long a decrypted backup loaded for browsing
 	// stays in memory; 0 disables the cache.
 	BrowseCacheTTL time.Duration
+
+	// RequireApproval makes a second administrator approve every full
+	// restore. Two-person approval is mandatory for full restores, so it
+	// can't be turned off.
+	RequireApproval bool
+
+	// ApprovalTTL is how long a full restore request waits for approval.
+	ApprovalTTL time.Duration
 
 	Destinations []*DestinationConfig
 	Encryption   *EncryptionConfig
@@ -171,6 +180,8 @@ func DefaultConfig() *Config {
 		UploadConcurrency: DefaultUploadConcurrency,
 		IncludeKeyring:    true,
 		BrowseCacheTTL:    DefaultBrowseCacheTTL,
+		RequireApproval:   true,
+		ApprovalTTL:       DefaultApprovalTTL,
 		Encryption:        &EncryptionConfig{Mode: EncryptionModeAge},
 		Retention:         DefaultRetention(),
 	}
@@ -285,6 +296,12 @@ func (c *Config) Validate() error {
 	}
 	if c.BrowseCacheTTL < 0 {
 		add("browse_cache_ttl must not be negative")
+	}
+	if !c.RequireApproval {
+		add("require_approval can't be disabled: two-person approval is mandatory for full restores")
+	}
+	if c.ApprovalTTL < time.Minute || c.ApprovalTTL > 7*24*time.Hour {
+		add("approval_ttl must be between 1m and 168h")
 	}
 
 	seen := make(map[string]struct{})

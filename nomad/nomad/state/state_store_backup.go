@@ -5,6 +5,7 @@ package state
 
 import (
 	"fmt"
+	"slices"
 
 	memdb "github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -183,6 +184,22 @@ func (s *StateStore) BackupRestores(ws memdb.WatchSet) (memdb.ResultIterator, er
 	return iter, nil
 }
 
+// BackupRestoresList returns all restore records, newest first.
+func (s *StateStore) BackupRestoresList(ws memdb.WatchSet) ([]*structs.BackupRestore, error) {
+	iter, err := s.BackupRestores(ws)
+	if err != nil {
+		return nil, err
+	}
+	var out []*structs.BackupRestore
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		out = append(out, raw.(*structs.BackupRestore))
+	}
+	slices.SortStableFunc(out, func(a, b *structs.BackupRestore) int {
+		return b.CreateTime.Compare(a.CreateTime)
+	})
+	return out, nil
+}
+
 // BackupRestoreByID returns the restore record with the given ID or nil.
 func (s *StateStore) BackupRestoreByID(ws memdb.WatchSet, id string) (*structs.BackupRestore, error) {
 	txn := s.db.ReadTxn()
@@ -288,6 +305,8 @@ func backupEventFromChange(change memdb.Change) (structs.Event, bool) {
 			eventType = structs.TypeBackupRestoreApproved
 		case structs.BackupRestoreStatusRunning:
 			eventType = structs.TypeBackupRestoreStarted
+		case structs.BackupRestoreStatusRejected, structs.BackupRestoreStatusExpired:
+			eventType = structs.TypeBackupRestoreRejected
 		default:
 			eventType = structs.TypeBackupRestoreFinished
 		}
