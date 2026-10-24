@@ -73,6 +73,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobExposeCheckHook{},
 			jobImpliedConstraints{},
 			jobNodePoolMutatingHook{srv: s},
+			admissionWebhookMutator{srv: s},
 		},
 		validators: []jobValidator{
 			jobConnectHook{},
@@ -109,7 +110,8 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	}
 
 	// Run admission controllers
-	job, warnings, err := j.admissionControllers(args.Job)
+	job, warnings, err := j.admissionControllers(args.Job, &admissionRequest{
+		operation: structs.AdmissionOperationRegister, args: args})
 	if err != nil {
 		return err
 	}
@@ -293,7 +295,7 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	if err != nil {
 		return err
 	}
-	policyWarnings, err := j.enforceSubmitJob(args.PolicyOverride, args.Job.Copy(), nomadACLToken, ns)
+	policyWarnings, err := j.enforceSubmitJob(structs.AdmissionOperationRegister, args.PolicyOverride, args.Job.Copy(), nomadACLToken, ns)
 	if err != nil {
 		return err
 	}
@@ -557,7 +559,7 @@ func (j *Job) Validate(args *structs.JobValidateRequest, reply *structs.JobValid
 		return fmt.Errorf("mismatched request namespace in request: %q, %q", args.RequestNamespace(), args.Job.Namespace)
 	}
 
-	job, mutateWarnings, err := j.admissionMutators(args.Job)
+	job, mutateWarnings, err := j.admissionMutators(args.Job, nil)
 	if err != nil {
 		return err
 	}
@@ -1740,7 +1742,8 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	}
 
 	// Run admission controllers
-	job, warnings, err := j.admissionControllers(args.Job)
+	job, warnings, err := j.admissionControllers(args.Job, &admissionRequest{
+		operation: structs.AdmissionOperationPlan, args: args})
 	if err != nil {
 		return err
 	}
@@ -1779,7 +1782,7 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	if err != nil {
 		return err
 	}
-	policyWarnings, err := j.enforceSubmitJob(args.PolicyOverride, args.Job, nomadACLToken, ns)
+	policyWarnings, err := j.enforceSubmitJob(structs.AdmissionOperationPlan, args.PolicyOverride, args.Job, nomadACLToken, ns)
 	if err != nil {
 		return err
 	}

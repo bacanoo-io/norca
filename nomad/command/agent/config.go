@@ -682,6 +682,9 @@ type ServerConfig struct {
 
 	// JobTrackedVersions is the number of historic job versions that are kept.
 	JobTrackedVersions *int `hcl:"job_tracked_versions"`
+
+	// Admission configures the dynamic admission control webhooks.
+	Admission *config.AdmissionConfig `hcl:"admission"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -711,6 +714,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobDefaultPriority = pointer.Copy(s.JobDefaultPriority)
 	ns.JobMaxPriority = pointer.Copy(s.JobMaxPriority)
 	ns.JobTrackedVersions = pointer.Copy(s.JobTrackedVersions)
+	ns.Admission = s.Admission.Copy()
 	return &ns
 }
 
@@ -2060,6 +2064,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.JobTrackedVersions != nil {
 		result.JobTrackedVersions = b.JobTrackedVersions
+	}
+
+	if b.Admission != nil {
+		result.Admission = result.Admission.Merge(b.Admission)
 	}
 
 	// Add the schedulers

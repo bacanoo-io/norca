@@ -390,6 +390,9 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/node/pools", s.wrap(s.NodePoolsRequest))
 	s.mux.HandleFunc("/v1/node/pool/", s.wrap(s.NodePoolSpecificRequest))
 
+	s.mux.HandleFunc("/v1/admission-policies", s.wrap(s.AdmissionPoliciesRequest))
+	s.mux.HandleFunc("/v1/admission-policy/", s.wrap(s.AdmissionPolicySpecificRequest))
+
 	s.mux.HandleFunc("/v1/allocations", s.wrap(s.AllocsRequest))
 	s.mux.HandleFunc("/v1/allocation/", s.wrap(s.AllocSpecificRequest))
 

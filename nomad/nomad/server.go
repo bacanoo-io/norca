@@ -233,6 +233,10 @@ type Server struct {
 	// workload identities
 	encrypter *Encrypter
 
+	// admission holds the dynamic admission controllers (webhooks and the
+	// CEL policy engine)
+	admission *dynamicAdmission
+
 	// periodicDispatcher is used to track and create evaluations for periodic jobs.
 	periodicDispatcher *PeriodicDispatch
 
@@ -385,6 +389,13 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		s.Shutdown()
 		s.logger.Error("failed to setup Vault client", "error", err)
 		return nil, fmt.Errorf("Failed to setup Vault client: %v", err)
+	}
+
+	// Setup dynamic admission control
+	if s.admission, err = newDynamicAdmission(s.config.AdmissionConfig, s.logger); err != nil {
+		s.Shutdown()
+		s.logger.Error("failed to setup admission control", "error", err)
+		return nil, fmt.Errorf("Failed to setup admission control: %v", err)
 	}
 
 	// Set up the keyring
@@ -1265,6 +1276,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewNamespaceEndpoint(s, ctx))
 	_ = server.Register(NewNodeEndpoint(s, ctx))
 	_ = server.Register(NewNodePoolEndpoint(s, ctx))
+	_ = server.Register(NewAdmissionPolicyEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))
 	_ = server.Register(NewPlanEndpoint(s, ctx))
 	_ = server.Register(NewRegionEndpoint(s, ctx))

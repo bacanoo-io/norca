@@ -150,6 +150,14 @@ func ParseConfigFile(path string) (*Config, error) {
 			fmt.Sprintf("audit.sink.%d", i), &sink.RotateDuration, &sink.RotateDurationHCL, nil})
 	}
 
+	// Add admission webhooks for time.Duration parsing
+	if c.Server.Admission != nil {
+		for _, w := range c.Server.Admission.Webhooks {
+			tds = append(tds, durationConversionMap{
+				fmt.Sprintf("server.admission.webhook.%s.timeout", w.Name), &w.Timeout, &w.TimeoutHCL, nil})
+		}
+	}
+
 	// convert strings to time.Durations
 	err = convertDurations(tds)
 	if err != nil {
@@ -254,6 +262,19 @@ func extraKeys(c *Config) error {
 
 	for _, k := range []string{"preemption_config"} {
 		helper.RemoveEqualFold(&c.Server.ExtraKeysHCL, k)
+	}
+
+	// Remove admission webhook extra keys
+	if c.Server.Admission != nil {
+		for _, w := range c.Server.Admission.Webhooks {
+			helper.RemoveEqualFold(&c.Server.Admission.ExtraKeysHCL, w.Name)
+			helper.RemoveEqualFold(&c.Server.Admission.ExtraKeysHCL, "webhook")
+
+			// UnusedKeys doesn't descend into slices, check webhooks here
+			if err := helper.UnusedKeys(w); err != nil {
+				return fmt.Errorf("server.admission.webhook.%s: %w", w.Name, err)
+			}
+		}
 	}
 
 	for _, k := range []string{"datadog_tags"} {
