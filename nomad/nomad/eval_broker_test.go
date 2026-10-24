@@ -1152,7 +1152,7 @@ func TestEvalBroker_WaitUntil(t *testing.T) {
 	eval3.WaitUntil = now.Add(20 * time.Millisecond)
 	eval3.CreateIndex = 1
 	b.Enqueue(eval3)
-	require.Equal(3, b.stats.TotalWaiting)
+	require.Equal(3, b.Stats().TotalWaiting)
 	// sleep enough for two evals to be ready
 	time.Sleep(200 * time.Millisecond)
 
@@ -1170,7 +1170,7 @@ func TestEvalBroker_WaitUntil(t *testing.T) {
 	out, _, err = b.Dequeue(defaultSched, 2*time.Second)
 	require.Nil(err)
 	require.Equal(eval1, out)
-	require.Equal(0, b.stats.TotalWaiting)
+	require.Equal(0, b.Stats().TotalWaiting)
 }
 
 // Ensure that priority is taken into account when enqueueing many evaluations.
@@ -1609,15 +1609,23 @@ func TestEvalBroker_IntegrationTest(t *testing.T) {
 		wait.Gap(100*time.Millisecond),
 		wait.BoolFunc(func() bool {
 			got = getEvalStatuses()
+			// The final eval status is written before the scheduler acks the
+			// eval, so wait for the broker to drain as well
 			return got[structs.EvalStatusComplete] == 2 &&
-				got[structs.EvalStatusCancelled] == 9
+				got[structs.EvalStatusCancelled] == 9 &&
+				brokerDrained(getStats())
 		}),
 	),
 		must.Func(func() string {
-			return fmt.Sprintf("expected map[complete:2 canceled:9] within timeout, got: %v with broker status=%#v", got, getStats())
+			return fmt.Sprintf("expected map[complete:2 canceled:9] and an empty broker within timeout, got: %v with broker status=%#v", got, getStats())
 		}),
 	)
+}
 
-	must.Eq(t, BrokerStats{TotalReady: 0, TotalUnacked: 0,
-		TotalPending: 0, TotalCancelable: 0}, getStats())
+// brokerDrained reports whether the broker has no ready, unacked, pending,
+// waiting or cancelable evaluations.
+func brokerDrained(stats BrokerStats) bool {
+	return stats.TotalReady == 0 && stats.TotalUnacked == 0 &&
+		stats.TotalPending == 0 && stats.TotalWaiting == 0 &&
+		stats.TotalCancelable == 0
 }

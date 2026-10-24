@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/rpc"
 	"strings"
+	"sync"
 	"time"
 
 	metrics "github.com/armon/go-metrics"
@@ -104,8 +105,36 @@ type RPCContext struct {
 	// connection.
 	VerifiedChains [][]*x509.Certificate
 
-	// NodeID marks the NodeID that initiated the connection.
-	NodeID string
+	// nodeID marks the NodeID that initiated the connection. A connection is
+	// multiplexed, so concurrent RPCs share this context: access it only via
+	// NodeID and setNodeIDIfUnset.
+	nodeID     string
+	nodeIDLock sync.RWMutex
+}
+
+// NodeID returns the ID of the node that initiated the connection, or the empty
+// string if the connection has not been associated with a node.
+func (ctx *RPCContext) NodeID() string {
+	ctx.nodeIDLock.RLock()
+	defer ctx.nodeIDLock.RUnlock()
+	return ctx.nodeID
+}
+
+// setNodeIDIfUnset associates the connection with nodeID if it is not yet
+// associated with a node. It returns true only for the call that set the ID,
+// so that exactly one of several concurrent RPCs on the connection goes on to
+// track it as a node connection.
+func (ctx *RPCContext) setNodeIDIfUnset(nodeID string) bool {
+	if nodeID == "" {
+		return false
+	}
+	ctx.nodeIDLock.Lock()
+	defer ctx.nodeIDLock.Unlock()
+	if ctx.nodeID != "" {
+		return false
+	}
+	ctx.nodeID = nodeID
+	return true
 }
 
 // Certificate returns the first certificate available in the chain.
@@ -156,8 +185,12 @@ func (r *rpcHandler) listen(ctx context.Context) {
 		// Accept a connection
 		conn, err := r.srv.rpcListener.Accept()
 		if err != nil {
-			if r.srv.shutdown {
+			// Shutdown cancels the shutdown context before it closes the
+			// listener; the shutdown flag itself is guarded by shutdownLock.
+			select {
+			case <-r.srv.shutdownCh:
 				return
+			default:
 			}
 			r.handleAcceptErr(ctx, err, &acceptLoopDelay)
 			continue
@@ -249,8 +282,9 @@ func (r *rpcHandler) handleConn(ctx context.Context, conn net.Conn, rpcCtx *RPCC
 	}
 
 	// Enforce TLS if EnableRPC is set
-	if r.srv.config.TLSConfig.EnableRPC && !rpcCtx.TLS && pool.RPCType(buf[0]) != pool.RpcTLS {
-		if !r.srv.config.TLSConfig.RPCUpgradeMode {
+	tlsConf := r.srv.getTLSConfig()
+	if tlsConf.EnableRPC && !rpcCtx.TLS && pool.RPCType(buf[0]) != pool.RpcTLS {
+		if !tlsConf.RPCUpgradeMode {
 			r.logger.Warn("non-TLS connection attempted with RequireTLS set", "remote_addr", conn.RemoteAddr())
 			conn.Close()
 			return
@@ -282,7 +316,8 @@ func (r *rpcHandler) handleConn(ctx context.Context, conn net.Conn, rpcCtx *RPCC
 		r.handleMultiplex(ctx, conn, rpcCtx)
 
 	case pool.RpcTLS:
-		if r.srv.rpcTLS == nil {
+		rpcTLS := r.srv.rpcTLS.Load()
+		if rpcTLS == nil {
 			r.logger.Warn("TLS connection attempted, server not configured for TLS")
 			conn.Close()
 			return
@@ -295,7 +330,7 @@ func (r *rpcHandler) handleConn(ctx context.Context, conn net.Conn, rpcCtx *RPCC
 			return
 		}
 
-		conn = tls.Server(conn, r.srv.rpcTLS)
+		conn = tls.Server(conn, rpcTLS)
 
 		// Force a handshake so we can get information about the TLS connection
 		// state.
@@ -872,7 +907,7 @@ RUN_QUERY:
 
 func (r *rpcHandler) validateRaftTLS(rpcCtx *RPCContext) error {
 	// TLS is not configured or not to be enforced
-	tlsConf := r.srv.config.TLSConfig
+	tlsConf := r.srv.getTLSConfig()
 	if !tlsConf.EnableRPC || !tlsConf.VerifyServerHostname || tlsConf.RPCUpgradeMode {
 		return nil
 	}

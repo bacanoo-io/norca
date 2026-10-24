@@ -106,8 +106,7 @@ func (n *Node) Register(args *structs.NodeRegisterRequest, reply *structs.NodeUp
 		// We have a valid node connection since there is no error from the
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
-		if err == nil && n.ctx != nil && n.ctx.NodeID == "" && !isForwarded {
-			n.ctx.NodeID = args.Node.ID
+		if err == nil && n.ctx != nil && !isForwarded && n.ctx.setNodeIDIfUnset(args.Node.ID) {
 			n.srv.addNodeConn(n.ctx)
 		}
 
@@ -203,8 +202,7 @@ func (n *Node) Register(args *structs.NodeRegisterRequest, reply *structs.NodeUp
 	// We have a valid node connection, so add the mapping to cache the
 	// connection and allow the server to send RPCs to the client. We only cache
 	// the connection if it is not being forwarded from another server.
-	if n.ctx != nil && n.ctx.NodeID == "" && !args.IsForwarded() {
-		n.ctx.NodeID = args.Node.ID
+	if n.ctx != nil && !args.IsForwarded() && n.ctx.setNodeIDIfUnset(args.Node.ID) {
 		n.srv.addNodeConn(n.ctx)
 	}
 
@@ -540,8 +538,7 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 		// We have a valid node connection since there is no error from the
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
-		if err == nil && n.ctx != nil && n.ctx.NodeID == "" && !isForwarded {
-			n.ctx.NodeID = args.NodeID
+		if err == nil && n.ctx != nil && !isForwarded && n.ctx.setNodeIDIfUnset(args.NodeID) {
 			n.srv.addNodeConn(n.ctx)
 		}
 
@@ -580,8 +577,7 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 	// We have a valid node connection, so add the mapping to cache the
 	// connection and allow the server to send RPCs to the client. We only cache
 	// the connection if it is not being forwarded from another server.
-	if n.ctx != nil && n.ctx.NodeID == "" && !args.IsForwarded() {
-		n.ctx.NodeID = args.NodeID
+	if n.ctx != nil && !args.IsForwarded() && n.ctx.setNodeIDIfUnset(args.NodeID) {
 		n.srv.addNodeConn(n.ctx)
 	}
 
@@ -1173,8 +1169,7 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 		// We have a valid node connection since there is no error from the
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
-		if err == nil && n.ctx != nil && n.ctx.NodeID == "" && !isForwarded {
-			n.ctx.NodeID = args.NodeID
+		if err == nil && n.ctx != nil && !isForwarded && n.ctx.setNodeIDIfUnset(args.NodeID) {
 			n.srv.addNodeConn(n.ctx)
 		}
 
@@ -1219,8 +1214,7 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 				// We have a valid node connection, so add the mapping to cache the
 				// connection and allow the server to send RPCs to the client. We only cache
 				// the connection if it is not being forwarded from another server.
-				if n.ctx != nil && n.ctx.NodeID == "" && !args.IsForwarded() {
-					n.ctx.NodeID = args.NodeID
+				if n.ctx != nil && !args.IsForwarded() && n.ctx.setNodeIDIfUnset(args.NodeID) {
 					n.srv.addNodeConn(n.ctx)
 				}
 

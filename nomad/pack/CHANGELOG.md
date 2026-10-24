@@ -1,3 +1,8 @@
+## Unreleased (Norca)
+
+BREAKING CHANGES:
+* cli: Removed the `--preserve-resources` flag of `run`. It relies on a job registration option that the Nomad v1.6.5 API this fork is based on does not have.
+
 ## 0.4.2 (March 16, 2026)
 
 SECURITY:

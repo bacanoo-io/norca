@@ -285,16 +285,18 @@ Today Variables is an untyped, ACL-protected, encrypted key–value store. With 
 
 ```
 crd/<group>/<kind>/<name>
-crd/db.example.com/PostgresCluster/billing
+crd/db-example-com/PostgresCluster/billing
 ```
 
+Variables paths allow only `a-z A-Z 0-9 - _ ~ /`; dots are excluded because they act as separators in template references. A group name in domain form is therefore written with dashes instead of dots (`db.example.com` → `db-example-com`).
+
 - The **schema** can be given in a companion Variables entry (`crd-schema/<group>/<kind>`); validation can be done by the CEL rules of item 2 if admission is extended to Variables writes (this is an open question of item 2).
-- The **controller** subscribes to the `Variables` topic with the pattern `crd/db.example.com/PostgresCluster/*`, lists at startup, and reacts on change (for example starts or modifies a Nomad job).
+- The **controller** subscribes to the `Variables` topic with the pattern `crd/db-example-com/PostgresCluster/*`, lists at startup, and reacts on change (for example starts or modifies a Nomad job).
 - A small, MPL-licensed **Go controller SDK** (a separate module) provides the list + watch loop, handling of `exact=true`, retries and leader election. Variables locks appeared only in Nomad 1.7 and do not exist in 1.6.5, so leader election is built on the check-and-set write of Variables (with the `cas` parameter, based on `ModifyIndex`): whoever's write succeeds wins, and renews the entry periodically.
 
 ### API and CLI
 
-- `GET /v1/event/stream?topic=Variables:crd/db.example.com/*&index=1234&exact=true`
+- `GET /v1/event/stream?topic=Variables:crd/db-example-com/*&index=1234&exact=true`
 - `nomad operator api` and the existing `nomad event` command do not change, they only get new topics.
 
 ### Implementation

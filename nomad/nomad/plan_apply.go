@@ -354,12 +354,46 @@ func (p *planner) applyPlan(plan *structs.Plan, result *structs.PlanResult, snap
 
 	// Optimistically apply to our state view
 	if snap != nil {
+		// The request has been encoded for Raft above, so its jobs can be
+		// swapped for copies that the snapshot is free to mutate.
+		copyPlanResultsJobs(&req)
+
 		nextIdx := p.srv.raft.AppliedIndex() + 1
 		if err := snap.UpsertPlanResults(structs.ApplyPlanResultsRequestType, nextIdx, &req); err != nil {
 			return future, err
 		}
 	}
 	return future, nil
+}
+
+// copyPlanResultsJobs replaces the jobs referenced by the plan results request
+// with deep copies. UpsertPlanResults attaches the request job to the allocs
+// and canonicalizes their jobs in place, but the scheduler read those jobs
+// from a state snapshot, so they are shared with the state store and may be
+// read concurrently (by RPC handlers, other schedulers, or the FSM) at any
+// time. Each distinct job is copied once.
+func copyPlanResultsJobs(req *structs.ApplyPlanResultsRequest) {
+	copies := make(map[*structs.Job]*structs.Job)
+	copyJob := func(job *structs.Job) *structs.Job {
+		if job == nil {
+			return nil
+		}
+		if c, ok := copies[job]; ok {
+			return c
+		}
+		c := job.Copy()
+		copies[job] = c
+		return c
+	}
+
+	req.Job = copyJob(req.Job)
+	for _, allocs := range [][]*structs.Allocation{req.AllocsUpdated, req.Alloc} {
+		for _, alloc := range allocs {
+			if alloc.Job != nil {
+				alloc.Job = copyJob(alloc.Job)
+			}
+		}
+	}
 }
 
 // normalizePreemptedAlloc removes redundant fields from a preempted allocation and
