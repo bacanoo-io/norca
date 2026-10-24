@@ -4789,6 +4789,10 @@ func (j *Job) Validate() error {
 		}
 	}
 
+	if err := j.validateConsulNamespaces(); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
+	}
+
 	return mErr.ErrorOrNil()
 }
 

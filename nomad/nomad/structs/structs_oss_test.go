@@ -64,3 +64,21 @@ func TestJob_Validate_Multiregion_Oss(t *testing.T) {
 	job.Multiregion = nil
 	must.NoError(t, job.Validate())
 }
+
+// TestJob_Validate_ConsulNamespace_Oss asserts that a Consul namespace set on
+// the job or a task group is rejected: it would be silently ignored.
+func TestJob_Validate_ConsulNamespace_Oss(t *testing.T) {
+	ci.Parallel(t)
+
+	job := testJob()
+	job.ConsulNamespace = "apple"
+	must.ErrorContains(t, job.Validate(), ErrConsulNamespaceNotSupported.Error())
+
+	job = testJob()
+	job.TaskGroups[0].Consul = &Consul{Namespace: "banana"}
+	must.ErrorContains(t, job.Validate(), ErrConsulNamespaceNotSupported.Error())
+
+	job = testJob()
+	job.TaskGroups[0].Consul = &Consul{}
+	must.NoError(t, job.Validate())
+}
