@@ -246,6 +246,7 @@ func TestBridge_GoneGapMarker(t *testing.T) {
 	must.Eq(t, "nomad.r1.Bridge", gap.Subject)
 	must.Eq(t, GapType, gap.Header.Get(HeaderType))
 	must.Eq(t, "r1:gap:102", gap.Header.Get(HeaderMsgID))
+	must.Eq(t, "r1", gap.Header.Get(HeaderKey))
 	var ev struct {
 		Region, Topic, Type string
 		Payload             struct{ Gap GapPayload }

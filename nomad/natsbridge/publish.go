@@ -155,6 +155,7 @@ func gapMessage(prefix, region string, fromIndex uint64, reason string, now time
 	msg.Header.Set(HeaderRegion, region)
 	msg.Header.Set(HeaderTopic, GapTopic)
 	msg.Header.Set(HeaderType, GapType)
+	msg.Header.Set(HeaderKey, region)
 	return msg
 }
 

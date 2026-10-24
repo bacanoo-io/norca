@@ -187,7 +187,10 @@ func connectNATS(cfg *Config, region string, logger *slog.Logger) (*nats.Conn, e
 		// being sent twice.
 		nats.ReconnectBufSize(-1),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
-			logger.Warn("disconnected from NATS", "error", err)
+			// Called with a nil error when the connection is closed.
+			if err != nil {
+				logger.Warn("disconnected from NATS", "error", err)
+			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
 			logger.Info("connected to NATS", "url", nc.ConnectedUrlRedacted())
