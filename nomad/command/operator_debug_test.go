@@ -491,7 +491,6 @@ func TestDebug_CapturedFiles(t *testing.T) {
 		"deployments.json",
 		"evaluations.json",
 		"jobs.json",
-		"license.json",
 		"metrics.json",
 		"nodes.json",
 		"operator-autopilot-health.json",
