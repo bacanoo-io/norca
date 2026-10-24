@@ -265,12 +265,12 @@ func TestBackupEndpoint_BrowseRestore(t *testing.T) {
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Restore", restoreReq, &restoreResp))
 	must.Eq(t, "", restoreResp.Results[0].Error)
 
-	// Full restore is not implemented yet.
+	// A full restore needs ACLs for its two-person approval.
 	err = msgpackrpc.CallWithCodec(codec, "Backup.Restore", &structs.BackupRestoreRequest{
 		ID: record.ID, Mode: structs.BackupRestoreModeFull, AgeIdentity: identity.String(),
 		WriteRequest: structs.WriteRequest{Region: "global"},
 	}, &structs.BackupRestoreResponse{})
-	must.ErrorContains(t, err, "not implemented")
+	must.ErrorContains(t, err, "ACLs enabled")
 }
 
 func TestBackupEndpoint_SaveUpdateDelete(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"filippo.io/age"
+	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/command/agent"
 	"github.com/hashicorp/nomad/helper/pointer"
@@ -33,6 +34,152 @@ func TestOperatorBackupCommands_Implement(t *testing.T) {
 	var _ cli.Command = &OperatorBackupDeleteCommand{}
 	var _ cli.Command = &OperatorBackupRestoreCommand{}
 	var _ cli.Command = &OperatorBackupDownloadCommand{}
+	var _ cli.Command = &OperatorBackupApproveCommand{}
+	var _ cli.Command = &OperatorBackupRejectCommand{}
+	var _ cli.Command = &OperatorBackupRestoresCommand{}
+	var _ cli.Command = &OperatorBackupRestoreBootstrapCommand{}
+}
+
+func TestOperatorBackup_ParseBackupURL(t *testing.T) {
+	ci.Parallel(t)
+
+	bucket, prefix, id, err := parseBackupURL("s3://dr/norca/eu/2026/10/24/20261024T140000Z-1834567/")
+	must.NoError(t, err)
+	must.Eq(t, "dr", bucket)
+	must.Eq(t, "norca/eu", prefix)
+	must.Eq(t, "20261024T140000Z-1834567", id)
+
+	// A backup at the root of the bucket.
+	_, prefix, id, err = parseBackupURL("s3://dr/2026/10/24/20261024T140000Z-1834567")
+	must.NoError(t, err)
+	must.Eq(t, "", prefix)
+	must.Eq(t, "20261024T140000Z-1834567", id)
+
+	// A destination prefix: the latest backup.
+	_, prefix, id, err = parseBackupURL("s3://dr/norca/eu/")
+	must.NoError(t, err)
+	must.Eq(t, "norca/eu", prefix)
+	must.Eq(t, "", id)
+
+	_, _, _, err = parseBackupURL("s3://dr/norca/2026/10/25/20261024T140000Z-1834567/")
+	must.ErrorContains(t, err, "must end with")
+	_, _, _, err = parseBackupURL("https://dr/norca/eu/")
+	must.ErrorContains(t, err, "s3://")
+}
+
+// TestOperatorBackup_RestoreBootstrap builds a new single-server cluster
+// from a backup of another one in the fake S3 store: the keyring first,
+// then the state, so the Variables of the backup are readable.
+func TestOperatorBackup_RestoreBootstrap(t *testing.T) {
+	// Not parallel: the S3 credentials come from the environment.
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "testsecret")
+
+	s3 := s3fake.New()
+	defer s3.Close()
+	identity, err := age.GenerateX25519Identity()
+	must.NoError(t, err)
+	tmpDir := t.TempDir()
+	identityFile := filepath.Join(tmpDir, "key.txt")
+	must.NoError(t, os.WriteFile(identityFile, []byte(identity.String()+"\n"), 0o600))
+
+	serverConfig := func(dir string, withBackup bool) func(c *agent.Config) {
+		return func(c *agent.Config) {
+			c.DevMode = false
+			c.DataDir = filepath.Join(tmpDir, dir)
+			c.AdvertiseAddrs.HTTP = "127.0.0.1"
+			c.AdvertiseAddrs.RPC = "127.0.0.1"
+			c.AdvertiseAddrs.Serf = "127.0.0.1"
+			if withBackup {
+				c.Server.Backup = &agent.BackupConfig{
+					Destinations: []*agent.BackupDestinationConfig{{
+						Name: "primary", Type: "s3", Endpoint: s3.Endpoint(), Bucket: "backups", Region: "us-east-1",
+						ForcePathStyle: pointer.Of(true), AccessKey: "test", SecretKey: "testsecret",
+					}},
+					Encryption: &agent.BackupEncryptionConfig{Recipients: []string{identity.Recipient().String()}},
+				}
+			}
+		}
+	}
+
+	// The old cluster: a job and a Variables entry, backed up.
+	oldSrv, oldClient, oldURL := testServer(t, false, serverConfig("old", true))
+	defer oldSrv.Shutdown()
+	testutil.WaitForLeader(t, oldSrv.Agent.RPC)
+	job := testJob("bootstrapped")
+	_, _, err = oldClient.Jobs().Register(job, nil)
+	must.NoError(t, err)
+	var saved *api.BackupSaveResponse
+	must.Wait(t, wait.InitialSuccess(
+		wait.ErrorFunc(func() error {
+			if _, _, err := oldClient.Variables().Create(&api.Variable{
+				Path: "app/config", Items: api.VariableItems{"password": "s3cr3t"}}, nil); err != nil {
+				return err
+			}
+			saved, _, err = oldClient.Backups().Save(nil, nil)
+			return err
+		}),
+		wait.Timeout(10*time.Second),
+		wait.Gap(200*time.Millisecond),
+	))
+	from := "s3://backups/norca/global/" + saved.Backup.Path + "/"
+
+	// The new cluster: a single, empty server.
+	newSrv, newClient, newURL := testServer(t, false, serverConfig("new", false))
+	defer newSrv.Shutdown()
+	testutil.WaitForLeader(t, newSrv.Agent.RPC)
+
+	run := func(url string, args ...string) (int, string, string) {
+		ui := cli.NewMockUi()
+		cmd := &OperatorBackupRestoreBootstrapCommand{Meta: Meta{Ui: ui}}
+		code := cmd.Run(append([]string{"-address=" + url, "-endpoint", s3.Endpoint(), "-force-path-style",
+			"-s3-region", "us-east-1"}, args...))
+		return code, ui.OutputWriter.String(), ui.ErrorWriter.String()
+	}
+
+	// The old cluster is not new; a wrong identity can't read the backup.
+	code, _, errOut := run(oldURL, "-age-identity", identityFile, "-from", from)
+	must.One(t, code)
+	must.StrContains(t, errOut, "not new")
+	other, err := age.GenerateX25519Identity()
+	must.NoError(t, err)
+	otherFile := filepath.Join(tmpDir, "other.txt")
+	must.NoError(t, os.WriteFile(otherFile, []byte(other.String()+"\n"), 0o600))
+	code, _, errOut = run(newURL, "-age-identity", otherFile, "-from", from)
+	must.One(t, code)
+	must.StrContains(t, errOut, "does not match")
+
+	// The latest backup of the destination prefix, into the new server.
+	code, out, errOut := run(newURL, "-age-identity", identityFile, "-from", "s3://backups/norca/global/")
+	must.Zero(t, code, must.Sprint(errOut))
+	must.StrContains(t, out, saved.ID)
+	must.StrContains(t, out, "Restored 1 root keys (1 new)")
+
+	restored, _, err := newClient.Jobs().Info(*job.ID, nil)
+	must.NoError(t, err)
+	must.Eq(t, *job.ID, *restored.ID)
+	variable, _, err := newClient.Variables().Read("app/config", nil)
+	must.NoError(t, err)
+	must.Eq(t, "s3cr3t", variable.Items["password"])
+}
+
+func TestOperatorBackup_FullRestoreFlags(t *testing.T) {
+	ci.Parallel(t)
+
+	ui := cli.NewMockUi()
+	cmd := &OperatorBackupRestoreCommand{Meta: Meta{Ui: ui}}
+	must.One(t, cmd.Run([]string{"-full", "-age-identity", "key.txt", "20261024T140000Z-1"}))
+	must.StrContains(t, ui.ErrorWriter.String(), "-confirm <region>")
+
+	ui = cli.NewMockUi()
+	cmd = &OperatorBackupRestoreCommand{Meta: Meta{Ui: ui}}
+	must.One(t, cmd.Run([]string{"-full", "-job", "web", "-confirm", "global", "20261024T140000Z-1"}))
+	must.StrContains(t, ui.ErrorWriter.String(), "takes no")
+
+	ui = cli.NewMockUi()
+	approve := &OperatorBackupApproveCommand{Meta: Meta{Ui: ui}}
+	must.One(t, approve.Run([]string{"abc"}))
+	must.StrContains(t, ui.ErrorWriter.String(), "-age-identity")
 }
 
 func TestOperatorBackup_Helpers(t *testing.T) {

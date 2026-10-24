@@ -57,6 +57,19 @@ Usage: norca operator backup <subcommand> [options] [args]
       $ norca operator backup restore -age-identity key.txt \
           -job example@3 -variable nomad/jobs/example <id>
 
+  Request a full restore of the region, which a second administrator
+  approves (with another management token) to run it:
+
+      $ norca operator backup restore -full -age-identity key.txt \
+          -confirm <region> <id>
+      $ norca operator backup restores <restore_id>
+      $ norca operator backup approve -age-identity key.txt <restore_id>
+
+  Build a new cluster from a backup, on its first new server:
+
+      $ norca operator backup restore-bootstrap -age-identity key.txt \
+          -from s3://<bucket>/<prefix>/<yyyy>/<mm>/<dd>/<id>/
+
   Please see the individual subcommand help for detailed usage information.
 `
 	return strings.TrimSpace(helpText)

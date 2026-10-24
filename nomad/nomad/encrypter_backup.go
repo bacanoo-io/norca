@@ -4,6 +4,7 @@
 package nomad
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"slices"
 	"strings"
@@ -28,6 +29,37 @@ func (e *Encrypter) exportKeys() []*structs.RootKey {
 		return strings.Compare(a.Meta.KeyID, b.Meta.KeyID)
 	})
 	return keys
+}
+
+// restoreKeys adds the root keys of a backup to the keyring and the on-disk
+// keystore, alongside the existing keys, and returns the IDs of the keys
+// that were added. Key material is immutable: a key that is already in the
+// keyring is skipped, unless its material differs, which is an error.
+func (e *Encrypter) restoreKeys(keys []*structs.RootKey) ([]string, error) {
+	var added []string
+	for _, key := range keys {
+		if key == nil || key.Meta == nil {
+			return added, fmt.Errorf("root key without metadata")
+		}
+		if err := key.Meta.Validate(); err != nil {
+			return added, fmt.Errorf("invalid root key %s: %w", key.Meta.KeyID, err)
+		}
+		if len(key.Key) == 0 {
+			return added, fmt.Errorf("root key %s has no key material", key.Meta.KeyID)
+		}
+		if existing, err := e.GetKey(key.Meta.KeyID); err == nil {
+			if subtle.ConstantTimeCompare(existing, key.Key) != 1 {
+				return added, fmt.Errorf("root key %s already exists with different key material", key.Meta.KeyID)
+			}
+			continue
+		}
+		restored := &structs.RootKey{Meta: key.Meta.Copy(), Key: slices.Clone(key.Key)}
+		if err := e.AddKey(restored); err != nil {
+			return added, fmt.Errorf("failed to add root key %s: %w", key.Meta.KeyID, err)
+		}
+		added = append(added, key.Meta.KeyID)
+	}
+	return added, nil
 }
 
 // newBackupKeyring returns a standalone keyring holding the root keys of a

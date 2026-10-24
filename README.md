@@ -77,9 +77,9 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Event stream → NATS bridge (`nomad/natsbridge`, one job per region) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Multiregion deployments (one region per cloud; staged rollout, `on_failure`, global tokens, `norca deployment run`) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | NATS pack (`packs/nats`: supercluster with JetStream and gateways, optional bridge) | Available | [packs/nats](packs/nats/README.md) |
-| NATS pack (`packs/nats`: NATS cluster per region with JetStream and supercluster gateways, optional bridge job) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Backup and restore: scheduled, age-encrypted backups to S3/MinIO, browsing and selective restore (`norca operator backup`) | Available (phases 1–2) | [plan](docs/design/backup-restore-plan.md) |
-| Backup and restore: web UI, full restore with two-person approval, bootstrap | Planned | [plan](docs/design/backup-restore-plan.md) |
+| Backup and restore: full region restore with preview and two-person approval, keyring restore, `restore-bootstrap` for an empty cluster | Available (phase 4) | [plan](docs/design/backup-restore-plan.md) |
+| Backup and restore: web UI | Planned | [plan](docs/design/backup-restore-plan.md) |
 | Service discovery without Consul: health-based catalog, built-in DNS, Consul-compatible read layer for Traefik, Prometheus and consul-template (DNS and the compat layer are off by default) | Available (phases 1–3) | [plan](docs/design/consul-independence-plan.md) |
 | Service discovery without Consul: external registration, native mTLS, managed Consul install | Planned | [plan](docs/design/consul-independence-plan.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |

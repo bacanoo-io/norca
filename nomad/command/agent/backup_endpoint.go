@@ -36,9 +36,15 @@ func (s *HTTPServer) BackupSpecificRequest(resp http.ResponseWriter, req *http.R
 		return nil, CodedError(http.StatusBadRequest, "missing backup ID")
 	}
 
-	// Reserved for the two-person approval of full restores.
-	if strings.HasPrefix(path, "restore/") {
-		return nil, CodedError(http.StatusNotImplemented, "restore approval is not implemented yet")
+	// The restore records and the two-person approval of full restores.
+	if path == "restores" {
+		if req.Method != http.MethodGet {
+			return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+		}
+		return s.backupRestoreList(resp, req)
+	}
+	if rest, ok := strings.CutPrefix(path, "restore/"); ok {
+		return s.backupRestoreRequest(resp, req, rest)
 	}
 
 	id, sub, _ := strings.Cut(path, "/")
@@ -248,7 +254,8 @@ func (s *HTTPServer) backupRestore(resp http.ResponseWriter, req *http.Request, 
 	return &struct {
 		Restore *structs.BackupRestore
 		Results []*structs.BackupRestoreItemResult
-	}{out.Restore, out.Results}, nil
+		Preview *structs.BackupRestorePreview
+	}{out.Restore, out.Results, out.Preview}, nil
 }
 
 func (s *HTTPServer) backupDownloadURL(resp http.ResponseWriter, req *http.Request, id string) (any, error) {
@@ -271,4 +278,123 @@ func (s *HTTPServer) backupDownloadURL(resp http.ResponseWriter, req *http.Reque
 		URL       string
 		ExpiresAt time.Time
 	}{out.URL, out.ExpiresAt}, nil
+}
+
+// backupRestoreRequest handles /v1/operator/backup/restore/:restore_id and
+// its approve and reject actions.
+func (s *HTTPServer) backupRestoreRequest(resp http.ResponseWriter, req *http.Request, path string) (any, error) {
+	id, action, _ := strings.Cut(path, "/")
+	if id == "" {
+		return nil, CodedError(http.StatusBadRequest, "missing restore ID")
+	}
+	switch action {
+	case "":
+		if req.Method == http.MethodGet {
+			return s.backupRestoreQuery(resp, req, id)
+		}
+	case "approve":
+		if req.Method == http.MethodPost || req.Method == http.MethodPut {
+			return s.backupRestoreApprove(resp, req, id)
+		}
+	case "reject":
+		if req.Method == http.MethodPost || req.Method == http.MethodPut {
+			return s.backupRestoreReject(resp, req, id)
+		}
+	default:
+		return nil, CodedError(http.StatusNotFound, "unknown restore resource")
+	}
+	return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+}
+
+func (s *HTTPServer) backupRestoreList(resp http.ResponseWriter, req *http.Request) (any, error) {
+	args := structs.BackupRestoreListRequest{}
+	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
+		return nil, nil
+	}
+
+	var out structs.BackupRestoreListResponse
+	if err := s.agent.RPC("Backup.ListRestores", &args, &out); err != nil {
+		return nil, err
+	}
+	setMeta(resp, &out.QueryMeta)
+	if out.Restores == nil {
+		out.Restores = make([]*structs.BackupRestore, 0)
+	}
+	return out.Restores, nil
+}
+
+func (s *HTTPServer) backupRestoreQuery(resp http.ResponseWriter, req *http.Request, id string) (any, error) {
+	args := structs.BackupRestoreSpecificRequest{RestoreID: id}
+	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
+		return nil, nil
+	}
+
+	var out structs.SingleBackupRestoreResponse
+	if err := s.agent.RPC("Backup.GetRestore", &args, &out); err != nil {
+		return nil, err
+	}
+	setMeta(resp, &out.QueryMeta)
+	if out.Restore == nil {
+		return nil, CodedError(http.StatusNotFound, "restore not found")
+	}
+	return out.Restore, nil
+}
+
+func (s *HTTPServer) backupRestoreApprove(resp http.ResponseWriter, req *http.Request, id string) (any, error) {
+	var args structs.BackupRestoreApproveRequest
+	if req.ContentLength != 0 {
+		if err := decodeBody(req, &args); err != nil {
+			return nil, CodedError(http.StatusBadRequest, err.Error())
+		}
+	}
+	args.RestoreID = id
+	s.parseWriteRequest(req, &args.WriteRequest)
+
+	var out structs.BackupRestoreResponse
+	if err := s.agent.RPC("Backup.ApproveRestore", &args, &out); err != nil {
+		return nil, err
+	}
+	setIndex(resp, out.Index)
+	return out.Restore, nil
+}
+
+func (s *HTTPServer) backupRestoreReject(resp http.ResponseWriter, req *http.Request, id string) (any, error) {
+	var args structs.BackupRestoreRejectRequest
+	if req.ContentLength != 0 {
+		if err := decodeBody(req, &args); err != nil {
+			return nil, CodedError(http.StatusBadRequest, err.Error())
+		}
+	}
+	args.RestoreID = id
+	s.parseWriteRequest(req, &args.WriteRequest)
+
+	var out structs.BackupRestoreResponse
+	if err := s.agent.RPC("Backup.RejectRestore", &args, &out); err != nil {
+		return nil, err
+	}
+	setIndex(resp, out.Index)
+	return out.Restore, nil
+}
+
+// keyringRestoreRequest adds the root keys of a backup to the keystore of
+// every server of the region (Keyring.Restore).
+func (s *HTTPServer) keyringRestoreRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
+	var args structs.KeyringRestoreRequest
+	if err := decodeBody(req, &args); err != nil {
+		return nil, CodedError(http.StatusBadRequest, err.Error())
+	}
+	// Only servers fan the keys out to a single server.
+	args.LocalOnly = false
+	s.parseWriteRequest(req, &args.WriteRequest)
+
+	var out structs.KeyringRestoreResponse
+	if err := s.agent.RPC("Keyring.Restore", &args, &out); err != nil {
+		return nil, err
+	}
+	setIndex(resp, out.Index)
+	return &struct {
+		Added   []string
+		Servers []string
+		Errors  map[string]string
+	}{out.Added, out.Servers, out.Errors}, nil
 }
