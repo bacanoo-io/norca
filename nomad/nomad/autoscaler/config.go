@@ -5,6 +5,8 @@ package autoscaler
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	multierror "github.com/hashicorp/go-multierror"
@@ -52,6 +54,9 @@ type PluginConfig struct {
 	// Driver selects the plugin implementation.
 	Driver string
 
+	// Args are the command line arguments of an external plugin binary.
+	Args []string
+
 	// Config is passed to the plugin's SetConfig.
 	Config map[string]string
 }
@@ -62,13 +67,15 @@ func (p *PluginConfig) Copy() *PluginConfig {
 		return nil
 	}
 	np := *p
-	if p.Config != nil {
-		np.Config = make(map[string]string, len(p.Config))
-		for k, v := range p.Config {
-			np.Config[k] = v
-		}
-	}
+	np.Args = slices.Clone(p.Args)
+	np.Config = maps.Clone(p.Config)
 	return &np
+}
+
+// equal reports whether two plugin configurations are the same.
+func (p *PluginConfig) equal(o *PluginConfig) bool {
+	return p.Name == o.Name && p.Driver == o.Driver &&
+		slices.Equal(p.Args, o.Args) && maps.Equal(p.Config, o.Config)
 }
 
 // Config is the configuration of the built-in autoscaler. It is set from the
@@ -89,8 +96,8 @@ type Config struct {
 	DefaultEvaluationInterval time.Duration
 	DefaultCooldown           time.Duration
 
-	// PluginDir is the directory of external plugins. External plugins are
-	// not supported yet; see ExternalPluginLoader.
+	// PluginDir is the directory of the external plugin binaries: APM and
+	// strategy plugins built with the Nomad Autoscaler plugin SDK.
 	PluginDir string
 
 	// EvalWorkers bounds the number of parallel policy evaluations.
@@ -109,6 +116,10 @@ type Config struct {
 	// APMs configures named APM plugin instances in addition to the always
 	// available "nomad-apm".
 	APMs []*PluginConfig
+
+	// Strategies configures named strategy plugin instances in addition to
+	// the always available built-in strategies.
+	Strategies []*PluginConfig
 }
 
 // DefaultConfig returns the default configuration. The built-in autoscaler
@@ -139,6 +150,10 @@ func (c *Config) Copy() *Config {
 	nc.APMs = nil
 	for _, a := range c.APMs {
 		nc.APMs = append(nc.APMs, a.Copy())
+	}
+	nc.Strategies = nil
+	for _, s := range c.Strategies {
+		nc.Strategies = append(nc.Strategies, s.Copy())
 	}
 	return &nc
 }
@@ -185,16 +200,83 @@ func (c *Config) Validate() error {
 			mErr = multierror.Append(mErr, fmt.Errorf("duplicate apm %q", a.Name))
 		}
 		names[a.Name] = true
-		switch a.Driver {
-		case plugins.InternalAPMNomad, plugins.InternalAPMPrometheus:
-		default:
+		if !isBuiltinAPMDriver(a.Driver) && c.PluginDir == "" {
 			mErr = multierror.Append(mErr, fmt.Errorf(
-				"apm %q: driver %q is not a built-in plugin; external plugins are not supported yet",
-				a.Name, a.Driver))
+				"apm %q: driver %q is not a built-in plugin and plugin_dir is not set", a.Name, a.Driver))
+		}
+	}
+
+	names = map[string]bool{}
+	for _, s := range c.Strategies {
+		if s.Name == "" {
+			mErr = multierror.Append(mErr, fmt.Errorf("strategy block must have a name"))
+			continue
+		}
+		if names[s.Name] {
+			mErr = multierror.Append(mErr, fmt.Errorf("duplicate strategy %q", s.Name))
+		}
+		names[s.Name] = true
+		if !isBuiltinStrategyDriver(s.Driver) && c.PluginDir == "" {
+			mErr = multierror.Append(mErr, fmt.Errorf(
+				"strategy %q: driver %q is not a built-in plugin and plugin_dir is not set", s.Name, s.Driver))
 		}
 	}
 
 	return mErr.ErrorOrNil()
+}
+
+// builtinStrategies are the strategies that are always available.
+var builtinStrategies = []string{
+	plugins.InternalStrategyTargetValue,
+	plugins.InternalStrategyThreshold,
+	plugins.InternalStrategyFixedValue,
+	plugins.InternalStrategyPassThrough,
+}
+
+func isBuiltinAPMDriver(driver string) bool {
+	return driver == plugins.InternalAPMNomad || driver == plugins.InternalAPMPrometheus
+}
+
+func isBuiltinStrategyDriver(driver string) bool {
+	return slices.Contains(builtinStrategies, driver)
+}
+
+// KnownSources returns the names of the APMs a check may use as source: the
+// built-in nomad-apm and the configured (built-in or external) APMs.
+func (c *Config) KnownSources() []string {
+	names := []string{plugins.InternalAPMNomad}
+	for _, a := range c.APMs {
+		if !slices.Contains(names, a.Name) {
+			names = append(names, a.Name)
+		}
+	}
+	return names
+}
+
+// KnownStrategies returns the names of the strategies a check may use: the
+// built-in strategies and the configured (built-in or external) ones.
+func (c *Config) KnownStrategies() []string {
+	names := slices.Clone(builtinStrategies)
+	for _, s := range c.Strategies {
+		if !slices.Contains(names, s.Name) {
+			names = append(names, s.Name)
+		}
+	}
+	return names
+}
+
+// StrategyDriver returns the driver of the named strategy, or "" if the
+// strategy is unknown.
+func (c *Config) StrategyDriver(name string) string {
+	for _, s := range c.Strategies {
+		if s.Name == name {
+			return s.Driver
+		}
+	}
+	if isBuiltinStrategyDriver(name) {
+		return name
+	}
+	return ""
 }
 
 // PolicyEngine returns the engine responsible for the policy: the policy's

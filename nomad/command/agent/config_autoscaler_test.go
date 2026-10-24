@@ -37,6 +37,18 @@ server {
         address = "http://prometheus:9090"
       }
     }
+
+    apm "dd" {
+      driver = "datadog"
+      args   = ["-v"]
+      config {
+        dd_api_key = "abc"
+      }
+    }
+
+    strategy "pid" {
+      driver = "pid-strategy"
+    }
   }
 }
 `
@@ -58,12 +70,23 @@ server {
 	must.Eq(t, 4, cfg.EvalWorkers)
 	must.Eq(t, 5.0, cfg.RateLimit)
 	must.Eq(t, 20, cfg.RateLimitBurst)
-	must.Len(t, 1, cfg.APMs)
+	must.Len(t, 2, cfg.APMs)
 	must.Eq(t, &autoscaler.PluginConfig{
 		Name:   "prom",
 		Driver: "prometheus",
 		Config: map[string]string{"address": "http://prometheus:9090"},
 	}, cfg.APMs[0])
+	must.Eq(t, &autoscaler.PluginConfig{
+		Name:   "dd",
+		Driver: "datadog",
+		Args:   []string{"-v"},
+		Config: map[string]string{"dd_api_key": "abc"},
+	}, cfg.APMs[1])
+	must.Eq(t, []*autoscaler.PluginConfig{{
+		Name:   "pid",
+		Driver: "pid-strategy",
+		Config: map[string]string{},
+	}}, cfg.Strategies)
 
 	// The block survives merging with the default configuration.
 	merged := DefaultConfig().Merge(c)
@@ -89,7 +112,10 @@ func TestConfig_Autoscaler_Invalid(t *testing.T) {
 	cases := []*AutoscalerConfig{
 		{DefaultEngine: "other"},
 		{MinEvalInterval: "soon"},
+		// External plugins need plugin_dir.
 		{APMs: []*AutoscalerPluginConfig{{Name: "dd", Driver: "datadog"}}},
+		{Strategies: []*AutoscalerPluginConfig{{Name: "pid"}}},
+		{PluginDir: "/opt/p", Strategies: []*AutoscalerPluginConfig{{Name: "pid"}, {Name: "pid"}}},
 	}
 	for _, c := range cases {
 		_, err := c.toServerConfig()

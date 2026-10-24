@@ -32,8 +32,8 @@ type AutoscalerConfig struct {
 	DefaultEvaluationInterval string `hcl:"default_evaluation_interval"`
 	DefaultCooldown           string `hcl:"default_cooldown"`
 
-	// PluginDir is the directory of external autoscaler plugins. External
-	// plugins are not supported yet.
+	// PluginDir is the directory of external autoscaler plugins: APM and
+	// strategy plugins built with the Nomad Autoscaler plugin SDK.
 	PluginDir string `hcl:"plugin_dir"`
 
 	// EvalWorkers is the number of policy evaluations that may run in
@@ -48,6 +48,10 @@ type AutoscalerConfig struct {
 	// APMs configures named APM instances, such as a Prometheus server.
 	APMs []*AutoscalerPluginConfig `hcl:"apm"`
 
+	// Strategies configures named strategy instances, such as external
+	// strategy plugins.
+	Strategies []*AutoscalerPluginConfig `hcl:"strategy"`
+
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -56,6 +60,7 @@ type AutoscalerConfig struct {
 type AutoscalerPluginConfig struct {
 	Name   string                 `hcl:",key"`
 	Driver string                 `hcl:"driver"`
+	Args   []string               `hcl:"args"`
 	Config map[string]interface{} `hcl:"config"`
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
@@ -75,6 +80,7 @@ func (p *AutoscalerPluginConfig) Copy() *AutoscalerPluginConfig {
 		}
 		np.Config = c.(map[string]interface{})
 	}
+	np.Args = slices.Clone(p.Args)
 	np.ExtraKeysHCL = slices.Clone(p.ExtraKeysHCL)
 	return &np
 }
@@ -89,6 +95,10 @@ func (a *AutoscalerConfig) Copy() *AutoscalerConfig {
 	na.APMs = nil
 	for _, p := range a.APMs {
 		na.APMs = append(na.APMs, p.Copy())
+	}
+	na.Strategies = nil
+	for _, p := range a.Strategies {
+		na.Strategies = append(na.Strategies, p.Copy())
 	}
 	na.ExtraKeysHCL = slices.Clone(a.ExtraKeysHCL)
 	return &na
@@ -132,20 +142,28 @@ func (a *AutoscalerConfig) Merge(b *AutoscalerConfig) *AutoscalerConfig {
 	if b.RateLimitBurst != 0 {
 		result.RateLimitBurst = b.RateLimitBurst
 	}
-	for _, bp := range b.APMs {
+	result.APMs = mergePluginConfigs(result.APMs, b.APMs)
+	result.Strategies = mergePluginConfigs(result.Strategies, b.Strategies)
+	return result
+}
+
+// mergePluginConfigs merges the plugin blocks of b into a: blocks of b
+// replace those of a with the same name.
+func mergePluginConfigs(a, b []*AutoscalerPluginConfig) []*AutoscalerPluginConfig {
+	for _, bp := range b {
 		replaced := false
-		for i, rp := range result.APMs {
+		for i, rp := range a {
 			if rp.Name == bp.Name {
-				result.APMs[i] = bp.Copy()
+				a[i] = bp.Copy()
 				replaced = true
 				break
 			}
 		}
 		if !replaced {
-			result.APMs = append(result.APMs, bp.Copy())
+			a = append(a, bp.Copy())
 		}
 	}
-	return result
+	return a
 }
 
 // toServerConfig converts the agent configuration into the server's
@@ -195,22 +213,32 @@ func (a *AutoscalerConfig) toServerConfig() (*autoscaler.Config, error) {
 	}
 
 	for _, p := range a.APMs {
-		pc := &autoscaler.PluginConfig{
-			Name:   p.Name,
-			Driver: p.Driver,
-			Config: make(map[string]string, len(p.Config)),
-		}
-		if pc.Driver == "" {
-			pc.Driver = p.Name
-		}
-		for k, v := range p.Config {
-			pc.Config[k] = fmt.Sprintf("%v", v)
-		}
-		cfg.APMs = append(cfg.APMs, pc)
+		cfg.APMs = append(cfg.APMs, p.toServerConfig())
+	}
+	for _, p := range a.Strategies {
+		cfg.Strategies = append(cfg.Strategies, p.toServerConfig())
 	}
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid autoscaler configuration: %w", err)
 	}
 	return cfg, nil
+}
+
+// toServerConfig converts a plugin block into the server's plugin
+// configuration. The driver defaults to the name of the block.
+func (p *AutoscalerPluginConfig) toServerConfig() *autoscaler.PluginConfig {
+	pc := &autoscaler.PluginConfig{
+		Name:   p.Name,
+		Driver: p.Driver,
+		Args:   slices.Clone(p.Args),
+		Config: make(map[string]string, len(p.Config)),
+	}
+	if pc.Driver == "" {
+		pc.Driver = p.Name
+	}
+	for k, v := range p.Config {
+		pc.Config[k] = fmt.Sprintf("%v", v)
+	}
+	return pc
 }
