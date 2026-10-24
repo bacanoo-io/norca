@@ -278,9 +278,6 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	if agentConfig.ACL.TokenMaxExpirationTTL != 0 {
 		conf.ACLTokenMaxExpirationTTL = agentConfig.ACL.TokenMaxExpirationTTL
 	}
-	if agentConfig.Sentinel != nil {
-		conf.SentinelConfig = agentConfig.Sentinel
-	}
 	if agentConfig.Server.NonVotingServer {
 		conf.NonVoter = true
 	}

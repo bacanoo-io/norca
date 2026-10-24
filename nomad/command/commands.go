@@ -951,31 +951,6 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
-		"sentinel": func() (cli.Command, error) {
-			return &SentinelCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel list": func() (cli.Command, error) {
-			return &SentinelListCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel apply": func() (cli.Command, error) {
-			return &SentinelApplyCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel delete": func() (cli.Command, error) {
-			return &SentinelDeleteCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel read": func() (cli.Command, error) {
-			return &SentinelReadCommand{
-				Meta: meta,
-			}, nil
-		},
 		"server": func() (cli.Command, error) {
 			return &ServerCommand{
 				Meta: meta,

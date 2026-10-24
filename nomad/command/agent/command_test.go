@@ -317,6 +317,14 @@ func TestIsValidConfig(t *testing.T) {
 			err: "server.license_path is not supported",
 		},
 		{
+			name: "SentinelUnsupported",
+			conf: Config{
+				Client:   &ClientConfig{Enabled: true},
+				Sentinel: &UnsupportedBlock{},
+			},
+			err: "sentinel is not supported",
+		},
+		{
 			name: "AutopilotUnsupported",
 			conf: Config{
 				Server: &ServerConfig{Enabled: true},

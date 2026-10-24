@@ -173,8 +173,9 @@ type Config struct {
 	// set arbitrary headers on API responses
 	HTTPAPIResponseHeaders map[string]string `hcl:"http_api_response_headers"`
 
-	// Sentinel holds sentinel related settings
-	Sentinel *config.SentinelConfig `hcl:"sentinel"`
+	// Sentinel is only parsed so that a leftover sentinel block is rejected
+	// at startup: Sentinel policies are not supported.
+	Sentinel *UnsupportedBlock `hcl:"sentinel"`
 
 	// Autopilot contains the configuration for Autopilot behavior.
 	Autopilot *config.AutopilotConfig `hcl:"autopilot"`
@@ -1353,7 +1354,6 @@ func DefaultConfig() *Config {
 			collectionInterval: 1 * time.Second,
 		},
 		TLSConfig:          &config.TLSConfig{},
-		Sentinel:           &config.SentinelConfig{},
 		Version:            version.GetVersion(),
 		Autopilot:          config.DefaultAutopilotConfig(),
 		Audit:              &config.AuditConfig{},
@@ -1546,12 +1546,9 @@ func (c *Config) Merge(b *Config) *Config {
 		result.UI = result.UI.Merge(b.UI)
 	}
 
-	// Apply the sentinel config
-	if result.Sentinel == nil && b.Sentinel != nil {
-		server := *b.Sentinel
-		result.Sentinel = &server
-	} else if b.Sentinel != nil {
-		result.Sentinel = result.Sentinel.Merge(b.Sentinel)
+	// Keep a sentinel block so that it is rejected at startup
+	if b.Sentinel != nil {
+		result.Sentinel = &UnsupportedBlock{}
 	}
 
 	if result.Autopilot == nil && b.Autopilot != nil {
@@ -1614,7 +1611,9 @@ func (c *Config) Copy() *Config {
 	nc.Files = slices.Clone(c.Files)
 	nc.TLSConfig = c.TLSConfig.Copy()
 	nc.HTTPAPIResponseHeaders = maps.Clone(c.HTTPAPIResponseHeaders)
-	nc.Sentinel = c.Sentinel.Copy()
+	if c.Sentinel != nil {
+		nc.Sentinel = &UnsupportedBlock{}
+	}
 	nc.Autopilot = c.Autopilot.Copy()
 	nc.Plugins = helper.CopySlice(c.Plugins)
 	nc.Limits = c.Limits.Copy()

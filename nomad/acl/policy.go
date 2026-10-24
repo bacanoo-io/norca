@@ -28,6 +28,10 @@ const (
 	// The Policy field is a short hand for granting several of these. When capabilities are
 	// combined we take the union of all capabilities. If the deny capability is present, it
 	// takes precedence and overwrites all other capabilities.
+	//
+	// sentinel-override has no effect: Sentinel policies are not supported.
+	// It is still accepted so that existing ACL policies that grant it keep
+	// loading.
 
 	NamespaceCapabilityDeny                 = "deny"
 	NamespaceCapabilityListJobs             = "list-jobs"
@@ -40,7 +44,7 @@ const (
 	NamespaceCapabilityAllocExec            = "alloc-exec"
 	NamespaceCapabilityAllocNodeExec        = "alloc-node-exec"
 	NamespaceCapabilityAllocLifecycle       = "alloc-lifecycle"
-	NamespaceCapabilitySentinelOverride     = "sentinel-override"
+	NamespaceCapabilitySentinelOverride     = "sentinel-override" // no effect
 	NamespaceCapabilityCSIRegisterPlugin    = "csi-register-plugin"
 	NamespaceCapabilityCSIWriteVolume       = "csi-write-volume"
 	NamespaceCapabilityCSIReadVolume        = "csi-read-volume"
@@ -210,7 +214,8 @@ func isNamespaceCapabilityValid(cap string) bool {
 		NamespaceCapabilityCSIReadVolume, NamespaceCapabilityCSIWriteVolume, NamespaceCapabilityCSIListVolume, NamespaceCapabilityCSIMountVolume, NamespaceCapabilityCSIRegisterPlugin,
 		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob:
 		return true
-	// Separate the enterprise-only capabilities
+	// Capabilities without effect, accepted for compatibility with existing
+	// policies
 	case NamespaceCapabilitySentinelOverride, NamespaceCapabilitySubmitRecommendation:
 		return true
 	default:
