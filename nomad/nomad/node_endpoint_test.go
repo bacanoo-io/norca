@@ -840,8 +840,11 @@ func TestClientEndpoint_UpdateStatus_Reconnect(t *testing.T) {
 	err := msgpackrpc.CallWithCodec(codec, "Node.Register", reg, &nodeUpdateResp)
 	must.NoError(t, err)
 
-	// Start heartbeat.
-	heartbeat := func(ctx context.Context) {
+	// Start heartbeat. An RPC codec is not safe for concurrent use, so each
+	// heartbeat loop uses its own connection.
+	heartbeat := func(ctx context.Context, codec rpc.ClientCodec) {
+		defer codec.Close()
+
 		ticker := time.NewTicker(heartbeatTTL / 2)
 		defer ticker.Stop()
 
@@ -868,7 +871,7 @@ func TestClientEndpoint_UpdateStatus_Reconnect(t *testing.T) {
 	}
 	heartbeatCtx, cancelHeartbeat := context.WithCancel(context.Background())
 	defer cancelHeartbeat()
-	go heartbeat(heartbeatCtx)
+	go heartbeat(heartbeatCtx, rpcClient(t, s))
 
 	// Wait for node to be ready.
 	testutil.WaitForClientStatus(t, s.RPC, node.ID, "global", structs.NodeStatusReady)
@@ -943,7 +946,7 @@ func TestClientEndpoint_UpdateStatus_Reconnect(t *testing.T) {
 	// Restart heartbeat to reconnect node.
 	heartbeatCtx, cancelHeartbeat = context.WithCancel(context.Background())
 	defer cancelHeartbeat()
-	go heartbeat(heartbeatCtx)
+	go heartbeat(heartbeatCtx, rpcClient(t, s))
 
 	// Wait a few heartbeats and check that the node is still initializing.
 	//
