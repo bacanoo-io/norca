@@ -22,9 +22,10 @@ SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
 # Files of the HashiCorp forks keep their own headers; files without a header
-# (generated code, test data) fall under the license of the fork
+# (generated code, test data) fall under the license of the fork.
+# nomad/pack/** originates from HashiCorp Nomad Pack v0.4.2 (MPL 2.0).
 [[annotations]]
-path = ["nomad/**", "nomad-pack/**"]
+path = ["nomad/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "HashiCorp, Inc. and Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"

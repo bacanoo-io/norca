@@ -16,9 +16,9 @@ This document records under which license each part of the project falls, where 
 | --- | --- | --- | --- | --- |
 | HashiCorp Nomad | v1.6.5 (2023-12-13) | `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f` | MPL 2.0 | The last MPL release; everything from v1.6.6 on is BSL 1.1 |
 | HashiCorp Nomad Autoscaler | v0.6.0 (2026-09-28) | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 | There was no license change; its code goes into the `nomad/autoscaler` package of the Nomad fork |
-| HashiCorp Nomad Pack | v0.4.2 (2026-03-13) | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 | Its test helper (`internal/cli/testhelper`) pulls in the BSL main Nomad module; in the fork it must be switched to our own Nomad build |
+| HashiCorp Nomad Pack | v0.4.2 (2026-03-13) | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 | Upstream, its test helper (`internal/cli/testhelper`) pulls in the BSL main Nomad module; in the fork it lives in `nomad/pack/` inside the Nomad module and uses the fork's own packages |
 
-Nomad v1.6.5 goes into the repository together with its git history (for example `git subtree add --prefix nomad https://github.com/hashicorp/nomad.git v1.6.5`), so anyone can verify that the starting point was an MPL commit. Nomad Pack likewise, into the `nomad-pack/` directory.
+Nomad v1.6.5 goes into the repository together with its git history (for example `git subtree add --prefix nomad https://github.com/hashicorp/nomad.git v1.6.5`), so anyone can verify that the starting point was an MPL commit. Nomad Pack likewise, with its history; it was imported into `nomad-pack/` and later moved into `nomad/pack/`, where it is part of the Nomad Go module and runs as the `nomad pack` subcommand (`git log --follow` keeps the history).
 
 **Consul is not part of the repository.** The Consul-compatible layer implements the documented behavior of Consul's public API and contains no Consul code. The conformance tests use the `github.com/hashicorp/consul/api` client (MPL 2.0).
 
@@ -111,8 +111,8 @@ norca/
 ├── docs/
 │   ├── licensing.md          # this document
 │   └── design/               # design documents, mockup
-├── nomad/                    # Nomad v1.6.5 fork, with history
-├── nomad-pack/               # Nomad Pack v0.4.2 fork, with history
+├── nomad/                    # Nomad v1.6.5 fork, with history (one Go module)
+│   └── pack/                 # Nomad Pack v0.4.2 fork, with history; `nomad pack` subcommand
 └── .github/
     ├── pull_request_template.md
     └── workflows/            # reuse lint, license check, DCO
@@ -121,7 +121,7 @@ norca/
 ## Pre-publication checklist
 
 - [ ] `nomad/` imported from the v1.6.5 tag, with history; its LICENSE file is MPL 2.0
-- [ ] `nomad-pack/` imported from the v0.4.2 tag; the test helper switched to the fork's build, no BSL module in the `go.mod` files
+- [ ] Nomad Pack imported from the v0.4.2 tag (now `nomad/pack/`); the test helper switched to the fork's build, no BSL module in the `go.mod` files
 - [ ] Neutral project and binary name; trademark notice in the README and the NOTICE; HashiCorp logos and branding removed
 - [ ] The original copyright and SPDX headers are intact; `reuse lint` is clean
 - [ ] License check in CI: no prohibited license, no ApexCharts
