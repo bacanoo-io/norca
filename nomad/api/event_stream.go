@@ -6,7 +6,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -21,8 +23,15 @@ const (
 	TopicNode       Topic = "Node"
 	TopicNodePool   Topic = "NodePool"
 	TopicService    Topic = "Service"
+	TopicVariables  Topic = "Variables"
 	TopicAll        Topic = "*"
 )
+
+// ErrEventIndexGone is returned by StreamExact when the server can no longer
+// deliver every event from the requested index on (it answered 410 Gone).
+// The caller has to resynchronize: list the objects it watches again and
+// resume streaming from the index of that listing.
+var ErrEventIndexGone = errors.New("requested event index is no longer available")
 
 // Events is a set of events for a corresponding index. Events returned for the
 // index depend on which topics are subscribed to when a request is made.
@@ -45,6 +54,7 @@ type Event struct {
 	Topic      Topic
 	Type       string
 	Key        string
+	Namespace  string
 	FilterKeys []string
 	Index      uint64
 	Payload    map[string]interface{}
@@ -120,6 +130,17 @@ func (e *Event) Service() (*ServiceRegistration, error) {
 	return out.Service, nil
 }
 
+// Variable returns the metadata of the changed variable from a given event
+// payload. If the Event Topic is Variables this will return valid metadata.
+// Variable events never carry the variable items.
+func (e *Event) Variable() (*VariableMetadata, error) {
+	out, err := e.decodePayload()
+	if err != nil {
+		return nil, err
+	}
+	return out.Variable, nil
+}
+
 type eventPayload struct {
 	Allocation *Allocation          `mapstructure:"Allocation"`
 	Deployment *Deployment          `mapstructure:"Deployment"`
@@ -128,6 +149,7 @@ type eventPayload struct {
 	Node       *Node                `mapstructure:"Node"`
 	NodePool   *NodePool            `mapstructure:"NodePool"`
 	Service    *ServiceRegistration `mapstructure:"Service"`
+	Variable   *VariableMetadata    `mapstructure:"Variable"`
 }
 
 func (e *Event) decodePayload() (*eventPayload, error) {
@@ -168,6 +190,25 @@ func (c *Client) EventStream() *EventStream {
 // Stream establishes a new subscription to Nomad's event stream and streams
 // results back to the returned channel.
 func (e *EventStream) Stream(ctx context.Context, topics map[Topic][]string, index uint64, q *QueryOptions) (<-chan *Events, error) {
+	return e.stream(ctx, topics, index, false, q)
+}
+
+// StreamExact is like Stream, but guarantees that every event with an index
+// at or after index is delivered: to resume after the last processed event,
+// pass its index plus one. If the server can no longer guarantee that, an
+// error wrapping ErrEventIndexGone is returned and the caller has to
+// resynchronize. The index must be positive.
+//
+// For topics whose keys are paths (Variables), keys may be glob patterns,
+// for example "crd/example/Widget/*".
+func (e *EventStream) StreamExact(ctx context.Context, topics map[Topic][]string, index uint64, q *QueryOptions) (<-chan *Events, error) {
+	if index == 0 {
+		return nil, errors.New("index must be positive for an exact event stream")
+	}
+	return e.stream(ctx, topics, index, true, q)
+}
+
+func (e *EventStream) stream(ctx context.Context, topics map[Topic][]string, index uint64, exact bool, q *QueryOptions) (<-chan *Events, error) {
 	r, err := e.client.newRequest("GET", "/v1/event/stream")
 	if err != nil {
 		return nil, err
@@ -177,6 +218,9 @@ func (e *EventStream) Stream(ctx context.Context, topics map[Topic][]string, ind
 		q.Params = map[string]string{}
 	}
 	q.Params["index"] = strconv.FormatUint(index, 10)
+	if exact {
+		q.Params["exact"] = "true"
+	}
 	r.setQueryOptions(q)
 
 	// Build topic query params
@@ -189,6 +233,10 @@ func (e *EventStream) Stream(ctx context.Context, topics map[Topic][]string, ind
 	_, resp, err := requireOK(e.client.doRequest(r))
 
 	if err != nil {
+		var respErr UnexpectedResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode() == http.StatusGone {
+			return nil, fmt.Errorf("%w: %v", ErrEventIndexGone, err)
+		}
 		return nil, err
 	}
 

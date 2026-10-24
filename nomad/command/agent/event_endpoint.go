@@ -36,14 +36,29 @@ func (s *HTTPServer) EventStream(resp http.ResponseWriter, req *http.Request) (i
 		return nil, CodedError(400, fmt.Sprintf("Unable to parse index: %v", err))
 	}
 
+	// exact=true requires every event from index on to be delivered; if
+	// the server cannot guarantee that it responds with 410 (Gone) and the
+	// client has to resynchronize.
+	exact := false
+	if exactStr := query.Get("exact"); exactStr != "" {
+		exact, err = strconv.ParseBool(exactStr)
+		if err != nil {
+			return nil, CodedError(400, fmt.Sprintf("Unable to parse exact: %v", err))
+		}
+		if exact && index <= 0 {
+			return nil, CodedError(400, "exact requires a positive index")
+		}
+	}
+
 	topics, err := parseEventTopics(query)
 	if err != nil {
 		return nil, CodedError(400, fmt.Sprintf("Invalid topic query: %v", err))
 	}
 
 	args := &structs.EventStreamRequest{
-		Topics: topics,
-		Index:  index,
+		Topics:              topics,
+		Index:               index,
+		StartExactlyAtIndex: exact,
 	}
 	resp.Header().Set("Content-Type", "application/json")
 	resp.Header().Set("Cache-Control", "no-cache")
