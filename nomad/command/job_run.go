@@ -17,6 +17,11 @@ import (
 	"github.com/posener/complete"
 )
 
+// policyOverrideWarning is printed to stderr when -policy-override is set.
+// Admission policies (CEL policies and webhooks) cannot be overridden, so the
+// flag is accepted for compatibility but not sent to the server.
+const policyOverrideWarning = "Warning: -policy-override has no effect: overriding admission policies is not supported"
+
 var (
 	// enforceIndexRegex is a regular expression which extracts the enforcement error
 	enforceIndexRegex = regexp.MustCompile(`\((Enforcing job modify index.*)\)`)
@@ -110,7 +115,8 @@ Run Options:
     the job.
 
   -policy-override
-    Sets the flag to force override any soft mandatory Sentinel policies.
+    Has no effect: overriding admission policies is not supported. The flag is
+    still accepted for compatibility and prints a warning.
 
   -preserve-counts
     If set, the existing task group counts will be preserved when updating a job.
@@ -221,6 +227,10 @@ func (c *JobRunCommand) Run(args []string) int {
 		return 1
 	}
 
+	if override {
+		c.Ui.Warn(policyOverrideWarning)
+	}
+
 	// Truncate the id unless full length is requested
 	length := shortId
 	if verbose {
@@ -326,7 +336,6 @@ func (c *JobRunCommand) Run(args []string) int {
 
 	// Set the register options
 	opts := &api.RegisterOptions{
-		PolicyOverride: override,
 		PreserveCounts: preserveCounts,
 		EvalPriority:   evalPriority,
 		Submission:     sub,

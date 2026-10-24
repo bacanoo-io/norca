@@ -45,8 +45,7 @@ Recommendation Apply Options:
     recommendations for multiple jobs, this value will always be true.
 
   -policy-override
-    If set, any soft mandatory Sentinel policies will be overridden. This allows
-    a recommendation to be applied when it would be denied by a policy.
+    Has no effect: overriding admission policies is not supported.
 
   -verbose
     Display full information.
