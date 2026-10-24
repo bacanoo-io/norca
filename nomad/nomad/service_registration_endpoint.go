@@ -97,6 +97,36 @@ func (s *ServiceRegistration) Upsert(
 		}
 	}
 
+	// The health-based catalog (health, checks, zone, meta and discovery
+	// settings, with flapping protection) is enabled once every server of the
+	// region runs Norca; until then registrations keep the fields known to
+	// every server.
+	if !ServersMeetMinimumNorcaVersion(s.srv.Members(), s.srv.Region(), false) {
+		for _, service := range args.Services {
+			service.StripNorcaFields()
+		}
+	} else if s.srv.serviceHealth != nil {
+		stateStore := s.srv.fsm.State()
+		services, err := s.srv.serviceHealth.filter(args.Services,
+			func(namespace, id string) (*structs.ServiceRegistration, error) {
+				return stateStore.GetServiceRegistrationByID(nil, namespace, id)
+			})
+		if err != nil {
+			return err
+		}
+
+		// Nothing changes: skip the Raft write.
+		if len(services) == 0 {
+			index, err := stateStore.Index(state.TableServiceRegistrations)
+			if err != nil {
+				return err
+			}
+			reply.Index = index
+			return nil
+		}
+		args.Services = services
+	}
+
 	// Update via Raft.
 	_, index, err := s.srv.raftApply(structs.ServiceRegistrationUpsertRequestType, args)
 	if err != nil {
@@ -447,7 +477,17 @@ func (s *ServiceRegistration) GetService(
 
 			// Build the paginator. This includes the function that is
 			// responsible for appending a registration to the services array.
-			paginatorImpl, err := paginator.NewPaginator(iter, tokenizer, nil, args.QueryOptions,
+			// Filter for healthy instances if requested.
+			var filters []paginator.Filter
+			if args.HealthyOnly {
+				filters = append(filters, paginator.GenericFilter{
+					Allow: func(raw interface{}) (bool, error) {
+						return raw.(*structs.ServiceRegistration).Discoverable(), nil
+					},
+				})
+			}
+
+			paginatorImpl, err := paginator.NewPaginator(iter, tokenizer, filters, args.QueryOptions,
 				func(raw interface{}) error {
 					services = append(services, raw.(*structs.ServiceRegistration))
 					return nil

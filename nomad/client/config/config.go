@@ -305,6 +305,13 @@ type Config struct {
 	// discovery client functionality is enabled.
 	NomadServiceDiscovery bool
 
+	// NativeServiceDiscovery holds the settings of service lookups made by
+	// the workloads of the client (Norca).
+	NativeServiceDiscovery *structsc.NativeServiceDiscoveryConfig
+
+	// Topology holds the topology zone of the node (Norca).
+	Topology *structsc.TopologyConfig
+
 	// TemplateDialer is our custom HTTP dialer for consul-template. This is
 	// used for template functions which require access to the Nomad API.
 	TemplateDialer *bufconndialer.BufConnWrapper
@@ -752,6 +759,8 @@ func (c *Config) Copy() *Config {
 	nc.TemplateConfig = c.TemplateConfig.Copy()
 	nc.ReservableCores = slices.Clone(c.ReservableCores)
 	nc.Artifact = c.Artifact.Copy()
+	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
+	nc.Topology = c.Topology.Copy()
 	return &nc
 }
 

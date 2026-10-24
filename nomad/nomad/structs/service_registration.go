@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/ipaddr"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
@@ -97,6 +98,30 @@ type ServiceRegistration struct {
 	// written by clients that predate check roles carry the zero value.
 	Ready bool
 
+	// Health is the aggregate state (passing, warning or critical) of the
+	// startup, readiness and role-less checks of the service instance, as
+	// computed by the client. Instances without checks are passing. It is
+	// empty in registrations written before the health-based catalog.
+	Health string
+
+	// Checks are the states of the checks of the service instance.
+	Checks []*ServiceRegistrationCheck
+
+	// HealthUpdatedAt is the time (Unix nanoseconds) at which the servers last
+	// recorded a change of the health of the instance.
+	HealthUpdatedAt int64
+
+	// Zone is the topology zone of the node running the instance, taken from
+	// the topology configuration of the client (by default the node meta
+	// "zone").
+	Zone string
+
+	// Meta is the meta of the service (or its canary meta for canaries).
+	Meta map[string]string
+
+	// Discovery holds the discovery settings of the service block.
+	Discovery *ServiceDiscovery
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -111,6 +136,9 @@ func (s *ServiceRegistration) Copy() *ServiceRegistration {
 	ns := new(ServiceRegistration)
 	*ns = *s
 	ns.Tags = slices.Clone(ns.Tags)
+	ns.Checks = copyRegistrationChecks(s.Checks)
+	ns.Meta = maps.Clone(s.Meta)
+	ns.Discovery = s.Discovery.Copy()
 
 	return ns
 }
@@ -149,6 +177,15 @@ func (s *ServiceRegistration) Equal(o *ServiceRegistration) bool {
 		return false
 	}
 	if s.Ready != o.Ready {
+		return false
+	}
+	if s.Health != o.Health || s.HealthUpdatedAt != o.HealthUpdatedAt || s.Zone != o.Zone {
+		return false
+	}
+	if !registrationChecksEqual(s.Checks, o.Checks) || !registrationMetaEqual(s.Meta, o.Meta) {
+		return false
+	}
+	if !s.Discovery.Equal(o.Discovery) {
 		return false
 	}
 	if !helper.SliceSetEq(s.Tags, o.Tags) {
@@ -280,6 +317,11 @@ type ServiceRegistrationStub struct {
 type ServiceRegistrationByNameRequest struct {
 	ServiceName string
 	Choose      string // stable selection of n services
+
+	// HealthyOnly limits the response to the instances that are healthy, or
+	// whose service publishes instances that are not ready.
+	HealthyOnly bool
+
 	QueryOptions
 }
 

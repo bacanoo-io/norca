@@ -1491,6 +1491,7 @@ func ApiServicesToStructs(in []*api.Service, group bool) []*structs.Service {
 			TaggedAddresses:   maps.Clone(s.TaggedAddresses),
 			OnUpdate:          s.OnUpdate,
 			Provider:          s.Provider,
+			Discovery:         apiServiceDiscoveryToStructs(s.Discovery),
 		}
 
 		if l := len(s.Checks); l != 0 {

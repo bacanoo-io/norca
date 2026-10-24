@@ -861,6 +861,8 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	if agentConfig.Client.NomadServiceDiscovery != nil {
 		conf.NomadServiceDiscovery = *agentConfig.Client.NomadServiceDiscovery
 	}
+	conf.NativeServiceDiscovery = agentConfig.Client.NativeServiceDiscovery.Copy()
+	conf.Topology = agentConfig.Client.Topology.Copy()
 
 	artifactConfig, err := clientconfig.ArtifactConfigFromAgent(agentConfig.Client.Artifact)
 	if err != nil {

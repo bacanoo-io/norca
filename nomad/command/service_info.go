@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/cli"
@@ -41,7 +42,11 @@ General Options:
 Service Info Options:
 
   -verbose
-    Display full information.
+    Display full information, including the checks of each instance.
+
+  -healthy
+    Only show healthy instances, and those of services that publish
+    instances that are not ready.
 
   -per-page
     How many results to show per page.
@@ -75,6 +80,7 @@ func (s *ServiceInfoCommand) AutocompleteFlags() complete.Flags {
 			"-page-token": complete.PredictAnything,
 			"-t":          complete.PredictAnything,
 			"-verbose":    complete.PredictNothing,
+			"-healthy":    complete.PredictNothing,
 		})
 }
 
@@ -84,7 +90,7 @@ func (s *ServiceInfoCommand) Name() string { return "service info" }
 // Run satisfies the cli.Command Run function.
 func (s *ServiceInfoCommand) Run(args []string) int {
 	var (
-		json, verbose           bool
+		json, verbose, healthy  bool
 		perPage                 int
 		tmpl, filter, pageToken string
 	)
@@ -93,6 +99,7 @@ func (s *ServiceInfoCommand) Run(args []string) int {
 	flags.Usage = func() { s.Ui.Output(s.Help()) }
 	flags.BoolVar(&json, "json", false, "")
 	flags.BoolVar(&verbose, "verbose", false, "")
+	flags.BoolVar(&healthy, "healthy", false, "")
 	flags.StringVar(&tmpl, "t", "", "")
 	flags.StringVar(&filter, "filter", "", "")
 	flags.IntVar(&perPage, "per-page", 0, "")
@@ -119,6 +126,9 @@ func (s *ServiceInfoCommand) Run(args []string) int {
 		Filter:    filter,
 		PerPage:   int32(perPage),
 		NextToken: pageToken,
+	}
+	if healthy {
+		opts.Params = map[string]string{"healthy": "true"}
 	}
 
 	serviceInfo, qm, err := client.Services().Get(args[0], &opts)
@@ -180,22 +190,55 @@ func (s *ServiceInfoCommand) Run(args []string) int {
 func (s *ServiceInfoCommand) formatOutput(jobIDs []string, jobServices map[string][]*api.ServiceRegistration) {
 
 	// Create the output table header.
-	outputTable := []string{"Job ID|Address|Tags|Node ID|Alloc ID"}
+	outputTable := []string{"Job ID|Address|Tags|Health|Node ID|Alloc ID"}
 
 	// Populate the list.
 	for _, jobID := range jobIDs {
 		for _, service := range jobServices[jobID] {
 			outputTable = append(outputTable, fmt.Sprintf(
-				"%s|%s|[%s]|%s|%s",
+				"%s|%s|[%s]|%s|%s|%s",
 				service.JobID,
 				formatAddress(service.Address, service.Port),
 				strings.Join(service.Tags, ","),
+				formatServiceHealth(service),
 				limit(service.NodeID, shortId),
 				limit(service.AllocID, shortId),
 			))
 		}
 	}
 	s.Ui.Output(formatList(outputTable))
+}
+
+// formatServiceHealth returns the health of a registration for display: its
+// aggregate health, and "not ready" for instances that are not ready yet.
+// Registrations written before the health-based catalog show their Ready
+// state only.
+func formatServiceHealth(service *api.ServiceRegistration) string {
+	health := service.Health
+	if health == "" {
+		if service.Ready {
+			return "ready"
+		}
+		return "not ready"
+	}
+	if !service.Ready && health != api.ServiceHealthCritical {
+		return health + " (not ready)"
+	}
+	return health
+}
+
+// formatServiceChecks returns the checks of a registration as a table.
+func formatServiceChecks(service *api.ServiceRegistration) string {
+	rows := []string{"Check|Role|Status|Output"}
+	for _, check := range service.Checks {
+		role := check.Role
+		if role == "" {
+			role = "-"
+		}
+		output := strings.TrimSpace(strings.ReplaceAll(check.Output, "\n", " "))
+		rows = append(rows, fmt.Sprintf("%s|%s|%s|%s", check.Name, role, check.Status, limit(output, 60)))
+	}
+	return formatList(rows)
 }
 
 func formatAddress(address string, port int) string {
@@ -219,9 +262,19 @@ func (s *ServiceInfoCommand) formatVerboseOutput(jobIDs []string, jobServices ma
 				fmt.Sprintf("Node ID|%s", service.NodeID),
 				fmt.Sprintf("Datacenter|%s", service.Datacenter),
 				fmt.Sprintf("Address|%v", fmt.Sprintf("%s:%v", service.Address, service.Port)),
-				fmt.Sprintf("Tags|[%s]\n", strings.Join(service.Tags, ",")),
+				fmt.Sprintf("Zone|%s", service.Zone),
+				fmt.Sprintf("Ready|%v", service.Ready),
+				fmt.Sprintf("Health|%s", formatServiceHealth(service)),
 			}
+			if service.HealthUpdatedAt != 0 {
+				out = append(out, fmt.Sprintf("Health Since|%s",
+					formatTimeDifference(time.Now(), time.Unix(0, service.HealthUpdatedAt), time.Second)+" ago"))
+			}
+			out = append(out, fmt.Sprintf("Tags|[%s]\n", strings.Join(service.Tags, ",")))
 			s.Ui.Output(formatKV(out))
+			if len(service.Checks) > 0 {
+				s.Ui.Output(formatServiceChecks(service))
+			}
 			s.Ui.Output("")
 		}
 	}

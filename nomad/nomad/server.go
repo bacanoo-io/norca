@@ -316,6 +316,10 @@ type Server struct {
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 	shutdownCh     <-chan struct{}
+
+	// serviceHealth holds back service health changes that come too fast
+	// (Norca flapping protection).
+	serviceHealth *serviceHealthDamper
 }
 
 // NewServer is used to construct a new Nomad server from the
@@ -525,6 +529,10 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 
 	// Emit raft and state store metrics
 	go s.EmitRaftStats(10*time.Second, s.shutdownCh)
+
+	// Apply the service health changes held back by the flapping protection
+	s.serviceHealth = newServiceHealthDamper(s)
+	go s.serviceHealth.run(s.shutdownCh)
 
 	// Start enterprise background workers
 	s.startEnterpriseBackground()

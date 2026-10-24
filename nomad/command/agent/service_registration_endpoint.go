@@ -101,6 +101,12 @@ func (s *HTTPServer) serviceGetRequest(
 		return nil, nil
 	}
 
+	healthy, err := s.parseHealthyOnly(req)
+	if err != nil {
+		return nil, err
+	}
+	args.HealthyOnly = healthy
+
 	var reply structs.ServiceRegistrationByNameResponse
 	if err := s.agent.RPC(structs.ServiceRegistrationGetServiceRPCMethod, &args, &reply); err != nil {
 		return nil, err
