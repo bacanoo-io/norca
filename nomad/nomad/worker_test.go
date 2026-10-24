@@ -871,6 +871,20 @@ const (
 	tinyWait = 10 * time.Millisecond
 )
 
+// afterTinyWait runs fn in a goroutine after tinyWait and returns a channel
+// that is closed once fn has returned. Waiting on it before polling the
+// worker status keeps the steps of a test in order; testify's Eventually
+// checks its condition immediately and so no longer provides that delay.
+func afterTinyWait(fn func()) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		time.Sleep(tinyWait)
+		fn()
+	}()
+	return done
+}
+
 func TestWorker_SetPause(t *testing.T) {
 	ci.Parallel(t)
 	logger := testlog.HCLogger(t)
@@ -885,28 +899,16 @@ func TestWorker_SetPause(t *testing.T) {
 	w._start(testWorkload)
 	require.Eventually(t, w.IsStarted, longWait, tinyWait, "should have started")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Pause()
-	}()
+	<-afterTinyWait(w.Pause)
 	require.Eventually(t, w.IsPaused, longWait, tinyWait, "should have paused")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Pause()
-	}()
+	<-afterTinyWait(w.Pause)
 	require.Eventually(t, w.IsPaused, longWait, tinyWait, "pausing a paused should be okay")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Resume()
-	}()
+	<-afterTinyWait(w.Resume)
 	require.Eventually(t, w.IsStarted, longWait, tinyWait, "should have restarted from pause")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Stop()
-	}()
+	<-afterTinyWait(w.Stop)
 	require.Eventually(t, w.IsStopped, longWait, tinyWait, "should have shutdown")
 }
 
@@ -924,22 +926,13 @@ func TestWorker_SetPause_OutOfOrderEvents(t *testing.T) {
 	w._start(testWorkload)
 	require.Eventually(t, w.IsStarted, longWait, tinyWait, "should have started")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Pause()
-	}()
+	<-afterTinyWait(w.Pause)
 	require.Eventually(t, w.IsPaused, longWait, tinyWait, "should have paused")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Stop()
-	}()
+	<-afterTinyWait(w.Stop)
 	require.Eventually(t, w.IsStopped, longWait, tinyWait, "stop from pause should have shutdown")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Pause()
-	}()
+	<-afterTinyWait(w.Pause)
 	require.Eventually(t, w.IsStopped, longWait, tinyWait, "pausing a stopped should stay stopped")
 
 }
