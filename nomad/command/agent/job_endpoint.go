@@ -1503,6 +1503,8 @@ func ApiServicesToStructs(in []*api.Service, group bool) []*structs.Service {
 					SuccessBeforePassing:   check.SuccessBeforePassing,
 					FailuresBeforeCritical: check.FailuresBeforeCritical,
 					OnUpdate:               onUpdate,
+					Role:                   check.Role,
+					StartupTimeout:         check.StartupTimeout,
 				}
 
 				if group {
