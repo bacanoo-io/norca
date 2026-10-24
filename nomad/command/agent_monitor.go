@@ -30,9 +30,9 @@ type MonitorCommand struct {
 
 func (c *MonitorCommand) Help() string {
 	helpText := `
-Usage: nomad monitor [options]
+Usage: norca monitor [options]
 
-  Stream log messages of a nomad agent. The monitor command lets you
+  Stream log messages of a norca agent. The monitor command lets you
   listen for log levels that may be filtered out of the Nomad agent. For
   example your agent may only be logging at INFO level, but with the monitor
   command you can set -log-level DEBUG

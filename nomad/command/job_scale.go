@@ -25,7 +25,7 @@ type JobScaleCommand struct {
 // Help satisfies the cli.Command Help function.
 func (j *JobScaleCommand) Help() string {
 	helpText := `
-Usage: nomad job scale [options] <job> [<group>] <count>
+Usage: norca job scale [options] <job> [<group>] <count>
 
   Perform a scaling action by altering the count within a job group.
 

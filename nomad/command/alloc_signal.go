@@ -18,7 +18,7 @@ type AllocSignalCommand struct {
 
 func (c *AllocSignalCommand) Help() string {
 	helpText := `
-Usage: nomad alloc signal [options] <allocation> <task>
+Usage: norca alloc signal [options] <allocation> <task>
 
   Signal an existing allocation. This command is used to signal a specific alloc
   and its subtasks. If no task is provided then all of the allocations subtasks

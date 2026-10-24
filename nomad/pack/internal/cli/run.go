@@ -312,7 +312,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Hidden:  true,
 			Target:  &c.jobConfig.RunConfig.EnableRollback,
 			Default: false,
-			Usage: `EXPERIMENTAL. If set, any pack failure will cause nomad pack
+			Usage: `EXPERIMENTAL. If set, any pack failure will cause norca pack
 					to attempt to rollback the entire deployment.`,
 		})
 	})
@@ -330,24 +330,24 @@ func (c *RunCommand) Help() string {
 	// TODO: do we want to ref example?
 	c.Example = `
 	# Run an example pack with the default deployment name "example".
-	nomad pack run example
+	norca pack run example
 
 	# Run an example pack with the specified deployment name "dev"
-	nomad pack run example --name=dev
+	norca pack run example --name=dev
 
 	# Run an example pack with override variables in a variable file
-	nomad pack run example --var-file="./overrides.hcl"
+	norca pack run example --var-file="./overrides.hcl"
 
 	# Run an example pack with cli variable overrides
-	nomad pack run example --var="redis_image_version=latest" --var="redis_resources={"cpu": "1000", "memory": "512"}"
+	norca pack run example --var="redis_image_version=latest" --var="redis_resources={"cpu": "1000", "memory": "512"}"
 
 	# Run a pack under development from the filesystem - supports current
 	# working directory or relative path
-	nomad pack run .
+	norca pack run .
 	`
 
 	return formatHelp(`
-	Usage: nomad pack run <pack-name> [options]
+	Usage: norca pack run <pack-name> [options]
 
 	Install the specified Nomad Pack to a configured Nomad cluster.
 

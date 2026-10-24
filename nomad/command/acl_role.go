@@ -23,7 +23,7 @@ type ACLRoleCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLRoleCommand) Help() string {
 	helpText := `
-Usage: nomad acl role <subcommand> [options] [args]
+Usage: norca acl role <subcommand> [options] [args]
 
   This command groups subcommands for interacting with ACL roles. Nomad's ACL
   system can be used to control access to data and APIs. ACL roles are
@@ -32,23 +32,23 @@ Usage: nomad acl role <subcommand> [options] [args]
 
   Create an ACL role:
 
-      $ nomad acl role create -name="name" -policy-name="policy-name"
+      $ norca acl role create -name="name" -policy-name="policy-name"
 
   List all ACL roles:
 
-      $ nomad acl role list
+      $ norca acl role list
 
   Lookup a specific ACL role:
 
-      $ nomad acl role info <acl_role_id>
+      $ norca acl role info <acl_role_id>
 
   Update an ACL role:
 
-      $ nomad acl role update -name="updated-name" <acl_role_id>
+      $ norca acl role update -name="updated-name" <acl_role_id>
 
   Delete an ACL role:
 
-      $ nomad acl role delete <acl_role_id>
+      $ norca acl role delete <acl_role_id>
 
   Please see the individual subcommand help for detailed usage information.
 `

@@ -25,7 +25,7 @@ type ScalingPolicyInfoCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ScalingPolicyInfoCommand) Help() string {
 	helpText := `
-Usage: nomad scaling policy info [options] <policy_id>
+Usage: norca scaling policy info [options] <policy_id>
 
   Info is used to read the specified scaling policy.
 

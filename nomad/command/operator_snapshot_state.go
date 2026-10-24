@@ -21,13 +21,13 @@ type OperatorSnapshotStateCommand struct {
 
 func (c *OperatorSnapshotStateCommand) Help() string {
 	helpText := `
-Usage: nomad operator snapshot state [options] <file>
+Usage: norca operator snapshot state [options] <file>
 
   Displays a JSON representation of state in the snapshot.
 
   To inspect the file "backup.snap":
 
-    $ nomad operator snapshot state backup.snap
+    $ norca operator snapshot state backup.snap
 
 Snapshot State Options:
 

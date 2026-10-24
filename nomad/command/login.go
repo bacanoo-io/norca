@@ -37,7 +37,7 @@ type LoginCommand struct {
 // Help satisfies the cli.Command Help function.
 func (l *LoginCommand) Help() string {
 	helpText := `
-Usage: nomad login [options]
+Usage: norca login [options]
 
   The login command will exchange the provided third party credentials with the
   requested auth method for a newly minted Nomad ACL token.
@@ -122,7 +122,7 @@ func (l *LoginCommand) Run(args []string) int {
 	)
 
 	if l.authMethodType != "" {
-		l.Ui.Warn("warning: '-type' flag has been deprecated for nomad login command and will be ignored.")
+		l.Ui.Warn("warning: '-type' flag has been deprecated for norca login command and will be ignored.")
 	}
 
 	authMethodList, _, err := client.ACLAuthMethods().List(nil)

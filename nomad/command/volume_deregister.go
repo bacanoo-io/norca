@@ -19,7 +19,7 @@ type VolumeDeregisterCommand struct {
 
 func (c *VolumeDeregisterCommand) Help() string {
 	helpText := `
-Usage: nomad volume deregister [options] <id>
+Usage: norca volume deregister [options] <id>
 
   Remove an unused volume from Nomad.
 

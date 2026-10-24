@@ -311,7 +311,7 @@ func (c *StopCommand) Flags() *flag.Sets {
 			Default: false,
 			Usage: `Return immediately instead of monitoring the evaluation.
 					A new evaluation ID will be output which can be used to
-					examine the evaluation using "nomad eval status".`,
+					examine the evaluation using "norca eval status".`,
 		})
 
 		f.BoolVar(&flag.BoolVar{
@@ -334,21 +334,21 @@ func (c *StopCommand) AutocompleteFlags() complete.Flags {
 func (c *StopCommand) Help() string {
 	c.Example = `
 	# Stop an example pack in deployment "dev"
-	nomad pack stop example --name=dev
+	norca pack stop example --name=dev
 
 	# Stop an example pack in deployment "dev" and purge it from the system
-	nomad pack stop example --name=dev --purge
+	norca pack stop example --name=dev --purge
 
 	# Stop an example pack in deployment "dev" that has a job named "test"
 	# If the same pack has been installed in deployment "dev" but overriding the
 	# job name to "hello", only "test" will be stopped
-	nomad pack stop example --name=dev --var=job_name=test
+	norca pack stop example --name=dev --var=job_name=test
 	`
 	return formatHelp(`
-	Usage: nomad pack stop <pack name> [options]
+	Usage: norca pack stop <pack name> [options]
 
 	Stop the specified Nomad Pack in the configured Nomad cluster. To delete the
-	pack from the cluster, specify "--purge", or use the "nomad pack destroy"
+	pack from the cluster, specify "--purge", or use the "norca pack destroy"
 	command.
 
 	By default, the stop command will stop ALL jobs in the pack deployment. If a

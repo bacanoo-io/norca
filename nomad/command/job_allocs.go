@@ -18,7 +18,7 @@ type JobAllocsCommand struct {
 
 func (c *JobAllocsCommand) Help() string {
 	helpText := `
-Usage: nomad job allocs [options] <job>
+Usage: norca job allocs [options] <job>
 
   Display allocations for a particular job.
 

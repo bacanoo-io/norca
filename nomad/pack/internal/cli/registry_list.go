@@ -61,9 +61,9 @@ func (c *RegistryListCommand) Run(args []string) int {
 		if table.Rows[0][2] == "" {
 			c.ui.Warning("It appears that you have a cache created before Nomad-Pack 0.1 (hence the\n" +
 				"missing values in LOCAL REF and REGISTRY URL columns). We recommend deleting\n" +
-				"your current cache with `nomad pack registry delete <name>` and re-adding your\n" +
-				"registries to take full advantage of new `nomad pack registry list` and\n" +
-				"`nomad pack list` commands behavior.")
+				"your current cache with `norca pack registry delete <name>` and re-adding your\n" +
+				"registries to take full advantage of new `norca pack registry list` and\n" +
+				"`norca pack list` commands behavior.")
 		}
 	} else {
 		c.ui.Output("No registries present in the cache.")
@@ -91,10 +91,10 @@ func (c *RegistryListCommand) Synopsis() string {
 func (c *RegistryListCommand) Help() string {
 	c.Example = `
 	# List all configured registries
-	nomad pack registry list
+	norca pack registry list
 	`
 	return formatHelp(`
-	Usage: nomad pack registry list
+	Usage: norca pack registry list
 
 	List Nomad Pack registries.
 

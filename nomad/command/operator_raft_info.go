@@ -17,7 +17,7 @@ type OperatorRaftInfoCommand struct {
 
 func (c *OperatorRaftInfoCommand) Help() string {
 	helpText := `
-Usage: nomad operator raft info <path to nomad data dir>
+Usage: norca operator raft info <path to norca data dir>
 
   Displays summary information about the raft logs in the data directory.
 

@@ -239,24 +239,24 @@ func (c *PlanCommand) AutocompleteFlags() complete.Flags {
 func (c *PlanCommand) Help() string {
 	c.Example = `
 	# Plan an example pack with the default deployment name
-	nomad pack plan example
+	norca pack plan example
 
 	# Plan an example pack at a specific ref
-	nomad pack plan example --ref=v0.0.1
+	norca pack plan example --ref=v0.0.1
 
 	# Plan a pack from a registry other than the default registry
-	nomad pack plan traefik --registry=community --ref=v0.0.1
+	norca pack plan traefik --registry=community --ref=v0.0.1
 
 	# Plan an example pack without showing the diff
-	nomad pack plan example --diff=false
+	norca pack plan example --diff=false
 
 	# Plan a pack under development from the filesystem - supports current
 	# working directory or relative path
-	nomad pack plan .
+	norca pack plan .
 	`
 
 	return formatHelp(`
-	Usage: nomad pack plan <pack-name> [options]
+	Usage: norca pack plan <pack-name> [options]
 
 	Determine the effects of submitting a new or updated Nomad Pack
 

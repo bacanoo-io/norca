@@ -23,7 +23,7 @@ func fileDoesNotExist(file string) bool {
 
 func (c *TLSCommand) Help() string {
 	helpText := `
-Usage: nomad tls <subcommand> <subcommand> [options]
+Usage: norca tls <subcommand> <subcommand> [options]
 
 This command groups subcommands for creating certificates for Nomad TLS configuration. 
 The TLS command allows operators to generate self signed certificates to use
@@ -34,15 +34,15 @@ More detailed examples are available in the subcommands or the documentation.
 
 Create a CA
 
-    $ nomad tls ca create
+    $ norca tls ca create
 
 Create a server certificate
 
-    $ nomad tls cert create -server
+    $ norca tls cert create -server
 
 Create a client certificate
 
-    $ nomad tls cert create -client
+    $ norca tls cert create -client
 
 `
 	return strings.TrimSpace(helpText)

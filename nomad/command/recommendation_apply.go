@@ -24,7 +24,7 @@ type RecommendationApplyCommand struct {
 // Help satisfies the cli.Command Help function.
 func (r *RecommendationApplyCommand) Help() string {
 	helpText := `
-Usage: nomad recommendation apply [options] <recommendation_ids>
+Usage: norca recommendation apply [options] <recommendation_ids>
 
   Apply one or more Nomad recommendations.
 

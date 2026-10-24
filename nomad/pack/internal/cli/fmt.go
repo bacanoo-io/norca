@@ -92,7 +92,7 @@ func (c *FmtCommand) fmt(paths []string) int {
 	}
 
 	if c.check && exitCode == 1 {
-		c.ui.Error("Some files are not formatted. Run 'nomad pack fmt' to format them.")
+		c.ui.Error("Some files are not formatted. Run 'norca pack fmt' to format them.")
 	}
 
 	return exitCode
@@ -235,7 +235,7 @@ func (c *FmtCommand) Synopsis() string {
 
 func (c *FmtCommand) Help() string {
 	return formatHelp(`
-Usage: nomad pack fmt [options] [path...]
+Usage: norca pack fmt [options] [path...]
 
   Format pack files (.tpl templates and .hcl files) using HCL formatting rules.
   Template files preserve the [[ ]] syntax, while .hcl files are formatted directly.
@@ -260,12 +260,12 @@ Format Options:
 Examples:
 
   Format all templates in current directory:
-  $ "nomad pack fmt"
+  $ "norca pack fmt"
 
   Format a specific pack directory:
-  $ "nomad pack fmt my-pack/"
+  $ "norca pack fmt my-pack/"
 
   Check formatting without modifying:
-  $ "nomad pack fmt -check ."
+  $ "norca pack fmt -check ."
 `)
 }

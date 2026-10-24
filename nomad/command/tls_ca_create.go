@@ -59,7 +59,7 @@ type TLSCACreateCommand struct {
 
 func (c *TLSCACreateCommand) Help() string {
 	helpText := `
-Usage: nomad tls ca create [options]
+Usage: norca tls ca create [options]
 
   Create a new certificate authority.
 

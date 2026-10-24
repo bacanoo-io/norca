@@ -15,7 +15,7 @@ type DeploymentCommand struct {
 
 func (f *DeploymentCommand) Help() string {
 	helpText := `
-Usage: nomad deployment <subcommand> [options] [args]
+Usage: norca deployment <subcommand> [options] [args]
 
   This command groups subcommands for interacting with deployments. Deployments
   are used to manage a transition between two versions of a Nomad job. Users
@@ -24,18 +24,18 @@ Usage: nomad deployment <subcommand> [options] [args]
 
   Examine a deployments status:
 
-      $ nomad deployment status <deployment-id>
+      $ norca deployment status <deployment-id>
 
   Promote the canaries to allow the remaining allocations to be updated in a
   rolling deployment fashion:
 
-      $ nomad deployment promote <deployment-id>
+      $ norca deployment promote <deployment-id>
 
   Mark a deployment as failed. This will stop new allocations from being placed
   and if the job's upgrade block specifies auto_revert, causes the job to
   revert back to the last stable version of the job:
 
-      $ nomad deployment fail <deployment-id>
+      $ norca deployment fail <deployment-id>
 
   Please see the individual subcommand help for detailed usage information.
 `

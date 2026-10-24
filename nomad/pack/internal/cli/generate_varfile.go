@@ -215,24 +215,24 @@ func (c *generateVarFileCommand) Help() string {
 
 	c.Example = `
 	# Generate a variables override file for the given pack to standard output.
-	nomad pack generate var-file example
+	norca pack generate var-file example
 
 	# Generate a variable override for the example pack, outputting as a file in
 	# addition to the terminal.
-	nomad pack generate var-file example --to-file ./overrides.hcl
+	norca pack generate var-file example --to-file ./overrides.hcl
 
 	# Generate a variable override for the example pack, outputting as a file in
 	# addition to the terminal. Setting auto-approve allows the command to
 	# overwrite existing files.
-	nomad pack generate var-file example --to-file ./overrides.hcl --auto-approve
+	norca pack generate var-file example --to-file ./overrides.hcl --auto-approve
 
 	# Generate a variable override pack under development from the filesystem -
 	# supports current working directory or relative path
-	nomad pack generate var-file .
+	norca pack generate var-file .
 	`
 
 	return formatHelp(`
-	Usage: nomad pack generate var-file <pack-name> [options]
+	Usage: norca pack generate var-file <pack-name> [options]
 
 	Generate a variables file for the specified Nomad Pack.
 

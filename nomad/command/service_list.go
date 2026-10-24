@@ -24,7 +24,7 @@ type ServiceListCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ServiceListCommand) Help() string {
 	helpText := `
-Usage: nomad service list [options]
+Usage: norca service list [options]
 
   List is used to list the currently registered services.
 

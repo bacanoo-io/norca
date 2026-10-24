@@ -19,7 +19,7 @@ type OperatorRaftStateCommand struct {
 
 func (c *OperatorRaftStateCommand) Help() string {
 	helpText := `
-Usage: nomad operator raft state <path to nomad data dir>
+Usage: norca operator raft state <path to norca data dir>
 
   Display the server state obtained by replaying raft log entries persisted in
   the Nomad data directory in JSON format.

@@ -424,9 +424,9 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 // Used on flag/arg parse error in c.Init method
 func (c *baseCommand) helpUsageMessage() string {
 	if c.cmdKey == "" {
-		return `See "nomad pack --help"`
+		return `See "norca pack --help"`
 	}
-	return fmt.Sprintf(`See "nomad pack %s --help"`, c.cmdKey)
+	return fmt.Sprintf(`See "norca pack %s --help"`, c.cmdKey)
 }
 
 // flagSetBit is used with baseCommand.flagSet

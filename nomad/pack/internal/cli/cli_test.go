@@ -84,7 +84,7 @@ func TestCLI_CreateTestRegistry(t *testing.T) {
 func TestCLI_Version(t *testing.T) {
 	t.Parallel()
 	// This test doesn't require a Nomad cluster.
-	exitCode := Main([]string{"nomad pack", "-v"})
+	exitCode := Main([]string{"norca pack", "-v"})
 	must.Zero(t, exitCode)
 }
 
@@ -1145,7 +1145,7 @@ func runPackCmd(t *testing.T, args []string) PackCommandResult {
 	defer base.Close()
 
 	command := &cli.CLI{
-		Name:                       "nomad pack",
+		Name:                       "norca pack",
 		Args:                       args,
 		Version:                    fmt.Sprintf("Nomad Pack %s", version.HumanVersion()),
 		Commands:                   commands,

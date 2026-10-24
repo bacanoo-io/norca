@@ -31,7 +31,7 @@ type ACLBindingRuleUpdateCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLBindingRuleUpdateCommand) Help() string {
 	helpText := `
-Usage: nomad acl binding-rule update [options] <acl_binding_rule_id>
+Usage: norca acl binding-rule update [options] <acl_binding_rule_id>
 
   Update is used to update an existing ACL binding rule. Requires a management
   token.

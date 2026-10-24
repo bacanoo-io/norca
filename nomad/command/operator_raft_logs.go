@@ -19,7 +19,7 @@ type OperatorRaftLogsCommand struct {
 
 func (c *OperatorRaftLogsCommand) Help() string {
 	helpText := `
-Usage: nomad operator raft logs <path to nomad data dir>
+Usage: norca operator raft logs <path to norca data dir>
 
   Display the log entries persisted in the Nomad data directory in JSON
   format.

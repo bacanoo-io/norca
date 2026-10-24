@@ -29,8 +29,8 @@ type JobRunCommand struct {
 
 func (c *JobRunCommand) Help() string {
 	helpText := `
-Usage: nomad job run [options] <path>
-Alias: nomad run
+Usage: norca job run [options] <path>
+Alias: norca run
 
   Starts running a new job or updates an existing job using
   the specification located at <path>. This is the main command
@@ -94,7 +94,7 @@ Run Options:
 
   -json
     Parses the job file as JSON. If the outer object has a Job field, such as
-    from "nomad job inspect" or "nomad run -output", the value of the field is
+    from "norca job inspect" or "norca run -output", the value of the field is
     used as the job.
 
   -hcl1

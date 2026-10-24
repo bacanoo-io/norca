@@ -19,7 +19,7 @@ type VolumeSnapshotCreateCommand struct {
 
 func (c *VolumeSnapshotCreateCommand) Help() string {
 	helpText := `
-Usage: nomad volume snapshot create <volume id> <snapshot_name>
+Usage: norca volume snapshot create <volume id> <snapshot_name>
 
   Create a snapshot of an external storage volume. This command requires a
   volume ID or prefix and snapthost name. If there is an exact match based on

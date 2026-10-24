@@ -56,7 +56,7 @@ type TLSCertCreateCommand struct {
 
 func (c *TLSCertCreateCommand) Help() string {
 	helpText := `
-Usage: nomad tls cert create [options]
+Usage: norca tls cert create [options]
 
   Create a new TLS certificate to use within the Nomad cluster TLS
   configuration. You should use the -client, -server or -cli options to create

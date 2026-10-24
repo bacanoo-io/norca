@@ -300,7 +300,7 @@ func getPackJobsByDeploy(jobs []*api.Job, c *api.Client, cfg *caching.PackConfig
 		if len(packJobs) == 0 && hasOtherDeploys {
 			// TODO: the aesthetics here could be better. This error line is very long.
 			return nil, fmt.Errorf(
-				"pack %q running but not in deployment %q. Run \"nomad pack status %s\" for more information",
+				"pack %q running but not in deployment %q. Run \"norca pack status %s\" for more information",
 				cfg.Name, deploymentName, cfg.Name)
 		}
 	}

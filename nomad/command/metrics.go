@@ -17,7 +17,7 @@ type OperatorMetricsCommand struct {
 
 func (c *OperatorMetricsCommand) Help() string {
 	helpText := `
-Usage: nomad operator metrics [options]
+Usage: norca operator metrics [options]
 
 Get Nomad metrics
 

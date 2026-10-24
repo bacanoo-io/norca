@@ -15,7 +15,7 @@ type ACLTokenCommand struct {
 
 func (f *ACLTokenCommand) Help() string {
 	helpText := `
-Usage: nomad acl token <subcommand> [options] [args]
+Usage: norca acl token <subcommand> [options] [args]
 
   This command groups subcommands for interacting with ACL tokens. Nomad's ACL
   system can be used to control access to data and APIs. ACL tokens are
@@ -24,15 +24,15 @@ Usage: nomad acl token <subcommand> [options] [args]
 
   Create an ACL token:
 
-      $ nomad acl token create -name "my-token" -policy foo -policy bar
+      $ norca acl token create -name "my-token" -policy foo -policy bar
 
   Lookup a token and display its associated policies:
 
-      $ nomad acl policy info <token_accessor_id>
+      $ norca acl policy info <token_accessor_id>
 
   Revoke an ACL token:
 
-      $ nomad acl policy delete <token_accessor_id>
+      $ norca acl policy delete <token_accessor_id>
 
   Please see the individual subcommand help for detailed usage information.
 `

@@ -27,7 +27,7 @@ type ServiceInfoCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ServiceInfoCommand) Help() string {
 	helpText := `
-Usage: nomad service info [options] <service_name>
+Usage: norca service info [options] <service_name>
 
   Info is used to read the services registered to a single service name.
 

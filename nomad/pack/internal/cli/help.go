@@ -182,7 +182,7 @@ func (c *helpCommand) HelpTemplate() string {
 
 var (
 	reHelpHeader = regexp.MustCompile(`^[a-zA-Z0-9_-].*:$`)
-	reCommand    = regexp.MustCompile(`"nomad pack (\w\s?)+"`)
+	reCommand    = regexp.MustCompile(`"norca pack (\w\s?)+"`)
 	reFlag       = regexp.MustCompile(`(\s|^|")(-[\w-]+)(\s|$|"|=)`)
 )
 
@@ -216,7 +216,7 @@ var helpText = map[string][2]string{
 	"fmt": {
 		"Format pack template files",
 		`
-        Usage: nomad pack fmt [options] [path...]
+        Usage: norca pack fmt [options] [path...]
 		Format pack template files (.nomad.tpl, .tpl) using HCL formatting rules
 		while preserving the [[ ]] template syntax.
 		Format Options:
@@ -229,9 +229,9 @@ var helpText = map[string][2]string{
 		-recursive
 		Process directories recursively.
 		Examples:
-		nomad pack fmt
-		nomad pack fmt my-pack/
-		nomad pack fmt -check .
+		norca pack fmt
+		norca pack fmt my-pack/
+		norca pack fmt -check .
 		`,
 	},
 
@@ -288,6 +288,6 @@ var helpText = map[string][2]string{
 		specific pack from a registry to the latest ref or to a specific ref
 		(tag/SHA). Only the registry name is required; the source URL is
 		automatically retrieved from the cached registry metadata. The registry
-		must have been added first using "nomad pack registry add".`,
+		must have been added first using "norca pack registry add".`,
 	},
 }

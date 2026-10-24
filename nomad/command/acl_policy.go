@@ -15,7 +15,7 @@ type ACLPolicyCommand struct {
 
 func (f *ACLPolicyCommand) Help() string {
 	helpText := `
-Usage: nomad acl policy <subcommand> [options] [args]
+Usage: norca acl policy <subcommand> [options] [args]
 
   This command groups subcommands for interacting with ACL policies. Nomad's ACL
   system can be used to control access to data and APIs. ACL policies allow a
@@ -24,15 +24,15 @@ Usage: nomad acl policy <subcommand> [options] [args]
 
   Create an ACL policy:
 
-      $ nomad acl policy apply <name> <policy-file>
+      $ norca acl policy apply <name> <policy-file>
 
   List ACL policies:
 
-      $ nomad acl policy list
+      $ norca acl policy list
 
   Inspect an ACL policy:
 
-      $ nomad acl policy info <policy>
+      $ norca acl policy info <policy>
 
   Please see the individual subcommand help for detailed usage information.
 `

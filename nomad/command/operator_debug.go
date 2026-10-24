@@ -65,7 +65,7 @@ type OperatorDebugCommand struct {
 }
 
 const (
-	userAgent                     = "nomad operator debug"
+	userAgent                     = "norca operator debug"
 	clusterDir                    = "cluster"
 	clientDir                     = "client"
 	serverDir                     = "server"
@@ -75,7 +75,7 @@ const (
 
 func (c *OperatorDebugCommand) Help() string {
 	helpText := `
-Usage: nomad operator debug [options]
+Usage: norca operator debug [options]
 
   Build an archive containing Nomad cluster configuration and state, and Consul
   and Vault status. Include logs and pprof profiles for selected servers and

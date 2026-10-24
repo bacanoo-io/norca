@@ -78,7 +78,7 @@ func (c *RegistryUpdateCommand) Run(args []string) int {
 	if existingRegistry == nil {
 		c.ui.ErrorWithContext(
 			errors.New("registry not found in cache"),
-			fmt.Sprintf("Registry %q has not been added yet. Use \"nomad pack registry add\" first.", c.name),
+			fmt.Sprintf("Registry %q has not been added yet. Use \"norca pack registry add\" first.", c.name),
 			errorContext.GetAll()...,
 		)
 		return 1
@@ -141,7 +141,7 @@ func (c *RegistryUpdateCommand) Run(args []string) int {
 	c.ui.Table(table)
 
 	if validPack != nil {
-		c.ui.Info(fmt.Sprintf("Try running one of the packs you just updated like this\n\n  nomad pack run %s --registry=%s --ref=%s", validPack.Name(), newRegistry.Name, validPack.Ref))
+		c.ui.Info(fmt.Sprintf("Try running one of the packs you just updated like this\n\n  norca pack run %s --registry=%s --ref=%s", validPack.Name(), newRegistry.Name, validPack.Ref))
 	}
 
 	return 0
@@ -164,9 +164,9 @@ func (c *RegistryUpdateCommand) Flags() *flag.Sets {
 			Default: "",
 			Usage: `Specific git ref of the registry or pack to be updated.
 					Supports tags, SHA, and latest. If no ref is specified,
-					defaults to latest. Running "nomad registry update"
+					defaults to latest. Running "norca pack registry update"
 					multiple times for the same ref is idempotent, however
-					running "nomad pack registry update" without specifying a
+					running "norca pack registry update" without specifying a
 					ref, or when specifying @latest, is destructive, and will
 					overwrite current @latest in the global cache.
 
@@ -190,21 +190,21 @@ func (c *RegistryUpdateCommand) Synopsis() string {
 func (c *RegistryUpdateCommand) Help() string {
 	c.Example = `
 	# Update a previously added registry to the latest ref.
-	nomad pack registry update community
+	norca pack registry update community
 
 	# Update a specific pack from a previously added registry.
-	nomad pack registry update community --target=nomad_example
+	norca pack registry update community --target=nomad_example
 
 	# Update a previously added registry at a specific tag/release/SHA.
-	nomad pack registry update community --ref=v0.1.0
+	norca pack registry update community --ref=v0.1.0
 	`
 	return formatHelp(`
-	Usage: nomad pack registry update <name> [options]
+	Usage: norca pack registry update <name> [options]
 
 	Update a previously added Nomad Pack registry. The source URL is
 	automatically retrieved from the cached registry metadata, so only
 	the registry name is required. The registry must have been previously
-	added using "nomad pack registry add".
+	added using "norca pack registry add".
 
 ` + c.GetExample() + c.Flags().Help())
 }

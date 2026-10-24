@@ -780,7 +780,7 @@ func runPackV1Cmd(t *testing.T, args []string) PackCommandResult {
 	defer base.Close()
 
 	command := &cli.CLI{
-		Name:                       "nomad pack",
+		Name:                       "norca pack",
 		Args:                       args,
 		Version:                    fmt.Sprintf("Nomad Pack %s", version.HumanVersion()),
 		Commands:                   commands,

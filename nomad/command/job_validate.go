@@ -23,8 +23,8 @@ type JobValidateCommand struct {
 
 func (c *JobValidateCommand) Help() string {
 	helpText := `
-Usage: nomad job validate [options] <path>
-Alias: nomad validate
+Usage: norca job validate [options] <path>
+Alias: norca validate
 
   Checks if a given HCL job file has a valid specification. This can be used to
   check for any syntax errors or validation problems with a job.
@@ -48,7 +48,7 @@ Validate Options:
 
   -json
     Parses the job file as JSON. If the outer object has a Job field, such as
-    from "nomad job inspect" or "nomad run -output", the value of the field is
+    from "norca job inspect" or "norca run -output", the value of the field is
     used as the job.
 
   -hcl1

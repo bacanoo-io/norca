@@ -18,7 +18,7 @@ type OperatorSnapshotRestoreCommand struct {
 
 func (c *OperatorSnapshotRestoreCommand) Help() string {
 	helpText := `
-Usage: nomad operator snapshot restore [options] <file>
+Usage: norca operator snapshot restore [options] <file>
 
   Restores an atomic, point-in-time snapshot of the state of the Nomad servers
   which includes jobs, nodes, allocations, periodic jobs, and ACLs.
@@ -33,7 +33,7 @@ Usage: nomad operator snapshot restore [options] <file>
 
   To restore a snapshot from the file "backup.snap":
 
-    $ nomad operator snapshot restore backup.snap
+    $ norca operator snapshot restore backup.snap
 
 General Options:
 

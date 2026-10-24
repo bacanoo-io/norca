@@ -1029,7 +1029,7 @@ func TestDebug_EventStream(t *testing.T) {
 	timeout := duration + 5*time.Second
 
 	// Run debug in a goroutine so we can start the capture before we run the test job
-	t.Logf("%s: Starting nomad operator debug in goroutine\n", time.Since(start))
+	t.Logf("%s: Starting norca operator debug in goroutine\n", time.Since(start))
 	go func() {
 		code := cmd.Run([]string{"-address", url, "-output", outputDir, "-duration", duration.String(), "-interval", "5s", "-event-topic", "Job:*"})
 		chOutput <- testOutput{

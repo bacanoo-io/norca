@@ -17,7 +17,7 @@ type DeploymentListCommand struct {
 
 func (c *DeploymentListCommand) Help() string {
 	helpText := `
-Usage: nomad deployment list [options]
+Usage: norca deployment list [options]
 
   List is used to list the set of deployments tracked by Nomad.
 

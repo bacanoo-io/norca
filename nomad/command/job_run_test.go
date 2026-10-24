@@ -247,7 +247,7 @@ func TestRunCommand_JSON(t *testing.T) {
 		cmd := &JobRunCommand{
 			Meta: Meta{Ui: ui},
 		}
-		t.Logf("run: nomad job run %s", strings.Join(args, " "))
+		t.Logf("run: norca job run %s", strings.Join(args, " "))
 		code = cmd.Run(args)
 		return ui.OutputWriter.String(), ui.ErrorWriter.String(), code
 	}

@@ -31,8 +31,8 @@ type AllocLogsCommand struct {
 
 func (l *AllocLogsCommand) Help() string {
 	helpText := `
-Usage: nomad alloc logs [options] <allocation> <task>
-Alias: nomad logs
+Usage: norca alloc logs [options] <allocation> <task>
+Alias: norca logs
 
   Streams the stdout/stderr of the given allocation and task.
 

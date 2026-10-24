@@ -24,7 +24,7 @@ type ScalingPolicyListCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ScalingPolicyListCommand) Help() string {
 	helpText := `
-Usage: nomad scaling policy list [options]
+Usage: norca scaling policy list [options]
 
   List is used to list the currently configured scaling policies.
 

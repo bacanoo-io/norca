@@ -15,7 +15,7 @@ type OperatorRaftCommand struct {
 
 func (c *OperatorRaftCommand) Help() string {
 	helpText := `
-Usage: nomad operator raft <subcommand> [options]
+Usage: norca operator raft <subcommand> [options]
 
   This command groups subcommands for interacting with Nomad's Raft subsystem.
   The command can be used to verify Raft peers or in rare cases to recover
@@ -23,24 +23,24 @@ Usage: nomad operator raft <subcommand> [options]
 
   List Raft peers:
 
-      $ nomad operator raft list-peers
+      $ norca operator raft list-peers
 
   Remove a Raft peer:
 
-      $ nomad operator raft remove-peer -peer-address "IP:Port"
+      $ norca operator raft remove-peer -peer-address "IP:Port"
 
   Display info about the raft logs in the data directory:
 
-      $ nomad operator raft info /var/nomad/data
+      $ norca operator raft info /var/nomad/data
 
   Display the log entries persisted in data dir in JSON format.
 
-      $ nomad operator raft logs /var/nomad/data
+      $ norca operator raft logs /var/nomad/data
 
   Display the server state obtained by replaying raft log entries
   persisted in data dir in JSON format.
 
-      $ nomad operator raft state /var/nomad/data
+      $ norca operator raft state /var/nomad/data
 
   Please see the individual subcommand help for detailed usage information.
 

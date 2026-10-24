@@ -34,7 +34,7 @@ type OperatorAPICommand struct {
 
 func (*OperatorAPICommand) Help() string {
 	helpText := `
-Usage: nomad operator api [options] <path>
+Usage: norca operator api [options] <path>
 
   api is a utility command for accessing Nomad's HTTP API and is inspired by
   the popular curl command line tool. Nomad's operator api command populates

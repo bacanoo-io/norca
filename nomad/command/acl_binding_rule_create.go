@@ -31,7 +31,7 @@ type ACLBindingRuleCreateCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLBindingRuleCreateCommand) Help() string {
 	helpText := `
-Usage: nomad acl binding-rule create [options]
+Usage: norca acl binding-rule create [options]
 
   Create is used to create new ACL binding rules. Use requires a management
   token.

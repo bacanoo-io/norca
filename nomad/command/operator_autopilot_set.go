@@ -118,7 +118,7 @@ func (c *OperatorAutopilotSetCommand) Synopsis() string {
 
 func (c *OperatorAutopilotSetCommand) Help() string {
 	helpText := `
-Usage: nomad operator autopilot set-config [options]
+Usage: norca operator autopilot set-config [options]
 
   Modifies the current Autopilot configuration.
 

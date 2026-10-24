@@ -19,7 +19,7 @@ type EvalListCommand struct {
 
 func (c *EvalListCommand) Help() string {
 	helpText := `
-Usage: nomad eval list [options]
+Usage: norca eval list [options]
 
   List is used to list the set of evaluations processed by Nomad.
 

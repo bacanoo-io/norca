@@ -28,7 +28,7 @@ const (
 
 var (
 	// cliName is the name of this CLI.
-	cliName = "nomad pack"
+	cliName = "norca pack"
 
 	// commonCommands are the commands that are deemed "common" and shown first
 	// in the CLI help output.

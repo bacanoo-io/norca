@@ -24,7 +24,7 @@ func (c *AdmissionPolicyDeleteCommand) Synopsis() string {
 
 func (c *AdmissionPolicyDeleteCommand) Help() string {
 	helpText := `
-Usage: nomad admission-policy delete [options] <name>
+Usage: norca admission-policy delete [options] <name>
 
   Delete is used to delete an admission policy.
 

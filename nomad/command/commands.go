@@ -47,8 +47,8 @@ func (c *DeprecatedCommand) Run(args []string) int {
 
 func (c *DeprecatedCommand) warn() {
 	c.Ui.Warn(wrapAtLength(fmt.Sprintf(
-		"WARNING! The \"nomad %s\" command is deprecated. Please use \"nomad %s\" "+
-			"instead. This command will be removed a later version of Nomad.",
+		"WARNING! The \"norca %s\" command is deprecated. Please use \"norca %s\" "+
+			"instead. This command will be removed in a later version of Norca.",
 		c.Old,
 		c.New)))
 	c.Ui.Warn("")

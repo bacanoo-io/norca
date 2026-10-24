@@ -19,7 +19,7 @@ import (
 const (
 	jobModifyIndexHelp = `To submit the job with version verification run:
 
-nomad job run -check-index %d %s%s
+norca job run -check-index %d %s%s
 
 When running the job with the check-index flag, the job will only be run if the
 job modify index given matches the server-side version. If the index has
@@ -38,8 +38,8 @@ type JobPlanCommand struct {
 
 func (c *JobPlanCommand) Help() string {
 	helpText := `
-Usage: nomad job plan [options] <path>
-Alias: nomad plan
+Usage: norca job plan [options] <path>
+Alias: norca plan
 
   Plan invokes a dry-run of the scheduler to determine the effects of submitting
   either a new or updated version of a job. The plan will not result in any
@@ -51,7 +51,7 @@ Alias: nomad plan
   read from URL specified.
 
   A job modify index is returned with the plan. This value can be used when
-  submitting the job using "nomad run -check-index", which will check that the job
+  submitting the job using "norca run -check-index", which will check that the job
   was not modified between the plan and run command before invoking the
   scheduler. This ensures the job has not been modified since the plan.
   Multiregion jobs do not return a job modify index.
@@ -86,7 +86,7 @@ Plan Options:
 
   -json
     Parses the job file as JSON. If the outer object has a Job field, such as
-    from "nomad job inspect" or "nomad run -output", the value of the field is
+    from "norca job inspect" or "norca run -output", the value of the field is
     used as the job.
 
   -hcl1

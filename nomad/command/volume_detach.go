@@ -19,7 +19,7 @@ type VolumeDetachCommand struct {
 
 func (c *VolumeDetachCommand) Help() string {
 	helpText := `
-Usage: nomad volume detach [options] <vol id> <node id>
+Usage: norca volume detach [options] <vol id> <node id>
 
   Detach a volume from a Nomad client.
 

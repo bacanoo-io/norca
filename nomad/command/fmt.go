@@ -49,7 +49,7 @@ type FormatCommand struct {
 
 func (*FormatCommand) Help() string {
 	helpText := `
-Usage: nomad fmt [flags] paths ...
+Usage: norca fmt [flags] paths ...
 
   Formats Nomad agent configuration and job file to a canonical format.
   If a path is a directory, it will recursively format all files
@@ -190,7 +190,7 @@ func (f *FormatCommand) fmt() {
 
 				fp.Close()
 			} else {
-				f.appendError(fmt.Errorf("Only .nomad and .hcl files can be processed using nomad fmt"))
+				f.appendError(fmt.Errorf("Only .nomad and .hcl files can be processed using norca fmt"))
 				continue
 			}
 		}

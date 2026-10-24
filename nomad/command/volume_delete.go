@@ -20,7 +20,7 @@ type VolumeDeleteCommand struct {
 
 func (c *VolumeDeleteCommand) Help() string {
 	helpText := `
-Usage: nomad volume delete [options] <vol id>
+Usage: norca volume delete [options] <vol id>
 
   Delete a volume from an external storage provider. The volume must still be
   registered with Nomad in order to be deleted. Deleting will fail if the

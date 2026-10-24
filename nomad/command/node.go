@@ -18,7 +18,7 @@ type NodeCommand struct {
 
 func (f *NodeCommand) Help() string {
 	helpText := `
-Usage: nomad node <subcommand> [options] [args]
+Usage: norca node <subcommand> [options] [args]
 
   This command groups subcommands for interacting with nodes. Nodes in Nomad are
   agent's that can run submitted workloads. This command can be used to examine
@@ -26,17 +26,17 @@ Usage: nomad node <subcommand> [options] [args]
 
   Examine the status of a node:
 
-      $ nomad node status <node-id>
+      $ norca node status <node-id>
 
   Mark a node as ineligible for running workloads. This is useful when the node
   is expected to be removed or upgraded so new allocations aren't placed on it:
 
-      $ nomad node eligibility -disable <node-id>
+      $ norca node eligibility -disable <node-id>
 
   Mark a node to be drained, allowing batch jobs four hours to finish before
   forcing them off the node:
 
-      $ nomad node drain -enable -deadline 4h <node-id>
+      $ norca node drain -enable -deadline 4h <node-id>
 
   Please see the individual subcommand help for detailed usage information.
 `

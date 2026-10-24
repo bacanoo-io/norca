@@ -49,7 +49,7 @@ func (c *GenerateHelpCommand) Synopsis() string {
 
 func (c *GenerateHelpCommand) Help() string {
 	return formatHelp(`
-	Usage: nomad pack generate <subcommand> [options]
+	Usage: norca pack generate <subcommand> [options]
 
 	Generate a sample Nomad Pack registry, pack, or variable overrides file for a
 	pack.

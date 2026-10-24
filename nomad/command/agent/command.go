@@ -1302,7 +1302,7 @@ func (c *Command) Synopsis() string {
 
 func (c *Command) Help() string {
 	helpText := `
-Usage: nomad agent [options]
+Usage: norca agent [options]
 
   Starts the Nomad agent and runs until an interrupt is received.
   The agent may be a client and/or server.

@@ -45,7 +45,7 @@ type RecommendationDismissCommand struct {
 // Help satisfies the cli.Command Help function.
 func (r *RecommendationDismissCommand) Help() string {
 	helpText := `
-Usage: nomad recommendation dismiss [options] <recommendation_ids>
+Usage: norca recommendation dismiss [options] <recommendation_ids>
 
   Dismiss one or more Nomad recommendations.
 
