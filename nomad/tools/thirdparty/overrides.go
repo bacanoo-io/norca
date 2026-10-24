@@ -1,0 +1,189 @@
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"strings"
+)
+
+// override records a reviewed license decision for a component whose
+// license files cannot be classified automatically, or that is offered under
+// a choice of licenses. Every entry needs a reason that a reviewer can
+// verify against the component's own files.
+type override struct {
+	// Kind is "go" (module path; for a replaced module, the path of the
+	// replacement) or "npm" (package name).
+	Kind string
+	Name string
+	// Version, if set, limits the override to this version, so that an
+	// update of the component is reviewed again.
+	Version string
+	// License is the SPDX expression under which the component is used.
+	License string
+	// Reason explains the decision.
+	Reason string
+	// Excerpt, if set, cuts the license files at the first line that
+	// contains it; for license files that go on to describe software that
+	// is not part of the module (see Reason).
+	Excerpt string
+	// Pending marks a decision that awaits legal review: the notices are
+	// generated with it, but `-strict` (used by the release workflow) fails.
+	Pending bool
+
+	used bool
+}
+
+var overrides = []override{
+	// Pending decisions: License is what the component's files say; the
+	// release workflow (-strict) fails until each entry is resolved.
+	{
+		Kind:    "go",
+		Name:    "github.com/hashicorp/vault/api/auth/kubernetes",
+		Version: "v0.5.0",
+		License: "BUSL-1.1",
+		Pending: true,
+		Reason: "PENDING LEGAL REVIEW. The LICENSE file of this module version is the Business Source License 1.1 text of Vault 1.15.0, " +
+			"while its only source file, kubernetes.go, carries an MPL-2.0 SPDX header, and the module versions before (v0.4.1) and " +
+			"after it (v0.12.0) ship the MPL 2.0 LICENSE. Required by consul-template (template rendering in the client); Nomad v1.6.5 " +
+			"already required this version. Proposed fix: require v0.12.0 (MPL 2.0) on the deps branch and remove this entry.",
+	},
+	{
+		Kind:    "npm",
+		Name:    "robust-predicates",
+		Version: "3.0.1",
+		License: "Unlicense",
+		Pending: true,
+		Reason: "PENDING DECISION. The Unlicense (public domain dedication with a permissive fallback, OSI approved) is not on the " +
+			"allow-list. The package is part of the UI bundle through d3 > d3-delaunay > delaunator. Options: add Unlicense to the " +
+			"allow-list in docs/licensing.md, or stop bundling d3-delaunay (import the d3 submodules that are used instead of d3).",
+	},
+	{
+		Kind:    "npm",
+		Name:    "caniuse-lite",
+		Version: "1.0.30001312",
+		License: "CC-BY-4.0",
+		Pending: true,
+		Reason: "PENDING DECISION. Browser support data used by browserslist while Babel builds the UI " +
+			"(@hashicorp/design-system-components > ember-cli-babel); it is a build-time dependency and not part of the UI bundle, but " +
+			"it is listed because the addon declares ember-cli-babel as a production dependency. Options: allow CC-BY-4.0 for " +
+			"build-time data, or restrict the UI inventory to the packages that are actually bundled.",
+	},
+	{
+		Kind:    "npm",
+		Name:    "jsonify",
+		Version: "0.0.0",
+		License: "LicenseRef-Public-Domain",
+		Pending: true,
+		Reason: "PENDING DECISION. Declared \"Public Domain\" in package.json, no license file. A build-time dependency " +
+			"(@ember/test-waiters > calculate-cache-key-for-tree > json-stable-stringify), not part of the UI bundle; see caniuse-lite.",
+	},
+
+	// Reviewed decisions.
+	{
+		Kind:    "go",
+		Name:    "github.com/docker/go-metrics",
+		Version: "v0.0.1",
+		License: "Apache-2.0",
+		Reason:  "The code is under the Apache License 2.0 (LICENSE); LICENSE.docs (CC-BY-SA-4.0) covers the documentation of the repository, which is not linked into the binaries.",
+	},
+	{
+		Kind:    "go",
+		Name:    "github.com/opencontainers/go-digest",
+		Version: "v1.0.0",
+		License: "Apache-2.0",
+		Reason:  "The code is under the Apache License 2.0 (LICENSE); LICENSE.docs (CC-BY-SA-4.0) covers the documentation of the repository, which is not linked into the binaries.",
+	},
+	{
+		Kind:    "npm",
+		Name:    "dialog-polyfill",
+		Version: "0.5.6",
+		License: "BSD-3-Clause",
+		Reason:  "package.json declares the non-SPDX value \"BSD\"; the LICENSE file is the BSD 3-clause text (The Chromium Authors).",
+	},
+	{
+		Kind:    "go",
+		Name:    "github.com/hashicorp/vic",
+		Version: "v1.5.1-0.20190403131502-bbfe86ec9443",
+		License: "Apache-2.0",
+		Excerpt: "vSphere Integrated Containers Engine v1.5.2 GA includes a number of",
+		Reason: "The LICENSE file is VMware's open source license disclosure for the vSphere Integrated Containers appliance: it states " +
+			"that the product is licensed under the Apache License 2.0 and then lists the third-party components of the appliance " +
+			"(operating system packages under GPL and other licenses), which are not part of this Go module. The only package linked, " +
+			"pkg/vsphere/tags (via go-discover's vSphere provider), carries VMware's Apache 2.0 headers. Reproduced below: the Apache 2.0 part of the LICENSE.",
+	},
+	{
+		Kind:    "go",
+		Name:    "github.com/tj/go-spin",
+		Version: "v1.1.0",
+		License: "MIT",
+		Reason:  "The module contains no license file; its Readme.md states \"License: MIT\" (author: TJ Holowaychuk). Linked through github.com/mitchellh/go-glint.",
+	},
+	{
+		Kind:    "go",
+		Name:    "kernel.org/pub/linux/libs/security/libcap/psx",
+		License: "BSD-3-Clause",
+		Reason:  "Dual-licensed: the License file offers \"one or the other\" of BSD 3-clause and GPL v2.0; Norca uses it under BSD-3-Clause. Linked through github.com/shoenig/go-landlock (Linux only).",
+	},
+}
+
+func findOverride(kind, name, version string) *override {
+	for i := range overrides {
+		o := &overrides[i]
+		if o.Kind == kind && o.Name == name && (o.Version == "" || o.Version == version) {
+			o.used = true
+			return o
+		}
+	}
+	return nil
+}
+
+// checkOverrides reports overrides that matched no component (stale after
+// an update; only if warnUnused) and fails, if strict, on pending overrides
+// that were applied.
+func checkOverrides(strict, warnUnused bool, kinds ...string) error {
+	var problems []string
+	for _, o := range overrides {
+		relevant := false
+		for _, k := range kinds {
+			relevant = relevant || o.Kind == k
+		}
+		if !relevant {
+			continue
+		}
+		id := fmt.Sprintf("%s %s %s", o.Kind, o.Name, o.Version)
+		switch {
+		case !o.used:
+			if !warnUnused {
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "warning: override for %s matches no component; remove it from overrides.go\n", strings.TrimSpace(id))
+		case o.Pending && strict:
+			problems = append(problems, strings.TrimSpace(id)+": "+o.Reason)
+		case o.Pending:
+			fmt.Fprintf(os.Stderr, "warning: %s is shipped under a decision pending legal review (see overrides.go)\n", strings.TrimSpace(id))
+		}
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("decisions pending legal review (-strict):\n  %s", strings.Join(problems, "\n  "))
+	}
+	return nil
+}
+
+// applyExcerpt cuts the license texts at the override's excerpt marker.
+func applyExcerpt(o *override, files []textFile) {
+	if o == nil || o.Excerpt == "" {
+		return
+	}
+	for i := range files {
+		if j := strings.Index(files[i].Text, o.Excerpt); j >= 0 {
+			cut := strings.LastIndex(files[i].Text[:j], "\n")
+			if cut < 0 {
+				cut = 0
+			}
+			files[i].Text = strings.TrimRight(files[i].Text[:cut], "\n=") + "\n\n[...] (excerpt; see the license decision above)"
+		}
+	}
+}
