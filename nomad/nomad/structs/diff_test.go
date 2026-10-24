@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -3425,6 +3426,18 @@ func TestTaskGroupDiff(t *testing.T) {
 										Name: "Protocol",
 										Old:  "http",
 										New:  "tcp",
+									},
+									{
+										Type: DiffTypeNone,
+										Name: "Role",
+										Old:  "",
+										New:  "",
+									},
+									{
+										Type: DiffTypeNone,
+										Name: "StartupTimeout",
+										Old:  "0",
+										New:  "0",
 									},
 									{
 										Type: DiffTypeEdited,
@@ -6863,6 +6876,12 @@ func TestTaskDiff(t *testing.T) {
 									},
 									{
 										Type: DiffTypeAdded,
+										Name: "StartupTimeout",
+										Old:  "",
+										New:  "0",
+									},
+									{
+										Type: DiffTypeAdded,
 										Name: "SuccessBeforePassing",
 										Old:  "",
 										New:  "2",
@@ -6937,6 +6956,12 @@ func TestTaskDiff(t *testing.T) {
 										Type: DiffTypeDeleted,
 										Name: "Protocol",
 										Old:  "http",
+										New:  "",
+									},
+									{
+										Type: DiffTypeDeleted,
+										Name: "StartupTimeout",
+										Old:  "0",
 										New:  "",
 									},
 									{
@@ -7191,6 +7216,18 @@ func TestTaskDiff(t *testing.T) {
 										Name: "Protocol",
 										Old:  "http",
 										New:  "http",
+									},
+									{
+										Type: DiffTypeNone,
+										Name: "Role",
+										Old:  "",
+										New:  "",
+									},
+									{
+										Type: DiffTypeNone,
+										Name: "StartupTimeout",
+										Old:  "0",
+										New:  "0",
 									},
 									{
 										Type: DiffTypeNone,

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package client
@@ -492,6 +493,7 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 	// client, so we do that here rather than within the agent.
 	c.setupNomadServiceRegistrationHandler()
 	c.serviceRegWrapper = wrapper.NewHandlerWrapper(c.logger, c.consulService, c.nomadService)
+	c.setupCheckRoles()
 
 	// Batching of initial fingerprints is done to reduce the number of node
 	// updates sent to the server on startup.
@@ -2792,6 +2794,7 @@ func (c *Client) setupNomadServiceRegistrationHandler() {
 		CheckWatcher: serviceregistration.NewCheckWatcher(
 			c.logger, nsd.NewStatusGetter(c.checkStore),
 		),
+		CheckStore: c.checkStore,
 	}
 	c.nomadService = nsd.NewServiceRegistrationHandler(c.logger, &cfg)
 }
