@@ -156,15 +156,13 @@ func (s *HTTPServer) ObjectsRequest(resp http.ResponseWriter, req *http.Request)
 }
 
 // ObjectSpecificRequest handles /v1/object/:group/:kind/:name and its
-// status subresource /v1/object/:group/:kind/:name/status.
+// subresources: status, finalizers, events and scale.
 func (s *HTTPServer) ObjectSpecificRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
 	parts := strings.Split(strings.TrimPrefix(req.URL.Path, "/v1/object/"), "/")
+	if len(parts) == 4 && parts[0] != "" && parts[1] != "" && parts[2] != "" {
+		return s.objectSubresourceRequest(resp, req, parts[0], parts[1], parts[2], parts[3])
+	}
 	switch {
-	case len(parts) == 4 && parts[3] == "status":
-		if req.Method != http.MethodPut && req.Method != http.MethodPost {
-			return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
-		}
-		return s.objectStatusUpdate(resp, req, parts[0], parts[1], parts[2])
 	case len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "":
 		return nil, CodedError(http.StatusBadRequest, "path must be /v1/object/<group>/<kind>/<name>")
 	}

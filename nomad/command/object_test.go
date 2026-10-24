@@ -26,6 +26,8 @@ func TestObjectCommands_Implements(t *testing.T) {
 	var _ cli.Command = &ObjectListCommand{}
 	var _ cli.Command = &ObjectGetCommand{}
 	var _ cli.Command = &ObjectDeleteCommand{}
+	var _ cli.Command = &ObjectEventsCommand{}
+	var _ cli.Command = &ObjectScaleCommand{}
 }
 
 const testCLIObjectSchema = `{
@@ -156,6 +158,19 @@ spec { b = 1 }`,
 		must.Error(t, err, must.Sprint(bad))
 	}
 
+	// Finalizers and owners.
+	obj, err = parseCustomObject("x.hcl", []byte(`kind = "g.example.com/X"
+name       = "x"
+finalizers = ["example.com/cleanup"]
+owner {
+  kind = "g.example.com/Parent"
+  name = "p"
+}
+spec {}`), false)
+	must.NoError(t, err)
+	must.Eq(t, []string{"example.com/cleanup"}, obj.Finalizers)
+	must.Eq(t, []*api.ObjectOwnerReference{{Kind: "g.example.com/Parent", Name: "p"}}, obj.Owners)
+
 	obj, err = parseCustomObject("x.json", []byte(`{"Group": "g", "Kind": "X", "Name": "x", "Spec": {"a": 1}}`), false)
 	must.NoError(t, err)
 	must.Eq(t, map[string]any{"a": float64(1)}, obj.Spec)
@@ -262,9 +277,40 @@ spec {
 	must.Eq(t, 0, run(&ObjectGetCommand{Meta: Meta{Ui: ui}}, ui, "-json", "db.example.com/PostgresCluster", "billing"))
 	must.StrContains(t, ui.OutputWriter.String(), `"Generation": 1`)
 
+	// object scale shows and sets the count; the change is in the events.
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectScaleCommand{Meta: Meta{Ui: ui}}, ui, "db.example.com/PostgresCluster/billing"), must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "Replicas")
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectScaleCommand{Meta: Meta{Ui: ui}}, ui, "-message", "more load", "db.example.com/PostgresCluster", "billing", "3"), must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "3")
+	ui = cli.NewMockUi()
+	must.Eq(t, 1, run(&ObjectScaleCommand{Meta: Meta{Ui: ui}}, ui, "db.example.com/PostgresCluster/billing", "-1"))
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectEventsCommand{Meta: Meta{Ui: ui}}, ui, "db.example.com/PostgresCluster", "billing"), must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "Scaled")
+	must.StrContains(t, ui.OutputWriter.String(), "more load")
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectGetCommand{Meta: Meta{Ui: ui}}, ui, "db.example.com/PostgresCluster", "billing"))
+	must.StrContains(t, ui.OutputWriter.String(), "Recent Events")
+
 	// The kind can't be deleted while it has objects.
 	ui = cli.NewMockUi()
 	must.Eq(t, 1, run(&ObjectKindDeleteCommand{Meta: Meta{Ui: ui}}, ui, "db.example.com/PostgresCluster"))
+
+	// An object with a finalizer is only marked for deletion.
+	_, _, err = client.Objects().Apply(&api.CustomObject{Group: "db.example.com", Kind: "PostgresCluster", Name: "fin",
+		Spec: map[string]any{"version": "16"}, Finalizers: []string{"example.com/cleanup"}}, nil, nil)
+	must.NoError(t, err)
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectDeleteCommand{Meta: Meta{Ui: ui}}, ui, "-propagation", "orphan", "db.example.com/PostgresCluster", "fin"), must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "marked for deletion")
+	must.StrContains(t, ui.OutputWriter.String(), "example.com/cleanup")
+	ui = cli.NewMockUi()
+	must.Eq(t, 0, run(&ObjectGetCommand{Meta: Meta{Ui: ui}}, ui, "db.example.com/PostgresCluster", "fin"))
+	must.StrContains(t, ui.OutputWriter.String(), "Deleting")
+	_, _, err = client.Objects().UpdateFinalizers("db.example.com", "PostgresCluster", "fin", nil, []string{"example.com/cleanup"}, nil, nil)
+	must.NoError(t, err)
 
 	// object delete
 	ui = cli.NewMockUi()
@@ -276,4 +322,23 @@ spec {
 
 	ui = cli.NewMockUi()
 	must.Eq(t, 0, run(&ObjectKindDeleteCommand{Meta: Meta{Ui: ui}}, ui, "db.example.com/PostgresCluster"), must.Sprint(ui.ErrorWriter.String()))
+}
+
+func TestParseObjectScaleArgs(t *testing.T) {
+	ci.Parallel(t)
+
+	g, k, n, count, err := parseObjectScaleArgs([]string{"db.example.com/PG/billing", "3"})
+	must.NoError(t, err)
+	must.Eq(t, []string{"db.example.com", "PG", "billing"}, []string{g, k, n})
+	must.Eq(t, int64(3), *count)
+
+	g, k, n, count, err = parseObjectScaleArgs([]string{"db.example.com/PG", "billing"})
+	must.NoError(t, err)
+	must.Eq(t, []string{"db.example.com", "PG", "billing"}, []string{g, k, n})
+	must.Nil(t, count)
+
+	for _, bad := range [][]string{{}, {"db.example.com/PG"}, {"db.example.com/PG/billing", "x"}, {"a/b/c", "1", "2"}} {
+		_, _, _, _, err := parseObjectScaleArgs(bad)
+		must.Error(t, err, must.Sprint(bad))
+	}
 }

@@ -56,6 +56,14 @@ Usage: norca object <subcommand> [options] [args]
 
       $ norca object delete db.example.com/PostgresCluster billing
 
+  Show the event log of an object:
+
+      $ norca object events db.example.com/PostgresCluster billing
+
+  Scale an object (kinds with a scale subresource):
+
+      $ norca object scale db.example.com/PostgresCluster/billing 5
+
   Please see the individual subcommand help for detailed usage information.
 `
 	return strings.TrimSpace(helpText)
@@ -500,7 +508,12 @@ func (c *ObjectGetCommand) Run(args []string) int {
 	if kind, _, err := client.ObjectKinds().Info(group, kindName, nil); err == nil {
 		columns = kind.Columns
 	}
-	c.Ui.Output(c.Colorize().Color(formatObject(obj, columns)))
+	out := formatObject(obj, columns)
+	// The event log is shown when the token may read it.
+	if events, _, err := client.Objects().Events(group, kindName, args[1], nil); err == nil && len(events) > 0 {
+		out += "\n\n[bold]Recent Events[reset]\n" + formatObjectEvents(events)
+	}
+	c.Ui.Output(c.Colorize().Color(out))
 	return 0
 }
 
@@ -520,6 +533,22 @@ func formatObject(o *api.CustomObject, columns []*api.ObjectKindColumn) string {
 	}
 	if o.ManagedBy != "" {
 		basic = append(basic, fmt.Sprintf("Managed By|%s", o.ManagedBy))
+	}
+	if len(o.Owners) > 0 {
+		owners := make([]string, 0, len(o.Owners))
+		for _, ref := range o.Owners {
+			if ref != nil {
+				owners = append(owners, formatOwnerRef(ref))
+			}
+		}
+		basic = append(basic, fmt.Sprintf("Owners|%s", strings.Join(owners, ",")))
+	}
+	if len(o.Finalizers) > 0 {
+		basic = append(basic, fmt.Sprintf("Finalizers|%s", strings.Join(o.Finalizers, ",")))
+	}
+	if o.Deleting() {
+		basic = append(basic, fmt.Sprintf("Deleting|since %s (%s)",
+			formatTime(time.Unix(0, o.DeletionTime)), o.DeletionPropagation))
 	}
 	if len(o.Labels) > 0 {
 		keys := make([]string, 0, len(o.Labels))
@@ -591,7 +620,10 @@ func (c *ObjectDeleteCommand) Help() string {
 	helpText := `
 Usage: norca object delete [options] <group>/<Kind> <name>
 
-  Delete is used to delete a custom object.
+  Delete is used to delete a custom object. An object with finalizers is
+  only marked for deletion; it disappears when its controllers have
+  removed the finalizers (after cleaning up). The objects and jobs the
+  object owns are deleted according to the propagation mode.
 
   If ACLs are enabled, this command requires a token with the 'write'
   capability of an object rule matching the kind in the namespace.
@@ -607,6 +639,12 @@ Delete Options:
 
   -dry-run
     Check that the object can be deleted without deleting it.
+
+  -propagation <mode>
+    What happens to the objects and jobs the object owns: "background"
+    (default) deletes the object at once and them afterwards, "foreground"
+    deletes them first and the object afterwards, "orphan" leaves them in
+    place.
 `
 	return strings.TrimSpace(helpText)
 }
@@ -614,8 +652,9 @@ Delete Options:
 func (c *ObjectDeleteCommand) AutocompleteFlags() complete.Flags {
 	return mergeAutocompleteFlags(c.Meta.AutocompleteFlags(FlagSetClient),
 		complete.Flags{
-			"-cas":     complete.PredictAnything,
-			"-dry-run": complete.PredictNothing,
+			"-cas":         complete.PredictAnything,
+			"-dry-run":     complete.PredictNothing,
+			"-propagation": complete.PredictSet(api.ObjectPropagationBackground, api.ObjectPropagationForeground, api.ObjectPropagationOrphan),
 		})
 }
 
@@ -625,12 +664,13 @@ func (c *ObjectDeleteCommand) AutocompleteArgs() complete.Predictor {
 
 func (c *ObjectDeleteCommand) Run(args []string) int {
 	var dryRun bool
-	var casFlag string
+	var casFlag, propagation string
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.BoolVar(&dryRun, "dry-run", false, "")
 	flags.StringVar(&casFlag, "cas", "", "")
+	flags.StringVar(&propagation, "propagation", "", "")
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
@@ -657,7 +697,8 @@ func (c *ObjectDeleteCommand) Run(args []string) int {
 		return 1
 	}
 
-	_, _, err = client.Objects().Delete(group, kindName, args[1], &api.ObjectWriteOptions{CAS: cas, DryRun: dryRun}, nil)
+	opts := &api.ObjectWriteOptions{CAS: cas, DryRun: dryRun, Propagation: propagation}
+	obj, _, err := client.Objects().Delete(group, kindName, args[1], opts, nil)
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error deleting object: %s", objectWriteErrorHint(err)))
 		return 1
@@ -665,6 +706,17 @@ func (c *ObjectDeleteCommand) Run(args []string) int {
 	ref := args[0] + "/" + args[1]
 	if dryRun {
 		c.Ui.Output(fmt.Sprintf("Object %q can be deleted (dry run, nothing was deleted)", ref))
+		return 0
+	}
+	if obj != nil && obj.Deleting() {
+		msg := fmt.Sprintf("Object %q is marked for deletion (%s)", ref, obj.DeletionPropagation)
+		if len(obj.Finalizers) > 0 {
+			msg += fmt.Sprintf("; waiting for the finalizers %s", strings.Join(obj.Finalizers, ", "))
+		}
+		if obj.DeletionPropagation == api.ObjectPropagationForeground {
+			msg += "; the objects and jobs it owns are deleted first"
+		}
+		c.Ui.Output(msg)
 		return 0
 	}
 	c.Ui.Output(fmt.Sprintf("Successfully deleted object %q!", ref))
