@@ -20,8 +20,9 @@ type WatchMode string
 const (
 	// WatchAuto uses the event stream, and falls back to polling with
 	// blocking queries if the token may not subscribe to the event stream.
-	// (In Nomad 1.6.5 the event stream accepts only ACL tokens, not
-	// workload identities.)
+	// (Norca servers accept workload identities on the event stream,
+	// authorized by the ACL policies bound to the job; Nomad 1.6.5 servers
+	// accept only ACL tokens.)
 	WatchAuto WatchMode = ""
 
 	// WatchStream uses only the event stream.
@@ -61,10 +62,11 @@ type watchConfig struct {
 	fromNowAfterGone bool
 }
 
-// streamForbidden reports whether the event stream refused the token. The
-// server reports a token it cannot resolve for the event stream (for example
-// a workload identity) or a missing permission as 500 with the ACL error
-// message, so those messages are recognized too.
+// streamForbidden reports whether the event stream refused the token. Norca
+// servers report it as 403. Older servers (Nomad 1.6.5) report a token they
+// cannot resolve for the event stream (for example a workload identity) or a
+// missing permission as 500 with the ACL error message, so those messages are
+// recognized too.
 func streamForbidden(err error) bool {
 	switch statusCode(err) {
 	case http.StatusForbidden:

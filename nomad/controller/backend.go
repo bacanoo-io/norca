@@ -130,18 +130,17 @@ func (b *apiBackend) ListVariables(ctx context.Context, namespace, prefix string
 }
 
 func (b *apiBackend) ReadVariable(ctx context.Context, namespace, path string) (*api.Variable, error) {
-	// Variables.Read reports a permission error as "not found", which would
-	// make a controller believe its objects were deleted; use a plain query.
+	// Variables.Read reports a permission error as an error wrapping
+	// api.ErrVariablePermissionDenied, never as ErrVariablePathNotFound.
 	q := (&api.QueryOptions{Namespace: namespace}).WithContext(ctx)
-	var v api.Variable
-	_, err := b.client.Raw().Query("/v1/var/"+strings.Trim(path, "/"), &v, q)
+	v, _, err := b.client.Variables().Read(path, q)
 	if err != nil {
-		if statusCode(err) == http.StatusNotFound {
+		if errors.Is(err, api.ErrVariablePathNotFound) {
 			return nil, fmt.Errorf("variable %s/%s: %w", namespace, path, ErrNotFound)
 		}
 		return nil, err
 	}
-	return &v, nil
+	return v, nil
 }
 
 func (b *apiBackend) WriteVariable(ctx context.Context, v *api.Variable) (*api.Variable, error) {

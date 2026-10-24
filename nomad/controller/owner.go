@@ -154,8 +154,9 @@ func (s *EventSource) Run(ctx context.Context, sc *SourceContext) {
 // OwnedJobsSource maps the changes of jobs owned by objects of the
 // controller's kind (by OwnerMetaKey) to their owners. It watches the Job
 // topic, and the Allocation, Evaluation and Deployment topics through an
-// index of owned job IDs, so allocation state changes and purged jobs
-// (which produce no Job event) also reach the owner.
+// index of owned job IDs, so allocation state changes also reach the owner,
+// and so do purged jobs on older servers (Nomad 1.6.5), where a purge
+// produces no Job event.
 //
 // In WatchPoll mode it polls the job list with blocking queries instead and
 // maps jobs whose ModifyIndex changed or that disappeared.
