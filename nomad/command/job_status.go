@@ -424,7 +424,7 @@ func (c *JobStatusCommand) formatDeployment(client *api.Client, d *api.Deploymen
 			base += "\n\nError fetching Multiregion deployments\n\n"
 		} else if len(regions) > 0 {
 			base += "\n\n[bold]Multiregion Deployment[reset]\n"
-			base += formatMultiregionDeployment(regions, 8)
+			base += formatMultiregionDeployment(regions, c.length)
 		}
 	}
 
