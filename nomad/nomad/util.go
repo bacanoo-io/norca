@@ -59,6 +59,10 @@ type serverParts struct {
 	// Deprecated: Functionally unused but needs to always be set by 1 for
 	// compatibility with v1.2.x and earlier.
 	MajorVersion int
+
+	// NorcaVersion is the Norca product version of the server, or nil if the
+	// server does not advertise one (e.g. an upstream Nomad server).
+	NorcaVersion *version.Version
 }
 
 func (s *serverParts) String() string {
@@ -123,6 +127,10 @@ func isNomadServer(m serf.Member) (bool, *serverParts) {
 		}
 	}
 
+	// A missing or invalid Norca version only disables Norca features, it does
+	// not make the member invalid
+	norcaVersion, _ := version.NewVersion(m.Tags[norcaVersionTag])
+
 	// Check if the server is a non voter
 	_, nonVoter := m.Tags["nonvoter"]
 
@@ -140,6 +148,7 @@ func isNomadServer(m serf.Member) (bool, *serverParts) {
 		RPCAddr:      rpcAddr,
 		Build:        *buildVersion,
 		RaftVersion:  raftVsn,
+		NorcaVersion: norcaVersion,
 		Status:       m.Status,
 		NonVoter:     nonVoter,
 		MajorVersion: deprecatedAPIMajorVersion,
