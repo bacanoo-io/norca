@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -39,6 +40,10 @@ func (p *Scaling) ListPolicies(args *structs.ScalingPolicyListRequest, reply *st
 	}
 	defer metrics.MeasureSince([]string{"nomad", "scaling", "list_policies"}, time.Now())
 
+	if err := validateScalingEngineFilter(args.Engine); err != nil {
+		return err
+	}
+
 	if args.RequestNamespace() == structs.AllNamespacesSentinel {
 		return p.listAllNamespaces(args, reply)
 	}
@@ -76,8 +81,12 @@ func (p *Scaling) ListPolicies(args *structs.ScalingPolicyListRequest, reply *st
 
 			// Convert all the policies to a list stub
 			reply.Policies = nil
+			defaultEngine := p.srv.autoscalerDefaultEngine()
 			for raw := iter.Next(); raw != nil; raw = iter.Next() {
 				policy := raw.(*structs.ScalingPolicy)
+				if !scalingPolicyMatchesEngine(policy, args.Engine, defaultEngine) {
+					continue
+				}
 				reply.Policies = append(reply.Policies, policy.Stub())
 			}
 
@@ -192,8 +201,12 @@ func (p *Scaling) listAllNamespaces(args *structs.ScalingPolicyListRequest, repl
 			}
 
 			var policies []*structs.ScalingPolicyListStub
+			defaultEngine := p.srv.autoscalerDefaultEngine()
 			for raw := iter.Next(); raw != nil; raw = iter.Next() {
 				policy := raw.(*structs.ScalingPolicy)
+				if !scalingPolicyMatchesEngine(policy, args.Engine, defaultEngine) {
+					continue
+				}
 				if allowedNSes != nil && !allowedNSes[policy.Target[structs.ScalingTargetNamespace]] {
 					// not permitted to this name namespace
 					continue

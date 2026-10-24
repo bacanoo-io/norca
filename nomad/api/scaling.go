@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package api
@@ -71,6 +72,10 @@ type ScalingPolicy struct {
 	Enabled *bool                  `hcl:"enabled,optional"`
 	Type    string                 `hcl:"type,optional"`
 
+	// Engine is the autoscaler responsible for the policy: "builtin" or
+	// "external". Empty means the default engine of the servers.
+	Engine string `hcl:"engine,optional"`
+
 	/* fields set by server */
 
 	ID          string
@@ -86,6 +91,7 @@ type ScalingPolicyListStub struct {
 	ID          string
 	Enabled     bool
 	Type        string
+	Engine      string
 	Target      map[string]string
 	CreateIndex uint64
 	ModifyIndex uint64
