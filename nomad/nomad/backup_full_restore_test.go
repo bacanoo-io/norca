@@ -27,9 +27,11 @@ type fullRestoreTest struct {
 	second   *structs.ACLToken
 	writer   *structs.ACLToken
 	identity *age.X25519Identity
+
+	followers []*Server
 }
 
-func newFullRestoreTest(t *testing.T) (*fullRestoreTest, func()) {
+func newFullRestoreTest(t *testing.T, followers int) (*fullRestoreTest, func()) {
 	s3 := s3fake.New()
 	identity, err := age.GenerateX25519Identity()
 	must.NoError(t, err)
@@ -41,9 +43,29 @@ func newFullRestoreTest(t *testing.T) (*fullRestoreTest, func()) {
 		c.Backup = testBackupConfig(s3, identity, false)
 	})
 	testutil.WaitForLeader(t, srv.RPC)
-	waitForKeyring(t, srv)
+	cleanups := []func(){cleanup, s3.Close}
 
+	// Followers join the leader; the bootstrap token was written into the
+	// leader's state only, so it stays the leader's.
 	ft := &fullRestoreTest{t: t, srv: srv, root: root, identity: identity}
+	for range followers {
+		follower, cleanup := TestServer(t, func(c *Config) {
+			c.DevMode = false
+			c.DataDir = t.TempDir()
+			c.NumSchedulers = 0
+			c.BootstrapExpect = 0
+			c.ACLEnabled = true
+			c.Backup = testBackupConfig(s3, identity, false)
+		})
+		cleanups = append(cleanups, cleanup)
+		TestJoin(t, srv, follower)
+		ft.followers = append(ft.followers, follower)
+	}
+	for _, f := range ft.followers {
+		testutil.WaitForLeader(t, f.RPC)
+	}
+	must.True(t, srv.IsLeader())
+	waitForKeyring(t, srv)
 
 	// Through Raft, so the tokens are in every backup taken after.
 	var policyResp structs.GenericResponse
@@ -62,8 +84,9 @@ func newFullRestoreTest(t *testing.T) (*fullRestoreTest, func()) {
 	ft.second, ft.writer = tokenResp.Tokens[0], tokenResp.Tokens[1]
 
 	return ft, func() {
-		cleanup()
-		s3.Close()
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i]()
+		}
 	}
 }
 
@@ -145,7 +168,7 @@ func (ft *fullRestoreTest) restoreRecord(id string) *structs.BackupRestore {
 func TestBackupEndpoint_FullRestore(t *testing.T) {
 	ci.Parallel(t)
 
-	ft, cleanup := newFullRestoreTest(t)
+	ft, cleanup := newFullRestoreTest(t, 0)
 	defer cleanup()
 	srv := ft.srv
 
@@ -287,7 +310,7 @@ func TestBackupEndpoint_FullRestore(t *testing.T) {
 func TestBackupEndpoint_FullRestoreRejectExpire(t *testing.T) {
 	ci.Parallel(t)
 
-	ft, cleanup := newFullRestoreTest(t)
+	ft, cleanup := newFullRestoreTest(t, 0)
 	defer cleanup()
 	record := ft.save()
 
@@ -438,4 +461,61 @@ func TestKeyringEndpoint_Restore_ACL(t *testing.T) {
 		Keys: []*structs.RootKey{key}, WriteRequest: structs.WriteRequest{Region: "global", AuthToken: root.SecretID},
 	}, &resp))
 	must.Eq(t, []string{key.Meta.KeyID}, resp.Added)
+}
+
+// TestBackupEndpoint_FullRestoreCluster restores a backup into a cluster of
+// two servers: the keys of the backup reach the follower with the
+// approver's token, and the follower installs the restored state.
+func TestBackupEndpoint_FullRestoreCluster(t *testing.T) {
+	ci.Parallel(t)
+
+	ft, cleanup := newFullRestoreTest(t, 1)
+	defer cleanup()
+	leader, follower := ft.srv, ft.followers[0]
+
+	jobA := mock.Job()
+	jobA.Meta = map[string]string{"release": "v0"}
+	ft.registerJob(jobA.Copy())
+	ft.setVariable("app/config", "before")
+	oldKey, err := leader.fsm.State().GetActiveRootKeyMeta(nil)
+	must.NoError(t, err)
+	record := ft.save()
+
+	jobB := mock.Job()
+	ft.registerJob(jobB)
+	var rotateResp structs.KeyringRotateRootKeyResponse
+	must.NoError(t, ft.call("Keyring.Rotate", &structs.KeyringRotateRootKeyRequest{WriteRequest: ft.write(ft.root)}, &rotateResp))
+	ft.setVariable("app/config", "after")
+	must.Wait(t, wait.InitialSuccess(
+		wait.ErrorFunc(func() error { _, err := follower.encrypter.GetKey(rotateResp.Key.KeyID); return err }),
+		wait.Timeout(10*time.Second),
+	))
+	// The old key is lost on both servers.
+	must.NoError(t, leader.encrypter.RemoveKey(oldKey.KeyID))
+	must.NoError(t, follower.encrypter.RemoveKey(oldKey.KeyID))
+
+	requested, err := ft.request(record.ID, ft.root, "global", false)
+	must.NoError(t, err)
+	approved, err := ft.approve(requested.Restore.ID, ft.second, ft.identity.String())
+	must.NoError(t, err)
+	must.Eq(t, structs.BackupRestoreStatusComplete, approved.Restore.Status)
+	must.StrNotContains(t, approved.Restore.StatusDescription, "keys not restored")
+
+	// The follower got the keys from the restore and the state from Raft.
+	_, err = follower.encrypter.GetKey(oldKey.KeyID)
+	must.NoError(t, err)
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool {
+			got, err := follower.fsm.State().JobByID(nil, "default", jobB.ID)
+			return err == nil && got == nil
+		}),
+		wait.Timeout(10*time.Second),
+	))
+	encrypted, err := follower.fsm.State().GetVariable(nil, "default", "app/config")
+	must.NoError(t, err)
+	must.Eq(t, oldKey.KeyID, encrypted.KeyID)
+	items, err := decryptBackupVariable(follower.encrypter, encrypted)
+	must.NoError(t, err)
+	must.Eq(t, "before", items["password"])
+	must.Eq(t, "before", ft.readVariable("app/config"))
 }

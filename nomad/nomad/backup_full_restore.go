@@ -352,7 +352,7 @@ func (b *Backup) ApproveRestore(args *structs.BackupRestoreApproveRequest, reply
 	b.logger.Info("full restore approved", "audit", true, "restore_id", record.ID, "backup_id", record.BackupID,
 		"requested_by", record.RequestedBy, "approved_by", identity)
 
-	restored, err := b.runFullRestore(ctx, record, backupRecord, dest, st, ids)
+	restored, err := b.runFullRestore(ctx, record, backupRecord, dest, st, ids, args.AuthToken)
 	reply.Restore = restored
 	if restored != nil {
 		reply.Index = restored.ModifyIndex
@@ -407,9 +407,10 @@ func (b *Backup) RejectRestore(args *structs.BackupRestoreRejectRequest, reply *
 }
 
 // runFullRestore runs an approved full restore and returns the final
-// restore record.
+// restore record. authToken is the approver's management token; the other
+// servers check it when they receive the keys of the backup.
 func (b *Backup) runFullRestore(ctx context.Context, record *structs.BackupRestore, backupRecord *structs.BackupRecord,
-	dest backup.Destination, st *structs.BackupDestinationStatus, ids backup.Identities) (*structs.BackupRestore, error) {
+	dest backup.Destination, st *structs.BackupDestinationStatus, ids backup.Identities, authToken string) (*structs.BackupRestore, error) {
 
 	write := func() {
 		record.ModifyTime = time.Now().UTC()
@@ -470,7 +471,7 @@ func (b *Backup) runFullRestore(ctx context.Context, record *structs.BackupResto
 	// restored Variables and workload identities stay readable.
 	var notes []string
 	if keys != nil {
-		resp, err := b.srv.restoreKeyring(keys, b.srv.getLeaderAcl())
+		resp, err := b.srv.restoreKeyring(keys, authToken)
 		if err != nil {
 			return fail(fmt.Errorf("failed to restore the keyring, nothing was restored: %w", err))
 		}
