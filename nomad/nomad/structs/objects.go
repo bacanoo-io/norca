@@ -47,10 +47,13 @@ const (
 	ObjectStatusObservedGeneration = "observedGeneration"
 	ObjectStatusConditions         = "conditions"
 
-	// ObjectPropagationBackground is the default deletion propagation mode.
-	// The foreground and orphan modes need owner references and the object
-	// garbage collector, which are not implemented yet.
+	// Deletion propagation modes. Background (the default) deletes the object
+	// at once and the objects and jobs it owns afterwards; foreground deletes
+	// what the object owns first and the object afterwards; orphan leaves
+	// what the object owns in place.
 	ObjectPropagationBackground = "background"
+	ObjectPropagationForeground = "foreground"
+	ObjectPropagationOrphan     = "orphan"
 
 	maxObjectKindDescriptionLength = 1024
 	maxObjectKindRules             = 64
@@ -138,8 +141,8 @@ type ObjectKind struct {
 	// Columns are the display columns of the CLI listing and the UI.
 	Columns []*ObjectKindColumn
 
-	// Scale describes the scale subresource. It is stored for the
-	// autoscaler target, which is not implemented yet.
+	// Scale describes the scale subresource: the replica count of an
+	// object, read and written by the autoscaler and "norca object scale".
 	Scale *ObjectKindScale
 
 	// Replicated marks a kind replicated from the authoritative region. It
@@ -317,19 +320,24 @@ type CustomObject struct {
 	// Labels are indexed and can be used to select objects.
 	Labels map[string]string
 
-	// ManagedBy names the tool or controller that manages the spec, so that
-	// CEL rules (request.user) can reject writes of other writers.
+	// ManagedBy names the tool or controller that manages the spec. An
+	// identity ("workload:<namespace>/<job>", "role:<name>",
+	// "policy:<name>" or "token:<accessor ID>") is enforced: only that
+	// identity (and management tokens) may update or delete the object.
+	// Other values are free-form, for CEL rules (request.user).
 	ManagedBy string
 
-	// Owners are references to the objects this object belongs to. They are
-	// stored but not acted on yet; garbage collection comes with the
-	// lifecycle phase of the operator framework.
+	// Owners are references to the objects this object belongs to. When
+	// all its custom object owners are deleted (in the background or
+	// foreground mode), the object garbage collector deletes it.
 	Owners []*ObjectOwnerReference
 
-	// Finalizers and DeletionTime are reserved for the lifecycle phase;
-	// writes that set finalizers are rejected until then.
-	Finalizers   []string
-	DeletionTime int64
+	// Finalizers block the deletion of the object: deleting it only sets
+	// DeletionTime (UnixNano) and DeletionPropagation, and it disappears
+	// when its controllers have removed all finalizers.
+	Finalizers          []string
+	DeletionTime        int64
+	DeletionPropagation string
 
 	// Generation increases on every change of the spec.
 	Generation uint64
@@ -349,7 +357,9 @@ type CustomObject struct {
 }
 
 // ObjectOwnerReference references the owner of an object. Kind is a
-// "group/Kind" reference for custom objects, or "Job" or "Variable".
+// "group/Kind" reference for custom objects, or "Job" or "Variable" (stored,
+// but not acted on by the garbage collector). An empty namespace means the
+// namespace of the object, except for owners of a cluster-scoped kind.
 type ObjectOwnerReference struct {
 	Kind      string
 	Namespace string
@@ -425,7 +435,14 @@ func (o *CustomObject) ValidateMetadata() error {
 	for i, owner := range o.Owners {
 		if owner == nil || owner.Kind == "" || owner.Name == "" {
 			mErr = multierror.Append(mErr, fmt.Errorf("owner %d: kind and name are required", i))
+			continue
 		}
+		if err := owner.Validate(); err != nil {
+			mErr = multierror.Append(mErr, fmt.Errorf("owner %d: %v", i, err))
+		}
+	}
+	if err := ValidateObjectFinalizers(o.Finalizers); err != nil {
+		mErr = multierror.Append(mErr, err)
 	}
 	return mErr.ErrorOrNil()
 }
@@ -643,7 +660,8 @@ type CustomObjectDeleteRequest struct {
 	// CAS, if set, is the expected modify index of the stored object.
 	CAS *uint64
 
-	// Propagation is the deletion mode. Only "background" is supported.
+	// Propagation is the deletion mode: "background" (default),
+	// "foreground" or "orphan".
 	Propagation string
 
 	// DryRun checks the deletion without deleting.
@@ -669,6 +687,17 @@ type CustomObjectDeleteStateRequest struct {
 	Namespace           string
 	Name                string
 	ExpectedModifyIndex uint64
+
+	// Propagation is the deletion mode. For "background" and "foreground"
+	// the deletion leaves a tombstone, from which the garbage collector
+	// deletes the objects and jobs the object owned; "orphan" and the
+	// empty mode (written by servers without the object lifecycle) don't.
+	Propagation string
+
+	// DeleteTime (UnixNano) is the time of the deletion recorded in the
+	// tombstone.
+	DeleteTime int64
+
 	WriteRequest
 }
 

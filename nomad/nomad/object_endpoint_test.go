@@ -367,16 +367,16 @@ func TestCustomObjectEndpoint_Apply(t *testing.T) {
 	must.NoError(t, err)
 	must.Eq(t, before, after)
 
-	// Unknown namespace, finalizers and unsupported propagation are
-	// rejected.
+	// Unknown namespaces, invalid finalizers and unknown propagation modes
+	// are rejected.
 	_, err = c.apply(testPGObject("nope", "billing", map[string]any{"version": "16"}), nil, false, "")
 	must.Eq(t, 400, errCode(t, err))
 	fin := testPGObject("default", "other", map[string]any{"version": "16"})
-	fin.Finalizers = []string{"example.com/cleanup"}
+	fin.Finalizers = []string{"bad finalizer"}
 	_, err = c.apply(fin, nil, false, "")
 	must.Eq(t, 400, errCode(t, err))
 	delReq := &structs.CustomObjectDeleteRequest{
-		Group: "db.example.com", Kind: "PostgresCluster", Name: "billing", Propagation: "orphan",
+		Group: "db.example.com", Kind: "PostgresCluster", Name: "billing", Propagation: "sideways",
 		WriteRequest: structs.WriteRequest{Region: "global"},
 	}
 	var delResp structs.CustomObjectWriteResponse

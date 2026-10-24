@@ -43,6 +43,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/drainer"
+	"github.com/hashicorp/nomad/nomad/objectgc"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
@@ -259,6 +260,10 @@ type Server struct {
 	// objects is the type registry of custom objects (compiled schemas and
 	// CEL rules of the object kinds)
 	objects *objectRegistry
+
+	// objectGC is the garbage collector of custom objects, running on the
+	// leader.
+	objectGC *objectgc.Collector
 
 	// periodicDispatcher is used to track and create evaluations for periodic jobs.
 	periodicDispatcher *PeriodicDispatch
@@ -514,6 +519,9 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 
 	// Setup the built-in autoscaler.
 	s.setupAutoscaler()
+
+	// Setup the garbage collector of custom objects.
+	s.setupObjectGC()
 
 	// Setup the scheduled backups.
 	s.setupBackup()

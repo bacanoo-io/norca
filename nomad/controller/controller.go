@@ -39,10 +39,11 @@ func (f ReconcilerFunc) Reconcile(ctx context.Context, key ObjectKey) (time.Dura
 type Predicate func(oldObj, newObj *Object) bool
 
 // SpecChanged is the default predicate: it reconciles changes of the spec,
-// labels or extra items, and objects whose status was removed. Status-only
-// changes (typically the controller's own status writes) are skipped.
+// labels or extra items, of the finalizers and the deletion state, and
+// objects whose status was removed. Status-only changes (typically the
+// controller's own status writes) are skipped.
 func SpecChanged(oldObj, newObj *Object) bool {
-	return !specEqual(oldObj, newObj) || len(newObj.Status) == 0
+	return !specEqual(oldObj, newObj) || lifecycleChanged(oldObj, newObj) || len(newObj.Status) == 0
 }
 
 // AnyChange reconciles every update of an object.
@@ -109,6 +110,7 @@ type Controller struct {
 	informer *Informer
 	objects  *Objects
 	elector  *LeaderElector
+	recorder *EventRecorder
 
 	mu    sync.RWMutex
 	queue *Queue[ObjectKey] // nil when not reconciling (not the leader)
@@ -160,6 +162,7 @@ func New(backend Backend, reconciler Reconciler, opts Options) (*Controller, err
 	if err != nil {
 		return nil, err
 	}
+	c.recorder = NewEventRecorder(c.objects, 0)
 	c.informer = newInformer(c.objects.store, backend, InformerOptions{
 		Namespace:    opts.Namespace,
 		ResyncPeriod: max(opts.ResyncPeriod, 0),
@@ -205,6 +208,11 @@ func (c *Controller) Backend() Backend { return c.backend }
 
 // Objects returns the object client of the controller's kind.
 func (c *Controller) Objects() *Objects { return c.objects }
+
+// Recorder returns the event recorder of the controller's objects. It
+// writes to the event log of native objects and drops repetitions within a
+// minute; with Variables storage it does nothing.
+func (c *Controller) Recorder() *EventRecorder { return c.recorder }
 
 // Informer returns the informer of the controller's objects.
 func (c *Controller) Informer() *Informer { return c.informer }

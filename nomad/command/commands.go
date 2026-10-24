@@ -590,11 +590,17 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		"object delete": func() (cli.Command, error) {
 			return &ObjectDeleteCommand{Meta: meta}, nil
 		},
+		"object events": func() (cli.Command, error) {
+			return &ObjectEventsCommand{Meta: meta}, nil
+		},
 		"object get": func() (cli.Command, error) {
 			return &ObjectGetCommand{Meta: meta}, nil
 		},
 		"object list": func() (cli.Command, error) {
 			return &ObjectListCommand{Meta: meta}, nil
+		},
+		"object scale": func() (cli.Command, error) {
+			return &ObjectScaleCommand{Meta: meta}, nil
 		},
 		"object-kind": func() (cli.Command, error) {
 			return &ObjectKindCommand{Meta: meta}, nil

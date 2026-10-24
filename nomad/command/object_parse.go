@@ -244,12 +244,53 @@ func parseCustomObject(path string, content []byte, jsonInput bool) (*api.Custom
 				return nil, fmt.Errorf("spec must be an object")
 			}
 			obj.Spec = m
+		case "finalizers":
+			v, err := ctyToGo(val)
+			if err != nil {
+				return nil, fmt.Errorf("finalizers: %w", err)
+			}
+			list, ok := v.([]any)
+			if !ok {
+				return nil, fmt.Errorf("finalizers must be a list of strings")
+			}
+			for _, e := range list {
+				s, ok := e.(string)
+				if !ok {
+					return nil, fmt.Errorf("finalizers must be a list of strings")
+				}
+				obj.Finalizers = append(obj.Finalizers, s)
+			}
 		default:
 			return nil, fmt.Errorf("%s: unsupported attribute %q", attr.NameRange, name)
 		}
 	}
 
 	for _, block := range body.Blocks {
+		if block.Type == "owner" && len(block.Labels) == 0 {
+			m, err := hclBodyToMap(block.Body, ctx)
+			if err != nil {
+				return nil, err
+			}
+			ref := &api.ObjectOwnerReference{}
+			for k, v := range m {
+				s, ok := v.(string)
+				if !ok {
+					return nil, fmt.Errorf("%s: owner %s must be a string", block.TypeRange, k)
+				}
+				switch k {
+				case "kind":
+					ref.Kind = s
+				case "name":
+					ref.Name = s
+				case "namespace":
+					ref.Namespace = s
+				default:
+					return nil, fmt.Errorf("%s: unsupported owner attribute %q", block.TypeRange, k)
+				}
+			}
+			obj.Owners = append(obj.Owners, ref)
+			continue
+		}
 		if block.Type != "spec" || len(block.Labels) != 0 {
 			return nil, fmt.Errorf("%s: unsupported block %q", block.TypeRange, block.Type)
 		}

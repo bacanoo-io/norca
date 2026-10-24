@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -59,6 +60,11 @@ func ObjectFromCustomObject(kind Kind, co *api.CustomObject) (*Object, error) {
 		CreateTime:  time.Unix(0, co.CreateTime),
 		ModifyTime:  time.Unix(0, co.ModifyTime),
 		Labels:      maps.Clone(co.Labels),
+		Finalizers:  slices.Clone(co.Finalizers),
+		Owners:      copyOwners(co.Owners),
+	}
+	if co.DeletionTime != 0 {
+		o.DeletionTime = time.Unix(0, co.DeletionTime)
 	}
 	if len(co.Spec) > 0 {
 		b, err := json.Marshal(co.Spec)
@@ -94,6 +100,9 @@ func (o *Object) ToCustomObject() (*api.CustomObject, error) {
 		Generation:  o.Generation,
 		CreateIndex: o.CreateIndex,
 		ModifyIndex: o.ModifyIndex,
+		// The server adds the finalizers of a write and never removes any.
+		Finalizers: slices.Clone(o.Finalizers),
+		Owners:     copyOwners(o.Owners),
 	}
 	var err error
 	if co.Spec, err = decodeDocument(o.Spec); err != nil {
@@ -115,4 +124,18 @@ func decodeDocument(doc json.RawMessage) (map[string]any, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+func copyOwners(owners []*api.ObjectOwnerReference) []*api.ObjectOwnerReference {
+	if owners == nil {
+		return nil
+	}
+	out := make([]*api.ObjectOwnerReference, 0, len(owners))
+	for _, ref := range owners {
+		if ref != nil {
+			r := *ref
+			out = append(out, &r)
+		}
+	}
+	return out
 }

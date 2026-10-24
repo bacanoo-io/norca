@@ -35,6 +35,13 @@
 // Variable (nomad/jobs/lb-<name>), which the controller updates when the
 // service instances change. Deleting the object deletes the job.
 //
+// Native objects get the finalizer norca.io/loadbalancer-cleanup: deleting
+// one only marks it, the controller removes the load balancer and then the
+// finalizer, and the object disappears. Problems and state changes are
+// recorded in the object's event log ("norca object events"). The proxy
+// jobs carry the controller's identity in norca.managed-by, so the servers
+// reject changes by other identities.
+//
 // Subcommands:
 //
 //	loadbalancer [controller] [flags]   run the controller (default)
@@ -147,6 +154,8 @@ func runController(ctx context.Context, args []string) error {
 	fs.StringVar(&f.provider.Driver, "proxy-driver", "raw_exec", "task driver of the proxy jobs: raw_exec, exec or docker")
 	fs.StringVar(&f.provider.Command, "proxy-command", self, "path of this binary on the nodes (raw_exec, exec)")
 	fs.StringVar(&f.provider.Image, "proxy-image", "", "container image with this binary (docker)")
+	fs.StringVar(&f.provider.ManagedBy, "managed-by", controller.ManagedByFromEnv(),
+		"identity protecting the proxy jobs from changes by others (default: this task's job, workload:<namespace>/<job>)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
