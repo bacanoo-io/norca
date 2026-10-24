@@ -44,3 +44,12 @@ path = ["nomad/pack/fixtures/community/packs/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "IBM Corp. and the Nomad Pack Community Registry contributors"
 SPDX-License-Identifier = "MPL-2.0"
+
+# THIRD_PARTY_NOTICES.md is generated (nomad/tools/thirdparty) and reproduces the
+# license texts and notices of the dependencies, some of which contain SPDX tags of
+# their own; those describe the dependencies, not this file.
+[[annotations]]
+path = "THIRD_PARTY_NOTICES.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
