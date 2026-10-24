@@ -123,10 +123,34 @@ func TestHTTP_Backups(t *testing.T) {
 		must.NoError(t, err)
 		must.StrContains(t, url.URL, "manifest.json")
 
-		// The approval endpoint is reserved.
-		req, err = http.NewRequest(http.MethodPost, "/v1/operator/backup/restore/abc/approve", nil)
+		// The restore records: the selective dry run above recorded none.
+		restores, _, err := backups.ListRestores(nil)
+		must.NoError(t, err)
+		must.Len(t, 0, restores)
+		_, _, err = backups.GetRestore("abc", nil)
+		must.ErrorContains(t, err, "404")
+
+		// The two-person approval of full restores needs ACLs.
+		_, _, err = backups.ApproveRestore("abc", &api.BackupRestoreApproveRequest{AgeIdentity: identity.String()}, nil)
+		must.ErrorContains(t, err, "ACLs enabled")
+		_, _, err = backups.Restore(saved.ID, &api.BackupRestoreRequest{
+			Mode: api.BackupRestoreModeFull, DryRun: true, AgeIdentity: identity.String(),
+		}, nil)
+		must.ErrorContains(t, err, "ACLs enabled")
+		req, err = http.NewRequest(http.MethodPost, "/v1/operator/backup/restore/abc/unknown", nil)
 		must.NoError(t, err)
 		_, err = s.Server.BackupSpecificRequest(httptest.NewRecorder(), req)
-		must.ErrorContains(t, err, "not implemented")
+		must.ErrorContains(t, err, "unknown restore resource")
+
+		// Root keys of a backup are added to the keystore.
+		key, err := structs.NewRootKey(structs.EncryptionAlgorithmAES256GCM)
+		must.NoError(t, err)
+		added, _, err := client.Keyring().Restore([]*api.RootKey{{
+			Meta: &api.RootKeyMeta{KeyID: key.Meta.KeyID, Algorithm: api.EncryptionAlgorithmAES256GCM,
+				CreateTime: key.Meta.CreateTime, State: api.RootKeyStateInactive},
+			Key: key.Key,
+		}}, nil)
+		must.NoError(t, err)
+		must.Eq(t, []string{key.Meta.KeyID}, added.Added)
 	})
 }

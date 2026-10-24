@@ -98,7 +98,7 @@ require (
 	github.com/hashicorp/raft-autopilot v0.1.6
 	github.com/hashicorp/raft-boltdb/v2 v2.2.2
 	github.com/hashicorp/serf v0.10.1
-	github.com/hashicorp/vault/api v1.10.0
+	github.com/hashicorp/vault/api v1.16.0
 	github.com/hashicorp/yamux v0.1.2
 	github.com/hpcloud/tail v1.0.1-0.20170814160653-37f427138745
 	github.com/kr/pretty v0.3.1
@@ -208,6 +208,7 @@ require (
 	github.com/bmatcuk/doublestar v1.1.5 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/checkpoint-restore/go-criu/v5 v5.3.0 // indirect
 	github.com/cheggaaa/pb/v3 v3.0.5 // indirect
@@ -266,7 +267,7 @@ require (
 	github.com/hashicorp/go-secure-stdlib/tlsutil v0.1.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/mdns v1.0.4 // indirect
-	github.com/hashicorp/vault/api/auth/kubernetes v0.5.0 // indirect
+	github.com/hashicorp/vault/api/auth/kubernetes v0.9.0 // indirect
 	github.com/hashicorp/vic v1.5.1-0.20190403131502-bbfe86ec9443 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect

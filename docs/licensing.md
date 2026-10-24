@@ -79,6 +79,8 @@ We do not mix licenses within one file: code from a third party goes into a sepa
 - **Container images:** the same files in the image (for example `/usr/share/doc/norca/`), and the `org.opencontainers.image.source`, `org.opencontainers.image.revision` and `org.opencontainers.image.licenses` labels.
 - **SBOM:** a CycloneDX or SPDX format software bill of materials per release, for the binaries and the images.
 
+**Implementation:** `nomad/tools/thirdparty` generates `THIRD_PARTY_NOTICES.md` (`make notices` in `nomad/`) from the Go modules linked into `norca` and `norca-natsbridge` on every release platform and from the production npm dependencies of the UI, and writes a CycloneDX SBOM per binary from its Go build information (`make sbom`). It fails on a license outside the allowed list; decisions about individual components (dual licenses, unusual license files) are recorded with their reasons in `nomad/tools/thirdparty/overrides.go`, and a decision marked as pending legal review blocks the release. The compliance workflow checks that the committed file is current. `.github/workflows/release.yml` (tag `v*`) builds the archives with `LICENSE`, `NOTICE` and `THIRD_PARTY_NOTICES.md`, the SBOMs and checksums, the container image (files in `/usr/share/doc/norca/`, OCI labels, SBOM and provenance attestations), and a draft release whose notes link the source tag and state the MPL 2.0 terms.
+
 ## Trademarks and branding
 
 - The names "Nomad", "Consul", "HashiCorp" and "IBM" and their logos are trademarks of their owners. The name of the project, the name of the binary and the branding do not contain them.
@@ -131,7 +133,7 @@ norca/
 - [ ] Neutral project name; trademark notice in the README and the NOTICE; HashiCorp logos and branding removed
 - [ ] The original copyright and SPDX headers are intact; `reuse lint` is clean
 - [ ] License check in CI: no prohibited license, no ApexCharts
-- [ ] THIRD_PARTY_NOTICES generated, and included in the binaries and the container images
-- [ ] In the release process: source tag link, MPL notice, OCI labels, SBOM
+- [x] THIRD_PARTY_NOTICES generated, and included in the binaries and the container images (release archives and image via `release.yml`; the release is blocked until the decisions marked pending in `nomad/tools/thirdparty/overrides.go` are resolved)
+- [x] In the release process: source tag link, MPL notice, OCI labels, SBOM
 - [ ] CONTRIBUTING.md, pull request template, DCO check
 - [ ] The design documents have a status marker, the README has a feature status table

@@ -22,12 +22,13 @@ const (
 	TypeBackupRestoreApproved  = "BackupRestoreApproved"
 	TypeBackupRestoreStarted   = "BackupRestoreStarted"
 	TypeBackupRestoreFinished  = "BackupRestoreFinished"
+	TypeBackupRestoreRejected  = "BackupRestoreRejected"
 )
 
 const (
 	// BackupTriggerSchedule and BackupTriggerManual tell what started a
-	// backup. BackupTriggerPreRestore is reserved for the automatic backup
-	// taken before a full restore.
+	// backup. BackupTriggerPreRestore is the automatic, pinned backup taken
+	// before a full restore.
 	BackupTriggerSchedule   = "schedule"
 	BackupTriggerManual     = "manual"
 	BackupTriggerPreRestore = "pre-restore"
@@ -78,10 +79,12 @@ const (
 	BackupRestoreModeSelective = "selective"
 	BackupRestoreModeFull      = "full"
 
-	// BackupRestoreStatusPending and BackupRestoreStatusApproved are used by
+	// BackupRestoreStatusPending, Approved, Rejected and Expired are used by
 	// restores that need a second approval (full restore).
 	BackupRestoreStatusPending  = "pending"
 	BackupRestoreStatusApproved = "approved"
+	BackupRestoreStatusRejected = "rejected"
+	BackupRestoreStatusExpired  = "expired"
 	BackupRestoreStatusRunning  = "running"
 	BackupRestoreStatusComplete = "complete"
 	BackupRestoreStatusFailed   = "failed"
@@ -539,9 +542,10 @@ func (i *BackupRestoreItem) String() string {
 	}
 }
 
-// BackupRestoreRequest restores from a backup. Only the selective mode is
-// implemented; Confirm and the approval flow are reserved for the full
-// restore.
+// BackupRestoreRequest restores from a backup. The selective mode restores
+// Items; the full mode requests a full region restore that a second
+// administrator must approve. Confirm must be the name of the region for a
+// full restore.
 type BackupRestoreRequest struct {
 	ID          string
 	Mode        string
@@ -558,6 +562,105 @@ type BackupRestoreResponse struct {
 	// Restore is the restore record; nil for a dry run.
 	Restore *BackupRestore
 	Results []*BackupRestoreItemResult
+
+	// Preview is the effect of a full restore on the current state.
+	Preview *BackupRestorePreview
+	WriteMeta
+}
+
+// BackupRestorePreview summarizes what a full restore would change, from
+// the comparison of the backup with the current state. The cluster is not
+// touched to compute it.
+type BackupRestorePreview struct {
+	BackupID     string
+	Region       string
+	BackupIndex  uint64
+	CurrentIndex uint64
+
+	// Counts are the number of changed objects by "<type>/<change>", where
+	// the type is a backup content type and the change is "removed" (the
+	// object exists only now), "restored" (only in the backup) or
+	// "reverted" (it differs).
+	Counts map[string]int
+
+	// AllocationsStopped is the number of running allocations that are not
+	// in the backup; their clients stop them after the restore.
+	AllocationsStopped int
+
+	// ACLTokensRemoved is the number of ACL tokens created after the backup.
+	ACLTokensRemoved int
+
+	// KeysAdded are the IDs of the root keys of the backup that are missing
+	// from the current keyring.
+	KeysAdded []string
+
+	// Warnings explain risky effects, for example the rollback of global
+	// ACL objects when the authoritative region is restored.
+	Warnings []string
+
+	// Objects are the changed objects, From being the backup and To the
+	// current state; truncated to the first entries when Truncated is set.
+	Objects   []*BackupObjectDiff
+	Truncated bool
+}
+
+// BackupRestoreApproveRequest approves a pending full restore and runs it.
+// The approver supplies the age identity: it is not kept between the
+// request and the approval.
+type BackupRestoreApproveRequest struct {
+	RestoreID   string
+	AgeIdentity string
+	WriteRequest
+}
+
+// BackupRestoreRejectRequest rejects (or withdraws) a pending full restore.
+type BackupRestoreRejectRequest struct {
+	RestoreID string
+	Reason    string
+	WriteRequest
+}
+
+// BackupRestoreSpecificRequest addresses a restore record.
+type BackupRestoreSpecificRequest struct {
+	RestoreID string
+	QueryOptions
+}
+
+// SingleBackupRestoreResponse returns a restore record.
+type SingleBackupRestoreResponse struct {
+	Restore *BackupRestore
+	QueryMeta
+}
+
+// BackupRestoreListRequest lists the restore records of the region.
+type BackupRestoreListRequest struct {
+	QueryOptions
+}
+
+// BackupRestoreListResponse returns the restore records, newest first.
+type BackupRestoreListResponse struct {
+	Restores []*BackupRestore
+	QueryMeta
+}
+
+// KeyringRestoreRequest adds root keys of a backup to the keystore of the
+// servers of the region, alongside the existing keys. LocalOnly is set by
+// the server that fans the request out to the other servers.
+type KeyringRestoreRequest struct {
+	Keys      []*RootKey
+	LocalOnly bool
+	WriteRequest
+}
+
+// KeyringRestoreResponse lists the keys added to each server's keystore.
+type KeyringRestoreResponse struct {
+	// Added are the IDs of the keys this server did not have.
+	Added []string
+
+	// Servers are the names of the servers that hold the keys now, and
+	// Errors the servers that failed, by name.
+	Servers []string
+	Errors  map[string]string
 	WriteMeta
 }
 
@@ -581,9 +684,9 @@ type BackupRestoreItemResult struct {
 	Error string
 }
 
-// BackupRestore is the record of a restore. Selective restores are recorded
-// for the audit trail; the full restore will use the same record for its
-// two-person approval.
+// BackupRestore is the record of a restore, and the audit trail of who
+// requested, approved or rejected it. A full restore waits in the pending
+// status for the approval of a second administrator until ExpiresAt.
 type BackupRestore struct {
 	ID       string
 	BackupID string
@@ -594,11 +697,31 @@ type BackupRestore struct {
 	StatusDescription string
 	Results           []*BackupRestoreItemResult
 
-	// RequestedBy is the accessor ID (or the identity) of the requester.
-	RequestedBy string
+	// RequestedBy is the accessor ID (or the identity) of the requester,
+	// RequestedByName the name of the token.
+	RequestedBy     string
+	RequestedByName string
 
-	// Approvals are the accessor IDs of the approvers (full restore).
-	Approvals []string
+	// Approvals are the identities of the approvers (full restore), as
+	// RequestedBy.
+	Approvals  []string
+	ApprovedAt time.Time
+
+	// RejectedBy is the identity that rejected a pending full restore.
+	RejectedBy string
+
+	// Destination the backup of a full restore is read from.
+	Destination string
+
+	// ExpiresAt is the end of the approval period of a full restore.
+	ExpiresAt time.Time
+
+	// PreRestoreBackupID is the automatic backup taken before a full
+	// restore, to undo it.
+	PreRestoreBackupID string
+
+	// Preview is the effect of a full restore computed at request time.
+	Preview *BackupRestorePreview
 
 	CreateTime  time.Time
 	ModifyTime  time.Time
@@ -606,7 +729,13 @@ type BackupRestore struct {
 	ModifyIndex uint64
 }
 
-// Copy returns a copy of the restore record; items and results are shared.
+// Expired reports whether a pending restore is past its approval period.
+func (r *BackupRestore) Expired(now time.Time) bool {
+	return r.Status == BackupRestoreStatusPending && !r.ExpiresAt.IsZero() && now.After(r.ExpiresAt)
+}
+
+// Copy returns a copy of the restore record; items, results and the preview
+// are shared.
 func (r *BackupRestore) Copy() *BackupRestore {
 	if r == nil {
 		return nil

@@ -855,6 +855,26 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"operator backup approve": func() (cli.Command, error) {
+			return &OperatorBackupApproveCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup reject": func() (cli.Command, error) {
+			return &OperatorBackupRejectCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup restores": func() (cli.Command, error) {
+			return &OperatorBackupRestoresCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup restore-bootstrap": func() (cli.Command, error) {
+			return &OperatorBackupRestoreBootstrapCommand{
+				Meta: meta,
+			}, nil
+		},
 		"operator backup contents": func() (cli.Command, error) {
 			return &OperatorBackupContentsCommand{
 				Meta: meta,
