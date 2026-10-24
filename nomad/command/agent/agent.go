@@ -560,6 +560,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		}
 	}
 
+	// Set the built-in autoscaler configuration.
+	autoscalerConf, err := agentConfig.Server.Autoscaler.toServerConfig()
+	if err != nil {
+		return nil, err
+	}
+	conf.Autoscaler = autoscalerConf
+
 	// Add Enterprise license configs
 	conf.LicenseConfig = &nomad.LicenseConfig{
 		BuildDate:         agentConfig.Version.BuildDate,

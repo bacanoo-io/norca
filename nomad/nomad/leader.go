@@ -397,6 +397,11 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Periodically publish job status metrics
 	go s.publishJobStatusMetrics(stopCh)
 
+	// Start the built-in autoscaler, if enabled. Its system identity is only
+	// valid on this leader.
+	s.setAutoscalerSecret(uuid.Generate())
+	s.autoscaler.SetLeader(true)
+
 	// Setup the heartbeat timers. This is done both when starting up or when
 	// a leader fail over happens. Since the timers are maintained by the leader
 	// node, effectively this means all the timers are renewed at the time of failover.
@@ -1459,6 +1464,10 @@ func (s *Server) revokeLeadership() error {
 
 	// Disable the volume watcher
 	s.volumeWatcher.SetEnabled(false, nil, "")
+
+	// Stop the built-in autoscaler and invalidate its system identity.
+	s.autoscaler.SetLeader(false)
+	s.setAutoscalerSecret("")
 
 	// Disable any enterprise systems required.
 	if err := s.revokeEnterpriseLeadership(); err != nil {

@@ -1,0 +1,217 @@
+// Copyright IBM Corp. 2020, 2025
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+// Ported from Nomad Autoscaler v0.6.0 plugins/builtin/strategy/target-value/plugin/plugin.go.
+// Modified: runs in-process inside the Nomad server; the go-plugin
+// registration was dropped.
+
+package targetvalue
+
+import (
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
+	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
+)
+
+const (
+	// pluginName is the unique name of the this plugin amongst strategy
+	// plugins.
+	pluginName = "target-value"
+
+	// These are the keys read from the RunRequest.Config map.
+	runConfigKeyTarget       = "target"
+	runConfigKeyThreshold    = "threshold"
+	runConfigKeyMaxScaleUp   = "max_scale_up"
+	runConfigKeyMaxScaleDown = "max_scale_down"
+
+	// defaultThreshold controls how significant is a change in the input
+	// metric value.
+	defaultThreshold = "0.01"
+)
+
+var (
+	PluginID = plugins.PluginID{
+		Name:       pluginName,
+		PluginType: sdk.PluginTypeStrategy,
+	}
+
+	pluginInfo = &plugins.PluginInfo{
+		Name:       pluginName,
+		PluginType: sdk.PluginTypeStrategy,
+	}
+)
+
+// Assert that StrategyPlugin meets the plugins.Strategy interface.
+var _ plugins.Strategy = (*StrategyPlugin)(nil)
+
+// StrategyPlugin is the TargetValue implementation of the plugins.Strategy
+// interface.
+type StrategyPlugin struct {
+	config map[string]string
+	logger hclog.Logger
+}
+
+// NewTargetValuePlugin returns the TargetValue implementation of the
+// plugins.Strategy interface.
+func NewTargetValuePlugin(log hclog.Logger) plugins.Strategy {
+	return &StrategyPlugin{
+		logger: log,
+	}
+}
+
+// SetConfig satisfies the SetConfig function on the base.Base interface.
+func (s *StrategyPlugin) SetConfig(config map[string]string) error {
+	s.config = config
+	return nil
+}
+
+// PluginInfo satisfies the PluginInfo function on the base.Base interface.
+func (s *StrategyPlugin) PluginInfo() (*plugins.PluginInfo, error) {
+	return pluginInfo, nil
+}
+
+// Run satisfies the Run function on the plugins.Strategy interface.
+func (s *StrategyPlugin) Run(eval *sdk.ScalingCheckEvaluation, count int64) (*sdk.ScalingCheckEvaluation, error) {
+	if len(eval.Metrics) == 0 {
+		return nil, nil
+	}
+
+	// Read and parse target value from req.Config.
+	t := eval.Check.Strategy.Config[runConfigKeyTarget]
+	if t == "" {
+		return nil, errors.New("missing required field `target`")
+	}
+
+	target, err := strconv.ParseFloat(t, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid value for `target`: %v (%T)", t, t)
+	}
+
+	// Read and parse threshold value from req.Config.
+	th := eval.Check.Strategy.Config[runConfigKeyThreshold]
+	if th == "" {
+		th = defaultThreshold
+	}
+
+	threshold, err := strconv.ParseFloat(th, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid value for `threshold`: %v (%T)", th, th)
+	}
+
+	// Read and parse max_scale_up from req.Config.
+	var maxScaleUp *int64
+	maxScaleUpStr := eval.Check.Strategy.Config[runConfigKeyMaxScaleUp]
+	if maxScaleUpStr != "" {
+		msu, err := strconv.ParseInt(maxScaleUpStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value for `max_scale_up`: %v (%T)", maxScaleUpStr, maxScaleUpStr)
+		}
+		maxScaleUp = &msu
+	} else {
+		maxScaleUpStr = "+Inf"
+	}
+
+	// Read and parse max_scale_down from req.Config.
+	var maxScaleDown *int64
+	maxScaleDownStr := eval.Check.Strategy.Config[runConfigKeyMaxScaleDown]
+	if maxScaleDownStr != "" {
+		msd, err := strconv.ParseInt(maxScaleDownStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value for `max_scale_down`: %v (%T)", maxScaleDownStr, maxScaleDownStr)
+		}
+		maxScaleDown = &msd
+	} else {
+		maxScaleDownStr = "-Inf"
+	}
+
+	var factor float64
+
+	// Use only the latest value for now.
+	metric := eval.Metrics[len(eval.Metrics)-1]
+
+	// Handle cases where the specified target is 0. A potential use case here
+	// is targeting a CI build queue to be 0. Adding in build agents when the
+	// queue has greater than 0 items in it.
+	switch target {
+	case 0:
+		factor = metric.Value
+	default:
+		factor = metric.Value / target
+	}
+
+	// Identify the direction of scaling, if any.
+	eval.Action.Direction = s.calculateDirection(count, factor, threshold)
+	if eval.Action.Direction == sdk.ScaleDirectionNone {
+		return eval, nil
+	}
+
+	var newCount int64
+
+	// Handle cases were users wish to scale from 0. If the current count is 0,
+	// then just use the factor as the new count to target. Otherwise use our
+	// standard calculation.
+	switch count {
+	case 0:
+		newCount = int64(math.Ceil(factor))
+	default:
+		newCount = int64(math.Ceil(float64(count) * factor))
+	}
+
+	// Limit the increase or decrease with the values specified in max_scale_up and max_scale_down.
+	if maxScaleDown != nil && newCount < count-(*maxScaleDown) {
+		newCount = count - *maxScaleDown
+	}
+	if maxScaleUp != nil && newCount > count+(*maxScaleUp) {
+		newCount = count + *maxScaleUp
+	}
+
+	// Log at trace level the details of the strategy calculation. This is
+	// helpful in ultra-debugging situations when there is a need to understand
+	// all the calculations made.
+	s.logger.Trace("calculated scaling strategy results",
+		"check_name", eval.Check.Name, "current_count", count, "new_count", newCount,
+		"metric_value", metric.Value, "metric_time", metric.Timestamp, "factor", factor,
+		"direction", eval.Action.Direction, "max_scale_up", maxScaleUpStr, "max_scale_down", maxScaleDownStr)
+
+	// If the calculated newCount is the same as the current count, we do not
+	// need to scale so return an empty response.
+	if newCount == count {
+		eval.Action.Direction = sdk.ScaleDirectionNone
+		return eval, nil
+	}
+
+	eval.Action.Count = newCount
+	eval.Action.Reason = fmt.Sprintf("scaling %s because factor is %f", eval.Action.Direction, factor)
+
+	return eval, nil
+}
+
+// calculateDirection is used to calculate the direction of scaling that should
+// occur, if any at all. It takes into account the current task group count in
+// order to correctly account for 0 counts.
+//
+// The input factor value is padded by e, such that no action will be taken if
+// factor is within [1-e; 1+e].
+func (s *StrategyPlugin) calculateDirection(count int64, factor, e float64) sdk.ScaleDirection {
+	switch count {
+	case 0:
+		if factor > 0 {
+			return sdk.ScaleDirectionUp
+		}
+		return sdk.ScaleDirectionNone
+	default:
+		if factor < (1 - e) {
+			return sdk.ScaleDirectionDown
+		} else if factor > (1 + e) {
+			return sdk.ScaleDirectionUp
+		} else {
+			return sdk.ScaleDirectionNone
+		}
+	}
+}
