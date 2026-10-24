@@ -74,8 +74,11 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Network rules | Planned | [specification, item 7](docs/design/kubernetes-features-spec.md) |
 | Operator framework: native custom objects (`ObjectKind`, `CustomObject`, schema, CEL with `oldSelf`), controller SDK `nomad/controller`, LoadBalancer example; finalizers and garbage collection pending (phase 3) | Available (phases 1–2) | [specification, item 8](docs/design/kubernetes-features-spec.md) |
 | Event stream → NATS bridge (`nomad/natsbridge`, one job per region) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
+| Multiregion deployments (one region per cloud; staged rollout, `on_failure`, global tokens, `norca deployment run`) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
+| NATS pack (`packs/nats`: supercluster with JetStream and gateways, optional bridge) | Available | [packs/nats](packs/nats/README.md) |
 | NATS pack (`packs/nats`: NATS cluster per region with JetStream and supercluster gateways, optional bridge job) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
-| Backup and restore | Planned | [plan](docs/design/backup-restore-plan.md) |
+| Backup and restore: scheduled, age-encrypted backups to S3/MinIO, browsing and selective restore (`norca operator backup`) | Available (phases 1–2) | [plan](docs/design/backup-restore-plan.md) |
+| Backup and restore: web UI, full restore with two-person approval, bootstrap | Planned | [plan](docs/design/backup-restore-plan.md) |
 | Service discovery without Consul | Planned | [plan](docs/design/consul-independence-plan.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |
 | Package management: server-side releases, rollback, OCI registries | Planned | [plan](docs/design/package-management-plan.md) |
