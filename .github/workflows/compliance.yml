@@ -21,8 +21,9 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        # Nomad Pack is part of the nomad module (nomad/pack).
-        module: [nomad]
+        # Nomad Pack is part of the nomad module (nomad/pack). The controller
+        # SDK is a separate module that depends only on the api module.
+        module: [nomad, nomad/controller]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
