@@ -174,166 +174,26 @@ func TestJobEndpoint_Register_Connect_AllowUnauthenticatedFalse_oss(t *testing.T
 		})
 	})
 
-	t.Run("group consul namespace banana", func(t *testing.T) {
-		// Nomad OSS does not respect setting the consul namespace field on the group,
-		// and for backwards compatibility accepts tokens in the "default" namespace
-		// for groups with no namespace set. The net result is setting the group namespace
-		// to something like "banana" and using a token in "default" namespace will
-		// be accepted in Nomad OSS (assuming sufficient service write policy).
-		//
-		// Using a Consul token in the non-"default" namespace will always fail in
-		// Nomad OSS, again because the group namespace is ignored.
-		namespace := "banana"
-
-		t.Run("no token provided", func(t *testing.T) {
+	t.Run("group consul namespace set", func(t *testing.T) {
+		// Setting the consul namespace on the group is not supported: services
+		// always use the namespace of the agent configuration, so the job is
+		// rejected instead of the group namespace being silently ignored.
+		for _, namespace := range []string{"banana", "default"} {
 			request := newRequest(newJob(namespace))
-			request.Job.ConsulToken = missingToken
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, "job-submitter consul token denied: missing consul token")
-		})
-
-		t.Run("unknown token provided", func(t *testing.T) {
-			request := newRequest(newJob(namespace))
-			request.Job.ConsulToken = fakeToken
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, "job-submitter consul token denied: unable to read consul token: no such token")
-		})
-
-		t.Run("unauthorized oss token provided", func(t *testing.T) {
-			request := newRequest(newJob(namespace))
-			request.Job.ConsulToken = ossTokenNoPolicyNoNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, `job-submitter consul token denied: insufficient Consul ACL permissions to write service "service1"`)
-		})
-
-		t.Run("authorized oss token provided", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
-			request.Job.ConsulToken = ossTokenNoNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.NoError(t, err)
-			noTokenOnJob(t, job)
-		})
-
-		t.Run("unauthorized token in default namespace", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
-			request.Job.ConsulToken = entTokenNoPolicyDefaultNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, `job-submitter consul token denied: insufficient Consul ACL permissions to write service "service1"`)
-		})
-
-		t.Run("authorized token in default namespace", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
 			request.Job.ConsulToken = entTokenDefaultNS
 			var response structs.JobRegisterResponse
 			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.NoError(t, err)
-			noTokenOnJob(t, job)
-		})
-
-		// Consul token in custom namespace will always fail in nomad oss
-
-		t.Run("unauthorized token in banana namespace", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
-			request.Job.ConsulToken = entTokenNoPolicyBananaNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, `job-submitter consul token denied: consul ACL token requires using namespace "banana"`)
-		})
-
-		t.Run("authorized token in banana namespace", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
-			request.Job.ConsulToken = entTokenBananaNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, `job-submitter consul token denied: consul ACL token requires using namespace "banana"`)
-		})
+			must.ErrorContains(t, err, structs.ErrConsulNamespaceNotSupported.Error())
+		}
 	})
 
-	t.Run("group consul namespace default", func(t *testing.T) {
-		// Nomad OSS ignores the group consul namespace, and setting it as default
-		// should effectively be the same as leaving it unset.
-		namespace := "default"
-
-		t.Run("no token provided", func(t *testing.T) {
-			request := newRequest(newJob(namespace))
-			request.Job.ConsulToken = missingToken
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, "job-submitter consul token denied: missing consul token")
-		})
-
-		t.Run("unknown token provided", func(t *testing.T) {
-			request := newRequest(newJob(namespace))
-			request.Job.ConsulToken = fakeToken
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, "job-submitter consul token denied: unable to read consul token: no such token")
-		})
-
-		t.Run("unauthorized oss token provided", func(t *testing.T) {
-			request := newRequest(newJob(namespace))
-			request.Job.ConsulToken = ossTokenNoPolicyNoNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, `job-submitter consul token denied: insufficient Consul ACL permissions to write service "service1"`)
-		})
-
-		t.Run("authorized oss token provided", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
-			request.Job.ConsulToken = ossTokenNoNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.NoError(t, err)
-			noTokenOnJob(t, job)
-		})
-
-		t.Run("unauthorized token in default namespace", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
-			request.Job.ConsulToken = entTokenNoPolicyDefaultNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, `job-submitter consul token denied: insufficient Consul ACL permissions to write service "service1"`)
-		})
-
-		t.Run("authorized token in default namespace", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
-			request.Job.ConsulToken = entTokenDefaultNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.NoError(t, err)
-			noTokenOnJob(t, job)
-		})
-
-		t.Run("unauthorized token in banana namespace", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
-			request.Job.ConsulToken = entTokenNoPolicyBananaNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, `job-submitter consul token denied: consul ACL token requires using namespace "banana"`)
-		})
-
-		t.Run("authorized token in banana namespace", func(t *testing.T) {
-			job := newJob(namespace)
-			request := newRequest(job)
-			request.Job.ConsulToken = entTokenBananaNS
-			var response structs.JobRegisterResponse
-			err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
-			require.EqualError(t, err, `job-submitter consul token denied: consul ACL token requires using namespace "banana"`)
-		})
+	t.Run("job consul namespace set", func(t *testing.T) {
+		request := newRequest(newJob(""))
+		request.Job.ConsulNamespace = "banana"
+		request.Job.ConsulToken = entTokenBananaNS
+		var response structs.JobRegisterResponse
+		err := msgpackrpc.CallWithCodec(codec, "Job.Register", request, &response)
+		must.ErrorContains(t, err, structs.ErrConsulNamespaceNotSupported.Error())
 	})
 }
 

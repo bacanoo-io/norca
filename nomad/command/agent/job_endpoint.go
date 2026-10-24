@@ -80,6 +80,9 @@ func (s *HTTPServer) JobSpecificRequest(resp http.ResponseWriter, req *http.Requ
 	case strings.HasSuffix(path, "/plan"):
 		jobID := strings.TrimSuffix(path, "/plan")
 		return s.jobPlan(resp, req, jobID)
+	case strings.HasSuffix(path, "/disruption"):
+		jobID := strings.TrimSuffix(path, "/disruption")
+		return s.jobDisruptionRequest(resp, req, jobID)
 	case strings.HasSuffix(path, "/summary"):
 		jobID := strings.TrimSuffix(path, "/summary")
 		return s.jobSummaryRequest(resp, req, jobID)
@@ -881,6 +884,13 @@ func (s *HTTPServer) apiJobAndRequestToStructs(job *api.Job, req *http.Request, 
 	return sJob, writeReq
 }
 
+// multiregionRouting enables the region routing of jobs with a multiregion
+// block. It is off while multiregion deployments are not supported: such a job
+// is routed like a single-region job, so the server rejects it with a clear
+// validation error instead of the request being forwarded to a region listed in
+// the block, which may not exist.
+const multiregionRouting = false
+
 func regionForJob(job *api.Job, queryRegion, apiRegion, agentRegion string) (string, string) {
 	var requestRegion string
 	var jobRegion string
@@ -912,7 +922,7 @@ func regionForJob(job *api.Job, queryRegion, apiRegion, agentRegion string) (str
 
 	// Multiregion jobs have their job region set to the global region,
 	// and enforce that we forward to a region where they will be deployed
-	if job.Multiregion != nil {
+	if multiregionRouting && job.Multiregion != nil {
 		jobRegion = api.GlobalRegion
 
 		// multiregion jobs with 0 regions won't pass validation,
@@ -1100,6 +1110,16 @@ func ApiTgToStructsTG(job *structs.Job, taskGroup *api.TaskGroup, tg *structs.Ta
 			HealthCheck:     *taskGroup.Migrate.HealthCheck,
 			MinHealthyTime:  *taskGroup.Migrate.MinHealthyTime,
 			HealthyDeadline: *taskGroup.Migrate.HealthyDeadline,
+		}
+	}
+
+	if d := taskGroup.Disruption; d != nil {
+		tg.Disruption = &structs.DisruptionBudget{}
+		if d.MinHealthy != nil {
+			tg.Disruption.MinHealthy = *d.MinHealthy
+		}
+		if d.MaxUnavailable != nil {
+			tg.Disruption.MaxUnavailable = *d.MaxUnavailable
 		}
 	}
 

@@ -150,6 +150,12 @@ func parseCheck(c interface{}) *sdk.ScalingPolicyCheck {
 	// Parse query and source with _ to avoid panics.
 	query, _ := checkMap[keyQuery].(string)
 	source, _ := checkMap[keySource].(string)
+
+	// A built-in metric (metric = "nomad.cpu") needs no query: the nomad-apm
+	// source serves it by name.
+	if metric, _ := checkMap[keyMetric].(string); query == "" && metric != "" {
+		query = metric
+	}
 	on_error, _ := checkMap[keyOnError].(string)
 	group, _ := checkMap[keyGroup].(string)
 
@@ -315,6 +321,7 @@ func parseBlocks(blocks interface{}) map[string]interface{} {
 const (
 	keySource             = "source"
 	keyQuery              = "query"
+	keyMetric             = "metric"
 	keyQueryWindow        = "query_window"
 	keyQueryWindowOffset  = "query_window_offset"
 	keyEvaluationInterval = "evaluation_interval"

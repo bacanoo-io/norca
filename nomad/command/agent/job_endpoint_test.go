@@ -2096,6 +2096,9 @@ func TestJobs_ParsingWriteRequest(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.multiregion != nil && !multiregionRouting {
+				t.Skip("multiregion routing is off while multiregion deployments are not supported")
+			}
 
 			// we need a valid agent config but we don't want to start up
 			// a real server for this
@@ -2226,6 +2229,9 @@ func TestJobs_RegionForJob(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.multiregion != nil && !multiregionRouting {
+				t.Skip("multiregion routing is off while multiregion deployments are not supported")
+			}
 			job := &api.Job{
 				Region:      pointer.Of(tc.jobRegion),
 				Multiregion: tc.multiregion,
@@ -2236,6 +2242,34 @@ func TestJobs_RegionForJob(t *testing.T) {
 			require.Equal(t, tc.expectedJobRegion, jobRegion)
 		})
 	}
+}
+
+// TestJobs_RegionForJob_MultiregionNotRouted asserts that while multiregion
+// deployments are not supported, a job with a multiregion block is routed like
+// a single-region job, so the server it reaches rejects it with a validation
+// error.
+func TestJobs_RegionForJob_MultiregionNotRouted(t *testing.T) {
+	ci.Parallel(t)
+
+	if multiregionRouting {
+		t.Skip("multiregion routing is on")
+	}
+
+	job := &api.Job{
+		Region: pointer.Of(""),
+		Multiregion: &api.Multiregion{Regions: []*api.MultiregionRegion{
+			{Name: "west"},
+			{Name: "east"},
+		}},
+	}
+
+	requestRegion, jobRegion := regionForJob(job, "", "", "agentRegion")
+	must.Eq(t, "agentRegion", requestRegion)
+	must.Eq(t, "agentRegion", jobRegion)
+
+	requestRegion, jobRegion = regionForJob(job, "north", "", "agentRegion")
+	must.Eq(t, "north", requestRegion)
+	must.Eq(t, "north", jobRegion)
 }
 
 func TestJobs_NamespaceForJob(t *testing.T) {
