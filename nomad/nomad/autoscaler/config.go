@@ -41,6 +41,18 @@ const (
 	DefaultOscillationWindow    = 10 * time.Minute
 	DefaultOscillationThreshold = 3
 	DefaultOscillationSuspend   = 15 * time.Minute
+
+	// DefaultMetricsWindow is how long the leader keeps the task group usage
+	// reported by clients (nomad.cpu, nomad.memory, ...).
+	DefaultMetricsWindow = 5 * time.Minute
+
+	// DefaultClientMetricsInterval is the aggregation window of the task
+	// group usage on the clients, which is also how often they send it.
+	DefaultClientMetricsInterval = 10 * time.Second
+
+	// minClientMetricsInterval bounds the client reports to protect the
+	// leader.
+	minClientMetricsInterval = time.Second
 )
 
 // PluginConfig configures a plugin instance, such as an APM.
@@ -106,6 +118,15 @@ type Config struct {
 	OscillationThreshold int
 	OscillationSuspend   time.Duration
 
+	// MetricsWindow is how long the leader keeps the task group usage
+	// reported by clients. After a leader change the built-in metrics report
+	// insufficient data until one full window has been collected.
+	MetricsWindow time.Duration
+
+	// ClientMetricsInterval is the aggregation window of the task group
+	// usage on the clients and the interval of their reports.
+	ClientMetricsInterval time.Duration
+
 	// APMs configures named APM plugin instances in addition to the always
 	// available "nomad-apm".
 	APMs []*PluginConfig
@@ -127,6 +148,8 @@ func DefaultConfig() *Config {
 		OscillationWindow:         DefaultOscillationWindow,
 		OscillationThreshold:      DefaultOscillationThreshold,
 		OscillationSuspend:        DefaultOscillationSuspend,
+		MetricsWindow:             DefaultMetricsWindow,
+		ClientMetricsInterval:     DefaultClientMetricsInterval,
 	}
 }
 
@@ -173,6 +196,12 @@ func (c *Config) Validate() error {
 	}
 	if c.OscillationWindow <= 0 || c.OscillationThreshold <= 0 || c.OscillationSuspend <= 0 {
 		mErr = multierror.Append(mErr, fmt.Errorf("oscillation protection settings must be greater than 0"))
+	}
+	if c.ClientMetricsInterval < minClientMetricsInterval {
+		mErr = multierror.Append(mErr, fmt.Errorf("client_metrics_interval must be at least %s", minClientMetricsInterval))
+	}
+	if c.MetricsWindow < c.ClientMetricsInterval {
+		mErr = multierror.Append(mErr, fmt.Errorf("metrics_window must not be shorter than client_metrics_interval"))
 	}
 
 	names := map[string]bool{plugins.InternalAPMNomad: true}

@@ -45,6 +45,14 @@ type AutoscalerConfig struct {
 	RateLimit      float64 `hcl:"rate_limit"`
 	RateLimitBurst int     `hcl:"rate_limit_burst"`
 
+	// MetricsWindow is how long the leader keeps the task group usage
+	// reported by clients (nomad.cpu, nomad.memory, ...).
+	MetricsWindow string `hcl:"metrics_window"`
+
+	// ClientMetricsInterval is the aggregation window of the task group
+	// usage on the clients and the interval of their reports.
+	ClientMetricsInterval string `hcl:"client_metrics_interval"`
+
 	// APMs configures named APM instances, such as a Prometheus server.
 	APMs []*AutoscalerPluginConfig `hcl:"apm"`
 
@@ -132,6 +140,12 @@ func (a *AutoscalerConfig) Merge(b *AutoscalerConfig) *AutoscalerConfig {
 	if b.RateLimitBurst != 0 {
 		result.RateLimitBurst = b.RateLimitBurst
 	}
+	if b.MetricsWindow != "" {
+		result.MetricsWindow = b.MetricsWindow
+	}
+	if b.ClientMetricsInterval != "" {
+		result.ClientMetricsInterval = b.ClientMetricsInterval
+	}
 	for _, bp := range b.APMs {
 		replaced := false
 		for i, rp := range result.APMs {
@@ -171,6 +185,8 @@ func (a *AutoscalerConfig) toServerConfig() (*autoscaler.Config, error) {
 		{"min_eval_interval", a.MinEvalInterval, &cfg.MinEvalInterval},
 		{"default_evaluation_interval", a.DefaultEvaluationInterval, &cfg.DefaultEvaluationInterval},
 		{"default_cooldown", a.DefaultCooldown, &cfg.DefaultCooldown},
+		{"metrics_window", a.MetricsWindow, &cfg.MetricsWindow},
+		{"client_metrics_interval", a.ClientMetricsInterval, &cfg.ClientMetricsInterval},
 	}
 	for _, d := range durations {
 		if d.value == "" {

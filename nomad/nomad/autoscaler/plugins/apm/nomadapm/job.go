@@ -57,6 +57,13 @@ func (a *APMPlugin) queryTaskGroup(q string) (sdk.TimestampedMetrics, error) {
 // getTaskGroupResourceUsage iterates the allocations within a job and
 // identifies those which meet the criteria for being part of the calculation.
 func (a *APMPlugin) getTaskGroupResourceUsage(query *taskGroupQuery) ([]float64, error) {
+	// The built-in autoscaler serves the nomad-apm checks from the usage
+	// pushed by clients; the per allocation stats path is only available
+	// when explicitly wired.
+	if a.allocStats == nil {
+		return nil, fmt.Errorf("allocation statistics are not available")
+	}
+
 	store := a.state()
 	if store == nil {
 		return nil, fmt.Errorf("state store not available")

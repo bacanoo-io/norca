@@ -76,6 +76,11 @@ type runner struct {
 	proc   *processor
 	exec   *executor
 
+	// usage is the collector of the client pushed task group usage that
+	// serves the checks of the nomad-apm source. Nil in tests that use the
+	// plugin host's APMs only.
+	usage *usageCollector
+
 	// handles is owned by the loop goroutine.
 	handles map[string]*policyHandle
 	queue   []string
@@ -405,7 +410,12 @@ func (r *runner) loadCheckRunners(policy *sdk.ScalingPolicy) ([]checker, error) 
 
 		var mg plugins.Looker
 		// Fixed-value strategy does not need APM; keep looker nil and skip APM lookup.
-		if strategyName != plugins.InternalStrategyFixedValue {
+		switch {
+		case strategyName == plugins.InternalStrategyFixedValue:
+		case r.usage != nil && r.proc.isNomadAPMQuery(check.Source):
+			// Nomad's own metrics come from the usage pushed by clients.
+			mg = r.usageLooker(policy)
+		default:
 			mg, err = r.host.getAPMLooker(check.Source)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get APM for strategy %s: %w", strategyName, err)
