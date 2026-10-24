@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -146,6 +147,16 @@ type Object struct {
 	// Labels are free-form key/value pairs set by the user.
 	Labels map[string]string
 
+	// Finalizers, DeletionTime and Owners exist only for native objects.
+	// While an object has finalizers, deleting it only sets DeletionTime;
+	// the controller cleans up and removes its finalizer (RemoveFinalizer),
+	// and the object disappears when no finalizer is left. Owners reference
+	// the objects this object belongs to; the server's garbage collector
+	// deletes it when they are deleted.
+	Finalizers   []string
+	DeletionTime time.Time
+	Owners       []*api.ObjectOwnerReference
+
 	// Spec is the desired state, written by users. Status is the observed
 	// state, written by the controller. Both are JSON documents; empty means
 	// not set.
@@ -244,9 +255,33 @@ func (o *Object) Copy() *Object {
 	out := *o
 	out.Labels = maps.Clone(o.Labels)
 	out.Extra = maps.Clone(o.Extra)
+	out.Finalizers = slices.Clone(o.Finalizers)
+	if o.Owners != nil {
+		out.Owners = make([]*api.ObjectOwnerReference, len(o.Owners))
+		for i, ref := range o.Owners {
+			if ref != nil {
+				r := *ref
+				out.Owners[i] = &r
+			}
+		}
+	}
 	out.Spec = bytes.Clone(o.Spec)
 	out.Status = bytes.Clone(o.Status)
 	return &out
+}
+
+// Deleting reports whether the object is marked for deletion: it has
+// finalizers and was deleted. The controller cleans up what the object
+// owns and removes its finalizer.
+func (o *Object) Deleting() bool { return !o.DeletionTime.IsZero() }
+
+// HasFinalizer reports whether the object has the finalizer.
+func (o *Object) HasFinalizer(name string) bool { return slices.Contains(o.Finalizers, name) }
+
+// lifecycleChanged reports whether the finalizers or the deletion state of
+// an object changed.
+func lifecycleChanged(a, b *Object) bool {
+	return !a.DeletionTime.Equal(b.DeletionTime) || !slices.Equal(a.Finalizers, b.Finalizers)
 }
 
 // specEqual reports whether two objects have the same spec and labels,

@@ -101,8 +101,24 @@ type ObjectsAPI interface {
 
 	// DeleteObject deletes an object with check-and-set on cas, or
 	// unconditionally if cas is 0. On a conflict it returns an error
-	// wrapping ErrConflict. Deleting a missing object is not an error.
+	// wrapping ErrConflict. Deleting a missing object is not an error. An
+	// object with finalizers is only marked for deletion.
 	DeleteObject(ctx context.Context, kind Kind, namespace, name string, cas uint64) error
+
+	// UpdateObjectFinalizers adds and removes finalizers of an object (the
+	// "manage-finalizers" capability), with check-and-set on cas, or
+	// unconditionally if cas is 0. It returns ErrNotFound if the object
+	// does not exist. Removing the last finalizer of an object marked for
+	// deletion deletes it. It returns the object as stored.
+	UpdateObjectFinalizers(ctx context.Context, kind Kind, namespace, name string, add, remove []string, cas uint64) (*api.CustomObject, error)
+
+	// RecordObjectEvents adds events to the event log of an object (the
+	// "write-events" capability). It returns ErrNotFound if the object does
+	// not exist.
+	RecordObjectEvents(ctx context.Context, kind Kind, namespace, name string, events []*api.ObjectEvent) error
+
+	// ListObjectEvents returns the event log of an object, oldest first.
+	ListObjectEvents(ctx context.Context, kind Kind, namespace, name string) ([]*api.ObjectEvent, error)
 }
 
 // Backend is everything the SDK needs from Nomad.
@@ -275,6 +291,34 @@ func (b *apiBackend) DeleteObject(ctx context.Context, kind Kind, namespace, nam
 		return nil
 	}
 	return err
+}
+
+func (b *apiBackend) UpdateObjectFinalizers(ctx context.Context, kind Kind, namespace, name string, add, remove []string, cas uint64) (*api.CustomObject, error) {
+	w := (&api.WriteOptions{Namespace: namespace}).WithContext(ctx)
+	opts := &api.ObjectWriteOptions{}
+	if cas != 0 {
+		opts.CAS = api.CASIndex(cas)
+	}
+	out, _, err := b.client.Objects().UpdateFinalizers(kind.Group, kind.Kind, name, add, remove, opts, w)
+	if err != nil {
+		return nil, objectError(kind, namespace, name, err)
+	}
+	return out, nil
+}
+
+func (b *apiBackend) RecordObjectEvents(ctx context.Context, kind Kind, namespace, name string, events []*api.ObjectEvent) error {
+	w := (&api.WriteOptions{Namespace: namespace}).WithContext(ctx)
+	_, err := b.client.Objects().RecordEvents(kind.Group, kind.Kind, name, events, w)
+	return objectError(kind, namespace, name, err)
+}
+
+func (b *apiBackend) ListObjectEvents(ctx context.Context, kind Kind, namespace, name string) ([]*api.ObjectEvent, error) {
+	q := (&api.QueryOptions{Namespace: namespace}).WithContext(ctx)
+	events, _, err := b.client.Objects().Events(kind.Group, kind.Kind, name, q)
+	if err != nil {
+		return nil, objectError(kind, namespace, name, err)
+	}
+	return events, nil
 }
 
 func (b *apiBackend) Stream(ctx context.Context, namespace string, topics map[api.Topic][]string, index uint64, exact bool) (<-chan *api.Events, error) {

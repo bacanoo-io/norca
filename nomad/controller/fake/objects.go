@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"time"
 
@@ -128,7 +129,21 @@ func (b *Backend) applyObjectLocked(obj *api.CustomObject, cas *uint64) (*api.Cu
 	out := copyObject(obj)
 	out.Namespace = ns
 	out.Spec = normalize(out.Spec)
+	// Like the server, a write adds its finalizers and never removes any.
 	out.Finalizers = nil
+	out.DeletionTime, out.DeletionPropagation = 0, ""
+	if exists {
+		out.Finalizers = slices.Clone(cur.Finalizers)
+		out.DeletionTime, out.DeletionPropagation = cur.DeletionTime, cur.DeletionPropagation
+	}
+	for _, f := range obj.Finalizers {
+		if !slices.Contains(out.Finalizers, f) {
+			if out.DeletionTime != 0 {
+				return nil, fmt.Errorf("%s %s is being deleted: %w", kind, obj.Name, controller.ErrConflict)
+			}
+			out.Finalizers = append(out.Finalizers, f)
+		}
+	}
 	now := time.Now().UnixNano()
 	if exists {
 		out.ID = cur.ID
@@ -138,7 +153,8 @@ func (b *Backend) applyObjectLocked(obj *api.CustomObject, cas *uint64) (*api.Cu
 		if !reflect.DeepEqual(cur.Spec, out.Spec) {
 			out.Generation++
 		}
-		if out.Generation == cur.Generation && out.ManagedBy == cur.ManagedBy && maps.Equal(cur.Labels, out.Labels) {
+		if out.Generation == cur.Generation && out.ManagedBy == cur.ManagedBy && maps.Equal(cur.Labels, out.Labels) &&
+			slices.Equal(cur.Finalizers, out.Finalizers) && reflect.DeepEqual(cur.Owners, out.Owners) {
 			// Nothing changed: nothing is written.
 			return copyObject(cur), nil
 		}
@@ -207,16 +223,130 @@ func (b *Backend) DeleteObject(_ context.Context, kind controller.Kind, namespac
 	if cas != 0 && cur.ModifyIndex != cas {
 		return fmt.Errorf("%w: %s %s", controller.ErrConflict, kind, name)
 	}
-	b.removeObjectLocked(ns, kind, name)
+	b.deleteObjectLocked(ns, kind, name)
 	return nil
 }
 
 // RemoveObject deletes an object unconditionally, like a user running
-// "norca object delete".
+// "norca object delete": an object with finalizers is only marked for
+// deletion.
 func (b *Backend) RemoveObject(kind controller.Kind, namespace, name string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.removeObjectLocked(defaultNS(namespace), kind, name)
+	b.deleteObjectLocked(defaultNS(namespace), kind, name)
+}
+
+func (b *Backend) deleteObjectLocked(ns string, kind controller.Kind, name string) {
+	k := objKey(ns, kind, name)
+	cur, ok := b.objs[k]
+	if !ok {
+		return
+	}
+	if len(cur.Finalizers) == 0 {
+		b.removeObjectLocked(ns, kind, name)
+		return
+	}
+	if cur.DeletionTime != 0 {
+		return
+	}
+	out := copyObject(cur)
+	out.DeletionTime = time.Now().UnixNano()
+	out.DeletionPropagation = api.ObjectPropagationBackground
+	out.ModifyIndex, out.ModifyTime = b.nextIndexLocked(), out.DeletionTime
+	b.storeObjectLocked(k, out, api.CustomObjectUpserted)
+}
+
+func (b *Backend) UpdateObjectFinalizers(_ context.Context, kind controller.Kind, namespace, name string, add, remove []string, cas uint64) (*api.CustomObject, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.callLocked("UpdateObjectFinalizers"); err != nil {
+		return nil, err
+	}
+	ns := defaultNS(namespace)
+	k := objKey(ns, kind, name)
+	cur, ok := b.objs[k]
+	if !ok {
+		return nil, fmt.Errorf("%s %s: %w", kind, name, controller.ErrNotFound)
+	}
+	if cas != 0 && cur.ModifyIndex != cas {
+		return nil, fmt.Errorf("%w: %s %s", controller.ErrConflict, kind, name)
+	}
+	out := copyObject(cur)
+	out.Finalizers = slices.DeleteFunc(out.Finalizers, func(f string) bool { return slices.Contains(remove, f) })
+	for _, f := range add {
+		if slices.Contains(out.Finalizers, f) {
+			continue
+		}
+		if out.DeletionTime != 0 {
+			return nil, fmt.Errorf("%s %s is being deleted: %w", kind, name, controller.ErrConflict)
+		}
+		out.Finalizers = append(out.Finalizers, f)
+	}
+	if len(out.Finalizers) == 0 {
+		out.Finalizers = nil
+	}
+	if slices.Equal(cur.Finalizers, out.Finalizers) {
+		return copyObject(cur), nil
+	}
+	out.ModifyIndex, out.ModifyTime = b.nextIndexLocked(), time.Now().UnixNano()
+	b.storeObjectLocked(k, out, api.CustomObjectUpserted)
+	if out.DeletionTime != 0 && len(out.Finalizers) == 0 {
+		b.removeObjectLocked(ns, kind, name)
+	}
+	return copyObject(out), nil
+}
+
+func (b *Backend) RecordObjectEvents(_ context.Context, kind controller.Kind, namespace, name string, events []*api.ObjectEvent) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.callLocked("RecordObjectEvents"); err != nil {
+		return err
+	}
+	k := objKey(defaultNS(namespace), kind, name)
+	if _, ok := b.objs[k]; !ok {
+		return fmt.Errorf("%s %s: %w", kind, name, controller.ErrNotFound)
+	}
+	now := time.Now().UnixNano()
+	log := b.objEvents[k]
+	for _, e := range events {
+		ev := *e
+		if ev.Type == "" {
+			ev.Type = api.ObjectEventTypeNormal
+		}
+		if n := len(log); n > 0 && log[n-1].Type == ev.Type && log[n-1].Reason == ev.Reason && log[n-1].Message == ev.Message {
+			log[n-1].Count++
+			log[n-1].LastTime = now
+			continue
+		}
+		ev.Count, ev.FirstTime, ev.LastTime = 1, now, now
+		log = append(log, &ev)
+	}
+	if len(log) > 20 {
+		log = log[len(log)-20:]
+	}
+	b.objEvents[k] = log
+	return nil
+}
+
+func (b *Backend) ListObjectEvents(_ context.Context, kind controller.Kind, namespace, name string) ([]*api.ObjectEvent, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.callLocked("ListObjectEvents"); err != nil {
+		return nil, err
+	}
+	var out []*api.ObjectEvent
+	for _, e := range b.objEvents[objKey(defaultNS(namespace), kind, name)] {
+		ev := *e
+		out = append(out, &ev)
+	}
+	return out, nil
+}
+
+// ObjectEvents returns the event log of an object, without recording a
+// call.
+func (b *Backend) ObjectEvents(kind controller.Kind, namespace, name string) []*api.ObjectEvent {
+	out, _ := b.ListObjectEvents(context.Background(), kind, namespace, name)
+	return out
 }
 
 func (b *Backend) removeObjectLocked(ns string, kind controller.Kind, name string) {
@@ -226,6 +356,7 @@ func (b *Backend) removeObjectLocked(ns string, kind controller.Kind, name strin
 		return
 	}
 	delete(b.objs, k)
+	delete(b.objEvents, k)
 	b.nextIndexLocked()
 	b.objsIdx = b.index
 	b.publishLocked(api.Event{

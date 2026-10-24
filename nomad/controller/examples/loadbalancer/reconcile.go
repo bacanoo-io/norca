@@ -9,11 +9,16 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/controller"
 )
+
+// Finalizer is the finalizer of native LoadBalancer objects: deleting an
+// object only marks it until the controller has removed its load balancer.
+const Finalizer = "norca.io/loadbalancer-cleanup"
 
 // reconciler maintains LoadBalancer objects.
 type reconciler struct {
@@ -33,15 +38,37 @@ type reconciler struct {
 func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (time.Duration, error) {
 	obj, ok := r.ctrl.Get(key)
 	if !ok {
-		// The object was deleted: remove what every provider created for
-		// it. (With native objects a finalizer will guarantee this even if
-		// the controller is down when the object is deleted; until then
-		// the owner references in job meta let it clean up afterwards.)
-		var errs []error
-		for _, p := range r.providers {
-			errs = append(errs, p.Delete(ctx, key))
+		// The object is gone: remove what every provider created for it.
+		// With native objects the finalizer normally did this before the
+		// object disappeared; with Variables this is the only cleanup.
+		r.ctrl.Recorder().Forget(key)
+		return 0, r.cleanup(ctx, key)
+	}
+
+	native := r.ctrl.Objects().Storage() == controller.StorageNative
+	if native && obj.Deleting() {
+		// The finalizer keeps the object until the load balancer is gone,
+		// even if the controller was down when it was deleted.
+		if !obj.HasFinalizer(Finalizer) {
+			return 0, nil
 		}
-		return 0, errors.Join(errs...)
+		if err := r.cleanup(ctx, key); err != nil {
+			r.ctrl.Recorder().Event(ctx, key, controller.EventTypeWarning, "CleanupFailed", err.Error())
+			return 0, err
+		}
+		_, err := r.ctrl.Objects().RemoveFinalizer(ctx, obj, Finalizer)
+		return 0, err
+	}
+	if native && !obj.HasFinalizer(Finalizer) {
+		next, err := r.ctrl.Objects().AddFinalizer(ctx, obj, Finalizer)
+		if err != nil {
+			if errors.Is(err, controller.ErrConflict) || errors.Is(err, controller.ErrNotFound) {
+				// Deleted meanwhile: the deletion is reconciled next.
+				return time.Second, nil
+			}
+			return 0, err
+		}
+		obj = next
 	}
 
 	var status Status
@@ -77,6 +104,7 @@ func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (t
 	}
 	res, err := provider.Ensure(ctx, obj, spec, targets)
 	if err != nil {
+		r.ctrl.Recorder().Event(ctx, key, controller.EventTypeWarning, "ProvisioningFailed", err.Error())
 		return 0, err
 	}
 
@@ -117,6 +145,12 @@ func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (t
 		return 0, err
 	}
 	if ready {
+		r.ctrl.Recorder().Event(ctx, key, controller.EventTypeNormal, "Ready",
+			fmt.Sprintf("forwarding %s to %d targets", strings.Join(res.Addresses, ","), len(targets)))
+	} else if c := status.Condition(controller.ConditionReady); c != nil {
+		r.ctrl.Recorder().Event(ctx, key, controller.EventTypeNormal, c.Reason, c.Message)
+	}
+	if ready {
 		return r.requeueReady, nil
 	}
 	return r.requeueNotReady, nil
@@ -130,9 +164,19 @@ func cond(conditionType string, ok bool, reason, message string) controller.Cond
 	return controller.Condition{Type: conditionType, Status: status, Reason: reason, Message: message}
 }
 
-// fail records a problem of the spec in the status. Such problems are not
-// retried: the next spec change reconciles again.
+// cleanup removes what every provider created for the object.
+func (r *reconciler) cleanup(ctx context.Context, key controller.ObjectKey) error {
+	var errs []error
+	for _, p := range r.providers {
+		errs = append(errs, p.Delete(ctx, key))
+	}
+	return errors.Join(errs...)
+}
+
+// fail records a problem of the spec in the status and the event log. Such
+// problems are not retried: the next spec change reconciles again.
 func (r *reconciler) fail(ctx context.Context, obj *controller.Object, status *Status, reason, message string) error {
+	r.ctrl.Recorder().Event(ctx, obj.Key, controller.EventTypeWarning, reason, message)
 	now := r.now()
 	status.SetCondition(controller.Condition{Type: controller.ConditionReady, Status: controller.ConditionFalse, Reason: reason, Message: message}, now)
 	status.SetCondition(controller.Condition{Type: controller.ConditionDegraded, Status: controller.ConditionTrue, Reason: reason, Message: message}, now)

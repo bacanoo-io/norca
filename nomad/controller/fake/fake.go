@@ -29,14 +29,16 @@ import (
 // Backend is an in-memory controller.Backend. The zero value is not usable;
 // use New.
 type Backend struct {
-	mu      sync.Mutex
-	index   uint64
-	vars    map[string]*api.Variable // namespace + "\x00" + path
-	jobs    map[string]*api.Job      // namespace + "\x00" + id
-	objs    map[string]*api.CustomObject
-	varsIdx uint64
-	jobsIdx uint64
-	objsIdx uint64
+	mu    sync.Mutex
+	index uint64
+	vars  map[string]*api.Variable // namespace + "\x00" + path
+	jobs  map[string]*api.Job      // namespace + "\x00" + id
+	objs  map[string]*api.CustomObject
+	// objEvents are the event logs of the objects.
+	objEvents map[string][]*api.ObjectEvent
+	varsIdx   uint64
+	jobsIdx   uint64
+	objsIdx   uint64
 
 	events     []api.Event
 	oldest     uint64 // events below this index were dropped
@@ -58,6 +60,7 @@ func New() *Backend {
 		vars:       map[string]*api.Variable{},
 		jobs:       map[string]*api.Job{},
 		objs:       map[string]*api.CustomObject{},
+		objEvents:  map[string][]*api.ObjectEvent{},
 		changed:    make(chan struct{}),
 		streams:    map[*stream]struct{}{},
 		failNext:   map[string]error{},
