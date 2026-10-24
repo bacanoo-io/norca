@@ -755,6 +755,14 @@ type JobRegisterRequest struct {
 	// there is an active deployment for the job it will be canceled.
 	Deployment *Deployment
 
+	// MultiregionRegistration is set for a job with a multiregion block that
+	// must not be sent on to the other regions of the job: to
+	// MultiregionRegistrationPeer on the per-region registrations of a
+	// multiregion rollout, or to MultiregionRegistrationLocal to register the
+	// job only in the receiving region. When empty, the receiving region sends
+	// a multiregion job to all of its regions.
+	MultiregionRegistration string
+
 	WriteRequest
 }
 
@@ -10040,6 +10048,7 @@ const (
 	DeploymentStatusDescriptionBlocked        = "Deployment is complete but waiting for peer region"
 	DeploymentStatusDescriptionUnblocking     = "Deployment is unblocking remaining regions"
 	DeploymentStatusDescriptionPendingForPeer = "Deployment is pending, waiting for peer region"
+	DeploymentStatusDescriptionCancelled      = "Deployment was cancelled"
 )
 
 // DeploymentStatusDescriptionRollback is used to get the status description of
@@ -10088,7 +10097,11 @@ type Deployment struct {
 	// present the correct list of deployments for the job and not old ones.
 	JobCreateIndex uint64
 
-	// Multiregion specifies if deployment is part of multiregion deployment
+	// IsMultiregion specifies if the deployment is part of a multiregion
+	// deployment, which is coordinated with the deployments of the same job
+	// version in the other regions of the job. Only the deployments that
+	// Job.Register creates for a multiregion rollout are; see
+	// NewMultiregionDeployment.
 	IsMultiregion bool
 
 	// TaskGroups is the set of task groups effected by the deployment and their
@@ -10122,7 +10135,6 @@ func NewDeployment(job *Job, evalPriority int) *Deployment {
 		JobModifyIndex:     job.ModifyIndex,
 		JobSpecModifyIndex: job.JobModifyIndex,
 		JobCreateIndex:     job.CreateIndex,
-		IsMultiregion:      job.IsMultiregion(),
 		Status:             DeploymentStatusRunning,
 		StatusDescription:  DeploymentStatusDescriptionRunning,
 		TaskGroups:         make(map[string]*DeploymentState, len(job.TaskGroups)),

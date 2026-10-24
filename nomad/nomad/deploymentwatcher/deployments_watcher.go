@@ -84,6 +84,10 @@ type Watcher struct {
 	// server interface for Job RPCs
 	jobRPC JobRPC
 
+	// multiregionPoll is the backoff of multiregion deployments polling
+	// their peer regions
+	multiregionPoll multiregionPoll
+
 	// watchers is the set of active watchers, one per deployment
 	watchers map[string]*deploymentWatcher
 
@@ -111,6 +115,7 @@ func NewDeploymentsWatcher(logger log.Logger,
 		raft:                raft,
 		deploymentRPC:       deploymentRPC,
 		jobRPC:              jobRPC,
+		multiregionPoll:     multiregionPoll{min: defaultMultiregionPollMin, max: defaultMultiregionPollMax},
 		queryLimiter:        rate.NewLimiter(rate.Limit(stateQueriesPerSecond), 100),
 		updateBatchDuration: updateBatchDuration,
 		logger:              logger.Named("deployments_watcher"),
@@ -277,7 +282,7 @@ func (w *Watcher) addLocked(d *structs.Deployment) (*deploymentWatcher, error) {
 	}
 
 	watcher := newDeploymentWatcher(w.ctx, w.queryLimiter, w.logger, w.state, d, job,
-		w, w.deploymentRPC, w.jobRPC)
+		w, w.deploymentRPC, w.jobRPC, w.multiregionPoll)
 	w.watchers[d.ID] = watcher
 	return watcher, nil
 }
