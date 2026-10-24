@@ -31,6 +31,9 @@ func (s *HTTPServer) scalingPoliciesListRequest(resp http.ResponseWriter, req *h
 	if tpe := req.URL.Query().Get("type"); tpe != "" {
 		args.Type = tpe
 	}
+	if engine := req.URL.Query().Get("engine"); engine != "" {
+		args.Engine = engine
+	}
 
 	var out structs.ScalingPolicyListResponse
 	if err := s.agent.RPC("Scaling.ListPolicies", &args, &out); err != nil {
@@ -84,6 +87,7 @@ func (s *HTTPServer) scalingPolicyQuery(resp http.ResponseWriter, req *http.Requ
 func ApiScalingPolicyToStructs(count int, ap *api.ScalingPolicy) *structs.ScalingPolicy {
 	p := structs.ScalingPolicy{
 		Type:   ap.Type,
+		Engine: ap.Engine,
 		Policy: ap.Policy,
 		Target: map[string]string{},
 	}

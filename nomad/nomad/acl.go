@@ -67,6 +67,10 @@ func (s *Server) Authenticate(ctx *RPCContext, args structs.RequestWithIdentity)
 		if leaderAcl != "" && secretID == leaderAcl {
 			aclToken = structs.LeaderACLToken
 			break
+		} else if s.isAutoscalerSecret(secretID) {
+			// The built-in autoscaler's system identity (scale-job only).
+			aclToken = autoscalerACLToken
+			break
 		} else {
 			// Otherwise, see if the secret ID belongs to a node. We should
 			// reach this point only on first connection.
@@ -177,6 +181,9 @@ func (s *Server) ResolveACL(args structs.RequestWithIdentity) (*acl.ACL, error) 
 func (s *Server) ResolveACLForToken(aclToken *structs.ACLToken) (*acl.ACL, error) {
 	if !s.config.ACLEnabled {
 		return nil, nil
+	}
+	if aclToken == autoscalerACLToken {
+		return autoscalerACL, nil
 	}
 	snap, err := s.fsm.State().Snapshot()
 	if err != nil {

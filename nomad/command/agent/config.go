@@ -682,6 +682,9 @@ type ServerConfig struct {
 
 	// JobTrackedVersions is the number of historic job versions that are kept.
 	JobTrackedVersions *int `hcl:"job_tracked_versions"`
+
+	// Autoscaler configures the built-in autoscaler.
+	Autoscaler *AutoscalerConfig `hcl:"autoscaler"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -711,6 +714,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobDefaultPriority = pointer.Copy(s.JobDefaultPriority)
 	ns.JobMaxPriority = pointer.Copy(s.JobMaxPriority)
 	ns.JobTrackedVersions = pointer.Copy(s.JobTrackedVersions)
+	ns.Autoscaler = s.Autoscaler.Copy()
 	return &ns
 }
 
@@ -2016,6 +2020,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.PlanRejectionTracker != nil {
 		result.PlanRejectionTracker = result.PlanRejectionTracker.Merge(b.PlanRejectionTracker)
+	}
+
+	if b.Autoscaler != nil {
+		result.Autoscaler = result.Autoscaler.Merge(b.Autoscaler)
 	}
 
 	if b.DefaultSchedulerConfig != nil {
