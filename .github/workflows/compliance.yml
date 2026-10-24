@@ -59,8 +59,22 @@ jobs:
           npx --yes license-checker-rseidelsohn@4 --production \
             --onlyAllow "MPL-2.0;Apache-2.0;MIT;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0" \
             --excludePrivatePackages
-          if yarn list --pattern apexcharts --depth=0 2>/dev/null | grep -q apexcharts@; then
+          # Check the whole installed tree, transitive dependencies included
+          if yarn list --pattern apexcharts 2>/dev/null | grep -q apexcharts@; then
             echo "ApexCharts is forbidden" >&2; exit 1
+          fi
+
+  forbidden-packages:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: No ApexCharts in any lock or package file
+        run: |
+          # ApexCharts is dual-licensed; its community license forbids embedding
+          # it in a product used by others (docs/licensing.md)
+          files=$(git ls-files '*package.json' '*yarn.lock' '*package-lock.json' '*pnpm-lock.yaml')
+          if [ -n "$files" ] && grep -il 'apexcharts' $files; then
+            echo "ApexCharts is forbidden (found in the files above)" >&2; exit 1
           fi
 
   dco:
