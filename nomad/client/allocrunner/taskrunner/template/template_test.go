@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -553,12 +552,9 @@ func TestTaskTemplateManager_Permissions(t *testing.T) {
 		t.Fatalf("Got mode %v; want %v", m, os.ModePerm)
 	}
 
-	sys := fi.Sys()
-	uid := pointer.Of(int(sys.(*syscall.Stat_t).Uid))
-	gid := pointer.Of(int(sys.(*syscall.Stat_t).Gid))
-
-	must.Eq(t, template.Uid, uid)
-	must.Eq(t, template.Gid, gid)
+	uid, gid := clienttestutil.FileOwner(t, fi)
+	must.Eq(t, template.Uid, pointer.Of(uid))
+	must.Eq(t, template.Gid, pointer.Of(gid))
 }
 
 func TestTaskTemplateManager_Unblock_Static_NomadEnv(t *testing.T) {
