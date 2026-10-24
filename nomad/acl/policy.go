@@ -55,6 +55,11 @@ const (
 	NamespaceCapabilityReadJobScaling       = "read-job-scaling"
 	NamespaceCapabilityScaleJob             = "scale-job"
 	NamespaceCapabilitySubmitRecommendation = "submit-recommendation" // no effect
+
+	// NamespaceCapabilityRegisterExternalService allows registering,
+	// renewing and deregistering external services (Norca). It is not part
+	// of any policy shorthand and must be granted explicitly.
+	NamespaceCapabilityRegisterExternalService = "register-external-service"
 )
 
 var (
@@ -215,7 +220,8 @@ func isNamespaceCapabilityValid(cap string) bool {
 		NamespaceCapabilityReadFS, NamespaceCapabilityAllocLifecycle,
 		NamespaceCapabilityAllocExec, NamespaceCapabilityAllocNodeExec,
 		NamespaceCapabilityCSIReadVolume, NamespaceCapabilityCSIWriteVolume, NamespaceCapabilityCSIListVolume, NamespaceCapabilityCSIMountVolume, NamespaceCapabilityCSIRegisterPlugin,
-		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob:
+		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob,
+		NamespaceCapabilityRegisterExternalService:
 		return true
 	// Capabilities without effect, accepted for compatibility with existing
 	// policies

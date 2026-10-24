@@ -24,6 +24,9 @@ const (
 // ServiceRegistrationCheck is the state of one check of a service instance, as
 // last reported by the client running it.
 type ServiceRegistrationCheck struct {
+	// ID of the check; set for the checks of external services only.
+	ID string
+
 	// Name of the check.
 	Name string
 
@@ -96,7 +99,7 @@ func (s *ServiceRegistration) HealthEqual(o *ServiceRegistration) bool {
 			}
 			continue
 		}
-		if a.Name != b.Name || a.Role != b.Role || a.Status != b.Status {
+		if a.ID != b.ID || a.Name != b.Name || a.Role != b.Role || a.Status != b.Status {
 			return false
 		}
 	}
@@ -135,6 +138,7 @@ func (s *ServiceRegistration) StripNorcaFields() {
 	s.Zone = ""
 	s.Meta = nil
 	s.Discovery = nil
+	s.External = nil
 }
 
 func copyRegistrationChecks(checks []*ServiceRegistrationCheck) []*ServiceRegistrationCheck {
