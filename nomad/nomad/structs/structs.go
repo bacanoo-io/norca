@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -1434,6 +1435,12 @@ type SingleScalingPolicyResponse struct {
 type ScalingPolicyListRequest struct {
 	Job  string
 	Type string
+
+	// Engine filters the policies by the engine responsible for them
+	// ("builtin" or "external"). Policies without an engine are treated as
+	// the server's default engine.
+	Engine string
+
 	QueryOptions
 }
 
@@ -6057,6 +6064,11 @@ type ScalingPolicy struct {
 	// Enabled indicates whether this policy has been enabled/disabled
 	Enabled bool
 
+	// Engine is the autoscaler responsible for this policy: "builtin" (the
+	// autoscaler embedded in the servers) or "external". Empty means the
+	// default engine of the servers.
+	Engine string
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -6076,6 +6088,11 @@ const (
 	ScalingTargetTask      = "Task"
 
 	ScalingPolicyTypeHorizontal = "horizontal"
+
+	// ScalingPolicyEngineBuiltin and ScalingPolicyEngineExternal are the
+	// supported values of ScalingPolicy.Engine.
+	ScalingPolicyEngineBuiltin  = "builtin"
+	ScalingPolicyEngineExternal = "external"
 )
 
 func (p *ScalingPolicy) Canonicalize() {
@@ -6101,6 +6118,7 @@ func (p *ScalingPolicy) Copy() *ScalingPolicy {
 		Type:        p.Type,
 		Min:         p.Min,
 		Max:         p.Max,
+		Engine:      p.Engine,
 		CreateIndex: p.CreateIndex,
 		ModifyIndex: p.ModifyIndex,
 	}
@@ -6137,6 +6155,14 @@ func (p *ScalingPolicy) Validate() error {
 	if p.Min < 0 {
 		mErr.Errors = append(mErr.Errors,
 			fmt.Errorf("minimum count must be specified and non-negative"))
+	}
+
+	switch p.Engine {
+	case "", ScalingPolicyEngineBuiltin, ScalingPolicyEngineExternal:
+	default:
+		mErr.Errors = append(mErr.Errors,
+			fmt.Errorf("engine must be %q or %q, got %q",
+				ScalingPolicyEngineBuiltin, ScalingPolicyEngineExternal, p.Engine))
 	}
 
 	return mErr.ErrorOrNil()
@@ -6193,6 +6219,7 @@ func (p *ScalingPolicy) Stub() *ScalingPolicyListStub {
 		Type:        p.Type,
 		Target:      make(map[string]string),
 		Enabled:     p.Enabled,
+		Engine:      p.Engine,
 		CreateIndex: p.CreateIndex,
 		ModifyIndex: p.ModifyIndex,
 	}
@@ -6234,6 +6261,7 @@ type ScalingPolicyListStub struct {
 	ID          string
 	Enabled     bool
 	Type        string
+	Engine      string
 	Target      map[string]string
 	CreateIndex uint64
 	ModifyIndex uint64

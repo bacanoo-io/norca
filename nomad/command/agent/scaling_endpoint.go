@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -30,6 +31,9 @@ func (s *HTTPServer) scalingPoliciesListRequest(resp http.ResponseWriter, req *h
 	}
 	if tpe := req.URL.Query().Get("type"); tpe != "" {
 		args.Type = tpe
+	}
+	if engine := req.URL.Query().Get("engine"); engine != "" {
+		args.Engine = engine
 	}
 
 	var out structs.ScalingPolicyListResponse
@@ -84,6 +88,7 @@ func (s *HTTPServer) scalingPolicyQuery(resp http.ResponseWriter, req *http.Requ
 func ApiScalingPolicyToStructs(count int, ap *api.ScalingPolicy) *structs.ScalingPolicy {
 	p := structs.ScalingPolicy{
 		Type:   ap.Type,
+		Engine: ap.Engine,
 		Policy: ap.Policy,
 		Target: map[string]string{},
 	}
