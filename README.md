@@ -73,7 +73,7 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Disruption budget | Available | [specification, item 5](docs/design/kubernetes-features-spec.md) |
 | Health check roles (startup, readiness, liveness) | Available | [specification, item 6](docs/design/kubernetes-features-spec.md) |
 | Network rules | Planned | [specification, item 7](docs/design/kubernetes-features-spec.md) |
-| Operator framework: native custom objects (`ObjectKind`, `CustomObject`, schema, CEL with `oldSelf`), controller SDK `nomad/controller`, LoadBalancer example; finalizers and garbage collection pending (phase 3) | Available (phases 1–2) | [specification, item 8](docs/design/kubernetes-features-spec.md) |
+| Operator framework: native custom objects (`ObjectKind`, `CustomObject`, schema, CEL with `oldSelf`), controller SDK `nomad/controller`, LoadBalancer example; lifecycle: finalizers, deletion modes (background, foreground, orphan), garbage collection of owned objects and jobs, per-object event log, managed-job protection, `scale` subresource for the autoscaler | Available (phases 1–3) | [specification, item 8](docs/design/kubernetes-features-spec.md) |
 | Event stream → NATS bridge (`nomad/natsbridge`, one job per region) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Multiregion deployments (one region per cloud; staged rollout, `on_failure`, global tokens, `norca deployment run`) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | NATS pack (`packs/nats`: supercluster with JetStream and gateways, optional bridge) | Available | [packs/nats](packs/nats/README.md) |
@@ -81,7 +81,8 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Backup and restore: full region restore with preview and two-person approval, keyring restore, `restore-bootstrap` for an empty cluster | Available (phase 4) | [plan](docs/design/backup-restore-plan.md) |
 | Backup and restore: web UI | Planned | [plan](docs/design/backup-restore-plan.md) |
 | Service discovery without Consul: health-based catalog, built-in DNS, Consul-compatible read layer for Traefik, Prometheus and consul-template (DNS and the compat layer are off by default) | Available (phases 1–3) | [plan](docs/design/consul-independence-plan.md) |
-| Service discovery without Consul: external registration, native mTLS, managed Consul install | Planned | [plan](docs/design/consul-independence-plan.md) |
+| Service discovery without Consul: external services (address or DNS alias, TTL/HTTP/TCP checks, `norca service register`), Consul agent write endpoints in the compat layer | Available (phase 4) | [plan](docs/design/consul-independence-plan.md) |
+| Service discovery without Consul: native mTLS, managed Consul install | Planned | [plan](docs/design/consul-independence-plan.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |
 | Package management, client-side supply chain: OCI registries, cosign-compatible signing and trust policies, offline bundles (air-gapped), `pack.lock` | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/supply-chain.md) |
 | Package management: server-side releases, rollback, signature enforcement in admission | Planned | [plan](docs/design/package-management-plan.md) |
