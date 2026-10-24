@@ -233,8 +233,8 @@ Phase 1 can start immediately and on its own provides unified package management
 
 ## Open questions
 
-- [ ] Which OCI registry do we use internally, and is an air-gapped installation needed?
-- [ ] Who signs the internal packs, and with what key (key pair or Sigstore identity)?
-- [ ] Should `atomic` mode be the default in production namespaces?
-- [ ] How many revisions do we keep by default (`max_history`)?
-- [ ] Which existing packs (community registry, internal jobs) must be migrated first?
+- [x] Which OCI registry do we use internally, and is an air-gapped installation needed? Decided 2026-10-24: an internal, configurable OCI registry; air-gapped installation is needed.
+- [x] Who signs the internal packs, and with what key (key pair or Sigstore identity)? Decided 2026-10-24: a cosign-compatible key pair first (Sigstore identity later); the needed command-line tooling is built into `norca pack`.
+- [x] Should `atomic` mode be the default in production namespaces? Decided 2026-10-24: yes.
+- [x] How many revisions do we keep by default (`max_history`)? Decided 2026-10-24: 10.
+- [x] Which existing packs (community registry, internal jobs) must be migrated first? Decided 2026-10-24: none yet (internal packs are not set up); tests use the community registry, in particular its `redis` pack.
