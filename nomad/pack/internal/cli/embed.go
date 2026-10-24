@@ -137,7 +137,7 @@ func (c *packCommand) Synopsis() string {
 
 func (c *packCommand) Help() string {
 	helpText := `
-Usage: nomad PREFIX <subcommand> [options] [args]
+Usage: norca PREFIX <subcommand> [options] [args]
 
   Norca Pack is a templating and packaging tool for Norca jobs. A pack is a
   directory of parameterized job templates and variables; packs are shared
@@ -146,17 +146,17 @@ Usage: nomad PREFIX <subcommand> [options] [args]
 
   Render a pack from a local directory:
 
-      $ nomad PREFIX render ./my-pack
+      $ norca PREFIX render ./my-pack
 
   Plan and run a pack with variable overrides:
 
-      $ nomad PREFIX plan ./my-pack --var-file=./overrides.hcl
-      $ nomad PREFIX run ./my-pack --var-file=./overrides.hcl
+      $ norca PREFIX plan ./my-pack --var-file=./overrides.hcl
+      $ norca PREFIX run ./my-pack --var-file=./overrides.hcl
 
   Add a registry and list its packs:
 
-      $ nomad PREFIX registry add community github.com/hashicorp/nomad-pack-community-registry
-      $ nomad PREFIX list
+      $ norca PREFIX registry add community github.com/hashicorp/nomad-pack-community-registry
+      $ norca PREFIX list
 
   Please see the individual subcommand help for detailed usage information.
 `
