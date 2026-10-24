@@ -39,6 +39,7 @@ import (
 	"github.com/hashicorp/nomad/helper/stats"
 	"github.com/hashicorp/nomad/helper/tlsutil"
 	"github.com/hashicorp/nomad/lib/auth/oidc"
+	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/drainer"
 	"github.com/hashicorp/nomad/nomad/state"
@@ -218,6 +219,9 @@ type Server struct {
 	// volumeWatcher is used to release volume claims
 	volumeWatcher *volumewatcher.Watcher
 
+	// autoscaler is the built-in autoscaler, running on the leader.
+	autoscaler *autoscaler.Autoscaler
+
 	// volumeControllerFutures is a map of plugin IDs to pending controller RPCs. If
 	// no RPC is pending for a given plugin, this may be nil.
 	volumeControllerFutures map[string]context.Context
@@ -274,6 +278,11 @@ type Server struct {
 	// current leader.
 	leaderAcl     string
 	leaderAclLock sync.Mutex
+
+	// autoscalerSecret is the secret of the built-in autoscaler's system
+	// identity, valid only on the current leader.
+	autoscalerSecret     string
+	autoscalerSecretLock sync.Mutex
 
 	// clusterIDLock ensures the server does not try to concurrently establish
 	// a cluster ID, racing against itself in calls of ClusterID
@@ -460,6 +469,9 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 
 	// Setup the node drainer.
 	s.setupNodeDrainer()
+
+	// Setup the built-in autoscaler.
+	s.setupAutoscaler()
 
 	// Setup the enterprise state
 	if err := s.setupEnterprise(config); err != nil {
@@ -673,6 +685,10 @@ func (s *Server) Shutdown() error {
 	s.shutdown = true
 	s.shutdownCancel()
 
+	if s.autoscaler != nil {
+		s.autoscaler.SetLeader(false)
+	}
+
 	if s.serf != nil {
 		s.serf.Shutdown()
 	}
@@ -859,6 +875,12 @@ func (s *Server) Reload(newConfig *Config) error {
 			s.logger.Error("error reloading license", "error", err)
 			_ = multierror.Append(&mErr, err)
 		}
+	}
+
+	// Apply the built-in autoscaler configuration; it can be switched on and
+	// off at runtime.
+	if s.autoscaler != nil && newConfig.Autoscaler != nil {
+		s.autoscaler.SetConfig(newConfig.Autoscaler)
 	}
 
 	// Because this is a new configuration, we extract the worker pool arguments without acquiring a lock
