@@ -214,7 +214,9 @@ type Server struct {
 	// transitions to collide and create inconsistent state.
 	brokerLock sync.Mutex
 
-	// reapCancelableEvalsCh is used to signal the cancelable evals reaper to wake up
+	// reapCancelableEvalsCh is used to signal the cancelable evals reaper to
+	// wake up. It is created once and never reassigned, because RPC handlers
+	// send on it without holding a lock across leadership changes.
 	reapCancelableEvalsCh chan struct{}
 
 	// deploymentWatcher is used to watch deployments and their allocations and
@@ -369,7 +371,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		readyForConsistentReads: &atomic.Bool{},
 		eventCh:                 make(chan serf.Event, 256),
 		evalBroker:              evalBroker,
-		reapCancelableEvalsCh:   make(chan struct{}),
+		reapCancelableEvalsCh:   make(chan struct{}, 1),
 		blockedEvals:            NewBlockedEvals(evalBroker, logger),
 		aclCache:                aclCache,
 		workersEventCh:          make(chan interface{}, 1),
