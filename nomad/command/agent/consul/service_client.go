@@ -1191,6 +1191,12 @@ func (c *ServiceClient) checkRegs(
 
 	registrations := make([]*api.AgentCheckRegistration, 0, len(service.Checks))
 	for _, check := range service.Checks {
+		// liveness checks are executed by the Nomad client so they do not
+		// affect the health of the service in Consul
+		if !isConsulCheck(check) {
+			continue
+		}
+
 		var ip string
 		var port int
 
@@ -1264,15 +1270,13 @@ func (c *ServiceClient) RegisterWorkload(workload *serviceregistration.WorkloadS
 
 	// Start watching checks. Done after service registrations are built
 	// since an error building them could leak watches.
-	for _, service := range workload.Services {
+	serviceregistration.ForEachCheck(workload.Services, func(service *structs.Service, check *structs.ServiceCheck) {
 		serviceID := serviceregistration.MakeAllocServiceID(workload.AllocInfo.AllocID, workload.Name(), service)
-		for _, check := range service.Checks {
-			if check.TriggersRestarts() {
-				checkID := MakeCheckID(serviceID, check)
-				c.checkWatcher.Watch(workload.AllocInfo.AllocID, workload.Name(), checkID, check, workload.Restarter)
-			}
+		if check.TriggersRestarts() {
+			checkID := watchCheckID(serviceID, workload, check)
+			c.checkWatcher.Watch(workload.AllocInfo.AllocID, workload.Name(), checkID, check, workload.Restarter)
 		}
-	}
+	})
 	return nil
 }
 
@@ -1304,7 +1308,7 @@ func (c *ServiceClient) UpdateWorkload(old, newWorkload *serviceregistration.Wor
 
 				// Unwatch watched checks
 				if check.TriggersRestarts() {
-					c.checkWatcher.Unwatch(cid)
+					c.checkWatcher.Unwatch(watchCheckID(existingID, old, check))
 				}
 			}
 			continue
@@ -1356,7 +1360,8 @@ func (c *ServiceClient) UpdateWorkload(old, newWorkload *serviceregistration.Wor
 
 			// Update all watched checks as CheckRestart fields aren't part of ID
 			if check.TriggersRestarts() {
-				c.checkWatcher.Watch(newWorkload.AllocInfo.AllocID, newWorkload.Name(), checkID, check, newWorkload.Restarter)
+				watchID := watchCheckID(existingID, newWorkload, check)
+				c.checkWatcher.Watch(newWorkload.AllocInfo.AllocID, newWorkload.Name(), watchID, check, newWorkload.Restarter)
 			}
 		}
 
@@ -1366,7 +1371,7 @@ func (c *ServiceClient) UpdateWorkload(old, newWorkload *serviceregistration.Wor
 
 			// Unwatch checks
 			if check.TriggersRestarts() {
-				c.checkWatcher.Unwatch(cid)
+				c.checkWatcher.Unwatch(watchCheckID(existingID, old, check))
 			}
 		}
 	}
@@ -1389,12 +1394,12 @@ func (c *ServiceClient) UpdateWorkload(old, newWorkload *serviceregistration.Wor
 	// Start watching checks. Done after service registrations are built
 	// since an error building them could leak watches.
 	for serviceID, service := range newIDs {
-		for _, check := range service.Checks {
+		serviceregistration.ForEachCheck([]*structs.Service{service}, func(_ *structs.Service, check *structs.ServiceCheck) {
 			if check.TriggersRestarts() {
-				checkID := MakeCheckID(serviceID, check)
+				checkID := watchCheckID(serviceID, newWorkload, check)
 				c.checkWatcher.Watch(newWorkload.AllocInfo.AllocID, newWorkload.Name(), checkID, check, newWorkload.Restarter)
 			}
-		}
+		})
 	}
 
 	return nil
@@ -1415,7 +1420,7 @@ func (c *ServiceClient) RemoveWorkload(workload *serviceregistration.WorkloadSer
 			ops.deregChecks = append(ops.deregChecks, cid)
 
 			if check.TriggersRestarts() {
-				c.checkWatcher.Unwatch(cid)
+				c.checkWatcher.Unwatch(watchCheckID(id, workload, check))
 			}
 		}
 	}
