@@ -575,6 +575,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	}
 	conf.Autoscaler = autoscalerConf
 
+	// Set the backup configuration.
+	backupConf, err := agentConfig.Server.Backup.toServerConfig()
+	if err != nil {
+		return nil, err
+	}
+	conf.Backup = backupConf
+
 	// Add Enterprise license configs
 	conf.LicenseConfig = &nomad.LicenseConfig{
 		BuildDate:         agentConfig.Version.BuildDate,

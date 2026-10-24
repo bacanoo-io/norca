@@ -145,6 +145,12 @@ const (
 	// Norca disruption budget types (74-76 assigned to disruption budgets)
 	AllocEvictRequestType MessageType = 74
 	// 75 and 76 are reserved for disruption budgets
+
+	// Norca backup types (78-80 assigned to backup and restore). They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	BackupUpsertRequestType        MessageType = 78
+	BackupDeleteRequestType        MessageType = 79
+	BackupRestoreUpsertRequestType MessageType = 80
 )
 
 const (

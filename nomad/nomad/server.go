@@ -40,6 +40,7 @@ import (
 	"github.com/hashicorp/nomad/helper/tlsutil"
 	"github.com/hashicorp/nomad/lib/auth/oidc"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
+	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/drainer"
 	"github.com/hashicorp/nomad/nomad/state"
@@ -231,6 +232,10 @@ type Server struct {
 
 	// autoscaler is the built-in autoscaler, running on the leader.
 	autoscaler *autoscaler.Autoscaler
+
+	// backup takes the scheduled backups of the region, running on the
+	// leader.
+	backup *backup.Manager
 
 	// volumeControllerFutures is a map of plugin IDs to pending controller RPCs. If
 	// no RPC is pending for a given plugin, this may be nil.
@@ -496,6 +501,9 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 	// Setup the built-in autoscaler.
 	s.setupAutoscaler()
 
+	// Setup the scheduled backups.
+	s.setupBackup()
+
 	// Setup the enterprise state
 	if err := s.setupEnterprise(config); err != nil {
 		return nil, err
@@ -710,6 +718,9 @@ func (s *Server) Shutdown() error {
 	s.shutdown = true
 	s.shutdownCancel()
 
+	if s.backup != nil {
+		s.backup.SetLeader(false)
+	}
 	if s.autoscaler != nil {
 		s.autoscaler.SetLeader(false)
 	}
@@ -906,6 +917,14 @@ func (s *Server) Reload(newConfig *Config) error {
 	// off at runtime.
 	if s.autoscaler != nil && newConfig.Autoscaler != nil {
 		s.autoscaler.SetConfig(newConfig.Autoscaler)
+	}
+
+	// Apply the backup configuration.
+	if s.backup != nil && newConfig.Backup != nil {
+		if err := s.backup.SetConfig(newConfig.Backup); err != nil {
+			s.logger.Error("invalid backup configuration", "error", err)
+			_ = multierror.Append(&mErr, err)
+		}
 	}
 
 	// Because this is a new configuration, we extract the worker pool arguments without acquiring a lock
