@@ -361,6 +361,8 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyAdmissionPolicyUpsert(msgType, buf[1:], log.Index)
 	case structs.AdmissionPolicyDeleteRequestType:
 		return n.applyAdmissionPolicyDelete(msgType, buf[1:], log.Index)
+	case structs.AllocEvictRequestType:
+		return n.applyAllocEvict(msgType, buf[1:], log.Index)
 	}
 
 	// Check enterprise only message types.

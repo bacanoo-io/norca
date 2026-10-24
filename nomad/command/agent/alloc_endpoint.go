@@ -93,6 +93,8 @@ func (s *HTTPServer) AllocSpecificRequest(resp http.ResponseWriter, req *http.Re
 		return s.allocChecks(allocID, resp, req)
 	case "stop":
 		return s.allocStop(allocID, resp, req)
+	case "evict":
+		return s.allocEvict(allocID, resp, req)
 	case "services":
 		return s.allocServiceRegistrations(resp, req, allocID)
 	}
