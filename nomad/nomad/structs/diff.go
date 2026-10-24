@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -308,6 +309,12 @@ func (tg *TaskGroup) Diff(other *TaskGroup, contextual bool) (*TaskGroupDiff, er
 	if affinitiesDiff != nil {
 		diff.Objects = append(diff.Objects, affinitiesDiff...)
 	}
+
+	// Colocate and separate (cross-job affinity) diffs
+	diff.Objects = append(diff.Objects, primitiveObjectSetDiff(
+		interfaceSlice(tg.Colocate), interfaceSlice(other.Colocate), nil, "Colocate", contextual)...)
+	diff.Objects = append(diff.Objects, primitiveObjectSetDiff(
+		interfaceSlice(tg.Separate), interfaceSlice(other.Separate), nil, "Separate", contextual)...)
 
 	// Restart policy diff
 	rDiff := primitiveObjectDiff(tg.RestartPolicy, other.RestartPolicy, nil, "RestartPolicy", contextual)

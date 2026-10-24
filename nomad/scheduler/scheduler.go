@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package scheduler
@@ -98,6 +99,10 @@ type State interface {
 
 	// GetJobByID is used to lookup a job by ID
 	JobByID(ws memdb.WatchSet, namespace, id string) (*structs.Job, error)
+
+	// JobsByNamespace returns an iterator over all the jobs of a namespace.
+	// The type of each result is *structs.Job
+	JobsByNamespace(ws memdb.WatchSet, namespace string) (memdb.ResultIterator, error)
 
 	// DeploymentsByJobID returns the deployments associated with the job
 	DeploymentsByJobID(ws memdb.WatchSet, namespace, jobID string, all bool) ([]*structs.Deployment, error)
