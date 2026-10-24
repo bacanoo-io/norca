@@ -169,7 +169,7 @@ func (b *Backend) dropStreamsLocked() {
 }
 
 // SetStreamForbidden makes Stream fail with 403, like the event stream with
-// a workload identity token.
+// a token that may not subscribe to the topics.
 func (b *Backend) SetStreamForbidden(forbidden bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -589,17 +589,17 @@ func (b *Backend) deregisterJobLocked(ns, id string, purge bool) {
 	idx := b.nextIndexLocked()
 	b.jobsIdx = idx
 	if purge {
-		// Like Nomad, purging a job produces no Job event, only an
-		// evaluation.
+		// Like Norca servers, purging a job publishes a Job event with the
+		// last known job (Nomad 1.6.5 publishes only the evaluation).
 		delete(b.jobs, key(ns, id))
 	} else {
 		stop, status := true, "dead"
 		j.Stop, j.Status, j.ModifyIndex = &stop, &status, &idx
-		b.publishLocked(api.Event{
-			Topic: api.TopicJob, Type: "JobDeregistered", Key: id, Namespace: ns,
-			Payload: toPayload("Job", j),
-		})
 	}
+	b.publishLocked(api.Event{
+		Topic: api.TopicJob, Type: "JobDeregistered", Key: id, Namespace: ns,
+		Payload: toPayload("Job", j),
+	})
 	b.publishLocked(api.Event{
 		Topic: api.TopicEvaluation, Type: "EvaluationUpdated", Key: fmt.Sprintf("eval-%d", idx), Namespace: ns,
 		Payload: toPayload("Evaluation", &api.Evaluation{ID: fmt.Sprintf("eval-%d", idx), Namespace: ns, JobID: id}),

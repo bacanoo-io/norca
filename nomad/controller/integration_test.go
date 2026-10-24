@@ -304,7 +304,7 @@ func TestIntegration_Controller(t *testing.T) {
 	must.NoError(t, err)
 	waitForLong(t, "job repaired", func() bool { return jobCountAPI(client, "widget-a") == 2 })
 
-	// Owned job purged (no Job event): recreated through the evaluation.
+	// Owned job purged: recreated through the Job event of the purge.
 	_, _, err = client.Jobs().Deregister("widget-a", true, nil)
 	must.NoError(t, err)
 	waitForLong(t, "job recreated", func() bool { return jobCountAPI(client, "widget-a") == 2 })

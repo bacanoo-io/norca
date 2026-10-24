@@ -182,8 +182,9 @@ func TestController_OwnedJobsRepair(t *testing.T) {
 	b.PutJob(j)
 	waitFor(t, "job repaired", func() bool { return jobCount(b, "widget-a") == 2 })
 
-	// Someone purges the owned job: there is no Job event, the evaluation
-	// maps back to the owner through the owned jobs index.
+	// Someone purges the owned job: the Job event of the purge (on older
+	// servers only the evaluation, through the owned jobs index) maps back
+	// to the owner.
 	b.RemoveJob("default", "widget-a", true)
 	waitFor(t, "job recreated", func() bool { return jobCount(b, "widget-a") == 2 })
 
