@@ -18,6 +18,15 @@ const (
 
 	// AdmissionPolicyActionWarn only warns about jobs that violate a rule.
 	AdmissionPolicyActionWarn = "warn"
+
+	// AdmissionResourceJob and AdmissionResourceVariable are the object
+	// kinds an admission policy can apply to (AdmissionPolicyMatch.Resources).
+	AdmissionResourceJob      = "job"
+	AdmissionResourceVariable = "variable"
+
+	// AdmissionSchemaFromCRDSchema validates crd/<group>/<kind>/<name>
+	// Variables against the JSON Schema of crd-schema/<group>/<kind>.
+	AdmissionSchemaFromCRDSchema = "crd-schema"
 )
 
 // AdmissionPolicies is used to access the admission policy endpoints.
@@ -97,15 +106,23 @@ type AdmissionPolicy struct {
 	Description string                 `hcl:"description,optional"`
 	Action      string                 `hcl:"action,optional"`
 	Match       *AdmissionPolicyMatch  `hcl:"match,block"`
+	SchemaFrom  string                 `hcl:"schema_from,optional"`
 	Rules       []*AdmissionPolicyRule `hcl:"rule,block"`
 	CreateIndex uint64
 	ModifyIndex uint64
 }
 
-// AdmissionPolicyMatch selects the jobs a policy applies to.
+// AdmissionPolicyMatch selects the jobs and Variables a policy applies to.
 type AdmissionPolicyMatch struct {
 	// Namespaces (glob patterns allowed). Empty means every namespace.
 	Namespaces []string `hcl:"namespaces,optional"`
+
+	// Resources is "job" and/or "variable". Empty means jobs only.
+	Resources []string `hcl:"resources,optional"`
+
+	// VariablePaths (glob patterns allowed) restricts the Variables writes
+	// the policy applies to. Empty means every path.
+	VariablePaths []string `hcl:"variable_paths,optional"`
 }
 
 // AdmissionPolicyRule is a CEL rule. It is satisfied when Expression
@@ -119,6 +136,18 @@ type AdmissionPolicyRule struct {
 type JobAdmissionDeniedEvent struct {
 	Namespace  string
 	JobID      string
+	Operation  string
+	User       *AdmissionUser
+	Controller string
+	Name       string
+	Message    string
+}
+
+// VariableAdmissionDeniedEvent is the payload of a VariableAdmissionDenied
+// event. It never contains the items of the Variable.
+type VariableAdmissionDeniedEvent struct {
+	Namespace  string
+	Path       string
 	Operation  string
 	User       *AdmissionUser
 	Controller string
