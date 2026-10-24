@@ -341,14 +341,13 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 				refs = append(refs, ref)
 			}
 		}
-		// Hook jobs kept by their deletion policy go with the release.
-		for _, res := range resources {
-			if res.IsHook() {
-				ref := res.Ref()
-				ref.Hook = ""
-				refs = append(refs, ref)
-			}
+		// Hook jobs kept by their deletion policy go with the release: those
+		// of every kept revision.
+		hookRefs, err := releaseHookRefs(snap, namespace, args.Name)
+		if err != nil {
+			return fail(err)
 		}
+		refs = append(refs, hookRefs...)
 		sortRefsForDeletion(refs)
 		if err := op.deleteResources(refs, false); err != nil {
 			return fail(err)
@@ -384,6 +383,34 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 	reply.Changes = op.changes
 	reply.Index = max(1, r.srv.raft.AppliedIndex())
 	return nil
+}
+
+// releaseHookRefs returns the hook jobs of all kept revisions of a release.
+func releaseHookRefs(snap *state.StateSnapshot, namespace, name string) ([]*structs.ReleaseResourceRef, error) {
+	revs, err := releaseRevisions(snap, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	var out []*structs.ReleaseResourceRef
+	for _, rev := range revs {
+		resources, err := structs.DecodeReleaseResources(rev.Spec.Content)
+		if err != nil {
+			return nil, err
+		}
+		for _, res := range resources {
+			if !res.IsHook() {
+				continue
+			}
+			ref := res.Ref()
+			ref.Hook = ""
+			if _, ok := seen[ref.Key()]; !ok {
+				seen[ref.Key()] = struct{}{}
+				out = append(out, ref)
+			}
+		}
+	}
+	return out, nil
 }
 
 // orphanObjects removes the owner references to the release from the

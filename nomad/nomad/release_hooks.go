@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -104,8 +105,9 @@ func (op *releaseOp) runHook(res *structs.ReleaseResource, phase string) *struct
 	return result
 }
 
-// waitHookJob waits until a hook job is dead and reports whether every task
-// group completed.
+// waitHookJob waits until a hook job has finished: all its evaluations and
+// allocations are terminal. It succeeds when every task group has as many
+// completed allocations as its count (one per node for sysbatch jobs).
 func (op *releaseOp) waitHookJob(ctx context.Context, hook *structs.Job) (bool, string, error) {
 	store := op.m.srv.State()
 	for {
@@ -117,32 +119,53 @@ func (op *releaseOp) waitHookJob(ctx context.Context, hook *structs.Job) (bool, 
 		if job == nil {
 			return false, "the hook job was removed", nil
 		}
-		summary, err := store.JobSummaryByID(ws, hook.Namespace, hook.ID)
+		evals, err := store.EvalsByJob(ws, hook.Namespace, hook.ID)
 		if err != nil {
 			return false, "", err
 		}
-		if job.Status == structs.JobStatusDead && summary != nil {
-			ok := true
-			msg := ""
+		allocs, err := store.AllocsByJob(ws, hook.Namespace, hook.ID, false)
+		if err != nil {
+			return false, "", err
+		}
+
+		done := len(allocs) > 0 || job.Status == structs.JobStatusDead
+		for _, e := range evals {
+			if !e.TerminalStatus() {
+				done = false
+			}
+		}
+		complete := map[string]int{}
+		failed := map[string]int{}
+		for _, a := range allocs {
+			switch {
+			case !a.TerminalStatus():
+				done = false
+			case a.ClientStatus == structs.AllocClientStatusComplete:
+				complete[a.TaskGroup]++
+			default:
+				failed[a.TaskGroup]++
+			}
+		}
+		if done {
+			ok, msg := true, ""
 			for _, tg := range job.TaskGroups {
-				s := summary.Summary[tg.Name]
 				want := tg.Count
 				if job.Type == structs.JobTypeSysBatch {
 					want = 1
 				}
-				if s.Complete < want {
+				if complete[tg.Name] < want {
 					ok = false
-					msg += fmt.Sprintf("group %q: %d of %d allocations completed (%d failed, %d lost); ",
-						tg.Name, s.Complete, want, s.Failed, s.Lost)
+					msg += fmt.Sprintf("group %q: %d of %d allocations completed, %d failed; ",
+						tg.Name, complete[tg.Name], want, failed[tg.Name])
 				}
 			}
 			if ok {
 				return true, "completed", nil
 			}
-			return false, msg, nil
+			return false, strings.TrimSuffix(msg, "; "), nil
 		}
 		if err := ws.WatchCtx(ctx); err != nil {
-			return false, "", fmt.Errorf("the hook job did not finish in time")
+			return false, "", fmt.Errorf("the hook job did not finish in time (status %q)", job.Status)
 		}
 	}
 }
