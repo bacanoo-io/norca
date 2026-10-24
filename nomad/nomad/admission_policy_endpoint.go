@@ -10,6 +10,7 @@ import (
 
 	metrics "github.com/armon/go-metrics"
 	"github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/nomad/nomad/admission"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/state/paginator"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -184,6 +185,11 @@ func (a *AdmissionPolicy) UpsertAdmissionPolicies(args *structs.AdmissionPolicyU
 
 		if err := a.srv.admission.policies.Compile(policy); err != nil {
 			return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid admission policy %q: %v", policy.Name, err)
+		}
+		for i, key := range policy.TrustedKeys {
+			if _, err := admission.ParseTrustedKey(key); err != nil {
+				return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid admission policy %q: trusted key %d: %v", policy.Name, i, err)
+			}
 		}
 	}
 
