@@ -6847,6 +6847,14 @@ func (s *StateStore) DeleteNamespaces(index uint64, names []string) error {
 				"All variables in namespace must be deleted before it can be deleted", name)
 		}
 
+		// Norca: custom objects
+		if hasObjects, err := namespaceHasCustomObjectsTxn(txn, name); err != nil {
+			return err
+		} else if hasObjects {
+			return fmt.Errorf("namespace %q contains at least one custom object. "+
+				"All custom objects in namespace must be deleted before it can be deleted", name)
+		}
+
 		// Delete the namespace
 		if err := txn.Delete(TableNamespaces, existing); err != nil {
 			return fmt.Errorf("namespace deletion failed: %v", err)

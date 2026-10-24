@@ -371,7 +371,7 @@ Every source in the plan is MPL 2.0 or under a compatible license, so the autosc
 
 **Kubernetes features:** Kubernetes is Apache 2.0 licensed, which is compatible with MPL 2.0. Adopted Kubernetes code may enter the fork in a separate file, keeping the Apache license header and the NOTICE content. From similar features implemented later by HashiCorp under BSL (for example the dynamic host volumes of v1.10 or the `secret` block of v1.11), nothing can be adopted; for these, an independent implementation can only be made from public descriptions.
 
-**Multi-cloud components:** NATS and the `nats.go` client are Apache 2.0, Headscale is BSD, Nebula is MIT, all compatible with MPL 2.0. The NATS license was a matter of dispute in 2025 (a planned switch to BSL); to our knowledge the project stayed in the CNCF under Apache 2.0, which must be verified before adoption. The Enterprise equivalent of multiregion deployment is not public, so the implementation is done with independent design.
+**Multi-cloud components:** NATS and the `nats.go` client are Apache 2.0, Headscale is BSD, Nebula is MIT, all compatible with MPL 2.0. The NATS license was a matter of dispute in 2025 (a planned switch to BSL); verified on 2026-10-24 from the LICENSE files of the adopted versions (nats.go v1.54.0, nats-server/v2 v2.15.0 for tests, nkeys, nuid, jwt/v2): all are unmodified Apache 2.0. The Enterprise equivalent of multiregion deployment is not public, so the implementation is done with independent design.
 
 ## Open questions
 
@@ -384,7 +384,7 @@ Every source in the plan is MPL 2.0 or under a compatible license, so the autosc
 
 <!-- -->
 
-- [ ] Does Consul stay part of the stack? If so, the network rules (Kubernetes item 7) are covered by the intentions, and the item can be dropped.
+- [x] Does Consul stay part of the stack? If so, the network rules (Kubernetes item 7) are covered by the intentions, and the item can be dropped. Decided 2026-10-24: Consul stays optional, only for a full service mesh; item 7 is therefore kept.
 - [ ] What error handling should the dynamic admission webhooks run with (fail-open or fail-closed) when the webhook is unavailable?
 
 <!-- -->

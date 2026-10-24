@@ -57,6 +57,10 @@ type Options struct {
 	// Kind of the objects the controller reconciles.
 	Kind Kind
 
+	// Storage selects Variables (default) or native objects of a kind
+	// registered with "norca object-kind apply".
+	Storage Storage
+
 	// Namespace to watch; "*" for every namespace the token can access.
 	// Defaults to "default".
 	Namespace string
@@ -152,11 +156,11 @@ func New(backend Backend, reconciler Reconciler, opts Options) (*Controller, err
 	}
 
 	var err error
-	c.objects, err = NewObjects(opts.Kind, backend)
+	c.objects, err = newObjects(opts.Storage, opts.Kind, backend)
 	if err != nil {
 		return nil, err
 	}
-	c.informer, err = NewInformer(opts.Kind, backend, backend, InformerOptions{
+	c.informer = newInformer(c.objects.store, backend, InformerOptions{
 		Namespace:    opts.Namespace,
 		ResyncPeriod: max(opts.ResyncPeriod, 0),
 		WatchMode:    opts.WatchMode,
@@ -164,9 +168,6 @@ func New(backend Backend, reconciler Reconciler, opts Options) (*Controller, err
 		Logger:       logger,
 		Metrics:      opts.Metrics,
 	})
-	if err != nil {
-		return nil, err
-	}
 	c.informer.AddHandler(EventHandler{
 		OnAdd: func(obj *Object) { c.Enqueue(obj.Key) },
 		OnUpdate: func(oldObj, newObj *Object) {

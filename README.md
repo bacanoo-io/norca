@@ -73,7 +73,9 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Disruption budget | Available | [specification, item 5](docs/design/kubernetes-features-spec.md) |
 | Health check roles (startup, readiness, liveness) | Available | [specification, item 6](docs/design/kubernetes-features-spec.md) |
 | Network rules | Planned | [specification, item 7](docs/design/kubernetes-features-spec.md) |
-| Operator framework (phase 1 prototype: controller SDK `nomad/controller`, LoadBalancer example) | Available (prototype) | [specification, item 8](docs/design/kubernetes-features-spec.md) |
+| Operator framework: native custom objects (`ObjectKind`, `CustomObject`, schema, CEL with `oldSelf`), controller SDK `nomad/controller`, LoadBalancer example; finalizers and garbage collection pending (phase 3) | Available (phases 1–2) | [specification, item 8](docs/design/kubernetes-features-spec.md) |
+| Event stream → NATS bridge (`nomad/natsbridge`, one job per region) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
+| NATS pack (`packs/nats`: NATS cluster per region with JetStream and supercluster gateways, optional bridge job) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Backup and restore | Planned | [plan](docs/design/backup-restore-plan.md) |
 | Service discovery without Consul | Planned | [plan](docs/design/consul-independence-plan.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |

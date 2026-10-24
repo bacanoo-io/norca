@@ -70,6 +70,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 		logger: s.logger.Named("job"),
 		mutators: []jobMutator{
 			&jobCanonicalizer{srv: s},
+			jobVaultNamespaceDefaulter{},
 			jobScalingHook{srv: s},
 			jobConnectHook{},
 			jobExposeCheckHook{},

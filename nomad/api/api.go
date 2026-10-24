@@ -154,6 +154,11 @@ type WriteMeta struct {
 
 	// How long did the request take
 	RequestTime time.Duration
+
+	// Warnings returned by the server for the write, from the
+	// X-Nomad-Warnings header. Norca returns the warnings of admission
+	// policies and webhooks for Variables writes here.
+	Warnings []string
 }
 
 // HttpBasicAuth is used to authenticate http client with HTTP Basic Authentication
@@ -1097,6 +1102,9 @@ func parseQueryMeta(resp *http.Response, q *QueryMeta) error {
 // parseWriteMeta is used to help parse write meta-data
 func parseWriteMeta(resp *http.Response, q *WriteMeta) error {
 	header := resp.Header
+
+	// Parse the X-Nomad-Warnings
+	q.Warnings = header.Values("X-Nomad-Warnings")
 
 	// Parse the X-Nomad-Index
 	index, err := strconv.ParseUint(header.Get("X-Nomad-Index"), 10, 64)

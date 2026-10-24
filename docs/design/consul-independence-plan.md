@@ -440,9 +440,9 @@ After phases 1–3, most users no longer need Consul. Phase 6 can proceed at any
 
 ## Open questions
 
-- [ ] Which Consul-based tools are in use today? These determine which endpoints of the compatibility layer are needed in the first version.
-- [ ] Should filtering for healthy instances be the default in the new fork version (a behavior change), or remain opt-in?
-- [ ] For native mTLS, do we use Envoy as the sidecar proxy, or our own lighter proxy?
-- [ ] Is handling the Consul Enterprise namespace parameter needed in the compatibility layer?
-- [ ] What should the default of topology ordering be (`prefer = "zone"` or `"none"`), and what is the default overflow fraction?
-- [ ] From which `meta` key do we take the zone of Hetzner nodes, and who fills it in (installer, configuration management)?
+- [x] Which Consul-based tools are in use today? These determine which endpoints of the compatibility layer are needed in the first version. Decided 2026-10-24: Traefik, Prometheus and consul-template (service and health functions; Consul KV stays a non-goal).
+- [x] Should filtering for healthy instances be the default in the new fork version (a behavior change), or remain opt-in? Decided 2026-10-24: opt-in (`default_healthy_only = false`).
+- [x] For native mTLS, do we use Envoy as the sidecar proxy, or our own lighter proxy? Decided 2026-10-24: Envoy.
+- [x] Is handling the Consul Enterprise namespace parameter needed in the compatibility layer? Decided 2026-10-24: no.
+- [x] What should the default of topology ordering be (`prefer = "zone"` or `"none"`), and what is the default overflow fraction? Decided 2026-10-24: `prefer = "none"` by default, zone preference is opt-in; the overflow fraction keeps the default proposed in this plan.
+- [x] From which `meta` key do we take the zone of Hetzner nodes, and who fills it in (installer, configuration management)? Decided 2026-10-24: node meta `zone`, filled in by the installer.

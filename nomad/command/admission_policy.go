@@ -29,7 +29,8 @@ Usage: norca admission-policy <subcommand> [options] [args]
 
   This command groups subcommands for interacting with admission policies.
   Admission policies are CEL rules that every job submitted with "job run" or
-  checked with "job plan" in a matching namespace must satisfy.
+  checked with "job plan" in a matching namespace must satisfy. Policies that
+  select the "variable" resource also apply to Variables writes.
 
   Create or update an admission policy:
 
@@ -58,31 +59,50 @@ func (c *AdmissionPolicyCommand) Run(args []string) int {
 
 func formatAdmissionPolicyList(policies []*api.AdmissionPolicy) string {
 	out := make([]string, len(policies)+1)
-	out[0] = "Name|Action|Namespaces|Rules|Description"
+	out[0] = "Name|Action|Resources|Namespaces|Rules|Description"
 	for i, p := range policies {
-		namespaces := "*"
-		if p.Match != nil && len(p.Match.Namespaces) > 0 {
-			namespaces = strings.Join(p.Match.Namespaces, ",")
-		}
-		out[i+1] = fmt.Sprintf("%s|%s|%s|%d|%s",
-			p.Name, p.Action, namespaces, len(p.Rules), p.Description)
+		out[i+1] = fmt.Sprintf("%s|%s|%s|%s|%d|%s",
+			p.Name, p.Action, admissionPolicyResources(p), admissionPolicyNamespaces(p),
+			len(p.Rules), p.Description)
 	}
 	return formatList(out)
 }
 
-func formatAdmissionPolicy(p *api.AdmissionPolicy) string {
-	namespaces := "*"
+// admissionPolicyNamespaces returns the namespace selection of the policy.
+func admissionPolicyNamespaces(p *api.AdmissionPolicy) string {
 	if p.Match != nil && len(p.Match.Namespaces) > 0 {
-		namespaces = strings.Join(p.Match.Namespaces, ",")
+		return strings.Join(p.Match.Namespaces, ",")
 	}
+	return "*"
+}
+
+// admissionPolicyResources returns the resource selection of the policy.
+// Policies without one apply to jobs only.
+func admissionPolicyResources(p *api.AdmissionPolicy) string {
+	if p.Match != nil && len(p.Match.Resources) > 0 {
+		return strings.Join(p.Match.Resources, ",")
+	}
+	return api.AdmissionResourceJob
+}
+
+func formatAdmissionPolicy(p *api.AdmissionPolicy) string {
 	basic := []string{
 		fmt.Sprintf("Name|%s", p.Name),
 		fmt.Sprintf("Description|%s", p.Description),
 		fmt.Sprintf("Action|%s", p.Action),
-		fmt.Sprintf("Namespaces|%s", namespaces),
+		fmt.Sprintf("Resources|%s", admissionPolicyResources(p)),
+		fmt.Sprintf("Namespaces|%s", admissionPolicyNamespaces(p)),
+	}
+	if p.Match != nil && len(p.Match.VariablePaths) > 0 {
+		basic = append(basic, fmt.Sprintf("Variable Paths|%s", strings.Join(p.Match.VariablePaths, ",")))
+	}
+	if p.SchemaFrom != "" {
+		basic = append(basic, fmt.Sprintf("Schema From|%s", p.SchemaFrom))
+	}
+	basic = append(basic,
 		fmt.Sprintf("Create Index|%d", p.CreateIndex),
 		fmt.Sprintf("Modify Index|%d", p.ModifyIndex),
-	}
+	)
 	out := formatKV(basic)
 
 	for i, r := range p.Rules {

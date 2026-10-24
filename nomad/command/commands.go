@@ -576,6 +576,36 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"object": func() (cli.Command, error) {
+			return &ObjectCommand{Meta: meta}, nil
+		},
+		"object apply": func() (cli.Command, error) {
+			return &ObjectApplyCommand{Meta: meta}, nil
+		},
+		"object delete": func() (cli.Command, error) {
+			return &ObjectDeleteCommand{Meta: meta}, nil
+		},
+		"object get": func() (cli.Command, error) {
+			return &ObjectGetCommand{Meta: meta}, nil
+		},
+		"object list": func() (cli.Command, error) {
+			return &ObjectListCommand{Meta: meta}, nil
+		},
+		"object-kind": func() (cli.Command, error) {
+			return &ObjectKindCommand{Meta: meta}, nil
+		},
+		"object-kind apply": func() (cli.Command, error) {
+			return &ObjectKindApplyCommand{Meta: meta}, nil
+		},
+		"object-kind delete": func() (cli.Command, error) {
+			return &ObjectKindDeleteCommand{Meta: meta}, nil
+		},
+		"object-kind inspect": func() (cli.Command, error) {
+			return &ObjectKindInspectCommand{Meta: meta}, nil
+		},
+		"object-kind list": func() (cli.Command, error) {
+			return &ObjectKindListCommand{Meta: meta}, nil
+		},
 		"node": func() (cli.Command, error) {
 			return &NodeCommand{
 				Meta: meta,

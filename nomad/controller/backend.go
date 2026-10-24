@@ -74,9 +74,41 @@ type JobsAPI interface {
 	DeregisterJob(ctx context.Context, namespace, id string, purge bool) error
 }
 
+// ObjectsAPI is the part of the native custom objects API the SDK uses
+// (objects of a registered ObjectKind, StorageNative).
+type ObjectsAPI interface {
+	// ListObjects lists the objects of the kind in the namespace ("*" for
+	// all). With a positive waitIndex it is a blocking query that returns
+	// when objects changed after waitIndex (or the wait time elapsed). It
+	// returns the index of the listing.
+	ListObjects(ctx context.Context, kind Kind, namespace string, waitIndex uint64) ([]*api.CustomObject, uint64, error)
+
+	// ReadObject reads an object. It returns an error wrapping ErrNotFound
+	// if the object does not exist.
+	ReadObject(ctx context.Context, kind Kind, namespace, name string) (*api.CustomObject, error)
+
+	// ApplyObject writes the spec and metadata of an object with
+	// check-and-set on cas (0: the object must not exist); the status is
+	// not changed. On a conflict it returns an error wrapping ErrConflict.
+	// It returns the object as stored.
+	ApplyObject(ctx context.Context, obj *api.CustomObject, cas uint64) (*api.CustomObject, error)
+
+	// UpdateObjectStatus replaces the status of an object with
+	// check-and-set on cas (0: unconditionally). On a conflict it returns
+	// an error wrapping ErrConflict, and ErrNotFound if the object does not
+	// exist. It returns the object as stored.
+	UpdateObjectStatus(ctx context.Context, kind Kind, namespace, name string, status map[string]any, cas uint64) (*api.CustomObject, error)
+
+	// DeleteObject deletes an object with check-and-set on cas, or
+	// unconditionally if cas is 0. On a conflict it returns an error
+	// wrapping ErrConflict. Deleting a missing object is not an error.
+	DeleteObject(ctx context.Context, kind Kind, namespace, name string, cas uint64) error
+}
+
 // Backend is everything the SDK needs from Nomad.
 type Backend interface {
 	VariablesAPI
+	ObjectsAPI
 	EventsAPI
 	JobsAPI
 }
@@ -171,6 +203,76 @@ func (b *apiBackend) DeleteVariable(ctx context.Context, namespace, path string,
 	var casErr api.ErrCASConflict
 	if errors.As(err, &casErr) {
 		return fmt.Errorf("%w: %v", ErrConflict, casErr)
+	}
+	return err
+}
+
+func (b *apiBackend) ListObjects(ctx context.Context, kind Kind, namespace string, waitIndex uint64) ([]*api.CustomObject, uint64, error) {
+	q := (&api.QueryOptions{Namespace: namespace, WaitIndex: waitIndex}).WithContext(ctx)
+	objs, qm, err := b.client.Objects().List(kind.Group, kind.Kind, nil, q)
+	if err != nil {
+		return nil, 0, err
+	}
+	return objs, qm.LastIndex, nil
+}
+
+func (b *apiBackend) ReadObject(ctx context.Context, kind Kind, namespace, name string) (*api.CustomObject, error) {
+	q := (&api.QueryOptions{Namespace: namespace}).WithContext(ctx)
+	obj, _, err := b.client.Objects().Get(kind.Group, kind.Kind, name, q)
+	if err != nil {
+		if statusCode(err) == http.StatusNotFound {
+			return nil, fmt.Errorf("%s %s/%s: %w", kind, namespace, name, ErrNotFound)
+		}
+		return nil, err
+	}
+	return obj, nil
+}
+
+// objectError maps the errors of object writes to the SDK errors.
+func objectError(kind Kind, namespace, name string, err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, api.ErrObjectConflict):
+		return fmt.Errorf("%w: %v", ErrConflict, err)
+	case statusCode(err) == http.StatusNotFound:
+		return fmt.Errorf("%s %s/%s: %w (%v)", kind, namespace, name, ErrNotFound, err)
+	}
+	return err
+}
+
+func (b *apiBackend) ApplyObject(ctx context.Context, obj *api.CustomObject, cas uint64) (*api.CustomObject, error) {
+	w := (&api.WriteOptions{Namespace: obj.Namespace}).WithContext(ctx)
+	out, _, err := b.client.Objects().Apply(obj, &api.ObjectWriteOptions{CAS: api.CASIndex(cas)}, w)
+	if err != nil {
+		return nil, objectError(Kind{Group: obj.Group, Kind: obj.Kind}, obj.Namespace, obj.Name, err)
+	}
+	return out, nil
+}
+
+func (b *apiBackend) UpdateObjectStatus(ctx context.Context, kind Kind, namespace, name string, status map[string]any, cas uint64) (*api.CustomObject, error) {
+	w := (&api.WriteOptions{Namespace: namespace}).WithContext(ctx)
+	opts := &api.ObjectWriteOptions{}
+	if cas != 0 {
+		opts.CAS = api.CASIndex(cas)
+	}
+	out, _, err := b.client.Objects().UpdateStatus(kind.Group, kind.Kind, name, status, opts, w)
+	if err != nil {
+		return nil, objectError(kind, namespace, name, err)
+	}
+	return out, nil
+}
+
+func (b *apiBackend) DeleteObject(ctx context.Context, kind Kind, namespace, name string, cas uint64) error {
+	w := (&api.WriteOptions{Namespace: namespace}).WithContext(ctx)
+	opts := &api.ObjectWriteOptions{}
+	if cas != 0 {
+		opts.CAS = api.CASIndex(cas)
+	}
+	_, _, err := b.client.Objects().Delete(kind.Group, kind.Kind, name, opts, w)
+	err = objectError(kind, namespace, name, err)
+	if errors.Is(err, ErrNotFound) {
+		return nil
 	}
 	return err
 }
