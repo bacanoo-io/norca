@@ -96,9 +96,11 @@ func TestCLI_CommunityRedis_Network(t *testing.T) {
 	t.Setenv("GIT_TERMINAL_PROMPT", "0")
 	isolateSupplyChain(t)
 
-	r := runPackCmd(t, []string{"registry", "add", "community", "github.com/hashicorp/nomad-pack-community-registry", "--target=redis"})
+	// The registry's default branch is main; without a ref the git getter
+	// would look for master.
+	r := runPackCmd(t, []string{"registry", "add", "community", "github.com/hashicorp/nomad-pack-community-registry", "--target=redis", "--ref=main"})
 	expectExit(t, r, 0)
-	r = runPackCmd(t, append([]string{"render", "redis", "--registry=community"}, redisVars...))
+	r = runPackCmd(t, append([]string{"render", "redis", "--registry=community", "--ref=main"}, redisVars...))
 	expectExit(t, r, 0)
 	must.StrContains(t, r.cmdOut.String(), `job "redis"`)
 }
