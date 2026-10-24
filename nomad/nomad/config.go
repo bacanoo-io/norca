@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -20,6 +21,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/scheduler"
+	"github.com/hashicorp/nomad/version"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
 )
@@ -134,6 +136,10 @@ type Config struct {
 	// Build is a string that is gossiped around, and can be used to help
 	// operators track which versions are actively deployed
 	Build string
+
+	// NorcaBuild is the Norca product version gossiped by servers. Norca
+	// features gate on it rather than on Build.
+	NorcaBuild string
 
 	// Revision is a string that carries the version.GitCommit of Nomad that
 	// was compiled.
@@ -465,6 +471,7 @@ func DefaultConfig() *Config {
 		Datacenter:                       DefaultDC,
 		NodeName:                         hostname,
 		NodeID:                           uuid.Generate(),
+		NorcaBuild:                       version.NorcaVersion,
 		RaftConfig:                       raft.DefaultConfig(),
 		RaftTimeout:                      10 * time.Second,
 		LogOutput:                        os.Stderr,
