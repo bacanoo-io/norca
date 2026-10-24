@@ -40,17 +40,6 @@ var overrides = []override{
 	// Pending decisions: License is what the component's files say; the
 	// release workflow (-strict) fails until each entry is resolved.
 	{
-		Kind:    "go",
-		Name:    "github.com/hashicorp/vault/api/auth/kubernetes",
-		Version: "v0.5.0",
-		License: "BUSL-1.1",
-		Pending: true,
-		Reason: "PENDING LEGAL REVIEW. The LICENSE file of this module version is the Business Source License 1.1 text of Vault 1.15.0, " +
-			"while its only source file, kubernetes.go, carries an MPL-2.0 SPDX header, and the module versions before (v0.4.1) and " +
-			"after it (v0.12.0) ship the MPL 2.0 LICENSE. Required by consul-template (template rendering in the client); Nomad v1.6.5 " +
-			"already required this version. Proposed fix: require v0.12.0 (MPL 2.0) on the deps branch and remove this entry.",
-	},
-	{
 		Kind:    "npm",
 		Name:    "robust-predicates",
 		Version: "3.0.1",
