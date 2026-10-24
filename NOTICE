@@ -1,0 +1,30 @@
+Norca
+Copyright 2026 Norca contributors
+
+This project is based on the following works, published under the
+Mozilla Public License 2.0:
+
+  HashiCorp Nomad v1.6.5
+  https://github.com/hashicorp/nomad
+  commit a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f
+  Copyright (c) HashiCorp, Inc.
+
+  HashiCorp Nomad Pack v0.4.2
+  https://github.com/hashicorp/nomad-pack
+  commit cd4d2a41c22adba1350b8d5da63252f2dde33262
+  Copyright (c) HashiCorp, Inc.
+
+  HashiCorp Nomad Autoscaler v0.6.0
+  https://github.com/hashicorp/nomad-autoscaler
+  commit a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace
+  Copyright (c) HashiCorp, Inc.
+
+The source code of these works is available at the addresses above and in
+this project's repository.
+
+This project is not a product of HashiCorp, Inc. or IBM Corp. and is not
+affiliated with them. "Nomad", "Consul" and "HashiCorp" are trademarks of
+their respective owners.
+
+Licenses and notices of third-party dependencies are listed in
+THIRD_PARTY_NOTICES.md.
