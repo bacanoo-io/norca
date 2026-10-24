@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package mock
@@ -29,6 +30,10 @@ func (s *CheckShim) Remove(allocID string, ids []structs.CheckID) error {
 }
 
 func (s *CheckShim) Purge(allocID string) error {
+	return nil
+}
+
+func (s *CheckShim) Reset(allocID string, ids []structs.CheckID) error {
 	return nil
 }
 

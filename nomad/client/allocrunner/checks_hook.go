@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package allocrunner
@@ -37,6 +38,10 @@ type observer struct {
 	qc      *checks.QueryContext
 	check   *structs.ServiceCheck
 	allocID string
+
+	// gate is the startup gate of the workload of the check, nil if the
+	// workload has no startup check.
+	gate *startupGate
 }
 
 // start checking our check on its interval
@@ -56,11 +61,19 @@ func (o *observer) start() {
 
 		// time to execute the check
 		case <-timer.C:
+			// startup check of the workload has not passed yet
+			if o.waitForStartup() {
+				timer.Reset(o.check.Interval)
+				continue
+			}
+
 			query := checks.GetCheckQuery(o.check)
 			result := o.checker.Do(o.ctx, o.qc, query)
+			result.Role = o.check.Role
 
 			// and put the results into the store (already logged)
 			_ = o.checkStore.Set(o.allocID, result)
+			o.observed(result)
 
 			// setup timer for next interval
 			timer.Reset(o.check.Interval)
@@ -91,6 +104,9 @@ type checksHook struct {
 	stop      func()
 	observers observers
 	alloc     *structs.Allocation
+
+	// gates holds the startup gate of each workload with a startup check
+	gates map[string]*startupGate
 }
 
 func newChecksHook(
@@ -131,16 +147,18 @@ func (h *checksHook) initialize(alloc *structs.Allocation) {
 
 	// fresh set of observers
 	h.observers = make(observers)
+	h.gates = make(map[string]*startupGate)
 
 	// set the initial alloc
 	h.alloc = alloc
 }
 
 // observe will create the observer for each service in services.
-// services must use only nomad service provider.
+// services must contain only checks executed by the client (see
+// clientCheckedServices).
 //
 // Caller must hold h.lock.
-func (h *checksHook) observe(alloc *structs.Allocation, services []*structs.Service) {
+func (h *checksHook) observe(alloc *structs.Allocation, services []checkedService) {
 	var ports structs.AllocatedPorts
 	var networks structs.Networks
 	if alloc.AllocatedResources != nil {
@@ -148,7 +166,10 @@ func (h *checksHook) observe(alloc *structs.Allocation, services []*structs.Serv
 		networks = alloc.AllocatedResources.Shared.Networks
 	}
 
-	for _, service := range services {
+	gates := startupGates(alloc, services, h.gates)
+
+	for _, cs := range services {
+		service := cs.service
 		for _, check := range service.Checks {
 
 			// remember the initialization time
@@ -184,10 +205,12 @@ func (h *checksHook) observe(alloc *structs.Allocation, services []*structs.Serv
 					Service:          service.Name,
 					Check:            check.Name,
 				},
+				gate: gates[cs.workload],
 			}
 
 			// insert a pending result into state store for each check
 			result := checks.Stub(id, structs.GetCheckMode(check), now, alloc.Name, service.TaskName, service.Name, check.Name)
+			result.Role = check.Role
 			if err := h.shim.Set(h.allocID, result); err != nil {
 				h.logger.Error("failed to set initial check status", "id", h.allocID, "error", err)
 				continue
@@ -212,9 +235,10 @@ func (h *checksHook) Prerun() error {
 		return nil
 	}
 
-	interpolatedServices := taskenv.InterpolateServices(h.taskEnv, group.NomadServices())
+	interpolatedServices := interpolateCheckedServices(h.taskEnv, clientCheckedServices(group))
 
-	// create and start observers of nomad service checks in alloc
+	// create and start observers of nomad service checks in alloc, and of
+	// the liveness checks of consul services
 	h.observe(h.alloc, interpolatedServices)
 
 	return nil
@@ -229,13 +253,14 @@ func (h *checksHook) Update(request *interfaces.RunnerUpdateRequest) error {
 		return nil
 	}
 
-	// get all group and task level services using nomad provider
-	services := group.NomadServices()
+	// get all group and task level services using nomad provider, and the
+	// liveness checks of those using consul
+	services := clientCheckedServices(group)
 
 	// create a set of the updated set of checks
 	next := make([]structs.CheckID, 0, len(h.observers))
-	for _, service := range services {
-		for _, check := range service.Checks {
+	for _, cs := range services {
+		for _, check := range cs.service.Checks {
 			next = append(next, structs.NomadCheckID(
 				request.Alloc.ID,
 				request.Alloc.TaskGroup,
