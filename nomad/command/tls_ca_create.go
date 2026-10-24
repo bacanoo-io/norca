@@ -72,21 +72,21 @@ CA Create Options:
     combination with -domain and -name-constraint.
 
   -common-name
-    Common Name of CA. Defaults to "Nomad Agent CA".
+    Common Name of CA. Defaults to "Norca Agent CA".
 
   -country
-    Country of the CA. Defaults to "US".
+    Country of the CA. Not set by default. Required when customizing the CA.
 
   -days
     Provide number of days the CA is valid for from now on.
     Defaults to 5 years or 1825 days.
 
   -domain
-    Domain of Nomad cluster. Only used in combination with -name-constraint.
+    Domain of Norca cluster. Only used in combination with -name-constraint.
     Defaults to "nomad".
 
   -locality
-    Locality of the CA. Defaults to "San Francisco".
+    Locality of the CA. Not set by default.
 
   -name-constraint
     Enables the DNS name restriction functionality to the CA. Results in the CA
@@ -96,19 +96,19 @@ CA Create Options:
     -additional-domain. Defaults to false.
 
   -organization
-    Organization of the CA. Defaults to "HashiCorp Inc.".
+    Organization of the CA. Defaults to "Norca".
 
   -organizational-unit
-    Organizational Unit of the CA. Defaults to "Nomad".
+    Organizational Unit of the CA. Defaults to "Norca".
 
   -postal-code
-    Postal Code of the CA. Defaults to "94105".
+    Postal Code of the CA. Not set by default.
 
   -province
-    Province of the CA. Defaults to "CA".
+    Province of the CA. Not set by default.
 
   -street-address
-    Street Address of the CA. Defaults to "101 Second Street".
+    Street Address of the CA. Not set by default.
 
 `
 	return strings.TrimSpace(helpText)
@@ -137,7 +137,7 @@ func (c *TLSCACreateCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *TLSCACreateCommand) Synopsis() string {
-	return "Create a certificate authority for Nomad"
+	return "Create a certificate authority for Norca"
 }
 
 func (c *TLSCACreateCommand) Name() string { return "tls ca create" }
