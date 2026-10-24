@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package jobspec
@@ -1030,6 +1031,8 @@ func parseChecks(service *api.Service, checkObjs *ast.ObjectList) error {
 			"failures_before_critical",
 			"on_update",
 			"body",
+			"role",
+			"startup_timeout",
 		}
 		if err := checkHCLKeys(co.Val, valid); err != nil {
 			return multierror.Prefix(err, "check ->")

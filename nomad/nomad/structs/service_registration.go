@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -91,6 +92,12 @@ type ServiceRegistration struct {
 	// is determined by a combination of factors on the client.
 	Port int
 
+	// Ready reports whether the service instance can receive traffic, as
+	// determined by the client from the startup and readiness checks of the
+	// service. Services without such checks are always ready. Registrations
+	// written by clients that predate check roles carry the zero value.
+	Ready bool
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -140,6 +147,9 @@ func (s *ServiceRegistration) Equal(o *ServiceRegistration) bool {
 		return false
 	}
 	if s.Port != o.Port {
+		return false
+	}
+	if s.Ready != o.Ready {
 		return false
 	}
 	if !helper.SliceSetEq(s.Tags, o.Tags) {

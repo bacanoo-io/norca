@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -1501,6 +1502,8 @@ func ApiServicesToStructs(in []*api.Service, group bool) []*structs.Service {
 					SuccessBeforePassing:   check.SuccessBeforePassing,
 					FailuresBeforeCritical: check.FailuresBeforeCritical,
 					OnUpdate:               onUpdate,
+					Role:                   check.Role,
+					StartupTimeout:         check.StartupTimeout,
 				}
 
 				if group {
