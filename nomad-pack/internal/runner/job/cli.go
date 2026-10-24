@@ -1,0 +1,37 @@
+// Copyright IBM Corp. 2021, 2025
+// SPDX-License-Identifier: MPL-2.0
+
+package job
+
+// CLIConfig contains all possible configurations required by the Nomad Pack
+// CLI in order to render, plan, run, and destroy job templates.
+type CLIConfig struct {
+	RunConfig  *RunCLIConfig
+	PlanConfig *PlanCLIConfig
+}
+
+// RunCLIConfig specifies the configuration that is used by the Nomad Pack run
+// command.
+type RunCLIConfig struct {
+	CheckIndex        uint64
+	ConsulToken       string
+	ConsulNamespace   string
+	VaultToken        string
+	VaultNamespace    string
+	EnableRollback    bool
+	PreserveCounts    bool
+	PreserveResources bool
+	DeployOverride    bool
+	PolicyOverride    bool
+	Detach            bool
+	Verbose           bool
+}
+
+// PlanCLIConfig specifies the configuration that is used by the Nomad Pack
+// plan command.
+type PlanCLIConfig struct {
+	DeployOverride bool
+	PolicyOverride bool
+	Verbose        bool
+	Diff           bool
+}

@@ -1,0 +1,214 @@
+name: build
+
+on:
+  push:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  PKG_NAME: "nomad-pack"
+
+jobs:
+  get-go-version:
+    name: "Determine Go toolchain version"
+    runs-on: ubuntu-24.04
+    outputs:
+      go-version: ${{ steps.get-go-version.outputs.go-version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Determine Go version
+        id: get-go-version
+        run: |
+          echo "Building with Go $(cat .go-version)"
+          echo "go-version=$(cat .go-version)" >> $GITHUB_OUTPUT
+
+  get-product-version:
+    runs-on: ubuntu-24.04
+    outputs:
+      product-version: ${{ steps.get-product-version.outputs.product-version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: get product version
+        id: get-product-version
+        run: |
+          make version
+          echo "product-version=$(make version)" >> $GITHUB_OUTPUT
+
+  generate-metadata-file:
+    needs: get-product-version
+    runs-on: ubuntu-24.04
+    outputs:
+      filepath: ${{ steps.generate-metadata-file.outputs.filepath }}
+    steps:
+      - name: "Checkout directory"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Generate metadata file
+        id: generate-metadata-file
+        uses: hashicorp/actions-generate-metadata@v1.1.3
+        with:
+          version: ${{ needs.get-product-version.outputs.product-version }}
+          product: ${{ env.PKG_NAME }}
+          repositoryOwner: "hashicorp"
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: ${{ !env.ACT }}
+        with:
+          name: metadata.json
+          path: ${{ steps.generate-metadata-file.outputs.filepath }}
+
+  generate-ldflags:
+    needs: get-product-version
+    runs-on: ubuntu-24.04
+    outputs:
+      ldflags: ${{ steps.generate-ldflags.outputs.ldflags }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Generate ld flags
+        id: generate-ldflags
+        run: |
+          project="$(go list -m)"
+          echo "ldflags="-X \'$project/internal/pkg/version.GitDescribe=v${{ needs.get-product-version.outputs.product-version }}\'"" >> $GITHUB_OUTPUT
+
+  build-linux:
+    needs:
+      - get-go-version
+      - get-product-version
+      - generate-ldflags
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        goos: ["linux"]
+        goarch: ["arm64", "amd64"]
+      fail-fast: true
+
+    name: Go ${{ needs.get-go-version.outputs.go-version }} ${{ matrix.goos }} ${{ matrix.goarch }} build
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: ${{ needs.get-go-version.outputs.go-version }}
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GO_LDFLAGS: ${{ needs.generate-ldflags.outputs.ldflags }}
+        run: |
+          make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          mv \
+            pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip \
+            ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: ${{ !env.ACT }}
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+      - name: Copy license file
+        env:
+          LICENSE_DIR: ".release/linux/package/usr/share/doc/${{ env.PKG_NAME }}"
+        run: |
+          mkdir -p "$LICENSE_DIR"
+          cp LICENSE "$LICENSE_DIR/LICENSE.txt"
+      - name: Package
+        uses: hashicorp/actions-packaging-linux@129994a18b8e7dc106937edf859fddd97af66365 # v1.7.0
+        with:
+          name: "nomad-pack"
+          description: "Nomad Pack is a templating and packaging tool used with HashiCorp Nomad."
+          arch: ${{ matrix.goarch }}
+          version: ${{ needs.get-product-version.outputs.product-version }}
+          maintainer: "HashiCorp"
+          homepage: "https://github.com/hashicorp/nomad-pack"
+          license: "MPL-2.0"
+          binary: pkg/${{ matrix.goos }}_${{ matrix.goarch }}/${{ env.PKG_NAME }}
+          deb_depends: "openssl,git"
+          rpm_depends: "openssl,git"
+          config_dir: ".release/linux/package/"
+      - name: Set Package Names
+        if: ${{ !env.ACT }}
+        run: |
+          echo "RPM_PACKAGE=$(basename out/*.rpm)" >> $GITHUB_ENV
+          echo "DEB_PACKAGE=$(basename out/*.deb)" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: ${{ !env.ACT }}
+        with:
+          name: ${{ env.RPM_PACKAGE }}
+          path: out/${{ env.RPM_PACKAGE }}
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: ${{ !env.ACT }}
+        with:
+          name: ${{ env.DEB_PACKAGE }}
+          path: out/${{ env.DEB_PACKAGE }}
+
+  build-other:
+    needs:
+      - get-go-version
+      - get-product-version
+      - generate-ldflags
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        goos: ["freebsd", "windows", "darwin"]
+        goarch: ["amd64", "arm64"]
+        exclude:
+          - goos: "windows"
+            goarch: "arm"
+      fail-fast: true
+
+    name: Go ${{ needs.get-go-version.outputs.go-version }} ${{ matrix.goos }} ${{ matrix.goarch }} build
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: ${{ needs.get-go-version.outputs.go-version }}
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GO_LDFLAGS: ${{ needs.generate-ldflags.outputs.ldflags }}
+        run: |
+          make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          mv \
+            pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip \
+            ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: ${{ !env.ACT }}
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          path: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+
+  build-docker-default:
+    needs:
+      - get-product-version
+      - build-linux
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        arch: ["arm64", "amd64"]
+      fail-fast: true
+    env:
+      version: ${{ needs.get-product-version.outputs.product-version }}
+
+    name: Docker ${{ matrix.arch }} default release build
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Docker Build (Action)
+        uses: hashicorp/actions-docker-build@e028f0fa0532e4e971c032e2f2fe6a3aec398f65 # v2.0.0
+        with:
+          smoke_test: |
+            TEST_VERSION="$(docker run "${IMAGE_NAME}" version | awk '/Nomad Pack/{print $3}')"
+            if [ "${TEST_VERSION#v}" != "${version}" ]; then
+              echo "Test FAILED"
+              exit 1
+            fi
+            echo "Test PASSED"
+          version: ${{ env.version }}
+          target: release
+          arch: ${{ matrix.arch }}
+          tags: |
+            docker.io/hashicorp/${{ env.PKG_NAME }}:${{ env.version }}
+          dev_tags: |
+            docker.io/hashicorppreview/${{ env.PKG_NAME }}:${{ env.version }}-dev
+            docker.io/hashicorppreview/${{ env.PKG_NAME }}:${{ env.version }}-${{ github.sha }}

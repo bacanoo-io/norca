@@ -1,0 +1,211 @@
+## 0.4.2 (March 16, 2026)
+
+SECURITY:
+* build: Update go-git to 5.16.5 to address CVE-2026-25934 [[GH-800](https://github.com/hashicorp/nomad-pack/pull/800)]
+
+IMPROVEMENTS:
+* cli: Add evaluation and deployment monitoring to `run`, `stop`, and `destroy` commands [[GH-817](https://github.com/hashicorp/nomad-pack/pull/817)]
+* cli: Add -deploy-override flag to plan and run commands to allow forcing deployment over existing jobs, including those not deployed by Nomad Pack [[GH-757](https://github.com/hashicorp/nomad-pack/pull/757)]
+* cli: Add environment variable overrides for plan exit codes [[GH-813](https://github.com/hashicorp/nomad-pack/pull/813)]
+* cli: Add pack name autocompletion for destroy, info, plan, render, run, status, and stop commands with support for --registry flag filtering [[GH-803](https://github.com/hashicorp/nomad-pack/pull/803)]
+* cli: Enhance `info` command to display full object type information and nested field details for complex variable types [[GH-801](https://github.com/hashicorp/nomad-pack/pull/801)]
+* cli: Display default values for all optional variables in `info` command output with proper indentation [[GH-801](https://github.com/hashicorp/nomad-pack/pull/801)]
+* cli: Add line and column information to HCL error messages using the standard HCL v2 format (e.g., `variables.hcl:3,3-7`) to help users locate configuration errors more easily [[GH-807](https://github.com/hashicorp/nomad-pack/pull/807)]
+* cli: Add `fmt` command to format pack template (.tpl) and configuration (.hcl) files [[GH-767](https://github.com/hashicorp/nomad-pack/pull/824)]
+* cli: Add path information to metadata to aid file template funcs [[GH-830](https://github.com/hashicorp/nomad-pack/pull/830)]
+* template: Improve regex parsing for namespace and region fields to support hyphenated values [[GH-757](https://github.com/hashicorp/nomad-pack/pull/757)]
+* template: Add `tpl` function for evaluating template strings stored in variables [[GH-810](https://github.com/hashicorp/nomad-pack/pull/810)]
+* variable: Improve the error message returned when using a variable file with an unsupported file extension [[GH-791](https://github.com/hashicorp/nomad-pack/pull/791)]
+* variable: Add support for `optional()` type constraint modifier in variable definitions [[GH-798](https://github.com/hashicorp/nomad-pack/pull/798)]
+
+
+BUG FIXES:
+* cli: Fix destroy command incorrectly detecting conflicts when multiple jobs share name prefixes (e.g., "Laas-Service" vs "Laas-Service-Regression") [[GH-795](https://github.com/hashicorp/nomad-pack/pull/795)]
+* cli: Fix plan diff output to display `EmbeddedTmpl` content with proper line breaks for improved readability [[GH-799](https://github.com/hashicorp/nomad-pack/pull/799)]
+* cli: Fix render and generate-var-file commands incorrectly treating rendered template content as a printf format string, which corrupted format specifiers (e.g., `%i` → `%!i(MISSING)`) in terminal output [[GH-809](https://github.com/hashicorp/nomad-pack/pull/809)]
+* cli: Fix destroy command not using namespace from job template, requiring explicit `--namespace` flag [[GH-802](https://github.com/hashicorp/nomad-pack/pull/802)]
+
+## 0.4.1 (November 13, 2025)
+
+IMPROVEMENTS:
+* build: Update Go version to 1.25.4 [[GH-765](https://github.com/hashicorp/nomad-pack/pull/765)]
+* build: Update go-getter version to 1.7.9 [[GH-719](https://github.com/hashicorp/nomad-pack/pull/719)] to resolve CVE-2025-8959. Nomad Client Agents with Landlock support are not impacted by this vulnerability.
+* build: Update Nomad version to 1.11.0 [[GH-765](https://github.com/hashicorp/nomad-pack/pull/765)]
+* build: Update Docker base image to Alpine v3.23.0 [[GH-779](https://github.com/hashicorp/nomad-pack/pull/779)]
+* cli: Add `preserve-resources` flag to `nomad-pack run` [[GH-749](https://github.com/hashicorp/nomad-pack/pull/749)]
+* pack: Inject pack metadata into HCL jobspec when running the job [[GH-737](https://github.com/hashicorp/nomad-pack/pull/737)]
+* template: Add template function for returning the path to the pack's directory [[GH-574](https://github.com/hashicorp/nomad-pack/pull/574)]
+
+## 0.4.0 (July 9, 2025)
+
+BREAKING CHANGES:
+* variables: Pack variables without `default` values now cause an error when not provided,
+  unless the `--allow-unset-vars` flag or `NOMAD_PACK_ALLOW_UNSET_VARS` env var are set.
+  [[GH-697]](https://github.com/hashicorp/nomad-pack/pull/697)
+
+## 0.3.0 (April 15, 2025)
+
+BREAKING CHANGES:
+* cli: Remove deprecated Consul and Vault token configuration [[GH-659](https://github.com/hashicorp/nomad-pack/pull/659)]
+
+IMPROVEMENTS:
+* build: Update Nomad verison to 1.10.0 [[GH-659](https://github.com/hashicorp/nomad-pack/pull/659)]
+* build: Update Go version to 1.24.2 [[GH-668](https://github.com/hashicorp/nomad-pack/pull/668)]
+
+## 0.2.0 (October 16, 2024)
+
+BREAKING CHANGES:
+* template: HCL1 parsing has been removed and is no longer available [[GH-581](https://github.com/hashicorp/nomad-pack/pull/581)]
+
+IMPROVEMENTS:
+* build: Update Go version to 1.24.0 [[GH-643](https://github.com/hashicorp/nomad-pack/pull/643)]
+* build: Update Alpine image for Docker continer build to v3.21.3 [[GH-652](https://github.com/hashicorp/nomad-pack/pull/652)]
+* deps: Update Nomad version to 1.9.7 [[GH-650](https://github.com/hashicorp/nomad-pack/pull/650)]
+
+BUG FIXES:
+* cli: Update references to `hello-world` pack in command help text to `hello_world` [[GH-523](https://github.com/hashicorp/nomad-pack/pull/523)]
+* docker: Added tzdata to container to fix panics running packs containing periodic jobs with timezones [[GH-564](https://github.com/hashicorp/nomad-pack/pull/564)]
+* cli: Replace path separators to slash on windows for local packs [[GH-578](https://github.com/hashicorp/nomad-pack/pull/578)]
+
+## 0.1.2 (June 7, 2024)
+
+IMPROVEMENTS:
+* cli: Emit the modify index in the output of `nomad-pack plan` [[GH-507](https://github.com/hashicorp/nomad-pack/pull/507)]
+
+BUG FIXES:
+* cli: Fix non-interactive UI debug print output [[GH-508](https://github.com/hashicorp/nomad-pack/pull/508)]
+
+DEPENDENCY CHANGES:
+* build: Bump go version to 1.22.4 [[GH-517](https://github.com/hashicorp/nomad-pack/pull/517)]
+* deps: Bump hashicorp/nomad/api from v0.0.0-20240422165847-3ac3bc1cfede(1.8.0-beta.1) to v0.0.0-20240528173817-28b82e4b2259(v1.8.0) [[GH-514](https://github.com/hashicorp/nomad-pack/pull/514)]
+* deps: Bump hashicorp/nomad from v1.5.17 to v1.8.0 [[GH-514](https://github.com/hashicorp/nomad-pack/pull/514)]
+
+## 0.1.1 (April 26,2024)
+
+IMPROVEMENTS:
+* build: Improve OS/Architecture detection [[GH-499](https://github.com/hashicorp/nomad-pack/pull/499)]
+* build: Update Go version to 1.21.5 [[GH-478](https://github.com/hashicorp/nomad-pack/pull/478)]
+* build: Update Docker build dependencies [[GH-421](https://github.com/hashicorp/nomad-pack/pull/421)]
+* release: Add license (MPL) to release artifacts [[GH-498](https://github.com/hashicorp/nomad-pack/pull/498)]
+
+BUG FIXES:
+* cli: Update help text for `registry list` [[GH-486](https://github.com/hashicorp/nomad-pack/pull/486)]
+* runner: Update hashicorp/nomad/api to fix parsing of `consul.service.cluster` field [[GH-479](https://github.com/hashicorp/nomad-pack/pull/479)]
+* runner: update hashicorp/nomad/api to support `action` blocks [[GH-476](https://github.com/hashicorp/nomad-pack/pull/476)]
+* docs: Update README.md to reflect GA status [[GH-501](https://github.com/hashicorp/nomad-pack/pull/501)]
+* docs: Update usage documentation [[GH-484](https://github.com/hashicorp/nomad-pack/pull/484)]
+
+DEPENDENCY CHANGES:
+* deps: Bump github.com/docker/docker from 25.0.2+incompatible to 25.0.5+incompatible [[GH-502](https://github.com/hashicorp/nomad-pack/pull/502)]
+* deps: Bump hashicorp/nomad/api from v0.0.0-20231219145541-859606a54ade(1.8.0-beta.1) to v0.0.0-20240422165847-3ac3bc1cfede(1.8.0-beta.1) [[GH-500](https://github.com/hashicorp/nomad-pack/pull/500)]
+* deps: Bump github.com/go-jose/go-jose/v3 from 3.0.1 to 3.0.3 [[GH-491](https://github.com/hashicorp/nomad-pack/pull/491)]
+* deps: Bump golang.org/x/net from 0.19.0 to 0.23.0 [[GH-497](https://github.com/hashicorp/nomad-pack/pull/497)]
+* deps: Bump github.com/docker/docker [[GH-485](https://github.com/hashicorp/nomad-pack/pull/485)]
+* deps: Bump github.com/opencontainers/runc from 1.1.8 to 1.1.12 [[GH-483](https://github.com/hashicorp/nomad-pack/pull/483)]
+* deps: Bump github.com/cloudflare/circl from 1.3.3 to 1.3.7 [[GH-482](https://github.com/hashicorp/nomad-pack/pull/482)]
+* deps: Bump github.com/containerd/containerd from 1.6.18 to 1.6.26 [[GH-480](https://github.com/hashicorp/nomad-pack/pull/480)]
+* deps: Bump hashicorp/nomad/api from v0.0.0-20231213195942-64e3dca9274b(v1.7.2) to v0.0.0-20231219145541-859606a54ade(1.8.0-beta.1) [[GH-479](https://github.com/hashicorp/nomad-pack/pull/479)]
+* deps: Bump hashicorp/nomad/api from v0.0.0-20230804093607-388198abef93(1.7.0-beta.1) to v0.0.0-20231213195942-64e3dca9274b(v1.7.2) [[GH-476](https://github.com/hashicorp/nomad-pack/pull/476)]
+* deps: Bump github.com/go-git/go-git/v5 from 5.8.1 to 5.11.0 [[GH-481](https://github.com/hashicorp/nomad-pack/pull/481)]
+* deps: Bump golang.org/x/crypto from 0.16.0 to 0.17.0 [[GH-477](https://github.com/hashicorp/nomad-pack/pull/477)]
+* deps: Bump github.com/go-jose/go-jose/v3 from 3.0.0 to 3.0.1 [[GH-474](https://github.com/hashicorp/nomad-pack/pull/474)]
+
+## 0.1.0 (October 31, 2023)
+
+* **Generate Variable Override Files for Packs** - With
+`nomad-pack generate var-file`, you can create a documented variable override
+file as a starting point for customizing a Nomad Pack for deploying in your
+environment.
+
+* **Templating Non-Job Files** - Pack authors can now add non-job templates to
+their packs. These extra files could be used to provide pre-built configuration
+files, or to generate Nomad dependency configurations, like ACL policies and
+Volume configurations for operators to load into their clusters before deploying
+the pack to their cluster.
+
+* **Vendoring Dependencies** - With `nomad-pack deps vendor`, you can
+automatically download all the dependencies listed in the `metadata.hcl` file
+into a `deps/` subdirectory.
+
+BUG FIXES:
+* cli: `generate registry` command creates registry in properly named folder [[GH-445](https://github.com/hashicorp/nomad-pack/pull/445)]
+* cli: `generate pack` validates name argument [[GH-460](https://github.com/hashicorp/nomad-pack/pull/460)]
+
+IMPROVEMENTS:
+
+* cache: Change the way registries are stored and versioned in the cache [[GH-356](https://github.com/hashicorp/nomad-pack/pull/356)]
+* cli: Add `generate var-file` command [[GH-333](https://github.com/hashicorp/nomad-pack/pull/333)]
+* cli: `registry list` command now shows git refs to repositories present in the cache [[GH-318](https://github.com/hashicorp/nomad-pack/pull/318)]
+* cli: `registry list` command now shows only registries, and a new command `list` shows packs [[GH-337](https://github.com/hashicorp/nomad-pack/pull/337)], [[GH-373](https://github.com/hashicorp/nomad-pack/pull/373)]
+* cli: `deps vendor` command [[GH-367](https://github.com/hashicorp/nomad-pack/pull/367)]
+* cli: `deps vendor` command now allows dependencies to be pinned [[GH-447](https://github.com/hashicorp/nomad-pack/pull/447)]
+* cli: `generate pack` command now supports `--overwrite` flag [[GH-380](https://github.com/hashicorp/nomad-pack/pull/380)]
+* cli: `registry add` command now uses shallow cloning [[GH-444](https://github.com/hashicorp/nomad-pack/pull/444)]
+* deps: Update the Nomad OpenAPI dependency; require Go 1.18 as a build dependency [[GH-288](https://github.com/hashicorp/nomad-pack/pull/288)]
+* pack: Author field no longer supported in pack metadata [[GH-317](https://github.com/hashicorp/nomad-pack/pull/317)]
+* pack: URL field no longer supported in pack metadata [[GH-343](https://github.com/hashicorp/nomad-pack/pull/343)]
+* runner: Submit the job spec to Nomad while running pack [[GH-375](https://github.com/hashicorp/nomad-pack/pull/375)]
+* template: Render templates other than Nomad job specifications inside `templates/` [[GH-303](https://github.com/hashicorp/nomad-pack/pull/303)]
+* template: Automatically format templates before outputting [[GH-311](https://github.com/hashicorp/nomad-pack/pull/311)]
+* template: Skip templates that would render to just whitespace [[GH-313](https://github.com/hashicorp/nomad-pack/pull/313)]
+* template: Extract namespace and region from the templates before submitting them to the client [[GH-366](https://github.com/hashicorp/nomad-pack/pull/366)]
+* vars: Add flag to ignore variables provided in the given var-files unused by the pack [[GH-315](https://github.com/hashicorp/nomad-pack/pull/315)]
+
+## 0.0.1-techpreview.3 (July 21, 2022)
+
+FEATURES:
+
+* **Generate Sample Pack or Registry** - Using the `nomad-pack generate` command,
+  you can get started writing your own pack or building your own pack registry
+  using built-in starting artifacts.
+
+BUG FIXES:
+
+* cli: Add missing --name flag for status command [[GH-212](https://github.com/hashicorp/nomad-pack/pull/212)]
+* cli: Remove duplicate `this` in some command outputs [[GH-251](https://github.com/hashicorp/nomad-pack/pull/251)]
+* cli: Use Pack metadata `Name` in error context once known [[GH-217](https://github.com/hashicorp/nomad-pack/pull/217)]
+* cli: Fixed a panic in the `info` command when outputting a variable with a nil type [[GH-254](https://github.com/hashicorp/nomad-pack/pull/254)]
+* cli: Fixed a bug that prevented the use of map of maps variables [[GH-272](https://github.com/hashicorp/nomad-pack/pull/272)]
+* runner: Update runner to properly handle dependencies [[GH-229](https://github.com/hashicorp/nomad-pack/pull/229)]
+
+IMPROVEMENTS:
+
+* cli: Add flags to configure Nomad API client [[GH-213](https://github.com/hashicorp/nomad-pack/pull/213)]
+* template: Add support for custom Spew configurations. [[GH-220](https://github.com/hashicorp/nomad-pack/pull/220)]
+* template: Create a `my` alias for the current pack [[GH-221](https://github.com/hashicorp/nomad-pack/pull/221)]
+* cli: Add flags to override exit codes on `plan` command [[GH-236](https://github.com/hashicorp/nomad-pack/pull/236)]
+* cli: Add environment variables to configure Nomad API client [[GH-230](https://github.com/hashicorp/nomad-pack/pull/230)]
+* deps: Update the Nomad OpenAPI dependency [[GH-270](https://github.com/hashicorp/nomad-pack/pull/271)]
+
+## 0.0.1-techpreview2 (February 07, 2022)
+
+FEATURES:
+
+* **Run Pack from Folder** - Nomad Pack can run and render packs stored in the current folder. For example, if the current folder
+  contains a pack named `simple-service`, you can run it using `nomad-pack run ./simple-service`.
+
+* **Set Nomad Pack variables using environment variables** - Pack reads the
+  environment for variables prefixed with `NOMAD_PACK_VAR_` and supplies them to
+  the running pack.
+
+BUG FIXES:
+
+* template: Handle HEREDOC delimiter immediately before EOF [[GH-191](https://github.com/hashicorp/nomad-pack/pull/191)]
+* cli: display API client errors in CLI output [[GH-183](https://github.com/hashicorp/nomad-pack/pull/183)]
+* cli: add flags to `info` command help output [[GH-200](https://github.com/hashicorp/nomad-pack/pull/200)]
+* cli: fix panic from bad registry metadata [[GH-202](https://github.com/hashicorp/nomad-pack/pull/202)]
+
+IMPROVEMENTS:
+
+* cache: Moved the pack registry cache to the platform-specific user cache directory [[GH-172](https://github.com/hashicorp/nomad-pack/pull/172)]
+* cli: Don't build pack registry cache during the `version` command [[GH-128](https://github.com/hashicorp/nomad-pack/pull/128)]
+* cli: Support Nomad ACLs and mTLS configuration [[GH-177](https://github.com/hashicorp/nomad-pack/pull/177), [GH-205](https://github.com/hashicorp/nomad-pack/pull/205)]
+* cli/plan: Run template canonicalization before planning to fix diffs [[GH-181](https://github.com/hashicorp/nomad-pack/pull/181)]
+* dependencies: Removed direct import of Nomad code base [[GH-157](https://github.com/hashicorp/nomad-pack/pull/157)]
+* template: Added `toStringList` function [[GH-136](https://github.com/hashicorp/nomad-pack/pull/136)]
+* template: Update Sprig library to v3 [[GH-197](https://github.com/hashicorp/nomad-pack/pull/197)]
+
+
+## 0.0.1-techpreview1 (October 19, 2021)
+
+Initial release.
