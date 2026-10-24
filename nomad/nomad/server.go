@@ -40,6 +40,7 @@ import (
 	"github.com/hashicorp/nomad/helper/tlsutil"
 	"github.com/hashicorp/nomad/lib/auth/oidc"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
+	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/drainer"
 	"github.com/hashicorp/nomad/nomad/state"
@@ -232,6 +233,10 @@ type Server struct {
 	// autoscaler is the built-in autoscaler, running on the leader.
 	autoscaler *autoscaler.Autoscaler
 
+	// backup takes the scheduled backups of the region, running on the
+	// leader.
+	backup *backup.Manager
+
 	// volumeControllerFutures is a map of plugin IDs to pending controller RPCs. If
 	// no RPC is pending for a given plugin, this may be nil.
 	volumeControllerFutures map[string]context.Context
@@ -250,10 +255,6 @@ type Server struct {
 	// admission holds the dynamic admission controllers (webhooks and the
 	// CEL policy engine)
 	admission *dynamicAdmission
-
-	// objects is the type registry of custom objects (compiled schemas and
-	// CEL rules of the object kinds)
-	objects *objectRegistry
 
 	// periodicDispatcher is used to track and create evaluations for periodic jobs.
 	periodicDispatcher *PeriodicDispatch
@@ -418,13 +419,6 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		return nil, fmt.Errorf("Failed to setup admission control: %v", err)
 	}
 
-	// Setup the custom object type registry
-	if s.objects, err = newObjectRegistry(); err != nil {
-		s.Shutdown()
-		s.logger.Error("failed to setup the object registry", "error", err)
-		return nil, fmt.Errorf("Failed to setup the object registry: %v", err)
-	}
-
 	// Set up the keyring
 	keystorePath := filepath.Join(s.config.DataDir, "keystore")
 	if s.config.DevMode && s.config.DataDir == "" {
@@ -501,6 +495,9 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 
 	// Setup the built-in autoscaler.
 	s.setupAutoscaler()
+
+	// Setup the scheduled backups.
+	s.setupBackup()
 
 	// Setup the enterprise state
 	if err := s.setupEnterprise(config); err != nil {
@@ -716,6 +713,9 @@ func (s *Server) Shutdown() error {
 	s.shutdown = true
 	s.shutdownCancel()
 
+	if s.backup != nil {
+		s.backup.SetLeader(false)
+	}
 	if s.autoscaler != nil {
 		s.autoscaler.SetLeader(false)
 	}
@@ -905,6 +905,14 @@ func (s *Server) Reload(newConfig *Config) error {
 	// off at runtime.
 	if s.autoscaler != nil && newConfig.Autoscaler != nil {
 		s.autoscaler.SetConfig(newConfig.Autoscaler)
+	}
+
+	// Apply the backup configuration.
+	if s.backup != nil && newConfig.Backup != nil {
+		if err := s.backup.SetConfig(newConfig.Backup); err != nil {
+			s.logger.Error("invalid backup configuration", "error", err)
+			_ = multierror.Append(&mErr, err)
+		}
 	}
 
 	// Because this is a new configuration, we extract the worker pool arguments without acquiring a lock
@@ -1312,8 +1320,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewNodeEndpoint(s, ctx))
 	_ = server.Register(NewNodePoolEndpoint(s, ctx))
 	_ = server.Register(NewAdmissionPolicyEndpoint(s, ctx))
-	_ = server.Register(NewObjectKindEndpoint(s, ctx))
-	_ = server.Register(NewCustomObjectEndpoint(s, ctx))
+	_ = server.Register(NewBackupEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))
 	_ = server.Register(NewPlanEndpoint(s, ctx))
 	_ = server.Register(NewQuotaEndpoint(s, ctx))

@@ -402,6 +402,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	s.setAutoscalerSecret(uuid.Generate())
 	s.autoscaler.SetLeader(true)
 
+	// Start the scheduled backups.
+	s.backup.SetLeader(true)
+
 	// Setup the heartbeat timers. This is done both when starting up or when
 	// a leader fail over happens. Since the timers are maintained by the leader
 	// node, effectively this means all the timers are renewed at the time of failover.
@@ -1467,6 +1470,9 @@ func (s *Server) revokeLeadership() error {
 	// Stop the built-in autoscaler and invalidate its system identity.
 	s.autoscaler.SetLeader(false)
 	s.setAutoscalerSecret("")
+
+	// Stop the scheduled backups; an upload in progress is aborted.
+	s.backup.SetLeader(false)
 
 	// Disable any enterprise systems required.
 	if err := s.revokeEnterpriseLeadership(); err != nil {

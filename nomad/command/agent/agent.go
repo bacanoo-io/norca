@@ -575,6 +575,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	}
 	conf.Autoscaler = autoscalerConf
 
+	// Set the backup configuration.
+	backupConf, err := agentConfig.Server.Backup.toServerConfig()
+	if err != nil {
+		return nil, err
+	}
+	conf.Backup = backupConf
+
 	// Add the search configuration
 	if search := agentConfig.Server.Search; search != nil {
 		conf.SearchConfig = &structs.SearchConfig{

@@ -679,6 +679,9 @@ type ServerConfig struct {
 	// Autoscaler configures the built-in autoscaler.
 	Autoscaler *AutoscalerConfig `hcl:"autoscaler"`
 
+	// Backup configures the scheduled backups to S3-compatible stores.
+	Backup *BackupConfig `hcl:"backup"`
+
 	// Admission configures the dynamic admission control webhooks.
 	Admission *config.AdmissionConfig `hcl:"admission"`
 }
@@ -710,6 +713,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobMaxPriority = pointer.Copy(s.JobMaxPriority)
 	ns.JobTrackedVersions = pointer.Copy(s.JobTrackedVersions)
 	ns.Autoscaler = s.Autoscaler.Copy()
+	ns.Backup = s.Backup.Copy()
 	ns.Admission = s.Admission.Copy()
 	return &ns
 }
@@ -2020,6 +2024,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.Autoscaler != nil {
 		result.Autoscaler = result.Autoscaler.Merge(b.Autoscaler)
+	}
+
+	if b.Backup != nil {
+		result.Backup = result.Backup.Merge(b.Backup)
 	}
 
 	if b.DefaultSchedulerConfig != nil {
