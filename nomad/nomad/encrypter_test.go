@@ -6,6 +6,7 @@ package nomad
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -386,4 +387,47 @@ func TestEncrypter_SignVerify(t *testing.T) {
 	require.Equal(t, alloc.ID, got.AllocationID)
 	require.Equal(t, alloc.JobID, got.JobID)
 	require.Equal(t, "web", got.TaskName)
+}
+
+// TestEncrypter_SignClaims_WaitsForKey checks that signing waits for the
+// active root key to become available and then returns a token, instead of
+// spinning until the timeout and returning an empty token with no error.
+func TestEncrypter_SignClaims_WaitsForKey(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, shutdown := TestServer(t, func(c *Config) {
+		c.NumSchedulers = 0 // Prevent automatic dequeue
+	})
+	defer shutdown()
+	testutil.WaitForLeader(t, srv.RPC)
+
+	var keyMeta *structs.RootKeyMeta
+	testutil.WaitForResult(func() (bool, error) {
+		meta, err := srv.fsm.State().GetActiveRootKeyMeta(nil)
+		if err != nil || meta == nil {
+			return false, errors.New("no active root key yet")
+		}
+		keyMeta = meta
+		return true, nil
+	}, func(err error) { t.Fatal(err) })
+	key, err := srv.encrypter.GetKey(keyMeta.KeyID)
+	require.NoError(t, err)
+
+	// An encrypter whose keyring doesn't have the active key yet
+	e, err := NewEncrypter(srv, t.TempDir())
+	require.NoError(t, err)
+	_, err = e.activeKeySet()
+	require.Error(t, err)
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		_ = e.AddKey(&structs.RootKey{Meta: keyMeta, Key: key})
+	}()
+
+	start := time.Now()
+	token, keyID, err := e.SignClaims(mock.Alloc().ToTaskIdentityClaims(nil, "web"))
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+	require.Equal(t, keyMeta.KeyID, keyID)
+	require.Less(t, time.Since(start), 4*time.Second)
 }
