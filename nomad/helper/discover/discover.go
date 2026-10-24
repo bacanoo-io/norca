@@ -12,53 +12,62 @@ import (
 	"strings"
 )
 
-// NomadExecutable checks the current executable, then $GOPATH/bin, and finally
-// the CWD, in that order. If it can't be found, an error is returned.
+// NomadExecutable checks the current executable, then the $PATH, $GOPATH/bin,
+// and finally the CWD, in that order, for a norca or nomad binary. If it can't
+// be found, an error is returned.
 func NomadExecutable() (string, error) {
-	nomadExe := "nomad"
+	// The norca binary is preferred; nomad is its compatibility alias and
+	// the default output name of "go build" in this module.
+	names := []string{"norca", "nomad"}
 	if runtime.GOOS == "windows" {
-		nomadExe = "nomad.exe"
+		names = []string{"norca.exe", "nomad.exe"}
 	}
 
 	// Check the current executable.
 	bin, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("Failed to determine the nomad executable: %v", err)
+		return "", fmt.Errorf("Failed to determine the norca executable: %v", err)
 	}
 
-	if _, err := os.Stat(bin); err == nil && isNomad(bin, nomadExe) {
+	if _, err := os.Stat(bin); err == nil && isNomad(bin, names[0]) {
 		return bin, nil
 	}
 
 	// Check the $PATH
-	if bin, err := exec.LookPath(nomadExe); err == nil {
-		return bin, nil
+	for _, name := range names {
+		if bin, err := exec.LookPath(name); err == nil {
+			return bin, nil
+		}
 	}
 
 	// Check the $GOPATH.
-	bin = filepath.Join(os.Getenv("GOPATH"), "bin", nomadExe)
-	if _, err := os.Stat(bin); err == nil {
-		return bin, nil
+	for _, name := range names {
+		bin = filepath.Join(os.Getenv("GOPATH"), "bin", name)
+		if _, err := os.Stat(bin); err == nil {
+			return bin, nil
+		}
 	}
 
 	// Check the CWD.
 	pwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("Could not find Nomad executable (%v): %v", nomadExe, err)
+		return "", fmt.Errorf("Could not find Norca executable (%v): %v", names, err)
 	}
 
-	bin = filepath.Join(pwd, nomadExe)
-	if _, err := os.Stat(bin); err == nil {
-		return bin, nil
+	for _, name := range names {
+		bin = filepath.Join(pwd, name)
+		if _, err := os.Stat(bin); err == nil {
+			return bin, nil
+		}
+
+		// Check CWD/bin
+		bin = filepath.Join(pwd, "bin", name)
+		if _, err := os.Stat(bin); err == nil {
+			return bin, nil
+		}
 	}
 
-	// Check CWD/bin
-	bin = filepath.Join(pwd, "bin", nomadExe)
-	if _, err := os.Stat(bin); err == nil {
-		return bin, nil
-	}
-
-	return "", fmt.Errorf("Could not find Nomad executable (%v)", nomadExe)
+	return "", fmt.Errorf("Could not find Norca executable (%v)", names)
 }
 
 func isNomad(path, nomadExe string) bool {
