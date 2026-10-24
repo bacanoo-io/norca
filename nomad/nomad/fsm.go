@@ -68,6 +68,9 @@ const (
 
 	// Namespace appliers were moved from enterprise and therefore start at 64
 	NamespaceSnapshot SnapshotType = 64
+
+	// Norca admission control snapshot types mirror their message types
+	AdmissionPolicySnapshot SnapshotType = 70
 )
 
 // LogApplier is the definition of a function that can apply a Raft log
@@ -354,6 +357,10 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyACLBindingRulesUpsert(buf[1:], log.Index)
 	case structs.ACLBindingRulesDeleteRequestType:
 		return n.applyACLBindingRulesDelete(buf[1:], log.Index)
+	case structs.AdmissionPolicyUpsertRequestType:
+		return n.applyAdmissionPolicyUpsert(msgType, buf[1:], log.Index)
+	case structs.AdmissionPolicyDeleteRequestType:
+		return n.applyAdmissionPolicyDelete(msgType, buf[1:], log.Index)
 	}
 
 	// Check enterprise only message types.
@@ -1894,6 +1901,15 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case AdmissionPolicySnapshot:
+			policy := new(structs.AdmissionPolicy)
+			if err := dec.Decode(policy); err != nil {
+				return err
+			}
+			if err := restore.AdmissionPolicyRestore(policy); err != nil {
+				return err
+			}
+
 		default:
 			// Check if this is an enterprise only object being restored
 			restorer, ok := n.enterpriseRestorers[snapType]
@@ -2421,6 +2437,10 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistEnterpriseTables(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistAdmissionPolicies(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}

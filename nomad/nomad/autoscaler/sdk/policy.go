@@ -1,0 +1,248 @@
+// Copyright IBM Corp. 2020, 2026
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+// Ported from Nomad Autoscaler v0.6.0 sdk/policy.go. Modified: the file
+// policy decoding types were dropped, as the built-in autoscaler only reads
+// policies from the Nomad state store.
+
+package sdk
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	multierror "github.com/hashicorp/go-multierror"
+)
+
+const (
+	ScalingPolicyTypeCluster     = "cluster"
+	ScalingPolicyTypeHorizontal  = "horizontal"
+	ScalingPolicyTypeVerticalCPU = "vertical_cpu"
+	ScalingPolicyTypeVerticalMem = "vertical_mem"
+
+	ScalingPolicyOnErrorFail   = "fail"
+	ScalingPolicyOnErrorIgnore = "ignore"
+)
+
+// ScalingPolicy is the internal representation of a scaling document and
+// encompasses all the required information for the autoscaler to perform
+// scaling evaluations on a target.
+type ScalingPolicy struct {
+
+	// ID is a UUID which uniquely identifies this scaling policy. Depending on
+	// the policy source this will be sourced in different manners.
+	ID string
+
+	// Type is the type of scaling this policy will perform.
+	Type string
+
+	// Priority controls the order in which a policy is picked for evaluation.
+	Priority int
+
+	// Min forms a lower bound at which the target should never be asked to
+	// break. The autoscaler will actively adjust recommendations to ensure
+	// this value is not violated.
+	Min int64
+
+	// Max forms an upper bound at which the target should never be asked to
+	// exceed. The autoscaler will actively adjust recommendations to ensure
+	// this value is not violated.
+	Max int64
+
+	// Enabled indicates whether the autoscaler should actively evaluate the
+	// policy or not.
+	Enabled bool
+
+	// OnCheckError defines how errors are handled by the Autoscaler when
+	// running the policy checks. Possible values are "ignore" or "fail".
+	//
+	// If "ignore" the policy evaluation will continue even if a check fails.
+	// If "fail" the the entire policy evaluation will stop and no action will
+	// be taken.
+	OnCheckError string
+
+	// Cooldown is the time period after a scaling action is performed, during
+	// which no policy evaluations will be started.
+	Cooldown time.Duration
+
+	// CooldownOnScaleUp is the time period after a scaling up action
+	// is performed, during which no policy evaluations will be started. It is
+	// as a separate option to allow for more aggressive scale up in case of
+	// surges.
+	CooldownOnScaleUp time.Duration
+
+	// EvaluationInterval indicates the frequency at which the policy is
+	// evaluated. A lower value means more frequent evaluation and can result
+	// in a high rate of change in the target.
+	EvaluationInterval time.Duration
+
+	// Schedule controls when the policy has effect. When set, evaluations that
+	// happen outside the active window produce no effect.
+	Schedule *ScalingPolicySchedule
+
+	// Checks is an array of checks which will be triggered in parallel to
+	// determine the desired state of the ScalingPolicyTarget.
+	Checks []*ScalingPolicyCheck
+
+	// Target identifies the scaling target which the autoscaler will interact
+	// with to ensure it meets the desired state as determined by the Checks.
+	Target *ScalingPolicyTarget
+}
+
+// Validate applies validation rules that are independent of policy source.
+func (p *ScalingPolicy) Validate() error {
+	if p == nil {
+		return nil
+	}
+
+	var result *multierror.Error
+
+	if p.Type == "" {
+		result = multierror.Append(result, errors.New("policy has not type defined"))
+	}
+
+	switch p.OnCheckError {
+	case "", ScalingPolicyOnErrorFail, ScalingPolicyOnErrorIgnore:
+	default:
+		err := fmt.Errorf("invalid value for on_check_error: only %s and %s are allowed",
+			ScalingPolicyOnErrorFail, ScalingPolicyOnErrorIgnore)
+		result = multierror.Append(result, err)
+	}
+
+	if len(p.Checks) == 0 {
+		result = multierror.Append(result, fmt.Errorf("empty checks, this policy won't execute any verification or scaling and should have enabled set to false"))
+	}
+
+	if err := ValidateScalingPolicySchedule(p.Schedule); err != nil {
+		result = multierror.Append(result, fmt.Errorf("policy.schedule: %w", err))
+	}
+
+	for _, c := range p.Checks {
+		if c.Strategy == nil || c.Strategy.Name == "" {
+			result = multierror.Append(result, fmt.Errorf("invalid check %s: missing strategy value", c.Name))
+			continue
+		}
+
+		if err := ValidateScalingPolicySchedule(c.Schedule); err != nil {
+			result = multierror.Append(result, fmt.Errorf("check %s.schedule: %w", c.Name, err))
+		}
+
+		if p.Type == ScalingPolicyTypeCluster || p.Type == ScalingPolicyTypeHorizontal {
+			if strings.HasPrefix(c.Strategy.Name, "app-sizing") {
+				err := fmt.Errorf("invalid strategy in check %s: plugin %s can only be used with Dynamic Application Sizing", c.Name, c.Strategy.Name)
+				result = multierror.Append(result, err)
+			}
+		}
+
+		switch c.OnError {
+		case "", ScalingPolicyOnErrorFail, ScalingPolicyOnErrorIgnore:
+		default:
+			err := fmt.Errorf("invalid value for on_error in check %s: only %s and %s are allowed",
+				c.Name, ScalingPolicyOnErrorFail, ScalingPolicyOnErrorIgnore)
+			result = multierror.Append(result, err)
+		}
+	}
+
+	return FormattedMultiError(result)
+}
+
+// ScalingPolicyCheck is an individual check within a scaling policy.This check
+// will be executed in isolation alongside other checks within the policy.
+type ScalingPolicyCheck struct {
+
+	// Name is a human readable name for this check and allows operators to
+	// create clearly identified policy checks.
+	Name string
+
+	// Group is used to group related checks together. Their results will be
+	// consolidated into a single action.
+	Group string
+
+	// Source is the APM plugin that should be used to perform the query and
+	// obtain the metric that will be used to perform a calculation.
+	Source string
+
+	// Query is run against the Source in order to receive a metric response.
+	Query string
+
+	// QueryWindow is used to define how further back in time to query for
+	// metrics.
+	QueryWindow time.Duration
+
+	// QueryWindowOffset defines an offset from the current time to apply to
+	// the query window.
+	QueryWindowOffset time.Duration
+
+	// QueryInstant requests point-in-time evaluation for this check.
+	//
+	// When true, the query is evaluated at a single timestamp instead of over
+	// QueryWindow. This behavior depends on the source plugin. For Prometheus,
+	// this maps to the instant query API.
+	QueryInstant bool
+
+	// Schedule controls when the check has effect. When set, evaluations that
+	// happen outside the active window produce no effect for this check.
+	Schedule *ScalingPolicySchedule
+
+	// Strategy is the ScalingPolicyStrategy to use when performing the
+	// ScalingPolicyCheck evaluation.
+	Strategy *ScalingPolicyStrategy
+
+	// OnError defines how errors are handled by the Autoscaler when running
+	// this check. Possible values are "ignore" or "fail". If not set the
+	// policy `on_check_error` value will be used.
+	//
+	// If "ignore" the check is not considered when calculating the final
+	// scaling action result.
+	// If "fail" the the entire policy evaluation will stop and no action will
+	// be taken.
+	OnError string
+}
+
+// ScalingPolicyStrategy contains the plugin and configuration details for
+// calculating the desired target state from the current state.
+type ScalingPolicyStrategy struct {
+
+	// Name is the strategy that will be used to perform the desired state
+	// calculation.
+	Name string `hcl:"name,label"`
+
+	// Config is the mapping of config values used by the strategy plugin. Each
+	// plugin has a set of potentially uniquely supported keys.
+	Config map[string]string `hcl:",remain"`
+}
+
+// ScalingPolicySchedule controls when a policy/check has effect.
+//
+// A schedule is defined as start + (end xor duration):
+//   - start + end uses cron boundaries
+//   - start + duration uses a cron start and a relative duration
+type ScalingPolicySchedule struct {
+	Start    string `hcl:"start"`
+	End      string `hcl:"end,optional"`
+	Duration string `hcl:"duration,optional"`
+}
+
+// ScalingPolicyTarget identifies the target for which the ScalingPolicy as a
+// whole is configured for.
+type ScalingPolicyTarget struct {
+
+	// Name identifies the target plugin which can handle performing target
+	// requests for this ScalingPolicy.
+	Name string `hcl:"name,label"`
+
+	// Config is the mapping of config values used by the target plugin. Each
+	// plugin has a set of potentially uniquely supported keys.
+	Config map[string]string `hcl:",remain"`
+}
+
+// IsJobTaskGroupTarget identifies whether the ScalingPolicyTarget relates to a
+// Nomad job group.
+func (t *ScalingPolicyTarget) IsJobTaskGroupTarget() bool {
+	_, jOK := t.Config[TargetConfigKeyJob]
+	_, gOK := t.Config[TargetConfigKeyTaskGroup]
+	return jOK && gOK
+}

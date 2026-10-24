@@ -1,86 +1,144 @@
 /**
- * Copyright (c) HashiCorp, Inc.
- * SPDX-License-Identifier: BUSL-1.1
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
  */
 
 // @ts-check
-
-import { action } from '@ember/object';
-import { inject as service } from '@ember/service';
-import { alias } from '@ember/object/computed';
 import Component from '@glimmer/component';
+import { inject as service } from '@ember/service';
+import { action } from '@ember/object';
 import { tracked } from '@glimmer/tracking';
+import { task } from 'ember-concurrency';
+import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
 
+// Same rules as the ACL role API applies
+const NAME_PATTERN = /^[a-zA-Z0-9-]{1,128}$/;
+const MAX_DESCRIPTION_LENGTH = 256;
+
+/**
+ * Form to create or edit an ACL role: name, description and the policies
+ * the role grants.
+ *
+ * @param {Role} role - the role record to edit (may be new)
+ * @param {Policy[]} policies - policies that can be linked
+ */
 export default class RoleEditorComponent extends Component {
   @service notifications;
   @service router;
   @service store;
 
-  @alias('args.role') role;
+  @tracked selectedPolicyIds = [];
 
-  @tracked rolePolicies = [];
+  policyColumns = [
+    { key: 'selected', label: 'Linked' },
+    { key: 'name', label: 'Policy', isSortable: true },
+    { key: 'description', label: 'Description' },
+  ];
 
-  // when this renders, set up rolePOlicies
   constructor() {
     super(...arguments);
-    this.rolePolicies = this.role.policies.toArray() || [];
+    this.resetSelection();
   }
 
-  @action updateRoleName({ target: { value } }) {
+  get role() {
+    return this.args.role;
+  }
+
+  get availablePolicies() {
+    return (this.args.policies || []).filter(
+      (policy) => !policy.isNew && !policy.isDeleted
+    );
+  }
+
+  resetSelection() {
+    this.selectedPolicyIds = this.role.hasMany('policies').ids();
+  }
+
+  @action updateName({ target: { value } }) {
     this.role.set('name', value);
   }
 
-  @action updateRolePolicies(policy, event) {
-    let { checked } = event.target;
-    if (checked) {
-      this.rolePolicies.push(policy);
-    } else {
-      this.rolePolicies = this.rolePolicies.filter((p) => p !== policy);
+  @action updateDescription({ target: { value } }) {
+    this.role.set('description', value);
+  }
+
+  @action togglePolicy(policy, { target: { checked } }) {
+    const without = this.selectedPolicyIds.filter((id) => id !== policy.id);
+    this.selectedPolicyIds = checked ? [...without, policy.id] : without;
+  }
+
+  validate() {
+    const name = this.role.name || '';
+    if (!NAME_PATTERN.test(name)) {
+      throw new Error(
+        'Role name must be 1-128 characters long and can only contain letters, numbers, and dashes.'
+      );
+    }
+    const nameTaken = this.store
+      .peekAll('role')
+      .any(
+        (role) =>
+          role !== this.role &&
+          !role.isNew &&
+          !role.isDeleted &&
+          role.name === name
+      );
+    if (nameTaken) {
+      throw new Error(`A role with name ${name} already exists.`);
+    }
+    if ((this.role.description || '').length > MAX_DESCRIPTION_LENGTH) {
+      throw new Error(
+        `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters long.`
+      );
+    }
+    if (!this.selectedPolicyIds.length) {
+      throw new Error('A role must have at least one policy.');
     }
   }
 
-  @action async save(e) {
-    if (e instanceof Event) {
-      e.preventDefault(); // code-mirror "command+enter" submits the form, but doesnt have a preventDefault()
+  recordsFor(ids) {
+    return ids.map((id) => this.store.peekRecord('policy', id)).filter(Boolean);
+  }
+
+  @task(function* (event) {
+    if (event instanceof Event) {
+      event.preventDefault();
     }
+
+    const role = this.role;
+    const isNew = role.isNew;
+    let previousPolicies = null;
+
     try {
-      const nameRegex = '^[a-zA-Z0-9-]{1,128}$';
-      if (!this.role.name?.match(nameRegex)) {
-        throw new Error(
-          `Role name must be 1-128 characters long and can only contain letters, numbers, and dashes.`
-        );
-      }
-
-      const shouldRedirectAfterSave = this.role.isNew;
-
-      if (this.role.isNew && this.store.peekRecord('role', this.role.name)) {
-        throw new Error(`A role with name ${this.role.name} already exists.`);
-      }
-
-      // If no policies are selected, throw an error
-      if (this.rolePolicies.length === 0) {
-        throw new Error(`You must select at least one policy.`);
-      }
-
-      this.role.policies = this.rolePolicies;
-
-      await this.role.save();
+      this.validate();
+      previousPolicies = this.recordsFor(role.hasMany('policies').ids());
+      role.set('policies', this.recordsFor(this.selectedPolicyIds));
+      yield role.save();
 
       this.notifications.add({
-        title: 'Role Saved',
+        title: isNew ? 'Role created' : 'Role saved',
         color: 'success',
       });
 
-      if (shouldRedirectAfterSave) {
-        this.router.transitionTo('access-control.roles.role', this.role.id);
+      if (isNew) {
+        this.router.transitionTo('access-control.roles.role', role.id);
+      } else {
+        this.resetSelection();
       }
-    } catch (error) {
+    } catch (err) {
+      if (previousPolicies && !role.isNew) {
+        role.set('policies', previousPolicies);
+      }
       this.notifications.add({
-        title: `Error creating Role ${this.role.name}`,
-        message: error,
+        title: `Error saving role ${role.name || ''}`.trim(),
+        message:
+          err instanceof Error && !err.errors
+            ? err.message
+            : messageFromAdapterError(err, 'save roles'),
         color: 'critical',
         sticky: true,
       });
     }
-  }
+  })
+  save;
 }

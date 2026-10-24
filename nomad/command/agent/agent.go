@@ -350,6 +350,14 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		conf.JobTrackedVersions = *agentConfig.Server.JobTrackedVersions
 	}
 
+	if admissionConf := agentConfig.Server.Admission.Copy(); admissionConf != nil {
+		admissionConf.Canonicalize()
+		if err := admissionConf.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid server admission configuration: %w", err)
+		}
+		conf.AdmissionConfig = admissionConf
+	}
+
 	// Set up the bind addresses
 	rpcAddr, err := net.ResolveTCPAddr("tcp", agentConfig.normalizedAddrs.RPC)
 	if err != nil {
@@ -559,6 +567,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 			conf.NodePlanRejectionWindow = planRejectConf.NodeWindow
 		}
 	}
+
+	// Set the built-in autoscaler configuration.
+	autoscalerConf, err := agentConfig.Server.Autoscaler.toServerConfig()
+	if err != nil {
+		return nil, err
+	}
+	conf.Autoscaler = autoscalerConf
 
 	// Add Enterprise license configs
 	conf.LicenseConfig = &nomad.LicenseConfig{

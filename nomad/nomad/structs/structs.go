@@ -136,6 +136,11 @@ const (
 	QuotaSpecUpsertRequestType MessageType = 66
 	QuotaSpecDeleteRequestType MessageType = 67
 	// 68 is reserved for quotas
+
+	// Norca admission control types start at 70. They are sent with the
+	// IgnoreUnknownTypeFlag set.
+	AdmissionPolicyUpsertRequestType MessageType = 70
+	AdmissionPolicyDeleteRequestType MessageType = 71
 )
 
 const (
@@ -1439,6 +1444,12 @@ type SingleScalingPolicyResponse struct {
 type ScalingPolicyListRequest struct {
 	Job  string
 	Type string
+
+	// Engine filters the policies by the engine responsible for them
+	// ("builtin" or "external"). Policies without an engine are treated as
+	// the server's default engine.
+	Engine string
+
 	QueryOptions
 }
 
@@ -6062,6 +6073,11 @@ type ScalingPolicy struct {
 	// Enabled indicates whether this policy has been enabled/disabled
 	Enabled bool
 
+	// Engine is the autoscaler responsible for this policy: "builtin" (the
+	// autoscaler embedded in the servers) or "external". Empty means the
+	// default engine of the servers.
+	Engine string
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -6081,6 +6097,11 @@ const (
 	ScalingTargetTask      = "Task"
 
 	ScalingPolicyTypeHorizontal = "horizontal"
+
+	// ScalingPolicyEngineBuiltin and ScalingPolicyEngineExternal are the
+	// supported values of ScalingPolicy.Engine.
+	ScalingPolicyEngineBuiltin  = "builtin"
+	ScalingPolicyEngineExternal = "external"
 )
 
 func (p *ScalingPolicy) Canonicalize() {
@@ -6106,6 +6127,7 @@ func (p *ScalingPolicy) Copy() *ScalingPolicy {
 		Type:        p.Type,
 		Min:         p.Min,
 		Max:         p.Max,
+		Engine:      p.Engine,
 		CreateIndex: p.CreateIndex,
 		ModifyIndex: p.ModifyIndex,
 	}
@@ -6142,6 +6164,14 @@ func (p *ScalingPolicy) Validate() error {
 	if p.Min < 0 {
 		mErr.Errors = append(mErr.Errors,
 			fmt.Errorf("minimum count must be specified and non-negative"))
+	}
+
+	switch p.Engine {
+	case "", ScalingPolicyEngineBuiltin, ScalingPolicyEngineExternal:
+	default:
+		mErr.Errors = append(mErr.Errors,
+			fmt.Errorf("engine must be %q or %q, got %q",
+				ScalingPolicyEngineBuiltin, ScalingPolicyEngineExternal, p.Engine))
 	}
 
 	return mErr.ErrorOrNil()
@@ -6198,6 +6228,7 @@ func (p *ScalingPolicy) Stub() *ScalingPolicyListStub {
 		Type:        p.Type,
 		Target:      make(map[string]string),
 		Enabled:     p.Enabled,
+		Engine:      p.Engine,
 		CreateIndex: p.CreateIndex,
 		ModifyIndex: p.ModifyIndex,
 	}
@@ -6239,6 +6270,7 @@ type ScalingPolicyListStub struct {
 	ID          string
 	Enabled     bool
 	Type        string
+	Engine      string
 	Target      map[string]string
 	CreateIndex uint64
 	ModifyIndex uint64
@@ -6626,6 +6658,12 @@ type TaskGroup struct {
 	// allocations across a desired attribute, such as datacenter
 	Spreads []*Spread
 
+	// Colocate and Separate are cross-job affinity and anti-affinity rules
+	// relating the placement of this group to the allocations of other jobs
+	// (see AllocAffinity).
+	Colocate []*AllocAffinity
+	Separate []*AllocAffinity
+
 	// Networks are the network configuration for the task group. This can be
 	// overridden in the task.
 	Networks Networks
@@ -6664,6 +6702,8 @@ func (tg *TaskGroup) Copy() *TaskGroup {
 	ntg.ReschedulePolicy = ntg.ReschedulePolicy.Copy()
 	ntg.Affinities = CopySliceAffinities(ntg.Affinities)
 	ntg.Spreads = CopySliceSpreads(ntg.Spreads)
+	ntg.Colocate = CopySliceAllocAffinities(ntg.Colocate)
+	ntg.Separate = CopySliceAllocAffinities(ntg.Separate)
 	ntg.Volumes = CopyMapVolumeRequest(ntg.Volumes)
 	ntg.Scaling = ntg.Scaling.Copy()
 	ntg.Consul = ntg.Consul.Copy()
@@ -6755,6 +6795,8 @@ func (tg *TaskGroup) Canonicalize(job *Job) {
 	for _, network := range tg.Networks {
 		network.Canonicalize()
 	}
+
+	tg.canonicalizeAllocAffinities()
 
 	for _, task := range tg.Tasks {
 		task.Canonicalize(job, tg)
@@ -6856,6 +6898,10 @@ func (tg *TaskGroup) Validate(j *Job) error {
 		}
 	}
 
+	if err := tg.validateAllocAffinities(j); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
+	}
+
 	if j.Type == JobTypeSystem {
 		if tg.ReschedulePolicy != nil {
 			mErr.Errors = append(mErr.Errors, fmt.Errorf("System jobs should not have a reschedule policy"))
@@ -6951,6 +6997,12 @@ func (tg *TaskGroup) Validate(j *Job) error {
 
 	// Validate group service script-checks
 	if err := tg.validateScriptChecksInGroupServices(); err != nil {
+		outer := fmt.Errorf("Task group service check validation failed: %v", err)
+		mErr.Errors = append(mErr.Errors, outer)
+	}
+
+	// Validate check roles (Norca)
+	if err := tg.validateCheckRoles(); err != nil {
 		outer := fmt.Errorf("Task group service check validation failed: %v", err)
 		mErr.Errors = append(mErr.Errors, outer)
 	}
@@ -7274,6 +7326,11 @@ func (tg *TaskGroup) Warnings(j *Job) error {
 			err = multierror.Prefix(err, fmt.Sprintf("Task %q:", t.Name))
 			mErr.Errors = append(mErr.Errors, err)
 		}
+	}
+
+	// Check roles conflicting with on_update (Norca)
+	if err := tg.checkRoleWarnings(); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
 	}
 
 	return mErr.ErrorOrNil()

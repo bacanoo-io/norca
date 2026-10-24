@@ -1,40 +1,32 @@
 /**
- * Copyright (c) HashiCorp, Inc.
- * SPDX-License-Identifier: BUSL-1.1
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
  */
 
-// @ts-check
 import Route from '@ember/routing/route';
-import withForbiddenState from 'nomad-ui/mixins/with-forbidden-state';
-import WithModelErrorHandling from 'nomad-ui/mixins/with-model-error-handling';
 import { inject as service } from '@ember/service';
 import { hash } from 'rsvp';
+import notifyError from 'nomad-ui/utils/notify-error';
 
-export default class AccessControlRolesRoleRoute extends Route.extend(
-  withForbiddenState,
-  WithModelErrorHandling
-) {
+export default class AccessControlRolesRoleRoute extends Route {
   @service store;
 
-  async model(params) {
-    let role = await this.store.findRecord(
-      'role',
-      decodeURIComponent(params.id),
-      {
-        reload: true,
-      }
-    );
-
-    let policies = this.store.peekAll('policy');
-
+  model(params) {
     return hash({
-      role,
-      tokens: this.store.peekAll('token').filter((token) => {
-        return token.roles.any((role) => {
-          return role.id === decodeURIComponent(params.id);
-        });
-      }),
-      policies,
-    });
+      role: this.store.findRecord('role', params.id, { reload: true }),
+      policies: this.store.peekAll('policy'),
+      tokens: this.store.peekAll('token'),
+    }).catch(notifyError(this));
+  }
+
+  resetController(controller, isExiting) {
+    super.resetController(...arguments);
+    if (isExiting) {
+      // Drop unsaved edits to the name and description
+      const role = controller.model?.role;
+      if (role && !role.isDeleted && role.hasDirtyAttributes) {
+        role.rollbackAttributes();
+      }
+    }
   }
 }

@@ -1,295 +1,246 @@
 /**
- * Copyright (c) HashiCorp, Inc.
- * SPDX-License-Identifier: BUSL-1.1
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
  */
 
+/* eslint-disable qunit/require-expect */
 import { module, test } from 'qunit';
-import { findAll, fillIn, find, click, currentURL } from '@ember/test-helpers';
+import {
+  click,
+  currentURL,
+  fillIn,
+  find,
+  findAll,
+  visit,
+} from '@ember/test-helpers';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
+import faker from 'nomad-ui/mirage/faker';
 import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
 import { allScenarios } from '../../mirage/scenarios/default';
-import Tokens from 'nomad-ui/tests/pages/settings/tokens';
 import AccessControl from 'nomad-ui/tests/pages/access-control';
-import percySnapshot from '@percy/ember';
+
+function signInAs(server, predicate) {
+  const token = server.db.tokens.findBy(predicate);
+  window.localStorage.nomadTokenSecret = token.secretId;
+  return token;
+}
+
+// Finds a list row by the exact text of its name cell
+function rowFor(selector, name) {
+  return findAll(selector).find(
+    (row) =>
+      row
+        .querySelector('[data-test-role-name], [data-test-token-name]')
+        ?.textContent.trim() === name
+  );
+}
 
 module('Acceptance | roles', function (hooks) {
   setupApplicationTest(hooks);
   setupMirage(hooks);
 
-  hooks.beforeEach(async function () {
+  hooks.beforeEach(function () {
     window.localStorage.clear();
-    window.sessionStorage.clear();
+    faker.seed(1);
     allScenarios.rolesTestCluster(server);
-    await Tokens.visit();
-    const managementToken = server.db.tokens.findBy(
-      (t) => t.type === 'management'
-    );
-    const { secretId } = managementToken;
-    await Tokens.secret(secretId).submit();
+    signInAs(server, (t) => t.type === 'management');
+  });
+
+  hooks.afterEach(function () {
+    window.localStorage.clear();
+  });
+
+  test('roles index lists every role, sorted by name', async function (assert) {
     await AccessControl.visitRoles();
-  });
-
-  hooks.afterEach(async function () {
-    await Tokens.visit();
-    await Tokens.clear();
-  });
-
-  test('Roles index, general', async function (assert) {
-    assert.expect(3);
-    await a11yAudit(assert);
-
     assert.equal(currentURL(), '/access-control/roles');
+    assert.equal(AccessControl.roles.length, server.db.roles.length);
 
-    assert
-      .dom('[data-test-role-row]')
-      .exists({ count: server.db.roles.length });
+    const names = AccessControl.roles.map((row) => row.name);
+    const sorted = server.db.roles
+      .map((role) => role.name)
+      .sort((a, b) => a.localeCompare(b));
+    assert.deepEqual(names, sorted, 'rows are sorted by name');
 
-    await percySnapshot(assert);
+    await a11yAudit(assert);
   });
 
-  test('Roles index: deletion', async function (assert) {
-    // Delete every role
-    assert
-      .dom('[data-test-empty-role-list-headline]')
-      .doesNotExist('no empty state');
-    const roleRows = findAll('[data-test-role-row]');
-    for (const row of roleRows) {
-      const deleteButton = row.querySelector('[data-test-delete-role]');
-      await click(deleteButton);
-    }
-    // there should be as many success messages as there were roles
-    assert
-      .dom('.flash-message.alert-success')
-      .exists({ count: roleRows.length });
-
-    assert.dom('[data-test-empty-role-list-headline]').exists('empty state');
-  });
-
-  test('Roles have policies lists', async function (assert) {
-    const role = server.db.roles.findBy((r) => r.name === 'reader');
-    const roleRow = find(`[data-test-role-row="${role.name}"]`);
-    const rolePoliciesCell = roleRow.querySelector('[data-test-role-policies]');
-    const policiesCellTags = rolePoliciesCell
-      .querySelector('.tag-group')
-      .querySelectorAll('span');
-    assert.equal(policiesCellTags.length, 2);
-    assert.equal(policiesCellTags[0].textContent.trim(), 'client-reader');
-    assert.equal(policiesCellTags[1].textContent.trim(), 'job-reader');
-
-    await click(policiesCellTags[0].querySelector('a'));
-    assert.equal(currentURL(), '/access-control/policies/client-reader');
-    assert.dom('[data-test-title]').containsText('client-reader');
-  });
-
-  test('Edit Role: Name and Description', async function (assert) {
-    assert.expect(8);
-    const role = server.db.roles.findBy((r) => r.name === 'reader');
-    await click('[data-test-role-name="reader"] a');
-    assert.equal(currentURL(), `/access-control/roles/${role.id}`);
-
-    assert.dom('[data-test-role-name-input]').hasValue(role.name);
-    assert.dom('[data-test-role-description-input]').hasValue(role.description);
-    assert.dom('[data-test-role-policies]').exists();
-
-    // Modify the name and description
-    await fillIn('[data-test-role-name-input]', 'reader-edited');
-    await fillIn('[data-test-role-description-input]', 'edited description');
-    await click('button[data-test-save-role]');
-    assert.dom('.flash-message.alert-success').exists();
-    assert.equal(
-      currentURL(),
-      `/access-control/roles/${role.name}`,
-      'remain on page after save'
-    );
-    await percySnapshot(assert);
-
-    // Go back to the roles index
+  test('roles index shows policies and token counts', async function (assert) {
     await AccessControl.visitRoles();
-    let readerRoleRow = find('[data-test-role-row="reader-edited"]');
-    assert.dom(readerRoleRow).exists();
-    assert.equal(
-      readerRoleRow
-        .querySelector('[data-test-role-description]')
-        .textContent.trim(),
-      'edited description'
-    );
+
+    const editor = server.db.roles.find('editor');
+    const row = rowFor('[data-test-role-row]', 'editor');
+    const tags = row.querySelectorAll('[data-test-role-policies] .tag');
+    assert.equal(tags.length, editor.policyIds.length);
+    assert
+      .dom(row.querySelector('[data-test-role-description]'))
+      .hasText(editor.description);
+
+    const expectedTokens = server.db.tokens.filter((token) =>
+      (token.roleIds || []).includes('editor')
+    ).length;
+    assert
+      .dom(row.querySelector('[data-test-role-total-tokens]'))
+      .hasText(String(expectedTokens));
   });
 
-  test('Edit Role: Policies', async function (assert) {
-    const role = server.db.roles.findBy((r) => r.name === 'reader');
-    await click('[data-test-role-name="reader"] a');
-    assert.equal(currentURL(), `/access-control/roles/${role.id}`);
-
-    // Policies table is sortable
-
-    const nameCells = findAll('[data-test-policy-name]');
-    const nameCellText = nameCells.map((cell) => cell.textContent.trim());
-    const sortedNameCellText = nameCellText.slice().sort();
-    assert.deepEqual(
-      nameCellText,
-      sortedNameCellText,
-      'Policy names are sorted alphabetically'
-    );
-
-    // Click on the second thead tr th to reverse
-    assert
-      .dom('table[data-test-role-policies] thead tr th:nth-child(2)')
-      .hasAttribute('aria-sort', 'ascending');
-    // await click('table[data-test-role-policies] thead tr th:nth-child(2)');
-    // above didnt work, another way?
-    await click('[data-test-role-policies] thead tr th:nth-child(2) button');
-    assert
-      .dom('table[data-test-role-policies] thead tr th:nth-child(2)')
-      .hasAttribute('aria-sort', 'descending');
-
-    const reversedNameCells = findAll('[data-test-policy-name]');
-    const reversedNameCellText = reversedNameCells.map((cell) =>
-      cell.textContent.trim()
-    );
-    const reversedSortedNameCellText = nameCellText.slice().sort().reverse();
-
-    assert.deepEqual(
-      reversedNameCellText,
-      reversedSortedNameCellText,
-      'Names are reversed alphabetically after click'
-    );
-
-    // Make sure the correct policies are checked
-    const rolePolicies = role.policyIds;
-    // All possible policies are shown
-    const allPolicies = server.db.policies;
-    assert.equal(
-      findAll('[data-test-role-policies] tbody tr').length,
-      allPolicies.length,
-      'all policies are shown'
-    );
-
-    const checkedPolicyRows = findAll(
-      '[data-test-role-policies] tbody tr input:checked'
-    );
-
-    assert.equal(
-      checkedPolicyRows.length,
-      rolePolicies.length,
-      'correct number of policies are checked'
-    );
-
-    const checkedPolicyNames = checkedPolicyRows.map((row) =>
-      row
-        .closest('tr')
-        .querySelector('[data-test-policy-name]')
-        .textContent.trim()
-    );
-
-    assert.deepEqual(
-      checkedPolicyNames.sort(),
-      rolePolicies.sort(),
-      'All policies belonging to this role are checked'
-    );
-
-    // Try de-selecting all policies and saving
-    checkedPolicyRows.forEach((row) => row.click());
-    await click('button[data-test-save-role]');
-    assert
-      .dom('.flash-message.alert-critical')
-      .exists('Doesnt let you save with no policies selected');
-
-    // Check all policies
-    findAll('[data-test-role-policies] tbody tr input').forEach((row) =>
-      row.click()
-    );
-    await click('button[data-test-save-role]');
-    assert.dom('.flash-message.alert-success').exists();
-
+  test('clicking a role row opens the role', async function (assert) {
     await AccessControl.visitRoles();
-    const readerRoleRow = find('[data-test-role-row="reader"]');
-    const readerRolePolicies = readerRoleRow
-      .querySelector('[data-test-role-policies]')
-      .querySelectorAll('span');
-    assert.equal(
-      readerRolePolicies.length,
-      allPolicies.length,
-      'all policies are attached to the role at index level'
-    );
+    await click(rowFor('[data-test-role-row]', 'reader'));
+    assert.equal(currentURL(), '/access-control/roles/reader');
+    assert.dom('[data-test-title]').includesText('reader');
+    assert.dom('[data-test-role-name-input]').hasValue('reader');
   });
 
-  test('Edit Role: Tokens', async function (assert) {
-    assert.expect(10);
-    const role = server.db.roles.findBy((r) => r.name === 'reader');
+  test('role page shows its policies and linked tokens', async function (assert) {
+    const role = server.db.roles.find('editor');
+    await visit('/access-control/roles/editor');
 
-    await click('[data-test-role-name="reader"] a');
-    assert.equal(currentURL(), `/access-control/roles/${role.id}`);
-    assert.dom('table.tokens').exists();
+    assert
+      .dom('[data-test-role-policies] tbody tr')
+      .exists({ count: server.db.policies.length }, 'all policies listed');
 
-    // "Reader" role has a single token with it applied by default
-    assert.dom('[data-test-role-token-row]').exists({ count: 1 });
+    const checked = findAll('[data-test-role-policies] tbody tr input:checked')
+      .map((input) =>
+        input
+          .closest('tr')
+          .querySelector('[data-test-policy-name]')
+          .textContent.trim()
+      )
+      .sort();
+    assert.deepEqual(checked, role.policyIds.slice().sort());
 
-    // Delete it; should get a nice No Tokens message
-    await click('[data-test-delete-token-button]');
-    assert.dom('.flash-message.alert-success').exists();
-    assert.dom('[data-test-role-token-row]').doesNotExist();
-    assert.dom('[data-test-empty-role-list-headline]').exists();
-    // Create two test tokens
-    await click('[data-test-create-test-token]');
-    assert.dom('[data-test-empty-role-list-headline]').doesNotExist();
-    await click('[data-test-create-test-token]');
+    const linkedTokens = server.db.tokens.filter((token) =>
+      (token.roleIds || []).includes('editor')
+    );
     assert
       .dom('[data-test-role-token-row]')
-      .exists({ count: 2 }, 'Test tokens are included on the page');
-    assert
-      .dom('[data-test-role-token-row]:last-child [data-test-token-name]')
-      .hasText(`Example Token for ${role.name}`);
+      .exists({ count: linkedTokens.length });
 
-    await percySnapshot(assert);
-
-    await AccessControl.visitTokens();
-    assert
-      .dom('[data-test-token-name="Example Token for reader"]')
-      .exists(
-        { count: 2 },
-        'The two newly-created tokens are listed on the tokens index page'
-      );
+    await a11yAudit(assert);
   });
-  test('Edit Role: Deletion', async function (assert) {
-    const role = server.db.roles.findBy((r) => r.name === 'reader');
-    await click('[data-test-role-name="reader"] a');
-    assert.equal(currentURL(), `/access-control/roles/${role.id}`);
+
+  test('a role can be edited', async function (assert) {
+    await visit('/access-control/roles/reader');
+    await fillIn('[data-test-role-description-input]', 'Reads all the things');
+    await click('[data-test-save-role]');
+    assert.dom('.flash-message.alert-success').exists();
+
+    const request = server.pretender.handledRequests.find(
+      (req) => req.method === 'PUT' && req.url.includes('/v1/acl/role/reader')
+    );
+    assert.ok(request, 'the role was updated with a PUT');
+    const body = JSON.parse(request.requestBody);
+    assert.equal(body.Description, 'Reads all the things');
+    assert.deepEqual(
+      body.Policies.map((p) => p.Name).sort(),
+      server.db.roles.find('reader').policyIds.slice().sort(),
+      'policies are sent as policy links'
+    );
+
+    await AccessControl.visitRoles();
+    assert
+      .dom(
+        rowFor('[data-test-role-row]', 'reader').querySelector(
+          '[data-test-role-description]'
+        )
+      )
+      .hasText('Reads all the things');
+  });
+
+  test('a role needs at least one policy', async function (assert) {
+    await visit('/access-control/roles/editor');
+    findAll('[data-test-role-policies] tbody tr input:checked').forEach(
+      (input) => input.click()
+    );
+    await click('[data-test-save-role]');
+    assert.dom('.flash-message.alert-critical').exists();
+    assert.notOk(
+      server.pretender.handledRequests.find((req) => req.method === 'PUT'),
+      'nothing is sent to the server'
+    );
+  });
+
+  test('a new role can be created', async function (assert) {
+    await AccessControl.visitRoles();
+    await click('[data-test-create-role]');
+    assert.equal(currentURL(), '/access-control/roles/new');
+
+    await fillIn('[data-test-role-name-input]', 'not a valid name');
+    await click('[data-test-save-role]');
+    assert
+      .dom('.flash-message.alert-critical')
+      .exists('invalid names are rejected');
+    assert.equal(currentURL(), '/access-control/roles/new');
+
+    await fillIn('[data-test-role-name-input]', 'auditor');
+    await fillIn('[data-test-role-description-input]', 'Looks at things');
+    const jobReaderRow = findAll('[data-test-role-policies] tbody tr').find(
+      (row) =>
+        row.querySelector('[data-test-policy-name]').textContent.trim() ===
+        'job-reader'
+    );
+    await click(jobReaderRow.querySelector('input'));
+    await click('[data-test-save-role]');
+
+    assert.dom('.flash-message.alert-success').exists();
+    const created = server.db.roles.findBy({ name: 'auditor' });
+    assert.ok(created, 'the role exists in the backend');
+    assert.equal(currentURL(), `/access-control/roles/${created.id}`);
+
+    const request = server.pretender.handledRequests.find(
+      (req) => req.method === 'POST' && req.url.endsWith('/v1/acl/role')
+    );
+    const body = JSON.parse(request.requestBody);
+    assert.equal(body.Name, 'auditor');
+    assert.deepEqual(body.Policies, [{ Name: 'job-reader' }]);
+
+    await AccessControl.visitRoles();
+    assert.ok(rowFor('[data-test-role-row]', 'auditor'), 'listed');
+  });
+
+  test('role names must be unique', async function (assert) {
+    await visit('/access-control/roles/new');
+    await fillIn('[data-test-role-name-input]', 'editor');
+    await click(find('[data-test-role-policies] tbody tr input'));
+    await click('[data-test-save-role]');
+    assert.dom('.flash-message.alert-critical').exists();
+    assert.equal(currentURL(), '/access-control/roles/new');
+  });
+
+  test('a role can be deleted from its page', async function (assert) {
+    await visit('/access-control/roles/denier');
     await click('[data-test-delete-role]');
     assert.dom('.flash-message.alert-success').exists();
     assert.equal(currentURL(), '/access-control/roles');
-    assert.dom('[data-test-role-row="reader"]').doesNotExist();
+    assert.notOk(rowFor('[data-test-role-row]', 'denier'));
+    assert.notOk(server.db.roles.find('denier'), 'deleted in the backend');
+
+    // Tokens no longer show the deleted role
+    await AccessControl.visitTokens();
+    const tokenRow = rowFor('[data-test-token-row]', 'Clientless Role Token');
+    assert
+      .dom(tokenRow.querySelector('[data-test-token-roles]'))
+      .hasText('No Roles');
   });
-  test('New Role', async function (assert) {
-    await click('[data-test-create-role]');
-    assert.equal(currentURL(), '/access-control/roles/new');
-    await fillIn('[data-test-role-name-input]', 'test-role');
-    await click('button[data-test-save-role]');
-    assert
-      .dom('.flash-message.alert-critical')
-      .exists('Cannnot save with no policies selected');
 
-    // Select a policy
-    await click('[data-test-role-policies] tbody tr input');
-    await click('button[data-test-save-role]');
-    assert.dom('.flash-message.alert-success').exists();
-    assert.equal(currentURL(), '/access-control/roles/1'); // default id created via mirage
+  test('deleting every role shows an empty state', async function (assert) {
     await AccessControl.visitRoles();
-    assert.dom('[data-test-role-row="test-role"]').exists();
-
-    // Now, try deleting all policies then doing this again. There'll be a warning on the roles/new page.
-    await AccessControl.visitPolicies();
-    const policyRows = findAll('[data-test-policy-row]');
-    for (const row of policyRows) {
-      const deleteButton = row.querySelector('[data-test-delete-policy]');
-      await click(deleteButton);
+    for (const row of findAll('[data-test-role-row]')) {
+      await click(row.querySelector('[data-test-delete-role]'));
     }
-    assert.dom('[data-test-empty-policies-list-headline]').exists();
-    await AccessControl.visitRoles();
-    await click('[data-test-create-role]');
-    assert.dom('.empty-message').exists();
-    assert
-      .dom('.empty-message-body')
-      .containsText('At least one Policy is required to create a Role');
+    assert.dom('[data-test-role-row]').doesNotExist();
+    assert.dom('[data-test-empty-roles-list-headline]').exists();
+    assert.equal(
+      currentURL(),
+      '/access-control/roles',
+      'delete buttons do not open the role'
+    );
+  });
+
+  test('roles are not accessible without a management token', async function (assert) {
+    signInAs(server, (t) => t.name === 'High Level Role Token');
+    await visit('/access-control/roles');
+    assert.equal(currentURL(), '/jobs');
   });
 });

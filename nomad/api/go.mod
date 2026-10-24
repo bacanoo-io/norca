@@ -1,6 +1,8 @@
 module github.com/hashicorp/nomad/api
 
-go 1.20
+go 1.27
+
+toolchain go1.27.3
 
 require (
 	github.com/docker/go-units v0.5.0

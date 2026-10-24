@@ -80,6 +80,8 @@ type ServiceCheck struct {
 	FailuresBeforeCritical int                 // Number of consecutive failures required before considered unhealthy
 	Body                   string              // Body to use in HTTP check
 	OnUpdate               string
+	Role                   string        // Role of the check: startup, readiness, liveness, or empty (see check_roles.go)
+	StartupTimeout         time.Duration // How long a startup check may take to pass before the task is restarted
 }
 
 // IsReadiness returns whether the configuration of the ServiceCheck is effectively
@@ -168,7 +170,7 @@ func (sc *ServiceCheck) Equal(o *ServiceCheck) bool {
 		return false
 	}
 
-	if sc.PortLabel != o.Path {
+	if sc.PortLabel != o.PortLabel {
 		return false
 	}
 
@@ -201,6 +203,14 @@ func (sc *ServiceCheck) Equal(o *ServiceCheck) bool {
 	}
 
 	if sc.OnUpdate != o.OnUpdate {
+		return false
+	}
+
+	if sc.Role != o.Role {
+		return false
+	}
+
+	if sc.StartupTimeout != o.StartupTimeout {
 		return false
 	}
 
@@ -239,6 +249,9 @@ func (sc *ServiceCheck) Canonicalize(serviceName, taskName string) {
 	if sc.OnUpdate == "" {
 		sc.OnUpdate = OnUpdateRequireHealthy
 	}
+
+	// Apply the defaults implied by the check role, if any
+	sc.canonicalizeRole()
 }
 
 // validateCommon validates the parts of ServiceCheck shared across providers.
@@ -316,8 +329,9 @@ func (sc *ServiceCheck) validateCommon(allowableTypes []string) error {
 		// CheckRestart and OnUpdate Ignore are incompatible If OnUpdate treats
 		// an error has healthy, and the deployment succeeds followed by check
 		// restart restarting failing checks, the deployment is left in an odd
-		// state
-		if sc.OnUpdate == OnUpdateIgnore {
+		// state. Liveness checks never count toward deployment health, so the
+		// conflict does not apply to them.
+		if sc.OnUpdate == OnUpdateIgnore && sc.Role != CheckRoleLiveness {
 			return fmt.Errorf("on_update value %q is not compatible with check_restart", sc.OnUpdate)
 		}
 		// CheckRestart IgnoreWarnings must be true if a check has defined OnUpdate
@@ -329,6 +343,11 @@ func (sc *ServiceCheck) validateCommon(allowableTypes []string) error {
 
 	// validate check_restart
 	if err := sc.CheckRestart.Validate(); err != nil {
+		return err
+	}
+
+	// validate role and startup_timeout
+	if err := sc.validateRole(); err != nil {
 		return err
 	}
 
@@ -403,6 +422,14 @@ func (sc *ServiceCheck) validateConsul() error {
 		return err
 	}
 
+	// Liveness checks of Consul services are not registered in Consul; the
+	// Nomad client executes them, so they are limited to what it supports.
+	if sc.Role == CheckRoleLiveness {
+		if err := sc.validateNomad(); err != nil {
+			return fmt.Errorf("liveness checks are executed by the Nomad client: %v", err)
+		}
+	}
+
 	checkType := strings.ToLower(sc.Type)
 
 	// Note that we cannot completely validate the Expose field yet - we do not
@@ -454,6 +481,18 @@ func (sc *ServiceCheck) RequiresPort() bool {
 // TriggersRestarts returns true if this check should be watched and trigger a restart
 // on failure.
 func (sc *ServiceCheck) TriggersRestarts() bool {
+	switch sc.Role {
+	case CheckRoleReadiness:
+		// readiness checks never restart the task
+		return false
+	case CheckRoleStartup:
+		// startup checks restart the task after startup_timeout, and gate the
+		// restarts of the other checks of the task
+		return true
+	case CheckRoleLiveness:
+		// liveness checks default to check_restart { limit = 3 }
+		return sc.CheckRestart == nil || sc.CheckRestart.Limit > 0
+	}
 	return sc.CheckRestart != nil && sc.CheckRestart.Limit > 0
 }
 
@@ -498,6 +537,10 @@ func (sc *ServiceCheck) Hash(serviceID string) string {
 	// Only include pass/fail if non-zero to maintain ID stability with Nomad < 0.12
 	hashIntIfNonZero(h, "success", sc.SuccessBeforePassing)
 	hashIntIfNonZero(h, "failures", sc.FailuresBeforeCritical)
+
+	// Only include the role if set to maintain ID stability for checks
+	// without a role. A role change may move a check in or out of Consul.
+	hashStringIfNonEmptyNamed(h, "role", sc.Role)
 
 	// Hash is used for diffing against the Consul check definition, which does
 	// not have an expose parameter. Instead we rely on implied changes to

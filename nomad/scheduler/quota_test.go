@@ -120,10 +120,11 @@ func TestQuotaIterator_DestructiveUpdateAtLimit(t *testing.T) {
 
 	nodes, err := h.State.Nodes(nil)
 	must.NoError(t, err)
-	node := nodes.Next().(*structs.Node)
 
+	// One allocation per node so their reserved ports don't collide
 	var allocs []*structs.Allocation
 	for i := 0; i < 3; i++ {
+		node := nodes.Next().(*structs.Node)
 		alloc := mock.Alloc()
 		alloc.Namespace = ns.Name
 		alloc.Job = job

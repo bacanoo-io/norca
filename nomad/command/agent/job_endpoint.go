@@ -1057,6 +1057,8 @@ func ApiTgToStructsTG(job *structs.Job, taskGroup *api.TaskGroup, tg *structs.Ta
 	tg.Meta = taskGroup.Meta
 	tg.Constraints = ApiConstraintsToStructs(taskGroup.Constraints)
 	tg.Affinities = ApiAffinitiesToStructs(taskGroup.Affinities)
+	tg.Colocate = ApiAllocAffinitiesToStructs(taskGroup.Colocate)
+	tg.Separate = ApiAllocAffinitiesToStructs(taskGroup.Separate)
 	tg.Networks = ApiNetworkResourceToStructs(taskGroup.Networks)
 	tg.Services = ApiServicesToStructs(taskGroup.Services, true)
 	tg.Consul = apiConsulToStructs(taskGroup.Consul)
@@ -1501,6 +1503,8 @@ func ApiServicesToStructs(in []*api.Service, group bool) []*structs.Service {
 					SuccessBeforePassing:   check.SuccessBeforePassing,
 					FailuresBeforeCritical: check.FailuresBeforeCritical,
 					OnUpdate:               onUpdate,
+					Role:                   check.Role,
+					StartupTimeout:         check.StartupTimeout,
 				}
 
 				if group {
@@ -1864,6 +1868,28 @@ func ApiConstraintToStructs(in *api.Constraint) *structs.Constraint {
 		RTarget: in.RTarget,
 		Operand: in.Operand,
 	}
+}
+
+// ApiAllocAffinitiesToStructs converts colocate and separate rules.
+func ApiAllocAffinitiesToStructs(in []*api.AllocAffinity) []*structs.AllocAffinity {
+	if in == nil {
+		return nil
+	}
+
+	out := make([]*structs.AllocAffinity, len(in))
+	for i, a := range in {
+		out[i] = &structs.AllocAffinity{
+			Selector:  maps.Clone(a.Selector),
+			Namespace: a.Namespace,
+			Scope:     a.Scope,
+			Required:  a.Required,
+		}
+		if a.Weight != nil {
+			out[i].Weight = *a.Weight
+		}
+	}
+
+	return out
 }
 
 func ApiAffinitiesToStructs(in []*api.Affinity) []*structs.Affinity {

@@ -38,6 +38,10 @@ type restarter struct {
 	// graceUntil is when the check's grace period expires and unhealthy
 	// checks should be counted.
 	graceUntil time.Time
+
+	// roleState holds the state specific to the role of the check, if any
+	// (see watcher_roles.go).
+	roleState
 }
 
 // apply restart state for check and restart task if necessary. Current
@@ -57,6 +61,10 @@ func (r *restarter) apply(ctx context.Context, now time.Time, status string) boo
 	case "critical": // consul
 	case string(structs.CheckFailure): // nomad
 	case string(structs.CheckPending): // nomad
+		if r.ignorePending {
+			// A check that has not run yet says nothing about liveness
+			return false
+		}
 	case "warning": // consul
 		if r.ignoreWarnings {
 			// Warnings are ignored, reset state and exit
@@ -166,6 +174,10 @@ type UniversalCheckWatcher struct {
 	// failedPreviousInterval is used to indicate whether something went wrong during
 	// the previous poll interval - if so we can silence ongoing errors
 	failedPreviousInterval bool
+
+	// local provides the statuses of checks executed by the Nomad client on
+	// behalf of another provider (liveness checks of Consul services).
+	local localGetter
 }
 
 func NewCheckWatcher(logger hclog.Logger, getter CheckStatusGetter) *UniversalCheckWatcher {
@@ -185,19 +197,16 @@ func (w *UniversalCheckWatcher) Watch(allocID, taskName, checkID string, check *
 	}
 
 	c := &restarter{
-		allocID:        allocID,
-		taskName:       taskName,
-		checkID:        checkID,
-		checkName:      check.Name,
-		taskKey:        key(allocID + taskName),
-		task:           wr,
-		interval:       check.Interval,
-		grace:          check.CheckRestart.Grace,
-		graceUntil:     time.Now().Add(check.CheckRestart.Grace),
-		timeLimit:      check.Interval * time.Duration(check.CheckRestart.Limit-1),
-		ignoreWarnings: check.CheckRestart.IgnoreWarnings,
-		logger:         w.logger.With("alloc_id", allocID, "task", taskName, "check", check.Name),
+		allocID:   allocID,
+		taskName:  taskName,
+		checkID:   checkID,
+		checkName: check.Name,
+		taskKey:   key(allocID + taskName),
+		task:      wr,
+		interval:  check.Interval,
+		logger:    w.logger.With("alloc_id", allocID, "task", taskName, "check", check.Name),
 	}
+	c.configure(check, time.Now())
 
 	select {
 	case w.checkUpdateCh <- checkWatchUpdate{
@@ -285,9 +294,13 @@ func (w *UniversalCheckWatcher) interval(ctx context.Context, now time.Time, wat
 		return
 	}
 	w.failedPreviousInterval = false
+	statuses = w.mergeLocalStatuses(statuses)
 
 	// keep track of tasks restarted this interval
 	restarts := set.New[key](len(statuses))
+
+	// startup checks go first, as they gate the other checks of their task
+	starting := w.applyStartup(ctx, now, err == nil, statuses, watched, restarts)
 
 	// iterate over status of all checks, and update the status of checks
 	// we care about watching
@@ -296,9 +309,20 @@ func (w *UniversalCheckWatcher) interval(ctx context.Context, now time.Time, wat
 			return //  short circuit; caller cancelled us
 		}
 
+		if checkRestarter.isStartup() {
+			continue // handled by applyStartup
+		}
+
 		if restarts.Contains(checkRestarter.taskKey) {
 			// skip; task is already being restarted
 			delete(watched, checkID)
+			continue
+		}
+
+		if starting.Contains(checkRestarter.taskKey) {
+			// the startup check of the task has not passed yet, so the
+			// check does not count toward restarts
+			checkRestarter.unhealthyState = time.Time{}
 			continue
 		}
 

@@ -1,12 +1,10 @@
 {{!
-  Copyright (c) HashiCorp, Inc.
-  SPDX-License-Identifier: BUSL-1.1
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
 ~}}
 
-{{page-title "Access Control"}}
-
-<Breadcrumb @crumb={{hash label="Access Control" args=(array "access-control")}} />
+<Breadcrumb @crumb={{hash label="Access Control" args=(array "access-control.index")}} />
 <PageLayout>
-  <AccessControlSubnav @client={{this.model}} />
+  <AccessControlSubnav />
   {{outlet}}
 </PageLayout>

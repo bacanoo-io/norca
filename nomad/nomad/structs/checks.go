@@ -49,6 +49,10 @@ type CheckQueryResult struct {
 	Output     string
 	Timestamp  int64
 
+	// Role is the role of the check (startup, readiness, liveness), empty if
+	// the check has no role.
+	Role string `json:",omitempty"`
+
 	// check coordinates
 	Group   string
 	Task    string `json:",omitempty"`
@@ -90,6 +94,9 @@ func NomadCheckID(allocID, group string, c *ServiceCheck) CheckID {
 	hashString(sum, c.Protocol)
 	hashString(sum, c.Path)
 	hashString(sum, c.Method)
+	// only include the role if set, so the IDs of checks without a role are
+	// stable across upgrades
+	hashStringIfNonEmptyNamed(sum, "role", c.Role)
 	h := sum.Sum(nil)
 	return CheckID(fmt.Sprintf("%x", h))
 }

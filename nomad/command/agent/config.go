@@ -682,6 +682,12 @@ type ServerConfig struct {
 
 	// JobTrackedVersions is the number of historic job versions that are kept.
 	JobTrackedVersions *int `hcl:"job_tracked_versions"`
+
+	// Autoscaler configures the built-in autoscaler.
+	Autoscaler *AutoscalerConfig `hcl:"autoscaler"`
+
+	// Admission configures the dynamic admission control webhooks.
+	Admission *config.AdmissionConfig `hcl:"admission"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -711,6 +717,8 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobDefaultPriority = pointer.Copy(s.JobDefaultPriority)
 	ns.JobMaxPriority = pointer.Copy(s.JobMaxPriority)
 	ns.JobTrackedVersions = pointer.Copy(s.JobTrackedVersions)
+	ns.Autoscaler = s.Autoscaler.Copy()
+	ns.Admission = s.Admission.Copy()
 	return &ns
 }
 
@@ -1319,7 +1327,7 @@ func DefaultConfig() *Config {
 		Server: &ServerConfig{
 			Enabled:           false,
 			EnableEventBroker: pointer.Of(true),
-			EventBufferSize:   pointer.Of(100),
+			EventBufferSize:   pointer.Of(1000),
 			RaftProtocol:      3,
 			StartJoin:         []string{},
 			PlanRejectionTracker: &PlanRejectionTracker{
@@ -2018,6 +2026,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 		result.PlanRejectionTracker = result.PlanRejectionTracker.Merge(b.PlanRejectionTracker)
 	}
 
+	if b.Autoscaler != nil {
+		result.Autoscaler = result.Autoscaler.Merge(b.Autoscaler)
+	}
+
 	if b.DefaultSchedulerConfig != nil {
 		c := *b.DefaultSchedulerConfig
 		result.DefaultSchedulerConfig = &c
@@ -2060,6 +2072,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.JobTrackedVersions != nil {
 		result.JobTrackedVersions = b.JobTrackedVersions
+	}
+
+	if b.Admission != nil {
+		result.Admission = result.Admission.Merge(b.Admission)
 	}
 
 	// Add the schedulers

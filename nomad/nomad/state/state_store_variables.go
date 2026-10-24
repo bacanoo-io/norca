@@ -115,7 +115,7 @@ func (s *StateStore) GetVariable(
 
 // VarSet is used to store a variable object.
 func (s *StateStore) VarSet(idx uint64, sv *structs.VarApplyStateRequest) *structs.VarApplyStateResponse {
-	tx := s.db.WriteTxn(idx)
+	tx := s.db.WriteTxnMsgT(structs.VarApplyStateRequestType, idx)
 	defer tx.Abort()
 
 	// Perform the actual set.
@@ -134,7 +134,7 @@ func (s *StateStore) VarSet(idx uint64, sv *structs.VarApplyStateRequest) *struc
 // variable. The ModifyIndex in the provided entry is used to determine if
 // we should write the entry to the state store or not.
 func (s *StateStore) VarSetCAS(idx uint64, sv *structs.VarApplyStateRequest) *structs.VarApplyStateResponse {
-	tx := s.db.WriteTxn(idx)
+	tx := s.db.WriteTxnMsgT(structs.VarApplyStateRequestType, idx)
 	defer tx.Abort()
 
 	resp := s.varSetCASTxn(tx, idx, sv)
@@ -278,7 +278,7 @@ func (s *StateStore) varSetTxn(tx WriteTxn, idx uint64, req *structs.VarApplySta
 // VarDelete is used to delete a single variable in the
 // the state store.
 func (s *StateStore) VarDelete(idx uint64, req *structs.VarApplyStateRequest) *structs.VarApplyStateResponse {
-	tx := s.db.WriteTxn(idx)
+	tx := s.db.WriteTxnMsgT(structs.VarApplyStateRequestType, idx)
 	defer tx.Abort()
 
 	// Perform the actual delete
@@ -300,7 +300,7 @@ func (s *StateStore) VarDelete(idx uint64, req *structs.VarApplyStateRequest) *s
 // last observed index for the given variable, then the call is a noop,
 // otherwise a normal delete is invoked.
 func (s *StateStore) VarDeleteCAS(idx uint64, req *structs.VarApplyStateRequest) *structs.VarApplyStateResponse {
-	tx := s.db.WriteTxn(idx)
+	tx := s.db.WriteTxnMsgT(structs.VarApplyStateRequestType, idx)
 	defer tx.Abort()
 
 	resp := s.svDeleteCASTxn(tx, idx, req)

@@ -16,10 +16,12 @@ import (
 	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/scheduler"
+	"github.com/hashicorp/nomad/version"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
 )
@@ -134,6 +136,10 @@ type Config struct {
 	// Build is a string that is gossiped around, and can be used to help
 	// operators track which versions are actively deployed
 	Build string
+
+	// NorcaBuild is the Norca product version gossiped by servers. Norca
+	// features gate on it rather than on Build.
+	NorcaBuild string
 
 	// Revision is a string that carries the version.GitCommit of Nomad that
 	// was compiled.
@@ -411,6 +417,9 @@ type Config struct {
 	// DeploymentWatcher to throttle the amount of simultaneously deployments
 	DeploymentQueryRateLimit float64
 
+	// Autoscaler configures the built-in autoscaler.
+	Autoscaler *autoscaler.Config
+
 	// JobDefaultPriority is the default Job priority if not specified.
 	JobDefaultPriority int
 
@@ -419,6 +428,9 @@ type Config struct {
 
 	// JobTrackedVersions is the number of historic Job versions that are kept.
 	JobTrackedVersions int
+
+	// AdmissionConfig configures the dynamic admission control webhooks.
+	AdmissionConfig *config.AdmissionConfig
 }
 
 func (c *Config) Copy() *Config {
@@ -447,6 +459,7 @@ func (c *Config) Copy() *Config {
 	nc.AutopilotConfig = c.AutopilotConfig.Copy()
 	nc.LicenseConfig = c.LicenseConfig.Copy()
 	nc.SearchConfig = c.SearchConfig.Copy()
+	nc.AdmissionConfig = c.AdmissionConfig.Copy()
 
 	return &nc
 }
@@ -465,6 +478,7 @@ func DefaultConfig() *Config {
 		Datacenter:                       DefaultDC,
 		NodeName:                         hostname,
 		NodeID:                           uuid.Generate(),
+		NorcaBuild:                       version.NorcaVersion,
 		RaftConfig:                       raft.DefaultConfig(),
 		RaftTimeout:                      10 * time.Second,
 		LogOutput:                        os.Stderr,
@@ -515,7 +529,7 @@ func DefaultConfig() *Config {
 		SentinelGCInterval:               30 * time.Second,
 		LicenseConfig:                    &LicenseConfig{},
 		EnableEventBroker:                true,
-		EventBufferSize:                  100,
+		EventBufferSize:                  1000,
 		ACLTokenMinExpirationTTL:         1 * time.Minute,
 		ACLTokenMaxExpirationTTL:         24 * time.Hour,
 		AutopilotConfig: &structs.AutopilotConfig{
@@ -536,6 +550,7 @@ func DefaultConfig() *Config {
 			},
 		},
 		DeploymentQueryRateLimit: deploymentwatcher.LimitStateQueriesPerSecond,
+		Autoscaler:               autoscaler.DefaultConfig(),
 		JobDefaultPriority:       structs.JobDefaultPriority,
 		JobMaxPriority:           structs.JobDefaultMaxPriority,
 		JobTrackedVersions:       structs.JobDefaultTrackedVersions,

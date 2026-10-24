@@ -310,7 +310,8 @@ func (s *StateStore) SnapshotMinIndex(ctx context.Context, index uint64) (*State
 func (s *StateStore) Restore() (*StateRestore, error) {
 	txn := s.db.WriteTxnRestore()
 	r := &StateRestore{
-		txn: txn,
+		txn:       txn,
+		publisher: s.db.publisher,
 	}
 	return r, nil
 }

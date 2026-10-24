@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"testing"
 	"time"
 
 	hclog "github.com/hashicorp/go-hclog"
@@ -25,7 +26,6 @@ import (
 	"github.com/hashicorp/nomad/plugins/base"
 	"github.com/hashicorp/nomad/plugins/drivers"
 	"github.com/hashicorp/nomad/plugins/shared/hclspec"
-	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +33,7 @@ type DriverHarness struct {
 	drivers.DriverPlugin
 	client *plugin.GRPCClient
 	server *plugin.GRPCServer
-	t      testing.T
+	t      testing.TB
 	logger hclog.Logger
 	impl   drivers.DriverPlugin
 	cgroup string
@@ -42,11 +42,11 @@ type DriverHarness struct {
 func (h *DriverHarness) Impl() drivers.DriverPlugin {
 	return h.impl
 }
-func NewDriverHarness(t testing.T, d drivers.DriverPlugin) *DriverHarness {
+func NewDriverHarness(t testing.TB, d drivers.DriverPlugin) *DriverHarness {
 	logger := testlog.HCLogger(t).Named("driver_harness")
 	pd := drivers.NewDriverPlugin(d, logger)
 
-	client, server := plugin.TestPluginGRPCConn(t,
+	client, server := plugin.TestPluginGRPCConn(t, false,
 		map[string]plugin.Plugin{
 			base.PluginTypeDriver: pd,
 			base.PluginTypeBase:   &base.PluginBase{Impl: d},

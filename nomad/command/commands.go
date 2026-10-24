@@ -75,6 +75,21 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 	}
 
 	all := map[string]cli.CommandFactory{
+		"admission-policy": func() (cli.Command, error) {
+			return &AdmissionPolicyCommand{Meta: meta}, nil
+		},
+		"admission-policy apply": func() (cli.Command, error) {
+			return &AdmissionPolicyApplyCommand{Meta: meta}, nil
+		},
+		"admission-policy delete": func() (cli.Command, error) {
+			return &AdmissionPolicyDeleteCommand{Meta: meta}, nil
+		},
+		"admission-policy inspect": func() (cli.Command, error) {
+			return &AdmissionPolicyInspectCommand{Meta: meta}, nil
+		},
+		"admission-policy list": func() (cli.Command, error) {
+			return &AdmissionPolicyListCommand{Meta: meta}, nil
+		},
 		"acl": func() (cli.Command, error) {
 			return &ACLCommand{
 				Meta: meta,

@@ -1,6 +1,6 @@
 /**
- * Copyright (c) HashiCorp, Inc.
- * SPDX-License-Identifier: BUSL-1.1
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
  */
 
 import Route from '@ember/routing/route';
@@ -9,6 +9,7 @@ import { inject as service } from '@ember/service';
 export default class AccessControlTokensNewRoute extends Route {
   @service can;
   @service router;
+  @service store;
 
   beforeModel() {
     if (this.can.cannot('write token')) {
@@ -16,23 +17,24 @@ export default class AccessControlTokensNewRoute extends Route {
     }
   }
 
-  async model() {
-    let token = await this.store.createRecord('token', {
-      name: '',
-      type: 'client',
-    });
+  model() {
     return {
-      token,
-      policies: await this.store.findAll('policy'),
-      roles: await this.store.findAll('role'),
+      token: this.store.createRecord('token', {
+        name: '',
+        type: 'client',
+        global: false,
+      }),
+      policies: this.store.peekAll('policy'),
+      roles: this.store.peekAll('role'),
     };
   }
 
   resetController(controller, isExiting) {
     if (isExiting) {
-      // If user didn't save, delete the freshly created model
-      if (controller.model.token.isNew) {
-        controller.model.token.destroyRecord();
+      // Discard the draft record if the user leaves without saving
+      const { token } = controller.model;
+      if (token.isNew) {
+        token.destroyRecord();
       }
     }
   }

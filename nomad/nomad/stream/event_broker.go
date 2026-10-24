@@ -23,6 +23,23 @@ const (
 	ACLCheckNodeRead   = "node-read"
 	ACLCheckManagement = "management"
 	aclCacheSize       = 32
+
+	// DefaultEventBufferSize is the number of events held in memory when no
+	// size is configured.
+	DefaultEventBufferSize = 1000
+)
+
+var (
+	// ErrIndexNotAvailable is returned when a subscription must start exactly
+	// at an index, but events at or after that index are no longer (or were
+	// never) in the buffer. The subscriber has to resynchronize its state,
+	// for example by listing the objects again, and subscribe from the index
+	// of that listing.
+	ErrIndexNotAvailable = errors.New("requested index is no longer available in the event buffer")
+
+	// ErrExactIndexRequired is returned when a subscription asks to start
+	// exactly at an index without giving one.
+	ErrExactIndexRequired = errors.New("a non-zero index is required to start exactly at an index")
 )
 
 type EventBrokerCfg struct {
@@ -62,7 +79,7 @@ func NewEventBroker(ctx context.Context, aclDelegate ACLDelegate, cfg EventBroke
 
 	// Set the event buffer size to a minimum
 	if cfg.EventBufferSize == 0 {
-		cfg.EventBufferSize = 100
+		cfg.EventBufferSize = DefaultEventBufferSize
 	}
 
 	buffer := newEventBuffer(cfg.EventBufferSize)
@@ -120,7 +137,7 @@ func (e *EventBroker) SubscribeWithACLCheck(req *SubscribeRequest) (*Subscriptio
 		return nil, nil, structs.ErrPermissionDenied
 	}
 
-	sub, err := e.Subscribe(req)
+	sub, err := e.subscribe(req, aclObj)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -134,14 +151,27 @@ func (e *EventBroker) SubscribeWithACLCheck(req *SubscribeRequest) (*Subscriptio
 //
 // A Subscription will start at the requested index, or as close as possible to
 // the requested index if it is no longer in the buffer. If StartExactlyAtIndex is
-// set and the index is no longer in the buffer or not yet in the buffer an error
-// will be returned.
+// set, the subscription delivers every event with an index at or after the
+// requested index, and ErrIndexNotAvailable is returned if events of the
+// requested topics at or after that index may have been dropped from the
+// buffer or predate it. A requested index the buffer has not reached yet is
+// not an error; the subscription waits for it.
 //
 // When a caller is finished with the subscription it must call Subscription.Unsubscribe
 // to free ACL tracking resources.
 func (e *EventBroker) Subscribe(req *SubscribeRequest) (*Subscription, error) {
+	return e.subscribe(req, nil)
+}
+
+// subscribe creates the subscription. A non-nil aclObj is used to authorize
+// each event of topics that require per-event checks.
+func (e *EventBroker) subscribe(req *SubscribeRequest, aclObj *acl.ACL) (*Subscription, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	if req.StartExactlyAtIndex && req.Index == 0 {
+		return nil, ErrExactIndexRequired
+	}
 
 	var head *bufferItem
 	var offset int
@@ -150,8 +180,14 @@ func (e *EventBroker) Subscribe(req *SubscribeRequest) (*Subscription, error) {
 	} else {
 		head = e.eventBuf.Head()
 	}
-	if offset > 0 && req.StartExactlyAtIndex {
-		return nil, fmt.Errorf("requested index not in buffer")
+	if req.StartExactlyAtIndex {
+		// The watermark is read after the start item was chosen: an item
+		// dropped after this point makes the subscription fail with a
+		// dropped-event error instead of skipping events silently.
+		if missing := e.eventBuf.watermarks.missingAt(req.Topics); req.Index <= missing {
+			return nil, fmt.Errorf("%w: requested index %d, events may be missing up to index %d",
+				ErrIndexNotAvailable, req.Index, missing)
+		}
 	} else if offset > 0 {
 		metrics.SetGauge([]string{"nomad", "event_broker", "subscription", "request_offset"}, float32(offset))
 		e.logger.Debug("requested index no longer in buffer", "requsted", int(req.Index), "closest", int(head.Events.Index))
@@ -163,9 +199,22 @@ func (e *EventBroker) Subscribe(req *SubscribeRequest) (*Subscription, error) {
 	close(start.link.nextCh)
 
 	sub := newSubscription(req, start, e.subscriptions.unsubscribeFn(req))
+	if aclObj != nil {
+		sub.aclObj.Store(aclObj)
+	}
 
 	e.subscriptions.add(req, sub)
 	return sub, nil
+}
+
+// SetBaseIndexes tells the broker that its state store was restored from a
+// snapshot at the given index, so events up to that index were never
+// published. byTopic optionally gives, per topic, the last index at which the
+// restored state changed objects of that topic; it allows exact-index
+// subscriptions to resume from an older index for topics that did not change
+// since. Topics not in byTopic use index.
+func (e *EventBroker) SetBaseIndexes(index uint64, byTopic map[structs.Topic]uint64) {
+	e.eventBuf.watermarks.setBase(index, byTopic)
 }
 
 // CloseAll closes all subscriptions
@@ -220,7 +269,7 @@ func (e *EventBroker) handleACLUpdates(ctx context.Context) {
 				}
 
 				e.subscriptions.closeSubscriptionFunc(tokenSecretID, func(sub *Subscription) bool {
-					return !aclAllowsSubscription(aclObj, sub.req)
+					return !sub.refreshACL(aclObj)
 				})
 
 			case *structs.ACLPolicyEvent, *structs.ACLRoleStreamEvent:
@@ -268,7 +317,7 @@ func (e *EventBroker) checkSubscriptionsAgainstACLChange() {
 		}
 
 		e.subscriptions.closeSubscriptionFunc(tokenSecretID, func(sub *Subscription) bool {
-			return !aclAllowsSubscription(aclObj, sub.req)
+			return !sub.refreshACL(aclObj)
 		})
 	}
 }
@@ -353,7 +402,14 @@ type ACLDelegate interface {
 }
 
 func aclAllowsSubscription(aclObj *acl.ACL, subReq *SubscribeRequest) bool {
-	for topic := range subReq.Topics {
+	for topic, keys := range subReq.Topics {
+		if policy, ok := topicPolicies[topic]; ok && policy.allowSubscribe != nil {
+			if !policy.allowSubscribe(aclObj, subReq.Namespace, keys) {
+				return false
+			}
+			continue
+		}
+
 		switch topic {
 		case structs.TopicDeployment,
 			structs.TopicEvaluation,
@@ -375,6 +431,10 @@ func aclAllowsSubscription(aclObj *acl.ACL, subReq *SubscribeRequest) bool {
 			}
 		case structs.TopicQuota:
 			if ok := aclObj.AllowQuotaRead(); !ok {
+				return false
+			}
+		case structs.TopicAdmissionPolicy:
+			if ok := aclObj.AllowAdmissionRead(); !ok {
 				return false
 			}
 		default:

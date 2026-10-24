@@ -73,6 +73,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobExposeCheckHook{},
 			jobImpliedConstraints{},
 			jobNodePoolMutatingHook{srv: s},
+			admissionWebhookMutator{srv: s},
 			jobQuotaMutatingHook{srv: s},
 		},
 		validators: []jobValidator{
@@ -81,6 +82,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobVaultHook{srv: s},
 			jobNamespaceConstraintCheckHook{srv: s},
 			jobNodePoolValidatingHook{srv: s},
+			jobAllocAffinityHook{srv: s},
 			jobQuotaValidatingHook{srv: s},
 			&jobValidate{srv: s},
 			&memoryOversubscriptionValidate{srv: s},
@@ -111,7 +113,8 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	}
 
 	// Run admission controllers
-	job, warnings, err := j.admissionControllers(args.Job)
+	job, warnings, err := j.admissionControllers(args.Job, &admissionRequest{
+		operation: structs.AdmissionOperationRegister, args: args})
 	if err != nil {
 		return err
 	}
@@ -184,6 +187,11 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 					}
 				}
 			}
+		}
+
+		// Colocate and separate rules observe the jobs of their target namespaces
+		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
+			return structs.ErrPermissionDenied
 		}
 
 		// Check if override is set and we do not have permissions
@@ -295,7 +303,7 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	if err != nil {
 		return err
 	}
-	policyWarnings, err := j.enforceSubmitJob(args.PolicyOverride, args.Job.Copy(), nomadACLToken, ns)
+	policyWarnings, err := j.enforceSubmitJob(structs.AdmissionOperationRegister, args.PolicyOverride, args.Job.Copy(), nomadACLToken, ns)
 	if err != nil {
 		return err
 	}
@@ -559,7 +567,7 @@ func (j *Job) Validate(args *structs.JobValidateRequest, reply *structs.JobValid
 		return fmt.Errorf("mismatched request namespace in request: %q, %q", args.RequestNamespace(), args.Job.Namespace)
 	}
 
-	job, mutateWarnings, err := j.admissionMutators(args.Job)
+	job, mutateWarnings, err := j.admissionMutators(args.Job, nil)
 	if err != nil {
 		return err
 	}
@@ -1742,7 +1750,8 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	}
 
 	// Run admission controllers
-	job, warnings, err := j.admissionControllers(args.Job)
+	job, warnings, err := j.admissionControllers(args.Job, &admissionRequest{
+		operation: structs.AdmissionOperationPlan, args: args})
 	if err != nil {
 		return err
 	}
@@ -1756,6 +1765,9 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		return err
 	} else if aclObj != nil {
 		if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob) {
+			return structs.ErrPermissionDenied
+		}
+		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
 			return structs.ErrPermissionDenied
 		}
 		// Check if override is set and we do not have permissions
@@ -1781,7 +1793,7 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	if err != nil {
 		return err
 	}
-	policyWarnings, err := j.enforceSubmitJob(args.PolicyOverride, args.Job, nomadACLToken, ns)
+	policyWarnings, err := j.enforceSubmitJob(structs.AdmissionOperationPlan, args.PolicyOverride, args.Job, nomadACLToken, ns)
 	if err != nil {
 		return err
 	}
@@ -2007,7 +2019,7 @@ func (j *Job) Dispatch(args *structs.JobDispatchRequest, reply *structs.JobDispa
 		if err != nil {
 			errMsg := "failed to retrieve jobs for idempotency check"
 			j.logger.Error(errMsg, "error", err)
-			return fmt.Errorf(errMsg)
+			return fmt.Errorf("%s", errMsg)
 		}
 
 		// Iterate

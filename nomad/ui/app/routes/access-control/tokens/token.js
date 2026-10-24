@@ -1,46 +1,34 @@
 /**
- * Copyright (c) HashiCorp, Inc.
- * SPDX-License-Identifier: BUSL-1.1
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
  */
 
-// @ts-check
 import Route from '@ember/routing/route';
-import withForbiddenState from 'nomad-ui/mixins/with-forbidden-state';
-import WithModelErrorHandling from 'nomad-ui/mixins/with-model-error-handling';
 import { inject as service } from '@ember/service';
 import { hash } from 'rsvp';
+import notifyError from 'nomad-ui/utils/notify-error';
 
-export default class AccessControlTokensTokenRoute extends Route.extend(
-  withForbiddenState,
-  WithModelErrorHandling
-) {
+export default class AccessControlTokensTokenRoute extends Route {
   @service store;
-  @service token;
 
-  // Route guard to prevent you from wrecking your current token
-  beforeModel() {
-    let id = this.paramsFor('access-control.tokens.token').id;
-    if (this.token.selfToken && this.token.selfToken.id === id) {
-      this.transitionTo('/access-control/tokens');
-    }
+  model(params) {
+    // The token list only holds stubs; fetch the full token (including its
+    // secret) every time the page is opened.
+    return hash({
+      token: this.store.findRecord('token', params.id, { reload: true }),
+      policies: this.store.peekAll('policy'),
+      roles: this.store.peekAll('role'),
+    }).catch(notifyError(this));
   }
 
-  async model(params) {
-    let token = await this.store.findRecord(
-      'token',
-      decodeURIComponent(params.id),
-      {
-        reload: true,
+  resetController(controller, isExiting) {
+    super.resetController(...arguments);
+    if (isExiting) {
+      // Drop unsaved edits to the name and type
+      const token = controller.model?.token;
+      if (token && !token.isDeleted && token.hasDirtyAttributes) {
+        token.rollbackAttributes();
       }
-    );
-
-    let policies = this.store.peekAll('policy');
-    let roles = this.store.peekAll('role');
-
-    return hash({
-      token,
-      roles,
-      policies,
-    });
+    }
   }
 }

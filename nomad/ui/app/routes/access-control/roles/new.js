@@ -1,6 +1,6 @@
 /**
- * Copyright (c) HashiCorp, Inc.
- * SPDX-License-Identifier: BUSL-1.1
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
  */
 
 import Route from '@ember/routing/route';
@@ -9,6 +9,7 @@ import { inject as service } from '@ember/service';
 export default class AccessControlRolesNewRoute extends Route {
   @service can;
   @service router;
+  @service store;
 
   beforeModel() {
     if (this.can.cannot('write role')) {
@@ -16,21 +17,22 @@ export default class AccessControlRolesNewRoute extends Route {
     }
   }
 
-  async model() {
-    let role = await this.store.createRecord('role', {
-      name: '',
-    });
+  model() {
     return {
-      role,
-      policies: await this.store.findAll('policy'),
+      role: this.store.createRecord('role', {
+        name: '',
+        description: '',
+      }),
+      policies: this.store.peekAll('policy'),
     };
   }
 
   resetController(controller, isExiting) {
     if (isExiting) {
-      // If user didn't save, delete the freshly created model
-      if (controller.model.role.isNew) {
-        controller.model.role.destroyRecord();
+      // Discard the draft record if the user leaves without saving
+      const { role } = controller.model;
+      if (role.isNew) {
+        role.destroyRecord();
       }
     }
   }

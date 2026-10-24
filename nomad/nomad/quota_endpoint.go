@@ -49,8 +49,8 @@ func (q *Quota) UpsertQuotaSpecs(args *structs.QuotaSpecUpsertRequest, reply *st
 		return structs.ErrPermissionDenied
 	}
 
-	if !ServersMeetMinimumVersion(q.srv.serf.Members(), q.srv.Region(), minNorcaFeaturesVersion, false) {
-		return fmt.Errorf("all servers must be running version %v or later to upsert quotas", minNorcaFeaturesVersion)
+	if !ServersMeetMinimumNorcaVersion(q.srv.serf.Members(), q.srv.Region(), false) {
+		return fmt.Errorf("all servers must be running Norca %v or later to upsert quotas", minNorcaFeaturesVersion)
 	}
 
 	if len(args.Quotas) == 0 {
@@ -98,8 +98,8 @@ func (q *Quota) DeleteQuotaSpecs(args *structs.QuotaSpecDeleteRequest, reply *st
 		return structs.ErrPermissionDenied
 	}
 
-	if !ServersMeetMinimumVersion(q.srv.serf.Members(), q.srv.Region(), minNorcaFeaturesVersion, false) {
-		return fmt.Errorf("all servers must be running version %v or later to delete quotas", minNorcaFeaturesVersion)
+	if !ServersMeetMinimumNorcaVersion(q.srv.serf.Members(), q.srv.Region(), false) {
+		return fmt.Errorf("all servers must be running Norca %v or later to delete quotas", minNorcaFeaturesVersion)
 	}
 
 	if len(args.Names) == 0 {

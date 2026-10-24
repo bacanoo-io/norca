@@ -5,6 +5,7 @@ package checkstore
 
 import (
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/client/serviceregistration/checks"
@@ -31,6 +32,10 @@ type Shim interface {
 
 	// Purge results for a specific allocation.
 	Purge(allocID string) error
+
+	// Reset marks the existing results of ids as pending, discarding results
+	// that no longer describe the workload (e.g. after a task restart).
+	Reset(allocID string, ids []structs.CheckID) error
 
 	// Snapshot returns a copy of the current status of every check indexed by
 	// checkID, for use by CheckWatcher.
@@ -142,6 +147,33 @@ func (s *shim) Remove(allocID string, ids []structs.CheckID) error {
 
 	// remove from persistent store
 	return s.db.DeleteCheckResults(allocID, ids)
+}
+
+func (s *shim) Reset(allocID string, ids []structs.CheckID) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	now := time.Now().UTC().Unix()
+	for _, id := range ids {
+		previous, exists := s.current[allocID][id]
+		if !exists || previous.Status == structs.CheckPending {
+			continue
+		}
+
+		qr := *previous
+		qr.Status = structs.CheckPending
+		qr.StatusCode = 0
+		qr.Output = "nomad: waiting to run"
+		qr.Timestamp = now
+		s.current[allocID][id] = &qr
+
+		if err := s.db.PutCheckResult(allocID, &qr); err != nil {
+			s.log.Error("failed to reset check status", "alloc_id", allocID, "check_id", id, "error", err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *shim) Difference(allocID string, ids []structs.CheckID) []structs.CheckID {

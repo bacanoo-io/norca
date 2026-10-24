@@ -1,0 +1,64 @@
+// Copyright IBM Corp. 2020, 2025
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+// Ported from Nomad Autoscaler v0.6.0 plugins/builtin/apm/prometheus/plugin/prometheus.go.
+// Modified: the default transport is cloned instead of being
+// mutated, as it is shared inside the server process.
+
+package prometheus
+
+import (
+	"crypto/tls"
+	"net/http"
+	"strings"
+
+	"github.com/prometheus/client_golang/api"
+)
+
+// pluginRoundTripper is used to configure the Prometheus HTTP client.
+type pluginRoundTripper struct {
+	headers           map[string]string
+	basicAuthUser     string
+	basicAuthPassword string
+
+	rt http.RoundTripper
+}
+
+// newPluginRoudTripper returns a new pluginRoundTripper configured based on
+// configuration values set for the plugin.
+func newPluginRoudTripper(config map[string]string, tlsConfig *tls.Config) *pluginRoundTripper {
+	username := config[configKeyBasicAuthUser]
+	password := config[configKeyBasicAuthPassword]
+
+	headers := make(map[string]string)
+	for k, v := range config {
+		if strings.HasPrefix(k, configKeyHeadersPrefix) {
+			header := strings.TrimPrefix(k, configKeyHeadersPrefix)
+			headers[header] = v
+		}
+	}
+
+	defaultRoudTripper := api.DefaultRoundTripper.(*http.Transport).Clone()
+	defaultRoudTripper.TLSClientConfig = tlsConfig
+
+	return &pluginRoundTripper{
+		headers:           headers,
+		basicAuthUser:     username,
+		basicAuthPassword: password,
+		rt:                defaultRoudTripper,
+	}
+}
+
+func (rt *pluginRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	for header, value := range rt.headers {
+		req.Header.Add(header, value)
+	}
+
+	setAuth := (rt.basicAuthUser != "" || rt.basicAuthPassword != "") && req.Header.Get("Authorization") == ""
+	if setAuth {
+		req.SetBasicAuth(rt.basicAuthUser, rt.basicAuthPassword)
+	}
+
+	return rt.rt.RoundTrip(req)
+}

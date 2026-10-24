@@ -1,47 +1,64 @@
 /**
- * Copyright (c) HashiCorp, Inc.
- * SPDX-License-Identifier: BUSL-1.1
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
  */
 
 // @ts-check
 import Controller from '@ember/controller';
-import { task } from 'ember-concurrency';
 import { inject as service } from '@ember/service';
-import { action } from '@ember/object';
+import { task } from 'ember-concurrency';
+import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
 
 export default class AccessControlTokensIndexController extends Controller {
+  @service can;
   @service notifications;
-  @service router;
-  @service token;
+  @service('token') tokenService;
+
+  /**
+   * Saved tokens; drafts from the "new token" page are left out.
+   */
+  get tokens() {
+    return (this.model.tokens || []).filter(
+      (token) => !token.isNew && !token.isDeleted
+    );
+  }
+
+  get selfTokenId() {
+    return this.tokenService.selfToken?.id;
+  }
+
+  get columns() {
+    const columns = [
+      { key: 'name', label: 'Name', isSortable: true },
+      { key: 'type', label: 'Type', isSortable: true },
+      { key: 'createTime', label: 'Created', isSortable: true },
+      { key: 'expirationTime', label: 'Expires', isSortable: true },
+      { key: 'roles', label: 'Roles' },
+      { key: 'policies', label: 'Policies' },
+    ];
+    if (this.can.can('destroy token')) {
+      columns.push({ key: 'delete', label: 'Delete' });
+    }
+    return columns;
+  }
 
   @task(function* (token) {
+    const name = token.name;
     try {
-      yield token.deleteRecord();
-      yield token.save();
+      yield token.destroyRecord();
       this.notifications.add({
-        title: `Token ${token.name} successfully deleted`,
+        title: `Token ${name} deleted`,
         color: 'success',
       });
     } catch (err) {
-      this.error = {
-        title: 'Error deleting token',
-        description: err,
-      };
-
-      throw err;
+      token.rollbackAttributes();
+      this.notifications.add({
+        title: `Error deleting token ${name}`,
+        message: messageFromAdapterError(err, 'delete tokens'),
+        color: 'critical',
+        sticky: true,
+      });
     }
   })
   deleteToken;
-
-  get selfToken() {
-    return this.token.selfToken;
-  }
-
-  @action openToken(token) {
-    this.router.transitionTo('access-control.tokens.token', token.id);
-  }
-
-  @action goToNewToken() {
-    this.router.transitionTo('access-control.tokens.new');
-  }
 }

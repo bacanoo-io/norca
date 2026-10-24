@@ -36,7 +36,7 @@ func (s *Server) replicateQuotaSpecs(stopCh chan struct{}) {
 		// Rate limit how often we attempt replication
 		_ = limiter.Wait(context.Background())
 
-		if !ServersMeetMinimumVersion(s.serf.Members(), s.Region(), minNorcaFeaturesVersion, true) {
+		if !ServersMeetMinimumNorcaVersion(s.serf.Members(), s.Region(), true) {
 			s.logger.Trace("all servers must be upgraded before quotas can be replicated",
 				"min_version", minNorcaFeaturesVersion)
 			if s.replicationBackoffContinue(stopCh) {
