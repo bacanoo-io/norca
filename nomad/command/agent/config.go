@@ -127,13 +127,13 @@ type Config struct {
 	// SyslogFacility is used to control the syslog facility used.
 	SyslogFacility string `hcl:"syslog_facility"`
 
-	// DisableUpdateCheck is used to disable the periodic update
-	// and security bulletin checking.
+	// DisableUpdateCheck is accepted for compatibility with existing Nomad
+	// configurations and has no effect: Norca does not contact any update
+	// or security bulletin service.
 	DisableUpdateCheck *bool `hcl:"disable_update_check"`
 
-	// DisableAnonymousSignature is used to disable setting the
-	// anonymous signature when doing the update check and looking
-	// for security bulletins
+	// DisableAnonymousSignature is accepted for compatibility with existing
+	// Nomad configurations and has no effect (see DisableUpdateCheck).
 	DisableAnonymousSignature bool `hcl:"disable_anonymous_signature"`
 
 	// Consul contains the configuration for the Consul Agent and

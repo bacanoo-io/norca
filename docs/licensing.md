@@ -6,7 +6,7 @@ This document records under which license each part of the project falls, where 
 
 ## Principle
 
-**Wherever possible, everything is MPL 2.0.** This applies to the Nomad fork (modified and new files alike), the Nomad Pack fork, the standalone components (for example the controller SDK and the NATS bridge, once they exist) and the documentation. The only exceptions are files taken from third parties, unchanged or modified: these keep their original license.
+**Wherever possible, everything is MPL 2.0.** This applies to the Nomad fork (modified and new files alike), the Nomad Pack fork, the standalone components (for example the controller SDK in `nomad/controller`, and the NATS bridge once it exists) and the documentation. The only exceptions are files taken from third parties, unchanged or modified: these keep their original license.
 
 **There is no separate control plane.** Every feature is built into the fork, according to the design documents.
 
@@ -111,7 +111,9 @@ norca/
 ├── docs/
 │   ├── licensing.md          # this document
 │   └── design/               # design documents, mockup
-├── nomad/                    # Nomad v1.6.5 fork, with history (one Go module)
+├── nomad/                    # Nomad v1.6.5 fork, with history (main Go module)
+│   ├── api/                  # API client (separate Go module)
+│   ├── controller/           # controller SDK and sample operators (separate Go module, uses only api/)
 │   └── pack/                 # Nomad Pack v0.4.2 fork, with history; `norca pack` subcommand
 └── .github/
     ├── pull_request_template.md

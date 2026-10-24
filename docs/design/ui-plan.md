@@ -171,7 +171,7 @@ Bulma and Bootstrap partly use the same class names (`table`, `modal`, `dropdown
 
 ## Open questions
 
-- [ ] What should the fork's final product name and branding be ("Norca")?
-- [ ] ECharts or Chart.js for the new charts?
-- [ ] Should the old UI remain available in parallel for a transition period (for example `/ui/legacy`)?
-- [ ] Which languages are needed beyond English and Hungarian?
+- [x] What should the fork's final product name and branding be ("Norca")? Decided 2026-10-24: the name is Norca; the visual identity stays the neutral Tabler base (no custom logo or palette for now).
+- [x] ECharts or Chart.js for the new charts? Decided 2026-10-24: ECharts.
+- [x] Should the old UI remain available in parallel for a transition period (for example `/ui/legacy`)? Decided 2026-10-24: yes, at `/ui/legacy` for one release.
+- [x] Which languages are needed beyond English and Hungarian? Decided 2026-10-24: English only; no translation layer (`ember-intl` is dropped from phase 1).
