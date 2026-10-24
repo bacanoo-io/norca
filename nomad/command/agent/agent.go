@@ -278,9 +278,6 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	if agentConfig.ACL.TokenMaxExpirationTTL != 0 {
 		conf.ACLTokenMaxExpirationTTL = agentConfig.ACL.TokenMaxExpirationTTL
 	}
-	if agentConfig.Sentinel != nil {
-		conf.SentinelConfig = agentConfig.Sentinel
-	}
 	if agentConfig.Server.NonVotingServer {
 		conf.NonVoter = true
 	}
@@ -575,6 +572,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	}
 	conf.Autoscaler = autoscalerConf
 
+	// Set the backup configuration.
+	backupConf, err := agentConfig.Server.Backup.toServerConfig()
+	if err != nil {
+		return nil, err
+	}
+	conf.Backup = backupConf
+
 	// Add the search configuration
 	if search := agentConfig.Server.Search; search != nil {
 		conf.SearchConfig = &structs.SearchConfig{
@@ -861,6 +865,16 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	if agentConfig.Client.NomadServiceDiscovery != nil {
 		conf.NomadServiceDiscovery = *agentConfig.Client.NomadServiceDiscovery
 	}
+	conf.NativeServiceDiscovery = agentConfig.Client.NativeServiceDiscovery.Copy()
+	conf.Topology = agentConfig.Client.Topology.Copy()
+	if err := agentConfig.Client.DNS.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid dns config: %v", err)
+	}
+	conf.DNS = agentConfig.Client.DNS.Copy()
+	if err := agentConfig.Client.ConsulCompat.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid consul_compat config: %v", err)
+	}
+	conf.ConsulCompat = agentConfig.Client.ConsulCompat.Copy()
 
 	artifactConfig, err := clientconfig.ArtifactConfigFromAgent(agentConfig.Client.Artifact)
 	if err != nil {

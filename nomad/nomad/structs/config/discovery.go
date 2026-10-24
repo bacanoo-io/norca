@@ -1,0 +1,93 @@
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package config
+
+import (
+	"github.com/hashicorp/nomad/helper/pointer"
+)
+
+// NativeServiceDiscoveryConfig is the native_service_discovery block of the
+// client configuration.
+type NativeServiceDiscoveryConfig struct {
+	// DefaultHealthyOnly makes service lookups made by the workloads of the
+	// client (templates and the Task API) return only healthy instances
+	// unless the request says otherwise. Defaults to false.
+	DefaultHealthyOnly *bool `hcl:"default_healthy_only"`
+
+	// ExtraKeysHCL is used by hcl to surface unexpected keys
+	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
+}
+
+// Copy returns a copy of c.
+func (c *NativeServiceDiscoveryConfig) Copy() *NativeServiceDiscoveryConfig {
+	if c == nil {
+		return nil
+	}
+	return &NativeServiceDiscoveryConfig{DefaultHealthyOnly: pointer.Copy(c.DefaultHealthyOnly)}
+}
+
+// Merge returns c with the values set in o applied.
+func (c *NativeServiceDiscoveryConfig) Merge(o *NativeServiceDiscoveryConfig) *NativeServiceDiscoveryConfig {
+	switch {
+	case c == nil:
+		return o.Copy()
+	case o == nil:
+		return c.Copy()
+	}
+	result := c.Copy()
+	if o.DefaultHealthyOnly != nil {
+		result.DefaultHealthyOnly = pointer.Copy(o.DefaultHealthyOnly)
+	}
+	return result
+}
+
+// HealthyOnly returns the effective value of DefaultHealthyOnly.
+func (c *NativeServiceDiscoveryConfig) HealthyOnly() bool {
+	return c != nil && c.DefaultHealthyOnly != nil && *c.DefaultHealthyOnly
+}
+
+// TopologyConfig is the topology block of the client configuration.
+type TopologyConfig struct {
+	// Zone is the topology zone of the node. It may reference a node
+	// attribute or meta value as "${attr.<name>}" or "${meta.<name>}".
+	// Defaults to "${meta.zone}".
+	Zone string `hcl:"zone"`
+
+	// ExtraKeysHCL is used by hcl to surface unexpected keys
+	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
+}
+
+// DefaultTopologyZone is the zone of nodes without topology configuration.
+const DefaultTopologyZone = "${meta.zone}"
+
+// Copy returns a copy of c.
+func (c *TopologyConfig) Copy() *TopologyConfig {
+	if c == nil {
+		return nil
+	}
+	return &TopologyConfig{Zone: c.Zone}
+}
+
+// Merge returns c with the values set in o applied.
+func (c *TopologyConfig) Merge(o *TopologyConfig) *TopologyConfig {
+	switch {
+	case c == nil:
+		return o.Copy()
+	case o == nil:
+		return c.Copy()
+	}
+	result := c.Copy()
+	if o.Zone != "" {
+		result.Zone = o.Zone
+	}
+	return result
+}
+
+// ZoneSource returns the configured zone, or the default.
+func (c *TopologyConfig) ZoneSource() string {
+	if c == nil || c.Zone == "" {
+		return DefaultTopologyZone
+	}
+	return c.Zone
+}

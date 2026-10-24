@@ -4,70 +4,81 @@
 package agent
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/hashicorp/nomad/testutil"
 	"github.com/shoenig/test/must"
+	"github.com/shoenig/test/wait"
 )
 
-// TestHTTP_Job_Multiregion_NotSupported asserts that the register, plan and
-// validate HTTP endpoints reject a job with a multiregion block with a clear
-// error, even when the block lists regions that are not part of the cluster.
-func TestHTTP_Job_Multiregion_NotSupported(t *testing.T) {
+// TestHTTP_Job_Multiregion asserts that the HTTP agent registers a multiregion
+// job in the regions it lists, with its region-specific fields, and rejects a
+// multiregion block without regions.
+func TestHTTP_Job_Multiregion(t *testing.T) {
 	ci.Parallel(t)
 	httpTest(t, nil, func(s *TestAgent) {
-		newJob := func() *api.Job {
-			job := MockJob()
-			job.Multiregion = &api.Multiregion{
-				Regions: []*api.MultiregionRegion{
-					{Name: "east", Datacenters: []string{"east-1"}},
-					{Name: "west", Datacenters: []string{"west-1"}},
-				},
-			}
-			return job
-		}
-		wantErr := structs.ErrMultiregionNotSupported.Error()
+		testutil.WaitForLeader(t, s.RPC)
 
-		// Register
-		job := newJob()
-		buf := encodeReq(api.JobRegisterRequest{
-			Job:          job,
-			WriteRequest: api.WriteRequest{Region: "global"},
-		})
+		// A multiregion block needs regions.
+		job := MockJob()
+		job.Multiregion = &api.Multiregion{}
+		buf := encodeReq(api.JobRegisterRequest{Job: job})
 		req, err := http.NewRequest(http.MethodPut, "/v1/jobs", buf)
 		must.NoError(t, err)
 		_, err = s.Server.JobsRequest(httptest.NewRecorder(), req)
-		must.ErrorContains(t, err, wantErr)
+		must.ErrorContains(t, err, "Multiregion block must have at least one region")
 
-		// Plan
-		job = newJob()
-		buf = encodeReq(api.JobPlanRequest{
-			Job:  job,
-			Diff: true,
-			WriteRequest: api.WriteRequest{
-				Region:    "global",
-				Namespace: api.DefaultNamespace,
-			},
-		})
-		req, err = http.NewRequest(http.MethodPut, "/v1/job/"+*job.ID+"/plan", buf)
+		// A job that lists only this region is registered here with the
+		// fields of the region.
+		job = MockJob()
+		job.Region = nil
+		job.Multiregion = &api.Multiregion{
+			Strategy: &api.MultiregionStrategy{MaxParallel: pointer.Of(1)},
+			Regions: []*api.MultiregionRegion{{
+				Name:        "global",
+				Count:       pointer.Of(3),
+				Datacenters: []string{"dc2"},
+				Meta:        map[string]string{"region": "global"},
+			}},
+		}
+		job.TaskGroups[0].Count = pointer.Of(0)
+		job.Update = api.DefaultUpdateStrategy()
+		buf = encodeReq(api.JobRegisterRequest{Job: job})
+		req, err = http.NewRequest(http.MethodPut, "/v1/jobs", buf)
 		must.NoError(t, err)
-		_, err = s.Server.JobSpecificRequest(httptest.NewRecorder(), req)
-		must.ErrorContains(t, err, wantErr)
+		_, err = s.Server.JobsRequest(httptest.NewRecorder(), req)
+		must.NoError(t, err)
 
-		// Validate
-		buf = encodeReq(api.JobValidateRequest{
-			Job:          newJob(),
-			WriteRequest: api.WriteRequest{Region: "global"},
-		})
-		req, err = http.NewRequest(http.MethodPut, "/v1/validate/job", buf)
+		state := s.Agent.server.State()
+		stored, err := state.JobByID(nil, structs.DefaultNamespace, *job.ID)
 		must.NoError(t, err)
-		obj, err := s.Server.ValidateJobRequest(httptest.NewRecorder(), req)
-		must.NoError(t, err)
-		resp := obj.(structs.JobValidateResponse)
-		must.StrContains(t, resp.Error, wantErr)
+		must.NotNil(t, stored)
+		must.Eq(t, "global", stored.Region)
+		must.Eq(t, []string{"dc2"}, stored.Datacenters)
+		must.Eq(t, 3, stored.TaskGroups[0].Count)
+		must.Eq(t, "global", stored.Meta["region"])
+
+		// The registration created a multiregion deployment, which the
+		// scheduler moves to pending and the deployment watcher starts.
+		must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+			d, err := state.LatestDeploymentByJobID(nil, structs.DefaultNamespace, *job.ID)
+			if err != nil {
+				return err
+			}
+			if d == nil || !d.IsMultiregion {
+				return fmt.Errorf("no multiregion deployment: %#v", d)
+			}
+			if d.Status != structs.DeploymentStatusRunning {
+				return fmt.Errorf("deployment is %s", d.Status)
+			}
+			return nil
+		})))
 	})
 }

@@ -368,6 +368,11 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"deployment run": func() (cli.Command, error) {
+			return &DeploymentRunCommand{
+				Meta: meta,
+			}, nil
+		},
 		"deployment status": func() (cli.Command, error) {
 			return &DeploymentStatusCommand{
 				Meta: meta,
@@ -839,6 +844,56 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"operator backup": func() (cli.Command, error) {
+			return &OperatorBackupCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup contents": func() (cli.Command, error) {
+			return &OperatorBackupContentsCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup delete": func() (cli.Command, error) {
+			return &OperatorBackupDeleteCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup diff": func() (cli.Command, error) {
+			return &OperatorBackupDiffCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup download": func() (cli.Command, error) {
+			return &OperatorBackupDownloadCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup inspect": func() (cli.Command, error) {
+			return &OperatorBackupInspectCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup list": func() (cli.Command, error) {
+			return &OperatorBackupListCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup pin": func() (cli.Command, error) {
+			return &OperatorBackupPinCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup restore": func() (cli.Command, error) {
+			return &OperatorBackupRestoreCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator backup save": func() (cli.Command, error) {
+			return &OperatorBackupSaveCommand{
+				Meta: meta,
+			}, nil
+		},
 		"operator snapshot": func() (cli.Command, error) {
 			return &OperatorSnapshotCommand{
 				Meta: meta,
@@ -924,38 +979,6 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 			}, nil
 		},
 
-		"recommendation": func() (cli.Command, error) {
-			return &RecommendationCommand{
-				Meta: meta,
-			}, nil
-		},
-		"recommendation apply": func() (cli.Command, error) {
-			return &RecommendationApplyCommand{
-				RecommendationAutocompleteCommand: RecommendationAutocompleteCommand{
-					Meta: meta,
-				},
-			}, nil
-		},
-		"recommendation dismiss": func() (cli.Command, error) {
-			return &RecommendationDismissCommand{
-				RecommendationAutocompleteCommand: RecommendationAutocompleteCommand{
-					Meta: meta,
-				},
-			}, nil
-		},
-		"recommendation info": func() (cli.Command, error) {
-			return &RecommendationInfoCommand{
-				RecommendationAutocompleteCommand: RecommendationAutocompleteCommand{
-					Meta: meta,
-				},
-			}, nil
-		},
-		"recommendation list": func() (cli.Command, error) {
-			return &RecommendationListCommand{
-				Meta: meta,
-			}, nil
-		},
-
 		"run": func() (cli.Command, error) {
 			return &JobRunCommand{
 				Meta: meta,
@@ -978,31 +1001,6 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		},
 		"scaling policy list": func() (cli.Command, error) {
 			return &ScalingPolicyListCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel": func() (cli.Command, error) {
-			return &SentinelCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel list": func() (cli.Command, error) {
-			return &SentinelListCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel apply": func() (cli.Command, error) {
-			return &SentinelApplyCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel delete": func() (cli.Command, error) {
-			return &SentinelDeleteCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel read": func() (cli.Command, error) {
-			return &SentinelReadCommand{
 				Meta: meta,
 			}, nil
 		},

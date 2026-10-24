@@ -884,13 +884,6 @@ func (s *HTTPServer) apiJobAndRequestToStructs(job *api.Job, req *http.Request, 
 	return sJob, writeReq
 }
 
-// multiregionRouting enables the region routing of jobs with a multiregion
-// block. It is off while multiregion deployments are not supported: such a job
-// is routed like a single-region job, so the server rejects it with a clear
-// validation error instead of the request being forwarded to a region listed in
-// the block, which may not exist.
-const multiregionRouting = false
-
 func regionForJob(job *api.Job, queryRegion, apiRegion, agentRegion string) (string, string) {
 	var requestRegion string
 	var jobRegion string
@@ -922,7 +915,7 @@ func regionForJob(job *api.Job, queryRegion, apiRegion, agentRegion string) (str
 
 	// Multiregion jobs have their job region set to the global region,
 	// and enforce that we forward to a region where they will be deployed
-	if multiregionRouting && job.Multiregion != nil {
+	if job.Multiregion != nil {
 		jobRegion = api.GlobalRegion
 
 		// multiregion jobs with 0 regions won't pass validation,
@@ -1491,6 +1484,7 @@ func ApiServicesToStructs(in []*api.Service, group bool) []*structs.Service {
 			TaggedAddresses:   maps.Clone(s.TaggedAddresses),
 			OnUpdate:          s.OnUpdate,
 			Provider:          s.Provider,
+			Discovery:         apiServiceDiscoveryToStructs(s.Discovery),
 		}
 
 		if l := len(s.Checks); l != 0 {

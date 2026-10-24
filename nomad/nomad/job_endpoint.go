@@ -98,6 +98,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 // Register is used to upsert a job for scheduling
 func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegisterResponse) error {
 	authErr := j.srv.Authenticate(j.ctx, args)
+	multiregionRequestRegion(args)
 	if done, err := j.srv.forward("Job.Register", args, args, reply); done {
 		return err
 	}
@@ -115,6 +116,12 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	// defensive check; http layer and RPC requester should ensure namespaces are set consistently
 	if args.RequestNamespace() != args.Job.Namespace {
 		return fmt.Errorf("mismatched request namespace in request: %q, %q", args.RequestNamespace(), args.Job.Namespace)
+	}
+
+	// Interpolate a multiregion job for this region
+	mr, err := j.multiregionPrepare(args)
+	if err != nil {
+		return err
 	}
 
 	// Run admission controllers
@@ -328,15 +335,13 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		}
 	}
 
-	// Submit a multiregion job to other regions (enterprise only).
-	// The job will have its region interpolated.
-	var newVersion uint64
-	if existingJob != nil {
-		newVersion = existingJob.Version + 1
-	}
-	isRunner, err := j.multiregionRegister(args, reply, newVersion)
-	if err != nil {
+	// Submit a multiregion job to its other regions, with the same version.
+	if err := j.multiregionRegister(mr, args, reply, existingJob, nomadACLToken); err != nil {
 		return err
+	}
+	if mr != nil && len(mr.warnings) > 0 {
+		warnings = append(warnings, mr.warnings...)
+		reply.Warnings = helper.MergeMultierrorWarnings(warnings...)
 	}
 
 	// Create a new evaluation
@@ -372,10 +377,7 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	}
 
 	// Check if the job has changed at all
-	specChanged, err := j.multiregionSpecChanged(existingJob, args)
-	if err != nil {
-		return err
-	}
+	specChanged := j.multiregionSpecChanged(mr, existingJob, args)
 
 	if existingJob == nil || specChanged {
 
@@ -385,7 +387,7 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		}
 
 		// Pre-register a deployment if necessary.
-		args.Deployment = j.multiregionCreateDeployment(job, eval)
+		args.Deployment = j.multiregionCreateDeployment(mr, args.Job, eval)
 
 		// Commit this update via Raft
 		_, index, err := j.srv.raftApply(structs.JobRegisterRequestType, args)
@@ -406,16 +408,10 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		reply.JobModifyIndex = existingJob.JobModifyIndex
 	}
 
-	// used for multiregion start
-	args.Job.JobModifyIndex = reply.JobModifyIndex
-
 	if eval == nil {
-		// For dispatch jobs we return early, so we need to drop regions
-		// here rather than after eval for deployments is kicked off
-		err = j.multiregionDrop(args, reply)
-		if err != nil {
-			return err
-		}
+		// For periodic and parameterized jobs we return early, so we need
+		// to drop regions here rather than after the eval is created
+		j.multiregionDrop(mr, args, reply)
 		return nil
 	}
 
@@ -439,21 +435,12 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		reply.Index = evalIndex
 	}
 
-	// Kick off a multiregion deployment (enterprise only).
-	if isRunner {
-		err = j.multiregionStart(args, reply)
-		if err != nil {
-			return err
-		}
-		// We drop any unwanted regions only once we know all jobs have
-		// been registered and we've kicked off the deployment. This keeps
-		// dropping regions close in semantics to dropping task groups in
-		// single-region deployments
-		err = j.multiregionDrop(args, reply)
-		if err != nil {
-			return err
-		}
-	}
+	// The deployment watchers of the regions start a multiregion rollout from
+	// the deployments registered above. We drop any unwanted regions only
+	// once we know all jobs have been registered. This keeps dropping
+	// regions close in semantics to dropping task groups in single-region
+	// deployments
+	j.multiregionDrop(mr, args, reply)
 
 	return nil
 }
@@ -656,6 +643,12 @@ func (j *Job) Revert(args *structs.JobRevertRequest, reply *structs.JobRegisterR
 	reg := &structs.JobRegisterRequest{
 		Job:          revJob,
 		WriteRequest: args.WriteRequest,
+	}
+
+	// The stored versions of a multiregion job are interpolated for this
+	// region, so a revert only applies to this region.
+	if revJob.IsMultiregion() {
+		reg.MultiregionRegistration = structs.MultiregionRegistrationLocal
 	}
 
 	// If the request is enforcing the existing version do a check.
@@ -1746,6 +1739,12 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		return fmt.Errorf("Job required for plan")
 	}
 
+	// Interpolate the job for this region, as Job.Register does before
+	// admission
+	if err := j.interpolateMultiregionFields(args); err != nil {
+		return err
+	}
+
 	// Run admission controllers
 	job, warnings, err := j.admissionControllers(args.Job, &admissionRequest{
 		operation: structs.AdmissionOperationPlan, args: args})
@@ -1791,12 +1790,6 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	if policyWarnings != nil {
 		warnings = append(warnings, policyWarnings)
 		reply.Warnings = helper.MergeMultierrorWarnings(warnings...)
-	}
-
-	// Interpolate the job for this region
-	err = j.interpolateMultiregionFields(args)
-	if err != nil {
-		return err
 	}
 
 	// Get the original job

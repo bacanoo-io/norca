@@ -65,13 +65,15 @@ type deploymentWatcher struct {
 	// deployment
 	deploymentTriggers
 
-	// DeploymentRPC holds methods for interacting with peer regions
-	// in enterprise edition
-	DeploymentRPC
+	// deploymentRPC and jobRPC hold the methods for interacting with peer
+	// regions in multiregion deployments
+	deploymentRPC DeploymentRPC
+	jobRPC        JobRPC
 
-	// JobRPC holds methods for interacting with peer regions
-	// in enterprise edition
-	JobRPC
+	// multiregionCh triggers a step of a multiregion deployment and
+	// multiregionPoll is the backoff of its polling of the peer regions
+	multiregionCh   chan struct{}
+	multiregionPoll multiregionPoll
 
 	// state is the state that is watched for state changes.
 	state *state.StateStore
@@ -105,6 +107,10 @@ type deploymentWatcher struct {
 	ctx    context.Context
 	exitFn context.CancelFunc
 	l      sync.RWMutex
+
+	// parentCtx is the context of the deployments watcher, which outlives
+	// the watcher of a deployment
+	parentCtx context.Context
 }
 
 // newDeploymentWatcher returns a deployment watcher that is used to watch
@@ -112,7 +118,7 @@ type deploymentWatcher struct {
 func newDeploymentWatcher(parent context.Context, queryLimiter *rate.Limiter,
 	logger log.Logger, state *state.StateStore, d *structs.Deployment,
 	j *structs.Job, triggers deploymentTriggers,
-	deploymentRPC DeploymentRPC, jobRPC JobRPC) *deploymentWatcher {
+	deploymentRPC DeploymentRPC, jobRPC JobRPC, mrPoll multiregionPoll) *deploymentWatcher {
 
 	ctx, exitFn := context.WithCancel(parent)
 	w := &deploymentWatcher{
@@ -123,15 +129,23 @@ func newDeploymentWatcher(parent context.Context, queryLimiter *rate.Limiter,
 		j:                  j,
 		state:              state,
 		deploymentTriggers: triggers,
-		DeploymentRPC:      deploymentRPC,
-		JobRPC:             jobRPC,
+		deploymentRPC:      deploymentRPC,
+		jobRPC:             jobRPC,
+		multiregionCh:      make(chan struct{}, 1),
+		multiregionPoll:    mrPoll,
 		logger:             logger.With("deployment_id", d.ID, "job", j.NamespacedID()),
 		ctx:                ctx,
 		exitFn:             exitFn,
+		parentCtx:          parent,
 	}
 
 	// Start the long lived watcher that scans for allocation updates
 	go w.watch()
+
+	// Coordinate a multiregion deployment with its peer regions
+	if w.multiregionEnabled() {
+		go w.watchMultiregion()
+	}
 
 	return w
 }
@@ -357,7 +371,13 @@ func (w *deploymentWatcher) FailDeployment(
 	req *structs.DeploymentFailRequest,
 	resp *structs.DeploymentUpdateResponse) error {
 
-	status, desc := structs.DeploymentStatusFailed, structs.DeploymentStatusDescriptionFailedByUser
+	return w.failDeployment(structs.DeploymentStatusDescriptionFailedByUser, resp)
+}
+
+// failDeployment fails the deployment with the given description, rolling back
+// the job if the deployment auto-reverts. resp may be nil.
+func (w *deploymentWatcher) failDeployment(desc string, resp *structs.DeploymentUpdateResponse) error {
+	status := structs.DeploymentStatusFailed
 
 	// Determine if we should rollback
 	rollback := false
@@ -389,6 +409,9 @@ func (w *deploymentWatcher) FailDeployment(
 	i, err := w.upsertDeploymentStatusUpdate(update, eval, rollbackJob)
 	if err != nil {
 		return err
+	}
+	if resp == nil {
+		return nil
 	}
 
 	// Build the response
@@ -461,10 +484,7 @@ FAIL:
 
 			w.logger.Debug("deadline hit", "rollback", rback)
 			rollback = rback
-			err = w.nextRegion(structs.DeploymentStatusFailed)
-			if err != nil {
-				w.logger.Error("multiregion deployment error", "error", err)
-			}
+			w.nextRegion(structs.DeploymentStatusFailed)
 			break FAIL
 		case <-w.deploymentUpdateCh:
 			// Get the updated deployment and check if we should change the
@@ -497,10 +517,7 @@ FAIL:
 				}
 			}
 
-			err := w.nextRegion(w.getStatus())
-			if err != nil {
-				break FAIL
-			}
+			w.nextRegion(w.getStatus())
 
 		case updates = <-allocsCh:
 			if err := updates.err; err != nil {
@@ -529,10 +546,7 @@ FAIL:
 			// handle the failure
 			if res.failDeployment {
 				rollback = res.rollback
-				err := w.nextRegion(structs.DeploymentStatusFailed)
-				if err != nil {
-					w.logger.Error("multiregion deployment error", "error", err)
-				}
+				w.nextRegion(structs.DeploymentStatusFailed)
 				break FAIL
 			}
 

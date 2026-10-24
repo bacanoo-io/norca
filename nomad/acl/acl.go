@@ -83,6 +83,9 @@ type ACL struct {
 
 	// admission is the policy for admission control objects (Norca).
 	admission string
+
+	// backup is the policy for the backups of the region (Norca).
+	backup string
 }
 
 // maxPrivilege returns the policy which grants the most privilege
@@ -310,6 +313,9 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 		}
 		if policy.Admission != nil {
 			acl.admission = maxPrivilege(acl.admission, policy.Admission.Policy)
+		}
+		if policy.Backup != nil {
+			acl.backup = maxPrivilege(acl.backup, policy.Backup.Policy)
 		}
 	}
 

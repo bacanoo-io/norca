@@ -137,7 +137,7 @@ Every Nomad client runs a DNS server that answers from the native catalog, so ap
 ### How it works
 
 - **Local cache:** the client keeps the catalog for its own region up to date by subscribing to the existing `Service` event topic, so a DNS answer does not require a server request. For requests aimed at another region it caches for a short time.
-- **Reachability:** the client listens on `127.0.0.1:8600` (Consul's default DNS port, which also simplifies migration). In `bridge` network mode the client automatically writes the bridge address as the nameserver into the allocations' `resolv.conf`, for the `.nomad` (and optionally `.consul`) zone.
+- **Reachability:** the client listens on `127.0.0.1:8600` (Consul's default DNS port, which also simplifies migration). In `bridge` network mode the client automatically writes the bridge address as the nameserver into the allocations' `resolv.conf`, for the `.nomad` (and optionally `.consul`) zone. **Deferred (decided 2026-10-24):** `resolv.conf` has no port field and cannot be restricted to one zone, so this would need a root-owned listener on `<bridge IP>:53` with mandatory upstream recursors — an architecture change. For now workloads reach the catalog through templates, the Task API and environment variables, and the DNS server is used on the host.
 - **Recursion:** requests outside its own zone are forwarded to the configured recursive nameservers, or rejected.
 - **TTL:** default 5 s, configurable.
 - **Authorization:** for DNS answers the client uses a configured read-only token, which can be restricted per namespace.

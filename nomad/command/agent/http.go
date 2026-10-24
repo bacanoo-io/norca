@@ -44,10 +44,6 @@ const (
 	// ErrInvalidMethod is used if the HTTP method is not supported
 	ErrInvalidMethod = "Invalid method"
 
-	// ErrEntOnly is the error returned if accessing an enterprise only
-	// endpoint
-	ErrEntOnly = "This endpoint is not supported"
-
 	// ErrServerOnly is the error text returned if accessing a server only
 	// endpoint
 	ErrServerOnly = "Server only endpoint"
@@ -494,6 +490,8 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/operator/autopilot/configuration", s.wrap(s.OperatorAutopilotConfiguration))
 	s.mux.HandleFunc("/v1/operator/autopilot/health", s.wrap(s.OperatorServerHealth))
 	s.mux.HandleFunc("/v1/operator/snapshot", s.wrap(s.SnapshotRequest))
+	s.mux.HandleFunc("/v1/operator/backups", s.wrap(s.BackupsRequest))
+	s.mux.HandleFunc("/v1/operator/backup/", s.wrap(s.BackupSpecificRequest))
 
 	s.mux.HandleFunc("/v1/system/gc", s.wrap(s.GarbageCollectRequest))
 	s.mux.HandleFunc("/v1/system/reconcile/summaries", s.wrap(s.ReconcileJobSummaries))
@@ -543,9 +541,6 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 		s.mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 		s.mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	}
-
-	// Register enterprise endpoints.
-	s.registerEnterpriseHandlers()
 }
 
 // builtinAPI is a wrapper around serving the HTTP API to arbitrary listeners

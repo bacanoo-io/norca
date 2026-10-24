@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
+	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
@@ -350,12 +351,6 @@ type Config struct {
 	// for ACL token expiration.
 	ACLTokenMaxExpirationTTL time.Duration
 
-	// SentinelGCInterval is the interval that we GC unused policies.
-	SentinelGCInterval time.Duration
-
-	// SentinelConfig is this Agent's Sentinel configuration
-	SentinelConfig *config.SentinelConfig
-
 	// StatsCollectionInterval is the interval at which the Nomad server
 	// publishes metrics which are periodic in nature like updating gauges
 	StatsCollectionInterval time.Duration
@@ -419,6 +414,9 @@ type Config struct {
 	// Autoscaler configures the built-in autoscaler.
 	Autoscaler *autoscaler.Config
 
+	// Backup configures the scheduled backups to S3-compatible stores.
+	Backup *backup.Config
+
 	// JobDefaultPriority is the default Job priority if not specified.
 	JobDefaultPriority int
 
@@ -454,7 +452,6 @@ func (c *Config) Copy() *Config {
 	nc.ConsulConfig = c.ConsulConfig.Copy()
 	nc.VaultConfig = c.VaultConfig.Copy()
 	nc.TLSConfig = c.TLSConfig.Copy()
-	nc.SentinelConfig = c.SentinelConfig.Copy()
 	nc.AutopilotConfig = c.AutopilotConfig.Copy()
 	nc.SearchConfig = c.SearchConfig.Copy()
 	nc.AdmissionConfig = c.AdmissionConfig.Copy()
@@ -524,7 +521,6 @@ func DefaultConfig() *Config {
 		StatsCollectionInterval:          1 * time.Minute,
 		TLSConfig:                        &config.TLSConfig{},
 		ReplicationBackoff:               30 * time.Second,
-		SentinelGCInterval:               30 * time.Second,
 		EnableEventBroker:                true,
 		EventBufferSize:                  1000,
 		ACLTokenMinExpirationTTL:         1 * time.Minute,
@@ -548,6 +544,7 @@ func DefaultConfig() *Config {
 		},
 		DeploymentQueryRateLimit: deploymentwatcher.LimitStateQueriesPerSecond,
 		Autoscaler:               autoscaler.DefaultConfig(),
+		Backup:                   backup.DefaultConfig(),
 		JobDefaultPriority:       structs.JobDefaultPriority,
 		JobMaxPriority:           structs.JobDefaultMaxPriority,
 		JobTrackedVersions:       structs.JobDefaultTrackedVersions,

@@ -266,20 +266,7 @@ var basicConfig = &Config{
 	HTTPAPIResponseHeaders: map[string]string{
 		"Access-Control-Allow-Origin": "*",
 	},
-	Sentinel: &config.SentinelConfig{
-		Imports: []*config.SentinelImport{
-			{
-				Name: "foo",
-				Path: "foo",
-				Args: []string{"a", "b", "c"},
-			},
-			{
-				Name: "bar",
-				Path: "bar",
-				Args: []string{"x", "y", "z"},
-			},
-		},
-	},
+	Sentinel: &UnsupportedBlock{},
 	Autopilot: &config.AutopilotConfig{
 		CleanupDeadServers:         &trueValue,
 		ServerStabilizationTime:    23057 * time.Second,

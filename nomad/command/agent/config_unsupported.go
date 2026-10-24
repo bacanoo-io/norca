@@ -3,6 +3,11 @@
 
 package agent
 
+// UnsupportedBlock is a configuration block that is still parsed only so
+// that the agent can reject it at startup with a clear message. Its contents
+// are ignored.
+type UnsupportedBlock struct{}
+
 // unsupportedOptions returns an error message for each agent configuration
 // option that is parsed but has no effect in this build. They are rejected at
 // startup instead of being silently ignored.
@@ -11,6 +16,10 @@ func (c *Config) unsupportedOptions() []string {
 
 	if c.Audit != nil && c.Audit.Enabled != nil && *c.Audit.Enabled {
 		msgs = append(msgs, "audit logging is not supported: remove audit.enabled = true")
+	}
+
+	if c.Sentinel != nil {
+		msgs = append(msgs, "sentinel is not supported: remove the sentinel block")
 	}
 
 	if c.Server != nil {
