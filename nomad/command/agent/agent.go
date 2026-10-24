@@ -863,6 +863,10 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	}
 	conf.NativeServiceDiscovery = agentConfig.Client.NativeServiceDiscovery.Copy()
 	conf.Topology = agentConfig.Client.Topology.Copy()
+	if err := agentConfig.Client.DNS.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid dns config: %v", err)
+	}
+	conf.DNS = agentConfig.Client.DNS.Copy()
 
 	artifactConfig, err := clientconfig.ArtifactConfigFromAgent(agentConfig.Client.Artifact)
 	if err != nil {

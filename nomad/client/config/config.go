@@ -312,6 +312,9 @@ type Config struct {
 	// Topology holds the topology zone of the node (Norca).
 	Topology *structsc.TopologyConfig
 
+	// DNS configures the built-in DNS server (Norca).
+	DNS *structsc.DNSConfig
+
 	// TemplateDialer is our custom HTTP dialer for consul-template. This is
 	// used for template functions which require access to the Nomad API.
 	TemplateDialer *bufconndialer.BufConnWrapper
@@ -761,6 +764,7 @@ func (c *Config) Copy() *Config {
 	nc.Artifact = c.Artifact.Copy()
 	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
 	nc.Topology = c.Topology.Copy()
+	nc.DNS = c.DNS.Copy()
 	return &nc
 }
 

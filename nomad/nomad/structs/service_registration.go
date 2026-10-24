@@ -322,6 +322,10 @@ type ServiceRegistrationByNameRequest struct {
 	// whose service publishes instances that are not ready.
 	HealthyOnly bool
 
+	// Near, if set, orders and selects the instances by their topology
+	// relative to it, following the discovery settings of the service.
+	Near *Topology
+
 	QueryOptions
 }
 
@@ -329,5 +333,11 @@ type ServiceRegistrationByNameRequest struct {
 // lookup of services matching a specific name.
 type ServiceRegistrationByNameResponse struct {
 	Services []*ServiceRegistration
+
+	// Discovery is the discovery settings of the service, taken from its
+	// registrations before any filtering. Callers use it for regional
+	// failover when no instance is left.
+	Discovery *ServiceDiscovery
+
 	QueryMeta
 }

@@ -477,15 +477,18 @@ func (s *ServiceRegistration) GetService(
 
 			// Build the paginator. This includes the function that is
 			// responsible for appending a registration to the services array.
-			// Filter for healthy instances if requested.
-			var filters []paginator.Filter
-			if args.HealthyOnly {
-				filters = append(filters, paginator.GenericFilter{
-					Allow: func(raw interface{}) (bool, error) {
-						return raw.(*structs.ServiceRegistration).Discoverable(), nil
-					},
-				})
-			}
+			// Filter for healthy instances if requested, and remember the
+			// discovery settings of the service.
+			var discoveryRegs []*structs.ServiceRegistration
+			filters := []paginator.Filter{paginator.GenericFilter{
+				Allow: func(raw interface{}) (bool, error) {
+					reg := raw.(*structs.ServiceRegistration)
+					if reg.Discovery != nil {
+						discoveryRegs = append(discoveryRegs, reg)
+					}
+					return !args.HealthyOnly || reg.Discoverable(), nil
+				},
+			}}
 
 			paginatorImpl, err := paginator.NewPaginator(iter, tokenizer, filters, args.QueryOptions,
 				func(raw interface{}) error {
@@ -503,6 +506,12 @@ func (s *ServiceRegistration) GetService(
 			if err != nil {
 				return structs.NewErrRPCCodedf(
 					http.StatusBadRequest, "failed to read result page: %v", err)
+			}
+
+			// Select the instances by topology if requested.
+			reply.Discovery = structs.EffectiveDiscovery(discoveryRegs)
+			if args.Near != nil {
+				services = structs.SelectByTopology(services, *args.Near, reply.Discovery)
 			}
 
 			// Select which subset and the order of services to return if using ?choose

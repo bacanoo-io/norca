@@ -140,6 +140,66 @@ func (d *ServiceDiscovery) Validate() error {
 	return mErr.ErrorOrNil()
 }
 
+// SelectByTopology orders the instances of one service by their topology
+// relative to near, following the discovery settings d, and leaves out the
+// tiers that are not needed. The tiers are (1) the zone of near, (2) its
+// datacenter and (3) the rest of the region, depending on d.Prefer. The first
+// tier is always returned; each next tier is added while the instances
+// returned so far are fewer than d.MinLocal (at least one), or fewer than
+// d.OverflowFraction of all instances. The order within a tier is kept.
+//
+// Instances must all belong to the region of near. With no settings, or with
+// a preference of "none" or "region", instances are returned as they are.
+func SelectByTopology(instances []*ServiceRegistration, near Topology, d *ServiceDiscovery) []*ServiceRegistration {
+	if d == nil || len(instances) == 0 {
+		return instances
+	}
+
+	var tiers [][]*ServiceRegistration
+	switch d.Prefer {
+	case DiscoveryPreferZone:
+		var zone, dc, rest []*ServiceRegistration
+		for _, inst := range instances {
+			switch {
+			case near.Zone != "" && inst.Zone == near.Zone && inst.Datacenter == near.Datacenter:
+				zone = append(zone, inst)
+			case inst.Datacenter == near.Datacenter:
+				dc = append(dc, inst)
+			default:
+				rest = append(rest, inst)
+			}
+		}
+		tiers = [][]*ServiceRegistration{zone, dc, rest}
+	case DiscoveryPreferDatacenter:
+		var dc, rest []*ServiceRegistration
+		for _, inst := range instances {
+			if inst.Datacenter == near.Datacenter {
+				dc = append(dc, inst)
+			} else {
+				rest = append(rest, inst)
+			}
+		}
+		tiers = [][]*ServiceRegistration{dc, rest}
+	default:
+		return instances
+	}
+
+	minLocal := d.MinLocal
+	if minLocal < 1 {
+		minLocal = 1
+	}
+	minFraction := d.OverflowFraction * float64(len(instances))
+
+	out := make([]*ServiceRegistration, 0, len(instances))
+	for i, tier := range tiers {
+		if i > 0 && len(out) >= minLocal && float64(len(out)) >= minFraction {
+			break
+		}
+		out = append(out, tier...)
+	}
+	return out
+}
+
 // serviceDiscoveryDiff diffs the discovery blocks of a service.
 func serviceDiscoveryDiff(old, new *ServiceDiscovery, contextual bool) *ObjectDiff {
 	if old.Equal(new) {

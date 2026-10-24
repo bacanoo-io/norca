@@ -361,6 +361,9 @@ type ClientConfig struct {
 	// Topology holds the topology zone of the node (Norca).
 	Topology *config.TopologyConfig `hcl:"topology"`
 
+	// DNS configures the built-in DNS server (Norca).
+	DNS *config.DNSConfig `hcl:"dns"`
+
 	// Artifact contains the configuration for artifacts.
 	Artifact *config.ArtifactConfig `hcl:"artifact"`
 
@@ -390,6 +393,7 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.NomadServiceDiscovery = pointer.Copy(c.NomadServiceDiscovery)
 	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
 	nc.Topology = c.Topology.Copy()
+	nc.DNS = c.DNS.Copy()
 	nc.Artifact = c.Artifact.Copy()
 	nc.Drain = c.Drain.Copy()
 	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
@@ -2263,6 +2267,7 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 
 	result.NativeServiceDiscovery = a.NativeServiceDiscovery.Merge(b.NativeServiceDiscovery)
 	result.Topology = a.Topology.Merge(b.Topology)
+	result.DNS = a.DNS.Merge(b.DNS)
 
 	result.Artifact = a.Artifact.Merge(b.Artifact)
 	result.Drain = a.Drain.Merge(b.Drain)
