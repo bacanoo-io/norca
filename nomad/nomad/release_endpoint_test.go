@@ -531,7 +531,21 @@ func TestRelease_BuiltinGroupIsProtected(t *testing.T) {
 		QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: c.token},
 	}, &get))
 	must.NotNil(t, get.Object)
-	must.Eq(t, "deployed", get.Object.Status["phase"])
+	must.Eq[any](t, "deployed", get.Object.Status["phase"])
+
+	// Operations are recorded in the event log of the release object.
+	var events structs.CustomObjectEventsResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "CustomObject.ListEvents", &structs.CustomObjectSpecificRequest{
+		Group: structs.ReleaseObjectGroup, Kind: structs.ReleaseKind, Name: "readable",
+		QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: c.token},
+	}, &events))
+	must.SliceNotEmpty(t, events.Events)
+	must.Eq(t, "Deployed", events.Events[len(events.Events)-1].Reason)
+
+	// Jobs carry the owner reference of the operator framework.
+	job, _ := c.srv.State().JobByID(nil, "default", "readable")
+	must.Eq(t, structs.ReleaseKindRef, job.Meta[structs.JobMetaOwnerKind])
+	must.Eq(t, structs.ObjectOwnerMetaValue(structs.ReleaseObjectGroup, structs.ReleaseKind, "default", "readable"), job.Meta[structs.JobMetaOwner])
 }
 
 func TestRelease_ACL(t *testing.T) {

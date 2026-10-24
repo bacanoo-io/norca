@@ -517,3 +517,24 @@ func jsonEqual(a, b any) bool {
 	bb, errB := json.Marshal(b)
 	return errA == nil && errB == nil && string(ab) == string(bb)
 }
+
+// recordEvent writes an event to the object event log of a release, so
+// that operations, test results and drift show up next to the release.
+// It is best effort.
+func (m *releaseManager) recordEvent(namespace, name, eventType, reason, message string, meta map[string]string) {
+	snap, err := m.srv.State().Snapshot()
+	if err != nil {
+		return
+	}
+	obj, err := snap.CustomObjectByName(nil, structs.ReleaseObjectGroup, structs.ReleaseKind, namespace, name)
+	if err != nil || obj == nil {
+		return
+	}
+	if len(message) > 1000 {
+		message = message[:1000]
+	}
+	ev := &structs.ObjectEvent{Type: eventType, Reason: reason, Message: message, Meta: meta}
+	if _, err := m.srv.recordObjectEvents(obj, []*structs.ObjectEvent{ev}, structs.ReleaseManagedBy); err != nil {
+		m.logger.Debug("failed to record release event", "release", name, "error", err)
+	}
+}

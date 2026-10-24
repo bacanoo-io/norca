@@ -230,6 +230,12 @@ func (m *releaseManager) prepareResources(snap *state.StateSnapshot, op *release
 			}
 			job.Meta[structs.ReleaseMetaRelease] = op.name
 			job.Meta[structs.ReleaseMetaReleaseNamespace] = op.namespace
+			// The owner reference of the operator framework, so that the
+			// job links to its release. The release deletes its jobs itself
+			// (without a tombstone), so the object garbage collector never
+			// acts on it, and orphaned jobs stay.
+			job.Meta[structs.JobMetaOwner] = structs.ObjectOwnerMetaValue(structs.ReleaseObjectGroup, structs.ReleaseKind, op.namespace, op.name)
+			job.Meta[structs.JobMetaOwnerKind] = structs.ReleaseKindRef
 		}
 
 		key := res.Ref().Key()
@@ -554,6 +560,9 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	}
 	m.pruneRevisions(op, rel)
 
+	m.recordEvent(op.namespace, op.name, structs.ObjectEventTypeNormal, "Deployed",
+		fmt.Sprintf("%s of revision %d deployed", in.action, revNum), map[string]string{"revision": fmt.Sprint(revNum)})
+
 	reply.Release = rel
 	reply.Revision = revNum
 	reply.Changes = op.changes
@@ -645,6 +654,12 @@ func (m *releaseManager) finishFailed(op *releaseOp, rel *structs.Release, rev *
 	if _, err := m.writeLatestRelease(rel); err != nil {
 		m.logger.Warn("failed to record failed release operation", "release", rel.Name, "error", err)
 	}
+
+	reason := "Failed"
+	if rolledBack {
+		reason = "RolledBack"
+	}
+	m.recordEvent(rel.Namespace, rel.Name, structs.ObjectEventTypeWarning, reason, msg, nil)
 
 	if rolledBack {
 		return fmt.Errorf("release %q failed and was rolled back to revision %d: %s", rel.Name, prevRevision, cause)

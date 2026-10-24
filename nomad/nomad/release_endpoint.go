@@ -507,6 +507,12 @@ func (r *Release) Test(args *structs.ReleaseTestRequest, reply *structs.ReleaseT
 	result.Succeeded = testErr == nil
 
 	rel.Status.LastTest = result
+	evType, reason := structs.ObjectEventTypeNormal, "TestSucceeded"
+	msg := fmt.Sprintf("%d test hooks of revision %d succeeded", len(result.Hooks), rev.Revision)
+	if testErr != nil {
+		evType, reason, msg = structs.ObjectEventTypeWarning, "TestFailed", testErr.Error()
+	}
+	m.recordEvent(namespace, args.Name, evType, reason, msg, nil)
 	if _, err := m.writeLatestRelease(rel); err != nil {
 		return err
 	}

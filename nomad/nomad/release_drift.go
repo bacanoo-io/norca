@@ -85,6 +85,7 @@ func (m *releaseManager) checkDrift(namespace, name string) (*structs.Release, [
 		}
 		if becameDrifted {
 			m.publishDrift(written, entries)
+			m.recordEvent(namespace, name, structs.ObjectEventTypeWarning, "Drifted", msg, nil)
 		}
 		return written, entries, nil
 	}
