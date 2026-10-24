@@ -6,6 +6,7 @@ package state
 import (
 	"fmt"
 
+	"github.com/hashicorp/nomad/nomad/stream"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -14,6 +15,11 @@ import (
 // transactions.
 type StateRestore struct {
 	txn *txn
+
+	// publisher is the event broker of the restored state store, if any. It
+	// is told the restored indexes on commit, since the restored objects do
+	// not produce events.
+	publisher *stream.EventBroker
 }
 
 // Abort is used to abort the restore operation
@@ -23,7 +29,19 @@ func (r *StateRestore) Abort() {
 
 // Commit is used to commit the restore operation
 func (r *StateRestore) Commit() error {
-	return r.txn.Commit()
+	if r.publisher == nil {
+		return r.txn.Commit()
+	}
+
+	latest, byTopic, err := eventBaseIndexes(r.txn)
+	if err != nil {
+		return err
+	}
+	if err := r.txn.Commit(); err != nil {
+		return err
+	}
+	r.publisher.SetBaseIndexes(latest, byTopic)
+	return nil
 }
 
 // NodeRestore is used to restore a node

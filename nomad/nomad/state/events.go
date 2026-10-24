@@ -41,6 +41,7 @@ var MsgTypeEvents = map[structs.MessageType]string{
 	structs.ServiceRegistrationUpsertRequestType:         structs.TypeServiceRegistration,
 	structs.ServiceRegistrationDeleteByIDRequestType:     structs.TypeServiceDeregistration,
 	structs.ServiceRegistrationDeleteByNodeIDRequestType: structs.TypeServiceDeregistration,
+	structs.VarApplyStateRequestType:                     structs.TypeVariableUpserted,
 }
 
 func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
@@ -52,7 +53,11 @@ func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
 	var events []structs.Event
 	for _, change := range changes.Changes {
 		if event, ok := eventFromChange(change); ok {
-			event.Type = eventType
+			// A change may set its own type when one message type covers
+			// several kinds of modification (e.g. variable set and delete).
+			if event.Type == "" {
+				event.Type = eventType
+			}
 			event.Index = changes.Index
 			events = append(events, event)
 		}
@@ -168,6 +173,12 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 					Service: before,
 				},
 			}, true
+		case TableVariables:
+			before, ok := change.Before.(*structs.VariableEncrypted)
+			if !ok {
+				return structs.Event{}, false
+			}
+			return variableEvent(structs.TypeVariableDeleted, before), true
 		}
 		return structs.Event{}, false
 	}
@@ -345,7 +356,25 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 				Service: after,
 			},
 		}, true
+	case TableVariables:
+		after, ok := change.After.(*structs.VariableEncrypted)
+		if !ok {
+			return structs.Event{}, false
+		}
+		return variableEvent(structs.TypeVariableUpserted, after), true
 	}
 
 	return structs.Event{}, false
+}
+
+// variableEvent builds the event of a variable change. Only the metadata is
+// published; the encrypted data and key ID never leave the state store.
+func variableEvent(eventType string, v *structs.VariableEncrypted) structs.Event {
+	return structs.Event{
+		Topic:     structs.TopicVariables,
+		Type:      eventType,
+		Key:       v.Path,
+		Namespace: v.Namespace,
+		Payload:   structs.NewVariableEvent(v),
+	}
 }
