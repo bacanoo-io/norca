@@ -165,7 +165,7 @@ func (c *RegistryAddCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack registry add <name> <source> [options]
 
-	Add Nomad Pack registries.
+	Add Norca Pack registries.
 
 ` + c.GetExample() + c.Flags().Help())
 }

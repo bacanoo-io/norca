@@ -114,7 +114,7 @@ func (c *DestroyCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack destroy <pack name> [options]
 
-	Stop and delete the specified Nomad Pack from the configured Nomad cluster.
+	Stop and delete the specified Norca Pack from the configured Norca cluster.
 	This is the same as using the command "norca pack stop <pack name> --purge".
 	By default, the destroy command will delete ALL jobs in the pack deployment.
 	If a pack was run using var overrides to specify the job name(s), the var

@@ -347,7 +347,7 @@ func (c *StopCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack stop <pack name> [options]
 
-	Stop the specified Nomad Pack in the configured Nomad cluster. To delete the
+	Stop the specified Norca Pack in the configured Norca cluster. To delete the
 	pack from the cluster, specify "--purge", or use the "norca pack destroy"
 	command.
 

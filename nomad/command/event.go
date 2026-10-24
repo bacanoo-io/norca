@@ -22,8 +22,8 @@ func (e *EventCommand) Help() string {
 	helpText := `
 Usage: norca event <subcommand> [options] [args]
 
-  This command groups subcommands for interacting with Nomad event sinks.
-  Nomad's event sinks system can be used to subscribe to the event stream for
+  This command groups subcommands for interacting with Norca event sinks.
+  Norca's event sinks system can be used to subscribe to the event stream for
   events that match specific topics.
 
   Register or update an event sink:

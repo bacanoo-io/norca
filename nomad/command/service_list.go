@@ -49,7 +49,7 @@ Service List Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ServiceListCommand) Synopsis() string {
-	return "Display all registered Nomad services"
+	return "Display all registered Norca services"
 }
 
 func (s *ServiceListCommand) AutocompleteFlags() complete.Flags {

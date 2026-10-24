@@ -17,7 +17,7 @@ func (f *ACLPolicyCommand) Help() string {
 	helpText := `
 Usage: norca acl policy <subcommand> [options] [args]
 
-  This command groups subcommands for interacting with ACL policies. Nomad's ACL
+  This command groups subcommands for interacting with ACL policies. Norca's ACL
   system can be used to control access to data and APIs. ACL policies allow a
   set of capabilities or actions to be granted or allowlisted. For a full guide
   see: https://www.nomadproject.io/guides/acl.html

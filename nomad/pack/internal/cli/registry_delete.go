@@ -134,7 +134,7 @@ func (c *RegistryDeleteCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack registry delete <name> [options]
 
-	Delete Nomad Pack registries or packs.
+	Delete Norca Pack registries or packs.
 
 ` + c.GetExample() + c.Flags().Help())
 }

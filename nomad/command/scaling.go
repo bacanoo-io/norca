@@ -31,7 +31,7 @@ Usage: norca scaling <subcommand> [options]
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ScalingCommand) Synopsis() string {
-	return "Interact with the Nomad scaling endpoint"
+	return "Interact with the Norca scaling endpoint"
 }
 
 // Name returns the name of this command.

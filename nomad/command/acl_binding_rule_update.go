@@ -56,7 +56,7 @@ Update Options:
 
   -bind-type
     Specifies adjusts how this binding rule is applied at login time to internal
-    Nomad objects. Valid options are "role", "policy", or "management".
+    Norca objects. Valid options are "role", "policy", or "management".
 
   -bind-name
     Specifies is the target of the binding used on selector match. This can be

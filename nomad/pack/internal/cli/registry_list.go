@@ -96,7 +96,7 @@ func (c *RegistryListCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack registry list
 
-	List Nomad Pack registries.
+	List Norca Pack registries.
 
 ` + c.GetExample() + c.Flags().Help())
 }

@@ -1147,7 +1147,7 @@ func runPackCmd(t *testing.T, args []string) PackCommandResult {
 	command := &cli.CLI{
 		Name:                       "norca pack",
 		Args:                       args,
-		Version:                    fmt.Sprintf("Nomad Pack %s", version.HumanVersion()),
+		Version:                    fmt.Sprintf("Norca Pack %s", version.HumanVersion()),
 		Commands:                   commands,
 		Autocomplete:               true,
 		AutocompleteNoDefaultFlags: true,

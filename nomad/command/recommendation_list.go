@@ -60,7 +60,7 @@ Recommendation List Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (r *RecommendationListCommand) Synopsis() string {
-	return "Display all Nomad recommendations"
+	return "Display all Norca recommendations"
 }
 
 func (r *RecommendationListCommand) AutocompleteFlags() complete.Flags {

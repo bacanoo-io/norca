@@ -21,7 +21,7 @@ func (c *EvalListCommand) Help() string {
 	helpText := `
 Usage: norca eval list [options]
 
-  List is used to list the set of evaluations processed by Nomad.
+  List is used to list the set of evaluations processed by Norca.
 
 General Options:
 
@@ -58,7 +58,7 @@ Eval List Options:
 }
 
 func (c *EvalListCommand) Synopsis() string {
-	return "List the set of evaluations processed by Nomad"
+	return "List the set of evaluations processed by Norca"
 }
 
 func (c *EvalListCommand) AutocompleteFlags() complete.Flags {

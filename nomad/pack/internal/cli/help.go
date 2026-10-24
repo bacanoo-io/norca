@@ -200,9 +200,9 @@ Subcommands:
 
 var helpText = map[string][2]string{
 	"run": {
-		"Run one or more Nomad packs",
-		`The "run" command is used to install a Nomad Pack to a configured Nomad
-		cluster. Nomad Pack will search for packs in local repositories to match
+		"Run one or more packs",
+		`The "run" command is used to install a pack to a configured Norca
+		cluster. Norca will search for packs in local repositories to match
 		the pack name(s) specified in the run command.`,
 	},
 	"plan": {
@@ -239,7 +239,7 @@ var helpText = map[string][2]string{
 		"Stop a running pack",
 		`The "stop" command stops a running pack. The --purge flag is used to
 		stop the pack and purge it from the system. If not set, the job(s) in
-		the pack will still be queryable and will be purged by Nomad's garbage
+		the pack will still be queryable and will be purged by Norca's garbage
 		collector. The --global flag will stop a multi-region job in all its
 		regions. By default, stop will stop only a single region at a time.
 		Ignored for single-region packs. After the deregister command is
@@ -259,7 +259,7 @@ var helpText = map[string][2]string{
 	},
 	"status": {
 		"Status gets information on deployed packs",
-		`The "status" command returns information on packs deployed in a Nomad
+		`The "status" command returns information on packs deployed in a Norca
 		cluster. If no pack name is specified, it will return a list of all
 		deployed packs. If pack name is provided, it will return a list of the
 		jobs in that pack, along with their status, and the pack deployment they

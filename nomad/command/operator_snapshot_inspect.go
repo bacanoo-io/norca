@@ -37,7 +37,7 @@ func (c *OperatorSnapshotInspectCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *OperatorSnapshotInspectCommand) Synopsis() string {
-	return "Displays information about a Nomad snapshot file"
+	return "Displays information about a Norca snapshot file"
 }
 
 func (c *OperatorSnapshotInspectCommand) Name() string { return "operator snapshot inspect" }

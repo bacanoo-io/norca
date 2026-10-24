@@ -31,7 +31,7 @@ Usage: norca recommendation <subcommand> [options]
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (r *RecommendationCommand) Synopsis() string {
-	return "Interact with the Nomad recommendation endpoint"
+	return "Interact with the Norca recommendation endpoint"
 }
 
 // Name returns the name of this command.

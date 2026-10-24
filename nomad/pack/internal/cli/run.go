@@ -256,7 +256,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Target:  &c.jobConfig.RunConfig.VaultNamespace,
 			Default: "",
 			Usage: `If set, the passed Vault namespace is stored in the job
-					before sending to the Nomad servers.`,
+					before sending to the Norca servers.`,
 		})
 
 		f.BoolVar(&flag.BoolVar{
@@ -349,7 +349,7 @@ func (c *RunCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack run <pack-name> [options]
 
-	Install the specified Nomad Pack to a configured Nomad cluster.
+	Install the specified Norca Pack to a configured Norca cluster.
 
 ` + c.GetExample() + c.Flags().Help())
 }

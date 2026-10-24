@@ -156,7 +156,7 @@ func (c *StatusCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack status <name> [options]
 
-	Get information on deployed Nomad Packs. If no pack name is specified, it
+	Get information on deployed Norca Packs. If no pack name is specified, it
 	will return	a list of all deployed packs. If pack name is specified, it will
 	return a list of all deployed jobs belonging to that pack, along with their
 	status and deployment names.

@@ -438,7 +438,7 @@ func (c *RenderCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack render <pack-name> [options]
 
-	Render the specified Nomad Pack and view the results.
+	Render the specified Norca Pack and view the results.
 
 ` + c.GetExample() + c.Flags().Help())
 }

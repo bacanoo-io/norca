@@ -234,7 +234,7 @@ func (c *generateVarFileCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack generate var-file <pack-name> [options]
 
-	Generate a variables file for the specified Nomad Pack.
+	Generate a variables file for the specified Norca Pack.
 
 ` + c.GetExample() + c.Flags().Help())
 }

@@ -26,7 +26,7 @@ func (r *RecommendationApplyCommand) Help() string {
 	helpText := `
 Usage: norca recommendation apply [options] <recommendation_ids>
 
-  Apply one or more Nomad recommendations.
+  Apply one or more Norca recommendations.
 
   When ACLs are enabled, this command requires a token with the 'submit-job',
   'read-job', and 'submit-recommendation' capabilities for the
@@ -56,7 +56,7 @@ Recommendation Apply Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (r *RecommendationApplyCommand) Synopsis() string {
-	return "Apply one or more Nomad recommendations"
+	return "Apply one or more Norca recommendations"
 }
 
 func (r *RecommendationApplyCommand) AutocompleteFlags() complete.Flags {

@@ -44,14 +44,14 @@ func (c *GenerateHelpCommand) AutocompleteFlags() complete.Flags {
 }
 
 func (c *GenerateHelpCommand) Synopsis() string {
-	return "Generate a sample Nomad Pack registry, pack, or variable overrides file for a pack."
+	return "Generate a sample Norca Pack registry, pack, or variable overrides file for a pack."
 }
 
 func (c *GenerateHelpCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack generate <subcommand> [options]
 
-	Generate a sample Nomad Pack registry, pack, or variable overrides file for a
+	Generate a sample Norca Pack registry, pack, or variable overrides file for a
 	pack.
 
 ` + c.GetExample() + c.Flags().Help())

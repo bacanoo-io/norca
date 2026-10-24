@@ -17,7 +17,7 @@ func (c *OperatorRaftCommand) Help() string {
 	helpText := `
 Usage: norca operator raft <subcommand> [options]
 
-  This command groups subcommands for interacting with Nomad's Raft subsystem.
+  This command groups subcommands for interacting with Norca's Raft subsystem.
   The command can be used to verify Raft peers or in rare cases to recover
   quorum by removing invalid peers.
 

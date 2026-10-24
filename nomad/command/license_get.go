@@ -19,7 +19,7 @@ func (c *LicenseGetCommand) Help() string {
 Usage: norca license get [options]
 
   Gets the license loaded by the server. The command is not forwarded to the
-  Nomad leader, and will return the license from the specific server being
+  Norca leader, and will return the license from the specific server being
   contacted.
 
   When ACLs are enabled, this command requires a token with the

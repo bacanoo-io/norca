@@ -20,7 +20,7 @@ func (f *NodeCommand) Help() string {
 	helpText := `
 Usage: norca node <subcommand> [options] [args]
 
-  This command groups subcommands for interacting with nodes. Nodes in Nomad are
+  This command groups subcommands for interacting with nodes. Nodes in Norca are
   agent's that can run submitted workloads. This command can be used to examine
   nodes and operate on nodes, such as draining workloads off of them.
 

@@ -29,7 +29,7 @@ func (c *VersionCommand) Run(args []string) int {
 		return 1
 	}
 
-	c.ui.Output("Nomad Pack %s\n", version.HumanVersion())
+	c.ui.Output("Norca Pack %s\n", version.HumanVersion())
 
 	// Exit zero since we have completed successfully.
 	return 0
@@ -48,13 +48,13 @@ func (c *VersionCommand) AutocompleteFlags() complete.Flags {
 }
 
 func (c *VersionCommand) Synopsis() string {
-	return "Prints the version of Nomad Pack"
+	return "Prints the version of Norca Pack"
 }
 
 func (c *VersionCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack version
 
-	Prints the version information for Nomad Pack.
+	Prints the version information for Norca Pack.
 `)
 }

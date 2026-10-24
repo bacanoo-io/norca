@@ -22,10 +22,10 @@ Usage: norca operator raft info <path to norca data dir>
   Displays summary information about the raft logs in the data directory.
 
   This command requires file system permissions to access the data directory on
-  disk. The Nomad server locks access to the data directory, so this command
-  cannot be run on a data directory that is being used by a running Nomad server.
+  disk. The Norca server locks access to the data directory, so this command
+  cannot be run on a data directory that is being used by a running Norca server.
 
-  This is a low-level debugging tool and not subject to Nomad's usual backward
+  This is a low-level debugging tool and not subject to Norca's usual backward
   compatibility guarantees.
 `
 	return strings.TrimSpace(helpText)

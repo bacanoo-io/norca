@@ -19,7 +19,7 @@ func (c *OperatorRaftRemoveCommand) Help() string {
 	helpText := `
 Usage: norca operator raft remove-peer [options]
 
-  Remove the Nomad server with given -peer-address from the Raft configuration.
+  Remove the Norca server with given -peer-address from the Raft configuration.
 
   There are rare cases where a peer may be left behind in the Raft quorum even
   though the server is no longer present and known to the cluster. This command
@@ -37,10 +37,10 @@ General Options:
 Remove Peer Options:
 
   -peer-address="IP:port"
-	Remove a Nomad server with given address from the Raft configuration.
+	Remove a Norca server with given address from the Raft configuration.
 
   -peer-id="id"
-	Remove a Nomad server with the given ID from the Raft configuration.
+	Remove a Norca server with the given ID from the Raft configuration.
 `
 	return strings.TrimSpace(helpText)
 }
@@ -58,7 +58,7 @@ func (c *OperatorRaftRemoveCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *OperatorRaftRemoveCommand) Synopsis() string {
-	return "Remove a Nomad server from the Raft configuration"
+	return "Remove a Norca server from the Raft configuration"
 }
 
 func (c *OperatorRaftRemoveCommand) Name() string { return "operator raft remove-peer" }

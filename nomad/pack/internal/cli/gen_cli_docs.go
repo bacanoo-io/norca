@@ -151,7 +151,7 @@ description: "%s"
 
 `, capital, name, cmd.Synopsis())
 
-	fmt.Fprintf(w, "# Nomad Pack %s\n\nCommand: `norca pack %s`\n\n%s\n\n", capital, name, cmd.Synopsis())
+	fmt.Fprintf(w, "# Norca Pack %s\n\nCommand: `norca pack %s`\n\n%s\n\n", capital, name, cmd.Synopsis())
 
 	if c.mode == "mdx" {
 		descFile := goodName + "_desc.mdx"

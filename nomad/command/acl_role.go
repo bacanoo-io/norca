@@ -25,7 +25,7 @@ func (a *ACLRoleCommand) Help() string {
 	helpText := `
 Usage: norca acl role <subcommand> [options] [args]
 
-  This command groups subcommands for interacting with ACL roles. Nomad's ACL
+  This command groups subcommands for interacting with ACL roles. Norca's ACL
   system can be used to control access to data and APIs. ACL roles are
   associated with one or more ACL policies which grant specific capabilities.
   For a full guide see: https://www.nomadproject.io/guides/acl.html

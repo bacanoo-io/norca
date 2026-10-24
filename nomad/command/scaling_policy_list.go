@@ -59,7 +59,7 @@ Policy Info Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ScalingPolicyListCommand) Synopsis() string {
-	return "Display all Nomad scaling policies"
+	return "Display all Norca scaling policies"
 }
 
 func (s *ScalingPolicyListCommand) AutocompleteFlags() complete.Flags {

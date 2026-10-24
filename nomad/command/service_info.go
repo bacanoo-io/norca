@@ -63,7 +63,7 @@ Service Info Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ServiceInfoCommand) Synopsis() string {
-	return "Display an individual Nomad service registration"
+	return "Display an individual Norca service registration"
 }
 
 func (s *ServiceInfoCommand) AutocompleteFlags() complete.Flags {

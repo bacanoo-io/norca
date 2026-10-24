@@ -201,7 +201,7 @@ func (c *RegistryUpdateCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack registry update <name> [options]
 
-	Update a previously added Nomad Pack registry. The source URL is
+	Update a previously added Norca Pack registry. The source URL is
 	automatically retrieved from the cached registry metadata, so only
 	the registry name is required. The registry must have been previously
 	added using "norca pack registry add".
