@@ -258,8 +258,8 @@ The request and response follow the structure of the Kubernetes AdmissionReview,
 
 ### Open questions
 
-- Should admission also run on Variables writes? This would be useful for schema validation in the CRD-like use of item 3.
-- Is a mutating CEL needed (the equivalent of Kubernetes MutatingAdmissionPolicy), or is the webhook enough?
+- Should admission also run on Variables writes? This would be useful for schema validation in the CRD-like use of item 3. **Decided 2026-10-24: yes, together with phase 2 of the operator framework.**
+- Is a mutating CEL needed (the equivalent of Kubernetes MutatingAdmissionPolicy), or is the webhook enough? **Decided 2026-10-24: the webhook is enough; no mutating CEL for now.**
 
 ---
 
@@ -303,7 +303,7 @@ Variables paths allow only `a-z A-Z 0-9 - _ ~ /`; dots are excluded because they
 
 - The **schema** can be given in a companion Variables entry (`crd-schema/<group>/<kind>`); validation can be done by the CEL rules of item 2 if admission is extended to Variables writes (this is an open question of item 2).
 - The **controller** subscribes to the `Variables` topic with the pattern `crd/db-example-com/PostgresCluster/*`, lists at startup, and reacts on change (for example starts or modifies a Nomad job).
-- A small, MPL-licensed **Go controller SDK** (a separate module) provides the list + watch loop, handling of `exact=true`, retries and leader election. Variables locks appeared only in Nomad 1.7 and do not exist in 1.6.5, so leader election is built on the check-and-set write of Variables (with the `cas` parameter, based on `ModifyIndex`): whoever's write succeeds wins, and renews the entry periodically.
+- A small, MPL-licensed **Go controller SDK** (the separate Go module `nomad/controller` in this repository) provides the list + watch loop, handling of `exact=true`, retries and leader election. Variables locks appeared only in Nomad 1.7 and do not exist in 1.6.5, so leader election is built on the check-and-set write of Variables (with the `cas` parameter, based on `ModifyIndex`): whoever's write succeeds wins, and renews the entry periodically.
 
 ### API and CLI
 
@@ -316,7 +316,7 @@ Variables paths allow only `a-z A-Z 0-9 - _ ~ /`; dots are excluded because they
 2. New topics and event types (`nomad/structs/event.go`), ACL filtering at subscription time (`nomad/event_endpoint.go`, `nomad/stream/event_broker.go`).
 3. Processing the `exact` parameter and the `410` response (`command/agent/event_endpoint.go`).
 4. Raising the default of `event_buffer_size` (`nomad/config.go`, `command/agent/config.go`).
-5. The controller SDK in a separate repository.
+5. The controller SDK: the separate Go module `nomad/controller` in this repository (module `github.com/hashicorp/nomad/controller`, depending only on the API module `nomad/api`).
 
 ### Testing and acceptance
 
@@ -783,7 +783,7 @@ The controller receives these capabilities through the ACL rule bound to its job
 ### Running the controller and the SDK
 
 - **Running:** as a Nomad job, typically with `count = 2`. Only one instance works at a time: in the native version a built-in `Lease` object type, in the prototype the check-and-set write of Variables provides leader election.
-- **SDK (`nomad-controller-runtime`, a separate MPL-licensed Go module):** informer (list + watch with a local cache, resynchronization on `410`), a work queue with rate limiting and backoff, `Reconcile(ctx, key) → (retry time, error)`, watching the jobs and allocations it owns and mapping them back to the owner, status, event and finalizer helper functions, leader election, metrics (reconcile time, queue length, errors) and OpenTelemetry tracing.
+- **SDK (`nomad/controller` in this repository, a separate MPL-licensed Go module):** informer (list + watch with a local cache, resynchronization on `410`), a work queue with rate limiting and backoff, `Reconcile(ctx, key) → (retry time, error)`, watching the jobs and allocations it owns and mapping them back to the owner, status, event and finalizer helper functions, leader election, metrics (reconcile time, queue length, errors) and OpenTelemetry tracing.
 - **Adoption after restore:** if an object is restored from a backup, the SDK first looks for already existing resources belonging to it (based on the owner reference and labels) and adopts them instead of creating new ones. This is also consistent with the selective and full restore of the backup plan.
 
 ### Relationship to the other items
@@ -814,7 +814,7 @@ The controller receives these capabilities through the ACL rule bound to its job
 2. **Server:** type registry, schema validation and default filling (with a JSON Schema library), CEL with `oldSelf`, RPC and HTTP endpoints, ACL, event topic (new `nomad/object_endpoint.go`, `command/agent/object_endpoint.go`, `acl/policy.go`).
 3. **Lifecycle:** finalizer handling, garbage collector and deletion modes on the leader (new `nomad/objectgc/`), admission protection of managed jobs.
 4. **Autoscaler:** `CustomObject` target through the `scale` subresource.
-5. **SDK and tools:** in a separate repository.
+5. **SDK and tools:** the SDK is the separate Go module `nomad/controller` in this repository (it depends only on the API module `nomad/api`, never on the main module); further tools are added next to it.
 6. **UI:** a generic object view based on the columns of the type definition, showing spec, status, conditions and the event log; on the jobs' pages, a link to the owner object.
 
 ### Schedule
@@ -879,7 +879,7 @@ service {
 ### Open questions
 
 - [ ] Which JSON Schema implementation do we use (license, performance)?
-- [ ] Is field-level ownership (server-side apply) needed already in the first version, or is the `managed_by` rule enough?
+- [x] Is field-level ownership (server-side apply) needed already in the first version, or is the `managed_by` rule enough? Decided 2026-10-24: the `managed_by` rule is enough.
 - [x] The first sample operator is the LoadBalancer (see above).
 
 ---

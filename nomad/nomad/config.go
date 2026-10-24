@@ -403,9 +403,6 @@ type Config struct {
 	// connections from a single IP address. nil/0 means no limit.
 	RPCMaxConnsPerClient int
 
-	// LicenseConfig stores information about the Enterprise license loaded for the server.
-	LicenseConfig *LicenseConfig
-
 	// SearchConfig provides knobs for Search API.
 	SearchConfig *structs.SearchConfig
 
@@ -463,7 +460,6 @@ func (c *Config) Copy() *Config {
 	nc.TLSConfig = c.TLSConfig.Copy()
 	nc.SentinelConfig = c.SentinelConfig.Copy()
 	nc.AutopilotConfig = c.AutopilotConfig.Copy()
-	nc.LicenseConfig = c.LicenseConfig.Copy()
 	nc.SearchConfig = c.SearchConfig.Copy()
 	nc.AdmissionConfig = c.AdmissionConfig.Copy()
 
@@ -533,7 +529,6 @@ func DefaultConfig() *Config {
 		TLSConfig:                        &config.TLSConfig{},
 		ReplicationBackoff:               30 * time.Second,
 		SentinelGCInterval:               30 * time.Second,
-		LicenseConfig:                    &LicenseConfig{},
 		EnableEventBroker:                true,
 		EventBufferSize:                  1000,
 		ACLTokenMinExpirationTTL:         1 * time.Minute,

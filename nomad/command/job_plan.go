@@ -98,7 +98,8 @@ Plan Options:
     to true, but ignored if "-hcl1" is also defined.
 
   -policy-override
-    Sets the flag to force override any soft mandatory Sentinel policies.
+    Has no effect: overriding admission policies is not supported. The flag is
+    still accepted for compatibility and prints a warning.
 
   -vault-token
     Used to validate if the user submitting the job has permission to run the job
@@ -178,6 +179,10 @@ func (c *JobPlanCommand) Run(args []string) int {
 		return 255
 	}
 
+	if policyOverride {
+		c.Ui.Warn(policyOverrideWarning)
+	}
+
 	// Check that we got exactly one job
 	args = flagSet.Args()
 	if len(args) != 1 {
@@ -241,10 +246,6 @@ func (c *JobPlanCommand) Run(args []string) int {
 		// Always request the diff so we can tell if there are changes.
 		Diff: true,
 	}
-	if policyOverride {
-		opts.PolicyOverride = true
-	}
-
 	if job.IsMultiregion() {
 		return c.multiregionPlan(client, job, opts, diff, verbose)
 	}

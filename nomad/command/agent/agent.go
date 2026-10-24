@@ -582,14 +582,6 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	}
 	conf.Backup = backupConf
 
-	// Add Enterprise license configs
-	conf.LicenseConfig = &nomad.LicenseConfig{
-		BuildDate:         agentConfig.Version.BuildDate,
-		AdditionalPubKeys: agentConfig.Server.licenseAdditionalPublicKeys,
-		LicenseEnvBytes:   agentConfig.Server.LicenseEnv,
-		LicensePath:       agentConfig.Server.LicensePath,
-	}
-
 	// Add the search configuration
 	if search := agentConfig.Server.Search; search != nil {
 		conf.SearchConfig = &structs.SearchConfig{

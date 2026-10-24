@@ -59,7 +59,8 @@ type ScalingRequest struct {
 	Error   bool
 	Meta    map[string]interface{}
 	WriteRequest
-	// this is effectively a job update, so we need the ability to override policy.
+	// PolicyOverride is ignored by the server: overriding admission policies
+	// is not supported.
 	PolicyOverride bool
 }
 

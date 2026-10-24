@@ -64,7 +64,7 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Nomad v1.6.5 core features | Available | – |
 | Dependency updates (Go 1.27, gRPC 1.84, security fixes) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Built-in autoscaler (leader subsystem; built-in strategies; `nomad` metrics pushed by clients and Prometheus; external APM/strategy plugins; typed, validated `scaling` policies; quota and deployment aware; `Scaling` events; off by default) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
-| Built-in autoscaler: node pool scaling with cloud providers (phase 4) | Planned | [development plan](docs/design/nomad-fork-development-plan.md) |
+| Built-in autoscaler: node pool scaling with cloud providers (phase 4) | Postponed | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Namespace quotas | Available | [specification, item 1](docs/design/kubernetes-features-spec.md) |
 | Dynamic admission control (CEL policies, webhooks) | Available | [specification, item 2](docs/design/kubernetes-features-spec.md) |
 | Event stream: Variables topic, resumable subscriptions | Available | [specification, item 3](docs/design/kubernetes-features-spec.md) |
@@ -73,6 +73,7 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Health check roles (startup, readiness, liveness) | Available | [specification, item 6](docs/design/kubernetes-features-spec.md) |
 | Network rules | Planned | [specification, item 7](docs/design/kubernetes-features-spec.md) |
 | Operator framework (phase 1 prototype: controller SDK `nomad/controller`, LoadBalancer example) | Available (prototype) | [specification, item 8](docs/design/kubernetes-features-spec.md) |
+| Event stream → NATS bridge (`nomad/natsbridge`, one job per region) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Backup and restore | Planned | [plan](docs/design/backup-restore-plan.md) |
 | Service discovery without Consul | Planned | [plan](docs/design/consul-independence-plan.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |

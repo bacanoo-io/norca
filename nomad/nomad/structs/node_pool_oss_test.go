@@ -29,7 +29,7 @@ func TestNodePool_Validate_OSS(t *testing.T) {
 					SchedulerAlgorithm: SchedulerAlgorithmBinpack,
 				},
 			},
-			expectedErr: "unlicensed",
+			expectedErr: "not supported",
 		},
 	}
 

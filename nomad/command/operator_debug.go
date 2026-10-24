@@ -1126,9 +1126,6 @@ func (c *OperatorDebugCommand) collectOperator(dir string, client *api.Client) {
 	ah, _, err := client.Operator().AutopilotServerHealth(c.queryOpts())
 	c.reportErr(writeResponseOrErrorToFile(
 		ah, err, c.newFile(dir, "operator-autopilot-health.json")))
-
-	lic, _, err := client.Operator().LicenseGet(c.queryOpts())
-	c.reportErr(writeResponseOrErrorToFile(lic, err, c.newFile(dir, "license.json")))
 }
 
 // collectNomad captures the nomad cluster state

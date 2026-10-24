@@ -353,11 +353,6 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 	// Create the logger
 	logger := config.Logger.ResetNamedIntercept("nomad")
 
-	// Validate enterprise license before anything stateful happens
-	if err = config.LicenseConfig.Validate(); err != nil {
-		return nil, err
-	}
-
 	// Create the server
 	s := &Server{
 		config:                  config,
@@ -902,13 +897,6 @@ func (s *Server) Reload(newConfig *Config) error {
 	if shouldReloadTLS {
 		if err := s.reloadTLSConnections(newConfig.TLSConfig); err != nil {
 			s.logger.Error("error reloading server TLS configuration", "error", err)
-			_ = multierror.Append(&mErr, err)
-		}
-	}
-
-	if newConfig.LicenseConfig.LicenseEnvBytes != "" || newConfig.LicenseConfig.LicensePath != "" {
-		if err = s.EnterpriseState.ReloadLicense(newConfig); err != nil {
-			s.logger.Error("error reloading license", "error", err)
 			_ = multierror.Append(&mErr, err)
 		}
 	}

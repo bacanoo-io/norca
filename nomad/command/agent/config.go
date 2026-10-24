@@ -626,16 +626,9 @@ type ServerConfig struct {
 	// for the EventBufferSize is 1.
 	EventBufferSize *int `hcl:"event_buffer_size"`
 
-	// LicensePath is the path to search for an enterprise license.
+	// LicensePath is parsed only so that the agent can reject it at startup:
+	// license files are not supported.
 	LicensePath string `hcl:"license_path"`
-
-	// LicenseEnv is the full enterprise license.  If NOMAD_LICENSE
-	// is set, LicenseEnv will be set to the value at startup.
-	LicenseEnv string
-
-	// licenseAdditionalPublicKeys is an internal-only field used to
-	// setup test licenses.
-	licenseAdditionalPublicKeys []string
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
@@ -710,7 +703,6 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.EnableEventBroker = pointer.Copy(s.EnableEventBroker)
 	ns.EventBufferSize = pointer.Copy(s.EventBufferSize)
 	ns.JobMaxSourceSize = pointer.Copy(s.JobMaxSourceSize)
-	ns.licenseAdditionalPublicKeys = slices.Clone(s.licenseAdditionalPublicKeys)
 	ns.ExtraKeysHCL = slices.Clone(s.ExtraKeysHCL)
 	ns.Search = s.Search.Copy()
 	ns.RaftBoltConfig = s.RaftBoltConfig.Copy()

@@ -31,6 +31,12 @@ const (
 
 	// DefaultAdmissionWebhookTimeout is the default timeout of a webhook call.
 	DefaultAdmissionWebhookTimeout = 5 * time.Second
+
+	// AdmissionResourceJob and AdmissionResourceVariable are the object
+	// kinds a webhook can be sent. They match the structs constants of the
+	// same name.
+	AdmissionResourceJob      = "job"
+	AdmissionResourceVariable = "variable"
 )
 
 // AdmissionConfig is the server configuration of dynamic admission control.
@@ -69,6 +75,20 @@ type AdmissionWebhookConfig struct {
 	// ExcludeNamespaces are never sent to the webhook (glob patterns
 	// allowed). Use it for the namespace the webhook service itself runs in.
 	ExcludeNamespaces []string `hcl:"exclude_namespaces"`
+
+	// Resources is the list of object kinds sent to the webhook: "job"
+	// and/or "variable". Empty means jobs only. Mutating webhooks only apply
+	// to jobs.
+	Resources []string `hcl:"resources"`
+
+	// VariablePaths restricts the Variables writes sent to the webhook
+	// (glob patterns allowed). Empty means every path.
+	VariablePaths []string `hcl:"variable_paths"`
+
+	// IncludeVariableItems sends the decrypted items of Variables (the
+	// written and the previous ones) to the webhook. By default the webhook
+	// only receives their namespace, path and indexes.
+	IncludeVariableItems bool `hcl:"include_variable_items"`
 
 	// CAFile is the PEM CA bundle used to verify the webhook's certificate.
 	// The system roots are used when it is empty.
@@ -142,6 +162,22 @@ func (a *AdmissionConfig) Validate() error {
 		if (w.CertFile == "") != (w.KeyFile == "") {
 			mErr = multierror.Append(mErr, fmt.Errorf("admission webhook %q: cert_file and key_file must be set together", w.Name))
 		}
+		forVariables := false
+		for _, r := range w.Resources {
+			switch r {
+			case AdmissionResourceJob:
+			case AdmissionResourceVariable:
+				forVariables = true
+			default:
+				mErr = multierror.Append(mErr, fmt.Errorf("admission webhook %q: invalid resource %q", w.Name, r))
+			}
+		}
+		if forVariables && w.Mode == AdmissionWebhookModeMutate {
+			mErr = multierror.Append(mErr, fmt.Errorf("admission webhook %q: mutating webhooks cannot apply to the %q resource", w.Name, AdmissionResourceVariable))
+		}
+		if !forVariables && (len(w.VariablePaths) > 0 || w.IncludeVariableItems) {
+			mErr = multierror.Append(mErr, fmt.Errorf("admission webhook %q: variable_paths and include_variable_items require the %q resource", w.Name, AdmissionResourceVariable))
+		}
 	}
 	return mErr.ErrorOrNil()
 }
@@ -193,6 +229,8 @@ func (w *AdmissionWebhookConfig) Copy() *AdmissionWebhookConfig {
 	*nw = *w
 	nw.Namespaces = slices.Clone(w.Namespaces)
 	nw.ExcludeNamespaces = slices.Clone(w.ExcludeNamespaces)
+	nw.Resources = slices.Clone(w.Resources)
+	nw.VariablePaths = slices.Clone(w.VariablePaths)
 	nw.ExtraKeysHCL = slices.Clone(w.ExtraKeysHCL)
 	return nw
 }

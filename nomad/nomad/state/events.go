@@ -143,6 +143,21 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 					ACLBindingRule: before,
 				},
 			}, true
+		case "jobs":
+			// A purged (or garbage collected) job: the event carries the
+			// last known version of the job.
+			before, ok := change.Before.(*structs.Job)
+			if !ok {
+				return structs.Event{}, false
+			}
+			return structs.Event{
+				Topic:     structs.TopicJob,
+				Key:       before.ID,
+				Namespace: before.Namespace,
+				Payload: &structs.JobEvent{
+					Job: before,
+				},
+			}, true
 		case "nodes":
 			before, ok := change.Before.(*structs.Node)
 			if !ok {
