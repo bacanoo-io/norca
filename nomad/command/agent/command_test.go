@@ -310,6 +310,13 @@ func TestIsValidConfig(t *testing.T) {
 			err: "server.upgrade_version is not supported",
 		},
 		{
+			name: "LicensePathUnsupported",
+			conf: Config{
+				Server: &ServerConfig{Enabled: true, LicensePath: "/etc/norca.d/license.hclic"},
+			},
+			err: "server.license_path is not supported",
+		},
+		{
 			name: "AutopilotUnsupported",
 			conf: Config{
 				Server: &ServerConfig{Enabled: true},

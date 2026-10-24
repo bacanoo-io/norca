@@ -14,6 +14,8 @@ import (
 // dynamic admission controllers that validate the final job: the CEL
 // admission policies and the validating admission webhooks. op is
 // structs.AdmissionOperationRegister or structs.AdmissionOperationPlan.
+// override (the request's PolicyOverride) is ignored: admission policies
+// cannot be overridden.
 func (j *Job) enforceSubmitJob(op string, override bool, job *structs.Job, nomadACLToken *structs.ACLToken, ns *structs.Namespace) (error, error) {
 	return j.enforceAdmission(op, job, nomadACLToken)
 }

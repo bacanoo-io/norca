@@ -4,13 +4,8 @@
 package api
 
 import (
-	"encoding/json"
-	"errors"
 	"io"
-	"net/http"
 	"strconv"
-	"strings"
-	"time"
 )
 
 // Operator can be used to perform low-level operator tasks for Nomad.
@@ -249,117 +244,4 @@ func (op *Operator) SnapshotRestore(in io.Reader, q *WriteOptions) (*WriteMeta, 
 	}
 
 	return wm, nil
-}
-
-type License struct {
-	// The unique identifier of the license
-	LicenseID string
-
-	// The customer ID associated with the license
-	CustomerID string
-
-	// If set, an identifier that should be used to lock the license to a
-	// particular site, cluster, etc.
-	InstallationID string
-
-	// The time at which the license was issued
-	IssueTime time.Time
-
-	// The time at which the license starts being valid
-	StartTime time.Time
-
-	// The time after which the license expires
-	ExpirationTime time.Time
-
-	// The time at which the license ceases to function and can
-	// no longer be used in any capacity
-	TerminationTime time.Time
-
-	// The product the license is valid for
-	Product string
-
-	// License Specific Flags
-	Flags map[string]interface{}
-
-	// Modules is a list of the licensed enterprise modules
-	Modules []string
-
-	// List of features enabled by the license
-	Features []string
-}
-
-type LicenseReply struct {
-	License        *License
-	ConfigOutdated bool
-	QueryMeta
-}
-
-type ApplyLicenseOptions struct {
-	Force bool
-}
-
-func (op *Operator) LicensePut(license string, q *WriteOptions) (*WriteMeta, error) {
-	return op.ApplyLicense(license, nil, q)
-}
-
-func (op *Operator) ApplyLicense(license string, opts *ApplyLicenseOptions, q *WriteOptions) (*WriteMeta, error) {
-	r, err := op.c.newRequest("PUT", "/v1/operator/license")
-	if err != nil {
-		return nil, err
-	}
-
-	if opts != nil && opts.Force {
-		r.params.Add("force", "true")
-	}
-
-	r.setWriteOptions(q)
-	r.body = strings.NewReader(license)
-
-	rtt, resp, err := requireOK(op.c.doRequest(r))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	wm := &WriteMeta{RequestTime: rtt}
-	parseWriteMeta(resp, wm)
-
-	return wm, nil
-}
-
-func (op *Operator) LicenseGet(q *QueryOptions) (*LicenseReply, *QueryMeta, error) {
-	req, err := op.c.newRequest("GET", "/v1/operator/license")
-	if err != nil {
-		return nil, nil, err
-	}
-	req.setQueryOptions(q)
-
-	var reply LicenseReply
-	rtt, resp, err := op.c.doRequest(req)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNoContent {
-		return nil, nil, errors.New("Nomad Enterprise only endpoint")
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, nil, newUnexpectedResponseError(
-			fromHTTPResponse(resp),
-			withExpectedStatuses([]int{http.StatusOK, http.StatusNoContent}),
-		)
-	}
-
-	err = json.NewDecoder(resp.Body).Decode(&reply)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	qm := &QueryMeta{}
-	parseQueryMeta(resp, qm)
-	qm.RequestTime = rtt
-
-	return &reply, qm, nil
 }

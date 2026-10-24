@@ -29,7 +29,7 @@ func TestNamespace_Validate_Oss(t *testing.T) {
 					Default: "dev",
 				},
 			},
-			expectedErr: "unlicensed",
+			expectedErr: "not supported",
 		},
 	}
 
