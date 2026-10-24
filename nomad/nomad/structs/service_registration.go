@@ -122,6 +122,11 @@ type ServiceRegistration struct {
 	// Discovery holds the discovery settings of the service block.
 	Discovery *ServiceDiscovery
 
+	// External is set for external services: registrations that are not
+	// tied to an allocation (no JobID and AllocID, and a NodeID only when a
+	// client node owns them).
+	External *ServiceExternal
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -139,6 +144,7 @@ func (s *ServiceRegistration) Copy() *ServiceRegistration {
 	ns.Checks = copyRegistrationChecks(s.Checks)
 	ns.Meta = maps.Clone(s.Meta)
 	ns.Discovery = s.Discovery.Copy()
+	ns.External = s.External.Copy()
 
 	return ns
 }
@@ -185,7 +191,7 @@ func (s *ServiceRegistration) Equal(o *ServiceRegistration) bool {
 	if !registrationChecksEqual(s.Checks, o.Checks) || !registrationMetaEqual(s.Meta, o.Meta) {
 		return false
 	}
-	if !s.Discovery.Equal(o.Discovery) {
+	if !s.Discovery.Equal(o.Discovery) || !s.External.Equal(o.External) {
 		return false
 	}
 	if !helper.SliceSetEq(s.Tags, o.Tags) {

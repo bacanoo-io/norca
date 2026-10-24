@@ -1401,9 +1401,12 @@ func serviceRegistrationsTableSchema() *memdb.TableSchema {
 					},
 				},
 			},
+			// External services (Norca) have no job, allocation and, unless a
+			// client node owns them, no node: they are left out of these
+			// indexes.
 			indexJob: {
 				Name:         indexJob,
-				AllowMissing: false,
+				AllowMissing: true,
 				Unique:       false,
 				Indexer: &memdb.CompoundIndex{
 					Indexes: []memdb.Indexer{
@@ -1421,7 +1424,7 @@ func serviceRegistrationsTableSchema() *memdb.TableSchema {
 			// lost.
 			indexNodeID: {
 				Name:         indexNodeID,
-				AllowMissing: false,
+				AllowMissing: true,
 				Unique:       false,
 				Indexer: &memdb.StringFieldIndex{
 					Field: "NodeID",
@@ -1429,7 +1432,7 @@ func serviceRegistrationsTableSchema() *memdb.TableSchema {
 			},
 			indexAllocID: {
 				Name:         indexAllocID,
-				AllowMissing: false,
+				AllowMissing: true,
 				Unique:       false,
 				Indexer: &memdb.StringFieldIndex{
 					Field: "AllocID",

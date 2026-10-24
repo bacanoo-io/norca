@@ -332,12 +332,33 @@ func (s *Server) answerService(m *dns.Msg, req *dns.Msg, q dns.Question, zone st
 	ttl := uint32(s.cfg.TTL / time.Second)
 	seen := make(map[string]bool)
 
+	// Instances with a host name as address (external services of kind
+	// alias) are answered with a CNAME record. A name with a CNAME record has
+	// no other records, so there is a single one, and only if no instance
+	// has an IP address.
+	hasIP := false
+	for _, inst := range instances {
+		if net.ParseIP(inst.Address) != nil {
+			hasIP = true
+			break
+		}
+	}
+	cname := false
+
 	for _, inst := range instances {
 		ip := net.ParseIP(inst.Address)
 
 		switch q.Qtype {
-		case dns.TypeA, dns.TypeAAAA, dns.TypeANY:
-			if seen[inst.Address] {
+		case dns.TypeA, dns.TypeAAAA, dns.TypeANY, dns.TypeCNAME:
+			if ip == nil {
+				if hasIP || cname {
+					continue
+				}
+				cname = true
+				m.Answer = append(m.Answer, addressRecord(q.Name, nil, inst.Address, q.Qtype, ttl))
+				continue
+			}
+			if q.Qtype == dns.TypeCNAME || seen[inst.Address] {
 				continue
 			}
 			seen[inst.Address] = true

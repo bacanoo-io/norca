@@ -1079,6 +1079,21 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"service register": func() (cli.Command, error) {
+			return &ServiceRegisterCommand{
+				Meta: meta,
+			}, nil
+		},
+		"service deregister": func() (cli.Command, error) {
+			return &ServiceDeregisterCommand{
+				Meta: meta,
+			}, nil
+		},
+		"service ttl": func() (cli.Command, error) {
+			return &ServiceTTLCommand{
+				Meta: meta,
+			}, nil
+		},
 		"status": func() (cli.Command, error) {
 			return &StatusCommand{
 				Meta: meta,

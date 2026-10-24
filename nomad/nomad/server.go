@@ -329,6 +329,10 @@ type Server struct {
 	// serviceHealth holds back service health changes that come too fast
 	// (Norca flapping protection).
 	serviceHealth *serviceHealthDamper
+
+	// externalServices maintains the external service registrations on the
+	// leader (Norca): TTL expiry and garbage collection.
+	externalServices *externalServices
 }
 
 // NewServer is used to construct a new Nomad server from the
@@ -552,6 +556,10 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 	// Apply the service health changes held back by the flapping protection
 	s.serviceHealth = newServiceHealthDamper(s)
 	go s.serviceHealth.run(s.shutdownCh)
+
+	// Expire the TTL checks of external services on the leader
+	s.externalServices = newExternalServices(s)
+	go s.externalServices.run(s.shutdownCh)
 
 	// Start enterprise background workers
 	s.startEnterpriseBackground()

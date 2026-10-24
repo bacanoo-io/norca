@@ -69,6 +69,14 @@ func (c *nodeCache) get(region, id string) *structs.Node {
 	return reply.Node
 }
 
+// externalNode is the node shown for external services that no client node
+// owns, following the convention of external services in Consul.
+var externalNode = &structs.Node{
+	Name:   "external",
+	Status: structs.NodeStatusReady,
+	Meta:   map[string]string{"external-node": "true", "external-probe": "false"},
+}
+
 // nodeAddress returns the address of a node.
 func nodeAddress(node *structs.Node) string {
 	if addr := node.Attributes["unique.network.ip-address"]; addr != "" {
