@@ -54,7 +54,7 @@ func (s *Server) setupAutoscaler() {
 		Scaler:     &autoscalerJobScaler{srv: s},
 		AllocStats: s.autoscalerAllocStats,
 		ServersReady: func() bool {
-			return ServersMeetMinimumVersion(s.Members(), s.Region(), minNorcaFeaturesVersion, false)
+			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
 		},
 	})
 }
