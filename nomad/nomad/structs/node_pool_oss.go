@@ -12,7 +12,7 @@ import "errors"
 // invalid.
 func (n *NodePoolSchedulerConfiguration) Validate() error {
 	if n != nil {
-		return errors.New("Node Pools Governance is unlicensed.")
+		return errors.New("node pool scheduler_config is not supported")
 	}
 	return nil
 }

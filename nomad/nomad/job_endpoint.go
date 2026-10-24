@@ -38,8 +38,9 @@ const (
 	DispatchPayloadSizeLimit = 16 * 1024
 )
 
-// ErrMultipleNamespaces is send when multiple namespaces are used in the OSS setup
-var ErrMultipleNamespaces = errors.New("multiple Vault namespaces requires Nomad Enterprise")
+// ErrMultipleNamespaces is returned when a job uses Vault namespaces while the
+// Vault configuration requires a token to submit the job.
+var ErrMultipleNamespaces = errors.New("Vault namespaces in a job are not supported when the server requires a Vault token")
 
 var (
 	// allowRescheduleTransition is the transition that allows failed

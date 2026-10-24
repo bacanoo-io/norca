@@ -128,12 +128,9 @@ Run Options:
     variable and that found in the job.
 
   -consul-namespace
-    (Enterprise only) If set, any services in the job will be registered into
-    the specified Consul namespace. Any template block reading from Consul KV
-    will be scoped to the specified Consul namespace. If Consul ACLs are
-    enabled and the "consul" block "allow_unauthenticated" is disabled in the
-    Norca server configuration, then a Consul token must be supplied with
-    appropriate service and KV Consul ACL policy permissions.
+    Not supported: a job that sets a Consul namespace is rejected. Services,
+    Connect and templates use the namespace of the "consul" block in the
+    agent configuration.
 
   -vault-token
     Used to validate if the user submitting the job has permission to run the job
