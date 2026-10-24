@@ -24,6 +24,7 @@ func testServer(t *testing.T, runClient bool, cb func(*agent.Config)) (*agent.Te
 	// Make a new test server
 	a := agent.NewTestAgent(t, t.Name(), func(config *agent.Config) {
 		config.Client.Enabled = runClient
+		testAgentLocalVaultAddr(config)
 
 		if cb != nil {
 			cb(config)
@@ -35,11 +36,21 @@ func testServer(t *testing.T, runClient bool, cb func(*agent.Config)) (*agent.Te
 	return a, c, a.HTTPAddr()
 }
 
+// testAgentLocalVaultAddr points the Vault address of a test agent at a
+// closed local port. Vault is disabled in test agents, but the default address
+// (vault.service.consul) is still reported by the agent self endpoint and
+// "nomad operator debug" collects from it; resolving that name can stall for
+// 20s in environments where .consul lookups time out instead of failing.
+func testAgentLocalVaultAddr(config *agent.Config) {
+	config.Vault.Addr = "http://127.0.0.1:0"
+}
+
 // testClient starts a new test client, blocks until it joins, and performs
 // cleanup after the test is complete.
 func testClient(t *testing.T, name string, cb func(*agent.Config)) (*agent.TestAgent, *api.Client, string) {
 	t.Logf("Starting client agent %s", name)
 	a := agent.NewTestAgent(t, name, func(config *agent.Config) {
+		testAgentLocalVaultAddr(config)
 		if cb != nil {
 			cb(config)
 		}
