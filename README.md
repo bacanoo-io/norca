@@ -12,7 +12,7 @@ An independent, open source workload scheduler and orchestrator built on the **H
 | `nomad/pack/` | HashiCorp Nomad Pack v0.4.2 | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 |
 | built-in autoscaler (`nomad/nomad/autoscaler/`, planned) | HashiCorp Nomad Autoscaler v0.6.0 | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 |
 
-v1.6.5 is the last Nomad release published under MPL 2.0. `nomad/` and Nomad Pack were imported with their full git history, so the starting commits can be verified; Nomad Pack was later moved into `nomad/pack/` (part of the Nomad Go module, run as `nomad pack`), and `git log --follow` reaches back to its original history. This project contains no code from HashiCorp releases published under BSL 1.1. Details: [docs/licensing.md](docs/licensing.md).
+v1.6.5 is the last Nomad release published under MPL 2.0. `nomad/` and Nomad Pack were imported with their full git history, so the starting commits can be verified; Nomad Pack was later moved into `nomad/pack/` (part of the Nomad Go module, run as `nomad pack`); its original commits remain in the history and `git blame` still reaches them. This project contains no code from HashiCorp releases published under BSL 1.1. Details: [docs/licensing.md](docs/licensing.md).
 
 ## Feature status
 
