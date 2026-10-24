@@ -143,6 +143,29 @@ func TestEventStream_WorkloadIdentity(t *testing.T) {
 		must.Eq(t, http.StatusForbidden, *msg.Error.Code)
 	})
 
+	t.Run("denied quota topic", func(t *testing.T) {
+		msgs := testEventStream(t, s, idToken, map[structs.Topic][]string{structs.TopicQuota: {"*"}})
+		msg := nextEventMsg(t, msgs)
+		must.NotNil(t, msg.Error)
+		must.Eq(t, http.StatusForbidden, *msg.Error.Code)
+	})
+
+	t.Run("allowed scaling topic", func(t *testing.T) {
+		// Topics of the topic registry use the same ACL object.
+		msgs := testEventStream(t, s, idToken, map[structs.Topic][]string{structs.TopicScaling: {"*"}})
+		publisher.Publish(&structs.Events{Index: 1500, Events: []structs.Event{{
+			Topic:     structs.TopicScaling,
+			Type:      "ScalingTest",
+			Key:       alloc.JobID,
+			Namespace: structs.DefaultNamespace,
+			Index:     1500,
+			Payload:   map[string]string{"Job": alloc.JobID},
+		}}})
+		msg := nextEventMsg(t, msgs)
+		must.Nil(t, msg.Error)
+		must.StrContains(t, string(msg.Event.Data), `"Type":"ScalingTest"`)
+	})
+
 	t.Run("token of another server", func(t *testing.T) {
 		other, _, cleanupOther := TestACLServer(t, nil)
 		defer cleanupOther()
