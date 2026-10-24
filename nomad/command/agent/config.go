@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -1319,7 +1320,7 @@ func DefaultConfig() *Config {
 		Server: &ServerConfig{
 			Enabled:           false,
 			EnableEventBroker: pointer.Of(true),
-			EventBufferSize:   pointer.Of(100),
+			EventBufferSize:   pointer.Of(1000),
 			RaftProtocol:      3,
 			StartJoin:         []string{},
 			PlanRejectionTracker: &PlanRejectionTracker{

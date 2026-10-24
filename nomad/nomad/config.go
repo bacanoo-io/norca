@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -515,7 +516,7 @@ func DefaultConfig() *Config {
 		SentinelGCInterval:               30 * time.Second,
 		LicenseConfig:                    &LicenseConfig{},
 		EnableEventBroker:                true,
-		EventBufferSize:                  100,
+		EventBufferSize:                  1000,
 		ACLTokenMinExpirationTTL:         1 * time.Minute,
 		ACLTokenMaxExpirationTTL:         24 * time.Hour,
 		AutopilotConfig: &structs.AutopilotConfig{

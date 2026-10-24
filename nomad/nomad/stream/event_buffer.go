@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package stream
@@ -52,14 +53,19 @@ type eventBuffer struct {
 	tail atomic.Value
 
 	maxSize int64
+
+	// watermarks tracks the indexes at which events may be missing, so
+	// exact-index subscriptions can detect gaps.
+	watermarks *indexWatermarks
 }
 
 // newEventBuffer creates an eventBuffer ready for use.
 func newEventBuffer(size int64) *eventBuffer {
 	zero := int64(0)
 	b := &eventBuffer{
-		maxSize: size,
-		size:    &zero,
+		maxSize:    size,
+		watermarks: newIndexWatermarks(),
+		size:       &zero,
 	}
 
 	item := newBufferItem(&structs.Events{Index: 0, Events: nil})
@@ -109,6 +115,10 @@ func newSentinelItem() *bufferItem {
 // discard it.
 func (b *eventBuffer) advanceHead() {
 	old := b.Head()
+
+	// Record the drop before the head moves, so a subscriber that observes
+	// the new head also observes the new watermark.
+	b.watermarks.recordDropped(old)
 
 	next := old.link.next.Load()
 	// if the next item is nil replace it with a sentinel value

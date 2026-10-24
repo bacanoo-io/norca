@@ -1,11 +1,14 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
 
 import (
 	"context"
+	"errors"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-msgpack/codec"
@@ -61,6 +64,8 @@ func (e *Event) stream(conn io.ReadWriteCloser) {
 		Topics:    args.Topics,
 		Index:     uint64(args.Index),
 		Namespace: args.Namespace,
+
+		StartExactlyAtIndex: args.StartExactlyAtIndex,
 	}
 
 	// Get the servers broker and subscribe
@@ -84,7 +89,7 @@ func (e *Event) stream(conn io.ReadWriteCloser) {
 		subscription, subErr = publisher.Subscribe(subReq)
 	}
 	if subErr != nil {
-		handleJsonResultError(subErr, pointer.Of(int64(500)), encoder)
+		handleJsonResultError(subErr, pointer.Of(subscribeErrorCode(subErr)), encoder)
 		return
 	}
 	defer subscription.Unsubscribe()
@@ -173,6 +178,20 @@ OUTER:
 		return
 	}
 
+}
+
+// subscribeErrorCode returns the HTTP status code for an error returned when
+// subscribing to the event broker.
+func subscribeErrorCode(err error) int64 {
+	switch {
+	case errors.Is(err, stream.ErrIndexNotAvailable):
+		// The client has to resynchronize (list, then watch again).
+		return http.StatusGone
+	case errors.Is(err, stream.ErrExactIndexRequired):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 func (e *Event) forwardStreamingRPC(region string, method string, args interface{}, in io.ReadWriteCloser) error {
