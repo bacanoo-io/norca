@@ -33,8 +33,8 @@ func (h jobAllocAffinityHook) Validate(job *structs.Job) ([]error, error) {
 	}
 
 	// Servers that do not know the rules would silently drop them.
-	if !ServersMeetMinimumVersion(h.srv.Members(), h.srv.Region(), minNorcaFeaturesVersion, false) {
-		return nil, fmt.Errorf("colocate and separate blocks require all servers to run version %s or later",
+	if !ServersMeetMinimumNorcaVersion(h.srv.Members(), h.srv.Region(), false) {
+		return nil, fmt.Errorf("colocate and separate blocks require all servers to run Norca %s or later",
 			minNorcaFeaturesVersion)
 	}
 
