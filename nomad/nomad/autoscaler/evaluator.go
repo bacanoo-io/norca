@@ -45,7 +45,11 @@ type compiledPolicy struct {
 	modifyIndex  uint64
 	key          targetKey
 	checkRunners []checker
-	schedule     *compiledSchedule
+
+	// object is the custom object the policy scales instead of its task
+	// group, if any.
+	object   *objectTarget
+	schedule *compiledSchedule
 
 	// scaleDuringDeployment is the policy's scale_during_deployment.
 	scaleDuringDeployment string
@@ -107,7 +111,7 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 			minEvaluationInterval:     cfg.MinEvalInterval,
 			nomadAPMs:                 host.nomadAPMs,
 		},
-		exec:     newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.PublishEvent),
+		exec:     newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
 		handles:  map[string]*policyHandle{},
 		workCh:   make(chan *compiledPolicy),
 		resultCh: make(chan evalResult),
@@ -243,7 +247,14 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	}
 
 	store := r.deps.State()
-	t, err := readTarget(store, c.key)
+	var t *targetState
+	var err error
+	if c.object != nil {
+		logger = logger.With("object", c.object.String())
+		t, err = readObjectTarget(store, c.key, c.object)
+	} else {
+		t, err = readTarget(store, c.key)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to read target: %w", err)
 	}
@@ -299,8 +310,10 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 		return nil
 	}
 
-	// Scaling up is capped at the quota ceiling of the namespace.
-	if action.Direction == sdk.ScaleDirectionUp {
+	// Scaling up is capped at the quota ceiling of the namespace. An
+	// object target is capped with the task group of its policy as the
+	// size of one replica, if the group exists.
+	if action.Direction == sdk.ScaleDirectionUp && t.group != nil {
 		ok, err := r.capAtQuota(store, c, t, &action, check, now)
 		if err != nil {
 			return fmt.Errorf("failed to check the quota: %w", err)

@@ -18,6 +18,7 @@ import (
 	metrics "github.com/armon/go-metrics"
 	memdb "github.com/hashicorp/go-memdb"
 	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
 	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -200,6 +201,13 @@ func (r *runner) compile(p *structs.ScalingPolicy) (*compiledPolicy, error) {
 	if !ok {
 		return nil, errors.New("policy target is not a task group")
 	}
+	object, err := objectTargetFromPolicy(p)
+	if err != nil {
+		return nil, err
+	}
+	if object != nil && r.deps.ObjectScaler == nil {
+		return nil, errors.New("custom object targets are not supported by this server")
+	}
 
 	// Policies are validated at submission; this only protects against
 	// policies stored before (such as by older servers) or invalidated by a
@@ -212,6 +220,12 @@ func (r *runner) compile(p *structs.ScalingPolicy) (*compiledPolicy, error) {
 
 	sp := parsePolicy(p)
 	applyTypedPolicy(&sp, tp, r.cfg)
+	if object != nil {
+		// The checks of a custom object target query the metrics of the
+		// policy's task group, like a Nomad target.
+		sp.Target = parseTarget(nil, p.Target)
+		sp.Target.Name = plugins.InternalTargetNomad
+	}
 	r.proc.canonicalizePolicy(&sp)
 
 	var mErr *multierror.Error
@@ -239,6 +253,7 @@ func (r *runner) compile(p *structs.ScalingPolicy) (*compiledPolicy, error) {
 		policy:       &sp,
 		modifyIndex:  p.ModifyIndex,
 		key:          key,
+		object:       object,
 		checkRunners: runners,
 		schedule:     schedule,
 
