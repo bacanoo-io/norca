@@ -88,6 +88,9 @@ func newClientAgentConfigFunc(region string, nodeClass string, srvRPCAddr string
 }
 
 func TestDebug_NodeClass(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	// Start test server and API client
 	srv, _, url := testServer(t, false, nil)
@@ -137,6 +140,9 @@ func TestDebug_NodeClass(t *testing.T) {
 }
 
 func TestDebug_ClientToServer(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	// Start test server and API client
 	srv, _, url := testServer(t, false, nil)
@@ -185,6 +191,9 @@ func TestDebug_ClientToServer(t *testing.T) {
 }
 
 func TestDebug_MultiRegion(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	region1 := "region1"
 	region2 := "region2"
@@ -283,6 +292,9 @@ func TestDebug_MultiRegion(t *testing.T) {
 }
 
 func TestDebug_SingleServer(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	srv, _, url := testServer(t, false, nil)
 	testutil.WaitForLeader(t, srv.Agent.RPC)
@@ -556,6 +568,9 @@ func TestDebug_ExistingOutput(t *testing.T) {
 }
 
 func TestDebug_Fail_Pprof(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	// Setup agent config with debug endpoints disabled
 	agentConfFunc := func(c *agent.Config) {
@@ -852,6 +867,9 @@ func TestDebug_RedirectError(t *testing.T) {
 // complete a debug run have their query options configured with the
 // -stale flag
 func TestDebug_StaleLeadership(t *testing.T) {
+	// The debug archive is written into the working directory, keep it out
+	// of the source tree.
+	t.Chdir(t.TempDir())
 
 	srv, _, url := testServerWithoutLeader(t, false, nil)
 	addrServer := srv.HTTPAddr()

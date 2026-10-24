@@ -16,10 +16,7 @@ import (
 
 func TestCACreateCommand(t *testing.T) {
 	testDir := t.TempDir()
-	previousDirectory, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(testDir))
-	defer os.Chdir(previousDirectory)
+	t.Chdir(testDir)
 
 	type testcase struct {
 		name       string

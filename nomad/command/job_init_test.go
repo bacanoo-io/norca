@@ -6,6 +6,7 @@ package command
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -22,7 +23,6 @@ func TestInitCommand_Implements(t *testing.T) {
 }
 
 func TestInitCommand_Run(t *testing.T) {
-	ci.Parallel(t)
 	ui := cli.NewMockUi()
 	cmd := &JobInitCommand{Meta: Meta{Ui: ui}}
 
@@ -35,18 +35,10 @@ func TestInitCommand_Run(t *testing.T) {
 	}
 	ui.ErrorWriter.Reset()
 
-	// Ensure we change the cwd back
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-	defer os.Chdir(origDir)
-
-	// Create a temp dir and change into it
+	// Create a temp dir and change into it. t.Chdir changes the working
+	// directory of the whole process, so this test must not run in parallel.
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("err: %s", err)
-	}
+	t.Chdir(dir)
 
 	// Works if the file doesn't exist
 	if code := cmd.Run([]string{}); code != 0 {
@@ -119,7 +111,6 @@ func TestInitCommand_listTemplates(t *testing.T) {
 }
 
 func TestInitCommand_fromJobTemplate(t *testing.T) {
-	ci.Parallel(t)
 	srv, _, url := testServer(t, true, nil)
 	defer srv.Shutdown()
 
@@ -139,18 +130,10 @@ func TestInitCommand_fromJobTemplate(t *testing.T) {
 	ui.ErrorWriter.Reset()
 	ui.OutputWriter.Reset()
 
-	// Ensure we change the cwd back
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-	defer os.Chdir(origDir)
-
-	// Create a temp dir and change into it
+	// Create a temp dir and change into it. t.Chdir changes the working
+	// directory of the whole process, so this test must not run in parallel.
 	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("err: %s", err)
-	}
+	t.Chdir(dir)
 
 	jobCmd := &JobInitCommand{Meta: Meta{Ui: ui}}
 
@@ -173,20 +156,9 @@ func TestInitCommand_customFilename(t *testing.T) {
 	ci.Parallel(t)
 	ui := cli.NewMockUi()
 	cmd := &JobInitCommand{Meta: Meta{Ui: ui}}
-	filename := "custom.nomad"
-
-	// Ensure we change the cwd back
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-	defer os.Chdir(origDir)
-
-	// Create a temp dir and change into it
-	dir := t.TempDir()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("err: %s", err)
-	}
+	// Use an absolute path so the test does not have to change the working
+	// directory of the process.
+	filename := filepath.Join(t.TempDir(), "custom.nomad")
 
 	// Works if the file doesn't exist
 	if code := cmd.Run([]string{filename}); code != 0 {
