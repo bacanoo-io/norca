@@ -44,6 +44,21 @@ jobs:
           go-licenses check ./... \
             --allowed_licenses=MPL-2.0,Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC
 
+  third-party-notices:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: nomad/go.mod
+      - name: THIRD_PARTY_NOTICES.md is up to date and every license is allowed
+        working-directory: nomad
+        # Fails if the committed file differs from the generated one ('make
+        # notices' regenerates it) or if a dependency's license is not on the
+        # allow-list. The UI packages come from the registry tarballs named
+        # in nomad/ui/yarn.lock; no yarn install is needed.
+        run: make check-notices
+
   ui-licenses:
     runs-on: ubuntu-24.04
     steps:
