@@ -13,18 +13,17 @@ type CLIConfig struct {
 // RunCLIConfig specifies the configuration that is used by the Nomad Pack run
 // command.
 type RunCLIConfig struct {
-	CheckIndex        uint64
-	ConsulToken       string
-	ConsulNamespace   string
-	VaultToken        string
-	VaultNamespace    string
-	EnableRollback    bool
-	PreserveCounts    bool
-	PreserveResources bool
-	DeployOverride    bool
-	PolicyOverride    bool
-	Detach            bool
-	Verbose           bool
+	CheckIndex      uint64
+	ConsulToken     string
+	ConsulNamespace string
+	VaultToken      string
+	VaultNamespace  string
+	EnableRollback  bool
+	PreserveCounts  bool
+	DeployOverride  bool
+	PolicyOverride  bool
+	Detach          bool
+	Verbose         bool
 }
 
 // PlanCLIConfig specifies the configuration that is used by the Nomad Pack
