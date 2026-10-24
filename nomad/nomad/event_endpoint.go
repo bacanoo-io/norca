@@ -54,7 +54,8 @@ func (e *Event) stream(conn io.ReadWriteCloser) {
 
 	e.srv.MeasureRPCRate("event", structs.RateMetricRead, &args)
 	if authErr != nil {
-		handleJsonResultError(structs.ErrPermissionDenied, pointer.Of(int64(403)), encoder)
+		handleJsonResultError(structs.ErrPermissionDenied, pointer.Of(int64(http.StatusForbidden)), encoder)
+		return
 	}
 
 	// Generate the subscription request
@@ -188,6 +189,11 @@ func subscribeErrorCode(err error) int64 {
 		return http.StatusGone
 	case errors.Is(err, stream.ErrExactIndexRequired):
 		return http.StatusBadRequest
+	case errors.Is(err, structs.ErrPermissionDenied),
+		errors.Is(err, structs.ErrTokenNotFound),
+		errors.Is(err, structs.ErrTokenExpired),
+		errors.Is(err, structs.ErrTokenInvalid):
+		return http.StatusForbidden
 	default:
 		return http.StatusInternalServerError
 	}
