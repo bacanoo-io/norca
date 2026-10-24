@@ -264,11 +264,15 @@ func extraKeys(c *Config) error {
 		helper.RemoveEqualFold(&c.Server.ExtraKeysHCL, k)
 	}
 
-	// Remove the labels of the autoscaler apm blocks
+	// Remove the labels of the autoscaler apm and strategy blocks
 	if c.Server.Autoscaler != nil {
 		for _, p := range c.Server.Autoscaler.APMs {
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, p.Name)
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "apm")
+		}
+		for _, p := range c.Server.Autoscaler.Strategies {
+			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, p.Name)
+			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "strategy")
 		}
 	}
 

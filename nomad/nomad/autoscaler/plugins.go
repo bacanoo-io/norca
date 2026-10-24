@@ -10,28 +10,35 @@ import (
 	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
 	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/apm/nomadapm"
 	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/apm/prometheus"
+	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/external"
 	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/fixedvalue"
 	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/passthrough"
 	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/targetvalue"
 	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/threshold"
 )
 
-// ExternalPluginLoader is the seam for plugins that run outside the server
-// process (the external autoscaler's go-plugin based plugins loaded from
-// plugin_dir). It is not implemented yet: loading them needs the go-plugin
-// and gRPC versions used by the autoscaler plugin SDK. When it exists, the
-// plugin host asks it for every configured plugin whose driver is not
-// built-in.
+// ExternalPluginLoader loads the plugins that run outside the server
+// process: APM and strategy plugins built with the Nomad Autoscaler plugin
+// SDK, launched with go-plugin from plugin_dir. The plugin host asks it for
+// every configured plugin whose driver is not built-in.
+//
+// The returned plugins must isolate failures: a crashed or hung plugin
+// process only makes the calls to it fail.
 type ExternalPluginLoader interface {
-	// APM returns a running APM plugin instance for the driver, configured
-	// with config.
-	APM(name, driver string, config map[string]string) (plugins.APM, error)
+	// APM returns a running APM plugin instance for the driver (the binary
+	// name in plugin_dir), started with args and configured with config.
+	APM(name, driver string, args []string, config map[string]string) (plugins.APM, error)
 
 	// Strategy returns a running strategy plugin instance for the driver.
-	Strategy(name, driver string, config map[string]string) (plugins.Strategy, error)
+	Strategy(name, driver string, args []string, config map[string]string) (plugins.Strategy, error)
 
 	// Shutdown stops all plugin processes.
 	Shutdown()
+}
+
+// defaultExternalPlugins creates the go-plugin based loader.
+func defaultExternalPlugins(logger hclog.Logger, dir string) ExternalPluginLoader {
+	return external.NewLoader(logger, dir)
 }
 
 // pluginHost owns the plugin instances used by the policy evaluations.
@@ -46,19 +53,52 @@ type pluginHost struct {
 	external ExternalPluginLoader
 }
 
-// newPluginHost instantiates the built-in plugins and the configured APMs.
-func newPluginHost(logger hclog.Logger, cfg *Config, deps *Deps) (*pluginHost, error) {
+// newPluginHost instantiates the built-in plugins and the configured APMs
+// and strategies. external may be nil if no plugin_dir is configured.
+func newPluginHost(logger hclog.Logger, cfg *Config, deps *Deps, external ExternalPluginLoader) (*pluginHost, error) {
 	h := &pluginHost{
 		strategies: map[string]plugins.StrategyRunner{},
 		apms:       map[string]plugins.Looker{},
-		external:   deps.ExternalPlugins,
+		external:   external,
 	}
 
 	strategyLogger := logger.Named("strategy")
-	h.strategies[plugins.InternalStrategyTargetValue] = targetvalue.NewTargetValuePlugin(strategyLogger.Named(plugins.InternalStrategyTargetValue))
-	h.strategies[plugins.InternalStrategyThreshold] = threshold.NewThresholdPlugin(strategyLogger.Named(plugins.InternalStrategyThreshold))
-	h.strategies[plugins.InternalStrategyFixedValue] = fixedvalue.NewFixedValuePlugin(strategyLogger.Named(plugins.InternalStrategyFixedValue))
-	h.strategies[plugins.InternalStrategyPassThrough] = passthrough.NewPassThroughPlugin(strategyLogger.Named(plugins.InternalStrategyPassThrough))
+	newBuiltinStrategy := func(driver, name string) plugins.Strategy {
+		l := strategyLogger.Named(name)
+		switch driver {
+		case plugins.InternalStrategyTargetValue:
+			return targetvalue.NewTargetValuePlugin(l)
+		case plugins.InternalStrategyThreshold:
+			return threshold.NewThresholdPlugin(l)
+		case plugins.InternalStrategyFixedValue:
+			return fixedvalue.NewFixedValuePlugin(l)
+		case plugins.InternalStrategyPassThrough:
+			return passthrough.NewPassThroughPlugin(l)
+		}
+		return nil
+	}
+	for _, name := range builtinStrategies {
+		h.strategies[name] = newBuiltinStrategy(name, name)
+	}
+
+	for _, sc := range cfg.Strategies {
+		if s := newBuiltinStrategy(sc.Driver, sc.Name); s != nil {
+			if err := s.SetConfig(nonNilConfig(sc.Config)); err != nil {
+				return nil, fmt.Errorf("strategy %q: failed to configure: %w", sc.Name, err)
+			}
+			h.strategies[sc.Name] = s
+			continue
+		}
+		if h.external == nil {
+			return nil, fmt.Errorf("strategy %q: driver %q is not a built-in plugin and plugin_dir is not set",
+				sc.Name, sc.Driver)
+		}
+		ext, err := h.external.Strategy(sc.Name, sc.Driver, sc.Args, sc.Config)
+		if err != nil {
+			return nil, fmt.Errorf("strategy %q: %w", sc.Name, err)
+		}
+		h.strategies[sc.Name] = ext
+	}
 
 	apmLogger := logger.Named("apm")
 	newNomadAPM := func(name string) plugins.APM {
@@ -81,10 +121,12 @@ func newPluginHost(logger hclog.Logger, cfg *Config, deps *Deps) (*pluginHost, e
 			p = prometheus.NewPrometheusPlugin(apmLogger.Named(pc.Name))
 		default:
 			if h.external == nil {
-				return nil, fmt.Errorf("apm %q: driver %q is not a built-in plugin and external plugins are not supported",
+				return nil, fmt.Errorf("apm %q: driver %q is not a built-in plugin and plugin_dir is not set",
 					pc.Name, pc.Driver)
 			}
-			ext, err := h.external.APM(pc.Name, pc.Driver, pc.Config)
+			// External plugins are configured by the loader, on every
+			// (re)start of their process.
+			ext, err := h.external.APM(pc.Name, pc.Driver, pc.Args, pc.Config)
 			if err != nil {
 				return nil, fmt.Errorf("apm %q: %w", pc.Name, err)
 			}
@@ -92,17 +134,20 @@ func newPluginHost(logger hclog.Logger, cfg *Config, deps *Deps) (*pluginHost, e
 			continue
 		}
 
-		config := pc.Config
-		if config == nil {
-			config = map[string]string{}
-		}
-		if err := p.SetConfig(config); err != nil {
+		if err := p.SetConfig(nonNilConfig(pc.Config)); err != nil {
 			return nil, fmt.Errorf("apm %q: failed to configure: %w", pc.Name, err)
 		}
 		h.apms[pc.Name] = p
 	}
 
 	return h, nil
+}
+
+func nonNilConfig(c map[string]string) map[string]string {
+	if c == nil {
+		return map[string]string{}
+	}
+	return c
 }
 
 // getStrategyRunner returns the strategy plugin with the given name.

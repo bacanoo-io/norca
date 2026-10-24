@@ -55,6 +55,16 @@ func targetKeyFromPolicy(p *structs.ScalingPolicy) (targetKey, bool) {
 type targetState struct {
 	status *sdk.TargetStatus
 
+	// job is the current version of the job and group its task group.
+	job   *structs.Job
+	group *structs.TaskGroup
+
+	// deploymentActive is set while a deployment of the current job is
+	// active, and unpromotedCanary while it waits for canaries to be
+	// promoted.
+	deploymentActive bool
+	unpromotedCanary bool
+
 	// events are the scaling events of the task group, newest first.
 	events []*structs.ScalingEvent
 }
@@ -69,7 +79,8 @@ func readTarget(store *state.StateStore, key targetKey) (*targetState, error) {
 	if job == nil {
 		return nil, nil
 	}
-	if job.LookupTaskGroup(key.group) == nil {
+	tg := job.LookupTaskGroup(key.group)
+	if tg == nil {
 		return nil, fmt.Errorf("task group %q not found", key.group)
 	}
 
@@ -98,14 +109,33 @@ func readTarget(store *state.StateStore, key targetKey) (*targetState, error) {
 		return nil, err
 	}
 
-	return &targetState{
+	t := &targetState{
 		status: &sdk.TargetStatus{
 			Ready: !job.Stop,
 			Count: running,
 			Meta:  map[string]string{},
 		},
+		job:    job,
+		group:  tg,
 		events: events[key.group],
-	}, nil
+	}
+
+	// Same rule as Job.Scale: a deployment blocks scaling while it is active
+	// and belongs to the current incarnation of the job.
+	deployment, err := store.LatestDeploymentByJobID(nil, key.namespace, key.job)
+	if err != nil {
+		return nil, err
+	}
+	if deployment != nil && deployment.Active() && deployment.JobCreateIndex == job.CreateIndex {
+		t.deploymentActive = true
+		for _, ds := range deployment.TaskGroups {
+			if ds != nil && ds.DesiredCanaries > 0 && !ds.Promoted {
+				t.unpromotedCanary = true
+			}
+		}
+	}
+
+	return t, nil
 }
 
 // cooldownUntil returns the end of the cooldown caused by the last scaling

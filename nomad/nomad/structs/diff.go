@@ -644,6 +644,7 @@ func scalingDiff(old, new *ScalingPolicy, contextual bool) *ObjectDiff {
 	var oldPrimitiveFlat, newPrimitiveFlat map[string]string
 
 	filter := []string{"CreateIndex", "ModifyIndex", "ID", "Type", "Target[Job]", "Target[Group]", "Target[Namespace]"}
+	filter = append(filter, scalingTypedFields...)
 
 	if reflect.DeepEqual(old, new) {
 		return nil
@@ -668,6 +669,11 @@ func scalingDiff(old, new *ScalingPolicy, contextual bool) *ObjectDiff {
 	if pDiff := policyDiff(old.Policy, new.Policy, contextual); pDiff != nil {
 		diff.Objects = append(diff.Objects, pDiff)
 	}
+
+	// Diff the typed policy
+	typedFields, typedObjects := scalingTypedDiff(old, new, contextual)
+	diff.Fields = append(diff.Fields, typedFields...)
+	diff.Objects = append(diff.Objects, typedObjects...)
 
 	sort.Sort(FieldDiffs(diff.Fields))
 	sort.Sort(ObjectDiffs(diff.Objects))
