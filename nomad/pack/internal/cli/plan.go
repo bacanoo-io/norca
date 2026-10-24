@@ -39,6 +39,13 @@ func (c *PlanCommand) Run(args []string) int {
 	// Set the packConfig defaults if necessary and generate our UI error context.
 	errorContext := initPackCommand(c.packConfig)
 
+	// Download and verify packs from OCI registries, and check the lock file.
+	provenance, err := c.preparePack(c.packConfig)
+	if err != nil {
+		c.ui.ErrorWithContext(err, "failed to verify pack", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+
 	// verify packs exist before planning jobs
 	if err := caching.VerifyPackExists(c.packConfig, errorContext, c.ui); err != nil {
 		return c.exitCodeError
@@ -82,6 +89,8 @@ func (c *PlanCommand) Run(args []string) int {
 		PackRef:        c.packConfig.Ref,
 		DeploymentName: c.deploymentName,
 		RegistryName:   c.packConfig.Registry,
+		PackDigest:     provenanceDigest(provenance),
+		SignerKeyID:    provenance.SignerKeyID(),
 	}
 
 	// TODO(jrasell) come up with a better way to pass the appropriate config.
@@ -145,6 +154,7 @@ func (c *PlanCommand) Flags() *flag.Sets {
 
 	return c.flagSet(flagSetOperation|flagSetNomadClient, func(set *flag.Sets) {
 		f := set.NewSet("Plan Options")
+		c.addLockFlag(f)
 
 		c.jobConfig = &job.CLIConfig{
 			RunConfig:  &job.RunCLIConfig{},

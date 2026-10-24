@@ -48,12 +48,14 @@ func (c *RegistryListCommand) Run(args []string) int {
 	// Iterate over the registries and build a table row for each cachedRegistry/pack
 	// entry at each ref. Hierarchically, this should equate to the default
 	// cachedRegistry and all its peers.
-	if len(globalCache.Registries()) > 0 {
-		table := registryTable()
-		for _, registry := range globalCache.Registries() {
-			tableRow := registryTableRow(registry)
-			table.Rows = append(table.Rows, tableRow)
-		}
+	table := registryTable()
+	for _, registry := range globalCache.Registries() {
+		tableRow := registryTableRow(registry)
+		table.Rows = append(table.Rows, tableRow)
+	}
+	// Norca: also list configured OCI registries without cached packs.
+	addConfiguredRegistryRows(table, globalCache.Registries())
+	if len(table.Rows) > 0 {
 		c.ui.Table(table)
 
 		// TODO: This message is to make upgrading from tech preview versions

@@ -54,6 +54,7 @@ The CLI and the API client read their settings from `NORCA_*` environment variab
 | `NORCA_SKIP_VERIFY` | `NOMAD_SKIP_VERIFY` | Skip TLS verification |
 | `NORCA_CLI_NO_COLOR`, `NORCA_CLI_FORCE_COLOR` | `NOMAD_CLI_NO_COLOR`, `NOMAD_CLI_FORCE_COLOR` | Disable or force colored output |
 | `NORCA_PACK_ALLOW_UNSET_VARS`, `NORCA_PACK_PLAN_EXIT_CODE_*` | `NOMAD_PACK_*` | `norca pack` settings |
+| `NORCA_PACK_CONFIG`, `NORCA_PACK_CACHE_DIR`, `NORCA_PACK_REGISTRY_USERNAME`, `NORCA_PACK_REGISTRY_PASSWORD`, `NORCA_PACK_KEY_PASSWORD`, `NORCA_PACK_LOCK` | – | `norca pack` OCI registries, signing and lock files ([details](nomad/pack/docs/supply-chain.md)) |
 
 Command-line flags take precedence over both. Names that are part of the Nomad compatibility surface are unchanged: the variables injected into workloads (`NOMAD_ALLOC_ID`, `NOMAD_TASK_DIR`, ...), the jobspec variable prefix `NOMAD_VAR_`, the pack variable prefix `NOMAD_PACK_VAR_`, the `X-Nomad-Token` HTTP header and the agent's configuration, metric and Raft/Serf names.
 
@@ -82,7 +83,8 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Service discovery without Consul: health-based catalog, built-in DNS, Consul-compatible read layer for Traefik, Prometheus and consul-template (DNS and the compat layer are off by default) | Available (phases 1–3) | [plan](docs/design/consul-independence-plan.md) |
 | Service discovery without Consul: external registration, native mTLS, managed Consul install | Planned | [plan](docs/design/consul-independence-plan.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |
-| Package management: server-side releases, rollback, OCI registries | Planned | [plan](docs/design/package-management-plan.md) |
+| Package management, client-side supply chain: OCI registries, cosign-compatible signing and trust policies, offline bundles (air-gapped), `pack.lock` | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/supply-chain.md) |
+| Package management: server-side releases, rollback, signature enforcement in admission | Planned | [plan](docs/design/package-management-plan.md) |
 | New web UI | Planned | [plan](docs/design/ui-plan.md) |
 
 Only features marked "Available" can be used; the others are being built or are in the design phase.

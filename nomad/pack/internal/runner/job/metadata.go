@@ -19,6 +19,12 @@ const (
 	PackDeploymentNameKey = "pack.deployment_name"
 	PackJobKey            = "pack.job"
 	PackRefKey            = "pack.version"
+
+	// PackDigestKey and PackSignerKey record the provenance of packs from
+	// OCI registries: the manifest digest and the ID of the trusted key that
+	// signed it. They are only set when known.
+	PackDigestKey = "pack.digest"
+	PackSignerKey = "pack.signer"
 )
 
 // setHCLMeta sets the nomad-pack metadata in the HCL job definition, merging
@@ -109,6 +115,12 @@ func (r *Runner) setHCLMeta(job string) string {
 	result[PackDeploymentNameKey] = cty.StringVal(r.runnerCfg.DeploymentName)
 	result[PackJobKey] = cty.StringVal(jobBlock.Labels()[0])
 	result[PackRefKey] = cty.StringVal(r.runnerCfg.PackRef)
+	if r.runnerCfg.PackDigest != "" {
+		result[PackDigestKey] = cty.StringVal(r.runnerCfg.PackDigest)
+	}
+	if r.runnerCfg.SignerKeyID != "" {
+		result[PackSignerKey] = cty.StringVal(r.runnerCfg.SignerKeyID)
+	}
 
 	jobBody.SetAttributeValue("meta", cty.ObjectVal(result))
 

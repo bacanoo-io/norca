@@ -42,6 +42,14 @@ func (c *InfoCommand) Run(args []string) int {
 	// Set the packConfig defaults if necessary and generate our UI error context.
 	errorContext := initPackCommand(c.packConfig)
 
+	// Download and verify packs from OCI registries. The lock file is not
+	// relevant for showing information.
+	c.lockMode = lockModeIgnore
+	if _, err := c.preparePack(c.packConfig); err != nil {
+		c.ui.ErrorWithContext(err, "failed to verify pack", errorContext.GetAll()...)
+		return 1
+	}
+
 	// verify packs exist before running jobs
 	if err := caching.VerifyPackExists(c.packConfig, errorContext, c.ui); err != nil {
 		return 1

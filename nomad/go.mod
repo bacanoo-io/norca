@@ -126,6 +126,8 @@ require (
 	github.com/morikuni/aec v1.0.0
 	github.com/muesli/reflow v0.3.0
 	github.com/olekukonko/tablewriter v1.1.4
+	github.com/opencontainers/go-digest v1.0.0
+	github.com/opencontainers/image-spec v1.1.1
 	github.com/opencontainers/runc v1.1.14
 	github.com/opencontainers/runtime-spec v1.1.0
 	github.com/posener/complete v1.2.3
@@ -135,6 +137,7 @@ require (
 	github.com/ryanuber/columnize v2.1.2+incompatible
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
+	github.com/secure-systems-lab/go-securesystemslib v0.11.0
 	github.com/shirou/gopsutil/v3 v3.23.4
 	github.com/shoenig/go-landlock v0.1.5
 	github.com/shoenig/go-m1cpu v0.1.6
@@ -158,6 +161,7 @@ require (
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7
 	gopkg.in/tomb.v2 v2.0.0-20140626144623-14b3d72120e8
+	oras.land/oras-go/v2 v2.6.2
 	oss.indeed.com/go/libtime v1.6.0
 )
 
@@ -294,8 +298,6 @@ require (
 	github.com/olekukonko/cat v0.0.0-20250911104152-50322a0618f6 // indirect
 	github.com/olekukonko/errors v1.2.0 // indirect
 	github.com/olekukonko/ll v0.1.6 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/opencontainers/selinux v1.13.1 // indirect
 	github.com/packethost/packngo v0.1.1-0.20180711074735-b9cb5096f54c // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect

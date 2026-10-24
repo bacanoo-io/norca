@@ -36,3 +36,11 @@ path = ["nomad/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "HashiCorp, Inc. and Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
+
+# Test fixture copied unmodified from the Nomad Pack Community Registry (MPL 2.0),
+# see nomad/pack/fixtures/community/README.md.
+[[annotations]]
+path = ["nomad/pack/fixtures/community/packs/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "IBM Corp. and the Nomad Pack Community Registry contributors"
+SPDX-License-Identifier = "MPL-2.0"

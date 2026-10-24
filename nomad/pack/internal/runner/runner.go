@@ -17,6 +17,12 @@ type Config struct {
 	PathPath       string
 	PackRef        string
 	RegistryName   string
+
+	// PackDigest is the OCI manifest digest of a pack obtained from an OCI
+	// registry or bundle, and SignerKeyID the ID of the trusted key that
+	// signed it. Both are empty for other packs.
+	PackDigest  string
+	SignerKeyID string
 }
 
 // PlanCode* is the set of expected error codes that Runner.PlanDeployment
