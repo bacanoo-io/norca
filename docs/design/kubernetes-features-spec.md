@@ -258,8 +258,8 @@ The request and response follow the structure of the Kubernetes AdmissionReview,
 
 ### Open questions
 
-- Should admission also run on Variables writes? This would be useful for schema validation in the CRD-like use of item 3.
-- Is a mutating CEL needed (the equivalent of Kubernetes MutatingAdmissionPolicy), or is the webhook enough?
+- Should admission also run on Variables writes? This would be useful for schema validation in the CRD-like use of item 3. **Decided 2026-10-24: yes, together with phase 2 of the operator framework.**
+- Is a mutating CEL needed (the equivalent of Kubernetes MutatingAdmissionPolicy), or is the webhook enough? **Decided 2026-10-24: the webhook is enough; no mutating CEL for now.**
 
 ---
 
@@ -879,7 +879,7 @@ service {
 ### Open questions
 
 - [ ] Which JSON Schema implementation do we use (license, performance)?
-- [ ] Is field-level ownership (server-side apply) needed already in the first version, or is the `managed_by` rule enough?
+- [x] Is field-level ownership (server-side apply) needed already in the first version, or is the `managed_by` rule enough? Decided 2026-10-24: the `managed_by` rule is enough.
 - [x] The first sample operator is the LoadBalancer (see above).
 
 ---
