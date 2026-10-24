@@ -15,11 +15,11 @@ import (
 	"github.com/posener/complete"
 	"golang.org/x/exp/maps"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper/filesystem"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 // RenderCommand is a command that allows users to render the templates within
@@ -416,27 +416,27 @@ func (c *RenderCommand) Help() string {
 
 	c.Example = `
 	# Render an example pack with override variables in a variable file.
-	nomad-pack render example --var-file="./overrides.hcl"
+	nomad pack render example --var-file="./overrides.hcl"
 
 	# Render an example pack with cli variable overrides.
-	nomad-pack render example --var="redis_image_version=latest" \
+	nomad pack render example --var="redis_image_version=latest" \
 		--var="redis_resources={"cpu": "1000", "memory": "512"}"
 
 	# Render an example pack including the outputs template file.
-	nomad-pack render example --render-output-template
+	nomad pack render example --render-output-template
 
 	# Render an example pack, outputting the rendered templates to file in
 	# addition to the terminal. Setting auto-approve allows the command to
 	# overwrite existing files.
-	nomad-pack render example --to-dir ~/out --auto-approve
+	nomad pack render example --to-dir ~/out --auto-approve
 
 	# Render a pack under development from the filesystem - supports current
 	# working directory or relative path
-	nomad-pack render .
+	nomad pack render .
 	`
 
 	return formatHelp(`
-	Usage: nomad-pack render <pack-name> [options]
+	Usage: nomad pack render <pack-name> [options]
 
 	Render the specified Nomad Pack and view the results.
 

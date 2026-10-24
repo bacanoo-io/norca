@@ -1,7 +1,11 @@
 
 # Nomad Pack
 
-Nomad Pack is a templating and packaging tool used with [HashiCorp Nomad](https://www.nomadproject.io). Nomad Pack is currently Generally Available (GA) as of `nomad-pack` v0.1.0. 
+Nomad Pack is a templating and packaging tool used with [Nomad](https://www.nomadproject.io).
+
+In this repository Nomad Pack is part of the Norca fork of Nomad: the code under `nomad/pack/`
+originates from Nomad Pack v0.4.2 and is built into the main `nomad` binary, where it runs as the
+`nomad pack` subcommand. There is no separate `nomad-pack` binary. Packs are rendered on the client.
 
 Nomad Pack is used to:
 
@@ -11,34 +15,13 @@ Nomad Pack is used to:
 
 ## Installation
 
-To simplify the getting started experience, you can download a [precompiled binary](https://releases.hashicorp.com/nomad-pack/)
-and run it on your machine locally. After downloading Nomad Pack, unzip the package. Make sure that
-the nomad binary is available on your PATH. You can inspect the locations available on your path by
-running this command:
+Nomad Pack is built into the `nomad` binary of this repository; build it from the `nomad/`
+directory (for example with `go build .`) and make sure the binary is on your PATH. All Nomad Pack
+commands are available below `nomad pack`:
+
+```shell
+nomad pack --help
 ```
-$ echo $PATH
-/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-```
-
-The output is a list of locations separated by colons. You can make Nomad Pack available by moving
-the binary to one of the listed locations, or by adding Nomad Pack's location to your PATH.
-
-Nomad Pack is also available as a [Docker image](https://hub.docker.com/r/hashicorp/nomad-pack/tags). With Docker installed on your local
-machine, you can pull the latest image by running the following command:
-```
-$ docker pull hashicorp/nomad-pack:0.2.0
-```
-
-### Nightly Builds and Docker Image Preview
-
-Nomad Pack is under constant updates, so every day the [`nightly`
-release](https://github.com/hashicorp/nomad-pack/releases/tag/nightly) is updated with
-binaries built off the latest code in the `main` branch. This should make it easier for you to try
-new features and bug fixes.
-
-Each commit to `main` also generates a preview Docker image that can be accessed from the
-[`hashicorppreview/nomad-pack`](https://hub.docker.com/r/hashicorppreview/nomad-pack/tags)
-repository on Docker Hub.
 
 ## Usage
 
@@ -55,33 +38,33 @@ environment variable.
 First, run the `list` command to see which packs are available to deploy.
 
 ```shell
-nomad-pack list
+nomad pack list
 ```
 
-If you don't see the default registry (`nomad registry list`), it can be added with the `registry add` command.
+If you don't see the default registry (`nomad pack registry list`), it can be added with the `registry add` command.
 
 ```shell
-nomad-pack registry add default github.com/hashicorp/nomad-pack-community-registry
+nomad pack registry add default github.com/hashicorp/nomad-pack-community-registry
 ```
 
 To deploy one of these packs, use the `run` command. This deploys each jobs defined in the pack to Nomad.
 To deploy the `hello_world` pack, you would run the following command:
 
 ```shell
-nomad-pack run hello_world
+nomad pack run hello_world
 ```
 
 Each pack defines a set of variables that can be provided by the user. To get information on the pack
 and to see which variables can be passed in, run the `info` command.
 
 ```shell
-nomad-pack info hello_world
+nomad pack info hello_world
 ```
 
 Values for these variables are provided using the `--var` flag.
 
 ```shell
-nomad-pack run hello_world --var message=hola
+nomad pack run hello_world --var message=hola
 ```
 
 Values can also be provided by passing in a variables file. See the variables section of the
@@ -92,14 +75,14 @@ tee -a ./my-variables.hcl << END
 message="bonjour"
 END
 
-nomad-pack run hello_world -f ./my-variables.hcl
+nomad pack run hello_world -f ./my-variables.hcl
 ```
 
 If you want to remove all of the resources deployed by a pack, run the `destroy` command with the
 pack name.
 
 ```shell
-nomad-pack destroy hello_world
+nomad pack destroy hello_world
 ```
 
 ### Adding Non-Default Pack Registries
@@ -113,13 +96,13 @@ to add [an example Gitlab registry](https://gitlab.com/mikenomitch/pack-registry
 you would run the following command to download the registry.
 
 ```shell
-nomad-pack registry add example gitlab.com/mikenomitch/pack-registry
+nomad pack registry add example gitlab.com/mikenomitch/pack-registry
 ```
 
 To view the packs you can now deploy, run the `registry list` command.
 
 ```shell
-nomad-pack registry list
+nomad pack registry list
 ```
 
 Packs from this registry can now be deployed using the `run` command.
@@ -147,14 +130,12 @@ Pull Requests and feedback on both repositories are welcome!
 - Support for Volumes and ACLs
 - Support for other Version Control Systems
 - Pack search command
-- Integration into the official Nomad CLI
 
 ## Additional Resources
 
 - [Detailed Usage Guide](/docs/detailed-usage.md)
 - [How to Write Your Own Pack](/docs/writing-packs.md)
 - [Contributing](/docs/contributing.md)
-- [GitHub Action for Nomad Pack](https://github.com/marketplace/actions/setup-hashicorp-nomad-pack)
 
 ## Tutorials
 

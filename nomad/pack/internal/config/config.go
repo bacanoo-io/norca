@@ -6,7 +6,7 @@ package config
 import (
 	"context"
 
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 const (

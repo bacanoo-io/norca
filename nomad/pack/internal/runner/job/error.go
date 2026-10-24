@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
 )
 
 const (

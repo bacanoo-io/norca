@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
 )
 
 // DiagFileNotFound is returned when pack parsing encounters a required file

@@ -8,7 +8,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/logging"
+	"github.com/hashicorp/nomad/pack/internal/pkg/logging"
 	"github.com/shoenig/test/must"
 )
 

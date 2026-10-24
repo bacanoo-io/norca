@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/logging"
+	"github.com/hashicorp/nomad/pack/internal/pkg/logging"
 )
 
 // CopyFile copies a file from one path to another

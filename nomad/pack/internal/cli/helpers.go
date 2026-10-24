@@ -11,14 +11,14 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/manager"
-	"github.com/hashicorp/nomad-pack/internal/pkg/renderer"
-	"github.com/hashicorp/nomad-pack/internal/pkg/variable/parser"
-	"github.com/hashicorp/nomad-pack/internal/runner"
-	"github.com/hashicorp/nomad-pack/internal/runner/job"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/manager"
+	"github.com/hashicorp/nomad/pack/internal/pkg/renderer"
+	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
+	"github.com/hashicorp/nomad/pack/internal/runner"
+	"github.com/hashicorp/nomad/pack/internal/runner/job"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 // get an initialized error context for a command that accepts pack args.
@@ -300,7 +300,7 @@ func getPackJobsByDeploy(jobs []*api.Job, c *api.Client, cfg *caching.PackConfig
 		if len(packJobs) == 0 && hasOtherDeploys {
 			// TODO: the aesthetics here could be better. This error line is very long.
 			return nil, fmt.Errorf(
-				"pack %q running but not in deployment %q. Run \"nomad-pack status %s\" for more information",
+				"pack %q running but not in deployment %q. Run \"nomad pack status %s\" for more information",
 				cfg.Name, deploymentName, cfg.Name)
 		}
 	}

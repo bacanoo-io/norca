@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
 	"github.com/posener/complete"
 )
 
@@ -129,12 +129,12 @@ func (c *RegistryDeleteCommand) Help() string {
 	# Delete a pack registry, optionally at a specific tag/release/SHA.
 	If no target or tag/release/SHA defined, will delete the entire registry.
 
-	nomad-pack registry delete community --target=traefik --ref=v0.0.1
+	nomad pack registry delete community --target=traefik --ref=v0.0.1
 	`
 	return formatHelp(`
-	Usage: nomad-pack registry delete <name> [options]
+	Usage: nomad pack registry delete <name> [options]
 
-	Delete nomad pack registries or packs.
+	Delete Nomad Pack registries or packs.
 
 ` + c.GetExample() + c.Flags().Help())
 }

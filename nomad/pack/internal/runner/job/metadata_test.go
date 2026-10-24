@@ -8,7 +8,7 @@ import (
 
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad-pack/internal/runner"
+	"github.com/hashicorp/nomad/pack/internal/runner"
 )
 
 func TestDeployer_setHCLMeta(t *testing.T) {

@@ -6,8 +6,8 @@ package cli
 import (
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
 )
 
 // ListCommand lists all registries and pack that have been downloaded
@@ -115,10 +115,10 @@ func (c *ListCommand) Synopsis() string {
 func (c *ListCommand) Help() string {
 	c.Example = `
 	# List all available packs
-	nomad-pack list
+	nomad pack list
 	`
 	return formatHelp(`
-	Usage: nomad-pack list
+	Usage: nomad pack list
 
 	List nomad packs.
 

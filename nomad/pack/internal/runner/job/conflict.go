@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/nomad/api"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
 )
 
 func (r *Runner) CheckForConflicts(errCtx *errors.UIErrorContext) []*errors.WrappedUIContext {

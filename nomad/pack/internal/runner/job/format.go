@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/ryanuber/columnize"
 
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 const (

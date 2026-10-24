@@ -10,10 +10,10 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	flag "github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 type StatusCommand struct {
@@ -138,23 +138,23 @@ func (c *StatusCommand) AutocompleteFlags() complete.Flags {
 func (c *StatusCommand) Help() string {
 	c.Example = `
 	# Get a list of all deployed packs and their registries
-	nomad-pack status
+	nomad pack status
 
 	# Get a list of all deployed jobs in pack example, along with their status
 	# and deployment names
-	nomad-pack status example
+	nomad pack status example
 
 	# Get a list of all deployed jobs and their status for an example pack in
 	# the deployment name "dev"
-	nomad-pack status example --name=dev
+	nomad pack status example --name=dev
 
 	# Get a list of all deployed jobs and their status for an example pack in
 	# the deployment name "dev"
-	nomad-pack status example --name=dev --registry=community
+	nomad pack status example --name=dev --registry=community
 	`
 
 	return formatHelp(`
-	Usage: nomad-pack status <name> [options]
+	Usage: nomad pack status <name> [options]
 
 	Get information on deployed Nomad Packs. If no pack name is specified, it
 	will return	a list of all deployed packs. If pack name is specified, it will

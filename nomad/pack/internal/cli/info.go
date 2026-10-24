@@ -9,12 +9,12 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/pkg/loader"
-	"github.com/hashicorp/nomad-pack/internal/pkg/variable/parser"
-	"github.com/hashicorp/nomad-pack/internal/pkg/variable/parser/config"
-	varpkg "github.com/hashicorp/nomad-pack/sdk/pack/variables"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
+	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
+	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser/config"
+	varpkg "github.com/hashicorp/nomad/pack/sdk/pack/variables"
 	"github.com/mitchellh/go-glint"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -175,11 +175,11 @@ func (c *InfoCommand) Flags() *flag.Sets {
 func (c *InfoCommand) Help() string {
 	c.Example = `
 	# Get information on the "hello_world" pack
-	nomad-pack info hello_world
+	nomad pack info hello_world
 	`
 
 	return formatHelp(`
-	Usage: nomad-pack info <pack-name>
+	Usage: nomad pack info <pack-name>
 
 	Returns information on the given pack including name, description, and variable details.
 

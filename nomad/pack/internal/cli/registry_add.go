@@ -9,10 +9,10 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 // RegistryAddCommand adds a registry to the global cache.
@@ -105,7 +105,7 @@ func (c *RegistryAddCommand) Run(args []string) int {
 	c.ui.Table(table)
 
 	if validPack != nil {
-		c.ui.Info(fmt.Sprintf("Try running one the packs you just added liked this\n\n  nomad-pack run %s --registry=%s --ref=%s", validPack.Name(), newRegistry.Name, validPack.Ref))
+		c.ui.Info(fmt.Sprintf("Try running one the packs you just added liked this\n\n  nomad pack run %s --registry=%s --ref=%s", validPack.Name(), newRegistry.Name, validPack.Ref))
 	}
 
 	return 0
@@ -130,7 +130,7 @@ func (c *RegistryAddCommand) Flags() *flag.Sets {
 					Supports tags, SHA, and latest. If no ref is specified,
 					defaults to latest. Running "nomad registry add" multiple
 					times for the same ref is idempotent, however running
-					"nomad-pack registry add" without specifying a ref, or when
+					"nomad pack registry add" without specifying a ref, or when
 					specifying @latest, is destructive, and will overwrite
 					current @latest in the global cache.
 
@@ -154,18 +154,18 @@ func (c *RegistryAddCommand) Synopsis() string {
 func (c *RegistryAddCommand) Help() string {
 	c.Example = `
 	# Download latest ref of the pack registry to the global cache.
-	nomad-pack registry add community github.com/hashicorp/nomad-pack-community-registry
+	nomad pack registry add community github.com/hashicorp/nomad-pack-community-registry
 
 	# Download latest ref of a specific pack from the registry to the global cache.
-	nomad-pack registry add community github.com/hashicorp/nomad-pack-community-registry --target=nomad_example
+	nomad pack registry add community github.com/hashicorp/nomad-pack-community-registry --target=nomad_example
 
 	# Download packs from a registry at a specific tag/release/SHA.
-	nomad-pack registry add community github.com/hashicorp/nomad-pack-community-registry  --ref=v0.1.0
+	nomad pack registry add community github.com/hashicorp/nomad-pack-community-registry  --ref=v0.1.0
 	`
 	return formatHelp(`
-	Usage: nomad-pack registry add <name> <source> [options]
+	Usage: nomad pack registry add <name> <source> [options]
 
-	Add nomad pack registries.
+	Add Nomad Pack registries.
 
 ` + c.GetExample() + c.Flags().Help())
 }

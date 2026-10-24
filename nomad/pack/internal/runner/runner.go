@@ -4,8 +4,8 @@
 package runner
 
 import (
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 // Config is the generic configuration used by each runner implementation

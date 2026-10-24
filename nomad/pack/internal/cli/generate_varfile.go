@@ -11,10 +11,10 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 // generateVarFileCommand is a command that allows users to generate a skeleton
@@ -215,24 +215,24 @@ func (c *generateVarFileCommand) Help() string {
 
 	c.Example = `
 	# Generate a variables override file for the given pack to standard output.
-	nomad-pack generate var-file example
+	nomad pack generate var-file example
 
 	# Generate a variable override for the example pack, outputting as a file in
 	# addition to the terminal.
-	nomad-pack generate var-file example --to-file ./overrides.hcl
+	nomad pack generate var-file example --to-file ./overrides.hcl
 
 	# Generate a variable override for the example pack, outputting as a file in
 	# addition to the terminal. Setting auto-approve allows the command to
 	# overwrite existing files.
-	nomad-pack generate var-file example --to-file ./overrides.hcl --auto-approve
+	nomad pack generate var-file example --to-file ./overrides.hcl --auto-approve
 
 	# Generate a variable override pack under development from the filesystem -
 	# supports current working directory or relative path
-	nomad-pack generate var-file .
+	nomad pack generate var-file .
 	`
 
 	return formatHelp(`
-	Usage: nomad-pack generate var-file <pack-name> [options]
+	Usage: nomad pack generate var-file <pack-name> [options]
 
 	Generate a variables file for the specified Nomad Pack.
 

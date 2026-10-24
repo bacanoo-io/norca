@@ -6,7 +6,7 @@ package cli
 import (
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
 )
 
 // depsHelpCommand exists solely to provide top level help for the deps
@@ -50,7 +50,7 @@ func (d *depsHelpCommand) Synopsis() string {
 
 func (d *depsHelpCommand) Help() string {
 	return formatHelp(`
-	Usage: nomad-pack deps <subcommand> [options]
+	Usage: nomad pack deps <subcommand> [options]
 
 	Manage dependencies for pack.
 

@@ -8,33 +8,29 @@ To add packs, please contribute to the [Nomad Pack Community Registry](https://g
 
 - Golang
 - Git
-- Make
 
-Make sure you have `$GOHOME/bin` as part of your `$PATH` variable.
+Nomad Pack is part of the Nomad module (`nomad/go.mod`); its code lives in `nomad/pack/` and the
+commands are registered in the Nomad CLI as `nomad pack ...`.
 
 ## Building and Running Locally
 
-Installing required tools:
+Build the `nomad` binary from the `nomad/` directory:
 
 ```
-make bootstrap
-```
-
-Check Go mod and Go sum:
-
-```
-make check
-```
-
-Build a binary from local code. This will add an
-executable at `./bin/nomad-pack`:
-
-```
-make dev
+go build -o ./bin/nomad .
 ```
 
 Run your code:
 
 ```
-./bin/nomad-pack -h
+./bin/nomad pack -h
 ```
+
+Run the Nomad Pack tests (the tests that start a Nomad agent need the `nomad` binary on your PATH):
+
+```
+go test ./pack/...
+```
+
+The mTLS test certificates in `pack/fixtures/mtls` are generated with the fork's `helper/tlsutil`;
+regenerate them with `go run generate.go` in that directory.

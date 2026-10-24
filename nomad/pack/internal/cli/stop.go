@@ -11,11 +11,11 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad-pack/internal/pkg/renderer"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
+	"github.com/hashicorp/nomad/pack/internal/pkg/renderer"
 )
 
 type StopCommand struct {
@@ -334,21 +334,21 @@ func (c *StopCommand) AutocompleteFlags() complete.Flags {
 func (c *StopCommand) Help() string {
 	c.Example = `
 	# Stop an example pack in deployment "dev"
-	nomad-pack stop example --name=dev
+	nomad pack stop example --name=dev
 
 	# Stop an example pack in deployment "dev" and purge it from the system
-	nomad-pack stop example --name=dev --purge
+	nomad pack stop example --name=dev --purge
 
 	# Stop an example pack in deployment "dev" that has a job named "test"
 	# If the same pack has been installed in deployment "dev" but overriding the
 	# job name to "hello", only "test" will be stopped
-	nomad-pack stop example --name=dev --var=job_name=test
+	nomad pack stop example --name=dev --var=job_name=test
 	`
 	return formatHelp(`
-	Usage: nomad-pack stop <pack name> [options]
+	Usage: nomad pack stop <pack name> [options]
 
 	Stop the specified Nomad Pack in the configured Nomad cluster. To delete the
-	pack from the cluster, specify "--purge", or use the "nomad-pack destroy"
+	pack from the cluster, specify "--purge", or use the "nomad pack destroy"
 	command.
 
 	By default, the stop command will stop ALL jobs in the pack deployment. If a

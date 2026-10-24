@@ -8,8 +8,8 @@ import (
 
 	"github.com/hashicorp/nomad/api"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 // stopRemovedJobs queries Nomad for all jobs belonging to this pack deployment

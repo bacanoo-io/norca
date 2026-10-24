@@ -4,11 +4,11 @@
 package cli
 
 import (
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/runner"
-	"github.com/hashicorp/nomad-pack/internal/runner/job"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/runner"
+	"github.com/hashicorp/nomad/pack/internal/runner/job"
 	"github.com/posener/complete"
 )
 
@@ -239,24 +239,24 @@ func (c *PlanCommand) AutocompleteFlags() complete.Flags {
 func (c *PlanCommand) Help() string {
 	c.Example = `
 	# Plan an example pack with the default deployment name
-	nomad-pack plan example
+	nomad pack plan example
 
 	# Plan an example pack at a specific ref
-	nomad-pack plan example --ref=v0.0.1
+	nomad pack plan example --ref=v0.0.1
 
 	# Plan a pack from a registry other than the default registry
-	nomad-pack plan traefik --registry=community --ref=v0.0.1
+	nomad pack plan traefik --registry=community --ref=v0.0.1
 
 	# Plan an example pack without showing the diff
-	nomad-pack plan example --diff=false
+	nomad pack plan example --diff=false
 
 	# Plan a pack under development from the filesystem - supports current
 	# working directory or relative path
-	nomad-pack plan .
+	nomad pack plan .
 	`
 
 	return formatHelp(`
-	Usage: nomad-pack plan <pack-name> [options]
+	Usage: nomad pack plan <pack-name> [options]
 
 	Determine the effects of submitting a new or updated Nomad Pack
 

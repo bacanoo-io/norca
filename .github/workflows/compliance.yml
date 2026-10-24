@@ -21,7 +21,8 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        module: [nomad, nomad-pack]
+        # Nomad Pack is part of the nomad module (nomad/pack).
+        module: [nomad]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -69,7 +70,7 @@ jobs:
           fetch-depth: 0
       - name: Check Signed-off-by
         run: |
-          # The imported upstream history (nomad/, nomad-pack/) has no sign-offs; only commits of the PR are checked.
+          # The imported upstream history (nomad/, Nomad Pack) has no sign-offs; only commits of the PR are checked.
           missing=$(git log --no-merges --format='%H %(trailers:key=Signed-off-by,valueonly,separator=;)' \
             origin/${{ github.base_ref }}..HEAD | awk 'NF<2 {print $1}')
           if [ -n "$missing" ]; then echo "Missing DCO sign-off: $missing" >&2; exit 1; fi

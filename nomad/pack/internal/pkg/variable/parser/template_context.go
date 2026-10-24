@@ -12,7 +12,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/hashicorp/nomad-pack/sdk/pack"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
 )
 
 // PackTemplateContext v2

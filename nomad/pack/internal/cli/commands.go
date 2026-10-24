@@ -16,10 +16,10 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	flag "github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/pkg/variable/envloader"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/variable/envloader"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 const (
@@ -304,7 +304,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 					any to the underlying pack. Be mindful that, whether you
 					have made changes or not, the underlying Allocations will be
 					replaced. When managing packs, the name specified here is
-					the name that should be passed to nomad-pack's plan and
+					the name that should be passed to Nomad Pack's plan and
 					destroy commands.`,
 		})
 
@@ -424,9 +424,9 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 // Used on flag/arg parse error in c.Init method
 func (c *baseCommand) helpUsageMessage() string {
 	if c.cmdKey == "" {
-		return `See "nomad-pack --help"`
+		return `See "nomad pack --help"`
 	}
-	return fmt.Sprintf(`See "nomad-pack %s --help"`, c.cmdKey)
+	return fmt.Sprintf(`See "nomad pack %s --help"`, c.cmdKey)
 }
 
 // flagSetBit is used with baseCommand.flagSet

@@ -9,9 +9,9 @@ import (
 
 	"github.com/hashicorp/nomad/api"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/runner"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/runner"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 // Runner is the job implementation of the runner.Runner interface.

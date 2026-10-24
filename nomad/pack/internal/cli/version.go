@@ -4,8 +4,8 @@
 package cli
 
 import (
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/pkg/version"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/version"
 	"github.com/posener/complete"
 )
 
@@ -53,7 +53,7 @@ func (c *VersionCommand) Synopsis() string {
 
 func (c *VersionCommand) Help() string {
 	return formatHelp(`
-	Usage: nomad-pack version
+	Usage: nomad pack version
 
 	Prints the version information for Nomad Pack.
 `)

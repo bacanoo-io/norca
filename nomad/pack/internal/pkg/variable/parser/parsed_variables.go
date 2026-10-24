@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors/packdiags"
-	"github.com/hashicorp/nomad-pack/internal/pkg/variable/parser/config"
-	"github.com/hashicorp/nomad-pack/sdk/pack"
-	"github.com/hashicorp/nomad-pack/sdk/pack/variables"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors/packdiags"
+	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser/config"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
 	"golang.org/x/exp/maps"
 )
 

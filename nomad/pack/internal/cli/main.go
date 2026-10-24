@@ -13,9 +13,9 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/go-glint"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad-pack/internal/pkg/version"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
+	"github.com/hashicorp/nomad/pack/internal/pkg/version"
 )
 
 const (
@@ -28,7 +28,7 @@ const (
 
 var (
 	// cliName is the name of this CLI.
-	cliName = "nomad-pack"
+	cliName = "nomad pack"
 
 	// commonCommands are the commands that are deemed "common" and shown first
 	// in the CLI help output.
@@ -55,7 +55,7 @@ var (
 // Main runs the CLI with the given arguments and returns the exit code.
 // The arguments SHOULD include argv[0] as the program name.
 func Main(args []string) int {
-	// NOTE: This is only for running `nomad-pack -v` and expecting it to return
+	// NOTE: This is only for running `nomad pack -v` and expecting it to return
 	// a version. Any other subcommand will expect `-v` to be around verbose
 	// logging rather than printing a version
 	if len(args) == 2 && args[1] == "-v" {
@@ -87,7 +87,7 @@ func Main(args []string) int {
 
 	// Copy the CLI to check if it is a version call. If so, we modify
 	// the args to just be the version subcommand. This ensures that
-	// --version behaves by calling `nomad-pack version` and we get consistent
+	// --version behaves by calling `nomad pack version` and we get consistent
 	// behavior.
 	cli := cliFactory()
 	if cli.IsVersion() {

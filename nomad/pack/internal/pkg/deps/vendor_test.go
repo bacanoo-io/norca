@@ -18,11 +18,11 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper/filesystem"
-	"github.com/hashicorp/nomad-pack/internal/pkg/testfixture"
-	"github.com/hashicorp/nomad-pack/internal/testui"
-	"github.com/hashicorp/nomad-pack/sdk/pack"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
+	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
+	"github.com/hashicorp/nomad/pack/internal/testui"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
 )
 
 var emptyMetadata = pack.Metadata{

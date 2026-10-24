@@ -5,7 +5,7 @@ package variables
 
 import (
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad-pack/sdk/pack"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
 	"github.com/zclconf/go-cty/cty"
 )
 

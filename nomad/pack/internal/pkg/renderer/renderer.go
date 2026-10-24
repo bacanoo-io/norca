@@ -13,8 +13,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/hashicorp/nomad/api"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/variable/parser"
-	"github.com/hashicorp/nomad-pack/sdk/pack"
+	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
 )
 
 type PackTemplateContext = parser.PackTemplateContext

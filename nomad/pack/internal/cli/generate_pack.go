@@ -6,11 +6,11 @@ package cli
 import (
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/config"
-	"github.com/hashicorp/nomad-pack/internal/creator"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/sdk/pack"
+	"github.com/hashicorp/nomad/pack/internal/config"
+	"github.com/hashicorp/nomad/pack/internal/creator"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
 )
 
 // GeneratePackCommand adds a registry to the global cache.
@@ -102,11 +102,11 @@ func (c *GeneratePackCommand) Synopsis() string {
 func (c *GeneratePackCommand) Help() string {
 	c.Example = `
 	# Create a new pack named "my-new-pack" in the current directory.
-	nomad-pack generate pack my-new-pack
+	nomad pack generate pack my-new-pack
 
 	`
 	return formatHelp(`
-	Usage: nomad-pack generate pack <name>
+	Usage: nomad pack generate pack <name>
 
 	Generate a new pack.
 

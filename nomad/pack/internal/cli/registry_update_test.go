@@ -31,7 +31,7 @@ func TestCLI_RegistryUpdate_NoArgs(t *testing.T) {
 	result := runPackCmd(t, []string{"registry", "update"})
 	must.Eq(t, 1, result.exitCode)
 	must.StrContains(t, result.cmdOut.String(), "this command requires exactly 1 args")
-	must.StrContains(t, result.cmdOut.String(), `See "nomad-pack registry update --help"`)
+	must.StrContains(t, result.cmdOut.String(), `See "nomad pack registry update --help"`)
 }
 
 // TestCLI_RegistryUpdate_ExistingRegistry verifies that updating a previously

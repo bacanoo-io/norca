@@ -8,7 +8,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
 )
 
 // Get loads a Registry struct and all its packs from a registry path.

@@ -22,16 +22,16 @@ import (
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 
-	ct "github.com/hashicorp/nomad-pack/internal/cli/testhelper"
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	flag "github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper/filesystem"
-	"github.com/hashicorp/nomad-pack/internal/pkg/logging"
-	"github.com/hashicorp/nomad-pack/internal/pkg/testfixture"
-	"github.com/hashicorp/nomad-pack/internal/pkg/version"
-	"github.com/hashicorp/nomad-pack/internal/runner/job"
-	"github.com/hashicorp/nomad-pack/internal/testui"
+	ct "github.com/hashicorp/nomad/pack/internal/cli/testhelper"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
+	"github.com/hashicorp/nomad/pack/internal/pkg/logging"
+	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
+	"github.com/hashicorp/nomad/pack/internal/pkg/version"
+	"github.com/hashicorp/nomad/pack/internal/runner/job"
+	"github.com/hashicorp/nomad/pack/internal/testui"
 )
 
 // TODO: Test job run with diffs
@@ -84,7 +84,7 @@ func TestCLI_CreateTestRegistry(t *testing.T) {
 func TestCLI_Version(t *testing.T) {
 	t.Parallel()
 	// This test doesn't require a Nomad cluster.
-	exitCode := Main([]string{"nomad-pack", "-v"})
+	exitCode := Main([]string{"nomad pack", "-v"})
 	must.Zero(t, exitCode)
 }
 
@@ -1145,7 +1145,7 @@ func runPackCmd(t *testing.T, args []string) PackCommandResult {
 	defer base.Close()
 
 	command := &cli.CLI{
-		Name:                       "nomad-pack",
+		Name:                       "nomad pack",
 		Args:                       args,
 		Version:                    fmt.Sprintf("Nomad Pack %s", version.HumanVersion()),
 		Commands:                   commands,

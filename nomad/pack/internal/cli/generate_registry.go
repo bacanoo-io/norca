@@ -4,10 +4,10 @@
 package cli
 
 import (
-	"github.com/hashicorp/nomad-pack/internal/config"
-	"github.com/hashicorp/nomad-pack/internal/creator"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/config"
+	"github.com/hashicorp/nomad/pack/internal/creator"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
 	"github.com/posener/complete"
 )
 
@@ -89,10 +89,10 @@ func (c *GenerateRegistryCommand) Synopsis() string {
 func (c *GenerateRegistryCommand) Help() string {
 	c.Example = `
 	# Create a new registry named "my-new-registry" in the current directory.
-	nomad-pack generate registry my-new-registry
+	nomad pack generate registry my-new-registry
 	`
 	return formatHelp(`
-	Usage: nomad-pack generate registry <name>
+	Usage: nomad pack generate registry <name>
 
 	Generate a new registry.
 

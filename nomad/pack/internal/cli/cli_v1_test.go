@@ -20,16 +20,16 @@ import (
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 
-	ct "github.com/hashicorp/nomad-pack/internal/cli/testhelper"
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	flag "github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper/filesystem"
-	"github.com/hashicorp/nomad-pack/internal/pkg/logging"
-	"github.com/hashicorp/nomad-pack/internal/pkg/testfixture"
-	"github.com/hashicorp/nomad-pack/internal/pkg/version"
-	"github.com/hashicorp/nomad-pack/internal/runner/job"
-	"github.com/hashicorp/nomad-pack/internal/testui"
+	ct "github.com/hashicorp/nomad/pack/internal/cli/testhelper"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
+	"github.com/hashicorp/nomad/pack/internal/pkg/logging"
+	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
+	"github.com/hashicorp/nomad/pack/internal/pkg/version"
+	"github.com/hashicorp/nomad/pack/internal/runner/job"
+	"github.com/hashicorp/nomad/pack/internal/testui"
 )
 
 func TestCLI_V1_JobRun(t *testing.T) {
@@ -780,7 +780,7 @@ func runPackV1Cmd(t *testing.T, args []string) PackCommandResult {
 	defer base.Close()
 
 	command := &cli.CLI{
-		Name:                       "nomad-pack",
+		Name:                       "nomad pack",
 		Args:                       args,
 		Version:                    fmt.Sprintf("Nomad Pack %s", version.HumanVersion()),
 		Commands:                   commands,

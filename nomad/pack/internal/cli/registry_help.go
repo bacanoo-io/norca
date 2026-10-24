@@ -4,7 +4,7 @@
 package cli
 
 import (
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
 	"github.com/posener/complete"
 )
 
@@ -49,7 +49,7 @@ func (c *RegistryHelpCommand) Synopsis() string {
 
 func (c *RegistryHelpCommand) Help() string {
 	return formatHelp(`
-	Usage: nomad-pack registry <subcommand> [options]
+	Usage: nomad pack registry <subcommand> [options]
 
 	Manage nomad-pack registries or packs.
 

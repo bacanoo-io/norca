@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/loader"
-	"github.com/hashicorp/nomad-pack/internal/pkg/variable/parser/config"
-	"github.com/hashicorp/nomad-pack/sdk/pack"
+	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
+	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser/config"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
 	"github.com/shoenig/test/must"
 )
 

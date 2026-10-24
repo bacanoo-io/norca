@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hashicorp/nomad-pack/internal/cli"
+	"github.com/hashicorp/nomad/pack/internal/cli"
 )
 
 func main() {
@@ -25,5 +25,5 @@ func main() {
 		os.Exit(1)
 	}
 	cli.ExposeDocs = true
-	os.Exit(cli.Main([]string{"nomad-pack", "gen-cli-docs", mode}))
+	os.Exit(cli.Main([]string{"nomad pack", "gen-cli-docs", mode}))
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/command/agent"
+	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/shoenig/test/must"
 )
@@ -234,7 +235,7 @@ func mTLSFixturePath(nodeType, pemType string) string {
 		filename = fmt.Sprintf("global-%s-nomad-0-key.pem", nodeType)
 	}
 
-	return path.Join(testFixturePath(), "mtls", filename)
+	return testfixture.MustAbsPath(path.Join("mtls", filename))
 }
 
 func MakeTestNamespaces(t *testing.T, c *api.Client) {
@@ -356,11 +357,5 @@ func FormatStopResponse(resp string) string {
 // fixtures/jobspecs folder. The `.nomad` extension will be added
 // for you.
 func getTestNomadJobPath(job string) string {
-	return path.Join(testFixturePath(), "jobspecs", job+".nomad")
-}
-
-func testFixturePath() string {
-	// This is a function to prevent a massive refactor if this ever needs to be
-	// dynamically determined.
-	return "../../../fixtures/"
+	return testfixture.MustAbsPath(path.Join("jobspecs", job+".nomad"))
 }

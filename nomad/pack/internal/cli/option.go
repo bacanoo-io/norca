@@ -4,8 +4,8 @@
 package cli
 
 import (
-	flag "github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/terminal"
+	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 // Option is used to configure Init on baseCommand.

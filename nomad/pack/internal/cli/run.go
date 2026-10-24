@@ -8,11 +8,11 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/runner"
-	"github.com/hashicorp/nomad-pack/internal/runner/job"
+	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/runner"
+	"github.com/hashicorp/nomad/pack/internal/runner/job"
 )
 
 type RunCommand struct {
@@ -330,24 +330,24 @@ func (c *RunCommand) Help() string {
 	// TODO: do we want to ref example?
 	c.Example = `
 	# Run an example pack with the default deployment name "example".
-	nomad-pack run example
+	nomad pack run example
 
 	# Run an example pack with the specified deployment name "dev"
-	nomad-pack run example --name=dev
+	nomad pack run example --name=dev
 
 	# Run an example pack with override variables in a variable file
-	nomad-pack run example --var-file="./overrides.hcl"
+	nomad pack run example --var-file="./overrides.hcl"
 
 	# Run an example pack with cli variable overrides
-	nomad-pack run example --var="redis_image_version=latest" --var="redis_resources={"cpu": "1000", "memory": "512"}"
+	nomad pack run example --var="redis_image_version=latest" --var="redis_resources={"cpu": "1000", "memory": "512"}"
 
 	# Run a pack under development from the filesystem - supports current
 	# working directory or relative path
-	nomad-pack run .
+	nomad pack run .
 	`
 
 	return formatHelp(`
-	Usage: nomad-pack run <pack-name> [options]
+	Usage: nomad pack run <pack-name> [options]
 
 	Install the specified Nomad Pack to a configured Nomad cluster.
 

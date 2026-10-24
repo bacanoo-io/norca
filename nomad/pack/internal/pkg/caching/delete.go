@@ -9,7 +9,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
 )
 
 // Delete deletes a registry from the specified global cache directory.

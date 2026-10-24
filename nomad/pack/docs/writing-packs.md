@@ -189,7 +189,7 @@ Custom Nomad-specific and debugging functions are also provided:
 - `nomadNamespace` takes a single string parameter of a namespace ID which will be read via `/v1/namespace/:namespace`.
 - `spewDump` dumps the entirety of the passed object as a string. The output includes the content types and values. This uses the `spew.SDump` function.
 - `spewPrintf` dumps the supplied arguments into a string according to the supplied format. This utilises the `spew.Printf` function.
-- `fileContents` takes an argument to a file on the local host relative to the directory `nomad-pack` is invoked in, reads its contents and provides the output as a string.
+- `fileContents` takes an argument to a file on the local host relative to the directory `nomad pack` is invoked in, reads its contents and provides the output as a string.
 - `packPath` returns the path to the pack being invoked.
 - `tpl` renders a template string using the current template context, useful for dynamic templates stored in variables.
 
@@ -266,10 +266,10 @@ directory path as the name of the pack to the `run`, `plan`, `render`, `info`,
 `stop`, or `destroy` commands. Relative paths are supported.
 
 For instance, if your current working directory is the directory where you are
-developing your pack, and `nomad-pack` is on your path, you can run this command.
+developing your pack, and `nomad` is on your path, you can run this command.
 
 ```
-nomad-pack run .
+nomad pack run .
 ```
 
 Packs added this way will show up in output with a `dev` registry and `dev` ref.
@@ -287,16 +287,16 @@ using the filesystem method.
 
 ## Step Six: Deploy your Custom Pack!
 
-Add your custom repository using the `nomad-pack registry add` command.
+Add your custom repository using the `nomad pack registry add` command.
 
 ```
-nomad-pack registry add my_packs github.com/<YOUR_ORG>/<YOUR_REPO>
+nomad pack registry add my_packs github.com/<YOUR_ORG>/<YOUR_REPO>
 ```
 
 Deploy your custom packs.
 
 ```
-nomad-pack run hello_world --var app_count=1 --registry=my_packs
+nomad pack run hello_world --var app_count=1 --registry=my_packs
 ```
 
 Congrats! You can now write custom packs for Nomad!

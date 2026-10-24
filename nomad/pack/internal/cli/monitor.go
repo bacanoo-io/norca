@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/hashicorp/nomad-pack/terminal"
 	"github.com/hashicorp/nomad/api"
+	"github.com/hashicorp/nomad/pack/terminal"
 	"github.com/mitchellh/go-glint"
 )
 

@@ -19,10 +19,10 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper/filesystem"
-	"github.com/hashicorp/nomad-pack/internal/pkg/testfixture"
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
+	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
 )
 
 var (

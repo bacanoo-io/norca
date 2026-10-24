@@ -13,10 +13,10 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 
-	flag "github.com/hashicorp/nomad-pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad-pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad-pack/internal/testui"
 	"github.com/hashicorp/nomad/ci"
+	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
+	"github.com/hashicorp/nomad/pack/internal/testui"
 )
 
 // ── Unit tests for formatTemplate() ──────────────────────────────────────────
@@ -37,7 +37,7 @@ func runPackCmdAllowErrors(t *testing.T, args []string) PackCommandResult {
 	defer base.Close()
 
 	command := &cli.CLI{
-		Name:                       "nomad-pack",
+		Name:                       "nomad pack",
 		Args:                       args,
 		Commands:                   commands,
 		Autocomplete:               true,

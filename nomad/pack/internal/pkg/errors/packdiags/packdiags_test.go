@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/nomad/ci"
 	"github.com/shoenig/test/must"
+	"github.com/stretchr/testify/require"
 )
 
 var testRange = hcl.Range{
@@ -93,40 +94,40 @@ func TestPackDiag_SafeDiagnosticsAppend(t *testing.T) {
 	var diag *hcl.Diagnostic
 
 	// HasErrors on hcl.Diagnostics is not nil-safe
-	must.Panic(t, func() {
+	require.Panics(t, func() {
 		d1 := diags.Append(diag)
 		d1.HasErrors()
-	}, must.Sprint("should have panicked"))
+	}, "should have panicked")
 
 	// Using SafeDiagnosticsAppend should prevent the panic
-	must.NotPanic(t, func() {
+	require.NotPanics(t, func() {
 		d2 := SafeDiagnosticsAppend(diags, diag)
 		d2.HasErrors()
-	}, must.Sprint("should not have panicked"))
+	}, "should not have panicked")
 
 	// Verify that the original case still panics
-	must.Panic(t, func() {
+	require.Panics(t, func() {
 		d1 := diags.Append(diag)
 		d1.HasErrors()
-	}, must.Sprint("should have panicked"))
+	}, "should have panicked")
 }
 
 func TestPackDiag_SafeDiagnosticsExtend(t *testing.T) {
 	var diag *hcl.Diagnostic
 	diags := hcl.Diagnostics{}
 	diags2 := hcl.Diagnostics{diag}
-	must.Panic(t, func() {
+	require.Panics(t, func() {
 		d := diags.Extend(diags2)
 		d.HasErrors()
-	}, must.Sprint("should have panicked"))
+	}, "should have panicked")
 
-	must.NotPanic(t, func() {
+	require.NotPanics(t, func() {
 		d := SafeDiagnosticsExtend(diags, diags2)
 		d.HasErrors()
-	}, must.Sprint("should not have panicked"))
+	}, "should not have panicked")
 
-	must.Panic(t, func() {
+	require.Panics(t, func() {
 		d := diags.Extend(diags2)
 		d.HasErrors()
-	}, must.Sprint("should have still panicked"))
+	}, "should have still panicked")
 }

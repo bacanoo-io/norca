@@ -12,8 +12,8 @@ import (
 	gg "github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 
-	"github.com/hashicorp/nomad-pack/sdk/pack"
-	"github.com/hashicorp/nomad-pack/terminal"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/hashicorp/nomad/pack/terminal"
 )
 
 // Vendor reads the metadata.hcl from the provided directory and downloads

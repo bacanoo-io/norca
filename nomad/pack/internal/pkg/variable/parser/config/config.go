@@ -4,7 +4,7 @@
 package config
 
 import (
-	"github.com/hashicorp/nomad-pack/sdk/pack"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
 )
 
 type ParserVersion int

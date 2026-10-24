@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad-pack/internal/testui"
 	"github.com/hashicorp/nomad/api"
+	"github.com/hashicorp/nomad/pack/internal/testui"
 	"github.com/shoenig/test/must"
 )
 

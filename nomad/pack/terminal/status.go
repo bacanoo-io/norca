@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/hashicorp/nomad-pack/internal/pkg/spinner"
+	"github.com/hashicorp/nomad/pack/internal/pkg/spinner"
 	"github.com/morikuni/aec"
 )
 

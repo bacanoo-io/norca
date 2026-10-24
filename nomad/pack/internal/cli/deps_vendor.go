@@ -9,9 +9,9 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/deps"
-	"github.com/hashicorp/nomad-pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad-pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/deps"
+	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
 )
 
 type depsVendorCommand struct {
@@ -87,7 +87,7 @@ func (d *depsVendorCommand) Synopsis() string {
 
 func (d *depsVendorCommand) Help() string {
 	return formatHelp(`
-	Usage: nomad-pack deps vendor
+	Usage: nomad pack deps vendor
 
 	Vendor dependencies for a pack in the current directory.
 

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/hashicorp/nomad-pack/internal/pkg/variable/parser"
+	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
 )
 
 // PackTemplateErrors are designed to progressively enhance the errors returned

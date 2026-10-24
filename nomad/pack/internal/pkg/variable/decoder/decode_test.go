@@ -10,9 +10,9 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/hashicorp/nomad-pack/internal/pkg/variable/schema"
-	"github.com/hashicorp/nomad-pack/sdk/pack/variables"
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/pack/internal/pkg/variable/schema"
+	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
 	"github.com/shoenig/test/must"
 	"github.com/zclconf/go-cty/cty"
 )
