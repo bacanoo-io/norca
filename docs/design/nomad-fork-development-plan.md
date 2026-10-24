@@ -139,7 +139,7 @@ The source of the built-in CPU and memory metrics will be aggregated usage data 
 |-------------------------------------------------|-------------------------------------------------------------------------------------------------|----------------------------------|----------------------|
 | `nomad` APM (current)                           | `ClientAllocations.Stats` RPC per allocation at evaluation time                                 | RPC proportional to allocation count | Phase 1 (temporary) |
 | Client-side push (`nomad.cpu`, `nomad.memory`)  | The client aggregates per task group and sends it attached to the existing `Node.UpdateAlloc` messages | No extra RPC, no Raft write | Phase 3              |
-| Prometheus, Datadog, InfluxDB, Instana          | Unchanged APM plugins                                                                           | Load on the external system      | From phase 1         |
+| Prometheus                                      | Built-in APM plugin (Datadog, InfluxDB and Instana are not ported, by decision; they can only be loaded as external plugins) | Load on the external system      | From phase 1         |
 
 **Details of the client-side push:**
 
@@ -377,7 +377,7 @@ Every source in the plan is MPL 2.0 or under a compatible license, so the autosc
 
 - [ ] How large is the target cluster (number of servers, nodes, scaled task groups)? The load test threshold and the size of the worker pool depend on it.
 - [ ] Is node-level (cloud) scaling needed, and with which provider? If not, phase 4 can be dropped.
-- [ ] Which plugins of the external autoscaler are in use today? These should be included in the built-in set; it is enough to support the others as external plugins.
+- [x] Which plugins of the external autoscaler are in use today? Decided 2026-10-24: the built-in set is the `nomad` and Prometheus APMs and the four strategies; the Datadog, InfluxDB and Instana APMs are not ported (usable only as external plugins).
 - [ ] Does the namespace quota development precede this plan? If not, the quota coordination from phase 2 has to be added later.
 - [ ] Is it acceptable that there is no scale-down during the first metric window (default 5 minutes) after a leader change?
 - [ ] Should HCLv1 jobspec support be kept for the new fields, or should they be available only in HCL2?
