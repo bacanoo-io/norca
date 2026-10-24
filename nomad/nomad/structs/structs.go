@@ -131,6 +131,11 @@ const (
 	// Namespace types were moved from enterprise and therefore start at 64
 	NamespaceUpsertRequestType MessageType = 64
 	NamespaceDeleteRequestType MessageType = 65
+
+	// Norca: namespace quotas (66-68 assigned to quotas)
+	QuotaSpecUpsertRequestType MessageType = 66
+	QuotaSpecDeleteRequestType MessageType = 67
+	// 68 is reserved for quotas
 )
 
 const (

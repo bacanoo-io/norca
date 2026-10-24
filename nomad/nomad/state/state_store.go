@@ -3513,6 +3513,10 @@ func (s *StateStore) DeleteEval(index uint64, evals, allocs []string, userInitia
 		if raw == nil {
 			continue
 		}
+		// Release any quota still held by a non-terminal allocation.
+		if err := s.updateQuotaWithAlloc(index, nil, raw.(*structs.Allocation), txn); err != nil {
+			return err
+		}
 		if err := txn.Delete("allocs", raw); err != nil {
 			return fmt.Errorf("alloc delete failed: %v", err)
 		}

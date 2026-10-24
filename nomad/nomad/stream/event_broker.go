@@ -373,6 +373,10 @@ func aclAllowsSubscription(aclObj *acl.ACL, subReq *SubscribeRequest) bool {
 			if ok := aclObj.IsManagement(); !ok {
 				return false
 			}
+		case structs.TopicQuota:
+			if ok := aclObj.AllowQuotaRead(); !ok {
+				return false
+			}
 		default:
 			if ok := aclObj.IsManagement(); !ok {
 				return false

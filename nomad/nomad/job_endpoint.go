@@ -73,6 +73,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobExposeCheckHook{},
 			jobImpliedConstraints{},
 			jobNodePoolMutatingHook{srv: s},
+			jobQuotaMutatingHook{srv: s},
 		},
 		validators: []jobValidator{
 			jobConnectHook{},
@@ -80,6 +81,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobVaultHook{srv: s},
 			jobNamespaceConstraintCheckHook{srv: s},
 			jobNodePoolValidatingHook{srv: s},
+			jobQuotaValidatingHook{srv: s},
 			&jobValidate{srv: s},
 			&memoryOversubscriptionValidate{srv: s},
 		},

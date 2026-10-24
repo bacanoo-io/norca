@@ -113,6 +113,19 @@ type QuotaSpec struct {
 	// particular priority range and datacenter set.
 	Limits []*QuotaLimit
 
+	// TaskDefaults are the resources filled in at job submission for tasks
+	// that do not set them (cpu, memory and memory_max).
+	TaskDefaults *Resources
+
+	// TaskMax are the maximum resources a single task may request (cpu,
+	// cores, memory and memory_max). A zero value means no maximum.
+	TaskMax *Resources
+
+	// Enforce is the enforcement mode: "schedule" (default) places
+	// allocations only up to the limit and blocks the rest, "submit"
+	// additionally rejects jobs whose total demand exceeds the limit.
+	Enforce string
+
 	// Raft indexes to track creation and modification
 	CreateIndex uint64
 	ModifyIndex uint64
@@ -133,6 +146,11 @@ type QuotaLimit struct {
 	// Variable.EncryptedData. A value of zero is treated as unlimited and a
 	// negative value is treated as fully disallowed.
 	VariablesLimit *int `mapstructure:"variables_limit" hcl:"variables_limit,optional"`
+
+	// Allocations is the maximum number of non-terminal allocations. A value
+	// of zero is treated as unlimited and a negative value is treated as
+	// fully disallowed.
+	Allocations *int `mapstructure:"allocations" hcl:"allocations,optional"`
 
 	// Hash is the hash of the object and is used to make replication efficient.
 	Hash []byte

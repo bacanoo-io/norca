@@ -5,8 +5,10 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -20,6 +22,7 @@ const (
 	TopicJob        Topic = "Job"
 	TopicNode       Topic = "Node"
 	TopicNodePool   Topic = "NodePool"
+	TopicQuota      Topic = "Quota"
 	TopicService    Topic = "Service"
 	TopicAll        Topic = "*"
 )
@@ -120,6 +123,28 @@ func (e *Event) Service() (*ServiceRegistration, error) {
 	return out.Service, nil
 }
 
+// QuotaSpec returns a QuotaSpec struct from a given event payload. If the
+// Event Topic is Quota and the Type is QuotaSpecUpserted or QuotaSpecDeleted
+// this will return a valid QuotaSpec.
+func (e *Event) QuotaSpec() (*QuotaSpec, error) {
+	out, err := e.decodePayload()
+	if err != nil {
+		return nil, err
+	}
+	return out.QuotaSpec, nil
+}
+
+// QuotaUsage returns a QuotaUsage struct and the affected dimensions from a
+// given event payload. If the Event Topic is Quota and the Type is
+// QuotaExhausted or QuotaFreed this will return a valid QuotaUsage.
+func (e *Event) QuotaUsage() (*QuotaUsage, []string, error) {
+	out, err := e.decodePayload()
+	if err != nil {
+		return nil, nil, err
+	}
+	return out.QuotaUsage, out.Dimensions, nil
+}
+
 type eventPayload struct {
 	Allocation *Allocation          `mapstructure:"Allocation"`
 	Deployment *Deployment          `mapstructure:"Deployment"`
@@ -128,13 +153,19 @@ type eventPayload struct {
 	Node       *Node                `mapstructure:"Node"`
 	NodePool   *NodePool            `mapstructure:"NodePool"`
 	Service    *ServiceRegistration `mapstructure:"Service"`
+	QuotaSpec  *QuotaSpec           `mapstructure:"QuotaSpec"`
+	QuotaUsage *QuotaUsage          `mapstructure:"QuotaUsage"`
+	Dimensions []string             `mapstructure:"Dimensions"`
 }
 
 func (e *Event) decodePayload() (*eventPayload, error) {
 	var out eventPayload
 	cfg := &mapstructure.DecoderConfig{
-		Result:     &out,
-		DecodeHook: mapstructure.StringToTimeHookFunc(time.RFC3339),
+		Result: &out,
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			mapstructure.StringToTimeHookFunc(time.RFC3339),
+			base64ToBytesHookFunc(),
+		),
 	}
 
 	dec, err := mapstructure.NewDecoder(cfg)
@@ -220,4 +251,15 @@ func (e *EventStream) Stream(ctx context.Context, topics map[Topic][]string, ind
 	}()
 
 	return eventsCh, nil
+}
+
+// base64ToBytesHookFunc decodes base64 strings into byte slices, the way
+// encoding/json encodes []byte fields such as quota hashes.
+func base64ToBytesHookFunc() mapstructure.DecodeHookFuncType {
+	return func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+		if f.Kind() != reflect.String || t != reflect.TypeOf([]byte(nil)) {
+			return data, nil
+		}
+		return base64.StdEncoding.DecodeString(data.(string))
+	}
 }

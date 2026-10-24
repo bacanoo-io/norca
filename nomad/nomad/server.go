@@ -1267,6 +1267,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewNodePoolEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))
 	_ = server.Register(NewPlanEndpoint(s, ctx))
+	_ = server.Register(NewQuotaEndpoint(s, ctx))
 	_ = server.Register(NewRegionEndpoint(s, ctx))
 	_ = server.Register(NewScalingEndpoint(s, ctx))
 	_ = server.Register(NewSearchEndpoint(s, ctx))
