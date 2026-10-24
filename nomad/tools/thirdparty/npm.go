@@ -558,7 +558,7 @@ func collectNPM(uiDir string, src *npmSource) ([]*npmPackage, []string, error) {
 			p.Override = o
 			p.Expr = o.License
 			applyExcerpt(o, p.Licenses)
-			if !o.Pending && !exprAllowed(o.License, allowedNPM) {
+			if !o.Pending && !o.Exception && !exprAllowed(o.License, allowedNPM) {
 				problems = append(problems, fmt.Sprintf("npm %s: override license %q is not on the allow-list", k, o.License))
 			}
 			continue

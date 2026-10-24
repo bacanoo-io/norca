@@ -32,42 +32,42 @@ type override struct {
 	// Pending marks a decision that awaits legal review: the notices are
 	// generated with it, but `-strict` (used by the release workflow) fails.
 	Pending bool
+	// Exception marks a decided exception to the allow-list, documented in
+	// docs/licensing.md: License may be a license that is not allowed.
+	Exception bool
 
 	used bool
 }
 
 var overrides = []override{
-	// Pending decisions: License is what the component's files say; the
-	// release workflow (-strict) fails until each entry is resolved.
+	// Legacy UI exceptions (decision of 2026-10-25): accepted for the old
+	// Ember UI only, which is served at /ui/legacy for one release and then
+	// removed together with these entries. Not valid for the new UI. No
+	// version pin, so that the Ember upgrade does not reopen the decision.
 	{
-		Kind:    "npm",
-		Name:    "robust-predicates",
-		Version: "3.0.1",
-		License: "Unlicense",
-		Pending: true,
-		Reason: "PENDING DECISION. The Unlicense (public domain dedication with a permissive fallback, OSI approved) is not on the " +
-			"allow-list. The package is part of the UI bundle through d3 > d3-delaunay > delaunator. Options: add Unlicense to the " +
-			"allow-list in docs/licensing.md, or stop bundling d3-delaunay (import the d3 submodules that are used instead of d3).",
+		Kind:      "npm",
+		Name:      "robust-predicates",
+		License:   "Unlicense",
+		Exception: true,
+		Reason: "Legacy UI exception. The Unlicense (public domain dedication with a permissive fallback, OSI approved) is not on the " +
+			"allow-list; the package is part of the legacy UI bundle through d3 > d3-delaunay > delaunator.",
 	},
 	{
-		Kind:    "npm",
-		Name:    "caniuse-lite",
-		Version: "1.0.30001312",
-		License: "CC-BY-4.0",
-		Pending: true,
-		Reason: "PENDING DECISION. Browser support data used by browserslist while Babel builds the UI " +
-			"(@hashicorp/design-system-components > ember-cli-babel); it is a build-time dependency and not part of the UI bundle, but " +
-			"it is listed because the addon declares ember-cli-babel as a production dependency. Options: allow CC-BY-4.0 for " +
-			"build-time data, or restrict the UI inventory to the packages that are actually bundled.",
+		Kind:      "npm",
+		Name:      "caniuse-lite",
+		License:   "CC-BY-4.0",
+		Exception: true,
+		Reason: "Legacy UI exception. Browser support data used by browserslist while Babel builds the legacy UI " +
+			"(@hashicorp/design-system-components > ember-cli-babel); a build-time dependency, not part of the UI bundle, listed " +
+			"because the addon declares ember-cli-babel as a production dependency.",
 	},
 	{
-		Kind:    "npm",
-		Name:    "jsonify",
-		Version: "0.0.0",
-		License: "LicenseRef-Public-Domain",
-		Pending: true,
-		Reason: "PENDING DECISION. Declared \"Public Domain\" in package.json, no license file. A build-time dependency " +
-			"(@ember/test-waiters > calculate-cache-key-for-tree > json-stable-stringify), not part of the UI bundle; see caniuse-lite.",
+		Kind:      "npm",
+		Name:      "jsonify",
+		License:   "LicenseRef-Public-Domain",
+		Exception: true,
+		Reason: "Legacy UI exception. Declared \"Public Domain\" in package.json, no license file. A build-time dependency " +
+			"(@ember/test-waiters > calculate-cache-key-for-tree > json-stable-stringify), not part of the UI bundle.",
 	},
 
 	// Reviewed decisions.

@@ -238,7 +238,7 @@ func resolveGoLicenses(root string, mods map[string]*goModule) ([]string, error)
 			m.Override = o
 			m.Expr = o.License
 			applyExcerpt(o, m.Licenses)
-			if !o.Pending && !exprAllowed(o.License, allowedGo) {
+			if !o.Pending && !o.Exception && !exprAllowed(o.License, allowedGo) {
 				problems = append(problems, fmt.Sprintf("%s: override license %q is not on the allow-list", m.key(), o.License))
 			}
 			continue

@@ -73,7 +73,9 @@ jobs:
           yarn install --frozen-lockfile --ignore-scripts --ignore-engines
           npx --yes license-checker-rseidelsohn@4 --production \
             --onlyAllow "MPL-2.0;Apache-2.0;MIT;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0" \
-            --excludePrivatePackages
+            --excludePrivatePackages \
+            --excludePackagesStartingWith "robust-predicates@;caniuse-lite@;jsonify@"
+          # ^ legacy UI exceptions (docs/licensing.md), removed with /ui/legacy
           # Check the whole installed tree, transitive dependencies included
           if yarn list --pattern apexcharts 2>/dev/null | grep -q apexcharts@; then
             echo "ApexCharts is forbidden" >&2; exit 1

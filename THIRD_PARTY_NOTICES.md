@@ -6498,7 +6498,7 @@ limitations under the License.
 ### caniuse-lite 1.0.30001312
 
 - License: CC-BY-4.0
-- License decision: PENDING DECISION. Browser support data used by browserslist while Babel builds the UI (@hashicorp/design-system-components > ember-cli-babel); it is a build-time dependency and not part of the UI bundle, but it is listed because the addon declares ember-cli-babel as a production dependency. Options: allow CC-BY-4.0 for build-time data, or restrict the UI inventory to the packages that are actually bundled.
+- License decision: Legacy UI exception. Browser support data used by browserslist while Babel builds the legacy UI (@hashicorp/design-system-components > ember-cli-babel); a build-time dependency, not part of the UI bundle, listed because the addon declares ember-cli-babel as a production dependency.
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; caniuse-lite@1.0.30001312
 - Author: Ben Briggs &lt;beneb.info@gmail.com&gt;
 - `LICENSE`: [license text 223](#license-text-223)
@@ -8456,7 +8456,7 @@ limitations under the License.
 ### jsonify 0.0.0
 
 - License: LicenseRef-Public-Domain (declared: Public Domain)
-- License decision: PENDING DECISION. Declared "Public Domain" in package.json, no license file. A build-time dependency (@ember/test-waiters > calculate-cache-key-for-tree > json-stable-stringify), not part of the UI bundle; see caniuse-lite.
+- License decision: Legacy UI exception. Declared "Public Domain" in package.json, no license file. A build-time dependency (@ember/test-waiters > calculate-cache-key-for-tree > json-stable-stringify), not part of the UI bundle.
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2 &gt; calculate-cache-key-for-tree@2.0.0 &gt; json-stable-stringify@1.0.1 &gt; jsonify@0.0.0
 - Author: Douglas Crockford
 - The package contains no license file; the license is the one declared in its package.json.
@@ -9485,7 +9485,7 @@ limitations under the License.
 ### robust-predicates 3.0.1
 
 - License: Unlicense
-- License decision: PENDING DECISION. The Unlicense (public domain dedication with a permissive fallback, OSI approved) is not on the allow-list. The package is part of the UI bundle through d3 > d3-delaunay > delaunator. Options: add Unlicense to the allow-list in docs/licensing.md, or stop bundling d3-delaunay (import the d3 submodules that are used instead of d3).
+- License decision: Legacy UI exception. The Unlicense (public domain dedication with a permissive fallback, OSI approved) is not on the allow-list; the package is part of the legacy UI bundle through d3 > d3-delaunay > delaunator.
 - Required through: d3@7.3.0 &gt; d3-delaunay@6.0.2 &gt; delaunator@5.0.0 &gt; robust-predicates@3.0.1
 - Author: Vladimir Agafonkin
 - `LICENSE`: [license text 368](#license-text-368)
