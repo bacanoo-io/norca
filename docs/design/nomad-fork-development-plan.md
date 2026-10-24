@@ -384,7 +384,7 @@ Every source in the plan is MPL 2.0 or under a compatible license, so the autosc
 
 <!-- -->
 
-- [ ] Does Consul stay part of the stack? If so, the network rules (Kubernetes item 7) are covered by the intentions, and the item can be dropped.
+- [x] Does Consul stay part of the stack? If so, the network rules (Kubernetes item 7) are covered by the intentions, and the item can be dropped. Decided 2026-10-24: Consul stays optional, only for a full service mesh; item 7 is therefore kept.
 - [ ] What error handling should the dynamic admission webhooks run with (fail-open or fail-closed) when the webhook is unavailable?
 
 <!-- -->
