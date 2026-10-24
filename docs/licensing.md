@@ -6,7 +6,7 @@ This document records under which license each part of the project falls, where 
 
 ## Principle
 
-**Wherever possible, everything is MPL 2.0.** This applies to the Nomad fork (modified and new files alike), the Nomad Pack fork, the standalone components (for example the controller SDK in `nomad/controller`, and the NATS bridge once it exists) and the documentation. The only exceptions are files taken from third parties, unchanged or modified: these keep their original license.
+**Wherever possible, everything is MPL 2.0.** This applies to the Nomad fork (modified and new files alike), the Nomad Pack fork, the standalone components (for example the controller SDK in `nomad/controller` and the NATS bridge in `nomad/natsbridge`) and the documentation. The only exceptions are files taken from third parties, unchanged or modified: these keep their original license.
 
 **There is no separate control plane.** Every feature is built into the fork, according to the design documents.
 
@@ -68,6 +68,8 @@ We do not mix licenses within one file: code from a third party goes into a sepa
 
 **Checking:** in CI, `go-licenses` runs on every Go module, and an npm license checker runs for the UI, against the allowed list; the build fails on a prohibited or unknown license. A new dependency can only be added if its license is on the allowed list; an exception requires a decision, with an update of `docs/licensing.md`.
 
+**NATS:** the license of NATS was disputed in 2025 (a planned switch to BSL); the project stayed in the CNCF under Apache 2.0. Verified on 2026-10-24 for the versions in `nomad/natsbridge/go.mod`: `nats.go` v1.54.0, `nkeys` v0.4.16, `nuid` v1.0.1 and, as a test-only dependency, `nats-server/v2` v2.15.0 (with `jwt/v2` v2.8.2) each ship the unmodified Apache License 2.0 text, their Go files carry Apache 2.0 headers, and none contains a BUSL or other non-open-source marking. A NATS version bump must repeat this check.
+
 **Supply chain:** a new dependency version is only accepted if it was released at least two weeks ago.
 
 ## Distribution: source, binaries, container images
@@ -114,6 +116,7 @@ norca/
 ├── nomad/                    # Nomad v1.6.5 fork, with history (main Go module)
 │   ├── api/                  # API client (separate Go module)
 │   ├── controller/           # controller SDK and sample operators (separate Go module, uses only api/)
+│   ├── natsbridge/           # event stream → NATS bridge (separate Go module, uses only api/ and controller/)
 │   └── pack/                 # Nomad Pack v0.4.2 fork, with history; `norca pack` subcommand
 └── .github/
     ├── pull_request_template.md

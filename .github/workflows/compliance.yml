@@ -22,8 +22,9 @@ jobs:
     strategy:
       matrix:
         # Nomad Pack is part of the nomad module (nomad/pack). The controller
-        # SDK is a separate module that depends only on the api module.
-        module: [nomad, nomad/controller]
+        # SDK is a separate module that depends only on the api module; the
+        # NATS bridge depends on the api and controller modules and nats.go.
+        module: [nomad, nomad/controller, nomad/natsbridge]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
