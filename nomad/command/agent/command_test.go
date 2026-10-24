@@ -280,6 +280,48 @@ func TestIsValidConfig(t *testing.T) {
 			err: "Must specify either",
 		},
 		{
+			name: "AuditEnabledUnsupported",
+			conf: Config{
+				Client: &ClientConfig{Enabled: true},
+				Audit:  &config.AuditConfig{Enabled: pointer.Of(true)},
+			},
+			err: "audit logging is not supported",
+		},
+		{
+			name: "AuditDisabled",
+			conf: Config{
+				DataDir: "/tmp",
+				Client:  &ClientConfig{Enabled: true},
+				Audit:   &config.AuditConfig{Enabled: pointer.Of(false)},
+			},
+		},
+		{
+			name: "RedundancyZoneUnsupported",
+			conf: Config{
+				Server: &ServerConfig{Enabled: true, RedundancyZone: "a"},
+			},
+			err: "server.redundancy_zone is not supported",
+		},
+		{
+			name: "UpgradeVersionUnsupported",
+			conf: Config{
+				Server: &ServerConfig{Enabled: true, UpgradeVersion: "1.0.0"},
+			},
+			err: "server.upgrade_version is not supported",
+		},
+		{
+			name: "AutopilotUnsupported",
+			conf: Config{
+				Server: &ServerConfig{Enabled: true},
+				Autopilot: &config.AutopilotConfig{
+					EnableRedundancyZones:   pointer.Of(true),
+					DisableUpgradeMigration: pointer.Of(true),
+					EnableCustomUpgrades:    pointer.Of(true),
+				},
+			},
+			err: "autopilot.enable_redundancy_zones is not supported",
+		},
+		{
 			name: "InvalidRegion",
 			conf: Config{
 				Client: &ClientConfig{

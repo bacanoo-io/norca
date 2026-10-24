@@ -313,6 +313,14 @@ func (c *Command) IsValidConfig(config, cmdConfig *Config) bool {
 		return false
 	}
 
+	// Reject options that are parsed but have no effect in this build.
+	if msgs := config.unsupportedOptions(); len(msgs) > 0 {
+		for _, msg := range msgs {
+			c.Ui.Error(msg)
+		}
+		return false
+	}
+
 	// Check that the region does not contain invalid characters
 	if strings.ContainsAny(config.Region, "\000") {
 		c.Ui.Error("Region contains invalid characters")
