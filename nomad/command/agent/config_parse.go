@@ -256,6 +256,14 @@ func extraKeys(c *Config) error {
 		helper.RemoveEqualFold(&c.Server.ExtraKeysHCL, k)
 	}
 
+	// Remove the labels of the autoscaler apm blocks
+	if c.Server.Autoscaler != nil {
+		for _, p := range c.Server.Autoscaler.APMs {
+			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, p.Name)
+			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "apm")
+		}
+	}
+
 	for _, k := range []string{"datadog_tags"} {
 		helper.RemoveEqualFold(&c.ExtraKeysHCL, k)
 		helper.RemoveEqualFold(&c.ExtraKeysHCL, "telemetry")
