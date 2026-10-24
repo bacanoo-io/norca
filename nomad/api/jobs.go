@@ -121,9 +121,13 @@ func (j *Jobs) Validate(job *Job, q *WriteOptions) (*JobValidateResponse, *Write
 
 // RegisterOptions is used to pass through job registration parameters
 type RegisterOptions struct {
-	EnforceIndex   bool
-	ModifyIndex    uint64
+	EnforceIndex bool
+	ModifyIndex  uint64
+
+	// PolicyOverride is ignored by the server: overriding admission policies
+	// is not supported.
 	PolicyOverride bool
+
 	PreserveCounts bool
 	EvalPriority   int
 	Submission     *JobSubmission
@@ -434,7 +438,10 @@ func (j *Jobs) PeriodicForce(jobID string, q *WriteOptions) (string, *WriteMeta,
 
 // PlanOptions is used to pass through job planning parameters
 type PlanOptions struct {
-	Diff           bool
+	Diff bool
+
+	// PolicyOverride is ignored by the server: overriding admission policies
+	// is not supported.
 	PolicyOverride bool
 }
 
@@ -1348,8 +1355,12 @@ type JobRegisterRequest struct {
 	// register only occurs if the job is new.
 	EnforceIndex   bool   `json:",omitempty"`
 	JobModifyIndex uint64 `json:",omitempty"`
-	PolicyOverride bool   `json:",omitempty"`
-	PreserveCounts bool   `json:",omitempty"`
+
+	// PolicyOverride is ignored by the server: overriding admission policies
+	// is not supported.
+	PolicyOverride bool `json:",omitempty"`
+
+	PreserveCounts bool `json:",omitempty"`
 
 	// EvalPriority is an optional priority to use on any evaluation created as
 	// a result on this job registration. This value must be between 1-100
@@ -1384,9 +1395,13 @@ type JobDeregisterResponse struct {
 }
 
 type JobPlanRequest struct {
-	Job            *Job
-	Diff           bool
+	Job  *Job
+	Diff bool
+
+	// PolicyOverride is ignored by the server: overriding admission policies
+	// is not supported.
 	PolicyOverride bool
+
 	WriteRequest
 }
 

@@ -20,6 +20,9 @@ func (c *Config) unsupportedOptions() []string {
 		if c.Server.UpgradeVersion != "" {
 			msgs = append(msgs, "server.upgrade_version is not supported")
 		}
+		if c.Server.LicensePath != "" {
+			msgs = append(msgs, "server.license_path is not supported: remove it, no license is needed")
+		}
 	}
 
 	if ap := c.Autopilot; ap != nil {

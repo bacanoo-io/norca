@@ -19,7 +19,7 @@ func (n *NamespaceNodePoolConfiguration) Canonicalize() {}
 
 func (n *NamespaceNodePoolConfiguration) Validate() error {
 	if n != nil {
-		return errors.New("Node Pools Governance is unlicensed.")
+		return errors.New("namespace node_pool_config is not supported")
 	}
 	return nil
 }

@@ -17,6 +17,11 @@ import (
 	"github.com/posener/complete"
 )
 
+// policyOverrideWarning is printed to stderr when -policy-override is set.
+// Admission policies (CEL policies and webhooks) cannot be overridden, so the
+// flag is accepted for compatibility but not sent to the server.
+const policyOverrideWarning = "Warning: -policy-override has no effect: overriding admission policies is not supported"
+
 var (
 	// enforceIndexRegex is a regular expression which extracts the enforcement error
 	enforceIndexRegex = regexp.MustCompile(`\((Enforcing job modify index.*)\)`)
@@ -110,7 +115,8 @@ Run Options:
     the job.
 
   -policy-override
-    Sets the flag to force override any soft mandatory Sentinel policies.
+    Has no effect: overriding admission policies is not supported. The flag is
+    still accepted for compatibility and prints a warning.
 
   -preserve-counts
     If set, the existing task group counts will be preserved when updating a job.
@@ -122,12 +128,9 @@ Run Options:
     variable and that found in the job.
 
   -consul-namespace
-    (Enterprise only) If set, any services in the job will be registered into
-    the specified Consul namespace. Any template block reading from Consul KV
-    will be scoped to the specified Consul namespace. If Consul ACLs are
-    enabled and the "consul" block "allow_unauthenticated" is disabled in the
-    Norca server configuration, then a Consul token must be supplied with
-    appropriate service and KV Consul ACL policy permissions.
+    Not supported: a job that sets a Consul namespace is rejected. Services,
+    Connect and templates use the namespace of the "consul" block in the
+    agent configuration.
 
   -vault-token
     Used to validate if the user submitting the job has permission to run the job
@@ -219,6 +222,10 @@ func (c *JobRunCommand) Run(args []string) int {
 
 	if err := flagSet.Parse(args); err != nil {
 		return 1
+	}
+
+	if override {
+		c.Ui.Warn(policyOverrideWarning)
 	}
 
 	// Truncate the id unless full length is requested
@@ -326,7 +333,6 @@ func (c *JobRunCommand) Run(args []string) int {
 
 	// Set the register options
 	opts := &api.RegisterOptions{
-		PolicyOverride: override,
 		PreserveCounts: preserveCounts,
 		EvalPriority:   evalPriority,
 		Submission:     sub,

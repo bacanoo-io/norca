@@ -536,16 +536,6 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
-		"license": func() (cli.Command, error) {
-			return &LicenseCommand{
-				Meta: meta,
-			}, nil
-		},
-		"license get": func() (cli.Command, error) {
-			return &LicenseGetCommand{
-				Meta: meta,
-			}, nil
-		},
 		"login": func() (cli.Command, error) {
 			return &LoginCommand{
 				Meta: meta,
