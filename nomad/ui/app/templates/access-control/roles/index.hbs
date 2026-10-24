@@ -1,0 +1,97 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+{{page-title "Roles"}}
+<section class="section">
+  <header class="acl-list-header">
+    <div>
+      <h1 class="title">Roles</h1>
+      <p class="acl-explainer">
+        Roles group policies under a name. A token linked to a role gets the permissions of all of its policies.
+      </p>
+    </div>
+    <div class="acl-list-actions">
+      {{#if (can "write role")}}
+        <Hds::Button
+          @text="Create Role"
+          @icon="plus"
+          @route="access-control.roles.new"
+          data-test-create-role
+        />
+      {{else}}
+        <Hds::Button
+          @text="Create Role"
+          @icon="plus"
+          disabled
+          title="You don’t have sufficient permissions"
+          data-test-disabled-create-role
+        />
+      {{/if}}
+    </div>
+  </header>
+
+  {{#if this.roles.length}}
+    <Hds::Table
+      class="acl-table"
+      @model={{this.roles}}
+      @columns={{this.columns}}
+      @sortBy="name"
+    >
+      <:body as |B|>
+        <B.Tr
+          class="is-interactive"
+          data-test-role-row
+          {{on "click" (fn this.openRole B.data)}}
+        >
+          <B.Td data-test-role-name={{B.data.name}}>
+            <LinkTo @route="access-control.roles.role" @model={{B.data.id}}>{{B.data.name}}</LinkTo>
+          </B.Td>
+          <B.Td data-test-role-description>{{B.data.description}}</B.Td>
+          <B.Td data-test-role-policies>
+            <div class="tag-group">
+              {{#each B.data.policies as |policy|}}
+                <span class="tag">
+                  {{#if (can "read policy")}}
+                    <LinkTo @route="access-control.policies.policy" @model={{policy.name}}>{{policy.name}}</LinkTo>
+                  {{else}}
+                    {{policy.name}}
+                  {{/if}}
+                </span>
+              {{else}}
+                No Policies
+              {{/each}}
+            </div>
+          </B.Td>
+          {{#if (can "list tokens")}}
+            <B.Td data-test-role-total-tokens>{{or (get this.tokenCounts B.data.id) 0}}</B.Td>
+          {{/if}}
+          {{#if (can "destroy role")}}
+            <B.Td>
+              <Hds::Button
+                @text="Delete"
+                @color="critical"
+                @size="small"
+                disabled={{this.deleteRole.isRunning}}
+                data-test-delete-role
+                {{on "click" (perform this.deleteRole B.data)}}
+              />
+            </B.Td>
+          {{/if}}
+        </B.Tr>
+      </:body>
+    </Hds::Table>
+  {{else}}
+    <div class="empty-message">
+      <h3 data-test-empty-roles-list-headline class="empty-message-headline">
+        No Roles
+      </h3>
+      {{#if (can "write role")}}
+        <p class="empty-message-body">
+          Get started by <LinkTo @route="access-control.roles.new">creating a new role</LinkTo>.
+        </p>
+      {{/if}}
+    </div>
+  {{/if}}
+</section>
