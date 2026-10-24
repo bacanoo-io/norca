@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package scheduler
@@ -61,6 +62,9 @@ type GenericStack struct {
 
 	distinctHostsConstraint    *DistinctHostsIterator
 	distinctPropertyConstraint *DistinctPropertyIterator
+	allocAffinityTracker       *allocAffinityTracker
+	allocAffinityConstraint    *AllocAffinityFeasibilityIterator
+	allocAffinity              *AllocAffinityRankIterator
 	binPack                    *BinPackIterator
 	jobAntiAff                 *JobAntiAffinityIterator
 	nodeReschedulingPenalty    *NodeReschedulingPenaltyIterator
@@ -105,6 +109,7 @@ func (s *GenericStack) SetJob(job *structs.Job) {
 	s.jobConstraint.SetConstraints(job.Constraints)
 	s.distinctHostsConstraint.SetJob(job)
 	s.distinctPropertyConstraint.SetJob(job)
+	s.allocAffinityTracker.SetJob(job)
 	s.binPack.SetJob(job)
 	s.jobAntiAff.SetJob(job)
 	s.nodeAffinity.SetJob(job)
@@ -172,8 +177,10 @@ func (s *GenericStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ra
 	}
 	s.nodeAffinity.SetTaskGroup(tg)
 	s.spread.SetTaskGroup(tg)
+	s.allocAffinityTracker.SetTaskGroup(tg)
+	s.allocAffinityConstraint.SetTaskGroup(tg)
 
-	if s.nodeAffinity.hasAffinities() || s.spread.hasSpreads() {
+	if s.nodeAffinity.hasAffinities() || s.spread.hasSpreads() || s.allocAffinityTracker.hasPreferred() {
 		// scoring spread across all nodes has quadratic behavior, so
 		// we need to consider a subset of nodes to keep evaluaton times
 		// reasonable but enough to ensure spread is correct. this
@@ -213,6 +220,8 @@ type SystemStack struct {
 	taskGroupNetwork     *NetworkChecker
 
 	distinctPropertyConstraint *DistinctPropertyIterator
+	allocAffinityTracker       *allocAffinityTracker
+	allocAffinityConstraint    *AllocAffinityFeasibilityIterator
 	binPack                    *BinPackIterator
 	scoreNorm                  *ScoreNormalizationIterator
 }
@@ -271,12 +280,17 @@ func NewSystemStack(sysbatch bool, ctx Context) *SystemStack {
 	// Filter on distinct property constraints.
 	s.distinctPropertyConstraint = NewDistinctPropertyIterator(ctx, s.wrappedChecks)
 
+	// Filter on the required colocate and separate rules. System jobs may
+	// only have required rules, so there is no rank counterpart.
+	s.allocAffinityTracker = newAllocAffinityTracker(ctx)
+	s.allocAffinityConstraint = NewAllocAffinityFeasibilityIterator(ctx, s.distinctPropertyConstraint, s.allocAffinityTracker)
+
 	// Create the quota iterator to determine if placements would result in
 	// the quota attached to the namespace of the job to go over.
 	// Note: the quota iterator must be the last feasibility iterator before
 	// we upgrade to ranking, or our quota usage will include ineligible
 	// nodes!
-	s.quota = NewQuotaIterator(ctx, s.distinctPropertyConstraint)
+	s.quota = NewQuotaIterator(ctx, s.allocAffinityConstraint)
 
 	// Upgrade from feasible to rank iterator
 	rankSource := NewFeasibleRankIterator(ctx, s.quota)
@@ -315,6 +329,7 @@ func (s *SystemStack) SetNodes(baseNodes []*structs.Node) {
 func (s *SystemStack) SetJob(job *structs.Job) {
 	s.jobConstraint.SetConstraints(job.Constraints)
 	s.distinctPropertyConstraint.SetJob(job)
+	s.allocAffinityTracker.SetJob(job)
 	s.binPack.SetJob(job)
 	s.ctx.Eligibility().SetJob(job)
 	s.taskGroupCSIVolumes.SetNamespace(job.Namespace)
@@ -352,6 +367,8 @@ func (s *SystemStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ran
 	}
 	s.wrappedChecks.SetTaskGroup(tg.Name)
 	s.distinctPropertyConstraint.SetTaskGroup(tg)
+	s.allocAffinityTracker.SetTaskGroup(tg)
+	s.allocAffinityConstraint.SetTaskGroup(tg)
 	s.binPack.SetTaskGroup(tg)
 
 	if contextual, ok := s.quota.(ContextualIterator); ok {
@@ -423,12 +440,16 @@ func NewGenericStack(batch bool, ctx Context) *GenericStack {
 	// Filter on distinct property constraints.
 	s.distinctPropertyConstraint = NewDistinctPropertyIterator(ctx, s.distinctHostsConstraint)
 
+	// Filter on the required colocate and separate rules.
+	s.allocAffinityTracker = newAllocAffinityTracker(ctx)
+	s.allocAffinityConstraint = NewAllocAffinityFeasibilityIterator(ctx, s.distinctPropertyConstraint, s.allocAffinityTracker)
+
 	// Create the quota iterator to determine if placements would result in
 	// the quota attached to the namespace of the job to go over.
 	// Note: the quota iterator must be the last feasibility iterator before
 	// we upgrade to ranking, or our quota usage will include ineligible
 	// nodes!
-	s.quota = NewQuotaIterator(ctx, s.distinctPropertyConstraint)
+	s.quota = NewQuotaIterator(ctx, s.allocAffinityConstraint)
 
 	// Upgrade from feasible to rank iterator
 	rankSource := NewFeasibleRankIterator(ctx, s.quota)
@@ -448,8 +469,11 @@ func NewGenericStack(batch bool, ctx Context) *GenericStack {
 	// Apply scores based on affinity block
 	s.nodeAffinity = NewNodeAffinityIterator(ctx, s.nodeReschedulingPenalty)
 
+	// Apply scores based on the preferred colocate and separate rules
+	s.allocAffinity = NewAllocAffinityRankIterator(ctx, s.nodeAffinity, s.allocAffinityTracker)
+
 	// Apply scores based on spread block
-	s.spread = NewSpreadIterator(ctx, s.nodeAffinity)
+	s.spread = NewSpreadIterator(ctx, s.allocAffinity)
 
 	// Add the preemption options scoring iterator
 	preemptionScorer := NewPreemptionScoringIterator(ctx, s.spread)
