@@ -251,6 +251,10 @@ type Server struct {
 	// CEL policy engine)
 	admission *dynamicAdmission
 
+	// objects is the type registry of custom objects (compiled schemas and
+	// CEL rules of the object kinds)
+	objects *objectRegistry
+
 	// periodicDispatcher is used to track and create evaluations for periodic jobs.
 	periodicDispatcher *PeriodicDispatch
 
@@ -417,6 +421,13 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		s.Shutdown()
 		s.logger.Error("failed to setup admission control", "error", err)
 		return nil, fmt.Errorf("Failed to setup admission control: %v", err)
+	}
+
+	// Setup the custom object type registry
+	if s.objects, err = newObjectRegistry(); err != nil {
+		s.Shutdown()
+		s.logger.Error("failed to setup the object registry", "error", err)
+		return nil, fmt.Errorf("Failed to setup the object registry: %v", err)
 	}
 
 	// Set up the keyring
@@ -1313,6 +1324,8 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewNodeEndpoint(s, ctx))
 	_ = server.Register(NewNodePoolEndpoint(s, ctx))
 	_ = server.Register(NewAdmissionPolicyEndpoint(s, ctx))
+	_ = server.Register(NewObjectKindEndpoint(s, ctx))
+	_ = server.Register(NewCustomObjectEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))
 	_ = server.Register(NewPlanEndpoint(s, ctx))
 	_ = server.Register(NewQuotaEndpoint(s, ctx))
