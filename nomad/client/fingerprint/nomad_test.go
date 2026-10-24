@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package fingerprint
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/nomad/helper/testlog"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/version"
+	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,6 +54,8 @@ func TestNomadFingerprint(t *testing.T) {
 	if response.Attributes["nomad.version"] != v {
 		t.Fatalf("incorrect version")
 	}
+
+	must.Eq(t, version.NorcaVersion, response.Attributes["norca.version"])
 
 	if response.Attributes["nomad.revision"] != r {
 		t.Fatalf("incorrect revision")
