@@ -15,12 +15,10 @@ import (
 
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/helper"
+	"github.com/hashicorp/nomad/helper/resourcespec"
 	"github.com/mitchellh/cli"
-	"github.com/mitchellh/mapstructure"
 	"github.com/posener/complete"
 	"golang.org/x/exp/slices"
 )
@@ -430,80 +428,9 @@ func (c *VarPutCommand) makeVariable(path string) (*api.Variable, error) {
 	return out, nil
 }
 
-// parseVariableSpec is used to parse the variable specification
-// from HCL
-func parseVariableSpec(input []byte, verbose func(string)) (*api.Variable, error) {
-	root, err := hcl.ParseBytes(input)
-	if err != nil {
-		return nil, err
-	}
-
-	// Top-level item should be a list
-	list, ok := root.Node.(*ast.ObjectList)
-	if !ok {
-		return nil, fmt.Errorf("error parsing: root should be an object")
-	}
-
-	var out api.Variable
-	if err := parseVariableSpecImpl(&out, list); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// parseVariableSpecImpl parses the variable taking as input the AST tree
-func parseVariableSpecImpl(result *api.Variable, list *ast.ObjectList) error {
-	// Decode the full thing into a map[string]interface for ease
-	var m map[string]interface{}
-	if err := hcl.DecodeObject(&m, list); err != nil {
-		return err
-	}
-
-	// Check for invalid keys
-	valid := []string{
-		"namespace",
-		"path",
-		"create_index",
-		"modify_index",
-		"create_time",
-		"modify_time",
-		"items",
-	}
-	if err := helper.CheckHCLKeys(list, valid); err != nil {
-		return err
-	}
-
-	for _, index := range []string{"create_index", "modify_index"} {
-		if value, ok := m[index]; ok {
-			vInt, ok := value.(int)
-			if !ok {
-				return fmt.Errorf("%s must be integer; got (%T) %[2]v", index, value)
-			}
-			idx := uint64(vInt)
-			n := strings.ReplaceAll(strings.Title(strings.ReplaceAll(index, "_", " ")), " ", "")
-			m[n] = idx
-			delete(m, index)
-		}
-	}
-
-	for _, index := range []string{"create_time", "modify_time"} {
-		if value, ok := m[index]; ok {
-			vInt, ok := value.(int)
-			if !ok {
-				return fmt.Errorf("%s must be a int64; got a (%T) %[2]v", index, value)
-			}
-			n := strings.ReplaceAll(strings.Title(strings.ReplaceAll(index, "_", " ")), " ", "")
-			m[n] = vInt
-			delete(m, index)
-		}
-	}
-
-	// Decode the rest
-	if err := mapstructure.WeakDecode(m, result); err != nil {
-		return err
-	}
-
-	return nil
+// parseVariableSpec is used to parse the variable specification from HCL
+func parseVariableSpec(input []byte, _ func(string)) (*api.Variable, error) {
+	return resourcespec.ParseVariable(input)
 }
 
 func isArgFileRef(a string) bool {

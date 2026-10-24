@@ -11,12 +11,8 @@ import (
 	"os"
 	"strings"
 
-	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/mitchellh/mapstructure"
+	"github.com/hashicorp/nomad/helper/resourcespec"
 	"github.com/posener/complete"
 )
 
@@ -64,6 +60,11 @@ func (c *QuotaApplyCommand) Synopsis() string {
 }
 
 func (c *QuotaApplyCommand) Name() string { return "quota apply" }
+
+// parseQuotaSpec is used to parse the quota specification from HCL
+func parseQuotaSpec(input []byte) (*api.QuotaSpec, error) {
+	return resourcespec.ParseQuota(input)
+}
 
 func (c *QuotaApplyCommand) Run(args []string) int {
 	var jsonInput bool
@@ -135,174 +136,4 @@ func (c *QuotaApplyCommand) Run(args []string) int {
 
 	c.Ui.Output(fmt.Sprintf("Successfully applied quota specification %q!", spec.Name))
 	return 0
-}
-
-// parseQuotaSpec is used to parse the quota specification from HCL
-func parseQuotaSpec(input []byte) (*api.QuotaSpec, error) {
-	root, err := hcl.ParseBytes(input)
-	if err != nil {
-		return nil, err
-	}
-
-	// Top-level item should be a list
-	list, ok := root.Node.(*ast.ObjectList)
-	if !ok {
-		return nil, fmt.Errorf("error parsing: root should be an object")
-	}
-
-	var spec api.QuotaSpec
-	if err := parseQuotaSpecImpl(&spec, list); err != nil {
-		return nil, err
-	}
-
-	return &spec, nil
-}
-
-// parseQuotaSpecImpl parses the quota spec taking as input the AST tree
-func parseQuotaSpecImpl(result *api.QuotaSpec, list *ast.ObjectList) error {
-	// Check for invalid keys
-	valid := []string{
-		"name",
-		"description",
-		"limit",
-		"task_defaults",
-		"task_max",
-		"enforce",
-	}
-	if err := helper.CheckHCLKeys(list, valid); err != nil {
-		return err
-	}
-
-	// Decode the full thing into a map[string]interface for ease
-	var m map[string]interface{}
-	if err := hcl.DecodeObject(&m, list); err != nil {
-		return err
-	}
-
-	// Manually parse
-	delete(m, "limit")
-	delete(m, "task_defaults")
-	delete(m, "task_max")
-
-	// Decode the rest
-	if err := mapstructure.WeakDecode(m, result); err != nil {
-		return err
-	}
-
-	// Parse limits
-	if o := list.Filter("limit"); len(o.Items) > 0 {
-		if err := parseQuotaLimits(&result.Limits, o); err != nil {
-			return multierror.Prefix(err, "limit ->")
-		}
-	}
-
-	// Parse the task level defaults and maximums
-	if o := list.Filter("task_defaults"); len(o.Items) > 0 {
-		result.TaskDefaults = new(api.Resources)
-		if err := parseQuotaResourceBlock("task_defaults", result.TaskDefaults, o, "cpu", "memory", "memory_max"); err != nil {
-			return multierror.Prefix(err, "task_defaults ->")
-		}
-	}
-	if o := list.Filter("task_max"); len(o.Items) > 0 {
-		result.TaskMax = new(api.Resources)
-		if err := parseQuotaResourceBlock("task_max", result.TaskMax, o, "cpu", "cores", "memory", "memory_max"); err != nil {
-			return multierror.Prefix(err, "task_max ->")
-		}
-	}
-
-	return nil
-}
-
-// parseQuotaLimits parses the quota limits
-func parseQuotaLimits(result *[]*api.QuotaLimit, list *ast.ObjectList) error {
-	for _, o := range list.Elem().Items {
-		// Check for invalid keys
-		valid := []string{
-			"region",
-			"region_limit",
-			"variables_limit",
-			"allocations",
-		}
-		if err := helper.CheckHCLKeys(o.Val, valid); err != nil {
-			return err
-		}
-
-		var m map[string]interface{}
-		if err := hcl.DecodeObject(&m, o.Val); err != nil {
-			return err
-		}
-
-		// Manually parse
-		delete(m, "region_limit")
-
-		// Decode the rest
-		var limit api.QuotaLimit
-		if err := mapstructure.WeakDecode(m, &limit); err != nil {
-			return err
-		}
-
-		// We need this later
-		var listVal *ast.ObjectList
-		if ot, ok := o.Val.(*ast.ObjectType); ok {
-			listVal = ot.List
-		} else {
-			return fmt.Errorf("limit should be an object")
-		}
-
-		// Parse limits
-		if o := listVal.Filter("region_limit"); len(o.Items) > 0 {
-			limit.RegionLimit = new(api.Resources)
-			if err := parseQuotaResource(limit.RegionLimit, o); err != nil {
-				return multierror.Prefix(err, "region_limit ->")
-			}
-		}
-
-		*result = append(*result, &limit)
-	}
-
-	return nil
-}
-
-// parseQuotaResource parses the region_limit resources
-func parseQuotaResource(result *api.Resources, list *ast.ObjectList) error {
-	return parseQuotaResourceBlock("region_limit", result, list, "cpu", "memory", "memory_max")
-}
-
-// parseQuotaResourceBlock parses a resources block of a quota specification,
-// allowing only the given keys.
-func parseQuotaResourceBlock(name string, result *api.Resources, list *ast.ObjectList, valid ...string) error {
-	list = list.Elem()
-	if len(list.Items) == 0 {
-		return nil
-	}
-	if len(list.Items) > 1 {
-		return fmt.Errorf("only one %q block allowed", name)
-	}
-
-	// Get our resource object
-	o := list.Items[0]
-
-	// We need this later
-	var listVal *ast.ObjectList
-	if ot, ok := o.Val.(*ast.ObjectType); ok {
-		listVal = ot.List
-	} else {
-		return fmt.Errorf("resource: should be an object")
-	}
-
-	// Check for invalid keys
-	if err := helper.CheckHCLKeys(listVal, valid); err != nil {
-		return multierror.Prefix(err, "resources ->")
-	}
-
-	var m map[string]interface{}
-	if err := hcl.DecodeObject(&m, o.Val); err != nil {
-		return err
-	}
-
-	if err := mapstructure.WeakDecode(m, result); err != nil {
-		return err
-	}
-
-	return nil
 }
