@@ -260,6 +260,9 @@ type Server struct {
 	// CEL rules of the object kinds)
 	objects *objectRegistry
 
+	// releases runs the operations on pack releases on the leader
+	releases *releaseManager
+
 	// periodicDispatcher is used to track and create evaluations for periodic jobs.
 	periodicDispatcher *PeriodicDispatch
 
@@ -433,6 +436,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		s.logger.Error("failed to setup the object registry", "error", err)
 		return nil, fmt.Errorf("Failed to setup the object registry: %v", err)
 	}
+	s.releases = newReleaseManager(s, s.logger)
 
 	// Set up the keyring
 	keystorePath := filepath.Join(s.config.DataDir, "keystore")
@@ -1341,6 +1345,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewAdmissionPolicyEndpoint(s, ctx))
 	_ = server.Register(NewObjectKindEndpoint(s, ctx))
 	_ = server.Register(NewCustomObjectEndpoint(s, ctx))
+	_ = server.Register(NewReleaseEndpoint(s, ctx))
 	_ = server.Register(NewBackupEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))
 	_ = server.Register(NewPlanEndpoint(s, ctx))

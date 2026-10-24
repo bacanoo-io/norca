@@ -405,6 +405,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Start the scheduled backups.
 	s.backup.SetLeader(true)
 
+	// Register the built-in release kinds and check releases for drift.
+	go s.releaseLeaderLoop(stopCh)
+
 	// Setup the heartbeat timers. This is done both when starting up or when
 	// a leader fail over happens. Since the timers are maintained by the leader
 	// node, effectively this means all the timers are renewed at the time of failover.
