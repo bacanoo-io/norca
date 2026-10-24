@@ -29,9 +29,9 @@ const (
 	// combined we take the union of all capabilities. If the deny capability is present, it
 	// takes precedence and overwrites all other capabilities.
 	//
-	// sentinel-override has no effect: Sentinel policies are not supported.
-	// It is still accepted so that existing ACL policies that grant it keep
-	// loading.
+	// sentinel-override and submit-recommendation have no effect: Sentinel
+	// policies and recommendations are not supported. They are still accepted
+	// so that existing ACL policies that grant them keep loading.
 
 	NamespaceCapabilityDeny                 = "deny"
 	NamespaceCapabilityListJobs             = "list-jobs"
@@ -54,7 +54,7 @@ const (
 	NamespaceCapabilityReadScalingPolicy    = "read-scaling-policy"
 	NamespaceCapabilityReadJobScaling       = "read-job-scaling"
 	NamespaceCapabilityScaleJob             = "scale-job"
-	NamespaceCapabilitySubmitRecommendation = "submit-recommendation"
+	NamespaceCapabilitySubmitRecommendation = "submit-recommendation" // no effect
 )
 
 var (
@@ -262,7 +262,6 @@ func expandNamespacePolicy(policy string) []string {
 		NamespaceCapabilityAllocLifecycle,
 		NamespaceCapabilityCSIMountVolume,
 		NamespaceCapabilityCSIWriteVolume,
-		NamespaceCapabilitySubmitRecommendation,
 	}...)
 
 	switch policy {
