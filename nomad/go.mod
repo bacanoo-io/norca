@@ -4,6 +4,12 @@ go 1.27
 
 toolchain go1.27.3
 
+// The HTTP API is routed with the Go 1.21 ServeMux semantics it was written
+// for: an unclean path such as /v1/job//scale must keep redirecting with 301
+// (the client retries as GET and gets a 404) instead of 307, which would
+// replay the PUT and its body against a different endpoint (/v1/job/scale).
+godebug httpmuxgo121=1
+
 // Pinned dependencies are noted in github.com/hashicorp/nomad/issues/11826
 replace (
 	github.com/Microsoft/go-winio => github.com/endocrimes/go-winio v0.4.13-0.20190628114223-fb47a8b41948
