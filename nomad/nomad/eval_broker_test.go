@@ -1152,7 +1152,7 @@ func TestEvalBroker_WaitUntil(t *testing.T) {
 	eval3.WaitUntil = now.Add(20 * time.Millisecond)
 	eval3.CreateIndex = 1
 	b.Enqueue(eval3)
-	require.Equal(3, b.stats.TotalWaiting)
+	require.Equal(3, b.Stats().TotalWaiting)
 	// sleep enough for two evals to be ready
 	time.Sleep(200 * time.Millisecond)
 
@@ -1170,7 +1170,7 @@ func TestEvalBroker_WaitUntil(t *testing.T) {
 	out, _, err = b.Dequeue(defaultSched, 2*time.Second)
 	require.Nil(err)
 	require.Equal(eval1, out)
-	require.Equal(0, b.stats.TotalWaiting)
+	require.Equal(0, b.Stats().TotalWaiting)
 }
 
 // Ensure that priority is taken into account when enqueueing many evaluations.

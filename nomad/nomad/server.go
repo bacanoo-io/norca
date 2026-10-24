@@ -153,9 +153,17 @@ type Server struct {
 	// to this server
 	serverRpcAdvertise net.Addr
 
-	// rpcTLS is the TLS config for incoming TLS requests
-	rpcTLS    *tls.Config
+	// rpcTLS is the TLS config for incoming TLS requests. It is nil if TLS
+	// is not enabled for RPC. It is replaced when the TLS configuration is
+	// reloaded, so it must only be accessed atomically.
+	rpcTLS    atomic.Pointer[tls.Config]
 	rpcCancel context.CancelFunc
+
+	// tlsConfig is the current TLS configuration of the server. It starts out
+	// as config.TLSConfig and is replaced when the TLS configuration is
+	// reloaded, so it must be read using getTLSConfig rather than via
+	// config.TLSConfig, which only holds the initial configuration.
+	tlsConfig atomic.Pointer[config.TLSConfig]
 
 	// streamingRpcs is the registry holding our streaming RPC handlers.
 	streamingRpcs *structs.StreamingRpcRegistry
@@ -363,10 +371,12 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		evalBroker:              evalBroker,
 		reapCancelableEvalsCh:   make(chan struct{}),
 		blockedEvals:            NewBlockedEvals(evalBroker, logger),
-		rpcTLS:                  incomingTLS,
 		aclCache:                aclCache,
 		workersEventCh:          make(chan interface{}, 1),
 	}
+
+	s.tlsConfig.Store(config.TLSConfig)
+	s.rpcTLS.Store(incomingTLS)
 
 	s.shutdownCtx, s.shutdownCancel = context.WithCancel(context.Background())
 	s.shutdownCh = s.shutdownCtx.Done()
@@ -647,13 +657,15 @@ func (s *Server) reloadTLSConnections(newTLSConfig *config.TLSConfig) error {
 
 	// Keeping configuration in sync is important for other places that require
 	// access to config information, such as rpc.go, where we decide on what kind
-	// of network connections to accept depending on the server configuration
-	s.config.TLSConfig = newTLSConfig
+	// of network connections to accept depending on the server configuration.
+	// RPC handlers read it concurrently, so it is swapped atomically instead of
+	// overwriting s.config.TLSConfig.
+	s.tlsConfig.Store(newTLSConfig)
 
 	// Kill any old listeners
 	s.rpcCancel()
 
-	s.rpcTLS = incomingTLS
+	s.rpcTLS.Store(incomingTLS)
 	s.connPool.ReloadTLS(tlsWrap)
 
 	if err := s.rpcListener.Close(); err != nil {
@@ -869,7 +881,7 @@ func (s *Server) Reload(newConfig *Config) error {
 		}
 	}
 
-	shouldReloadTLS, err := tlsutil.ShouldReloadRPCConnections(s.config.TLSConfig, newConfig.TLSConfig)
+	shouldReloadTLS, err := tlsutil.ShouldReloadRPCConnections(s.getTLSConfig(), newConfig.TLSConfig)
 	if err != nil {
 		s.logger.Error("error checking whether to reload TLS configuration", "error", err)
 	}
@@ -2073,6 +2085,16 @@ func (s *Server) Region() string {
 // Datacenter returns the data center of the server
 func (s *Server) Datacenter() string {
 	return s.config.Datacenter
+}
+
+// getTLSConfig returns the current TLS configuration of the server, which
+// reflects any reload of the TLS configuration. It falls back to the initial
+// configuration for servers not created by NewServer (e.g. in unit tests).
+func (s *Server) getTLSConfig() *config.TLSConfig {
+	if c := s.tlsConfig.Load(); c != nil {
+		return c
+	}
+	return s.config.TLSConfig
 }
 
 // GetConfig returns the config of the server for testing purposes only

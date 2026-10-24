@@ -282,8 +282,9 @@ func (r *rpcHandler) handleConn(ctx context.Context, conn net.Conn, rpcCtx *RPCC
 	}
 
 	// Enforce TLS if EnableRPC is set
-	if r.srv.config.TLSConfig.EnableRPC && !rpcCtx.TLS && pool.RPCType(buf[0]) != pool.RpcTLS {
-		if !r.srv.config.TLSConfig.RPCUpgradeMode {
+	tlsConf := r.srv.getTLSConfig()
+	if tlsConf.EnableRPC && !rpcCtx.TLS && pool.RPCType(buf[0]) != pool.RpcTLS {
+		if !tlsConf.RPCUpgradeMode {
 			r.logger.Warn("non-TLS connection attempted with RequireTLS set", "remote_addr", conn.RemoteAddr())
 			conn.Close()
 			return
@@ -315,7 +316,8 @@ func (r *rpcHandler) handleConn(ctx context.Context, conn net.Conn, rpcCtx *RPCC
 		r.handleMultiplex(ctx, conn, rpcCtx)
 
 	case pool.RpcTLS:
-		if r.srv.rpcTLS == nil {
+		rpcTLS := r.srv.rpcTLS.Load()
+		if rpcTLS == nil {
 			r.logger.Warn("TLS connection attempted, server not configured for TLS")
 			conn.Close()
 			return
@@ -328,7 +330,7 @@ func (r *rpcHandler) handleConn(ctx context.Context, conn net.Conn, rpcCtx *RPCC
 			return
 		}
 
-		conn = tls.Server(conn, r.srv.rpcTLS)
+		conn = tls.Server(conn, rpcTLS)
 
 		// Force a handshake so we can get information about the TLS connection
 		// state.
@@ -905,7 +907,7 @@ RUN_QUERY:
 
 func (r *rpcHandler) validateRaftTLS(rpcCtx *RPCContext) error {
 	// TLS is not configured or not to be enforced
-	tlsConf := r.srv.config.TLSConfig
+	tlsConf := r.srv.getTLSConfig()
 	if !tlsConf.EnableRPC || !tlsConf.VerifyServerHostname || tlsConf.RPCUpgradeMode {
 		return nil
 	}

@@ -302,7 +302,7 @@ func TestServer_Reload_TLSConnections_PlaintextToTLS(t *testing.T) {
 	defer cleanupS1()
 
 	// assert that the server started in plaintext mode
-	assert.Equal(s1.config.TLSConfig.CertFile, "")
+	assert.Equal(s1.getTLSConfig().CertFile, "")
 
 	newTLSConfig := &config.TLSConfig{
 		EnableHTTP:           true,
@@ -315,7 +315,7 @@ func TestServer_Reload_TLSConnections_PlaintextToTLS(t *testing.T) {
 
 	err := s1.reloadTLSConnections(newTLSConfig)
 	assert.Nil(err)
-	assert.True(s1.config.TLSConfig.CertificateInfoIsEqual(newTLSConfig))
+	assert.True(s1.getTLSConfig().CertificateInfoIsEqual(newTLSConfig))
 
 	codec := rpcClient(t, s1)
 
@@ -362,7 +362,7 @@ func TestServer_Reload_TLSConnections_TLSToPlaintext_RPC(t *testing.T) {
 
 	err := s1.reloadTLSConnections(newTLSConfig)
 	assert.Nil(err)
-	assert.True(s1.config.TLSConfig.CertificateInfoIsEqual(newTLSConfig))
+	assert.True(s1.getTLSConfig().CertificateInfoIsEqual(newTLSConfig))
 
 	codec := rpcClient(t, s1)
 
@@ -415,7 +415,7 @@ func TestServer_Reload_TLSConnections_TLSToPlaintext_OnlyRPC(t *testing.T) {
 
 	err := s1.reloadTLSConnections(newTLSConfig)
 	assert.Nil(err)
-	assert.True(s1.config.TLSConfig.CertificateInfoIsEqual(newTLSConfig))
+	assert.True(s1.getTLSConfig().CertificateInfoIsEqual(newTLSConfig))
 
 	codec := rpcClient(t, s1)
 
@@ -468,8 +468,8 @@ func TestServer_Reload_TLSConnections_PlaintextToTLS_OnlyRPC(t *testing.T) {
 
 	err := s1.reloadTLSConnections(newTLSConfig)
 	assert.Nil(err)
-	assert.True(s1.config.TLSConfig.EnableRPC)
-	assert.True(s1.config.TLSConfig.CertificateInfoIsEqual(newTLSConfig))
+	assert.True(s1.getTLSConfig().EnableRPC)
+	assert.True(s1.getTLSConfig().CertificateInfoIsEqual(newTLSConfig))
 
 	codec := rpcClient(t, s1)
 
