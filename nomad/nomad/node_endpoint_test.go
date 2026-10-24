@@ -11,6 +11,7 @@ import (
 	"net/rpc"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1303,6 +1304,65 @@ func TestClientEndpoint_UpdateStatus_HeartbeatOnly(t *testing.T) {
 	ttl = resp2.HeartbeatTTL
 	if ttl < s1.config.MinHeartbeatTTL || ttl > 2*s1.config.MinHeartbeatTTL {
 		t.Fatalf("bad: %#v", ttl)
+	}
+}
+
+// TestClientEndpoint_UpdateStatus_GetClientAllocs_SharedConn asserts that
+// concurrent RPCs multiplexed over the same client connection, and therefore
+// sharing one RPCContext, can safely associate that connection with the node.
+// Run with -race to detect unsynchronized access to the context.
+func TestClientEndpoint_UpdateStatus_GetClientAllocs_SharedConn(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, nil)
+	defer cleanupS1()
+	testutil.WaitForLeader(t, s1.RPC)
+
+	node := mock.Node()
+	must.NoError(t, s1.fsm.State().UpsertNode(structs.MsgTypeTestSetup, 10, node))
+
+	for i := 0; i < 10; i++ {
+		p1, p2 := net.Pipe()
+		rpcCtx := &RPCContext{Conn: p1}
+		endpoint := NewNodeEndpoint(s1, rpcCtx)
+
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for j := 0; j < 4; j++ {
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				<-start
+				req := &structs.NodeUpdateStatusRequest{
+					NodeID:       node.ID,
+					Status:       structs.NodeStatusReady,
+					WriteRequest: structs.WriteRequest{Region: "global"},
+				}
+				var resp structs.NodeUpdateResponse
+				must.NoError(t, endpoint.UpdateStatus(req, &resp))
+			}()
+			go func() {
+				defer wg.Done()
+				<-start
+				req := &structs.NodeSpecificRequest{
+					NodeID:       node.ID,
+					SecretID:     node.SecretID,
+					QueryOptions: structs.QueryOptions{Region: "global"},
+				}
+				var resp structs.NodeClientAllocsResponse
+				must.NoError(t, endpoint.GetClientAllocs(req, &resp))
+			}()
+		}
+		close(start)
+		wg.Wait()
+
+		must.Eq(t, node.ID, rpcCtx.NodeID())
+		_, ok := s1.getNodeConn(node.ID)
+		must.True(t, ok)
+
+		s1.removeNodeConn(rpcCtx)
+		p1.Close()
+		p2.Close()
 	}
 }
 
