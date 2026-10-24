@@ -1,0 +1,77 @@
+// Copyright IBM Corp. 2021, 2025
+// SPDX-License-Identifier: MPL-2.0
+
+package errors
+
+import (
+	"strings"
+)
+
+// ErrNoTemplatesRendered is an error to be used when the CLI runs a render
+// process that doesn't result in parent templates. This helps provide a clear
+// indication to the problem, as I have certainly been confused by this.
+var ErrNoTemplatesRendered = newError("no templates were rendered by the renderer process run")
+
+// UIContextPrefix* are the prefixes commonly used to create a string used in
+// UI errors outputs. If a prefix is used more than once, it should have a
+// const created.
+const (
+	UIContextErrorDetail          = "Details: "
+	UIContextErrorSuggestion      = "Suggestions: "
+	UIContextErrorFilename        = "Filename: "
+	UIContextErrorPosition        = "Position: "
+	UIContextPrefixGitRegistryURL = "Git Registry URL: "
+	UIContextPrefixPackName       = "Pack Name: "
+	UIContextPrefixPackPath       = "Pack Path: "
+	UIContextPrefixPackRef        = "Pack Ref: "
+	UIContextPrefixTemplateName   = "Template Name: "
+	UIContextPrefixJobName        = "Job Name: "
+	UIContextPrefixDeploymentName = "Deployment Name: "
+	UIContextPrefixRegion         = "Region: "
+	UIContextPrefixHCLRange       = "HCL Range: "
+	UIContextPrefixRegistryName   = "Registry Name: "
+	UIContextPrefixRegistryPath   = "Registry Path: "
+	UIContextPrefixRegistryTarget = "Registry Target: "
+	UIContextPrefixOutputPath     = "Output Path: "
+)
+
+// UIErrorContext is used to store and manipulate error context strings used
+// by the CLI to output user-friendly, rich information.
+type UIErrorContext struct {
+	contexts []string
+}
+
+// NewUIErrorContext creates an empty UIErrorContext.
+func NewUIErrorContext() *UIErrorContext { return &UIErrorContext{} }
+
+// Add formats and upserts the passed prefix and value onto the error contexts.
+func (u *UIErrorContext) Add(prefix, val string) {
+	idx := -1
+	for i, c := range u.contexts {
+		if strings.HasPrefix(c, prefix) {
+			idx = i
+			break
+		}
+	}
+	if idx != -1 {
+		u.contexts[idx] = prefix + val
+		return
+	}
+
+	u.contexts = append(u.contexts, prefix+val)
+}
+
+// Append takes an existing UIErrorContext and appends any context into the
+// current.
+func (u *UIErrorContext) Append(context *UIErrorContext) {
+	u.contexts = append(u.contexts, context.GetAll()...)
+}
+
+// Copy to currently stored contexts into a new UIErrorContext.
+func (u *UIErrorContext) Copy() *UIErrorContext { return &UIErrorContext{contexts: u.contexts} }
+
+// GetAll returns all the stored context strings.
+func (u *UIErrorContext) GetAll() []string { return u.contexts }
+
+// String returns the stored contexts as a minimally formatted string.
+func (u *UIErrorContext) String() string { return strings.Join(u.contexts, "\n") }
