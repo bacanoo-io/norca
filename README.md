@@ -10,7 +10,7 @@ An independent, open source workload scheduler and orchestrator built on the **H
 | --- | --- | --- | --- |
 | `nomad/` | HashiCorp Nomad v1.6.5 | `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f` | MPL 2.0 |
 | `nomad/pack/` | HashiCorp Nomad Pack v0.4.2 | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 |
-| built-in autoscaler (`nomad/nomad/autoscaler/`, planned) | HashiCorp Nomad Autoscaler v0.6.0 | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 |
+| built-in autoscaler (`nomad/nomad/autoscaler/`) | HashiCorp Nomad Autoscaler v0.6.0 | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 |
 
 v1.6.5 is the last Nomad release published under MPL 2.0. `nomad/` and Nomad Pack were imported with their full git history, so the starting commits can be verified; Nomad Pack was later moved into `nomad/pack/` (part of the Nomad Go module, run as `norca pack`); its original commits remain in the history and `git blame` still reaches them. This project contains no code from HashiCorp releases published under BSL 1.1. Details: [docs/licensing.md](docs/licensing.md).
 
@@ -62,15 +62,24 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Feature | Status | Design |
 | --- | --- | --- |
 | Nomad v1.6.5 core features | Available | – |
-| Security dependency updates (phase 1) | Planned | [development plan](docs/design/nomad-fork-development-plan.md) |
-| Built-in autoscaler | Planned | [development plan](docs/design/nomad-fork-development-plan.md) |
-| Namespace quotas, admission policies, further Kubernetes-inspired features | Planned | [detailed specification](docs/design/kubernetes-features-spec.md) |
+| Dependency updates (Go 1.27, gRPC 1.84, security fixes) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
+| Built-in autoscaler, phase 1 (leader subsystem, built-in strategies, `nomad` and Prometheus metrics; off by default) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
+| Built-in autoscaler, external plugins, typed `scaling` jobspec, native metrics | In progress | [development plan](docs/design/nomad-fork-development-plan.md) |
+| Namespace quotas | Available | [specification, item 1](docs/design/kubernetes-features-spec.md) |
+| Dynamic admission control (CEL policies, webhooks) | Available | [specification, item 2](docs/design/kubernetes-features-spec.md) |
+| Event stream: Variables topic, resumable subscriptions | Available | [specification, item 3](docs/design/kubernetes-features-spec.md) |
+| Cross-job affinity (`colocate`, `separate`) | Available | [specification, item 4](docs/design/kubernetes-features-spec.md) |
+| Disruption budget | In progress | [specification, item 5](docs/design/kubernetes-features-spec.md) |
+| Health check roles (startup, readiness, liveness) | Available | [specification, item 6](docs/design/kubernetes-features-spec.md) |
+| Network rules | Planned | [specification, item 7](docs/design/kubernetes-features-spec.md) |
+| Operator framework | In progress (prototype) | [specification, item 8](docs/design/kubernetes-features-spec.md) |
 | Backup and restore | Planned | [plan](docs/design/backup-restore-plan.md) |
 | Service discovery without Consul | Planned | [plan](docs/design/consul-independence-plan.md) |
-| Package management (based on Nomad Pack) | Planned | [plan](docs/design/package-management-plan.md) |
+| Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |
+| Package management: server-side releases, rollback, OCI registries | Planned | [plan](docs/design/package-management-plan.md) |
 | New web UI | Planned | [plan](docs/design/ui-plan.md) |
 
-Only features marked "Available" can be used; everything else is in the design phase.
+Only features marked "Available" can be used; the others are being built or are in the design phase.
 
 ## License
 
