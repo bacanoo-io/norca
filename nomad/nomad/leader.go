@@ -405,6 +405,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Start the scheduled backups.
 	s.backup.SetLeader(true)
 
+	// Start the garbage collector of custom objects.
+	s.objectGC.SetEnabled(true)
+
 	// Setup the heartbeat timers. This is done both when starting up or when
 	// a leader fail over happens. Since the timers are maintained by the leader
 	// node, effectively this means all the timers are renewed at the time of failover.
@@ -1473,6 +1476,9 @@ func (s *Server) revokeLeadership() error {
 
 	// Stop the scheduled backups; an upload in progress is aborted.
 	s.backup.SetLeader(false)
+
+	// Stop the garbage collector of custom objects.
+	s.objectGC.SetEnabled(false)
 
 	// Disable any enterprise systems required.
 	if err := s.revokeEnterpriseLeadership(); err != nil {

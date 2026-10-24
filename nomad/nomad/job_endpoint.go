@@ -222,6 +222,9 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	if err != nil {
 		return err
 	}
+	if err := checkManagedJob(aclObj, args, existingJob); err != nil {
+		return err
+	}
 
 	// If EnforceIndex set, check it before trying to apply
 	if args.EnforceIndex {
@@ -830,7 +833,8 @@ func (j *Job) Deregister(args *structs.JobDeregisterRequest, reply *structs.JobD
 	defer metrics.MeasureSince([]string{"nomad", "job", "deregister"}, time.Now())
 
 	// Check for submit-job permissions
-	if aclObj, err := j.srv.ResolveACL(args); err != nil {
+	aclObj, err := j.srv.ResolveACL(args)
+	if err != nil {
 		return err
 	} else if aclObj != nil && !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob) {
 		return structs.ErrPermissionDenied
@@ -853,6 +857,9 @@ func (j *Job) Deregister(args *structs.JobDeregisterRequest, reply *structs.JobD
 	}
 	if job == nil {
 		return nil
+	}
+	if err := checkManagedJob(aclObj, args, job); err != nil {
+		return err
 	}
 
 	var eval *structs.Evaluation
@@ -963,6 +970,9 @@ func (j *Job) BatchDeregister(args *structs.JobBatchDeregisterRequest, reply *st
 
 		job, err := snap.JobByID(nil, jobNS.Namespace, jobNS.ID)
 		if err != nil {
+			return err
+		}
+		if err := checkManagedJob(aclObj, args, job); err != nil {
 			return err
 		}
 
@@ -1086,6 +1096,14 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 	if group == nil {
 		return structs.NewErrRPCCoded(400,
 			fmt.Sprintf("task group %q specified for scaling does not exist in job", groupName))
+	}
+
+	// A managed job can be scaled by others only in groups with their own
+	// scaling block, whose count belongs to the autoscaler.
+	if args.Count != nil && group.Scaling == nil {
+		if err := checkManagedJob(aclObj, args, job); err != nil {
+			return err
+		}
 	}
 
 	now := time.Now().UnixNano()
