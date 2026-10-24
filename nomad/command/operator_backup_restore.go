@@ -21,7 +21,7 @@ type OperatorBackupRestoreCommand struct {
 func (c *OperatorBackupRestoreCommand) Name() string { return "operator backup restore" }
 
 func (c *OperatorBackupRestoreCommand) Synopsis() string {
-	return "Restore jobs, Variables, namespaces or ACL objects from a backup"
+	return "Restore objects from a backup, or request a full restore of the region"
 }
 
 func (c *OperatorBackupRestoreCommand) Help() string {
@@ -32,8 +32,17 @@ Usage: norca operator backup restore [options] <id>
   written with the normal API on behalf of your token: a job is registered as
   a new version (the admission chain and quotas apply), a Variables entry is
   re-encrypted with the current keys with a check-and-set write, namespaces and
-  ACL policies and roles are upserted. A full restore of the region is not
-  available yet.
+  ACL policies and roles are upserted.
+
+  With -full, request a full restore of the region instead: the whole state
+  of the region returns to the time of the backup, and every change since is
+  lost. The request shows a preview of the changes (-dry-run shows only the
+  preview) and must be confirmed with -confirm <region>. A second
+  administrator then approves it with "norca operator backup approve", which
+  runs it: an automatic, pinned backup of the current state is taken first,
+  the keys of the backup are added to the keystore of every server, and the
+  Raft state of the backup is restored. The request expires after the
+  approval_ttl of the server's backup configuration.
 
   Jobs and Variables are restored in the namespace given with -namespace
   (default: "default").
@@ -41,7 +50,8 @@ Usage: norca operator backup restore [options] <id>
   If ACLs are enabled, this command requires a token with the 'read'
   capability of the 'backup' policy and the permissions of the normal writes
   (for example 'submit-job', Variables 'write', or a management token for
-  namespaces and ACL objects).
+  namespaces and ACL objects). A full restore requires a management token,
+  and ACLs must be enabled.
 
 General Options:
 
@@ -49,6 +59,12 @@ General Options:
 
 Restore Options:
 ` + backupIdentityUsage + `
+
+  -full
+    Request a full restore of the region from the backup.
+
+  -confirm <region>
+    The name of the region, to confirm a full restore.
 
   -job <id>[@<version>]
     Restore a job, at the given version of the backup or at the version that
@@ -84,6 +100,8 @@ func (c *OperatorBackupRestoreCommand) AutocompleteFlags() complete.Flags {
 	return mergeAutocompleteFlags(c.Meta.AutocompleteFlags(FlagSetClient),
 		complete.Flags{
 			"-age-identity":      complete.PredictFiles("*"),
+			"-full":              complete.PredictNothing,
+			"-confirm":           complete.PredictAnything,
 			"-job":               complete.PredictAnything,
 			"-variable":          complete.PredictAnything,
 			"-restore-namespace": complete.PredictAnything,
@@ -113,13 +131,15 @@ func splitAt(s string) (string, *uint64, error) {
 }
 
 func (c *OperatorBackupRestoreCommand) Run(args []string) int {
-	var dryRun, json bool
-	var identityPath, destination string
+	var dryRun, json, full bool
+	var identityPath, destination, confirm string
 	var jobs, variables, namespaces, policies, roles flaghelper.StringFlag
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.StringVar(&identityPath, "age-identity", "", "")
+	flags.BoolVar(&full, "full", false, "")
+	flags.StringVar(&confirm, "confirm", "", "")
 	flags.Var(&jobs, "job", "")
 	flags.Var(&variables, "variable", "")
 	flags.Var(&namespaces, "restore-namespace", "")
@@ -167,8 +187,18 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	for _, r := range roles {
 		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemACLRole, ID: r})
 	}
-	if len(items) == 0 {
-		c.Ui.Error("Nothing to restore: use -job, -variable, -restore-namespace, -acl-policy or -acl-role")
+	switch {
+	case full && len(items) > 0:
+		c.Ui.Error("A full restore takes no -job, -variable, -restore-namespace, -acl-policy or -acl-role")
+		return 1
+	case !full && len(items) == 0:
+		c.Ui.Error("Nothing to restore: use -job, -variable, -restore-namespace, -acl-policy, -acl-role or -full")
+		return 1
+	case !full && confirm != "":
+		c.Ui.Error("-confirm is only used with -full")
+		return 1
+	case full && !dryRun && confirm == "":
+		c.Ui.Error("Confirm the full restore with -confirm <region>, or preview it with -dry-run")
 		return 1
 	}
 
@@ -182,6 +212,10 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
 		return 1
+	}
+
+	if full {
+		return c.runFull(client, flags.Args()[0], identity, destination, confirm, dryRun, json)
 	}
 
 	resp, _, err := client.Backups().Restore(flags.Args()[0], &api.BackupRestoreRequest{
