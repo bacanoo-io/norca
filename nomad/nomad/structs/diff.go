@@ -309,6 +309,12 @@ func (tg *TaskGroup) Diff(other *TaskGroup, contextual bool) (*TaskGroupDiff, er
 		diff.Objects = append(diff.Objects, affinitiesDiff...)
 	}
 
+	// Colocate and separate (cross-job affinity) diffs
+	diff.Objects = append(diff.Objects, primitiveObjectSetDiff(
+		interfaceSlice(tg.Colocate), interfaceSlice(other.Colocate), nil, "Colocate", contextual)...)
+	diff.Objects = append(diff.Objects, primitiveObjectSetDiff(
+		interfaceSlice(tg.Separate), interfaceSlice(other.Separate), nil, "Separate", contextual)...)
+
 	// Restart policy diff
 	rDiff := primitiveObjectDiff(tg.RestartPolicy, other.RestartPolicy, nil, "RestartPolicy", contextual)
 	if rDiff != nil {

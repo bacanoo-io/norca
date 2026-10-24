@@ -80,6 +80,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobVaultHook{srv: s},
 			jobNamespaceConstraintCheckHook{srv: s},
 			jobNodePoolValidatingHook{srv: s},
+			jobAllocAffinityHook{srv: s},
 			&jobValidate{srv: s},
 			&memoryOversubscriptionValidate{srv: s},
 		},
@@ -182,6 +183,11 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 					}
 				}
 			}
+		}
+
+		// Colocate and separate rules observe the jobs of their target namespaces
+		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
+			return structs.ErrPermissionDenied
 		}
 
 		// Check if override is set and we do not have permissions
@@ -1754,6 +1760,9 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		return err
 	} else if aclObj != nil {
 		if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob) {
+			return structs.ErrPermissionDenied
+		}
+		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
 			return structs.ErrPermissionDenied
 		}
 		// Check if override is set and we do not have permissions
