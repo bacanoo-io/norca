@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -559,6 +560,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 			conf.NodePlanRejectionWindow = planRejectConf.NodeWindow
 		}
 	}
+
+	// Set the built-in autoscaler configuration.
+	autoscalerConf, err := agentConfig.Server.Autoscaler.toServerConfig()
+	if err != nil {
+		return nil, err
+	}
+	conf.Autoscaler = autoscalerConf
 
 	// Add Enterprise license configs
 	conf.LicenseConfig = &nomad.LicenseConfig{

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -254,6 +255,14 @@ func extraKeys(c *Config) error {
 
 	for _, k := range []string{"preemption_config"} {
 		helper.RemoveEqualFold(&c.Server.ExtraKeysHCL, k)
+	}
+
+	// Remove the labels of the autoscaler apm blocks
+	if c.Server.Autoscaler != nil {
+		for _, p := range c.Server.Autoscaler.APMs {
+			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, p.Name)
+			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "apm")
+		}
 	}
 
 	for _, k := range []string{"datadog_tags"} {
