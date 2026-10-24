@@ -95,3 +95,76 @@ func TestFSM_CustomObjects(t *testing.T) {
 	must.NoError(t, err)
 	must.Nil(t, k)
 }
+
+func TestFSM_ObjectLifecycle(t *testing.T) {
+	ci.Parallel(t)
+	fsm := testFSM(t)
+
+	apply := func(msgType structs.MessageType, req any) any {
+		t.Helper()
+		buf, err := structs.Encode(msgType|structs.IgnoreUnknownTypeFlag, req)
+		must.NoError(t, err)
+		return fsm.Apply(makeLog(buf))
+	}
+
+	kind := &structs.ObjectKind{Group: "example.com", Kind: "Thing", Namespaced: true, Schema: `{"type": "object"}`}
+	must.Nil(t, apply(structs.ObjectKindUpsertRequestType, &structs.ObjectKindUpsertRequest{ObjectKind: kind}))
+
+	newObj := func(name string) *structs.CustomObject {
+		return &structs.CustomObject{ID: uuid.Generate(), Group: kind.Group, Kind: kind.Kind, Namespace: "default",
+			Name: name, Generation: 1, Spec: map[string]any{}}
+	}
+
+	// An object marked for deletion keeps its finalizers and deletion mode.
+	marked := newObj("marked")
+	marked.Finalizers = []string{"example.com/cleanup"}
+	marked.DeletionTime = 123
+	marked.DeletionPropagation = structs.ObjectPropagationForeground
+	must.Nil(t, apply(structs.CustomObjectUpsertRequestType, &structs.CustomObjectUpsertStateRequest{Object: marked}))
+
+	// The event log and a tombstone.
+	logged := newObj("logged")
+	must.Nil(t, apply(structs.CustomObjectUpsertRequestType, &structs.CustomObjectUpsertStateRequest{Object: logged}))
+	must.Nil(t, apply(structs.CustomObjectEventsRequestType, &structs.CustomObjectEventsStateRequest{
+		Group: kind.Group, Kind: kind.Kind, Namespace: "default", Name: "logged", ObjectID: logged.ID,
+		Events: []*structs.ObjectEvent{{Reason: "Reconciled", Meta: map[string]string{"k": "v"}}}, Time: 42,
+	}))
+	gone := newObj("gone")
+	must.Nil(t, apply(structs.CustomObjectUpsertRequestType, &structs.CustomObjectUpsertStateRequest{Object: gone}))
+	must.Nil(t, apply(structs.CustomObjectDeleteRequestType, &structs.CustomObjectDeleteStateRequest{
+		Group: kind.Group, Kind: kind.Kind, Namespace: "default", Name: "gone",
+		Propagation: structs.ObjectPropagationBackground, DeleteTime: 7,
+	}))
+
+	// Events of a deleted object are dropped without failing the FSM.
+	resp := apply(structs.CustomObjectEventsRequestType, &structs.CustomObjectEventsStateRequest{
+		Group: kind.Group, Kind: kind.Kind, Namespace: "default", Name: "gone", ObjectID: gone.ID,
+		Events: []*structs.ObjectEvent{{Reason: "Late"}},
+	})
+	must.NotNil(t, resp)
+
+	fsm2 := testSnapshotRestore(t, fsm)
+	m, err := fsm2.State().CustomObjectByName(nil, kind.Group, kind.Kind, "default", "marked")
+	must.NoError(t, err)
+	must.Eq(t, marked.Finalizers, m.Finalizers)
+	must.Eq(t, int64(123), m.DeletionTime)
+	must.Eq(t, structs.ObjectPropagationForeground, m.DeletionPropagation)
+
+	log, err := fsm2.State().ObjectEventLog(nil, kind.Group, kind.Kind, "default", "logged")
+	must.NoError(t, err)
+	must.NotNil(t, log)
+	must.Len(t, 1, log.Events)
+	must.Eq(t, "v", log.Events[0].Meta["k"])
+	must.Eq(t, int64(42), log.Events[0].FirstTime)
+
+	iter, err := fsm2.State().ObjectTombstones(nil)
+	must.NoError(t, err)
+	raw := iter.Next()
+	must.NotNil(t, raw)
+	must.Eq(t, gone.ID, raw.(*structs.ObjectTombstone).ID)
+
+	must.Nil(t, apply(structs.ObjectGCRequestType, &structs.ObjectGCRequest{DeleteTombstones: []string{gone.ID}}))
+	iter, err = fsm.State().ObjectTombstones(nil)
+	must.NoError(t, err)
+	must.Nil(t, iter.Next())
+}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	memdb "github.com/hashicorp/go-memdb"
@@ -25,11 +26,12 @@ const (
 )
 
 func init() {
-	RegisterSchemaFactories(objectKindsTableSchema, customObjectsTableSchema)
+	RegisterSchemaFactories(objectKindsTableSchema, customObjectsTableSchema,
+		objectEventsTableSchema, objectTombstonesTableSchema)
 
 	// Every write that produces a CustomObject event updates one of these
 	// tables' index entries.
-	topicIndexTables[structs.TopicCustomObject] = []string{TableObjectKinds, TableCustomObjects}
+	topicIndexTables[structs.TopicCustomObject] = []string{TableObjectKinds, TableCustomObjects, TableObjectEvents}
 }
 
 // objectKindsTableSchema returns the MemDB schema of the object kinds table.
@@ -418,22 +420,37 @@ func (s *StateStore) UpsertCustomObject(msgType structs.MessageType, index uint6
 }
 
 // DeleteCustomObject removes an object. A non-zero expectedModifyIndex must
-// match the stored object.
+// match the stored object. It leaves no tombstone; see
+// DeleteCustomObjectRequest.
 func (s *StateStore) DeleteCustomObject(msgType structs.MessageType, index uint64, group, kind, namespace, name string, expectedModifyIndex uint64) error {
+	return s.DeleteCustomObjectRequest(msgType, index, &structs.CustomObjectDeleteStateRequest{
+		Group:               group,
+		Kind:                kind,
+		Namespace:           namespace,
+		Name:                name,
+		ExpectedModifyIndex: expectedModifyIndex,
+	})
+}
+
+// DeleteCustomObjectRequest removes an object and its event log. A non-zero
+// expected modify index must match the stored object. With the background
+// and foreground deletion modes it records a tombstone for the garbage
+// collector.
+func (s *StateStore) DeleteCustomObjectRequest(msgType structs.MessageType, index uint64, req *structs.CustomObjectDeleteStateRequest) error {
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
 
-	kindRef := structs.ObjectKindRef(group, kind)
-	existing, err := customObjectByNameTxn(txn, nil, kindRef, namespace, name)
+	kindRef := structs.ObjectKindRef(req.Group, req.Kind)
+	existing, err := customObjectByNameTxn(txn, nil, kindRef, req.Namespace, req.Name)
 	if err != nil {
 		return err
 	}
 	if existing == nil {
-		return structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", kindRef, name)
+		return structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", kindRef, req.Name)
 	}
-	if expectedModifyIndex != 0 && existing.ModifyIndex != expectedModifyIndex {
+	if req.ExpectedModifyIndex != 0 && existing.ModifyIndex != req.ExpectedModifyIndex {
 		return structs.NewObjectConflictError("%s %q has modify index %d, expected %d",
-			kindRef, name, existing.ModifyIndex, expectedModifyIndex)
+			kindRef, req.Name, existing.ModifyIndex, req.ExpectedModifyIndex)
 	}
 
 	if err := txn.Delete(TableCustomObjects, existing); err != nil {
@@ -441,6 +458,15 @@ func (s *StateStore) DeleteCustomObject(msgType structs.MessageType, index uint6
 	}
 	if err := txn.Insert(tableIndex, &IndexEntry{TableCustomObjects, index}); err != nil {
 		return fmt.Errorf("index update failed: %w", err)
+	}
+	if err := deleteObjectEventLogTxn(txn, index, kindRef, req.Namespace, req.Name); err != nil {
+		return err
+	}
+	switch req.Propagation {
+	case structs.ObjectPropagationBackground, structs.ObjectPropagationForeground:
+		if err := insertObjectTombstoneTxn(txn, index, existing, req.Propagation, req.DeleteTime); err != nil {
+			return err
+		}
 	}
 	return txn.Commit()
 }
@@ -516,6 +542,9 @@ func objectEventFromChange(change memdb.Change) (structs.Event, bool) {
 			Namespace:  object.Namespace,
 			Payload:    &structs.CustomObjectEvent{Object: object},
 		}, true
+
+	case TableObjectEvents:
+		return objectEventLogEventFromChange(change)
 	}
 	return structs.Event{}, false
 }
@@ -524,6 +553,8 @@ func objectEventFromChange(change memdb.Change) (structs.Event, bool) {
 func onlyStatusChanged(before, after *structs.CustomObject) bool {
 	return before.Generation == after.Generation &&
 		before.ManagedBy == after.ManagedBy &&
+		before.DeletionTime == after.DeletionTime &&
+		slices.Equal(before.Finalizers, after.Finalizers) &&
 		mapsEqualString(before.Labels, after.Labels) &&
 		structs.ObjectMapsEqual(before.Spec, after.Spec) &&
 		!structs.ObjectMapsEqual(before.Status, after.Status)
