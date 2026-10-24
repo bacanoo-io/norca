@@ -219,6 +219,28 @@ func validateCheck(c map[string]interface{}, path string, label string) error {
 		}
 	}
 
+	// Validate Metric, if present.
+	//   1. Metric must be one of the built-in metrics.
+	//   2. Metric and Query are mutually exclusive.
+	//   3. Metric is served by the nomad-apm source only.
+	metric, metricOk := c[keyMetric]
+	if metricOk {
+		metricStr, ok := metric.(string)
+		switch {
+		case !ok:
+			result = multierror.Append(result, fmt.Errorf("%s.%s must be string, found %T", path, keyMetric, metric))
+		case !IsBuiltinMetric(metricStr):
+			result = multierror.Append(result, fmt.Errorf("%s.%s must be one of %s, %s, %s or %s, found %q",
+				path, keyMetric, MetricCPU, MetricMemory, MetricCPUMHz, MetricMemoryMB, metricStr))
+		}
+		if queryOk {
+			result = multierror.Append(result, fmt.Errorf("%s: only one of %s and %s can be set", path, keyMetric, keyQuery))
+		}
+		if s, _ := source.(string); sourceOk && s != plugins.InternalAPMNomad {
+			result = multierror.Append(result, fmt.Errorf("%s.%s requires the %s source", path, keyMetric, plugins.InternalAPMNomad))
+		}
+	}
+
 	// Validate QueryWindow, if present.
 	//   1. QueryWindow should be a valid time duration or the literal "instant".
 	queryWindow, ok := c[keyQueryWindow]
@@ -230,7 +252,7 @@ func validateCheck(c map[string]interface{}, path string, label string) error {
 
 	// Some strategy plugins do not require an APM
 	var strategyValidator validatorWithLabelFunc
-	if !queryOk && !sourceOk {
+	if !queryOk && !sourceOk && !metricOk {
 		strategyValidator = validateStrategyWithoutMetric
 	}
 

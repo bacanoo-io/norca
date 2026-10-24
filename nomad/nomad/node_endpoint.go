@@ -318,6 +318,9 @@ func (n *Node) constructNodeServerInfoResponse(nodeID string, snap *state.StateS
 	leaderAddr, _ := n.srv.raft.LeaderWithID()
 	reply.LeaderRPCAddr = string(leaderAddr)
 
+	// Ask the client for task group usage if the built-in autoscaler needs it
+	reply.TaskGroupUsageInterval = n.srv.autoscalerUsageInterval()
+
 	// Reply with config information required for future RPC requests
 	reply.Servers = make([]*structs.NodeServerInfo, 0, len(n.srv.localPeers))
 	for _, v := range n.srv.localPeers {
@@ -1328,6 +1331,15 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 	}
 
 	defer metrics.MeasureSince([]string{"nomad", "client", "update_alloc"}, time.Now())
+
+	// Task group usage for the built-in autoscaler goes to the leader's
+	// memory, not to Raft. A request may carry only usage.
+	if args.TaskGroupUsage != nil {
+		n.srv.autoscalerRecordUsage(args)
+		if len(args.Alloc) == 0 {
+			return nil
+		}
+	}
 
 	// Ensure at least a single alloc
 	if len(args.Alloc) == 0 {
