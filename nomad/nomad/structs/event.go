@@ -8,6 +8,12 @@ type EventStreamRequest struct {
 	Topics map[Topic][]string
 	Index  int
 
+	// StartExactlyAtIndex requires the stream to contain every event from
+	// Index on. If the server can no longer guarantee that, because events at
+	// or after Index were dropped from its buffer or predate it, the request
+	// fails with a 410 (Gone) error so the client can resynchronize.
+	StartExactlyAtIndex bool
+
 	QueryOptions
 }
 
@@ -31,6 +37,7 @@ const (
 	TopicACLAuthMethod  Topic = "ACLAuthMethod"
 	TopicACLBindingRule Topic = "ACLBindingRule"
 	TopicService        Topic = "Service"
+	TopicVariables      Topic = "Variables"
 	TopicAll            Topic = "*"
 
 	TypeNodeRegistration              = "NodeRegistration"
@@ -63,6 +70,8 @@ const (
 	TypeACLBindingRuleDeleted         = "ACLBindingRuleDeleted"
 	TypeServiceRegistration           = "ServiceRegistration"
 	TypeServiceDeregistration         = "ServiceDeregistration"
+	TypeVariableUpserted              = "VariableUpserted"
+	TypeVariableDeleted               = "VariableDeleted"
 )
 
 // Event represents a change in Nomads state.
@@ -166,6 +175,20 @@ func NewACLTokenEvent(token *ACLToken) *ACLTokenEvent {
 
 func (a *ACLTokenEvent) SecretID() string {
 	return a.secretID
+}
+
+// VariableEvent holds the metadata of a newly upserted or deleted variable.
+// It deliberately carries no variable data, neither decrypted nor encrypted,
+// nor the ID of the key the data is encrypted with.
+type VariableEvent struct {
+	Variable *VariableMetadata
+}
+
+// NewVariableEvent returns a VariableEvent with a copy of the metadata of
+// the given variable.
+func NewVariableEvent(v *VariableEncrypted) *VariableEvent {
+	meta := v.VariableMetadata
+	return &VariableEvent{Variable: &meta}
 }
 
 type ACLPolicyEvent struct {
