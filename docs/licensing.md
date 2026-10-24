@@ -32,6 +32,8 @@ Nomad v1.6.5 goes into the repository together with its git history (for example
 
 **Clean room rule for BSL fixes:** if a fix already exists in HashiCorp's BSL releases, the analyst hands it over as a description of the problem, based on the public issue and the CHANGELOG; the developer writes their own solution without looking at the BSL diff. The pull request must state which public issue it is based on.
 
+**BUSL-marked files inside v1.6.5:** 45 files of the Nomad v1.6.5 tag carried an `SPDX-License-Identifier: BUSL-1.1` header. They entered the 1.6.x release branch through backports between 2023-08 and 2023-12 and never existed under MPL 2.0 (the ACL roles/tokens UI, `helper/backoff.go`, two test doubles, a few tests and the rescheduling e2e suite). They were removed and reimplemented clean room on 2026-10-24: the analyst wrote functional specifications from exported signatures, MPL call sites, the public API and public changelog/PR titles only, without reading the files; the developers worked in worktrees where the files were already deleted and were forbidden to read them or the commits that introduced them. The rescheduling e2e suite was restored from its earlier, MPL-licensed upstream version instead. `reuse lint` must not report `BUSL-1.1` anywhere.
+
 **Licenses becoming free:** four years after their release, the BSL versions move to MPL 2.0 (Nomad v1.6.6: 2028-01-15, Nomad v1.6.10: 2028-04-16, Nomad v1.7.0: 2027-12-07, Consul v1.17.0: 2027-11-03). After that, the code of the given version can be freely adopted; until then it cannot.
 
 ## File-level license marking
