@@ -32,4 +32,12 @@ namespace "default" {
       capabilities = ["list", "read", "write", "destroy"]
     }
   }
+
+  # With -objects=native: the native LoadBalancer objects. "write" is
+  # needed only for the objects created from marked services (discovery);
+  # the status is written with "write-status". The crd/... Variables path
+  # above is then unused.
+  object "norca.io/LoadBalancer" {
+    capabilities = ["read", "write", "write-status"]
+  }
 }

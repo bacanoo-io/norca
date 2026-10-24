@@ -43,14 +43,15 @@ type InformerOptions struct {
 }
 
 // Informer keeps a local cache of the objects of a kind: it lists them, then
-// follows the Variables event topic with exact resumption, and lists again
-// whenever the event stream cannot be resumed (410 Gone).
+// follows the event topic of the objects (Variables, or CustomObject for
+// native objects) with exact resumption, and lists again whenever the event
+// stream cannot be resumed (410 Gone).
 //
 // Objects whose Variable cannot be decoded (for example an invalid JSON
 // spec) are logged and ignored: the cache keeps their last valid version.
 type Informer struct {
 	kind   Kind
-	vars   VariablesAPI
+	store  objectStore
 	events EventsAPI
 	opts   InformerOptions
 	logger *slog.Logger
@@ -63,11 +64,27 @@ type Informer struct {
 	synced   chan struct{}
 }
 
-// NewInformer returns an informer for the objects of kind.
+// NewInformer returns an informer for the objects of kind stored as
+// Variables.
 func NewInformer(kind Kind, vars VariablesAPI, events EventsAPI, opts InformerOptions) (*Informer, error) {
 	if err := kind.Validate(); err != nil {
 		return nil, err
 	}
+	return newInformer(&variablesStore{k: kind, vars: vars}, events, opts), nil
+}
+
+// NewNativeInformer returns an informer for the native objects of a
+// registered kind. It watches the CustomObject topic, whose events carry
+// the whole object, so changes are applied without reading the objects.
+func NewNativeInformer(kind Kind, objs ObjectsAPI, events EventsAPI, opts InformerOptions) (*Informer, error) {
+	if err := kind.Validate(); err != nil {
+		return nil, err
+	}
+	return newInformer(&nativeStore{k: kind, objs: objs}, events, opts), nil
+}
+
+func newInformer(store objectStore, events EventsAPI, opts InformerOptions) *Informer {
+	kind := store.kind()
 	if opts.Namespace == "" {
 		opts.Namespace = "default"
 	}
@@ -82,13 +99,13 @@ func NewInformer(kind Kind, vars VariablesAPI, events EventsAPI, opts InformerOp
 	}
 	return &Informer{
 		kind:   kind,
-		vars:   vars,
+		store:  store,
 		events: events,
 		opts:   opts,
 		logger: opts.Logger.With("kind", kind.String()),
 		cache:  map[ObjectKey]*Object{},
 		synced: make(chan struct{}),
-	}, nil
+	}
 }
 
 // Kind returns the kind of the informer.
@@ -113,7 +130,7 @@ func (i *Informer) Run(ctx context.Context) {
 	w.run(ctx, watchConfig{
 		name:         "objects",
 		namespace:    i.opts.Namespace,
-		topics:       map[api.Topic][]string{api.TopicVariables: {i.kind.WatchPattern()}},
+		topics:       i.store.topics(),
 		list:         func(ctx context.Context) (uint64, error) { return i.sync(ctx, 0) },
 		poll:         i.sync,
 		apply:        i.apply,
@@ -175,27 +192,26 @@ func (i *Informer) Keys() []ObjectKey {
 // sync lists the objects (with a blocking query after waitIndex if it is
 // positive), updates the cache and calls the handlers for the differences.
 func (i *Informer) sync(ctx context.Context, waitIndex uint64) (uint64, error) {
-	metas, index, err := i.vars.ListVariables(ctx, i.opts.Namespace, i.kind.Prefix(), waitIndex)
+	entries, index, err := i.store.list(ctx, i.opts.Namespace, waitIndex)
 	if err != nil {
 		return 0, err
 	}
 
-	seen := make(map[ObjectKey]struct{}, len(metas))
-	for _, meta := range metas {
-		name, ok := i.kind.NameFromPath(meta.Path)
-		if !ok {
-			continue
-		}
-		key := ObjectKey{Namespace: meta.Namespace, Name: name}
-		seen[key] = struct{}{}
+	seen := make(map[ObjectKey]struct{}, len(entries))
+	for _, e := range entries {
+		seen[e.key] = struct{}{}
 
 		i.mu.RLock()
-		cached := i.cache[key]
+		cached := i.cache[e.key]
 		i.mu.RUnlock()
-		if cached != nil && cached.ModifyIndex == meta.ModifyIndex {
+		if cached != nil && cached.ModifyIndex == e.modifyIndex {
 			continue
 		}
-		if err := i.fetch(ctx, key); err != nil {
+		if e.obj != nil {
+			i.put(e.obj)
+			continue
+		}
+		if err := i.fetch(ctx, e.key); err != nil {
 			return 0, err
 		}
 	}
@@ -221,24 +237,22 @@ func (i *Informer) sync(ctx context.Context, waitIndex uint64) (uint64, error) {
 // fetch reads an object and stores it in the cache. A missing object is
 // removed from the cache.
 func (i *Informer) fetch(ctx context.Context, key ObjectKey) error {
-	v, err := i.vars.ReadVariable(ctx, key.Namespace, i.kind.Path(key.Name))
-	if errors.Is(err, ErrNotFound) {
+	obj, err := i.store.get(ctx, key)
+	switch {
+	case errors.Is(err, ErrNotFound):
 		i.remove(key, 0)
 		return nil
-	}
-	if err != nil {
-		return err
-	}
-	obj, err := ObjectFromVariable(i.kind, v)
-	if err != nil {
+	case errors.Is(err, errInvalidObject):
 		i.logger.Warn("ignoring invalid object", "object", key.String(), "error", err)
 		return nil
+	case err != nil:
+		return err
 	}
-	i.store(obj)
+	i.put(obj)
 	return nil
 }
 
-func (i *Informer) store(obj *Object) {
+func (i *Informer) put(obj *Object) {
 	i.mu.Lock()
 	old := i.cache[obj.Key]
 	if old != nil && old.ModifyIndex >= obj.ModifyIndex {
@@ -282,32 +296,26 @@ func notifyDelete(handlers []EventHandler, obj *Object) {
 	}
 }
 
-// apply processes one Variables event. Events carry only metadata, so the
-// object is read for upserts.
+// apply processes one event. Variables events carry only metadata, so the
+// object is read for upserts; native object events carry the object.
 func (i *Informer) apply(ctx context.Context, ev *api.Event) error {
-	if ev.Topic != api.TopicVariables {
-		return nil
-	}
-	meta, err := ev.Variable()
-	if err != nil || meta == nil {
-		i.logger.Warn("invalid Variables event", "key", ev.Key, "error", err)
-		return nil
-	}
-	name, ok := i.kind.NameFromPath(meta.Path)
+	change, ok := i.store.decodeEvent(ev)
 	if !ok {
 		return nil
 	}
-	key := ObjectKey{Namespace: meta.Namespace, Name: name}
-
-	if ev.Type == "VariableDeleted" {
-		i.remove(key, ev.Index)
+	if change.deleted {
+		i.remove(change.key, ev.Index)
 		return nil
 	}
 	i.mu.RLock()
-	cached := i.cache[key]
+	cached := i.cache[change.key]
 	i.mu.RUnlock()
-	if cached != nil && cached.ModifyIndex >= meta.ModifyIndex {
+	if cached != nil && cached.ModifyIndex >= change.modifyIndex {
 		return nil
 	}
-	return i.fetch(ctx, key)
+	if change.obj != nil {
+		i.put(change.obj)
+		return nil
+	}
+	return i.fetch(ctx, change.key)
 }

@@ -3,8 +3,10 @@
 
 // Package fake provides an in-memory implementation of controller.Backend
 // for unit tests of controllers: Variables with check-and-set and blocking
-// queries, jobs, and an event stream with exact resumption whose buffer can
-// be truncated to provoke 410 Gone.
+// queries, native custom objects (with a server maintained generation and a
+// separate status, but without schema validation or default values), jobs,
+// and an event stream with exact resumption whose buffer can be truncated to
+// provoke 410 Gone.
 package fake
 
 import (
@@ -14,6 +16,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -30,8 +33,10 @@ type Backend struct {
 	index   uint64
 	vars    map[string]*api.Variable // namespace + "\x00" + path
 	jobs    map[string]*api.Job      // namespace + "\x00" + id
+	objs    map[string]*api.CustomObject
 	varsIdx uint64
 	jobsIdx uint64
+	objsIdx uint64
 
 	events     []api.Event
 	oldest     uint64 // events below this index were dropped
@@ -52,6 +57,7 @@ func New() *Backend {
 	return &Backend{
 		vars:       map[string]*api.Variable{},
 		jobs:       map[string]*api.Job{},
+		objs:       map[string]*api.CustomObject{},
 		changed:    make(chan struct{}),
 		streams:    map[*stream]struct{}{},
 		failNext:   map[string]error{},
@@ -335,7 +341,7 @@ func matches(ev api.Event, namespace string, topics map[api.Topic][]string) bool
 	keys := append(topics[api.TopicAll], topics[ev.Topic]...)
 	for _, k := range keys {
 		switch {
-		case k == "*" || k == ev.Key:
+		case k == "*" || k == ev.Key || slices.Contains(ev.FilterKeys, k):
 			return true
 		case strings.HasSuffix(k, "*") && strings.HasPrefix(ev.Key, strings.TrimSuffix(k, "*")):
 			return true
