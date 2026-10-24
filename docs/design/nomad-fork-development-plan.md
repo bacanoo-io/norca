@@ -389,6 +389,6 @@ Every source in the plan is MPL 2.0 or under a compatible license, so the autosc
 
 <!-- -->
 
-- [ ] A separate region per cloud (proposed) or one region with clients in several clouds? Whether multiregion deployment needs to be developed depends on this.
-- [ ] Which clouds and sites take part, and is there already a VPN or dedicated connection between them that can be built on instead of the WireGuard mesh?
-- [ ] Do we use NATS only as an event and notification bridge, or is application-to-application messaging also built on it? (The control of Nomad, including multiregion deployment, runs over the Nomad RPC in both cases.)
+- [x] A separate region per cloud (proposed) or one region with clients in several clouds? Decided 2026-10-24: a separate region per cloud, so multiregion deployment is developed.
+- [x] Which clouds and sites take part, and is there already a VPN or dedicated connection between them that can be built on instead of the WireGuard mesh? Decided 2026-10-24: AWS, GCP and Hetzner Cloud, one provider per region (providers are not mixed within a region); a VPN between them already exists and is used instead of a new WireGuard mesh.
+- [x] Do we use NATS only as an event and notification bridge, or is application-to-application messaging also built on it? Decided 2026-10-24: only as an event and notification bridge. (The control of Nomad, including multiregion deployment, runs over the Nomad RPC in both cases.)
