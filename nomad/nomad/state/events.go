@@ -44,6 +44,7 @@ var MsgTypeEvents = map[structs.MessageType]string{
 	structs.VarApplyStateRequestType:                     structs.TypeVariableUpserted,
 	structs.AdmissionPolicyUpsertRequestType:             structs.TypeAdmissionPolicyUpserted,
 	structs.AdmissionPolicyDeleteRequestType:             structs.TypeAdmissionPolicyDeleted,
+	structs.AllocEvictRequestType:                        structs.TypeAllocationEvicted,
 }
 
 func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {

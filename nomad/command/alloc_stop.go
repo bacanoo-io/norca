@@ -4,6 +4,7 @@
 package command
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -47,6 +48,11 @@ Stop Specific Options:
     this flag will result in failed network connections to the allocation
     being stopped.
 
+  -respect-disruption
+    Stop the allocation through the eviction API, which only stops it if the
+    disruption budget of its task group allows it. If the budget does not
+    allow it, the command fails and the allocation keeps running.
+
   -verbose
     Show full information.
 `
@@ -56,13 +62,14 @@ Stop Specific Options:
 func (c *AllocStopCommand) Name() string { return "alloc stop" }
 
 func (c *AllocStopCommand) Run(args []string) int {
-	var detach, verbose, noShutdownDelay bool
+	var detach, verbose, noShutdownDelay, respectDisruption bool
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.BoolVar(&detach, "detach", false, "")
 	flags.BoolVar(&verbose, "verbose", false, "")
 	flags.BoolVar(&noShutdownDelay, "no-shutdown-delay", false, "")
+	flags.BoolVar(&respectDisruption, "respect-disruption", false, "")
 
 	if err := flags.Parse(args); err != nil {
 		return 1
@@ -125,6 +132,10 @@ func (c *AllocStopCommand) Run(args []string) int {
 		return 1
 	}
 
+	if respectDisruption {
+		return c.evict(client, alloc, noShutdownDelay, detach, length)
+	}
+
 	var opts *api.QueryOptions
 	if noShutdownDelay {
 		opts = &api.QueryOptions{Params: map[string]string{"no_shutdown_delay": "true"}}
@@ -143,6 +154,41 @@ func (c *AllocStopCommand) Run(args []string) int {
 
 	mon := newMonitor(c.Ui, client, length)
 	return mon.monitor(resp.EvalID)
+}
+
+// evict stops the allocation through the eviction API.
+func (c *AllocStopCommand) evict(client *api.Client, alloc *api.Allocation, noShutdownDelay, detach bool, length int) int {
+	resp, err := client.Allocations().Evict(alloc.ID, noShutdownDelay, &api.WriteOptions{Namespace: alloc.Namespace})
+	if api.IsDisruptionBudgetExceeded(err) {
+		c.Ui.Error(fmt.Sprintf("Allocation %q was not stopped: %s", limit(alloc.ID, length), disruptionErrorBody(err)))
+		return 1
+	}
+	if err != nil {
+		c.Ui.Error(fmt.Sprintf("Error evicting allocation: %s", err))
+		return 1
+	}
+	if resp.EvalID == "" {
+		c.Ui.Output(fmt.Sprintf("Allocation %q is already stopping", limit(alloc.ID, length)))
+		return 0
+	}
+
+	if detach {
+		c.Ui.Output(resp.EvalID)
+		return 0
+	}
+
+	mon := newMonitor(c.Ui, client, length)
+	return mon.monitor(resp.EvalID)
+}
+
+// disruptionErrorBody returns the message of an eviction refused by the
+// disruption budget.
+func disruptionErrorBody(err error) string {
+	var uErr api.UnexpectedResponseError
+	if errors.As(err, &uErr) && uErr.HasBody() {
+		return strings.TrimSpace(uErr.Body())
+	}
+	return err.Error()
 }
 
 func (c *AllocStopCommand) Synopsis() string {

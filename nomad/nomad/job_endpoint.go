@@ -83,6 +83,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobNamespaceConstraintCheckHook{srv: s},
 			jobNodePoolValidatingHook{srv: s},
 			jobAllocAffinityHook{srv: s},
+			jobDisruptionHook{srv: s},
 			jobQuotaValidatingHook{srv: s},
 			&jobValidate{srv: s},
 			&memoryOversubscriptionValidate{srv: s},

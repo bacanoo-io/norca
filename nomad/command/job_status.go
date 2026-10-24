@@ -400,6 +400,8 @@ func (c *JobStatusCommand) outputJobInfo(client *api.Client, job *api.Job) error
 		c.Ui.Output(c.Colorize().Color(c.formatDeployment(client, latestDeployment)))
 	}
 
+	c.outputDisruptionBudgets(client, job, q)
+
 	// Format the allocs
 	c.Ui.Output(c.Colorize().Color("\n[bold]Allocations[reset]"))
 	c.Ui.Output(formatAllocListStubs(jobAllocs, c.verbose, c.length))
