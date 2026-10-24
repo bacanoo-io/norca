@@ -19,7 +19,7 @@ type OperatorGossipKeyringInstallCommand struct {
 
 func (c *OperatorGossipKeyringInstallCommand) Help() string {
 	helpText := `
-Usage: nomad operator gossip keyring install [options] <key>
+Usage: norca operator gossip keyring install [options] <key>
 
   Install a new encryption key used for gossip. This will broadcast the new key
   to all members in the cluster.
@@ -76,7 +76,7 @@ func (c *OperatorGossipKeyringInstallCommand) Run(args []string) int {
 
 	client, err := c.Meta.Client()
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error creating nomad cli client: %s", err))
+		c.Ui.Error(fmt.Sprintf("Error creating norca cli client: %s", err))
 		return 1
 	}
 

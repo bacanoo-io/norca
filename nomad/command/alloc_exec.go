@@ -31,7 +31,7 @@ type AllocExecCommand struct {
 
 func (l *AllocExecCommand) Help() string {
 	helpText := `
-Usage: nomad alloc exec [options] <allocation> <command>
+Usage: norca alloc exec [options] <allocation> <command>
 
   Run command inside the environment of the given allocation and task.
 

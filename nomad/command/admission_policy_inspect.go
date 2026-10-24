@@ -24,7 +24,7 @@ func (c *AdmissionPolicyInspectCommand) Synopsis() string {
 
 func (c *AdmissionPolicyInspectCommand) Help() string {
 	helpText := `
-Usage: nomad admission-policy inspect [options] <name>
+Usage: norca admission-policy inspect [options] <name>
 
   Inspect is used to show the details of an admission policy.
 

@@ -91,17 +91,13 @@ func (c *VersionInfo) VersionNumber() string {
 	return version
 }
 
+// FullVersionNumber returns the human readable version of the product, e.g.
+// "Norca v0.1.0 (Nomad API 1.6.5 compatible)", followed by the build date and,
+// if rev is true, the revision on separate lines.
 func (c *VersionInfo) FullVersionNumber(rev bool) string {
 	var versionString bytes.Buffer
 
-	fmt.Fprintf(&versionString, "Nomad v%s", c.Version)
-	if c.VersionPrerelease != "" {
-		fmt.Fprintf(&versionString, "-%s", c.VersionPrerelease)
-	}
-
-	if c.VersionMetadata != "" {
-		fmt.Fprintf(&versionString, "+%s", c.VersionMetadata)
-	}
+	fmt.Fprintf(&versionString, "Norca v%s (Nomad API %s compatible)", NorcaVersion, c.VersionNumber())
 
 	if !c.BuildDate.IsZero() {
 		fmt.Fprintf(&versionString, "\nBuildDate %s", c.BuildDate.Format(time.RFC3339))

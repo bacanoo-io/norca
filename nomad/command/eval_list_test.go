@@ -19,40 +19,40 @@ func TestEvalList_ArgsWithoutPageToken(t *testing.T) {
 		expected string
 	}{
 		{
-			cli:      "nomad eval list -page-token=abcdef",
-			expected: "nomad eval list",
+			cli:      "norca eval list -page-token=abcdef",
+			expected: "norca eval list",
 		},
 		{
-			cli:      "nomad eval list -page-token abcdef",
-			expected: "nomad eval list",
+			cli:      "norca eval list -page-token abcdef",
+			expected: "norca eval list",
 		},
 		{
-			cli:      "nomad eval list -per-page 3 -page-token abcdef",
-			expected: "nomad eval list -per-page 3",
+			cli:      "norca eval list -per-page 3 -page-token abcdef",
+			expected: "norca eval list -per-page 3",
 		},
 		{
-			cli:      "nomad eval list -page-token abcdef -per-page 3",
-			expected: "nomad eval list -per-page 3",
+			cli:      "norca eval list -page-token abcdef -per-page 3",
+			expected: "norca eval list -per-page 3",
 		},
 		{
-			cli:      "nomad eval list -per-page=3 -page-token abcdef",
-			expected: "nomad eval list -per-page=3",
+			cli:      "norca eval list -per-page=3 -page-token abcdef",
+			expected: "norca eval list -per-page=3",
 		},
 		{
-			cli:      "nomad eval list -verbose -page-token abcdef",
-			expected: "nomad eval list -verbose",
+			cli:      "norca eval list -verbose -page-token abcdef",
+			expected: "norca eval list -verbose",
 		},
 		{
-			cli:      "nomad eval list -page-token abcdef -verbose",
-			expected: "nomad eval list -verbose",
+			cli:      "norca eval list -page-token abcdef -verbose",
+			expected: "norca eval list -verbose",
 		},
 		{
-			cli:      "nomad eval list -verbose -page-token abcdef -per-page 3",
-			expected: "nomad eval list -verbose -per-page 3",
+			cli:      "norca eval list -verbose -page-token abcdef -per-page 3",
+			expected: "norca eval list -verbose -per-page 3",
 		},
 		{
-			cli:      "nomad eval list -page-token abcdef -verbose -per-page 3",
-			expected: "nomad eval list -verbose -per-page 3",
+			cli:      "norca eval list -page-token abcdef -verbose -per-page 3",
+			expected: "norca eval list -verbose -per-page 3",
 		},
 	}
 

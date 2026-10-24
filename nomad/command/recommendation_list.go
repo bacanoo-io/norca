@@ -24,7 +24,7 @@ type RecommendationListCommand struct {
 // Help satisfies the cli.Command Help function.
 func (r *RecommendationListCommand) Help() string {
 	helpText := `
-Usage: nomad recommendation list [options]
+Usage: norca recommendation list [options]
 
   List is used to list the available recommendations.
 
@@ -60,7 +60,7 @@ Recommendation List Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (r *RecommendationListCommand) Synopsis() string {
-	return "Display all Nomad recommendations"
+	return "Display all Norca recommendations"
 }
 
 func (r *RecommendationListCommand) AutocompleteFlags() complete.Flags {

@@ -58,11 +58,11 @@ Running a development build
 1. Compile a development binary (see the [UI README](https://github.com/hashicorp/nomad/blob/main/ui/README.md) to include the web UI in the binary)
     ```sh
     $ make dev
-    # find the built binary at ./bin/nomad
+    # find the built binary at ./bin/norca
     ```
 1. Start the agent in dev mode
     ```sh
-    $ sudo bin/nomad agent -dev
+    $ sudo bin/norca agent -dev
     ```
 1. (Optionally) Run Consul to enable service discovery and health checks
     1. Download [Consul](https://www.consul.io/downloads)

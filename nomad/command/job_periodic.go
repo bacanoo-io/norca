@@ -25,13 +25,13 @@ func (f *JobPeriodicCommand) Synopsis() string {
 
 func (f *JobPeriodicCommand) Help() string {
 	helpText := `
-Usage: nomad job periodic <subcommand> [options] [args]
+Usage: norca job periodic <subcommand> [options] [args]
 
   This command groups subcommands for interacting with periodic jobs.
 
   Force a periodic job:
 
-      $ nomad job periodic force <job_id>
+      $ norca job periodic force <job_id>
 
   Please see the individual subcommand help for detailed usage information.
 `

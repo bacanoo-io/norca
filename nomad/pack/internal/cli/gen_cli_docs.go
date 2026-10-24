@@ -151,7 +151,7 @@ description: "%s"
 
 `, capital, name, cmd.Synopsis())
 
-	fmt.Fprintf(w, "# Nomad Pack %s\n\nCommand: `nomad pack %s`\n\n%s\n\n", capital, name, cmd.Synopsis())
+	fmt.Fprintf(w, "# Norca Pack %s\n\nCommand: `norca pack %s`\n\n%s\n\n", capital, name, cmd.Synopsis())
 
 	if c.mode == "mdx" {
 		descFile := goodName + "_desc.mdx"
@@ -174,13 +174,13 @@ description: "%s"
 			optionalAlias = helpText[1]
 		}
 
-		reUsage := regexp.MustCompile(`nomad pack (?P<cmd>.*)$`)
+		reUsage := regexp.MustCompile(`norca pack (?P<cmd>.*)$`)
 		reAlias := regexp.MustCompile(`Alias: `)
 
 		matches := reUsage.FindStringSubmatch(usage)
 
 		if len(matches) > 0 {
-			fmt.Fprintf(w, "## Usage\n\nUsage: `nomad pack %s`\n", matches[1])
+			fmt.Fprintf(w, "## Usage\n\nUsage: `norca pack %s`\n", matches[1])
 
 			hasAlias := false
 			if optionalAlias != "" {
@@ -188,7 +188,7 @@ description: "%s"
 				if len(matchAlias) > 0 {
 					hasAlias = true
 					aliasMatch := reUsage.FindStringSubmatch(optionalAlias)
-					fmt.Fprintf(w, "\nAlias: `nomad pack %s`\n", aliasMatch[1])
+					fmt.Fprintf(w, "\nAlias: `norca pack %s`\n", aliasMatch[1])
 				}
 			}
 
@@ -229,7 +229,7 @@ description: "%s"
 			// TODO: Fix comment
 			// Fail over to simple docs gen. These are for top level commands
 			// like `nomad pack context` that don't work without a subcommand and fail the regex match.
-			fmt.Fprintf(w, "## Usage\n\nUsage: `nomad pack %s [options]`\n", name)
+			fmt.Fprintf(w, "## Usage\n\nUsage: `norca pack %s [options]`\n", name)
 		}
 
 		// Generate flag options

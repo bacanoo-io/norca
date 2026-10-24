@@ -5,10 +5,10 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/hashicorp/nomad/api"
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 
 	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
@@ -300,7 +300,7 @@ func getPackJobsByDeploy(jobs []*api.Job, c *api.Client, cfg *caching.PackConfig
 		if len(packJobs) == 0 && hasOtherDeploys {
 			// TODO: the aesthetics here could be better. This error line is very long.
 			return nil, fmt.Errorf(
-				"pack %q running but not in deployment %q. Run \"nomad pack status %s\" for more information",
+				"pack %q running but not in deployment %q. Run \"norca pack status %s\" for more information",
 				cfg.Name, deploymentName, cfg.Name)
 		}
 	}
@@ -477,9 +477,9 @@ func handleBasicAuth(s string) (string, string, string) {
 }
 
 // clientOptsFromEnvironment populates api client conf with environment
-// variables present at the CLI's runtime.
+// variables present at the CLI's runtime: NORCA_*, or NOMAD_* as a fallback.
 func clientOptsFromEnvironment(conf *api.Config) {
-	if v := os.Getenv("NOMAD_ADDR"); v != "" {
+	if v := clienv.Get("ADDR"); v != "" {
 		// we support user:pass@addr here
 		user, pass, addr := handleBasicAuth(v)
 		conf.Address = addr
@@ -488,26 +488,26 @@ func clientOptsFromEnvironment(conf *api.Config) {
 			conf.HttpAuth.Password = pass
 		}
 	}
-	if v := os.Getenv("NOMAD_NAMESPACE"); v != "" {
+	if v := clienv.Get("NAMESPACE"); v != "" {
 		conf.Namespace = v
 	}
-	if v := os.Getenv("NOMAD_REGION"); v != "" {
+	if v := clienv.Get("REGION"); v != "" {
 		conf.Region = v
 	}
-	if v := os.Getenv("NOMAD_TOKEN"); v != "" {
+	if v := clienv.Get("TOKEN"); v != "" {
 		conf.SecretID = v
 	}
-	if cc, ck := os.Getenv("NOMAD_CLIENT_CERT"), os.Getenv("NOMAD_CLIENT_KEY"); cc != "" && ck != "" {
+	if cc, ck := clienv.Get("CLIENT_CERT"), clienv.Get("CLIENT_KEY"); cc != "" && ck != "" {
 		conf.TLSConfig.ClientCert = cc
 		conf.TLSConfig.ClientKey = ck
 	}
-	if v := os.Getenv("NOMAD_CACERT"); v != "" {
+	if v := clienv.Get("CACERT"); v != "" {
 		conf.TLSConfig.CACert = v
 	}
-	if v := os.Getenv("NOMAD_TLS_SERVER_NAME"); v != "" {
+	if v := clienv.Get("TLS_SERVER_NAME"); v != "" {
 		conf.TLSConfig.TLSServerName = v
 	}
-	if _, found := os.LookupEnv("NOMAD_SKIP_VERIFY"); found {
+	if _, found := clienv.Lookup("SKIP_VERIFY"); found {
 		conf.TLSConfig.Insecure = true
 	}
 }

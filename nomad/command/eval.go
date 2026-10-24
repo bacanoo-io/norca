@@ -15,7 +15,7 @@ type EvalCommand struct {
 
 func (f *EvalCommand) Help() string {
 	helpText := `
-Usage: nomad eval <subcommand> [options] [args]
+Usage: norca eval <subcommand> [options] [args]
 
   This command groups subcommands for interacting with evaluations. Evaluations
   are used to trigger a scheduling event. As such, evaluations are an internal
@@ -24,15 +24,15 @@ Usage: nomad eval <subcommand> [options] [args]
 
   List evaluations:
 
-      $ nomad eval list
+      $ norca eval list
 
   Examine an evaluations status:
 
-      $ nomad eval status <eval-id>
+      $ norca eval status <eval-id>
 
   Delete evaluations:
 
-      $ nomad eval delete <eval-id>
+      $ norca eval delete <eval-id>
 
   Please see the individual subcommand help for detailed usage information.
 `

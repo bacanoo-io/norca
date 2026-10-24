@@ -24,7 +24,7 @@ type VolumeSnapshotListCommand struct {
 
 func (c *VolumeSnapshotListCommand) Help() string {
 	helpText := `
-Usage: nomad volume snapshot list [-plugin plugin_id]
+Usage: norca volume snapshot list [-plugin plugin_id]
 
   Display a list of CSI volume snapshots for a plugin along
   with their source volume ID as known to the external

@@ -207,7 +207,7 @@ func (c *PlanCommand) Flags() *flag.Sets {
 			Target:  &c.exitCodeNoChanges,
 			Default: 0,
 			EnvVar:  EnvPlanExitCodeNoChanges,
-			Usage:   `Override exit code returned when the plan shows no changes. Can also be set via NOMAD_PACK_PLAN_EXIT_CODE_NO_CHANGES environment variable (flags take precedence).`,
+			Usage:   `Override exit code returned when the plan shows no changes. Can also be set via the NORCA_PACK_PLAN_EXIT_CODE_NO_CHANGES (or NOMAD_PACK_PLAN_EXIT_CODE_NO_CHANGES) environment variable (flags take precedence).`,
 		})
 
 		f.IntVar(&flag.IntVar{
@@ -215,7 +215,7 @@ func (c *PlanCommand) Flags() *flag.Sets {
 			Target:  &c.exitCodeChanges,
 			Default: 1,
 			EnvVar:  EnvPlanExitCodeMakesChanges,
-			Usage:   `Override exit code returned when the plan shows changes. Can also be set via NOMAD_PACK_PLAN_EXIT_CODE_MAKES_CHANGES environment variable (flags take precedence).`,
+			Usage:   `Override exit code returned when the plan shows changes. Can also be set via the NORCA_PACK_PLAN_EXIT_CODE_MAKES_CHANGES (or NOMAD_PACK_PLAN_EXIT_CODE_MAKES_CHANGES) environment variable (flags take precedence).`,
 		})
 
 		f.IntVar(&flag.IntVar{
@@ -223,7 +223,7 @@ func (c *PlanCommand) Flags() *flag.Sets {
 			Target:  &c.exitCodeError,
 			Default: 255,
 			EnvVar:  EnvPlanExitCodeError,
-			Usage:   `Override exit code returned when there is an error. Can also be set via NOMAD_PACK_PLAN_EXIT_CODE_ERROR environment variable (flags take precedence).`,
+			Usage:   `Override exit code returned when there is an error. Can also be set via the NORCA_PACK_PLAN_EXIT_CODE_ERROR (or NOMAD_PACK_PLAN_EXIT_CODE_ERROR) environment variable (flags take precedence).`,
 		})
 	})
 }
@@ -239,26 +239,26 @@ func (c *PlanCommand) AutocompleteFlags() complete.Flags {
 func (c *PlanCommand) Help() string {
 	c.Example = `
 	# Plan an example pack with the default deployment name
-	nomad pack plan example
+	norca pack plan example
 
 	# Plan an example pack at a specific ref
-	nomad pack plan example --ref=v0.0.1
+	norca pack plan example --ref=v0.0.1
 
 	# Plan a pack from a registry other than the default registry
-	nomad pack plan traefik --registry=community --ref=v0.0.1
+	norca pack plan traefik --registry=community --ref=v0.0.1
 
 	# Plan an example pack without showing the diff
-	nomad pack plan example --diff=false
+	norca pack plan example --diff=false
 
 	# Plan a pack under development from the filesystem - supports current
 	# working directory or relative path
-	nomad pack plan .
+	norca pack plan .
 	`
 
 	return formatHelp(`
-	Usage: nomad pack plan <pack-name> [options]
+	Usage: norca pack plan <pack-name> [options]
 
-	Determine the effects of submitting a new or updated Nomad Pack
+	Determine the effects of submitting a new or updated Norca Pack
 
 	Plan will return one of the following exit codes:
 		* code 0:   No objects will be created or destroyed.

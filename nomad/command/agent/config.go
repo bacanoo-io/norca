@@ -1503,7 +1503,7 @@ func (c *Config) Merge(b *Config) *Config {
 	if result.Audit == nil && b.Audit != nil {
 		audit := *b.Audit
 		result.Audit = &audit
-	} else if b.ACL != nil {
+	} else if b.Audit != nil {
 		result.Audit = result.Audit.Merge(b.Audit)
 	}
 

@@ -102,11 +102,11 @@ func (c *GeneratePackCommand) Synopsis() string {
 func (c *GeneratePackCommand) Help() string {
 	c.Example = `
 	# Create a new pack named "my-new-pack" in the current directory.
-	nomad pack generate pack my-new-pack
+	norca pack generate pack my-new-pack
 
 	`
 	return formatHelp(`
-	Usage: nomad pack generate pack <name>
+	Usage: norca pack generate pack <name>
 
 	Generate a new pack.
 

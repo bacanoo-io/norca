@@ -38,7 +38,7 @@ type ACLAuthMethodCreateCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLAuthMethodCreateCommand) Help() string {
 	helpText := `
-Usage: nomad acl auth-method create [options]
+Usage: norca acl auth-method create [options]
 
   Create is used to create new ACL auth methods. Use requires a management token.
 

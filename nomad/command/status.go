@@ -21,7 +21,7 @@ type StatusCommand struct {
 
 func (c *StatusCommand) Help() string {
 	helpText := `
-Usage: nomad status [options] <identifier>
+Usage: norca status [options] <identifier>
 
   Display the status output for any given resource. The command will
   detect the type of resource being queried and display the appropriate

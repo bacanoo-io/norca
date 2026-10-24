@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/nomad/api"
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/hashicorp/nomad/helper/pointer"
 	colorable "github.com/mattn/go-colorable"
 	"github.com/mitchellh/cli"
@@ -218,8 +219,8 @@ func (m *Meta) Colorize() *colorstring.Colorize {
 }
 
 func (m *Meta) SetupUi(args []string) {
-	noColor := os.Getenv(EnvNomadCLINoColor) != ""
-	forceColor := os.Getenv(EnvNomadCLIForceColor) != ""
+	noColor := clienv.Get(EnvCLINoColor) != ""
+	forceColor := clienv.Get(EnvCLIForceColor) != ""
 
 	for _, arg := range args {
 		// Check if color is set
@@ -346,20 +347,20 @@ func generalOptionsUsage(usageOpts usageOptsFlags) string {
 
 	helpText := `
   -address=<addr>
-    The address of the Nomad server.
-    Overrides the NOMAD_ADDR environment variable if set.
+    The address of the Norca server.
+    Overrides the NORCA_ADDR environment variable if set.
     Default = http://127.0.0.1:4646
 
   -region=<region>
-    The region of the Nomad servers to forward commands to.
-    Overrides the NOMAD_REGION environment variable if set.
+    The region of the Norca servers to forward commands to.
+    Overrides the NORCA_REGION environment variable if set.
     Defaults to the Agent's local region.
 `
 
 	namespaceText := `
   -namespace=<namespace>
     The target namespace for queries and actions bound to a namespace.
-    Overrides the NOMAD_NAMESPACE environment variable if set.
+    Overrides the NORCA_NAMESPACE environment variable if set.
     If set to '*', subcommands which support this functionality query
     all namespaces authorized to user.
     Defaults to the "default" namespace.
@@ -370,46 +371,50 @@ func generalOptionsUsage(usageOpts usageOptsFlags) string {
 	// present in the help messages.
 	remainingText := `
   -no-color
-    Disables colored command output. Alternatively, NOMAD_CLI_NO_COLOR may be
-    set. This option takes precedence over -force-color.
+    Disables colored command output. Alternatively, NORCA_CLI_NO_COLOR may
+    be set. This option takes precedence over -force-color.
 
   -force-color
     Forces colored command output. This can be used in cases where the usual
-    terminal detection fails. Alternatively, NOMAD_CLI_FORCE_COLOR may be set.
+    terminal detection fails. Alternatively, NORCA_CLI_FORCE_COLOR may be set.
     This option has no effect if -no-color is also used.
 
   -ca-cert=<path>
     Path to a PEM encoded CA cert file to use to verify the
-    Nomad server SSL certificate. Overrides the NOMAD_CACERT
+    Norca server SSL certificate. Overrides the NORCA_CACERT
     environment variable if set.
 
   -ca-path=<path>
     Path to a directory of PEM encoded CA cert files to verify
-    the Nomad server SSL certificate. If both -ca-cert and
+    the Norca server SSL certificate. If both -ca-cert and
     -ca-path are specified, -ca-cert is used. Overrides the
-    NOMAD_CAPATH environment variable if set.
+    NORCA_CAPATH environment variable if set.
 
   -client-cert=<path>
     Path to a PEM encoded client certificate for TLS authentication
-    to the Nomad server. Must also specify -client-key. Overrides
-    the NOMAD_CLIENT_CERT environment variable if set.
+    to the Norca server. Must also specify -client-key. Overrides
+    the NORCA_CLIENT_CERT environment variable if set.
 
   -client-key=<path>
     Path to an unencrypted PEM encoded private key matching the
     client certificate from -client-cert. Overrides the
-    NOMAD_CLIENT_KEY environment variable if set.
+    NORCA_CLIENT_KEY environment variable if set.
 
   -tls-server-name=<value>
     The server name to use as the SNI host when connecting via
-    TLS. Overrides the NOMAD_TLS_SERVER_NAME environment variable if set.
+    TLS. Overrides the NORCA_TLS_SERVER_NAME environment variable if set.
 
   -tls-skip-verify
     Do not verify TLS certificate. This is highly not recommended. Verification
-    will also be skipped if NOMAD_SKIP_VERIFY is set.
+    will also be skipped if NORCA_SKIP_VERIFY is set.
 
   -token
     The SecretID of an ACL token to use to authenticate API requests with.
-    Overrides the NOMAD_TOKEN environment variable if set.
+    Overrides the NORCA_TOKEN environment variable if set.
+
+  Each NORCA_* environment variable above is also accepted with the Nomad
+  name, e.g. NOMAD_ADDR for NORCA_ADDR. The NORCA_* variable takes
+  precedence when both are set.
 `
 
 	if usageOpts&usageOptsNoNamespace == 0 {
