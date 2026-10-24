@@ -4,8 +4,7 @@
 package flag
 
 import (
-	"os"
-
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 )
 
@@ -36,7 +35,7 @@ func (f *Set) StringVar(i *StringVar) {
 
 func (f *Set) StringVarP(i *StringVarP) {
 	initial := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		initial = v
 	}
 

@@ -20,7 +20,7 @@ type TLSCertInfoCommand struct {
 
 func (c *TLSCertInfoCommand) Help() string {
 	helpText := `
-Usage: nomad tls cert info <certificate file>
+Usage: norca tls cert info <certificate file>
 
   Show information about a TLS certificate.
 `

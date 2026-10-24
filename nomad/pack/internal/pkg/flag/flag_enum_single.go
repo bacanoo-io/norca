@@ -5,9 +5,9 @@ package flag
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 )
 
@@ -39,7 +39,7 @@ func (f *Set) EnumSingleVar(i *EnumSingleVar) {
 
 func (f *Set) EnumSingleVarP(i *EnumSingleVarP) {
 	initial := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		initial = v
 	}
 

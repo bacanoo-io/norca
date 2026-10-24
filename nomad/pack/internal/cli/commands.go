@@ -8,12 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"runtime"
 	"strconv"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/api"
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 
 	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
@@ -24,12 +24,12 @@ import (
 
 const (
 	// EnvAllowUnsetVars is the env var that prevents errors from unset variables.
-	EnvAllowUnsetVars = "NOMAD_PACK_ALLOW_UNSET_VARS"
+	EnvAllowUnsetVars = "NORCA_PACK_ALLOW_UNSET_VARS"
 
 	// Plan exit code environment variables
-	EnvPlanExitCodeNoChanges    = "NOMAD_PACK_PLAN_EXIT_CODE_NO_CHANGES"
-	EnvPlanExitCodeMakesChanges = "NOMAD_PACK_PLAN_EXIT_CODE_MAKES_CHANGES"
-	EnvPlanExitCodeError        = "NOMAD_PACK_PLAN_EXIT_CODE_ERROR"
+	EnvPlanExitCodeNoChanges    = "NORCA_PACK_PLAN_EXIT_CODE_NO_CHANGES"
+	EnvPlanExitCodeMakesChanges = "NORCA_PACK_PLAN_EXIT_CODE_MAKES_CHANGES"
+	EnvPlanExitCodeError        = "NORCA_PACK_PLAN_EXIT_CODE_ERROR"
 )
 
 // baseCommand is embedded in all commands to provide common logic and data.
@@ -208,7 +208,8 @@ func (c *baseCommand) Init(opts ...Option) error {
 
 	// if no flag, check env vars
 	if !c.allowUnsetVars {
-		c.allowUnsetVars, _ = strconv.ParseBool(os.Getenv(EnvAllowUnsetVars))
+		allowUnset, _ := clienv.LookupName(EnvAllowUnsetVars)
+		c.allowUnsetVars, _ = strconv.ParseBool(allowUnset)
 	}
 
 	// Do any validation after parsing
@@ -304,7 +305,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 					any to the underlying pack. Be mindful that, whether you
 					have made changes or not, the underlying Allocations will be
 					replaced. When managing packs, the name specified here is
-					the name that should be passed to Nomad Pack's plan and
+					the name that should be passed to the pack plan and
 					destroy commands.`,
 		})
 
@@ -332,13 +333,13 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 	}
 
 	if bit&flagSetNomadClient != 0 {
-		f := set.NewSet("Nomad Cluster Options")
+		f := set.NewSet("Norca Cluster Options")
 		f.StringVar(&flag.StringVar{
 			Name:    "address",
 			Target:  &c.nomadConfig.address,
 			Default: "",
-			Usage: `The address of the Nomad server.
-					Overrides the NOMAD_ADDR environment variable if set.`,
+			Usage: `The address of the Norca server.
+					Overrides the NORCA_ADDR environment variable if set.`,
 		})
 
 		f.StringVar(&flag.StringVar{
@@ -346,15 +347,15 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 			Target:  &c.nomadConfig.namespace,
 			Default: "",
 			Usage: `The target namespace for queries and actions bound to a namespace.
-					Overrides the NOMAD_NAMESPACE environment variable if set.`,
+					Overrides the NORCA_NAMESPACE environment variable if set.`,
 		})
 
 		f.StringVar(&flag.StringVar{
 			Name:    "region",
 			Target:  &c.nomadConfig.region,
 			Default: "",
-			Usage: `The region of the Nomad servers to forward commands to.
-					Overrides the NOMAD_REGION environment variable if set.`,
+			Usage: `The region of the Norca servers to forward commands to.
+					Overrides the NORCA_REGION environment variable if set.`,
 		})
 
 		f.StringVar(&flag.StringVar{
@@ -362,7 +363,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 			Target:  &c.nomadConfig.caCert,
 			Default: "",
 			Usage: `Path to a PEM encoded CA cert file to use to verify the
-					Nomad server SSL certificate. Overrides the NOMAD_CACERT
+					Norca server SSL certificate. Overrides the NORCA_CACERT
 					environment variable if set.`,
 		})
 
@@ -371,8 +372,8 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 			Target:  &c.nomadConfig.clientCert,
 			Default: "",
 			Usage: `Path to a PEM encoded client certificate for TLS authentication
-					to the Nomad server. Must also specify --client-key. Overrides
-					the NOMAD_CLIENT_CERT environment variable if set.`,
+					to the Norca server. Must also specify --client-key. Overrides
+					the NORCA_CLIENT_CERT environment variable if set.`,
 		})
 
 		f.StringVar(&flag.StringVar{
@@ -381,7 +382,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 			Default: "",
 			Usage: `Path to an unencrypted PEM encoded private key matching the
 					client certificate from --client-cert. Overrides the
-					NOMAD_CLIENT_KEY environment variable if set.`,
+					NORCA_CLIENT_KEY environment variable if set.`,
 		})
 
 		f.StringVar(&flag.StringVar{
@@ -389,7 +390,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 			Target:  &c.nomadConfig.tlsServerName,
 			Default: "",
 			Usage: `The server name to use as the SNI host when connecting via
-					TLS. Overrides the NOMAD_TLS_SERVER_NAME environment variable
+					TLS. Overrides the NORCA_TLS_SERVER_NAME environment variable
 					if set.`,
 		})
 
@@ -398,7 +399,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 			Target:  &c.nomadConfig.token,
 			Default: "",
 			Usage: `The SecretID of an ACL token to use to authenticate API requests with.
-					Overrides the NOMAD_TOKEN environment variable if set.`,
+					Overrides the NORCA_TOKEN environment variable if set.`,
 		})
 
 		f.BoolVarP(&flag.BoolVarP{
@@ -407,7 +408,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 				Target:  &c.nomadConfig.tlsSkipVerify,
 				Default: false,
 				Usage: `Do not verify TLS certificate. This is highly not recommended.
-						Verification will also be skipped if NOMAD_SKIP_VERIFY is set.`,
+						Verification will also be skipped if NORCA_SKIP_VERIFY is set.`,
 			},
 		})
 	}
@@ -424,9 +425,9 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 // Used on flag/arg parse error in c.Init method
 func (c *baseCommand) helpUsageMessage() string {
 	if c.cmdKey == "" {
-		return `See "nomad pack --help"`
+		return `See "norca pack --help"`
 	}
-	return fmt.Sprintf(`See "nomad pack %s --help"`, c.cmdKey)
+	return fmt.Sprintf(`See "norca pack %s --help"`, c.cmdKey)
 }
 
 // flagSetBit is used with baseCommand.flagSet

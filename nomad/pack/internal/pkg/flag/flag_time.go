@@ -4,10 +4,10 @@
 package flag
 
 import (
-	"os"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 )
 
@@ -37,7 +37,7 @@ func (f *Set) DurationVar(i *DurationVar) {
 
 func (f *Set) DurationVarP(i *DurationVarP) {
 	initial := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		if d, err := time.ParseDuration(appendDurationSuffix(v)); err == nil {
 			initial = d
 		}

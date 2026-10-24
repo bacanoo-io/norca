@@ -52,7 +52,7 @@ func (c *embeddedCommand) command(ctx context.Context) (*baseCommand, cli.Comman
 	base, commands := Commands(ctx, WithFlags(flag.NewSets()))
 	factory, ok := commands[c.name]
 	if !ok {
-		return nil, nil, fmt.Errorf("unknown Nomad Pack command %q", c.name)
+		return nil, nil, fmt.Errorf("unknown pack command %q", c.name)
 	}
 	cmd, err := factory()
 	if err != nil {
@@ -132,31 +132,31 @@ func (c *packCommand) Run(args []string) int {
 }
 
 func (c *packCommand) Synopsis() string {
-	return "Render, plan, run and manage Nomad Packs"
+	return "Render, plan, run and manage Norca Packs"
 }
 
 func (c *packCommand) Help() string {
 	helpText := `
-Usage: nomad PREFIX <subcommand> [options] [args]
+Usage: norca PREFIX <subcommand> [options] [args]
 
-  Nomad Pack is a templating and packaging tool for Nomad jobs. A pack is a
+  Norca Pack is a templating and packaging tool for Norca jobs. A pack is a
   directory of parameterized job templates and variables; packs are shared
   through registries. Packs are rendered on the client and the resulting jobs
   are submitted to the cluster.
 
   Render a pack from a local directory:
 
-      $ nomad PREFIX render ./my-pack
+      $ norca PREFIX render ./my-pack
 
   Plan and run a pack with variable overrides:
 
-      $ nomad PREFIX plan ./my-pack --var-file=./overrides.hcl
-      $ nomad PREFIX run ./my-pack --var-file=./overrides.hcl
+      $ norca PREFIX plan ./my-pack --var-file=./overrides.hcl
+      $ norca PREFIX run ./my-pack --var-file=./overrides.hcl
 
   Add a registry and list its packs:
 
-      $ nomad PREFIX registry add community github.com/hashicorp/nomad-pack-community-registry
-      $ nomad PREFIX list
+      $ norca PREFIX registry add community github.com/hashicorp/nomad-pack-community-registry
+      $ norca PREFIX list
 
   Please see the individual subcommand help for detailed usage information.
 `

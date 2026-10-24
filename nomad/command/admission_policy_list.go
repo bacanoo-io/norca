@@ -26,7 +26,7 @@ func (c *AdmissionPolicyListCommand) Synopsis() string {
 
 func (c *AdmissionPolicyListCommand) Help() string {
 	helpText := `
-Usage: nomad admission-policy list [options]
+Usage: norca admission-policy list [options]
 
   List is used to list the admission policies.
 

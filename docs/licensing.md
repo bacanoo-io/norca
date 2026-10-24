@@ -18,7 +18,7 @@ This document records under which license each part of the project falls, where 
 | HashiCorp Nomad Autoscaler | v0.6.0 (2026-09-28) | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 | There was no license change; its code goes into the `nomad/autoscaler` package of the Nomad fork |
 | HashiCorp Nomad Pack | v0.4.2 (2026-03-13) | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 | Upstream, its test helper (`internal/cli/testhelper`) pulls in the BSL main Nomad module; in the fork it lives in `nomad/pack/` inside the Nomad module and uses the fork's own packages |
 
-Nomad v1.6.5 goes into the repository together with its git history (for example `git subtree add --prefix nomad https://github.com/hashicorp/nomad.git v1.6.5`), so anyone can verify that the starting point was an MPL commit. Nomad Pack likewise, with its history; it was imported into `nomad-pack/` and later moved into `nomad/pack/`, where it is part of the Nomad Go module and runs as the `nomad pack` subcommand (`git log --follow` keeps the history).
+Nomad v1.6.5 goes into the repository together with its git history (for example `git subtree add --prefix nomad https://github.com/hashicorp/nomad.git v1.6.5`), so anyone can verify that the starting point was an MPL commit. Nomad Pack likewise, with its history; it was imported into `nomad-pack/` and later moved into `nomad/pack/`, where it is part of the Nomad Go module and runs as the `norca pack` subcommand (`git log --follow` keeps the history).
 
 **Consul is not part of the repository.** The Consul-compatible layer implements the documented behavior of Consul's public API and contains no Consul code. The conformance tests use the `github.com/hashicorp/consul/api` client (MPL 2.0).
 
@@ -83,7 +83,7 @@ We do not mix licenses within one file: code from a third party goes into a sepa
 - The README may describe the origin factually: "an independent fork, based on the MPL 2.0 licensed source code of HashiCorp Nomad v1.6.5; not a product of HashiCorp or IBM, and not affiliated with them".
 - The HashiCorp logos, the HashiCorp Design System and the HashiCorp icon set are removed from the UI during the Tabler migration.
 - We do not use HashiCorp product names (for example "Sentinel", "Enterprise") in feature names, and we do not claim that a feature is "the free version of an Enterprise feature".
-- The name of the binary is not `nomad`; at most a compatibility alias remains, which documentedly redirects.
+- The name of the binary is not `nomad`; at most a compatibility alias remains, which documentedly redirects. The binary is `norca`; a copy or symlink named `nomad` behaves identically (documented in the README), but none is shipped or installed by default.
 
 ## Separating plans from implementation
 
@@ -112,7 +112,7 @@ norca/
 │   ├── licensing.md          # this document
 │   └── design/               # design documents, mockup
 ├── nomad/                    # Nomad v1.6.5 fork, with history (one Go module)
-│   └── pack/                 # Nomad Pack v0.4.2 fork, with history; `nomad pack` subcommand
+│   └── pack/                 # Nomad Pack v0.4.2 fork, with history; `norca pack` subcommand
 └── .github/
     ├── pull_request_template.md
     └── workflows/            # reuse lint, license check, DCO
@@ -122,7 +122,8 @@ norca/
 
 - [ ] `nomad/` imported from the v1.6.5 tag, with history; its LICENSE file is MPL 2.0
 - [ ] Nomad Pack imported from the v0.4.2 tag (now `nomad/pack/`); the test helper switched to the fork's build, no BSL module in the `go.mod` files
-- [ ] Neutral project and binary name; trademark notice in the README and the NOTICE; HashiCorp logos and branding removed
+- [x] Binary and CLI named `norca` (CLI text, build outputs, container image, `NORCA_*` CLI environment variables); `nomad` remains only as a documented, not shipped compatibility alias
+- [ ] Neutral project name; trademark notice in the README and the NOTICE; HashiCorp logos and branding removed
 - [ ] The original copyright and SPDX headers are intact; `reuse lint` is clean
 - [ ] License check in CI: no prohibited license, no ApexCharts
 - [ ] THIRD_PARTY_NOTICES generated, and included in the binaries and the container images

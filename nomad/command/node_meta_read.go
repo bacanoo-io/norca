@@ -17,7 +17,7 @@ type NodeMetaReadCommand struct {
 
 func (c *NodeMetaReadCommand) Help() string {
 	helpText := `
-Usage: nomad node meta read [-json] [-node-id ...]
+Usage: norca node meta read [-json] [-node-id ...]
 
   Read a node's metadata. This command only works on client agents. The node
   status command can be used to retrieve node metadata from any agent.
@@ -45,7 +45,7 @@ Node Meta Options:
     Format and display node metadata using a Go template.
 
     Example:
-      $ nomad node meta read -node-id 3b58b0a6
+      $ norca node meta read -node-id 3b58b0a6
 `
 	return strings.TrimSpace(helpText)
 }

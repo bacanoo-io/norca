@@ -89,10 +89,10 @@ func (c *GenerateRegistryCommand) Synopsis() string {
 func (c *GenerateRegistryCommand) Help() string {
 	c.Example = `
 	# Create a new registry named "my-new-registry" in the current directory.
-	nomad pack generate registry my-new-registry
+	norca pack generate registry my-new-registry
 	`
 	return formatHelp(`
-	Usage: nomad pack generate registry <name>
+	Usage: norca pack generate registry <name>
 
 	Generate a new registry.
 

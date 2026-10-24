@@ -4,9 +4,9 @@
 package flag
 
 import (
-	"os"
 	"strconv"
 
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 )
 
@@ -37,7 +37,7 @@ func (f *Set) IntVar(i *IntVar) {
 
 func (f *Set) IntVarP(i *IntVarP) {
 	initial := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
 			initial = int(i)
 		}
@@ -125,7 +125,7 @@ func (f *Set) Int64Var(i *Int64Var) {
 
 func (f *Set) Int64VarP(i *Int64VarP) {
 	initial := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		if i, err := strconv.ParseInt(v, 0, 64); err == nil {
 			initial = i
 		}
@@ -213,7 +213,7 @@ func (f *Set) UintVar(i *UintVar) {
 
 func (f *Set) UintVarP(i *UintVarP) {
 	initial := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		if i, err := strconv.ParseUint(v, 0, 64); err == nil {
 			initial = uint(i)
 		}
@@ -301,7 +301,7 @@ func (f *Set) Uint64Var(i *Uint64Var) {
 
 func (f *Set) Uint64VarP(i *Uint64VarP) {
 	initial := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		if i, err := strconv.ParseUint(v, 0, 64); err == nil {
 			initial = i
 		}

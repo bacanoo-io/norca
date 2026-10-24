@@ -25,7 +25,7 @@ func (c *AdmissionPolicyCommand) Synopsis() string {
 
 func (c *AdmissionPolicyCommand) Help() string {
 	helpText := `
-Usage: nomad admission-policy <subcommand> [options] [args]
+Usage: norca admission-policy <subcommand> [options] [args]
 
   This command groups subcommands for interacting with admission policies.
   Admission policies are CEL rules that every job submitted with "job run" or
@@ -33,19 +33,19 @@ Usage: nomad admission-policy <subcommand> [options] [args]
 
   Create or update an admission policy:
 
-    $ nomad admission-policy apply <path>
+    $ norca admission-policy apply <path>
 
   List all admission policies:
 
-    $ nomad admission-policy list
+    $ norca admission-policy list
 
   Inspect an admission policy:
 
-    $ nomad admission-policy inspect <name>
+    $ norca admission-policy inspect <name>
 
   Delete an admission policy:
 
-    $ nomad admission-policy delete <name>
+    $ norca admission-policy delete <name>
 
   Please refer to individual subcommand help for detailed usage information.
 `

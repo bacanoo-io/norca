@@ -175,11 +175,11 @@ func (c *InfoCommand) Flags() *flag.Sets {
 func (c *InfoCommand) Help() string {
 	c.Example = `
 	# Get information on the "hello_world" pack
-	nomad pack info hello_world
+	norca pack info hello_world
 	`
 
 	return formatHelp(`
-	Usage: nomad pack info <pack-name>
+	Usage: norca pack info <pack-name>
 
 	Returns information on the given pack including name, description, and variable details.
 

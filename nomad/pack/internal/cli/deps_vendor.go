@@ -87,7 +87,7 @@ func (d *depsVendorCommand) Synopsis() string {
 
 func (d *depsVendorCommand) Help() string {
 	return formatHelp(`
-	Usage: nomad pack deps vendor
+	Usage: norca pack deps vendor
 
 	Vendor dependencies for a pack in the current directory.
 

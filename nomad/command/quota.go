@@ -17,7 +17,7 @@ type QuotaCommand struct {
 
 func (f *QuotaCommand) Help() string {
 	helpText := `
-Usage: nomad quota <subcommand> [options] [args]
+Usage: norca quota <subcommand> [options] [args]
 
   This command groups subcommands for interacting with resource quotas. Resource
   quotas allow operators to restrict the aggregate resource usage of namespaces.
@@ -27,15 +27,15 @@ Usage: nomad quota <subcommand> [options] [args]
 
   Examine a quota's status:
 
-      $ nomad quota status <name>
+      $ norca quota status <name>
 
   List existing quotas:
 
-      $ nomad quota list
+      $ norca quota list
 
   Create a new quota specification:
 
-      $ nomad quota apply <path>
+      $ norca quota apply <path>
 
   Please see the individual subcommand help for detailed usage information.
 `

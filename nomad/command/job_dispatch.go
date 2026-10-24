@@ -20,7 +20,7 @@ type JobDispatchCommand struct {
 
 func (c *JobDispatchCommand) Help() string {
 	helpText := `
-Usage: nomad job dispatch [options] <parameterized job> [input source]
+Usage: norca job dispatch [options] <parameterized job> [input source]
 
   Dispatch creates an instance of a parameterized job. A data payload to the
   dispatched instance can be provided via stdin by using "-" or by specifying a

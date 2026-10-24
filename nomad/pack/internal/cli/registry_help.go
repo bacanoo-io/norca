@@ -49,7 +49,7 @@ func (c *RegistryHelpCommand) Synopsis() string {
 
 func (c *RegistryHelpCommand) Help() string {
 	return formatHelp(`
-	Usage: nomad pack registry <subcommand> [options]
+	Usage: norca pack registry <subcommand> [options]
 
 	Manage nomad-pack registries or packs.
 

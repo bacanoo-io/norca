@@ -4,8 +4,8 @@
 Nomad Pack is a templating and packaging tool used with [Nomad](https://www.nomadproject.io).
 
 In this repository Nomad Pack is part of the Norca fork of Nomad: the code under `nomad/pack/`
-originates from Nomad Pack v0.4.2 and is built into the main `nomad` binary, where it runs as the
-`nomad pack` subcommand. There is no separate `nomad-pack` binary. Packs are rendered on the client.
+originates from Nomad Pack v0.4.2 and is built into the main `norca` binary, where it runs as the
+`norca pack` subcommand. There is no separate `nomad-pack` binary. Packs are rendered on the client.
 
 Nomad Pack is used to:
 
@@ -15,22 +15,22 @@ Nomad Pack is used to:
 
 ## Installation
 
-Nomad Pack is built into the `nomad` binary of this repository; build it from the `nomad/`
-directory (for example with `go build .`) and make sure the binary is on your PATH. All Nomad Pack
-commands are available below `nomad pack`:
+Nomad Pack is built into the `norca` binary of this repository; build it from the `nomad/`
+directory (for example with `go build -o norca .`) and make sure the binary is on your PATH. All
+pack commands are available below `norca pack`:
 
 ```shell
-nomad pack --help
+norca pack --help
 ```
 
 ## Usage
 
 ### Dependencies
 
-Nomad Pack users must have Nomad running and accessible at the address defined in the `NOMAD_ADDR`
+Nomad Pack users must have Norca running and accessible at the address defined in the `NORCA_ADDR` (or `NOMAD_ADDR`)
 environment variable.
 
-If Nomad ACLs are enabled, a token with proper permissions must be defined in the `NOMAD_TOKEN`
+If Nomad ACLs are enabled, a token with proper permissions must be defined in the `NORCA_TOKEN` (or `NOMAD_TOKEN`)
 environment variable.
 
 ### Basic Use
@@ -38,33 +38,33 @@ environment variable.
 First, run the `list` command to see which packs are available to deploy.
 
 ```shell
-nomad pack list
+norca pack list
 ```
 
-If you don't see the default registry (`nomad pack registry list`), it can be added with the `registry add` command.
+If you don't see the default registry (`norca pack registry list`), it can be added with the `registry add` command.
 
 ```shell
-nomad pack registry add default github.com/hashicorp/nomad-pack-community-registry
+norca pack registry add default github.com/hashicorp/nomad-pack-community-registry
 ```
 
 To deploy one of these packs, use the `run` command. This deploys each jobs defined in the pack to Nomad.
 To deploy the `hello_world` pack, you would run the following command:
 
 ```shell
-nomad pack run hello_world
+norca pack run hello_world
 ```
 
 Each pack defines a set of variables that can be provided by the user. To get information on the pack
 and to see which variables can be passed in, run the `info` command.
 
 ```shell
-nomad pack info hello_world
+norca pack info hello_world
 ```
 
 Values for these variables are provided using the `--var` flag.
 
 ```shell
-nomad pack run hello_world --var message=hola
+norca pack run hello_world --var message=hola
 ```
 
 Values can also be provided by passing in a variables file. See the variables section of the
@@ -75,14 +75,14 @@ tee -a ./my-variables.hcl << END
 message="bonjour"
 END
 
-nomad pack run hello_world -f ./my-variables.hcl
+norca pack run hello_world -f ./my-variables.hcl
 ```
 
 If you want to remove all of the resources deployed by a pack, run the `destroy` command with the
 pack name.
 
 ```shell
-nomad pack destroy hello_world
+norca pack destroy hello_world
 ```
 
 ### Adding Non-Default Pack Registries
@@ -96,13 +96,13 @@ to add [an example Gitlab registry](https://gitlab.com/mikenomitch/pack-registry
 you would run the following command to download the registry.
 
 ```shell
-nomad pack registry add example gitlab.com/mikenomitch/pack-registry
+norca pack registry add example gitlab.com/mikenomitch/pack-registry
 ```
 
 To view the packs you can now deploy, run the `registry list` command.
 
 ```shell
-nomad pack registry list
+norca pack registry list
 ```
 
 Packs from this registry can now be deployed using the `run` command.

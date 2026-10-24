@@ -10,20 +10,20 @@ To add packs, please contribute to the [Nomad Pack Community Registry](https://g
 - Git
 
 Nomad Pack is part of the Nomad module (`nomad/go.mod`); its code lives in `nomad/pack/` and the
-commands are registered in the Nomad CLI as `nomad pack ...`.
+commands are registered in the Norca CLI as `norca pack ...`.
 
 ## Building and Running Locally
 
-Build the `nomad` binary from the `nomad/` directory:
+Build the `norca` binary from the `nomad/` directory:
 
 ```
-go build -o ./bin/nomad .
+go build -o ./bin/norca .
 ```
 
 Run your code:
 
 ```
-./bin/nomad pack -h
+./bin/norca pack -h
 ```
 
 Run the Nomad Pack tests (the tests that start a Nomad agent need the `nomad` binary on your PATH):

@@ -118,7 +118,7 @@ func (c *OperatorAutopilotSetCommand) Synopsis() string {
 
 func (c *OperatorAutopilotSetCommand) Help() string {
 	helpText := `
-Usage: nomad operator autopilot set-config [options]
+Usage: norca operator autopilot set-config [options]
 
   Modifies the current Autopilot configuration.
 
@@ -132,11 +132,11 @@ General Options:
 Set Config Options:
 
   -cleanup-dead-servers=[true|false]
-     Controls whether Nomad will automatically remove dead servers when
+     Controls whether Norca will automatically remove dead servers when
      new ones are successfully added. Must be one of [true|false].
 
   -disable-upgrade-migration=[true|false]
-     (Enterprise-only) Controls whether Nomad will avoid promoting
+     (Enterprise-only) Controls whether Norca will avoid promoting
      new servers until it can perform a migration. Must be one of
      "true|false".
 
@@ -165,7 +165,7 @@ Set Config Options:
 
   -upgrade-version-tag=<value>
      (Enterprise-only) The node_meta tag to use for version info when
-     performing upgrade migrations. If left blank, the Nomad version
+     performing upgrade migrations. If left blank, the Norca version
      will be used.
 `
 	return strings.TrimSpace(helpText)

@@ -19,7 +19,7 @@ type OperatorRaftListCommand struct {
 
 func (c *OperatorRaftListCommand) Help() string {
 	helpText := `
-Usage: nomad operator raft list-peers [options]
+Usage: norca operator raft list-peers [options]
 
   Displays the current Raft peer configuration.
 
