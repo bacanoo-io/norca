@@ -5,6 +5,9 @@ package controller
 
 import (
 	"encoding/json"
+	"net"
+	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -150,4 +153,24 @@ func TestConfigureUnixSocket(t *testing.T) {
 	must.NoError(t, configureUnixSocket(conf, "unix:///secrets/api.sock"))
 	must.Eq(t, "http://127.0.0.1", conf.Address)
 	must.NotNil(t, conf.HttpClient)
+	must.NoError(t, configureUnixSocket(conf, `unix://C:\alloc\task\secrets/api.sock`))
+	must.Error(t, configureUnixSocket(conf, "unix://"))
+
+	// A real request over a unix socket.
+	dir := t.TempDir()
+	sock := filepath.Join(dir, "api.sock")
+	ln, err := net.Listen("unix", sock)
+	must.NoError(t, err)
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`"127.0.0.1:4647"`))
+	}), ReadHeaderTimeout: time.Second}
+	go func() { _ = srv.Serve(ln) }()
+	defer srv.Close()
+	conf = api.DefaultConfig()
+	must.NoError(t, configureUnixSocket(conf, "unix://"+sock))
+	client, err := api.NewClient(conf)
+	must.NoError(t, err)
+	leader, err := client.Status().Leader()
+	must.NoError(t, err)
+	must.Eq(t, "127.0.0.1:4647", leader)
 }

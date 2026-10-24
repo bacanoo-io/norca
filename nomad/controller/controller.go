@@ -267,6 +267,7 @@ func (c *Controller) Run(ctx context.Context) error {
 		}()
 	}
 
+	c.opts.Metrics.LeaderChanged(c.opts.Name, false)
 	if !c.informer.WaitForSync(ctx) {
 		wg.Wait()
 		return ctx.Err()

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -239,17 +238,14 @@ func NewAPIClient() (*api.Client, error) {
 }
 
 func configureUnixSocket(conf *api.Config, addr string) error {
-	if !strings.HasPrefix(addr, "unix://") {
+	socket, ok := strings.CutPrefix(addr, "unix://")
+	if !ok {
 		return nil
 	}
-	u, err := url.Parse(addr)
-	if err != nil {
-		return fmt.Errorf("invalid NOMAD_ADDR %q: %w", addr, err)
-	}
-	socket := u.Path
-	if u.Host != "" {
-		// unix://relative/path
-		socket = u.Host + u.Path
+	// Not parsed as a URL: on Windows the path is a drive path
+	// (unix://C:\...\secrets\api.sock).
+	if socket == "" {
+		return errors.New("the unix socket address has no path")
 	}
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	conf.Address = "http://127.0.0.1"
