@@ -28,6 +28,12 @@ var (
 
 	// VersionMetadata is metadata further describing the build type.
 	VersionMetadata = ""
+
+	// NorcaVersion is the Norca product version. Version above remains the
+	// Nomad version this build is API and protocol compatible with, because
+	// Nomad's own feature gates and external API clients compare against it.
+	// Norca-specific features gate on NorcaVersion instead.
+	NorcaVersion = "0.1.0"
 )
 
 // VersionInfo
