@@ -3,6 +3,8 @@
 
 package api
 
+import "time"
+
 const (
 	// ScalingPolicyTypeHorizontal indicates a policy that does horizontal scaling.
 	ScalingPolicyTypeHorizontal = "horizontal"
@@ -74,6 +76,16 @@ type ScalingPolicy struct {
 	// Engine is the autoscaler responsible for the policy: "builtin" or
 	// "external". Empty means the default engine of the servers.
 	Engine string `hcl:"engine,optional"`
+
+	// The typed policy of the built-in autoscaler. When none of these
+	// fields is set, the servers fill them from the policy block. In
+	// jobspecs they are written inside the policy block.
+	EvaluationInterval    time.Duration   `json:",omitempty"`
+	Cooldown              time.Duration   `json:",omitempty"`
+	CooldownOnScaleUp     time.Duration   `json:",omitempty"`
+	OnCheckError          string          `json:",omitempty"`
+	ScaleDuringDeployment string          `json:",omitempty"`
+	Checks                []*ScalingCheck `json:",omitempty"`
 
 	/* fields set by server */
 

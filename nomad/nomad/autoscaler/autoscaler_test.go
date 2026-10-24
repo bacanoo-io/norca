@@ -207,7 +207,7 @@ func newHarness(t *testing.T, engine string, doc map[string]interface{}, cfgFn f
 // newRunner creates a fresh runner, as a new leader would.
 func (h *harness) newRunner() {
 	logger := hclog.NewNullLogger()
-	host, err := newPluginHost(logger, h.cfg, h.deps)
+	host, err := newPluginHost(logger, h.cfg, h.deps, nil)
 	must.NoError(h.t, err)
 	host.apms["fake"] = h.apm
 	h.runner = newRunner(logger, h.cfg, h.deps, h.clock.Now, host)
@@ -419,12 +419,12 @@ func TestAutoscaler_RateLimit(t *testing.T) {
 	action := sdk.ScalingAction{Count: 4, Direction: sdk.ScaleDirectionUp}
 
 	now := h.clock.Now()
-	must.NoError(t, h.runner.exec.execute(c, readT(), action, now))
-	must.NoError(t, h.runner.exec.execute(c, readT(), action, now))
+	must.NoError(t, h.runner.exec.execute(c, readT(), action, "cpu", now))
+	must.NoError(t, h.runner.exec.execute(c, readT(), action, "cpu", now))
 	must.Len(t, 1, h.scaler.requests())
 
 	// One token per second.
-	must.NoError(t, h.runner.exec.execute(c, readT(), action, now.Add(time.Second)))
+	must.NoError(t, h.runner.exec.execute(c, readT(), action, "cpu", now.Add(time.Second)))
 	must.Len(t, 2, h.scaler.requests())
 }
 
@@ -649,7 +649,7 @@ func TestAutoscaler_RunLoop(t *testing.T) {
 
 	// Run the scheduling loop and the worker pool with the real clock.
 	logger := hclog.NewNullLogger()
-	host, err := newPluginHost(logger, h.cfg, h.deps)
+	host, err := newPluginHost(logger, h.cfg, h.deps, nil)
 	must.NoError(t, err)
 	host.apms["fake"] = h.apm
 	r := newRunner(logger, h.cfg, h.deps, time.Now, host)

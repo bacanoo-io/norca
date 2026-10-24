@@ -35,13 +35,18 @@ type Deps struct {
 	// by clients. Optional.
 	AllocStats nomadapm.AllocStatsFn
 
+	// PublishEvent publishes the events of the Scaling topic. Optional.
+	PublishEvent EventPublisher
+
 	// ServersReady reports whether all servers of the region support the
 	// built-in autoscaler (the shared Norca version gate).
 	ServersReady func() bool
 
-	// ExternalPlugins loads plugins that are not built-in. Optional; nil
-	// until external plugins are supported.
-	ExternalPlugins ExternalPluginLoader
+	// ExternalPlugins creates the loader of the plugins that are not
+	// built-in, for the plugin directory of the configuration. Optional,
+	// defaults to the go-plugin based loader of the external package. A new
+	// loader is created for every run and shut down when the run ends.
+	ExternalPlugins func(logger hclog.Logger, dir string) ExternalPluginLoader
 
 	// Now returns the current time. Optional, defaults to time.Now. Tests
 	// use it to inject a fake clock.
@@ -111,6 +116,13 @@ func (a *Autoscaler) SetConfig(config *Config) {
 	a.reconcileLocked(changed)
 }
 
+// Config returns a copy of the current configuration.
+func (a *Autoscaler) Config() *Config {
+	a.l.Lock()
+	defer a.l.Unlock()
+	return a.config.Copy()
+}
+
 // DefaultEngine returns the engine of policies that do not set one.
 func (a *Autoscaler) DefaultEngine() string {
 	a.l.Lock()
@@ -177,17 +189,26 @@ func (a *Autoscaler) run(ctx context.Context, cfg *Config, doneCh chan struct{})
 		}
 	}
 
-	host, err := newPluginHost(a.logger, cfg, a.deps)
+	// External plugin processes live as long as this run: they are stopped
+	// when leadership is lost, the autoscaler is disabled or reconfigured.
+	var external ExternalPluginLoader
+	if cfg.PluginDir != "" {
+		newLoader := a.deps.ExternalPlugins
+		if newLoader == nil {
+			newLoader = defaultExternalPlugins
+		}
+		external = newLoader(a.logger, cfg.PluginDir)
+	}
+
+	host, err := newPluginHost(a.logger, cfg, a.deps, external)
 	if err != nil {
+		if external != nil {
+			external.Shutdown()
+		}
 		a.logger.Error("failed to set up autoscaler plugins, the built-in autoscaler will not run", "error", err)
 		return
 	}
 	defer host.shutdown()
-
-	if cfg.PluginDir != "" && a.deps.ExternalPlugins == nil {
-		a.logger.Warn("plugin_dir is set but external plugins are not supported yet; only built-in plugins are available",
-			"plugin_dir", cfg.PluginDir)
-	}
 
 	a.logger.Info("starting built-in autoscaler", "default_engine", cfg.DefaultEngine,
 		"eval_workers", cfg.EvalWorkers)
@@ -204,6 +225,7 @@ func configEqual(a, b *Config) bool {
 	if a.Enabled != b.Enabled ||
 		a.DefaultEngine != b.DefaultEngine ||
 		a.MinEvalInterval != b.MinEvalInterval ||
+		a.MinCooldown != b.MinCooldown ||
 		a.DefaultEvaluationInterval != b.DefaultEvaluationInterval ||
 		a.DefaultCooldown != b.DefaultCooldown ||
 		a.PluginDir != b.PluginDir ||
@@ -213,18 +235,18 @@ func configEqual(a, b *Config) bool {
 		a.OscillationWindow != b.OscillationWindow ||
 		a.OscillationThreshold != b.OscillationThreshold ||
 		a.OscillationSuspend != b.OscillationSuspend ||
-		len(a.APMs) != len(b.APMs) {
+		len(a.APMs) != len(b.APMs) ||
+		len(a.Strategies) != len(b.Strategies) {
 		return false
 	}
 	for i := range a.APMs {
-		x, y := a.APMs[i], b.APMs[i]
-		if x.Name != y.Name || x.Driver != y.Driver || len(x.Config) != len(y.Config) {
+		if !a.APMs[i].equal(b.APMs[i]) {
 			return false
 		}
-		for k, v := range x.Config {
-			if y.Config[k] != v {
-				return false
-			}
+	}
+	for i := range a.Strategies {
+		if !a.Strategies[i].equal(b.Strategies[i]) {
+			return false
 		}
 	}
 	return true

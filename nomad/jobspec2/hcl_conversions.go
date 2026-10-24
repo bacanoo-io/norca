@@ -302,6 +302,7 @@ func decodeTaskGroup(body hcl.Body, ctx *hcl.EvalContext, val interface{}) hcl.D
 			tg.Scaling.Type = "horizontal"
 		}
 		diags = append(diags, validateGroupScalingPolicy(tg.Scaling, tgBody)...)
+		diags = append(diags, validateScalingPolicyDocument(tg.Scaling, tgBody, ctx)...)
 	}
 	return diags
 
