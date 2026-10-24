@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 Norca contributors
+# SPDX-License-Identifier: MPL-2.0
+name: Compliance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  reuse:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fsfe/reuse-action@v5
+
+  go-licenses:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        module: [nomad, nomad-pack]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+      - name: Forbidden modules (BSL HashiCorp modules)
+        working-directory: ${{ matrix.module }}
+        run: |
+          # BSL versions of the Nomad main module are forbidden; the fork's own modules and the api module are allowed.
+          if go list -m all | grep -E '^github.com/hashicorp/nomad v1\.([7-9]|[1-9][0-9])\.|^github.com/hashicorp/nomad v1\.6\.([6-9]|[1-9][0-9])'; then
+            echo "BSL Nomad module among the dependencies" >&2; exit 1
+          fi
+      - name: License check
+        working-directory: ${{ matrix.module }}
+        run: |
+          go install github.com/google/go-licenses@v1.6.0
+          go-licenses check ./... \
+            --allowed_licenses=MPL-2.0,Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC
+
+  ui-licenses:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Licenses of the UI dependencies
+        working-directory: nomad/ui
+        run: |
+          # The UI uses yarn v1 (yarn.lock)
+          yarn install --frozen-lockfile --ignore-scripts --ignore-engines
+          npx --yes license-checker-rseidelsohn@4 --production \
+            --onlyAllow "MPL-2.0;Apache-2.0;MIT;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0" \
+            --excludePrivatePackages
+          if yarn list --pattern apexcharts --depth=0 2>/dev/null | grep -q apexcharts@; then
+            echo "ApexCharts is forbidden" >&2; exit 1
+          fi
+
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check Signed-off-by
+        run: |
+          # The imported upstream history (nomad/, nomad-pack/) has no sign-offs; only commits of the PR are checked.
+          missing=$(git log --no-merges --format='%H %(trailers:key=Signed-off-by,valueonly,separator=;)' \
+            origin/${{ github.base_ref }}..HEAD | awk 'NF<2 {print $1}')
+          if [ -n "$missing" ]; then echo "Missing DCO sign-off: $missing" >&2; exit 1; fi

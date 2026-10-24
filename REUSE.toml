@@ -1,0 +1,30 @@
+version = 1
+
+# Documentation: MPL 2.0
+[[annotations]]
+path = ["docs/**", "*.md", "NOTICE", ".github/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
+# UI mockup: own part MPL 2.0, embedded Tabler CSS and Tabler icons MIT
+[[annotations]]
+path = "docs/design/mockups/**"
+precedence = "override"
+SPDX-FileCopyrightText = ["2026 Norca contributors", "codecalm.net Paweł Kuna (Tabler)"]
+SPDX-License-Identifier = "MPL-2.0 AND MIT"
+
+# Images in the documentation
+[[annotations]]
+path = "docs/**/*.png"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
+# Files of the HashiCorp forks keep their own headers; files without a header
+# (generated code, test data) fall under the license of the fork
+[[annotations]]
+path = ["nomad/**", "nomad-pack/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "HashiCorp, Inc. and Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"

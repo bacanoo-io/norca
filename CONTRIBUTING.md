@@ -1,0 +1,42 @@
+# Contributing
+
+Thank you for contributing. To keep the project legally clean, the following rules are mandatory.
+
+## DCO sign-off
+
+Every commit must carry a sign-off according to the Developer Certificate of Origin (https://developercertificate.org):
+
+```
+git commit -s -m "message"
+```
+
+With it you certify that you have the right to submit the contribution under the project's license. CI rejects commits without a sign-off.
+
+## License
+
+Your contribution is licensed under the license of the file it touches. New files are licensed under MPL 2.0, with this header:
+
+```
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+```
+
+Do not modify or remove the existing copyright and license lines in HashiCorp's original files. A modified HashiCorp file may additionally get a `SPDX-FileCopyrightText: <year> Norca contributors` line.
+
+## Prohibited
+
+- Taking code, diffs or snippets from HashiCorp releases published under BSL 1.1 (Nomad v1.6.6 and later, Consul v1.16.5 and later, and the BSL versions of every other HashiCorp product), or from the non-public code of HashiCorp Enterprise products.
+- Adding a BSL version of the `github.com/hashicorp/nomad` main module to any `go.mod` file.
+- Adding a dependency whose license is not on the allowed list ([docs/licensing.md](docs/licensing.md)).
+
+## Clean room rule
+
+If your change fixes a bug that HashiCorp has already fixed in a BSL release, write the fix from the public issue and the CHANGELOG description, without looking at the BSL code or diff. Link the public issue in the pull request.
+
+## Third-party code
+
+Code taken from other projects (for example Kubernetes) goes into a separate file with its original license header. If you modify it, mark the modification in the file. State the source and the license in the pull request.
+
+## Checks
+
+Every pull request runs: `reuse lint`, license checks for the Go modules and the UI packages, the DCO check, and the tests.
