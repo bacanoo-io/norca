@@ -102,6 +102,18 @@ func (r *Runner) Deploy(ui terminal.UI, errorContext *errors.UIErrorContext) *er
 	// Clear any previous eval IDs
 	r.evalIDs = nil
 
+	// TODO(norca): the Nomad API this build targets (the fork's Nomad v1.6.5)
+	// has no RegisterOptions.PreserveResources, so the flag cannot be honored.
+	// Fail loudly instead of silently ignoring it until it is decided whether
+	// to implement it in the fork or to drop the flag.
+	if r.cfg.RunConfig.PreserveResources {
+		return &errors.WrappedUIContext{
+			Err:     fmt.Errorf("the --preserve-resources flag is not supported by this Nomad API version"),
+			Subject: "unsupported option",
+			Context: errorContext.Copy(),
+		}
+	}
+
 	for tplName, jobSpec := range r.parsedTemplates {
 
 		// tplErrorContext forms the basis for error output context as is
@@ -116,12 +128,11 @@ func (r *Runner) Deploy(ui terminal.UI, errorContext *errors.UIErrorContext) *er
 		}
 
 		registerOpts := api.RegisterOptions{
-			EnforceIndex:      r.cfg.RunConfig.CheckIndex > 0,
-			ModifyIndex:       r.cfg.RunConfig.CheckIndex,
-			PolicyOverride:    r.cfg.RunConfig.PolicyOverride,
-			PreserveCounts:    r.cfg.RunConfig.PreserveCounts,
-			PreserveResources: r.cfg.RunConfig.PreserveResources,
-			Submission:        submission,
+			EnforceIndex:   r.cfg.RunConfig.CheckIndex > 0,
+			ModifyIndex:    r.cfg.RunConfig.CheckIndex,
+			PolicyOverride: r.cfg.RunConfig.PolicyOverride,
+			PreserveCounts: r.cfg.RunConfig.PreserveCounts,
+			Submission:     submission,
 		}
 
 		// Submit the job
