@@ -1789,10 +1789,6 @@ func (s *StateStore) upsertJobImpl(index uint64, sub *structs.JobSubmission, job
 		return fmt.Errorf("unable to update job scaling policies: %v", err)
 	}
 
-	if err := s.updateJobRecommendations(index, txn, existingJob, job); err != nil {
-		return fmt.Errorf("unable to update job recommendations: %v", err)
-	}
-
 	if err := s.updateJobCSIPlugins(index, job, existingJob, txn); err != nil {
 		return fmt.Errorf("unable to update job csi plugins: %v", err)
 	}
@@ -1917,11 +1913,6 @@ func (s *StateStore) DeleteJobTxn(index uint64, namespace, jobID string, txn Txn
 	// Delete any remaining job scaling policies
 	if err := s.deleteJobScalingPolicies(index, job, txn); err != nil {
 		return fmt.Errorf("deleting job scaling policies failed: %v", err)
-	}
-
-	// Delete any job recommendations
-	if err := s.deleteRecommendationsByJob(index, txn, job); err != nil {
-		return fmt.Errorf("deleting job recommendatons failed: %v", err)
 	}
 
 	// Delete the scaling events

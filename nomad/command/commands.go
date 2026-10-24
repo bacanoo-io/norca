@@ -979,38 +979,6 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 			}, nil
 		},
 
-		"recommendation": func() (cli.Command, error) {
-			return &RecommendationCommand{
-				Meta: meta,
-			}, nil
-		},
-		"recommendation apply": func() (cli.Command, error) {
-			return &RecommendationApplyCommand{
-				RecommendationAutocompleteCommand: RecommendationAutocompleteCommand{
-					Meta: meta,
-				},
-			}, nil
-		},
-		"recommendation dismiss": func() (cli.Command, error) {
-			return &RecommendationDismissCommand{
-				RecommendationAutocompleteCommand: RecommendationAutocompleteCommand{
-					Meta: meta,
-				},
-			}, nil
-		},
-		"recommendation info": func() (cli.Command, error) {
-			return &RecommendationInfoCommand{
-				RecommendationAutocompleteCommand: RecommendationAutocompleteCommand{
-					Meta: meta,
-				},
-			}, nil
-		},
-		"recommendation list": func() (cli.Command, error) {
-			return &RecommendationListCommand{
-				Meta: meta,
-			}, nil
-		},
-
 		"run": func() (cli.Command, error) {
 			return &JobRunCommand{
 				Meta: meta,
@@ -1033,31 +1001,6 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		},
 		"scaling policy list": func() (cli.Command, error) {
 			return &ScalingPolicyListCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel": func() (cli.Command, error) {
-			return &SentinelCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel list": func() (cli.Command, error) {
-			return &SentinelListCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel apply": func() (cli.Command, error) {
-			return &SentinelApplyCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel delete": func() (cli.Command, error) {
-			return &SentinelDeleteCommand{
-				Meta: meta,
-			}, nil
-		},
-		"sentinel read": func() (cli.Command, error) {
-			return &SentinelReadCommand{
 				Meta: meta,
 			}, nil
 		},

@@ -140,7 +140,6 @@ func TestParse(t *testing.T) {
 							NamespaceCapabilityAllocLifecycle,
 							NamespaceCapabilityCSIMountVolume,
 							NamespaceCapabilityCSIWriteVolume,
-							NamespaceCapabilitySubmitRecommendation,
 						},
 					},
 					{
@@ -360,7 +359,6 @@ func TestParse(t *testing.T) {
 							NamespaceCapabilityAllocLifecycle,
 							NamespaceCapabilityCSIMountVolume,
 							NamespaceCapabilityCSIWriteVolume,
-							NamespaceCapabilitySubmitRecommendation,
 						},
 					},
 					{
@@ -619,6 +617,25 @@ func TestParse(t *testing.T) {
 						Policy: "",
 						Capabilities: []string{
 							NamespaceCapabilitySentinelOverride,
+						},
+					},
+				},
+			},
+		},
+		{
+			`
+			namespace "default" {
+				capabilities = ["submit-recommendation"]
+			}
+			`,
+			"",
+			&Policy{
+				Namespaces: []*NamespacePolicy{
+					{
+						Name:   "default",
+						Policy: "",
+						Capabilities: []string{
+							NamespaceCapabilitySubmitRecommendation,
 						},
 					},
 				},
