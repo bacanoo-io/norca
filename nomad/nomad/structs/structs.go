@@ -6078,6 +6078,16 @@ type ScalingPolicy struct {
 	// default engine of the servers.
 	Engine string
 
+	// The typed policy of the built-in autoscaler (see scaling_check.go).
+	// When none of these fields is set, they are filled from the untyped
+	// Policy document at submission.
+	EvaluationInterval    time.Duration
+	Cooldown              time.Duration
+	CooldownOnScaleUp     time.Duration
+	OnCheckError          string
+	ScaleDuringDeployment string
+	Checks                []*ScalingCheck
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -6130,6 +6140,13 @@ func (p *ScalingPolicy) Copy() *ScalingPolicy {
 		Engine:      p.Engine,
 		CreateIndex: p.CreateIndex,
 		ModifyIndex: p.ModifyIndex,
+
+		EvaluationInterval:    p.EvaluationInterval,
+		Cooldown:              p.Cooldown,
+		CooldownOnScaleUp:     p.CooldownOnScaleUp,
+		OnCheckError:          p.OnCheckError,
+		ScaleDuringDeployment: p.ScaleDuringDeployment,
+		Checks:                copyScalingChecks(p.Checks),
 	}
 	c.Target = make(map[string]string, len(p.Target))
 	for k, v := range p.Target {

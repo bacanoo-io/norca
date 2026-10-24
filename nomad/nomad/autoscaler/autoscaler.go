@@ -33,6 +33,9 @@ type Deps struct {
 	// nomad-apm.
 	AllocStats nomadapm.AllocStatsFn
 
+	// PublishEvent publishes the events of the Scaling topic. Optional.
+	PublishEvent EventPublisher
+
 	// ServersReady reports whether all servers of the region support the
 	// built-in autoscaler (the shared Norca version gate).
 	ServersReady func() bool
@@ -104,6 +107,13 @@ func (a *Autoscaler) SetConfig(config *Config) {
 	changed := !configEqual(a.config, config)
 	a.config = config.Copy()
 	a.reconcileLocked(changed)
+}
+
+// Config returns a copy of the current configuration.
+func (a *Autoscaler) Config() *Config {
+	a.l.Lock()
+	defer a.l.Unlock()
+	return a.config.Copy()
 }
 
 // DefaultEngine returns the engine of policies that do not set one.
@@ -203,6 +213,7 @@ func configEqual(a, b *Config) bool {
 	if a.Enabled != b.Enabled ||
 		a.DefaultEngine != b.DefaultEngine ||
 		a.MinEvalInterval != b.MinEvalInterval ||
+		a.MinCooldown != b.MinCooldown ||
 		a.DefaultEvaluationInterval != b.DefaultEvaluationInterval ||
 		a.DefaultCooldown != b.DefaultCooldown ||
 		a.PluginDir != b.PluginDir ||

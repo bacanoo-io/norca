@@ -69,6 +69,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 		logger: s.logger.Named("job"),
 		mutators: []jobMutator{
 			&jobCanonicalizer{srv: s},
+			jobScalingHook{srv: s},
 			jobConnectHook{},
 			jobExposeCheckHook{},
 			jobImpliedConstraints{},
@@ -84,6 +85,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobNodePoolValidatingHook{srv: s},
 			jobAllocAffinityHook{srv: s},
 			jobQuotaValidatingHook{srv: s},
+			jobScalingHook{srv: s},
 			&jobValidate{srv: s},
 			&memoryOversubscriptionValidate{srv: s},
 		},
@@ -1141,7 +1143,7 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 			return err
 		}
 
-		if deployment != nil && deployment.Active() && deployment.JobCreateIndex == job.CreateIndex {
+		if scaleBlockedByDeployment(deployment, job, group, prevCount, *args.Count) {
 			return structs.NewErrRPCCoded(400, "job scaling blocked due to active deployment")
 		}
 

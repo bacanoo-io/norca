@@ -201,11 +201,17 @@ func (r *runner) compile(p *structs.ScalingPolicy) (*compiledPolicy, error) {
 		return nil, errors.New("policy target is not a task group")
 	}
 
-	if err := validateScalingPolicy(p); err != nil {
+	// Policies are validated at submission; this only protects against
+	// policies stored before (such as by older servers) or invalidated by a
+	// configuration change. The interval and cooldown lower bounds are not
+	// enforced here: the interval is raised to the minimum instead.
+	if err := validatePolicy(p, r.cfg, false); err != nil {
 		return nil, err
 	}
+	tp, _ := TypedPolicy(p)
 
 	sp := parsePolicy(p)
+	applyTypedPolicy(&sp, tp, r.cfg)
 	r.proc.canonicalizePolicy(&sp)
 
 	var mErr *multierror.Error
@@ -235,5 +241,7 @@ func (r *runner) compile(p *structs.ScalingPolicy) (*compiledPolicy, error) {
 		key:          key,
 		checkRunners: runners,
 		schedule:     schedule,
+
+		scaleDuringDeployment: tp.ScaleDuringDeployment,
 	}, nil
 }

@@ -24,6 +24,7 @@ server {
     enabled                     = true
     default_engine              = "builtin"
     min_eval_interval           = "15s"
+    min_cooldown                = "20s"
     default_evaluation_interval = "30s"
     default_cooldown            = "2m"
     plugin_dir                  = "/opt/nomad/autoscaler-plugins"
@@ -64,6 +65,7 @@ server {
 	must.True(t, cfg.Enabled)
 	must.Eq(t, "builtin", cfg.DefaultEngine)
 	must.Eq(t, 15*time.Second, cfg.MinEvalInterval)
+	must.Eq(t, 20*time.Second, cfg.MinCooldown)
 	must.Eq(t, 30*time.Second, cfg.DefaultEvaluationInterval)
 	must.Eq(t, 2*time.Minute, cfg.DefaultCooldown)
 	must.Eq(t, "/opt/nomad/autoscaler-plugins", cfg.PluginDir)

@@ -419,12 +419,12 @@ func TestAutoscaler_RateLimit(t *testing.T) {
 	action := sdk.ScalingAction{Count: 4, Direction: sdk.ScaleDirectionUp}
 
 	now := h.clock.Now()
-	must.NoError(t, h.runner.exec.execute(c, readT(), action, now))
-	must.NoError(t, h.runner.exec.execute(c, readT(), action, now))
+	must.NoError(t, h.runner.exec.execute(c, readT(), action, "cpu", now))
+	must.NoError(t, h.runner.exec.execute(c, readT(), action, "cpu", now))
 	must.Len(t, 1, h.scaler.requests())
 
 	// One token per second.
-	must.NoError(t, h.runner.exec.execute(c, readT(), action, now.Add(time.Second)))
+	must.NoError(t, h.runner.exec.execute(c, readT(), action, "cpu", now.Add(time.Second)))
 	must.Len(t, 2, h.scaler.requests())
 }
 

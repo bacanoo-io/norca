@@ -50,9 +50,10 @@ func (s *Server) setupAutoscaler() {
 	}
 
 	s.autoscaler = autoscaler.New(s.logger, cfg, &autoscaler.Deps{
-		State:      s.State,
-		Scaler:     &autoscalerJobScaler{srv: s},
-		AllocStats: s.autoscalerAllocStats,
+		State:        s.State,
+		Scaler:       &autoscalerJobScaler{srv: s},
+		AllocStats:   s.autoscalerAllocStats,
+		PublishEvent: s.publishScalingEvent,
 		ServersReady: func() bool {
 			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
 		},
@@ -148,4 +149,31 @@ func validateScalingEngineFilter(engine string) error {
 // filter of a list request.
 func scalingPolicyMatchesEngine(p *structs.ScalingPolicy, engine, defaultEngine string) bool {
 	return engine == "" || autoscaler.PolicyEngine(p, defaultEngine) == engine
+}
+
+// publishScalingEvent publishes an event of the Scaling topic. The event is
+// not written to Raft, so it is only published on the leader that runs the
+// built-in autoscaler.
+func (s *Server) publishScalingEvent(eventType string, ev *structs.ScalingDecisionEvent) {
+	store := s.State()
+	if store == nil {
+		return
+	}
+	broker, err := store.EventBroker()
+	if err != nil {
+		return
+	}
+	index, _ := store.LatestIndex()
+	broker.Publish(&structs.Events{
+		Index: index,
+		Events: []structs.Event{{
+			Topic:      structs.TopicScaling,
+			Type:       eventType,
+			Key:        ev.JobID,
+			Namespace:  ev.Namespace,
+			FilterKeys: []string{ev.Group, ev.PolicyID},
+			Index:      index,
+			Payload:    ev,
+		}},
+	})
 }

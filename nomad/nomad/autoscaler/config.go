@@ -27,6 +27,10 @@ const (
 	// interval of builtin policies.
 	DefaultMinEvalInterval = 10 * time.Second
 
+	// DefaultMinCooldown is the lower bound enforced on the cooldowns of
+	// builtin policies at submission.
+	DefaultMinCooldown = 10 * time.Second
+
 	// DefaultEvalWorkers is the number of policy evaluations that may run in
 	// parallel on the leader.
 	DefaultEvalWorkers = 10
@@ -91,6 +95,10 @@ type Config struct {
 	// MinEvalInterval is the lower bound of a policy's evaluation interval.
 	MinEvalInterval time.Duration
 
+	// MinCooldown is the lower bound of a policy's cooldown and
+	// cooldown_on_scale_up.
+	MinCooldown time.Duration
+
 	// DefaultEvaluationInterval and DefaultCooldown are applied to policies
 	// that do not set them.
 	DefaultEvaluationInterval time.Duration
@@ -130,6 +138,7 @@ func DefaultConfig() *Config {
 		Enabled:                   false,
 		DefaultEngine:             structs.ScalingPolicyEngineExternal,
 		MinEvalInterval:           DefaultMinEvalInterval,
+		MinCooldown:               DefaultMinCooldown,
 		DefaultEvaluationInterval: DefaultEvaluationInterval,
 		DefaultCooldown:           DefaultCooldown,
 		EvalWorkers:               DefaultEvalWorkers,
@@ -170,6 +179,9 @@ func (c *Config) Validate() error {
 	}
 	if c.MinEvalInterval <= 0 {
 		mErr = multierror.Append(mErr, fmt.Errorf("min_eval_interval must be greater than 0"))
+	}
+	if c.MinCooldown < 0 {
+		mErr = multierror.Append(mErr, fmt.Errorf("min_cooldown must not be negative"))
 	}
 	if c.DefaultEvaluationInterval <= 0 {
 		mErr = multierror.Append(mErr, fmt.Errorf("default_evaluation_interval must be greater than 0"))

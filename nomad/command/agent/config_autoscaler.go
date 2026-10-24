@@ -27,6 +27,9 @@ type AutoscalerConfig struct {
 	// MinEvalInterval is the lower bound of a policy's evaluation_interval.
 	MinEvalInterval string `hcl:"min_eval_interval"`
 
+	// MinCooldown is the lower bound of a builtin policy's cooldown.
+	MinCooldown string `hcl:"min_cooldown"`
+
 	// DefaultEvaluationInterval and DefaultCooldown apply to policies that
 	// do not set evaluation_interval or cooldown.
 	DefaultEvaluationInterval string `hcl:"default_evaluation_interval"`
@@ -124,6 +127,9 @@ func (a *AutoscalerConfig) Merge(b *AutoscalerConfig) *AutoscalerConfig {
 	if b.MinEvalInterval != "" {
 		result.MinEvalInterval = b.MinEvalInterval
 	}
+	if b.MinCooldown != "" {
+		result.MinCooldown = b.MinCooldown
+	}
 	if b.DefaultEvaluationInterval != "" {
 		result.DefaultEvaluationInterval = b.DefaultEvaluationInterval
 	}
@@ -187,6 +193,7 @@ func (a *AutoscalerConfig) toServerConfig() (*autoscaler.Config, error) {
 		field *time.Duration
 	}{
 		{"min_eval_interval", a.MinEvalInterval, &cfg.MinEvalInterval},
+		{"min_cooldown", a.MinCooldown, &cfg.MinCooldown},
 		{"default_evaluation_interval", a.DefaultEvaluationInterval, &cfg.DefaultEvaluationInterval},
 		{"default_cooldown", a.DefaultCooldown, &cfg.DefaultCooldown},
 	}
