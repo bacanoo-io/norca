@@ -207,7 +207,7 @@ func (c *PlanCommand) Flags() *flag.Sets {
 			Target:  &c.exitCodeNoChanges,
 			Default: 0,
 			EnvVar:  EnvPlanExitCodeNoChanges,
-			Usage:   `Override exit code returned when the plan shows no changes. Can also be set via NOMAD_PACK_PLAN_EXIT_CODE_NO_CHANGES environment variable (flags take precedence).`,
+			Usage:   `Override exit code returned when the plan shows no changes. Can also be set via the NORCA_PACK_PLAN_EXIT_CODE_NO_CHANGES (or NOMAD_PACK_PLAN_EXIT_CODE_NO_CHANGES) environment variable (flags take precedence).`,
 		})
 
 		f.IntVar(&flag.IntVar{
@@ -215,7 +215,7 @@ func (c *PlanCommand) Flags() *flag.Sets {
 			Target:  &c.exitCodeChanges,
 			Default: 1,
 			EnvVar:  EnvPlanExitCodeMakesChanges,
-			Usage:   `Override exit code returned when the plan shows changes. Can also be set via NOMAD_PACK_PLAN_EXIT_CODE_MAKES_CHANGES environment variable (flags take precedence).`,
+			Usage:   `Override exit code returned when the plan shows changes. Can also be set via the NORCA_PACK_PLAN_EXIT_CODE_MAKES_CHANGES (or NOMAD_PACK_PLAN_EXIT_CODE_MAKES_CHANGES) environment variable (flags take precedence).`,
 		})
 
 		f.IntVar(&flag.IntVar{
@@ -223,7 +223,7 @@ func (c *PlanCommand) Flags() *flag.Sets {
 			Target:  &c.exitCodeError,
 			Default: 255,
 			EnvVar:  EnvPlanExitCodeError,
-			Usage:   `Override exit code returned when there is an error. Can also be set via NOMAD_PACK_PLAN_EXIT_CODE_ERROR environment variable (flags take precedence).`,
+			Usage:   `Override exit code returned when there is an error. Can also be set via the NORCA_PACK_PLAN_EXIT_CODE_ERROR (or NOMAD_PACK_PLAN_EXIT_CODE_ERROR) environment variable (flags take precedence).`,
 		})
 	})
 }
@@ -258,7 +258,7 @@ func (c *PlanCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack plan <pack-name> [options]
 
-	Determine the effects of submitting a new or updated Nomad Pack
+	Determine the effects of submitting a new or updated Norca Pack
 
 	Plan will return one of the following exit codes:
 		* code 0:   No objects will be created or destroyed.

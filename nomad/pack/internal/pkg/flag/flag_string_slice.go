@@ -4,9 +4,9 @@
 package flag
 
 import (
-	"os"
 	"strings"
 
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 )
 
@@ -36,7 +36,7 @@ func (f *Set) StringSliceVar(i *StringSliceVar) {
 
 func (f *Set) StringSliceVarP(i *StringSliceVarP) {
 	initial := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		parts := strings.Split(v, ",")
 		for i := range parts {
 			parts[i] = strings.TrimSpace(parts[i])

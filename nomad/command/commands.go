@@ -15,11 +15,15 @@ import (
 )
 
 const (
-	// EnvNomadCLINoColor is an env var that toggles colored UI output.
-	EnvNomadCLINoColor = `NOMAD_CLI_NO_COLOR`
+	// EnvCLINoColor names the env var that toggles colored UI output:
+	// NORCA_CLI_NO_COLOR, or NOMAD_CLI_NO_COLOR as a fallback. It is a
+	// suffix for the helper/clienv functions.
+	EnvCLINoColor = `CLI_NO_COLOR`
 
-	// EnvNomadCLIForceColor is an env var that forces colored UI output.
-	EnvNomadCLIForceColor = `NOMAD_CLI_FORCE_COLOR`
+	// EnvCLIForceColor names the env var that forces colored UI output:
+	// NORCA_CLI_FORCE_COLOR, or NOMAD_CLI_FORCE_COLOR as a fallback. It is a
+	// suffix for the helper/clienv functions.
+	EnvCLIForceColor = `CLI_FORCE_COLOR`
 )
 
 // DeprecatedCommand is a command that wraps an existing command and prints a

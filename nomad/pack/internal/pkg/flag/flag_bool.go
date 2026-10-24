@@ -4,9 +4,9 @@
 package flag
 
 import (
-	"os"
 	"strconv"
 
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 )
 
@@ -46,7 +46,7 @@ func (f *Set) BoolVar(i *BoolVar) {
 
 func (f *Set) BoolVarP(i *BoolVarP) {
 	def := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		if b, err := strconv.ParseBool(v); err == nil {
 			def = b
 		}

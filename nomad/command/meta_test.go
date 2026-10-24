@@ -13,6 +13,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
@@ -97,10 +98,26 @@ func TestMeta_Colorize(t *testing.T) {
 		{
 			Name: "disable colors via env var",
 			SetupFn: func(t *testing.T, m *Meta) {
-				t.Setenv(EnvNomadCLINoColor, "1")
+				t.Setenv(clienv.Name(EnvCLINoColor), "1")
 				m.SetupUi([]string{})
 			},
 			ExpectColor: false,
+		},
+		{
+			Name: "disable colors via compat env var",
+			SetupFn: func(t *testing.T, m *Meta) {
+				t.Setenv(clienv.CompatName(EnvCLINoColor), "1")
+				m.SetupUi([]string{})
+			},
+			ExpectColor: false,
+		},
+		{
+			Name: "force colors via compat env var",
+			SetupFn: func(t *testing.T, m *Meta) {
+				t.Setenv(clienv.CompatName(EnvCLIForceColor), "1")
+				m.SetupUi([]string{})
+			},
+			ExpectColor: true,
 		},
 		{
 			Name: "force colors via CLI flag",
@@ -112,7 +129,7 @@ func TestMeta_Colorize(t *testing.T) {
 		{
 			Name: "force colors via env var",
 			SetupFn: func(t *testing.T, m *Meta) {
-				t.Setenv(EnvNomadCLIForceColor, "1")
+				t.Setenv(clienv.Name(EnvCLIForceColor), "1")
 				m.SetupUi([]string{})
 			},
 			ExpectColor: true,
@@ -127,7 +144,7 @@ func TestMeta_Colorize(t *testing.T) {
 		{
 			Name: "no color take predecence over force color via env var",
 			SetupFn: func(t *testing.T, m *Meta) {
-				t.Setenv(EnvNomadCLINoColor, "1")
+				t.Setenv(clienv.CompatName(EnvCLINoColor), "1")
 				m.SetupUi([]string{"-force-color"})
 			},
 			ExpectColor: false,
@@ -146,8 +163,10 @@ func TestMeta_Colorize(t *testing.T) {
 			os.Stdout = tty
 
 			// Make sure color related environment variables are clean.
-			t.Setenv(EnvNomadCLIForceColor, "")
-			t.Setenv(EnvNomadCLINoColor, "")
+			for _, suffix := range []string{EnvCLIForceColor, EnvCLINoColor} {
+				t.Setenv(clienv.Name(suffix), "")
+				t.Setenv(clienv.CompatName(suffix), "")
+			}
 
 			// Run test case.
 			m := &Meta{}
