@@ -38,6 +38,10 @@ func TestCLI_RegistryUpdate_NoArgs(t *testing.T) {
 // added registry works using only the registry name. The source URL is
 // automatically retrieved from the cached registry metadata.
 func TestCLI_RegistryUpdate_ExistingRegistry(t *testing.T) {
+	// The clone below targets a repository that does not exist; without this,
+	// git may wait for credentials on an interactive terminal forever.
+	t.Setenv("GIT_TERMINAL_PROMPT", "0")
+
 	// Create a test registry in the cache (this creates both "latest" and testRef refs).
 	reg, _, regPath := createTestRegistries(t)
 	defer cleanTestRegistry(t, regPath)
