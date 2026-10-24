@@ -355,6 +355,19 @@ type ClientConfig struct {
 	// correct scheduling decisions on allocations which require this.
 	NomadServiceDiscovery *bool `hcl:"nomad_service_discovery"`
 
+	// NativeServiceDiscovery holds the settings of service lookups made by
+	// the workloads of the client (Norca).
+	NativeServiceDiscovery *config.NativeServiceDiscoveryConfig `hcl:"native_service_discovery"`
+
+	// Topology holds the topology zone of the node (Norca).
+	Topology *config.TopologyConfig `hcl:"topology"`
+
+	// DNS configures the built-in DNS server (Norca).
+	DNS *config.DNSConfig `hcl:"dns"`
+
+	// ConsulCompat configures the Consul-compatible read API (Norca).
+	ConsulCompat *config.ConsulCompatConfig `hcl:"consul_compat"`
+
 	// Artifact contains the configuration for artifacts.
 	Artifact *config.ArtifactConfig `hcl:"artifact"`
 
@@ -382,6 +395,10 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.HostVolumes = helper.CopySlice(c.HostVolumes)
 	nc.HostNetworks = helper.CopySlice(c.HostNetworks)
 	nc.NomadServiceDiscovery = pointer.Copy(c.NomadServiceDiscovery)
+	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
+	nc.Topology = c.Topology.Copy()
+	nc.DNS = c.DNS.Copy()
+	nc.ConsulCompat = c.ConsulCompat.Copy()
 	nc.Artifact = c.Artifact.Copy()
 	nc.Drain = c.Drain.Copy()
 	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
@@ -2258,6 +2275,11 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	if b.CgroupParent != "" {
 		result.CgroupParent = b.CgroupParent
 	}
+
+	result.NativeServiceDiscovery = a.NativeServiceDiscovery.Merge(b.NativeServiceDiscovery)
+	result.Topology = a.Topology.Merge(b.Topology)
+	result.DNS = a.DNS.Merge(b.DNS)
+	result.ConsulCompat = a.ConsulCompat.Merge(b.ConsulCompat)
 
 	result.Artifact = a.Artifact.Merge(b.Artifact)
 	result.Drain = a.Drain.Merge(b.Drain)

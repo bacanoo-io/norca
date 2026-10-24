@@ -56,6 +56,7 @@ func parseService(o *ast.ObjectItem) (*api.Service, error) {
 		"tagged_addresses",
 		"on_update",
 		"provider",
+		"discovery",
 	}
 	if err := checkHCLKeys(o.Val, valid); err != nil {
 		return nil, err
@@ -67,6 +68,7 @@ func parseService(o *ast.ObjectItem) (*api.Service, error) {
 		return nil, err
 	}
 
+	delete(m, "discovery")
 	delete(m, "check")
 	delete(m, "check_restart")
 	delete(m, "connect")
@@ -103,6 +105,18 @@ func parseService(o *ast.ObjectItem) (*api.Service, error) {
 		}
 		service.CheckRestart = cr
 
+	}
+
+	// Filter discovery
+	if do := listVal.Filter("discovery"); len(do.Items) > 0 {
+		if len(do.Items) > 1 {
+			return nil, fmt.Errorf("discovery '%s': cannot have more than 1 discovery block", service.Name)
+		}
+		d, err := parseServiceDiscovery(do.Items[0])
+		if err != nil {
+			return nil, multierror.Prefix(err, fmt.Sprintf("'%s',", service.Name))
+		}
+		service.Discovery = d
 	}
 
 	// Filter connect
@@ -1110,6 +1124,30 @@ func parseChecks(service *api.Service, checkObjs *ast.ObjectList) error {
 	}
 
 	return nil
+}
+
+func parseServiceDiscovery(o *ast.ObjectItem) (*api.ServiceDiscovery, error) {
+	valid := []string{
+		"prefer",
+		"min_local",
+		"overflow_fraction",
+		"failover",
+		"include_not_ready",
+	}
+	if err := checkHCLKeys(o.Val, valid); err != nil {
+		return nil, multierror.Prefix(err, "discovery ->")
+	}
+
+	var m map[string]interface{}
+	if err := hcl.DecodeObject(&m, o.Val); err != nil {
+		return nil, err
+	}
+
+	var d api.ServiceDiscovery
+	if err := mapstructure.WeakDecode(m, &d); err != nil {
+		return nil, err
+	}
+	return &d, nil
 }
 
 func parseCheckRestart(cro *ast.ObjectItem) (*api.CheckRestart, error) {

@@ -65,8 +65,83 @@ type ServiceRegistration struct {
 	// that predate check roles report false.
 	Ready bool
 
+	// Health is the aggregate state (passing, warning or critical) of the
+	// startup, readiness and role-less checks of the instance. It is empty
+	// for registrations written before the health-based catalog.
+	Health string
+
+	// Checks are the states of the checks of the instance.
+	Checks []*ServiceRegistrationCheck
+
+	// HealthUpdatedAt is the time (Unix nanoseconds) at which the servers
+	// last recorded a change of the health of the instance.
+	HealthUpdatedAt int64
+
+	// Zone is the topology zone of the node running the instance.
+	Zone string
+
+	// Meta is the meta of the service.
+	Meta map[string]string
+
+	// Discovery holds the discovery settings of the service.
+	Discovery *ServiceDiscovery
+
 	CreateIndex uint64
 	ModifyIndex uint64
+}
+
+// The health states of service registrations and their checks.
+const (
+	ServiceHealthPassing  = "passing"
+	ServiceHealthWarning  = "warning"
+	ServiceHealthCritical = "critical"
+)
+
+// ServiceRegistrationCheck is the state of one check of a service instance.
+type ServiceRegistrationCheck struct {
+	Name   string
+	Role   string
+	Status string
+	Output string
+}
+
+// ServiceDiscovery is the discovery block of a service using the Nomad
+// provider: the topology preference, regional failover and whether instances
+// that are not ready are discoverable.
+type ServiceDiscovery struct {
+	// Prefer is "none" (default), "zone", "datacenter" or "region".
+	Prefer string `mapstructure:"prefer" hcl:"prefer,optional"`
+
+	// MinLocal is the number of instances a topology tier must hold before
+	// the next tier is left out.
+	MinLocal int `mapstructure:"min_local" hcl:"min_local,optional"`
+
+	// OverflowFraction is the fraction of all instances a topology tier must
+	// hold before the next tier is left out. Defaults to 0.2.
+	OverflowFraction *float64 `mapstructure:"overflow_fraction" hcl:"overflow_fraction,optional"`
+
+	// Failover is the ordered list of regions queried when the local region
+	// has no healthy instance.
+	Failover []string `mapstructure:"failover" hcl:"failover,optional"`
+
+	// IncludeNotReady makes instances that are not ready discoverable too.
+	IncludeNotReady bool `mapstructure:"include_not_ready" hcl:"include_not_ready,optional"`
+}
+
+// DefaultServiceDiscoveryOverflowFraction is the default overflow fraction.
+const DefaultServiceDiscoveryOverflowFraction = 0.2
+
+// Canonicalize sets the defaults of the discovery block.
+func (d *ServiceDiscovery) Canonicalize() {
+	if d == nil {
+		return
+	}
+	if d.Prefer == "" {
+		d.Prefer = "none"
+	}
+	if d.OverflowFraction == nil {
+		d.OverflowFraction = pointerOf(DefaultServiceDiscoveryOverflowFraction)
+	}
 }
 
 // ServiceRegistrationListStub represents all service registrations held within a
@@ -270,6 +345,10 @@ type Service struct {
 	// Provider defines which backend system provides the service registration,
 	// either "consul" (default) or "nomad".
 	Provider string `hcl:"provider,optional"`
+
+	// Discovery holds the discovery settings of a service using the Nomad
+	// provider.
+	Discovery *ServiceDiscovery `hcl:"discovery,block"`
 }
 
 const (
@@ -297,6 +376,8 @@ func (s *Service) Canonicalize(t *Task, tg *TaskGroup, job *Job) {
 	if s.AddressMode == "" {
 		s.AddressMode = "auto"
 	}
+
+	s.Discovery.Canonicalize()
 
 	// Default to OnUpdateRequireHealthy
 	if s.OnUpdate == "" {

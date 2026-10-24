@@ -4,6 +4,7 @@
 package nsd
 
 import (
+	"net/http"
 	"sync"
 	"time"
 
@@ -14,28 +15,45 @@ import (
 )
 
 const (
-	// readinessInterval is how often the Ready state of the tracked
-	// registrations is recomputed. Changes found in one pass are sent to the
-	// servers in a single upsert.
+	// readinessInterval is how often the health of the tracked registrations
+	// is recomputed. Changes found in one pass are sent to the servers in a
+	// single upsert.
 	readinessInterval = 1 * time.Second
+
+	// reassertInterval is how often the health of every tracked registration
+	// is sent to the servers even if it did not change, so a change the
+	// servers lost (e.g. one held back by the flapping protection of a leader
+	// that lost its leadership) is corrected. Servers skip the Raft write of
+	// registrations that did not change.
+	reassertInterval = 1 * time.Minute
 )
 
-// readinessTracker maintains the Ready state of the Nomad service registrations
-// of the client. A registration is ready once the startup check of its workload
-// (task or group) has passed, and while all the readiness checks of its service
-// pass. Registrations without such checks are always ready, which is how they
-// behaved before check roles existed.
+// readinessTracker maintains the health of the Nomad service registrations of
+// the client: the Ready state, the aggregate Health and the states of the
+// checks of every registration.
 //
-// The Ready state is sent to the servers only when it changes.
+// A registration is ready once the startup check of its workload (task or
+// group) has passed, and while all the readiness checks of its service pass.
+// Its Health is critical until the startup check has passed, and then the
+// worst state of the readiness and role-less checks of its service. Liveness
+// checks restart the task and do not count toward health. Registrations
+// without checks are always ready and passing, which is how they behaved
+// before check roles existed.
+//
+// The health is sent to the servers only when it changes.
 type readinessTracker struct {
 	log      hclog.Logger
 	shim     checkstore.Shim
 	upsert   func([]*structs.ServiceRegistration) error
 	interval time.Duration
 
+	// reassert is the number of passes between two re-assertions
+	reassert int
+	passes   int
+
 	// lock protects entries, and is held while tracked registrations are
-	// sent to the servers, so an outdated Ready state never overwrites a
-	// newer one.
+	// sent to the servers, so an outdated state never overwrites a newer
+	// one.
 	lock    sync.Mutex
 	entries map[string]*readyEntry
 
@@ -43,7 +61,7 @@ type readinessTracker struct {
 	failed bool
 }
 
-// readyEntry is the Ready state of one registration, along with the checks it
+// readyEntry is the health of one registration, along with the checks it
 // depends on.
 type readyEntry struct {
 	reg       *structs.ServiceRegistration
@@ -51,9 +69,20 @@ type readyEntry struct {
 	startup   structs.CheckID
 	readiness []structs.CheckID
 
+	// checks are the readiness and role-less checks of the service, which
+	// make up its Health
+	checks []healthCheck
+
 	// started latches once the startup check has passed; it is reset when the
 	// workload is removed (e.g. the task restarts).
 	started bool
+}
+
+// healthCheck is a check counting toward the health of a registration.
+type healthCheck struct {
+	id   structs.CheckID
+	name string
+	role string
 }
 
 func newReadinessTracker(log hclog.Logger, shim checkstore.Shim,
@@ -63,13 +92,13 @@ func newReadinessTracker(log hclog.Logger, shim checkstore.Shim,
 		shim:     shim,
 		upsert:   upsert,
 		interval: readinessInterval,
+		reassert: int(reassertInterval / readinessInterval),
 		entries:  make(map[string]*readyEntry),
 	}
 }
 
 // newReadyEntry returns the entry of the registration of service, which
-// belongs to workload, or nil if the service has no startup or readiness
-// checks to follow.
+// belongs to workload, or nil if the service has no checks to follow.
 func newReadyEntry(workload *serviceregistration.WorkloadServices, service *structs.Service) *readyEntry {
 	allocID := workload.AllocInfo.AllocID
 	group := workload.AllocInfo.Group
@@ -86,42 +115,105 @@ func newReadyEntry(workload *serviceregistration.WorkloadServices, service *stru
 	}
 
 	for _, check := range service.Checks {
-		if check.HasRole(structs.CheckRoleReadiness) {
-			e.readiness = append(e.readiness, structs.NomadCheckID(allocID, group, check))
+		id := structs.NomadCheckID(allocID, group, check)
+		switch check.Role {
+		case structs.CheckRoleReadiness:
+			e.readiness = append(e.readiness, id)
+		case "":
+		default:
+			continue
 		}
+		e.checks = append(e.checks, healthCheck{id: id, name: check.Name, role: check.Role})
 	}
 
-	if e.startup == "" && len(e.readiness) == 0 {
+	if e.startup == "" && len(e.checks) == 0 {
 		return nil
 	}
 	return e
 }
 
-// ready computes the Ready state of e from the check results of its allocation.
-func (e *readyEntry) ready(results map[structs.CheckID]*structs.CheckQueryResult) bool {
+// checkStatus maps the result of a Nomad check to the state of a catalog
+// check. Checks that have not run yet are critical, as in Consul; an HTTP
+// check answered with 429 Too Many Requests is a warning, as in Consul.
+func checkStatus(result *structs.CheckQueryResult) string {
+	if result == nil {
+		return structs.ServiceHealthCritical
+	}
+	switch result.Status {
+	case structs.CheckSuccess:
+		return structs.ServiceHealthPassing
+	case structs.CheckFailure:
+		if result.StatusCode == http.StatusTooManyRequests {
+			return structs.ServiceHealthWarning
+		}
+	}
+	return structs.ServiceHealthCritical
+}
+
+// worse returns the worse of two health states.
+func worse(a, b string) string {
+	rank := func(s string) int {
+		switch s {
+		case structs.ServiceHealthPassing:
+			return 0
+		case structs.ServiceHealthWarning:
+			return 1
+		default:
+			return 2
+		}
+	}
+	if rank(b) > rank(a) {
+		return b
+	}
+	return a
+}
+
+// apply computes the health of e from the check results of its allocation and
+// sets it on reg.
+func (e *readyEntry) apply(reg *structs.ServiceRegistration, results map[structs.CheckID]*structs.CheckQueryResult) {
 	passing := func(id structs.CheckID) bool {
 		result, exists := results[id]
 		return exists && result.Status == structs.CheckSuccess
 	}
 
-	if e.startup != "" && !e.started {
-		if !passing(e.startup) {
-			return false
-		}
+	if e.startup != "" && !e.started && passing(e.startup) {
 		e.started = true
 	}
+	started := e.startup == "" || e.started
 
+	ready := started
 	for _, id := range e.readiness {
 		if !passing(id) {
-			return false
+			ready = false
 		}
 	}
-	return true
+
+	health := structs.ServiceHealthPassing
+	if !started {
+		health = structs.ServiceHealthCritical
+	}
+
+	var checks []*structs.ServiceRegistrationCheck
+	for _, c := range e.checks {
+		result := results[c.id]
+		status := checkStatus(result)
+		health = worse(health, status)
+
+		check := &structs.ServiceRegistrationCheck{Name: c.name, Role: c.role, Status: status}
+		if result != nil {
+			check.Output = structs.TruncateCheckOutput(result.Output)
+		}
+		checks = append(checks, check)
+	}
+
+	reg.Ready = ready
+	reg.Health = health
+	reg.Checks = checks
 }
 
-// track sets the Ready state of registrations, which are generated from the
+// track sets the health of registrations, which are generated from the
 // services of workload in the same order, and starts following the ones with
-// startup or readiness checks.
+// checks.
 //
 // The returned function must be called with the result of sending the
 // registrations to the servers. If any registration is followed, the tracker
@@ -132,6 +224,7 @@ func (r *readinessTracker) track(workload *serviceregistration.WorkloadServices,
 	if r == nil {
 		for _, reg := range registrations {
 			reg.Ready = true
+			reg.Health = structs.ServiceHealthPassing
 		}
 		return func(error) {}
 	}
@@ -147,6 +240,7 @@ func (r *readinessTracker) track(workload *serviceregistration.WorkloadServices,
 		e := newReadyEntry(workload, service)
 		if e == nil {
 			reg.Ready = true
+			reg.Health = structs.ServiceHealthPassing
 			delete(r.entries, reg.ID)
 			continue
 		}
@@ -159,7 +253,7 @@ func (r *readinessTracker) track(workload *serviceregistration.WorkloadServices,
 		if results == nil {
 			results = r.shim.List(e.allocID)
 		}
-		reg.Ready = e.ready(results)
+		e.apply(reg, results)
 		e.reg = reg.Copy()
 
 		r.entries[reg.ID] = e
@@ -194,8 +288,8 @@ func (r *readinessTracker) untrack(id string) {
 	delete(r.entries, id)
 }
 
-// run updates the Ready state of the tracked registrations on an interval
-// until stopCh is closed.
+// run updates the health of the tracked registrations on an interval until
+// stopCh is closed.
 func (r *readinessTracker) run(stopCh <-chan struct{}) {
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
@@ -210,8 +304,9 @@ func (r *readinessTracker) run(stopCh <-chan struct{}) {
 	}
 }
 
-// update recomputes the Ready state of every tracked registration, and sends
-// those that changed to the servers in a single upsert.
+// update recomputes the health of every tracked registration, and sends those
+// that changed to the servers in a single upsert. Every reassert passes, it
+// sends every tracked registration.
 func (r *readinessTracker) update() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -219,6 +314,9 @@ func (r *readinessTracker) update() {
 	if len(r.entries) == 0 {
 		return
 	}
+
+	r.passes++
+	reassert := r.reassert > 0 && r.passes%r.reassert == 0
 
 	results := make(map[string]map[structs.CheckID]*structs.CheckQueryResult)
 	var changed []*structs.ServiceRegistration
@@ -230,9 +328,9 @@ func (r *readinessTracker) update() {
 			results[e.allocID] = allocResults
 		}
 
-		if ready := e.ready(allocResults); ready != e.reg.Ready {
-			reg := e.reg.Copy()
-			reg.Ready = ready
+		reg := e.reg.Copy()
+		e.apply(reg, allocResults)
+		if reassert || !reg.HealthEqual(e.reg) {
 			changed = append(changed, reg)
 		}
 	}
@@ -244,7 +342,7 @@ func (r *readinessTracker) update() {
 	if err := r.upsert(changed); err != nil {
 		// retried on the next interval
 		if !r.failed {
-			r.log.Warn("failed to update readiness of service registrations", "error", err)
+			r.log.Warn("failed to update health of service registrations", "error", err)
 		}
 		r.failed = true
 		return
@@ -252,7 +350,8 @@ func (r *readinessTracker) update() {
 	r.failed = false
 
 	for _, reg := range changed {
-		r.log.Trace("updated readiness of service registration", "service_id", reg.ID, "ready", reg.Ready)
+		r.log.Trace("updated health of service registration",
+			"service_id", reg.ID, "ready", reg.Ready, "health", reg.Health)
 		if e, exists := r.entries[reg.ID]; exists {
 			e.reg = reg
 		}

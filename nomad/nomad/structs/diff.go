@@ -747,6 +747,11 @@ func serviceDiff(old, new *Service, contextual bool) *ObjectDiff {
 		diff.Objects = append(diff.Objects, conDiffs)
 	}
 
+	// Discovery diffs (Norca)
+	if dDiff := serviceDiscoveryDiff(old.Discovery, new.Discovery, contextual); dDiff != nil {
+		diff.Objects = append(diff.Objects, dDiff)
+	}
+
 	return diff
 }
 

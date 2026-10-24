@@ -342,21 +342,21 @@ func TestServiceCheck_validateNomad(t *testing.T) {
 			name: "success_before_passing",
 			sc: &ServiceCheck{
 				Type:                 ServiceCheckTCP,
-				SuccessBeforePassing: 3, // consul only
+				SuccessBeforePassing: -1, // Norca: applied by the client, must be non-negative
 				Interval:             3 * time.Second,
 				Timeout:              1 * time.Second,
 			},
-			exp: `success_before_passing may only be set for Consul service checks`,
+			exp: `success_before_passing must be non-negative`,
 		},
 		{
 			name: "failures_before_critical",
 			sc: &ServiceCheck{
 				Type:                   ServiceCheckTCP,
-				FailuresBeforeCritical: 3, // consul only
+				FailuresBeforeCritical: -1, // Norca: applied by the client, must be non-negative
 				Interval:               3 * time.Second,
 				Timeout:                1 * time.Second,
 			},
-			exp: `failures_before_critical may only be set for Consul service checks`,
+			exp: `failures_before_critical must be non-negative`,
 		},
 		{
 			name: "check_restart",

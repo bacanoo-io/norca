@@ -865,6 +865,16 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	if agentConfig.Client.NomadServiceDiscovery != nil {
 		conf.NomadServiceDiscovery = *agentConfig.Client.NomadServiceDiscovery
 	}
+	conf.NativeServiceDiscovery = agentConfig.Client.NativeServiceDiscovery.Copy()
+	conf.Topology = agentConfig.Client.Topology.Copy()
+	if err := agentConfig.Client.DNS.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid dns config: %v", err)
+	}
+	conf.DNS = agentConfig.Client.DNS.Copy()
+	if err := agentConfig.Client.ConsulCompat.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid consul_compat config: %v", err)
+	}
+	conf.ConsulCompat = agentConfig.Client.ConsulCompat.Copy()
 
 	artifactConfig, err := clientconfig.ArtifactConfigFromAgent(agentConfig.Client.Artifact)
 	if err != nil {

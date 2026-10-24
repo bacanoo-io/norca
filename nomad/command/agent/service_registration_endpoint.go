@@ -101,10 +101,23 @@ func (s *HTTPServer) serviceGetRequest(
 		return nil, nil
 	}
 
+	healthy, err := s.parseHealthyOnly(req)
+	if err != nil {
+		return nil, err
+	}
+	args.HealthyOnly = healthy
+
+	near, err := s.parseNear(req)
+	if err != nil {
+		return nil, err
+	}
+	args.Near = near
+
 	var reply structs.ServiceRegistrationByNameResponse
 	if err := s.agent.RPC(structs.ServiceRegistrationGetServiceRPCMethod, &args, &reply); err != nil {
 		return nil, err
 	}
+	s.serviceFailover(&args, &reply)
 	setMeta(resp, &reply.QueryMeta)
 
 	if reply.Services == nil {
