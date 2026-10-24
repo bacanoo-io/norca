@@ -16,7 +16,19 @@ MSGPACK_DIR="$(go list -m -f '{{.Dir}}' "${MSGPACK_MOD}")"
 MODULE_DIR="$(go list -m -f '{{.Dir}}')"
 
 PATCHED="$(mktemp -d)"
-trap 'chmod -R u+w "${PATCHED}"; rm -rf "${PATCHED}"' EXIT
+# codecgen removes its output file before generating; keep a copy so a failed
+# run leaves the committed file intact instead of an empty one
+cp structs.generated.go "${PATCHED}/structs.generated.go.orig"
+cleanup() {
+	status=$?
+	if [ "${status}" -ne 0 ]; then
+		cp "${PATCHED}/structs.generated.go.orig" structs.generated.go
+		echo "codecgen failed; structs.generated.go restored" >&2
+	fi
+	chmod -R u+w "${PATCHED}"
+	rm -rf "${PATCHED}"
+}
+trap cleanup EXIT
 cp -R "${MSGPACK_DIR}/." "${PATCHED}/go-msgpack"
 chmod -R u+w "${PATCHED}/go-msgpack"
 sed -i \

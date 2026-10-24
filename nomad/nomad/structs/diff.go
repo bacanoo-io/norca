@@ -344,6 +344,11 @@ func (tg *TaskGroup) Diff(other *TaskGroup, contextual bool) (*TaskGroupDiff, er
 		diff.Objects = append(diff.Objects, uDiff)
 	}
 
+	// Disruption budget diff
+	if dDiff := primitiveObjectDiff(tg.Disruption, other.Disruption, nil, "Disruption", contextual); dDiff != nil {
+		diff.Objects = append(diff.Objects, dDiff)
+	}
+
 	// Network Resources diff
 	if nDiffs := networkResourceDiffs(tg.Networks, other.Networks, contextual); nDiffs != nil {
 		diff.Objects = append(diff.Objects, nDiffs...)

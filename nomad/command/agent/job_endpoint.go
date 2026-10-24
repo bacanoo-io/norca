@@ -80,6 +80,9 @@ func (s *HTTPServer) JobSpecificRequest(resp http.ResponseWriter, req *http.Requ
 	case strings.HasSuffix(path, "/plan"):
 		jobID := strings.TrimSuffix(path, "/plan")
 		return s.jobPlan(resp, req, jobID)
+	case strings.HasSuffix(path, "/disruption"):
+		jobID := strings.TrimSuffix(path, "/disruption")
+		return s.jobDisruptionRequest(resp, req, jobID)
 	case strings.HasSuffix(path, "/summary"):
 		jobID := strings.TrimSuffix(path, "/summary")
 		return s.jobSummaryRequest(resp, req, jobID)
@@ -1107,6 +1110,16 @@ func ApiTgToStructsTG(job *structs.Job, taskGroup *api.TaskGroup, tg *structs.Ta
 			HealthCheck:     *taskGroup.Migrate.HealthCheck,
 			MinHealthyTime:  *taskGroup.Migrate.MinHealthyTime,
 			HealthyDeadline: *taskGroup.Migrate.HealthyDeadline,
+		}
+	}
+
+	if d := taskGroup.Disruption; d != nil {
+		tg.Disruption = &structs.DisruptionBudget{}
+		if d.MinHealthy != nil {
+			tg.Disruption.MinHealthy = *d.MinHealthy
+		}
+		if d.MaxUnavailable != nil {
+			tg.Disruption.MaxUnavailable = *d.MaxUnavailable
 		}
 	}
 

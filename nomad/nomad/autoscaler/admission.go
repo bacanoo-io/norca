@@ -26,26 +26,8 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
-// builtinMetrics are the metrics a check can use by name, without source and
-// query, mapped to the nomad-apm query that serves them. Client pushed
-// metrics replace the nomad-apm as their source in a later phase; the names
-// stay the same.
-var builtinMetrics = map[string]string{
-	"nomad.cpu":    "avg_cpu-allocated",
-	"nomad.memory": "avg_memory-allocated",
-}
-
-// metricCheckQuery returns the source and query that serve a built-in
-// metric.
-func metricCheckQuery(metric string) (source, query string, ok bool) {
-	q, ok := builtinMetrics[metric]
-	if !ok {
-		return "", "", false
-	}
-	return plugins.InternalAPMNomad, q, true
-}
-
-// BuiltinMetrics returns the names of the metrics a check can use by name.
+// BuiltinMetrics returns the names of the metrics a check can use by name
+// (see metrics.go).
 func BuiltinMetrics() []string {
 	names := slices.Collect(maps.Keys(builtinMetrics))
 	sort.Strings(names)
@@ -229,12 +211,17 @@ func validateTypedCheck(c *structs.ScalingCheck, cfg *Config, admission bool) er
 	// Metric source.
 	switch {
 	case c.Metric != "":
-		if _, _, ok := metricCheckQuery(c.Metric); !ok {
-			mErr = multierror.Append(mErr, fmt.Errorf("%s: unknown metric %q (available: %s)",
-				path, c.Metric, strings.Join(BuiltinMetrics(), ", ")))
+		// Built-in metrics are computed by the leader from the usage pushed
+		// by clients and served by the nomad-apm source.
+		if !IsBuiltinMetric(c.Metric) {
+			mErr = multierror.Append(mErr, fmt.Errorf("%s.metric must be one of %s, found %q",
+				path, strings.Join(BuiltinMetrics(), ", "), c.Metric))
 		}
-		if c.Source != "" || c.Query != "" {
-			mErr = multierror.Append(mErr, fmt.Errorf("%s: metric can't be combined with source or query", path))
+		if c.Query != "" {
+			mErr = multierror.Append(mErr, fmt.Errorf("%s: only one of metric and query can be set", path))
+		}
+		if c.Source != "" && !slices.Contains(cfg.nomadAPMNames(), c.Source) {
+			mErr = multierror.Append(mErr, fmt.Errorf("%s.metric requires the %s source", path, plugins.InternalAPMNomad))
 		}
 	case needsMetrics && c.Query == "":
 		mErr = multierror.Append(mErr, fmt.Errorf("%s: strategy %q requires a query or a metric", path, c.Strategy))
@@ -321,9 +308,14 @@ func applyTypedPolicy(sp *sdk.ScalingPolicy, tp *structs.ScalingPolicy, cfg *Con
 		if c == nil {
 			continue
 		}
+		// A built-in metric is queried by name from the nomad-apm source,
+		// which the runtime serves from the usage pushed by clients.
 		source, query := c.Source, c.Query
 		if c.Metric != "" {
-			source, query, _ = metricCheckQuery(c.Metric)
+			query = c.Metric
+			if source == "" {
+				source = plugins.InternalAPMNomad
+			}
 		}
 		sp.Checks = append(sp.Checks, &sdk.ScalingPolicyCheck{
 			Name:              c.Name,

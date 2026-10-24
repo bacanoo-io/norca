@@ -141,6 +141,10 @@ const (
 	// IgnoreUnknownTypeFlag set.
 	AdmissionPolicyUpsertRequestType MessageType = 70
 	AdmissionPolicyDeleteRequestType MessageType = 71
+
+	// Norca disruption budget types (74-76 assigned to disruption budgets)
+	AllocEvictRequestType MessageType = 74
+	// 75 and 76 are reserved for disruption budgets
 )
 
 const (
@@ -1149,6 +1153,11 @@ type AllocUpdateRequest struct {
 	// It is pulled out since it is common to reduce payload size.
 	Job *Job
 
+	// TaskGroupUsage is the resource usage of the client's task groups,
+	// optionally attached by clients for the built-in autoscaler. It is
+	// handed to the leader's in-memory collector and never written to Raft.
+	TaskGroupUsage *TaskGroupUsageReport
+
 	WriteRequest
 }
 
@@ -1551,6 +1560,12 @@ type NodeUpdateResponse struct {
 	// SchedulingEligibility is used to inform clients what the server-side
 	// has for their scheduling status during heartbeats.
 	SchedulingEligibility string
+
+	// TaskGroupUsageInterval asks the client to aggregate the resource usage
+	// of its task groups over windows of this length and to send it with
+	// Node.UpdateAlloc. Zero (old servers, or the built-in autoscaler is
+	// disabled) means the client does not collect or send it.
+	TaskGroupUsageInterval time.Duration
 
 	QueryMeta
 }
@@ -6647,6 +6662,10 @@ type TaskGroup struct {
 	// Migrate is used to control the migration strategy for this task group
 	Migrate *MigrateStrategy
 
+	// Disruption is the disruption budget limiting voluntary disruptions
+	// (drain, eviction) of this task group (see DisruptionBudget).
+	Disruption *DisruptionBudget
+
 	// Constraints can be specified at a task group level and apply to
 	// all the tasks contained.
 	Constraints []*Constraint
@@ -6718,6 +6737,7 @@ func (tg *TaskGroup) Copy() *TaskGroup {
 	ntg := new(TaskGroup)
 	*ntg = *tg
 	ntg.Update = ntg.Update.Copy()
+	ntg.Disruption = ntg.Disruption.Copy()
 	ntg.Constraints = CopySliceConstraints(ntg.Constraints)
 	ntg.RestartPolicy = ntg.RestartPolicy.Copy()
 	ntg.ReschedulePolicy = ntg.ReschedulePolicy.Copy()
@@ -6818,6 +6838,7 @@ func (tg *TaskGroup) Canonicalize(job *Job) {
 	}
 
 	tg.canonicalizeAllocAffinities()
+	tg.Disruption.Canonicalize()
 
 	for _, task := range tg.Tasks {
 		task.Canonicalize(job, tg)
@@ -6969,6 +6990,10 @@ func (tg *TaskGroup) Validate(j *Job) error {
 		if tg.Migrate != nil {
 			mErr.Errors = append(mErr.Errors, fmt.Errorf("Job type %q does not allow migrate block", j.Type))
 		}
+	}
+
+	if err := tg.validateDisruption(j); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
 	}
 
 	// Check that there is only one leader task if any

@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/nomad/acl"
-	cstructs "github.com/hashicorp/nomad/client/structs"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
@@ -52,7 +51,6 @@ func (s *Server) setupAutoscaler() {
 	s.autoscaler = autoscaler.New(s.logger, cfg, &autoscaler.Deps{
 		State:        s.State,
 		Scaler:       &autoscalerJobScaler{srv: s},
-		AllocStats:   s.autoscalerAllocStats,
 		PublishEvent: s.publishScalingEvent,
 		ServersReady: func() bool {
 			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
@@ -89,26 +87,6 @@ func (s *Server) autoscalerDefaultEngine() string {
 		return structs.ScalingPolicyEngineExternal
 	}
 	return s.autoscaler.DefaultEngine()
-}
-
-// autoscalerAllocStats fetches the resource usage of an allocation for the
-// nomad-apm of the built-in autoscaler. It uses the internal
-// ClientAllocations.Stats RPC with the leader's token; this per allocation
-// RPC is transitional until clients push their metrics.
-func (s *Server) autoscalerAllocStats(namespace, allocID string) (*cstructs.AllocResourceUsage, error) {
-	args := &cstructs.AllocStatsRequest{
-		AllocID: allocID,
-		QueryOptions: structs.QueryOptions{
-			Region:    s.Region(),
-			Namespace: namespace,
-			AuthToken: s.getLeaderAcl(),
-		},
-	}
-	var reply cstructs.AllocStatsResponse
-	if err := s.RPC("ClientAllocations.Stats", args, &reply); err != nil {
-		return nil, err
-	}
-	return reply.Stats, nil
 }
 
 // autoscalerJobScaler executes the autoscaler's decisions through the

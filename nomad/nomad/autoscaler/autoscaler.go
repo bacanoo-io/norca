@@ -30,7 +30,9 @@ type Deps struct {
 	Scaler JobScaler
 
 	// AllocStats returns the resource usage of an allocation. Used by the
-	// nomad-apm.
+	// plugin host's nomad-apm instance, which the evaluations no longer
+	// query: checks of the nomad-apm source are served from the usage pushed
+	// by clients. Optional.
 	AllocStats nomadapm.AllocStatsFn
 
 	// PublishEvent publishes the events of the Scaling topic. Optional.
@@ -66,6 +68,10 @@ type Autoscaler struct {
 	// cancel stops the current run; nil when not running.
 	cancel context.CancelFunc
 	doneCh chan struct{}
+
+	// usage keeps the task group usage reported by clients while the
+	// autoscaler runs.
+	usage *usageCollector
 }
 
 // New returns a new, stopped autoscaler.
@@ -82,6 +88,7 @@ func New(logger hclog.Logger, config *Config, deps *Deps) *Autoscaler {
 		deps:   deps,
 		now:    now,
 		config: config.Copy(),
+		usage:  newUsageCollector(),
 	}
 }
 
@@ -148,6 +155,9 @@ func (a *Autoscaler) Stop() {
 func (a *Autoscaler) reconcileLocked(restart bool) {
 	shouldRun := a.leader && a.config.Enabled
 
+	// The usage collector starts empty on every leader change.
+	a.usage.setActive(shouldRun, a.config.MetricsWindow, a.now())
+
 	if a.cancel != nil && (!shouldRun || restart) {
 		a.logger.Info("stopping built-in autoscaler")
 		a.cancel()
@@ -202,7 +212,9 @@ func (a *Autoscaler) run(ctx context.Context, cfg *Config, doneCh chan struct{})
 
 	a.logger.Info("starting built-in autoscaler", "default_engine", cfg.DefaultEngine,
 		"eval_workers", cfg.EvalWorkers)
-	newRunner(a.logger, cfg, a.deps, a.now, host).run(ctx)
+	r := newRunner(a.logger, cfg, a.deps, a.now, host)
+	r.usage = a.usage
+	r.run(ctx)
 }
 
 // configEqual reports whether two configurations are the same.

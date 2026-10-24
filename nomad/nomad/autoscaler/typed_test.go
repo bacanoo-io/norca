@@ -109,10 +109,10 @@ func TestAutoscaler_TypedMetricCheck(t *testing.T) {
 		must.NoError(t, p.FillTypedPolicy())
 	})
 
-	// The built-in metric is served by the nomad-apm for now.
+	// The built-in metric is queried by name from the nomad-apm source.
 	c := h.runner.handles[h.policyID()].compiled.policy.Checks[0]
 	must.Eq(t, "nomad-apm", c.Source)
-	must.Eq(t, "taskgroup_avg_cpu-allocated/web/"+h.job.ID+"@default", c.Query)
+	must.Eq(t, MetricCPU, c.Query)
 	must.Eq(t, map[string]string{"target": "70"}, c.Strategy.Config)
 }
 
@@ -290,9 +290,11 @@ func TestValidatePolicy(t *testing.T) {
 		{"unknown source", func(p *structs.ScalingPolicy) { p.Checks[1].Source = "datadog" },
 			`unknown source "datadog"`},
 		{"unknown metric", func(p *structs.ScalingPolicy) { p.Checks[0].Metric = "nomad.gpu" },
-			`unknown metric "nomad.gpu"`},
+			"metric must be one of"},
 		{"metric and query", func(p *structs.ScalingPolicy) { p.Checks[0].Query = "q" },
-			"metric can't be combined"},
+			"only one of metric and query"},
+		{"metric source", func(p *structs.ScalingPolicy) { p.Checks[0].Source = "prometheus" },
+			"requires the nomad-apm source"},
 		{"no query", func(p *structs.ScalingPolicy) { p.Checks[1].Query = "" }, "requires a query or a metric"},
 		{"duplicate check", func(p *structs.ScalingPolicy) { p.Checks[1].Name = "cpu" }, `duplicate check "cpu"`},
 		{"instant threshold", func(p *structs.ScalingPolicy) { p.Checks[1].QueryInstant = true },
