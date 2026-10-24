@@ -59,6 +59,12 @@ type ServiceRegistration struct {
 	// is determined by a combination of factors on the client.
 	Port int
 
+	// Ready reports whether the service instance can receive traffic, as
+	// determined by the startup and readiness checks of the service. Services
+	// without such checks are always ready. Registrations written by clients
+	// that predate check roles report false.
+	Ready bool
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -224,7 +230,24 @@ type ServiceCheck struct {
 	FailuresBeforeCritical int                 `mapstructure:"failures_before_critical" hcl:"failures_before_critical,optional"`
 	Body                   string              `hcl:"body,optional"`
 	OnUpdate               string              `mapstructure:"on_update" hcl:"on_update,optional"`
+	Role                   string              `hcl:"role,optional"`
+	StartupTimeout         time.Duration       `mapstructure:"startup_timeout" hcl:"startup_timeout,optional"`
 }
+
+const (
+	// CheckRoleStartup marks the check that tells whether the task has
+	// finished starting. It gates the other checks of the task and restarts
+	// the task if it does not pass within StartupTimeout.
+	CheckRoleStartup = "startup"
+
+	// CheckRoleReadiness marks a check that tells whether the service instance
+	// can receive traffic. It never restarts the task.
+	CheckRoleReadiness = "readiness"
+
+	// CheckRoleLiveness marks a check whose failure restarts the task. It does
+	// not affect the health of the service.
+	CheckRoleLiveness = "liveness"
+)
 
 // Service represents a Nomad job-submitters view of a Consul or Nomad service.
 type Service struct {
@@ -302,7 +325,11 @@ func (s *Service) Canonicalize(t *Task, tg *TaskGroup, job *Job) {
 	// Canonicalize CheckRestart on Checks and merge Service.CheckRestart
 	// into each check.
 	for i, check := range s.Checks {
-		s.Checks[i].CheckRestart = s.CheckRestart.Merge(check.CheckRestart)
+		// Startup and readiness checks never use check_restart, so they do
+		// not inherit it from the service.
+		if check.Role != CheckRoleStartup && check.Role != CheckRoleReadiness {
+			s.Checks[i].CheckRestart = s.CheckRestart.Merge(check.CheckRestart)
+		}
 		s.Checks[i].CheckRestart.Canonicalize()
 
 		if s.Checks[i].SuccessBeforePassing < 0 {
