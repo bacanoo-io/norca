@@ -101,12 +101,23 @@ func (s *ServiceRegistration) Upsert(
 	// settings, with flapping protection) is enabled once every server of the
 	// region runs Norca; until then registrations keep the fields known to
 	// every server.
+	stateStore := s.srv.fsm.State()
 	if !ServersMeetMinimumNorcaVersion(s.srv.Members(), s.srv.Region(), false) {
+		// Drop the registrations that would not change, as clients
+		// re-assert the health of their instances periodically.
+		services := make([]*structs.ServiceRegistration, 0, len(args.Services))
 		for _, service := range args.Services {
 			service.StripNorcaFields()
+			existing, err := stateStore.GetServiceRegistrationByID(nil, service.Namespace, service.ID)
+			if err != nil {
+				return err
+			}
+			if !service.Equal(existing) {
+				services = append(services, service)
+			}
 		}
+		args.Services = services
 	} else if s.srv.serviceHealth != nil {
-		stateStore := s.srv.fsm.State()
 		services, err := s.srv.serviceHealth.filter(args.Services,
 			func(namespace, id string) (*structs.ServiceRegistration, error) {
 				return stateStore.GetServiceRegistrationByID(nil, namespace, id)
@@ -114,17 +125,17 @@ func (s *ServiceRegistration) Upsert(
 		if err != nil {
 			return err
 		}
-
-		// Nothing changes: skip the Raft write.
-		if len(services) == 0 {
-			index, err := stateStore.Index(state.TableServiceRegistrations)
-			if err != nil {
-				return err
-			}
-			reply.Index = index
-			return nil
-		}
 		args.Services = services
+	}
+
+	// Nothing changes: skip the Raft write.
+	if len(args.Services) == 0 {
+		index, err := stateStore.Index(state.TableServiceRegistrations)
+		if err != nil {
+			return err
+		}
+		reply.Index = index
+		return nil
 	}
 
 	// Update via Raft.
