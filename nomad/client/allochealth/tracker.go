@@ -172,14 +172,28 @@ func NewTracker(
 
 func countChecks(services []*structs.Service) (consul, nomad int) {
 	for _, service := range services {
+		// liveness checks do not count toward allocation health
+		n := countHealthChecks(service.Checks)
 		switch service.Provider {
 		case structs.ServiceProviderNomad:
-			nomad += len(service.Checks)
+			nomad += n
 		default:
-			consul += len(service.Checks)
+			consul += n
 		}
 	}
 	return
+}
+
+// countHealthChecks returns the number of checks that count toward allocation
+// health, that is all but liveness checks.
+func countHealthChecks(checks []*structs.ServiceCheck) int {
+	n := 0
+	for _, check := range checks {
+		if !check.HasRole(structs.CheckRoleLiveness) {
+			n++
+		}
+	}
+	return n
 }
 
 // Start starts the watcher.
@@ -564,6 +578,11 @@ func evaluateConsulChecks(services []*structs.Service, registrations *servicereg
 	regChecks := make(map[string]int)
 	for _, service := range services {
 		for _, check := range service.Checks {
+			// liveness checks are executed by the client, not registered
+			// in Consul
+			if check.HasRole(structs.CheckRoleLiveness) {
+				continue
+			}
 			expChecks[check.Name]++
 		}
 	}
@@ -666,6 +685,11 @@ func (t *Tracker) watchNomadEvents() {
 		// scan to see if any checks are failing
 		passing := true
 		for _, result := range results {
+			// liveness checks do not count toward allocation health
+			if result.Role == structs.CheckRoleLiveness {
+				continue
+			}
+
 			switch result.Status {
 			case structs.CheckSuccess:
 				continue
@@ -714,7 +738,7 @@ type taskHealthState struct {
 func (t *taskHealthState) event(deadline time.Time, healthyDeadline, minHealthyTime time.Duration, useChecks bool) (string, bool) {
 	desiredChecks := 0
 	for _, s := range t.task.Services {
-		if nc := len(s.Checks); nc > 0 {
+		if nc := countHealthChecks(s.Checks); nc > 0 {
 			desiredChecks += nc
 		}
 	}
