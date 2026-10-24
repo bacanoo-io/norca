@@ -1,0 +1,330 @@
+// Copyright IBM Corp. 2020, 2026
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+// Ported from Nomad Autoscaler v0.6.0 policy/nomad/parser.go.
+// Modified: parses the scaling policies of the server state store
+// (structs.ScalingPolicy) instead of the HTTP API representation.
+
+package autoscaler
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
+	"github.com/hashicorp/nomad/nomad/structs"
+)
+
+// parsePolicy parses the values on an structs.ScalingPolicy into a
+// sdk.ScalingPolicy.
+//
+// It provides best-effort parsing, with any invalid values being skipped from
+// the end result. To avoid missing values use validateScalingPolicy() to
+// detect errors first.
+func parsePolicy(p *structs.ScalingPolicy) sdk.ScalingPolicy {
+	if p == nil {
+		return sdk.ScalingPolicy{}
+	}
+
+	to := sdk.ScalingPolicy{
+		ID:       p.ID,
+		Type:     p.Type,
+		Min:      p.Min,
+		Max:      p.Max,
+		Enabled:  p.Enabled,
+		Checks:   parseChecks(p.Policy[keyChecks]),
+		Schedule: parseSchedule(p.Policy[keySchedule]),
+	}
+
+	// Parse evaluation_interval as time.Duration.
+	// Ignore error since we assume policy has been validated.
+	if eval, ok := p.Policy[keyEvaluationInterval].(string); ok {
+		to.EvaluationInterval, _ = time.ParseDuration(eval)
+	}
+
+	// Parse cooldown as time.Duration
+	// Ignore error since we assume policy has been validated.
+	if cooldown, ok := p.Policy[keyCooldown].(string); ok {
+		to.Cooldown, _ = time.ParseDuration(cooldown)
+	}
+
+	// Parse cooldownOnScaleUp as time.Duration
+	// Ignore error since we assume policy has been validated.
+	if cooldownOnScaleUp, ok := p.Policy[keyCooldownOnScaleUp].(string); ok {
+		to.CooldownOnScaleUp, _ = time.ParseDuration(cooldownOnScaleUp)
+	}
+
+	// Parse on_check_error.
+	if onCheckError, ok := p.Policy[keyOnCheckError].(string); ok {
+		to.OnCheckError = onCheckError
+	}
+
+	// Parse target block.
+	var target *sdk.ScalingPolicyTarget
+
+	if p.Policy[keyTarget] == nil {
+		// Target was not specified in the policy block, but parse values from
+		// the Target field.
+		target = parseTarget(nil, p.Target)
+	} else {
+		// There shouldn't be more than one, but iterate just in case.
+		for k, v := range parseBlocks(p.Policy[keyTarget]) {
+			target = parseTarget(v, p.Target)
+			if target != nil {
+				target.Name = k
+				break
+			}
+		}
+	}
+	to.Target = target
+
+	return to
+}
+
+// parseChecks parses the list of checks in a scaling policy.
+//
+// It provides best-effort parsing and will return `nil` in case of errors.
+func parseChecks(cs interface{}) []*sdk.ScalingPolicyCheck {
+	if cs == nil {
+		return nil
+	}
+
+	checksInterfaceList, ok := cs.([]interface{})
+	if !ok {
+		return nil
+	}
+
+	var checks []*sdk.ScalingPolicyCheck
+	checksBlocks := parseBlocks(checksInterfaceList)
+
+	for k, v := range checksBlocks {
+		check := parseCheck(v)
+		if check != nil {
+			check.Name = k
+			checks = append(checks, check)
+		}
+	}
+
+	return checks
+}
+
+// parseCheck parses the content of a check block from a policy.
+//
+// It provides best-effort parsing and will return `nil` in case of errors.
+//
+//	scaling {
+//	  policy {
+//	  +---------------------------------+
+//	  | check "name" {                  |
+//	  |   source = "source"             |
+//	  |   query               = "query" |
+//	  |   query_window        = "5m"    |
+//	  |   query_window_offset = "1m"    |
+//	  |   strategy "strategy" { ... }   |
+//	  | }                               |
+//	  +---------------------------------+
+//	  }
+//	}
+func parseCheck(c interface{}) *sdk.ScalingPolicyCheck {
+	if c == nil {
+		return nil
+	}
+
+	checkMap := parseBlock(c)
+	if checkMap == nil {
+		return nil
+	}
+
+	// Parse a single strategy block.
+	// There shouldn't be more than one, but iterate just in case.
+	var strategy *sdk.ScalingPolicyStrategy
+	for k, v := range parseBlocks(checkMap[keyStrategy]) {
+		strategy = parseStrategy(v)
+		if strategy != nil {
+			strategy.Name = k
+			break
+		}
+	}
+
+	// Parse query and source with _ to avoid panics.
+	query, _ := checkMap[keyQuery].(string)
+	source, _ := checkMap[keySource].(string)
+	on_error, _ := checkMap[keyOnError].(string)
+	group, _ := checkMap[keyGroup].(string)
+
+	// Parse query_window and query_window_offset ignoring errors since we
+	// assume policy has been validated.
+	var queryWindow, queryWindowOffset time.Duration
+	var queryInstant bool
+	if queryWindowStr, ok := checkMap[keyQueryWindow].(string); ok {
+		if queryWindowStr == "instant" {
+			queryInstant = true
+		} else {
+			queryWindow, _ = time.ParseDuration(queryWindowStr)
+		}
+	}
+	if queryWindowOffsetStr, ok := checkMap[keyQueryWindowOffset].(string); ok {
+		queryWindowOffset, _ = time.ParseDuration(queryWindowOffsetStr)
+	}
+
+	return &sdk.ScalingPolicyCheck{
+		Group:             group,
+		Query:             query,
+		QueryWindow:       queryWindow,
+		QueryWindowOffset: queryWindowOffset,
+		QueryInstant:      queryInstant,
+		Schedule:          parseSchedule(checkMap[keySchedule]),
+		Source:            source,
+		Strategy:          strategy,
+		OnError:           on_error,
+	}
+}
+
+func parseSchedule(s interface{}) *sdk.ScalingPolicySchedule {
+	if s == nil {
+		return nil
+	}
+
+	scheduleMap := parseBlock(s)
+	if scheduleMap == nil {
+		return nil
+	}
+
+	start, _ := scheduleMap["start"].(string)
+	end, _ := scheduleMap["end"].(string)
+	duration, _ := scheduleMap["duration"].(string)
+
+	return &sdk.ScalingPolicySchedule{
+		Start:    start,
+		End:      end,
+		Duration: duration,
+	}
+}
+
+// parseStrategy parses the content of the strategy block from a policy.
+//
+// It provides best-effort parsing and will return `nil` in case of errors.
+//
+//	scaling {
+//	  policy {
+//	    strategy "strategy" {
+//	    +---------------+
+//	    | key = "value" |
+//	    +---------------+
+//	    }
+//	  }
+//	}
+func parseStrategy(s interface{}) *sdk.ScalingPolicyStrategy {
+	if s == nil {
+		return nil
+	}
+
+	strategyMap := parseBlock(s)
+	if strategyMap == nil {
+		return nil
+	}
+
+	configMapString := make(map[string]string)
+	for k, v := range strategyMap {
+		configMapString[k] = fmt.Sprintf("%v", v)
+	}
+
+	return &sdk.ScalingPolicyStrategy{
+		Config: configMapString,
+	}
+}
+
+// parseTarget parses the content of the target block from a policy and
+// enhances it with values defined in Target as well. Values in target.config
+// takes precedence over values in Target.
+//
+// It provides best-effort parsing and will return `nil` in case of errors.
+//
+//	scaling {
+//	  policy {
+//	    target "target"  {
+//	    +---------------+
+//	    | key = "value" |
+//	    +---------------+
+//	    }
+//	  }
+//	}
+func parseTarget(targetBlock interface{}, targetAttr map[string]string) *sdk.ScalingPolicyTarget {
+	targetMap := parseBlock(targetBlock)
+	if targetMap == nil && targetAttr == nil {
+		return nil
+	}
+
+	// Copy values from structs.ScalingPolicy.Target.
+	configMapString := make(map[string]string)
+	for k, v := range targetAttr {
+		configMapString[k] = v
+	}
+
+	for k, v := range targetMap {
+		configMapString[k] = fmt.Sprintf("%v", v)
+	}
+
+	return &sdk.ScalingPolicyTarget{
+		Config: configMapString,
+	}
+}
+
+// parseBlock parses the specific structure of a block into a more usable
+// value of map[string]interface{}.
+func parseBlock(block interface{}) map[string]interface{} {
+	blockInterfaceList, ok := block.([]interface{})
+	if !ok || len(blockInterfaceList) != 1 {
+		return nil
+	}
+
+	blockMap, ok := blockInterfaceList[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	return blockMap
+}
+
+// parseBlocks flattens a list of block into a map, with the labels as keys.
+func parseBlocks(blocks interface{}) map[string]interface{} {
+	blocksInterfaceList, ok := blocks.([]interface{})
+	if !ok {
+		return nil
+	}
+
+	blocksMap := make(map[string]interface{})
+
+	for _, blockInterface := range blocksInterfaceList {
+		blockMap, ok := blockInterface.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		for blockName, blockContent := range blockMap {
+			blocksMap[blockName] = blockContent
+		}
+	}
+
+	return blocksMap
+}
+
+// Keys represent the scaling policy document keys and help translate
+// the opaque object into a usable autoscaling policy.
+const (
+	keySource             = "source"
+	keyQuery              = "query"
+	keyQueryWindow        = "query_window"
+	keyQueryWindowOffset  = "query_window_offset"
+	keyEvaluationInterval = "evaluation_interval"
+	keyOnCheckError       = "on_check_error"
+	keyOnError            = "on_error"
+	keyTarget             = "target"
+	keyChecks             = "check"
+	keyGroup              = "group"
+	keyStrategy           = "strategy"
+	keySchedule           = "schedule"
+	keyCooldown           = "cooldown"
+	keyCooldownOnScaleUp  = "cooldown_on_scale_up"
+)
