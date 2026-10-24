@@ -79,7 +79,8 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | NATS pack (`packs/nats`: NATS cluster per region with JetStream and supercluster gateways, optional bridge job) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Backup and restore: scheduled, age-encrypted backups to S3/MinIO, browsing and selective restore (`norca operator backup`) | Available (phases 1–2) | [plan](docs/design/backup-restore-plan.md) |
 | Backup and restore: web UI, full restore with two-person approval, bootstrap | Planned | [plan](docs/design/backup-restore-plan.md) |
-| Service discovery without Consul | Planned | [plan](docs/design/consul-independence-plan.md) |
+| Service discovery without Consul: health-based catalog, built-in DNS, Consul-compatible read layer for Traefik, Prometheus and consul-template (DNS and the compat layer are off by default) | Available (phases 1–3) | [plan](docs/design/consul-independence-plan.md) |
+| Service discovery without Consul: external registration, native mTLS, managed Consul install | Planned | [plan](docs/design/consul-independence-plan.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |
 | Package management: server-side releases, rollback, OCI registries | Planned | [plan](docs/design/package-management-plan.md) |
 | New web UI | Planned | [plan](docs/design/ui-plan.md) |
