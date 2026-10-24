@@ -38,6 +38,7 @@
     "nomad/stream/...",
     "nomad/structs/...",
     "nomad/volumewatcher/...",
+    "pack/...",
     "plugins/...",
     "scheduler/...",
     "testutil/..."
