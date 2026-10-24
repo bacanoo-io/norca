@@ -1,4 +1,5 @@
 // Copyright IBM Corp. 2021, 2025
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package cli
@@ -982,7 +983,7 @@ func TestCLI_CLIFlag_Token(t *testing.T) {
 			"--token=bad00000-bad0-bad0-bad0-badbadbadbad",
 		})
 		must.Eq(t, result.cmdErr.String(), "", must.Sprintf("cmdErr should be empty, but was %q", result.cmdErr.String()))
-		must.StrContains(t, result.cmdOut.String(), "403 (Permission denied)", must.Sprintf(
+		must.StrContains(t, result.cmdOut.String(), "403 (ACL token not found)", must.Sprintf(
 			"Expected token not found error, received %q", result.cmdOut.String()))
 
 		result = runTestPackCmd(t, srv, []string{
@@ -1010,7 +1011,7 @@ func TestCLI_EnvConfig_Token(t *testing.T) {
 			getTestPackPath(t, testPack),
 		})
 		must.Eq(t, result.cmdErr.String(), "", must.Sprintf("cmdErr should be empty, but was %q", result.cmdErr.String()))
-		must.StrContains(t, result.cmdOut.String(), "403 (Permission denied)", must.Sprintf(
+		must.StrContains(t, result.cmdOut.String(), "403 (ACL token not found)", must.Sprintf(
 			"Expected token not found error, received %q", result.cmdOut.String()))
 
 		// Good token - Should run
