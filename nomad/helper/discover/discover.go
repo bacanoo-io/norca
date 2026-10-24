@@ -17,7 +17,7 @@ import (
 // be found, an error is returned.
 func NomadExecutable() (string, error) {
 	// The norca binary is preferred; nomad is its compatibility alias and
-	// the default output name of "go build" in this module.
+	// the name "go install" gives the binary of this module.
 	names := []string{"norca", "nomad"}
 	if runtime.GOOS == "windows" {
 		names = []string{"norca.exe", "nomad.exe"}
