@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-set"
+	"github.com/hashicorp/go-version"
 
 	"github.com/hashicorp/nomad/acl"
 	"github.com/hashicorp/nomad/nomad/state"
@@ -88,6 +89,14 @@ func (s *ServiceRegistration) Upsert(
 		return err
 	}
 
+	// Clients that predate the Ready flag never set it; treat their instances
+	// as ready so that readiness filtering does not hide them.
+	if !nodeReportsServiceReadiness(node) {
+		for _, service := range args.Services {
+			service.Ready = true
+		}
+	}
+
 	// Update via Raft.
 	_, index, err := s.srv.raftApply(structs.ServiceRegistrationUpsertRequestType, args)
 	if err != nil {
@@ -98,6 +107,28 @@ func (s *ServiceRegistration) Upsert(
 	// state and therefore will get a non-zero index response.
 	reply.Index = index
 	return nil
+}
+
+// minNorcaServiceReadinessVersion is the first Norca client version that sets
+// ServiceRegistration.Ready from the startup and readiness checks.
+var minNorcaServiceReadinessVersion = version.Must(version.NewVersion("0.1.0"))
+
+// nodeReportsServiceReadiness returns whether the client on node sets
+// ServiceRegistration.Ready itself. Upstream Nomad clients and Norca clients
+// that predate check roles do not advertise a "norca.version" attribute (or
+// advertise an older one) and send Ready as false for every instance, healthy
+// or not. During a mixed-version upgrade the server must not take that as
+// "not ready". Prerelease suffixes are ignored, so 0.1.0-dev counts as 0.1.0.
+func nodeReportsServiceReadiness(node *structs.Node) bool {
+	raw, ok := node.Attributes["norca.version"]
+	if !ok {
+		return false
+	}
+	v, err := version.NewVersion(raw)
+	if err != nil {
+		return false
+	}
+	return !v.Core().LessThan(minNorcaServiceReadinessVersion)
 }
 
 // DeleteByID removes a single service registration, as specified by its ID

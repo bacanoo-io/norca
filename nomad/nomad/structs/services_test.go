@@ -5,6 +5,7 @@ package structs
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -57,6 +58,87 @@ func TestServiceCheck_Hash(t *testing.T) {
 	t.Run("failures_before_critical", func(t *testing.T) {
 		try(t, func(s *sc) { s.FailuresBeforeCritical = 99 })
 	})
+}
+
+func TestServiceCheck_Equal(t *testing.T) {
+	ci.Parallel(t)
+
+	// every field set, with PortLabel and Path deliberately different: Equal
+	// used to compare PortLabel with Path, so such a check never equaled
+	// even its own copy
+	original := &ServiceCheck{
+		Name:                   "check",
+		Type:                   ServiceCheckHTTP,
+		Command:                "/bin/check",
+		Args:                   []string{"-v"},
+		Path:                   "/health",
+		Protocol:               "https",
+		PortLabel:              "http",
+		Expose:                 true,
+		AddressMode:            AddressModeHost,
+		Interval:               10 * time.Second,
+		Timeout:                2 * time.Second,
+		InitialStatus:          "passing",
+		TLSServerName:          "example.com",
+		TLSSkipVerify:          true,
+		Method:                 "GET",
+		Header:                 map[string][]string{"X-Check": {"1"}},
+		CheckRestart:           &CheckRestart{Limit: 3},
+		GRPCService:            "svc",
+		GRPCUseTLS:             true,
+		TaskName:               "web",
+		SuccessBeforePassing:   2,
+		FailuresBeforeCritical: 3,
+		Body:                   "{}",
+		OnUpdate:               OnUpdateRequireHealthy,
+		Role:                   CheckRoleReadiness,
+		StartupTimeout:         time.Minute,
+	}
+	must.True(t, original.Equal(original.Copy()))
+
+	tweaks := map[string]func(*ServiceCheck){
+		"Name":                   func(c *ServiceCheck) { c.Name = "other" },
+		"Type":                   func(c *ServiceCheck) { c.Type = ServiceCheckTCP },
+		"Command":                func(c *ServiceCheck) { c.Command = "/bin/other" },
+		"Args":                   func(c *ServiceCheck) { c.Args = []string{"-q"} },
+		"Path":                   func(c *ServiceCheck) { c.Path = "/other" },
+		"Protocol":               func(c *ServiceCheck) { c.Protocol = "http" },
+		"PortLabel":              func(c *ServiceCheck) { c.PortLabel = "admin" },
+		"Expose":                 func(c *ServiceCheck) { c.Expose = false },
+		"AddressMode":            func(c *ServiceCheck) { c.AddressMode = AddressModeDriver },
+		"Interval":               func(c *ServiceCheck) { c.Interval = time.Second },
+		"Timeout":                func(c *ServiceCheck) { c.Timeout = time.Second },
+		"InitialStatus":          func(c *ServiceCheck) { c.InitialStatus = "critical" },
+		"TLSServerName":          func(c *ServiceCheck) { c.TLSServerName = "other.com" },
+		"TLSSkipVerify":          func(c *ServiceCheck) { c.TLSSkipVerify = false },
+		"Method":                 func(c *ServiceCheck) { c.Method = "POST" },
+		"Header":                 func(c *ServiceCheck) { c.Header = map[string][]string{"X-Check": {"2"}} },
+		"CheckRestart":           func(c *ServiceCheck) { c.CheckRestart = &CheckRestart{Limit: 4} },
+		"GRPCService":            func(c *ServiceCheck) { c.GRPCService = "other" },
+		"GRPCUseTLS":             func(c *ServiceCheck) { c.GRPCUseTLS = false },
+		"TaskName":               func(c *ServiceCheck) { c.TaskName = "other" },
+		"SuccessBeforePassing":   func(c *ServiceCheck) { c.SuccessBeforePassing = 5 },
+		"FailuresBeforeCritical": func(c *ServiceCheck) { c.FailuresBeforeCritical = 5 },
+		"Body":                   func(c *ServiceCheck) { c.Body = "[]" },
+		"OnUpdate":               func(c *ServiceCheck) { c.OnUpdate = OnUpdateIgnore },
+		"Role":                   func(c *ServiceCheck) { c.Role = CheckRoleLiveness },
+		"StartupTimeout":         func(c *ServiceCheck) { c.StartupTimeout = time.Second },
+	}
+
+	// a new ServiceCheck field must be compared by Equal and listed here
+	fields := reflect.TypeOf(ServiceCheck{})
+	must.Eq(t, fields.NumField(), len(tweaks))
+	for i := 0; i < fields.NumField(); i++ {
+		name := fields.Field(i).Name
+		tweak, ok := tweaks[name]
+		must.True(t, ok, must.Sprintf("no tweak for field %s", name))
+		t.Run(name, func(t *testing.T) {
+			modified := original.Copy()
+			tweak(modified)
+			must.False(t, original.Equal(modified))
+			must.False(t, modified.Equal(original))
+		})
+	}
 }
 
 func TestServiceCheck_Canonicalize(t *testing.T) {
