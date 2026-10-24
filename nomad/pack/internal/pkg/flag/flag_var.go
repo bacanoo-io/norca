@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 	flag "github.com/spf13/pflag"
 )
@@ -85,8 +86,12 @@ func (f *Set) VarFlagP(i *VarFlagP) {
 	}
 
 	if i.EnvVar != "" {
+		envVar := i.EnvVar
+		if suffix, ok := strings.CutPrefix(envVar, clienv.Prefix); ok {
+			envVar += " (or " + clienv.CompatName(suffix) + ")"
+		}
 		usage += fmt.Sprintf(" This can also be specified via the %s "+
-			"environment variable.", i.EnvVar)
+			"environment variable.", envVar)
 	}
 
 	// Add aliases to the main set

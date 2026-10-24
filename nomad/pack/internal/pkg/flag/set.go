@@ -376,9 +376,9 @@ func hasGoFlags(args []string) bool {
 
 var errFlagAfterArgs = errors.New(strings.ReplaceAll(strings.TrimSpace(`
 	Flags must be specified before positional arguments when using Go standard
-	library style flags. For example, "nomad pack plan -verbose example" instead
-	of "nomad pack plan example -verbose".
+	library style flags. For example, "norca pack plan -verbose example" instead
+	of "norca pack plan example -verbose".
 
 	The CLI also accepts posix flags, which does allow flags after positional
-	arguments. For example, both "nomad pack plan --verbose example" and
-	"nomad pack plan example --verbose" are valid commands.`), "\t", " "))
+	arguments. For example, both "norca pack plan --verbose example" and
+	"norca pack plan example --verbose" are valid commands.`), "\t", " "))

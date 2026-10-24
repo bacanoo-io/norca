@@ -5,17 +5,18 @@
 # When pinning use the multi-arch manifest list, `docker buildx imagetools inspect ...`
 FROM docker.io/library/busybox@sha256:9e2bbca079387d7965c3a9cee6d0c53f4f4e63ff7637877a83c4c05f2a666112 as release
 
-ARG PRODUCT_NAME=nomad
+ARG PRODUCT_NAME=norca
 ARG PRODUCT_VERSION
 ARG PRODUCT_REVISION
 # TARGETARCH and TARGETOS are set automatically when --platform is provided.
 ARG TARGETOS TARGETARCH
 
-LABEL maintainer="Nomad Team <nomad@hashicorp.com>"
+LABEL org.opencontainers.image.title="Norca"
+LABEL org.opencontainers.image.licenses="MPL-2.0"
 LABEL version=${PRODUCT_VERSION}
 LABEL revision=${PRODUCT_REVISION}
 
-COPY dist/$TARGETOS/$TARGETARCH/nomad /bin/
+COPY dist/$TARGETOS/$TARGETARCH/norca /bin/
 COPY ./scripts/docker-entrypoint.sh /
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

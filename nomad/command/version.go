@@ -26,5 +26,5 @@ func (c *VersionCommand) Run(_ []string) int {
 }
 
 func (c *VersionCommand) Synopsis() string {
-	return "Prints the Nomad version"
+	return "Prints the Norca version"
 }

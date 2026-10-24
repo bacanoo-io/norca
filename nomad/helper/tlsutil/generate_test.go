@@ -89,7 +89,14 @@ func TestGenerateCA(t *testing.T) {
 
 		cert, err := parseCert(ca)
 		require.Nil(t, err)
-		require.True(t, strings.HasPrefix(cert.Subject.CommonName, "Nomad Agent CA"))
+		require.True(t, strings.HasPrefix(cert.Subject.CommonName, "Norca Agent CA"))
+		require.Equal(t, []string{"Norca"}, cert.Subject.Organization)
+		require.Equal(t, []string{"Norca"}, cert.Subject.OrganizationalUnit)
+		require.Empty(t, cert.Subject.Country)
+		require.Empty(t, cert.Subject.PostalCode)
+		require.Empty(t, cert.Subject.Province)
+		require.Empty(t, cert.Subject.Locality)
+		require.Empty(t, cert.Subject.StreetAddress)
 		require.Equal(t, true, cert.IsCA)
 		require.Equal(t, true, cert.BasicConstraintsValid)
 
@@ -107,7 +114,7 @@ func TestGenerateCA(t *testing.T) {
 
 		cert, err := parseCert(ca)
 		require.NoError(t, err)
-		require.True(t, strings.HasPrefix(cert.Subject.CommonName, "Nomad Agent CA"))
+		require.True(t, strings.HasPrefix(cert.Subject.CommonName, "Norca Agent CA"))
 		require.Equal(t, true, cert.IsCA)
 		require.Equal(t, true, cert.BasicConstraintsValid)
 

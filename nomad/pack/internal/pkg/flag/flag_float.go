@@ -4,9 +4,9 @@
 package flag
 
 import (
-	"os"
 	"strconv"
 
+	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 )
 
@@ -36,7 +36,7 @@ func (f *Set) Float64Var(i *Float64Var) {
 
 func (f *Set) Float64VarP(i *Float64VarP) {
 	initial := i.Default
-	if v, exist := os.LookupEnv(i.EnvVar); exist {
+	if v, exist := clienv.LookupName(i.EnvVar); exist {
 		if i, err := strconv.ParseFloat(v, 64); err == nil {
 			initial = i
 		}

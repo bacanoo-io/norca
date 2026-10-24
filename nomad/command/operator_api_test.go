@@ -113,6 +113,35 @@ func TestOperatorAPICommand_Curl(t *testing.T) {
 	require.Equal(t, expected, buf.String())
 }
 
+// TestOperatorAPICommand_CurlEnv asserts that -dryrun references the token and
+// HTTP auth environment variables by the name they were set with.
+func TestOperatorAPICommand_CurlEnv(t *testing.T) {
+	for _, prefix := range []string{"NORCA_", "NOMAD_"} {
+		t.Run(prefix, func(t *testing.T) {
+			for _, p := range []string{"NORCA_", "NOMAD_"} {
+				t.Setenv(p+"TOKEN", "")
+				t.Setenv(p+"HTTP_AUTH", "")
+			}
+			t.Setenv(prefix+"TOKEN", "acl-token")
+			t.Setenv(prefix+"HTTP_AUTH", "user:pass")
+
+			buf := bytes.NewBuffer(nil)
+			ui := &cli.BasicUi{ErrorWriter: buf, Writer: buf}
+			cmd := &OperatorAPICommand{Meta: Meta{Ui: ui}}
+			exitCode := cmd.Run([]string{"-dryrun", "-address=http://127.0.0.1:1", "/url"})
+			require.Zero(t, exitCode, buf.String())
+
+			expected := `curl \
+  -X GET \
+  -H "X-Nomad-Token: ${` + prefix + `TOKEN}" \
+  -u "$` + prefix + `HTTP_AUTH" \
+  http://127.0.0.1:1/url
+`
+			require.Equal(t, expected, buf.String())
+		})
+	}
+}
+
 func Test_pathToURL(t *testing.T) {
 	ci.Parallel(t)
 

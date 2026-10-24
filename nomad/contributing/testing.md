@@ -27,10 +27,14 @@ Each unit test should meet a few criteria:
 
 ## API tests
 
-Testing in the `api` package requires an already-built Nomad
-binary. If you're writing `api` tests, you'll need to build a Nomad
-binary (ex. with `make dev`) that includes any changes your API
-exercises.
+Testing in the `api` package, the `command` integration tests and the
+tests that start helper subprocesses (`helper/subproc`) require an
+already-built `norca` binary on the `PATH`. Build one that includes any
+changes your tests exercise, e.g. with `make dev` (writes `bin/norca` and
+copies it to `$GOBIN`) or with `go build -o norca .` in the `nomad/`
+directory, and put its directory on the `PATH`. The test helpers look for
+`norca` first and fall back to a binary named `nomad`, the compatibility
+alias.
 
 
 # CI Plumbing

@@ -17,9 +17,9 @@ type OperatorMetricsCommand struct {
 
 func (c *OperatorMetricsCommand) Help() string {
 	helpText := `
-Usage: nomad operator metrics [options]
+Usage: norca operator metrics [options]
 
-Get Nomad metrics
+Get Norca metrics
 
 General Options:
 
@@ -45,7 +45,7 @@ Metrics Specific Options
 }
 
 func (c *OperatorMetricsCommand) Synopsis() string {
-	return "Retrieve Nomad metrics"
+	return "Retrieve Norca metrics"
 }
 
 func (c *OperatorMetricsCommand) AutocompleteFlags() complete.Flags {

@@ -50,7 +50,7 @@ func (d *depsHelpCommand) Synopsis() string {
 
 func (d *depsHelpCommand) Help() string {
 	return formatHelp(`
-	Usage: nomad pack deps <subcommand> [options]
+	Usage: norca pack deps <subcommand> [options]
 
 	Manage dependencies for pack.
 

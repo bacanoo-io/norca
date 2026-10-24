@@ -25,5 +25,5 @@ func main() {
 		os.Exit(1)
 	}
 	cli.ExposeDocs = true
-	os.Exit(cli.Main([]string{"nomad pack", "gen-cli-docs", mode}))
+	os.Exit(cli.Main([]string{"norca pack", "gen-cli-docs", mode}))
 }

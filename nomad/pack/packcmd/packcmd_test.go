@@ -24,12 +24,12 @@ func isolateCache(t *testing.T) {
 	t.Setenv("HOME", dir)           // macOS
 }
 
-// run runs args through a CLI that has only the Nomad Pack commands, like the
-// Nomad CLI does.
+// run runs args through a CLI that has only the pack commands, like the
+// Norca CLI does.
 func run(t *testing.T, args ...string) int {
 	t.Helper()
 	c := &cli.CLI{
-		Name:     "nomad",
+		Name:     "norca",
 		Args:     args,
 		Commands: Commands(),
 	}
@@ -69,12 +69,12 @@ func TestPackCmd_Commands(t *testing.T) {
 func TestPackCmd_Help(t *testing.T) {
 	cmd, err := Commands()["pack render"]()
 	must.NoError(t, err)
-	must.StrContains(t, cmd.Help(), "nomad pack render <pack-name> [options]")
+	must.StrContains(t, cmd.Help(), "norca pack render <pack-name> [options]")
 	must.StrNotContains(t, cmd.Help(), "nomad-pack")
 
 	cmd, err = Commands()["pack"]()
 	must.NoError(t, err)
-	must.StrContains(t, cmd.Help(), "Usage: nomad pack <subcommand>")
+	must.StrContains(t, cmd.Help(), "Usage: norca pack <subcommand>")
 	must.Eq(t, cli.RunResultHelp, cmd.Run(nil))
 }
 

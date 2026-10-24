@@ -19,7 +19,7 @@ import (
 const (
 	jobModifyIndexHelp = `To submit the job with version verification run:
 
-nomad job run -check-index %d %s%s
+norca job run -check-index %d %s%s
 
 When running the job with the check-index flag, the job will only be run if the
 job modify index given matches the server-side version. If the index has
@@ -38,8 +38,8 @@ type JobPlanCommand struct {
 
 func (c *JobPlanCommand) Help() string {
 	helpText := `
-Usage: nomad job plan [options] <path>
-Alias: nomad plan
+Usage: norca job plan [options] <path>
+Alias: norca plan
 
   Plan invokes a dry-run of the scheduler to determine the effects of submitting
   either a new or updated version of a job. The plan will not result in any
@@ -51,7 +51,7 @@ Alias: nomad plan
   read from URL specified.
 
   A job modify index is returned with the plan. This value can be used when
-  submitting the job using "nomad run -check-index", which will check that the job
+  submitting the job using "norca run -check-index", which will check that the job
   was not modified between the plan and run command before invoking the
   scheduler. This ensures the job has not been modified since the plan.
   Multiregion jobs do not return a job modify index.
@@ -59,7 +59,7 @@ Alias: nomad plan
   A structured diff between the local and remote job is displayed to
   give insight into what the scheduler will attempt to do and why.
 
-  If the job has specified the region, the -region flag and NOMAD_REGION
+  If the job has specified the region, the -region flag and NORCA_REGION
   environment variable are overridden and the job's region is used.
 
   Plan will return one of the following exit codes:
@@ -86,7 +86,7 @@ Plan Options:
 
   -json
     Parses the job file as JSON. If the outer object has a Job field, such as
-    from "nomad job inspect" or "nomad run -output", the value of the field is
+    from "norca job inspect" or "norca run -output", the value of the field is
     used as the job.
 
   -hcl1
@@ -103,9 +103,9 @@ Plan Options:
   -vault-token
     Used to validate if the user submitting the job has permission to run the job
     according to its Vault policies. A Vault token must be supplied if the vault
-    block allow_unauthenticated is disabled in the Nomad server configuration.
+    block allow_unauthenticated is disabled in the Norca server configuration.
     If the -vault-token flag is set, the passed Vault token is added to the jobspec
-    before sending to the Nomad servers. This allows passing the Vault token
+    before sending to the Norca servers. This allows passing the Vault token
     without storing it in the job file. This overrides the token found in the
     $VAULT_TOKEN environment variable and the vault_token field in the job file.
     This token is cleared from the job after validating and cannot be used within
@@ -114,7 +114,7 @@ Plan Options:
 
   -vault-namespace
     If set, the passed Vault namespace is stored in the job before sending to the
-    Nomad servers.
+    Norca servers.
 
   -var 'key=value'
     Variable for template, can be used multiple times.
