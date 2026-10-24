@@ -6,43 +6,60 @@ package client
 import (
 	"fmt"
 
+	"github.com/hashicorp/nomad/client/consulcompat"
 	"github.com/hashicorp/nomad/client/discovery"
 	"github.com/hashicorp/nomad/client/dns"
+	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // discoveryServers are the service discovery servers of the client: the
-// built-in DNS server, and the catalog cache it answers from.
+// built-in DNS server with the catalog cache it answers from, and the
+// Consul-compatible API.
 type discoveryServers struct {
-	cache *discovery.Cache
-	dns   *dns.Server
+	cache  *discovery.Cache
+	dns    *dns.Server
+	compat *consulcompat.Server
 }
 
 // setupDiscovery starts the service discovery servers enabled in the client
 // configuration.
 func (c *Client) setupDiscovery() error {
 	cfg := c.GetConfig()
-	if !cfg.DNS.IsEnabled() {
-		return nil
+
+	if cfg.DNS.IsEnabled() {
+		cache := discovery.NewCache(c.logger, c.RPC, c.catalogToken)
+		resolver := discovery.NewResolver(cache, c.Topology)
+
+		server, err := dns.New(c.logger, dns.Config{
+			Bind:                     cfg.DNS.BindAddr(),
+			Domain:                   cfg.DNS.DomainName(),
+			ConsulCompat:             cfg.DNS.IsConsulCompat(),
+			ConsulDatacenterIsRegion: cfg.ConsulCompat.DatacenterIsRegion(),
+			Recursors:                cfg.DNS.RecursorAddrs(),
+			TTL:                      cfg.DNS.TTLDuration(),
+			Namespaces:               cfg.DNS.NamespaceList(),
+		}, resolver)
+		if err != nil {
+			cache.Stop()
+			return fmt.Errorf("failed to start the dns server: %w", err)
+		}
+		c.discovery.cache = cache
+		c.discovery.dns = server
 	}
 
-	cache := discovery.NewCache(c.logger, c.RPC, c.catalogToken)
-	resolver := discovery.NewResolver(cache, c.Topology)
-
-	server, err := dns.New(c.logger, dns.Config{
-		Bind:                     cfg.DNS.BindAddr(),
-		Domain:                   cfg.DNS.DomainName(),
-		ConsulCompat:             cfg.DNS.IsConsulCompat(),
-		ConsulDatacenterIsRegion: true,
-		Recursors:                cfg.DNS.RecursorAddrs(),
-		TTL:                      cfg.DNS.TTLDuration(),
-		Namespaces:               cfg.DNS.NamespaceList(),
-	}, resolver)
-	if err != nil {
-		cache.Stop()
-		return fmt.Errorf("failed to start the dns server: %w", err)
+	if cfg.ConsulCompat.IsEnabled() {
+		compat := consulcompat.New(c.logger, consulcompat.Config{
+			Bind:               cfg.ConsulCompat.BindAddr(),
+			DatacenterIsRegion: cfg.ConsulCompat.DatacenterIsRegion(),
+			Namespaces:         cfg.ConsulCompat.NamespaceList(),
+			AnonymousToken:     cfg.ConsulCompat.AnonymousToken,
+		}, compatBackend{c})
+		if err := compat.Start(); err != nil {
+			c.shutdownDiscovery()
+			return fmt.Errorf("failed to start the consul-compatible API: %w", err)
+		}
+		c.discovery.compat = compat
 	}
-
-	c.discovery = discoveryServers{cache: cache, dns: server}
 	return nil
 }
 
@@ -57,6 +74,9 @@ func (c *Client) catalogToken() string {
 
 // shutdownDiscovery stops the service discovery servers.
 func (c *Client) shutdownDiscovery() {
+	if c.discovery.compat != nil {
+		c.discovery.compat.Shutdown()
+	}
 	if c.discovery.dns != nil {
 		c.discovery.dns.Shutdown()
 	}
@@ -73,3 +93,21 @@ func (c *Client) DNSAddr() string {
 	}
 	return c.discovery.dns.Addr()
 }
+
+// ConsulCompatAddr returns the address of the Consul-compatible API, empty if
+// it is not running.
+func (c *Client) ConsulCompatAddr() string {
+	if c.discovery.compat == nil {
+		return ""
+	}
+	return c.discovery.compat.Addr()
+}
+
+// compatBackend gives the Consul-compatible API access to the client.
+type compatBackend struct{ c *Client }
+
+func (b compatBackend) RPC(method string, args, reply any) error { return b.c.RPC(method, args, reply) }
+func (b compatBackend) NodeSecret() string                       { return b.c.secretNodeID() }
+func (b compatBackend) LocalNode() *structs.Node                 { return b.c.Node() }
+func (b compatBackend) Region() string                           { return b.c.Region() }
+func (b compatBackend) Topology() structs.Topology               { return b.c.Topology() }

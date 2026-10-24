@@ -85,6 +85,37 @@ client {
 	_, err = convertClientConfig(bad)
 	must.ErrorContains(t, err, "dns ttl")
 
+	c, err = parseTestConfig(t, `
+client {
+  consul_compat {
+    enabled         = true
+    bind            = "127.0.0.1:8501"
+    datacenter_from = "datacenter"
+    namespaces      = ["default", "prod"]
+    anonymous_token = "anon"
+  }
+}
+`)
+	must.NoError(t, err)
+	compat := DefaultConfig().Merge(c).Client.ConsulCompat
+	must.True(t, compat.IsEnabled())
+	must.Eq(t, "127.0.0.1:8501", compat.BindAddr())
+	must.False(t, compat.DatacenterIsRegion())
+	must.Eq(t, []string{"default", "prod"}, compat.NamespaceList())
+	clientConf, err = convertClientConfig(DefaultConfig().Merge(c))
+	must.NoError(t, err)
+	must.Eq(t, "anon", clientConf.ConsulCompat.AnonymousToken)
+
+	bad = DefaultConfig().Merge(c)
+	bad.Client.ConsulCompat.DatacenterFrom = "zone"
+	_, err = convertClientConfig(bad)
+	must.ErrorContains(t, err, "datacenter_from")
+
+	var noCompat *config.ConsulCompatConfig
+	must.False(t, noCompat.IsEnabled())
+	must.True(t, noCompat.DatacenterIsRegion())
+	must.Eq(t, config.DefaultConsulCompatBind, noCompat.BindAddr())
+
 	// defaults
 	var none *config.DNSConfig
 	must.False(t, none.IsEnabled())

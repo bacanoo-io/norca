@@ -364,6 +364,9 @@ type ClientConfig struct {
 	// DNS configures the built-in DNS server (Norca).
 	DNS *config.DNSConfig `hcl:"dns"`
 
+	// ConsulCompat configures the Consul-compatible read API (Norca).
+	ConsulCompat *config.ConsulCompatConfig `hcl:"consul_compat"`
+
 	// Artifact contains the configuration for artifacts.
 	Artifact *config.ArtifactConfig `hcl:"artifact"`
 
@@ -394,6 +397,7 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
 	nc.Topology = c.Topology.Copy()
 	nc.DNS = c.DNS.Copy()
+	nc.ConsulCompat = c.ConsulCompat.Copy()
 	nc.Artifact = c.Artifact.Copy()
 	nc.Drain = c.Drain.Copy()
 	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
@@ -2268,6 +2272,7 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	result.NativeServiceDiscovery = a.NativeServiceDiscovery.Merge(b.NativeServiceDiscovery)
 	result.Topology = a.Topology.Merge(b.Topology)
 	result.DNS = a.DNS.Merge(b.DNS)
+	result.ConsulCompat = a.ConsulCompat.Merge(b.ConsulCompat)
 
 	result.Artifact = a.Artifact.Merge(b.Artifact)
 	result.Drain = a.Drain.Merge(b.Drain)

@@ -315,6 +315,9 @@ type Config struct {
 	// DNS configures the built-in DNS server (Norca).
 	DNS *structsc.DNSConfig
 
+	// ConsulCompat configures the Consul-compatible read API (Norca).
+	ConsulCompat *structsc.ConsulCompatConfig
+
 	// TemplateDialer is our custom HTTP dialer for consul-template. This is
 	// used for template functions which require access to the Nomad API.
 	TemplateDialer *bufconndialer.BufConnWrapper
@@ -765,6 +768,7 @@ func (c *Config) Copy() *Config {
 	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
 	nc.Topology = c.Topology.Copy()
 	nc.DNS = c.DNS.Copy()
+	nc.ConsulCompat = c.ConsulCompat.Copy()
 	return &nc
 }
 
