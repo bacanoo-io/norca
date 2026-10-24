@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/nomad/client/serviceregistration"
+	"github.com/hashicorp/nomad/client/serviceregistration/checks/checkstore"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -34,6 +35,10 @@ type ServiceRegistrationHandler struct {
 	// shutDownCh coordinates shutting down the handler and any long-running
 	// processes, such as the RPC retry.
 	shutDownCh chan struct{}
+
+	// readiness maintains the Ready state of the registrations according to
+	// their startup and readiness checks.
+	readiness *readinessTracker
 }
 
 // ServiceRegistrationHandlerCfg holds critical information used during the
@@ -62,6 +67,11 @@ type ServiceRegistrationHandlerCfg struct {
 	// CheckWatcher watches checks of services in the Nomad service provider,
 	// and restarts associated tasks in accordance with their check_restart block.
 	CheckWatcher serviceregistration.CheckWatcher
+
+	// CheckStore holds the results of the Nomad service checks. It is used to
+	// compute the Ready state of registrations; if nil, every registration
+	// is ready.
+	CheckStore checkstore.Shim
 }
 
 // NewServiceRegistrationHandler returns a ready to use
@@ -69,13 +79,18 @@ type ServiceRegistrationHandlerCfg struct {
 // interface.
 func NewServiceRegistrationHandler(log hclog.Logger, cfg *ServiceRegistrationHandlerCfg) serviceregistration.Handler {
 	go cfg.CheckWatcher.Run(context.TODO())
-	return &ServiceRegistrationHandler{
+	s := &ServiceRegistrationHandler{
 		cfg:                 cfg,
 		log:                 log.Named("service_registration.nomad"),
 		registrationEnabled: cfg.Enabled,
 		checkWatcher:        cfg.CheckWatcher,
 		shutDownCh:          make(chan struct{}),
 	}
+	if cfg.CheckStore != nil {
+		s.readiness = newReadinessTracker(s.log, cfg.CheckStore, s.upsert)
+		go s.readiness.run(s.shutDownCh)
+	}
+	return s
 }
 
 func (s *ServiceRegistrationHandler) RegisterWorkload(workload *serviceregistration.WorkloadServices) error {
@@ -111,15 +126,24 @@ func (s *ServiceRegistrationHandler) RegisterWorkload(workload *serviceregistrat
 	// Service registrations look ok; startup check watchers as specified. The
 	// astute observer may notice the services are not actually registered yet -
 	// this is the same as the Consul flow so hopefully things just work out.
-	for _, service := range workload.Services {
-		for _, check := range service.Checks {
-			if check.TriggersRestarts() {
-				checkID := string(structs.NomadCheckID(workload.AllocInfo.AllocID, workload.AllocInfo.Group, check))
-				s.checkWatcher.Watch(workload.AllocInfo.AllocID, workload.Name(), checkID, check, workload.Restarter)
-			}
+	serviceregistration.ForEachCheck(workload.Services, func(_ *structs.Service, check *structs.ServiceCheck) {
+		if check.TriggersRestarts() {
+			checkID := string(structs.NomadCheckID(workload.AllocInfo.AllocID, workload.AllocInfo.Group, check))
+			s.checkWatcher.Watch(workload.AllocInfo.AllocID, workload.Name(), checkID, check, workload.Restarter)
 		}
-	}
+	})
 
+	// Set the Ready state of the registrations, and keep it up to date for
+	// those with startup or readiness checks.
+	done := s.readiness.track(workload, registrations)
+
+	err := s.upsert(registrations)
+	done(err)
+	return err
+}
+
+// upsert sends the service registrations to the servers.
+func (s *ServiceRegistrationHandler) upsert(registrations []*structs.ServiceRegistration) error {
 	args := structs.ServiceRegistrationUpsertRequest{
 		Services: registrations,
 		WriteRequest: structs.WriteRequest{
@@ -171,6 +195,9 @@ func (s *ServiceRegistrationHandler) removeWorkload(
 
 	// Generate the consistent ID for this service, so we know what to remove.
 	id := serviceregistration.MakeAllocServiceID(workload.AllocInfo.AllocID, workload.Name(), serviceSpec)
+
+	// Stop maintaining the Ready state of the registration
+	s.readiness.untrack(id)
 
 	deleteArgs := structs.ServiceRegistrationDeleteByIDRequest{
 		ID: id,
