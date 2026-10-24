@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/client/serviceregistration"
+	"github.com/hashicorp/nomad/client/serviceregistration/checks/checkstore"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -25,6 +26,10 @@ type HandlerWrapper struct {
 	// nomadServiceProvider is the handler for services where Nomad is the
 	// provider.
 	nomadServiceProvider serviceregistration.Handler
+
+	// checkStore holds the results of the checks executed by the client. It
+	// is optional, see SetCheckStore.
+	checkStore checkstore.Shim
 }
 
 // NewHandlerWrapper configures and returns a HandlerWrapper for use within
@@ -95,6 +100,10 @@ func (h *HandlerWrapper) RemoveWorkload(services *serviceregistration.WorkloadSe
 	default:
 		h.log.Error("unknown service registration provider", "provider", provider)
 	}
+
+	// The workload is stopping or restarting, so the results of its role
+	// checks no longer describe it.
+	h.resetRoleChecks(services)
 }
 
 // UpdateWorkload identifies which provider to call for the new and old
