@@ -301,6 +301,10 @@ external_service "szamlazas-db" {
 - Native: `PUT /v1/service/external/:name`, `PUT /v1/service/external/:id/ttl`, `DELETE ...`
 - Consul-compatible (in the layer of step 3): `PUT /v1/agent/service/register`, `PUT /v1/agent/service/deregister/:id`, `PUT /v1/agent/check/pass|warn|fail/:check_id` and `PUT /v1/agent/check/update/:check_id` (TTL checks).
 
+### Implementation
+
+External services are rows of the existing `service_registrations` table with an `External` block (kind, source, check definitions, `DeregisterCriticalAfter`) and no job or allocation, so the catalog, the event stream, DNS and the compatibility layer serve them unchanged (`nomad/structs/service_external.go`). No new Raft message type is needed. TTL checks are tracked in memory on the leader like node heartbeats (`nomad/service_external.go`): renewals reset a deadline, only status changes are written, a new leader gives every check a full TTL, and registrations critical for longer than `DeregisterCriticalAfter` (default 1h through the native API) are deregistered. Registrations made through a client agent with HTTP or TCP checks, and every registration made through the Consul agent endpoints, are owned by that client node: it runs their checks (`client/externalsvc/`) and they are removed when the node goes down. The Consul agent endpoints live in `client/consulcompat/agent.go`; the native endpoints, API client and the `service register|deregister|ttl` commands in `command/agent/service_external_endpoint.go`, `api/services_external.go` and `command/service_external.go`.
+
 ### Non-goal
 
 Mapping Consul KV to Variables. The two models differ too much (Variables are a key-value map belonging to a path, with encryption, while Consul KV stores raw bytes with flags and sessions); a half-working mapping would do more harm than good.
