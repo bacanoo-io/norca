@@ -24,20 +24,6 @@ func (n *NamespaceNodePoolConfiguration) Validate() error {
 	return nil
 }
 
-// ErrMultiregionNotSupported is returned for a job with a multiregion block.
-// The block is parsed and stored in the structs so a later implementation can
-// use it, but until multiregion deployments exist the job is rejected instead
-// of the block being silently ignored.
-var ErrMultiregionNotSupported = errors.New("multiregion deployments are not supported yet")
-
-func (m *Multiregion) Validate(jobType string, jobDatacenters []string) error {
-	if m != nil {
-		return ErrMultiregionNotSupported
-	}
-
-	return nil
-}
-
 func (p *ScalingPolicy) validateType() multierror.Error {
 	var mErr multierror.Error
 
