@@ -61,6 +61,13 @@ type BackupConfig struct {
 	// browsing.
 	BrowseCacheTTL string `hcl:"browse_cache_ttl"`
 
+	// RequireApproval makes a second administrator approve full restores.
+	// It is mandatory and can't be set to false.
+	RequireApproval *bool `hcl:"require_approval"`
+
+	// ApprovalTTL is how long a full restore request waits for approval.
+	ApprovalTTL string `hcl:"approval_ttl"`
+
 	Destinations []*BackupDestinationConfig `hcl:"destination"`
 	Encryption   *BackupEncryptionConfig    `hcl:"encryption"`
 	Retention    *BackupRetentionConfig     `hcl:"retention"`
@@ -171,6 +178,7 @@ func (b *BackupConfig) Copy() *BackupConfig {
 	nb.Enabled = pointer.Copy(b.Enabled)
 	nb.IncludeKeyring = pointer.Copy(b.IncludeKeyring)
 	nb.VerifyChecksum = pointer.Copy(b.VerifyChecksum)
+	nb.RequireApproval = pointer.Copy(b.RequireApproval)
 	nb.Destinations = nil
 	for _, d := range b.Destinations {
 		nb.Destinations = append(nb.Destinations, d.Copy())
@@ -225,6 +233,12 @@ func (a *BackupConfig) Merge(b *BackupConfig) *BackupConfig {
 	}
 	if b.BrowseCacheTTL != "" {
 		result.BrowseCacheTTL = b.BrowseCacheTTL
+	}
+	if b.RequireApproval != nil {
+		result.RequireApproval = pointer.Copy(b.RequireApproval)
+	}
+	if b.ApprovalTTL != "" {
+		result.ApprovalTTL = b.ApprovalTTL
 	}
 	for _, bd := range b.Destinations {
 		replaced := false
@@ -329,6 +343,7 @@ func (b *BackupConfig) toServerConfig() (*backup.Config, error) {
 		{"timeout", b.Timeout, &cfg.Timeout},
 		{"retry_interval", b.RetryInterval, &cfg.RetryInterval},
 		{"browse_cache_ttl", b.BrowseCacheTTL, &cfg.BrowseCacheTTL},
+		{"approval_ttl", b.ApprovalTTL, &cfg.ApprovalTTL},
 	}
 	for _, d := range durations {
 		if d.value == "" {
@@ -358,6 +373,9 @@ func (b *BackupConfig) toServerConfig() (*backup.Config, error) {
 	}
 	if b.VerifyChecksum != nil {
 		cfg.VerifyChecksum = *b.VerifyChecksum
+	}
+	if b.RequireApproval != nil {
+		cfg.RequireApproval = *b.RequireApproval
 	}
 
 	encryption := func(e *BackupEncryptionConfig) *backup.EncryptionConfig {

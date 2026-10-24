@@ -21,8 +21,9 @@ const maxBackupRestoreItems = 100
 // Restore restores objects from a backup. The selective mode re-creates
 // each item with the normal write RPC on behalf of the caller, so the
 // caller's namespace permissions, the admission chain and the quotas apply,
-// and every restored job becomes a new, traceable version. The full mode is
-// reserved: it will create a pending restore that needs a second approval.
+// and every restored job becomes a new, traceable version. The full mode
+// previews a full region restore, or creates a pending request that a
+// second administrator approves with ApproveRestore.
 func (b *Backup) Restore(args *structs.BackupRestoreRequest, reply *structs.BackupRestoreResponse) error {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.Restore", args, args, reply); done {
@@ -48,8 +49,7 @@ func (b *Backup) Restore(args *structs.BackupRestoreRequest, reply *structs.Back
 	switch args.Mode {
 	case "", structs.BackupRestoreModeSelective:
 	case structs.BackupRestoreModeFull:
-		return structs.NewErrRPCCodedf(http.StatusNotImplemented,
-			"full restore is not implemented yet; restore selected items or use \"operator snapshot restore\"")
+		return b.requestFullRestore(args, reply)
 	default:
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid restore mode %q", args.Mode)
 	}
