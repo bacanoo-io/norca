@@ -55,7 +55,10 @@ func (s *Server) instances(r *request, consulName string, regs []*structs.Servic
 		if !hasTags(reg.Tags, r.tags) {
 			continue
 		}
-		node := s.nodes.get(r.region, reg.NodeID)
+		node := externalNode
+		if reg.NodeID != "" {
+			node = s.nodes.get(r.region, reg.NodeID)
+		}
 		if !nodeMetaMatches(node, r.nodeMeta) {
 			continue
 		}
@@ -123,11 +126,15 @@ func (s *Server) agentService(r *request, inst *instance) *consulapi.AgentServic
 		tags = []string{}
 	}
 	meta := map[string]string{"external-source": "nomad"}
+	if reg.External != nil && reg.External.Source == structs.ExternalServiceSourceConsul {
+		// registered through the Consul agent API
+		meta = map[string]string{}
+	}
 	for k, v := range reg.Meta {
 		meta[k] = v
 	}
 	return &consulapi.AgentService{
-		ID:          reg.ID,
+		ID:          localID(reg),
 		Service:     inst.consulName,
 		Tags:        tags,
 		Meta:        meta,
@@ -170,13 +177,28 @@ func (s *Server) serviceChecks(inst *instance) consulapi.HealthChecks {
 			Status:      status,
 			Notes:       notes,
 			Output:      output,
-			ServiceID:   reg.ID,
+			ServiceID:   localID(reg),
 			ServiceName: inst.consulName,
 			ServiceTags: tags,
 			Type:        "nomad",
 			CreateIndex: reg.CreateIndex,
 			ModifyIndex: reg.ModifyIndex,
 		}
+	}
+
+	// external services report their own checks, as registered
+	if reg.External != nil {
+		checks := consulapi.HealthChecks{}
+		for _, def := range reg.External.Checks {
+			status, output := consulapi.HealthCritical, ""
+			if state := reg.CheckState(def.ID); state != nil {
+				status, output = state.Status, state.Output
+			}
+			hc := check(def.ID, def.Name, status, def.Notes, output)
+			hc.Type = def.Type
+			checks = append(checks, hc)
+		}
+		return checks
 	}
 
 	checks := consulapi.HealthChecks{check("nomad-health:"+reg.ID, "Nomad service health", instanceHealth(reg),
@@ -481,7 +503,7 @@ func (s *Server) catalogNode(w http.ResponseWriter, r *request, name string) (an
 	}
 	for _, inst := range instances {
 		if inst.reg.NodeID == id {
-			out.Services[inst.reg.ID] = s.agentService(r, inst)
+			out.Services[localID(inst.reg)] = s.agentService(r, inst)
 		}
 	}
 	return out, nil

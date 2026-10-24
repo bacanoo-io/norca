@@ -134,6 +134,43 @@ func answers(m *dns.Msg) []string {
 	return out
 }
 
+// TestDNS_AliasRecords checks the answers for external services that are DNS
+// aliases: one CNAME record, and none when instances have IP addresses.
+func TestDNS_AliasRecords(t *testing.T) {
+	ci.Parallel(t)
+
+	s := newTestServer(t, Config{}, structs.Topology{Region: "eu", Datacenter: "dc1", Zone: "a"})
+
+	alias := func(id, name, target string) *structs.ServiceRegistration {
+		reg := instance(id, "default", name, target, 0)
+		reg.External = &structs.ServiceExternal{Kind: structs.ExternalServiceKindAlias}
+		return reg
+	}
+	s.catalog.set("eu",
+		alias("a1", "billing-db", "billing.example.com"),
+		alias("a2", "billing-db", "billing-replica.example.com"),
+		alias("m1", "mixed", "mixed.example.com"),
+		instance("m2", "default", "mixed", "10.0.0.9", 80),
+	)
+
+	for i := 0; i < 5; i++ {
+		got := answers(s.query(t, "billing-db.service.nomad", dns.TypeA))
+		must.Len(t, 1, got)
+		must.StrHasPrefix(t, "cname:billing", got[0])
+	}
+	must.Eq(t, []string{"10.0.0.9"}, answers(s.query(t, "mixed.service.nomad", dns.TypeA)))
+
+	// a new target is answered once the cache has it
+	s.catalog.set("eu", alias("a1", "billing-db", "billing-v2.example.com"))
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool {
+			got := answers(s.query(t, "billing-db.service.nomad", dns.TypeA))
+			return len(got) == 1 && got[0] == "cname:billing-v2.example.com."
+		}),
+		wait.Timeout(5*time.Second), wait.Gap(20*time.Millisecond),
+	))
+}
+
 func TestDNS_ServiceRecords(t *testing.T) {
 	ci.Parallel(t)
 
@@ -183,6 +220,8 @@ func TestDNS_ServiceRecords(t *testing.T) {
 
 	// host name addresses are CNAMEs
 	must.Eq(t, []string{"cname:db.example.com."}, answers(s.query(t, "ext.service.nomad", dns.TypeA)))
+	must.Eq(t, []string{"cname:db.example.com."}, answers(s.query(t, "ext.service.nomad", dns.TypeCNAME)))
+	must.Len(t, 0, s.query(t, "web.service.nomad", dns.TypeCNAME).Answer)
 
 	// unknown services and names
 	resp = s.query(t, "nope.service.nomad", dns.TypeA)
