@@ -47,8 +47,15 @@ func (c *RunCommand) run() int {
 	// Set the packConfig defaults if necessary and generate our UI error context.
 	errorContext := initPackCommand(c.packConfig)
 
+	// Download and verify packs from OCI registries, and check the lock file.
+	provenance, err := c.preparePack(c.packConfig)
+	if err != nil {
+		c.ui.ErrorWithContext(err, "failed to verify pack", errorContext.GetAll()...)
+		return 1
+	}
+
 	// verify packs exist before running jobs
-	err := caching.VerifyPackExists(c.packConfig, errorContext, c.ui)
+	err = caching.VerifyPackExists(c.packConfig, errorContext, c.ui)
 	if err != nil {
 		return 1
 	}
@@ -92,6 +99,8 @@ func (c *RunCommand) run() int {
 		PackRef:        c.packConfig.Ref,
 		DeploymentName: c.deploymentName,
 		RegistryName:   c.packConfig.Registry,
+		PackDigest:     provenanceDigest(provenance),
+		SignerKeyID:    provenance.SignerKeyID(),
 	}
 
 	// TODO(jrasell) come up with a better way to pass the appropriate config.
@@ -178,6 +187,7 @@ func (c *RunCommand) run() int {
 func (c *RunCommand) Flags() *flag.Sets {
 	return c.flagSet(flagSetOperation|flagSetNomadClient, func(set *flag.Sets) {
 		f := set.NewSet("Run Options")
+		c.addLockFlag(f)
 
 		c.packConfig = &caching.PackConfig{}
 

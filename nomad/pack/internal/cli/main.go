@@ -230,6 +230,37 @@ func Commands(
 				baseCommand: baseCommand,
 			}, nil
 		},
+
+		// Norca: supply chain commands (OCI registries, signing, bundles).
+		"push": func() (cli.Command, error) {
+			return &PushCommand{baseCommand: baseCommand}, nil
+		},
+		"sign": func() (cli.Command, error) {
+			return &SignCommand{baseCommand: baseCommand}, nil
+		},
+		"verify": func() (cli.Command, error) {
+			return &VerifyCommand{baseCommand: baseCommand}, nil
+		},
+		"key": func() (cli.Command, error) {
+			return &groupHelpCommand{baseCommand: baseCommand, name: "key",
+				synopsis: "Manage pack signing keys", subcommands: "generate"}, nil
+		},
+		"key generate": func() (cli.Command, error) {
+			return &KeyGenerateCommand{baseCommand: baseCommand}, nil
+		},
+		"bundle": func() (cli.Command, error) {
+			return &groupHelpCommand{baseCommand: baseCommand, name: "bundle",
+				synopsis: "Create and import offline pack bundles", subcommands: "create, import, inspect"}, nil
+		},
+		"bundle create": func() (cli.Command, error) {
+			return &BundleCreateCommand{baseCommand: baseCommand}, nil
+		},
+		"bundle import": func() (cli.Command, error) {
+			return &BundleImportCommand{baseCommand: baseCommand}, nil
+		},
+		"bundle inspect": func() (cli.Command, error) {
+			return &BundleInspectCommand{baseCommand: baseCommand}, nil
+		},
 	}
 
 	// register our aliases

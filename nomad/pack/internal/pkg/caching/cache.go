@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
@@ -22,6 +23,9 @@ const (
 	DevRegistryName     = "<<local folder>>"
 	DevRef              = "<<none>>"
 	DefaultDirPerms     = 0700
+
+	// EnvCacheDir overrides the location of the pack cache.
+	EnvCacheDir = "NORCA_PACK_CACHE_DIR"
 )
 
 // NewCache instantiates a new cache instance with the specified config. If no
@@ -56,6 +60,11 @@ func (c *Cache) ensureGlobalCache() error {
 
 // DefaultCachePath returns the default cache path.
 func DefaultCachePath() string {
+	// Norca: the cache location can be overridden, e.g. for a shared cache of
+	// packs imported from an offline bundle.
+	if dir := os.Getenv(EnvCacheDir); dir != "" {
+		return filepath.ToSlash(dir)
+	}
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		homeDir, err := os.UserHomeDir()

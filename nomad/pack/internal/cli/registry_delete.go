@@ -5,11 +5,14 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path"
 	"strings"
 
 	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
 	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
 	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
 	"github.com/posener/complete"
 )
 
@@ -51,6 +54,21 @@ func (c *RegistryDeleteCommand) Run(args []string) int {
 	})
 	if err != nil {
 		return 1
+	}
+
+	// Norca: deleting a whole OCI registry also removes its definition from
+	// the client configuration file.
+	removedOCI := false
+	if c.target == "" && c.ref == "" {
+		removedOCI, err = packconfig.RemoveRegistry(packconfig.DefaultPath(), c.name)
+		if err != nil {
+			c.ui.ErrorWithContext(err, "error deleting registry")
+			return 1
+		}
+		if _, statErr := os.Stat(path.Join(caching.DefaultCachePath(), c.name)); removedOCI && os.IsNotExist(statErr) {
+			c.ui.Info(c.formatOutput())
+			return 0
+		}
 	}
 
 	err = globalCache.Delete(&caching.DeleteOpts{

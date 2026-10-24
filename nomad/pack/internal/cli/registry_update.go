@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
 	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
 	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
 	"github.com/hashicorp/nomad/pack/terminal"
 )
 
@@ -47,6 +48,15 @@ func (c *RegistryUpdateCommand) Run(args []string) int {
 
 	if c.target != "" {
 		errorContext.Add(errors.UIContextPrefixRegistryTarget, c.target)
+	}
+
+	// Norca: OCI registries are updated by downloading the newest versions of
+	// their packs.
+	if conf, err := packconfig.LoadDefault(); err != nil {
+		c.ui.ErrorWithContext(err, "failed to load configuration")
+		return 1
+	} else if reg := conf.Registry(c.name); reg != nil {
+		return c.updateOCI(conf, reg)
 	}
 
 	// Initialize the global cache so we can look up the existing registry.

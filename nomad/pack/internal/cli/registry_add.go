@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
 	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
 	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/oci"
 	"github.com/hashicorp/nomad/pack/terminal"
 )
 
@@ -22,6 +23,7 @@ type RegistryAddCommand struct {
 	name   string
 	target string
 	ref    string
+	oci    ociRegistryAddFlags
 }
 
 func (c *RegistryAddCommand) Run(args []string) int {
@@ -47,6 +49,12 @@ func (c *RegistryAddCommand) Run(args []string) int {
 	c.source = args[1]
 
 	errorContext.Add(errors.UIContextPrefixRegistryName, c.name)
+
+	// Norca: OCI registries are kept in the client configuration file.
+	if oci.IsOCI(c.source) {
+		return c.addOCI()
+	}
+
 	errorContext.Add(errors.UIContextPrefixGitRegistryURL, c.source)
 
 	if c.target != "" {
@@ -134,8 +142,13 @@ func (c *RegistryAddCommand) Flags() *flag.Sets {
 					specifying @latest, is destructive, and will overwrite
 					current @latest in the global cache.
 
-					Using ref with a file path is not supported.`,
+					Using ref with a file path is not supported.
+
+					For OCI registries, ref is the pack version (tag); the
+					newest version is used if no ref is specified.`,
 		})
+
+		c.oci.addFlags(set.NewSet("OCI Registry Options"))
 	})
 }
 
@@ -161,6 +174,9 @@ func (c *RegistryAddCommand) Help() string {
 
 	# Download packs from a registry at a specific tag/release/SHA.
 	norca pack registry add community github.com/hashicorp/nomad-pack-community-registry  --ref=v0.1.0
+
+	# Add an internal OCI registry whose packs must be signed by a trusted key.
+	norca pack registry add internal oci://registry.example.internal/packs 	    --trust-key=/etc/norca/pack-signing.pub --require-signature
 	`
 	return formatHelp(`
 	Usage: norca pack registry add <name> <source> [options]
