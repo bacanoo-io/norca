@@ -145,6 +145,14 @@ const (
 	// Norca disruption budget types (74-76 assigned to disruption budgets)
 	AllocEvictRequestType MessageType = 74
 	// 75 and 76 are reserved for disruption budgets
+
+	// Norca operator framework custom objects (82-86 assigned). They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	ObjectKindUpsertRequestType   MessageType = 82
+	ObjectKindDeleteRequestType   MessageType = 83
+	CustomObjectUpsertRequestType MessageType = 84
+	CustomObjectDeleteRequestType MessageType = 85
+	// 86 is reserved for the object lifecycle (event log, finalizers)
 )
 
 const (

@@ -136,6 +136,7 @@ type NamespacePolicy struct {
 	Policy       string
 	Capabilities []string
 	Variables    *VariablesPolicy `hcl:"variables"`
+	Objects      []*ObjectPolicy  `hcl:"object,expand"`
 }
 
 // NodePoolPolicy is the policfy for a specific node pool.
@@ -409,6 +410,10 @@ func Parse(rules string) (*Policy, error) {
 
 		}
 
+		if err := parseObjectPolicies(ns); err != nil {
+			return nil, err
+		}
+
 	}
 
 	for _, np := range p.NodePools {
@@ -520,6 +525,14 @@ func hclDecode(p *Policy, rules string) (err error) {
 		if !ok {
 			continue
 		}
+
+		// Fix missing object kinds.
+		for j, objObj := range nsOT.List.Filter("object").Items {
+			if len(objObj.Keys) == 0 && j < len(p.Namespaces[i].Objects) {
+				p.Namespaces[i].Objects[j].Kind = ""
+			}
+		}
+
 		varsList := nsOT.List.Filter("variables")
 		if varsList == nil || len(varsList.Items) == 0 {
 			continue

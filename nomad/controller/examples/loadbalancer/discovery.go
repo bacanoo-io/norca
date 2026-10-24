@@ -198,7 +198,11 @@ type discoveryReconciler struct {
 }
 
 func (r *discoveryReconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (time.Duration, error) {
-	if controller.ValidateName(key.Name) != nil {
+	validName := controller.ValidateName
+	if r.ctrl.Objects().Storage() == controller.StorageNative {
+		validName = controller.ValidateNativeName
+	}
+	if validName(key.Name) != nil {
 		return 0, nil
 	}
 	mk, marked := r.index.lookup(key.Namespace, key.Name)
@@ -237,10 +241,16 @@ func (r *discoveryReconciler) Reconcile(ctx context.Context, key controller.Obje
 		return 0, err
 	}
 
+	// Compared with the defaults filled in: native objects are stored with
+	// the default values of the schema.
 	var cur Spec
 	_ = obj.DecodeSpec(&cur)
+	cur.Defaults()
+	want := mk.Spec
+	want.Defaults()
 	curJSON, _ := json.Marshal(cur)
-	if string(curJSON) == string(specJSON) && obj.Labels["job"] == mk.JobID {
+	wantJSON, _ := json.Marshal(want)
+	if string(curJSON) == string(wantJSON) && obj.Labels["job"] == mk.JobID {
 		return 0, nil
 	}
 	r.logger.Info("updating load balancer of marked service", "object", key.String())
