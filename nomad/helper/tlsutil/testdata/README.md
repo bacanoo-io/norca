@@ -1,5 +1,9 @@
 # Nomad Test Certificate
 
+To regenerate all fixtures in this directory with a 20-year validity, run
+`go run generate.go` here. It uses the same CA and certificate settings as the
+`nomad tls` commands below.
+
 Nomad has a built in command to generate certificates for setting up tls encryption.
 This will generate valid certificates with default settings if run without any configuration.
 The command `nomad tls` is used to generate the test certificates in this directory.
