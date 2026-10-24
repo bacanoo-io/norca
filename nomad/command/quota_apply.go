@@ -165,6 +165,9 @@ func parseQuotaSpecImpl(result *api.QuotaSpec, list *ast.ObjectList) error {
 		"name",
 		"description",
 		"limit",
+		"task_defaults",
+		"task_max",
+		"enforce",
 	}
 	if err := helper.CheckHCLKeys(list, valid); err != nil {
 		return err
@@ -178,6 +181,8 @@ func parseQuotaSpecImpl(result *api.QuotaSpec, list *ast.ObjectList) error {
 
 	// Manually parse
 	delete(m, "limit")
+	delete(m, "task_defaults")
+	delete(m, "task_max")
 
 	// Decode the rest
 	if err := mapstructure.WeakDecode(m, result); err != nil {
@@ -188,6 +193,20 @@ func parseQuotaSpecImpl(result *api.QuotaSpec, list *ast.ObjectList) error {
 	if o := list.Filter("limit"); len(o.Items) > 0 {
 		if err := parseQuotaLimits(&result.Limits, o); err != nil {
 			return multierror.Prefix(err, "limit ->")
+		}
+	}
+
+	// Parse the task level defaults and maximums
+	if o := list.Filter("task_defaults"); len(o.Items) > 0 {
+		result.TaskDefaults = new(api.Resources)
+		if err := parseQuotaResourceBlock("task_defaults", result.TaskDefaults, o, "cpu", "memory", "memory_max"); err != nil {
+			return multierror.Prefix(err, "task_defaults ->")
+		}
+	}
+	if o := list.Filter("task_max"); len(o.Items) > 0 {
+		result.TaskMax = new(api.Resources)
+		if err := parseQuotaResourceBlock("task_max", result.TaskMax, o, "cpu", "cores", "memory", "memory_max"); err != nil {
+			return multierror.Prefix(err, "task_max ->")
 		}
 	}
 
@@ -202,6 +221,7 @@ func parseQuotaLimits(result *[]*api.QuotaLimit, list *ast.ObjectList) error {
 			"region",
 			"region_limit",
 			"variables_limit",
+			"allocations",
 		}
 		if err := helper.CheckHCLKeys(o.Val, valid); err != nil {
 			return err
@@ -245,12 +265,18 @@ func parseQuotaLimits(result *[]*api.QuotaLimit, list *ast.ObjectList) error {
 
 // parseQuotaResource parses the region_limit resources
 func parseQuotaResource(result *api.Resources, list *ast.ObjectList) error {
+	return parseQuotaResourceBlock("region_limit", result, list, "cpu", "memory", "memory_max")
+}
+
+// parseQuotaResourceBlock parses a resources block of a quota specification,
+// allowing only the given keys.
+func parseQuotaResourceBlock(name string, result *api.Resources, list *ast.ObjectList, valid ...string) error {
 	list = list.Elem()
 	if len(list.Items) == 0 {
 		return nil
 	}
 	if len(list.Items) > 1 {
-		return fmt.Errorf("only one 'region_limit' block allowed per limit")
+		return fmt.Errorf("only one %q block allowed", name)
 	}
 
 	// Get our resource object
@@ -265,11 +291,6 @@ func parseQuotaResource(result *api.Resources, list *ast.ObjectList) error {
 	}
 
 	// Check for invalid keys
-	valid := []string{
-		"cpu",
-		"memory",
-		"memory_max",
-	}
 	if err := helper.CheckHCLKeys(listVal, valid); err != nil {
 		return multierror.Prefix(err, "resources ->")
 	}

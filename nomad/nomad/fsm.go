@@ -317,6 +317,10 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyNamespaceUpsert(buf[1:], log.Index)
 	case structs.NamespaceDeleteRequestType:
 		return n.applyNamespaceDelete(buf[1:], log.Index)
+	case structs.QuotaSpecUpsertRequestType:
+		return n.applyQuotaSpecUpsert(msgType, buf[1:], log.Index)
+	case structs.QuotaSpecDeleteRequestType:
+		return n.applyQuotaSpecDelete(msgType, buf[1:], log.Index)
 	// COMPAT(1.0): These messages were added and removed during the 1.0-beta
 	// series and should not be immediately reused for other purposes
 	case structs.EventSinkUpsertRequestType,
@@ -1116,6 +1120,9 @@ func (n *nomadFSM) applyPlanResults(msgType structs.MessageType, buf []byte, ind
 
 	// Add evals for jobs that were preempted
 	n.handleUpsertedEvals(req.PreemptionEvals)
+
+	// Unblock evals waiting on quota released by stopped allocations
+	n.unblockQuotasForPlanResults(&req, index)
 	return nil
 }
 
@@ -1889,6 +1896,11 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case QuotaSpecSnapshot, QuotaUsageSnapshot:
+			if err := restoreQuotaSnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
 		case AdmissionPolicySnapshot:
 			policy := new(structs.AdmissionPolicy)
 			if err := dec.Decode(policy); err != nil {
@@ -2465,6 +2477,10 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistACLBindingRules(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistQuotas(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}
