@@ -12,6 +12,10 @@
 #        norca var put crd/norca-io/LoadBalancer/web spec='{"service":"web","port":8080}'
 #        norca var get -item=status crd/norca-io/LoadBalancer/web
 #      or mark a service with the norca_lb_class / norca_lb_port meta keys.
+#      With native objects (-var objects=native, after
+#      "norca object-kind apply loadbalancer.kind.hcl"):
+#        norca object apply web.hcl   # kind = "norca.io/LoadBalancer" ...
+#        norca object list norca.io/LoadBalancer
 #
 # Two instances run; leader election over a Variables lease makes one of
 # them reconcile while the other keeps a warm cache.
@@ -34,6 +38,13 @@ variable "namespace" {
   default = "default"
 }
 
+# Storage of the LoadBalancer objects: "variables", or "native" after
+# registering the kind with "norca object-kind apply loadbalancer.kind.hcl".
+variable "objects" {
+  type    = string
+  default = "variables"
+}
+
 job "loadbalancer-controller" {
   type = "service"
 
@@ -52,6 +63,7 @@ job "loadbalancer-controller" {
         args = [
           "controller",
           "-namespace", var.namespace,
+          "-objects", var.objects,
           "-proxy-driver", "raw_exec",
           "-proxy-command", var.binary,
           "-metrics-addr", "${NOMAD_ADDR_metrics}",

@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gosuri/uilive"
@@ -538,32 +539,28 @@ type regionResult struct {
 	err    error
 }
 
-func fetchMultiRegionDeployments(c *api.Client, d *api.Deployment) (map[string]*api.Deployment, error) {
-	results := make(map[string]*api.Deployment)
-
-	job, _, err := c.Jobs().Info(d.JobID, &api.QueryOptions{})
+// fetchMultiRegionDeployments fetches the deployments of the job version of a
+// multiregion deployment from all regions of the job, in rollout order.
+func fetchMultiRegionDeployments(c *api.Client, d *api.Deployment) ([]regionResult, error) {
+	job, _, err := c.Jobs().Info(d.JobID, &api.QueryOptions{Namespace: d.Namespace})
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching job: %v", err)
 	}
+	if job.Multiregion == nil {
+		return nil, nil
+	}
 
-	requests := make(chan regionResult, len(job.Multiregion.Regions))
-	for i := 0; i < cap(requests); i++ {
-		go func(itr int) {
-			region := job.Multiregion.Regions[itr]
+	results := make([]regionResult, len(job.Multiregion.Regions))
+	var wg sync.WaitGroup
+	for i, region := range job.Multiregion.Regions {
+		wg.Add(1)
+		go func(i int, region *api.MultiregionRegion) {
+			defer wg.Done()
 			d, err := fetchRegionDeployment(c, d, region)
-			requests <- regionResult{d: d, err: err, region: region.Name}
-		}(i)
+			results[i] = regionResult{d: d, err: err, region: region.Name}
+		}(i, region)
 	}
-	for i := 0; i < cap(requests); i++ {
-		res := <-requests
-		if res.err != nil {
-			key := fmt.Sprintf("%s (error)", res.region)
-			results[key] = &api.Deployment{}
-			continue
-		}
-		results[res.region] = res.d
-
-	}
+	wg.Wait()
 	return results, nil
 }
 
@@ -572,7 +569,7 @@ func fetchRegionDeployment(c *api.Client, d *api.Deployment, region *api.Multire
 		return nil, errors.New("Region not found")
 	}
 
-	opts := &api.QueryOptions{Region: region.Name}
+	opts := &api.QueryOptions{Region: region.Name, Namespace: d.Namespace}
 	deploys, _, err := c.Jobs().Deployments(d.JobID, false, opts)
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching deployments for job %s: %v", d.JobID, err)
@@ -585,17 +582,23 @@ func fetchRegionDeployment(c *api.Client, d *api.Deployment, region *api.Multire
 	return nil, fmt.Errorf("Could not find job version %d for region", d.JobVersion)
 }
 
-func formatMultiregionDeployment(regions map[string]*api.Deployment, uuidLength int) string {
-	rowString := "Region|ID|Status"
-	rows := make([]string, len(regions)+1)
-	rows[0] = rowString
-	i := 1
-	for k, v := range regions {
-		row := fmt.Sprintf("%s|%s|%s", k, limit(v.ID, uuidLength), v.Status)
-		rows[i] = row
-		i++
+// formatMultiregionDeployment formats the deployments of the regions of a
+// multiregion deployment in rollout order.
+func formatMultiregionDeployment(regions []regionResult, uuidLength int) string {
+	rows := make([]string, 0, len(regions)+1)
+	rows = append(rows, "Region|ID|Status|Description")
+	for _, r := range regions {
+		if r.err != nil || r.d == nil {
+			msg := "no deployment"
+			if r.err != nil {
+				msg = r.err.Error()
+			}
+			rows = append(rows, fmt.Sprintf("%s|<none>|unknown|%s", r.region, msg))
+			continue
+		}
+		rows = append(rows, fmt.Sprintf("%s|%s|%s|%s",
+			r.region, limit(r.d.ID, uuidLength), r.d.Status, r.d.StatusDescription))
 	}
-	sort.Strings(rows)
 	return formatList(rows)
 }
 

@@ -87,7 +87,7 @@ func (r *widgetReconciler) Reconcile(ctx context.Context, key controller.ObjectK
 
 	var status widgetStatus
 	_ = obj.DecodeStatus(&status)
-	status.ObservedSpecHash = obj.SpecHash()
+	status.Observe(obj)
 	status.Size = spec.Size
 	status.SetCondition(controller.Condition{Type: controller.ConditionReady, Status: controller.ConditionTrue}, time.Now())
 	_, err = r.c.Objects().UpdateStatus(ctx, obj, status)

@@ -276,6 +276,11 @@ func extraKeys(c *Config) error {
 		}
 	}
 
+	// Remove the labels of the backup destination blocks
+	if err := c.Server.Backup.extraKeys(); err != nil {
+		return err
+	}
+
 	// Remove admission webhook extra keys
 	if c.Server.Admission != nil {
 		for _, w := range c.Server.Admission.Webhooks {

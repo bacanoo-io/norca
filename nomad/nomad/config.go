@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
+	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
@@ -419,6 +420,9 @@ type Config struct {
 	// Autoscaler configures the built-in autoscaler.
 	Autoscaler *autoscaler.Config
 
+	// Backup configures the scheduled backups to S3-compatible stores.
+	Backup *backup.Config
+
 	// JobDefaultPriority is the default Job priority if not specified.
 	JobDefaultPriority int
 
@@ -548,6 +552,7 @@ func DefaultConfig() *Config {
 		},
 		DeploymentQueryRateLimit: deploymentwatcher.LimitStateQueriesPerSecond,
 		Autoscaler:               autoscaler.DefaultConfig(),
+		Backup:                   backup.DefaultConfig(),
 		JobDefaultPriority:       structs.JobDefaultPriority,
 		JobMaxPriority:           structs.JobDefaultMaxPriority,
 		JobTrackedVersions:       structs.JobDefaultTrackedVersions,

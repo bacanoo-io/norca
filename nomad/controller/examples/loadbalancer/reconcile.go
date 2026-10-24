@@ -46,7 +46,7 @@ func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (t
 
 	var status Status
 	_ = obj.DecodeStatus(&status)
-	status.ObservedSpecHash = obj.SpecHash()
+	status.Observe(obj)
 
 	var spec Spec
 	if err := obj.DecodeSpec(&spec); err != nil {

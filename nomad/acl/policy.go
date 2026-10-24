@@ -113,6 +113,7 @@ type Policy struct {
 	Quota       *QuotaPolicy        `hcl:"quota"`
 	Plugin      *PluginPolicy       `hcl:"plugin"`
 	Admission   *AdmissionPolicy    `hcl:"admission"`
+	Backup      *BackupPolicy       `hcl:"backup"`
 	Raw         string              `hcl:"-"`
 }
 
@@ -127,7 +128,8 @@ func (p *Policy) IsEmpty() bool {
 		p.Operator == nil &&
 		p.Quota == nil &&
 		p.Plugin == nil &&
-		p.Admission == nil
+		p.Admission == nil &&
+		p.Backup == nil
 }
 
 // NamespacePolicy is the policy for a specific namespace
@@ -136,6 +138,7 @@ type NamespacePolicy struct {
 	Policy       string
 	Capabilities []string
 	Variables    *VariablesPolicy `hcl:"variables"`
+	Objects      []*ObjectPolicy  `hcl:"object,expand"`
 }
 
 // NodePoolPolicy is the policfy for a specific node pool.
@@ -409,6 +412,10 @@ func Parse(rules string) (*Policy, error) {
 
 		}
 
+		if err := parseObjectPolicies(ns); err != nil {
+			return nil, err
+		}
+
 	}
 
 	for _, np := range p.NodePools {
@@ -471,6 +478,10 @@ func Parse(rules string) (*Policy, error) {
 		return nil, fmt.Errorf("Invalid admission policy: %#v", p.Admission)
 	}
 
+	if p.Backup != nil && !p.Backup.isValid() {
+		return nil, fmt.Errorf("Invalid backup policy: %#v", p.Backup)
+	}
+
 	if p.Plugin != nil && !p.Plugin.isValid() {
 		return nil, fmt.Errorf("Invalid plugin policy: %#v", p.Plugin)
 	}
@@ -520,6 +531,14 @@ func hclDecode(p *Policy, rules string) (err error) {
 		if !ok {
 			continue
 		}
+
+		// Fix missing object kinds.
+		for j, objObj := range nsOT.List.Filter("object").Items {
+			if len(objObj.Keys) == 0 && j < len(p.Namespaces[i].Objects) {
+				p.Namespaces[i].Objects[j].Kind = ""
+			}
+		}
+
 		varsList := nsOT.List.Filter("variables")
 		if varsList == nil || len(varsList.Items) == 0 {
 			continue

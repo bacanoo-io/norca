@@ -45,6 +45,13 @@ var MsgTypeEvents = map[structs.MessageType]string{
 	structs.AdmissionPolicyUpsertRequestType:             structs.TypeAdmissionPolicyUpserted,
 	structs.AdmissionPolicyDeleteRequestType:             structs.TypeAdmissionPolicyDeleted,
 	structs.AllocEvictRequestType:                        structs.TypeAllocationEvicted,
+	structs.ObjectKindUpsertRequestType:                  structs.TypeObjectKindUpserted,
+	structs.ObjectKindDeleteRequestType:                  structs.TypeObjectKindDeleted,
+	structs.CustomObjectUpsertRequestType:                structs.TypeCustomObjectUpserted,
+	structs.CustomObjectDeleteRequestType:                structs.TypeCustomObjectDeleted,
+	structs.BackupUpsertRequestType:                      structs.TypeBackupUpdated,
+	structs.BackupDeleteRequestType:                      structs.TypeBackupDeleted,
+	structs.BackupRestoreUpsertRequestType:               structs.TypeBackupRestoreFinished,
 }
 
 func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
@@ -206,6 +213,10 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 			return variableEvent(structs.TypeVariableDeleted, before), true
 		case TableAdmissionPolicies:
 			return admissionPolicyEventFromChange(change)
+		case TableObjectKinds, TableCustomObjects:
+			return objectEventFromChange(change)
+		case TableBackups:
+			return backupEventFromChange(change)
 		}
 		return structs.Event{}, false
 	}
@@ -391,6 +402,10 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 		return variableEvent(structs.TypeVariableUpserted, after), true
 	case TableAdmissionPolicies:
 		return admissionPolicyEventFromChange(change)
+	case TableObjectKinds, TableCustomObjects:
+		return objectEventFromChange(change)
+	case TableBackups, TableBackupRestores:
+		return backupEventFromChange(change)
 	}
 
 	return structs.Event{}, false

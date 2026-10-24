@@ -72,6 +72,10 @@ type env struct {
 }
 
 func startOperator(t *testing.T, discover bool) *env {
+	return startOperatorWith(t, discover, controller.StorageVariables)
+}
+
+func startOperatorWith(t *testing.T, discover bool, storage controller.Storage) *env {
 	t.Helper()
 	b := fake.New()
 	cluster := newFakeCluster()
@@ -88,6 +92,7 @@ func startOperator(t *testing.T, discover bool) *env {
 	}
 	c, err := controller.New(b, r, controller.Options{
 		Name:        "loadbalancer",
+		Storage:     storage,
 		Kind:        Kind,
 		OwnsJobs:    true,
 		Sources:     []controller.Source{serviceSource()},
@@ -103,6 +108,7 @@ func startOperator(t *testing.T, discover bool) *env {
 		d := &discoveryReconciler{index: index, logger: testLogger()}
 		dc, err := controller.New(b, d, controller.Options{
 			Name:      "loadbalancer-discovery",
+			Storage:   storage,
 			Kind:      Kind,
 			Sources:   []controller.Source{&markSource{index: index, backend: b, ns: "default"}},
 			Predicate: controller.AnyChange,
