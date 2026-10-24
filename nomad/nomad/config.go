@@ -515,7 +515,7 @@ func DefaultConfig() *Config {
 		SentinelGCInterval:               30 * time.Second,
 		LicenseConfig:                    &LicenseConfig{},
 		EnableEventBroker:                true,
-		EventBufferSize:                  100,
+		EventBufferSize:                  1000,
 		ACLTokenMinExpirationTTL:         1 * time.Minute,
 		ACLTokenMaxExpirationTTL:         24 * time.Hour,
 		AutopilotConfig: &structs.AutopilotConfig{

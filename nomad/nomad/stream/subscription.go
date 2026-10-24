@@ -8,6 +8,7 @@ import (
 	"errors"
 	"sync/atomic"
 
+	"github.com/hashicorp/nomad/acl"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -46,6 +47,12 @@ type Subscription struct {
 	// It must be safe to call the function from multiple goroutines and the function
 	// must be idempotent.
 	unsub func()
+
+	// aclObj is the resolved ACL of the subscription token, used to authorize
+	// individual events of topics that need it (see topicPolicies). It is nil
+	// when the subscription was created without an ACL check, and is replaced
+	// by the EventBroker when the token, its policies or roles change.
+	aclObj atomic.Pointer[acl.ACL]
 }
 
 type SubscribeRequest struct {
@@ -56,7 +63,9 @@ type SubscribeRequest struct {
 	Topics map[structs.Topic][]string
 
 	// StartExactlyAtIndex specifies if a subscription needs to
-	// start exactly at the requested Index. If set to false,
+	// start exactly at the requested Index: it then receives every event
+	// with an index at or after Index, or fails with ErrIndexNotAvailable if
+	// the buffer can no longer guarantee that. If set to false,
 	// the closest index in the buffer will be returned if there is not
 	// an exact match
 	StartExactlyAtIndex bool
@@ -86,7 +95,7 @@ func (s *Subscription) Next(ctx context.Context) (structs.Events, error) {
 		}
 		s.currentItem = next
 
-		events := filter(s.req, next.Events.Events)
+		events := s.filter(next)
 		if len(events) == 0 {
 			continue
 		}
@@ -106,7 +115,7 @@ func (s *Subscription) NextNoBlock() ([]structs.Event, error) {
 		}
 		s.currentItem = next
 
-		events := filter(s.req, next.Events.Events)
+		events := s.filter(next)
 		if len(events) == 0 {
 			continue
 		}
@@ -116,6 +125,31 @@ func (s *Subscription) NextNoBlock() ([]structs.Event, error) {
 
 func (s *Subscription) Unsubscribe() {
 	s.unsub()
+}
+
+// filter returns the events of the buffer item the subscription may receive.
+func (s *Subscription) filter(item *bufferItem) []structs.Event {
+	// The start item of an exact subscription can precede the requested
+	// index when the buffer has not reached it yet.
+	if s.req.StartExactlyAtIndex && item.Events.Index < s.req.Index {
+		return nil
+	}
+	return authorizeEvents(s.aclObj.Load(), filter(s.req, item.Events.Events))
+}
+
+// refreshACL re-evaluates the subscription against a newly resolved ACL
+// object of its token. It returns false if the subscription is no longer
+// allowed and must be closed. Otherwise per-event authorization continues
+// with the new ACL object.
+func (s *Subscription) refreshACL(aclObj *acl.ACL) bool {
+	if !aclAllowsSubscription(aclObj, s.req) {
+		return false
+	}
+	// Subscriptions created without an ACL check stay unfiltered.
+	if s.aclObj.Load() != nil {
+		s.aclObj.Store(aclObj)
+	}
+	return true
 }
 
 // filter events to only those that match a subscriptions topic/keys/namespace
@@ -158,7 +192,7 @@ func filter(req *SubscribeRequest, events []structs.Event) []structs.Event {
 		for _, key := range keys {
 			if eventMatchesKey(event, key) {
 				result = append(result, event)
-				continue
+				break
 			}
 		}
 	}
@@ -177,5 +211,5 @@ func eventMatchesKey(event structs.Event, key string) bool {
 		}
 	}
 
-	return false
+	return topicKeyMatches(event.Topic, key, event.Key)
 }
