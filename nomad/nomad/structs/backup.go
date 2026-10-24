@@ -606,6 +606,18 @@ type BackupRestore struct {
 	ModifyIndex uint64
 }
 
+// Copy returns a copy of the restore record; items and results are shared.
+func (r *BackupRestore) Copy() *BackupRestore {
+	if r == nil {
+		return nil
+	}
+	nr := *r
+	nr.Items = slices.Clone(r.Items)
+	nr.Results = slices.Clone(r.Results)
+	nr.Approvals = slices.Clone(r.Approvals)
+	return &nr
+}
+
 // BackupRestoreUpsertRequest is the Raft request of creating or updating
 // restore records.
 type BackupRestoreUpsertRequest struct {

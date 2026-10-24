@@ -102,6 +102,9 @@ type Manager struct {
 
 	// failures counts consecutive failures per destination.
 	failures map[string]int
+
+	// cache holds the most recently loaded backup.
+	cache loadCache
 }
 
 // New returns a manager. An invalid configuration is reported by SetConfig
