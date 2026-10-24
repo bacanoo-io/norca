@@ -305,7 +305,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 					any to the underlying pack. Be mindful that, whether you
 					have made changes or not, the underlying Allocations will be
 					replaced. When managing packs, the name specified here is
-					the name that should be passed to Nomad Pack's plan and
+					the name that should be passed to the pack plan and
 					destroy commands.`,
 		})
 
@@ -363,7 +363,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 			Target:  &c.nomadConfig.caCert,
 			Default: "",
 			Usage: `Path to a PEM encoded CA cert file to use to verify the
-					Nomad server SSL certificate. Overrides the NORCA_CACERT
+					Norca server SSL certificate. Overrides the NORCA_CACERT
 					environment variable if set.`,
 		})
 
@@ -372,7 +372,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 			Target:  &c.nomadConfig.clientCert,
 			Default: "",
 			Usage: `Path to a PEM encoded client certificate for TLS authentication
-					to the Nomad server. Must also specify --client-key. Overrides
+					to the Norca server. Must also specify --client-key. Overrides
 					the NORCA_CLIENT_CERT environment variable if set.`,
 		})
 

@@ -221,7 +221,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Target:  &c.jobConfig.RunConfig.ConsulToken,
 			Default: "",
 			Usage: `If set, the passed Consul token is stored in the job before
-					sending to the Nomad servers. This allows passing the Consul
+					sending to the Norca servers. This allows passing the Consul
 					token without storing it in the job file. This overrides the
 					token found in the $CONSUL_HTTP_TOKEN environment variable
 					and that found in the job.`,
@@ -235,7 +235,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 					specified Consul namespace. Any template block reading from
 					Consul KV will be scoped to the the specified Consul
 					namespace. If Consul ACLs are enabled and the
-					allow_unauthenticated Nomad server Consul configuration is
+					allow_unauthenticated Norca server Consul configuration is
 					not enabled, then a Consul token must be supplied with
 					appropriate service and KV Consul ACL policy permissions.`,
 		})
@@ -245,7 +245,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Target:  &c.jobConfig.RunConfig.VaultToken,
 			Default: "",
 			Usage: `If set, the passed Vault token is stored in the job before
-					sending to the Nomad servers. This allows passing the Vault
+					sending to the Norca servers. This allows passing the Vault
 					token without storing it in the job file. This overrides the
 					token found in the $VAULT_TOKEN environment variable and
 					that found in the job.`,
