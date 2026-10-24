@@ -1990,13 +1990,19 @@ func (s *Server) Stats() map[string]map[string]string {
 		return strconv.FormatUint(v, 10)
 	}
 	leader, _ := s.raft.LeaderWithID()
+
+	// The peers are updated by serf events, so they must be read under lock.
+	s.peerLock.RLock()
+	knownRegions := len(s.peers)
+	s.peerLock.RUnlock()
+
 	stats := map[string]map[string]string{
 		"nomad": {
 			"server":        "true",
 			"leader":        fmt.Sprintf("%v", s.IsLeader()),
 			"leader_addr":   string(leader),
 			"bootstrap":     fmt.Sprintf("%v", s.isSingleServerCluster()),
-			"known_regions": toString(uint64(len(s.peers))),
+			"known_regions": toString(uint64(knownRegions)),
 		},
 		"raft":    s.raft.Stats(),
 		"serf":    s.serf.Stats(),
