@@ -16,7 +16,7 @@ import (
 const (
 	jobModifyIndexHelp = `To submit the job with version verification run:
 
-nomad pack run %s --check-index=%d [options]
+norca pack run %s --check-index=%d [options]
 
 When running the job with the check-index flag, the job will only be run if the
 job modify index given matches the server-side version. If the index has

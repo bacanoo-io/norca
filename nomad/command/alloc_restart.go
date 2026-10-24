@@ -18,7 +18,7 @@ type AllocRestartCommand struct {
 
 func (c *AllocRestartCommand) Help() string {
 	helpText := `
-Usage: nomad alloc restart [options] <allocation> <task>
+Usage: norca alloc restart [options] <allocation> <task>
 
   Restart an existing allocation. This command is used to restart a specific alloc
   and its tasks. If no task is provided then all of the allocation's tasks that

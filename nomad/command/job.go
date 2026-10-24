@@ -15,25 +15,25 @@ type JobCommand struct {
 
 func (f *JobCommand) Help() string {
 	helpText := `
-Usage: nomad job <subcommand> [options] [args]
+Usage: norca job <subcommand> [options] [args]
 
   This command groups subcommands for interacting with jobs.
 
   Run a new job or update an existing job:
 
-      $ nomad job run <path>
+      $ norca job run <path>
 
   Plan the run of a job to determine what changes would occur:
 
-      $ nomad job plan <path>
+      $ norca job plan <path>
 
   Stop a running job:
 
-      $ nomad job stop <name>
+      $ norca job stop <name>
 
   Examine the status of a running job:
 
-      $ nomad job status <name>
+      $ norca job status <name>
 
   Please see the individual subcommand help for detailed usage information.
 `

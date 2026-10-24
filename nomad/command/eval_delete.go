@@ -35,7 +35,7 @@ type EvalDeleteCommand struct {
 
 func (e *EvalDeleteCommand) Help() string {
 	helpText := `
-Usage: nomad eval delete [options] <evaluation>
+Usage: norca eval delete [options] <evaluation>
 
   Delete an evaluation by ID. If the evaluation ID is omitted, this command
   will use the filter flag to identify and delete a set of evaluations. If ACLs
@@ -48,8 +48,8 @@ Usage: nomad eval delete [options] <evaluation>
 
   The eval broker is expected to be paused prior to running this command and
   un-paused after. This can be done using the following two commands:
-    - nomad operator scheduler set-config -pause-eval-broker=true
-    - nomad operator scheduler set-config -pause-eval-broker=false
+    - norca operator scheduler set-config -pause-eval-broker=true
+    - norca operator scheduler set-config -pause-eval-broker=false
 
 General Options:
 
@@ -136,8 +136,8 @@ func (e *EvalDeleteCommand) Run(args []string) int {
 
 	if !schedulerConfig.SchedulerConfig.PauseEvalBroker {
 		e.Ui.Error("Eval broker is not paused")
-		e.Ui.Output(`To delete evaluations you must first pause the eval broker by running "nomad operator scheduler set-config -pause-eval-broker=true"`)
-		e.Ui.Output(`After the deletion is complete, unpause the eval broker by running "nomad operator scheduler set-config -pause-eval-broker=false"`)
+		e.Ui.Output(`To delete evaluations you must first pause the eval broker by running "norca operator scheduler set-config -pause-eval-broker=true"`)
+		e.Ui.Output(`After the deletion is complete, unpause the eval broker by running "norca operator scheduler set-config -pause-eval-broker=false"`)
 		return 1
 	}
 

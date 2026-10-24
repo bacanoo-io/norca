@@ -29,7 +29,7 @@ func (c *AdmissionPolicyApplyCommand) Synopsis() string {
 
 func (c *AdmissionPolicyApplyCommand) Help() string {
 	helpText := `
-Usage: nomad admission-policy apply [options] <input>
+Usage: norca admission-policy apply [options] <input>
 
   Apply is used to create or update an admission policy. The specification
   file is read from stdin by specifying "-", otherwise a path to the file is

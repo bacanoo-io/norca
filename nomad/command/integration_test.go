@@ -16,15 +16,28 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/client/testutil"
+	"github.com/hashicorp/nomad/helper/discover"
 	"github.com/stretchr/testify/assert"
 )
+
+// norcaBinary returns the norca binary the integration tests run: norca on
+// the PATH, or its compatibility alias nomad.
+func norcaBinary(t *testing.T) string {
+	t.Helper()
+	bin, err := discover.NomadExecutable()
+	if err != nil {
+		t.Fatalf("norca binary not found: %v", err)
+	}
+	return bin
+}
 
 func TestIntegration_Command_NomadInit(t *testing.T) {
 	ci.Parallel(t)
 	tmpDir := t.TempDir()
+	bin := norcaBinary(t)
 
 	{
-		cmd := exec.Command("nomad", "job", "init")
+		cmd := exec.Command(bin, "job", "init")
 		cmd.Dir = tmpDir
 		if err := cmd.Run(); err != nil {
 			t.Fatalf("error running init: %v", err)
@@ -32,7 +45,7 @@ func TestIntegration_Command_NomadInit(t *testing.T) {
 	}
 
 	{
-		cmd := exec.Command("nomad", "job", "validate", "example.nomad.hcl")
+		cmd := exec.Command(bin, "job", "validate", "example.nomad.hcl")
 		cmd.Dir = tmpDir
 		cmd.Env = []string{`NOMAD_ADDR=http://127.0.0.1:0`}
 		if err := cmd.Run(); err != nil {
@@ -48,28 +61,29 @@ func TestIntegration_Command_RoundTripJob(t *testing.T) {
 	testutil.RequireRoot(t)
 	testutil.DockerCompatible(t)
 
-	// "nomad job run" monitors the deployment and never returns when the
+	// "norca job run" monitors the deployment and never returns when the
 	// allocation can not be started, so bound every command.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	assert := assert.New(t)
 	tmpDir := t.TempDir()
+	bin := norcaBinary(t)
 
 	// Start in dev mode so we get a node registration
 	srv, client, url := testServer(t, true, nil)
 	defer srv.Shutdown()
 
 	{
-		cmd := exec.CommandContext(ctx, "nomad", "job", "init", "-short")
+		cmd := exec.CommandContext(ctx, bin, "job", "init", "-short")
 		cmd.Dir = tmpDir
 		assert.Nil(cmd.Run())
 	}
 
 	{
-		cmd := exec.CommandContext(ctx, "nomad", "job", "run", "example.nomad.hcl")
+		cmd := exec.CommandContext(ctx, bin, "job", "run", "example.nomad.hcl")
 		cmd.Dir = tmpDir
-		cmd.Env = []string{fmt.Sprintf("NOMAD_ADDR=%s", url)}
+		cmd.Env = []string{fmt.Sprintf("NORCA_ADDR=%s", url)}
 		err := cmd.Run()
 		if err != nil && !strings.Contains(err.Error(), "exit status 2") {
 			t.Fatalf("error running example.nomad.hcl: %v", err)
@@ -77,9 +91,9 @@ func TestIntegration_Command_RoundTripJob(t *testing.T) {
 	}
 
 	{
-		cmd := exec.CommandContext(ctx, "nomad", "job", "inspect", "example")
+		cmd := exec.CommandContext(ctx, bin, "job", "inspect", "example")
 		cmd.Dir = tmpDir
-		cmd.Env = []string{fmt.Sprintf("NOMAD_ADDR=%s", url)}
+		cmd.Env = []string{fmt.Sprintf("NORCA_ADDR=%s", url)}
 		out, err := cmd.Output()
 		assert.Nil(err)
 
@@ -94,9 +108,9 @@ func TestIntegration_Command_RoundTripJob(t *testing.T) {
 	}
 
 	{
-		cmd := exec.CommandContext(ctx, "nomad", "job", "stop", "example")
+		cmd := exec.CommandContext(ctx, bin, "job", "stop", "example")
 		cmd.Dir = tmpDir
-		cmd.Env = []string{fmt.Sprintf("NOMAD_ADDR=%s", url)}
+		cmd.Env = []string{fmt.Sprintf("NORCA_ADDR=%s", url)}
 		_, err := cmd.Output()
 		assert.Nil(err)
 	}

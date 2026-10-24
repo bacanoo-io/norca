@@ -15,7 +15,7 @@ type SentinelCommand struct {
 
 func (f *SentinelCommand) Help() string {
 	helpText := `
-Usage: nomad sentinel <subcommand> [options] [args]
+Usage: norca sentinel <subcommand> [options] [args]
 
   This command groups subcommands for interacting with Sentinel policies.
   Sentinel policies allow operators to express fine-grained policies as code and
@@ -28,15 +28,15 @@ Usage: nomad sentinel <subcommand> [options] [args]
 
   Read an existing policy:
 
-      $ nomad sentinel read <name>
+      $ norca sentinel read <name>
 
   List existing policies:
 
-      $ nomad sentinel list
+      $ norca sentinel list
 
   Create a new Sentinel policy:
 
-      $ nomad sentinel apply <name> <path>
+      $ norca sentinel apply <name> <path>
 
   Please see the individual subcommand help for detailed usage information.
 `

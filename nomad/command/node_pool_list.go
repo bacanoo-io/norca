@@ -26,7 +26,7 @@ func (c *NodePoolListCommand) Synopsis() string {
 
 func (c *NodePoolListCommand) Help() string {
 	helpText := `
-Usage: nomad node pool list [options]
+Usage: norca node pool list [options]
 
   List is used to list existing node pools.
 

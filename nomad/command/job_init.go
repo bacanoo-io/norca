@@ -27,8 +27,8 @@ type JobInitCommand struct {
 
 func (c *JobInitCommand) Help() string {
 	helpText := `
-Usage: nomad job init <filename>
-Alias: nomad init <filename>
+Usage: norca job init <filename>
+Alias: norca init <filename>
 
   Creates an example job file that can be used as a starting point to customize
   further. If no filename is given, the default of "example.nomad.hcl" will be used.
@@ -42,7 +42,7 @@ Init Options:
     If the connect flag is set, the jobspec includes Consul Connect integration.
 
   -template
-    Specifies a predefined template to initialize. Must be a Nomad Variable that
+    Specifies a predefined template to initialize. Must be a Norca Variable that
     lives at nomad/job-templates/<template>
 
   -list-templates
@@ -135,7 +135,7 @@ func (c *JobInitCommand) Run(args []string) int {
 			c.Ui.Error("No variables in nomad/job-templates")
 			return 1
 		} else {
-			c.Ui.Output("Use nomad job init -template=<template> with any of the following:")
+			c.Ui.Output("Use norca job init -template=<template> with any of the following:")
 			for _, v := range vars {
 				c.Ui.Output(fmt.Sprintf("  %s", strings.TrimPrefix(v.Path, "nomad/job-templates/")))
 			}
@@ -166,7 +166,7 @@ func (c *JobInitCommand) Run(args []string) int {
 			c.Ui.Output(fmt.Sprintf("Initializing a job template from %s", template))
 			jobSpec = []byte(v)
 		} else {
-			c.Ui.Error(fmt.Sprintf("Job template %q is malformed and is missing a template field. Please visit the jobs/run/templates route in  the Nomad UI to add it", template))
+			c.Ui.Error(fmt.Sprintf("Job template %q is malformed and is missing a template field. Please visit the jobs/run/templates route in the Norca UI to add it", template))
 			return 1
 		}
 

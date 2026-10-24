@@ -4787,10 +4787,14 @@ func (j *Job) Validate() error {
 		}
 	}
 
-	if j.IsMultiregion() {
+	if j.Multiregion != nil {
 		if err := j.Multiregion.Validate(j.Type, j.Datacenters); err != nil {
 			mErr.Errors = append(mErr.Errors, err)
 		}
+	}
+
+	if err := j.validateConsulNamespaces(); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
 	}
 
 	return mErr.ErrorOrNil()

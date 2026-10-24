@@ -20,7 +20,7 @@ type EvalStatusCommand struct {
 
 func (c *EvalStatusCommand) Help() string {
 	helpText := `
-Usage: nomad eval status [options] <evaluation>
+Usage: norca eval status [options] <evaluation>
 
   Display information about evaluations. This command can be used to inspect the
   current status of an evaluation as well as determine the reason an evaluation

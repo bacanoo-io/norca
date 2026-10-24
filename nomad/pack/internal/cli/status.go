@@ -138,25 +138,25 @@ func (c *StatusCommand) AutocompleteFlags() complete.Flags {
 func (c *StatusCommand) Help() string {
 	c.Example = `
 	# Get a list of all deployed packs and their registries
-	nomad pack status
+	norca pack status
 
 	# Get a list of all deployed jobs in pack example, along with their status
 	# and deployment names
-	nomad pack status example
+	norca pack status example
 
 	# Get a list of all deployed jobs and their status for an example pack in
 	# the deployment name "dev"
-	nomad pack status example --name=dev
+	norca pack status example --name=dev
 
 	# Get a list of all deployed jobs and their status for an example pack in
 	# the deployment name "dev"
-	nomad pack status example --name=dev --registry=community
+	norca pack status example --name=dev --registry=community
 	`
 
 	return formatHelp(`
-	Usage: nomad pack status <name> [options]
+	Usage: norca pack status <name> [options]
 
-	Get information on deployed Nomad Packs. If no pack name is specified, it
+	Get information on deployed Norca Packs. If no pack name is specified, it
 	will return	a list of all deployed packs. If pack name is specified, it will
 	return a list of all deployed jobs belonging to that pack, along with their
 	status and deployment names.

@@ -18,7 +18,7 @@ type NamespaceListCommand struct {
 
 func (c *NamespaceListCommand) Help() string {
 	helpText := `
-Usage: nomad namespace list [options]
+Usage: norca namespace list [options]
 
   List is used to list available namespaces.
 
