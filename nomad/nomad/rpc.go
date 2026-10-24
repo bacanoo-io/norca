@@ -185,8 +185,12 @@ func (r *rpcHandler) listen(ctx context.Context) {
 		// Accept a connection
 		conn, err := r.srv.rpcListener.Accept()
 		if err != nil {
-			if r.srv.shutdown {
+			// Shutdown cancels the shutdown context before it closes the
+			// listener; the shutdown flag itself is guarded by shutdownLock.
+			select {
+			case <-r.srv.shutdownCh:
 				return
+			default:
 			}
 			r.handleAcceptErr(ctx, err, &acceptLoopDelay)
 			continue
