@@ -43,25 +43,47 @@ type Review struct {
 	Response   *ReviewResponse `json:"response,omitempty"`
 }
 
-// ReviewRequest describes the job submission under review.
+// ReviewRequest describes the job submission or Variables write under
+// review.
 type ReviewRequest struct {
 	// UID identifies the review; the response must echo it.
 	UID string `json:"uid"`
 
-	// Operation is "register" or "plan".
+	// Resource is the kind of object under review: "job" or "variable".
+	Resource string `json:"resource,omitempty"`
+
+	// Operation is "register" or "plan" for jobs, "set" or "delete" for
+	// Variables.
 	Operation string `json:"operation"`
 
 	// DryRun is true for plan.
 	DryRun bool `json:"dry_run"`
 
-	// Namespace is the namespace of the job.
+	// Namespace is the namespace of the job or Variable.
 	Namespace string `json:"namespace"`
 
 	// User is the submitter.
 	User *ReviewUser `json:"user"`
 
 	// Job is the complete job in the Nomad API JSON form, without secrets.
-	Job json.RawMessage `json:"job"`
+	// It is only set for jobs.
+	Job json.RawMessage `json:"job,omitempty"`
+
+	// Variable is the written Variable (for "delete" without items) and
+	// OldVariable the Variable it replaces or deletes, if any. They are only
+	// set for Variables, and their items only if the webhook configuration
+	// sets include_variable_items.
+	Variable    *ReviewVariable `json:"variable,omitempty"`
+	OldVariable *ReviewVariable `json:"old_variable,omitempty"`
+}
+
+// ReviewVariable is the wire form of a Variable under review.
+type ReviewVariable struct {
+	Namespace   string            `json:"namespace"`
+	Path        string            `json:"path"`
+	CreateIndex uint64            `json:"create_index,omitempty"`
+	ModifyIndex uint64            `json:"modify_index,omitempty"`
+	Items       map[string]string `json:"items,omitempty"`
 }
 
 // ReviewUser identifies the submitter of the job.
@@ -194,6 +216,32 @@ func (w *Webhook) IgnoreFailure() bool {
 
 // AppliesTo returns true if jobs in the namespace are sent to the webhook.
 func (w *Webhook) AppliesTo(namespace string) bool {
+	if !structs.AdmissionResourceSelected(w.cfg.Resources, structs.AdmissionResourceJob) {
+		return false
+	}
+	return w.appliesToNamespace(namespace)
+}
+
+// AppliesToVariable returns true if writes of the Variable at path in the
+// namespace are sent to the webhook. Mutating webhooks never apply to
+// Variables.
+func (w *Webhook) AppliesToVariable(namespace, path string) bool {
+	if w.Mutating() || !structs.AdmissionResourceSelected(w.cfg.Resources, structs.AdmissionResourceVariable) {
+		return false
+	}
+	if !w.appliesToNamespace(namespace) {
+		return false
+	}
+	return structs.AdmissionNamespaceMatches(w.cfg.VariablePaths, path, true)
+}
+
+// IncludeVariableItems returns true if the decrypted items of Variables are
+// sent to the webhook.
+func (w *Webhook) IncludeVariableItems() bool {
+	return w.cfg.IncludeVariableItems
+}
+
+func (w *Webhook) appliesToNamespace(namespace string) bool {
 	if structs.AdmissionNamespaceMatches(w.cfg.ExcludeNamespaces, namespace, false) {
 		return false
 	}

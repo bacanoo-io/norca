@@ -317,10 +317,11 @@ func (c *VarPutCommand) Run(args []string) int {
 		sv.ModifyIndex = checkIndex
 	}
 
+	var wm *api.WriteMeta
 	if force {
-		sv, _, err = client.Variables().Update(sv, nil)
+		sv, wm, err = client.Variables().Update(sv, nil)
 	} else {
-		sv, _, err = client.Variables().CheckedUpdate(sv, nil)
+		sv, wm, err = client.Variables().CheckedUpdate(sv, nil)
 	}
 	if err != nil {
 		if handled := handleCASError(err, c); handled {
@@ -338,6 +339,9 @@ func (c *VarPutCommand) Run(args []string) int {
 			"Variable",
 			helper.MergeMultierrorWarnings(warnings),
 		))
+	}
+	if wm != nil && len(wm.Warnings) > 0 {
+		c.Ui.Warn(c.FormatWarnings("Admission", strings.Join(wm.Warnings, "\n")))
 	}
 
 	var out string

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )
@@ -101,10 +102,11 @@ func (c *VarPurgeCommand) Run(args []string) int {
 		return 1
 	}
 
+	var wm *api.WriteMeta
 	if enforce {
-		_, err = client.Variables().CheckedDelete(path, checkIndex, nil)
+		wm, err = client.Variables().CheckedDelete(path, checkIndex, nil)
 	} else {
-		_, err = client.Variables().Delete(path, nil)
+		wm, err = client.Variables().Delete(path, nil)
 	}
 
 	if err != nil {
@@ -115,6 +117,9 @@ func (c *VarPurgeCommand) Run(args []string) int {
 		return 1
 	}
 
+	if wm != nil && len(wm.Warnings) > 0 {
+		c.Ui.Warn(c.FormatWarnings("Admission", strings.Join(wm.Warnings, "\n")))
+	}
 	c.Ui.Output(fmt.Sprintf("Successfully purged variable %q!", path))
 	return 0
 }
