@@ -445,6 +445,8 @@ type TaskGroup struct {
 	Affinities                []*Affinity               `hcl:"affinity,block"`
 	Tasks                     []*Task                   `hcl:"task,block"`
 	Spreads                   []*Spread                 `hcl:"spread,block"`
+	Colocate                  []*AllocAffinity          `hcl:"colocate,block"`
+	Separate                  []*AllocAffinity          `hcl:"separate,block"`
 	Volumes                   map[string]*VolumeRequest `hcl:"volume,block"`
 	RestartPolicy             *RestartPolicy            `hcl:"restart,block"`
 	ReschedulePolicy          *ReschedulePolicy         `hcl:"reschedule,block"`
@@ -569,6 +571,12 @@ func (g *TaskGroup) Canonicalize(job *Job) {
 		spread.Canonicalize()
 	}
 	for _, a := range g.Affinities {
+		a.Canonicalize()
+	}
+	for _, a := range g.Colocate {
+		a.Canonicalize()
+	}
+	for _, a := range g.Separate {
 		a.Canonicalize()
 	}
 	for _, n := range g.Networks {

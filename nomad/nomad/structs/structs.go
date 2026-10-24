@@ -6621,6 +6621,12 @@ type TaskGroup struct {
 	// allocations across a desired attribute, such as datacenter
 	Spreads []*Spread
 
+	// Colocate and Separate are cross-job affinity and anti-affinity rules
+	// relating the placement of this group to the allocations of other jobs
+	// (see AllocAffinity).
+	Colocate []*AllocAffinity
+	Separate []*AllocAffinity
+
 	// Networks are the network configuration for the task group. This can be
 	// overridden in the task.
 	Networks Networks
@@ -6659,6 +6665,8 @@ func (tg *TaskGroup) Copy() *TaskGroup {
 	ntg.ReschedulePolicy = ntg.ReschedulePolicy.Copy()
 	ntg.Affinities = CopySliceAffinities(ntg.Affinities)
 	ntg.Spreads = CopySliceSpreads(ntg.Spreads)
+	ntg.Colocate = CopySliceAllocAffinities(ntg.Colocate)
+	ntg.Separate = CopySliceAllocAffinities(ntg.Separate)
 	ntg.Volumes = CopyMapVolumeRequest(ntg.Volumes)
 	ntg.Scaling = ntg.Scaling.Copy()
 	ntg.Consul = ntg.Consul.Copy()
@@ -6750,6 +6758,8 @@ func (tg *TaskGroup) Canonicalize(job *Job) {
 	for _, network := range tg.Networks {
 		network.Canonicalize()
 	}
+
+	tg.canonicalizeAllocAffinities()
 
 	for _, task := range tg.Tasks {
 		task.Canonicalize(job, tg)
@@ -6849,6 +6859,10 @@ func (tg *TaskGroup) Validate(j *Job) error {
 				mErr.Errors = append(mErr.Errors, outer)
 			}
 		}
+	}
+
+	if err := tg.validateAllocAffinities(j); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
 	}
 
 	if j.Type == JobTypeSystem {
