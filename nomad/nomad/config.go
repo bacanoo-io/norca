@@ -428,6 +428,9 @@ type Config struct {
 
 	// JobTrackedVersions is the number of historic Job versions that are kept.
 	JobTrackedVersions int
+
+	// AdmissionConfig configures the dynamic admission control webhooks.
+	AdmissionConfig *config.AdmissionConfig
 }
 
 func (c *Config) Copy() *Config {
@@ -456,6 +459,7 @@ func (c *Config) Copy() *Config {
 	nc.AutopilotConfig = c.AutopilotConfig.Copy()
 	nc.LicenseConfig = c.LicenseConfig.Copy()
 	nc.SearchConfig = c.SearchConfig.Copy()
+	nc.AdmissionConfig = c.AdmissionConfig.Copy()
 
 	return &nc
 }

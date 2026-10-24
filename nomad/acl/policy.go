@@ -112,6 +112,7 @@ type Policy struct {
 	Operator    *OperatorPolicy     `hcl:"operator"`
 	Quota       *QuotaPolicy        `hcl:"quota"`
 	Plugin      *PluginPolicy       `hcl:"plugin"`
+	Admission   *AdmissionPolicy    `hcl:"admission"`
 	Raw         string              `hcl:"-"`
 }
 
@@ -125,7 +126,8 @@ func (p *Policy) IsEmpty() bool {
 		p.Node == nil &&
 		p.Operator == nil &&
 		p.Quota == nil &&
-		p.Plugin == nil
+		p.Plugin == nil &&
+		p.Admission == nil
 }
 
 // NamespacePolicy is the policy for a specific namespace
@@ -463,6 +465,10 @@ func Parse(rules string) (*Policy, error) {
 
 	if p.Quota != nil && !isPolicyValid(p.Quota.Policy) {
 		return nil, fmt.Errorf("Invalid quota policy: %#v", p.Quota)
+	}
+
+	if p.Admission != nil && !p.Admission.isValid() {
+		return nil, fmt.Errorf("Invalid admission policy: %#v", p.Admission)
 	}
 
 	if p.Plugin != nil && !p.Plugin.isValid() {

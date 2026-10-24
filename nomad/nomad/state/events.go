@@ -42,6 +42,8 @@ var MsgTypeEvents = map[structs.MessageType]string{
 	structs.ServiceRegistrationDeleteByIDRequestType:     structs.TypeServiceDeregistration,
 	structs.ServiceRegistrationDeleteByNodeIDRequestType: structs.TypeServiceDeregistration,
 	structs.VarApplyStateRequestType:                     structs.TypeVariableUpserted,
+	structs.AdmissionPolicyUpsertRequestType:             structs.TypeAdmissionPolicyUpserted,
+	structs.AdmissionPolicyDeleteRequestType:             structs.TypeAdmissionPolicyDeleted,
 }
 
 func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
@@ -179,6 +181,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 				return structs.Event{}, false
 			}
 			return variableEvent(structs.TypeVariableDeleted, before), true
+		case TableAdmissionPolicies:
+			return admissionPolicyEventFromChange(change)
 		}
 		return structs.Event{}, false
 	}
@@ -362,6 +366,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 			return structs.Event{}, false
 		}
 		return variableEvent(structs.TypeVariableUpserted, after), true
+	case TableAdmissionPolicies:
+		return admissionPolicyEventFromChange(change)
 	}
 
 	return structs.Event{}, false

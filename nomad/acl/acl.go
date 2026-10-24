@@ -75,6 +75,9 @@ type ACL struct {
 	operator string
 	quota    string
 	plugin   string
+
+	// admission is the policy for admission control objects (Norca).
+	admission string
 }
 
 // maxPrivilege returns the policy which grants the most privilege
@@ -280,6 +283,9 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 		}
 		if policy.Plugin != nil {
 			acl.plugin = maxPrivilege(acl.plugin, policy.Plugin.Policy)
+		}
+		if policy.Admission != nil {
+			acl.admission = maxPrivilege(acl.admission, policy.Admission.Policy)
 		}
 	}
 

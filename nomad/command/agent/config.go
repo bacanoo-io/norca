@@ -685,6 +685,9 @@ type ServerConfig struct {
 
 	// Autoscaler configures the built-in autoscaler.
 	Autoscaler *AutoscalerConfig `hcl:"autoscaler"`
+
+	// Admission configures the dynamic admission control webhooks.
+	Admission *config.AdmissionConfig `hcl:"admission"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -715,6 +718,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobMaxPriority = pointer.Copy(s.JobMaxPriority)
 	ns.JobTrackedVersions = pointer.Copy(s.JobTrackedVersions)
 	ns.Autoscaler = s.Autoscaler.Copy()
+	ns.Admission = s.Admission.Copy()
 	return &ns
 }
 
@@ -2068,6 +2072,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.JobTrackedVersions != nil {
 		result.JobTrackedVersions = b.JobTrackedVersions
+	}
+
+	if b.Admission != nil {
+		result.Admission = result.Admission.Merge(b.Admission)
 	}
 
 	// Add the schedulers

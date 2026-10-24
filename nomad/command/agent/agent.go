@@ -350,6 +350,14 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		conf.JobTrackedVersions = *agentConfig.Server.JobTrackedVersions
 	}
 
+	if admissionConf := agentConfig.Server.Admission.Copy(); admissionConf != nil {
+		admissionConf.Canonicalize()
+		if err := admissionConf.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid server admission configuration: %w", err)
+		}
+		conf.AdmissionConfig = admissionConf
+	}
+
 	// Set up the bind addresses
 	rpcAddr, err := net.ResolveTCPAddr("tcp", agentConfig.normalizedAddrs.RPC)
 	if err != nil {

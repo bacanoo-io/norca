@@ -131,6 +131,11 @@ const (
 	// Namespace types were moved from enterprise and therefore start at 64
 	NamespaceUpsertRequestType MessageType = 64
 	NamespaceDeleteRequestType MessageType = 65
+
+	// Norca admission control types start at 70. They are sent with the
+	// IgnoreUnknownTypeFlag set.
+	AdmissionPolicyUpsertRequestType MessageType = 70
+	AdmissionPolicyDeleteRequestType MessageType = 71
 )
 
 const (
