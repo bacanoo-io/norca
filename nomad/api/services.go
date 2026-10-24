@@ -86,6 +86,10 @@ type ServiceRegistration struct {
 	// Discovery holds the discovery settings of the service.
 	Discovery *ServiceDiscovery
 
+	// External is set for external services, which are not tied to an
+	// allocation.
+	External *ServiceExternal
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -99,6 +103,7 @@ const (
 
 // ServiceRegistrationCheck is the state of one check of a service instance.
 type ServiceRegistrationCheck struct {
+	ID     string // checks of external services only
 	Name   string
 	Role   string
 	Status string

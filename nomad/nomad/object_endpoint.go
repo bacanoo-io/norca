@@ -10,6 +10,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -584,10 +585,20 @@ type objectWrite struct {
 	// capability is the ACL capability the write requires.
 	capability string
 
+	// checkManaged enforces the managed_by identity of the stored object.
+	checkManaged bool
+
+	// metadataOnly marks writes that change neither the spec nor the status
+	// (finalizers, deletion marks). They are not validated against the
+	// schema and the rules, so a changed kind can't block the deletion of
+	// objects stored before.
+	metadataOnly bool
+
 	// build computes the new object from the kind, the namespace the object
 	// is stored in and the stored object (nil if it doesn't exist). It
-	// returns the CEL operation of the write.
-	build func(kind *structs.ObjectKind, namespace string, existing *structs.CustomObject) (*structs.CustomObject, string, error)
+	// returns the CEL operation of the write. aclObj is the ACL of the
+	// caller, snap the snapshot the object was read from.
+	build func(kind *structs.ObjectKind, namespace string, existing *structs.CustomObject, aclObj *acl.ACL, snap *state.StateSnapshot) (*structs.CustomObject, string, error)
 }
 
 // writeObject runs a write of a custom object: it authorizes the write,
@@ -648,12 +659,20 @@ func (c *CustomObject) writeObject(w *objectWrite, reply *structs.CustomObjectWr
 			}
 		}
 
-		obj, operation, err := w.build(kind, namespace, existing)
+		if w.checkManaged && existing != nil {
+			if err := checkObjectManagedBy(aclObj, w.args, existing); err != nil {
+				return err
+			}
+		}
+
+		obj, operation, err := w.build(kind, namespace, existing, aclObj, snap)
 		if err != nil {
 			return err
 		}
-		if err := c.validateObject(kind, obj, existing, operation, w); err != nil {
-			return err
+		if !w.metadataOnly {
+			if err := c.validateObject(kind, obj, existing, operation, w); err != nil {
+				return err
+			}
 		}
 
 		if existing != nil && objectUnchanged(existing, obj) {
@@ -778,6 +797,10 @@ func objectCELValue(obj *structs.CustomObject) map[string]any {
 	if labels == nil {
 		labels = map[string]string{}
 	}
+	finalizers := obj.Finalizers
+	if finalizers == nil {
+		finalizers = []string{}
+	}
 	v := map[string]any{
 		"kind": obj.KindRef(),
 		"metadata": map[string]any{
@@ -788,6 +811,8 @@ func objectCELValue(obj *structs.CustomObject) map[string]any {
 			"generation":  obj.Generation,
 			"createIndex": obj.CreateIndex,
 			"modifyIndex": obj.ModifyIndex,
+			"finalizers":  finalizers,
+			"deleting":    obj.Deleting(),
 		},
 		"spec": obj.Spec,
 	}
@@ -805,6 +830,9 @@ func objectCELValue(obj *structs.CustomObject) map[string]any {
 func objectUnchanged(existing, obj *structs.CustomObject) bool {
 	return existing.Generation == obj.Generation &&
 		existing.ManagedBy == obj.ManagedBy &&
+		existing.DeletionTime == obj.DeletionTime &&
+		existing.DeletionPropagation == obj.DeletionPropagation &&
+		slices.Equal(existing.Finalizers, obj.Finalizers) &&
 		reflect.DeepEqual(nonEmptyLabels(existing.Labels), nonEmptyLabels(obj.Labels)) &&
 		reflect.DeepEqual(existing.Owners, obj.Owners) &&
 		structs.ObjectMapsEqual(existing.Spec, obj.Spec) &&
@@ -854,9 +882,6 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 	if err := in.ValidateMetadata(); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid object: %v", err)
 	}
-	if len(in.Finalizers) > 0 {
-		return structs.NewErrRPCCodedf(http.StatusBadRequest, "finalizers are not supported yet")
-	}
 	spec, err := normalizeObjectPart("spec", in.Spec)
 	if err != nil {
 		return err
@@ -867,18 +892,23 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 
 	namespace := args.RequestNamespace()
 	w := &objectWrite{
-		args:       args,
-		group:      in.Group,
-		kind:       in.Kind,
-		namespace:  namespace,
-		name:       in.Name,
-		cas:        args.CAS,
-		dryRun:     args.DryRun,
-		capability: acl.ObjectCapabilityWrite,
-		build: func(kind *structs.ObjectKind, ns string, existing *structs.CustomObject) (*structs.CustomObject, string, error) {
+		args:         args,
+		group:        in.Group,
+		kind:         in.Kind,
+		namespace:    namespace,
+		name:         in.Name,
+		cas:          args.CAS,
+		dryRun:       args.DryRun,
+		capability:   acl.ObjectCapabilityWrite,
+		checkManaged: true,
+		build: func(kind *structs.ObjectKind, ns string, existing *structs.CustomObject, aclObj *acl.ACL, snap *state.StateSnapshot) (*structs.CustomObject, string, error) {
 			if kind.Namespaced && in.Namespace != "" && in.Namespace != ns {
 				return nil, "", structs.NewErrRPCCodedf(http.StatusBadRequest,
 					"object namespace %q does not match the request namespace %q", in.Namespace, ns)
+			}
+			owners, err := resolveObjectOwners(snap, ns, in.Owners)
+			if err != nil {
+				return nil, "", err
 			}
 			now := time.Now().UnixNano()
 			obj := &structs.CustomObject{
@@ -889,7 +919,7 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 				Name:       in.Name,
 				Labels:     in.Labels,
 				ManagedBy:  in.ManagedBy,
-				Owners:     in.Owners,
+				Owners:     owners,
 				Generation: 1,
 				CreateTime: now,
 				ModifyTime: now,
@@ -899,12 +929,31 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 				operation = objectOperationUpdate
 				obj.ID = existing.ID
 				obj.Status = structs.CopyObjectMap(existing.Status)
-				obj.Finalizers = existing.Finalizers
+				obj.Finalizers = slices.Clone(existing.Finalizers)
 				obj.DeletionTime = existing.DeletionTime
+				obj.DeletionPropagation = existing.DeletionPropagation
 				obj.Generation = existing.Generation
 				obj.CreateTime = existing.CreateTime
 				obj.CreateIndex = existing.CreateIndex
 				obj.ModifyIndex = existing.ModifyIndex
+			}
+
+			// Finalizers of the request are added; removing them takes the
+			// finalizers endpoint. Adding one requires manage-finalizers.
+			added := false
+			for _, f := range in.Finalizers {
+				if !slices.Contains(obj.Finalizers, f) {
+					obj.Finalizers = append(obj.Finalizers, f)
+					added = true
+				}
+			}
+			if added {
+				if !aclObj.AllowObjectOperation(objectACLNamespace(kind, ns), kind.KindRef(), acl.ObjectCapabilityManageFinalizers) {
+					return nil, "", structs.ErrPermissionDenied
+				}
+				if obj.Deleting() {
+					return nil, "", errObjectDeleting(obj)
+				}
 			}
 
 			schema, err := c.srv.objects.schema(kind)
@@ -957,7 +1006,7 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 		cas:        args.CAS,
 		dryRun:     args.DryRun,
 		capability: acl.ObjectCapabilityWriteStatus,
-		build: func(kind *structs.ObjectKind, ns string, existing *structs.CustomObject) (*structs.CustomObject, string, error) {
+		build: func(kind *structs.ObjectKind, ns string, existing *structs.CustomObject, aclObj *acl.ACL, snap *state.StateSnapshot) (*structs.CustomObject, string, error) {
 			if existing == nil {
 				return nil, "", structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", kind.KindRef(), args.Name)
 			}
@@ -1013,93 +1062,5 @@ func validateObjectStatus(obj *structs.CustomObject) error {
 			}
 		}
 	}
-	return nil
-}
-
-// Delete deletes an object.
-func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *structs.CustomObjectWriteResponse) error {
-	authErr := c.srv.Authenticate(c.ctx, args)
-	if done, err := c.srv.forward("CustomObject.Delete", args, args, reply); done {
-		return err
-	}
-	c.srv.MeasureRPCRate("custom_object", structs.RateMetricWrite, args)
-	if authErr != nil {
-		return structs.ErrPermissionDenied
-	}
-	defer metrics.MeasureSince([]string{"nomad", "custom_object", "delete"}, time.Now())
-
-	if isBuiltinObjectGroup(args.Group) {
-		return errBuiltinObjectGroup(args.Group)
-	}
-	switch args.Propagation {
-	case "", structs.ObjectPropagationBackground:
-	default:
-		return structs.NewErrRPCCodedf(http.StatusBadRequest,
-			"deletion propagation %q is not supported yet, only %q", args.Propagation, structs.ObjectPropagationBackground)
-	}
-
-	aclObj, err := c.srv.ResolveACL(args)
-	if err != nil {
-		return err
-	}
-	kindRef := structs.ObjectKindRef(args.Group, args.Kind)
-
-	snap, err := c.srv.State().Snapshot()
-	if err != nil {
-		return err
-	}
-	kind, err := snap.ObjectKindByName(nil, args.Group, args.Kind)
-	if err != nil {
-		return err
-	}
-	if kind == nil {
-		if !aclObj.AllowObjectOperation(args.RequestNamespace(), kindRef, acl.ObjectCapabilityWrite) {
-			return structs.ErrPermissionDenied
-		}
-		return structs.NewErrRPCCodedf(http.StatusNotFound, "object kind %q not found", kindRef)
-	}
-	namespace := objectNamespace(kind, args.RequestNamespace())
-	if !aclObj.AllowObjectOperation(objectACLNamespace(kind, namespace), kindRef, acl.ObjectCapabilityWrite) {
-		return structs.ErrPermissionDenied
-	}
-
-	existing, err := snap.CustomObjectByName(nil, args.Group, args.Kind, namespace, args.Name)
-	if err != nil {
-		return err
-	}
-	if existing == nil {
-		return structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", kindRef, args.Name)
-	}
-	var expected uint64
-	if args.CAS != nil {
-		if existing.ModifyIndex != *args.CAS {
-			return structs.NewObjectConflictError("%s %q has modify index %d, expected %d",
-				kindRef, args.Name, existing.ModifyIndex, *args.CAS)
-		}
-		expected = *args.CAS
-	}
-
-	reply.Object = existing
-	if args.DryRun {
-		return nil
-	}
-
-	if !ServersMeetMinimumNorcaVersion(c.srv.serf.Members(), c.srv.Region(), false) {
-		return fmt.Errorf("all servers must be running Norca %v or later to delete custom objects", minNorcaFeaturesVersion)
-	}
-
-	req := &structs.CustomObjectDeleteStateRequest{
-		Group:               args.Group,
-		Kind:                args.Kind,
-		Namespace:           namespace,
-		Name:                args.Name,
-		ExpectedModifyIndex: expected,
-		WriteRequest:        structs.WriteRequest{Region: c.srv.Region()},
-	}
-	_, index, err := c.srv.raftApply(structs.CustomObjectDeleteRequestType|structs.IgnoreUnknownTypeFlag, req)
-	if err != nil {
-		return err
-	}
-	reply.Index = index
 	return nil
 }

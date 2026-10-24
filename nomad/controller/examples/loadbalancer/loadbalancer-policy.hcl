@@ -35,9 +35,10 @@ namespace "default" {
 
   # With -objects=native: the native LoadBalancer objects. "write" is
   # needed only for the objects created from marked services (discovery);
-  # the status is written with "write-status". The crd/... Variables path
-  # above is then unused.
+  # the status is written with "write-status", the event log with
+  # "write-events", and the cleanup finalizer needs "manage-finalizers".
+  # The crd/... Variables path above is then unused.
   object "norca.io/LoadBalancer" {
-    capabilities = ["read", "write", "write-status"]
+    capabilities = ["read", "write", "write-status", "write-events", "manage-finalizers"]
   }
 }

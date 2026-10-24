@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -71,9 +72,76 @@ func TestLoadBalancer_NativeLifecycle(t *testing.T) {
 		return obj.Generation == 2 && e.nativeStatus(t, "web").Observed(obj)
 	})
 
-	// Deleting the object deletes the job.
+	// The object got the cleanup finalizer, the job the owner kind, and the
+	// state changes are in the object's event log.
+	must.Eq(t, []string{Finalizer}, e.nativeObject(t, "web").Finalizers)
+	must.Eq(t, Kind.String(), e.b.GetJob("default", "lb-web").Meta[controller.OwnerKindMetaKey])
+	waitFor(t, "ready event", func() bool {
+		for _, ev := range e.b.ObjectEvents(Kind, "default", "web") {
+			if ev.Reason == "Ready" {
+				return true
+			}
+		}
+		return false
+	})
+
+	// Deleting the object deletes the job first, then the finalizer is
+	// removed and the object disappears.
 	e.b.RemoveObject(Kind, "default", "web")
-	waitFor(t, "job deleted", func() bool { return e.b.GetJob("default", "lb-web") == nil })
+	waitFor(t, "object deleted", func() bool { return e.nativeObject(t, "web") == nil })
+	must.Nil(t, e.b.GetJob("default", "lb-web"))
+	must.Nil(t, e.b.GetVariable("default", targetsPath("lb-web")))
+}
+
+// TestLoadBalancer_NativeFinalizer checks that a load balancer deleted while
+// the operator is down is removed when it comes back, and that a
+// re-created object adopts the job left by an orphaning deletion.
+func TestLoadBalancer_NativeFinalizer(t *testing.T) {
+	e := startOperatorWith(t, false, controller.StorageNative)
+	e.cluster.setTargets("default", "web", Target{Address: "10.0.0.1", Port: 8001})
+	e.putNativeLB("web", map[string]any{"service": "web", "port": 8080})
+	waitFor(t, "job", func() bool { return e.b.GetJob("default", "lb-web") != nil })
+	waitFor(t, "finalizer", func() bool { return e.nativeObject(t, "web").HasFinalizer(Finalizer) })
+
+	// Deleted while the operator is down: the object is only marked.
+	e.stop()
+	e.b.RemoveObject(Kind, "default", "web")
+	time.Sleep(100 * time.Millisecond)
+	obj := e.nativeObject(t, "web")
+	must.NotNil(t, obj)
+	must.True(t, obj.Deleting())
+	must.NotNil(t, e.b.GetJob("default", "lb-web"))
+
+	// The restarted operator finishes the cleanup.
+	e2 := startOperatorOn(t, e.b, e.cluster, false, controller.StorageNative)
+	waitFor(t, "object deleted", func() bool { return e2.nativeObject(t, "web") == nil })
+	must.Nil(t, e2.b.GetJob("default", "lb-web"))
+
+	// An object restored after its jobs survived (for example deleted in
+	// the orphan mode, or restored from a backup) adopts the existing job
+	// instead of creating a duplicate.
+	e2.putNativeLB("api", map[string]any{"service": "web", "port": 8081})
+	waitFor(t, "job", func() bool { return e2.b.GetJob("default", "lb-api") != nil })
+	waitFor(t, "finalizer", func() bool { return e2.nativeObject(t, "api").HasFinalizer(Finalizer) })
+	e2.stop()
+	job := e2.b.GetJob("default", "lb-api")
+	cur, err := e2.b.UpdateObjectFinalizers(context.Background(), Kind, "default", "api", nil, []string{Finalizer}, 0)
+	must.NoError(t, err)
+	must.NotNil(t, cur)
+	e2.b.RemoveObject(Kind, "default", "api")
+	must.Nil(t, e2.nativeObject(t, "api"))
+	registrations := e2.b.Calls("RegisterJob")
+
+	e3 := startOperatorOn(t, e2.b, e2.cluster, false, controller.StorageNative)
+	e3.putNativeLB("api", map[string]any{"service": "web", "port": 8081})
+	waitFor(t, "finalizer", func() bool {
+		o := e3.nativeObject(t, "api")
+		return o != nil && o.HasFinalizer(Finalizer)
+	})
+	time.Sleep(100 * time.Millisecond)
+	must.Eq(t, registrations, e3.b.Calls("RegisterJob"))
+	must.Eq(t, *job.ModifyIndex, *e3.b.GetJob("default", "lb-api").ModifyIndex)
+	must.Eq(t, []string{"lb-api"}, e3.b.Jobs("default"))
 }
 
 func TestLoadBalancer_NativeDiscovery(t *testing.T) {

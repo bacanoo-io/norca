@@ -12,8 +12,12 @@ import (
 )
 
 // autoscalerACLPolicy is the only permission of the built-in autoscaler's
-// system identity: it may scale jobs in any namespace, nothing else.
-const autoscalerACLPolicy = `namespace "*" { capabilities = ["scale-job"] }`
+// system identity: it may scale jobs in any namespace, and write the scale
+// subresource and the event log of custom objects, nothing else.
+const autoscalerACLPolicy = `namespace "*" {
+  capabilities = ["scale-job"]
+  object "*" { capabilities = ["write", "write-events"] }
+}`
 
 var (
 	// autoscalerACLToken is the system identity of the built-in autoscaler.
@@ -51,6 +55,7 @@ func (s *Server) setupAutoscaler() {
 	s.autoscaler = autoscaler.New(s.logger, cfg, &autoscaler.Deps{
 		State:        s.State,
 		Scaler:       &autoscalerJobScaler{srv: s},
+		ObjectScaler: &autoscalerJobScaler{srv: s},
 		PublishEvent: s.publishScalingEvent,
 		ServersReady: func() bool {
 			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
@@ -109,6 +114,37 @@ func (a *autoscalerJobScaler) Scale(args *structs.JobScaleRequest) (*structs.Job
 		return nil, err
 	}
 	return &reply, nil
+}
+
+// ScaleObject executes a decision on a custom object through its scale
+// subresource, as an internal call with the autoscaler's identity.
+func (a *autoscalerJobScaler) ScaleObject(args *structs.CustomObjectScaleRequest) (*structs.CustomObjectScaleResponse, error) {
+	secret := a.srv.getAutoscalerSecret()
+	if secret == "" {
+		return nil, fmt.Errorf("not the leader")
+	}
+	args.Region = a.srv.Region()
+	args.AuthToken = secret
+
+	var reply structs.CustomObjectScaleResponse
+	if err := a.srv.RPC("CustomObject.Scale", args, &reply); err != nil {
+		return nil, err
+	}
+	return &reply, nil
+}
+
+// RecordObjectEvents writes events of the autoscaler to the event log of a
+// custom object.
+func (a *autoscalerJobScaler) RecordObjectEvents(args *structs.CustomObjectEventsRequest) error {
+	secret := a.srv.getAutoscalerSecret()
+	if secret == "" {
+		return fmt.Errorf("not the leader")
+	}
+	args.Region = a.srv.Region()
+	args.AuthToken = secret
+
+	var reply structs.GenericResponse
+	return a.srv.RPC("CustomObject.RecordEvents", args, &reply)
 }
 
 // validateScalingEngineFilter validates the Engine filter of a scaling policy

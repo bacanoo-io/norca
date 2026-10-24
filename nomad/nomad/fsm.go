@@ -371,6 +371,10 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyCustomObjectUpsert(msgType, buf[1:], log.Index)
 	case structs.CustomObjectDeleteRequestType:
 		return n.applyCustomObjectDelete(msgType, buf[1:], log.Index)
+	case structs.CustomObjectEventsRequestType:
+		return n.applyCustomObjectEvents(msgType, buf[1:], log.Index)
+	case structs.ObjectGCRequestType:
+		return n.applyObjectGC(msgType, buf[1:], log.Index)
 	case structs.BackupUpsertRequestType:
 		return n.applyBackupUpsert(msgType, buf[1:], log.Index)
 	case structs.BackupDeleteRequestType:
@@ -1917,7 +1921,7 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
-		case ObjectKindSnapshot, CustomObjectSnapshot:
+		case ObjectKindSnapshot, CustomObjectSnapshot, ObjectEventLogSnapshot, ObjectTombstoneSnapshot:
 			if err := restoreObjectSnapshot(snapType, restore, dec); err != nil {
 				return err
 			}

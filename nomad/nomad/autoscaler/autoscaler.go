@@ -29,6 +29,11 @@ type Deps struct {
 	// Scaler executes scaling actions through Job.Scale.
 	Scaler JobScaler
 
+	// ObjectScaler executes scaling actions on custom objects through their
+	// scale subresource. Optional; without it, policies with a custom object
+	// target are invalid.
+	ObjectScaler ObjectScaler
+
 	// AllocStats returns the resource usage of an allocation. Used by the
 	// plugin host's nomad-apm instance, which the evaluations no longer
 	// query: checks of the nomad-apm source are served from the usage pushed

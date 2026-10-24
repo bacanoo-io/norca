@@ -70,7 +70,7 @@ type ObjectKind struct {
 	// Columns are the display columns of listings.
 	Columns []*ObjectKindColumn
 
-	// Scale describes the scale subresource (not served yet).
+	// Scale describes the scale subresource.
 	Scale *ObjectKindScale
 
 	// Replicated is reserved for multi-region replication.
@@ -121,9 +121,12 @@ type CustomObject struct {
 	// Owners reference the objects this object belongs to.
 	Owners []*ObjectOwnerReference
 
-	// Finalizers and DeletionTime are reserved for the object lifecycle.
-	Finalizers   []string
-	DeletionTime int64
+	// Finalizers block the deletion of the object: a deletion only sets
+	// DeletionTime (UnixNano) and DeletionPropagation, and the object
+	// disappears when its controllers have removed all finalizers.
+	Finalizers          []string
+	DeletionTime        int64
+	DeletionPropagation string
 
 	// Generation increases on every change of the spec.
 	Generation uint64
@@ -401,7 +404,8 @@ type ObjectWriteOptions struct {
 	// writing.
 	DryRun bool
 
-	// Propagation is the deletion mode; only "background" is supported.
+	// Propagation is the deletion mode: ObjectPropagationBackground (the
+	// default), ObjectPropagationForeground or ObjectPropagationOrphan.
 	Propagation string
 }
 

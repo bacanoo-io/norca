@@ -1,18 +1,23 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package consulcompat is a read-only HTTP API on the client that implements
-// the catalog and health endpoints of the public, documented Consul HTTP API
-// on top of the native service catalog, so tools that only know Consul
-// (Traefik's consulcatalog provider, Prometheus' consul_sd_configs,
-// consul-template's service functions) work without a Consul agent.
+// Package consulcompat is an HTTP API on the client that implements the
+// catalog, health and agent service endpoints of the public, documented
+// Consul HTTP API on top of the native service catalog, so tools that only
+// know Consul (Traefik's consulcatalog provider, Prometheus'
+// consul_sd_configs, consul-template's service functions, self-registering
+// frameworks) work without a Consul agent.
 //
 // Supported endpoints: /v1/agent/self, /v1/status/leader, /v1/status/peers,
 // /v1/catalog/datacenters, /v1/catalog/services, /v1/catalog/service/:name,
 // /v1/catalog/nodes, /v1/catalog/node/:node, /v1/health/service/:name,
 // /v1/health/checks/:name, /v1/health/state/:state and
-// /v1/health/connect/:name (always empty). Every other endpoint answers
-// 501 Not Implemented.
+// /v1/health/connect/:name (always empty); and for the services registered at
+// the agent, which are external services owned by the node:
+// PUT /v1/agent/service/register, PUT /v1/agent/service/deregister/:id,
+// PUT /v1/agent/check/pass|warn|fail/:id, PUT /v1/agent/check/update/:id,
+// GET /v1/agent/services, /v1/agent/service/:id and /v1/agent/checks. Every
+// other endpoint answers 501 Not Implemented.
 //
 // Requests are served with the Nomad ACL token they carry (X-Consul-Token,
 // Authorization: Bearer or ?token=), or the configured anonymous token, so
@@ -64,6 +69,10 @@ type Backend interface {
 
 	// Topology returns the topology of the client.
 	Topology() structs.Topology
+
+	// LocalServices returns the external services owned by the local node,
+	// nil while the client is starting.
+	LocalServices() LocalServices
 }
 
 // Config of the API.
@@ -153,6 +162,8 @@ func (s *Server) route(path string) (handlerFunc, string, bool) {
 		"/v1/catalog/datacenters": s.catalogDatacenters,
 		"/v1/catalog/services":    s.catalogServices,
 		"/v1/catalog/nodes":       s.catalogNodes,
+		"/v1/agent/services":      s.agentServices,
+		"/v1/agent/checks":        s.agentChecks,
 	}
 	if h, ok := exact[path]; ok {
 		return h, "", true
@@ -168,6 +179,7 @@ func (s *Server) route(path string) (handlerFunc, string, bool) {
 		{"/v1/health/checks/", s.healthChecks},
 		{"/v1/health/state/", s.healthState},
 		{"/v1/health/connect/", s.healthConnect},
+		{"/v1/agent/service/", s.agentService1},
 	}
 	for _, p := range prefixed {
 		if arg, ok := strings.CutPrefix(path, p.prefix); ok && arg != "" {
@@ -179,12 +191,18 @@ func (s *Server) route(path string) (handlerFunc, string, bool) {
 
 // ServeHTTP implements http.Handler.
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if h, arg, ok := s.writeRoute(req.URL.Path); ok {
+		s.serveWrite(w, req, h, arg)
+		return
+	}
+
 	h, arg, ok := s.route(req.URL.Path)
 	if !ok {
 		s.logger.Debug("unsupported endpoint", "method", req.Method, "path", req.URL.Path)
 		http.Error(w, fmt.Sprintf(
 			"Not Implemented: %s %s is not supported by the Consul-compatible API of Norca; "+
-				"it serves the read-only catalog, health and status endpoints only", req.Method, req.URL.Path),
+				"it serves the catalog, health and status endpoints and the agent service endpoints only",
+			req.Method, req.URL.Path),
 			http.StatusNotImplemented)
 		return
 	}
@@ -216,6 +234,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// serveWrite serves a write endpoint: PUT only, and an empty body on success.
+func (s *Server) serveWrite(w http.ResponseWriter, req *http.Request, h handlerFunc, arg string) {
+	if req.Method != http.MethodPut {
+		w.Header().Set("Allow", "PUT")
+		http.Error(w, fmt.Sprintf("method %s not allowed", req.Method), http.StatusMethodNotAllowed)
+		return
+	}
+	r, err := s.parseRequest(req)
+	if err != nil {
+		s.writeError(w, err)
+		return
+	}
+	out, err := h(w, r, arg)
+	if err != nil {
+		s.writeError(w, err)
+		return
+	}
+	if out != nil {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(out)
+	}
+}
+
 // codedError is an error with an HTTP status.
 type codedError struct {
 	code int
@@ -236,6 +277,10 @@ func (s *Server) writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.As(err, &coded):
 		code, msg = coded.code, coded.msg
+	case strings.Contains(msg, "RPC Error:: "):
+		if c, m, ok := structs.CodeFromRPCCodedErr(errors.New(msg[strings.Index(msg, "RPC Error:: "):])); ok {
+			code, msg = c, m
+		}
 	case strings.Contains(msg, structs.ErrPermissionDenied.Error()):
 		code, msg = http.StatusForbidden, "Permission denied"
 	case strings.Contains(msg, structs.ErrTokenNotFound.Error()):
@@ -248,6 +293,8 @@ func (s *Server) writeError(w http.ResponseWriter, err error) {
 
 // request is a parsed Consul request.
 type request struct {
+	http *http.Request
+
 	token string
 
 	// region is the Nomad region queried
@@ -276,6 +323,7 @@ type request struct {
 func (s *Server) parseRequest(req *http.Request) (*request, error) {
 	q := req.URL.Query()
 	r := &request{
+		http:   req,
 		region: s.backend.Region(),
 		filter: q.Get("filter"),
 		tags:   q["tag"],

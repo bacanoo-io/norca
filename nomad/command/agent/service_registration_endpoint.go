@@ -50,6 +50,13 @@ func (s *HTTPServer) ServiceRegistrationRequest(resp http.ResponseWriter, req *h
 	// Grab the suffix of the request, so we can further understand it.
 	reqSuffix := strings.TrimPrefix(req.URL.Path, "/v1/service/")
 
+	// External services (Norca).
+	if rest, ok := strings.CutPrefix(reqSuffix, "external/"); ok {
+		if out, handled, err := s.externalServiceRequest(resp, req, rest); handled {
+			return out, err
+		}
+	}
+
 	// Split the request suffix in order to identify whether this is a lookup
 	// of a service, or whether this includes a service and service identifier.
 	suffixParts := strings.Split(reqSuffix, "/")

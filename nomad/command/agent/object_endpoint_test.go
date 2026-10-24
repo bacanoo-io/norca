@@ -8,11 +8,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
+	"github.com/shoenig/test/wait"
 )
 
 const testObjectSchema = `{
@@ -159,6 +161,9 @@ func TestHTTP_Objects_Paths(t *testing.T) {
 			{http.MethodGet, "/v1/object/g/K", s.Server.ObjectSpecificRequest, http.StatusBadRequest},
 			{http.MethodGet, "/v1/object/g/K/n/status", s.Server.ObjectSpecificRequest, http.StatusMethodNotAllowed},
 			{http.MethodDelete, "/v1/object/g/K/n?cas=x", s.Server.ObjectSpecificRequest, http.StatusBadRequest},
+			{http.MethodGet, "/v1/object/g/K/n/other", s.Server.ObjectSpecificRequest, http.StatusNotFound},
+			{http.MethodDelete, "/v1/object/g/K/n/scale", s.Server.ObjectSpecificRequest, http.StatusMethodNotAllowed},
+			{http.MethodGet, "/v1/object/g/K/n/finalizers", s.Server.ObjectSpecificRequest, http.StatusMethodNotAllowed},
 		}
 		for _, tc := range cases {
 			req, err := http.NewRequest(tc.method, tc.path, nil)
@@ -176,5 +181,77 @@ func TestHTTP_Objects_Paths(t *testing.T) {
 		must.NoError(t, err)
 		_, err = s.Server.ObjectSpecificRequest(httptest.NewRecorder(), req)
 		must.ErrorContains(t, err, "does not match")
+	})
+}
+
+func TestHTTP_ObjectLifecycle(t *testing.T) {
+	ci.Parallel(t)
+	httpTest(t, nil, func(s *TestAgent) {
+		client := s.Client()
+		const group, kindName = "db.example.com", "PostgresCluster"
+
+		kind := &api.ObjectKind{
+			Group:      group,
+			Kind:       kindName,
+			Namespaced: true,
+			Schema:     testObjectSchema,
+			Scale:      &api.ObjectKindScale{SpecPath: "spec.replicas"},
+		}
+		_, _, err := client.ObjectKinds().Register(kind, nil, nil)
+		must.NoError(t, err)
+
+		obj := &api.CustomObject{Group: group, Kind: kindName, Name: "billing",
+			Spec: map[string]any{"version": "16"}, Finalizers: []string{"example.com/cleanup"}}
+		created, _, err := client.Objects().Apply(obj, nil, nil)
+		must.NoError(t, err)
+		must.Eq(t, []string{"example.com/cleanup"}, created.Finalizers)
+
+		// Events.
+		_, err = client.Objects().RecordEvents(group, kindName, "billing", []*api.ObjectEvent{
+			{Type: api.ObjectEventTypeWarning, Reason: "BackupFailed", Message: "disk full"}}, nil)
+		must.NoError(t, err)
+		events, _, err := client.Objects().Events(group, kindName, "billing", nil)
+		must.NoError(t, err)
+		must.Len(t, 1, events)
+		must.Eq(t, "disk full", events[0].Message)
+		must.Eq(t, 1, events[0].Count)
+
+		// Scale.
+		scale, _, err := client.Objects().Scale(group, kindName, "billing", nil)
+		must.NoError(t, err)
+		must.Eq(t, int64(1), scale.Replicas)
+		scale, _, err = client.Objects().SetScale(group, kindName, "billing", 3, "more", nil, nil)
+		must.NoError(t, err)
+		must.Eq(t, int64(3), scale.Replicas)
+		events, _, err = client.Objects().Events(group, kindName, "billing", nil)
+		must.NoError(t, err)
+		must.Eq(t, api.ObjectScaleReason, events[len(events)-1].Reason)
+		must.Eq(t, "more", events[len(events)-1].Message)
+
+		// Deletion with a finalizer marks the object.
+		deleted, _, err := client.Objects().Delete(group, kindName, "billing",
+			&api.ObjectWriteOptions{Propagation: api.ObjectPropagationForeground}, nil)
+		must.NoError(t, err)
+		must.True(t, deleted.Deleting())
+		must.Eq(t, api.ObjectPropagationForeground, deleted.DeletionPropagation)
+		_, _, err = client.Objects().UpdateFinalizers(group, kindName, "billing", []string{"example.com/more"}, nil, nil, nil)
+		must.ErrorContains(t, err, "409")
+
+		got, _, err := client.Objects().UpdateFinalizers(group, kindName, "billing", nil, []string{"example.com/cleanup"}, nil, nil)
+		must.NoError(t, err)
+		must.Len(t, 0, got.Finalizers)
+
+		// Without finalizers the foreground deletion completes once the
+		// garbage collector found no dependents.
+		must.Wait(t, wait.InitialSuccess(
+			wait.BoolFunc(func() bool {
+				_, _, err := client.Objects().Get(group, kindName, "billing", nil)
+				return err != nil
+			}),
+			wait.Timeout(30*time.Second),
+			wait.Gap(100*time.Millisecond),
+		))
+		_, _, err = client.Objects().Delete(group, kindName, "billing", &api.ObjectWriteOptions{Propagation: "sideways"}, nil)
+		must.ErrorContains(t, err, "400")
 	})
 }

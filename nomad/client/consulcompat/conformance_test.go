@@ -37,7 +37,7 @@ type cluster struct {
 	root   *structs.ACLToken
 }
 
-func newCluster(t *testing.T, acl bool, compat *structsc.ConsulCompatConfig) *cluster {
+func newCluster(t *testing.T, acl bool, compat *structsc.ConsulCompatConfig, opts ...func(*config.Config)) *cluster {
 	t.Helper()
 	c := &cluster{index: 1000}
 
@@ -63,6 +63,9 @@ func newCluster(t *testing.T, acl bool, compat *structsc.ConsulCompatConfig) *cl
 		cfg.Node.Meta["zone"] = "fsn1"
 		cfg.Node.Meta["rack"] = "r1"
 		cfg.ACLEnabled = acl
+		for _, opt := range opts {
+			opt(cfg)
+		}
 	})
 	t.Cleanup(func() { _ = cleanupC() })
 
@@ -256,7 +259,7 @@ func TestConsulCompat_Conformance(t *testing.T) {
 	// unsupported endpoints answer 501
 	_, _, err = c.consul.KV().Get("key", nil)
 	must.ErrorContains(t, err, "501")
-	err = c.consul.Agent().ServiceRegister(&consulapi.AgentServiceRegistration{Name: "x"})
+	err = c.consul.Agent().CheckRegister(&consulapi.AgentCheckRegistration{Name: "x"})
 	must.ErrorContains(t, err, "501")
 	_, _, err = c.consul.Catalog().GatewayServices("x", nil)
 	must.ErrorContains(t, err, "501")

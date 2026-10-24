@@ -49,6 +49,7 @@ var MsgTypeEvents = map[structs.MessageType]string{
 	structs.ObjectKindDeleteRequestType:                  structs.TypeObjectKindDeleted,
 	structs.CustomObjectUpsertRequestType:                structs.TypeCustomObjectUpserted,
 	structs.CustomObjectDeleteRequestType:                structs.TypeCustomObjectDeleted,
+	structs.CustomObjectEventsRequestType:                structs.TypeCustomObjectEventRecorded,
 	structs.BackupUpsertRequestType:                      structs.TypeBackupUpdated,
 	structs.BackupDeleteRequestType:                      structs.TypeBackupDeleted,
 	structs.BackupRestoreUpsertRequestType:               structs.TypeBackupRestoreFinished,
@@ -402,7 +403,7 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 		return variableEvent(structs.TypeVariableUpserted, after), true
 	case TableAdmissionPolicies:
 		return admissionPolicyEventFromChange(change)
-	case TableObjectKinds, TableCustomObjects:
+	case TableObjectKinds, TableCustomObjects, TableObjectEvents:
 		return objectEventFromChange(change)
 	case TableBackups, TableBackupRestores:
 		return backupEventFromChange(change)

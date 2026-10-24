@@ -13,8 +13,14 @@ import (
 
 // OwnerMetaKey is the reserved job meta key holding the owner reference of
 // jobs created by a controller. Its value is "<namespace>/<object path>",
-// for example "default/crd/norca-io/LoadBalancer/web".
-const OwnerMetaKey = "norca.owner"
+// for example "default/crd/norca-io/LoadBalancer/web". OwnerKindMetaKey
+// holds the "group/Kind" of the owner. The server's object garbage
+// collector stops the jobs of deleted native objects (except with the
+// orphan deletion mode).
+const (
+	OwnerMetaKey     = api.JobMetaOwner
+	OwnerKindMetaKey = api.JobMetaOwnerKind
+)
 
 // OwnerRef returns the owner reference of the object, the value of
 // OwnerMetaKey in the meta of the jobs it owns.
@@ -28,6 +34,7 @@ func SetOwner(job *api.Job, obj *Object) {
 		job.Meta = map[string]string{}
 	}
 	job.Meta[OwnerMetaKey] = OwnerRef(obj)
+	job.Meta[OwnerKindMetaKey] = obj.Kind.String()
 }
 
 // OwnerFromMeta returns the key of the owner object of the kind recorded in
@@ -35,6 +42,9 @@ func SetOwner(job *api.Job, obj *Object) {
 func OwnerFromMeta(kind Kind, meta map[string]string) (ObjectKey, bool) {
 	ref, ok := meta[OwnerMetaKey]
 	if !ok {
+		return ObjectKey{}, false
+	}
+	if k, ok := meta[OwnerKindMetaKey]; ok && k != kind.String() {
 		return ObjectKey{}, false
 	}
 	ns, path, ok := strings.Cut(ref, "/")
@@ -50,6 +60,9 @@ func OwnerFromMeta(kind Kind, meta map[string]string) (ObjectKey, bool) {
 
 // IsOwnedBy reports whether the job meta names obj as its owner.
 func IsOwnedBy(meta map[string]string, obj *Object) bool {
+	if k, ok := meta[OwnerKindMetaKey]; ok && k != obj.Kind.String() {
+		return false
+	}
 	return meta[OwnerMetaKey] == OwnerRef(obj)
 }
 

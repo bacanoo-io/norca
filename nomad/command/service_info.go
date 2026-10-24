@@ -197,7 +197,7 @@ func (s *ServiceInfoCommand) formatOutput(jobIDs []string, jobServices map[strin
 		for _, service := range jobServices[jobID] {
 			outputTable = append(outputTable, fmt.Sprintf(
 				"%s|%s|[%s]|%s|%s|%s",
-				service.JobID,
+				serviceJobLabel(service),
 				formatAddress(service.Address, service.Port),
 				strings.Join(service.Tags, ","),
 				formatServiceHealth(service),
@@ -207,6 +207,15 @@ func (s *ServiceInfoCommand) formatOutput(jobIDs []string, jobServices map[strin
 		}
 	}
 	s.Ui.Output(formatList(outputTable))
+}
+
+// serviceJobLabel returns the job of a registration for display, or the kind
+// of an external service.
+func serviceJobLabel(service *api.ServiceRegistration) string {
+	if service.External != nil {
+		return "(external " + service.External.Kind + ")"
+	}
+	return service.JobID
 }
 
 // formatServiceHealth returns the health of a registration for display: its
@@ -257,7 +266,7 @@ func (s *ServiceInfoCommand) formatVerboseOutput(jobIDs []string, jobServices ma
 				fmt.Sprintf("ID|%s", service.ID),
 				fmt.Sprintf("Service Name|%s", service.ServiceName),
 				fmt.Sprintf("Namespace|%s", service.Namespace),
-				fmt.Sprintf("Job ID|%s", service.JobID),
+				fmt.Sprintf("Job ID|%s", serviceJobLabel(service)),
 				fmt.Sprintf("Alloc ID|%s", service.AllocID),
 				fmt.Sprintf("Node ID|%s", service.NodeID),
 				fmt.Sprintf("Datacenter|%s", service.Datacenter),

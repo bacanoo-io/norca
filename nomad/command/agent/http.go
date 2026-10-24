@@ -463,6 +463,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	// Register our service registration handlers.
 	s.mux.HandleFunc("/v1/services", s.wrap(s.ServiceRegistrationListRequest))
 	s.mux.HandleFunc("/v1/service/", s.wrap(s.ServiceRegistrationRequest))
+	s.mux.HandleFunc("/v1/services/external", s.wrap(s.ExternalServiceListRequest))
 
 	// Monitor is *not* an untrusted endpoint despite the log contents
 	// potentially containing unsanitized user input. Monitor, like

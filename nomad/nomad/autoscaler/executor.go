@@ -39,6 +39,7 @@ type executor struct {
 	logger  hclog.Logger
 	cfg     *Config
 	scaler  JobScaler
+	objects ObjectScaler
 	events  EventPublisher
 	limiter *rate.Limiter
 
@@ -54,12 +55,13 @@ type executor struct {
 	suspended map[targetKey]time.Time
 }
 
-func newExecutor(logger hclog.Logger, cfg *Config, scaler JobScaler, events EventPublisher) *executor {
+func newExecutor(logger hclog.Logger, cfg *Config, scaler JobScaler, objects ObjectScaler, events EventPublisher) *executor {
 	return &executor{
-		logger: logger,
-		cfg:    cfg,
-		scaler: scaler,
-		events: events,
+		logger:  logger,
+		cfg:     cfg,
+		scaler:  scaler,
+		objects: objects,
+		events:  events,
 		// The bucket starts full. It is always used with AllowN and the
 		// injected clock, which keeps it deterministic in tests.
 		limiter:   rate.NewLimiter(rate.Limit(cfg.RateLimit), cfg.RateLimitBurst),
@@ -131,6 +133,10 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 		metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "rate_limited"}, 1)
 		logger.Debug("scaling action dropped by the rate limit", "count", action.Count)
 		return nil
+	}
+
+	if c.object != nil {
+		return e.executeObject(c, t, action, check, now, dryRun, logger)
 	}
 
 	meta := make(map[string]interface{}, len(action.Meta)+1)
@@ -222,6 +228,11 @@ func (e *executor) suspend(c *compiledPolicy, now time.Time, logger hclog.Logger
 	logger.Warn("task group scaling oscillates, suspending the policy",
 		"direction_changes", e.cfg.OscillationThreshold, "window", e.cfg.OscillationWindow,
 		"suspended_until", until)
+
+	if c.object != nil {
+		e.suspendObject(c, until, logger)
+		return
+	}
 
 	_, err := e.scaler.Scale(&structs.JobScaleRequest{
 		JobID: c.key.job,

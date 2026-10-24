@@ -152,7 +152,10 @@ const (
 	ObjectKindDeleteRequestType   MessageType = 83
 	CustomObjectUpsertRequestType MessageType = 84
 	CustomObjectDeleteRequestType MessageType = 85
-	// 86 is reserved for the object lifecycle (event log, finalizers)
+	// Object lifecycle: the object event log and the bookkeeping of the
+	// object garbage collector.
+	CustomObjectEventsRequestType MessageType = 86
+	ObjectGCRequestType           MessageType = 87
 	// Norca backup types (78-80 assigned to backup and restore). They are
 	// sent with the IgnoreUnknownTypeFlag set.
 	BackupUpsertRequestType        MessageType = 78

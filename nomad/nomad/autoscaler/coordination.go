@@ -35,7 +35,11 @@ func (r *runner) capAtQuota(store *state.StateStore, c *compiledPolicy, t *targe
 		return true, nil
 	}
 
-	ceiling := int64(t.group.Count) + fit
+	base := int64(t.group.Count)
+	if c.object != nil {
+		base = t.status.Count
+	}
+	ceiling := base + fit
 	if action.Count <= ceiling {
 		return true, nil
 	}

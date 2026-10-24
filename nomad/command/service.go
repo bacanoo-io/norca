@@ -31,6 +31,12 @@ Usage: norca service <subcommand> [options]
 
       $ norca service delete <service_name> <service_id>
 
+  Register an external service, renew its TTL check and deregister it:
+
+      $ norca service register -address 10.0.0.5 -port 5432 -ttl 30s <service_name>
+      $ norca service ttl <service_id>
+      $ norca service deregister <service_id>
+
   Please see the individual subcommand help for detailed usage information.
 `
 	return strings.TrimSpace(helpText)

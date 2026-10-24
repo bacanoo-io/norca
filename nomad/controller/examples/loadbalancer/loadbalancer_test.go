@@ -69,6 +69,9 @@ func waitFor(t *testing.T, desc string, fn func() bool) {
 type env struct {
 	b       *fake.Backend
 	cluster *fakeCluster
+
+	// stop stops the controllers, like a crashed operator.
+	stop func()
 }
 
 func startOperator(t *testing.T, discover bool) *env {
@@ -77,8 +80,13 @@ func startOperator(t *testing.T, discover bool) *env {
 
 func startOperatorWith(t *testing.T, discover bool, storage controller.Storage) *env {
 	t.Helper()
-	b := fake.New()
-	cluster := newFakeCluster()
+	return startOperatorOn(t, fake.New(), newFakeCluster(), discover, storage)
+}
+
+// startOperatorOn starts the operator on an existing backend, like a
+// restarted operator.
+func startOperatorOn(t *testing.T, b *fake.Backend, cluster *fakeCluster, discover bool, storage controller.Storage) *env {
+	t.Helper()
 	prov, err := newNomadProvider(NomadProviderConfig{Command: "/usr/local/bin/loadbalancer"}, b, cluster)
 	must.NoError(t, err)
 
@@ -128,11 +136,15 @@ func startOperatorWith(t *testing.T, discover bool, storage controller.Storage) 
 			_ = c.Run(ctx)
 		}()
 	}
-	t.Cleanup(func() {
-		cancel()
-		wg.Wait()
-	})
-	return &env{b: b, cluster: cluster}
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			wg.Wait()
+		})
+	}
+	t.Cleanup(stop)
+	return &env{b: b, cluster: cluster, stop: stop}
 }
 
 func (e *env) putLB(name, spec string) {

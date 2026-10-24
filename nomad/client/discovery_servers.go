@@ -9,16 +9,19 @@ import (
 	"github.com/hashicorp/nomad/client/consulcompat"
 	"github.com/hashicorp/nomad/client/discovery"
 	"github.com/hashicorp/nomad/client/dns"
+	"github.com/hashicorp/nomad/client/externalsvc"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // discoveryServers are the service discovery servers of the client: the
 // built-in DNS server with the catalog cache it answers from, and the
-// Consul-compatible API.
+// Consul-compatible API; and the agent of the external services owned by
+// the node.
 type discoveryServers struct {
-	cache  *discovery.Cache
-	dns    *dns.Server
-	compat *consulcompat.Server
+	cache    *discovery.Cache
+	dns      *dns.Server
+	compat   *consulcompat.Server
+	external *externalsvc.Agent
 }
 
 // setupDiscovery starts the service discovery servers enabled in the client
@@ -60,6 +63,16 @@ func (c *Client) setupDiscovery() error {
 		}
 		c.discovery.compat = compat
 	}
+
+	// The external services owned by the node: their http and tcp checks
+	// run here, and the Consul-compatible agent API serves them.
+	c.discovery.external = externalsvc.New(c.logger, externalsvc.Config{
+		RPC:        c.RPC,
+		NodeID:     c.NodeID,
+		NodeSecret: c.secretNodeID,
+		Region:     c.Region,
+	})
+	c.discovery.external.Start()
 	return nil
 }
 
@@ -82,6 +95,9 @@ func (c *Client) shutdownDiscovery() {
 	}
 	if c.discovery.cache != nil {
 		c.discovery.cache.Stop()
+	}
+	if c.discovery.external != nil {
+		c.discovery.external.Stop()
 	}
 }
 
@@ -111,3 +127,30 @@ func (b compatBackend) NodeSecret() string                       { return b.c.se
 func (b compatBackend) LocalNode() *structs.Node                 { return b.c.Node() }
 func (b compatBackend) Region() string                           { return b.c.Region() }
 func (b compatBackend) Topology() structs.Topology               { return b.c.Topology() }
+
+// LocalServices returns the external services owned by the node.
+func (b compatBackend) LocalServices() consulcompat.LocalServices {
+	if b.c.discovery.external == nil {
+		return nil
+	}
+	return b.c.discovery.external
+}
+
+// RegisterExternalService registers an external service owned by the node of
+// the client: the node runs its http and tcp checks, and the registration is
+// removed when the node goes down.
+func (c *Client) RegisterExternalService(args *structs.ExternalServiceUpsertRequest,
+	reply *structs.ExternalServiceUpsertResponse) error {
+
+	args.NodeSecretID = c.secretNodeID()
+	if err := c.RPC(structs.ServiceRegistrationUpsertExternalRPCMethod, args, reply); err != nil {
+		return err
+	}
+	if c.discovery.external != nil {
+		// start the checks right away
+		if err := c.discovery.external.Refresh(); err != nil {
+			c.logger.Debug("failed to refresh the external services of the node", "error", err)
+		}
+	}
+	return nil
+}

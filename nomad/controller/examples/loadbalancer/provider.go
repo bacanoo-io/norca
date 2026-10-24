@@ -75,6 +75,10 @@ type NomadProviderConfig struct {
 
 	CPU      int
 	MemoryMB int
+
+	// ManagedBy is the identity the proxy jobs are protected for (see
+	// controller.SetManagedBy); empty leaves them unprotected.
+	ManagedBy string
 }
 
 type nomadProvider struct {
@@ -225,6 +229,7 @@ func (p *nomadProvider) desiredJob(obj *controller.Object, spec Spec, jobID stri
 		}},
 	}
 	controller.SetOwner(job, obj)
+	controller.SetManagedBy(job, p.cfg.ManagedBy)
 	job.Meta[metaSpecHash] = hashJob(job)
 	return job
 }

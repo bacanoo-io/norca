@@ -120,6 +120,9 @@ func validatePolicy(p *structs.ScalingPolicy, cfg *Config, admission bool) error
 	if tp.Target[structs.ScalingTargetTask] != "" {
 		mErr = multierror.Append(mErr, errors.New("task scaling policies are not supported by the builtin engine"))
 	}
+	if _, err := objectTargetFromPolicy(p); err != nil {
+		mErr = multierror.Append(mErr, err)
+	}
 
 	if tp.EvaluationInterval < 0 {
 		mErr = multierror.Append(mErr, errors.New("policy.evaluation_interval must not be negative"))
