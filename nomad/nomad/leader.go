@@ -435,6 +435,7 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 			go s.replicateACLBindingRules(stopCh)
 			go s.replicateNamespaces(stopCh)
 			go s.replicateNodePools(stopCh)
+			go s.replicateQuotaSpecs(stopCh)
 		}
 	}
 

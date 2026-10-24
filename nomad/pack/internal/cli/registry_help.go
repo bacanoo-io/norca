@@ -1,0 +1,57 @@
+// Copyright IBM Corp. 2021, 2025
+// SPDX-License-Identifier: MPL-2.0
+
+package cli
+
+import (
+	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/posener/complete"
+)
+
+// RegistryHelpCommand exists solely to provide top level help for the registry
+// set of subcommands.
+type RegistryHelpCommand struct {
+	*baseCommand
+}
+
+func (c *RegistryHelpCommand) Run(args []string) int {
+	c.cmdKey = "registry"
+
+	// Initialize. If we fail, we just exit since Init handles the UI.
+	if err := c.Init(
+		WithNoArgs(args),
+		WithNoConfig(),
+		WithClient(false),
+	); err != nil {
+		c.ui.Info("The registry command requires one of the following subcommands: add, delete, list, update.")
+		return 1
+	}
+
+	c.ui.Info("The registry command requires one of the following subcommands: add, delete, list, update.")
+	return 0
+}
+
+func (c *RegistryHelpCommand) Flags() *flag.Sets {
+	return c.flagSet(0, nil)
+}
+
+func (c *RegistryHelpCommand) AutocompleteArgs() complete.Predictor {
+	return complete.PredictNothing
+}
+
+func (c *RegistryHelpCommand) AutocompleteFlags() complete.Flags {
+	return c.Flags().Completions()
+}
+
+func (c *RegistryHelpCommand) Synopsis() string {
+	return "Add, delete, list, or update registries and packs in the local environment."
+}
+
+func (c *RegistryHelpCommand) Help() string {
+	return formatHelp(`
+	Usage: nomad pack registry <subcommand> [options]
+
+	Manage nomad-pack registries or packs.
+
+` + c.GetExample() + c.Flags().Help())
+}

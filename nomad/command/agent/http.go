@@ -502,6 +502,11 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/namespace", s.wrap(s.NamespaceCreateRequest))
 	s.mux.HandleFunc("/v1/namespace/", s.wrap(s.NamespaceSpecificRequest))
 
+	s.mux.HandleFunc("/v1/quotas", s.wrap(s.QuotasRequest))
+	s.mux.HandleFunc("/v1/quota-usages", s.wrap(s.QuotaUsagesRequest))
+	s.mux.HandleFunc("/v1/quota/", s.wrap(s.QuotaSpecificRequest))
+	s.mux.HandleFunc("/v1/quota", s.wrap(s.QuotaCreateRequest))
+
 	s.mux.Handle("/v1/vars", wrapCORS(s.wrap(s.VariablesListRequest)))
 	s.mux.Handle("/v1/var/", wrapCORSWithAllowedMethods(s.wrap(s.VariableSpecificRequest), "HEAD", "GET", "PUT", "DELETE"))
 

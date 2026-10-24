@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 Norca contributors
+# SPDX-License-Identifier: MPL-2.0
+name: Generated code
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  structs-codec:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: nomad/go.mod
+      - name: Regenerate the msgpack codec
+        working-directory: nomad/nomad/structs
+        run: |
+          go install github.com/hashicorp/go-msgpack/codec/codecgen@v1.1.5
+          bash generate.sh
+      - name: Check that structs.generated.go is up to date
+        run: |
+          if ! git diff --exit-code -- nomad/nomad/structs/structs.generated.go; then
+            echo "structs.generated.go is stale: run 'bash generate.sh' in nomad/nomad/structs and commit the result" >&2
+            exit 1
+          fi

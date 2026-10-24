@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/nomad/command/agent"
+	"github.com/hashicorp/nomad/pack/packcmd"
 	"github.com/hashicorp/nomad/version"
 	colorable "github.com/mattn/go-colorable"
 	"github.com/mitchellh/cli"
@@ -1256,6 +1257,12 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 	}
 
 	for k, v := range deprecated {
+		all[k] = v
+	}
+
+	// Nomad Pack runs as the "pack" subcommand tree ("pack run", "pack
+	// registry add", ...) with its own flag parsing and UI.
+	for k, v := range packcmd.Commands() {
 		all[k] = v
 	}
 

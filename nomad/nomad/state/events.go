@@ -47,9 +47,15 @@ var MsgTypeEvents = map[structs.MessageType]string{
 }
 
 func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
+	// Quota events carry their own type, independent of the message type.
+	quotaEvents := quotaEventsFromChanges(tx, changes)
+
 	eventType, ok := MsgTypeEvents[changes.MsgType]
 	if !ok {
-		return nil
+		if len(quotaEvents) == 0 {
+			return nil
+		}
+		return &structs.Events{Index: changes.Index, Events: quotaEvents}
 	}
 
 	var events []structs.Event
@@ -64,6 +70,7 @@ func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
 			events = append(events, event)
 		}
 	}
+	events = append(events, quotaEvents...)
 
 	return &structs.Events{Index: changes.Index, Events: events}
 }

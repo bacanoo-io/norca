@@ -174,6 +174,15 @@ func formatQuotaSpecBasics(spec *api.QuotaSpec) string {
 		fmt.Sprintf("Description|%s", spec.Description),
 		fmt.Sprintf("Limits|%d", len(spec.Limits)),
 	}
+	if spec.Enforce != "" {
+		basic = append(basic, fmt.Sprintf("Enforce|%s", spec.Enforce))
+	}
+	if spec.TaskDefaults != nil {
+		basic = append(basic, fmt.Sprintf("Task Defaults|%s", formatQuotaTaskResources(spec.TaskDefaults)))
+	}
+	if spec.TaskMax != nil {
+		basic = append(basic, fmt.Sprintf("Task Max|%s", formatQuotaTaskResources(spec.TaskMax)))
+	}
 
 	return formatKV(basic)
 }
@@ -190,7 +199,7 @@ func formatQuotaLimits(spec *api.QuotaSpec, usages map[string]*api.QuotaUsage) s
 	sort.Sort(api.QuotaLimitSort(spec.Limits))
 
 	limits := make([]string, len(spec.Limits)+1)
-	limits[0] = "Region|CPU Usage|Memory Usage|Memory Max Usage|Variables Usage"
+	limits[0] = "Region|CPU Usage|Memory Usage|Memory Max Usage|Variables Usage|Allocations Usage"
 	i := 0
 	for _, specLimit := range spec.Limits {
 		i++
@@ -206,6 +215,10 @@ func formatQuotaLimits(spec *api.QuotaSpec, usages map[string]*api.QuotaUsage) s
 			return used, ok
 		}
 
+		if specLimit.RegionLimit == nil {
+			specLimit.RegionLimit = new(api.Resources)
+		}
+
 		used, ok := lookupUsage()
 		if !ok {
 			cpu := fmt.Sprintf("- / %s", formatQuotaLimitInt(specLimit.RegionLimit.CPU))
@@ -213,7 +226,8 @@ func formatQuotaLimits(spec *api.QuotaSpec, usages map[string]*api.QuotaUsage) s
 			memoryMax := fmt.Sprintf("- / %s", formatQuotaLimitInt(specLimit.RegionLimit.MemoryMaxMB))
 
 			vars := fmt.Sprintf("- / %s", formatQuotaLimitInt(specLimit.VariablesLimit))
-			limits[i] = fmt.Sprintf("%s|%s|%s|%s|%s", specLimit.Region, cpu, memory, memoryMax, vars)
+			allocs := fmt.Sprintf("- / %s", formatQuotaLimitInt(specLimit.Allocations))
+			limits[i] = fmt.Sprintf("%s|%s|%s|%s|%s|%s", specLimit.Region, cpu, memory, memoryMax, vars, allocs)
 			continue
 		}
 
@@ -224,15 +238,38 @@ func formatQuotaLimits(spec *api.QuotaSpec, usages map[string]*api.QuotaUsage) s
 			return *v
 		}
 
+		if used.RegionLimit == nil {
+			used.RegionLimit = new(api.Resources)
+		}
 		cpu := fmt.Sprintf("%d / %s", orZero(used.RegionLimit.CPU), formatQuotaLimitInt(specLimit.RegionLimit.CPU))
 		memory := fmt.Sprintf("%d / %s", orZero(used.RegionLimit.MemoryMB), formatQuotaLimitInt(specLimit.RegionLimit.MemoryMB))
 		memoryMax := fmt.Sprintf("%d / %s", orZero(used.RegionLimit.MemoryMaxMB), formatQuotaLimitInt(specLimit.RegionLimit.MemoryMaxMB))
 
 		vars := fmt.Sprintf("%d / %s", orZero(used.VariablesLimit), formatQuotaLimitInt(specLimit.VariablesLimit))
-		limits[i] = fmt.Sprintf("%s|%s|%s|%s|%s", specLimit.Region, cpu, memory, memoryMax, vars)
+		allocs := fmt.Sprintf("%d / %s", orZero(used.Allocations), formatQuotaLimitInt(specLimit.Allocations))
+		limits[i] = fmt.Sprintf("%s|%s|%s|%s|%s|%s", specLimit.Region, cpu, memory, memoryMax, vars, allocs)
 	}
 
 	return formatList(limits)
+}
+
+// formatQuotaTaskResources formats the task level defaults or maximums of a
+// quota specification.
+func formatQuotaTaskResources(r *api.Resources) string {
+	var parts []string
+	add := func(name string, v *int) {
+		if v != nil && *v != 0 {
+			parts = append(parts, fmt.Sprintf("%s=%d", name, *v))
+		}
+	}
+	add("cpu", r.CPU)
+	add("cores", r.Cores)
+	add("memory", r.MemoryMB)
+	add("memory_max", r.MemoryMaxMB)
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, ", ")
 }
 
 // formatQuotaLimitInt takes a integer resource value and returns the

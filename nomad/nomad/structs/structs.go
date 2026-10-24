@@ -132,6 +132,11 @@ const (
 	NamespaceUpsertRequestType MessageType = 64
 	NamespaceDeleteRequestType MessageType = 65
 
+	// Norca: namespace quotas (66-68 assigned to quotas)
+	QuotaSpecUpsertRequestType MessageType = 66
+	QuotaSpecDeleteRequestType MessageType = 67
+	// 68 is reserved for quotas
+
 	// Norca admission control types start at 70. They are sent with the
 	// IgnoreUnknownTypeFlag set.
 	AdmissionPolicyUpsertRequestType MessageType = 70
