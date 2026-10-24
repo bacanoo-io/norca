@@ -81,7 +81,7 @@ func (c *DestroyCommand) Flags() *flag.Sets {
 			Default: false,
 			Usage: `Return immediately instead of monitoring the evaluation.
 					A new evaluation ID will be output which can be used to
-					examine the evaluation using "nomad eval status".`,
+					examine the evaluation using "norca eval status".`,
 		})
 
 		f.BoolVar(&flag.BoolVar{
@@ -104,18 +104,18 @@ func (c *DestroyCommand) AutocompleteFlags() complete.Flags {
 func (c *DestroyCommand) Help() string {
 	c.Example = `
 	# Stop an example pack in deployment "dev" and delete it from the cluster
-	nomad pack destroy example --name=dev
+	norca pack destroy example --name=dev
 
 	# Stop and delete an example pack in deployment "dev" that has a job named "test"
 	# If the same pack has been installed in deployment "dev" but overriding the job
 	# name to "hello", only "test" will be deleted
-	nomad pack destroy example --name=dev --var=job_name=test
+	norca pack destroy example --name=dev --var=job_name=test
 	`
 	return formatHelp(`
-	Usage: nomad pack destroy <pack name> [options]
+	Usage: norca pack destroy <pack name> [options]
 
-	Stop and delete the specified Nomad Pack from the configured Nomad cluster.
-	This is the same as using the command "nomad pack stop <pack name> --purge".
+	Stop and delete the specified Norca Pack from the configured Norca cluster.
+	This is the same as using the command "norca pack stop <pack name> --purge".
 	By default, the destroy command will delete ALL jobs in the pack deployment.
 	If a pack was run using var overrides to specify the job name(s), the var
 	overrides MUST be provided when destroying the pack to guarantee nomad-pack

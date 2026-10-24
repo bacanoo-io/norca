@@ -5,6 +5,10 @@ THIS_ARCH := $(shell uname -m)
 
 GO_MODULE = github.com/hashicorp/nomad
 
+# BINARY_NAME is the name of the built binary. A copy or symlink named nomad
+# works as a compatibility alias, but it is not built or installed by default.
+BINARY_NAME = norca
+
 GIT_COMMIT := $(shell git rev-parse HEAD)
 GIT_DIRTY := $(if $(shell git status --porcelain),+CHANGES)
 GIT_COMMIT_FLAG = $(GO_MODULE)/version.GitCommit=$(GIT_COMMIT)$(GIT_DIRTY)
@@ -82,11 +86,11 @@ CGO_ENABLED = 1
 # include per-user customization after all variables are defined
 -include GNUMakefile.local
 
-pkg/%/nomad: GO_OUT ?= $@
-pkg/%/nomad: CC ?= $(shell go env CC)
-pkg/%/nomad: ## Build Nomad for GOOS_GOARCH, e.g. pkg/linux_amd64/nomad
+pkg/%/$(BINARY_NAME): GO_OUT ?= $@
+pkg/%/$(BINARY_NAME): CC ?= $(shell go env CC)
+pkg/%/$(BINARY_NAME): ## Build Norca for GOOS_GOARCH, e.g. pkg/linux_amd64/norca
 ifeq (,$(findstring $(THIS_OS),$(SUPPORTED_OSES)))
-	$(warning WARNING: Building Nomad is only supported on $(SUPPORTED_OSES); not $(THIS_OS))
+	$(warning WARNING: Building Norca is only supported on $(SUPPORTED_OSES); not $(THIS_OS))
 endif
 	@echo "==> Building $@ with tags $(GO_TAGS)..."
 	@CGO_ENABLED=$(CGO_ENABLED) \
@@ -96,24 +100,24 @@ endif
 		go build -trimpath -ldflags "$(GO_LDFLAGS)" -tags "$(GO_TAGS)" -o $(GO_OUT)
 
 ifneq (armv7l,$(THIS_ARCH))
-pkg/linux_arm/nomad: CC = arm-linux-gnueabihf-gcc
+pkg/linux_arm/$(BINARY_NAME): CC = arm-linux-gnueabihf-gcc
 endif
 
 ifneq (aarch64,$(THIS_ARCH))
-pkg/linux_arm64/nomad: CC = aarch64-linux-gnu-gcc
+pkg/linux_arm64/$(BINARY_NAME): CC = aarch64-linux-gnu-gcc
 endif
 
 ifeq (Darwin,$(THIS_OS))
-pkg/linux_%/nomad: CGO_ENABLED = 0
+pkg/linux_%/$(BINARY_NAME): CGO_ENABLED = 0
 endif
 
-pkg/windows_%/nomad: GO_OUT = $@.exe
-pkg/windows_%/nomad: GO_TAGS += timetzdata
+pkg/windows_%/$(BINARY_NAME): GO_OUT = $@.exe
+pkg/windows_%/$(BINARY_NAME): GO_TAGS += timetzdata
 
 # Define package targets for each of the build targets we actually have on this system
 define makePackageTarget
 
-pkg/$(1).zip: pkg/$(1)/nomad
+pkg/$(1).zip: pkg/$(1)/$(BINARY_NAME)
 	@echo "==> Packaging for $(1)..."
 	@zip -j pkg/$(1).zip pkg/$(1)/*
 
@@ -253,12 +257,12 @@ tidy: ## Tidy up the go mod files
 .PHONY: dev
 dev: GOOS=$(shell go env GOOS)
 dev: GOARCH=$(shell go env GOARCH)
-dev: DEV_TARGET=pkg/$(GOOS)_$(GOARCH)/nomad
+dev: DEV_TARGET=pkg/$(GOOS)_$(GOARCH)/$(BINARY_NAME)
 dev: hclfmt ## Build for the current development platform
 	@echo "==> Removing old development build..."
 	@rm -f $(PROJECT_ROOT)/$(DEV_TARGET)
-	@rm -f $(PROJECT_ROOT)/bin/nomad
-	@rm -f $(BIN)/nomad
+	@rm -f $(PROJECT_ROOT)/bin/$(BINARY_NAME)
+	@rm -f $(BIN)/$(BINARY_NAME)
 	@if [ -d vendor ]; then echo -e "==> WARNING: Found vendor directory.  This may cause build errors, consider running 'rm -r vendor' or 'make clean' to remove.\n"; fi
 	@$(MAKE) --no-print-directory \
 		$(DEV_TARGET) \
@@ -328,7 +332,7 @@ clean: ## Remove build artifacts
 	@rm -rf "$(PROJECT_ROOT)/bin/"
 	@rm -rf "$(PROJECT_ROOT)/pkg/"
 	@rm -rf "$(PROJECT_ROOT)/vendor/"
-	@rm -f "$(BIN)/nomad"
+	@rm -f "$(BIN)/$(BINARY_NAME)"
 
 .PHONY: testcluster
 testcluster: ## Bring up a Linux test cluster using Vagrant. Set PROVIDER if necessary.

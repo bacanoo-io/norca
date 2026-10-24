@@ -115,12 +115,12 @@ func (c *ListCommand) Synopsis() string {
 func (c *ListCommand) Help() string {
 	c.Example = `
 	# List all available packs
-	nomad pack list
+	norca pack list
 	`
 	return formatHelp(`
-	Usage: nomad pack list
+	Usage: norca pack list
 
-	List nomad packs.
+	List packs.
 
 ` + c.GetExample() + c.Flags().Help())
 }

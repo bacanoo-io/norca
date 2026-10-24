@@ -22,15 +22,15 @@ type ACLBindingRuleCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLBindingRuleCommand) Help() string {
 	helpText := `
-Usage: nomad acl binding-rule <subcommand> [options] [args]
+Usage: norca acl binding-rule <subcommand> [options] [args]
 
   This command groups subcommands for interacting with ACL binding rules.
-  Nomad's ACL system can be used to control access to data and APIs. For a full
+  Norca's ACL system can be used to control access to data and APIs. For a full
   guide see: https://www.nomadproject.io/guides/acl.html
 
   Create an ACL binding rule:
 
-      $ nomad acl binding-rule create \
+      $ norca acl binding-rule create \
           -auth-method=auth0 \
           -selector="nomad-engineering in list.groups" \
           -bind-type=role \
@@ -38,21 +38,21 @@ Usage: nomad acl binding-rule <subcommand> [options] [args]
 
   List all ACL binding rules:
 
-      $ nomad acl binding-rule list
+      $ norca acl binding-rule list
 
   Lookup a specific ACL binding rule:
 
-      $ nomad acl binding-rule info <acl_binding_rule_id>
+      $ norca acl binding-rule info <acl_binding_rule_id>
 
   Update an ACL binding rule:
 
-      $ nomad acl binding-rule update \
+      $ norca acl binding-rule update \
           -description="nomad engineering team" \
           <acl_binding_rule_id>
 
   Delete an ACL binding rule:
 
-      $ nomad acl binding-rule delete <acl_binding_rule_id>
+      $ norca acl binding-rule delete <acl_binding_rule_id>
 
   Please see the individual subcommand help for detailed usage information.
 `

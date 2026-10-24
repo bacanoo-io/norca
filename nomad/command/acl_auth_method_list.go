@@ -26,7 +26,7 @@ type ACLAuthMethodListCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLAuthMethodListCommand) Help() string {
 	helpText := `
-Usage: nomad acl auth-method list [options]
+Usage: norca acl auth-method list [options]
 
   List is used to list existing ACL auth methods.
 

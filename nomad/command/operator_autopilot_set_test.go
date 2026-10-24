@@ -33,9 +33,6 @@ func TestOperatorAutopilotSetConfigCommand(t *testing.T) {
 		"-min-quorum=3",
 		"-last-contact-threshold=123ms",
 		"-server-stabilization-time=123ms",
-		"-enable-redundancy-zones=true",
-		"-disable-upgrade-migration=true",
-		"-enable-custom-upgrades=true",
 	}
 
 	code := c.Run(args)
@@ -54,7 +51,15 @@ func TestOperatorAutopilotSetConfigCommand(t *testing.T) {
 	require.EqualValues(3, conf.MinQuorum)
 	require.EqualValues(123*time.Millisecond, conf.LastContactThreshold)
 	require.EqualValues(123*time.Millisecond, conf.ServerStabilizationTime)
-	require.True(conf.EnableRedundancyZones)
-	require.True(conf.DisableUpgradeMigration)
-	require.True(conf.EnableCustomUpgrades)
+	require.False(conf.EnableRedundancyZones)
+	require.False(conf.DisableUpgradeMigration)
+	require.False(conf.EnableCustomUpgrades)
+
+	// The redundancy zone, upgrade migration and custom upgrade options are
+	// not supported and are rejected.
+	ui = cli.NewMockUi()
+	c = &OperatorAutopilotSetCommand{Meta: Meta{Ui: ui}}
+	code = c.Run([]string{"-address=" + addr, "-enable-redundancy-zones=true"})
+	require.EqualValues(1, code)
+	require.Contains(ui.ErrorWriter.String(), "autopilot options are not supported: enable_redundancy_zones")
 }

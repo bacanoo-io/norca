@@ -221,7 +221,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Target:  &c.jobConfig.RunConfig.ConsulToken,
 			Default: "",
 			Usage: `If set, the passed Consul token is stored in the job before
-					sending to the Nomad servers. This allows passing the Consul
+					sending to the Norca servers. This allows passing the Consul
 					token without storing it in the job file. This overrides the
 					token found in the $CONSUL_HTTP_TOKEN environment variable
 					and that found in the job.`,
@@ -235,7 +235,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 					specified Consul namespace. Any template block reading from
 					Consul KV will be scoped to the the specified Consul
 					namespace. If Consul ACLs are enabled and the
-					allow_unauthenticated Nomad server Consul configuration is
+					allow_unauthenticated Norca server Consul configuration is
 					not enabled, then a Consul token must be supplied with
 					appropriate service and KV Consul ACL policy permissions.`,
 		})
@@ -245,7 +245,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Target:  &c.jobConfig.RunConfig.VaultToken,
 			Default: "",
 			Usage: `If set, the passed Vault token is stored in the job before
-					sending to the Nomad servers. This allows passing the Vault
+					sending to the Norca servers. This allows passing the Vault
 					token without storing it in the job file. This overrides the
 					token found in the $VAULT_TOKEN environment variable and
 					that found in the job.`,
@@ -256,7 +256,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Target:  &c.jobConfig.RunConfig.VaultNamespace,
 			Default: "",
 			Usage: `If set, the passed Vault namespace is stored in the job
-					before sending to the Nomad servers.`,
+					before sending to the Norca servers.`,
 		})
 
 		f.BoolVar(&flag.BoolVar{
@@ -304,7 +304,7 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Hidden:  true,
 			Target:  &c.jobConfig.RunConfig.EnableRollback,
 			Default: false,
-			Usage: `EXPERIMENTAL. If set, any pack failure will cause nomad pack
+			Usage: `EXPERIMENTAL. If set, any pack failure will cause norca pack
 					to attempt to rollback the entire deployment.`,
 		})
 	})
@@ -322,26 +322,26 @@ func (c *RunCommand) Help() string {
 	// TODO: do we want to ref example?
 	c.Example = `
 	# Run an example pack with the default deployment name "example".
-	nomad pack run example
+	norca pack run example
 
 	# Run an example pack with the specified deployment name "dev"
-	nomad pack run example --name=dev
+	norca pack run example --name=dev
 
 	# Run an example pack with override variables in a variable file
-	nomad pack run example --var-file="./overrides.hcl"
+	norca pack run example --var-file="./overrides.hcl"
 
 	# Run an example pack with cli variable overrides
-	nomad pack run example --var="redis_image_version=latest" --var="redis_resources={"cpu": "1000", "memory": "512"}"
+	norca pack run example --var="redis_image_version=latest" --var="redis_resources={"cpu": "1000", "memory": "512"}"
 
 	# Run a pack under development from the filesystem - supports current
 	# working directory or relative path
-	nomad pack run .
+	norca pack run .
 	`
 
 	return formatHelp(`
-	Usage: nomad pack run <pack-name> [options]
+	Usage: norca pack run <pack-name> [options]
 
-	Install the specified Nomad Pack to a configured Nomad cluster.
+	Install the specified Norca Pack to a configured Norca cluster.
 
 ` + c.GetExample() + c.Flags().Help())
 }

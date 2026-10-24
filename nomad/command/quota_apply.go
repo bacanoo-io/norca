@@ -26,7 +26,7 @@ type QuotaApplyCommand struct {
 
 func (c *QuotaApplyCommand) Help() string {
 	helpText := `
-Usage: nomad quota apply [options] <input>
+Usage: norca quota apply [options] <input>
 
   Apply is used to create or update a quota specification. The specification file
   will be read from stdin by specifying "-", otherwise a path to the file is

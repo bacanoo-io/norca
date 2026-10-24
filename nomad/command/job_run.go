@@ -29,19 +29,19 @@ type JobRunCommand struct {
 
 func (c *JobRunCommand) Help() string {
 	helpText := `
-Usage: nomad job run [options] <path>
-Alias: nomad run
+Usage: norca job run [options] <path>
+Alias: norca run
 
   Starts running a new job or updates an existing job using
   the specification located at <path>. This is the main command
-  used to interact with Nomad.
+  used to interact with Norca.
 
   If the supplied path is "-", the jobfile is read from stdin. Otherwise
   it is read from the file at the supplied path or downloaded and
   read from URL specified.
 
   Upon successful job submission, this command will immediately
-  enter an interactive monitor. This is useful to watch Nomad's
+  enter an interactive monitor. This is useful to watch Norca's
   internals make scheduling decisions and place the submitted work
   onto nodes. The monitor will end once job placement is done. It
   is safe to exit the monitor early using ctrl+c.
@@ -52,7 +52,7 @@ Alias: nomad run
   exit code will be 2. Any other errors, including client connection
   issues or internal errors, are indicated by exit code 1.
 
-  If the job has specified the region, the -region flag and NOMAD_REGION
+  If the job has specified the region, the -region flag and NORCA_REGION
   environment variable are overridden and the job's region is used.
 
   The run command will set the consul_token of the job based on the following
@@ -94,7 +94,7 @@ Run Options:
 
   -json
     Parses the job file as JSON. If the outer object has a Job field, such as
-    from "nomad job inspect" or "nomad run -output", the value of the field is
+    from "norca job inspect" or "norca run -output", the value of the field is
     used as the job.
 
   -hcl1
@@ -117,7 +117,7 @@ Run Options:
 
   -consul-token
     If set, the passed Consul token is stored in the job before sending to the
-    Nomad servers. This allows passing the Consul token without storing it in
+    Norca servers. This allows passing the Consul token without storing it in
     the job file. This overrides the token found in $CONSUL_HTTP_TOKEN environment
     variable and that found in the job.
 
@@ -126,15 +126,15 @@ Run Options:
     the specified Consul namespace. Any template block reading from Consul KV
     will be scoped to the specified Consul namespace. If Consul ACLs are
     enabled and the "consul" block "allow_unauthenticated" is disabled in the
-    Nomad server configuration, then a Consul token must be supplied with
+    Norca server configuration, then a Consul token must be supplied with
     appropriate service and KV Consul ACL policy permissions.
 
   -vault-token
     Used to validate if the user submitting the job has permission to run the job
     according to its Vault policies. A Vault token must be supplied if the vault
-    block allow_unauthenticated is disabled in the Nomad server configuration.
+    block allow_unauthenticated is disabled in the Norca server configuration.
     If the -vault-token flag is set, the passed Vault token is added to the jobspec
-    before sending to the Nomad servers. This allows passing the Vault token
+    before sending to the Norca servers. This allows passing the Vault token
     without storing it in the job file. This overrides the token found in the
     $VAULT_TOKEN environment variable and the vault_token field in the job file.
     This token is cleared from the job after validating and cannot be used within
@@ -143,7 +143,7 @@ Run Options:
 
   -vault-namespace
     If set, the passed Vault namespace is stored in the job before sending to the
-    Nomad servers.
+    Norca servers.
 
   -var 'key=value'
     Variable for template, can be used multiple times.

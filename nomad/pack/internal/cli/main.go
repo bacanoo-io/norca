@@ -20,15 +20,15 @@ import (
 
 const (
 	// EnvLogLevel is the env var to set with the log level.
-	EnvLogLevel = "NOMAD_PACK_LOG_LEVEL"
+	EnvLogLevel = "NORCA_PACK_LOG_LEVEL"
 
 	// EnvPlain is the env var that can be set to force plain output mode.
-	EnvPlain = "NOMAD_PACK_PLAIN"
+	EnvPlain = "NORCA_PACK_PLAIN"
 )
 
 var (
 	// cliName is the name of this CLI.
-	cliName = "nomad pack"
+	cliName = "norca pack"
 
 	// commonCommands are the commands that are deemed "common" and shown first
 	// in the CLI help output.
@@ -77,7 +77,7 @@ func Main(args []string) int {
 		return &cli.CLI{
 			Name:                       args[0],
 			Args:                       args[1:],
-			Version:                    fmt.Sprintf("Nomad Pack %s", version.HumanVersion()),
+			Version:                    fmt.Sprintf("Norca Pack %s", version.HumanVersion()),
 			Commands:                   commands,
 			Autocomplete:               true,
 			AutocompleteNoDefaultFlags: true,
@@ -267,7 +267,7 @@ func GroupedHelpFunc(f cli.HelpFunc) cli.HelpFunc {
 
 		// Header
 		d.Append(glint.Style(
-			glint.Text("Welcome to Nomad Pack"),
+			glint.Text("Welcome to Norca Pack"),
 			glint.Bold(),
 		))
 		d.Append(glint.Layout(

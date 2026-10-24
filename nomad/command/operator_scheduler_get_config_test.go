@@ -46,5 +46,5 @@ func TestOperatorSchedulerGetConfig_Run(t *testing.T) {
 
 	// Test an unsupported flag.
 	require.EqualValues(t, 1, c.Run([]string{"-address=" + addr, "-yaml"}))
-	require.Contains(t, ui.OutputWriter.String(), "Usage: nomad operator scheduler get-config")
+	require.Contains(t, ui.OutputWriter.String(), "Usage: norca operator scheduler get-config")
 }

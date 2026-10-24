@@ -19,7 +19,7 @@ type JobEvalCommand struct {
 
 func (c *JobEvalCommand) Help() string {
 	helpText := `
-Usage: nomad job eval [options] <job_id>
+Usage: norca job eval [options] <job_id>
 
   Force an evaluation of the provided job ID. Forcing an evaluation will
   trigger the scheduler to re-evaluate the job. The force flags allow

@@ -129,12 +129,12 @@ func (c *RegistryDeleteCommand) Help() string {
 	# Delete a pack registry, optionally at a specific tag/release/SHA.
 	If no target or tag/release/SHA defined, will delete the entire registry.
 
-	nomad pack registry delete community --target=traefik --ref=v0.0.1
+	norca pack registry delete community --target=traefik --ref=v0.0.1
 	`
 	return formatHelp(`
-	Usage: nomad pack registry delete <name> [options]
+	Usage: norca pack registry delete <name> [options]
 
-	Delete Nomad Pack registries or packs.
+	Delete Norca Pack registries or packs.
 
 ` + c.GetExample() + c.Flags().Help())
 }

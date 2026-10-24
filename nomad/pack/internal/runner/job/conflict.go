@@ -94,7 +94,7 @@ type ErrExistsNonPack struct {
 }
 
 func (e ErrExistsNonPack) Error() string {
-	return fmt.Sprintf("job with id %q already exists and is not managed by nomad pack", e.JobID)
+	return fmt.Sprintf("job with id %q already exists and is not managed by norca pack", e.JobID)
 }
 
 type ErrExistsInDeployment struct {

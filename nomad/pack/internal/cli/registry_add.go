@@ -105,7 +105,7 @@ func (c *RegistryAddCommand) Run(args []string) int {
 	c.ui.Table(table)
 
 	if validPack != nil {
-		c.ui.Info(fmt.Sprintf("Try running one the packs you just added liked this\n\n  nomad pack run %s --registry=%s --ref=%s", validPack.Name(), newRegistry.Name, validPack.Ref))
+		c.ui.Info(fmt.Sprintf("Try running one the packs you just added liked this\n\n  norca pack run %s --registry=%s --ref=%s", validPack.Name(), newRegistry.Name, validPack.Ref))
 	}
 
 	return 0
@@ -128,9 +128,9 @@ func (c *RegistryAddCommand) Flags() *flag.Sets {
 			Default: "",
 			Usage: `Specific git ref of the registry or pack to be added.
 					Supports tags, SHA, and latest. If no ref is specified,
-					defaults to latest. Running "nomad registry add" multiple
+					defaults to latest. Running "norca pack registry add" multiple
 					times for the same ref is idempotent, however running
-					"nomad pack registry add" without specifying a ref, or when
+					"norca pack registry add" without specifying a ref, or when
 					specifying @latest, is destructive, and will overwrite
 					current @latest in the global cache.
 
@@ -154,18 +154,18 @@ func (c *RegistryAddCommand) Synopsis() string {
 func (c *RegistryAddCommand) Help() string {
 	c.Example = `
 	# Download latest ref of the pack registry to the global cache.
-	nomad pack registry add community github.com/hashicorp/nomad-pack-community-registry
+	norca pack registry add community github.com/hashicorp/nomad-pack-community-registry
 
 	# Download latest ref of a specific pack from the registry to the global cache.
-	nomad pack registry add community github.com/hashicorp/nomad-pack-community-registry --target=nomad_example
+	norca pack registry add community github.com/hashicorp/nomad-pack-community-registry --target=nomad_example
 
 	# Download packs from a registry at a specific tag/release/SHA.
-	nomad pack registry add community github.com/hashicorp/nomad-pack-community-registry  --ref=v0.1.0
+	norca pack registry add community github.com/hashicorp/nomad-pack-community-registry  --ref=v0.1.0
 	`
 	return formatHelp(`
-	Usage: nomad pack registry add <name> <source> [options]
+	Usage: norca pack registry add <name> <source> [options]
 
-	Add Nomad Pack registries.
+	Add Norca Pack registries.
 
 ` + c.GetExample() + c.Flags().Help())
 }

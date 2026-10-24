@@ -19,9 +19,9 @@ type OperatorGossipKeyringCommand struct {
 
 func (c *OperatorGossipKeyringCommand) Help() string {
 	helpText := `
-Usage: nomad operator gossip keyring [options]
+Usage: norca operator gossip keyring [options]
 
-  Manages encryption keys used for gossip messages between Nomad servers. Gossip
+  Manages encryption keys used for gossip messages between Norca servers. Gossip
   encryption is optional. When enabled, this command may be used to examine
   active encryption keys in the cluster, add new keys, and remove old ones. When
   combined, this functionality provides the ability to perform key rotation
@@ -29,23 +29,23 @@ Usage: nomad operator gossip keyring [options]
 
   Generate an encryption key:
 
-      $ nomad operator gossip keyring generate
+      $ norca operator gossip keyring generate
 
   List all gossip encryption keys:
 
-      $ nomad operator gossip keyring list
+      $ norca operator gossip keyring list
 
   Remove an encryption key from the keyring:
 
-      $ nomad operator gossip keyring remove <key>
+      $ norca operator gossip keyring remove <key>
 
   Install an encryption key from backup:
 
-      $ nomad operator gossip keyring install <key>
+      $ norca operator gossip keyring install <key>
 
   Use an already-installed encryption key:
 
-      $ nomad operator gossip keyring use <key>
+      $ norca operator gossip keyring use <key>
 
   Please see individual subcommand help for detailed usage information.
 

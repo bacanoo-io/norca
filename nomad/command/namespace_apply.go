@@ -25,7 +25,7 @@ type NamespaceApplyCommand struct {
 
 func (c *NamespaceApplyCommand) Help() string {
 	helpText := `
-Usage: nomad namespace apply [options] <input>
+Usage: norca namespace apply [options] <input>
 
   Apply is used to create or update a namespace. The specification file
   will be read from stdin by specifying "-", otherwise a path to the file is
