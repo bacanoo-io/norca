@@ -363,6 +363,14 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyAdmissionPolicyDelete(msgType, buf[1:], log.Index)
 	case structs.AllocEvictRequestType:
 		return n.applyAllocEvict(msgType, buf[1:], log.Index)
+	case structs.ObjectKindUpsertRequestType:
+		return n.applyObjectKindUpsert(msgType, buf[1:], log.Index)
+	case structs.ObjectKindDeleteRequestType:
+		return n.applyObjectKindDelete(msgType, buf[1:], log.Index)
+	case structs.CustomObjectUpsertRequestType:
+		return n.applyCustomObjectUpsert(msgType, buf[1:], log.Index)
+	case structs.CustomObjectDeleteRequestType:
+		return n.applyCustomObjectDelete(msgType, buf[1:], log.Index)
 	case structs.BackupUpsertRequestType:
 		return n.applyBackupUpsert(msgType, buf[1:], log.Index)
 	case structs.BackupDeleteRequestType:
@@ -1909,6 +1917,11 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case ObjectKindSnapshot, CustomObjectSnapshot:
+			if err := restoreObjectSnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
 		case BackupSnapshot, BackupRestoreSnapshot:
 			if err := restoreBackupSnapshot(snapType, restore, dec); err != nil {
 				return err
@@ -2454,6 +2467,10 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistAdmissionPolicies(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistObjects(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}
