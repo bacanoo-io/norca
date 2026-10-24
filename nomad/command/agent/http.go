@@ -46,7 +46,7 @@ const (
 
 	// ErrEntOnly is the error returned if accessing an enterprise only
 	// endpoint
-	ErrEntOnly = "Nomad Enterprise only endpoint"
+	ErrEntOnly = "This endpoint is not supported"
 
 	// ErrServerOnly is the error text returned if accessing a server only
 	// endpoint
@@ -484,7 +484,6 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 
 	s.mux.HandleFunc("/v1/search/fuzzy", s.wrap(s.FuzzySearchRequest))
 	s.mux.HandleFunc("/v1/search", s.wrap(s.SearchRequest))
-	s.mux.HandleFunc("/v1/operator/license", s.wrap(s.LicenseRequest))
 	s.mux.HandleFunc("/v1/operator/raft/", s.wrap(s.OperatorRequest))
 	s.mux.HandleFunc("/v1/operator/keyring/", s.wrap(s.KeyringRequest))
 	s.mux.HandleFunc("/v1/operator/autopilot/configuration", s.wrap(s.OperatorAutopilotConfiguration))

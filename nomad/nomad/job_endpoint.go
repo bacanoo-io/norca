@@ -38,8 +38,9 @@ const (
 	DispatchPayloadSizeLimit = 16 * 1024
 )
 
-// ErrMultipleNamespaces is send when multiple namespaces are used in the OSS setup
-var ErrMultipleNamespaces = errors.New("multiple Vault namespaces requires Nomad Enterprise")
+// ErrMultipleNamespaces is returned when a job uses Vault namespaces while the
+// Vault configuration requires a token to submit the job.
+var ErrMultipleNamespaces = errors.New("Vault namespaces in a job are not supported when the server requires a Vault token")
 
 var (
 	// allowRescheduleTransition is the transition that allows failed
@@ -69,6 +70,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 		logger: s.logger.Named("job"),
 		mutators: []jobMutator{
 			&jobCanonicalizer{srv: s},
+			jobVaultNamespaceDefaulter{},
 			jobScalingHook{srv: s},
 			jobConnectHook{},
 			jobExposeCheckHook{},
@@ -196,15 +198,6 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
 			return structs.ErrPermissionDenied
 		}
-
-		// Check if override is set and we do not have permissions
-		if args.PolicyOverride {
-			if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySentinelOverride) {
-				j.logger.Warn("policy override attempted without permissions for job", "job", args.Job.ID)
-				return structs.ErrPermissionDenied
-			}
-			j.logger.Warn("policy override set for job", "job", args.Job.ID)
-		}
 	}
 
 	if ok, err := registrationsAreAllowed(aclObj, j.srv.State()); !ok || err != nil {
@@ -300,8 +293,9 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		}
 	}
 
-	// Enforce Sentinel policies. Pass a copy of the job to prevent
-	// sentinel from altering it.
+	// Enforce the admission policies. Pass a copy of the job to prevent
+	// them from altering it. PolicyOverride is ignored: admission policies
+	// cannot be overridden.
 	ns, err := snap.NamespaceByName(nil, args.RequestNamespace())
 	if err != nil {
 		return err
@@ -1773,12 +1767,6 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
 			return structs.ErrPermissionDenied
 		}
-		// Check if override is set and we do not have permissions
-		if args.PolicyOverride {
-			if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySentinelOverride) {
-				return structs.ErrPermissionDenied
-			}
-		}
 	}
 
 	// Acquire a snapshot of the state
@@ -1787,7 +1775,7 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		return err
 	}
 
-	// Enforce Sentinel policies
+	// Enforce the admission policies; PolicyOverride is ignored
 	nomadACLToken, err := snap.ACLTokenBySecretID(nil, args.AuthToken)
 	if err != nil && !strings.Contains(err.Error(), "missing secret id") {
 		return err

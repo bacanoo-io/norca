@@ -51,6 +51,28 @@ Usage: norca admission-policy apply [options] <input>
       message    = "Privileged containers are not allowed in the prod namespace."
     }
 
+  Policies apply to jobs only unless "match" selects other resources. A
+  policy for Variables writes sees the written Variable as "variable" and
+  the Variable it replaces or deletes as "oldVariable" (null if none), each
+  with "namespace", "path" and "items"; "request.operation" is "set" or
+  "delete". With schema_from = "crd-schema", the items of a
+  crd/<group>/<kind>/<name> Variable must also match the JSON Schema in the
+  "schema" item of the crd-schema/<group>/<kind> Variable if it exists:
+
+    name        = "crd-objects"
+    action      = "deny"
+    schema_from = "crd-schema"
+
+    match {
+      resources      = ["variable"]
+      variable_paths = ["crd/*"]
+    }
+
+    rule {
+      expression = "request.operation == 'delete' || has(variable.items.spec)"
+      message    = "CRD objects need a spec item."
+    }
+
   If ACLs are enabled, this command requires a token with the 'write'
   capability of the 'admission' policy.
 

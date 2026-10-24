@@ -71,7 +71,7 @@ func TestRecommendationApplyCommand_Run(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(recInfo)
 	} else {
-		require.Error(err, "Nomad Enterprise only endpoint")
+		require.Error(err, "endpoint is not supported")
 	}
 
 	// Only perform the call if we are running enterprise tests. Otherwise the

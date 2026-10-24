@@ -745,7 +745,8 @@ type JobRegisterRequest struct {
 	// PreserveCounts is ignored for newly created jobs.
 	PreserveCounts bool
 
-	// PolicyOverride is set when the user is attempting to override any policies
+	// PolicyOverride is ignored: overriding admission policies is not
+	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
 
 	// EvalPriority is an optional priority to use on any evaluation created as
@@ -876,7 +877,8 @@ type JobStubFields struct {
 type JobPlanRequest struct {
 	Job  *Job
 	Diff bool // Toggles an annotated diff
-	// PolicyOverride is set when the user is attempting to override any policies
+	// PolicyOverride is ignored: overriding admission policies is not
+	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
 	WriteRequest
 }
@@ -890,7 +892,8 @@ type JobScaleRequest struct {
 	Message string
 	Error   bool
 	Meta    map[string]interface{}
-	// PolicyOverride is set when the user is attempting to override any policies
+	// PolicyOverride is ignored: overriding admission policies is not
+	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
 	WriteRequest
 }

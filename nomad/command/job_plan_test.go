@@ -346,3 +346,19 @@ func TestPlanCommand_JSON(t *testing.T) {
 	require.Equal(t, 255, code)
 	require.Contains(t, ui.ErrorWriter.String(), "Error during plan: Put")
 }
+
+// TestPlanCommand_PolicyOverrideWarning asserts that -policy-override is
+// accepted, has no effect on the plan and prints a warning to stderr.
+func TestPlanCommand_PolicyOverrideWarning(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, _, addr := testServer(t, false, nil)
+	defer srv.Shutdown()
+
+	ui := cli.NewMockUi()
+	cmd := &JobPlanCommand{Meta: Meta{Ui: ui}}
+	code := cmd.Run([]string{"-policy-override", "-address", addr, "-json", "testdata/example-short.json"})
+	must.NotEq(t, 255, code, must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.ErrorWriter.String(), policyOverrideWarning)
+	must.StrContains(t, ui.OutputWriter.String(), "Job:")
+}
