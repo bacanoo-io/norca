@@ -60,6 +60,23 @@ type MetadataPack struct {
 	// Version is the version of the pack which is acts as a convenience when
 	// managing packs within a registry.
 	Version string `hcl:"version"`
+
+	// Requires states what the pack needs from the Norca servers, so that a
+	// release fails early on servers that can not provide it (Norca
+	// extension).
+	Requires *MetadataRequires `hcl:"requires,block"`
+}
+
+// MetadataRequires lists the requirements of a pack on the Norca servers
+// (Norca extension).
+type MetadataRequires struct {
+	// Norca is a version constraint on the Norca version of the servers,
+	// such as ">= 0.1.0". NomadFork is accepted as an alias.
+	Norca     string `hcl:"norca,optional"`
+	NomadFork string `hcl:"nomad_fork,optional"`
+
+	// Features are server features the pack uses, e.g. "custom-objects".
+	Features []string `hcl:"features,optional"`
 }
 
 // MetadataIntegration contains information pertaining to the HashiCorp

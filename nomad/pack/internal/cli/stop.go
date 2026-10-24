@@ -79,6 +79,15 @@ func (c *StopCommand) Run(args []string) int {
 	}
 	errorContext.Add(errors.UIContextPrefixDeploymentName, c.deploymentName)
 
+	// A destroyed pack that is a release is uninstalled by the servers.
+	if c.purge && releasesSupported(client) {
+		if name, err := releaseNameFor(c.packConfig, c.deploymentName); err == nil {
+			if _, _, err := client.Releases().Info(name, nil); err == nil {
+				return c.uninstallRelease(client, name, false, false, 0)
+			}
+		}
+	}
+
 	var jobs []*api.Job
 
 	packManager := generatePackManager(c.baseCommand, client, c.packConfig)
@@ -105,7 +114,8 @@ func (c *StopCommand) Run(args []string) int {
 		return 1
 	}
 
-	for tplName, tpl := range r.ParentRenders() {
+	parents, _ := jobRenders(r.ParentRenders())
+	for tplName, tpl := range parents {
 
 		// tplErrorContext forms the basis for error output context as is
 		// appended to when new information becomes available.

@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclsimple"
 
+	"github.com/hashicorp/nomad/pack/internal/pkg/release"
 	"github.com/hashicorp/nomad/pack/sdk/pack"
 )
 
@@ -109,10 +110,11 @@ func loadFiles(files []*pack.File) (*pack.Pack, error) {
 			p.OutputTemplateFile = f
 
 		case strings.HasPrefix(f.Name, "templates/") &&
-			strings.HasSuffix(f.Name, ".nomad.tpl") ||
+			(strings.HasSuffix(f.Name, ".nomad.tpl") || release.IsResourceTemplate(f.Name)) ||
 			strings.Contains(f.Name, "templates/_"):
-			// The file is a pack template file. This catches both full Nomad
-			// object templates and helpers.
+			// The file is a pack template file. This catches full Nomad
+			// object templates, the other resource templates of releases
+			// (e.g. *.namespace.hcl.tpl) and helpers.
 			p.TemplateFiles = append(p.TemplateFiles, f)
 
 		case strings.HasPrefix(f.Name, "templates/") &&
