@@ -108,7 +108,7 @@ func (f *fakeMTLSServer) RPC(method string, args, reply any) error {
 		resp.Index = f.index
 		resp.Roots = nil
 		for id, ca := range f.cas {
-			resp.Roots = append(resp.Roots, &structs.MTLSRoot{ID: id, RootCert: ca.pem, Active: id == f.active})
+			resp.Roots = append(resp.Roots, &structs.MTLSRoot{ID: id, Region: "global", RootCert: ca.pem, Active: id == f.active})
 		}
 		return nil
 

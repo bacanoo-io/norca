@@ -7,17 +7,17 @@
         "match_typed_subject_alt_names": [
           {
             "matcher": {
-              "exact": "nothing.service.default.global.nomad",
+              "exact": "no-trusted-ca.invalid",
               "ignore_case": true
             },
             "san_type": "DNS"
           }
         ],
         "trusted_ca": {
-          "inline_string": "-----BEGIN CERTIFICATE-----\nCA1\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nCA2\n-----END CERTIFICATE-----\n"
+          "inline_string": "-----BEGIN CERTIFICATE-----\nWORKLOAD\n-----END CERTIFICATE-----\n"
         }
       }
     }
   ],
-  "version_info": "c09ae7489156f237"
+  "version_info": "07612d1cf75f33c9"
 }
