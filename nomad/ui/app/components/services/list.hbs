@@ -1,0 +1,84 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-services {{this.setup this.scopedRegions this.namespace}}>
+  <Ui::PageHeader @pretitle="Services and networking" @title="Services" @subtitle={{this.scopeLabel}}>
+    <:actions>
+      <Ui::Button @route="network" @icon="shield-lock">Intentions and network rules</Ui::Button>
+    </:actions>
+  </Ui::PageHeader>
+
+  <div class="page-body">
+    <div class="container-xl">
+      {{#if this.isLoading}}
+        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the service catalog" /></Ui::Card>
+      {{else}}
+        {{#each this.errors as |r|}}
+          <Ui::Alert @tone="danger" @title="The services of {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
+        {{/each}}
+
+        <div class="row row-cards mb-3">
+          <div class="col-sm-6 col-lg-3">
+            <Ui::Stat @id="services" @label="Services" @value={{this.totals.services}} @hint="in the native catalog" @color="blue" />
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <Ui::Stat @id="passing" @label="Passing instances" @value={{this.totals.passing}} @hint={{concat "of " this.totals.instances " instances"}} @color="green" />
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <Ui::Stat @id="excluded" @label="Left out of discovery" @value={{this.totals.excluded}} @hint="not ready or critical" @color={{if this.totals.excluded "orange" "secondary"}} />
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <Ui::Card @size="sm" data-test-mtls-root>
+              <div class="font-weight-medium">mTLS</div>
+              {{#if this.activeRoot}}
+                <div class="text-secondary small">Trust domain <span class="font-monospace">{{this.roots.TrustDomain}}</span>, root valid until {{format-ts this.activeRoot.NotAfter short=true}}</div>
+              {{else}}
+                <div class="text-secondary small">Native mTLS is not enabled in this region.</div>
+              {{/if}}
+            </Ui::Card>
+          </div>
+        </div>
+
+        <Ui::Card @flush={{true}} @title="Catalog" data-test-service-catalog>
+          <:actions>
+            <Ui::Input @icon="search" @value={{this.filter}} @onInput={{this.setFilter}} @placeholder="Filter by name or tag" aria-label="Filter services" data-test-service-filter />
+          </:actions>
+          <:default>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Services"
+              @columns={{this.columns}}
+              @rows={{this.rows}}
+              @emptyMessage={{if this.filter "No service matches the filter." "No service is registered. Services of jobs whose service provider is nomad appear here with the health of their instances."}}
+              as |row|
+            >
+              <td>
+                <LinkTo @route="services.service" @model={{row.name}} @query={{hash namespace=row.namespace}} data-test-service-link={{row.name}}>{{row.name}}</LinkTo>
+                {{#if row.external}}<Ui::Badge class="ms-1">external</Ui::Badge>{{/if}}
+              </td>
+              <td>{{row.namespace}}</td>
+              {{#each row.cells as |h|}}
+                <td data-test-service-health>
+                  {{#if h}}
+                    <Ui::StatusIndicator @tone={{h.tone}} @label={{concat h.passing "/" h.total}} />
+                    {{#if (not-eq h.discoverable h.total)}}<div class="small text-warning">{{h.excluded}} left out</div>{{/if}}
+                  {{else}}
+                    <span class="text-secondary">–</span>
+                  {{/if}}
+                </td>
+              {{/each}}
+              <td>
+                {{#each row.tags as |tag|}}<Ui::Badge class="me-1">{{tag}}</Ui::Badge>{{/each}}
+              </td>
+              <td>{{or row.mtls "–"}}</td>
+            </Ui::Table>
+          </:default>
+        </Ui::Card>
+        <p class="text-secondary small mt-3">
+          The DNS interface and the Consul-compatible API run on each client agent; their state is not reported to the servers.
+        </p>
+      {{/if}}
+    </div>
+  </div>
+</div>

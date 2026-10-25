@@ -1,0 +1,43 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-network-policies={{if @admin "admin" "namespace"}} {{this.setup @region this.namespace}}>
+  {{#if this.isLoading}}
+    <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the network policies" /></Ui::Card>
+  {{else if this.error}}
+    <Ui::Alert @tone="warning" @title="The policies could not be loaded" data-test-policies-error>{{this.error}}</Ui::Alert>
+  {{else}}
+    <Ui::Card @flush={{true}} @title={{if @admin "Admin network policies" "Network policies"}}>
+      <Ui::Table
+        @inCard={{true}}
+        @caption={{if @admin "Admin network policies" "Network policies"}}
+        @columns={{this.columns}}
+        @rows={{this.rows}}
+        @emptyMessage={{this.emptyMessage}}
+        as |p|
+      >
+        <td>
+          {{#if @admin}}
+            <LinkTo @route="network.admin-policy" @model={{p.Name}} data-test-policy-link={{p.Name}}>{{p.Name}}</LinkTo>
+          {{else}}
+            <LinkTo @route="network.policy" @models={{array p.Namespace p.Name}} data-test-policy-link={{p.Name}}>{{p.Name}}</LinkTo>
+          {{/if}}
+          {{#if p.Description}}<div class="small text-secondary">{{p.Description}}</div>{{/if}}
+        </td>
+        {{#if @admin}}
+          <td>{{p.Priority}}</td>
+          <td>{{p.namespaces}}</td>
+        {{else}}
+          <td>{{p.Namespace}}</td>
+        {{/if}}
+        <td>{{p.selector}}</td>
+        <td data-test-policy-rules>
+          {{p.ingress}} ingress, {{p.egress}} egress
+          {{#if p.defaultDeny}}<div class="small text-secondary">default deny: {{p.defaultDeny}}</div>{{/if}}
+        </td>
+        <td>{{if (eq p.Enforcement "best_effort") "best effort" (or p.Enforcement "required")}}</td>
+      </Ui::Table>
+    </Ui::Card>
+  {{/if}}
+</div>

@@ -144,6 +144,15 @@ Router.map(function () {
     this.route('policy', { path: '/:policy_id' });
   });
 
+  this.route('services', function () {
+    this.route('service', { path: '/:name' });
+  });
+
+  this.route('network', function () {
+    this.route('policy', { path: '/policies/:namespace/:name' });
+    this.route('admin-policy', { path: '/admin/:name' });
+  });
+
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {
     this.route('oidc-mock');

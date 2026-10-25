@@ -1,0 +1,8 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{page-title @model.name " - Admin network policies"}}
+<PageLayout @legacy={{false}}>
+  <Network::Policy @name={{@model.name}} @admin={{true}} />
+</PageLayout>

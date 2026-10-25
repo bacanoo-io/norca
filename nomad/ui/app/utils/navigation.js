@@ -35,6 +35,23 @@ export const NAVIGATION = [
     ],
   },
   {
+    group: 'Services and networking',
+    items: [
+      {
+        id: 'services',
+        label: 'Services',
+        icon: 'topology-star-3',
+        route: 'services',
+      },
+      {
+        id: 'network',
+        label: 'Intentions and rules',
+        icon: 'shield-lock',
+        route: 'network',
+      },
+    ],
+  },
+  {
     group: 'Capacity',
     items: [
       {
