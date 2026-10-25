@@ -93,11 +93,13 @@ func testSidecar() *Sidecar {
 		Upstreams: []Upstream{
 			{
 				Name: "db", LocalPort: 5432, Namespace: "default", Service: "postgres", Region: "global",
-				Endpoints: []Endpoint{{Address: "10.0.0.2", Port: 24000}, {Address: "10.0.0.1", Port: 24001}, {Address: "10.0.0.2", Port: 24000}},
+				Endpoints:  []Endpoint{{Address: "10.0.0.2", Port: 24000}, {Address: "10.0.0.1", Port: 24001}, {Address: "10.0.0.2", Port: 24000}},
+				TrustedCAs: "-----BEGIN CERTIFICATE-----\nCA1\n-----END CERTIFICATE-----\n",
 			},
 			{
 				Name: "remote-cache", LocalPort: 6379, Namespace: "cache", Service: "redis", Region: "eu",
-				Endpoints: []Endpoint{{Address: "192.168.10.5", Port: 8443}},
+				Endpoints:  []Endpoint{{Address: "192.168.10.5", Port: 8443}},
+				TrustedCAs: "-----BEGIN CERTIFICATE-----\nCA-EU\n-----END CERTIFICATE-----\n",
 			},
 			{Name: "empty", LocalPort: 7000, Namespace: "default", Service: "nothing", Region: "global"},
 		},
@@ -121,6 +123,50 @@ func TestSidecar_Golden(t *testing.T) {
 	again, err := testSidecar().Files(testIdentity())
 	must.NoError(t, err)
 	must.Eq(t, files, again)
+}
+
+// An upstream whose region has no known CA fails closed: no endpoints, and
+// a validation context no workload certificate passes.
+func TestSidecar_UpstreamWithoutCAs(t *testing.T) {
+	ci.Parallel(t)
+
+	s := testSidecar()
+	s.Upstreams = []Upstream{{
+		Name: "db", LocalPort: 5432, Namespace: "default", Service: "postgres", Region: "global",
+		Endpoints: []Endpoint{{Address: "10.0.0.1", Port: 24000}},
+	}}
+	files, err := s.Files(testIdentity())
+	must.NoError(t, err)
+	must.StrNotContains(t, string(files["eds-upstream_db.json"]), "10.0.0.1")
+	trust := string(files["sds-trust-upstream_db.json"])
+	must.StrContains(t, trust, unmatchableName)
+	must.StrNotContains(t, trust, "postgres.service")
+	must.StrNotContains(t, trust, "CA1")
+
+	// with the CAs of its region, only those are trusted
+	s.Upstreams[0].TrustedCAs = "REGION-CA"
+	files, err = s.Files(testIdentity())
+	must.NoError(t, err)
+	must.StrContains(t, string(files["eds-upstream_db.json"]), "10.0.0.1")
+	trust = string(files["sds-trust-upstream_db.json"])
+	must.StrContains(t, trust, "REGION-CA")
+	must.StrContains(t, trust, "postgres.service.default.global.nomad")
+	must.StrNotContains(t, trust, "CA1")
+	must.StrNotContains(t, trust, "CA2")
+}
+
+func TestRegionCAs(t *testing.T) {
+	ci.Parallel(t)
+
+	cas := RegionCAs([]*structs.MTLSRoot{
+		{ID: "b", Region: "global", RootCert: "G2"},
+		{ID: "a", Region: "global", RootCert: "G1\n"},
+		{ID: "c", Region: "eu", RootCert: "EU"},
+		{ID: "d", Region: "", RootCert: "NOREGION"},
+		{ID: "e", Region: "us", RootCert: "  "},
+		nil,
+	})
+	must.Eq(t, map[string]string{"global": "G1\nG2\n", "eu": "EU\n"}, cas)
 }
 
 func TestSidecar_NoIdentity(t *testing.T) {

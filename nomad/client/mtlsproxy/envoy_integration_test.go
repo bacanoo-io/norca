@@ -159,7 +159,10 @@ func TestEnvoy_SidecarToSidecar(t *testing.T) {
 	binary := envoyBinary(t)
 
 	caPEM, ca, caKey := testCA(t, "global.nomad")
-	bundles, err := ParseBundle(caPEM)
+	// a second region of the federation, with its own CA in the same
+	// trust domain
+	euPEM, euCA, euKey := testCA(t, "global.nomad")
+	bundles, err := ParseBundle(append(append([]byte{}, caPEM...), euPEM...))
 	must.NoError(t, err)
 
 	apiID := issueLeaf(t, ca, caKey, "default", "api")
@@ -187,7 +190,8 @@ func TestEnvoy_SidecarToSidecar(t *testing.T) {
 		InboundPort: freePort(t), AppAddress: "127.0.0.1", AppPort: freePort(t),
 		Upstreams: []Upstream{{
 			Name: "api", LocalPort: upstreamPort, Namespace: "default", Service: "api", Region: "global",
-			Endpoints: []Endpoint{{Address: "127.0.0.1", Port: inboundPort}},
+			Endpoints:  []Endpoint{{Address: "127.0.0.1", Port: inboundPort}},
+			TrustedCAs: string(caPEM),
 		}},
 	}
 
@@ -254,6 +258,24 @@ func TestEnvoy_SidecarToSidecar(t *testing.T) {
 		wait.Gap(200*time.Millisecond),
 	), must.Sprint("the server certificate was not restored"))
 
+	// a server certificate with the right name, signed by the CA of
+	// another region of the federation (in the trust bundle), is refused:
+	// an upstream only trusts the CAs of the region of its destination
+	otherRegion := issueLeaf(t, euCA, euKey, "default", "api")
+	otherRegion.Bundles = bundles
+	write(apiWriter, api, otherRegion)
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return !roundTrip(upstreamPort) }),
+		wait.Timeout(20*time.Second),
+		wait.Gap(200*time.Millisecond),
+	), must.Sprint("a server certificate of another region's CA was accepted"))
+	write(apiWriter, api, apiID)
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return roundTrip(upstreamPort) }),
+		wait.Timeout(20*time.Second),
+		wait.Gap(200*time.Millisecond),
+	), must.Sprint("the server certificate was not restored again"))
+
 	// a client certificate of a CA outside the trust bundle is rejected by
 	// the inbound listener, even with the right names
 	_, foreignCA, foreignKey := testCA(t, "global.nomad")
@@ -306,7 +328,8 @@ func TestEnvoy_Gateway(t *testing.T) {
 		InboundPort: freePort(t), AppAddress: "127.0.0.1", AppPort: freePort(t),
 		Upstreams: []Upstream{{
 			Name: "api", LocalPort: upstreamPort, Namespace: "default", Service: "api", Region: "eu",
-			Endpoints: []Endpoint{{Address: "127.0.0.1", Port: gatewayPort}},
+			Endpoints:  []Endpoint{{Address: "127.0.0.1", Port: gatewayPort}},
+			TrustedCAs: string(caPEM),
 		}},
 	}
 

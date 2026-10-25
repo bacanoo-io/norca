@@ -27,6 +27,7 @@ type fakeServers struct {
 	index      uint64
 	intentions []*structs.ServiceIntention
 	regs       map[string][]*structs.ServiceRegistration // region/namespace/name
+	roots      []*structs.MTLSRoot
 	calls      map[string]int
 	tokens     map[string]string // method -> last token
 }
@@ -81,6 +82,14 @@ func (f *fakeServers) RPC(method string, args, reply any) error {
 		f.tokens[method] = a.AuthToken
 		r := reply.(*structs.ServiceRegistrationByNameResponse)
 		r.Services = f.regs[a.Region+"/"+a.Namespace+"/"+a.ServiceName]
+		r.Index = f.index
+	case "MTLS.Roots":
+		a := args.(*structs.MTLSRootsRequest)
+		f.wait(&a.QueryOptions)
+		f.lock.Lock()
+		defer f.lock.Unlock()
+		r := reply.(*structs.MTLSRootsResponse)
+		r.Roots = f.roots
 		r.Index = f.index
 	case structs.ServiceRegistrationListRPCMethod:
 		a := args.(*structs.ServiceRegistrationListRequest)
@@ -141,6 +150,10 @@ func TestRunner_Sidecar(t *testing.T) {
 	ci.Parallel(t)
 
 	servers := newFakeServers()
+	servers.roots = []*structs.MTLSRoot{
+		{ID: "global-1", Region: "global", RootCert: "CA-GLOBAL-1"},
+		{ID: "eu-1", Region: "eu", RootCert: "CA-EU-1"},
+	}
 	servers.intentions = []*structs.ServiceIntention{
 		{Namespace: "default", SourceNamespace: "default", Source: "web", Destination: "api", Action: "allow"},
 	}
@@ -190,6 +203,23 @@ func TestRunner_Sidecar(t *testing.T) {
 	waitForFile(t, confDir, "eds-upstream_db.json", "10.0.0.1")
 	waitForFile(t, confDir, "eds-upstream_remote.json", "192.168.1.1")
 	waitForFile(t, confDir, ClustersFile, "redis.service.cache.eu.nomad")
+
+	// each upstream trusts the CAs of the region of its destination only
+	waitForFile(t, confDir, "sds-trust-upstream_db.json", "CA-GLOBAL-1")
+	waitForFile(t, confDir, "sds-trust-upstream_remote.json", "CA-EU-1")
+	dbTrust, err := os.ReadFile(filepath.Join(confDir, "sds-trust-upstream_db.json"))
+	must.NoError(t, err)
+	must.StrNotContains(t, string(dbTrust), "CA-EU")
+	remoteTrust, err := os.ReadFile(filepath.Join(confDir, "sds-trust-upstream_remote.json"))
+	must.NoError(t, err)
+	must.StrNotContains(t, string(remoteTrust), "CA-GLOBAL")
+
+	// a CA rotation in region eu (the retired root stays trusted) is followed
+	servers.update(func() {
+		servers.roots = append(servers.roots, &structs.MTLSRoot{ID: "eu-2", Region: "eu", RootCert: "CA-EU-2"})
+	})
+	waitForFile(t, confDir, "sds-trust-upstream_remote.json", "CA-EU-2")
+	waitForFile(t, confDir, "sds-trust-upstream_remote.json", "CA-EU-1")
 	db, err := os.ReadFile(filepath.Join(confDir, "eds-upstream_db.json"))
 	must.NoError(t, err)
 	must.StrNotContains(t, string(db), "10.0.0.9")

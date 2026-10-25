@@ -72,7 +72,8 @@ The sidecar:
   of the namespace and forwards the plain TCP stream to `127.0.0.1:<port>` of the application;
 - **upstreams**: listens on `127.0.0.1:<local_port>` in the network namespace of the group and opens an mTLS
   connection to a healthy instance of the upstream service, with its workload certificate; it verifies that
-  the server certificate carries `<service>.service.<namespace>.<region>.nomad` and sends that name as SNI.
+  the server certificate carries `<service>.service.<namespace>.<region>.nomad` and is signed by a CA of that
+  region (not by the CA of another region of the federation), and sends that name as SNI.
 
 The application port should not be mapped to the host: use a port number (`port = "8080"`) or a group port
 label without a host mapping, otherwise the application is also reachable without mTLS. Nomad service checks

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -109,6 +110,9 @@ type Runner struct {
 	svcIndex   uint64
 	svcReady   chan struct{}
 	endpoints  map[discovery.Key][]Endpoint
+	regionCAs  map[string]string
+	rootIndex  uint64
+	rootsReady chan struct{}
 
 	identity    *Identity
 	identityRaw [3][]byte
@@ -122,14 +126,15 @@ func NewRunner(cfg RunnerConfig) *Runner {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &Runner{
-		cfg:       cfg,
-		logger:    cfg.Logger.Named("mtls_proxy"),
-		ctx:       ctx,
-		cancel:    cancel,
-		notify:    make(chan struct{}, 1),
-		intReady:  make(chan struct{}),
-		svcReady:  make(chan struct{}),
-		endpoints: make(map[discovery.Key][]Endpoint),
+		cfg:        cfg,
+		logger:     cfg.Logger.Named("mtls_proxy"),
+		ctx:        ctx,
+		cancel:     cancel,
+		notify:     make(chan struct{}, 1),
+		intReady:   make(chan struct{}),
+		svcReady:   make(chan struct{}),
+		rootsReady: make(chan struct{}),
+		endpoints:  make(map[discovery.Key][]Endpoint),
 	}
 	r.cache = discovery.NewCache(cfg.Logger, cfg.RPC, cfg.CatalogToken)
 	return r
@@ -143,6 +148,9 @@ func (r *Runner) Start(ctx context.Context) error {
 	// stopped; Stop doesn't wait for them.
 	if r.cfg.Sidecar != nil {
 		go r.watchIntentions()
+		if len(r.cfg.Sidecar.Upstreams) > 0 {
+			go r.watchRoots()
+		}
 	}
 	if r.cfg.Gateway != nil {
 		go r.watchServices()
@@ -155,6 +163,13 @@ func (r *Runner) Start(ctx context.Context) error {
 		case <-r.intReady:
 		case <-waitCtx.Done():
 			r.logger.Warn("intentions not available yet, denying all inbound connections until they are")
+		}
+		if len(r.cfg.Sidecar.Upstreams) > 0 {
+			select {
+			case <-r.rootsReady:
+			case <-waitCtx.Done():
+				r.logger.Warn("certificate authorities of the regions not available yet, upstreams have no endpoints until they are")
+			}
 		}
 	}
 	if r.cfg.Gateway != nil {
@@ -235,9 +250,17 @@ func (r *Runner) render(ctx context.Context) error {
 		r.lock.Lock()
 		s.Intentions = r.intentions
 		r.lock.Unlock()
+		r.lock.Lock()
+		regionCAs := r.regionCAs
+		r.lock.Unlock()
 		s.Upstreams = make([]Upstream, len(r.cfg.Sidecar.Upstreams))
 		for i, u := range r.cfg.Sidecar.Upstreams {
 			u.Endpoints = r.lookup(ctx, r.upstreamKey(u), r.upstreamModes(u))
+			region := u.Region
+			if region == "" {
+				region = r.cfg.Region
+			}
+			u.TrustedCAs = regionCAs[region]
 			s.Upstreams[i] = u
 		}
 		files, err = s.Files(id)
@@ -407,6 +430,75 @@ func (r *Runner) watchIntentions() {
 			r.wake()
 		}
 	}
+}
+
+// watchRoots follows the trust bundle of the federation with blocking
+// queries and keeps the CA certificates of each region (active and retired
+// roots), so an upstream only trusts the CAs of the region of its
+// destination.
+func (r *Runner) watchRoots() {
+	ready := false
+	backoff := retryMin
+	for r.ctx.Err() == nil {
+		r.lock.Lock()
+		index := r.rootIndex
+		r.lock.Unlock()
+
+		args := &structs.MTLSRootsRequest{QueryOptions: structs.QueryOptions{
+			Region:        r.cfg.Region,
+			AuthToken:     r.cfg.NodeSecret(),
+			AllowStale:    true,
+			MinQueryIndex: index,
+			MaxQueryTime:  blockingWait,
+		}}
+		var reply structs.MTLSRootsResponse
+		if err := r.cfg.RPC("MTLS.Roots", args, &reply); err != nil {
+			if r.ctx.Err() != nil {
+				return
+			}
+			r.logger.Debug("failed to read the certificate authorities", "error", err)
+			select {
+			case <-r.ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
+			backoff = min(2*backoff, retryMax)
+			continue
+		}
+		backoff = retryMin
+
+		cas := RegionCAs(reply.Roots)
+		r.lock.Lock()
+		if reply.Index < r.rootIndex {
+			r.rootIndex = 0
+		} else {
+			r.rootIndex = reply.Index
+		}
+		r.regionCAs = cas
+		r.lock.Unlock()
+		if !ready {
+			ready = true
+			close(r.rootsReady)
+		}
+		r.wake()
+	}
+}
+
+// RegionCAs returns the PEM encoded CA certificates of each region of a
+// trust bundle, sorted by root ID so the output is stable.
+func RegionCAs(roots []*structs.MTLSRoot) map[string]string {
+	sorted := make([]*structs.MTLSRoot, 0, len(roots))
+	for _, root := range roots {
+		if root != nil && root.Region != "" && strings.TrimSpace(root.RootCert) != "" {
+			sorted = append(sorted, root)
+		}
+	}
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].ID < sorted[j].ID })
+	out := make(map[string]string)
+	for _, root := range sorted {
+		out[root.Region] += strings.TrimSpace(root.RootCert) + "\n"
+	}
+	return out
 }
 
 // watchServices follows the service names of every namespace of the region

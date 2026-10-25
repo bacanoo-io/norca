@@ -14,10 +14,10 @@
           }
         ],
         "trusted_ca": {
-          "inline_string": "-----BEGIN CERTIFICATE-----\nCA1\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nCA2\n-----END CERTIFICATE-----\n"
+          "inline_string": "-----BEGIN CERTIFICATE-----\nCA-EU\n-----END CERTIFICATE-----\n"
         }
       }
     }
   ],
-  "version_info": "6eb7582397ce626b"
+  "version_info": "4b7d601aed79a52a"
 }

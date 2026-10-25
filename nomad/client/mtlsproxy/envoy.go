@@ -172,6 +172,12 @@ type Upstream struct {
 	// Endpoints are the instances of the service, or of the gateway of its
 	// region for a service of another region.
 	Endpoints []Endpoint
+
+	// TrustedCAs are the PEM encoded CA certificates of the region of the
+	// service (its current and retired roots): the only CAs the server
+	// certificate may be signed by. Without them the upstream fails closed:
+	// it gets no endpoints.
+	TrustedCAs string
 }
 
 // Sidecar is the configuration of the sidecar of a service.
@@ -245,7 +251,7 @@ func (s *Sidecar) Files(id *Identity) (map[string][]byte, error) {
 
 	add(BootstrapFile, bootstrap(s.NodeID, s.Cluster, s.ConfigDir))
 	add(CertSecretFile, discoveryResponse(certSecret(id)))
-	add(TrustSecretFile, discoveryResponse(trustSecret(trustSecretName, id.Bundles, "")))
+	add(TrustSecretFile, discoveryResponse(trustSecret(id.Bundles)))
 
 	listeners := []any{s.inbound()}
 	clusters := []any{staticCluster(localAppCluster, []Endpoint{{Address: s.AppAddress, Port: s.AppPort}})}
@@ -258,8 +264,16 @@ func (s *Sidecar) Files(id *Identity) (map[string][]byte, error) {
 
 		sni := ServiceName(u.Service, u.Namespace, u.Region)
 		clusters = append(clusters, s.edsCluster(name, upstreamTLS(s.ConfigDir, name, sni)))
-		add(endpointsFile(name), discoveryResponse(loadAssignment(typeLoadAssign, name, u.Endpoints)))
-		add(upstreamTrustFile(name), discoveryResponse(trustSecret(upstreamTrustSecret(name), id.Bundles, sni)))
+
+		// Fail closed while the CAs of the region of the upstream are
+		// unknown: no endpoints, and a validation context that can't
+		// accept any server.
+		endpoints, cas := u.Endpoints, u.TrustedCAs
+		if strings.TrimSpace(cas) == "" {
+			endpoints, cas, sni = nil, string(id.CertPEM), unmatchableName
+		}
+		add(endpointsFile(name), discoveryResponse(loadAssignment(typeLoadAssign, name, endpoints)))
+		add(upstreamTrustFile(name), discoveryResponse(upstreamTrustSecret(name, cas, sni)))
 	}
 	add(ListenersFile, discoveryResponse(listeners...))
 	add(ClustersFile, discoveryResponse(clusters...))
@@ -399,30 +413,21 @@ func certSecret(id *Identity) any {
 	}
 }
 
-// trustSecret returns a validation context.
-//
-// Without san (the inbound listener), the SPIFFE validator verifies a peer
-// against the CAs of the trust domain of its SPIFFE ID only.
-//
-// With san (an upstream cluster), the peer certificate must also carry that
-// DNS name, the regional name of the destination service. The SPIFFE
-// validator of Envoy ignores DNS subject alt name matchers (checked with
-// Envoy 1.39.3 and 1.40.1: a server presenting the certificate of another
-// service was accepted), so upstream clusters use the default validator
-// with every CA of the trust bundle and the DNS name check. Each upstream
-// has its own secret, because the name check is part of the validation
-// context.
-func trustSecret(name string, bundles []TrustBundle, san string) any {
-	var ctx map[string]any
-	if san == "" {
-		domains := make([]any, 0, len(bundles))
-		for _, b := range bundles {
-			domains = append(domains, map[string]any{
-				"name":         b.TrustDomain,
-				"trust_bundle": map[string]any{"inline_string": b.PEM},
-			})
-		}
-		ctx = map[string]any{
+// trustSecret returns the validation context of the inbound listener: the
+// SPIFFE validator verifies a client against the CAs of the trust domain of
+// its SPIFFE ID only.
+func trustSecret(bundles []TrustBundle) any {
+	domains := make([]any, 0, len(bundles))
+	for _, b := range bundles {
+		domains = append(domains, map[string]any{
+			"name":         b.TrustDomain,
+			"trust_bundle": map[string]any{"inline_string": b.PEM},
+		})
+	}
+	return map[string]any{
+		"@type": typeSecret,
+		"name":  trustSecretName,
+		"validation_context": map[string]any{
 			"custom_validator_config": map[string]any{
 				"name": spiffeValidator,
 				"typed_config": map[string]any{
@@ -430,30 +435,40 @@ func trustSecret(name string, bundles []TrustBundle, san string) any {
 					"trust_domains": domains,
 				},
 			},
-		}
-	} else {
-		var all strings.Builder
-		for _, b := range bundles {
-			all.WriteString(b.PEM)
-		}
-		ctx = map[string]any{
-			"trusted_ca": map[string]any{"inline_string": all.String()},
+		},
+	}
+}
+
+// upstreamTrustSecret returns the validation context of an upstream
+// cluster: the server certificate must be signed by a CA of the region of
+// the destination (cas) and carry the regional DNS name of the service
+// (san).
+//
+// It uses the default validator: the SPIFFE validator of Envoy ignores DNS
+// subject alt name matchers (checked with Envoy 1.39.3 and 1.40.1: a server
+// presenting the certificate of another service was accepted). Each
+// upstream has its own secret, because the CAs and the name differ.
+func upstreamTrustSecret(cluster, cas, san string) any {
+	return map[string]any{
+		"@type": typeSecret,
+		"name":  upstreamTrustName(cluster),
+		"validation_context": map[string]any{
+			"trusted_ca": map[string]any{"inline_string": cas},
 			"match_typed_subject_alt_names": []any{map[string]any{
 				"san_type": "DNS",
 				"matcher":  map[string]any{"exact": san, "ignore_case": true},
 			}},
-		}
-	}
-	return map[string]any{
-		"@type":              typeSecret,
-		"name":               name,
-		"validation_context": ctx,
+		},
 	}
 }
 
-// upstreamTrustSecret and upstreamTrustFile name the validation context of
+// unmatchableName is the DNS name an upstream requires while it fails
+// closed; no workload certificate carries it.
+const unmatchableName = "no-trusted-ca.invalid"
+
+// upstreamTrustName and upstreamTrustFile name the validation context of
 // an upstream cluster and its SDS file.
-func upstreamTrustSecret(cluster string) string {
+func upstreamTrustName(cluster string) string {
 	return trustSecretName + "_" + cluster
 }
 
@@ -483,7 +498,7 @@ func upstreamTLS(dir, cluster, name string) any {
 	return transportSocket(map[string]any{
 		"@type":              typeUpstreamTLS,
 		"sni":                name,
-		"common_tls_context": commonTLS(dir, upstreamTrustSecret(cluster), upstreamTrustFile(cluster)),
+		"common_tls_context": commonTLS(dir, upstreamTrustName(cluster), upstreamTrustFile(cluster)),
 	})
 }
 
