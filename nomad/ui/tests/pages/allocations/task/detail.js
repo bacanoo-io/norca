@@ -26,10 +26,10 @@ export default create({
     },
   },
 
-  state: text('.title [data-test-state]'),
+  state: text('[data-test-title] [data-test-state]'),
   startedAt: text('[data-test-started-at]'),
 
-  lifecycle: text('.pair [data-test-lifecycle]'),
+  lifecycle: text('[data-test-task-details] [data-test-lifecycle]'),
 
   restart: twoStepButton('[data-test-restart]'),
 
@@ -39,10 +39,12 @@ export default create({
 
   resourceCharts: collection('[data-test-primary-metric]', {
     name: text('[data-test-primary-metric-title]'),
-    chartClass: attribute('class', '[data-test-percentage-chart] progress'),
+    color: attribute('data-test-current-value', '[data-test-current-value]'),
   }),
 
-  resourceEmptyMessage: text('[data-test-resource-error-headline]'),
+  resourceEmptyMessage: text(
+    '[data-test-resource-error] [data-test-empty-state-title]'
+  ),
 
   hasPrestartTasks: isPresent('[data-test-prestart-tasks]'),
   prestartTasks: collection('[data-test-prestart-task]', {
@@ -53,14 +55,14 @@ export default create({
   }),
 
   hasVolumes: isPresent('[data-test-volumes]'),
-  volumes: collection('[data-test-volume]', {
+  volumes: collection('[data-test-volumes] [data-test-ui-table-row]', {
     name: text('[data-test-volume-name]'),
     destination: text('[data-test-volume-destination]'),
     permissions: text('[data-test-volume-permissions]'),
     clientSource: text('[data-test-volume-client-source]'),
   }),
 
-  events: collection('[data-test-task-event]', {
+  events: collection('[data-test-task-events] [data-test-ui-table-row]', {
     time: text('[data-test-task-event-time]'),
     type: text('[data-test-task-event-type]'),
     message: text('[data-test-task-event-message]'),
@@ -77,6 +79,6 @@ export default create({
     isShown: isPresent('[data-test-inline-error]'),
     title: text('[data-test-inline-error-title]'),
     message: text('[data-test-inline-error-body]'),
-    dismiss: clickable('[data-test-inline-error-close]'),
+    dismiss: clickable('[data-test-inline-error] [data-test-alert-dismiss]'),
   },
 });

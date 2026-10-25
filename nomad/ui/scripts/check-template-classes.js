@@ -49,6 +49,12 @@ const MIGRATED = [
   'components/exec/open-button.hbs',
   'components/variable-paths.hbs',
   'components/editable-variable-link.hbs',
+  // allocation and task pages (phase 2)
+  'templates/allocations.hbs',
+  'templates/allocations',
+  'components/fs',
+  'components/primary-metric',
+  'components/image-file.hbs',
 ];
 
 const ALLOWED = [
