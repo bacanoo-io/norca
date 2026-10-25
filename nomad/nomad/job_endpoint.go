@@ -89,6 +89,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobDisruptionHook{srv: s},
 			jobQuotaValidatingHook{srv: s},
 			jobScalingHook{srv: s},
+			jobNetworkPolicyHook{srv: s},
 			&jobValidate{srv: s},
 			&memoryOversubscriptionValidate{srv: s},
 		},

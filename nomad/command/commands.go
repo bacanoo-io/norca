@@ -551,6 +551,21 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"network-policy": func() (cli.Command, error) {
+			return &NetworkPolicyCommand{Meta: meta}, nil
+		},
+		"network-policy apply": func() (cli.Command, error) {
+			return &NetworkPolicyApplyCommand{Meta: meta}, nil
+		},
+		"network-policy delete": func() (cli.Command, error) {
+			return &NetworkPolicyDeleteCommand{Meta: meta}, nil
+		},
+		"network-policy list": func() (cli.Command, error) {
+			return &NetworkPolicyListCommand{Meta: meta}, nil
+		},
+		"network-policy status": func() (cli.Command, error) {
+			return &NetworkPolicyStatusCommand{Meta: meta}, nil
+		},
 		"namespace": func() (cli.Command, error) {
 			return &NamespaceCommand{
 				Meta: meta,

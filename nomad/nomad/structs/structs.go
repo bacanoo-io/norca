@@ -161,6 +161,12 @@ const (
 	BackupUpsertRequestType        MessageType = 78
 	BackupDeleteRequestType        MessageType = 79
 	BackupRestoreUpsertRequestType MessageType = 80
+	// Norca network rules (101-104 assigned to network policies). They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	NetworkPolicyUpsertRequestType      MessageType = 101
+	NetworkPolicyDeleteRequestType      MessageType = 102
+	AdminNetworkPolicyUpsertRequestType MessageType = 103
+	AdminNetworkPolicyDeleteRequestType MessageType = 104
 )
 
 const (
