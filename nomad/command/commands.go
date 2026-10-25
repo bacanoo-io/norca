@@ -880,6 +880,19 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		// Norca keyring seal
+		"operator seal-status": func() (cli.Command, error) {
+			return &OperatorSealStatusCommand{Meta: meta}, nil
+		},
+		"operator unseal": func() (cli.Command, error) {
+			return &OperatorUnsealCommand{Meta: meta}, nil
+		},
+		"operator keyring rewrap": func() (cli.Command, error) {
+			return &OperatorKeyringRewrapCommand{Meta: meta}, nil
+		},
+		"operator root keyring rewrap": func() (cli.Command, error) {
+			return &OperatorKeyringRewrapCommand{Meta: meta}, nil
+		},
 		"operator backup": func() (cli.Command, error) {
 			return &OperatorBackupCommand{
 				Meta: meta,

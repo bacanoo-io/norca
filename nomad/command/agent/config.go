@@ -705,6 +705,9 @@ type ServerConfig struct {
 
 	// MTLS configures the native mTLS certificate authority.
 	MTLS *config.MTLSConfig `hcl:"mtls"`
+
+	// Keyring configures the keyring seal (Norca).
+	Keyring *config.KeyringConfig `hcl:"keyring"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -737,6 +740,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.Backup = s.Backup.Copy()
 	ns.Admission = s.Admission.Copy()
 	ns.MTLS = s.MTLS.Copy()
+	ns.Keyring = s.Keyring.Copy()
 	return &ns
 }
 
@@ -2100,6 +2104,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.MTLS != nil {
 		result.MTLS = result.MTLS.Merge(b.MTLS)
+	}
+
+	if b.Keyring != nil {
+		result.Keyring = result.Keyring.Merge(b.Keyring)
 	}
 
 	// Add the schedulers
