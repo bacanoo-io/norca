@@ -14,9 +14,14 @@ const (
 	// itself.
 	MTLSModeApp = "app"
 
-	// MTLSModeSidecar is reserved for the sidecar proxy; it is not
-	// implemented yet and rejected by the servers.
+	// MTLSModeSidecar means an injected Envoy sidecar terminates mTLS in
+	// front of the service port, enforces the service intentions and
+	// exposes the upstreams on local ports.
 	MTLSModeSidecar = "sidecar"
+
+	// MTLSModeGateway makes the service a cross-region gateway forwarding
+	// TLS connections by SNI to the mTLS services of its region.
+	MTLSModeGateway = "gateway"
 
 	// TopicServiceIntention is the event stream topic of service intention
 	// changes.
@@ -34,7 +39,9 @@ const (
 // ServiceMTLS is the mtls block of a service using the Nomad provider.
 type ServiceMTLS struct {
 	// Mode is "app" (default): the application uses the certificate
-	// written into its secrets directory.
+	// written into its secrets directory; "sidecar": an injected Envoy
+	// task terminates and originates mTLS; "gateway": the service is a
+	// cross-region SNI gateway.
 	Mode string `mapstructure:"mode" hcl:"mode,optional"`
 
 	// Upstreams are the services a sidecar proxy exposes locally (sidecar
@@ -44,9 +51,21 @@ type ServiceMTLS struct {
 
 // ServiceMTLSUpstream is an upstream block of a service mtls block.
 type ServiceMTLSUpstream struct {
-	Name      string `hcl:"name,label"`
-	Service   string `mapstructure:"service" hcl:"service,optional"`
-	LocalPort int    `mapstructure:"local_port" hcl:"local_port,optional"`
+	Name    string `hcl:"name,label"`
+	Service string `mapstructure:"service" hcl:"service,optional"`
+
+	// Namespace of the service; empty for the namespace of the job.
+	Namespace string `mapstructure:"namespace" hcl:"namespace,optional"`
+
+	// Region of the service; empty for the region of the client. Another
+	// region is reached through its gateway.
+	Region string `mapstructure:"region" hcl:"region,optional"`
+
+	// Gateway is the gateway service of Region, in its default namespace
+	// (default "mtls-gateway").
+	Gateway string `mapstructure:"gateway" hcl:"gateway,optional"`
+
+	LocalPort int `mapstructure:"local_port" hcl:"local_port,optional"`
 }
 
 // Canonicalize sets the defaults of the mtls block.

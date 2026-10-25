@@ -31,6 +31,9 @@ job "mtls" {
 
         upstream "cache" {
           service    = "redis"
+          namespace  = "cache"
+          region     = "eu"
+          gateway    = "edge"
           local_port = 6379
         }
       }
@@ -41,6 +44,16 @@ job "mtls" {
       provider = "nomad"
 
       mtls {}
+    }
+
+    service {
+      name     = "mtls-gateway"
+      port     = "gw"
+      provider = "nomad"
+
+      mtls {
+        mode = "gateway"
+      }
     }
   }
 }
@@ -55,12 +68,15 @@ func TestParse_ServiceMTLS(t *testing.T) {
 		must.Eq(t, "sidecar", m.Mode)
 		must.Len(t, 2, m.Upstreams)
 		must.Eq(t, &api.ServiceMTLSUpstream{Name: "db", Service: "postgres", LocalPort: 5432}, m.Upstreams[0])
-		must.Eq(t, &api.ServiceMTLSUpstream{Name: "cache", Service: "redis", LocalPort: 6379}, m.Upstreams[1])
+		must.Eq(t, &api.ServiceMTLSUpstream{
+			Name: "cache", Service: "redis", Namespace: "cache", Region: "eu", Gateway: "edge", LocalPort: 6379}, m.Upstreams[1])
 
 		empty := job.TaskGroups[0].Services[1].MTLS
 		must.NotNil(t, empty)
 		empty.Canonicalize()
 		must.Eq(t, api.MTLSModeApp, empty.Mode)
+
+		must.Eq(t, api.MTLSModeGateway, job.TaskGroups[0].Services[2].MTLS.Mode)
 	}
 
 	t.Run("hcl2", func(t *testing.T) {

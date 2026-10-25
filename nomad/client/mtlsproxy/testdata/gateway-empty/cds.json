@@ -1,0 +1,14 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+      "connect_timeout": "5s",
+      "load_assignment": {
+        "cluster_name": "gateway_unknown"
+      },
+      "name": "gateway_unknown",
+      "type": "STATIC"
+    }
+  ],
+  "version_info": "b2947bbd8f3ac9a8"
+}

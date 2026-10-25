@@ -4,6 +4,7 @@
 package structs
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/nomad/ci"
@@ -22,9 +23,39 @@ func TestServiceMTLS_Validate(t *testing.T) {
 		{name: "app", mtls: &ServiceMTLS{Mode: MTLSModeApp}},
 		{name: "default mode", mtls: &ServiceMTLS{}},
 		{
-			name: "sidecar not implemented",
-			mtls: &ServiceMTLS{Mode: MTLSModeSidecar, Upstreams: []*ServiceMTLSUpstream{{Name: "db", Service: "postgres", LocalPort: 5432}}},
-			err:  `mtls mode "sidecar" is not implemented yet`,
+			name: "sidecar",
+			mtls: &ServiceMTLS{Mode: MTLSModeSidecar, Upstreams: []*ServiceMTLSUpstream{
+				{Name: "db", Service: "postgres", LocalPort: 5432},
+				{Name: "remote", Service: "redis", Namespace: "cache", Region: "eu", Gateway: "gw", LocalPort: 6379},
+			}},
+		},
+		{name: "sidecar without upstreams", mtls: &ServiceMTLS{Mode: MTLSModeSidecar}},
+		{name: "gateway", mtls: &ServiceMTLS{Mode: MTLSModeGateway}},
+		{
+			name: "upstream in gateway mode",
+			mtls: &ServiceMTLS{Mode: MTLSModeGateway, Upstreams: []*ServiceMTLSUpstream{{Name: "db", Service: "postgres", LocalPort: 5432}}},
+			err:  "only used in mode",
+		},
+		{
+			name: "upstream without local port",
+			mtls: &ServiceMTLS{Mode: MTLSModeSidecar, Upstreams: []*ServiceMTLSUpstream{{Name: "db", Service: "postgres"}}},
+			err:  "local_port must be between 1 and 65535",
+		},
+		{
+			name: "duplicate local port",
+			mtls: &ServiceMTLS{Mode: MTLSModeSidecar, Upstreams: []*ServiceMTLSUpstream{
+				{Name: "a", Service: "postgres", LocalPort: 5432}, {Name: "b", Service: "redis", LocalPort: 5432}}},
+			err: "use the same local_port",
+		},
+		{
+			name: "gateway without region",
+			mtls: &ServiceMTLS{Mode: MTLSModeSidecar, Upstreams: []*ServiceMTLSUpstream{{Name: "a", Service: "postgres", Gateway: "gw", LocalPort: 5432}}},
+			err:  "gateway is only used with region",
+		},
+		{
+			name: "invalid upstream fields",
+			mtls: &ServiceMTLS{Mode: MTLSModeSidecar, Upstreams: []*ServiceMTLSUpstream{{Name: "a/b", Service: "${x}", Namespace: "n s", Region: "e.u", LocalPort: 5432}}},
+			err:  "may only contain",
 		},
 		{
 			name: "upstream in app mode",
@@ -162,4 +193,95 @@ func TestServiceDiff_MTLS(t *testing.T) {
 	must.Eq(t, DiffTypeEdited, d.Type)
 	must.Len(t, 1, d.Objects)
 	must.Nil(t, serviceMTLSDiff(new.MTLS, new.MTLS.Copy(), false))
+
+	// the fields of upstreams are diffed
+	region := edited.Copy()
+	region.MTLS.Upstreams[0].Region = "eu"
+	d = serviceMTLSDiff(edited.MTLS, region.MTLS, false)
+	must.NotNil(t, d)
+	must.Len(t, 1, d.Objects)
+	must.Len(t, 1, d.Objects[0].Fields)
+	must.Eq(t, "Region", d.Objects[0].Fields[0].Name)
+	must.Eq(t, "eu", d.Objects[0].Fields[0].New)
+}
+
+func TestTaskGroup_ValidateMTLSProxies(t *testing.T) {
+	ci.Parallel(t)
+
+	group := func(mode string, services ...*Service) *TaskGroup {
+		return &TaskGroup{
+			Name:     "g",
+			Networks: Networks{{Mode: mode, ReservedPorts: []Port{{Label: "gw", Value: 8443}}}},
+			Services: services,
+			Tasks:    []*Task{{Name: "app"}},
+		}
+	}
+	sidecar := func(name, port string, localPorts ...int) *Service {
+		m := &ServiceMTLS{Mode: MTLSModeSidecar}
+		for i, p := range localPorts {
+			m.Upstreams = append(m.Upstreams, &ServiceMTLSUpstream{Name: fmt.Sprint("u", i), Service: "db", LocalPort: p})
+		}
+		return &Service{Name: name, PortLabel: port, Provider: ServiceProviderNomad, MTLS: m}
+	}
+	gateway := &Service{Name: "mtls-gateway", PortLabel: "gw", Provider: ServiceProviderNomad, MTLS: &ServiceMTLS{Mode: MTLSModeGateway}}
+
+	must.NoError(t, group("bridge", sidecar("api", "8080", 5432), sidecar("admin", "9090", 6379)).ValidateMTLSProxies())
+	must.NoError(t, group("bridge", gateway).ValidateMTLSProxies())
+	must.NoError(t, group("host", gateway).ValidateMTLSProxies())
+	must.NoError(t, group("host", &Service{Name: "api", MTLS: &ServiceMTLS{Mode: MTLSModeApp}}).ValidateMTLSProxies())
+
+	must.ErrorContains(t, group("host", sidecar("api", "8080")).ValidateMTLSProxies(), "requires bridge networking")
+	must.ErrorContains(t, group("bridge", sidecar("api", "")).ValidateMTLSProxies(), "requires the port of the application")
+	must.ErrorContains(t, group("bridge", sidecar("api", "8080", 5432), sidecar("admin", "9090", 5432)).ValidateMTLSProxies(),
+		"use the same upstream local_port")
+	must.ErrorContains(t, group("bridge", sidecar("${NOMAD_JOB_NAME}", "8080")).ValidateMTLSProxies(), "not interpolated")
+	badGateway := gateway.Copy()
+	badGateway.PortLabel = "nope"
+	must.ErrorContains(t, group("bridge", badGateway).ValidateMTLSProxies(), "label of a port")
+	must.ErrorContains(t, group("cni/x", gateway).ValidateMTLSProxies(), "bridge or host")
+
+	noNetwork := group("bridge", sidecar("api", "8080"))
+	noNetwork.Networks = nil
+	must.ErrorContains(t, noNetwork.ValidateMTLSProxies(), "exactly 1 network")
+
+	taskLevel := group("bridge")
+	taskLevel.Tasks[0].Services = []*Service{sidecar("api", "8080")}
+	must.ErrorContains(t, taskLevel.ValidateMTLSProxies(), "only supported on group services")
+}
+
+func TestMTLSProxiesChanged(t *testing.T) {
+	ci.Parallel(t)
+
+	a := &TaskGroup{Services: []*Service{
+		{Name: "api", PortLabel: "8080", MTLS: &ServiceMTLS{Mode: MTLSModeSidecar,
+			Upstreams: []*ServiceMTLSUpstream{{Name: "db", Service: "postgres", LocalPort: 5432}}}},
+		{Name: "plain", PortLabel: "http"},
+	}}
+	b := a.Copy()
+	must.False(t, MTLSProxiesChanged(a, b))
+
+	b.Services[1].Tags = []string{"x"}
+	must.False(t, MTLSProxiesChanged(a, b))
+
+	b.Services[0].MTLS.Upstreams[0].LocalPort = 5433
+	must.True(t, MTLSProxiesChanged(a, b))
+
+	c := a.Copy()
+	c.Services[0].PortLabel = "9090"
+	must.True(t, MTLSProxiesChanged(a, c))
+
+	d := a.Copy()
+	d.Services[0].MTLS.Mode = MTLSModeApp
+	must.True(t, MTLSProxiesChanged(a, d))
+}
+
+func TestTaskKind_MTLS(t *testing.T) {
+	ci.Parallel(t)
+
+	must.True(t, NewTaskKind(MTLSProxyPrefix, "api").IsMTLSProxy())
+	must.False(t, NewTaskKind(MTLSProxyPrefix, "api").IsMTLSGateway())
+	must.True(t, NewTaskKind(MTLSGatewayPrefix, "gw").IsMTLSGateway())
+	must.False(t, TaskKind(MTLSProxyPrefix+":").IsMTLSProxy())
+	must.False(t, NewTaskKind(ConnectProxyPrefix, "api").IsMTLSProxy())
+	must.Eq(t, "mtls-proxy-api", MTLSProxyPortLabel("api"))
 }

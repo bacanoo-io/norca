@@ -73,6 +73,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobVaultNamespaceDefaulter{},
 			jobScalingHook{srv: s},
 			jobConnectHook{},
+			jobMTLSHook{srv: s},
 			jobExposeCheckHook{},
 			jobImpliedConstraints{},
 			jobNodePoolMutatingHook{srv: s},

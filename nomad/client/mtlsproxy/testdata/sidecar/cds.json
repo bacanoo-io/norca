@@ -1,0 +1,210 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+      "connect_timeout": "5s",
+      "load_assignment": {
+        "cluster_name": "local_app",
+        "endpoints": [
+          {
+            "lb_endpoints": [
+              {
+                "endpoint": {
+                  "address": {
+                    "socket_address": {
+                      "address": "127.0.0.1",
+                      "port_value": 8080
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "name": "local_app",
+      "type": "STATIC"
+    },
+    {
+      "@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+      "connect_timeout": "5s",
+      "eds_cluster_config": {
+        "eds_config": {
+          "path_config_source": {
+            "path": "/secrets/envoy/eds-upstream_db.json"
+          },
+          "resource_api_version": "V3"
+        },
+        "service_name": "upstream_db"
+      },
+      "name": "upstream_db",
+      "transport_socket": {
+        "name": "envoy.transport_sockets.tls",
+        "typed_config": {
+          "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+          "common_tls_context": {
+            "combined_validation_context": {
+              "default_validation_context": {
+                "match_typed_subject_alt_names": [
+                  {
+                    "matcher": {
+                      "exact": "postgres.service.default.global.nomad",
+                      "ignore_case": true
+                    },
+                    "san_type": "DNS"
+                  }
+                ]
+              },
+              "validation_context_sds_secret_config": {
+                "name": "trust",
+                "sds_config": {
+                  "path_config_source": {
+                    "path": "/secrets/envoy/sds-trust.json"
+                  },
+                  "resource_api_version": "V3"
+                }
+              }
+            },
+            "tls_certificate_sds_secret_configs": [
+              {
+                "name": "workload",
+                "sds_config": {
+                  "path_config_source": {
+                    "path": "/secrets/envoy/sds-cert.json"
+                  },
+                  "resource_api_version": "V3"
+                }
+              }
+            ],
+            "tls_params": {
+              "tls_minimum_protocol_version": "TLSv1_2"
+            }
+          },
+          "sni": "postgres.service.default.global.nomad"
+        }
+      },
+      "type": "EDS"
+    },
+    {
+      "@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+      "connect_timeout": "5s",
+      "eds_cluster_config": {
+        "eds_config": {
+          "path_config_source": {
+            "path": "/secrets/envoy/eds-upstream_empty.json"
+          },
+          "resource_api_version": "V3"
+        },
+        "service_name": "upstream_empty"
+      },
+      "name": "upstream_empty",
+      "transport_socket": {
+        "name": "envoy.transport_sockets.tls",
+        "typed_config": {
+          "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+          "common_tls_context": {
+            "combined_validation_context": {
+              "default_validation_context": {
+                "match_typed_subject_alt_names": [
+                  {
+                    "matcher": {
+                      "exact": "nothing.service.default.global.nomad",
+                      "ignore_case": true
+                    },
+                    "san_type": "DNS"
+                  }
+                ]
+              },
+              "validation_context_sds_secret_config": {
+                "name": "trust",
+                "sds_config": {
+                  "path_config_source": {
+                    "path": "/secrets/envoy/sds-trust.json"
+                  },
+                  "resource_api_version": "V3"
+                }
+              }
+            },
+            "tls_certificate_sds_secret_configs": [
+              {
+                "name": "workload",
+                "sds_config": {
+                  "path_config_source": {
+                    "path": "/secrets/envoy/sds-cert.json"
+                  },
+                  "resource_api_version": "V3"
+                }
+              }
+            ],
+            "tls_params": {
+              "tls_minimum_protocol_version": "TLSv1_2"
+            }
+          },
+          "sni": "nothing.service.default.global.nomad"
+        }
+      },
+      "type": "EDS"
+    },
+    {
+      "@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+      "connect_timeout": "5s",
+      "eds_cluster_config": {
+        "eds_config": {
+          "path_config_source": {
+            "path": "/secrets/envoy/eds-upstream_remote-cache.json"
+          },
+          "resource_api_version": "V3"
+        },
+        "service_name": "upstream_remote-cache"
+      },
+      "name": "upstream_remote-cache",
+      "transport_socket": {
+        "name": "envoy.transport_sockets.tls",
+        "typed_config": {
+          "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+          "common_tls_context": {
+            "combined_validation_context": {
+              "default_validation_context": {
+                "match_typed_subject_alt_names": [
+                  {
+                    "matcher": {
+                      "exact": "redis.service.cache.eu.nomad",
+                      "ignore_case": true
+                    },
+                    "san_type": "DNS"
+                  }
+                ]
+              },
+              "validation_context_sds_secret_config": {
+                "name": "trust",
+                "sds_config": {
+                  "path_config_source": {
+                    "path": "/secrets/envoy/sds-trust.json"
+                  },
+                  "resource_api_version": "V3"
+                }
+              }
+            },
+            "tls_certificate_sds_secret_configs": [
+              {
+                "name": "workload",
+                "sds_config": {
+                  "path_config_source": {
+                    "path": "/secrets/envoy/sds-cert.json"
+                  },
+                  "resource_api_version": "V3"
+                }
+              }
+            ],
+            "tls_params": {
+              "tls_minimum_protocol_version": "TLSv1_2"
+            }
+          },
+          "sni": "redis.service.cache.eu.nomad"
+        }
+      },
+      "type": "EDS"
+    }
+  ],
+  "version_info": "4e00c1bb8805a324"
+}

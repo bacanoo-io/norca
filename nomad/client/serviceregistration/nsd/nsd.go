@@ -347,9 +347,15 @@ func (s *ServiceRegistrationHandler) generateNomadServiceRegistration(
 		addrMode = structs.AddressModeAuto
 	}
 
-	// Determine the address to advertise based on the mode.
+	// Determine the address to advertise based on the mode. The service of a
+	// native mTLS sidecar is reached through the inbound listener of its
+	// Envoy sidecar, never directly.
+	portLabel := serviceSpec.PortLabel
+	if serviceSpec.MTLS.IsSidecar() {
+		portLabel = structs.MTLSProxyPortLabel(serviceSpec.Name)
+	}
 	ip, port, err := serviceregistration.GetAddress(
-		serviceSpec.Address, addrMode, serviceSpec.PortLabel, workload.Networks,
+		serviceSpec.Address, addrMode, portLabel, workload.Networks,
 		workload.DriverNetwork, workload.Ports, workload.NetworkStatus)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get address for service %q: %v", serviceSpec.Name, err)
@@ -373,6 +379,20 @@ func (s *ServiceRegistrationHandler) generateNomadServiceRegistration(
 		meta = serviceSpec.CanaryMeta
 	}
 
+	// The registrations of mtls services carry their mode, so gateways know
+	// which registrations accept mTLS connections.
+	meta = maps.Clone(meta)
+	if serviceSpec.MTLS != nil {
+		if meta == nil {
+			meta = make(map[string]string, 1)
+		}
+		mode := serviceSpec.MTLS.Mode
+		if mode == "" {
+			mode = structs.MTLSModeApp
+		}
+		meta[structs.MTLSServiceMetaKey] = mode
+	}
+
 	var zone string
 	if s.cfg.Zone != nil {
 		zone = s.cfg.Zone()
@@ -390,7 +410,7 @@ func (s *ServiceRegistrationHandler) generateNomadServiceRegistration(
 		Address:     ip,
 		Port:        port,
 		Zone:        zone,
-		Meta:        maps.Clone(meta),
+		Meta:        meta,
 		Discovery:   serviceSpec.Discovery.Copy(),
 	}, nil
 }

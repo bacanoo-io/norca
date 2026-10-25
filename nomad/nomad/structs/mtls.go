@@ -25,20 +25,58 @@ const (
 	// MTLSModeApp means the application uses the certificate itself.
 	MTLSModeApp = "app"
 
-	// MTLSModeSidecar means a sidecar proxy (Envoy) terminates mTLS for the
-	// application. It is parsed but not implemented yet.
+	// MTLSModeSidecar means an injected Envoy sidecar task terminates mTLS
+	// in front of the service port, enforces the service intentions, and
+	// originates mTLS to the upstreams of the service.
 	MTLSModeSidecar = "sidecar"
+
+	// MTLSModeGateway means the service is a cross-region gateway: an
+	// injected Envoy task forwards TLS connections by their SNI name to the
+	// mTLS services of its region, without terminating them.
+	MTLSModeGateway = "gateway"
 
 	// DefaultMTLSDNSDomain is the DNS domain of the service names written into
 	// workload certificates; it matches the default domain of the built-in
 	// DNS server.
 	DefaultMTLSDNSDomain = "nomad"
+
+	// MTLSProxyPrefix and MTLSGatewayPrefix are the TaskKind names (and the
+	// task name prefixes) of the injected Envoy tasks of sidecar and gateway
+	// mode services.
+	MTLSProxyPrefix   = "mtls-proxy"
+	MTLSGatewayPrefix = "mtls-gateway"
+
+	// DefaultMTLSGatewayService is the name of the gateway service an upstream
+	// in another region connects through, in the namespace
+	// MTLSGatewayNamespace of that region.
+	DefaultMTLSGatewayService = "mtls-gateway"
+	MTLSGatewayNamespace      = DefaultNamespace
+
+	// MTLSServiceMetaKey is the meta key the client sets on the registrations
+	// of mtls services to their mode; gateways only forward to registrations
+	// with mode app or sidecar.
+	MTLSServiceMetaKey = "norca-mtls"
+
+	// MTLSEnvoyImageMeta is the node meta key naming the Envoy image of the
+	// injected tasks. When it is not set, the client builds the image from
+	// the registry, repository, tag and digest meta keys below, each with a
+	// default (docker.io/envoyproxy/envoy at a pinned release).
+	MTLSEnvoyImageMeta      = "norca.mtls.envoy_image"
+	MTLSEnvoyRegistryMeta   = "norca.mtls.envoy_registry"
+	MTLSEnvoyRepositoryMeta = "norca.mtls.envoy_repository"
+	MTLSEnvoyTagMeta        = "norca.mtls.envoy_tag"
+	MTLSEnvoyDigestMeta     = "norca.mtls.envoy_digest"
+
+	// MTLSEnvoyLogLevelMeta is the node meta key of the Envoy log level
+	// (default "info").
+	MTLSEnvoyLogLevelMeta = "norca.mtls.envoy_log_level"
 )
 
 // ServiceMTLS is the mtls block of a service using the Nomad provider.
 type ServiceMTLS struct {
-	// Mode is "app" (default): the application uses the certificate itself.
-	// "sidecar" is reserved for the Envoy sidecar and rejected for now.
+	// Mode is "app" (default): the application uses the certificate itself;
+	// "sidecar": an injected Envoy task terminates and originates mTLS for
+	// the application; "gateway": the service is a cross-region SNI gateway.
 	Mode string
 
 	// Upstreams are the services the sidecar proxy exposes locally. They are
@@ -54,8 +92,61 @@ type ServiceMTLSUpstream struct {
 	// Service is the name of the destination service.
 	Service string
 
-	// LocalPort is the port the sidecar listens on for the upstream.
+	// Namespace is the namespace of the destination service; empty means
+	// the namespace of the job.
+	Namespace string
+
+	// Region is the region of the destination service; empty means the
+	// region of the client. Connections to another region go through the
+	// gateway of that region.
+	Region string
+
+	// Gateway is the name of the gateway service in the namespace
+	// MTLSGatewayNamespace of Region; empty means DefaultMTLSGatewayService.
+	Gateway string
+
+	// LocalPort is the port the sidecar listens on for the upstream, on
+	// 127.0.0.1 of the network namespace of the group.
 	LocalPort int
+}
+
+// IsSidecar returns whether the mtls block uses the Envoy sidecar.
+func (m *ServiceMTLS) IsSidecar() bool {
+	return m != nil && m.Mode == MTLSModeSidecar
+}
+
+// IsGateway returns whether the mtls block makes the service a gateway.
+func (m *ServiceMTLS) IsGateway() bool {
+	return m != nil && m.Mode == MTLSModeGateway
+}
+
+// NeedsProxy returns whether the mtls block needs an injected Envoy task.
+func (m *ServiceMTLS) NeedsProxy() bool {
+	return m.IsSidecar() || m.IsGateway()
+}
+
+// GatewayService returns the gateway service name of the upstream.
+func (u *ServiceMTLSUpstream) GatewayService() string {
+	if u.Gateway == "" {
+		return DefaultMTLSGatewayService
+	}
+	return u.Gateway
+}
+
+// MTLSProxyPortLabel returns the label of the dynamic port injected for the
+// inbound listener of the sidecar of a service.
+func MTLSProxyPortLabel(service string) string {
+	return MTLSProxyPrefix + "-" + service
+}
+
+// IsMTLSProxy returns whether the TaskKind is a native mTLS sidecar proxy.
+func (k TaskKind) IsMTLSProxy() bool {
+	return k.hasPrefix(MTLSProxyPrefix)
+}
+
+// IsMTLSGateway returns whether the TaskKind is a native mTLS gateway.
+func (k TaskKind) IsMTLSGateway() bool {
+	return k.hasPrefix(MTLSGatewayPrefix)
 }
 
 // Copy returns a deep copy of m.
@@ -112,6 +203,7 @@ func (m *ServiceMTLS) Validate() error {
 	}
 	var mErr multierror.Error
 	seen := make(map[string]struct{}, len(m.Upstreams))
+	ports := make(map[int]string, len(m.Upstreams))
 	for _, u := range m.Upstreams {
 		if u == nil {
 			continue
@@ -120,27 +212,162 @@ func (m *ServiceMTLS) Validate() error {
 			mErr.Errors = append(mErr.Errors, errors.New("mtls upstream requires a name"))
 		} else if _, ok := seen[u.Name]; ok {
 			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream %q is defined more than once", u.Name))
+		} else if !validUpstreamName.MatchString(u.Name) {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream name %q may only contain letters, digits, '.', '-' and '_'", u.Name))
 		}
 		seen[u.Name] = struct{}{}
 		if u.Service == "" {
 			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream %q requires a service", u.Name))
+		} else if !validIntentionService.MatchString(u.Service) {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream %q service %q is not a valid service name", u.Name, u.Service))
 		}
-		if u.LocalPort < 0 || u.LocalPort > 65535 {
-			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream %q local_port must be between 0 and 65535", u.Name))
+		if u.Namespace != "" && !validNamespaceName.MatchString(u.Namespace) {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream %q namespace %q is invalid", u.Name, u.Namespace))
+		}
+		if u.Region != "" && !validUpstreamRegion.MatchString(u.Region) {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream %q region %q is invalid", u.Name, u.Region))
+		}
+		if u.Gateway != "" {
+			if u.Region == "" {
+				mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream %q gateway is only used with region", u.Name))
+			} else if !validIntentionService.MatchString(u.Gateway) {
+				mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream %q gateway %q is not a valid service name", u.Name, u.Gateway))
+			}
+		}
+		if u.LocalPort < 1 || u.LocalPort > 65535 {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream %q local_port must be between 1 and 65535", u.Name))
+		} else if other, ok := ports[u.LocalPort]; ok {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstreams %q and %q use the same local_port %d", other, u.Name, u.LocalPort))
+		} else {
+			ports[u.LocalPort] = u.Name
 		}
 	}
 
 	switch m.Mode {
-	case "", MTLSModeApp:
+	case "", MTLSModeApp, MTLSModeGateway:
 		if len(m.Upstreams) > 0 {
-			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream blocks are only used in mode %q, which is not implemented yet", MTLSModeSidecar))
+			mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls upstream blocks are only used in mode %q", MTLSModeSidecar))
 		}
 	case MTLSModeSidecar:
-		mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls mode %q is not implemented yet; use mode %q and let the application use the certificate", MTLSModeSidecar, MTLSModeApp))
 	default:
-		mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls mode must be %q or %q, not %q", MTLSModeApp, MTLSModeSidecar, m.Mode))
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls mode must be %q, %q or %q, not %q",
+			MTLSModeApp, MTLSModeSidecar, MTLSModeGateway, m.Mode))
 	}
 	return mErr.ErrorOrNil()
+}
+
+var (
+	// validUpstreamName matches upstream labels; they name Envoy clusters
+	// and configuration files.
+	validUpstreamName = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+
+	// validUpstreamRegion matches region names usable in DNS names.
+	validUpstreamRegion = regexp.MustCompile(`^[A-Za-z0-9-]{1,63}$`)
+)
+
+// ValidateMTLSProxies checks the services of the task group that need an
+// injected Envoy task: sidecar and gateway mode services must be group
+// services of a group with exactly one network, in bridge mode for sidecars
+// and in bridge or host mode for gateways; the upstream listeners of all
+// sidecars of the group share the loopback address of the group, so their
+// ports must differ.
+func (tg *TaskGroup) ValidateMTLSProxies() error {
+	var mErr multierror.Error
+	for _, t := range tg.Tasks {
+		for _, s := range t.Services {
+			if s != nil && s.MTLS.NeedsProxy() {
+				mErr.Errors = append(mErr.Errors, fmt.Errorf(
+					"service %q of task %q: mtls mode %q is only supported on group services", s.Name, t.Name, s.MTLS.Mode))
+			}
+		}
+	}
+
+	ports := make(map[int]string)
+	for _, s := range tg.Services {
+		if s == nil || !s.MTLS.NeedsProxy() {
+			continue
+		}
+		if !IsValidMTLSServiceName(s.Name) {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf(
+				"service %q: mtls mode %q requires a service name that is not interpolated at runtime", s.Name, s.MTLS.Mode))
+		}
+		if len(tg.Networks) != 1 {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf(
+				"service %q: mtls mode %q requires exactly 1 network in group %q, found %d", s.Name, s.MTLS.Mode, tg.Name, len(tg.Networks)))
+			continue
+		}
+		network := tg.Networks[0]
+		switch {
+		case s.MTLS.IsSidecar():
+			if network.Mode != "bridge" {
+				mErr.Errors = append(mErr.Errors, fmt.Errorf(
+					"service %q: mtls mode %q requires bridge networking, found %q in group %q", s.Name, s.MTLS.Mode, network.Mode, tg.Name))
+			}
+			if s.PortLabel == "" {
+				mErr.Errors = append(mErr.Errors, fmt.Errorf(
+					"service %q: mtls mode %q requires the port of the application", s.Name, s.MTLS.Mode))
+			}
+			for _, u := range s.MTLS.Upstreams {
+				if u == nil {
+					continue
+				}
+				if other, ok := ports[u.LocalPort]; ok && other != s.Name {
+					mErr.Errors = append(mErr.Errors, fmt.Errorf(
+						"services %q and %q use the same upstream local_port %d", other, s.Name, u.LocalPort))
+				}
+				ports[u.LocalPort] = s.Name
+			}
+		case s.MTLS.IsGateway():
+			if network.Mode != "bridge" && network.Mode != "host" {
+				mErr.Errors = append(mErr.Errors, fmt.Errorf(
+					"service %q: mtls mode %q requires bridge or host networking, found %q in group %q", s.Name, s.MTLS.Mode, network.Mode, tg.Name))
+			}
+			if s.PortLabel == "" || !networkHasPortLabel(network, s.PortLabel) {
+				mErr.Errors = append(mErr.Errors, fmt.Errorf(
+					"service %q: mtls mode %q requires the label of a port of the group network", s.Name, s.MTLS.Mode))
+			}
+		}
+	}
+	return mErr.ErrorOrNil()
+}
+
+func networkHasPortLabel(n *NetworkResource, label string) bool {
+	for _, p := range n.ReservedPorts {
+		if p.Label == label {
+			return true
+		}
+	}
+	for _, p := range n.DynamicPorts {
+		if p.Label == label {
+			return true
+		}
+	}
+	return false
+}
+
+// MTLSProxiesChanged returns whether the configuration of the injected Envoy
+// tasks of two versions of a task group differs. The client configures them
+// when the task starts, so a change requires a destructive update.
+func MTLSProxiesChanged(a, b *TaskGroup) bool {
+	proxies := func(tg *TaskGroup) map[string]*ServiceMTLS {
+		out := make(map[string]*ServiceMTLS)
+		for _, s := range tg.Services {
+			if s != nil && s.MTLS.NeedsProxy() {
+				out[s.Name+"\x00"+s.PortLabel] = s.MTLS
+			}
+		}
+		return out
+	}
+	pa, pb := proxies(a), proxies(b)
+	if len(pa) != len(pb) {
+		return true
+	}
+	for k, m := range pa {
+		if !m.Equal(pb[k]) {
+			return true
+		}
+	}
+	return false
 }
 
 // serviceMTLSDiff returns the diff of two mtls blocks.

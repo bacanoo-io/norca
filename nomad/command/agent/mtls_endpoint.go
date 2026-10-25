@@ -23,6 +23,9 @@ func apiServiceMTLSToStructs(in *api.ServiceMTLS) *structs.ServiceMTLS {
 		out.Upstreams = append(out.Upstreams, &structs.ServiceMTLSUpstream{
 			Name:      u.Name,
 			Service:   u.Service,
+			Namespace: u.Namespace,
+			Region:    u.Region,
+			Gateway:   u.Gateway,
 			LocalPort: u.LocalPort,
 		})
 	}
