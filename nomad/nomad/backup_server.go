@@ -45,6 +45,9 @@ func (s *Server) backupKeyring() ([]*structs.RootKey, error) {
 	if s.encrypter == nil {
 		return nil, errors.New("keyring is not initialized")
 	}
+	if s.encrypter.isSealed() {
+		return nil, structs.ErrSealed
+	}
 	active, err := s.fsm.State().GetActiveRootKeyMeta(nil)
 	if err != nil {
 		return nil, err

@@ -2723,6 +2723,13 @@ func (s *Server) initializeKeyring(stopCh <-chan struct{}) {
 			break
 		}
 	}
+	// Norca: the first key can only be stored once the seal can wrap it (a
+	// new region with a shares seal waits for its first rewrap, a sealed
+	// leader for its unseal)
+	if !s.seal.waitUnsealed(stopCh) {
+		return
+	}
+
 	// we might have lost leadership during the version check
 	if !s.IsLeader() {
 		return

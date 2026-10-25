@@ -232,6 +232,9 @@ func (b *Backup) fullRestorePreview(loaded *backup.Loaded) (*structs.BackupResto
 		preview.Warnings = append(preview.Warnings, fmt.Sprintf(
 			"%d ACL tokens were created after the backup and are deleted", preview.ACLTokensRemoved))
 	}
+	if w := secretStoreSealWarning(loaded.Record.Seals, backup.SealsOf(current)); w != "" {
+		preview.Warnings = append(preview.Warnings, w)
+	}
 	if loaded.Keys == nil {
 		preview.Warnings = append(preview.Warnings,
 			"the backup has no keyring: Variables encrypted with keys missing from the current keyring are unreadable")
@@ -493,6 +496,13 @@ func (b *Backup) runFullRestore(ctx context.Context, record *structs.BackupResto
 	if err != nil {
 		return fail(err)
 	}
+	// Norca: the keystores of the servers are not restored, so the seals
+	// that wrap them are kept too.
+	sealConfig, err := store.SealConfig(nil)
+	if err != nil {
+		return fail(err)
+	}
+	sealConfig = sealConfig.Copy()
 
 	// 4. The Raft state.
 	if _, err := archive.Seek(0, io.SeekStart); err != nil {
@@ -504,6 +514,9 @@ func (b *Backup) runFullRestore(ctx context.Context, record *structs.BackupResto
 
 	if err := b.reapplyBackupRecords(backups, restores, record.ID); err != nil {
 		notes = append(notes, "failed to keep the current backup records: "+err.Error())
+	}
+	if err := b.srv.reapplySealConfig(sealConfig); err != nil {
+		notes = append(notes, "failed to keep the current keyring seal configuration: "+err.Error())
 	}
 
 	record.Status = structs.BackupRestoreStatusComplete
