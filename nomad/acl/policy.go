@@ -165,6 +165,9 @@ type NamespacePolicy struct {
 
 	// NetworkPolicy is the network_policy block (Norca).
 	NetworkPolicy *NetworkPolicyRule `hcl:"network_policy"`
+
+	// Secrets are the secret blocks: capabilities on secret paths (Norca).
+	Secrets []*SecretPathPolicy `hcl:"secret,expand"`
 }
 
 // NodePoolPolicy is the policfy for a specific node pool.
@@ -239,7 +242,9 @@ func isNamespaceCapabilityValid(cap string) bool {
 		NamespaceCapabilityCSIReadVolume, NamespaceCapabilityCSIWriteVolume, NamespaceCapabilityCSIListVolume, NamespaceCapabilityCSIMountVolume, NamespaceCapabilityCSIRegisterPlugin,
 		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob,
 		NamespaceCapabilityRegisterExternalService, NamespaceCapabilityWriteIntention,
-		NamespaceCapabilityReadNetworkPolicy, NamespaceCapabilityWriteNetworkPolicy:
+		NamespaceCapabilityReadNetworkPolicy, NamespaceCapabilityWriteNetworkPolicy,
+		NamespaceCapabilityListSecrets, NamespaceCapabilityReadSecret,
+		NamespaceCapabilityWriteSecret, NamespaceCapabilityDestroySecret:
 		return true
 	// Capabilities without effect, accepted for compatibility with existing
 	// policies
@@ -447,6 +452,9 @@ func Parse(rules string) (*Policy, error) {
 		if err := parseNetworkPolicyRule(ns); err != nil {
 			return nil, err
 		}
+		if err := parseSecretPolicies(ns); err != nil {
+			return nil, err
+		}
 
 	}
 
@@ -568,6 +576,13 @@ func hclDecode(p *Policy, rules string) (err error) {
 		for j, objObj := range nsOT.List.Filter("object").Items {
 			if len(objObj.Keys) == 0 && j < len(p.Namespaces[i].Objects) {
 				p.Namespaces[i].Objects[j].Kind = ""
+			}
+		}
+
+		// Fix missing secret paths.
+		for j, secObj := range nsOT.List.Filter("secret").Items {
+			if len(secObj.Keys) == 0 && j < len(p.Namespaces[i].Secrets) {
+				p.Namespaces[i].Secrets[j].PathSpec = ""
 			}
 		}
 
