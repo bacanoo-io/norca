@@ -58,6 +58,10 @@ module.exports = function (environment) {
       enabled: USE_MIRAGE,
       excludeFilesFromBuild: !USE_MIRAGE,
     };
+
+    // Mirage cannot stream: the event stream client (services/event-stream)
+    // only connects to a real agent.
+    ENV.APP.eventStream = !USE_MIRAGE;
   }
 
   if (environment === 'test') {
@@ -70,6 +74,9 @@ module.exports = function (environment) {
 
     ENV.APP.rootElement = '#ember-testing';
     ENV.APP.autoboot = false;
+
+    // Tests enable the event stream client explicitly with a stubbed request.
+    ENV.APP.eventStream = false;
 
     ENV.browserify = {
       tests: true,
