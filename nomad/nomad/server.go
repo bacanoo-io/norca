@@ -49,6 +49,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/nomad/volumewatcher"
 	"github.com/hashicorp/nomad/scheduler"
+	"github.com/hashicorp/nomad/secretstore"
 )
 
 const (
@@ -237,6 +238,10 @@ type Server struct {
 	// backup takes the scheduled backups of the region, running on the
 	// leader.
 	backup *backup.Manager
+
+	// secretStore is the Raft storage and HA lock backend of the built-in
+	// secret store (see setupSecretStore).
+	secretStore *secretstore.Backend
 
 	// volumeControllerFutures is a map of plugin IDs to pending controller RPCs. If
 	// no RPC is pending for a given plugin, this may be nil.
@@ -533,6 +538,9 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 
 	// Setup the scheduled backups.
 	s.setupBackup()
+
+	// Setup the storage backend of the built-in secret store.
+	s.setupSecretStore()
 
 	// Setup the enterprise state
 	if err := s.setupEnterprise(config); err != nil {
