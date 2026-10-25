@@ -8,14 +8,17 @@
 import registerBackupRoutes from './backups';
 import seedBackups from './seeds/backups';
 import registerQuotaRoutes, { seedQuotas } from './quotas';
+import registerScalingRoutes, { seedScaling } from './scaling';
 
 export function registerNorcaAreas(server) {
   registerBackupRoutes(server);
   registerQuotaRoutes(server);
+  registerScalingRoutes(server);
 }
 
 // Development data (the default scenario).
 export function seedNorcaAreas(server) {
   seedBackups(server);
   seedQuotas(server);
+  seedScaling(server);
 }

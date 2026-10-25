@@ -66,6 +66,12 @@ export const NAVIGATION = [
         shortcut: ['g', 'q'],
         ability: 'read quota-spec',
       },
+      {
+        id: 'scaling',
+        label: 'Scaling',
+        icon: 'arrows-maximize',
+        route: 'scaling',
+      },
     ],
   },
   {

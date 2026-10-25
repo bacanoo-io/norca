@@ -140,6 +140,10 @@ Router.map(function () {
     this.route('edit', { path: '/:name/edit' });
   });
 
+  this.route('scaling', function () {
+    this.route('policy', { path: '/:policy_id' });
+  });
+
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {
     this.route('oidc-mock');
