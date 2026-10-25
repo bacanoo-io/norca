@@ -178,6 +178,11 @@ const (
 	// blobs by storage path. They are sent with the IgnoreUnknownTypeFlag set.
 	SecretStoreBlobsUpsertRequestType MessageType = 105
 	SecretStoreBlobsDeleteRequestType MessageType = 106
+	// Norca keyring seal (107-108 assigned to the seal): the seal
+	// configuration of the region and the progress of a rewrap. They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	SealConfigUpsertRequestType MessageType = 107
+	SealRewrapDoneRequestType   MessageType = 108
 	// Norca built-in secret store (109-111 assigned to the store): a
 	// secret's metadata row together with the barrier blobs of its versions,
 	// applied in one transaction. They are sent with the

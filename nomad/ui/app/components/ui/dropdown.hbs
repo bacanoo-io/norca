@@ -1,0 +1,48 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{! template-lint-disable no-down-event-binding }}
+<div class="dropdown {{@class}}" data-test-dropdown ...attributes>
+  {{#if (has-block "trigger")}}
+    {{yield
+      (hash toggle=this.toggle isOpen=this.isOpen id=this.id register=this.registerTrigger)
+      to="trigger"
+    }}
+  {{else}}
+    <button
+      type="button"
+      class="btn {{if @iconOnly 'btn-icon'}} {{@triggerClass}}"
+      aria-haspopup="true"
+      aria-expanded={{if this.isOpen "true" "false"}}
+      aria-controls={{this.id}}
+      aria-label={{if @iconOnly @label}}
+      title={{if @iconOnly @label}}
+      data-test-dropdown-trigger
+      {{did-insert this.registerTrigger}}
+      {{on "click" this.toggle}}
+      {{on "keydown" this.triggerKeydown}}
+    >
+      {{#if @icon}}<Ui::Icon @name={{@icon}} class={{unless @iconOnly "me-2"}} />{{/if}}
+      {{#unless @iconOnly}}{{@label}}{{/unless}}
+      {{#if @badge}}<span class="badge bg-red badge-notification" data-test-dropdown-badge></span>{{/if}}
+    </button>
+  {{/if}}
+  {{#if this.isOpen}}
+    <div
+      id={{this.id}}
+      class="dropdown-menu show {{@menuClass}}"
+      data-test-dropdown-menu
+      {{this.menu}}
+    >
+      {{yield
+        (hash
+          Item=(component "ui/dropdown/item")
+          Header=(component "ui/dropdown/header")
+          Divider=(component "ui/dropdown/divider")
+          close=this.close
+        )
+      }}
+    </div>
+  {{/if}}
+</div>

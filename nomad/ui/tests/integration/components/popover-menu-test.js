@@ -27,9 +27,9 @@ module('Integration | Component | popover-menu', function (hooks) {
 
   const commonTemplate = hbs`
     <PopoverMenu
-      @isOpen={{isOpen}}
-      @label={{label}}
-      @triggerClass={{triggerClass}} as |m|>
+      @isOpen={{this.isOpen}}
+      @label={{this.label}}
+      @triggerClass={{this.triggerClass}} as |m|>
       <h1>This is a heading</h1>
       <label>This is an input: <input id="mock-input-for-test" type="text" /></label>
       <button id="mock-button-for-test" type="button" onclick={{action m.actions.close}}>Close Button</button>

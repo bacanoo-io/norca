@@ -1,0 +1,14 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<figure class="norca-chart mb-0" data-test-chart ...attributes>
+  {{#if this.failed}}
+    <p class="text-secondary small mb-0" data-test-chart-error>The chart could not be loaded.</p>
+  {{else}}
+    <div role="img" aria-label={{@label}} style={{this.style}} {{this.chart @option}}></div>
+  {{/if}}
+  {{#if (has-block)}}
+    <figcaption class="visually-hidden" data-test-chart-summary>{{yield}}</figcaption>
+  {{/if}}
+</figure>

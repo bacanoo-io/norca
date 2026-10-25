@@ -51,7 +51,8 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-// secretTestServer starts a server with an unsealed secret store core.
+// secretTestServer starts a server and waits until its secret store core is
+// active: test servers use the aead seal, which unseals automatically.
 func secretTestServer(t *testing.T, acl bool, cb func(*Config)) (*Server, *structs.ACLToken, func()) {
 	t.Helper()
 	var s *Server
@@ -63,11 +64,17 @@ func secretTestServer(t *testing.T, acl bool, cb func(*Config)) (*Server, *struc
 		s, cleanup = TestServer(t, cb)
 	}
 	testutil.WaitForLeader(t, s.RPC)
-	stop := TestSecretCore(t, s)
-	return s, root, func() {
-		stop()
-		cleanup()
-	}
+	waitForSecretCore(t, s)
+	return s, root, cleanup
+}
+
+// waitForSecretCore waits until the server's secret store core is active.
+func waitForSecretCore(t *testing.T, s *Server) {
+	t.Helper()
+	waitForSecretStore(t, "active secret store core", func() bool {
+		_, err := s.secretCore()
+		return err == nil
+	})
 }
 
 func secretWriteReq(path, token string, items structs.SecretItems) *structs.SecretUpsertRequest {
@@ -261,34 +268,67 @@ func TestSecretEndpoint_MaxVersions(t *testing.T) {
 	must.ErrorContains(t, err, "not found")
 }
 
+// TestSecretEndpoint_Sealed checks that secret reads and writes fail with the
+// sealed error on a server sealed with the shares seal, while metadata reads
+// keep working, and work again after the unseal.
 func TestSecretEndpoint_Sealed(t *testing.T) {
 	ci.Parallel(t)
-	s, cleanup := TestServer(t, nil)
-	defer cleanup()
-	testutil.WaitForLeader(t, s.RPC)
+	dir := filepath.Join(t.TempDir(), "sealed1")
+	keyring := sharesSealConfig(2, 3)
 
+	s1, cleanup1 := testSealServer(t, dir, "", 1, keyring)
+	defer cleanup1()
+	testutil.WaitForLeader(t, s1.RPC)
+	nodeID := s1.config.NodeID
+
+	// Not initialized: sealed.
 	var w structs.SecretWriteResponse
-	err := s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("a", "", structs.SecretItems{"k": "v"}), &w)
-	must.ErrorContains(t, err, "sealed")
+	err := s1.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("a", "", structs.SecretItems{"k": "v"}), &w)
+	must.True(t, structs.IsErrSealed(err), must.Sprintf("got %v", err))
 	must.ErrorContains(t, err, "503")
+
+	resp := sealRewrap(t, s1, structs.SealTypeShares)
+	waitRewrapComplete(t, s1, structs.SealTypeShares)
+	waitForSecretCore(t, s1)
+	must.NoError(t, s1.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("a", "", structs.SecretItems{"k": secretCanary}), &w))
+	cleanup1()
+
+	// Restarted: sealed until unsealed with the shares.
+	s2, cleanup2 := testSealServer(t, dir, nodeID, 1, keyring)
+	defer cleanup2()
+	testutil.WaitForLeader(t, s2.RPC)
+	waitForSeal(t, "seal configuration", func() bool {
+		cfg, _ := s2.State().SealConfig(nil)
+		return cfg != nil
+	})
+	must.True(t, s2.seal.sealed())
+
 	var r structs.SecretReadResponse
-	must.NoError(t, s.RPC(structs.SecretReadRPCMethod,
-		&structs.SecretReadRequest{Path: "a", QueryOptions: secretQuery("")}, &r))
-	must.Nil(t, r.Secret)
+	err = s2.RPC(structs.SecretReadRPCMethod, &structs.SecretReadRequest{Path: "a", QueryOptions: secretQuery("")}, &r)
+	must.True(t, structs.IsErrSealed(err), must.Sprintf("got %v", err))
+	must.ErrorContains(t, err, "503")
+	err = s2.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("a", "", structs.SecretItems{"k": "w"}), &w)
+	must.True(t, structs.IsErrSealed(err), must.Sprintf("got %v", err))
+	err = s2.RPC(structs.SecretDestroyRPCMethod, secretVersionsReq("a", ""), &w)
+	must.True(t, structs.IsErrSealed(err), must.Sprintf("got %v", err))
 
 	// Metadata reads need no core.
+	var m structs.SecretMetadataResponse
+	must.NoError(t, s2.RPC(structs.SecretReadMetadataRPCMethod,
+		&structs.SecretReadMetadataRequest{Path: "a", QueryOptions: secretQuery("")}, &m))
+	must.Eq(t, 1, m.Secret.CurrentVersion)
 	var l structs.SecretListResponse
-	must.NoError(t, s.RPC(structs.SecretListRPCMethod, &structs.SecretListRequest{QueryOptions: secretQuery("")}, &l))
-	must.Len(t, 0, l.Secrets)
+	must.NoError(t, s2.RPC(structs.SecretListRPCMethod, &structs.SecretListRequest{QueryOptions: secretQuery("")}, &l))
+	must.Len(t, 1, l.Secrets)
 
-	// A sealed core rejects the reads of existing secrets.
-	stop := TestSecretCore(t, s)
-	must.NoError(t, s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("a", "", structs.SecretItems{"k": "v"}), &w))
-	stop()
-	err = s.RPC(structs.SecretReadRPCMethod, &structs.SecretReadRequest{Path: "a", QueryOptions: secretQuery("")}, &r)
-	must.ErrorContains(t, err, "sealed")
-	must.NoError(t, s.RPC(structs.SecretReadMetadataRPCMethod,
-		&structs.SecretReadMetadataRequest{Path: "a", QueryOptions: secretQuery("")}, &structs.SecretMetadataResponse{}))
+	sealUnseal(t, s2, resp.Shares[0])
+	st := sealUnseal(t, s2, resp.Shares[2])
+	must.False(t, st.Sealed)
+	waitForSecretCore(t, s2)
+	must.NoError(t, s2.RPC(structs.SecretReadRPCMethod, &structs.SecretReadRequest{Path: "a", QueryOptions: secretQuery("")}, &r))
+	must.Eq(t, secretCanary, r.Items["k"])
+	must.NoError(t, s2.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("a", "", structs.SecretItems{"k": "w"}), &w))
+	must.Eq(t, 2, w.Secret.CurrentVersion)
 }
 
 func TestSecretEndpoint_ACL(t *testing.T) {
@@ -584,8 +624,7 @@ func TestSecretEndpoint_Forwarding(t *testing.T) {
 			follower = s
 		}
 	}
-	stop := TestSecretCore(t, leader)
-	defer stop()
+	waitForSecretCore(t, leader)
 
 	var w structs.SecretWriteResponse
 	must.NoError(t, follower.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("fwd", "", structs.SecretItems{"k": "v"}), &w))

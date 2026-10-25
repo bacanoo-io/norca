@@ -11,8 +11,6 @@ import classic from 'ember-classic-decorator';
 @classic
 @attributeBindings('data-test-service-status-bar')
 export default class ServiceStatusBar extends DistributionBar {
-  layoutName = 'components/distribution-bar';
-
   status = null;
 
   'data-test-service-status-bar' = true;

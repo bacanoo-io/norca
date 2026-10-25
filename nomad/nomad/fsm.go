@@ -399,6 +399,10 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applySecretStoreBlobsUpsert(msgType, buf[1:], log.Index)
 	case structs.SecretStoreBlobsDeleteRequestType:
 		return n.applySecretStoreBlobsDelete(msgType, buf[1:], log.Index)
+	case structs.SealConfigUpsertRequestType:
+		return n.applySealConfigUpsert(msgType, buf[1:], log.Index)
+	case structs.SealRewrapDoneRequestType:
+		return n.applySealRewrapDone(msgType, buf[1:], log.Index)
 	case structs.SecretApplyRequestType:
 		return n.applySecretApply(msgType, buf[1:], log.Index)
 	case structs.SecretPurgeRequestType:
@@ -1968,6 +1972,11 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case SealConfigSnapshot:
+			if err := restoreSealConfigSnapshot(restore, dec); err != nil {
+				return err
+			}
+
 		case SecretSnapshot:
 			if err := restoreSecretSnapshot(restore, dec); err != nil {
 				return err
@@ -2573,6 +2582,10 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistSecretStoreBlobs(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistSealConfig(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}

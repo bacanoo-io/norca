@@ -1,0 +1,16 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div
+  class="progress progress-separated norca-stacked-bar"
+  role="img"
+  aria-label={{this.description}}
+  title={{this.description}}
+  data-test-stacked-bar
+  ...attributes
+>
+  {{#each this.segments as |segment|}}
+    <div class="progress-bar bg-{{segment.color}}" style={{segment.style}} data-test-stacked-bar-segment={{segment.label}}></div>
+  {{/each}}
+</div>

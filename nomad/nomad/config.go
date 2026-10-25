@@ -438,6 +438,10 @@ type Config struct {
 	// MTLSConfig configures the native mTLS certificate authority. Nil means
 	// the defaults.
 	MTLSConfig *config.MTLSConfig
+
+	// KeyringConfig configures the keyring seal (Norca). Nil means the aead
+	// seal.
+	KeyringConfig *config.KeyringConfig
 }
 
 func (c *Config) Copy() *Config {
@@ -466,6 +470,7 @@ func (c *Config) Copy() *Config {
 	nc.SearchConfig = c.SearchConfig.Copy()
 	nc.AdmissionConfig = c.AdmissionConfig.Copy()
 	nc.MTLSConfig = c.MTLSConfig.Copy()
+	nc.KeyringConfig = c.KeyringConfig.Copy()
 
 	return &nc
 }

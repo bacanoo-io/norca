@@ -1,0 +1,24 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  An empty or error state. Always say what to do (UI plan, common UX
+  patterns): @message explains, the default block holds the actions.
+
+    <Ui::EmptyState @icon="briefcase" @title="No jobs yet"
+      @message="Run a job to see it here.">
+      <Ui::Button @variant="primary" @route="jobs.run">Run job</Ui::Button>
+    </Ui::EmptyState>
+~}}
+<div class="empty {{if @compact 'py-4'}}" data-test-empty-state ...attributes>
+  {{#if @icon}}
+    <div class="empty-icon"><Ui::Icon @name={{@icon}} @size="lg" /></div>
+  {{/if}}
+  {{#if @title}}<p class="empty-title" data-test-empty-state-title>{{@title}}</p>{{/if}}
+  {{#if @message}}
+    <p class="empty-subtitle text-secondary" data-test-empty-state-message>{{@message}}</p>
+  {{/if}}
+  {{#if (has-block)}}
+    <div class="empty-action">{{yield}}</div>
+  {{/if}}
+</div>

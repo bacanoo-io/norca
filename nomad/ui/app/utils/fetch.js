@@ -3,16 +3,11 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import fetch from 'fetch';
-import config from '../config/environment';
+import { waitForPromise } from '@ember/test-waiters';
 
-// The ember-fetch polyfill does not provide streaming
-// Additionally, Mirage/Pretender does not support fetch
-const mirageEnabled =
-  config.environment !== 'production' &&
-  config['ember-cli-mirage'] &&
-  config['ember-cli-mirage'].enabled !== false;
-
-const fetchToUse = mirageEnabled ? fetch : window.fetch || fetch;
-
-export default fetchToUse;
+// window.fetch, resolved at call time (Mirage/Pretender replaces it while a
+// test or a development mock server runs) and registered with the test
+// waiters so that settled() waits for pending requests, like ember-fetch did.
+export default function fetchToUse(...args) {
+  return waitForPromise(window.fetch(...args));
+}

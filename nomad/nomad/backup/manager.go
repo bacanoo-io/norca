@@ -381,6 +381,7 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 		opts.Started(record.ID)
 	}
 	record.Summary = Summarize(m.deps.State())
+	record.Seals = SealsOf(m.deps.State())
 
 	var keyring []byte
 	if cfg.IncludeKeyring {

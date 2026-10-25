@@ -52,4 +52,10 @@ export default class Evaluation extends Model {
   get nodeId() {
     return this.belongsTo('node').id();
   }
+
+  // The evaluation sidebar shows the record with JSON.stringify; Ember Data 4
+  // removed Model#toJSON, so serialize it explicitly.
+  toJSON() {
+    return this.serialize();
+  }
 }

@@ -19,6 +19,7 @@ import {
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
 import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 @classic
 export default class TaskGroupController extends Controller.extend(
@@ -140,7 +141,7 @@ export default class TaskGroupController extends Controller.extend(
 
   @action
   gotoAllocation(allocation) {
-    this.transitionToRoute('allocations.allocation', allocation.id);
+    legacyTransitionTo(this, 'allocations.allocation', allocation.id);
   }
 
   @action
@@ -159,7 +160,8 @@ export default class TaskGroupController extends Controller.extend(
     ];
   }
 
-  @computed('model.allocations.[]', 'selectionClient')
+  // Not cached: the client names come from the allocations' nodes, which
+  // load after the allocations (autotracking follows them).
   get optionsClients() {
     const clients = Array.from(
       new Set(this.model.allocations.mapBy('node.shortId'))

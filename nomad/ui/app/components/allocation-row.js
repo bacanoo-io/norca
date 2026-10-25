@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Ember from 'ember';
+import { isTesting } from '@ember/debug';
 import { inject as service } from '@ember/service';
 import Component from '@ember/component';
 import { computed } from '@ember/object';
@@ -40,7 +40,7 @@ export default class AllocationRow extends Component {
   // Internal state
   statsError = false;
 
-  @overridable(() => !Ember.testing) enablePolling;
+  @overridable(() => !isTesting()) enablePolling;
 
   @computed('allocation', 'allocation.isRunning')
   get stats() {

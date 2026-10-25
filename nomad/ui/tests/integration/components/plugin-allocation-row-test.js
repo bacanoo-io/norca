@@ -6,7 +6,7 @@
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import hbs from 'htmlbars-inline-precompile';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import { render, settled } from '@ember/test-helpers';
 import { initialize as fragmentSerializerInitializer } from 'nomad-ui/initializers/fragment-serializer';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
@@ -17,7 +17,7 @@ module('Integration | Component | plugin allocation row', function (hooks) {
   hooks.beforeEach(function () {
     fragmentSerializerInitializer(this.owner);
     this.store = this.owner.lookup('service:store');
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
     this.server.create('node-pool');
     this.server.create('node');
   });
@@ -42,7 +42,7 @@ module('Integration | Component | plugin allocation row', function (hooks) {
     });
 
     await render(hbs`
-      <PluginAllocationRow @pluginAllocation={{plugin}} />
+      <PluginAllocationRow @pluginAllocation={{this.plugin}} />
     `);
 
     const allocationRequest = this.server.pretender.handledRequests.find(
@@ -69,7 +69,7 @@ module('Integration | Component | plugin allocation row', function (hooks) {
     });
 
     await render(hbs`
-      <PluginAllocationRow @pluginAllocation={{plugin}} />
+      <PluginAllocationRow @pluginAllocation={{this.plugin}} />
     `);
 
     const [statsRequest] = this.server.pretender.handledRequests.slice(-1);
@@ -97,7 +97,7 @@ module('Integration | Component | plugin allocation row', function (hooks) {
     });
 
     await render(hbs`
-      <PluginAllocationRow @pluginAllocation={{plugin}} />
+      <PluginAllocationRow @pluginAllocation={{this.plugin}} />
     `);
 
     const allocationRequest = this.server.pretender.handledRequests.find(

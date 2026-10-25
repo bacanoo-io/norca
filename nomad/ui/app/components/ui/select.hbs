@@ -1,0 +1,18 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<select
+  id={{@id}}
+  class="form-select {{if @size (concat 'form-select-' @size)}} {{if @invalid 'is-invalid'}}"
+  disabled={{@disabled}}
+  aria-label={{@label}}
+  aria-describedby={{@describedBy}}
+  data-test-select
+  {{on "change" this.change}}
+  ...attributes
+>
+  {{#each this.options as |choice|}}
+    <option value={{choice.value}} selected={{choice.isSelected}} disabled={{choice.disabled}}>{{choice.label}}</option>
+  {{/each}}
+</select>

@@ -40,13 +40,13 @@ module('Integration | Component | stepper input', function (hooks) {
   const commonTemplate = hbs`
     <StepperInput
       @debounce=50
-      @min={{min}}
-      @max={{max}}
-      @value={{value}}
-      @class={{classVariant}}
-      @disabled={{disabled}}
-      @onChange={{onChange}}>
-      {{label}}
+      @min={{this.min}}
+      @max={{this.max}}
+      @value={{this.value}}
+      @class={{this.classVariant}}
+      @disabled={{this.disabled}}
+      @onChange={{this.onChange}}>
+      {{this.label}}
     </StepperInput>
   `;
 

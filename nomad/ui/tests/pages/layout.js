@@ -8,11 +8,13 @@ import {
   create,
   clickable,
   collection,
+  fillable,
   hasClass,
-  isHidden,
   isPresent,
   property,
   text,
+  triggerable,
+  value,
 } from 'ember-cli-page-object';
 
 export default create({
@@ -22,50 +24,55 @@ export default create({
     regionSwitcher: {
       scope: '[data-test-region-switcher-parent]',
       isPresent: isPresent(),
-      open: clickable('.ember-power-select-trigger'),
-      options: collection('.ember-power-select-option', {
+      value: value('select'),
+      select: fillable('select'),
+      options: collection('option', {
         label: text(),
+        value: attribute('value'),
       }),
     },
 
-    search: {
-      scope: '[data-test-search-parent]',
+    namespaceSwitcher: {
+      scope: '[data-test-namespace-switcher]',
+      isPresent: isPresent(),
+      select: fillable(),
+    },
 
-      click: clickable('.ember-power-select-trigger'),
+    palette: {
+      open: clickable('[data-test-palette-open]'),
+    },
 
-      groups: collection('.ember-power-select-group', {
-        testContainer: '.ember-power-select-options',
-        resetScope: true,
-        name: text('.ember-power-select-group-name'),
+    themeToggle: clickable('[data-test-theme-toggle]'),
 
-        options: collection('.ember-power-select-option'),
+    notifications: {
+      scope: '[data-test-notifications]',
+      open: clickable('[data-test-dropdown-trigger]'),
+      hasBadge: isPresent('[data-test-dropdown-badge]'),
+      items: collection('[data-test-notification]', {
+        text: text(),
       }),
-
-      noOptionsShown: isHidden('.ember-power-select-options', {
-        testContainer: '.ember-basic-dropdown-content',
-        resetScope: true,
-      }),
-
-      field: {
-        scope: '.ember-power-select-search input',
-        testContainer: 'html',
-        resetScope: true,
-      },
     },
 
     end: {
-      scope: '.navbar-end',
-
       consulLink: {
         scope: '[data-test-header-consul-link]',
+        testContainer: 'body',
+        resetScope: true,
         text: text(),
         link: property('href'),
       },
 
       vaultLink: {
         scope: '[data-test-header-vault-link]',
+        testContainer: 'body',
+        resetScope: true,
         text: text(),
         link: property('href'),
+      },
+
+      moreMenu: {
+        scope: '[data-test-header-more]',
+        open: clickable('[data-test-dropdown-trigger]'),
       },
 
       signInLink: {
@@ -76,9 +83,9 @@ export default create({
 
       profileDropdown: {
         scope: '[data-test-header-profile-dropdown]',
-        text: text(),
-        open: clickable(),
-        options: collection('.dropdown-label', {
+        text: text('[data-test-dropdown-trigger]'),
+        open: clickable('[data-test-dropdown-trigger]'),
+        options: collection('[data-test-dropdown-item]', {
           label: text(),
           choose: clickable(),
         }),
@@ -86,17 +93,40 @@ export default create({
     },
   },
 
+  palette: {
+    scope: '[data-test-palette]',
+    testContainer: 'body',
+    resetScope: true,
+    isPresent: isPresent(),
+    input: fillable('[data-test-palette-input]'),
+    keydown: triggerable('keydown', '[data-test-palette-input]'),
+    items: collection('[data-test-palette-item]', {
+      id: attribute('data-test-palette-item'),
+      label: text(),
+      choose: clickable(),
+      isActive: hasClass('active'),
+    }),
+    emptyMessage: text('[data-test-palette-empty]'),
+  },
+
   gutter: {
     scope: '[data-test-gutter-menu]',
+    visitDashboard: clickable('[data-test-gutter-link="dashboard"]'),
     visitJobs: clickable('[data-test-gutter-link="jobs"]'),
-
-    optimize: {
-      scope: '[data-test-gutter-link="optimize"]',
-    },
 
     variables: {
       scope: '[data-test-gutter-link="variables"]',
     },
+
+    links: collection('[data-test-gutter-link]', {
+      id: attribute('data-test-gutter-link'),
+      label: text(),
+    }),
+    groups: collection('[data-test-nav-group]', {
+      label: text(),
+    }),
+
+    toggleCollapse: clickable('[data-test-sidebar-collapse]'),
 
     visitClients: clickable('[data-test-gutter-link="clients"]'),
     visitServers: clickable('[data-test-gutter-link="servers"]'),

@@ -19,6 +19,7 @@ import {
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
 import { inject as service } from '@ember/service';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 @classic
 export default class ClientsController extends Controller.extend(
@@ -190,7 +191,7 @@ export default class ClientsController extends Controller.extend(
 
   @action
   gotoClient(client) {
-    this.transitionToRoute('clients.client', client);
+    legacyTransitionTo(this, 'clients.client', client);
   }
 
   setFacetQueryParam(queryParam, selection) {

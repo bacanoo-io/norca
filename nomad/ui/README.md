@@ -1,6 +1,6 @@
-# Nomad UI
+# Norca UI
 
-The official Nomad UI.
+The web UI of Norca, served by the agent at `/ui/`.
 
 ## Prerequisites
 
@@ -16,8 +16,13 @@ The Nomad UI gets cloned along with the rest of Nomad. To install dependencies, 
 
 ```
 $ cd ui
-$ yarn
+$ HUSKY_SKIP_INSTALL=1 yarn
 ```
+
+`HUSKY_SKIP_INSTALL=1` keeps the install from setting up git hooks. Runtime
+packages belong in `dependencies` and build or test tools in
+`devDependencies`: the license inventory (`THIRD_PARTY_NOTICES.md`,
+`make check-notices`) covers the runtime packages of `yarn.lock`.
 
 ## Running / Development
 
@@ -49,7 +54,7 @@ $ ember serve --watch polling --port 4201
 
 ### Running Tests
 
-Nomad UI tests can be run independently of Nomad golang tests.
+UI tests can be run independently of the Go tests.
 
 - `ember test` (single run, headless browser)
 - `ember test --server` (watches for changes, runs in a full browser)
@@ -65,24 +70,66 @@ In the test environment, the fake data is generated with a random seed. If you w
 
 ### Building
 
-Typically `make release` or `make dev-ui` will be the desired build workflow, but in the event that build artifacts need to be inspected, `ember build` will output compiled files in `ui/dist`.
+Typically `make prerelease` or `make dev-ui` will be the desired build workflow, but in the event that build artifacts need to be inspected, `ember build` will output compiled files in `ui/dist`.
 
 - `ember build` (development)
 - `ember build --environment production` (production)
 
 ### Releasing
 
-Nomad UI releases are in lockstep with Nomad releases and are integrated into the `make release` toolchain.
+UI releases are in lockstep with Norca releases: `make prerelease` builds the UI (and the previous UI) and embeds it in the agent (`command/agent/bindata_assetfs.go`).
 
-### Conventions
+### Styles and components
 
-- UI branches should be prefix with `f-ui-` for feature work and `b-ui-` for bug fixes. This instructs CI to skip running nomad backend tests.
+The UI is moving from the Bulma-based styles it inherited to
+[Tabler](https://tabler.io) (MIT), page by page:
 
-### Storybook UI Library
+- `app/components/ui/` is the component layer new pages are built from
+  (buttons, cards, tables, form fields, tabs, modal, dropdown, charts, ...).
+  New pages use these components and Tabler classes only.
+- `app/styles/norca/` holds the design tokens and the styles of the
+  component layer and the frame. They are imported at the end of
+  `app/styles/app.scss`, after the `norca-styles: unscoped below` marker.
+- Everything before that marker is the inherited stylesheet. The in-repo
+  addon `lib/norca-styles` scopes it under `.legacy` at build time and loads
+  Tabler as a CSS cascade layer, so both can live on one page. Pages that
+  are not migrated yet render inside a `.legacy` element (the default of
+  `<PageLayout>`); a migrated page passes `@legacy={{false}}`.
+- Icons come from Tabler Icons (MIT). `app/utils/icons/tabler.js` is
+  generated with only the icons in use: add the name to
+  `scripts/generate-icons.js` and run `node scripts/generate-icons.js`.
+- Charts use ECharts (Apache-2.0), loaded lazily by `<Ui::Chart>`.
+  ApexCharts must not be added, not even as a transitive dependency, and
+  nothing from the `dist/libs` folder of Tabler may be imported.
 
-The Storybook project provides a browser to see what components and patterns are present in the application and how to use them. You can run it locally with `yarn storybook` after you have `ember serve` running. The latest version from the `main` branch is at [`nomad-storybook-and-ui.vercel.app/storybook/`](https://nomad-storybook-and-ui.vercel.app/storybook/).
+Inherited pages still use HashiCorp Design System components
+(`@hashicorp/design-system-components`, flight icons, structure icons);
+new pages must not.
 
-To generate a new story for a component, run `ember generate story component-name`. You can use the existing stories as a guide.
+### Live updates
+
+`services/event-stream` is the client of `/v1/event/stream`: one
+connection per region and namespace with the union of the subscribed
+topics. It resumes after the last delivered index with `exact=true`; when
+the agent answers 410 Gone, the subscribers refetch (`onResync`) and the
+stream continues after the refetched state. With Mirage (development) and
+in tests it is disabled (`APP.eventStream` in `config/environment.js`).
+
+### The previous UI
+
+The UI of the previous release is served at `/ui/legacy/` for one release.
+`make prerelease` (target `ember-dist-legacy`) builds it from the commit in
+`LEGACY_UI_REF` with the root URL `/ui/legacy/` into `ui/dist/legacy`,
+which is embedded with the rest of the UI. The agent serves
+`legacy/index.html` for every unknown path under `/ui/legacy/`. A binary
+built without the legacy UI shows the not-found page of the new UI there.
+`make dev-ui` does not build the legacy UI.
+
+The release workflow embeds the committed `command/agent/bindata_assetfs.go`:
+after a UI change, run `make prerelease` (or `ember-dist`,
+`ember-dist-legacy` and `static-assets`) and commit the regenerated file.
+The legacy UI builds on Linux and macOS; on Windows its ember-auto-import
+version fails, so build it in WSL.
 
 ### Troubleshooting
 

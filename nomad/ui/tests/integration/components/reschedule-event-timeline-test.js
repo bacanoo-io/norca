@@ -6,7 +6,7 @@
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { find, findAll, render } from '@ember/test-helpers';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import hbs from 'htmlbars-inline-precompile';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
 import moment from 'moment';
@@ -16,7 +16,7 @@ module('Integration | Component | reschedule event timeline', function (hooks) {
 
   hooks.beforeEach(function () {
     this.store = this.owner.lookup('service:store');
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
     this.server.create('namespace');
     this.server.create('node-pool');
     this.server.create('node');
@@ -28,7 +28,7 @@ module('Integration | Component | reschedule event timeline', function (hooks) {
   });
 
   const commonTemplate = hbs`
-    <RescheduleEventTimeline @allocation={{allocation}} />
+    <RescheduleEventTimeline @allocation={{this.allocation}} />
   `;
 
   test('when the allocation is running, the timeline shows past allocations', async function (assert) {

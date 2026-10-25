@@ -25,12 +25,10 @@ import AccessControl from 'nomad-ui/tests/pages/access-control';
 import percySnapshot from '@percy/ember';
 import faker from 'nomad-ui/mirage/faker';
 import moment from 'moment';
-import { run } from '@ember/runloop';
+import { _cancelTimers as cancelTimers } from '@ember/runloop';
 import { allScenarios } from '../../mirage/scenarios/default';
-import {
-  selectChoose,
-  clickTrigger,
-} from 'ember-power-select/test-support/helpers';
+import { selectChoose } from 'ember-power-select/test-support';
+import { clickTrigger } from 'ember-power-select/test-support/helpers';
 
 let job;
 let node;
@@ -221,7 +219,7 @@ module('Acceptance | tokens', function (hooks) {
     await Tokens.clear();
 
     // https://ember-concurrency.com/docs/testing-debugging/
-    setTimeout(() => run.cancelTimers(), 500);
+    setTimeout(() => cancelTimers(), 500);
 
     // Token with TTL
     await Tokens.secret(expiringToken.secretId).submit();
@@ -344,7 +342,7 @@ module('Acceptance | tokens', function (hooks) {
           .dom('.flash-message.alert-warning')
           .exists('Notification is rendered at the 10m mark');
         notificationRendered();
-        run.cancelTimers();
+        cancelTimers();
       }, 5000);
     }, 500);
     await Tokens.secret(nearlyExpiringToken.secretId).submit();

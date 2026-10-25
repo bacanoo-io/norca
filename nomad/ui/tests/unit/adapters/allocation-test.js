@@ -5,7 +5,7 @@
 
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 
 module('Unit | Adapter | Allocation', function (hooks) {
   setupTest(hooks);
@@ -16,7 +16,7 @@ module('Unit | Adapter | Allocation', function (hooks) {
 
     window.localStorage.clear();
 
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
 
     this.initialize = async (allocationId, { region } = {}) => {
       if (region) window.localStorage.nomadActiveRegion = region;

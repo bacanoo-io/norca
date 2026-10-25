@@ -12,10 +12,8 @@ import { setupMirage } from 'ember-cli-mirage/test-support';
 import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
 import { codeFillable, code } from 'nomad-ui/tests/pages/helpers/codemirror';
 import percySnapshot from '@percy/ember';
-import {
-  selectChoose,
-  clickTrigger,
-} from 'ember-power-select/test-support/helpers';
+import { selectChoose } from 'ember-power-select/test-support';
+import { clickTrigger } from 'ember-power-select/test-support/helpers';
 import faker from 'nomad-ui/mirage/faker';
 
 module('Integration | Component | variable-form', function (hooks) {

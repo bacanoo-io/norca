@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { Model, hasMany } from 'ember-cli-mirage';
+import { Model, hasMany } from 'miragejs';
 
 // A token links to policies directly and to roles, which in turn link to
 // further policies. Neither side keeps a reference back to the token.

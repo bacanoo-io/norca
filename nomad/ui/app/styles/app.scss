@@ -5,11 +5,13 @@
 
 @import './core';
 
-@import 'ember-power-select';
+@import 'ember-power-select/ember-power-select';
 
 @import './components';
 @import '@hashicorp/design-system-components';
 @import './charts';
 
-// Only necessary in dev
-@import './storybook.scss';
+// The styles of the new UI. lib/norca-styles scopes everything above this
+// marker to .legacy and leaves the rest global.
+/*! norca-styles: unscoped below */
+@import './norca';

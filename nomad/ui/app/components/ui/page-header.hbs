@@ -1,0 +1,31 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The header of a page: a pretitle (the menu group), the title, a short
+  position indicator (region, namespace) and the primary action on the right.
+
+    <Ui::PageHeader @pretitle="Overview" @title="Dashboard" @subtitle="All regions">
+      <:actions><Ui::Button @variant="primary" @route="jobs.run">Run job</Ui::Button></:actions>
+    </Ui::PageHeader>
+~}}
+<div class="page-header d-print-none" data-test-page-header ...attributes>
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        {{#if @pretitle}}<div class="page-pretitle" data-test-page-pretitle>{{@pretitle}}</div>{{/if}}
+        <h1 class="page-title" data-test-page-title>{{@title}}</h1>
+        {{#if (or @subtitle (has-block "subtitle"))}}
+          <div class="text-secondary mt-1" data-test-page-subtitle>
+            {{#if (has-block "subtitle")}}{{yield to="subtitle"}}{{else}}{{@subtitle}}{{/if}}
+          </div>
+        {{/if}}
+      </div>
+      {{#if (has-block "actions")}}
+        <div class="col-auto ms-auto d-print-none">
+          <div class="btn-list">{{yield to="actions"}}</div>
+        </div>
+      {{/if}}
+    </div>
+  </div>
+</div>

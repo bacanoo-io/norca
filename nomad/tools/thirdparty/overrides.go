@@ -35,6 +35,9 @@ type override struct {
 	// Exception marks a decided exception to the allow-list, documented in
 	// docs/licensing.md: License may be a license that is not allowed.
 	Exception bool
+	// LegacyOnly limits the override to the previous UI (nomad/ui-legacy):
+	// a package of the web UI that matches it fails the check.
+	LegacyOnly bool
 
 	used bool
 }
@@ -42,32 +45,41 @@ type override struct {
 var overrides = []override{
 	// Legacy UI exceptions (decision of 2026-10-25): accepted for the old
 	// Ember UI only, which is served at /ui/legacy for one release and then
-	// removed together with these entries. Not valid for the new UI. No
-	// version pin, so that the Ember upgrade does not reopen the decision.
+	// removed together with these entries. Not valid for the new UI
+	// (LegacyOnly). No version pin, so that the Ember upgrade does not reopen
+	// the decision.
 	{
-		Kind:      "npm",
-		Name:      "robust-predicates",
-		License:   "Unlicense",
-		Exception: true,
+		Kind:       "npm",
+		Name:       "robust-predicates",
+		LegacyOnly: true,
+		License:    "Unlicense",
+		Exception:  true,
 		Reason: "Legacy UI exception. The Unlicense (public domain dedication with a permissive fallback, OSI approved) is not on the " +
 			"allow-list; the package is part of the legacy UI bundle through d3 > d3-delaunay > delaunator.",
 	},
+	// Build-time exceptions for both UIs (legacy UI decision of 2026-10-25,
+	// extended to the new UI the same day): every Ember addon declares
+	// ember-cli-babel (and so Babel, browserslist and caniuse-lite) as a
+	// production dependency, and the Ember build tools use
+	// json-stable-stringify 1.0 (jsonify). Neither is part of the UI bundle.
 	{
 		Kind:      "npm",
 		Name:      "caniuse-lite",
 		License:   "CC-BY-4.0",
 		Exception: true,
-		Reason: "Legacy UI exception. Browser support data used by browserslist while Babel builds the legacy UI " +
-			"(@hashicorp/design-system-components > ember-cli-babel); a build-time dependency, not part of the UI bundle, listed " +
-			"because the addon declares ember-cli-babel as a production dependency.",
+		Reason: "Build-time exception (decision of 2026-10-25, both UIs). Browser support data used by " +
+			"browserslist while Babel builds the UI (ember-cli-babel > @babel/helper-compilation-targets > browserslist); a " +
+			"build-time dependency, not part of the UI bundle, listed because the Ember addons declare ember-cli-babel as a " +
+			"production dependency.",
 	},
 	{
 		Kind:      "npm",
 		Name:      "jsonify",
 		License:   "LicenseRef-Public-Domain",
 		Exception: true,
-		Reason: "Legacy UI exception. Declared \"Public Domain\" in package.json, no license file. A build-time dependency " +
-			"(@ember/test-waiters > calculate-cache-key-for-tree > json-stable-stringify), not part of the UI bundle.",
+		Reason: "Build-time exception (decision of 2026-10-25, both UIs). Declared \"Public Domain\" in " +
+			"package.json, no license file. A build-time dependency (calculate-cache-key-for-tree, ember-cli-htmlbars and " +
+			"broccoli-babel-transpiler > json-stable-stringify 1.0), not part of the UI bundle.",
 	},
 
 	// Reviewed decisions.
@@ -84,6 +96,23 @@ var overrides = []override{
 		Version: "v1.0.0",
 		License: "Apache-2.0",
 		Reason:  "The code is under the Apache License 2.0 (LICENSE); LICENSE.docs (CC-BY-SA-4.0) covers the documentation of the repository, which is not linked into the binaries.",
+	},
+	{
+		Kind:    "npm",
+		Name:    "jsonlint",
+		Version: "1.6.3",
+		License: "MIT",
+		Reason: "package.json has no license field and the package no license file; its README.md states \"MIT License\" " +
+			"(Copyright (C) 2012 Zachary Carter). The UI bundles lib/jsonlint.js for the JSON linting of the code editor.",
+	},
+	{
+		Kind:    "npm",
+		Name:    "JSV",
+		Version: "4.0.2",
+		License: "BSD-2-Clause",
+		Reason: "package.json declares the non-SPDX value \"FreeBSD\" (the FreeBSD License); the license text, the BSD 2-clause " +
+			"text (Copyright 2010 Gary Court), is the header of lib/jsv.js. A dependency of the jsonlint command line tool, not part " +
+			"of the UI bundle.",
 	},
 	{
 		Kind:    "npm",

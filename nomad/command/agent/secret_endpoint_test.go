@@ -16,7 +16,6 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad"
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/shoenig/test/must"
 )
@@ -27,9 +26,11 @@ func TestHTTP_Secrets(t *testing.T) {
 	ci.Parallel(t)
 	httpTest(t, cb, func(s *TestAgent) {
 		testutil.WaitForLeader(t, s.Agent.RPC)
-		stop := nomad.TestSecretCore(t, s.Agent.Server())
-		defer stop()
 		secrets := s.Client().Secrets()
+		testutil.WaitForResult(func() (bool, error) {
+			_, _, err := secrets.Write("ready", &api.SecretWrite{Items: map[string]string{"k": "v"}}, nil)
+			return err == nil, err
+		}, func(err error) { t.Fatalf("secret store not ready: %v", err) })
 
 		// Write two versions with metadata.
 		meta := &api.SecretMeta{Owner: "team", Labels: map[string]string{"tier": "db"}, MaxVersions: 5,
@@ -122,16 +123,6 @@ func TestHTTP_Secrets(t *testing.T) {
 		must.Eq(t, http.StatusBadRequest, resp.StatusCode)
 		_, _, err = secrets.Write("app/empty", &api.SecretWrite{}, nil)
 		must.ErrorContains(t, err, "requires Items or Meta")
-	})
-}
-
-func TestHTTP_SecretsSealed(t *testing.T) {
-	ci.Parallel(t)
-	httpTest(t, cb, func(s *TestAgent) {
-		testutil.WaitForLeader(t, s.Agent.RPC)
-		_, _, err := s.Client().Secrets().Write("a", &api.SecretWrite{Items: map[string]string{"k": "v"}}, nil)
-		must.ErrorContains(t, err, "503")
-		must.ErrorContains(t, err, "sealed")
 	})
 }
 

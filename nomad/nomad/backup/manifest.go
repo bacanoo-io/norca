@@ -93,6 +93,19 @@ type Manifest struct {
 	Summary             map[string]int             `json:"summary"`
 	Labels              map[string]string          `json:"labels,omitempty"`
 	Pinned              bool                       `json:"pinned"`
+
+	// Seals are the keyring seals that wrapped the keys of the region when
+	// the backup was taken (Norca).
+	Seals []*ManifestSeal `json:"seals,omitempty"`
+}
+
+// ManifestSeal is a keyring seal of the region of a backup. It never holds
+// a key.
+type ManifestSeal struct {
+	Type      string `json:"type"`
+	KeyID     string `json:"key_id,omitempty"`
+	Threshold int    `json:"threshold,omitempty"`
+	Shares    int    `json:"shares,omitempty"`
 }
 
 // ManifestObject is an encrypted object of the backup.
@@ -140,6 +153,9 @@ func NewManifest(b *structs.BackupRecord, d *structs.BackupDestinationStatus) *M
 		Labels:  maps.Clone(b.Labels),
 		Pinned:  b.Pinned,
 	}
+	for _, s := range b.Seals {
+		m.Seals = append(m.Seals, &ManifestSeal{Type: s.Type, KeyID: s.KeyID, Threshold: s.Threshold, Shares: s.Shares})
+	}
 	for name, o := range d.Objects {
 		mo := &ManifestObject{Key: o.Key, Size: o.Size, SHA256: o.SHA256}
 		if name == structs.BackupObjectKeyring {
@@ -169,7 +185,12 @@ func (m *Manifest) Record(dest Destination, backupPath string) *structs.BackupRe
 			keyIDs = slices.Clone(o.KeyIDs)
 		}
 	}
+	var seals []*structs.SealInfo
+	for _, s := range m.Seals {
+		seals = append(seals, &structs.SealInfo{Type: s.Type, KeyID: s.KeyID, Threshold: s.Threshold, Shares: s.Shares})
+	}
 	return &structs.BackupRecord{
+		Seals:               seals,
 		ID:                  m.ID,
 		Region:              m.Region,
 		AuthoritativeRegion: m.AuthoritativeRegion,

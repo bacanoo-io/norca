@@ -281,6 +281,17 @@ func extraKeys(c *Config) error {
 		return err
 	}
 
+	// Remove the labels of the keyring seal blocks
+	if c.Server.Keyring != nil {
+		for _, seal := range c.Server.Keyring.Seals {
+			helper.RemoveEqualFold(&c.Server.Keyring.ExtraKeysHCL, seal.Type)
+			helper.RemoveEqualFold(&c.Server.Keyring.ExtraKeysHCL, "seal")
+			if err := helper.UnusedKeys(seal); err != nil {
+				return fmt.Errorf("server.keyring.seal.%s: %w", seal.Type, err)
+			}
+		}
+	}
+
 	// Remove admission webhook extra keys
 	if c.Server.Admission != nil {
 		for _, w := range c.Server.Admission.Webhooks {

@@ -4,7 +4,7 @@
 ~}}
 
 {{! template-lint-disable no-unknown-arguments-for-builtin-components }}
-<li data-test-breadcrumb-default
+<li class="breadcrumb-item" data-test-breadcrumb-default
   {{(modifier
     this.maybeKeyboardShortcut
     label="Go up a level"
@@ -15,8 +15,10 @@
   )}}
 >
   <LinkTo
-    @params={{@crumb.args}}
-    data-test-breadcrumb={{@crumb.args.firstObject}}>
+    @route={{this.linkRoute}}
+    @models={{this.linkModels}}
+    @query={{this.linkQuery}}
+    data-test-breadcrumb={{this.linkRoute}}>
     {{#if @crumb.title}}
       <dl>
         <dt>

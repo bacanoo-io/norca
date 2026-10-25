@@ -1,0 +1,70 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<aside
+  class="navbar navbar-vertical navbar-expand-lg norca-sidebar"
+  data-bs-theme="dark"
+  aria-label="Main navigation"
+  data-test-gutter-menu
+>
+  <div class="container-fluid">
+    <button
+      class="navbar-toggler"
+      type="button"
+      aria-controls="norca-sidebar-menu"
+      aria-expanded={{if this.frame.mobileMenuOpen "true" "false"}}
+      aria-label="Toggle navigation"
+      data-test-sidebar-toggle
+      {{on "click" this.frame.toggleMobileMenu}}
+    >
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <LinkTo @route="index" class="navbar-brand norca-brand" data-test-brand>
+      <span class="norca-brand-name">Norca</span>
+    </LinkTo>
+    <div
+      class="collapse navbar-collapse {{if this.frame.mobileMenuOpen 'show'}}"
+      id="norca-sidebar-menu"
+    >
+      <ul class="navbar-nav pt-lg-2" {{did-insert this.keyboard.registerNav type="main"}}>
+        {{#each this.groups as |group|}}
+          <li class="norca-nav-group" aria-hidden="true" data-test-nav-group={{group.group}}>{{group.group}}</li>
+          {{#each group.items as |item|}}
+            <li
+              class="nav-item"
+              {{keyboard-shortcut menuLevel=true pattern=item.shortcut}}
+            >
+              <LinkTo
+                @route={{item.route}}
+                class="nav-link"
+                title={{if this.frame.sidebarCollapsed item.label}}
+                data-test-gutter-link={{item.id}}
+                {{on "click" this.frame.closeMobileMenu}}
+              >
+                <span class="nav-link-icon d-md-none d-lg-inline-block"><Ui::Icon @name={{item.icon}} /></span>
+                <span class="nav-link-title">{{item.label}}</span>
+              </LinkTo>
+            </li>
+          {{/each}}
+        {{/each}}
+      </ul>
+      <div class="norca-sidebar-footer mt-auto">
+        <button
+          type="button"
+          class="btn btn-ghost-light btn-sm d-none d-lg-inline-flex norca-collapse-toggle"
+          aria-pressed={{if this.frame.sidebarCollapsed "true" "false"}}
+          aria-label={{if this.frame.sidebarCollapsed "Expand the menu" "Collapse the menu"}}
+          title={{if this.frame.sidebarCollapsed "Expand the menu" "Collapse the menu"}}
+          data-test-sidebar-collapse
+          {{on "click" this.frame.toggleSidebar}}
+        >
+          <Ui::Icon @name={{if this.frame.sidebarCollapsed "layout-sidebar-left-expand" "layout-sidebar-left-collapse"}} />
+        </button>
+        {{#if this.system.agent.version}}
+          <span class="norca-version text-secondary small" data-test-agent-version>v{{this.system.agent.version}}</span>
+        {{/if}}
+      </div>
+    </div>
+  </div>
+</aside>

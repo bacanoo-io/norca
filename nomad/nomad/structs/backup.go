@@ -144,6 +144,13 @@ type BackupRecord struct {
 	// KeyIDs are the IDs of the root keys in the keyring object.
 	KeyIDs []string
 
+	// Seals (Norca) are the keyring seals of the region when the backup
+	// was taken, without key checks. The key of the secret store in the
+	// state is wrapped by them: restoring it into a cluster requires one
+	// of these seals (for shares, the unseal shares). The keyring object is
+	// the age copy of the root keys and needs no seal.
+	Seals []*SealInfo
+
 	// Summary holds object counts only, never names or content.
 	Summary map[string]int
 
@@ -234,6 +241,7 @@ func (b *BackupRecord) Copy() *BackupRecord {
 		nb.Destinations = append(nb.Destinations, &nd)
 	}
 	nb.KeyIDs = slices.Clone(b.KeyIDs)
+	nb.Seals = copySealInfos(b.Seals)
 	if b.Summary != nil {
 		nb.Summary = make(map[string]int, len(b.Summary))
 		for k, v := range b.Summary {

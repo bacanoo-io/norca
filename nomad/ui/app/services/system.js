@@ -137,19 +137,6 @@ export default class SystemService extends Service {
   }
 
   @task(function* () {
-    const emptyLicense = { License: { Features: [] } };
-
-    try {
-      return yield this.token
-        .authorizedRawRequest(`/${namespace}/operator/license`)
-        .then(jsonWithDefault(emptyLicense));
-    } catch (e) {
-      return emptyLicense;
-    }
-  })
-  fetchLicense;
-
-  @task(function* () {
     try {
       const request = yield this.token.authorizedRequest('/v1/search/fuzzy', {
         method: 'POST',
@@ -166,11 +153,5 @@ export default class SystemService extends Service {
   })
   checkFuzzySearchPresence;
 
-  @alias('fetchLicense.lastSuccessful.value') license;
   @alias('checkFuzzySearchPresence.last.value') fuzzySearchEnabled;
-
-  @computed('license.License.Features.[]')
-  get features() {
-    return this.get('license.License.Features') || [];
-  }
 }

@@ -17,6 +17,7 @@ import {
   deserializedQueryParam as selection,
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 @classic
 export default class AllocationsController extends Controller.extend(
@@ -166,7 +167,7 @@ export default class AllocationsController extends Controller.extend(
 
   @action
   gotoAllocation(allocation) {
-    this.transitionToRoute('allocations.allocation', allocation.id);
+    legacyTransitionTo(this, 'allocations.allocation', allocation.id);
   }
 
   get optionsAllocationStatus() {
@@ -180,7 +181,8 @@ export default class AllocationsController extends Controller.extend(
     ];
   }
 
-  @computed('model.allocations.[]', 'selectionClient')
+  // Not cached: the client names come from the allocations' nodes, which
+  // load after the allocations (autotracking follows them).
   get optionsClients() {
     const clients = Array.from(
       new Set(this.model.allocations.mapBy('node.shortId'))

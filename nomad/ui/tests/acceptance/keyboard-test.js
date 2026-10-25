@@ -201,7 +201,7 @@ module('Acceptance | keyboard', function (hooks) {
       await triggerEvent('.page-layout', 'keydown', { key: 'c' });
       assert.equal(
         currentURL(),
-        `/jobs`,
+        `/`,
         'After a refresh with a localStorage-found binding, a default key binding doesnt do anything'
       );
 
@@ -233,8 +233,8 @@ module('Acceptance | keyboard', function (hooks) {
       await triggerEvent('.page-layout', 'keydown', { key: 'Shift' });
       assert.equal(
         document.querySelectorAll('[data-test-keyboard-hint]').length,
-        7,
-        'Shows 7 hints by default'
+        8,
+        'Shows 8 hints by default: the menu items and Sign in'
       );
       await triggerEvent('.page-layout', 'keyup', { key: 'Shift' });
 
@@ -253,7 +253,7 @@ module('Acceptance | keyboard', function (hooks) {
     });
     test('Dynamic Table Nav', async function (assert) {
       assert.expect(4);
-      server.createList('job', 3, { createRecommendations: true });
+      server.createList('job', 3);
       await visit('/jobs');
 
       await triggerEvent('.page-layout', 'keydown', { key: 'Shift' });
@@ -285,7 +285,7 @@ module('Acceptance | keyboard', function (hooks) {
       );
     });
     test('Multi-Table Nav', async function (assert) {
-      server.createList('job', 3, { createRecommendations: true });
+      server.createList('job', 3);
       await visit(
         `/jobs/${server.db.jobs.sortBy('modifyIndex').reverse()[0].id}@default`
       );

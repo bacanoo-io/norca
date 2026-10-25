@@ -1,0 +1,44 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A stat card: a number with a label and a hint, linking to the details.
+
+    <Ui::Stat @label="Blocked evaluations" @value={{2}} @hint="Waiting for capacity"
+      @color="orange" @route="evaluations" />
+--}}
+{{#if @route}}
+  <LinkTo
+    @route={{@route}}
+    @query={{or @query (hash)}}
+    class="card card-sm card-link"
+    data-test-stat={{@id}}
+    ...attributes
+  >
+    <div class="card-body">
+      <div class="row align-items-center">
+        <div class="col-auto">
+          <span class="bg-{{or @color 'secondary'}} text-white avatar" data-test-stat-value>{{@value}}</span>
+        </div>
+        <div class="col">
+          <div class="font-weight-medium" data-test-stat-label>{{@label}}</div>
+          {{#if @hint}}<div class="text-secondary" data-test-stat-hint>{{@hint}}</div>{{/if}}
+        </div>
+      </div>
+    </div>
+  </LinkTo>
+{{else}}
+  <div class="card card-sm" data-test-stat={{@id}} ...attributes>
+    <div class="card-body">
+      <div class="row align-items-center">
+        <div class="col-auto">
+          <span class="bg-{{or @color 'secondary'}} text-white avatar" data-test-stat-value>{{@value}}</span>
+        </div>
+        <div class="col">
+          <div class="font-weight-medium" data-test-stat-label>{{@label}}</div>
+          {{#if @hint}}<div class="text-secondary" data-test-stat-hint>{{@hint}}</div>{{/if}}
+        </div>
+      </div>
+    </div>
+  </div>
+{{/if}}

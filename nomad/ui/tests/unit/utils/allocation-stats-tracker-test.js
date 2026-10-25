@@ -4,7 +4,6 @@
  */
 
 import EmberObject from '@ember/object';
-import { assign } from '@ember/polyfills';
 import { module, test } from 'qunit';
 import sinon from 'sinon';
 import Pretender from 'pretender';
@@ -21,7 +20,7 @@ module('Unit | Util | AllocationStatsTracker', function () {
   const makeDate = (ts) => new Date(ts / 1000000);
 
   const MockAllocation = (overrides) =>
-    assign(
+    Object.assign(
       {
         id: 'some-identifier',
         taskGroup: {

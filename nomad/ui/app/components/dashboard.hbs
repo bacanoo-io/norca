@@ -1,0 +1,234 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="norca-dashboard" data-test-dashboard {{this.live this.regions this.namespace}}>
+  <Ui::PageHeader @pretitle="Overview" @title="Dashboard" @subtitle={{this.scopeLabel}}>
+    <:actions>
+      <span class="text-secondary small d-none d-md-inline" data-test-stream-state={{this.streamState}}>
+        {{#if (eq this.streamState "open")}}
+          <Ui::StatusIndicator @tone="success" @label="Live" @animated={{true}} />
+        {{else if (eq this.streamState "forbidden")}}
+          <Ui::StatusIndicator @tone="neutral" @label="Updates every 30 seconds" />
+        {{else}}
+          <Ui::StatusIndicator @tone="neutral" @label="Connecting" />
+        {{/if}}
+      </span>
+      <Ui::Button @route="jobs.run" @variant="primary" @icon="plus" data-test-dashboard-run-job>Run job</Ui::Button>
+    </:actions>
+  </Ui::PageHeader>
+
+  <div class="page-body">
+    <div class="container-xl">
+      {{#if this.isLoading}}
+        <Ui::Card>
+          <Ui::Spinner @showLabel={{true}} @label="Loading the cluster overview" />
+        </Ui::Card>
+      {{else}}
+        {{! Federation strip: the dashboard's one emphasized element. }}
+        <div class="card mb-3" data-test-federation>
+          <div class="norca-federation" style={{this.federationStyle}}>
+            {{#each this.columns as |column|}}
+              <section
+                class="norca-federation-column norca-region-{{column.colorIndex}}"
+                aria-label="Region {{column.label}}"
+                data-test-federation-region={{column.region}}
+              >
+                <div class="d-flex align-items-start justify-content-between">
+                  <h2 class="norca-federation-name" data-test-region-name>{{column.label}}</h2>
+                  <Ui::StatusIndicator
+                    @dotOnly={{true}}
+                    @animated={{column.healthy}}
+                    @tone={{if column.error "danger" (if column.healthy "success" "warning")}}
+                    @label={{if column.error "Unreachable" (if column.healthy "Healthy" "Needs attention")}}
+                    class="mt-2"
+                  />
+                </div>
+                {{#if column.error}}
+                  <p class="text-danger small mb-0" data-test-region-error>{{column.error}}</p>
+                {{else}}
+                  <dl class="norca-federation-rows">
+                    <div class="norca-federation-row">
+                      <dt>Leader</dt>
+                      <dd class="font-monospace" data-test-region-leader>{{or column.leaderName "none"}}</dd>
+                    </div>
+                    <div class="norca-federation-row">
+                      <dt>Servers</dt>
+                      <dd data-test-region-servers>{{column.servers.alive}}/{{column.servers.total}} alive</dd>
+                    </div>
+                    <div class="norca-federation-row">
+                      <dt>Clients</dt>
+                      <dd data-test-region-clients>
+                        {{#if column.clientsForbidden}}
+                          <span class="text-secondary">not permitted</span>
+                        {{else}}
+                          {{column.clients.ready}}/{{column.clients.total}} ready
+                          {{#if column.clients.down}}<span class="text-warning">({{column.clients.down}} down)</span>{{/if}}
+                        {{/if}}
+                      </dd>
+                    </div>
+                    <div class="norca-federation-row norca-federation-row-wrap">
+                      <dt>Allocations</dt>
+                      <dd>
+                        <span data-test-region-allocations>
+                          {{column.allocations.running}} running, {{column.allocations.pending}} pending,
+                          {{column.failedTotal}} failed
+                        </span>
+                      </dd>
+                      <dd class="norca-federation-bar">
+                        <Ui::StackedBar @label="Allocations of {{column.label}}" @segments={{column.allocationSegments}} />
+                      </dd>
+                    </div>
+                  </dl>
+                {{/if}}
+              </section>
+            {{/each}}
+          </div>
+        </div>
+
+        <div class="row row-cards mb-3">
+          <div class="col-sm-6 col-lg-3">
+            <Ui::Stat
+              @id="deployments"
+              @label="Deployments in progress"
+              @value={{this.totals.runningDeployments}}
+              @hint={{if this.isAllRegions (concat "in " this.columns.length " regions") "in the region"}}
+              @color="blue"
+              @route="jobs"
+            />
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <Ui::Stat
+              @id="blocked-evaluations"
+              @label="Blocked evaluations"
+              @value={{this.totals.blockedEvaluations}}
+              @hint="waiting for capacity"
+              @color={{if this.totals.blockedEvaluations "orange" "secondary"}}
+              @route="evaluations"
+            />
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <Ui::Stat
+              @id="failed-allocations"
+              @label="Failed or lost allocations"
+              @value={{this.totals.failedAllocations}}
+              @hint="in the job summaries"
+              @color={{if this.totals.failedAllocations "red" "secondary"}}
+              @route="jobs"
+            />
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <Ui::Stat
+              @id="clients"
+              @label="Clients ready"
+              @value={{this.totals.clientsReady}}
+              @hint={{concat "of " this.totals.clientsTotal " clients"}}
+              @color="green"
+              @route="clients"
+            />
+          </div>
+        </div>
+
+        <div class="row row-cards">
+          <div class="col-lg-7">
+            <Ui::Card @title="Warnings" @flush={{true}} data-test-warnings>
+              {{#if this.warnings.length}}
+                <div class="list-group list-group-flush">
+                  {{#each this.warnings as |warning|}}
+                    {{#if warning.model}}
+                      <LinkTo @route={{warning.route}} @model={{warning.model}} class="list-group-item list-group-item-action" data-test-warning={{warning.tone}}>
+                        <div class="d-flex">
+                          <Ui::StatusIndicator @dotOnly={{true}} @tone={{warning.tone}} @label={{warning.tone}} class="me-2 mt-2" />
+                          <div><strong>{{warning.title}}</strong><div class="text-secondary">{{warning.text}}</div></div>
+                        </div>
+                      </LinkTo>
+                    {{else}}
+                      <LinkTo @route={{warning.route}} class="list-group-item list-group-item-action" data-test-warning={{warning.tone}}>
+                        <div class="d-flex">
+                          <Ui::StatusIndicator @dotOnly={{true}} @tone={{warning.tone}} @label={{warning.tone}} class="me-2 mt-2" />
+                          <div><strong>{{warning.title}}</strong><div class="text-secondary">{{warning.text}}</div></div>
+                        </div>
+                      </LinkTo>
+                    {{/if}}
+                  {{/each}}
+                </div>
+              {{else}}
+                <Ui::EmptyState
+                  @compact={{true}}
+                  @icon="circle-check"
+                  @title="Nothing needs attention"
+                  @message="Leaders, servers, clients, evaluations and deployments look healthy."
+                  data-test-no-warnings
+                />
+              {{/if}}
+            </Ui::Card>
+
+            <Ui::Card @title="Deployments in progress" @flush={{true}} class="mt-3" data-test-deployments>
+              <:actions>
+                <Ui::Button @size="sm" @route="jobs">All jobs</Ui::Button>
+              </:actions>
+              <:default>
+                {{#if this.deployments.length}}
+                  <Ui::Table
+                    @inCard={{true}}
+                    @caption="Deployments in progress"
+                    @columns={{array
+                      (hash key="job" label="Job")
+                      (hash key="region" label="Region")
+                      (hash key="version" label="Version")
+                      (hash key="progress" label="Healthy")
+                    }}
+                    @rows={{this.deployments}}
+                    as |deployment|
+                  >
+                    <td><LinkTo @route="jobs.job.deployments" @model={{deployment.jobRouteId}}>{{deployment.JobID}}</LinkTo></td>
+                    <td><span class="norca-region">{{deployment.Region}}</span></td>
+                    <td>v{{deployment.JobVersion}}</td>
+                    <td class="w-33">
+                      <div class="small text-secondary">{{deployment.progress.healthy}} of {{deployment.progress.desired}}</div>
+                      <Ui::StackedBar @label="Deployment of {{deployment.JobID}}" @segments={{deployment.segments}} />
+                    </td>
+                  </Ui::Table>
+                {{else}}
+                  <Ui::EmptyState
+                    @compact={{true}}
+                    @icon="git-branch"
+                    @title="No deployments in progress"
+                    @message="Deployments of service jobs appear here while they roll out."
+                  />
+                {{/if}}
+              </:default>
+            </Ui::Card>
+          </div>
+
+          <div class="col-lg-5">
+            <Ui::Card @title="Allocations by status" class="mb-3" data-test-allocation-chart>
+              {{#if this.hasAllocations}}
+                <Ui::Chart @label="Allocations by status" @option={{this.allocationChart}} @height={{220}}>
+                  {{this.allocationSummaryText}}
+                </Ui::Chart>
+              {{else}}
+                <Ui::EmptyState @compact={{true}} @icon="box" @title="No allocations yet" @message="Run a job to place allocations on the clients.">
+                  <Ui::Button @route="jobs.run" @icon="plus">Run job</Ui::Button>
+                </Ui::EmptyState>
+              {{/if}}
+            </Ui::Card>
+
+            <Ui::Card @title="Latest events" data-test-events>
+              {{#if this.events.length}}
+                <Ui::Timeline @items={{this.events}} @simple={{true}} />
+              {{else}}
+                <Ui::EmptyState
+                  @compact={{true}}
+                  @icon="activity"
+                  @title="No events yet"
+                  @message="Changes to jobs, deployments, evaluations, allocations and clients appear here as they happen."
+                />
+              {{/if}}
+            </Ui::Card>
+          </div>
+        </div>
+      {{/if}}
+    </div>
+  </div>
+</div>

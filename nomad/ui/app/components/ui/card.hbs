@@ -1,0 +1,34 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A card. Content goes into the default block (padded unless @flush, which
+  suits tables and list groups); optional named blocks :actions (header
+  right side) and :footer.
+
+    <Ui::Card @title="Deployments">
+      <:actions><Ui::Button @size="sm" @route="jobs">All</Ui::Button></:actions>
+      <:default>...</:default>
+    </Ui::Card>
+~}}
+<div class="card {{if @size (concat 'card-' @size)}}" ...attributes>
+  {{#if (or @title @subtitle (has-block "actions"))}}
+    <div class="card-header">
+      <div>
+        {{#if @title}}<h3 class="card-title" data-test-card-title>{{@title}}</h3>{{/if}}
+        {{#if @subtitle}}<p class="card-subtitle">{{@subtitle}}</p>{{/if}}
+      </div>
+      {{#if (has-block "actions")}}
+        <div class="card-actions">{{yield to="actions"}}</div>
+      {{/if}}
+    </div>
+  {{/if}}
+  {{#if @flush}}
+    {{yield}}
+  {{else}}
+    <div class="card-body">{{yield}}</div>
+  {{/if}}
+  {{#if (has-block "footer")}}
+    <div class="card-footer">{{yield to="footer"}}</div>
+  {{/if}}
+</div>

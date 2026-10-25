@@ -44,7 +44,7 @@ export default class EvaluationsIndexRoute extends Route {
   }) {
     /*
     We use our own DSL for filter expressions. This function takes our query parameters and builds a query that matches our DSL.
-    Documentation can be found here:  https://www.nomadproject.io/api-docs#filtering
+    See the filtering section of the HTTP API documentation.
     */
     const generateFilterExpression = () => {
       const searchFilter = searchTerm

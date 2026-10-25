@@ -103,18 +103,21 @@ jobs:
           # the devDependencies, which license-checker's --production flag
           # does not filter out reliably in a hoisted yarn tree.
           yarn install --production --ignore-optional --frozen-lockfile --ignore-scripts --ignore-engines
-          # --excludePackagesStartingWith: legacy UI exceptions
-          # (docs/licensing.md), removed with /ui/legacy.
+          # --excludePackagesStartingWith: recorded exceptions (docs/licensing.md):
+          # robust-predicates is legacy UI only (removed with /ui/legacy);
+          # caniuse-lite and jsonify are build-time exceptions for both UIs.
           # --excludePackages: non-SPDX license fields whose license files are
           # allowed licenses: dialog-polyfill "BSD" (BSD-3-Clause text, see
           # THIRD_PARTY_NOTICES.md), source-map 0.1.43 "BSD" (BSD-3-Clause
           # text), sourcemap-validator 1.1.1 (no field, MIT in its readme);
-          # the last two are build-time packages of ember-source.
+          # the last two are build-time packages of ember-source; JSV 4.0.2
+          # "FreeBSD" (BSD-2-Clause text in lib/jsv.js), a dependency of the
+          # jsonlint command line tool, not bundled.
           npx --yes license-checker-rseidelsohn@4 --production \
             --onlyAllow "MPL-2.0;Apache-2.0;MIT;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0" \
             --excludePrivatePackages \
             --excludePackagesStartingWith "robust-predicates@;caniuse-lite@;jsonify@" \
-            --excludePackages "dialog-polyfill@0.5.6;source-map@0.1.43;sourcemap-validator@1.1.1"
+            --excludePackages "dialog-polyfill@0.5.6;source-map@0.1.43;sourcemap-validator@1.1.1;JSV@4.0.2"
           # Check the whole installed tree, transitive dependencies included
           if yarn list --pattern apexcharts 2>/dev/null | grep -q apexcharts@; then
             echo "ApexCharts is forbidden" >&2; exit 1

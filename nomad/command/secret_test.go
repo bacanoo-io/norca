@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad"
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
@@ -33,8 +33,7 @@ func TestSecretCommands(t *testing.T) {
 	ci.Parallel(t)
 	srv, client, url := testServer(t, false, nil)
 	testutil.WaitForLeader(t, srv.Agent.RPC)
-	stop := nomad.TestSecretCore(t, srv.Agent.Server())
-	defer stop()
+	waitForSecretStoreReady(t, client)
 
 	// run runs a command made by mk with a new UI.
 	run := func(mk func(Meta) cli.Command, args ...string) (int, string, string) {
@@ -140,6 +139,16 @@ func TestSecretCommands(t *testing.T) {
 	code, _, errOut = run(info, "app/db")
 	must.One(t, code)
 	must.StrContains(t, errOut, "not found")
+}
+
+// waitForSecretStoreReady waits until the secret store of the test agent
+// accepts writes (its core is unsealed and active on the leader).
+func waitForSecretStoreReady(t *testing.T, client *api.Client) {
+	t.Helper()
+	testutil.WaitForResult(func() (bool, error) {
+		_, _, err := client.Secrets().Write("ready", &api.SecretWrite{Items: map[string]string{"k": "v"}}, nil)
+		return err == nil, err
+	}, func(err error) { t.Fatalf("secret store not ready: %v", err) })
 }
 
 func TestSecretPut_ParseExpiry(t *testing.T) {

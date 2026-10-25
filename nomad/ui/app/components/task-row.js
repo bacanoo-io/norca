@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Ember from 'ember';
+import { isTesting } from '@ember/debug';
 import Component from '@ember/component';
 import { inject as service } from '@ember/service';
 import { computed } from '@ember/object';
@@ -34,7 +34,7 @@ export default class TaskRow extends Component {
 
   @computed
   get enablePolling() {
-    return !Ember.testing;
+    return !isTesting();
   }
 
   // Since all tasks for an allocation share the same tracker, use the registry
