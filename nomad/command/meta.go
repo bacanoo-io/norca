@@ -173,7 +173,11 @@ func (m *Meta) clientConfig() *api.Config {
 }
 
 func (m *Meta) Client() (*api.Client, error) {
-	return api.NewClient(m.clientConfig())
+	config := m.clientConfig()
+	if err := configureUnixSocket(config); err != nil {
+		return nil, err
+	}
+	return api.NewClient(config)
 }
 
 func (m *Meta) allNamespaces() bool {
