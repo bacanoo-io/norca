@@ -13,6 +13,7 @@ import { generateTaskGroupFailures } from './factories/evaluation';
 import { copy } from 'ember-copy';
 import formatHost from 'nomad-ui/utils/format-host';
 import faker from 'nomad-ui/mirage/faker';
+import { registerNorcaAreas } from './norca';
 
 export function findLeader(schema) {
   const agent = schema.agents.first();
@@ -1157,6 +1158,8 @@ function routes() {
   );
 
   //#endregion SSO
+
+  registerNorcaAreas(this);
 }
 
 function filterKeys(object, ...keys) {

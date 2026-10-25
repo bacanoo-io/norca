@@ -1,0 +1,82 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-backup-contents {{this.loader @backup.ID this.type @job this.backups.hasIdentity this.namespace}}>
+  <Backups::Identity @error={{this.identityError}} />
+
+  {{#if this.backups.hasIdentity}}
+    {{#if this.selection.length}}
+      <Ui::Alert @tone="info" @title="Selected for restore" class="mb-3" data-test-restore-selection>
+        {{#each this.selection as |item|}}
+          <Ui::Badge class="me-1">{{item.Type}} {{item.ID}}{{if item.Version (concat " v" item.Version)}}</Ui::Badge>
+        {{/each}}
+        <div class="mt-2">
+          <Ui::Button @size="sm" @variant="primary" @icon="rotate-clockwise" data-test-restore-selected {{on "click" this.restoreSelected}}>
+            Restore {{this.selection.length}} selected
+          </Ui::Button>
+          <Ui::Button @size="sm" @variant="ghost" data-test-clear-selection {{on "click" this.clearSelection}}>Clear</Ui::Button>
+        </div>
+      </Ui::Alert>
+    {{/if}}
+
+    <Ui::Card @flush={{true}}>
+      <:actions>
+        <Ui::Input @icon="search" @value={{this.filter}} @onInput={{this.setFilter}} @placeholder="Filter" aria-label="Filter the content" data-test-contents-filter />
+      </:actions>
+      <:default>
+        <div class="px-3 pt-3">
+          <Ui::Tabs @label="Content type" @tabs={{this.tabs}} @selected={{this.selectedTab}} @onSelect={{this.selectType}} @panelId="backup-content-panel" />
+          {{#if @job}}
+            <div class="mt-3" data-test-job-filter>
+              <Ui::Badge @color="azure">{{if (eq this.type "job-versions") "Versions of" "Job"}} {{@job}}</Ui::Badge>
+              <Ui::Button @size="sm" @variant="link" data-test-clear-job {{on "click" this.clearJob}}>Show all</Ui::Button>
+            </div>
+          {{/if}}
+        </div>
+        <div id="backup-content-panel" role="tabpanel" data-test-contents-type={{this.type}}>
+          {{#if this.isLoading}}
+            <div class="p-4"><Ui::Spinner @showLabel={{true}} @label="Decrypting and reading the backup" /></div>
+          {{else if this.error}}
+            <div class="p-3"><Ui::Alert @tone="danger" @title="The content could not be read" class="mb-0" data-test-contents-error>{{this.error}}</Ui::Alert></div>
+          {{else}}
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Content of the backup"
+              @columns={{this.columns}}
+              @rows={{this.rows}}
+              @emptyMessage={{this.emptyMessage}}
+              as |row|
+            >
+              {{#each row.cells as |cell|}}
+                <td class={{if cell.mono "font-monospace"}}>
+                  {{#if cell.status}}<Ui::StatusIndicator @status={{cell.status}} />{{else}}{{cell.value}}{{/if}}
+                </td>
+              {{/each}}
+              {{#if (eq this.type "jobs")}}
+                <td class="text-nowrap">
+                  <Ui::Button @size="sm" @variant="ghost" data-test-job-versions={{row.raw.ID}} {{on "click" (fn this.showJob "job-versions" row.raw.ID)}}>Versions</Ui::Button>
+                  <Ui::Button @size="sm" @variant="ghost" data-test-job-deployments={{row.raw.ID}} {{on "click" (fn this.showJob "deployments" row.raw.ID)}}>Deployments</Ui::Button>
+                  <Ui::Button @size="sm" @variant="ghost" data-test-job-allocations={{row.raw.ID}} {{on "click" (fn this.showJob "allocations" row.raw.ID)}}>Allocations</Ui::Button>
+                </td>
+              {{/if}}
+              {{#if row.item}}
+                <td>
+                  <Ui::Button
+                    @size="sm"
+                    @variant={{if row.isSelected "primary" "secondary"}}
+                    @icon={{if row.isSelected "check" "plus"}}
+                    aria-pressed={{if row.isSelected "true" "false"}}
+                    aria-label={{concat (if row.isSelected "Selected " "Select ") row.label " for the restore"}}
+                    data-test-select-item={{row.label}}
+                    {{on "click" (fn this.toggle row)}}
+                  >{{if row.isSelected "Selected" "Select"}}</Ui::Button>
+                </td>
+              {{/if}}
+            </Ui::Table>
+          {{/if}}
+        </div>
+      </:default>
+    </Ui::Card>
+  {{/if}}
+</div>

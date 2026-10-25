@@ -90,6 +90,14 @@ export const NAVIGATION = [
         route: 'evaluations',
         shortcut: ['g', 'e'],
       },
+      {
+        id: 'backups',
+        label: 'Backups',
+        icon: 'cloud-upload',
+        route: 'backups',
+        shortcut: ['g', 'b'],
+        ability: 'read backup',
+      },
     ],
   },
   {

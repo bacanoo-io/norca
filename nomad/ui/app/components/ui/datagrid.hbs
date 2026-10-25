@@ -1,0 +1,17 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  Key-value details (Tabler datagrid): either @items, a list of
+  { title, value, mono? }, or Item blocks for richer values.
+    <Ui::Datagrid @items={{array (hash title="Engine" value="built-in")}} />
+    <Ui::Datagrid as |grid|>
+      <grid.Item @title="Status"><Ui::StatusIndicator @status="running" /></grid.Item>
+    </Ui::Datagrid>
+--}}
+<div class="datagrid" data-test-datagrid ...attributes>
+  {{#each @items as |item|}}
+    <Ui::Datagrid::Item @title={{item.title}} @mono={{item.mono}}>{{item.value}}</Ui::Datagrid::Item>
+  {{/each}}
+  {{yield (hash Item=(component "ui/datagrid/item"))}}
+</div>

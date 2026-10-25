@@ -1,0 +1,26 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The changed fields of a job diff (utils/backups flattenJobDiff), as a
+  table: path, change, old and new value.
+~}}
+<Ui::Table
+  @inCard={{true}}
+  @caption="Changed fields"
+  @columns={{array
+    (hash key="path" label="Field")
+    (hash key="type" label="Change")
+    (hash key="old" label="Before")
+    (hash key="new" label="After")
+  }}
+  @rows={{@rows}}
+  @emptyMessage="The job specifications are the same."
+  data-test-job-diff-table
+  as |row|
+>
+  <td class="font-monospace">{{row.path}}</td>
+  <td><Ui::Badge @color={{if (eq row.type "Added") "green" (if (eq row.type "Deleted") "red" "orange")}}>{{row.type}}</Ui::Badge></td>
+  <td class="font-monospace text-break">{{or row.old "–"}}</td>
+  <td class="font-monospace text-break">{{or row.new "–"}}</td>
+</Ui::Table>

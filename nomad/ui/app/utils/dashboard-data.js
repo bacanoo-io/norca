@@ -141,22 +141,28 @@ export async function fetchRegionSummary(
   { region, namespace, members }
 ) {
   const params = { region, namespace: namespace || '*' };
-  const [leader, nodes, jobs, deployments, evaluations] = await Promise.all([
-    getJSON(request, '/v1/status/leader', { region }).catch(() => ({
-      body: null,
-      index: 0,
-    })),
-    optional(getJSON(request, '/v1/nodes', { region }), []),
-    optional(getJSON(request, '/v1/jobs', { ...params, meta: 'true' }), []),
-    optional(getJSON(request, '/v1/deployments', params), []),
-    optional(
-      getJSON(request, '/v1/evaluations', {
-        ...params,
-        filter: 'Status == "blocked"',
-      }),
-      []
-    ),
-  ]);
+  const [leader, nodes, jobs, deployments, evaluations, backups] =
+    await Promise.all([
+      getJSON(request, '/v1/status/leader', { region }).catch(() => ({
+        body: null,
+        index: 0,
+      })),
+      optional(getJSON(request, '/v1/nodes', { region }), []),
+      optional(getJSON(request, '/v1/jobs', { ...params, meta: 'true' }), []),
+      optional(getJSON(request, '/v1/deployments', params), []),
+      optional(
+        getJSON(request, '/v1/evaluations', {
+          ...params,
+          filter: 'Status == "blocked"',
+        }),
+        []
+      ),
+      // the backup schedule: any failure (no permission) leaves it out
+      getJSON(request, '/v1/operator/backups', { region }).catch(() => ({
+        body: null,
+        index: 0,
+      })),
+    ]);
 
   const servers = summarizeServers(members, region);
   const latest = latestDeployments(deployments.body || []);
@@ -183,6 +189,7 @@ export async function fetchRegionSummary(
     blockedEvaluations: (evaluations.body || []).filter(
       (e) => e.Status === 'blocked'
     ),
+    backup: summarizeBackups(backups.body),
     // the newest index of the fetched state, to resume the event stream after
     index: Math.max(
       nodes.index,
@@ -191,6 +198,20 @@ export async function fetchRegionSummary(
       evaluations.index
     ),
     error: null,
+  };
+}
+
+// The backup schedule of a region: last success, overdue (older than two
+// intervals), the last error. Null when the token cannot read backups.
+export function summarizeBackups(body) {
+  const schedule = body?.Schedule;
+  if (!schedule) return null;
+  const set = (t) => t && !String(t).startsWith('0001-');
+  return {
+    enabled: !!schedule.Enabled,
+    lastSuccess: set(schedule.LastSuccess) ? schedule.LastSuccess : null,
+    overdue: !!schedule.Overdue,
+    lastError: schedule.LastError || '',
   };
 }
 
@@ -206,6 +227,7 @@ export function unreachableRegion(region, error) {
     runningDeployments: [],
     failedDeployments: [],
     blockedEvaluations: [],
+    backup: null,
     index: 0,
     error: error?.message || String(error),
   };
@@ -274,6 +296,16 @@ export function buildWarnings(summaries) {
         } blocked in ${where}.`,
         text: 'They wait for capacity: add clients, free resources or relax the placement constraints.',
         route: 'evaluations',
+      });
+    }
+    if (s.backup?.overdue) {
+      warnings.push({
+        tone: 'warning',
+        title: `The last successful backup of ${where} is overdue.`,
+        text: `${
+          s.backup.lastError ? `${s.backup.lastError}. ` : ''
+        }Check the backup destinations and the server logs, then start a backup.`,
+        route: 'backups',
       });
     }
     for (const d of s.failedDeployments) {

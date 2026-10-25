@@ -121,19 +121,28 @@ export default class FrameService extends Service {
     return region ? [region] : regions.slice(0, 1);
   }
 
+  get currentRouteSpansRegions() {
+    return (
+      this.router.currentRouteName === 'index' ||
+      !!this.router.currentRoute?.metadata?.spansRegions
+    );
+  }
+
   @action
   selectRegion(value) {
     if (value === ALL_REGIONS) {
       this.allRegions = true;
       write(STORAGE.scope, ALL_REGIONS);
-      // Only the dashboard spans regions so far.
-      if (this.router.currentRouteName !== 'index')
-        this.router.transitionTo('index');
+      // The dashboard and the pages whose route metadata says spansRegions
+      // show all regions; other pages go to the dashboard.
+      if (!this.currentRouteSpansRegions) this.router.transitionTo('index');
       return;
     }
     this.allRegions = false;
     write(STORAGE.scope, null);
-    const target = this.router.currentRouteName === 'index' ? 'index' : 'jobs';
+    const target = this.currentRouteSpansRegions
+      ? this.router.currentRouteName
+      : 'jobs';
     this.router.transitionTo(target, { queryParams: { region: value } });
   }
 

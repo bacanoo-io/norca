@@ -127,6 +127,13 @@ Router.map(function () {
       });
     });
   });
+  this.route('backups', function () {
+    this.route('job-history');
+    this.route('request', { path: '/restores/:restore_id' });
+    this.route('backup', { path: '/:backup_id' });
+    this.route('restore', { path: '/:backup_id/restore' });
+  });
+
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {
     this.route('oidc-mock');

@@ -1,0 +1,16 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{page-title @model.backupId " - Backups"}}
+<PageLayout @legacy={{false}}>
+  <Backups::Detail
+    @backupId={{@model.backupId}}
+    @tab={{this.tab}}
+    @type={{this.type}}
+    @job={{this.job}}
+    @against={{this.against}}
+    @onTabChange={{this.setTab}}
+    @onParamsChange={{this.setParams}}
+  />
+</PageLayout>

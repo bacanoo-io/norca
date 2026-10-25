@@ -67,6 +67,19 @@
                         {{/if}}
                       </dd>
                     </div>
+                    {{#if column.backup}}
+                      <div class="norca-federation-row">
+                        <dt>Last backup</dt>
+                        <dd data-test-region-backup>
+                          {{#if column.backup.lastSuccess}}
+                            <LinkTo @route="backups">{{moment-from-now column.backup.lastSuccess}}</LinkTo>
+                          {{else}}
+                            <span class="text-secondary">{{if column.backup.enabled "none yet" "not scheduled"}}</span>
+                          {{/if}}
+                          {{#if column.backup.overdue}}<span class="text-warning">(overdue)</span>{{/if}}
+                        </dd>
+                      </div>
+                    {{/if}}
                     <div class="norca-federation-row norca-federation-row-wrap">
                       <dt>Allocations</dt>
                       <dd>

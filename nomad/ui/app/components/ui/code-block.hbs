@@ -1,0 +1,17 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  Read-only code (HCL, JSON, CEL), in the monospace face, scrollable and
+  focusable so that keyboard users can scroll it. @code is a string or an
+  object (rendered as indented JSON); @label is the accessible name.
+    <Ui::CodeBlock @label="Rule expression" @code={{this.rule.Expression}} />
+--}}
+<pre
+  class="norca-code-block {{if @wrap 'norca-code-block-wrap'}}"
+  tabindex="0"
+  role="region"
+  aria-label={{or @label "Code"}}
+  data-test-code-block
+  ...attributes
+>{{this.text}}</pre>

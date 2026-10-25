@@ -1,0 +1,41 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  Asks for the age identity that decrypts the backups. Shown in place of the
+  content while no identity is entered.
+~}}
+{{#if this.backups.hasIdentity}}
+  <div class="d-flex align-items-center gap-2 small text-secondary mb-3" data-test-identity-set>
+    <Ui::Icon @name="key" @size="sm" />
+    <span>Decrypting with the age identity you entered. It stays in this browser tab only.</span>
+    <Ui::Button @size="sm" @variant="ghost" data-test-identity-forget {{on "click" this.forget}}>Forget it</Ui::Button>
+  </div>
+{{else}}
+  <Ui::Card @title="Decrypt the backup" data-test-identity-form>
+    <form {{on "submit" this.submit}}>
+      <p class="text-secondary">
+        Backups are encrypted with age for recipients whose private keys the cluster does not hold.
+        To browse, compare or restore, paste an age identity (the content of the identity file) that matches one of the recipients.
+        It is sent with each request to the leader of the region and kept in this browser tab only, never stored.
+      </p>
+      <Ui::Field @label="Age identity" @error={{@error}} as |f|>
+        <Ui::Input
+          @id={{f.id}}
+          @describedBy={{f.describedBy}}
+          @multiline={{true}}
+          @rows={{3}}
+          @monospace={{true}}
+          @invalid={{f.invalid}}
+          @value={{this.value}}
+          @onInput={{this.setValue}}
+          @placeholder="AGE-SECRET-KEY-1..."
+          autocomplete="off"
+          spellcheck="false"
+          data-test-identity-input
+        />
+      </Ui::Field>
+      <Ui::Button @variant="primary" @type="submit" @icon="key" @disabled={{not this.value}} data-test-identity-submit>Decrypt</Ui::Button>
+    </form>
+  </Ui::Card>
+{{/if}}
