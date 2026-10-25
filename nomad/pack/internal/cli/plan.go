@@ -4,9 +4,16 @@
 package cli
 
 import (
+	"fmt"
+
+	"github.com/hashicorp/nomad/api"
+
 	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
 	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
 	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/manager"
+	"github.com/hashicorp/nomad/pack/internal/pkg/renderer"
+	"github.com/hashicorp/nomad/pack/internal/pkg/supplychain"
 	"github.com/hashicorp/nomad/pack/internal/runner"
 	"github.com/hashicorp/nomad/pack/internal/runner/job"
 	"github.com/posener/complete"
@@ -19,6 +26,9 @@ type PlanCommand struct {
 	exitCodeNoChanges int
 	exitCodeChanges   int
 	exitCodeError     int
+
+	// release holds the release flags.
+	release releaseOptions
 }
 
 func (c *PlanCommand) Run(args []string) int {
@@ -83,6 +93,16 @@ func (c *PlanCommand) Run(args []string) int {
 		return c.exitCodeError
 	}
 
+	// Let the servers plan the release if they can.
+	if releasesSupported(client) && !c.release.clientSide {
+		return c.planRelease(client, packManager, provenance, r, errorContext)
+	}
+	parents, others := jobRenders(r.ParentRenders())
+	if len(others) > 0 {
+		c.ui.ErrorWithContext(errResourcesNeedServer(others), "failed to plan pack", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+
 	depConfig := runner.Config{
 		PackName:       c.packConfig.Name,
 		PathPath:       c.packConfig.Path,
@@ -101,7 +121,7 @@ func (c *PlanCommand) Run(args []string) int {
 	}
 
 	// Set the rendered templates on the job deployer.
-	jobRunner.SetTemplates(r.ParentRenders())
+	jobRunner.SetTemplates(parents)
 
 	// Parse the templates. If we have any error, output this and exit.
 	if validateErrs := jobRunner.ParseTemplates(); validateErrs != nil {
@@ -149,6 +169,44 @@ func (c *PlanCommand) Run(args []string) int {
 	}
 }
 
+// planRelease plans the release on the servers and prints the changes.
+func (c *PlanCommand) planRelease(client *api.Client, packManager *manager.PackManager, provenance *supplychain.Result,
+	r *renderer.Rendered, errorContext *errors.UIErrorContext) int {
+
+	name, err := c.releaseName(c.packConfig)
+	if err != nil {
+		c.ui.ErrorWithContext(err, "invalid release name", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+	req, ok := c.buildRelease(packManager, c.packConfig, provenance, c.jobConfig, r, &c.release, errorContext)
+	if !ok {
+		return c.exitCodeError
+	}
+	resp, _, err := client.Releases().Plan(name, req, nil)
+	if err != nil {
+		c.ui.ErrorWithContext(err, "failed to plan release", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+
+	c.ui.Info(fmt.Sprintf("Release %q, revision %d:", name, resp.Revision))
+	printChanges(c.ui, resp.Changes)
+	changed := false
+	for _, ch := range resp.Changes {
+		if ch.Action != "unchanged" && ch.Action != "hook" {
+			changed = true
+		}
+		if ch.JobDiff != nil && ch.Action != "unchanged" && c.jobConfig.PlanConfig.Diff {
+			job.FormatJobDiff(ch.JobDiff, c.jobConfig.PlanConfig.Verbose, c.ui)
+		}
+	}
+	printWarnings(c.ui, resp.Warnings)
+	c.ui.Success("Plan succeeded")
+	if changed {
+		return c.exitCodeChanges
+	}
+	return c.exitCodeNoChanges
+}
+
 func (c *PlanCommand) Flags() *flag.Sets {
 	c.packConfig = &caching.PackConfig{}
 
@@ -167,6 +225,8 @@ func (c *PlanCommand) Flags() *flag.Sets {
 			Default: "",
 			Usage:   `Specific registry name containing the pack to be planned.`,
 		})
+
+		c.release.addFlags(set.NewSet("Release Options"))
 
 		f.StringVar(&flag.StringVar{
 			Name:    "ref",

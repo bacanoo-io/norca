@@ -108,6 +108,12 @@ type AdmissionPolicy struct {
 	Match       *AdmissionPolicyMatch  `hcl:"match,block"`
 	SchemaFrom  string                 `hcl:"schema_from,optional"`
 	Rules       []*AdmissionPolicyRule `hcl:"rule,block"`
+
+	// TrustedKeys are PEM encoded public keys (cosign format); a policy
+	// with the "release" resource then admits only releases of packs
+	// signed by one of them.
+	TrustedKeys []string `hcl:"trusted_keys,optional"`
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -117,7 +123,7 @@ type AdmissionPolicyMatch struct {
 	// Namespaces (glob patterns allowed). Empty means every namespace.
 	Namespaces []string `hcl:"namespaces,optional"`
 
-	// Resources is "job" and/or "variable". Empty means jobs only.
+	// Resources is "job", "variable" and/or "release". Empty means jobs only.
 	Resources []string `hcl:"resources,optional"`
 
 	// VariablePaths (glob patterns allowed) restricts the Variables writes

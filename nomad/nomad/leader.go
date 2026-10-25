@@ -408,6 +408,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Start the scheduled backups.
 	s.backup.SetLeader(true)
 
+	// Register the built-in release kinds and check releases for drift.
+	go s.releaseLeaderLoop(stopCh)
+
 	// Start the garbage collector of custom objects.
 	s.objectGC.SetEnabled(true)
 

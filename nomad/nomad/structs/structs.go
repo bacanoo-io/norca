@@ -167,6 +167,12 @@ const (
 	ServiceIntentionUpsertRequestType MessageType = 98
 	ServiceIntentionDeleteRequestType MessageType = 99
 	// 100 is reserved for native mTLS
+	// Norca network rules (101-104 assigned to network policies). They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	NetworkPolicyUpsertRequestType      MessageType = 101
+	NetworkPolicyDeleteRequestType      MessageType = 102
+	AdminNetworkPolicyUpsertRequestType MessageType = 103
+	AdminNetworkPolicyDeleteRequestType MessageType = 104
 )
 
 const (

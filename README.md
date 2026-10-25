@@ -72,7 +72,7 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Cross-job affinity (`colocate`, `separate`) | Available | [specification, item 4](docs/design/kubernetes-features-spec.md) |
 | Disruption budget | Available | [specification, item 5](docs/design/kubernetes-features-spec.md) |
 | Health check roles (startup, readiness, liveness) | Available | [specification, item 6](docs/design/kubernetes-features-spec.md) |
-| Network rules | Planned | [specification, item 7](docs/design/kubernetes-features-spec.md) |
+| Network rules, levels A and B (`NetworkPolicy`, cluster-level `AdminNetworkPolicy` with explicit deny; egress by CIDR and port, ingress on the node and host ports; nftables in the allocation's network namespace; nodes that cannot enforce are filtered out) | Available | [specification, item 7](docs/design/kubernetes-features-spec.md) |
 | Operator framework: native custom objects (`ObjectKind`, `CustomObject`, schema, CEL with `oldSelf`), controller SDK `nomad/controller`, LoadBalancer example; lifecycle: finalizers, deletion modes (background, foreground, orphan), garbage collection of owned objects and jobs, per-object event log, managed-job protection, `scale` subresource for the autoscaler | Available (phases 1–3) | [specification, item 8](docs/design/kubernetes-features-spec.md) |
 | Event stream → NATS bridge (`nomad/natsbridge`, one job per region) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Multiregion deployments (one region per cloud; staged rollout, `on_failure`, global tokens, `norca deployment run`) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
@@ -85,7 +85,8 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Service discovery without Consul: native mTLS, managed Consul install | Planned | [plan](docs/design/consul-independence-plan.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |
 | Package management, client-side supply chain: OCI registries, cosign-compatible signing and trust policies, offline bundles (air-gapped), `pack.lock` | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/supply-chain.md) |
-| Package management: server-side releases, rollback, signature enforcement in admission | Planned | [plan](docs/design/package-management-plan.md) |
+| Package management: server-side releases (`packs.norca.io/Release` objects with revision history, atomic install/upgrade, hooks and tests, rollback, drift detection, uninstall), signature enforcement in admission (`trusted_keys`) | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
+| Package management: variable schemas, multi-region install | Planned | [plan](docs/design/package-management-plan.md) |
 | New web UI | Planned | [plan](docs/design/ui-plan.md) |
 
 Only features marked "Available" can be used; the others are being built or are in the design phase.

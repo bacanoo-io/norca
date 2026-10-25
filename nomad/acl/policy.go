@@ -66,6 +66,14 @@ const (
 	// part of any policy shorthand and must be granted explicitly; reading
 	// intentions requires read-job.
 	NamespaceCapabilityWriteIntention = "write-intention"
+
+	// NamespaceCapabilityReadNetworkPolicy and
+	// NamespaceCapabilityWriteNetworkPolicy allow reading and managing the
+	// network policies of the namespace (Norca). The namespace "read" and
+	// "write" policies include read-network-policy; write-network-policy
+	// must be granted explicitly, e.g. with a network_policy block.
+	NamespaceCapabilityReadNetworkPolicy  = "read-network-policy"
+	NamespaceCapabilityWriteNetworkPolicy = "write-network-policy"
 )
 
 var (
@@ -154,6 +162,9 @@ type NamespacePolicy struct {
 	Capabilities []string
 	Variables    *VariablesPolicy `hcl:"variables"`
 	Objects      []*ObjectPolicy  `hcl:"object,expand"`
+
+	// NetworkPolicy is the network_policy block (Norca).
+	NetworkPolicy *NetworkPolicyRule `hcl:"network_policy"`
 }
 
 // NodePoolPolicy is the policfy for a specific node pool.
@@ -227,7 +238,8 @@ func isNamespaceCapabilityValid(cap string) bool {
 		NamespaceCapabilityAllocExec, NamespaceCapabilityAllocNodeExec,
 		NamespaceCapabilityCSIReadVolume, NamespaceCapabilityCSIWriteVolume, NamespaceCapabilityCSIListVolume, NamespaceCapabilityCSIMountVolume, NamespaceCapabilityCSIRegisterPlugin,
 		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob,
-		NamespaceCapabilityRegisterExternalService, NamespaceCapabilityWriteIntention:
+		NamespaceCapabilityRegisterExternalService, NamespaceCapabilityWriteIntention,
+		NamespaceCapabilityReadNetworkPolicy, NamespaceCapabilityWriteNetworkPolicy:
 		return true
 	// Capabilities without effect, accepted for compatibility with existing
 	// policies
@@ -262,6 +274,7 @@ func expandNamespacePolicy(policy string) []string {
 		NamespaceCapabilityReadJobScaling,
 		NamespaceCapabilityListScalingPolicies,
 		NamespaceCapabilityReadScalingPolicy,
+		NamespaceCapabilityReadNetworkPolicy,
 	}
 
 	write := make([]string, len(read))
@@ -429,6 +442,9 @@ func Parse(rules string) (*Policy, error) {
 		}
 
 		if err := parseObjectPolicies(ns); err != nil {
+			return nil, err
+		}
+		if err := parseNetworkPolicyRule(ns); err != nil {
 			return nil, err
 		}
 

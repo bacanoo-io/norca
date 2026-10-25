@@ -53,6 +53,10 @@ var MsgTypeEvents = map[structs.MessageType]string{
 	structs.BackupUpsertRequestType:                      structs.TypeBackupUpdated,
 	structs.BackupDeleteRequestType:                      structs.TypeBackupDeleted,
 	structs.BackupRestoreUpsertRequestType:               structs.TypeBackupRestoreFinished,
+	structs.NetworkPolicyUpsertRequestType:               structs.TypeNetworkPolicyUpserted,
+	structs.NetworkPolicyDeleteRequestType:               structs.TypeNetworkPolicyDeleted,
+	structs.AdminNetworkPolicyUpsertRequestType:          structs.TypeAdminNetworkPolicyUpserted,
+	structs.AdminNetworkPolicyDeleteRequestType:          structs.TypeAdminNetworkPolicyDeleted,
 }
 
 func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
@@ -220,6 +224,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 			return backupEventFromChange(change)
 		case TableServiceIntentions:
 			return serviceIntentionEventFromChange(change)
+		case TableNetworkPolicies, TableAdminNetworkPolicies:
+			return networkPolicyEventFromChange(change)
 		}
 		return structs.Event{}, false
 	}
@@ -411,6 +417,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 		return backupEventFromChange(change)
 	case TableServiceIntentions:
 		return serviceIntentionEventFromChange(change)
+	case TableNetworkPolicies, TableAdminNetworkPolicies:
+		return networkPolicyEventFromChange(change)
 	}
 
 	return structs.Event{}, false

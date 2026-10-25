@@ -26,6 +26,10 @@ type StopCommand struct {
 	detach     bool
 	verbose    bool
 	Validation ValidationFn
+
+	// clientSide destroys the jobs from the client even if the pack is a
+	// release.
+	clientSide bool
 }
 
 func (c *StopCommand) Run(args []string) int {
@@ -79,6 +83,19 @@ func (c *StopCommand) Run(args []string) int {
 	}
 	errorContext.Add(errors.UIContextPrefixDeploymentName, c.deploymentName)
 
+	// A destroyed pack that is a release is uninstalled by the servers.
+	if c.purge && !c.clientSide && releasesSupported(client) {
+		if name, err := releaseNameFor(c.packConfig, c.deploymentName); err == nil {
+			if _, _, err := client.Releases().Info(name, nil); err == nil {
+				code := c.uninstallRelease(client, name, false, false, 0)
+				if code == 0 {
+					c.ui.Success(fmt.Sprintf("Pack %q destroyed", c.packConfig.Name))
+				}
+				return code
+			}
+		}
+	}
+
 	var jobs []*api.Job
 
 	packManager := generatePackManager(c.baseCommand, client, c.packConfig)
@@ -105,7 +122,8 @@ func (c *StopCommand) Run(args []string) int {
 		return 1
 	}
 
-	for tplName, tpl := range r.ParentRenders() {
+	parents, _ := jobRenders(r.ParentRenders())
+	for tplName, tpl := range parents {
 
 		// tplErrorContext forms the basis for error output context as is
 		// appended to when new information becomes available.
@@ -285,6 +303,14 @@ func (c *StopCommand) Flags() *flag.Sets {
 					defaults to latest.
 
 					Using ref with a file path is not supported.`,
+		})
+
+		f.BoolVar(&flag.BoolVar{
+			Name:   "client-side",
+			Target: &c.clientSide,
+			EnvVar: EnvClientSide,
+			Hidden: true,
+			Usage:  `With --purge, destroy the jobs from the client even if the pack is a release.`,
 		})
 
 		f.BoolVar(&flag.BoolVar{

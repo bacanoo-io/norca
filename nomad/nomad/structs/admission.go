@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/ryanuber/go-glob"
@@ -37,6 +38,19 @@ const (
 	// explicit selection only jobs are admitted.
 	AdmissionResourceJob      = "job"
 	AdmissionResourceVariable = "variable"
+
+	// AdmissionResourceRelease selects pack releases: the policy runs when
+	// a release is installed, upgraded or rolled back (operation "apply"),
+	// with the variable "release" in its CEL rules, and its TrustedKeys
+	// require a signature of the pack.
+	AdmissionResourceRelease = "release"
+
+	// AdmissionOperationApply is the release operation admission runs for.
+	AdmissionOperationApply = "apply"
+
+	// maxAdmissionTrustedKeys is the maximum number of trusted keys of a
+	// policy.
+	maxAdmissionTrustedKeys = 32
 
 	// AdmissionSchemaFromCRDSchema makes a policy validate writes of
 	// crd/<group>/<kind>/<name> Variables against the JSON Schema stored in
@@ -102,6 +116,12 @@ type AdmissionPolicy struct {
 	// expression does not evaluate to true.
 	Rules []*AdmissionPolicyRule
 
+	// TrustedKeys are PEM encoded public keys (cosign format). A policy with
+	// trusted keys requires every release it applies to to come from a pack
+	// with a valid signature of its digest by one of the keys; the server
+	// verifies the signatures itself. It requires the "release" resource.
+	TrustedKeys []string
+
 	// Raft indexes.
 	CreateIndex uint64
 	ModifyIndex uint64
@@ -162,7 +182,7 @@ func (p *AdmissionPolicy) Validate() error {
 		mErr = multierror.Append(mErr, fmt.Errorf("invalid action %q, must be %q or %q",
 			p.Action, AdmissionPolicyActionDeny, AdmissionPolicyActionWarn))
 	}
-	if len(p.Rules) == 0 && p.SchemaFrom == "" {
+	if len(p.Rules) == 0 && p.SchemaFrom == "" && len(p.TrustedKeys) == 0 {
 		mErr = multierror.Append(mErr, fmt.Errorf("at least one rule is required"))
 	}
 	if len(p.Rules) > maxAdmissionPolicyRules {
@@ -184,10 +204,10 @@ func (p *AdmissionPolicy) Validate() error {
 		}
 		for _, r := range p.Match.Resources {
 			switch r {
-			case AdmissionResourceJob, AdmissionResourceVariable:
+			case AdmissionResourceJob, AdmissionResourceVariable, AdmissionResourceRelease:
 			default:
-				mErr = multierror.Append(mErr, fmt.Errorf("match: invalid resource %q, must be %q or %q",
-					r, AdmissionResourceJob, AdmissionResourceVariable))
+				mErr = multierror.Append(mErr, fmt.Errorf("match: invalid resource %q, must be %q, %q or %q",
+					r, AdmissionResourceJob, AdmissionResourceVariable, AdmissionResourceRelease))
 			}
 		}
 		for _, path := range p.Match.VariablePaths {
@@ -210,6 +230,17 @@ func (p *AdmissionPolicy) Validate() error {
 		mErr = multierror.Append(mErr, fmt.Errorf("invalid schema_from %q, must be %q",
 			p.SchemaFrom, AdmissionSchemaFromCRDSchema))
 	}
+	if len(p.TrustedKeys) > 0 && !p.AppliesToResource(AdmissionResourceRelease) {
+		mErr = multierror.Append(mErr, fmt.Errorf("trusted_keys requires the %q resource", AdmissionResourceRelease))
+	}
+	if len(p.TrustedKeys) > maxAdmissionTrustedKeys {
+		mErr = multierror.Append(mErr, fmt.Errorf("at most %d trusted keys are allowed", maxAdmissionTrustedKeys))
+	}
+	for i, key := range p.TrustedKeys {
+		if !strings.Contains(key, "-----BEGIN PUBLIC KEY-----") {
+			mErr = multierror.Append(mErr, fmt.Errorf("trusted key %d: must be a PEM encoded public key", i))
+		}
+	}
 
 	return mErr.ErrorOrNil()
 }
@@ -229,6 +260,7 @@ func (p *AdmissionPolicy) Copy() *AdmissionPolicy {
 			VariablePaths: slices.Clone(p.Match.VariablePaths),
 		}
 	}
+	np.TrustedKeys = slices.Clone(p.TrustedKeys)
 	if p.Rules != nil {
 		np.Rules = make([]*AdmissionPolicyRule, len(p.Rules))
 		for i, r := range p.Rules {
@@ -273,6 +305,12 @@ func (p *AdmissionPolicy) AppliesToVariable(namespace, path string) bool {
 		return false
 	}
 	return AdmissionNamespaceMatches(p.Match.VariablePaths, path, true)
+}
+
+// AppliesToRelease returns true if the policy applies to releases in the
+// namespace.
+func (p *AdmissionPolicy) AppliesToRelease(namespace string) bool {
+	return p.AppliesToResource(AdmissionResourceRelease) && p.MatchesNamespace(namespace)
 }
 
 // AdmissionResourceSelected reports whether resource is in the resource
