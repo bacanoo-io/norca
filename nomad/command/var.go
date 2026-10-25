@@ -37,8 +37,7 @@ Usage: norca var <subcommand> [options] [args]
   the Norca API and CLI.
 
   Users can create new variables; list, inspect, and delete existing
-  variables, and more. For a full guide on variables see:
-  https://www.nomadproject.io/docs/concepts/variables
+  variables, and more.
 
   Create a variable specification file:
 

@@ -18,8 +18,10 @@ const (
 )
 
 var (
-	// projectURL is the project URL.
-	projectURL = "https://www.nomadproject.io/"
+	// norcaVersionFunc returns the Norca product version. A variable for tests.
+	norcaVersionFunc = func() string {
+		return version.NorcaVersion
+	}
 
 	// rt is the runtime - variable for tests.
 	rt = runtime.Version()
@@ -32,10 +34,12 @@ var (
 	}
 )
 
-// String returns the consistent user-agent string for Nomad.
+// String returns the consistent user-agent string for Norca, naming the
+// Norca product version and the Nomad API version it is compatible with, e.g.
+// "Norca/0.1.0 (Nomad API 1.6.5; go1.27.3)".
 func String() string {
-	return fmt.Sprintf("Nomad/%s (+%s; %s)",
-		versionFunc(), projectURL, rt)
+	return fmt.Sprintf("Norca/%s (Nomad API %s; %s)",
+		norcaVersionFunc(), versionFunc(), rt)
 }
 
 // HeaderSetter is anything that implements SetHeaders(http.Header).

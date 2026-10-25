@@ -1,3 +1,0 @@
-```release-note:bug
-connect: Fixed a bug where deployments would not wait for Connect sidecar task health checks to pass
-```

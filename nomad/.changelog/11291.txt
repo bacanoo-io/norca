@@ -1,3 +1,0 @@
-```release-note:bug
-agent: Fixed an issue that caused some non-JSON log output when `log_json` was enabled
-```

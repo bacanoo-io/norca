@@ -1,3 +1,0 @@
-```release-note:bug
-scheduler: Fixed a bug where updates to the `datacenters` field were not destructive.
-```

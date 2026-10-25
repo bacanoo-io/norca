@@ -1,3 +1,0 @@
-```release-note:improvement
-jobspec: Add 'crons' field for multiple `cron` expressions
-```

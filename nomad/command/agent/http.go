@@ -44,10 +44,6 @@ const (
 	// ErrInvalidMethod is used if the HTTP method is not supported
 	ErrInvalidMethod = "Invalid method"
 
-	// ErrEntOnly is the error returned if accessing an enterprise only
-	// endpoint
-	ErrEntOnly = "Nomad Enterprise only endpoint"
-
 	// ErrServerOnly is the error text returned if accessing a server only
 	// endpoint
 	ErrServerOnly = "Server only endpoint"
@@ -66,7 +62,7 @@ var (
 
 	// Displayed when ui is disabled, but overridden if the ui build
 	// tag isn't enabled
-	stubHTML = "<html><p>Nomad UI is disabled</p></html>"
+	stubHTML = "<html><p>The web UI is disabled</p></html>"
 
 	// allowCORSWithMethods sets permissive CORS headers for a handler, used by
 	// wrapCORS and wrapCORSWithMethods
@@ -390,8 +386,25 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/node/pools", s.wrap(s.NodePoolsRequest))
 	s.mux.HandleFunc("/v1/node/pool/", s.wrap(s.NodePoolSpecificRequest))
 
+	s.mux.HandleFunc("/v1/mtls/roots", s.wrap(s.MTLSRootsRequest))
+	s.mux.HandleFunc("/v1/mtls/ca/rotate", s.wrap(s.MTLSRotateRequest))
+	s.mux.HandleFunc("/v1/service-intentions", s.wrap(s.ServiceIntentionsRequest))
+	s.mux.HandleFunc("/v1/service-intention", s.wrap(s.ServiceIntentionRequest))
+
 	s.mux.HandleFunc("/v1/admission-policies", s.wrap(s.AdmissionPoliciesRequest))
 	s.mux.HandleFunc("/v1/admission-policy/", s.wrap(s.AdmissionPolicySpecificRequest))
+
+	s.mux.HandleFunc("/v1/network-policies", s.wrap(s.NetworkPoliciesRequest))
+	s.mux.HandleFunc("/v1/network-policy/", s.wrap(s.NetworkPolicySpecificRequest))
+	s.mux.HandleFunc("/v1/admin-network-policies", s.wrap(s.AdminNetworkPoliciesRequest))
+	s.mux.HandleFunc("/v1/admin-network-policy/", s.wrap(s.AdminNetworkPolicySpecificRequest))
+
+	s.mux.HandleFunc("/v1/object-kinds", s.wrap(s.ObjectKindsRequest))
+	s.mux.HandleFunc("/v1/object-kind/", s.wrap(s.ObjectKindSpecificRequest))
+	s.mux.HandleFunc("/v1/objects/", s.wrap(s.ObjectsRequest))
+	s.mux.HandleFunc("/v1/object/", s.wrap(s.ObjectSpecificRequest))
+	s.mux.HandleFunc("/v1/releases", s.wrap(s.ReleasesRequest))
+	s.mux.HandleFunc("/v1/release/", s.wrap(s.ReleaseSpecificRequest))
 
 	s.mux.HandleFunc("/v1/allocations", s.wrap(s.AllocsRequest))
 	s.mux.HandleFunc("/v1/allocation/", s.wrap(s.AllocSpecificRequest))
@@ -460,6 +473,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	// Register our service registration handlers.
 	s.mux.HandleFunc("/v1/services", s.wrap(s.ServiceRegistrationListRequest))
 	s.mux.HandleFunc("/v1/service/", s.wrap(s.ServiceRegistrationRequest))
+	s.mux.HandleFunc("/v1/services/external", s.wrap(s.ExternalServiceListRequest))
 
 	// Monitor is *not* an untrusted endpoint despite the log contents
 	// potentially containing unsanitized user input. Monitor, like
@@ -484,12 +498,13 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 
 	s.mux.HandleFunc("/v1/search/fuzzy", s.wrap(s.FuzzySearchRequest))
 	s.mux.HandleFunc("/v1/search", s.wrap(s.SearchRequest))
-	s.mux.HandleFunc("/v1/operator/license", s.wrap(s.LicenseRequest))
 	s.mux.HandleFunc("/v1/operator/raft/", s.wrap(s.OperatorRequest))
 	s.mux.HandleFunc("/v1/operator/keyring/", s.wrap(s.KeyringRequest))
 	s.mux.HandleFunc("/v1/operator/autopilot/configuration", s.wrap(s.OperatorAutopilotConfiguration))
 	s.mux.HandleFunc("/v1/operator/autopilot/health", s.wrap(s.OperatorServerHealth))
 	s.mux.HandleFunc("/v1/operator/snapshot", s.wrap(s.SnapshotRequest))
+	s.mux.HandleFunc("/v1/operator/backups", s.wrap(s.BackupsRequest))
+	s.mux.HandleFunc("/v1/operator/backup/", s.wrap(s.BackupSpecificRequest))
 
 	s.mux.HandleFunc("/v1/system/gc", s.wrap(s.GarbageCollectRequest))
 	s.mux.HandleFunc("/v1/system/reconcile/summaries", s.wrap(s.ReconcileJobSummaries))
@@ -539,9 +554,6 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 		s.mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 		s.mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	}
-
-	// Register enterprise endpoints.
-	s.registerEnterpriseHandlers()
 }
 
 // builtinAPI is a wrapper around serving the HTTP API to arbitrary listeners

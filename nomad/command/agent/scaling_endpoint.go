@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"maps"
 	"net/http"
 	"strings"
 
@@ -90,6 +91,30 @@ func ApiScalingPolicyToStructs(count int, ap *api.ScalingPolicy) *structs.Scalin
 		Engine: ap.Engine,
 		Policy: ap.Policy,
 		Target: map[string]string{},
+
+		EvaluationInterval:    ap.EvaluationInterval,
+		Cooldown:              ap.Cooldown,
+		CooldownOnScaleUp:     ap.CooldownOnScaleUp,
+		OnCheckError:          ap.OnCheckError,
+		ScaleDuringDeployment: ap.ScaleDuringDeployment,
+	}
+	for _, c := range ap.Checks {
+		if c == nil {
+			continue
+		}
+		p.Checks = append(p.Checks, &structs.ScalingCheck{
+			Name:              c.Name,
+			Source:            c.Source,
+			Metric:            c.Metric,
+			Query:             c.Query,
+			QueryWindow:       c.QueryWindow,
+			QueryWindowOffset: c.QueryWindowOffset,
+			QueryInstant:      c.QueryInstant,
+			Group:             c.Group,
+			Strategy:          c.Strategy,
+			StrategyConfig:    maps.Clone(c.StrategyConfig),
+			OnError:           c.OnError,
+		})
 	}
 	if ap.Enabled != nil {
 		p.Enabled = *ap.Enabled

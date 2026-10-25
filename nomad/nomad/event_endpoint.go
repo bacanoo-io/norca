@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/go-msgpack/codec"
 
+	"github.com/hashicorp/nomad/acl"
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/nomad/stream"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -54,7 +55,8 @@ func (e *Event) stream(conn io.ReadWriteCloser) {
 
 	e.srv.MeasureRPCRate("event", structs.RateMetricRead, &args)
 	if authErr != nil {
-		handleJsonResultError(structs.ErrPermissionDenied, pointer.Of(int64(403)), encoder)
+		handleJsonResultError(structs.ErrPermissionDenied, pointer.Of(int64(http.StatusForbidden)), encoder)
+		return
 	}
 
 	// Generate the subscription request
@@ -81,8 +83,16 @@ func (e *Event) stream(conn io.ReadWriteCloser) {
 	// Track whether the ACL token being used has an expiry time.
 	var expiryTime *time.Time
 
+	// A workload identity is valid only while its allocation is not
+	// terminal (see Server.VerifyClaim).
+	var identityAllocID string
+
 	// Check required ACL permissions for requested Topics
 	if e.srv.config.ACLEnabled {
+		if claims := args.GetIdentity().GetClaims(); claims != nil {
+			identityAllocID = claims.AllocationID
+		}
+		subReq.ResolveACL = e.resolveSubscriptionACL
 		subscription, expiryTime, subErr = publisher.SubscribeWithACLCheck(subReq)
 	} else {
 		subscription, subErr = publisher.Subscribe(subReq)
@@ -118,6 +128,13 @@ func (e *Event) stream(conn io.ReadWriteCloser) {
 			// Ensure the token being used is not expired before we any events
 			// to subscribers.
 			if expiryTime != nil && expiryTime.Before(time.Now().UTC()) {
+				select {
+				case errCh <- structs.ErrTokenExpired:
+				case <-ctx.Done():
+				}
+				return
+			}
+			if identityAllocID != "" && !e.allocAlive(identityAllocID) {
 				select {
 				case errCh <- structs.ErrTokenExpired:
 				case <-ctx.Done():
@@ -179,6 +196,41 @@ OUTER:
 
 }
 
+// resolveSubscriptionACL resolves the ACL object and expiry time of an event
+// stream token. Like other RPCs it accepts ACL tokens and workload
+// identities, whose ACL comes from the policies bound to their job.
+func (e *Event) resolveSubscriptionACL(token string) (*acl.ACL, *time.Time, error) {
+	args := &structs.GenericRequest{QueryOptions: structs.QueryOptions{AuthToken: token}}
+	if err := e.srv.Authenticate(nil, args); err != nil {
+		return nil, nil, err
+	}
+	aclObj, err := e.srv.ResolveACL(args)
+	if err != nil {
+		return nil, nil, err
+	}
+	if aclObj == nil {
+		// The secret identifies neither an ACL token nor a workload, for
+		// example it is a node secret ID.
+		return nil, nil, structs.ErrPermissionDenied
+	}
+
+	identity := args.GetIdentity()
+	if aclToken := identity.GetACLToken(); aclToken != nil {
+		return aclObj, aclToken.ExpirationTime, nil
+	}
+	if claims := identity.GetClaims(); claims != nil && claims.ExpiresAt != nil {
+		return aclObj, pointer.Of(claims.ExpiresAt.Time), nil
+	}
+	return aclObj, nil, nil
+}
+
+// allocAlive reports whether the allocation of a workload identity exists and
+// is not terminal.
+func (e *Event) allocAlive(allocID string) bool {
+	alloc, err := e.srv.State().AllocByID(nil, allocID)
+	return err == nil && alloc != nil && !alloc.ClientTerminalStatus()
+}
+
 // subscribeErrorCode returns the HTTP status code for an error returned when
 // subscribing to the event broker.
 func subscribeErrorCode(err error) int64 {
@@ -188,6 +240,11 @@ func subscribeErrorCode(err error) int64 {
 		return http.StatusGone
 	case errors.Is(err, stream.ErrExactIndexRequired):
 		return http.StatusBadRequest
+	case errors.Is(err, structs.ErrPermissionDenied),
+		errors.Is(err, structs.ErrTokenNotFound),
+		errors.Is(err, structs.ErrTokenExpired),
+		errors.Is(err, structs.ErrTokenInvalid):
+		return http.StatusForbidden
 	default:
 		return http.StatusInternalServerError
 	}

@@ -24,6 +24,7 @@ server {
     enabled                     = true
     default_engine              = "builtin"
     min_eval_interval           = "15s"
+    min_cooldown                = "20s"
     default_evaluation_interval = "30s"
     default_cooldown            = "2m"
     plugin_dir                  = "/opt/nomad/autoscaler-plugins"
@@ -38,6 +39,18 @@ server {
       config {
         address = "http://prometheus:9090"
       }
+    }
+
+    apm "dd" {
+      driver = "datadog"
+      args   = ["-v"]
+      config {
+        dd_api_key = "abc"
+      }
+    }
+
+    strategy "pid" {
+      driver = "pid-strategy"
     }
   }
 }
@@ -54,6 +67,7 @@ server {
 	must.True(t, cfg.Enabled)
 	must.Eq(t, "builtin", cfg.DefaultEngine)
 	must.Eq(t, 15*time.Second, cfg.MinEvalInterval)
+	must.Eq(t, 20*time.Second, cfg.MinCooldown)
 	must.Eq(t, 30*time.Second, cfg.DefaultEvaluationInterval)
 	must.Eq(t, 2*time.Minute, cfg.DefaultCooldown)
 	must.Eq(t, "/opt/nomad/autoscaler-plugins", cfg.PluginDir)
@@ -62,12 +76,23 @@ server {
 	must.Eq(t, 20, cfg.RateLimitBurst)
 	must.Eq(t, 10*time.Minute, cfg.MetricsWindow)
 	must.Eq(t, 15*time.Second, cfg.ClientMetricsInterval)
-	must.Len(t, 1, cfg.APMs)
+	must.Len(t, 2, cfg.APMs)
 	must.Eq(t, &autoscaler.PluginConfig{
 		Name:   "prom",
 		Driver: "prometheus",
 		Config: map[string]string{"address": "http://prometheus:9090"},
 	}, cfg.APMs[0])
+	must.Eq(t, &autoscaler.PluginConfig{
+		Name:   "dd",
+		Driver: "datadog",
+		Args:   []string{"-v"},
+		Config: map[string]string{"dd_api_key": "abc"},
+	}, cfg.APMs[1])
+	must.Eq(t, []*autoscaler.PluginConfig{{
+		Name:   "pid",
+		Driver: "pid-strategy",
+		Config: map[string]string{},
+	}}, cfg.Strategies)
 
 	// The block survives merging with the default configuration.
 	merged := DefaultConfig().Merge(c)
@@ -93,7 +118,10 @@ func TestConfig_Autoscaler_Invalid(t *testing.T) {
 	cases := []*AutoscalerConfig{
 		{DefaultEngine: "other"},
 		{MinEvalInterval: "soon"},
+		// External plugins need plugin_dir.
 		{APMs: []*AutoscalerPluginConfig{{Name: "dd", Driver: "datadog"}}},
+		{Strategies: []*AutoscalerPluginConfig{{Name: "pid"}}},
+		{PluginDir: "/opt/p", Strategies: []*AutoscalerPluginConfig{{Name: "pid"}, {Name: "pid"}}},
 	}
 	for _, c := range cases {
 		_, err := c.toServerConfig()

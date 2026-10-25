@@ -64,7 +64,8 @@ type NomadProviderConfig struct {
 	// JobPrefix is prepended to the object name to form the job ID.
 	JobPrefix string
 
-	// Driver of the proxy task: raw_exec, exec or docker.
+	// Driver of the proxy task: raw_exec, exec or docker (mock_driver for
+	// tests on dev agents).
 	Driver string
 
 	// Command is the path of this binary on the nodes (raw_exec, exec).
@@ -75,6 +76,10 @@ type NomadProviderConfig struct {
 
 	CPU      int
 	MemoryMB int
+
+	// ManagedBy is the identity the proxy jobs are protected for (see
+	// controller.SetManagedBy); empty leaves them unprotected.
+	ManagedBy string
 }
 
 type nomadProvider struct {
@@ -99,6 +104,8 @@ func newNomadProvider(cfg NomadProviderConfig, backend controller.Backend, clust
 		if cfg.Image == "" {
 			return nil, errors.New("the docker driver requires the proxy image")
 		}
+	case "mock_driver":
+		// For tests on dev agents: the task runs without a process.
 	default:
 		return nil, fmt.Errorf("unsupported proxy driver %q", cfg.Driver)
 	}
@@ -192,6 +199,8 @@ func (p *nomadProvider) desiredJob(obj *controller.Object, spec Spec, jobID stri
 	switch p.cfg.Driver {
 	case "docker":
 		config = map[string]any{"image": p.cfg.Image, "args": args, "ports": []string{proxyPort}}
+	case "mock_driver":
+		config = map[string]any{"run_for": "24h"}
 	default:
 		config = map[string]any{"command": p.cfg.Command, "args": args}
 	}
@@ -225,6 +234,7 @@ func (p *nomadProvider) desiredJob(obj *controller.Object, spec Spec, jobID stri
 		}},
 	}
 	controller.SetOwner(job, obj)
+	controller.SetManagedBy(job, p.cfg.ManagedBy)
 	job.Meta[metaSpecHash] = hashJob(job)
 	return job
 }

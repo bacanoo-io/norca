@@ -36,6 +36,10 @@ var (
 		"plan",
 		"render",
 		"run",
+		"upgrade",
+		"rollback",
+		"history",
+		"uninstall",
 		"destroy",
 		"fmt",
 		"info",
@@ -130,6 +134,24 @@ func Commands(
 			return &RunCommand{
 				baseCommand: baseCommand,
 			}, nil
+		},
+		"upgrade": func() (cli.Command, error) {
+			return &RunCommand{baseCommand: baseCommand, upgrade: true}, nil
+		},
+		"rollback": func() (cli.Command, error) {
+			return &RollbackCommand{baseCommand: baseCommand}, nil
+		},
+		"history": func() (cli.Command, error) {
+			return &HistoryCommand{baseCommand: baseCommand}, nil
+		},
+		"uninstall": func() (cli.Command, error) {
+			return &UninstallCommand{baseCommand: baseCommand}, nil
+		},
+		"test": func() (cli.Command, error) {
+			return &ReleaseTestCommand{baseCommand: baseCommand}, nil
+		},
+		"diff": func() (cli.Command, error) {
+			return &DiffCommand{baseCommand: baseCommand}, nil
 		},
 		"version": func() (cli.Command, error) {
 			return &VersionCommand{
@@ -229,6 +251,37 @@ func Commands(
 			return &depsVendorCommand{
 				baseCommand: baseCommand,
 			}, nil
+		},
+
+		// Norca: supply chain commands (OCI registries, signing, bundles).
+		"push": func() (cli.Command, error) {
+			return &PushCommand{baseCommand: baseCommand}, nil
+		},
+		"sign": func() (cli.Command, error) {
+			return &SignCommand{baseCommand: baseCommand}, nil
+		},
+		"verify": func() (cli.Command, error) {
+			return &VerifyCommand{baseCommand: baseCommand}, nil
+		},
+		"key": func() (cli.Command, error) {
+			return &groupHelpCommand{baseCommand: baseCommand, name: "key",
+				synopsis: "Manage pack signing keys", subcommands: "generate"}, nil
+		},
+		"key generate": func() (cli.Command, error) {
+			return &KeyGenerateCommand{baseCommand: baseCommand}, nil
+		},
+		"bundle": func() (cli.Command, error) {
+			return &groupHelpCommand{baseCommand: baseCommand, name: "bundle",
+				synopsis: "Create and import offline pack bundles", subcommands: "create, import, inspect"}, nil
+		},
+		"bundle create": func() (cli.Command, error) {
+			return &BundleCreateCommand{baseCommand: baseCommand}, nil
+		},
+		"bundle import": func() (cli.Command, error) {
+			return &BundleImportCommand{baseCommand: baseCommand}, nil
+		},
+		"bundle inspect": func() (cli.Command, error) {
+			return &BundleInspectCommand{baseCommand: baseCommand}, nil
 		},
 	}
 

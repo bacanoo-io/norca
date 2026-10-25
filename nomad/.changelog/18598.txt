@@ -1,3 +1,0 @@
-```release-note:bug
-ui: fix the job auto-linked variable path name when user lacks variable write permissions
-```

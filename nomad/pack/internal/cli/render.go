@@ -266,6 +266,12 @@ func (c *RenderCommand) Run(args []string) int {
 	// Set the packConfig defaults if necessary and generate our UI error context.
 	errorContext := initPackCommand(c.packConfig)
 
+	// Download and verify packs from OCI registries, and check the lock file.
+	if _, err := c.preparePack(c.packConfig); err != nil {
+		c.ui.ErrorWithContext(err, "failed to verify pack", errorContext.GetAll()...)
+		return 1
+	}
+
 	if err := caching.VerifyPackExists(c.packConfig, errorContext, c.ui); err != nil {
 		return 1
 	}
@@ -348,6 +354,7 @@ func (c *RenderCommand) Flags() *flag.Sets {
 		c.packConfig = &caching.PackConfig{}
 
 		f := set.NewSet("Render Options")
+		c.addLockFlag(f)
 
 		f.StringVar(&flag.StringVar{
 			Name:    "registry",

@@ -1,0 +1,19 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+# <% .Name %>
+
+The operator pack of <% .Group %>/<% .Kind %>: the object kind, the ACL policy
+bound to the controller job and the controller job, applied as one release
+(kind and policy first, the job last; uninstall in reverse order).
+
+```shell
+norca pack plan ./pack/<% .Name %>
+norca pack run  ./pack/<% .Name %> --name=<% .Name %>
+norca pack status <% .Name %>
+norca pack uninstall <% .Name %>
+```
+
+Keep `templates/_helpers.tpl` in line with `<% .KindLower %>.schema.json` of
+the project.

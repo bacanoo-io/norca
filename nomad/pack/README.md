@@ -107,6 +107,25 @@ norca pack registry list
 
 Packs from this registry can now be deployed using the `run` command.
 
+### OCI registries, signing and offline installation
+
+Packs can also be published to and installed from OCI registries (for example an internal Harbor
+or Zot registry), signed with cosign compatible key pairs and verified against a per-registry trust
+policy, moved into air-gapped environments as offline bundles, and pinned with a `pack.lock` file:
+
+```shell
+norca pack key generate
+norca pack registry add internal oci://registry.example.internal/packs --trust-key=cosign.pub --require-signature
+norca pack push ./redis --registry=internal --sign-key=cosign.key
+norca pack run redis --registry=internal
+
+norca pack bundle create --output=packs.tar --registry=internal redis:0.2.1
+norca pack bundle import packs.tar --registry=internal-isolated
+```
+
+See the [supply chain guide](docs/supply-chain.md) for the configuration file, authentication,
+trust policies, bundles, `pack.lock` and the artifact formats.
+
 ### Writing your own Packs
 
 Nomad Pack is valuable when used with official and community packs, but many users will also want to
@@ -130,10 +149,13 @@ Pull Requests and feedback on both repositories are welcome!
 - Support for Volumes and ACLs
 - Support for other Version Control Systems
 - Pack search command
+- Server-side releases and signature enforcement in admission policies
+- Keyless (Sigstore identity) signatures
 
 ## Additional Resources
 
 - [Detailed Usage Guide](/docs/detailed-usage.md)
+- [OCI Registries, Signing, Offline Bundles and pack.lock](/docs/supply-chain.md)
 - [How to Write Your Own Pack](/docs/writing-packs.md)
 - [Contributing](/docs/contributing.md)
 

@@ -1,3 +1,0 @@
-```release-note:bug
-helpers: Fixed a bug where random stagger func did not protect against negative inputs
-```

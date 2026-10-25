@@ -38,8 +38,9 @@ const (
 	DispatchPayloadSizeLimit = 16 * 1024
 )
 
-// ErrMultipleNamespaces is send when multiple namespaces are used in the OSS setup
-var ErrMultipleNamespaces = errors.New("multiple Vault namespaces requires Nomad Enterprise")
+// ErrMultipleNamespaces is returned when a job uses Vault namespaces while the
+// Vault configuration requires a token to submit the job.
+var ErrMultipleNamespaces = errors.New("Vault namespaces in a job are not supported when the server requires a Vault token")
 
 var (
 	// allowRescheduleTransition is the transition that allows failed
@@ -69,7 +70,10 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 		logger: s.logger.Named("job"),
 		mutators: []jobMutator{
 			&jobCanonicalizer{srv: s},
+			jobVaultNamespaceDefaulter{},
+			jobScalingHook{srv: s},
 			jobConnectHook{},
+			jobMTLSHook{srv: s},
 			jobExposeCheckHook{},
 			jobImpliedConstraints{},
 			jobNodePoolMutatingHook{srv: s},
@@ -84,7 +88,10 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobNodePoolValidatingHook{srv: s},
 			jobAllocAffinityHook{srv: s},
 			jobDisruptionHook{srv: s},
+			jobMTLSHook{srv: s},
 			jobQuotaValidatingHook{srv: s},
+			jobScalingHook{srv: s},
+			jobNetworkPolicyHook{srv: s},
 			&jobValidate{srv: s},
 			&memoryOversubscriptionValidate{srv: s},
 		},
@@ -94,6 +101,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 // Register is used to upsert a job for scheduling
 func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegisterResponse) error {
 	authErr := j.srv.Authenticate(j.ctx, args)
+	multiregionRequestRegion(args)
 	if done, err := j.srv.forward("Job.Register", args, args, reply); done {
 		return err
 	}
@@ -111,6 +119,12 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	// defensive check; http layer and RPC requester should ensure namespaces are set consistently
 	if args.RequestNamespace() != args.Job.Namespace {
 		return fmt.Errorf("mismatched request namespace in request: %q, %q", args.RequestNamespace(), args.Job.Namespace)
+	}
+
+	// Interpolate a multiregion job for this region
+	mr, err := j.multiregionPrepare(args)
+	if err != nil {
+		return err
 	}
 
 	// Run admission controllers
@@ -194,15 +208,6 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
 			return structs.ErrPermissionDenied
 		}
-
-		// Check if override is set and we do not have permissions
-		if args.PolicyOverride {
-			if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySentinelOverride) {
-				j.logger.Warn("policy override attempted without permissions for job", "job", args.Job.ID)
-				return structs.ErrPermissionDenied
-			}
-			j.logger.Warn("policy override set for job", "job", args.Job.ID)
-		}
 	}
 
 	if ok, err := registrationsAreAllowed(aclObj, j.srv.State()); !ok || err != nil {
@@ -218,6 +223,9 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	ws := memdb.NewWatchSet()
 	existingJob, err := snap.JobByID(ws, args.RequestNamespace(), args.Job.ID)
 	if err != nil {
+		return err
+	}
+	if err := checkManagedJob(aclObj, args, existingJob); err != nil {
 		return err
 	}
 
@@ -298,8 +306,9 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		}
 	}
 
-	// Enforce Sentinel policies. Pass a copy of the job to prevent
-	// sentinel from altering it.
+	// Enforce the admission policies. Pass a copy of the job to prevent
+	// them from altering it. PolicyOverride is ignored: admission policies
+	// cannot be overridden.
 	ns, err := snap.NamespaceByName(nil, args.RequestNamespace())
 	if err != nil {
 		return err
@@ -332,15 +341,13 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		}
 	}
 
-	// Submit a multiregion job to other regions (enterprise only).
-	// The job will have its region interpolated.
-	var newVersion uint64
-	if existingJob != nil {
-		newVersion = existingJob.Version + 1
-	}
-	isRunner, err := j.multiregionRegister(args, reply, newVersion)
-	if err != nil {
+	// Submit a multiregion job to its other regions, with the same version.
+	if err := j.multiregionRegister(mr, args, reply, existingJob, nomadACLToken); err != nil {
 		return err
+	}
+	if mr != nil && len(mr.warnings) > 0 {
+		warnings = append(warnings, mr.warnings...)
+		reply.Warnings = helper.MergeMultierrorWarnings(warnings...)
 	}
 
 	// Create a new evaluation
@@ -376,10 +383,7 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	}
 
 	// Check if the job has changed at all
-	specChanged, err := j.multiregionSpecChanged(existingJob, args)
-	if err != nil {
-		return err
-	}
+	specChanged := j.multiregionSpecChanged(mr, existingJob, args)
 
 	if existingJob == nil || specChanged {
 
@@ -389,7 +393,7 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		}
 
 		// Pre-register a deployment if necessary.
-		args.Deployment = j.multiregionCreateDeployment(job, eval)
+		args.Deployment = j.multiregionCreateDeployment(mr, args.Job, eval)
 
 		// Commit this update via Raft
 		_, index, err := j.srv.raftApply(structs.JobRegisterRequestType, args)
@@ -410,16 +414,10 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		reply.JobModifyIndex = existingJob.JobModifyIndex
 	}
 
-	// used for multiregion start
-	args.Job.JobModifyIndex = reply.JobModifyIndex
-
 	if eval == nil {
-		// For dispatch jobs we return early, so we need to drop regions
-		// here rather than after eval for deployments is kicked off
-		err = j.multiregionDrop(args, reply)
-		if err != nil {
-			return err
-		}
+		// For periodic and parameterized jobs we return early, so we need
+		// to drop regions here rather than after the eval is created
+		j.multiregionDrop(mr, args, reply)
 		return nil
 	}
 
@@ -443,21 +441,12 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		reply.Index = evalIndex
 	}
 
-	// Kick off a multiregion deployment (enterprise only).
-	if isRunner {
-		err = j.multiregionStart(args, reply)
-		if err != nil {
-			return err
-		}
-		// We drop any unwanted regions only once we know all jobs have
-		// been registered and we've kicked off the deployment. This keeps
-		// dropping regions close in semantics to dropping task groups in
-		// single-region deployments
-		err = j.multiregionDrop(args, reply)
-		if err != nil {
-			return err
-		}
-	}
+	// The deployment watchers of the regions start a multiregion rollout from
+	// the deployments registered above. We drop any unwanted regions only
+	// once we know all jobs have been registered. This keeps dropping
+	// regions close in semantics to dropping task groups in single-region
+	// deployments
+	j.multiregionDrop(mr, args, reply)
 
 	return nil
 }
@@ -662,6 +651,12 @@ func (j *Job) Revert(args *structs.JobRevertRequest, reply *structs.JobRegisterR
 		WriteRequest: args.WriteRequest,
 	}
 
+	// The stored versions of a multiregion job are interpolated for this
+	// region, so a revert only applies to this region.
+	if revJob.IsMultiregion() {
+		reg.MultiregionRegistration = structs.MultiregionRegistrationLocal
+	}
+
 	// If the request is enforcing the existing version do a check.
 	if args.EnforcePriorVersion != nil {
 		if cur.Version != *args.EnforcePriorVersion {
@@ -841,7 +836,8 @@ func (j *Job) Deregister(args *structs.JobDeregisterRequest, reply *structs.JobD
 	defer metrics.MeasureSince([]string{"nomad", "job", "deregister"}, time.Now())
 
 	// Check for submit-job permissions
-	if aclObj, err := j.srv.ResolveACL(args); err != nil {
+	aclObj, err := j.srv.ResolveACL(args)
+	if err != nil {
 		return err
 	} else if aclObj != nil && !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob) {
 		return structs.ErrPermissionDenied
@@ -864,6 +860,9 @@ func (j *Job) Deregister(args *structs.JobDeregisterRequest, reply *structs.JobD
 	}
 	if job == nil {
 		return nil
+	}
+	if err := checkManagedJob(aclObj, args, job); err != nil {
+		return err
 	}
 
 	var eval *structs.Evaluation
@@ -974,6 +973,9 @@ func (j *Job) BatchDeregister(args *structs.JobBatchDeregisterRequest, reply *st
 
 		job, err := snap.JobByID(nil, jobNS.Namespace, jobNS.ID)
 		if err != nil {
+			return err
+		}
+		if err := checkManagedJob(aclObj, args, job); err != nil {
 			return err
 		}
 
@@ -1099,6 +1101,14 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 			fmt.Sprintf("task group %q specified for scaling does not exist in job", groupName))
 	}
 
+	// A managed job can be scaled by others only in groups with their own
+	// scaling block, whose count belongs to the autoscaler.
+	if args.Count != nil && group.Scaling == nil {
+		if err := checkManagedJob(aclObj, args, job); err != nil {
+			return err
+		}
+	}
+
 	now := time.Now().UnixNano()
 	prevCount := int64(group.Count)
 
@@ -1142,7 +1152,7 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 			return err
 		}
 
-		if deployment != nil && deployment.Active() && deployment.JobCreateIndex == job.CreateIndex {
+		if scaleBlockedByDeployment(deployment, job, group, prevCount, *args.Count) {
 			return structs.NewErrRPCCoded(400, "job scaling blocked due to active deployment")
 		}
 
@@ -1750,6 +1760,12 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		return fmt.Errorf("Job required for plan")
 	}
 
+	// Interpolate the job for this region, as Job.Register does before
+	// admission
+	if err := j.interpolateMultiregionFields(args); err != nil {
+		return err
+	}
+
 	// Run admission controllers
 	job, warnings, err := j.admissionControllers(args.Job, &admissionRequest{
 		operation: structs.AdmissionOperationPlan, args: args})
@@ -1771,12 +1787,6 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
 			return structs.ErrPermissionDenied
 		}
-		// Check if override is set and we do not have permissions
-		if args.PolicyOverride {
-			if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySentinelOverride) {
-				return structs.ErrPermissionDenied
-			}
-		}
 	}
 
 	// Acquire a snapshot of the state
@@ -1785,7 +1795,7 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		return err
 	}
 
-	// Enforce Sentinel policies
+	// Enforce the admission policies; PolicyOverride is ignored
 	nomadACLToken, err := snap.ACLTokenBySecretID(nil, args.AuthToken)
 	if err != nil && !strings.Contains(err.Error(), "missing secret id") {
 		return err
@@ -1801,12 +1811,6 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	if policyWarnings != nil {
 		warnings = append(warnings, policyWarnings)
 		reply.Warnings = helper.MergeMultierrorWarnings(warnings...)
-	}
-
-	// Interpolate the job for this region
-	err = j.interpolateMultiregionFields(args)
-	if err != nil {
-		return err
 	}
 
 	// Get the original job

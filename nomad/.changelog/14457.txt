@@ -1,3 +1,0 @@
-```release-note:bug
-ui: Remove extra space when displaying the version in the menu footer.
-```

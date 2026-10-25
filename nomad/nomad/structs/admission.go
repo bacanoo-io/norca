@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/ryanuber/go-glob"
@@ -25,6 +26,40 @@ const (
 	// operations the dynamic admission chain runs for.
 	AdmissionOperationRegister = "register"
 	AdmissionOperationPlan     = "plan"
+
+	// AdmissionOperationSet and AdmissionOperationDelete are the Variables
+	// operations the dynamic admission chain runs for. Check-and-set writes
+	// and deletes use the same operations.
+	AdmissionOperationSet    = "set"
+	AdmissionOperationDelete = "delete"
+
+	// AdmissionResourceJob and AdmissionResourceVariable are the kinds of
+	// objects an admission policy or webhook can apply to. Without an
+	// explicit selection only jobs are admitted.
+	AdmissionResourceJob      = "job"
+	AdmissionResourceVariable = "variable"
+
+	// AdmissionResourceRelease selects pack releases: the policy runs when
+	// a release is installed, upgraded or rolled back (operation "apply"),
+	// with the variable "release" in its CEL rules, and its TrustedKeys
+	// require a signature of the pack.
+	AdmissionResourceRelease = "release"
+
+	// AdmissionOperationApply is the release operation admission runs for.
+	AdmissionOperationApply = "apply"
+
+	// maxAdmissionTrustedKeys is the maximum number of trusted keys of a
+	// policy.
+	maxAdmissionTrustedKeys = 32
+
+	// AdmissionSchemaFromCRDSchema makes a policy validate writes of
+	// crd/<group>/<kind>/<name> Variables against the JSON Schema stored in
+	// the crd-schema/<group>/<kind> Variable of the same namespace.
+	AdmissionSchemaFromCRDSchema = "crd-schema"
+
+	// VariableAdmissionDeniedPrefix starts the error returned when the
+	// dynamic admission chain rejects a Variables write.
+	VariableAdmissionDeniedPrefix = "variable write denied by admission control"
 
 	// maxAdmissionPolicyDescriptionLength is the maximum length allowed for
 	// an admission policy description.
@@ -46,6 +81,7 @@ const (
 	TypeAdmissionPolicyUpserted = "AdmissionPolicyUpserted"
 	TypeAdmissionPolicyDeleted  = "AdmissionPolicyDeleted"
 	TypeJobAdmissionDenied      = "JobAdmissionDenied"
+	TypeVariableAdmissionDenied = "VariableAdmissionDenied"
 )
 
 var (
@@ -69,20 +105,42 @@ type AdmissionPolicy struct {
 	// policy to every job.
 	Match *AdmissionPolicyMatch
 
+	// SchemaFrom optionally validates Variables writes against a schema
+	// stored in another Variable. The only supported value is "crd-schema":
+	// the items of a crd/<group>/<kind>/<name> Variable must match the JSON
+	// Schema of the crd-schema/<group>/<kind> Variable if that exists. It
+	// requires the "variable" resource in Match.
+	SchemaFrom string
+
 	// Rules are the CEL rules of the policy. A rule is violated when its
 	// expression does not evaluate to true.
 	Rules []*AdmissionPolicyRule
+
+	// TrustedKeys are PEM encoded public keys (cosign format). A policy with
+	// trusted keys requires every release it applies to to come from a pack
+	// with a valid signature of its digest by one of the keys; the server
+	// verifies the signatures itself. It requires the "release" resource.
+	TrustedKeys []string
 
 	// Raft indexes.
 	CreateIndex uint64
 	ModifyIndex uint64
 }
 
-// AdmissionPolicyMatch selects the jobs a policy applies to.
+// AdmissionPolicyMatch selects the jobs and Variables a policy applies to.
 type AdmissionPolicyMatch struct {
 	// Namespaces is the list of namespaces (glob patterns are allowed) the
 	// policy applies to. Empty means every namespace.
 	Namespaces []string
+
+	// Resources is the list of object kinds the policy applies to: "job"
+	// and/or "variable". Empty means jobs only, as before the field existed.
+	Resources []string
+
+	// VariablePaths restricts the Variables writes the policy applies to
+	// (glob patterns are allowed). Empty means every path. It requires the
+	// "variable" resource.
+	VariablePaths []string
 }
 
 // AdmissionPolicyRule is a single CEL rule.
@@ -124,7 +182,7 @@ func (p *AdmissionPolicy) Validate() error {
 		mErr = multierror.Append(mErr, fmt.Errorf("invalid action %q, must be %q or %q",
 			p.Action, AdmissionPolicyActionDeny, AdmissionPolicyActionWarn))
 	}
-	if len(p.Rules) == 0 {
+	if len(p.Rules) == 0 && p.SchemaFrom == "" && len(p.TrustedKeys) == 0 {
 		mErr = multierror.Append(mErr, fmt.Errorf("at least one rule is required"))
 	}
 	if len(p.Rules) > maxAdmissionPolicyRules {
@@ -144,6 +202,44 @@ func (p *AdmissionPolicy) Validate() error {
 				mErr = multierror.Append(mErr, fmt.Errorf("match: empty namespace"))
 			}
 		}
+		for _, r := range p.Match.Resources {
+			switch r {
+			case AdmissionResourceJob, AdmissionResourceVariable, AdmissionResourceRelease:
+			default:
+				mErr = multierror.Append(mErr, fmt.Errorf("match: invalid resource %q, must be %q, %q or %q",
+					r, AdmissionResourceJob, AdmissionResourceVariable, AdmissionResourceRelease))
+			}
+		}
+		for _, path := range p.Match.VariablePaths {
+			if path == "" {
+				mErr = multierror.Append(mErr, fmt.Errorf("match: empty variable path"))
+			}
+		}
+	}
+	forVariables := p.AppliesToResource(AdmissionResourceVariable)
+	if p.Match != nil && len(p.Match.VariablePaths) > 0 && !forVariables {
+		mErr = multierror.Append(mErr, fmt.Errorf("match: variable_paths requires the %q resource", AdmissionResourceVariable))
+	}
+	switch p.SchemaFrom {
+	case "":
+	case AdmissionSchemaFromCRDSchema:
+		if !forVariables {
+			mErr = multierror.Append(mErr, fmt.Errorf("schema_from requires the %q resource", AdmissionResourceVariable))
+		}
+	default:
+		mErr = multierror.Append(mErr, fmt.Errorf("invalid schema_from %q, must be %q",
+			p.SchemaFrom, AdmissionSchemaFromCRDSchema))
+	}
+	if len(p.TrustedKeys) > 0 && !p.AppliesToResource(AdmissionResourceRelease) {
+		mErr = multierror.Append(mErr, fmt.Errorf("trusted_keys requires the %q resource", AdmissionResourceRelease))
+	}
+	if len(p.TrustedKeys) > maxAdmissionTrustedKeys {
+		mErr = multierror.Append(mErr, fmt.Errorf("at most %d trusted keys are allowed", maxAdmissionTrustedKeys))
+	}
+	for i, key := range p.TrustedKeys {
+		if !strings.Contains(key, "-----BEGIN PUBLIC KEY-----") {
+			mErr = multierror.Append(mErr, fmt.Errorf("trusted key %d: must be a PEM encoded public key", i))
+		}
 	}
 
 	return mErr.ErrorOrNil()
@@ -158,8 +254,13 @@ func (p *AdmissionPolicy) Copy() *AdmissionPolicy {
 	np := new(AdmissionPolicy)
 	*np = *p
 	if p.Match != nil {
-		np.Match = &AdmissionPolicyMatch{Namespaces: slices.Clone(p.Match.Namespaces)}
+		np.Match = &AdmissionPolicyMatch{
+			Namespaces:    slices.Clone(p.Match.Namespaces),
+			Resources:     slices.Clone(p.Match.Resources),
+			VariablePaths: slices.Clone(p.Match.VariablePaths),
+		}
 	}
+	np.TrustedKeys = slices.Clone(p.TrustedKeys)
 	if p.Rules != nil {
 		np.Rules = make([]*AdmissionPolicyRule, len(p.Rules))
 		for i, r := range p.Rules {
@@ -172,13 +273,54 @@ func (p *AdmissionPolicy) Copy() *AdmissionPolicy {
 	return np
 }
 
-// MatchesNamespace returns true if the policy applies to jobs in the given
-// namespace.
+// MatchesNamespace returns true if the policy applies to objects in the
+// given namespace. It does not check the resource selection; AppliesToJob
+// and AppliesToVariable do.
 func (p *AdmissionPolicy) MatchesNamespace(namespace string) bool {
 	if p.Match == nil {
 		return true
 	}
 	return AdmissionNamespaceMatches(p.Match.Namespaces, namespace, true)
+}
+
+// AppliesToResource returns true if the policy selects the resource kind. A
+// policy without a resource selection applies to jobs only.
+func (p *AdmissionPolicy) AppliesToResource(resource string) bool {
+	var resources []string
+	if p.Match != nil {
+		resources = p.Match.Resources
+	}
+	return AdmissionResourceSelected(resources, resource)
+}
+
+// AppliesToJob returns true if the policy applies to jobs in the namespace.
+func (p *AdmissionPolicy) AppliesToJob(namespace string) bool {
+	return p.AppliesToResource(AdmissionResourceJob) && p.MatchesNamespace(namespace)
+}
+
+// AppliesToVariable returns true if the policy applies to writes of the
+// Variable at path in the namespace.
+func (p *AdmissionPolicy) AppliesToVariable(namespace, path string) bool {
+	if !p.AppliesToResource(AdmissionResourceVariable) || !p.MatchesNamespace(namespace) {
+		return false
+	}
+	return AdmissionNamespaceMatches(p.Match.VariablePaths, path, true)
+}
+
+// AppliesToRelease returns true if the policy applies to releases in the
+// namespace.
+func (p *AdmissionPolicy) AppliesToRelease(namespace string) bool {
+	return p.AppliesToResource(AdmissionResourceRelease) && p.MatchesNamespace(namespace)
+}
+
+// AdmissionResourceSelected reports whether resource is in the resource
+// selection of an admission policy or webhook. An empty selection selects
+// jobs only.
+func AdmissionResourceSelected(resources []string, resource string) bool {
+	if len(resources) == 0 {
+		return resource == AdmissionResourceJob
+	}
+	return slices.Contains(resources, resource)
 }
 
 // AdmissionNamespaceMatches reports whether namespace matches one of the
@@ -286,6 +428,28 @@ type JobAdmissionDeniedEvent struct {
 
 	// Controller is the kind of controller that rejected the job: "policy"
 	// or "webhook".
+	Controller string
+
+	// Name is the name of the admission policy or webhook.
+	Name string
+
+	// Message is the rejection message.
+	Message string
+}
+
+// VariableAdmissionDeniedEvent is the event stream payload emitted when the
+// dynamic admission chain rejects a Variables write. It never contains the
+// items of the Variable.
+type VariableAdmissionDeniedEvent struct {
+	Namespace string
+	Path      string
+
+	// Operation is "set" or "delete".
+	Operation string
+	User      *AdmissionUser
+
+	// Controller is the kind of controller that rejected the write:
+	// "policy" or "webhook".
 	Controller string
 
 	// Name is the name of the admission policy or webhook.

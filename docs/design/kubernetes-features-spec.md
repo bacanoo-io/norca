@@ -1,6 +1,6 @@
 # Kubernetes features in the Norca fork – detailed specification
 
-**Status:** In progress · 2026-10-24 · Starting point: Nomad v1.6.5 (MPL 2.0) · Related document: [nomad-fork-development-plan.md](nomad-fork-development-plan.md)
+**Status:** In progress · 2026-10-25 (items 1–7 implemented; item 8: phases 1–4 implemented, the UI of phase 4 pending with the new UI) · Starting point: Nomad v1.6.5 (MPL 2.0) · Related document: [nomad-fork-development-plan.md](nomad-fork-development-plan.md)
 
 Status per item:
 
@@ -8,10 +8,10 @@ Status per item:
 - **2.** Dynamic admission control: Implemented
 - **3.** Event stream extension: Implemented
 - **4.** Cross-job affinity and anti-affinity: Implemented
-- **5.** Disruption budget: In progress
+- **5.** Disruption budget: Implemented
 - **6.** Health check roles: Implemented
-- **7.** Network rules: Plan
-- **8.** Operator framework: Plan
+- **7.** Network rules: Implemented (levels A and B; level C dropped)
+- **8.** Operator framework: Implemented (phases 1–4: prototype with the controller SDK, native objects, lifecycle, ecosystem); the UI of phase 4 pending with the new UI
 
 This document is the detailed specification of the seven items listed in the "Features adopted from Kubernetes" chapter of the development plan, plus the operator framework (item 8) built on top of them. The numbering matches the plan. Every chapter follows the same structure: what Kubernetes does, what already exists in Nomad 1.6.5, what we propose (semantics, jobspec, API, data model), where the code has to change, and the acceptance criteria.
 
@@ -258,8 +258,8 @@ The request and response follow the structure of the Kubernetes AdmissionReview,
 
 ### Open questions
 
-- Should admission also run on Variables writes? This would be useful for schema validation in the CRD-like use of item 3.
-- Is a mutating CEL needed (the equivalent of Kubernetes MutatingAdmissionPolicy), or is the webhook enough?
+- Should admission also run on Variables writes? This would be useful for schema validation in the CRD-like use of item 3. **Decided 2026-10-24: yes, together with phase 2 of the operator framework.**
+- Is a mutating CEL needed (the equivalent of Kubernetes MutatingAdmissionPolicy), or is the webhook enough? **Decided 2026-10-24: the webhook is enough; no mutating CEL for now.**
 
 ---
 
@@ -303,7 +303,7 @@ Variables paths allow only `a-z A-Z 0-9 - _ ~ /`; dots are excluded because they
 
 - The **schema** can be given in a companion Variables entry (`crd-schema/<group>/<kind>`); validation can be done by the CEL rules of item 2 if admission is extended to Variables writes (this is an open question of item 2).
 - The **controller** subscribes to the `Variables` topic with the pattern `crd/db-example-com/PostgresCluster/*`, lists at startup, and reacts on change (for example starts or modifies a Nomad job).
-- A small, MPL-licensed **Go controller SDK** (a separate module) provides the list + watch loop, handling of `exact=true`, retries and leader election. Variables locks appeared only in Nomad 1.7 and do not exist in 1.6.5, so leader election is built on the check-and-set write of Variables (with the `cas` parameter, based on `ModifyIndex`): whoever's write succeeds wins, and renews the entry periodically.
+- A small, MPL-licensed **Go controller SDK** (the separate Go module `nomad/controller` in this repository) provides the list + watch loop, handling of `exact=true`, retries and leader election. Variables locks appeared only in Nomad 1.7 and do not exist in 1.6.5, so leader election is built on the check-and-set write of Variables (with the `cas` parameter, based on `ModifyIndex`): whoever's write succeeds wins, and renews the entry periodically.
 
 ### API and CLI
 
@@ -316,7 +316,7 @@ Variables paths allow only `a-z A-Z 0-9 - _ ~ /`; dots are excluded because they
 2. New topics and event types (`nomad/structs/event.go`), ACL filtering at subscription time (`nomad/event_endpoint.go`, `nomad/stream/event_broker.go`).
 3. Processing the `exact` parameter and the `410` response (`command/agent/event_endpoint.go`).
 4. Raising the default of `event_buffer_size` (`nomad/config.go`, `command/agent/config.go`).
-5. The controller SDK in a separate repository.
+5. The controller SDK: the separate Go module `nomad/controller` in this repository (module `github.com/hashicorp/nomad/controller`, depending only on the API module `nomad/api`).
 
 ### Testing and acceptance
 
@@ -627,6 +627,17 @@ enforcement = "required"   # or "best_effort"
 3. **Client:** a new network hook in the allocation runner (next to `client/allocrunner/network_hook.go`), which writes and updates nftables rules in the allocation's network namespace; it receives the rule set from the server with a blocking query.
 4. **Level C:** address-set computation on the server, distribution to the clients, and a documented reference setup with routed allocation subnets.
 
+### Implemented (levels A and B)
+
+Level C is dropped: node-to-node identity comes from native mTLS (see the decision point below).
+
+- **Objects:** `NetworkPolicy` (namespace; `selector`, `ingress`/`egress` rules with `from`/`to` peers and `ports`, `default_deny`, `enforcement`, default `required`) and `AdminNetworkPolicy` (cluster; `priority` 0–1000, lower first, then name; `namespaces` globs; rule `action` = `allow` | `deny` | `pass`). Raft message types 101–104 with `IgnoreUnknownTypeFlag`, snapshot types 101 and 103, tables `network_policies` and `admin_network_policies` (`nomad/structs/network_policy.go`, `nomad/state/state_store_network_policy.go`, `nomad/fsm_network_policy.go`).
+- **Semantics:** the selector matches the job meta overridden by the task group meta (empty selects all). A namespace policy isolates a direction if it has rules there or lists it in `default_deny`; then only the union of the allowed traffic of all selecting policies passes. A rule matches if one of its peers and one of its ports match (none means any). Peers are CIDR blocks or allocations on the same node selected by `namespace` (empty: the policy's namespace, `*`: all) and `selector`. Ports are `5432/tcp`, `8000-8100/udp`, `53` (TCP) or, for ingress, port labels (`db/tcp`, resolved to the `to` port). Admin rules are evaluated first in priority order: `allow` accepts and `deny` drops regardless of namespace policies, `pass` hands over to them; admin policies do not isolate by themselves. Always allowed: loopback, `established,related` (stateful), IPv6 neighbor discovery and, for ingress, the gateway of the allocation network (the node itself, so client health checks work).
+- **API:** RPC `NetworkPolicy.*` (writes behind `ServersMeetMinimumNorcaVersion`), HTTP `/v1/network-policies`, `/v1/network-policy/:name[/status]`, `/v1/admin-network-policies`, `/v1/admin-network-policy/:name[/status]`, api client `NetworkPolicies()`, CLI `norca network-policy apply|list|status|delete [-admin]`. ACL: namespace capabilities `read-network-policy` (included in the namespace `read` and `write` policies) and `write-network-policy` (explicit, or `network_policy { policy = "write" }` in a namespace block); admin policies need operator read/write. Event topic `NetworkPolicy` (`NetworkPolicyUpserted/Deleted`, `AdminNetworkPolicyUpserted/Deleted`).
+- **Scheduler:** `NetworkPolicyChecker` in the task group feasibility checks: when a `required` policy (namespace or admin) selects the group, only nodes with `norca.network_policy.nftables = true` are feasible, and none in `host` mode. `best_effort` does not filter; job registration warns about groups whose network mode cannot enforce the selecting policies, and the client emits a "Network Policy Not Enforced" task event when enforcement fails.
+- **Client:** fingerprint `norca.network_policy.nftables`; alloc runner hook `network_policy` (after the network hook) fetches the effective rules (`NetworkPolicy.GetAllocRules`, blocking query, node secret), compiles them with the pure function `netpolicy.Compile` and programs table `inet norca` in the allocation network namespace with `github.com/google/nftables` (Apache-2.0) in one atomic transaction. Bridge and CNI modes only; without selecting policies no table is written. Drop counters per admin deny rule and per default deny: metric `client.allocs.network_policy.dropped` (with `publish_allocation_metrics`).
+- **Not done:** CIDR `except` blocks, sampled drop logs, deletion protection of namespaces with network policies, and a node-level (instead of per-allocation) watch.
+
 ### Testing and acceptance
 
 - Level A: with an egress rule, a connection to a non-allowed destination is rejected, the allowed one works, and the counter increases.
@@ -635,7 +646,7 @@ enforcement = "required"   # or "best_effort"
 
 ### Decision point
 
-Phase 5 of [consul-independence-plan.md](consul-independence-plan.md) (native mTLS, `ServiceIntention`) solves the main problem of level C, identifying the sender in the presence of address translation, on a certificate basis. Once it is done, instead of the IP-based variant of level C, node-to-node control is built on native mTLS, and network rules can narrow to levels A and B (egress and local ingress).
+Phase 5 of [consul-independence-plan.md](consul-independence-plan.md) (native mTLS, `ServiceIntention`) solves the main problem of level C, identifying the sender in the presence of address translation, on a certificate basis. Its first two steps (per-region CA, workload certificates in "app" mode, `ServiceIntention` objects and the `api/mtls` Go library) are implemented; enforcement without application changes waits for the Envoy sidecar (step 3). Once it is done, instead of the IP-based variant of level C, node-to-node control is built on native mTLS, and network rules can narrow to levels A and B (egress and local ingress).
 
 If Consul stays part of the stack, allocation-level control between nodes is already solved by Consul intentions on an identity basis, and level C can be dropped. In that case levels A and B (egress and local ingress) are still useful as a complement, because Consul controls only the traffic passing through the proxy.
 
@@ -783,7 +794,7 @@ The controller receives these capabilities through the ACL rule bound to its job
 ### Running the controller and the SDK
 
 - **Running:** as a Nomad job, typically with `count = 2`. Only one instance works at a time: in the native version a built-in `Lease` object type, in the prototype the check-and-set write of Variables provides leader election.
-- **SDK (`nomad-controller-runtime`, a separate MPL-licensed Go module):** informer (list + watch with a local cache, resynchronization on `410`), a work queue with rate limiting and backoff, `Reconcile(ctx, key) → (retry time, error)`, watching the jobs and allocations it owns and mapping them back to the owner, status, event and finalizer helper functions, leader election, metrics (reconcile time, queue length, errors) and OpenTelemetry tracing.
+- **SDK (`nomad/controller` in this repository, a separate MPL-licensed Go module):** informer (list + watch with a local cache, resynchronization on `410`), a work queue with rate limiting and backoff, `Reconcile(ctx, key) → (retry time, error)`, watching the jobs and allocations it owns and mapping them back to the owner, status, event and finalizer helper functions, leader election, metrics (reconcile time, queue length, errors) and OpenTelemetry tracing.
 - **Adoption after restore:** if an object is restored from a backup, the SDK first looks for already existing resources belonging to it (based on the owner reference and labels) and adopts them instead of creating new ones. This is also consistent with the selective and full restore of the backup plan.
 
 ### Relationship to the other items
@@ -814,7 +825,7 @@ The controller receives these capabilities through the ACL rule bound to its job
 2. **Server:** type registry, schema validation and default filling (with a JSON Schema library), CEL with `oldSelf`, RPC and HTTP endpoints, ACL, event topic (new `nomad/object_endpoint.go`, `command/agent/object_endpoint.go`, `acl/policy.go`).
 3. **Lifecycle:** finalizer handling, garbage collector and deletion modes on the leader (new `nomad/objectgc/`), admission protection of managed jobs.
 4. **Autoscaler:** `CustomObject` target through the `scale` subresource.
-5. **SDK and tools:** in a separate repository.
+5. **SDK and tools:** the SDK is the separate Go module `nomad/controller` in this repository (it depends only on the API module `nomad/api`, never on the main module); further tools are added next to it.
 6. **UI:** a generic object view based on the columns of the type definition, showing spec, status, conditions and the event log; on the jobs' pages, a link to the owner object.
 
 ### Schedule
@@ -827,6 +838,28 @@ The controller receives these capabilities through the ACL rule bound to its job
 | 4. Ecosystem | UI, operator package (per the package management plan), type-bound webhooks, developer tools, migration CEL, load management | Phase 3 |
 
 The first production operator needs the elements up to the end of phase 3. Phase 4 becomes urgent when other teams start writing operators too.
+
+### Implementation notes (phase 4: ecosystem)
+
+Phase 4 is implemented except the UI (built with the new UI). Everything lives in fields of `ObjectKind` and `CustomObject` (`nomad/structs/objects_ecosystem.go`); no new Raft message types are used. `ObjectKindUpsertRequest` got a `CAS` (expected modify index, also used for approvals), `CustomObject` a `KindVersion`.
+
+- **Operator package:** an operator is an ordinary pack of the extended format. `packs/loadbalancer-operator` packages the LoadBalancer sample: the kind (`*.kind.hcl.tpl`, schema inlined from a helper template, CEL transition rule, columns, optional webhooks, limits), the ACL policy bound to the controller job (`job_acl`, optional for agents without ACLs), an admission policy that checks the `norca_lb_port` mark of services, and the controller job (plus an optional webhook task), with `variables_schema = file("values.schema.json")` and `requires { features = [...] }`. New release features: `object-webhooks`, `object-migrations`, `object-limits`. Resource templates that render to nothing are skipped (conditional resources). The approval of webhooks is server state: the drift hash of a kind ignores approvals and canonicalizes the defaults.
+- **Type-bound webhooks:** `webhook "<name>" { mode = "validate" | "default", url, ca_cert, tls_server_name, timeout, failure_policy, operations }` in the kind. They reuse the webhook client and the review document of item 2 (`resource = "object"`, `object_kind`, `object`, `old_object` in the form CEL rules see), https only, CA from the kind (the package), no client certificate. Order on create/update: schema defaults, defaulting webhooks (their JSON patch may only change the spec; defaults are filled in again and the generation recomputed), schema and CEL rules, validating webhooks; validating webhooks can also review `delete`. Status, finalizer, event and scale writes are not reviewed. Fail closed by default (403 on a failed call, an invalid response or a missing approval); `failure_policy = "ignore"` turns failures into warnings (`CustomObjectWriteResponse.Warnings`). **Approval:** a webhook is called only with an approval whose digest matches its configuration (everything but the approval). A kind written with a management token (or with ACLs disabled) approves its webhooks; other writers (operator write) leave them pending with a warning, and a management token approves or revokes them (`ObjectKind.ApproveWebhook`, `PUT /v1/object-kind/:group/:kind/webhook/:name/approve|revoke`, `norca object-kind webhook approve|revoke`). Unchanged webhooks keep their approval on kind updates and rollbacks. Metric `nomad.custom_object.webhook.failures`.
+- **Migration CEL and schema versions:** `version` (default 1, never lowered) and `migration { spec = "...", status = "..." }`: CEL over `self`, `fromVersion`, `toVersion`, returning the new spec/status map, with the map helpers `m.merge(other)` and `m.omit([keys])`. Every kind write that changes the schema, the rules, the version or the migration checks all stored objects (migration for objects at older versions, schema defaults, schema validation): a write that would leave stored objects invalid is rejected with 409, and the dry run (`norca object-kind apply -dry-run`, `PUT /v1/object-kind/:group/:kind/plan`) returns the report (objects, pending, changed, invalid with errors, sample before/after). Violations of the new CEL rules (evaluated with `request.operation = "migrate"`) are warnings. After the write, the leader migrates the objects in the background (batches of 200, check-and-set, generation increased when the spec changes); writes of objects not yet migrated migrate them first (metadata writes go ahead on the stored form if that fails, so deletions never block). A failing object gets a `MigrationFailed` warning event and is retried only when it or the kind changes. Metric `nomad.custom_object.migrated`.
+- **Load management:** `limits { write_rate, write_burst, identity_write_rate, identity_write_burst, max_objects_per_namespace, max_watches_per_identity }`. Token buckets on the leader per kind and per identity (token accessor or workload identity) cover every object write (spec, status, finalizers, events, scale, deletion); the identity bucket is checked first, so a misbehaving controller is throttled before it uses up the kind's budget. Over a limit the request fails with 429 Too Many Requests (`api.IsObjectLimitError`); the SDK maps it to `ErrThrottled` and backs off (reconcile result `throttled`). `max_watches_per_identity` limits concurrent blocking queries (list/get with an index) per server; `max_objects_per_namespace` limits creation. Metric `nomad.custom_object.throttled`.
+- **Developer tools:** `norca operator init <group>/<Kind>` (`command/operatorinit`, embedded templates) scaffolds a Go module: kind HCL + JSON Schema + sample object, `types.go`, a reconciler with finalizer, conditions and event log, leader election and metrics, a validating webhook, tests against the fake backend and against a dev agent, an operator pack and a README with the local workflow (`-sdk` writes the replace directives to a Norca checkout). `norca object-kind lint <kind> [objects...]` (`helper/objectlint`) compiles schema, rules and migration offline, checks conventions (status fields the SDK writes, webhook settings, limits) and validates sample objects with defaults. SDK: package `controller/webhook` (validating/defaulting handlers, TLS serving), package `controller/envtest` (dev agent from the norca binary with bounded lifetime, temporary data dir, optional ACL bootstrap), `IsThrottled`. The LoadBalancer sample got a `webhook` subcommand (region default class, available classes, immutable class) and `mock_driver` proxies for tests.
+- **Tests:** server tests for webhooks (defaulting, validating, delete review, patch outside the spec, fail closed, ignore, approval and revocation with ACLs), migration (rejection, dry-run report, migrate-on-write, background migration, failure event), limits (identity and kind buckets, object count, watches) and kind CAS; unit tests for structs, the migration engine, HCL parsing, lint, scaffolding, CLI commands and the SDK webhook package; a pack CLI test installing `packs/loadbalancer-operator` with webhooks on an ACL test agent; and an end-to-end test (`examples/loadbalancer/e2e_test.go`) that installs the pack with the norca CLI on a dev agent (mock driver), runs the controller, reconciles a load balancer to `Ready`, deletes it through the finalizer and uninstalls the release. The generated project was built and its tests run against a dev agent.
+
+**Provisional decisions (reversible):**
+
+1. Webhook approval: implicit for kinds written with a management token (or without ACLs), explicit approval by a management token otherwise; approvals are tied to a digest of the whole webhook configuration.
+2. Type-bound webhooks are https only, with the CA in the kind (`ca_cert`) and no client certificate; status, finalizer, event and scale writes are not reviewed; `delete` is reviewed only when listed.
+3. Schema compatibility: stored objects that would be invalid reject the kind write (no force flag); violations of new CEL rules are only warnings.
+4. Migration expressions return the whole new spec/status (with `merge`/`omit` helpers) rather than patches; one stored version per kind (no served versions or conversion webhooks).
+5. Load management rejects with 429 instead of queueing per identity; no limits without a `limits` block (no server-wide defaults); watch limits count blocking queries per server, not event stream subscriptions.
+6. `norca operator init` lives under `operator` (the cluster operator command group) as the brief suggested; the generated `go.mod` needs replace directives to a Norca checkout, as the SDK is not published as a separate module.
+
+**Not done:** the UI (other worker), event stream subscription limits and server-wide default limits, served versions with conversion, mutating CEL, a Kubernetes-style code generator for Go types from the schema (the scaffold writes example types to adapt), and webhook client certificates.
 
 ### First sample operator: LoadBalancer
 
@@ -850,7 +883,7 @@ service {
 
 **Operation:**
 
-- One controller per region (as a Nomad job, `count = 2`, with leader election), and one provider plugin per cloud: AWS Network Load Balancer, Google Cloud Load Balancing, Hetzner Load Balancer.
+- One controller per region (as a Nomad job, `count = 2`, with leader election), and one provider plugin per cloud. Target providers (decided 2026-10-25): Hetzner Cloud Load Balancer, Scaleway Load Balancer, AWS Network Load Balancer and Google Cloud Load Balancing. Implemented so far: the provider interface and the self-hosted `nomad` provider (a TCP proxy job); the cloud providers are pending.
 - The controller watches the healthy instances of the marked service (or the nodes of the Traefik running at the edge), and updates the load balancer's targets and health check accordingly.
 - The status of the `LoadBalancer` object contains the address and state of the load balancer (`Ready`, `Progressing`, `Degraded`); the address can also be entered into the native DNS.
 - The object gets a finalizer: on deletion the controller first removes the cloud load balancer.
@@ -878,8 +911,8 @@ service {
 
 ### Open questions
 
-- [ ] Which JSON Schema implementation do we use (license, performance)?
-- [ ] Is field-level ownership (server-side apply) needed already in the first version, or is the `managed_by` rule enough?
+- [x] Which JSON Schema implementation do we use (license, performance)? Decided 2026-10-25: `github.com/santhosh-tekuri/jsonschema/v6` (Apache-2.0, pure Go, draft 2020-12), shared by object kinds and pack variable schemas.
+- [x] Is field-level ownership (server-side apply) needed already in the first version, or is the `managed_by` rule enough? Decided 2026-10-24: the `managed_by` rule is enough.
 - [x] The first sample operator is the LoadBalancer (see above).
 
 ---

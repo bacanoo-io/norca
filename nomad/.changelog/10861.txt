@@ -1,3 +1,0 @@
-```release-note:improvement
-api: Added `NewSystemJob` helper function to create base system job object.
-```

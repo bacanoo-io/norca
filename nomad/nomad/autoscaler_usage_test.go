@@ -86,6 +86,7 @@ func TestAutoscaler_BuiltinMetricFromClients(t *testing.T) {
 		c.Autoscaler.Enabled = true
 		c.Autoscaler.DefaultEngine = structs.ScalingPolicyEngineBuiltin
 		c.Autoscaler.MinEvalInterval = time.Second
+		c.Autoscaler.MinCooldown = time.Second
 		c.Autoscaler.DefaultEvaluationInterval = time.Second
 		c.Autoscaler.MetricsWindow = window
 		c.Autoscaler.ClientMetricsInterval = time.Second

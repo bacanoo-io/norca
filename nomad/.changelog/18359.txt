@@ -1,3 +1,0 @@
-```release-note:improvement
-csi: add ability to expand the size of volumes for plugins that support it
-```

@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "properties": {
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicas": {"type": "integer", "minimum": 0, "maximum": 100, "default": 1},
+        "message":  {"type": "string", "maxLength": 256, "default": "hello"}
+      }
+    },
+    "status": {
+      "type": "object",
+      "properties": {
+        "observedGeneration": {"type": "integer", "minimum": 0},
+        "observedSpecHash":   {"type": "string"},
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "status"],
+            "properties": {
+              "type":               {"type": "string"},
+              "status":             {"enum": ["True", "False", "Unknown"]},
+              "reason":             {"type": "string"},
+              "message":            {"type": "string"},
+              "lastTransitionTime": {"type": "string"}
+            }
+          }
+        },
+        "replicas": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

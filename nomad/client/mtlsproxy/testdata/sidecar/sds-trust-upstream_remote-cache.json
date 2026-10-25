@@ -1,0 +1,23 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name": "trust_upstream_remote-cache",
+      "validation_context": {
+        "match_typed_subject_alt_names": [
+          {
+            "matcher": {
+              "exact": "redis.service.cache.eu.nomad",
+              "ignore_case": true
+            },
+            "san_type": "DNS"
+          }
+        ],
+        "trusted_ca": {
+          "inline_string": "-----BEGIN CERTIFICATE-----\nCA-EU\n-----END CERTIFICATE-----\n"
+        }
+      }
+    }
+  ],
+  "version_info": "4b7d601aed79a52a"
+}

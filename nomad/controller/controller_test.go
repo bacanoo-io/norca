@@ -87,7 +87,7 @@ func (r *widgetReconciler) Reconcile(ctx context.Context, key controller.ObjectK
 
 	var status widgetStatus
 	_ = obj.DecodeStatus(&status)
-	status.ObservedSpecHash = obj.SpecHash()
+	status.Observe(obj)
 	status.Size = spec.Size
 	status.SetCondition(controller.Condition{Type: controller.ConditionReady, Status: controller.ConditionTrue}, time.Now())
 	_, err = r.c.Objects().UpdateStatus(ctx, obj, status)
@@ -182,8 +182,9 @@ func TestController_OwnedJobsRepair(t *testing.T) {
 	b.PutJob(j)
 	waitFor(t, "job repaired", func() bool { return jobCount(b, "widget-a") == 2 })
 
-	// Someone purges the owned job: there is no Job event, the evaluation
-	// maps back to the owner through the owned jobs index.
+	// Someone purges the owned job: the Job event of the purge (on older
+	// servers only the evaluation, through the owned jobs index) maps back
+	// to the owner.
 	b.RemoveJob("default", "widget-a", true)
 	waitFor(t, "job recreated", func() bool { return jobCount(b, "widget-a") == 2 })
 

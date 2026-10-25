@@ -1,3 +1,0 @@
-```release-note:bug
-scaling: Unblock blocking queries to /v1/job/{job-id}/scale if the job goes away
-```

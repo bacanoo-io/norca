@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed a bug where fields were missing from the Read Volume API response
-```

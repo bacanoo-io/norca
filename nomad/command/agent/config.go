@@ -173,8 +173,9 @@ type Config struct {
 	// set arbitrary headers on API responses
 	HTTPAPIResponseHeaders map[string]string `hcl:"http_api_response_headers"`
 
-	// Sentinel holds sentinel related settings
-	Sentinel *config.SentinelConfig `hcl:"sentinel"`
+	// Sentinel is only parsed so that a leftover sentinel block is rejected
+	// at startup: Sentinel policies are not supported.
+	Sentinel *UnsupportedBlock `hcl:"sentinel"`
 
 	// Autopilot contains the configuration for Autopilot behavior.
 	Autopilot *config.AutopilotConfig `hcl:"autopilot"`
@@ -354,6 +355,19 @@ type ClientConfig struct {
 	// correct scheduling decisions on allocations which require this.
 	NomadServiceDiscovery *bool `hcl:"nomad_service_discovery"`
 
+	// NativeServiceDiscovery holds the settings of service lookups made by
+	// the workloads of the client (Norca).
+	NativeServiceDiscovery *config.NativeServiceDiscoveryConfig `hcl:"native_service_discovery"`
+
+	// Topology holds the topology zone of the node (Norca).
+	Topology *config.TopologyConfig `hcl:"topology"`
+
+	// DNS configures the built-in DNS server (Norca).
+	DNS *config.DNSConfig `hcl:"dns"`
+
+	// ConsulCompat configures the Consul-compatible read API (Norca).
+	ConsulCompat *config.ConsulCompatConfig `hcl:"consul_compat"`
+
 	// Artifact contains the configuration for artifacts.
 	Artifact *config.ArtifactConfig `hcl:"artifact"`
 
@@ -381,6 +395,10 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.HostVolumes = helper.CopySlice(c.HostVolumes)
 	nc.HostNetworks = helper.CopySlice(c.HostNetworks)
 	nc.NomadServiceDiscovery = pointer.Copy(c.NomadServiceDiscovery)
+	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
+	nc.Topology = c.Topology.Copy()
+	nc.DNS = c.DNS.Copy()
+	nc.ConsulCompat = c.ConsulCompat.Copy()
 	nc.Artifact = c.Artifact.Copy()
 	nc.Drain = c.Drain.Copy()
 	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
@@ -626,16 +644,9 @@ type ServerConfig struct {
 	// for the EventBufferSize is 1.
 	EventBufferSize *int `hcl:"event_buffer_size"`
 
-	// LicensePath is the path to search for an enterprise license.
+	// LicensePath is parsed only so that the agent can reject it at startup:
+	// license files are not supported.
 	LicensePath string `hcl:"license_path"`
-
-	// LicenseEnv is the full enterprise license.  If NOMAD_LICENSE
-	// is set, LicenseEnv will be set to the value at startup.
-	LicenseEnv string
-
-	// licenseAdditionalPublicKeys is an internal-only field used to
-	// setup test licenses.
-	licenseAdditionalPublicKeys []string
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
@@ -686,8 +697,14 @@ type ServerConfig struct {
 	// Autoscaler configures the built-in autoscaler.
 	Autoscaler *AutoscalerConfig `hcl:"autoscaler"`
 
+	// Backup configures the scheduled backups to S3-compatible stores.
+	Backup *BackupConfig `hcl:"backup"`
+
 	// Admission configures the dynamic admission control webhooks.
 	Admission *config.AdmissionConfig `hcl:"admission"`
+
+	// MTLS configures the native mTLS certificate authority.
+	MTLS *config.MTLSConfig `hcl:"mtls"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -707,7 +724,6 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.EnableEventBroker = pointer.Copy(s.EnableEventBroker)
 	ns.EventBufferSize = pointer.Copy(s.EventBufferSize)
 	ns.JobMaxSourceSize = pointer.Copy(s.JobMaxSourceSize)
-	ns.licenseAdditionalPublicKeys = slices.Clone(s.licenseAdditionalPublicKeys)
 	ns.ExtraKeysHCL = slices.Clone(s.ExtraKeysHCL)
 	ns.Search = s.Search.Copy()
 	ns.RaftBoltConfig = s.RaftBoltConfig.Copy()
@@ -718,7 +734,9 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobMaxPriority = pointer.Copy(s.JobMaxPriority)
 	ns.JobTrackedVersions = pointer.Copy(s.JobTrackedVersions)
 	ns.Autoscaler = s.Autoscaler.Copy()
+	ns.Backup = s.Backup.Copy()
 	ns.Admission = s.Admission.Copy()
+	ns.MTLS = s.MTLS.Copy()
 	return &ns
 }
 
@@ -1361,7 +1379,6 @@ func DefaultConfig() *Config {
 			collectionInterval: 1 * time.Second,
 		},
 		TLSConfig:          &config.TLSConfig{},
-		Sentinel:           &config.SentinelConfig{},
 		Version:            version.GetVersion(),
 		Autopilot:          config.DefaultAutopilotConfig(),
 		Audit:              &config.AuditConfig{},
@@ -1554,12 +1571,9 @@ func (c *Config) Merge(b *Config) *Config {
 		result.UI = result.UI.Merge(b.UI)
 	}
 
-	// Apply the sentinel config
-	if result.Sentinel == nil && b.Sentinel != nil {
-		server := *b.Sentinel
-		result.Sentinel = &server
-	} else if b.Sentinel != nil {
-		result.Sentinel = result.Sentinel.Merge(b.Sentinel)
+	// Keep a sentinel block so that it is rejected at startup
+	if b.Sentinel != nil {
+		result.Sentinel = &UnsupportedBlock{}
 	}
 
 	if result.Autopilot == nil && b.Autopilot != nil {
@@ -1622,7 +1636,9 @@ func (c *Config) Copy() *Config {
 	nc.Files = slices.Clone(c.Files)
 	nc.TLSConfig = c.TLSConfig.Copy()
 	nc.HTTPAPIResponseHeaders = maps.Clone(c.HTTPAPIResponseHeaders)
-	nc.Sentinel = c.Sentinel.Copy()
+	if c.Sentinel != nil {
+		nc.Sentinel = &UnsupportedBlock{}
+	}
 	nc.Autopilot = c.Autopilot.Copy()
 	nc.Plugins = helper.CopySlice(c.Plugins)
 	nc.Limits = c.Limits.Copy()
@@ -2030,6 +2046,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 		result.Autoscaler = result.Autoscaler.Merge(b.Autoscaler)
 	}
 
+	if b.Backup != nil {
+		result.Backup = result.Backup.Merge(b.Backup)
+	}
+
 	if b.DefaultSchedulerConfig != nil {
 		c := *b.DefaultSchedulerConfig
 		result.DefaultSchedulerConfig = &c
@@ -2076,6 +2096,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.Admission != nil {
 		result.Admission = result.Admission.Merge(b.Admission)
+	}
+
+	if b.MTLS != nil {
+		result.MTLS = result.MTLS.Merge(b.MTLS)
 	}
 
 	// Add the schedulers
@@ -2259,6 +2283,11 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	if b.CgroupParent != "" {
 		result.CgroupParent = b.CgroupParent
 	}
+
+	result.NativeServiceDiscovery = a.NativeServiceDiscovery.Merge(b.NativeServiceDiscovery)
+	result.Topology = a.Topology.Merge(b.Topology)
+	result.DNS = a.DNS.Merge(b.DNS)
+	result.ConsulCompat = a.ConsulCompat.Merge(b.ConsulCompat)
 
 	result.Artifact = a.Artifact.Merge(b.Artifact)
 	result.Drain = a.Drain.Merge(b.Drain)

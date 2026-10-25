@@ -1,3 +1,0 @@
-```release-note:improvement
-audit (Enterprise): allow configuring file mode for audit logs
-```

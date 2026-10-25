@@ -32,11 +32,6 @@ Usage: norca operator snapshot <subcommand> [options]
 
       $ norca operator snapshot inspect backup.snap
 
-  Run a daemon process that locally saves a snapshot every hour (available only in
-  Nomad Enterprise) :
-
-      $ norca operator snapshot agent
-
   Please see the individual subcommand help for detailed usage information.
 `
 	return strings.TrimSpace(helpText)

@@ -4,15 +4,27 @@
 // Command loadbalancer is the sample operator of the Norca controller SDK:
 // the equivalent of the Kubernetes LoadBalancer service type.
 //
-// A LoadBalancer object (stored as a Variable at
-// crd/norca-io/LoadBalancer/<name>) names a Nomad service and a frontend
-// port; the controller keeps a load balancer forwarding to the healthy
-// instances of the service and reports its addresses and conditions in the
-// status of the object:
+// A LoadBalancer object names a Nomad service and a frontend port; the
+// controller keeps a load balancer forwarding to the healthy instances of
+// the service and reports its addresses and conditions in the status of the
+// object.
+//
+// With -objects=variables (the default) objects are stored as Variables at
+// crd/norca-io/LoadBalancer/<name>:
 //
 //	norca var put crd/norca-io/LoadBalancer/web \
 //	  spec='{"service":"web","port":8080}'
 //	norca var get -item=status crd/norca-io/LoadBalancer/web
+//
+// With -objects=native they are native objects of the kind
+// norca.io/LoadBalancer, registered from loadbalancer.kind.hcl: the server
+// validates the spec against loadbalancer.schema.json, fills in its default
+// values and maintains the generation, and the controller writes the status
+// on the status endpoint (the "write-status" capability):
+//
+//	norca object-kind apply loadbalancer.kind.hcl
+//	norca object apply web.hcl
+//	norca object list norca.io/LoadBalancer
 //
 // Objects are also created from services marked with the norca_lb_* service
 // meta keys (see discovery.go), and deleted when the mark is removed.
@@ -23,13 +35,24 @@
 // Variable (nomad/jobs/lb-<name>), which the controller updates when the
 // service instances change. Deleting the object deletes the job.
 //
+// Native objects get the finalizer norca.io/loadbalancer-cleanup: deleting
+// one only marks it, the controller removes the load balancer and then the
+// finalizer, and the object disappears. Problems and state changes are
+// recorded in the object's event log ("norca object events"). The proxy
+// jobs carry the controller's identity in norca.managed-by, so the servers
+// reject changes by other identities.
+//
 // Subcommands:
 //
 //	loadbalancer [controller] [flags]   run the controller (default)
 //	loadbalancer proxy -listen :8080 -targets local/targets
+//	loadbalancer webhook -tls-cert cert.pem -tls-key key.pem [-classes nomad,aws-nlb]
 //
-// See loadbalancer.nomad.hcl and loadbalancer-policy.hcl for running the
-// controller as a job.
+// The operator is installed as a pack (packs/loadbalancer-operator in the
+// repository): the kind, the ACL policy bound to the controller job, an
+// admission policy and the controller job as one release. See
+// loadbalancer.nomad.hcl and loadbalancer-policy.hcl for running the
+// controller by hand.
 package main
 
 import (
@@ -65,8 +88,10 @@ func main() {
 		err = runController(ctx, args)
 	case "proxy":
 		err = runProxy(ctx, args)
+	case "webhook":
+		err = runWebhook(ctx, args)
 	default:
-		err = fmt.Errorf("unknown subcommand %q (use controller or proxy)", cmd)
+		err = fmt.Errorf("unknown subcommand %q (use controller, proxy or webhook)", cmd)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -104,6 +129,7 @@ func runProxy(ctx context.Context, args []string) error {
 }
 
 type controllerFlags struct {
+	objects        string
 	namespace      string
 	watchMode      string
 	workers        int
@@ -120,6 +146,7 @@ func runController(ctx context.Context, args []string) error {
 	self, _ := os.Executable()
 	var f controllerFlags
 	fs := flag.NewFlagSet("controller", flag.ContinueOnError)
+	fs.StringVar(&f.objects, "objects", "variables", `storage of the LoadBalancer objects: "variables" or "native" (kind norca.io/LoadBalancer)`)
 	fs.StringVar(&f.namespace, "namespace", "default", `namespace of the LoadBalancer objects ("*" for all)`)
 	fs.StringVar(&f.watchMode, "watch-mode", "", `"stream", "poll", or empty for the event stream with fallback to polling`)
 	fs.IntVar(&f.workers, "workers", 2, "concurrent reconciles")
@@ -133,6 +160,8 @@ func runController(ctx context.Context, args []string) error {
 	fs.StringVar(&f.provider.Driver, "proxy-driver", "raw_exec", "task driver of the proxy jobs: raw_exec, exec or docker")
 	fs.StringVar(&f.provider.Command, "proxy-command", self, "path of this binary on the nodes (raw_exec, exec)")
 	fs.StringVar(&f.provider.Image, "proxy-image", "", "container image with this binary (docker)")
+	fs.StringVar(&f.provider.ManagedBy, "managed-by", controller.ManagedByFromEnv(),
+		"identity protecting the proxy jobs from changes by others (default: this task's job, workload:<namespace>/<job>)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -141,6 +170,10 @@ func runController(ctx context.Context, args []string) error {
 		return err
 	}
 	slog.SetDefault(logger)
+	storage, err := controller.ParseStorage(f.objects)
+	if err != nil {
+		return err
+	}
 
 	client, err := controller.NewAPIClient()
 	if err != nil {
@@ -191,6 +224,7 @@ func runController(ctx context.Context, args []string) error {
 	lbCtrl, err := controller.New(backend, lb, controller.Options{
 		Name:           "loadbalancer",
 		Kind:           Kind,
+		Storage:        storage,
 		Namespace:      f.namespace,
 		Workers:        f.workers,
 		ResyncPeriod:   f.resync,
@@ -213,6 +247,7 @@ func runController(ctx context.Context, args []string) error {
 		discCtrl, err := controller.New(backend, disc, controller.Options{
 			Name:           "loadbalancer-discovery",
 			Kind:           Kind,
+			Storage:        storage,
 			Namespace:      f.namespace,
 			ResyncPeriod:   f.resync,
 			WatchMode:      controller.WatchMode(f.watchMode),

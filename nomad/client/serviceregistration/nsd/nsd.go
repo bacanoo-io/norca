@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 
@@ -72,6 +73,10 @@ type ServiceRegistrationHandlerCfg struct {
 	// compute the Ready state of registrations; if nil, every registration
 	// is ready.
 	CheckStore checkstore.Shim
+
+	// Zone returns the topology zone of the node, which registrations carry.
+	// It may be nil.
+	Zone func() string
 }
 
 // NewServiceRegistrationHandler returns a ready to use
@@ -342,9 +347,15 @@ func (s *ServiceRegistrationHandler) generateNomadServiceRegistration(
 		addrMode = structs.AddressModeAuto
 	}
 
-	// Determine the address to advertise based on the mode.
+	// Determine the address to advertise based on the mode. The service of a
+	// native mTLS sidecar is reached through the inbound listener of its
+	// Envoy sidecar, never directly.
+	portLabel := serviceSpec.PortLabel
+	if serviceSpec.MTLS.IsSidecar() {
+		portLabel = structs.MTLSProxyPortLabel(serviceSpec.Name)
+	}
 	ip, port, err := serviceregistration.GetAddress(
-		serviceSpec.Address, addrMode, serviceSpec.PortLabel, workload.Networks,
+		serviceSpec.Address, addrMode, portLabel, workload.Networks,
 		workload.DriverNetwork, workload.Ports, workload.NetworkStatus)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get address for service %q: %v", serviceSpec.Name, err)
@@ -362,6 +373,31 @@ func (s *ServiceRegistrationHandler) generateNomadServiceRegistration(
 		copy(tags, serviceSpec.Tags)
 	}
 
+	// Like the tags, the meta of canaries is their canary meta if set.
+	meta := serviceSpec.Meta
+	if workload.Canary && len(serviceSpec.CanaryMeta) > 0 {
+		meta = serviceSpec.CanaryMeta
+	}
+
+	// The registrations of mtls services carry their mode, so gateways know
+	// which registrations accept mTLS connections.
+	meta = maps.Clone(meta)
+	if serviceSpec.MTLS != nil {
+		if meta == nil {
+			meta = make(map[string]string, 1)
+		}
+		mode := serviceSpec.MTLS.Mode
+		if mode == "" {
+			mode = structs.MTLSModeApp
+		}
+		meta[structs.MTLSServiceMetaKey] = mode
+	}
+
+	var zone string
+	if s.cfg.Zone != nil {
+		zone = s.cfg.Zone()
+	}
+
 	return &structs.ServiceRegistration{
 		ID:          serviceregistration.MakeAllocServiceID(workload.AllocInfo.AllocID, workload.Name(), serviceSpec),
 		ServiceName: serviceSpec.Name,
@@ -373,5 +409,8 @@ func (s *ServiceRegistrationHandler) generateNomadServiceRegistration(
 		Tags:        tags,
 		Address:     ip,
 		Port:        port,
+		Zone:        zone,
+		Meta:        meta,
+		Discovery:   serviceSpec.Discovery.Copy(),
 	}, nil
 }

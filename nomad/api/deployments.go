@@ -123,6 +123,19 @@ func (d *Deployments) Unblock(deploymentID string, q *WriteOptions) (*Deployment
 	return &resp, wm, nil
 }
 
+// Run is used to run the given pending multiregion deployment.
+func (d *Deployments) Run(deploymentID string, q *WriteOptions) (*DeploymentUpdateResponse, *WriteMeta, error) {
+	var resp DeploymentUpdateResponse
+	req := &DeploymentRunRequest{
+		DeploymentID: deploymentID,
+	}
+	wm, err := d.client.put("/v1/deployment/run/"+deploymentID, req, &resp, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &resp, wm, nil
+}
+
 // SetAllocHealth is used to set allocation health for allocs that are part of
 // the given deployment
 func (d *Deployments) SetAllocHealth(deploymentID string, healthy, unhealthy []string, q *WriteOptions) (*DeploymentUpdateResponse, *WriteMeta, error) {
@@ -283,6 +296,13 @@ type DeploymentSpecificRequest struct {
 
 // DeploymentFailRequest is used to fail a particular deployment
 type DeploymentFailRequest struct {
+	DeploymentID string
+	WriteRequest
+}
+
+// DeploymentRunRequest is used to run a particular pending multiregion
+// deployment
+type DeploymentRunRequest struct {
 	DeploymentID string
 	WriteRequest
 }

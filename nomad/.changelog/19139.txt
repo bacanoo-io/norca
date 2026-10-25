@@ -1,3 +1,0 @@
-```release-note:bug
-ui: Fixed an issue where purging a job with a namespace did not process correctly
-```

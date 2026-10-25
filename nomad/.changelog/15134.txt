@@ -1,3 +1,0 @@
-```release-note:bug
-cleanup: fixed missing timer.Reset for plan queue stat emitter
-```

@@ -1,3 +1,0 @@
-```release-note:bug
-scheduler: Fixed a bug where scores for spread scheduling could be -Inf
-```

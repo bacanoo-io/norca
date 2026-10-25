@@ -1,0 +1,44 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+      "connect_timeout": "5s",
+      "load_assignment": {
+        "cluster_name": "gateway_unknown"
+      },
+      "name": "gateway_unknown",
+      "type": "STATIC"
+    },
+    {
+      "@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+      "connect_timeout": "5s",
+      "eds_cluster_config": {
+        "eds_config": {
+          "path_config_source": {
+            "path": "/secrets/envoy/eds-route_cache_redis.json"
+          },
+          "resource_api_version": "V3"
+        },
+        "service_name": "route_cache_redis"
+      },
+      "name": "route_cache_redis",
+      "type": "EDS"
+    },
+    {
+      "@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+      "connect_timeout": "5s",
+      "eds_cluster_config": {
+        "eds_config": {
+          "path_config_source": {
+            "path": "/secrets/envoy/eds-route_default_api.json"
+          },
+          "resource_api_version": "V3"
+        },
+        "service_name": "route_default_api"
+      },
+      "name": "route_default_api",
+      "type": "EDS"
+    }
+  ],
+  "version_info": "e787e1ff1c4801b2"
+}

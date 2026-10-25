@@ -72,8 +72,8 @@ func testFingerprint_Azure(t *testing.T, withExternalIp bool) {
 		if !ok {
 			t.Fatal("User-Agent not present in HTTP request header")
 		}
-		if !strings.Contains(uavalue[0], "Nomad/") {
-			t.Fatalf("Expected User-Agent to contain Nomad/, got %s", uavalue[0])
+		if !strings.Contains(uavalue[0], "Norca/") {
+			t.Fatalf("Expected User-Agent to contain Norca/, got %s", uavalue[0])
 		}
 
 		uri := r.RequestURI

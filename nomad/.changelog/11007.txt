@@ -1,3 +1,0 @@
-```release-note:improvement
-scheduler: Re-evaluate nodes for system jobs after attributes changes
-```

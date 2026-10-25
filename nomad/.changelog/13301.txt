@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed a bug where volume claims on lost or garbage collected nodes could not be freed
-```

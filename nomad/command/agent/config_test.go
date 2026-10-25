@@ -46,7 +46,6 @@ func TestConfig_Merge(t *testing.T) {
 		AdvertiseAddrs: &AdvertiseAddrs{},
 		Vault:          &config.VaultConfig{},
 		Consul:         &config.ConsulConfig{},
-		Sentinel:       &config.SentinelConfig{},
 		Autopilot:      &config.AutopilotConfig{},
 	}
 
@@ -430,15 +429,7 @@ func TestConfig_Merge(t *testing.T) {
 			ClientAutoJoin:       &trueValue,
 			ChecksUseAdvertise:   &trueValue,
 		},
-		Sentinel: &config.SentinelConfig{
-			Imports: []*config.SentinelImport{
-				{
-					Name: "foo",
-					Path: "foo",
-					Args: []string{"a", "b", "c"},
-				},
-			},
-		},
+		Sentinel: &UnsupportedBlock{},
 		Autopilot: &config.AutopilotConfig{
 			CleanupDeadServers:      &trueValue,
 			ServerStabilizationTime: 2 * time.Second,

@@ -15,6 +15,15 @@ type Metadata struct {
 	Pack         *MetadataPack        `hcl:"pack,block"`
 	Integration  *MetadataIntegration `hcl:"integration,block"`
 	Dependencies []*Dependency        `hcl:"dependency,block"`
+
+	// VariablesSchema is an optional JSON Schema for the variable values of
+	// the pack, usually read with file("values.schema.json") (Norca
+	// extension).
+	VariablesSchema string `hcl:"variables_schema,optional"`
+
+	// Regions installs the pack in these regions in one operation unless
+	// the command line names the regions (Norca extension).
+	Regions []string `hcl:"regions,optional"`
 }
 
 // MetadataApp contains information regarding the application that the pack is
@@ -60,6 +69,23 @@ type MetadataPack struct {
 	// Version is the version of the pack which is acts as a convenience when
 	// managing packs within a registry.
 	Version string `hcl:"version"`
+
+	// Requires states what the pack needs from the Norca servers, so that a
+	// release fails early on servers that can not provide it (Norca
+	// extension).
+	Requires *MetadataRequires `hcl:"requires,block"`
+}
+
+// MetadataRequires lists the requirements of a pack on the Norca servers
+// (Norca extension).
+type MetadataRequires struct {
+	// Norca is a version constraint on the Norca version of the servers,
+	// such as ">= 0.1.0". NomadFork is accepted as an alias.
+	Norca     string `hcl:"norca,optional"`
+	NomadFork string `hcl:"nomad_fork,optional"`
+
+	// Features are server features the pack uses, e.g. "custom-objects".
+	Features []string `hcl:"features,optional"`
 }
 
 // MetadataIntegration contains information pertaining to the HashiCorp

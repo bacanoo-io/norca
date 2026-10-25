@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Fixed a bug that caused the `nomad job restart` command to miscount the allocations to restart
-```

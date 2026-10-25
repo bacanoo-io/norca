@@ -29,7 +29,7 @@ func TestNamespace_Validate_Oss(t *testing.T) {
 					Default: "dev",
 				},
 			},
-			expectedErr: "unlicensed",
+			expectedErr: "not supported",
 		},
 	}
 
@@ -43,26 +43,6 @@ func TestNamespace_Validate_Oss(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestJob_Validate_Multiregion_Oss asserts that a job with a multiregion block,
-// even an empty one, is rejected until multiregion deployments are supported.
-func TestJob_Validate_Multiregion_Oss(t *testing.T) {
-	ci.Parallel(t)
-
-	for _, m := range []*Multiregion{
-		{},
-		{Strategy: &MultiregionStrategy{MaxParallel: 1}},
-		{Regions: []*MultiregionRegion{{Name: "west"}, {Name: "east"}}},
-	} {
-		job := testJob()
-		job.Multiregion = m
-		must.ErrorContains(t, job.Validate(), ErrMultiregionNotSupported.Error())
-	}
-
-	job := testJob()
-	job.Multiregion = nil
-	must.NoError(t, job.Validate())
 }
 
 // TestJob_Validate_ConsulNamespace_Oss asserts that a Consul namespace set on

@@ -1,3 +1,0 @@
-```release-note:improvement
-consul: add client configuration for grpc_ca_file
-```

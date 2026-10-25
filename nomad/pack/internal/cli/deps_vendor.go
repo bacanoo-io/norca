@@ -18,6 +18,7 @@ type depsVendorCommand struct {
 	*baseCommand
 	targetPath string
 	seconds    int
+	updateLock bool
 }
 
 func (d *depsVendorCommand) Run(args []string) int {
@@ -43,7 +44,7 @@ func (d *depsVendorCommand) Run(args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	err := deps.Vendor(ctx, d.ui, d.targetPath)
+	err := deps.VendorWithOptions(ctx, d.ui, d.targetPath, deps.Options{UpdateLock: d.updateLock})
 	if err != nil {
 		d.ui.ErrorWithContext(err, "failed to vendor dependencies", errorContext.GetAll()...)
 		return 1
@@ -70,6 +71,13 @@ func (d *depsVendorCommand) Flags() *flag.Sets {
 			Default: 30,
 			Usage:   `Timeout (in seconds) for downloading dependencies.`,
 		})
+
+		f.BoolVar(&flag.BoolVar{
+			Name:   "update-lock",
+			Target: &d.updateLock,
+			Usage: `Accept dependencies whose content differs from the digest
+					recorded in pack.lock for the same source and ref.`,
+		})
 	})
 }
 
@@ -89,7 +97,11 @@ func (d *depsVendorCommand) Help() string {
 	return formatHelp(`
 	Usage: norca pack deps vendor
 
-	Vendor dependencies for a pack in the current directory.
+	Vendor dependencies for a pack in the current directory. Dependencies
+	with an oci:// source are downloaded from the OCI registry and verified
+	with the trust policy of the client configuration. Afterwards pack.lock
+	records the content digests of the pack and of every vendored dependency;
+	render, plan, run and push verify the pack against it.
 
 ` + d.GetExample() + d.Flags().Help())
 }

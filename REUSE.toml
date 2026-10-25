@@ -14,6 +14,13 @@ precedence = "override"
 SPDX-FileCopyrightText = ["2026 Norca contributors", "codecalm.net Paweł Kuna (Tabler)"]
 SPDX-License-Identifier = "MPL-2.0 AND MIT"
 
+# Pack registry: own packs, MPL 2.0 (the files also carry SPDX headers)
+[[annotations]]
+path = ["packs/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
 # Images in the documentation
 [[annotations]]
 path = "docs/**/*.png"
@@ -28,4 +35,29 @@ SPDX-License-Identifier = "MPL-2.0"
 path = ["nomad/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "HashiCorp, Inc. and Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
+# Modules written for Norca (controller SDK, NATS bridge); files without a
+# header (go.mod, go.sum, JSON schemas) are Norca's own.
+[[annotations]]
+path = ["nomad/controller/**", "nomad/natsbridge/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
+# Test fixture copied unmodified from the Nomad Pack Community Registry (MPL 2.0),
+# see nomad/pack/fixtures/community/README.md.
+[[annotations]]
+path = ["nomad/pack/fixtures/community/packs/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "IBM Corp. and the Nomad Pack Community Registry contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
+# THIRD_PARTY_NOTICES.md is generated (nomad/tools/thirdparty) and reproduces the
+# license texts and notices of the dependencies, some of which contain SPDX tags of
+# their own; those describe the dependencies, not this file.
+[[annotations]]
+path = "THIRD_PARTY_NOTICES.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"

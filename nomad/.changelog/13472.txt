@@ -1,3 +1,0 @@
-```release-note:improvement
-cli: `operator debug` now outputs current leader to debug bundle
-```

@@ -1,3 +1,0 @@
-```release-note:improvement
-cli: Add `-quiet` flag to `nomad var init` command
-```

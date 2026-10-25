@@ -22,6 +22,7 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
 	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
+	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 var (
@@ -34,6 +35,7 @@ var (
 type checker interface {
 	runCheckAndCapCount(ctx context.Context, currentCount int64, cache *queryMetricsCache) (sdk.ScalingAction, error)
 	group() string
+	name() string
 }
 
 // compiledPolicy is an immutable, ready to evaluate form of a builtin
@@ -43,7 +45,14 @@ type compiledPolicy struct {
 	modifyIndex  uint64
 	key          targetKey
 	checkRunners []checker
-	schedule     *compiledSchedule
+
+	// object is the custom object the policy scales instead of its task
+	// group, if any.
+	object   *objectTarget
+	schedule *compiledSchedule
+
+	// scaleDuringDeployment is the policy's scale_during_deployment.
+	scaleDuringDeployment string
 }
 
 // policyHandle is the scheduling state of one policy. It is owned by the
@@ -102,7 +111,7 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 			minEvaluationInterval:     cfg.MinEvalInterval,
 			nomadAPMs:                 host.nomadAPMs,
 		},
-		exec:     newExecutor(logger.Named("executor"), cfg, deps.Scaler),
+		exec:     newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
 		handles:  map[string]*policyHandle{},
 		workCh:   make(chan *compiledPolicy),
 		resultCh: make(chan evalResult),
@@ -238,7 +247,14 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	}
 
 	store := r.deps.State()
-	t, err := readTarget(store, c.key)
+	var t *targetState
+	var err error
+	if c.object != nil {
+		logger = logger.With("object", c.object.String())
+		t, err = readObjectTarget(store, c.key, c.object)
+	} else {
+		t, err = readTarget(store, c.key)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to read target: %w", err)
 	}
@@ -255,6 +271,18 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 		return nil
 	}
 
+	// No scaling during an active deployment, unless the policy allows
+	// scaling up during deployments and no canary waits for promotion.
+	upOnly := false
+	if t.deploymentActive {
+		if c.scaleDuringDeployment != structs.ScaleDuringDeploymentUpOnly || t.unpromotedCanary {
+			metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "deployment"}, 1)
+			logger.Debug("skipping evaluation, deployment in progress", "unpromoted_canary", t.unpromotedCanary)
+			return nil
+		}
+		upOnly = true
+	}
+
 	// Policies are not evaluated during cooldown, as defined by the
 	// autoscaler's policy documentation.
 	if until, reason := r.exec.blockedUntil(c.key, c.policy, t); now.Before(until) {
@@ -264,7 +292,7 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	}
 
 	currentCount := t.status.Count
-	action, err := r.calculateNewCount(ctx, c, currentCount)
+	action, check, err := r.calculateNewCount(ctx, c, currentCount)
 	if err != nil {
 		return fmt.Errorf("unable to execute policy: %w", err)
 	}
@@ -277,6 +305,24 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 		return nil
 	}
 
+	if upOnly && action.Direction != sdk.ScaleDirectionUp {
+		logger.Debug("skipping scaling, only scaling up is allowed during the deployment")
+		return nil
+	}
+
+	// Scaling up is capped at the quota ceiling of the namespace. An
+	// object target is capped with the task group of its policy as the
+	// size of one replica, if the group exists.
+	if action.Direction == sdk.ScaleDirectionUp && t.group != nil {
+		ok, err := r.capAtQuota(store, c, t, &action, check, now)
+		if err != nil {
+			return fmt.Errorf("failed to check the quota: %w", err)
+		}
+		if !ok {
+			return nil
+		}
+	}
+
 	// The policy may have been disabled or moved to the external engine
 	// while it was evaluated. Never act on it in that case, to avoid scaling
 	// a group by two systems.
@@ -285,7 +331,7 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 		return nil
 	}
 
-	return r.exec.execute(c, t, action, r.now())
+	return r.exec.execute(c, t, action, check, r.now())
 }
 
 // scalingNeeded determines if the action requires a change from the current
@@ -300,7 +346,7 @@ func scalingNeeded(a sdk.ScalingAction, currentCount int64) bool {
 // calculateNewCount is the main part of the controller, it
 // gets the metrics and the necessary new count to keep up with the policy
 // and generates a scaling action if needed.
-func (r *runner) calculateNewCount(ctx context.Context, c *compiledPolicy, currentCount int64) (sdk.ScalingAction, error) {
+func (r *runner) calculateNewCount(ctx context.Context, c *compiledPolicy, currentCount int64) (sdk.ScalingAction, string, error) {
 	// Store check results by group so we can compare their results together.
 	checkGroups := make(map[string][]checkResult)
 	queryCache := newQueryMetricsCache()
@@ -311,7 +357,7 @@ func (r *runner) calculateNewCount(ctx context.Context, c *compiledPolicy, curre
 			if errors.Is(err, errCheckOutsideSchedule) || errors.Is(err, errCheckSkipped) {
 				continue
 			}
-			return sdk.ScalingAction{}, fmt.Errorf("failed to run check and cap count: %w", err)
+			return sdk.ScalingAction{}, "", fmt.Errorf("failed to run check and cap count: %w", err)
 		}
 
 		g := ch.group()
@@ -324,10 +370,10 @@ func (r *runner) calculateNewCount(ctx context.Context, c *compiledPolicy, curre
 
 	winner := pickWinnerActionFromGroups(checkGroups)
 	if winner.handler == nil || winner.action == nil {
-		return sdk.ScalingAction{}, nil
+		return sdk.ScalingAction{}, "", nil
 	}
 
-	return *winner.action, nil
+	return *winner.action, winner.handler.name(), nil
 }
 
 // pickWinnerActionFromGroups decide which action wins in the group.

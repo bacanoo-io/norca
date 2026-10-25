@@ -3,8 +3,10 @@
 
 // Package fake provides an in-memory implementation of controller.Backend
 // for unit tests of controllers: Variables with check-and-set and blocking
-// queries, jobs, and an event stream with exact resumption whose buffer can
-// be truncated to provoke 410 Gone.
+// queries, native custom objects (with a server maintained generation and a
+// separate status, but without schema validation or default values), jobs,
+// and an event stream with exact resumption whose buffer can be truncated to
+// provoke 410 Gone.
 package fake
 
 import (
@@ -14,6 +16,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -26,12 +29,16 @@ import (
 // Backend is an in-memory controller.Backend. The zero value is not usable;
 // use New.
 type Backend struct {
-	mu      sync.Mutex
-	index   uint64
-	vars    map[string]*api.Variable // namespace + "\x00" + path
-	jobs    map[string]*api.Job      // namespace + "\x00" + id
-	varsIdx uint64
-	jobsIdx uint64
+	mu    sync.Mutex
+	index uint64
+	vars  map[string]*api.Variable // namespace + "\x00" + path
+	jobs  map[string]*api.Job      // namespace + "\x00" + id
+	objs  map[string]*api.CustomObject
+	// objEvents are the event logs of the objects.
+	objEvents map[string][]*api.ObjectEvent
+	varsIdx   uint64
+	jobsIdx   uint64
+	objsIdx   uint64
 
 	events     []api.Event
 	oldest     uint64 // events below this index were dropped
@@ -52,6 +59,8 @@ func New() *Backend {
 	return &Backend{
 		vars:       map[string]*api.Variable{},
 		jobs:       map[string]*api.Job{},
+		objs:       map[string]*api.CustomObject{},
+		objEvents:  map[string][]*api.ObjectEvent{},
 		changed:    make(chan struct{}),
 		streams:    map[*stream]struct{}{},
 		failNext:   map[string]error{},
@@ -169,7 +178,7 @@ func (b *Backend) dropStreamsLocked() {
 }
 
 // SetStreamForbidden makes Stream fail with 403, like the event stream with
-// a workload identity token.
+// a token that may not subscribe to the topics.
 func (b *Backend) SetStreamForbidden(forbidden bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -335,7 +344,7 @@ func matches(ev api.Event, namespace string, topics map[api.Topic][]string) bool
 	keys := append(topics[api.TopicAll], topics[ev.Topic]...)
 	for _, k := range keys {
 		switch {
-		case k == "*" || k == ev.Key:
+		case k == "*" || k == ev.Key || slices.Contains(ev.FilterKeys, k):
 			return true
 		case strings.HasSuffix(k, "*") && strings.HasPrefix(ev.Key, strings.TrimSuffix(k, "*")):
 			return true
@@ -589,17 +598,17 @@ func (b *Backend) deregisterJobLocked(ns, id string, purge bool) {
 	idx := b.nextIndexLocked()
 	b.jobsIdx = idx
 	if purge {
-		// Like Nomad, purging a job produces no Job event, only an
-		// evaluation.
+		// Like Norca servers, purging a job publishes a Job event with the
+		// last known job (Nomad 1.6.5 publishes only the evaluation).
 		delete(b.jobs, key(ns, id))
 	} else {
 		stop, status := true, "dead"
 		j.Stop, j.Status, j.ModifyIndex = &stop, &status, &idx
-		b.publishLocked(api.Event{
-			Topic: api.TopicJob, Type: "JobDeregistered", Key: id, Namespace: ns,
-			Payload: toPayload("Job", j),
-		})
 	}
+	b.publishLocked(api.Event{
+		Topic: api.TopicJob, Type: "JobDeregistered", Key: id, Namespace: ns,
+		Payload: toPayload("Job", j),
+	})
 	b.publishLocked(api.Event{
 		Topic: api.TopicEvaluation, Type: "EvaluationUpdated", Key: fmt.Sprintf("eval-%d", idx), Namespace: ns,
 		Payload: toPayload("Evaluation", &api.Evaluation{ID: fmt.Sprintf("eval-%d", idx), Namespace: ns, JobID: id}),

@@ -1,3 +1,0 @@
-```release-note:improvement
-hcl: added support for using the `filebase64` function in jobspecs
-```

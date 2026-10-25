@@ -1,3 +1,0 @@
-```release-note:bug
-ui: dont show a service as healthy when its parent allocation stops running
-```

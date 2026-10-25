@@ -1,3 +1,0 @@
-```release-note:bug
-plugin: Add missing fields to `TaskConfig` so they can be accessed by external task drivers
-```

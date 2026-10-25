@@ -6,11 +6,13 @@ package cli
 import (
 	"fmt"
 
+	"github.com/hashicorp/nomad/api"
 	"github.com/posener/complete"
 
 	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
 	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
 	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/hashicorp/nomad/pack/internal/pkg/manager"
 	"github.com/hashicorp/nomad/pack/internal/runner"
 	"github.com/hashicorp/nomad/pack/internal/runner/job"
 )
@@ -20,10 +22,18 @@ type RunCommand struct {
 	packConfig *caching.PackConfig
 	jobConfig  *job.CLIConfig
 	Validation ValidationFn
+
+	// release holds the release flags; upgrade makes the command require
+	// an existing release (norca pack upgrade).
+	release releaseOptions
+	upgrade bool
 }
 
 func (c *RunCommand) Run(args []string) int {
 	c.cmdKey = "run" // Add cmdKey here to print out helpUsageMessage on Init error
+	if c.upgrade {
+		c.cmdKey = "upgrade"
+	}
 
 	// Initialize. If we fail, we just exit since Init handles the UI.
 	if err := c.Init(
@@ -47,8 +57,15 @@ func (c *RunCommand) run() int {
 	// Set the packConfig defaults if necessary and generate our UI error context.
 	errorContext := initPackCommand(c.packConfig)
 
+	// Download and verify packs from OCI registries, and check the lock file.
+	provenance, err := c.preparePack(c.packConfig)
+	if err != nil {
+		c.ui.ErrorWithContext(err, "failed to verify pack", errorContext.GetAll()...)
+		return 1
+	}
+
 	// verify packs exist before running jobs
-	err := caching.VerifyPackExists(c.packConfig, errorContext, c.ui)
+	err = caching.VerifyPackExists(c.packConfig, errorContext, c.ui)
 	if err != nil {
 		return 1
 	}
@@ -80,8 +97,41 @@ func (c *RunCommand) run() int {
 		return 255
 	}
 
-	renderedParents := r.ParentRenders()
-	renderedDeps := r.DependentRenders()
+	// Let the servers apply the release if they can.
+	releasesOK := releasesSupported(client)
+	relName, nameErr := c.releaseName(c.packConfig)
+	if regions := c.release.regionList(packManager.Metadata()); len(regions) > 0 && (!releasesOK || c.release.clientSide) {
+		c.ui.ErrorWithContext(fmt.Errorf("a multi-region install (regions %v) needs server-side apply by servers with pack release support", regions),
+			"failed to deploy pack", errorContext.GetAll()...)
+		return 1
+	}
+	if releasesOK && !c.release.clientSide {
+		if nameErr != nil {
+			c.ui.ErrorWithContext(nameErr, "invalid release name", errorContext.GetAll()...)
+			return 1
+		}
+		req, ok := c.buildRelease(packManager, c.packConfig, provenance, c.jobConfig, r, &c.release, errorContext)
+		if !ok {
+			return 1
+		}
+		req.Wait = !c.jobConfig.RunConfig.Detach
+		if code := c.applyRelease(client, relName, req, c.upgrade); code != 0 {
+			return code
+		}
+		c.printDeployed()
+		return c.printOutputs(packManager)
+	}
+	if c.upgrade {
+		c.ui.ErrorWithContext(api.ErrReleasesNotSupported, "upgrade needs pack release support", errorContext.GetAll()...)
+		return 1
+	}
+
+	renderedParents, otherParents := jobRenders(r.ParentRenders())
+	renderedDeps, otherDeps := jobRenders(r.DependentRenders())
+	if others := append(otherParents, otherDeps...); len(others) > 0 {
+		c.ui.ErrorWithContext(errResourcesNeedServer(others), "failed to deploy pack", errorContext.GetAll()...)
+		return 1
+	}
 
 	// TODO: Refactor to use PackConfig. Maybe PackConfig should be in a more common
 	// pkg than cache, or maybe it's ok for runner to depend on the cache.
@@ -92,6 +142,8 @@ func (c *RunCommand) run() int {
 		PackRef:        c.packConfig.Ref,
 		DeploymentName: c.deploymentName,
 		RegistryName:   c.packConfig.Registry,
+		PackDigest:     provenanceDigest(provenance),
+		SignerKeyID:    provenance.SignerKeyID(),
 	}
 
 	// TODO(jrasell) come up with a better way to pass the appropriate config.
@@ -156,12 +208,28 @@ func (c *RunCommand) run() int {
 		}
 	}
 
+	// Record the client-side deployment as a revision.
+	if releasesOK && c.release.clientSide && nameErr == nil {
+		if req, ok := c.buildRelease(packManager, c.packConfig, provenance, c.jobConfig, r, &c.release, errorContext); ok {
+			c.recordRelease(client, relName, req)
+		}
+	}
+
+	c.printDeployed()
+	return c.printOutputs(packManager)
+}
+
+// printDeployed prints the success message of a deployment.
+func (c *RunCommand) printDeployed() {
 	if c.packConfig.Registry == caching.DevRegistryName {
 		c.ui.Success(fmt.Sprintf("Pack successfully deployed. Use %s to manage this deployed instance with plan, stop, destroy, or info", c.packConfig.SourcePath))
 	} else {
 		c.ui.Success(fmt.Sprintf("Pack successfully deployed. Use %s with --ref=%s to manage this deployed instance with plan, stop, destroy, or info", c.packConfig.Name, c.packConfig.Ref))
 	}
+}
 
+// printOutputs renders and prints the output template of the pack.
+func (c *RunCommand) printOutputs(packManager *manager.PackManager) int {
 	output, err := packManager.ProcessOutputTemplate()
 	if err != nil {
 		c.ui.ErrorWithContext(err, "failed to render output template", "Pack Name: "+c.packConfig.Name)
@@ -178,6 +246,7 @@ func (c *RunCommand) run() int {
 func (c *RunCommand) Flags() *flag.Sets {
 	return c.flagSet(flagSetOperation|flagSetNomadClient, func(set *flag.Sets) {
 		f := set.NewSet("Run Options")
+		c.addLockFlag(f)
 
 		c.packConfig = &caching.PackConfig{}
 
@@ -299,6 +368,8 @@ func (c *RunCommand) Flags() *flag.Sets {
 					including allocation details.`,
 		})
 
+		c.release.addFlags(set.NewSet("Release Options"))
+
 		f.BoolVar(&flag.BoolVar{
 			Name:    "rollback",
 			Hidden:  true,
@@ -319,6 +390,20 @@ func (c *RunCommand) AutocompleteFlags() complete.Flags {
 }
 
 func (c *RunCommand) Help() string {
+	if c.upgrade {
+		c.Example = `
+	# Upgrade the release of the redis pack with a new variable value
+	norca pack upgrade redis --var="redis_image_version=7"
+	`
+		return formatHelp(`
+	Usage: norca pack upgrade <pack-name> [options]
+
+	Upgrade an existing release of a pack: the servers apply the rendered
+	resources as a new revision. It fails if the release does not exist or
+	the servers do not support releases.
+
+` + c.GetExample() + c.Flags().Help())
+	}
 	// TODO: do we want to ref example?
 	c.Example = `
 	# Run an example pack with the default deployment name "example".
@@ -343,10 +428,20 @@ func (c *RunCommand) Help() string {
 
 	Install the specified Norca Pack to a configured Norca cluster.
 
+	If the servers support pack releases, they apply the rendered resources
+	of the pack (jobs and the other resource templates, such as
+	*.namespace.hcl.tpl) in a fixed order and record a revision of the
+	release named after the deployment name; see "norca pack history",
+	"rollback" and "uninstall". Against older servers, or with --client-side,
+	the jobs are deployed by the client.
+
 ` + c.GetExample() + c.Flags().Help())
 }
 
 // Synopsis satisfies the Synopsis function of the cli.Command interface.
 func (c *RunCommand) Synopsis() string {
+	if c.upgrade {
+		return "Upgrade an existing release of a pack"
+	}
 	return "Run a new pack or update an existing pack"
 }

@@ -229,6 +229,9 @@ type Client struct {
 	// registrations.
 	nomadService serviceregistration.Handler
 
+	// discovery holds the service discovery servers of the client (Norca).
+	discovery discoveryServers
+
 	// checkStore is used to store group and task checks and their current pass/fail
 	// status.
 	checkStore checkstore.Shim
@@ -498,6 +501,11 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 	c.setupNomadServiceRegistrationHandler()
 	c.serviceRegWrapper = wrapper.NewHandlerWrapper(c.logger, c.consulService, c.nomadService)
 	c.setupCheckRoles()
+
+	// Start the built-in DNS server (Norca).
+	if err := c.setupDiscovery(); err != nil {
+		return nil, err
+	}
 
 	// Batching of initial fingerprints is done to reduce the number of node
 	// updates sent to the server on startup.
@@ -872,6 +880,9 @@ func (c *Client) Shutdown() error {
 	if h, ok := c.nomadService.(*nsd.ServiceRegistrationHandler); ok {
 		h.Shutdown()
 	}
+
+	// Stop the built-in DNS server (Norca).
+	c.shutdownDiscovery()
 
 	// Shutdown the plugin managers
 	c.pluginManagers.Shutdown()
@@ -2818,6 +2829,7 @@ func (c *Client) setupNomadServiceRegistrationHandler() {
 			c.logger, nsd.NewStatusGetter(c.checkStore),
 		),
 		CheckStore: c.checkStore,
+		Zone:       c.TopologyZone,
 	}
 	c.nomadService = nsd.NewServiceRegistrationHandler(c.logger, &cfg)
 }

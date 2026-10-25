@@ -171,6 +171,7 @@ func (e *Encrypter) SignClaims(claim *structs.IdentityClaims) (string, string, e
 	if err != nil {
 		ctx, cancel := context.WithTimeout(e.srv.shutdownCtx, 5*time.Second)
 		defer cancel()
+	WAIT:
 		for {
 			select {
 			case <-ctx.Done():
@@ -179,7 +180,10 @@ func (e *Encrypter) SignClaims(claim *structs.IdentityClaims) (string, string, e
 				time.Sleep(50 * time.Millisecond)
 				keyset, err = e.activeKeySet()
 				if keyset != nil {
-					break
+					// A plain break would only leave the select and keep
+					// waiting until the timeout, then return no token
+					// and a nil error
+					break WAIT
 				}
 			}
 		}

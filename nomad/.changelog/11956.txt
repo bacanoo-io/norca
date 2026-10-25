@@ -1,3 +1,0 @@
-```release-note:security
-server: validate mTLS certificate names on agent to agent endpoints
-```

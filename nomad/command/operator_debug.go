@@ -930,7 +930,7 @@ func (c *OperatorDebugCommand) collectAgentHost(path, id string, client *api.Cli
 
 		if strings.Contains(err.Error(), api.PermissionDeniedErrorContent) {
 			// Drop a hint to help the operator resolve the error
-			c.Ui.Warn("Agent host retrieval requires agent:read ACL or enable_debug=true.  See https://www.nomadproject.io/api-docs/agent#host for more information.")
+			c.Ui.Warn("Agent host retrieval (/v1/agent/host) requires agent:read ACL or enable_debug=true.")
 		}
 		return // exit on any error
 	}
@@ -1024,7 +1024,7 @@ func (c *OperatorDebugCommand) collectPprof(path, id string, client *api.Client,
 			// one permission failure before we bail.
 			// But lets first drop a hint to help the operator resolve the error
 
-			c.Ui.Warn("Pprof retrieval requires agent:write ACL or enable_debug=true.  See https://www.nomadproject.io/api-docs/agent#agent-runtime-profiles for more information.")
+			c.Ui.Warn("Pprof retrieval (/v1/agent/pprof) requires agent:write ACL or enable_debug=true.")
 			return // only exit on 403
 		}
 	} else {
@@ -1126,9 +1126,6 @@ func (c *OperatorDebugCommand) collectOperator(dir string, client *api.Client) {
 	ah, _, err := client.Operator().AutopilotServerHealth(c.queryOpts())
 	c.reportErr(writeResponseOrErrorToFile(
 		ah, err, c.newFile(dir, "operator-autopilot-health.json")))
-
-	lic, _, err := client.Operator().LicenseGet(c.queryOpts())
-	c.reportErr(writeResponseOrErrorToFile(lic, err, c.newFile(dir, "license.json")))
 }
 
 // collectNomad captures the nomad cluster state

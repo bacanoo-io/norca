@@ -1,3 +1,0 @@
-```release-note:bug
-csi: fixed a bug where `volume detach`, `volume deregister`, and `volume status` commands did not accept an exact ID if multiple volumes matched the prefix
-```

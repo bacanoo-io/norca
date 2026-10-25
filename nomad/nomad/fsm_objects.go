@@ -1,0 +1,212 @@
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package nomad
+
+import (
+	"fmt"
+	"time"
+
+	metrics "github.com/armon/go-metrics"
+	"github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/go-msgpack/codec"
+	"github.com/hashicorp/nomad/nomad/state"
+	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/hashicorp/raft"
+)
+
+// Norca operator framework snapshot types mirror their message types.
+const (
+	ObjectKindSnapshot      SnapshotType = 82
+	CustomObjectSnapshot    SnapshotType = 83
+	ObjectEventLogSnapshot  SnapshotType = 86
+	ObjectTombstoneSnapshot SnapshotType = 87
+)
+
+func (n *nomadFSM) applyObjectKindUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_object_kind_upsert"}, time.Now())
+	var req structs.ObjectKindUpsertRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	// A check-and-set conflict is an expected outcome, not an FSM failure.
+	if err := n.state.UpsertObjectKindCAS(msgType, index, req.ObjectKind, req.CAS); err != nil {
+		if !structs.IsObjectConflictError(err) {
+			n.logger.Error("UpsertObjectKind failed", "error", err)
+		}
+		return err
+	}
+	return nil
+}
+
+func (n *nomadFSM) applyObjectKindDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_object_kind_delete"}, time.Now())
+	var req structs.ObjectKindDeleteRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	if err := n.state.DeleteObjectKind(msgType, index, req.Group, req.Kind); err != nil {
+		n.logger.Error("DeleteObjectKind failed", "error", err)
+		return err
+	}
+	return nil
+}
+
+func (n *nomadFSM) applyCustomObjectUpsert(msgType structs.MessageType, buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_custom_object_upsert"}, time.Now())
+	var req structs.CustomObjectUpsertStateRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	// A check-and-set conflict is an expected outcome, not an FSM failure.
+	if err := n.state.UpsertCustomObject(msgType, index, req.Object, req.ExpectedModifyIndex); err != nil {
+		if !structs.IsObjectConflictError(err) {
+			n.logger.Error("UpsertCustomObject failed", "error", err)
+		}
+		return err
+	}
+	return nil
+}
+
+func (n *nomadFSM) applyCustomObjectDelete(msgType structs.MessageType, buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_custom_object_delete"}, time.Now())
+	var req structs.CustomObjectDeleteStateRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	if err := n.state.DeleteCustomObjectRequest(msgType, index, &req); err != nil {
+		if !structs.IsObjectConflictError(err) {
+			n.logger.Error("DeleteCustomObject failed", "error", err)
+		}
+		return err
+	}
+	return nil
+}
+
+func (n *nomadFSM) applyCustomObjectEvents(msgType structs.MessageType, buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_custom_object_events"}, time.Now())
+	var req structs.CustomObjectEventsStateRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	// The object may have been deleted since the events were written; that
+	// is not an FSM failure.
+	if err := n.state.AppendObjectEvents(msgType, index, &req); err != nil {
+		if code, _, ok := structs.CodeFromRPCCodedErr(err); !ok || code != 404 {
+			n.logger.Error("AppendObjectEvents failed", "error", err)
+		}
+		return err
+	}
+	return nil
+}
+
+func (n *nomadFSM) applyObjectGC(msgType structs.MessageType, buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_object_gc"}, time.Now())
+	var req structs.ObjectGCRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	if err := n.state.ApplyObjectGC(msgType, index, &req); err != nil {
+		n.logger.Error("ApplyObjectGC failed", "error", err)
+		return err
+	}
+	return nil
+}
+
+// restoreObjectSnapshot restores an object kind, a custom object, an object
+// event log or a tombstone.
+func restoreObjectSnapshot(snapType SnapshotType, restore *state.StateRestore, dec *codec.Decoder) error {
+	switch snapType {
+	case ObjectEventLogSnapshot:
+		log := new(structs.ObjectEventLog)
+		if err := dec.Decode(log); err != nil {
+			return err
+		}
+		return restore.ObjectEventLogRestore(log)
+	case ObjectTombstoneSnapshot:
+		tombstone := new(structs.ObjectTombstone)
+		if err := dec.Decode(tombstone); err != nil {
+			return err
+		}
+		return restore.ObjectTombstoneRestore(tombstone)
+	case ObjectKindSnapshot:
+		kind := new(structs.ObjectKind)
+		if err := dec.Decode(kind); err != nil {
+			return err
+		}
+		return restore.ObjectKindRestore(kind)
+	case CustomObjectSnapshot:
+		obj := new(structs.CustomObject)
+		if err := dec.Decode(obj); err != nil {
+			return err
+		}
+		return restore.CustomObjectRestore(obj)
+	default:
+		return fmt.Errorf("unexpected object snapshot type %d", snapType)
+	}
+}
+
+// persistObjects persists the object kinds and the custom objects. Kinds are
+// written first so a restore never sees an object before its kind.
+func (s *nomadSnapshot) persistObjects(sink raft.SnapshotSink, encoder *codec.Encoder) error {
+	ws := memdb.NewWatchSet()
+	kinds, err := s.snap.ObjectKinds(ws, "", state.SortDefault)
+	if err != nil {
+		return err
+	}
+
+	var refs []*structs.ObjectKind
+	for raw := kinds.Next(); raw != nil; raw = kinds.Next() {
+		kind := raw.(*structs.ObjectKind)
+		refs = append(refs, kind)
+
+		sink.Write([]byte{byte(ObjectKindSnapshot)})
+		if err := encoder.Encode(kind); err != nil {
+			return err
+		}
+	}
+
+	for _, kind := range refs {
+		objects, err := s.snap.CustomObjects(ws, kind.Group, kind.Kind, structs.AllNamespacesSentinel, state.SortDefault)
+		if err != nil {
+			return err
+		}
+		for raw := objects.Next(); raw != nil; raw = objects.Next() {
+			obj := raw.(*structs.CustomObject)
+
+			sink.Write([]byte{byte(CustomObjectSnapshot)})
+			if err := encoder.Encode(obj); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Event logs and tombstones come after the objects.
+	logs, err := s.snap.ObjectEventLogs(ws)
+	if err != nil {
+		return err
+	}
+	for raw := logs.Next(); raw != nil; raw = logs.Next() {
+		sink.Write([]byte{byte(ObjectEventLogSnapshot)})
+		if err := encoder.Encode(raw.(*structs.ObjectEventLog)); err != nil {
+			return err
+		}
+	}
+	tombstones, err := s.snap.ObjectTombstones(ws)
+	if err != nil {
+		return err
+	}
+	for raw := tombstones.Next(); raw != nil; raw = tombstones.Next() {
+		sink.Write([]byte{byte(ObjectTombstoneSnapshot)})
+		if err := encoder.Encode(raw.(*structs.ObjectTombstone)); err != nil {
+			return err
+		}
+	}
+	return nil
+}

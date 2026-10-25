@@ -104,6 +104,10 @@ type baseCommand struct {
 
 	// configuration struct to carry nomad client config values from flags.
 	nomadConfig nomadConfig
+
+	// lockMode is the --lock mode of commands that use a pack, see
+	// addLockFlag.
+	lockMode string
 }
 
 func (c *baseCommand) Help() string {

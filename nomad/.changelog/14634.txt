@@ -1,3 +1,0 @@
-```release-note:bug
-cli: set content length on POST requests when using the `nomad operator api` command
-```

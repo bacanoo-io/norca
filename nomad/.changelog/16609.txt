@@ -1,3 +1,0 @@
-```release-note:bug
-scheduler: Fix reconciliation of reconnecting allocs when the replacement allocations are not running
-```

@@ -326,7 +326,7 @@ func (h *harness) withUsage(window time.Duration) *usageCollector {
 	c.setActive(true, window, h.clock.Now())
 
 	logger := hclog.NewNullLogger()
-	host, err := newPluginHost(logger, h.cfg, h.deps)
+	host, err := newPluginHost(logger, h.cfg, h.deps, nil)
 	must.NoError(h.t, err)
 	h.runner = newRunner(logger, h.cfg, h.deps, h.clock.Now, host)
 	h.runner.usage = c
@@ -381,6 +381,12 @@ func TestAutoscaler_BuiltinMetricScaleUp(t *testing.T) {
 	must.Eq(t, int64(4), *reqs[0].Count)
 }
 
+// validateDocPolicy validates a policy given as an untyped document, as
+// the servers do at submission.
+func validateDocPolicy(p *structs.ScalingPolicy) error {
+	return ValidatePolicy(p, DefaultConfig())
+}
+
 func TestAutoscaler_BuiltinMetricValidation(t *testing.T) {
 	ci.Parallel(t)
 
@@ -397,16 +403,16 @@ func TestAutoscaler_BuiltinMetricValidation(t *testing.T) {
 		}
 	}
 
-	must.NoError(t, validateScalingPolicy(policy(func(map[string]interface{}) {})))
-	must.NoError(t, validateScalingPolicy(policy(func(c map[string]interface{}) { c["source"] = "nomad-apm" })))
-	must.ErrorContains(t, validateScalingPolicy(policy(func(c map[string]interface{}) { c["metric"] = "nomad.disk" })),
+	must.NoError(t, validateDocPolicy(policy(func(map[string]interface{}) {})))
+	must.NoError(t, validateDocPolicy(policy(func(c map[string]interface{}) { c["source"] = "nomad-apm" })))
+	must.ErrorContains(t, validateDocPolicy(policy(func(c map[string]interface{}) { c["metric"] = "nomad.disk" })),
 		"must be one of")
-	must.ErrorContains(t, validateScalingPolicy(policy(func(c map[string]interface{}) { c["query"] = "avg_cpu" })),
+	must.ErrorContains(t, validateDocPolicy(policy(func(c map[string]interface{}) { c["query"] = "avg_cpu" })),
 		"only one of metric and query")
-	must.ErrorContains(t, validateScalingPolicy(policy(func(c map[string]interface{}) { c["source"] = "prometheus" })),
+	must.ErrorContains(t, validateDocPolicy(policy(func(c map[string]interface{}) { c["source"] = "prometheus" })),
 		"requires the nomad-apm source")
-	must.ErrorContains(t, validateScalingPolicy(policy(func(c map[string]interface{}) { c["metric"] = 1 })),
-		"must be string")
+	must.ErrorContains(t, validateDocPolicy(policy(func(c map[string]interface{}) { c["metric"] = 1 })),
+		"must be a string")
 }
 
 // BenchmarkUsageCollector_Memory measures the heap used by the collector

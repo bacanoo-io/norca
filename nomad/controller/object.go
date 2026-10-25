@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,6 +36,9 @@ var (
 	groupRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
 	kindRe  = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 	nameRe  = regexp.MustCompile(`^[A-Za-z0-9_~-]+$`)
+
+	// nativeNameRe is the rule of the server for native object names.
+	nativeNameRe = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,126}[a-zA-Z0-9])?$`)
 )
 
 // Kind identifies a custom object type, for example
@@ -81,10 +85,12 @@ func (k Kind) WatchPattern() string { return k.Prefix() + "*" }
 
 // NameFromPath returns the object name of a Variables path of the kind. It
 // returns false if the path does not belong to the kind or the name is
-// invalid (for example because it contains further slashes).
+// invalid (for example because it contains further slashes). Names of
+// native objects (which may contain dots) are accepted too, since owner
+// references use the same path form for both storages.
 func (k Kind) NameFromPath(path string) (string, bool) {
 	name, ok := strings.CutPrefix(path, k.Prefix())
-	if !ok || ValidateName(name) != nil {
+	if !ok || (ValidateName(name) != nil && ValidateNativeName(name) != nil) {
 		return "", false
 	}
 	return name, true
@@ -99,6 +105,16 @@ func ValidateName(name string) error {
 	return nil
 }
 
+// ValidateNativeName checks that name is a valid name of a native object
+// (StorageNative): letters, digits, '.', '_' and '-', starting and ending
+// with a letter or digit, at most 128 characters.
+func ValidateNativeName(name string) error {
+	if !nativeNameRe.MatchString(name) {
+		return fmt.Errorf("invalid object name %q: must match %s", name, nativeNameRe)
+	}
+	return nil
+}
+
 // ObjectKey identifies an object of a kind.
 type ObjectKey struct {
 	Namespace string
@@ -108,13 +124,21 @@ type ObjectKey struct {
 // String returns the key as "<namespace>/<name>".
 func (k ObjectKey) String() string { return k.Namespace + "/" + k.Name }
 
-// Object is a custom object stored in a Variable.
+// Object is a custom object, stored in a Variable (StorageVariables) or as
+// a native object of a registered kind (StorageNative).
 type Object struct {
 	Kind Kind
 	Key  ObjectKey
 
-	// CreateIndex and ModifyIndex are the Raft indexes of the Variable.
-	// ModifyIndex is the check-and-set index of every write.
+	// ID, Generation and ManagedBy are set only for native objects. The
+	// server assigns the ID on creation and increases the generation on
+	// every spec change.
+	ID         string
+	Generation uint64
+	ManagedBy  string
+
+	// CreateIndex and ModifyIndex are the Raft indexes of the Variable or
+	// native object. ModifyIndex is the check-and-set index of every write.
 	CreateIndex uint64
 	ModifyIndex uint64
 	CreateTime  time.Time
@@ -122,6 +146,16 @@ type Object struct {
 
 	// Labels are free-form key/value pairs set by the user.
 	Labels map[string]string
+
+	// Finalizers, DeletionTime and Owners exist only for native objects.
+	// While an object has finalizers, deleting it only sets DeletionTime;
+	// the controller cleans up and removes its finalizer (RemoveFinalizer),
+	// and the object disappears when no finalizer is left. Owners reference
+	// the objects this object belongs to; the server's garbage collector
+	// deletes it when they are deleted.
+	Finalizers   []string
+	DeletionTime time.Time
+	Owners       []*api.ObjectOwnerReference
 
 	// Spec is the desired state, written by users. Status is the observed
 	// state, written by the controller. Both are JSON documents; empty means
@@ -201,6 +235,18 @@ func hashJSON(doc []byte) string {
 	return hex.EncodeToString(sum[:8])
 }
 
+// ObservedGeneration returns the "observedGeneration" field of the status,
+// or 0. Native objects are up to date when it equals Generation.
+func (o *Object) ObservedGeneration() uint64 {
+	var s struct {
+		ObservedGeneration uint64 `json:"observedGeneration"`
+	}
+	if len(o.Status) == 0 || json.Unmarshal(o.Status, &s) != nil {
+		return 0
+	}
+	return s.ObservedGeneration
+}
+
 // Copy returns a deep copy of the object.
 func (o *Object) Copy() *Object {
 	if o == nil {
@@ -209,9 +255,33 @@ func (o *Object) Copy() *Object {
 	out := *o
 	out.Labels = maps.Clone(o.Labels)
 	out.Extra = maps.Clone(o.Extra)
+	out.Finalizers = slices.Clone(o.Finalizers)
+	if o.Owners != nil {
+		out.Owners = make([]*api.ObjectOwnerReference, len(o.Owners))
+		for i, ref := range o.Owners {
+			if ref != nil {
+				r := *ref
+				out.Owners[i] = &r
+			}
+		}
+	}
 	out.Spec = bytes.Clone(o.Spec)
 	out.Status = bytes.Clone(o.Status)
 	return &out
+}
+
+// Deleting reports whether the object is marked for deletion: it has
+// finalizers and was deleted. The controller cleans up what the object
+// owns and removes its finalizer.
+func (o *Object) Deleting() bool { return !o.DeletionTime.IsZero() }
+
+// HasFinalizer reports whether the object has the finalizer.
+func (o *Object) HasFinalizer(name string) bool { return slices.Contains(o.Finalizers, name) }
+
+// lifecycleChanged reports whether the finalizers or the deletion state of
+// an object changed.
+func lifecycleChanged(a, b *Object) bool {
+	return !a.DeletionTime.Equal(b.DeletionTime) || !slices.Equal(a.Finalizers, b.Finalizers)
 }
 
 // specEqual reports whether two objects have the same spec and labels,

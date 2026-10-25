@@ -13,18 +13,20 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/client/lib/cgutil"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
-	"github.com/opencontainers/runc/libcontainer/cgroups/fs2"
-	"github.com/opencontainers/runc/libcontainer/configs"
+	"github.com/opencontainers/cgroups"
+	// device management for cgroups v1 and v2 is a separate package that must
+	// be linked in; without it, setting the v2 device rules below fails
+	_ "github.com/opencontainers/cgroups/devices"
+	"github.com/opencontainers/cgroups/fs2"
 )
 
 type containment struct {
 	lock   sync.RWMutex
-	cgroup *configs.Cgroup
+	cgroup *cgroups.Cgroup
 	logger hclog.Logger
 }
 
-func Contain(logger hclog.Logger, cgroup *configs.Cgroup) *containment {
+func Contain(logger hclog.Logger, cgroup *cgroups.Cgroup) *containment {
 	return &containment{
 		cgroup: cgroup,
 		logger: logger.Named("containment"),
@@ -58,7 +60,7 @@ func (c *containment) Apply(pid int) error {
 	}
 
 	// for v1 a random cgroup was created already; just enter it
-	if err := cgroups.EnterPid(map[string]string{"freezer": c.cgroup.Path}, pid); err != nil {
+	if err := cgutil.EnterPidV1(c.cgroup.Path, pid); err != nil {
 		return fmt.Errorf("failed to add pid to v1 cgroup: %w", err)
 	}
 

@@ -1,3 +1,0 @@
-```release-note:improvement
-cli: `operator snapshot state` supports `-filter` expressions and avoids writing large temporary files
-```

@@ -1,3 +1,0 @@
-```release-note:improvement
-consul/connect: Reduced the noise of log messages emitted for connect native tasks
-```

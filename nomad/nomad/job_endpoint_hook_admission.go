@@ -43,6 +43,10 @@ type dynamicAdmission struct {
 	logger   hclog.Logger
 	webhooks []*admission.Webhook
 	policies *admission.PolicyEngine
+
+	// schemas caches the compiled crd-schema Variables used by policies
+	// with schema_from.
+	schemas *admission.SchemaCache
 }
 
 // newDynamicAdmission builds the dynamic admission controllers from the
@@ -55,6 +59,7 @@ func newDynamicAdmission(cfg *config.AdmissionConfig, logger hclog.Logger) (*dyn
 	d := &dynamicAdmission{
 		logger:   logger.Named("admission"),
 		policies: engine,
+		schemas:  admission.NewSchemaCache(),
 	}
 
 	if cfg != nil {
@@ -130,6 +135,38 @@ func (s *Server) publishAdmissionDenied(ev *structs.JobAdmissionDeniedEvent) {
 	})
 }
 
+// publishVariableAdmissionDenied emits a VariableAdmissionDenied event, like
+// publishAdmissionDenied does for jobs. The event never carries the items of
+// the Variable.
+func (s *Server) publishVariableAdmissionDenied(ev *structs.VariableAdmissionDeniedEvent) {
+	metrics.IncrCounterWithLabels([]string{"nomad", "admission", "denied"}, 1, []metrics.Label{
+		{Name: "controller", Value: ev.Controller},
+		{Name: "name", Value: ev.Name},
+	})
+
+	store := s.State()
+	if store == nil {
+		return
+	}
+	broker, err := store.EventBroker()
+	if err != nil {
+		return
+	}
+	index, _ := store.LatestIndex()
+	broker.Publish(&structs.Events{
+		Index: index,
+		Events: []structs.Event{{
+			Topic:      structs.TopicAdmissionPolicy,
+			Type:       structs.TypeVariableAdmissionDenied,
+			Key:        ev.Path,
+			Namespace:  ev.Namespace,
+			FilterKeys: []string{ev.Name},
+			Index:      index,
+			Payload:    ev,
+		}},
+	})
+}
+
 // callWebhook sends the job to a webhook and returns its response. If the call
 // fails, the error is an *admissionWarning when the failure policy of the
 // webhook ignores failures.
@@ -142,6 +179,7 @@ func (s *Server) callWebhook(w *admission.Webhook, op string, user *structs.Admi
 	}
 	req := &admission.ReviewRequest{
 		UID:       uuid.Generate(),
+		Resource:  structs.AdmissionResourceJob,
 		Operation: op,
 		DryRun:    op == structs.AdmissionOperationPlan,
 		Namespace: job.Namespace,
@@ -351,15 +389,10 @@ func (j *Job) enforceAdmission(op string, job *structs.Job, token *structs.ACLTo
 			return nil, err
 		}
 		request := map[string]any{
+			"resource":  structs.AdmissionResourceJob,
 			"operation": op,
 			"namespace": job.Namespace,
-			"user": map[string]any{
-				"accessor_id": user.AccessorID,
-				"name":        user.Name,
-				"type":        user.Type,
-				"roles":       user.Roles,
-				"policies":    user.Policies,
-			},
+			"user":      admissionUserValue(user),
 		}
 
 		var denials *multierror.Error
@@ -414,9 +447,31 @@ func (j *Job) enforceAdmission(op string, job *structs.Job, token *structs.ACLTo
 	return warnings.ErrorOrNil(), nil
 }
 
-// admissionPoliciesFor returns the admission policies that apply to the
-// namespace and prunes the compiled program cache of deleted policies.
+// admissionUserValue returns the submitter as the CEL rules see it in
+// request.user.
+func admissionUserValue(user *structs.AdmissionUser) map[string]any {
+	return map[string]any{
+		"accessor_id": user.AccessorID,
+		"name":        user.Name,
+		"type":        user.Type,
+		"roles":       user.Roles,
+		"policies":    user.Policies,
+	}
+}
+
+// admissionPoliciesFor returns the admission policies that apply to jobs in
+// the namespace and prunes the compiled program cache of deleted policies.
 func admissionPoliciesFor(snap *state.StateSnapshot, namespace string, engine *admission.PolicyEngine) ([]*structs.AdmissionPolicy, error) {
+	return matchingAdmissionPolicies(snap, engine, func(p *structs.AdmissionPolicy) bool {
+		return p.AppliesToJob(namespace)
+	})
+}
+
+// matchingAdmissionPolicies returns the admission policies selected by match
+// and prunes the compiled program cache of deleted policies.
+func matchingAdmissionPolicies(snap *state.StateSnapshot, engine *admission.PolicyEngine,
+	match func(*structs.AdmissionPolicy) bool) ([]*structs.AdmissionPolicy, error) {
+
 	iter, err := snap.AdmissionPolicies(nil, state.SortDefault)
 	if err != nil {
 		return nil, err
@@ -426,7 +481,7 @@ func admissionPoliciesFor(snap *state.StateSnapshot, namespace string, engine *a
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		policy := raw.(*structs.AdmissionPolicy)
 		names[policy.Name] = struct{}{}
-		if policy.MatchesNamespace(namespace) {
+		if match(policy) {
 			out = append(out, policy)
 		}
 	}

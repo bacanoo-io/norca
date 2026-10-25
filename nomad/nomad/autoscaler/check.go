@@ -266,6 +266,10 @@ func (ch *checkRunner) group() string {
 	return ch.check.Group
 }
 
+func (ch *checkRunner) name() string {
+	return ch.check.Name
+}
+
 // runCheckAndCapCount evaluates the check and caps the returned action.
 //
 // The method returns errCheckOutsideSchedule when the check is outside its

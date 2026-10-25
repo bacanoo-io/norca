@@ -113,7 +113,7 @@ func (s *HTTPServer) variableUpsert(resp http.ResponseWriter, req *http.Request,
 
 		// Otherwise it's a non-CAS error
 		setIndex(resp, out.WriteMeta.Index)
-		return nil, err
+		return nil, variableAdmissionError(err)
 	}
 
 	if out.Conflict != nil {
@@ -124,6 +124,7 @@ func (s *HTTPServer) variableUpsert(resp http.ResponseWriter, req *http.Request,
 
 	// Finally, we know that this is a success response, send it to the caller
 	setIndex(resp, out.WriteMeta.Index)
+	setWarnings(resp, out.Warnings)
 	return out.Output, nil
 }
 
@@ -159,7 +160,7 @@ func (s *HTTPServer) variableDelete(resp http.ResponseWriter, req *http.Request,
 			resp.WriteHeader(http.StatusConflict)
 		}
 		setIndex(resp, out.WriteMeta.Index)
-		return nil, err
+		return nil, variableAdmissionError(err)
 	}
 
 	// If the CAS validation can decode the conflicting value, Conflict is
@@ -172,8 +173,29 @@ func (s *HTTPServer) variableDelete(resp http.ResponseWriter, req *http.Request,
 
 	// Finally, we know that this is a success response, send it to the caller
 	setIndex(resp, out.WriteMeta.Index)
+	setWarnings(resp, out.Warnings)
 	resp.WriteHeader(http.StatusNoContent)
 	return nil, nil
+}
+
+// variableAdmissionError turns the rejection of a Variables write by the
+// dynamic admission controllers into a 400 Bad Request; other errors are
+// returned unchanged.
+func variableAdmissionError(err error) error {
+	msg := err.Error()
+	if i := strings.Index(msg, structs.VariableAdmissionDeniedPrefix); i >= 0 {
+		return CodedError(http.StatusBadRequest, msg[i:])
+	}
+	return err
+}
+
+// setWarnings returns the warnings of a Variables write in the
+// X-Nomad-Warnings response header, one header value per warning.
+func setWarnings(resp http.ResponseWriter, warnings []string) {
+	for _, w := range warnings {
+		w = strings.NewReplacer("\r", " ", "\n", " ").Replace(w)
+		resp.Header().Add("X-Nomad-Warnings", w)
+	}
 }
 
 func parseCAS(req *http.Request) (bool, uint64, error) {

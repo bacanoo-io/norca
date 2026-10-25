@@ -14,7 +14,8 @@ import (
 )
 
 // Kind is the custom object type maintained by this operator. Objects live
-// at crd/norca-io/LoadBalancer/<name>.
+// at crd/norca-io/LoadBalancer/<name> (Variables storage), or are native
+// objects of the kind norca.io/LoadBalancer (see loadbalancer.kind.hcl).
 var Kind = controller.Kind{Group: "norca.io", Kind: "LoadBalancer"}
 
 // DefaultClass is the provider used when the spec does not name one.

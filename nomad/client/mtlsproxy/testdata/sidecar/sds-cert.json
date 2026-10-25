@@ -1,0 +1,17 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name": "workload",
+      "tls_certificate": {
+        "certificate_chain": {
+          "inline_string": "-----BEGIN CERTIFICATE-----\nWORKLOAD\n-----END CERTIFICATE-----\n"
+        },
+        "private_key": {
+          "inline_string": "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----\n"
+        }
+      }
+    }
+  ],
+  "version_info": "b328236837773db6"
+}

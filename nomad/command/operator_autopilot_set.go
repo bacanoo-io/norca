@@ -136,8 +136,7 @@ Set Config Options:
      new ones are successfully added. Must be one of [true|false].
 
   -disable-upgrade-migration=[true|false]
-     (Enterprise-only) Controls whether Norca will avoid promoting
-     new servers until it can perform a migration. Must be one of
+     Not supported: the servers reject the value true. Must be one of
      "true|false".
 
   -last-contact-threshold=200ms
@@ -154,8 +153,8 @@ Set Config Options:
       before autopilot can prune dead servers.
 
   -redundancy-zone-tag=<value>
-     (Enterprise-only) Controls the node_meta tag name used for
-     separating servers into different redundancy zones.
+     Not supported: redundancy zones are not available, the value has no
+     effect.
 
   -server-stabilization-time=<10s>
      Controls the minimum amount of time a server must be stable in
@@ -164,9 +163,8 @@ Set Config Options:
      higher. Must be a duration value such as "10s".
 
   -upgrade-version-tag=<value>
-     (Enterprise-only) The node_meta tag to use for version info when
-     performing upgrade migrations. If left blank, the Norca version
-     will be used.
+     Not supported: custom upgrade migrations are not available, the value
+     has no effect.
 `
 	return strings.TrimSpace(helpText)
 }

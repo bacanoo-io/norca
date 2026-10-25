@@ -1,3 +1,0 @@
-```release-note:bug
-server: Fixed a bug where Raft server configuration parameters were not correctly merged
-```

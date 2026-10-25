@@ -1,3 +1,0 @@
-```release-note:bug
-scheduler: Fixed a bug where device IDs were not correctly filtered in constraints
-```

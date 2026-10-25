@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed a bug where CSI hook validation would fail if all tasks didn't support CSI.
-``

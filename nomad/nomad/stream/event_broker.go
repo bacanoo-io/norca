@@ -128,8 +128,8 @@ func (e *EventBroker) Publish(events *structs.Events) {
 // return the token expiry time, if any. It is the callers responsibility to
 // check this before publishing events to the caller.
 func (e *EventBroker) SubscribeWithACLCheck(req *SubscribeRequest) (*Subscription, *time.Time, error) {
-	aclObj, expiryTime, err := aclObjFromSnapshotForTokenSecretID(e.aclDelegate.TokenProvider(), e.aclCache, req.Token)
-	if err != nil {
+	aclObj, expiryTime, err := e.resolveACL(req.ResolveACL, req.Token)
+	if err != nil || aclObj == nil {
 		return nil, nil, structs.ErrPermissionDenied
 	}
 
@@ -250,12 +250,18 @@ func (e *EventBroker) handleACLUpdates(ctx context.Context) {
 					continue
 				}
 
-				// If broker cannot fetch state there is nothing more to do
-				if e.aclDelegate == nil {
+				resolve, ok := e.subscriptions.resolverFor(tokenSecretID)
+				if !ok {
+					// No subscriptions use the token.
 					continue
 				}
 
-				aclObj, expiryTime, err := aclObjFromSnapshotForTokenSecretID(e.aclDelegate.TokenProvider(), e.aclCache, tokenSecretID)
+				// If broker cannot fetch state there is nothing more to do
+				if resolve == nil && e.aclDelegate == nil {
+					continue
+				}
+
+				aclObj, expiryTime, err := e.resolveACL(resolve, tokenSecretID)
 				if err != nil || aclObj == nil {
 					e.logger.Error("failed resolving ACL for secretID, closing subscriptions", "error", err)
 					e.subscriptions.closeSubscriptionsForTokens([]string{tokenSecretID})
@@ -291,19 +297,28 @@ func (e *EventBroker) checkSubscriptionsAgainstACLChange() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// If broker cannot fetch state there is nothing more to do
-	if e.aclDelegate == nil {
-		return
-	}
-
-	aclSnapshot := e.aclDelegate.TokenProvider()
-	for tokenSecretID := range e.subscriptions.byToken {
+	var aclSnapshot ACLTokenProvider
+	for tokenSecretID, resolve := range e.subscriptions.resolvers() {
 		// if tokenSecretID is empty ACLs were disabled at time of subscribing
 		if tokenSecretID == "" {
 			continue
 		}
 
-		aclObj, expiryTime, err := aclObjFromSnapshotForTokenSecretID(aclSnapshot, e.aclCache, tokenSecretID)
+		var aclObj *acl.ACL
+		var expiryTime *time.Time
+		var err error
+		switch {
+		case resolve != nil:
+			aclObj, expiryTime, err = resolve(tokenSecretID)
+		case e.aclDelegate == nil:
+			// If broker cannot fetch state there is nothing more to do
+			continue
+		default:
+			if aclSnapshot == nil {
+				aclSnapshot = e.aclDelegate.TokenProvider()
+			}
+			aclObj, expiryTime, err = aclObjFromSnapshotForTokenSecretID(aclSnapshot, e.aclCache, tokenSecretID)
+		}
 		if err != nil || aclObj == nil {
 			e.logger.Debug("failed resolving ACL for secretID, closing subscriptions", "error", err)
 			e.subscriptions.closeSubscriptionsForTokens([]string{tokenSecretID})
@@ -320,6 +335,16 @@ func (e *EventBroker) checkSubscriptionsAgainstACLChange() {
 			return !sub.refreshACL(aclObj)
 		})
 	}
+}
+
+// resolveACL resolves the ACL object and expiry time of a subscription token
+// with the subscription's resolver, or as an ACL token secret ID if it has
+// none.
+func (e *EventBroker) resolveACL(resolve ACLResolver, token string) (*acl.ACL, *time.Time, error) {
+	if resolve != nil {
+		return resolve(token)
+	}
+	return aclObjFromSnapshotForTokenSecretID(e.aclDelegate.TokenProvider(), e.aclCache, token)
 }
 
 func aclObjFromSnapshotForTokenSecretID(
@@ -401,6 +426,12 @@ type ACLDelegate interface {
 	TokenProvider() ACLTokenProvider
 }
 
+// ACLResolver resolves the ACL object of a subscription token and the time
+// the token expires, if it does. It returns an error if the token is not
+// valid. A resolver allows subscription tokens other than ACL token secret
+// IDs, such as workload identities.
+type ACLResolver func(token string) (*acl.ACL, *time.Time, error)
+
 func aclAllowsSubscription(aclObj *acl.ACL, subReq *SubscribeRequest) bool {
 	for topic, keys := range subReq.Topics {
 		if policy, ok := topicPolicies[topic]; ok && policy.allowSubscribe != nil {
@@ -476,6 +507,34 @@ func (s *subscriptions) add(req *SubscribeRequest, sub *Subscription) {
 		s.byToken[req.Token] = subsByToken
 	}
 	subsByToken[req] = sub
+}
+
+// resolverFor returns the ACL resolver of the subscriptions of a token, and
+// false if no subscription uses the token. All subscriptions of a token are
+// created by the same server, so their resolvers are equivalent.
+func (s *subscriptions) resolverFor(token string) (ACLResolver, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for req := range s.byToken[token] {
+		return req.ResolveACL, true
+	}
+	return nil, false
+}
+
+// resolvers returns the ACL resolver of each token used by subscriptions.
+func (s *subscriptions) resolvers() map[string]ACLResolver {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make(map[string]ACLResolver, len(s.byToken))
+	for token, subs := range s.byToken {
+		for req := range subs {
+			result[token] = req.ResolveACL
+			break
+		}
+	}
+	return result
 }
 
 func (s *subscriptions) closeSubscriptionsForTokens(tokenSecretIDs []string) {

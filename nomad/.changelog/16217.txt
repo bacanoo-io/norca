@@ -1,3 +1,0 @@
-```release-note:bug
-client: Fixed a bug where clients used the serf advertise address to connect to servers when using Consul auto-discovery
-```

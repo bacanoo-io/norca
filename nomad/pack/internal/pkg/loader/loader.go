@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2/hclsimple"
-
+	"github.com/hashicorp/nomad/nomad/objectschema"
+	"github.com/hashicorp/nomad/pack/internal/pkg/release"
 	"github.com/hashicorp/nomad/pack/sdk/pack"
 )
 
@@ -87,18 +87,20 @@ func loadFiles(files []*pack.File) (*pack.Pack, error) {
 
 	p := new(pack.Pack)
 
+	// The metadata can read the other files of the pack with file(), so it
+	// is decoded once all of them are known.
+	var metadataFile *pack.File
+	byName := make(map[string]*pack.File, len(files))
+	for _, f := range files {
+		byName[f.Name] = f
+	}
+
 	for _, f := range files {
 		switch {
 		case f.Name == "metadata.hcl":
-
-			// Decode the metadata file into the pack. There shouldn't be more
-			// than one per pack, but if there is, last found wins.
-			if p.Metadata == nil {
-				p.Metadata = new(pack.Metadata)
-			}
-			if err := hclsimple.Decode(f.Name, f.Content, nil, p.Metadata); err != nil {
-				return p, fmt.Errorf("failed to decode %s: %v", f.Name, err)
-			}
+			// There shouldn't be more than one per pack, but if there is,
+			// last found wins.
+			metadataFile = f
 
 		case f.Name == "variables.hcl":
 			p.RootVariableFile = f
@@ -109,10 +111,11 @@ func loadFiles(files []*pack.File) (*pack.Pack, error) {
 			p.OutputTemplateFile = f
 
 		case strings.HasPrefix(f.Name, "templates/") &&
-			strings.HasSuffix(f.Name, ".nomad.tpl") ||
+			(strings.HasSuffix(f.Name, ".nomad.tpl") || release.IsResourceTemplate(f.Name)) ||
 			strings.Contains(f.Name, "templates/_"):
-			// The file is a pack template file. This catches both full Nomad
-			// object templates and helpers.
+			// The file is a pack template file. This catches full Nomad
+			// object templates, the other resource templates of releases
+			// (e.g. *.namespace.hcl.tpl) and helpers.
 			p.TemplateFiles = append(p.TemplateFiles, f)
 
 		case strings.HasPrefix(f.Name, "templates/") &&
@@ -127,9 +130,31 @@ func loadFiles(files []*pack.File) (*pack.Pack, error) {
 		}
 	}
 
+	if metadataFile != nil {
+		md, err := pack.DecodeMetadata(metadataFile.Name, metadataFile.Content, func(name string) ([]byte, error) {
+			f, ok := byName[name]
+			if !ok {
+				return nil, errors.New("no such file in the pack")
+			}
+			return f.Content, nil
+		})
+		if err != nil {
+			return p, fmt.Errorf("failed to decode %s: %v", metadataFile.Name, err)
+		}
+		p.Metadata = md
+	}
+
 	// Validate the metadata.
 	if p.Metadata == nil {
 		return p, errors.New("metadata.hcl file not found")
 	}
-	return p, p.Metadata.Validate()
+	if err := p.Metadata.Validate(); err != nil {
+		return p, err
+	}
+	if p.Metadata.VariablesSchema != "" {
+		if _, err := objectschema.CompileDocument("pack-variables/"+p.Metadata.Pack.Name, p.Metadata.VariablesSchema); err != nil {
+			return p, fmt.Errorf("metadata.hcl: invalid variables_schema: %v", err)
+		}
+	}
+	return p, nil
 }

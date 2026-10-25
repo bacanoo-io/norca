@@ -1,3 +1,0 @@
-```release-note:bug
-rpc (Enterprise): check for spec changes in all regions when registering multiregion jobs
-```

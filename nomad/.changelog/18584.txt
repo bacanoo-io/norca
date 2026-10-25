@@ -1,3 +1,0 @@
-```release-note:bug
-services: use interpolated address when performing nomad service health checks
-```

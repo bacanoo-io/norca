@@ -39,14 +39,39 @@ type Condition struct {
 //		Address string `json:"address,omitempty"`
 //	}
 type CommonStatus struct {
+	// ObservedGeneration is the generation of the native object the
+	// controller acted on last. The object is up to date when it equals the
+	// object's Generation.
+	ObservedGeneration uint64 `json:"observedGeneration,omitempty"`
+
 	// ObservedSpecHash is the SpecHash of the spec the controller acted on
-	// last. It stands in for observedGeneration until objects get a server
-	// maintained generation (phase 2).
+	// last. It stands in for observedGeneration for objects stored as
+	// Variables, which have no server maintained generation.
 	ObservedSpecHash string `json:"observedSpecHash,omitempty"`
 
 	// Conditions are the standard conditions (Ready, Progressing, Degraded)
 	// and kind specific ones.
 	Conditions []Condition `json:"conditions,omitempty"`
+}
+
+// Observe records that the controller acted on the current spec of obj: the
+// generation of a native object, or the spec hash of a Variables object.
+func (s *CommonStatus) Observe(obj *Object) {
+	if obj.Generation > 0 {
+		s.ObservedGeneration = obj.Generation
+		s.ObservedSpecHash = ""
+		return
+	}
+	s.ObservedSpecHash = obj.SpecHash()
+}
+
+// Observed reports whether the status was written for the current spec of
+// obj (see Observe).
+func (s CommonStatus) Observed(obj *Object) bool {
+	if obj.Generation > 0 {
+		return s.ObservedGeneration == obj.Generation
+	}
+	return s.ObservedSpecHash != "" && s.ObservedSpecHash == obj.SpecHash()
 }
 
 // SetCondition adds or replaces the condition of the same type. The
