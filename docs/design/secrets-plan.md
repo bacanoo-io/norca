@@ -274,7 +274,13 @@ New namespace capabilities for the built-in store, none of them included in the 
 ## Multi-region operation
 
 - Secrets are **region-local** by default; each region has its own keyring and seal (one cloud per region, so each region uses its own cloud's KMS).
-- **Replicated paths:** paths marked `replicate = true` in the authoritative region are copied to the other regions by their leaders (like ACL policies), decrypted and re-encrypted with each region's own keyring over the existing mTLS region RPC. A replicated secret is read-only outside the authoritative region.
+- **Replicated paths:** paths marked `replicate = true` in the authoritative region are copied to the other regions. A replicated secret is read-only outside the authoritative region.
+- **Transport: NATS** (decided 2026-10-25: NATS is the connection between the regions). The replication runs over the NATS supercluster of `packs/nats` (JetStream with gateways between the regions), not over the Nomad region RPC:
+  - The authoritative region's leader publishes one message per change and target region to a JetStream stream (`norca.secrets.replication.<target-region>`), with the path, version, metadata and the **value encrypted for the target region** (each region publishes an X25519 replication public key; the matching private key is part of that region's keyring and therefore protected by its seal). NATS never sees a plaintext value.
+  - Each message is signed by the source region (Ed25519 key in the keyring; the public keys of all regions are distributed with the mTLS trust bundle federation), so a target accepts only changes from the authoritative region.
+  - Each target region's leader consumes its subject with a durable consumer, verifies the signature, decrypts, re-encrypts with its own keyring and writes the secret through its own Raft. Messages are idempotent (path plus version); an older version never overwrites a newer one, and deletes are replicated as tombstones.
+  - A leader change in a target region continues from the durable consumer's position; a region that was offline catches up from the stream (retention at least the configured `max_versions`, plus a periodic full reconciliation that compares version hashes and requests missing versions).
+  - NATS credentials of the servers come from the server configuration (an NKey/JWT user limited to the replication subjects); the NATS bridge job of the event stream is not involved.
 - A task in region B never fetches secrets from region A directly.
 
 ## Backup and restore
@@ -316,7 +322,7 @@ New namespace capabilities for the built-in store, none of them included in the 
 | 4. Vault compatibility | Vault-style template calls and the task `vault` block served by the built-in store when no Vault is configured; Vault-compatible KV read endpoint on the client agent; `secret import -from-vault` | `client/allocrunner/taskrunner/vault_hook.go`, `client/allocrunner/taskrunner/template/`, new `client/vaultcompat/` |
 | 5. Further external providers (on demand) | `openbao`/`vault` provider blocks (JWT), `aws-secretsmanager`, `gcp-secretmanager`, `scaleway-secretmanager`, plugin mechanism and SDK, OIDC discovery/JWKS; built only when a user needs them | `client/secrets/providers/`, `api/secretsplugin/`, `command/agent/` |
 | – Further seals (on demand) | `awskms`, `gcpckms`, `scwkms`, `transit`, behind the phase 1 seal interface; built only when a user needs them | `nomad/seal/` |
-| 6. Lifecycle | Expiry and rotation events, rotation jobs, replicated paths, UI page | `nomad/secrets_watcher.go`, `nomad/leader.go`, `ui/` |
+| 6. Lifecycle | Expiry and rotation events, rotation jobs, replicated paths over NATS JetStream (end-to-end encrypted, signed), UI page | `nomad/secrets_watcher.go`, new `nomad/secretsrepl/`, `nomad/leader.go`, `ui/` |
 | 7. (optional) Built-in dynamic secrets | Lease-based database and cloud credentials | later decision |
 
 Phases 1 and 2 are independent of each other and can run in parallel; phase 3 needs 2; phase 4 needs 3. Phase 5 and the further seals are built on demand (decided 2026-10-25); the interfaces of phases 1 and 3 are designed so that they can be added without changing jobs or stored data. The existing Vault integration keeps working throughout; no phase changes its behaviour when a Vault is configured.
@@ -366,6 +372,6 @@ Phases 1 and 2 are independent of each other and can run in parallel; phase 3 ne
 - [x] Which seals are needed first? Decided 2026-10-25: `shares` for now (plus `aead` for development and migration); KMS and `transit` seals are integrated later, when someone needs a more complex setup.
 - [x] Which external providers come first? Decided 2026-10-25: none beyond the existing Vault integration for now; further providers (OpenBao/Vault provider blocks, cloud secret managers, plugins) are integrated later, on demand.
 - [ ] Is a built-in dynamic secrets engine needed at all, or are OpenBao's engines enough (proposed: OpenBao's engines)?
-- [ ] Should secrets be replicable across regions (proposed: opt-in per path from the authoritative region), or strictly region-local?
+- [x] Should secrets be replicable across regions, and over which connection? Decided 2026-10-25: yes, over NATS, which is the connection between the regions (opt-in per path from the authoritative region, values end-to-end encrypted for the target region, see "Multi-region operation").
 - [ ] Is `env` delivery allowed by default, or only `file` delivery unless an admission policy allows `env` (proposed: both allowed, `file` recommended)?
 - [ ] Where do audit records go besides the event stream: file sink on servers (proposed), and/or a remote sink (S3, syslog)?
