@@ -75,6 +75,11 @@ Restore Options:
     restored if it does not exist; to overwrite an existing entry give its
     current modify index (shown by -dry-run). Can be given several times.
 
+  -secret <path>[@<check-index>]
+    Restore a secret of the built-in secret store with all of its versions in
+    the backup, replacing its current versions. Without a check index the
+    secret is only restored if it does not exist. Can be given several times.
+
   -restore-namespace <name>
     Restore a namespace. Can be given several times.
 
@@ -104,6 +109,7 @@ func (c *OperatorBackupRestoreCommand) AutocompleteFlags() complete.Flags {
 			"-confirm":           complete.PredictAnything,
 			"-job":               complete.PredictAnything,
 			"-variable":          complete.PredictAnything,
+			"-secret":            complete.PredictAnything,
 			"-restore-namespace": complete.PredictAnything,
 			"-acl-policy":        complete.PredictAnything,
 			"-acl-role":          complete.PredictAnything,
@@ -133,7 +139,7 @@ func splitAt(s string) (string, *uint64, error) {
 func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	var dryRun, json, full bool
 	var identityPath, destination, confirm string
-	var jobs, variables, namespaces, policies, roles flaghelper.StringFlag
+	var jobs, variables, secrets, namespaces, policies, roles flaghelper.StringFlag
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
@@ -142,6 +148,7 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	flags.StringVar(&confirm, "confirm", "", "")
 	flags.Var(&jobs, "job", "")
 	flags.Var(&variables, "variable", "")
+	flags.Var(&secrets, "secret", "")
 	flags.Var(&namespaces, "restore-namespace", "")
 	flags.Var(&policies, "acl-policy", "")
 	flags.Var(&roles, "acl-role", "")
@@ -178,6 +185,14 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 		}
 		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemVariable, Namespace: namespace, ID: path, CheckIndex: index})
 	}
+	for _, s := range secrets {
+		path, index, err := splitAt(s)
+		if err != nil {
+			c.Ui.Error(err.Error())
+			return 1
+		}
+		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemSecret, Namespace: namespace, ID: path, CheckIndex: index})
+	}
 	for _, n := range namespaces {
 		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemNamespace, ID: n})
 	}
@@ -189,10 +204,10 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	}
 	switch {
 	case full && len(items) > 0:
-		c.Ui.Error("A full restore takes no -job, -variable, -restore-namespace, -acl-policy or -acl-role")
+		c.Ui.Error("A full restore takes no -job, -variable, -secret, -restore-namespace, -acl-policy or -acl-role")
 		return 1
 	case !full && len(items) == 0:
-		c.Ui.Error("Nothing to restore: use -job, -variable, -restore-namespace, -acl-policy, -acl-role or -full")
+		c.Ui.Error("Nothing to restore: use -job, -variable, -secret, -restore-namespace, -acl-policy, -acl-role or -full")
 		return 1
 	case !full && confirm != "":
 		c.Ui.Error("-confirm is only used with -full")

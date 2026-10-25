@@ -39,6 +39,7 @@ const (
 	BackupContentACLRoles    = "acl-roles"
 	BackupContentDeployments = "deployments"
 	BackupContentAllocations = "allocations"
+	BackupContentSecrets     = "secrets"
 
 	BackupRestoreModeSelective = "selective"
 	BackupRestoreModeFull      = "full"
@@ -49,6 +50,7 @@ const (
 	BackupRestoreItemNamespace = "namespace"
 	BackupRestoreItemACLPolicy = "acl-policy"
 	BackupRestoreItemACLRole   = "acl-role"
+	BackupRestoreItemSecret    = "secret"
 
 	// Backup objects.
 	BackupObjectState    = "state"
@@ -174,6 +176,7 @@ type BackupContents struct {
 	Jobs        []*BackupJobStub
 	JobVersions []*Job
 	Variables   []*BackupVariableStub
+	Secrets     []*SecretStub
 	ACLPolicies []*ACLPolicyListStub
 	ACLRoles    []*ACLRoleListStub
 	Deployments []*Deployment
