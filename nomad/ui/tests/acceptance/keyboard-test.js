@@ -253,7 +253,7 @@ module('Acceptance | keyboard', function (hooks) {
     });
     test('Dynamic Table Nav', async function (assert) {
       assert.expect(4);
-      server.createList('job', 3, { createRecommendations: true });
+      server.createList('job', 3);
       await visit('/jobs');
 
       await triggerEvent('.page-layout', 'keydown', { key: 'Shift' });
@@ -285,7 +285,7 @@ module('Acceptance | keyboard', function (hooks) {
       );
     });
     test('Multi-Table Nav', async function (assert) {
-      server.createList('job', 3, { createRecommendations: true });
+      server.createList('job', 3);
       await visit(
         `/jobs/${server.db.jobs.sortBy('modifyIndex').reverse()[0].id}@default`
       );

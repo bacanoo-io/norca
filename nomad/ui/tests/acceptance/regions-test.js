@@ -198,22 +198,13 @@ module('Acceptance | regions (many)', function (hooks) {
     const regionsRequest = server.pretender.handledRequests.find((req) =>
       req.responseURL.includes('/v1/regions')
     );
-    const licenseRequest = server.pretender.handledRequests.find((req) =>
-      req.responseURL.includes('/v1/operator/license')
-    );
     const appRequests = server.pretender.handledRequests.filter(
-      (req) =>
-        !req.responseURL.includes('/v1/regions') &&
-        !req.responseURL.includes('/v1/operator/license')
+      (req) => !req.responseURL.includes('/v1/regions')
     );
 
     assert.notOk(
       regionsRequest.url.includes('region='),
       'The regions request is made without a region qp'
-    );
-    assert.notOk(
-      licenseRequest.url.includes('region='),
-      'The default region request is made without a region qp'
     );
 
     appRequests.forEach((req) => {

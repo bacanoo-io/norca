@@ -123,14 +123,6 @@ export default class JobSerializer extends ApplicationSerializer {
           related: buildURL(`${jobURL}/scale`, { namespace }),
         },
       },
-      recommendationSummaries: {
-        links: {
-          related: buildURL(`/${apiNamespace}/recommendations`, {
-            job: hash.PlainId,
-            namespace: hash.NamespaceID || 'default',
-          }),
-        },
-      },
     });
   }
 }

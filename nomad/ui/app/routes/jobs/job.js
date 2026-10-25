@@ -48,10 +48,6 @@ export default class JobRoute extends Route.extend(WithWatchers) {
           this.store.findAll('namespace'),
         ];
 
-        if (this.can.can('accept recommendation')) {
-          relatedModelsQueries.push(job.get('recommendationSummaries'));
-        }
-
         // Optimizing future node look ups by preemptively loading everything
         if (job.get('hasClientStatus') && this.can.can('read client')) {
           relatedModelsQueries.push(this.store.findAll('node'));

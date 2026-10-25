@@ -12,13 +12,7 @@ module('Unit | Ability | abstract', function (hooks) {
   setupTest(hooks);
   setupAbility('abstract')(hooks);
   hooks.beforeEach(function () {
-    const mockSystem = Service.extend({
-      init(...args) {
-        this._super(...args);
-
-        this.features = this.features || [];
-      },
-    });
+    const mockSystem = Service.extend({});
 
     this.owner.register('service:system', mockSystem);
   });

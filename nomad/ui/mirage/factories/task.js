@@ -12,7 +12,6 @@ import { pickOne } from '../utils';
 const DRIVERS = ['docker', 'java', 'rkt', 'qemu', 'exec', 'raw_exec'];
 
 export default Factory.extend({
-  createRecommendations: false,
 
   withServices: false,
 
@@ -59,23 +58,6 @@ export default Factory.extend({
   },
 
   afterCreate(task, server) {
-    if (task.createRecommendations) {
-      const recommendations = [];
-
-      if (faker.random.number(10) >= 1) {
-        recommendations.push(
-          server.create('recommendation', { task, resource: 'CPU' })
-        );
-      }
-
-      if (faker.random.number(10) >= 1) {
-        recommendations.push(
-          server.create('recommendation', { task, resource: 'MemoryMB' })
-        );
-      }
-
-      task.save({ recommendationIds: recommendations.mapBy('id') });
-    }
 
     if (task.withServices) {
       const services = server.createList('service-fragment', 1, {

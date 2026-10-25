@@ -43,9 +43,6 @@ export default Factory.extend({
   // Whether the tasks themselves should have services.
   withTaskServices: false,
 
-  // Directive used to control whether dynamic application sizing recommendations
-  // should be created.
-  createRecommendations: false,
 
   // When true, only creates allocations
   shallow: false,
@@ -105,7 +102,6 @@ export default Factory.extend({
             PropagationMode: '',
             ReadOnly: faker.random.boolean(),
           })),
-          createRecommendations: group.createRecommendations,
         });
       });
       taskIds = tasks.mapBy('id');

@@ -57,7 +57,6 @@ export default function (server) {
 
 function smallCluster(server) {
   faker.seed(1);
-  server.create('feature', { name: 'Dynamic Application Sizing' });
   server.createList('agent', 3, 'withConsulLink', 'withVaultLink');
   server.createList('node-pool', 2);
   server.createList('node', 5);
@@ -69,7 +68,6 @@ function smallCluster(server) {
     },
     'withMeta'
   );
-  server.createList('job', 1, { createRecommendations: true });
   server.create('job', {
     withGroupServices: true,
     withTaskServices: true,
@@ -749,11 +747,9 @@ function rolesTestCluster(server) {
 
 function servicesTestCluster(server) {
   faker.seed(1);
-  server.create('feature', { name: 'Dynamic Application Sizing' });
   server.createList('agent', 3, 'withConsulLink', 'withVaultLink');
   server.createList('node-pool', 3);
   server.createList('node', 5);
-  server.createList('job', 1, { createRecommendations: true });
   server.create('job', {
     withGroupServices: true,
     withTaskServices: true,

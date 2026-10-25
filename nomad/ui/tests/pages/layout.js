@@ -90,10 +90,6 @@ export default create({
     scope: '[data-test-gutter-menu]',
     visitJobs: clickable('[data-test-gutter-link="jobs"]'),
 
-    optimize: {
-      scope: '[data-test-gutter-link="optimize"]',
-    },
-
     variables: {
       scope: '[data-test-gutter-link="variables"]',
     },

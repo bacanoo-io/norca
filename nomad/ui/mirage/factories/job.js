@@ -193,8 +193,6 @@ export default Factory.extend({
   // When true, tasks will have services
   withTaskServices: false,
 
-  // When true, dynamic application sizing recommendations will be made
-  createRecommendations: false,
 
   // When true, only task groups and allocations are made
   shallow: false,
@@ -231,7 +229,6 @@ export default Factory.extend({
       withRescheduling: job.withRescheduling,
       withServices: job.withGroupServices,
       withTaskServices: job.withTaskServices,
-      createRecommendations: job.createRecommendations,
       shallow: job.shallow,
       allocStatusDistribution: job.allocStatusDistribution,
     };
