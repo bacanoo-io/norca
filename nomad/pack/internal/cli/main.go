@@ -36,6 +36,10 @@ var (
 		"plan",
 		"render",
 		"run",
+		"upgrade",
+		"rollback",
+		"history",
+		"uninstall",
 		"destroy",
 		"fmt",
 		"info",
@@ -130,6 +134,24 @@ func Commands(
 			return &RunCommand{
 				baseCommand: baseCommand,
 			}, nil
+		},
+		"upgrade": func() (cli.Command, error) {
+			return &RunCommand{baseCommand: baseCommand, upgrade: true}, nil
+		},
+		"rollback": func() (cli.Command, error) {
+			return &RollbackCommand{baseCommand: baseCommand}, nil
+		},
+		"history": func() (cli.Command, error) {
+			return &HistoryCommand{baseCommand: baseCommand}, nil
+		},
+		"uninstall": func() (cli.Command, error) {
+			return &UninstallCommand{baseCommand: baseCommand}, nil
+		},
+		"test": func() (cli.Command, error) {
+			return &ReleaseTestCommand{baseCommand: baseCommand}, nil
+		},
+		"diff": func() (cli.Command, error) {
+			return &DiffCommand{baseCommand: baseCommand}, nil
 		},
 		"version": func() (cli.Command, error) {
 			return &VersionCommand{

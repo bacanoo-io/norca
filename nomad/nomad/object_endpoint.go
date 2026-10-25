@@ -268,6 +268,9 @@ func (k *ObjectKind) UpsertObjectKind(args *structs.ObjectKindUpsertRequest, rep
 	if kind == nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "missing object kind")
 	}
+	if isBuiltinObjectGroup(kind.Group) {
+		return errBuiltinObjectGroup(kind.Group)
+	}
 	kind.CreateIndex, kind.ModifyIndex = 0, 0
 	if err := kind.Validate(); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid object kind %q: %v", kind.KindRef(), err)
@@ -345,6 +348,9 @@ func (k *ObjectKind) DeleteObjectKind(args *structs.ObjectKindDeleteRequest, rep
 		return fmt.Errorf("all servers must be running Norca %v or later to delete object kinds", minNorcaFeaturesVersion)
 	}
 
+	if isBuiltinObjectGroup(args.Group) {
+		return errBuiltinObjectGroup(args.Group)
+	}
 	ref := structs.ObjectKindRef(args.Group, args.Kind)
 	snap, err := k.srv.State().Snapshot()
 	if err != nil {
@@ -870,6 +876,9 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 	if err := structs.ValidateObjectKindName(in.Group, in.Kind); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
 	}
+	if isBuiltinObjectGroup(in.Group) {
+		return errBuiltinObjectGroup(in.Group)
+	}
 	if err := in.ValidateMetadata(); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid object: %v", err)
 	}
@@ -979,6 +988,9 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 
 	if err := structs.ValidateObjectKindName(args.Group, args.Kind); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
+	}
+	if isBuiltinObjectGroup(args.Group) {
+		return errBuiltinObjectGroup(args.Group)
 	}
 	status, err := normalizeObjectPart("status", args.Status)
 	if err != nil {

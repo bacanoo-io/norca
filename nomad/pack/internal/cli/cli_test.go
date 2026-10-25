@@ -440,16 +440,16 @@ func TestCLI_PackDestroy_WithOverrides(t *testing.T) {
 				// Create initial jobs
 				for _, jobName := range tC.initialJobs {
 					result := runTestPackCmd(
-						t, s, []string{"run", testPack, "--var=job_name=" + jobName, "--registry=" + reg.Name})
+						t, s, []string{"run", "--client-side", testPack, "--var=job_name=" + jobName, "--registry=" + reg.Name})
 					expectGoodPackDeploy(t, result)
 				}
 
 				// Execute destroy command
 				var args []string
 				if tC.destroyJobName != "" {
-					args = []string{"destroy", testPack, "--var=job_name=" + tC.destroyJobName, "--registry=" + reg.Name}
+					args = []string{"destroy", "--client-side", testPack, "--var=job_name=" + tC.destroyJobName, "--registry=" + reg.Name}
 				} else {
-					args = []string{"destroy", testPack, "--registry=" + reg.Name}
+					args = []string{"destroy", "--client-side", testPack, "--registry=" + reg.Name}
 				}
 				result := runTestPackCmd(t, s, args)
 
@@ -598,7 +598,7 @@ func TestCLI_PackDestroy_WithNamespaceOverrides(t *testing.T) {
 				for namespace, jobNames := range tC.initialJobs {
 					for _, jobName := range jobNames {
 						args := []string{
-							"run", testPack,
+							"run", "--client-side", testPack,
 							"--var=job_name=" + jobName,
 							"--var=namespace=" + namespace,
 							"--registry=" + reg.Name,
@@ -609,7 +609,7 @@ func TestCLI_PackDestroy_WithNamespaceOverrides(t *testing.T) {
 				}
 
 				// Build destroy command args
-				args := []string{"destroy", testPack, "--registry=" + reg.Name}
+				args := []string{"destroy", "--client-side", testPack, "--registry=" + reg.Name}
 				if tC.destroyJobName != "" {
 					args = append(args, "--var=job_name="+tC.destroyJobName)
 				}
@@ -673,7 +673,7 @@ func TestCLI_PackDestroy_PrefixListBehavior(t *testing.T) {
 		jobNames := []string{"service", "service-aaa", "service-zzz"}
 		for _, jobName := range jobNames {
 			result := runTestPackCmd(t, s, []string{
-				"run", testPack,
+				"run", "--client-side", testPack,
 				"--var=job_name=" + jobName,
 				"--registry=" + reg.Name,
 			})
@@ -694,7 +694,7 @@ func TestCLI_PackDestroy_PrefixListBehavior(t *testing.T) {
 		// This tests that the destroy logic correctly identifies "service"
 		// among the prefix matches and only destroys that specific job
 		result := runTestPackCmd(t, s, []string{
-			"destroy", testPack,
+			"destroy", "--client-side", testPack,
 			"--var=job_name=service",
 			"--registry=" + reg.Name,
 		})
@@ -716,7 +716,7 @@ func TestCLI_PackDestroy_PrefixListBehavior(t *testing.T) {
 		// Additional test: Destroy one of the remaining jobs to verify
 		// the logic works for non-first matches in the sorted list
 		result = runTestPackCmd(t, s, []string{
-			"destroy", testPack,
+			"destroy", "--client-side", testPack,
 			"--var=job_name=service-zzz",
 			"--registry=" + reg.Name,
 		})
@@ -1223,7 +1223,7 @@ func createTestRegistries(t *testing.T) (*caching.Registry, *caching.Registry, s
 	t.Helper()
 
 	// Fake a clone
-	registryName := fmt.Sprintf("test-%v", time.Now().UnixMilli())
+	registryName := uniqueTestRegistryName()
 
 	regDir := path.Join(caching.DefaultCachePath(), registryName)
 	err := filesystem.MaybeCreateDestinationDir(regDir)
@@ -1307,7 +1307,7 @@ func TestCLI_RunReconcileStaleJobs(t *testing.T) {
 		must.NoError(t, os.WriteFile(extraTplPath, []byte(extraJobTpl), 0644))
 
 		// Step 1: Deploy the pack with both jobs.
-		result := runTestPackCmd(t, s, []string{"run", packDir})
+		result := runTestPackCmd(t, s, []string{"run", "--client-side", packDir})
 		expectGoodPackDeploy(t, result)
 
 		// Wait for both jobs to be registered in Nomad (they may stay
@@ -1333,7 +1333,7 @@ func TestCLI_RunReconcileStaleJobs(t *testing.T) {
 		// Step 2: Remove the extra job template and redeploy.
 		must.NoError(t, os.Remove(extraTplPath))
 
-		result = runTestPackCmd(t, s, []string{"run", packDir})
+		result = runTestPackCmd(t, s, []string{"run", "--client-side", packDir})
 		expectGoodPackDeploy(t, result)
 
 		// Verify the output mentions stopping the removed job.

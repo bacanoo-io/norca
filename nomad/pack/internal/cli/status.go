@@ -48,6 +48,26 @@ func (c *StatusCommand) Run(args []string) int {
 		return 1
 	}
 
+	// Releases of servers with release support.
+	if releasesSupported(client) {
+		if c.packConfig.Name == "" {
+			releases, _, err := client.Releases().List(nil)
+			if err != nil {
+				c.ui.ErrorWithContext(err, "error retrieving releases", errorContext.GetAll()...)
+				return 1
+			}
+			if len(releases) > 0 {
+				printReleases(c.ui, releases)
+				c.ui.Output("")
+			}
+		} else if name, err := releaseNameFor(c.packConfig, c.deploymentName); err == nil {
+			if rel, _, err := client.Releases().Info(name, nil); err == nil {
+				printRelease(c.ui, rel)
+				c.ui.Output("")
+			}
+		}
+	}
+
 	// If pack name isn't specified, return all deployed packs
 	if c.packConfig.Name == "" {
 		return c.renderAllDeployedPacks(client, errorContext)

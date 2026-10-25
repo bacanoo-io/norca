@@ -182,6 +182,10 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 	}
 	defer metrics.MeasureSince([]string{"nomad", "custom_object", "delete"}, time.Now())
 
+	if isBuiltinObjectGroup(args.Group) {
+		return errBuiltinObjectGroup(args.Group)
+	}
+
 	if err := structs.ValidateObjectPropagation(args.Propagation); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
 	}
@@ -301,6 +305,10 @@ func (c *CustomObject) UpdateFinalizers(args *structs.CustomObjectFinalizersRequ
 		return structs.ErrPermissionDenied
 	}
 	defer metrics.MeasureSince([]string{"nomad", "custom_object", "update_finalizers"}, time.Now())
+
+	if isBuiltinObjectGroup(args.Group) {
+		return errBuiltinObjectGroup(args.Group)
+	}
 
 	if err := structs.ValidateObjectKindName(args.Group, args.Kind); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
@@ -572,6 +580,10 @@ func (c *CustomObject) Scale(args *structs.CustomObjectScaleRequest, reply *stru
 		return structs.ErrPermissionDenied
 	}
 	defer metrics.MeasureSince([]string{"nomad", "custom_object", "scale"}, time.Now())
+
+	if isBuiltinObjectGroup(args.Group) {
+		return errBuiltinObjectGroup(args.Group)
+	}
 
 	if err := structs.ValidateObjectKindName(args.Group, args.Kind); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)

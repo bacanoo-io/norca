@@ -33,6 +33,11 @@ const (
 	// is admitted, and VarJob is null when a Variables write is admitted.
 	VarVariable    = "variable"
 	VarOldVariable = "oldVariable"
+
+	// VarRelease is the variable available to CEL rules of pack releases:
+	// the release with its pack (name, version, registry, digest, signer,
+	// signed). It is null when jobs or Variables writes are admitted.
+	VarRelease = "release"
 )
 
 // Violation is a rule of an admission policy that a job does not satisfy.
@@ -78,6 +83,7 @@ func NewPolicyEngine() (*PolicyEngine, error) {
 		cel.Variable(VarRequest, cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable(VarVariable, cel.DynType),
 		cel.Variable(VarOldVariable, cel.DynType),
+		cel.Variable(VarRelease, cel.DynType),
 		cel.CrossTypeNumericComparisons(true),
 		cel.DefaultUTCTimeZone(true),
 		ext.Strings(),
@@ -178,6 +184,7 @@ func (e *PolicyEngine) Evaluate(ctx context.Context, policies []*structs.Admissi
 		VarRequest:     request,
 		VarVariable:    nil,
 		VarOldVariable: nil,
+		VarRelease:     nil,
 	})
 }
 
@@ -193,11 +200,26 @@ func (e *PolicyEngine) EvaluateVariable(ctx context.Context, policies []*structs
 		VarRequest:     request,
 		VarVariable:    variable,
 		VarOldVariable: nil,
+		VarRelease:     nil,
 	}
 	if oldVariable != nil {
 		vars[VarOldVariable] = oldVariable
 	}
 	return e.evaluate(ctx, policies, vars)
+}
+
+// EvaluateRelease evaluates the CEL rules of the given policies against a
+// pack release and returns every violation, like Evaluate.
+func (e *PolicyEngine) EvaluateRelease(ctx context.Context, policies []*structs.AdmissionPolicy,
+	release map[string]any, request map[string]any) []*Violation {
+
+	return e.evaluate(ctx, policies, map[string]any{
+		VarJob:         nil,
+		VarRequest:     request,
+		VarVariable:    nil,
+		VarOldVariable: nil,
+		VarRelease:     release,
+	})
 }
 
 func (e *PolicyEngine) evaluate(ctx context.Context, policies []*structs.AdmissionPolicy, vars map[string]any) []*Violation {

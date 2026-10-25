@@ -90,6 +90,15 @@ func (c *DestroyCommand) Flags() *flag.Sets {
 			Default: false,
 			Usage:   `Display full information during evaluation monitoring.`,
 		})
+
+		f.BoolVar(&flag.BoolVar{
+			Name:   "client-side",
+			Target: &c.clientSide,
+			EnvVar: EnvClientSide,
+			Usage: `Destroy the jobs of the pack from the client, as Nomad Pack
+					does, even if the pack was installed as a release (which is
+					otherwise uninstalled by the servers).`,
+		})
 	})
 }
 
