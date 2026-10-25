@@ -1,5 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
+#
+# Actions are pinned by commit (checkout and setup-go as in release.yml):
+#   actions/checkout v7.0.1, actions/setup-go v7.0.0, actions/setup-node v7.1.0.
 name: Compliance
 
 on:
@@ -14,22 +17,24 @@ jobs:
   reuse:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: fsfe/reuse-action@v5
 
   go-licenses:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        # Nomad Pack is part of the nomad module (nomad/pack). The controller
-        # SDK is a separate module that depends only on the api module; the
-        # NATS bridge depends on the api and controller modules and nats.go.
-        module: [nomad, nomad/controller, nomad/natsbridge]
+        # Nomad Pack is part of the nomad module (nomad/pack). The api client
+        # is a separate module; the controller SDK depends only on the api
+        # module; the NATS bridge depends on the api and controller modules
+        # and nats.go. tools holds the build tools (not shipped).
+        module: [nomad, nomad/api, nomad/controller, nomad/natsbridge, nomad/tools]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: ${{ matrix.module }}/go.mod
+          cache-dependency-path: ${{ matrix.module }}/go.sum
       - name: Forbidden modules (BSL HashiCorp modules)
         working-directory: ${{ matrix.module }}
         run: |
@@ -37,12 +42,32 @@ jobs:
           if go list -m all | grep -E '^github.com/hashicorp/nomad v1\.([7-9]|[1-9][0-9])\.|^github.com/hashicorp/nomad v1\.6\.([6-9]|[1-9][0-9])'; then
             echo "BSL Nomad module among the dependencies" >&2; exit 1
           fi
+          # Every github.com/hashicorp/nomad[/...] module must be this module or
+          # a local replace of this repository (so no upstream version, BSL
+          # pseudo-versions included, comes from the proxy).
+          remote=$(go list -m all | awk '($1 == "github.com/hashicorp/nomad" || index($1, "github.com/hashicorp/nomad/") == 1) && NF > 1 && !($3 == "=>" && $4 ~ /^\.\.?\//)')
+          if [ -n "$remote" ]; then
+            echo "Nomad modules not replaced by this repository: $remote" >&2; exit 1
+          fi
       - name: License check
         working-directory: ${{ matrix.module }}
         run: |
           go install github.com/google/go-licenses@v1.6.0
+          # Ignored (their dependencies are still checked):
+          # - github.com/hashicorp/nomad/...: this repository (MPL 2.0); the
+          #   api, controller, natsbridge and tools modules carry no LICENSE
+          #   file of their own, and the step above rules out a BSL version.
+          # - packages whose license go-licenses cannot classify; each is a
+          #   reviewed decision in nomad/tools/thirdparty/overrides.go:
+          #   vic/pkg/vsphere/tags (Apache-2.0, the LICENSE file is VMware's
+          #   appliance disclosure), go-spin (MIT, stated in its readme only),
+          #   libcap/psx (BSD-3-Clause or GPL-2.0, used under BSD-3-Clause).
           go-licenses check ./... \
-            --allowed_licenses=MPL-2.0,Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC
+            --allowed_licenses=MPL-2.0,Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC \
+            --ignore github.com/hashicorp/nomad/ \
+            --ignore github.com/hashicorp/vic/pkg/vsphere/tags \
+            --ignore github.com/tj/go-spin \
+            --ignore kernel.org/pub/linux/libs/security/libcap/psx
 
   third-party-notices:
     runs-on: ubuntu-24.04
@@ -51,6 +76,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: nomad/go.mod
+          cache-dependency-path: nomad/go.sum
       - name: THIRD_PARTY_NOTICES.md is up to date and every license is allowed
         working-directory: nomad
         # Fails if the committed file differs from the generated one ('make
@@ -62,20 +88,33 @@ jobs:
   ui-licenses:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20
       - name: Licenses of the UI dependencies
         working-directory: nomad/ui
+        env:
+          HUSKY_SKIP_INSTALL: "1"
         run: |
-          # The UI uses yarn v1 (yarn.lock)
-          yarn install --frozen-lockfile --ignore-scripts --ignore-engines
+          # The UI uses yarn v1 (yarn.lock). Production dependencies only:
+          # the optionalDependencies of package.json are Storybook (a
+          # development tool), and without --production the tree also holds
+          # the devDependencies, which license-checker's --production flag
+          # does not filter out reliably in a hoisted yarn tree.
+          yarn install --production --ignore-optional --frozen-lockfile --ignore-scripts --ignore-engines
+          # --excludePackagesStartingWith: legacy UI exceptions
+          # (docs/licensing.md), removed with /ui/legacy.
+          # --excludePackages: non-SPDX license fields whose license files are
+          # allowed licenses: dialog-polyfill "BSD" (BSD-3-Clause text, see
+          # THIRD_PARTY_NOTICES.md), source-map 0.1.43 "BSD" (BSD-3-Clause
+          # text), sourcemap-validator 1.1.1 (no field, MIT in its readme);
+          # the last two are build-time packages of ember-source.
           npx --yes license-checker-rseidelsohn@4 --production \
             --onlyAllow "MPL-2.0;Apache-2.0;MIT;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0" \
             --excludePrivatePackages \
-            --excludePackagesStartingWith "robust-predicates@;caniuse-lite@;jsonify@"
-          # ^ legacy UI exceptions (docs/licensing.md), removed with /ui/legacy
+            --excludePackagesStartingWith "robust-predicates@;caniuse-lite@;jsonify@" \
+            --excludePackages "dialog-polyfill@0.5.6;source-map@0.1.43;sourcemap-validator@1.1.1"
           # Check the whole installed tree, transitive dependencies included
           if yarn list --pattern apexcharts 2>/dev/null | grep -q apexcharts@; then
             echo "ApexCharts is forbidden" >&2; exit 1
@@ -84,7 +123,7 @@ jobs:
   forbidden-packages:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: No ApexCharts in any lock or package file
         run: |
           # ApexCharts is dual-licensed; its community license forbids embedding
@@ -98,7 +137,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Check Signed-off-by
