@@ -152,7 +152,8 @@ server {
 - **Decided 2026-10-25:** the first version implements `shares` (and `aead` for development and migration). The KMS and `transit` seals above are the designed extension points and are integrated later, when someone needs them.
 - Hetzner Cloud has no managed KMS; Hetzner regions use `transit` (an OpenBao in another region or on dedicated hosts) or `shares`.
 - **Sealed state:** a server whose keys cannot be unwrapped joins Raft and serves everything that needs no decryption, but rejects secret and Variable reads, workload-identity signing and mTLS issuance with a clear `sealed` error until unsealed. `norca operator seal-status` shows it per server.
-- **Seal migration** (`norca operator keyring rewrap -to <seal>`) re-wraps all root keys online; both seals stay valid until the rewrap finishes on every server.
+- **Key distribution between servers** (decided 2026-10-25, the model Vault uses): in a region with a real seal (anything but `aead`), key material never travels between servers in usable form. Keyring replication, `Keyring.Get` and the key hand-over during a rewrap carry only seal-wrapped keys; every server unwraps them with its own unsealed seal, and a sealed server gets nothing it can use. A stolen server certificate, or a stolen data directory that joins the cluster, therefore yields no key without the unseal shares or the KMS. The server TLS identity itself stays on disk as in Nomad (moving it behind the seal is not planned). With `aead`, the current behaviour stays.
+- **Seal migration** (`norca operator keyring rewrap -to <seal>`) re-wraps all root keys online; both seals stay valid until the rewrap finishes. Whether it still has to wait for every server, or can finish once the new wraps are in Raft (a server that was down unseals with the new seal when it returns), is re-examined together with the key distribution rule above (2026-10-25).
 - The existing `Keyring.Restore` and full restore of the backup plan work on wrapped keys: restoring into a cluster requires access to the seal that wrapped them (or the `age` backup copy, see below).
 
 ## The built-in store
@@ -315,6 +316,7 @@ New namespace capabilities for the built-in store, none of them included in the 
 - Secrets are part of the Raft snapshot (encrypted); the backup subsystem needs no new content type.
 - With a KMS or transit seal, the keystore in the backup holds **wrapped** keys; restoring into a new cluster requires access to the same KMS key or transit key. The `age` copy of the backup plan remains the disaster-recovery path that needs nothing from the cloud.
 - With the `shares` seal, a restore requires the unseal shares; the backup manifest records which seal wrapped the keys.
+- **Restoring a store wrapped by another seal** (decided 2026-10-25: build it): when the restored secret store core was wrapped by a seal the region no longer has (for example older shares), it can be recovered in two ways: the `age` copy of the backup also carries the core master key (next to the root keys), so restoring with the `age` private key re-wraps everything with the region's current seal; or the operator enters the old shares for the restored data (a dedicated recovery unseal), and the leader re-wraps the core master key with the current seal. Until then the restored store stays sealed, with a clear status.
 - Backup browsing and the selective restore show secret paths and metadata, never values; restoring a secret restores its versions.
 
 ## API, CLI and UI
