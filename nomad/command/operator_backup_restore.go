@@ -31,8 +31,9 @@ Usage: norca operator backup restore [options] <id>
   Restore selected objects from a backup (selective restore). Every item is
   written with the normal API on behalf of your token: a job is registered as
   a new version (the admission chain and quotas apply), a Variables entry is
-  re-encrypted with the current keys with a check-and-set write, namespaces and
-  ACL policies and roles are upserted.
+  re-encrypted with the current keys with a check-and-set write, the value of
+  a secret is written as a new version of the secret, namespaces and ACL
+  policies and roles are upserted.
 
   With -full, request a full restore of the region instead: the whole state
   of the region returns to the time of the backup, and every change since is
@@ -44,12 +45,12 @@ Usage: norca operator backup restore [options] <id>
   Raft state of the backup is restored. The request expires after the
   approval_ttl of the server's backup configuration.
 
-  Jobs and Variables are restored in the namespace given with -namespace
+  Jobs, Variables and secrets are restored in the namespace given with -namespace
   (default: "default").
 
   If ACLs are enabled, this command requires a token with the 'read'
   capability of the 'backup' policy and the permissions of the normal writes
-  (for example 'submit-job', Variables 'write', or a management token for
+  (for example 'submit-job', Variables 'write', 'write-secret', or a management token for
   namespaces and ACL objects). A full restore requires a management token,
   and ACLs must be enabled.
 
@@ -76,9 +77,25 @@ Restore Options:
     current modify index (shown by -dry-run). Can be given several times.
 
   -secret <path>[@<check-index>]
-    Restore a secret of the built-in secret store with all of its versions in
-    the backup, replacing its current versions. Without a check index the
-    secret is only restored if it does not exist. Can be given several times.
+    Restore a secret of the built-in secret store: the items of one version
+    of the secret in the backup (the version that was current at backup
+    time, or the one given with -version) are written as a new version on
+    top of the secret's current versions, which stay. A soft deleted secret
+    becomes live again; a secret that does not exist is created. The check
+    index is an optional guard: without it the new version is always
+    written, with 0 only if the secret does not exist, otherwise only if it
+    is the secret's current modify index (shown by -dry-run). The result
+    shows the new version. Can be given several times.
+
+  -version <n>
+    The version of the secret in the backup to restore. Only used with a
+    single -secret.
+
+  -with-metadata
+    Also restore the metadata of the secrets (labels, owner, description,
+    expires_at, rotate_every, max_versions) from the backup. By default only
+    the value is restored and the current metadata is kept; a secret that
+    does not exist gets the backup's metadata either way.
 
   -restore-namespace <name>
     Restore a namespace. Can be given several times.
@@ -110,6 +127,8 @@ func (c *OperatorBackupRestoreCommand) AutocompleteFlags() complete.Flags {
 			"-job":               complete.PredictAnything,
 			"-variable":          complete.PredictAnything,
 			"-secret":            complete.PredictAnything,
+			"-version":           complete.PredictAnything,
+			"-with-metadata":     complete.PredictNothing,
 			"-restore-namespace": complete.PredictAnything,
 			"-acl-policy":        complete.PredictAnything,
 			"-acl-role":          complete.PredictAnything,
@@ -137,8 +156,9 @@ func splitAt(s string) (string, *uint64, error) {
 }
 
 func (c *OperatorBackupRestoreCommand) Run(args []string) int {
-	var dryRun, json, full bool
+	var dryRun, json, full, withMetadata bool
 	var identityPath, destination, confirm string
+	var secretVersion int64
 	var jobs, variables, secrets, namespaces, policies, roles flaghelper.StringFlag
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
@@ -149,6 +169,8 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	flags.Var(&jobs, "job", "")
 	flags.Var(&variables, "variable", "")
 	flags.Var(&secrets, "secret", "")
+	flags.Int64Var(&secretVersion, "version", -1, "")
+	flags.BoolVar(&withMetadata, "with-metadata", false, "")
 	flags.Var(&namespaces, "restore-namespace", "")
 	flags.Var(&policies, "acl-policy", "")
 	flags.Var(&roles, "acl-role", "")
@@ -185,13 +207,29 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 		}
 		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemVariable, Namespace: namespace, ID: path, CheckIndex: index})
 	}
+	switch {
+	case secretVersion != -1 && len(secrets) != 1:
+		c.Ui.Error("-version is only used with a single -secret")
+		return 1
+	case secretVersion < -1:
+		c.Ui.Error("-version must not be negative")
+		return 1
+	case withMetadata && len(secrets) == 0:
+		c.Ui.Error("-with-metadata is only used with -secret")
+		return 1
+	}
 	for _, s := range secrets {
 		path, index, err := splitAt(s)
 		if err != nil {
 			c.Ui.Error(err.Error())
 			return 1
 		}
-		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemSecret, Namespace: namespace, ID: path, CheckIndex: index})
+		item := &api.BackupRestoreItem{Type: api.BackupRestoreItemSecret, Namespace: namespace, ID: path,
+			CheckIndex: index, WithMetadata: withMetadata}
+		if secretVersion >= 0 {
+			item.Version = pointer.Of(uint64(secretVersion))
+		}
+		items = append(items, item)
 	}
 	for _, n := range namespaces {
 		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemNamespace, ID: n})
@@ -259,8 +297,12 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 			switch {
 			case r.Error != "":
 				result = "error: " + r.Error
+			case !dryRun && r.NewVersion > 0:
+				result = fmt.Sprintf("restored as version %d at index %d", r.NewVersion, r.Index)
 			case !dryRun:
 				result = fmt.Sprintf("restored at index %d", r.Index)
+			case r.NewVersion > 0:
+				result = fmt.Sprintf("would %s as version %d", r.Action, r.NewVersion)
 			}
 			out = append(out, fmt.Sprintf("%s|%s|%s|%s", formatBackupRestoreItem(r.Item), r.Action, r.Description, result))
 		}
@@ -287,7 +329,10 @@ func formatBackupRestoreItem(item *api.BackupRestoreItem) string {
 		s += item.Namespace + "/"
 	}
 	s += item.ID
-	if item.Version != nil {
+	switch {
+	case item.Version != nil && item.Type == api.BackupRestoreItemSecret:
+		s += fmt.Sprintf(" version %d", *item.Version)
+	case item.Version != nil:
 		s += fmt.Sprintf("@%d", *item.Version)
 	}
 	return s

@@ -6,29 +6,37 @@ package nomad
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
-	"strings"
-	"time"
 
 	"github.com/hashicorp/nomad/acl"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/secretstore"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/kv"
+	"github.com/hashicorp/nomad/secretstore/ubix/export/barrier"
+	"github.com/hashicorp/nomad/secretstore/ubix/export/storage"
 )
 
 // Selective restore of a secret. A backup holds a secret as its metadata
-// row and the barrier's ciphertext blobs of the KV engine (its version
-// history and the data of each retained version). Restoring the secret
-// replaces its current state with the one in the backup, with all retained
-// versions: the backup's blobs are copied as they are, which works because
-// they are encrypted with the barrier key of the store and bound to their
-// storage path, both unchanged within a cluster. Before anything is
-// written, every restored version is decrypted through the leader's core
-// (the backup's blobs are preloaded into the write batch), so a backup whose
-// barrier key differs from the running store's is refused instead of
-// restoring unreadable data.
+// row and the barrier's ciphertext blobs of the KV engine. Restoring a
+// secret takes one version of it from the backup (by default the version
+// that was current at backup time), decrypts its items through the
+// leader's core, and writes them through the normal write path as a new
+// version on top of the secret's current history: the version numbers only
+// grow, the existing versions stay (max_versions ages out the oldest as with
+// any write), a soft deleted secret becomes live again, and a secret that no
+// longer exists is created. The write is a normal secret write (the
+// SecretApplyRequestType entry, the Secret event) with its own audit record,
+// which names the backup and the version the value came from.
+//
+// By default only the value is restored and the current metadata is kept;
+// with WithMetadata the backup's metadata replaces it. A secret that does
+// not exist gets the backup's metadata either way.
+//
+// The check index of the item is an optional guard: without it the value is
+// always written as a new version; 0 requires that the secret does not
+// exist, any other value that it is the secret's current modify index.
 
 // secretKVDataPrefix is the barrier prefix of the version data of a secret,
 // as the KV engine stores it ("<prefix>/data/<key>/<version>").
@@ -36,33 +44,12 @@ func secretKVDataPrefix(namespace, path string) string {
 	return secretKVPrefix + "/data/" + secretKVKey(namespace, path) + "/"
 }
 
-// secretBlobs returns the barrier blobs of a secret in a state store: the KV
-// metadata and the data of its versions, but not those of secrets below its
-// path.
-func secretBlobs(store *state.StateStore, namespace, path string) ([]*structs.SecretStoreBlob, error) {
-	var out []*structs.SecretStoreBlob
-	meta, err := store.SecretStoreBlobByPath(nil, secretKVMetaKey(namespace, path))
-	if err != nil {
-		return nil, err
-	}
-	if meta != nil {
-		out = append(out, meta)
-	}
-	prefix := secretKVDataPrefix(namespace, path)
-	iter, err := store.SecretStoreBlobsByPrefix(nil, prefix)
-	if err != nil {
-		return nil, err
-	}
-	for raw := iter.Next(); raw != nil; raw = iter.Next() {
-		blob := raw.(*structs.SecretStoreBlob)
-		if _, err := strconv.ParseUint(strings.TrimPrefix(blob.Path, prefix), 10, 64); err != nil {
-			// A blob of a secret below this path.
-			continue
-		}
-		out = append(out, blob)
-	}
-	return out, nil
-}
+// errSecretBackupUndecryptable is returned when the data of a secret in a
+// backup can not be decrypted with the region's secret store core.
+var errSecretBackupUndecryptable = errors.New("the secret's data in the backup can not be decrypted with this " +
+	"region's secret store: the backup was probably made by a store wrapped by another seal. Recover that " +
+	"store first, with the age copy of the backup or the recovery unseal with the old unseal shares " +
+	`(see "Restoring a store wrapped by another seal" in the secrets plan), then restore the secret again`)
 
 func (r *backupRestorer) restoreSecret(item *structs.BackupRestoreItem, result *structs.BackupRestoreItemResult) error {
 	srv := r.b.srv
@@ -75,6 +62,10 @@ func (r *backupRestorer) restoreSecret(item *structs.BackupRestoreItem, result *
 		Path:      path,
 		Operation: structs.SecretOpRestore,
 		Accessor:  srv.secretAccessor(r.args.GetIdentity()),
+		BackupID:  r.loaded.Record.ID,
+	}
+	if item.Version != nil {
+		rec.BackupVersion = *item.Version
 	}
 	finish := func(err error) error {
 		if r.args.DryRun {
@@ -100,138 +91,159 @@ func (r *backupRestorer) restoreSecret(item *structs.BackupRestoreItem, result *
 
 	backupRow, err := r.loaded.State.SecretByPath(nil, ns, path)
 	if err != nil {
-		return err
+		return finish(err)
 	}
 	if backupRow == nil {
-		return fmt.Errorf("secret %q not found in the backup", path)
+		return finish(fmt.Errorf("secret %q not found in the backup", path))
 	}
-	blobs, err := secretBlobs(r.loaded.State, ns, path)
-	if err != nil {
-		return err
+	version := backupRow.CurrentVersion
+	if item.Version != nil {
+		version = *item.Version
+	}
+	rec.BackupVersion = version
+	result.BackupVersion = version
+	switch sv := backupRow.Version(version); {
+	case sv == nil:
+		return finish(fmt.Errorf("version %d of secret %q is not in the backup (it has versions %s)",
+			version, path, secretVersionList(backupRow)))
+	case sv.Destroyed:
+		return finish(fmt.Errorf("version %d of secret %q is destroyed in the backup", version, path))
 	}
 
+	if err := (&Secret{srv: srv}).validateWrite(ns, path); err != nil {
+		return finish(err)
+	}
 	current, err := srv.State().SecretByPath(nil, ns, path)
 	if err != nil {
-		return err
+		return finish(err)
 	}
-	versions := len(backupRow.Versions)
+
+	// The metadata: the backup's replaces the current one with
+	// WithMetadata, and is used for a secret that does not exist.
+	var meta, metaIfNew *structs.SecretMeta
+	backupMeta := backupRow.SecretMeta.Copy()
+	if item.WithMetadata {
+		meta = backupMeta
+	} else {
+		metaIfNew = backupMeta
+	}
+	if item.WithMetadata || current == nil {
+		if err := backupMeta.Validate(); err != nil {
+			return finish(fmt.Errorf("the metadata of secret %q in the backup is invalid: %w", path, err))
+		}
+	}
+
+	from := fmt.Sprintf("the value of version %d of secret %q in backup %s", version, path, r.loaded.Record.ID)
 	if current == nil {
 		result.Action = "create"
-		result.Description = fmt.Sprintf("re-create secret %q with %d versions (current version %d)",
-			path, versions, backupRow.CurrentVersion)
+		result.NewVersion = 1
+		result.Description = fmt.Sprintf("create the secret with %s as version 1, with the backup's metadata", from)
 	} else {
 		result.Action = "update"
 		result.CurrentIndex = current.ModifyIndex
-		result.Description = fmt.Sprintf("replace secret %q (modify index %d) with its %d versions in the backup (current version %d)",
-			path, current.ModifyIndex, versions, backupRow.CurrentVersion)
-		if item.CheckIndex == nil {
-			msg := fmt.Sprintf("secret %q exists (modify index %d); give that check index to overwrite it",
-				path, current.ModifyIndex)
-			if r.args.DryRun {
-				result.Description += "; " + msg
-				return nil
-			}
-			return fmt.Errorf("%s", msg)
+		result.NewVersion = current.CurrentVersion + 1
+		result.Description = fmt.Sprintf("write %s as version %d (current version %d, modify index %d)",
+			from, result.NewVersion, current.CurrentVersion, current.ModifyIndex)
+		switch {
+		case current.Destroyed:
+			result.Description += "; the current version is destroyed"
+		case current.Deleted:
+			result.Description += "; the secret is soft deleted and becomes live again"
+		}
+		if item.WithMetadata {
+			result.Description += "; with the backup's metadata"
+		} else {
+			result.Description += "; the current metadata is kept"
 		}
 	}
+
+	// Decrypt the value now, also for a dry run, so that a backup whose
+	// data the store can not read is reported before anything is written.
+	items, err := srv.secretBackupItems(r.loaded.State, ns, path, version)
+	if err != nil {
+		return finish(err)
+	}
+	if err := items.Validate(); err != nil {
+		return finish(fmt.Errorf("version %d of secret %q in the backup is invalid: %w", version, path, err))
+	}
+
 	if r.args.DryRun {
+		if item.CheckIndex != nil {
+			if err := checkSecretIndex(current, item.CheckIndex); err != nil {
+				result.Description += fmt.Sprintf("; the check index %d does not match", *item.CheckIndex)
+			}
+		}
 		return nil
 	}
 
-	checkIndex := uint64(0)
-	if item.CheckIndex != nil {
-		checkIndex = *item.CheckIndex
-	}
 	if err := srv.secretAudit(rec, false); err != nil {
 		return err
 	}
-	secret, index, err := srv.secretRestore(backupRow, blobs, &checkIndex)
+	secret, index, err := srv.secretWrite(&secretWrite{
+		namespace:  ns,
+		path:       path,
+		items:      items,
+		meta:       meta,
+		metaIfNew:  metaIfNew,
+		checkIndex: item.CheckIndex,
+	})
 	if err == nil {
 		rec.Version = secret.CurrentVersion
+		result.NewVersion = secret.CurrentVersion
 		result.Index = index
+	} else {
+		result.NewVersion = 0
 	}
 	return finish(err)
 }
 
-// secretRestore replaces a secret with its state in a backup: its metadata
-// row and its barrier blobs. It runs on the leader.
-func (s *Server) secretRestore(backupRow *structs.Secret, blobs []*structs.SecretStoreBlob, checkIndex *uint64) (*structs.Secret, uint64, error) {
-	c, unlock, err := s.lockedSecretCore()
-	if err != nil {
-		return nil, 0, err
+// secretVersionList lists the version numbers of a secret's row.
+func secretVersionList(row *structs.Secret) string {
+	if len(row.Versions) == 0 {
+		return "none"
 	}
-	defer unlock()
+	out := ""
+	for i, v := range row.Versions {
+		if i > 0 {
+			out += ", "
+		}
+		out += strconv.FormatUint(v.Version, 10)
+	}
+	return out
+}
 
-	ns, path := backupRow.Namespace, backupRow.Path
-	store := s.fsm.State()
-	existing, err := store.SecretByPath(nil, ns, path)
+// secretBackupItems decrypts the items of a version of a secret in a backup
+// with the leader's core. The backup's blob of the version is only placed in
+// the read context's batch: nothing is written.
+func (s *Server) secretBackupItems(backupState *state.StateStore, namespace, path string, version uint64) (structs.SecretItems, error) {
+	c, err := s.secretCore()
 	if err != nil {
-		return nil, 0, err
+		return nil, errSecretUnavailable(err)
 	}
-	if err := checkSecretIndex(existing, checkIndex); err != nil {
-		return nil, 0, err
+	key := secretKVDataPrefix(namespace, path) + strconv.FormatUint(version, 10)
+	blob, err := backupState.SecretStoreBlobByPath(nil, key)
+	if err != nil {
+		return nil, err
+	}
+	if blob == nil {
+		return nil, fmt.Errorf("version %d of secret %q has no data in the backup", version, path)
 	}
 
 	ctx, batch := secretstore.WithBatch(context.Background())
-	b := c.Barrier()
-
-	// Remove the current blobs of the secret, then add the backup's.
-	currentBlobs, err := secretBlobs(store, ns, path)
-	if err != nil {
-		return nil, 0, err
+	batch.Preload([]*structs.SecretStoreBlob{blob})
+	e, err := c.Barrier().Get(ctx, key)
+	switch {
+	case errors.Is(err, barrier.ErrSealed), errors.Is(err, storage.ErrFenced):
+		return nil, errSecretUnavailable(err)
+	case err != nil:
+		// The barrier's error names the storage key, never the value.
+		return nil, fmt.Errorf("%w (%v)", errSecretBackupUndecryptable, err)
+	case e == nil:
+		return nil, fmt.Errorf("version %d of secret %q has no data in the backup", version, path)
 	}
-	for _, blob := range currentBlobs {
-		if err := b.Delete(ctx, blob.Path); err != nil {
-			return nil, 0, err
-		}
+	var items structs.SecretItems
+	if err := json.Unmarshal(e.Value, &items); err != nil {
+		return nil, fmt.Errorf("version %d of secret %q in the backup is malformed", version, path)
 	}
-	batch.Preload(blobs)
-
-	hashKey, created, err := secretValueHashKey(ctx, b)
-	if err != nil {
-		return nil, 0, err
-	}
-	eng := kv.New(b, secretKVPrefix)
-	kvMeta, err := eng.ReadMetadata(ctx, secretKVKey(ns, path))
-	if err != nil {
-		return nil, 0, fmt.Errorf("the secret's version history in the backup can not be read with this store's barrier key "+
-			"(restoring it requires the seal the backup was made with): %w", err)
-	}
-
-	row := secretRow(nil, ns, path, *backupRow.SecretMeta.Copy(), kvMeta, time.Now())
-	row.CreateTime = backupRow.CreateTime
-	for _, sv := range row.Versions {
-		if sv.Destroyed {
-			continue
-		}
-		e, err := b.Get(ctx, secretKVDataPrefix(ns, path)+strconv.FormatUint(sv.Version, 10))
-		if err != nil {
-			return nil, 0, fmt.Errorf("version %d in the backup can not be decrypted with this store's barrier key: %w", sv.Version, err)
-		}
-		if e == nil {
-			return nil, 0, fmt.Errorf("version %d is missing from the backup", sv.Version)
-		}
-		var items structs.SecretItems
-		if err := json.Unmarshal(e.Value, &items); err != nil {
-			return nil, 0, fmt.Errorf("version %d in the backup is malformed: %w", sv.Version, err)
-		}
-		sv.ValueHash = secretValueHash(hashKey, ns, path, items)
-		if sv.Version == row.CurrentVersion {
-			row.ItemKeys = items.Keys()
-		}
-	}
-	secretRowCurrent(row)
-
-	req := &structs.SecretApplyRequest{
-		Secret:      row,
-		Blobs:       batch.Blobs(),
-		DeleteBlobs: batch.Deletes(),
-	}
-	if existing != nil {
-		req.ExpectedIndex = existing.ModifyIndex
-	}
-	if created {
-		req.CreateBlobs = []string{secretHMACKeyPath}
-	}
-	return s.secretApply(req)
+	return items, nil
 }

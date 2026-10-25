@@ -102,18 +102,21 @@ func (d *AuditFile) open() error {
 
 // auditLine is the on-disk shape of a record.
 type auditLine struct {
-	Time      string                  `json:"time"`
-	Type      string                  `json:"type"`
-	Region    string                  `json:"region,omitempty"`
-	Server    string                  `json:"server,omitempty"`
-	Namespace string                  `json:"namespace,omitempty"`
-	Path      string                  `json:"path"`
-	Version   uint64                  `json:"version,omitempty"`
-	Versions  []uint64                `json:"versions,omitempty"`
-	Operation string                  `json:"operation"`
-	Result    string                  `json:"result,omitempty"`
-	Error     string                  `json:"error,omitempty"`
-	Accessor  *structs.SecretAccessor `json:"accessor,omitempty"`
+	Time      string   `json:"time"`
+	Type      string   `json:"type"`
+	Region    string   `json:"region,omitempty"`
+	Server    string   `json:"server,omitempty"`
+	Namespace string   `json:"namespace,omitempty"`
+	Path      string   `json:"path"`
+	Version   uint64   `json:"version,omitempty"`
+	Versions  []uint64 `json:"versions,omitempty"`
+	Operation string   `json:"operation"`
+	// Backup and BackupVersion are the source of a restored value.
+	Backup        string                  `json:"backup,omitempty"`
+	BackupVersion uint64                  `json:"backup_version,omitempty"`
+	Result        string                  `json:"result,omitempty"`
+	Error         string                  `json:"error,omitempty"`
+	Accessor      *structs.SecretAccessor `json:"accessor,omitempty"`
 }
 
 // Log implements audit.Device. It renders the Norca record of the context,
@@ -132,6 +135,8 @@ func (d *AuditFile) Log(ctx context.Context, e *audit.Entry) error {
 		line.Path = rec.Path
 		line.Version = rec.Version
 		line.Versions = rec.Versions
+		line.Backup = rec.BackupID
+		line.BackupVersion = rec.BackupVersion
 		line.Operation = rec.Operation
 		line.Accessor = rec.Accessor
 		if e.Type == "response" {

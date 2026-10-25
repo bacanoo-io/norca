@@ -669,59 +669,6 @@ func TestSecretEndpoint_BlockingMetadata(t *testing.T) {
 	must.Greater(t, index, m.Index)
 }
 
-func TestSecretEndpoint_BackupRestore(t *testing.T) {
-	ci.Parallel(t)
-	s, _, cleanup := secretTestServer(t, false, nil)
-	defer cleanup()
-
-	var w structs.SecretWriteResponse
-	must.NoError(t, s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("restored", "", structs.SecretItems{"k": "one"}), &w))
-	must.NoError(t, s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("restored", "", structs.SecretItems{"k": "two"}), &w))
-	must.NoError(t, s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("restored/child", "", structs.SecretItems{"c": "c"}), &w))
-	snapshot := testSnapshotRestore(t, s.fsm).State()
-	backupRow, err := snapshot.SecretByPath(nil, "default", "restored")
-	must.NoError(t, err)
-
-	// Change the secret after the backup.
-	must.NoError(t, s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("restored", "", structs.SecretItems{"k": "three"}), &w))
-	must.NoError(t, s.RPC(structs.SecretDestroyRPCMethod, secretVersionsReq("restored", "", 1), &w))
-
-	r := &backupRestorer{
-		b:      &Backup{srv: s},
-		args:   &structs.BackupRestoreRequest{WriteRequest: structs.WriteRequest{Region: "global"}},
-		loaded: &backup.Loaded{Record: &structs.BackupRecord{ID: "b1"}, State: snapshot},
-	}
-	item := &structs.BackupRestoreItem{Type: structs.BackupRestoreItemSecret, Namespace: "default", ID: "restored"}
-	must.NoError(t, validateBackupRestoreItem(item))
-
-	// Without a check index an existing secret is not overwritten.
-	result := r.restore(item)
-	must.StrContains(t, result.Error, "give that check index")
-	item.CheckIndex = pointer.Of(w.Secret.ModifyIndex)
-	result = r.restore(item)
-	must.Eq(t, "", result.Error)
-	must.Eq(t, "update", result.Action)
-
-	var m structs.SecretMetadataResponse
-	must.NoError(t, s.RPC(structs.SecretReadMetadataRPCMethod,
-		&structs.SecretReadMetadataRequest{Path: "restored", QueryOptions: secretQuery("")}, &m))
-	must.Eq(t, 2, m.Secret.CurrentVersion)
-	must.Len(t, 2, m.Secret.Versions)
-	must.False(t, m.Secret.Version(1).Destroyed)
-	must.Eq(t, backupRow.ValueHash, m.Secret.ValueHash)
-	for _, v := range []uint64{1, 2} {
-		var rr structs.SecretReadResponse
-		must.NoError(t, s.RPC(structs.SecretReadRPCMethod,
-			&structs.SecretReadRequest{Path: "restored", Version: v, QueryOptions: secretQuery("")}, &rr))
-		must.Eq(t, map[uint64]string{1: "one", 2: "two"}[v], rr.Items["k"])
-	}
-	// The secret below the restored path is untouched.
-	var rr structs.SecretReadResponse
-	must.NoError(t, s.RPC(structs.SecretReadRPCMethod,
-		&structs.SecretReadRequest{Path: "restored/child", QueryOptions: secretQuery("")}, &rr))
-	must.Eq(t, "c", rr.Items["c"])
-}
-
 func TestSecretFSM_SnapshotRestore(t *testing.T) {
 	ci.Parallel(t)
 	s, _, cleanup := secretTestServer(t, false, nil)

@@ -55,6 +55,17 @@ func TestHTTP_Backups(t *testing.T) {
 		client := s.Client()
 		backups := client.Backups()
 
+		// A secret of the built-in store, once its core is active.
+		must.Wait(t, wait.InitialSuccess(
+			wait.ErrorFunc(func() error {
+				_, _, err := client.Secrets().Write("app/db", &api.SecretWrite{
+					Items: map[string]string{"k": "one"}, Meta: &api.SecretMeta{Owner: "old"}}, nil)
+				return err
+			}),
+			wait.Timeout(10*time.Second),
+			wait.Gap(200*time.Millisecond),
+		))
+
 		// The keyring is initialized shortly after the leader election.
 		var saved *api.BackupSaveResponse
 		must.Wait(t, wait.InitialSuccess(
@@ -129,6 +140,28 @@ func TestHTTP_Backups(t *testing.T) {
 		must.Len(t, 0, restores)
 		_, _, err = backups.GetRestore("abc", nil)
 		must.ErrorContains(t, err, "404")
+
+		// A secret is restored as a new version, here with the backup's
+		// metadata.
+		_, _, err = client.Secrets().Write("app/db", &api.SecretWrite{
+			Items: map[string]string{"k": "two"}, Meta: &api.SecretMeta{Owner: "new"}}, nil)
+		must.NoError(t, err)
+		restore, _, err = backups.Restore(saved.ID, &api.BackupRestoreRequest{
+			Items: []*api.BackupRestoreItem{{Type: api.BackupRestoreItemSecret, ID: "app/db",
+				Version: pointer.Of(uint64(1)), WithMetadata: true}},
+			AgeIdentity: identity.String(),
+		}, nil)
+		must.NoError(t, err)
+		must.Len(t, 1, restore.Results)
+		must.Eq(t, "", restore.Results[0].Error)
+		must.Eq(t, 1, restore.Results[0].BackupVersion)
+		must.Eq(t, 3, restore.Results[0].NewVersion)
+		must.True(t, restore.Results[0].Item.WithMetadata)
+		value, _, err := client.Secrets().Read("app/db", 0, nil)
+		must.NoError(t, err)
+		must.Eq(t, 3, value.Version)
+		must.Eq(t, "one", value.Items["k"])
+		must.Eq(t, "old", value.Secret.Owner)
 
 		// The two-person approval of full restores needs ACLs.
 		_, _, err = backups.ApproveRestore("abc", &api.BackupRestoreApproveRequest{AgeIdentity: identity.String()}, nil)

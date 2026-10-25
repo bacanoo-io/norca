@@ -245,11 +245,23 @@ type BackupObjectDiff struct {
 
 // BackupRestoreItem selects an object to restore.
 type BackupRestoreItem struct {
-	Type       string
-	Namespace  string
-	ID         string
-	Version    *uint64
+	Type      string
+	Namespace string
+	ID        string
+
+	// Version is the version of a job or a secret in the backup; nil is
+	// the version that was current at backup time.
+	Version *uint64
+
+	// CheckIndex is the check-and-set index of a Variables entry or a
+	// secret. A secret is restored as a new version; for it the check index
+	// is an optional guard (0: the secret must not exist).
 	CheckIndex *uint64
+
+	// WithMetadata restores the metadata of a secret from the backup too;
+	// by default only its value is restored. A secret that does not exist
+	// gets the backup's metadata either way.
+	WithMetadata bool `json:",omitempty"`
 }
 
 // BackupRestoreRequest restores items from a backup (selective mode), or
@@ -321,6 +333,12 @@ type BackupRestoreItemResult struct {
 	CurrentIndex uint64
 	Index        uint64
 	Error        string
+
+	// BackupVersion is the version of a secret in the backup whose value
+	// was restored, NewVersion the version the restore wrote (or would
+	// write, for a dry run).
+	BackupVersion uint64
+	NewVersion    uint64
 }
 
 // BackupRestore is the record of a restore.
