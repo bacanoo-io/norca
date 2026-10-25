@@ -8,11 +8,25 @@ import Controller from '@ember/controller';
 import { inject as service } from '@ember/service';
 import { task } from 'ember-concurrency';
 import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
+import LocalList from 'nomad-ui/utils/local-list';
 
 export default class AccessControlTokensIndexController extends Controller {
   @service can;
   @service notifications;
   @service('token') tokenService;
+
+  list = new LocalList({
+    sortBy: 'name',
+    searchProps: ['name', 'accessor'],
+    filters: {
+      type: (token, selection) => selection.includes(token.type),
+    },
+  });
+
+  typeOptions = [
+    { key: 'client', label: 'Client' },
+    { key: 'management', label: 'Management' },
+  ];
 
   /**
    * Saved tokens; drafts from the "new token" page are left out.
@@ -23,21 +37,30 @@ export default class AccessControlTokensIndexController extends Controller {
     );
   }
 
+  get rows() {
+    return this.list.rows(this.tokens);
+  }
+
   get selfTokenId() {
     return this.tokenService.selfToken?.id;
   }
 
   get columns() {
     const columns = [
-      { key: 'name', label: 'Name', isSortable: true },
-      { key: 'type', label: 'Type', isSortable: true },
-      { key: 'createTime', label: 'Created', isSortable: true },
-      { key: 'expirationTime', label: 'Expires', isSortable: true },
+      { key: 'name', label: 'Name', sortable: true, hideable: false },
+      { key: 'type', label: 'Type', sortable: true },
+      { key: 'createTime', label: 'Created', sortable: true },
+      { key: 'expirationTime', label: 'Expires', sortable: true },
       { key: 'roles', label: 'Roles' },
       { key: 'policies', label: 'Policies' },
     ];
     if (this.can.can('destroy token')) {
-      columns.push({ key: 'delete', label: 'Delete' });
+      columns.push({
+        key: 'actions',
+        label: 'Actions',
+        srOnly: true,
+        hideable: false,
+      });
     }
     return columns;
   }

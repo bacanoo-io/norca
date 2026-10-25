@@ -132,6 +132,7 @@ Router.map(function () {
         path: '/:id',
       });
     });
+    this.route('auth-methods');
   });
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {

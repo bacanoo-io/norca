@@ -3,104 +3,74 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Breadcrumb @crumb={{hash label=this.role.name args=(array "access-control.roles.role" this.role.id)}} />
 {{page-title "Role " this.role.name}}
-<section class="section">
-  <h1 class="title with-flex" data-test-title>
-    <div>
-      {{this.role.name}}
-    </div>
-    {{#if (can "destroy role")}}
-      <div>
-        <Hds::Button
-          @text="Delete Role"
-          @color="critical"
-          disabled={{this.deleteRole.isRunning}}
-          data-test-delete-role
-          {{on "click" (perform this.deleteRole)}}
-        />
-      </div>
-    {{/if}}
-  </h1>
-
+<Access::Header
+  @title={{this.role.name}}
+  @trail={{array (hash label="Roles" route="access-control.roles" id="access-control.roles") (hash label=this.role.name)}}
+>
+  {{#if (can "destroy role")}}
+    <Ui::ConfirmButton
+      @label="Delete Role"
+      @icon="trash"
+      @message="Delete the role {{this.role.name}}?"
+      @confirmLabel="Yes, delete"
+      @disabled={{this.deleteRole.isRunning}}
+      @isRunning={{this.deleteRole.isRunning}}
+      @onConfirm={{perform this.deleteRole}}
+      data-test-delete-role
+    />
+  {{/if}}
+</Access::Header>
+<Ui::PageBody>
   {{! Re-create the editor when the role changes so its selection state resets }}
   {{#each (array this.role) as |role|}}
-    <RoleEditor
-      @role={{role}}
-      @policies={{this.policies}}
-    />
+    <RoleEditor @role={{role}} @policies={{this.policies}} />
   {{/each}}
 
   {{#if (can "list tokens")}}
-    <hr />
-    <h2 class="title">Tokens</h2>
+    <h2 class="h3 mt-4 mb-2">Tokens</h2>
 
     {{#if (can "write token")}}
-      <div class="boxed-section">
-        <div class="boxed-section-head">
-          <h3>Create Tokens from the Nomad CLI</h3>
-        </div>
-        <div class="boxed-section-body">
-          <p>Create a token linked to this role with:</p>
-          <pre class="acl-cli-hint"><code>{{this.newTokenString}}</code><CopyButton @clipboardText={{this.newTokenString}} @compact={{true}} /></pre>
-          <p>
-            Or <LinkTo @route="access-control.tokens.new">create a token</LinkTo> here and select this role.
-          </p>
-        </div>
-      </div>
+      <Ui::Card @title="Create tokens from the Nomad CLI" class="mb-3">
+        <p class="text-secondary">Create a token linked to this role with:</p>
+        <Ui::CodeBlock @code={{this.newTokenString}} @copy={{true}} @label="The command" />
+        <p class="mt-2 mb-0">
+          Or <LinkTo @route="access-control.tokens.new">create a token</LinkTo> here and select this role.
+        </p>
+      </Ui::Card>
     {{/if}}
 
     {{#if this.tokens.length}}
-      <ListTable
-        @source={{this.tokens}}
-        @class="no-mobile-condense" as |t|>
-        <t.head>
-          <th>Name</th>
-          <th>Created</th>
-          <th>Expires</th>
-          {{#if (can "destroy token")}}
-            <th>Delete</th>
+      <Ui::Table @caption="Tokens linked to {{this.role.name}}" @columns={{this.tokenColumns}} @rows={{this.tokens}} @rowTestId="role-token-row" as |token|>
+        <td data-test-token-name={{token.name}}>
+          <LinkTo @route="access-control.tokens.token" @model={{token.id}}>{{token.name}}</LinkTo>
+        </td>
+        <td class="text-nowrap">{{moment-from-now token.createTime interval=1000}}</td>
+        <td class="text-nowrap">
+          {{#if token.expirationTime}}
+            <span class={{if token.isExpired "text-danger"}} data-test-token-expiration-time>{{moment-from-now token.expirationTime interval=1000}}</span>
+          {{else}}
+            <span data-test-token-expiration-time>Never</span>
           {{/if}}
-        </t.head>
-        <t.body as |row|>
-          <tr data-test-role-token-row>
-            <td data-test-token-name={{row.model.name}}>
-              <LinkTo @route="access-control.tokens.token" @model={{row.model.id}}>{{row.model.name}}</LinkTo>
-            </td>
-            <td>
-              {{moment-from-now row.model.createTime interval=1000}}
-            </td>
-            <td>
-              {{#if row.model.expirationTime}}
-                <span data-test-token-expiration-time class="{{if row.model.isExpired "has-text-danger"}}">{{moment-from-now row.model.expirationTime interval=1000}}</span>
-              {{else}}
-                <span data-test-token-expiration-time>Never</span>
-              {{/if}}
-            </td>
-            {{#if (can "destroy token")}}
-              <td class="is-200px">
-                <Hds::Button
-                  @text="Delete Token"
-                  @color="critical"
-                  @size="small"
-                  disabled={{this.deleteToken.isRunning}}
-                  data-test-delete-token-button
-                  {{on "click" (perform this.deleteToken row.model)}}
-                />
-              </td>
-            {{/if}}
-          </tr>
-        </t.body>
-      </ListTable>
+        </td>
+        {{#if (can "destroy token")}}
+          <td class="text-end">
+            <Ui::ConfirmButton
+              @label="Delete Token"
+              @icon="trash"
+              @size="sm"
+              @message="Delete the token {{token.name}}?"
+              @confirmLabel="Yes, delete"
+              @disabled={{this.deleteToken.isRunning}}
+              @isRunning={{this.deleteToken.isRunning}}
+              @onConfirm={{perform this.deleteToken token}}
+              data-test-delete-token-button
+            />
+          </td>
+        {{/if}}
+      </Ui::Table>
     {{else}}
-      <div class="empty-message">
-        <h3 data-test-empty-role-tokens-headline class="empty-message-headline">
-          No Tokens
-        </h3>
-        <p class="empty-message-body">
-          No tokens are linked to this role.
-        </p>
-      </div>
+      <Ui::EmptyState @compact={{true}} @icon="key" @title="No Tokens" @message="No tokens are linked to this role." data-test-empty-role-tokens />
     {{/if}}
   {{/if}}
-</section>
+</Ui::PageBody>

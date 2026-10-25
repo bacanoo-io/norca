@@ -67,6 +67,12 @@ const MIGRATED = [
   'templates/variables',
   'components/variable-form.hbs',
   'components/variable-form',
+  'templates/access-control.hbs',
+  'templates/access-control',
+  'components/access',
+  'components/token-editor.hbs',
+  'components/role-editor.hbs',
+  'components/policy-editor.hbs',
 ];
 
 const ALLOWED = [

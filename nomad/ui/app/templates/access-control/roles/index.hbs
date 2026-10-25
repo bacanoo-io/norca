@@ -4,94 +4,84 @@
 ~}}
 
 {{page-title "Roles"}}
-<section class="section">
-  <header class="acl-list-header">
-    <div>
-      <h1 class="title">Roles</h1>
-      <p class="acl-explainer">
-        Roles group policies under a name. A token linked to a role gets the permissions of all of its policies.
-      </p>
-    </div>
-    <div class="acl-list-actions">
-      {{#if (can "write role")}}
-        <Hds::Button
-          @text="Create Role"
-          @icon="plus"
-          @route="access-control.roles.new"
-          data-test-create-role
-        />
-      {{else}}
-        <Hds::Button
-          @text="Create Role"
-          @icon="plus"
-          disabled
-          title="You don’t have sufficient permissions"
-          data-test-disabled-create-role
-        />
-      {{/if}}
-    </div>
-  </header>
-
-  {{#if this.roles.length}}
-    <Hds::Table
-      class="acl-table"
-      @model={{this.roles}}
-      @columns={{this.columns}}
-      @sortBy="name"
-    >
-      <:body as |B|>
-        <B.Tr
-          class="is-interactive"
-          data-test-role-row
-          {{on "click" (fn this.openRole B.data)}}
-        >
-          <B.Td data-test-role-name={{B.data.name}}>
-            <LinkTo @route="access-control.roles.role" @model={{B.data.id}}>{{B.data.name}}</LinkTo>
-          </B.Td>
-          <B.Td data-test-role-description>{{B.data.description}}</B.Td>
-          <B.Td data-test-role-policies>
-            <div class="tag-group">
-              {{#each B.data.policies as |policy|}}
-                <span class="tag">
-                  {{#if (can "read policy")}}
-                    <LinkTo @route="access-control.policies.policy" @model={{policy.name}}>{{policy.name}}</LinkTo>
-                  {{else}}
-                    {{policy.name}}
-                  {{/if}}
-                </span>
-              {{else}}
-                No Policies
-              {{/each}}
-            </div>
-          </B.Td>
-          {{#if (can "list tokens")}}
-            <B.Td data-test-role-total-tokens>{{or (get this.tokenCounts B.data.id) 0}}</B.Td>
-          {{/if}}
-          {{#if (can "destroy role")}}
-            <B.Td>
-              <Hds::Button
-                @text="Delete"
-                @color="critical"
-                @size="small"
-                disabled={{this.deleteRole.isRunning}}
-                data-test-delete-role
-                {{on "click" (perform this.deleteRole B.data)}}
-              />
-            </B.Td>
-          {{/if}}
-        </B.Tr>
-      </:body>
-    </Hds::Table>
+<Access::Header @title="Roles">
+  {{#if (can "write role")}}
+    <Ui::Button @variant="primary" @icon="plus" @route="access-control.roles.new" data-test-create-role>Create Role</Ui::Button>
   {{else}}
-    <div class="empty-message">
-      <h3 data-test-empty-roles-list-headline class="empty-message-headline">
-        No Roles
-      </h3>
-      {{#if (can "write role")}}
-        <p class="empty-message-body">
-          Get started by <LinkTo @route="access-control.roles.new">creating a new role</LinkTo>.
-        </p>
-      {{/if}}
-    </div>
+    <Ui::Tooltip @text="You don’t have sufficient permissions">
+      <Ui::Button @variant="primary" @icon="plus" @disabled={{true}} data-test-disabled-create-role>Create Role</Ui::Button>
+    </Ui::Tooltip>
   {{/if}}
-</section>
+</Access::Header>
+<Ui::PageBody>
+  <Access::Tabs />
+  <p class="text-secondary">
+    Roles group policies under a name. A token linked to a role gets the permissions of all of its policies.
+  </p>
+  <Ui::DataTable
+    @id="access-roles"
+    @caption="Roles"
+    @columns={{this.columns}}
+    @rows={{this.rows}}
+    @sortBy={{this.list.sortBy}}
+    @sortDescending={{this.list.sortDescending}}
+    @onSort={{this.list.sort}}
+    @pageSize={{this.list.pageSize}}
+    @page={{this.list.page}}
+    @onPageChange={{this.list.setPage}}
+    @onPageSizeChange={{this.list.setPageSize}}
+    @onRowClick={{this.openRole}}
+    @enumerate={{true}}
+    @noun="roles"
+    @viewState={{this.list.viewState}}
+    @onApplyView={{this.list.applyView}}
+  >
+    <:filters>
+      <Ui::Input
+        @type="search"
+        @icon="search"
+        @placeholder="Search roles..."
+        @value={{this.list.searchTerm}}
+        @onInput={{this.list.search}}
+        aria-label="Search roles"
+        data-test-roles-search
+      />
+    </:filters>
+    <:row as |role r|>
+      <r.Row data-test-role-row>
+        <r.Cell @key="name" data-test-role-name={{role.name}}>
+          <LinkTo @route="access-control.roles.role" @model={{role.id}}>{{role.name}}</LinkTo>
+        </r.Cell>
+        <r.Cell @key="description" data-test-role-description>{{role.description}}</r.Cell>
+        <r.Cell @key="policies" data-test-role-policies>
+          <Access::LinkList @items={{role.policies}} @route="access-control.policies.policy" @idKey="name" @permission="read policy" @empty="No Policies" />
+        </r.Cell>
+        <r.Cell @key="tokens" class="tabular-nums" data-test-role-total-tokens>{{or (get this.tokenCounts role.id) 0}}</r.Cell>
+        <r.Cell @key="actions" class="text-end">
+          <Ui::ConfirmButton
+            @label="Delete"
+            @icon="trash"
+            @size="sm"
+            @message="Delete the role {{role.name}}?"
+            @confirmLabel="Yes, delete"
+            @disabled={{this.deleteRole.isRunning}}
+            @isRunning={{this.deleteRole.isRunning}}
+            @onConfirm={{perform this.deleteRole role}}
+            data-test-delete-role
+          />
+        </r.Cell>
+      </r.Row>
+    </:row>
+    <:empty>
+      {{#if this.roles.length}}
+        <Ui::EmptyState @icon="filter-off" @title="No Matches" @message="No roles match the search." data-test-empty-roles-list />
+      {{else}}
+        <Ui::EmptyState @icon="users" @title="No Roles" data-test-empty-roles-list>
+          {{#if (can "write role")}}
+            <p class="text-secondary">Get started by <LinkTo @route="access-control.roles.new">creating a new role</LinkTo>.</p>
+          {{/if}}
+        </Ui::EmptyState>
+      {{/if}}
+    </:empty>
+  </Ui::DataTable>
+</Ui::PageBody>

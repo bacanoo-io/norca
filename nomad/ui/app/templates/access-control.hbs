@@ -3,8 +3,6 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Breadcrumb @crumb={{hash label="Access Control" args=(array "access-control.index")}} />
-<PageLayout>
-  <AccessControlSubnav />
+<PageLayout @legacy={{false}}>
   {{outlet}}
 </PageLayout>
