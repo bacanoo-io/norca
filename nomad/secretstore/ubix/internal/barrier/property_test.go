@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 // TestBarrierRoundTripProperty is a randomized property test: over many random

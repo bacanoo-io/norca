@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 // DefaultMaxVersions is the number of versions retained per secret when a mount

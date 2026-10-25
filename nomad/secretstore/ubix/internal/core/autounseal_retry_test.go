@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cwolsen7905/ubixvault/internal/seal"
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/seal"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 // flakySeal fails Unwrap until failures reaches zero, then delegates — a KMS

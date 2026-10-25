@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 func TestWriteRestoreRoundTrip(t *testing.T) {

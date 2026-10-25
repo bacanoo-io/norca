@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 // rekeyComplete drives a full rekey from oldKeys (supplying `threshold` of them)

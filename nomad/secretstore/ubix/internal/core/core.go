@@ -29,12 +29,12 @@ import (
 
 	"io"
 
-	"github.com/cwolsen7905/ubixvault/internal/barrier"
-	"github.com/cwolsen7905/ubixvault/internal/seal"
-	"github.com/cwolsen7905/ubixvault/internal/shamir"
-	"github.com/cwolsen7905/ubixvault/internal/snapshot"
-	"github.com/cwolsen7905/ubixvault/internal/storage"
-	"github.com/cwolsen7905/ubixvault/internal/token"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/barrier"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/seal"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/shamir"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/snapshot"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/token"
 )
 
 // masterKeySize is the length of the generated master key (AES-256).

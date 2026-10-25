@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 // header identifies the snapshot format and version.

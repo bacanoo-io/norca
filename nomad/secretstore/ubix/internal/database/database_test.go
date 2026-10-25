@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 // mockPlugin records the calls made to it, standing in for a real database.

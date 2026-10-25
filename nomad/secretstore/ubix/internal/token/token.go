@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 // RootPolicy is the policy name that grants unrestricted access.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 func TestOnSealRunsAfterSealOutsideLock(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 // HAGroup stands in for one database shared by several replicas: the data

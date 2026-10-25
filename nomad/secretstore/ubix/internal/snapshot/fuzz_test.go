@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 // FuzzRestore feeds arbitrary bytes to the snapshot reader. Restore reads an

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cwolsen7905/ubixvault/internal/barrier"
-	"github.com/cwolsen7905/ubixvault/internal/storage"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/barrier"
+	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
 )
 
 func newCore() *Core {
