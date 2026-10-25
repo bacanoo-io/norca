@@ -566,6 +566,30 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		"network-policy status": func() (cli.Command, error) {
 			return &NetworkPolicyStatusCommand{Meta: meta}, nil
 		},
+		"secret": func() (cli.Command, error) {
+			return &SecretCommand{Meta: meta}, nil
+		},
+		"secret list": func() (cli.Command, error) {
+			return &SecretListCommand{Meta: meta}, nil
+		},
+		"secret info": func() (cli.Command, error) {
+			return &SecretInfoCommand{Meta: meta}, nil
+		},
+		"secret get": func() (cli.Command, error) {
+			return &SecretGetCommand{Meta: meta}, nil
+		},
+		"secret put": func() (cli.Command, error) {
+			return &SecretPutCommand{Meta: meta}, nil
+		},
+		"secret delete": func() (cli.Command, error) {
+			return &SecretDeleteCommand{Meta: meta}, nil
+		},
+		"secret undelete": func() (cli.Command, error) {
+			return &SecretUndeleteCommand{Meta: meta}, nil
+		},
+		"secret destroy": func() (cli.Command, error) {
+			return &SecretDestroyCommand{Meta: meta}, nil
+		},
 		"namespace": func() (cli.Command, error) {
 			return &NamespaceCommand{
 				Meta: meta,

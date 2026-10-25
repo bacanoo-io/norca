@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/scheduler"
+	"github.com/hashicorp/nomad/secretstore"
 	"github.com/hashicorp/nomad/version"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
@@ -416,6 +417,11 @@ type Config struct {
 
 	// Backup configures the scheduled backups to S3-compatible stores.
 	Backup *backup.Config
+
+	// SecretsAudit configures the append-only audit file of the built-in
+	// secret store on this server; nil disables the file (the SecretAccess
+	// event topic is always published).
+	SecretsAudit *secretstore.AuditFileConfig
 
 	// JobDefaultPriority is the default Job priority if not specified.
 	JobDefaultPriority int

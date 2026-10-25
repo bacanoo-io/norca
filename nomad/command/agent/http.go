@@ -527,6 +527,10 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.Handle("/v1/vars", wrapCORS(s.wrap(s.VariablesListRequest)))
 	s.mux.Handle("/v1/var/", wrapCORSWithAllowedMethods(s.wrap(s.VariableSpecificRequest), "HEAD", "GET", "PUT", "DELETE"))
 
+	// Secrets of the built-in secret store (Norca)
+	s.mux.HandleFunc("/v1/secrets", s.wrap(s.SecretsListRequest))
+	s.mux.HandleFunc("/v1/secret/", s.wrap(s.SecretSpecificRequest))
+
 	agentConfig := s.agent.GetConfig()
 	uiConfigEnabled := agentConfig.UI != nil && agentConfig.UI.Enabled
 

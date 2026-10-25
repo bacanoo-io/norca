@@ -139,7 +139,7 @@ func validateBackupRestoreItem(item *structs.BackupRestoreItem) error {
 		return fmt.Errorf("restore item of type %q has no ID", item.Type)
 	}
 	switch item.Type {
-	case structs.BackupRestoreItemJob, structs.BackupRestoreItemVariable:
+	case structs.BackupRestoreItemJob, structs.BackupRestoreItemVariable, structs.BackupRestoreItemSecret:
 		if item.Namespace == "" {
 			item.Namespace = structs.DefaultNamespace
 		}
@@ -150,8 +150,8 @@ func validateBackupRestoreItem(item *structs.BackupRestoreItem) error {
 	if item.Version != nil && item.Type != structs.BackupRestoreItemJob {
 		return fmt.Errorf("a version can only be restored for jobs")
 	}
-	if item.CheckIndex != nil && item.Type != structs.BackupRestoreItemVariable {
-		return fmt.Errorf("a check index can only be given for Variables")
+	if item.CheckIndex != nil && item.Type != structs.BackupRestoreItemVariable && item.Type != structs.BackupRestoreItemSecret {
+		return fmt.Errorf("a check index can only be given for Variables and secrets")
 	}
 	return nil
 }
@@ -182,6 +182,8 @@ func (r *backupRestorer) restore(item *structs.BackupRestoreItem) *structs.Backu
 		err = r.restoreJob(item, result)
 	case structs.BackupRestoreItemVariable:
 		err = r.restoreVariable(item, result)
+	case structs.BackupRestoreItemSecret:
+		err = r.restoreSecret(item, result)
 	case structs.BackupRestoreItemNamespace:
 		err = r.restoreNamespace(item, result)
 	case structs.BackupRestoreItemACLPolicy:

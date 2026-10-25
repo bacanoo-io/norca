@@ -183,6 +183,12 @@ const (
 	// sent with the IgnoreUnknownTypeFlag set.
 	SealConfigUpsertRequestType MessageType = 107
 	SealRewrapDoneRequestType   MessageType = 108
+	// Norca built-in secret store (109-111 assigned to the store): a
+	// secret's metadata row together with the barrier blobs of its versions,
+	// applied in one transaction. They are sent with the
+	// IgnoreUnknownTypeFlag set. 111 is reserved for the store.
+	SecretApplyRequestType MessageType = 109
+	SecretPurgeRequestType MessageType = 110
 )
 
 const (

@@ -598,6 +598,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	}
 	conf.Backup = backupConf
 
+	// Set the audit file of the built-in secret store.
+	secretsAudit, err := agentConfig.Server.Secrets.toAuditFileConfig()
+	if err != nil {
+		return nil, err
+	}
+	conf.SecretsAudit = secretsAudit
+
 	// Add the search configuration
 	if search := agentConfig.Server.Search; search != nil {
 		conf.SearchConfig = &structs.SearchConfig{
