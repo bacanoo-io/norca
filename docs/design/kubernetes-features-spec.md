@@ -635,7 +635,7 @@ enforcement = "required"   # or "best_effort"
 
 ### Decision point
 
-Phase 5 of [consul-independence-plan.md](consul-independence-plan.md) (native mTLS, `ServiceIntention`) solves the main problem of level C, identifying the sender in the presence of address translation, on a certificate basis. Once it is done, instead of the IP-based variant of level C, node-to-node control is built on native mTLS, and network rules can narrow to levels A and B (egress and local ingress).
+Phase 5 of [consul-independence-plan.md](consul-independence-plan.md) (native mTLS, `ServiceIntention`) solves the main problem of level C, identifying the sender in the presence of address translation, on a certificate basis. Its first two steps (per-region CA, workload certificates in "app" mode, `ServiceIntention` objects and the `api/mtls` Go library) are implemented; enforcement without application changes waits for the Envoy sidecar (step 3). Once it is done, instead of the IP-based variant of level C, node-to-node control is built on native mTLS, and network rules can narrow to levels A and B (egress and local ingress).
 
 If Consul stays part of the stack, allocation-level control between nodes is already solved by Consul intentions on an identity basis, and level C can be dropped. In that case levels A and B (egress and local ingress) are still useful as a complement, because Consul controls only the traffic passing through the proxy.
 
