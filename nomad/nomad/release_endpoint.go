@@ -98,6 +98,7 @@ func (r *Release) Apply(args *structs.ReleaseApplyRequest, reply *structs.Releas
 	if args.DryRun && args.RecordOnly {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "dry_run and record_only are exclusive")
 	}
+	resolveSecretNamespaces(args.Secrets, args.Resources, namespace)
 	secrets, err := secretsByPath(args.Secrets, namespace)
 	if err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
@@ -133,6 +134,30 @@ func (r *Release) Apply(args *structs.ReleaseApplyRequest, reply *structs.Releas
 	}
 	reply.Index = max(1, r.srv.raft.AppliedIndex())
 	return nil
+}
+
+// resolveSecretNamespaces fills in the namespace of secrets given by path
+// only: the namespace of the Variable of the pack with that path, if there
+// is exactly one, or else the namespace of the release.
+func resolveSecretNamespaces(secrets []*structs.ReleaseVariableSecret, resources []*structs.ReleaseResource, namespace string) {
+	for _, s := range secrets {
+		if s == nil || s.Namespace != "" {
+			continue
+		}
+		var found []string
+		for _, res := range resources {
+			if res != nil && res.Type == structs.ReleaseResourceVariable && res.Variable != nil && res.Variable.Path == s.Path {
+				ns := res.Variable.Namespace
+				if ns == "" {
+					ns = namespace
+				}
+				found = append(found, ns)
+			}
+		}
+		if len(found) == 1 {
+			s.Namespace = found[0]
+		}
+	}
 }
 
 // checkSecretsHaveVariables rejects secrets for Variables that are not

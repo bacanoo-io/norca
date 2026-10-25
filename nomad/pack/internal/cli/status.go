@@ -63,7 +63,7 @@ func (c *StatusCommand) Run(args []string) int {
 		} else if name, err := releaseNameFor(c.packConfig, c.deploymentName); err == nil {
 			if rel, _, err := client.Releases().Info(name, nil); err == nil {
 				printRelease(c.ui, rel)
-				return 0
+				c.ui.Output("")
 			}
 		}
 	}

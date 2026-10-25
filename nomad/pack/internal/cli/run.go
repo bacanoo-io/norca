@@ -113,6 +113,7 @@ func (c *RunCommand) run() int {
 		if code := c.applyRelease(client, relName, req, c.upgrade); code != 0 {
 			return code
 		}
+		c.printDeployed()
 		return c.printOutputs(packManager)
 	}
 	if c.upgrade {
@@ -209,13 +210,17 @@ func (c *RunCommand) run() int {
 		}
 	}
 
+	c.printDeployed()
+	return c.printOutputs(packManager)
+}
+
+// printDeployed prints the success message of a deployment.
+func (c *RunCommand) printDeployed() {
 	if c.packConfig.Registry == caching.DevRegistryName {
 		c.ui.Success(fmt.Sprintf("Pack successfully deployed. Use %s to manage this deployed instance with plan, stop, destroy, or info", c.packConfig.SourcePath))
 	} else {
 		c.ui.Success(fmt.Sprintf("Pack successfully deployed. Use %s with --ref=%s to manage this deployed instance with plan, stop, destroy, or info", c.packConfig.Name, c.packConfig.Ref))
 	}
-
-	return c.printOutputs(packManager)
 }
 
 // printOutputs renders and prints the output template of the pack.

@@ -80,8 +80,10 @@ func (o *releaseOptions) addFlags(f *flag.Set) {
 	f.BoolVar(&flag.BoolVar{
 		Name:   "client-side",
 		Target: &o.clientSide,
-		Usage: `Deploy the jobs from the client instead of letting the servers
-				apply the release; the servers only record the revision.`,
+		EnvVar: EnvClientSide,
+		Usage: `Deploy the jobs from the client, as Nomad Pack does, instead of
+				letting the servers apply the release; the servers only record
+				the revision. Also set by NORCA_PACK_CLIENT_SIDE=1.`,
 	})
 }
 
@@ -102,17 +104,18 @@ func releasesSupported(client *api.Client) bool {
 	return err == nil && ok
 }
 
-// releaseName returns the release name of the deployment: the --name of
-// the deployment or, without one, the pack name. Unlike the default
-// deployment name of jobs ("pack@ref"), it does not change with the
-// version, so that new versions upgrade the release.
+// releaseName returns the release name of the deployment: the deployment
+// name ("pack@ref" unless --name is given) with the characters that are not
+// allowed in release names replaced, so that a release is the instance the
+// deployment name identifies. Use --name for a release whose pack version
+// changes.
 func (c *baseCommand) releaseName(cfg *caching.PackConfig) (string, error) {
 	return releaseNameFor(cfg, c.deploymentName)
 }
 
 func releaseNameFor(cfg *caching.PackConfig, deploymentName string) (string, error) {
-	if deploymentName == "" || deploymentName == caching.AppendRef(cfg.Name, cfg.Ref) {
-		return release.Name(cfg.Name)
+	if deploymentName == "" {
+		deploymentName = caching.AppendRef(cfg.Name, cfg.Ref)
 	}
 	return release.Name(deploymentName)
 }
@@ -227,6 +230,20 @@ func (c *baseCommand) buildRelease(
 			}
 			return nil, false
 		}
+		// Jobs of other pack deployments and jobs not deployed by a pack
+		// conflict, as they do for the client-side deployer, unless they are
+		// taken over (--take-ownership or --deploy-override).
+		if jobOverride(jobCfg) {
+			req.TakeOwnership = true
+		}
+		if !req.TakeOwnership {
+			if errs := jobRunner.CheckForConflicts(errorContext); errs != nil {
+				for _, e := range errs {
+					c.ui.ErrorWithContext(e.Err, e.Subject, e.Context.GetAll()...)
+				}
+				return nil, false
+			}
+		}
 		parsed := jobRunner.ParsedTemplates().(map[string]job.ParsedTemplate)
 		names := make([]string, 0, len(parsed))
 		for name := range parsed {
@@ -253,6 +270,20 @@ func (c *baseCommand) buildRelease(
 	}
 	release.SortResources(req.Resources)
 	return req, true
+}
+
+// EnvClientSide makes run, plan and destroy use the client-side deployer.
+const EnvClientSide = "NORCA_PACK_CLIENT_SIDE"
+
+// jobOverride reports whether --deploy-override is set.
+func jobOverride(cfg *job.CLIConfig) bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.RunConfig != nil && cfg.RunConfig.DeployOverride {
+		return true
+	}
+	return cfg.PlanConfig != nil && cfg.PlanConfig.DeployOverride
 }
 
 // releasePack describes the pack for the release.

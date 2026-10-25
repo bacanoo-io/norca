@@ -387,7 +387,7 @@ func TestCLI_V1_PackDestroy_WithOverrides(t *testing.T) {
 				t,
 				s,
 				[]string{
-					"run",
+					"run", "--client-side",
 					testPack,
 					"--var=job_name=" + j,
 					"--registry=" + reg.Name,
@@ -395,11 +395,11 @@ func TestCLI_V1_PackDestroy_WithOverrides(t *testing.T) {
 		}
 
 		// Stop nonexistent job
-		result := runTestPackV1Cmd(t, s, []string{"destroy", testPack, "--var=job_name=baz", "--registry=" + reg.Name})
+		result := runTestPackV1Cmd(t, s, []string{"destroy", "--client-side", testPack, "--var=job_name=baz", "--registry=" + reg.Name})
 		must.Eq(t, 1, result.exitCode, must.Sprintf("expected exitcode 1; got %v\ncmdOut:%v", result.exitCode, result.cmdOut.String()))
 
 		// Stop job with var override
-		result = runTestPackV1Cmd(t, s, []string{"destroy", testPack, "--var=job_name=foo", "--registry=" + reg.Name})
+		result = runTestPackV1Cmd(t, s, []string{"destroy", "--client-side", testPack, "--var=job_name=foo", "--registry=" + reg.Name})
 		must.Zero(t, result.exitCode, must.Sprintf("expected exitcode 0; got %v\ncmdOut:%v", result.exitCode, result.cmdOut.String()))
 
 		q := api.QueryOptions{}
@@ -413,7 +413,7 @@ func TestCLI_V1_PackDestroy_WithOverrides(t *testing.T) {
 
 		// Stop job with no overrides passed - this should fail because the rendered
 		// pack will have job_name=simple_raw_exec (the default), not "bar"
-		result = runTestPackV1Cmd(t, s, []string{"destroy", testPack, "--registry=" + reg.Name})
+		result = runTestPackV1Cmd(t, s, []string{"destroy", "--client-side", testPack, "--registry=" + reg.Name})
 		must.Eq(t, 1, result.exitCode, must.Sprintf("expected exitcode 1; got %v\ncmdOut:%v", result.exitCode, result.cmdOut.String()))
 
 		// Assert job bar still exists (was not deleted)
@@ -424,7 +424,7 @@ func TestCLI_V1_PackDestroy_WithOverrides(t *testing.T) {
 		must.NotNil(t, j)
 
 		// Destroy with the correct override
-		result = runTestPackV1Cmd(t, s, []string{"destroy", testPack, "--var=job_name=bar", "--registry=" + reg.Name})
+		result = runTestPackV1Cmd(t, s, []string{"destroy", "--client-side", testPack, "--var=job_name=bar", "--registry=" + reg.Name})
 		must.Zero(t, result.exitCode, must.Sprintf("expected exitcode 0; got %v\ncmdOut:%v", result.exitCode, result.cmdOut.String()))
 
 		// Assert job bar is now gone
@@ -828,7 +828,7 @@ func createV1TestRegistries(t *testing.T) (*caching.Registry, *caching.Registry,
 	t.Helper()
 
 	// Fake a clone
-	registryName := fmt.Sprintf("test-%v", time.Now().UnixMilli())
+	registryName := uniqueTestRegistryName()
 
 	regDir := path.Join(caching.DefaultCachePath(), registryName)
 	err := filesystem.MaybeCreateDestinationDir(regDir)
