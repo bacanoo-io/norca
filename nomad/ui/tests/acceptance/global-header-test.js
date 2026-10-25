@@ -47,6 +47,27 @@ module('Acceptance | global header', function (hooks) {
     assert.equal(Layout.navbar.end.vaultLink.link, 'http://localhost:8200/ui');
   });
 
+  test('the menu shows the Norca version with the Nomad API version', async function (assert) {
+    server.create('agent');
+
+    await visit('/');
+
+    assert
+      .dom('[data-test-agent-version]')
+      .hasText('Norca 0.1.0 (Nomad API 1.1.0-dev+ent compatible)');
+    assert
+      .dom('[data-test-agent-version]')
+      .hasAttribute('title', 'Nomad API 1.1.0-dev+ent compatible');
+  });
+
+  test('an agent that predates Norca shows its Nomad version', async function (assert) {
+    server.create('agent', { norca_version: '', nomad_version: '' });
+
+    await visit('/');
+
+    assert.dom('[data-test-agent-version]').hasText('Nomad 1.1.0-dev+ent');
+  });
+
   test('it displays Sign in without a token', async function (assert) {
     managementToken = server.create('token');
 

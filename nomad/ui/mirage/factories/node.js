@@ -115,6 +115,7 @@ export default Factory.extend({
       'kernel.version': '16.6.0',
       'unique.network.ip-address': '127.0.0.1',
       'nomad.version': '0.5.5dev',
+      'norca.version': '0.1.0',
       'unique.hostname': 'bacon-mac',
       'cpu.arch': 'amd64',
       'os.name': 'darwin',

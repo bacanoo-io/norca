@@ -19,7 +19,11 @@
         <span class="tooltip" aria-label="Node CPU">{{format-scheduled-hertz @node.cpu}}</span>
       </span>
       <span class="bumper-left is-faded tooltip" aria-label="Node Status">{{@node.node.status}}</span>
-      <span class="bumper-left is-faded tooltip" aria-label="Nomad Version">{{@node.node.version}}</span>
+      {{#if @node.node.norcaVersion}}
+        <span class="bumper-left is-faded tooltip" aria-label="Norca version, Nomad API {{@node.node.version}} compatible">Norca {{@node.node.norcaVersion}}</span>
+      {{else}}
+        <span class="bumper-left is-faded tooltip" aria-label="Nomad version (the client predates Norca)">Nomad {{@node.node.version}}</span>
+      {{/if}}
     </p>
   {{/unless}}
   <svg
