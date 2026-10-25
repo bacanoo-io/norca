@@ -121,7 +121,7 @@ func (e *UniversalExecutor) configureResourceContainer(pid int) error {
 			// permissions, but don't return an error. There is no separate check for
 			// cgroup creation permissions, so this may be the happy path.
 			e.logger.Warn("failed to create cgroup",
-				"docs", "https://www.nomadproject.io/docs/drivers/raw_exec.html#no_cgroups",
+				"hint", "run the client with permission to create cgroups, or set no_cgroups in the raw_exec plugin configuration",
 				"error", err)
 			return nil
 		}

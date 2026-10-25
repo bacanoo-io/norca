@@ -696,9 +696,8 @@ func (a *Agent) finalizeClientConfig(c *clientconfig.Config) error {
 	}
 	if len(invalidConsulKeys) > 0 {
 		a.logger.Warn("invalid consul keys", "keys", strings.Join(invalidConsulKeys, ","))
-		a.logger.Warn(`Nomad client ignores consul related configuration in client options.
-		Please refer to the guide https://www.nomadproject.io/docs/agent/configuration/consul.html
-		to configure Nomad to work with Consul.`)
+		a.logger.Warn(`Norca client ignores consul related configuration in client options.
+		Configure the Consul integration in the consul block of the agent configuration instead.`)
 	}
 
 	return nil
