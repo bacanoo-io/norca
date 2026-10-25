@@ -1,0 +1,282 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// The global frame: Tabler's vertical navigation layout.
+
+.norca-skip-link {
+  position: absolute;
+  z-index: 1100;
+  top: 0.5rem;
+  left: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--tblr-bg-surface);
+  border-radius: var(--tblr-border-radius);
+}
+
+.norca-main:focus {
+  outline: none;
+}
+
+.norca-brand {
+  justify-content: flex-start !important;
+  font-weight: 600;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.norca-sidebar {
+  .norca-nav-group {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.45);
+    padding: 1rem 0.75rem 0.35rem;
+  }
+
+  .nav-link {
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+
+  .nav-link.active {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    box-shadow: inset 3px 0 0 var(--tblr-primary);
+  }
+
+  .navbar-collapse {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .norca-sidebar-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 0.75rem;
+  }
+}
+
+// Collapsed menu (large screens): icons only.
+@media (min-width: 992px) {
+  .norca-sidebar-collapsed {
+    .norca-sidebar.navbar-vertical.navbar-expand-lg {
+      width: var(--norca-sidebar-collapsed-width);
+
+      ~ .page-wrapper {
+        margin-left: var(--norca-sidebar-collapsed-width);
+      }
+
+      .norca-brand-name,
+      .nav-link-title,
+      .norca-version {
+        display: none;
+      }
+
+      .norca-nav-group {
+        font-size: 0;
+        padding: 0.5rem 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        margin: 0.5rem 0.75rem 0;
+      }
+
+      .nav-link {
+        justify-content: center;
+      }
+
+      .nav-link-icon {
+        margin-right: 0;
+      }
+
+      .norca-sidebar-footer {
+        justify-content: center;
+      }
+    }
+  }
+}
+
+.norca-topbar {
+  .norca-palette-button {
+    min-width: 15rem;
+    justify-content: flex-start;
+    color: var(--tblr-secondary);
+  }
+
+  .norca-kbd {
+    font-family: var(--norca-font-mono);
+    font-size: 0.72rem;
+    border: 1px solid var(--tblr-border-color);
+    border-radius: 4px;
+    padding: 0 0.3rem;
+    color: var(--tblr-secondary);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .form-select {
+    min-width: 10rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .norca-topbar {
+    .norca-palette-button {
+      min-width: 0;
+      flex: 1 1 100%;
+
+      .norca-kbd {
+        display: none;
+      }
+    }
+
+    .norca-topbar-end {
+      width: 100%;
+    }
+
+    .form-select {
+      min-width: 0;
+      flex: 1 1 40%;
+    }
+  }
+}
+
+.norca-custom-label {
+  font-size: 0.8rem;
+}
+
+.norca-breadcrumbs {
+  padding-top: 1rem;
+
+  .breadcrumb {
+    margin-bottom: 0;
+    flex-wrap: wrap;
+  }
+
+  dl,
+  dt,
+  dd {
+    display: inline;
+    margin: 0;
+  }
+
+  dt {
+    color: var(--tblr-secondary);
+    font-weight: 400;
+    margin-right: 0.25rem;
+
+    &::after {
+      content: ':';
+    }
+  }
+}
+
+// Not yet migrated pages keep their own spacing and light background.
+.norca-legacy-page {
+  background: transparent;
+  min-height: 0;
+}
+
+// The inherited subnav tabs were fixed below the old header; in the new
+// frame they stick to the top of the content instead.
+.legacy.norca-legacy-page .tabs.is-subnav {
+  position: sticky;
+  top: 0;
+  left: auto;
+  right: auto;
+
+  + *,
+  + *.is-closer {
+    margin-top: 0;
+  }
+}
+
+// The inherited side panels (logs, variables, evaluations) were placed
+// below the old header; in the new frame they span the full height.
+.legacy .sidebar,
+.legacy .sidebar.has-subnav {
+  top: 0;
+}
+
+.norca-legacy-overlays {
+  display: contents;
+}
+
+.norca-notifications {
+  width: 22rem;
+  max-width: calc(100vw - 2rem);
+}
+
+.norca-toasts {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1090;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 24rem;
+  max-width: calc(100vw - 2rem);
+  pointer-events: none;
+
+  .norca-toast {
+    pointer-events: auto;
+    background: var(--tblr-bg-surface);
+    margin: 0;
+  }
+
+  .alert-critical {
+    --tblr-alert-color: var(--tblr-danger);
+  }
+
+  .alert-success {
+    --tblr-alert-color: var(--tblr-success);
+  }
+
+  .alert-warning {
+    --tblr-alert-color: var(--tblr-warning);
+  }
+
+  .alert-neutral,
+  .alert-highlight {
+    --tblr-alert-color: var(--tblr-info);
+  }
+}
+
+// Command palette
+.norca-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1060;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgba(9, 18, 30, 0.5);
+}
+
+.norca-palette {
+  width: min(600px, 92vw);
+
+  .norca-palette-list {
+    max-height: 50vh;
+    overflow: auto;
+  }
+
+  .list-group-item {
+    cursor: pointer;
+  }
+
+  .list-group-item.active {
+    background: var(--tblr-primary-lt);
+    color: var(--tblr-body-color);
+    border-color: var(--tblr-border-color);
+  }
+}
+
+.norca-error-page {
+  min-height: 100vh;
+}

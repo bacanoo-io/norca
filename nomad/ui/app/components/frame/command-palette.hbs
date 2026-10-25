@@ -1,0 +1,60 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{! Arrow keys and Enter move and choose in the list: they need keydown. }}
+{{! template-lint-disable no-down-event-binding }}
+{{! template-lint-disable no-invalid-interactive }}
+<div class="norca-palette-backdrop" data-test-palette {{on "click" this.backdropClick}}>
+  <div
+    class="card norca-palette"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Search and commands"
+    {{ui-focus-trap onEscape=this.close}}
+  >
+    <div class="card-body pb-2">
+      <input
+        class="form-control form-control-lg"
+        type="text"
+        role="combobox"
+        aria-expanded="true"
+        aria-controls={{this.listId}}
+        aria-activedescendant={{this.activeDescendant}}
+        aria-autocomplete="list"
+        aria-label="Page, job, client or action"
+        placeholder="Page, job, client or action…"
+        autocomplete="off"
+        autofocus
+        value={{this.query}}
+        data-test-palette-input
+        {{on "input" this.input}}
+        {{on "keydown" this.keydown}}
+      />
+    </div>
+    <div class="list-group list-group-flush norca-palette-list" id={{this.listId}} role="listbox" aria-label="Results">
+      {{#each this.sections as |section|}}
+        <div class="list-group-header sticky-top" role="presentation">{{section.name}}</div>
+        {{#each section.items as |item|}}
+          <div
+            id={{item.domId}}
+            role="option"
+            aria-selected={{if item.isActive "true" "false"}}
+            class="list-group-item list-group-item-action d-flex align-items-center {{if item.isActive 'active'}}"
+            data-test-palette-item={{item.id}}
+            {{on "click" (fn this.choose item)}}
+          >
+            <Ui::Icon @name={{item.icon}} class="me-2 text-secondary" />
+            <span class="text-truncate">{{item.label}}</span>
+            {{#if item.hint}}<span class="ms-auto text-secondary small">{{item.hint}}</span>{{/if}}
+          </div>
+        {{/each}}
+      {{else}}
+        <div class="list-group-item text-secondary" data-test-palette-empty>
+          {{if this.isSearching "Searching…" "No pages, actions or search results match."}}
+        </div>
+      {{/each}}
+    </div>
+    <div class="card-footer small text-secondary">Enter: open · Esc: close · Up and down: select</div>
+  </div>
+</div>

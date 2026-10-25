@@ -21,26 +21,6 @@ $darker-side: darken($lighter-side, 15%);
     height: $cube-length;
   }
 
-  .logo-container {
-    position: absolute;
-    width: $cube-length;
-    height: $cube-length;
-    top: 0;
-    left: 0;
-
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    .icon {
-      width: 32%;
-      height: 32%;
-      transform: translateY(-20px);
-      fill: white;
-      animation: n-fade $duration forwards infinite;
-    }
-  }
-
   .cube {
     width: $cube-length;
     height: $cube-length;
@@ -56,8 +36,7 @@ $darker-side: darken($lighter-side, 15%);
 
   &.paused {
     .cube,
-    .side-4,
-    .logo-container .icon {
+    .side-4 {
       animation-play-state: paused;
     }
   }
@@ -135,31 +114,5 @@ $rotateY: 45deg;
 
   70% {
     background: $lighter-side;
-  }
-}
-
-@keyframes n-fade {
-  0% {
-    opacity: 0;
-  }
-
-  40% {
-    opacity: 0;
-  }
-
-  45% {
-    opacity: 1;
-  }
-
-  65% {
-    opacity: 1;
-  }
-
-  70% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 0;
   }
 }

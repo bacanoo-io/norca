@@ -8,7 +8,6 @@
 import { currentURL } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
-import { selectChoose } from 'ember-power-select/test-support';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
 import JobsList from 'nomad-ui/tests/pages/jobs/list';
@@ -126,7 +125,7 @@ module('Acceptance | regions (many)', function (hooks) {
 
     await JobsList.visit();
 
-    await selectChoose('[data-test-region-switcher-parent]', newRegion);
+    await Layout.navbar.regionSwitcher.select(newRegion);
 
     assert.ok(
       currentURL().includes(`region=${newRegion}`),
@@ -145,7 +144,7 @@ module('Acceptance | regions (many)', function (hooks) {
 
     await JobsList.visit({ region: startingRegion });
 
-    await selectChoose('[data-test-region-switcher-parent]', defaultRegion);
+    await Layout.navbar.regionSwitcher.select(defaultRegion);
 
     assert.notOk(
       currentURL().includes('region='),
@@ -163,7 +162,7 @@ module('Acceptance | regions (many)', function (hooks) {
 
     await Allocation.visit({ id: server.db.allocations[0].id });
 
-    await selectChoose('[data-test-region-switcher-parent]', newRegion);
+    await Layout.navbar.regionSwitcher.select(newRegion);
 
     assert.ok(currentURL().includes('/jobs?'), 'Back at the jobs page');
   });

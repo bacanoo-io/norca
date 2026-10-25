@@ -6,106 +6,72 @@
 {{page-title
   (if this.system.shouldShowRegions (concat this.system.activeRegion " - "))
   (if this.system.agent.config.UI.Label.Text (concat this.system.agent.config.UI.Label.Text " - "))
-  "Nomad"
+  "Norca"
   separator=" - "
 }}
-{{! The pages inherited from Nomad 1.6 use the legacy styles, scoped to
-    .legacy at build time (lib/norca-styles). }}
-<div class="legacy" data-bs-theme="light">
 <SvgPatterns />
 
-<section class="notifications">
-  {{#each this.notifications.queue as |flash|}}
-  <FlashMessage @flash={{flash}} as |component flash close|>
-    <Hds::Toast
-      @color={{or flash.color "neutral"}}
-      @onDismiss={{
-        queue
-          (action close)
-          (action (optional flash.customCloseAction))
-        
-      }}
-    as |T|>
-      {{#if flash.title}}
-        <T.Title>{{flash.title}}</T.Title>
-      {{/if}}
-      {{#if flash.message}}
-        <T.Description>{{flash.message}}</T.Description>
-      {{/if}}
-      {{#if flash.customAction}}
-        <T.Button @text={{flash.customAction.label}} @color="secondary" {{on "click" (action flash.customAction.action)}} />
-      {{/if}}
-    </Hds::Toast>
-  </FlashMessage>
-  {{/each}}
-</section>
+<Frame::Toasts />
 
-<KeyboardShortcutsModal />
-
-<PortalTarget @name="log-sidebar-portal" />
-
-<BasicDropdownWormhole />
+{{! Overlays of the pages that are not migrated yet keep the legacy styles. }}
+<div class="legacy norca-legacy-overlays" data-bs-theme="light">
+  <KeyboardShortcutsModal />
+  <PortalTarget @name="log-sidebar-portal" />
+  <BasicDropdownWormhole />
+</div>
 
 {{#if this.error}}
-  <div class="error-container">
-    <div data-test-error class="error-message">
-      {{#if this.isNoLeader}}
-        <h1 data-test-error-title class="title is-spaced">No Cluster Leader</h1>
-        <p data-test-error-message class="subtitle">
-          The cluster has no leader.
-          <a href="https://developer.hashicorp.com/nomad/tutorials/manage-clusters/outage-recovery">
-            Read about Outage Recovery.</a>
-        </p>
-      {{else if this.isOTTExchange}}
-        <h1 data-test-error-title class="title is-spaced">Token Exchange Error</h1>
-        <p data-test-error-message class="subtitle">
-          Failed to exchange the one-time token.
-        </p>
-      {{else if this.is500}}
-        <h1 data-test-error-title class="title is-spaced">Server Error</h1>
-        <p data-test-error-message class="subtitle">A server error prevented
-          data from being sent to the client.</p>
-      {{else if this.is404}}
-        <h1 data-test-error-title class="title is-spaced">Not Found</h1>
-        <p data-test-error-message class="subtitle">What you're looking for
-          couldn't be found. It either doesn't exist or you are not authorized
-          to see it.</p>
-      {{else if this.is403}}
-        <h1 data-test-error-title class="title is-spaced">Not Authorized</h1>
-        {{#if this.token.secret}}
-          <p data-test-error-message class="subtitle">Your
-            <LinkTo @route="settings.tokens" data-test-error-acl-link>ACL token</LinkTo>
-            does not provide the required permissions. Contact your
-            administrator if this is an error.</p>
+  <div class="page page-center norca-error-page">
+    <div class="container-tight py-4">
+      <div class="empty" data-test-error>
+        {{#if this.isNoLeader}}
+          <p class="empty-title" data-test-error-title>No Cluster Leader</p>
+          <p class="empty-subtitle text-secondary" data-test-error-message>
+            The cluster has no leader. Check that a quorum of servers is running
+            and can reach each other, then reload the page.
+          </p>
+        {{else if this.isOTTExchange}}
+          <p class="empty-title" data-test-error-title>Token Exchange Error</p>
+          <p class="empty-subtitle text-secondary" data-test-error-message>
+            Failed to exchange the one-time token.
+          </p>
+        {{else if this.is500}}
+          <p class="empty-title" data-test-error-title>Server Error</p>
+          <p class="empty-subtitle text-secondary" data-test-error-message>A server error prevented
+            data from being sent to the client.</p>
+        {{else if this.is404}}
+          <p class="empty-title" data-test-error-title>Not Found</p>
+          <p class="empty-subtitle text-secondary" data-test-error-message>What you're looking for
+            couldn't be found. It either doesn't exist or you are not authorized
+            to see it.</p>
+        {{else if this.is403}}
+          <p class="empty-title" data-test-error-title>Not Authorized</p>
+          {{#if this.token.secret}}
+            <p class="empty-subtitle text-secondary" data-test-error-message>Your
+              <LinkTo @route="settings.tokens" data-test-error-acl-link>ACL token</LinkTo>
+              does not provide the required permissions. Contact your
+              administrator if this is an error.</p>
+          {{else}}
+            <p class="empty-subtitle text-secondary" data-test-error-message>Provide an
+              <LinkTo @route="settings.tokens" data-test-error-acl-link>ACL token</LinkTo>
+              with requisite permissions to view this.</p>
+          {{/if}}
         {{else}}
-          <p data-test-error-message class="subtitle">Provide an
-            <LinkTo @route="settings.tokens" data-test-error-acl-link>ACL token</LinkTo>
-            with requisite permissions to view this.</p>
+          <p class="empty-title" data-test-error-title>Error</p>
+          <p class="empty-subtitle text-secondary" data-test-error-message>Something went wrong.</p>
         {{/if}}
-      {{else}}
-        <h1 data-test-error-title class="title is-spaced">Error</h1>
-        <p data-test-error-message class="subtitle">Something went wrong.</p>
-      {{/if}}
-      {{#if (eq this.config.environment "development")}}
-        <pre class="error-stack-trace"><code>{{this.errorStr}}</code></pre>
-      {{/if}}
-    </div>
-    <div class="error-links">
-      <LinkTo @route="jobs" data-test-error-jobs-link class="button is-white">Go
-        to Jobs</LinkTo>
-      <LinkTo
-        @route="clients"
-        data-test-error-clients-link
-        class="button is-white"
-      >Go to Clients</LinkTo>
-      <LinkTo
-        @route="settings.tokens"
-        data-test-error-signin-link
-        class="button is-white"
-      >Go to Sign In</LinkTo>
+        {{#if (eq this.config.environment "development")}}
+          <pre class="text-start error-stack-trace"><code>{{this.errorStr}}</code></pre>
+        {{/if}}
+        <div class="empty-action btn-list justify-content-center">
+          <Ui::Button @route="index" @icon="layout-dashboard" data-test-error-dashboard-link>Go to the Dashboard</Ui::Button>
+          <Ui::Button @route="jobs" data-test-error-jobs-link>Go to Jobs</Ui::Button>
+          <Ui::Button @route="clients" data-test-error-clients-link>Go to Clients</Ui::Button>
+          <Ui::Button @route="settings.tokens" @variant="primary" data-test-error-signin-link>Go to Sign In</Ui::Button>
+        </div>
+      </div>
     </div>
   </div>
 {{else}}
   {{outlet}}
 {{/if}}
-</div>

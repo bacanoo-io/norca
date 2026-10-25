@@ -21,6 +21,16 @@ import { setupMirage } from 'ember-cli-mirage/test-support';
 import faker from 'nomad-ui/mirage/faker';
 import percySnapshot from '@percy/ember';
 import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+
+// The allocation row groups allocations by the width it has. The tests set
+// that width instead of depending on the size of the page frame: the row
+// gets `width` pixels, the panel keeps its own padding around it.
+async function setAllocationRowWidth(width) {
+  const panel = find('.job-status-panel');
+  const row = find('.allocation-status-row > div');
+  panel.style.width = `${panel.clientWidth - row.clientWidth + width}px`;
+  await triggerEvent(window, 'resize');
+}
 // TODO: Mirage is not type-friendly / assigns "server" as a global. Try to work around this shortcoming.
 
 module('Acceptance | job status panel', function (hooks) {
@@ -373,6 +383,7 @@ module('Acceptance | job status panel', function (hooks) {
 
     await visit(`/jobs/${job.id}`);
     assert.dom('.job-status-panel').exists();
+    await setAllocationRowWidth(920);
 
     let jobAllocCount = server.db.allocations.where({
       jobId: job.id,
@@ -405,12 +416,13 @@ module('Acceptance | job status panel', function (hooks) {
 
     await visit(`/jobs/${job.id}`);
     assert.dom('.job-status-panel').exists();
+    await setAllocationRowWidth(920);
 
     jobAllocCount = server.db.allocations.where({
       jobId: job.id,
     }).length;
 
-    // At standard test resolution, 40 allocations will attempt to display 20 ungrouped, and 20 grouped.
+    // At the standard row width, 40 allocations will attempt to display 20 ungrouped, and 20 grouped.
     let desiredUngroupedAllocCount = 20;
     assert
       .dom('.ungrouped-allocs .represented-allocation.running')
@@ -457,9 +469,10 @@ module('Acceptance | job status panel', function (hooks) {
 
     await visit(`/jobs/${job.id}`);
     assert.dom('.job-status-panel').exists();
+    await setAllocationRowWidth(930);
 
     // With 50 allocs split across 4 statuses distributed as above, we can expect 25 running, 16 failed, 6 pending, and 4 remaining.
-    // At standard test resolution, each status will be ungrouped/grouped as follows:
+    // At the standard row width, each status will be ungrouped/grouped as follows:
     // 25 running: 9 ungrouped, 17 grouped
     // 15 failed: 5 ungrouped, 10 grouped
     // 5 pending: 0 ungrouped, 5 grouped
@@ -536,8 +549,8 @@ module('Acceptance | job status panel', function (hooks) {
     // Simulate a window resize event; will recompute how many of each ought to be grouped.
 
     // At 1100px, only running and failed allocations have some ungrouped allocs
-    find('.page-body').style.width = '1100px';
-    await triggerEvent(window, 'resize');
+    // (a page of 1100px left the row 776px in the inherited layout)
+    await setAllocationRowWidth(776);
 
     await percySnapshot(
       'Status Panel groups allocations when they get past a threshold, multiple statuses (1100px)',
@@ -579,8 +592,8 @@ module('Acceptance | job status panel', function (hooks) {
       );
 
     // At 500px, only running allocations have some ungrouped allocs. The rest are all fully grouped.
-    find('.page-body').style.width = '800px';
-    await triggerEvent(window, 'resize');
+    // (a page of 800px left the row 500px in the inherited layout)
+    await setAllocationRowWidth(500);
 
     await percySnapshot(
       'Status Panel groups allocations when they get past a threshold, multiple statuses (500px)',
