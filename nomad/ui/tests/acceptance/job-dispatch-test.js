@@ -12,7 +12,7 @@ import { setupMirage } from 'ember-cli-mirage/test-support';
 import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
 import JobDispatch from 'nomad-ui/tests/pages/jobs/dispatch';
 import JobDetail from 'nomad-ui/tests/pages/jobs/detail';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import { currentURL } from '@ember/test-helpers';
 
 const REQUIRED_INDICATOR = '*';
@@ -61,7 +61,7 @@ function moduleForJobDispatch(title, jobFactory) {
 
     test('it passes an accessibility audit', async function (assert) {
       await JobDispatch.visit({ id: `${job.id}@${namespace.name}` });
-      await a11yAudit(assert);
+      await a11yAudit(assert, STRICT);
     });
 
     test('the dispatch button is displayed with management token', async function (assert) {

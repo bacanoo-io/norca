@@ -29,6 +29,26 @@ const root = path.join(__dirname, '..');
 const MIGRATED = [
   'templates/index.hbs',
   'components/dashboard.hbs',
+  // job page (phase 2)
+  'templates/jobs/job.hbs',
+  'templates/jobs/job',
+  'templates/jobs/loading.hbs',
+  'templates/jobs/run/index.hbs',
+  'components/jobs',
+  'components/allocations',
+  'components/job-status',
+  'components/job-editor',
+  'components/job-editor.hbs',
+  'components/job-diff.hbs',
+  'components/job-diff-fields-and-objects.hbs',
+  'components/job-dispatch.hbs',
+  'components/placement-failure.hbs',
+  'components/lifecycle-chart.hbs',
+  'components/lifecycle-chart-row.hbs',
+  'components/task-log.hbs',
+  'components/exec/open-button.hbs',
+  'components/variable-paths.hbs',
+  'components/editable-variable-link.hbs',
 ];
 
 const ALLOWED = [

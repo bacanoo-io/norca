@@ -20,15 +20,47 @@ import {
 import classic from 'ember-classic-decorator';
 import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
 import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class TaskGroupController extends Controller.extend(
   Sortable,
   Searchable,
-  WithNamespaceResetting
+  WithNamespaceResetting,
+  WithListActions
 ) {
   @service userSettings;
   @service can;
+  @service system;
+
+  viewParams = [
+    'qpStatus',
+    'qpClient',
+    'searchTerm',
+    'sortProperty',
+    'sortDescending',
+  ];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
+  get breadcrumbs() {
+    const taskGroup = this.model;
+    const job = taskGroup.get('job');
+    return [
+      { label: 'Jobs', route: 'jobs.index', id: 'jobs.index' },
+      {
+        label: job.get('trimmedName') || job.get('name'),
+        route: 'jobs.job.index',
+        model: job,
+        id: 'jobs.job.index',
+      },
+      { label: taskGroup.name, id: 'jobs.job.task-group' },
+    ];
+  }
 
   queryParams = [
     {

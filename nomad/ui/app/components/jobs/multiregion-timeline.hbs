@@ -1,0 +1,77 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Card @title="Multiregion deployment" class="mb-3" data-test-multiregion-timeline {{this.live}}>
+  <:actions>
+    <span class="text-secondary small" data-test-multiregion-strategy>
+      max_parallel = {{or this.strategy.MaxParallel 0}}, on_failure = {{or this.strategy.OnFailure "fail_all"}}
+    </span>
+  </:actions>
+  <:default>
+    {{#if this.isLoading}}
+      <Ui::Spinner @showLabel={{true}} @label="Loading the deployments of the regions" />
+    {{else}}
+      <ol class="norca-mr-steps" aria-label="Regions in rollout order">
+        {{#each this.regions as |region|}}
+          <li class="norca-mr-step norca-region-{{region.colorIndex}}" data-test-multiregion-region={{region.name}}>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+              <span class="norca-region norca-region-{{region.colorIndex}} fw-medium">{{region.name}}</span>
+              {{#if region.deployment}}
+                <span class="ms-auto" data-test-multiregion-status={{region.deployment.status}}>
+                  <Ui::StatusIndicator @status={{region.deployment.status}} @animated={{region.deployment.isActive}} />
+                </span>
+              {{/if}}
+            </div>
+            {{#if region.error}}
+              <p class="text-danger small m-0" data-test-multiregion-error>{{region.error}}</p>
+            {{else if region.deployment}}
+              <Ui::Progress
+                @value={{region.deployment.healthy}}
+                @max={{or region.deployment.desired 1}}
+                @color={{if (eq region.deployment.status "successful") "green" (if (eq region.deployment.status "failed") "red" "blue")}}
+                @label="Healthy allocations in {{region.name}}"
+                @valueText="{{region.deployment.healthy}} of {{region.deployment.desired}} healthy"
+              />
+              <p class="small text-secondary mt-2 mb-0">
+                <span class="font-monospace">{{region.deployment.shortId}}</span>, version {{region.deployment.version}}:
+                {{region.deployment.healthy}}/{{region.deployment.desired}} healthy.
+                {{region.deployment.description}}
+              </p>
+              {{#if (or region.deployment.canRun region.deployment.canUnblock region.deployment.canFail)}}
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                  {{#if region.deployment.canRun}}
+                    <Ui::Button @size="sm" @icon="player-play" data-test-multiregion-run {{on "click" (fn this.operate region "run")}}>
+                      Run
+                    </Ui::Button>
+                  {{/if}}
+                  {{#if region.deployment.canUnblock}}
+                    <Ui::Button @size="sm" @icon="lock-open" data-test-multiregion-unblock {{on "click" (fn this.operate region "unblock")}}>
+                      Unblock
+                    </Ui::Button>
+                  {{/if}}
+                  {{#if region.deployment.canFail}}
+                    <Ui::ConfirmButton
+                      @size="sm"
+                      @label="Fail"
+                      @icon="circle-x"
+                      @message="Mark the deployment in {{region.name}} as failed?"
+                      @confirmLabel="Yes, fail"
+                      @onConfirm={{fn this.operate region "fail"}}
+                      data-test-multiregion-fail
+                    />
+                  {{/if}}
+                </div>
+              {{/if}}
+              {{#if (eq this.actionError.region region.name)}}
+                <p class="text-danger small mt-2 mb-0" role="alert" data-test-multiregion-action-error>{{this.actionError.message}}</p>
+              {{/if}}
+            {{else}}
+              <p class="small text-secondary m-0" data-test-multiregion-none>No deployment in this region yet.</p>
+            {{/if}}
+          </li>
+        {{/each}}
+      </ol>
+    {{/if}}
+  </:default>
+</Ui::Card>

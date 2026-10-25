@@ -97,7 +97,7 @@ module('Integration | Component | task log', function (hooks) {
     );
 
     assert.ok(
-      find('[data-test-log-box].is-full-bleed.is-dark'),
+      find('[data-test-log-box].norca-log-box'),
       'Body is full-bleed and dark'
     );
 
@@ -353,7 +353,7 @@ module('Integration | Component | task log', function (hooks) {
       'An error message is shown'
     );
 
-    await click('[data-test-connection-error-dismiss]');
+    await click('[data-test-connection-error] [data-test-alert-dismiss]');
     assert.notOk(
       find('[data-test-connection-error]'),
       'The error message is dismissable'

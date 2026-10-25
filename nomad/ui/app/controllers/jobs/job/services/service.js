@@ -11,6 +11,16 @@ export default class JobsJobServicesServiceController extends Controller {
   @service router;
   queryParams = ['level'];
 
+  columns = [
+    { key: 'allocation', label: 'Allocation', hideable: false },
+    { key: 'client', label: 'Client' },
+    { key: 'address', label: 'IP address and port' },
+    { key: 'ready', label: 'Receives traffic' },
+    { key: 'health', label: 'Health' },
+    { key: 'checks', label: 'Checks' },
+    { key: 'zone', label: 'Zone', hidden: true },
+  ];
+
   @action
   gotoAllocation(allocation) {
     this.router.transitionTo('allocations.allocation', allocation.get('id'));

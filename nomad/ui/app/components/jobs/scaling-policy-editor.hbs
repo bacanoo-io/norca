@@ -1,0 +1,46 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Modal @title="Scaling policy of {{@group.name}}" @size="xl" @onClose={{@onClose}} data-test-scaling-policy-editor>
+  {{#if this.load.isRunning}}
+    <Ui::Spinner @showLabel={{true}} @label="Loading the job definition" />
+  {{else if this.loadError}}
+    <Ui::Alert @tone="danger">{{this.loadError}}</Ui::Alert>
+  {{else}}
+    <p class="text-secondary">
+      The scaling block of the task group in the JSON form of the API. The typed policy of the built-in
+      autoscaler goes in <code>Policy</code> (evaluation_interval, cooldown, check). The change is planned
+      before it is submitted as a new version of the job.
+    </p>
+    <Ui::Editor
+      @label="Scaling block of {{@group.name}}"
+      @language="json"
+      @schema={{this.schema}}
+      @value={{this.text}}
+      @onChange={{this.setText}}
+      @original={{this.original}}
+      @onReview={{this.plan}}
+      @onSubmit={{this.submit}}
+      @submitLabel="Submit the job"
+      @permission="submit jobs"
+      @onCancel={{@onClose}}
+      @minHeight="16rem"
+      @autofocus={{true}}
+    >
+      <:review as |plan|>
+        <Ui::Card @title="Job plan" class="mb-3">
+          <JobDiff @diff={{plan.Diff}} @verbose={{false}} data-test-scaling-plan />
+        </Ui::Card>
+        {{#if plan.Warnings}}
+          <Ui::Alert @tone="warning" class="mb-3">{{plan.Warnings}}</Ui::Alert>
+        {{/if}}
+        {{#if plan.FailedTGAllocs}}
+          <Ui::Alert @tone="danger" @title="Placement failures" class="mb-3">
+            The scheduler could not place every allocation of the new version.
+          </Ui::Alert>
+        {{/if}}
+      </:review>
+    </Ui::Editor>
+  {{/if}}
+</Ui::Modal>

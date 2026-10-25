@@ -194,6 +194,16 @@ export default class JobEditor extends Component {
   }
 
   /**
+   * Update the HCL variable values of the job specification.
+   *
+   * @param {string} value - The new variable values.
+   */
+  @action
+  updateVariables(value) {
+    this.updateCode(value, null, 'hclVariables');
+  }
+
+  /**
    * Toggle the wrapping of the job's definition or definition variables.
    */
   @action
@@ -294,6 +304,7 @@ export default class JobEditor extends Component {
       onSubmit: this.submit,
       onSelect: this.args.onSelect,
       onUpdate: this.updateCode,
+      onUpdateVariables: this.updateVariables,
       onUpload: this.uploadJobSpec,
       onToggleWrap: this.toggleWrap,
     };

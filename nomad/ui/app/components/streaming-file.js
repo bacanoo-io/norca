@@ -18,7 +18,7 @@ const A_KEY = 65;
 
 @classic
 @tagName('pre')
-@classNames('cli-window')
+@classNames('cli-window', 'norca-log-window')
 @attributeBindings('data-test-log-cli')
 export default class StreamingFile extends Component.extend(WindowResizable) {
   'data-test-log-cli' = true;

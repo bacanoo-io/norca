@@ -45,7 +45,7 @@ module(
       <JobStatus::Panel @job={{this.job}} />)
     `);
 
-      assert.notOk(find('.active-deployment'), 'No active deployment');
+      assert.notOk(find('.norca-job-status-deploying'), 'No active deployment');
     });
 
     test('the latest deployment section shows up for the currently running deployment: Ungrouped Allocations (small cluster)', async function (assert) {
@@ -104,7 +104,7 @@ module(
 
       // Initially no active deployment
       assert.notOk(
-        find('.active-deployment'),
+        find('.norca-job-status-deploying'),
         'Does not show an active deployment when latest is failed'
       );
 
@@ -113,21 +113,21 @@ module(
       await this.set('job.latestDeployment.status', 'running');
 
       assert.ok(
-        find('.active-deployment'),
+        find('.norca-job-status-deploying'),
         'Shows an active deployment if latest status is Running'
       );
 
       // Half the shown allocations are running, 1 is pending, 1 is failed; none are canaries or healthy.
       // The rest (lost, unknown, etc.) all show up as "Unplaced"
       assert
-        .dom('.new-allocations .allocation-status-row .represented-allocation')
+        .dom('.norca-new-allocations .norca-alloc-status-row .norca-alloc')
         .exists(
           { count: NUMBER_OF_GROUPS * ALLOCS_PER_GROUP },
           'All allocations are shown (ungrouped)'
         );
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.running'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-running'
         )
         .exists(
           {
@@ -140,17 +140,17 @@ module(
         );
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.running.canary'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-running.norca-alloc-canary'
         )
         .exists({ count: 0 }, 'No running canaries shown by default');
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.running.healthy'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-running.norca-alloc-healthy'
         )
         .exists({ count: 0 }, 'No running healthy shown by default');
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.failed'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-failed'
         )
         .exists(
           {
@@ -163,12 +163,12 @@ module(
         );
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.failed.canary'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-failed.norca-alloc-canary'
         )
         .exists({ count: 0 }, 'No failed canaries shown by default');
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.pending'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-pending'
         )
         .exists(
           {
@@ -181,12 +181,12 @@ module(
         );
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.pending.canary'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-pending.norca-alloc-canary'
         )
         .exists({ count: 0 }, 'No pending canaries shown by default');
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.unplaced'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-unplaced'
         )
         .exists(
           {
@@ -260,7 +260,7 @@ module(
       `);
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.running.canary'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-running.norca-alloc-canary'
         )
         .exists(
           { count: NUMBER_OF_RUNNING_CANARIES },
@@ -268,7 +268,7 @@ module(
         );
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.running.healthy'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-running.norca-alloc-healthy'
         )
         .exists(
           { count: NUMBER_OF_RUNNING_HEALTHY },
@@ -276,7 +276,7 @@ module(
         );
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.failed.canary'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-failed.norca-alloc-canary'
         )
         .exists(
           { count: NUMBER_OF_FAILED_CANARIES },
@@ -284,7 +284,7 @@ module(
         );
       assert
         .dom(
-          '.new-allocations .allocation-status-row .represented-allocation.pending.canary'
+          '.norca-new-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-pending.norca-alloc-canary'
         )
         .exists(
           { count: NUMBER_OF_PENDING_CANARIES },
@@ -339,16 +339,14 @@ module(
       );
 
       assert
-        .dom(
-          '.previous-allocations .allocation-status-row .represented-allocation'
-        )
+        .dom('.norca-previous-allocations .norca-alloc-status-row .norca-alloc')
         .exists(
           { count: OLD_ALLOCATIONS_TO_SHOW },
           'All old allocations are shown'
         );
       assert
         .dom(
-          '.previous-allocations .allocation-status-row .represented-allocation.complete'
+          '.norca-previous-allocations .norca-alloc-status-row .norca-alloc.norca-alloc-complete'
         )
         .exists(
           { count: OLD_ALLOCATIONS_TO_COMPLETE },
@@ -444,10 +442,10 @@ module(
       `);
 
       assert
-        .dom('.allocation-status-block .represented-allocation.failed')
+        .dom('.norca-alloc-status-block .norca-alloc.norca-alloc-failed')
         .exists({ count: 1 }, 'Failed block exists only once');
       assert
-        .dom('.allocation-status-block .represented-allocation.failed')
+        .dom('.norca-alloc-status-block .norca-alloc.norca-alloc-failed')
         .hasClass('rest', 'Failed block is a summary block');
 
       await Promise.all(
@@ -460,7 +458,7 @@ module(
       );
 
       assert
-        .dom('.represented-allocation.failed.rest')
+        .dom('.norca-alloc.norca-alloc-failed.norca-alloc-rest')
         .exists(
           { count: 2 },
           'Now that some are canaries, they still make up two blocks'
@@ -539,14 +537,20 @@ module(
       `);
 
       assert
-        .dom(find('.legend-item .represented-allocation.running').parentElement)
+        .dom(
+          find('.norca-legend-item .norca-alloc.norca-alloc-running')
+            .parentElement
+        )
         .hasText('9 Running');
       assert
-        .dom(find('.legend-item .represented-allocation.healthy').parentElement)
+        .dom(
+          find('.norca-legend-item .norca-alloc.norca-alloc-healthy')
+            .parentElement
+        )
         .hasText('9 Healthy');
 
       assert
-        .dom('.canary-promotion-alert')
+        .dom('.norca-promotion-alert')
         .doesNotExist('No canary promotion alert when no canaries');
 
       // Set 3 allocations to health-pending canaries
@@ -570,11 +574,11 @@ module(
       await settled();
 
       assert
-        .dom('.canary-promotion-alert')
+        .dom('.norca-promotion-alert')
         .exists('Canary promotion alert when canaries are present');
 
       assert
-        .dom('.canary-promotion-alert')
+        .dom('.norca-promotion-alert')
         .containsText('Checking Canary health');
 
       // Fail the health check on 1 canary
@@ -588,7 +592,7 @@ module(
       );
 
       assert
-        .dom('.canary-promotion-alert')
+        .dom('.norca-promotion-alert')
         .containsText('Some Canaries have failed');
 
       // That 1 passes its health checks, but two peers remain pending
@@ -602,7 +606,7 @@ module(
       );
       await settled();
       assert
-        .dom('.canary-promotion-alert')
+        .dom('.norca-promotion-alert')
         .containsText('Checking Canary health');
 
       // Fail one of the running canaries, but dont specifically touch its deploymentStatus.health
@@ -616,7 +620,7 @@ module(
       );
 
       assert
-        .dom('.canary-promotion-alert')
+        .dom('.norca-promotion-alert')
         .containsText('Some Canaries have failed');
 
       // Canaries all running and healthy
@@ -634,7 +638,7 @@ module(
       await settled();
 
       assert
-        .dom('.canary-promotion-alert')
+        .dom('.norca-promotion-alert')
         .containsText('Deployment requires promotion');
     });
 
@@ -652,9 +656,9 @@ module(
       <JobStatus::Panel @job={{this.job}} />
     `);
 
-      assert.notOk(find('.active-deployment'), 'No active deployment');
+      assert.notOk(find('.norca-job-status-deploying'), 'No active deployment');
       assert.ok(
-        find('.running-allocs-title'),
+        find('.norca-running-allocs-title'),
         'Steady-state mode shown instead'
       );
     });

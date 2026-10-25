@@ -16,7 +16,7 @@ import {
 
 import allocations from 'nomad-ui/tests/pages/components/allocations';
 import error from 'nomad-ui/tests/pages/components/error';
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
+import { filterFacet } from 'nomad-ui/tests/pages/components/facet';
 
 export default create({
   visit: visitable('/jobs/:id/allocations'),
@@ -24,19 +24,21 @@ export default create({
   pageSize: 25,
 
   hasSearchBox: isPresent('[data-test-allocations-search]'),
-  search: fillable('[data-test-allocations-search] input'),
+  search: fillable('[data-test-allocations-search]'),
 
   ...allocations(),
 
   facets: {
-    status: multiFacet('[data-test-allocation-status-facet]'),
-    client: multiFacet('[data-test-allocation-client-facet]'),
-    taskGroup: multiFacet('[data-test-allocation-task-group-facet]'),
+    status: filterFacet('[data-test-allocation-status-facet]'),
+    client: filterFacet('[data-test-allocation-client-facet]'),
+    taskGroup: filterFacet('[data-test-allocation-task-group-facet]'),
   },
 
   isEmpty: isPresent('[data-test-empty-allocations-list]'),
   emptyState: {
-    headline: text('[data-test-empty-allocations-list-headline]'),
+    headline: text(
+      '[data-test-empty-allocations-list] [data-test-empty-state-title]'
+    ),
   },
 
   sortOptions: collection('[data-test-sort-by]', {

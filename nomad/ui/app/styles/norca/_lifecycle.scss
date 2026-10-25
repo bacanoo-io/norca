@@ -1,0 +1,134 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// The task lifecycle chart (LifecycleChart) on the design tokens; adapted
+// from the chart styles of the previous UI.
+
+.norca-lifecycle-chart {
+  position: relative;
+  padding-top: 1.5rem;
+}
+
+.norca-lifecycle-phases {
+  position: absolute;
+  inset: 0;
+}
+
+.norca-lifecycle-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 2px dotted var(--tblr-border-color);
+
+  &.norca-lifecycle-divider-prestart {
+    left: 25%;
+  }
+
+  &.norca-lifecycle-divider-poststop {
+    left: 75%;
+  }
+}
+
+.norca-lifecycle-phase {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-top: 2px solid transparent;
+
+  .norca-lifecycle-phase-name {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--tblr-secondary);
+  }
+
+  &.norca-lifecycle-active {
+    background: var(--tblr-bg-surface-secondary);
+    border-top-color: var(--tblr-primary);
+
+    .norca-lifecycle-phase-name {
+      color: var(--tblr-primary);
+    }
+  }
+
+  &.norca-lifecycle-prestart {
+    left: 0;
+    right: 75%;
+  }
+
+  &.norca-lifecycle-main {
+    left: 25%;
+    right: 25%;
+  }
+
+  &.norca-lifecycle-poststart {
+    left: 35%;
+    right: 25%;
+  }
+
+  &.norca-lifecycle-poststop {
+    left: 75%;
+    right: 0;
+  }
+}
+
+.norca-lifecycle-rows {
+  position: relative;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.norca-lifecycle-row {
+  position: relative;
+
+  .norca-lifecycle-task {
+    margin: 0.5rem 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--tblr-border-color);
+    border-radius: var(--tblr-border-radius);
+    background: var(--tblr-bg-surface);
+  }
+
+  &.norca-lifecycle-active .norca-lifecycle-task {
+    border-color: var(--tblr-success);
+    background: rgba(var(--tblr-success-rgb), 0.08);
+  }
+
+  &.norca-lifecycle-finished .norca-lifecycle-task {
+    color: var(--tblr-secondary);
+  }
+
+  &.norca-lifecycle-main {
+    margin-left: 25%;
+    margin-right: 25%;
+  }
+
+  &.norca-lifecycle-prestart-ephemeral {
+    margin-right: 75%;
+  }
+
+  &.norca-lifecycle-prestart-sidecar {
+    margin-right: 25%;
+  }
+
+  &.norca-lifecycle-poststart-ephemeral,
+  &.norca-lifecycle-poststart-sidecar {
+    margin-left: 35%;
+  }
+
+  &.norca-lifecycle-poststart-sidecar {
+    margin-right: 25%;
+  }
+
+  &.norca-lifecycle-poststart-ephemeral {
+    margin-right: 35%;
+  }
+
+  &.norca-lifecycle-poststop {
+    margin-left: 75%;
+  }
+}

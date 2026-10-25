@@ -24,6 +24,11 @@ export default class JobController extends Controller {
     return this.model;
   }
 
+  // The task group page has its own header, without the job's tabs.
+  get isTaskGroupPage() {
+    return this.router.currentRouteName === 'jobs.job.task-group';
+  }
+
   // Called by {{did-update}} while rendering: the notification and the
   // transition happen after the render (Ember 6 forbids updating state that
   // the render already read).
