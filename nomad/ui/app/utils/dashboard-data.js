@@ -4,6 +4,7 @@
  */
 
 import { usageRows, limitFor, usedFor } from 'nomad-ui/utils/quotas';
+import { normalize as normalizeRelease } from 'nomad-ui/utils/releases';
 
 // Data of the dashboard: one summary per region, built from the list APIs
 // (status/leader, agent/members, nodes, jobs with summaries, deployments,
@@ -152,6 +153,7 @@ export async function fetchRegionSummary(
     backups,
     quotas,
     usages,
+    releases,
   ] = await Promise.all([
     getJSON(request, '/v1/status/leader', { region }).catch(() => ({
       body: null,
@@ -178,6 +180,11 @@ export async function fetchRegionSummary(
       index: 0,
     })),
     getJSON(request, '/v1/quota-usages', { region }).catch(() => ({
+      body: null,
+      index: 0,
+    })),
+    // releases with drift or failed hooks
+    getJSON(request, '/v1/releases', params).catch(() => ({
       body: null,
       index: 0,
     })),
@@ -210,6 +217,7 @@ export async function fetchRegionSummary(
     ),
     backup: summarizeBackups(backups.body),
     quotas: nearlyFullQuotas(quotas.body, usages.body, region),
+    releases: releaseProblems(releases.body),
     // the newest index of the fetched state, to resume the event stream after
     index: Math.max(
       nodes.index,
@@ -254,6 +262,22 @@ export function nearlyFullQuotas(specs, usages, region) {
   return result;
 }
 
+// Releases that drifted from their revision or whose hooks failed.
+export function releaseProblems(body) {
+  const problems = [];
+  for (const raw of body || []) {
+    const r = normalizeRelease(raw);
+    const conditions = r.Status?.Conditions || [];
+    const has = (type, status) =>
+      conditions.some((c) => c.Type === type && c.Status === status);
+    if (has('Drifted', 'True'))
+      problems.push({ kind: 'drift', name: r.Name, namespace: r.Namespace });
+    if (has('HooksSucceeded', 'False'))
+      problems.push({ kind: 'hook', name: r.Name, namespace: r.Namespace });
+  }
+  return problems;
+}
+
 export function unreachableRegion(region, error) {
   return {
     region,
@@ -268,6 +292,7 @@ export function unreachableRegion(region, error) {
     blockedEvaluations: [],
     backup: null,
     quotas: [],
+    releases: [],
     index: 0,
     error: error?.message || String(error),
   };
@@ -353,6 +378,21 @@ export function buildWarnings(summaries) {
         text: 'New work of its namespaces will wait or be rejected. Raise the limit or free resources.',
         route: 'quotas.quota',
         model: q.name,
+      });
+    }
+    for (const r of s.releases || []) {
+      warnings.push({
+        tone: 'warning',
+        title:
+          r.kind === 'drift'
+            ? `Release ${r.name} differs from its revision in ${where}.`
+            : `A hook of release ${r.name} failed in ${where}.`,
+        text:
+          r.kind === 'drift'
+            ? 'Its resources were changed outside the release. Roll back, or take the change into the pack variables and upgrade.'
+            : 'Look at the hook job and its allocations, fix the cause and upgrade or roll back the release.',
+        route: 'packages.release',
+        models: [r.namespace || 'default', r.name],
       });
     }
     const otherBlocked = s.blockedEvaluations.length - quotaBlocked.length;

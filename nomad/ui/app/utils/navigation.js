@@ -33,6 +33,12 @@ export const NAVIGATION = [
         shortcut: ['g', 'j'],
       },
       {
+        id: 'packages',
+        label: 'Packages',
+        icon: 'package',
+        route: 'packages',
+      },
+      {
         id: 'deployments',
         label: 'Deployments',
         icon: 'git-branch',

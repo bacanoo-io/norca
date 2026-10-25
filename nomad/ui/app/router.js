@@ -157,6 +157,10 @@ Router.map(function () {
     this.route('deployment', { path: '/:deployment_id' });
   });
 
+  this.route('packages', function () {
+    this.route('release', { path: '/:namespace/:name' });
+  });
+
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {
     this.route('oidc-mock');

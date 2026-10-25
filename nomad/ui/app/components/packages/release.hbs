@@ -1,0 +1,244 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-release {{this.setup @name @namespace this.region}}>
+  <Ui::PageHeader @pretitle={{concat "Packages / " @namespace}} @title={{@name}}>
+    <:subtitle>
+      {{#if this.release}}
+        <Ui::StatusIndicator @tone={{this.phaseTone}} @label={{this.phase}} data-test-release-phase />
+        <span class="ms-2">{{this.pack.Name}} {{this.pack.Version}}, revision {{this.release.Status.Revision}}</span>
+      {{/if}}
+    </:subtitle>
+    <:actions>
+      {{#if this.release}}
+        <Ui::Button @icon="refresh" @isLoading={{eq this.busy "drift"}} data-test-check-drift {{on "click" this.runDrift}}>Check drift</Ui::Button>
+        {{#if this.canWrite}}
+          <Ui::Button @icon="player-play" @isLoading={{eq this.busy "test"}} data-test-run-tests {{on "click" this.runTests}}>Run tests</Ui::Button>
+          <Ui::Button @icon="history" @disabled={{not this.rollbackTargets.length}} data-test-rollback {{on "click" (fn this.openRollback null)}}>Roll back</Ui::Button>
+          <Ui::Button @variant="outline-danger" @icon="trash" data-test-uninstall {{on "click" this.askUninstall}}>Uninstall</Ui::Button>
+        {{/if}}
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
+
+  <div class="page-body">
+    <div class="container-xl">
+      {{#if this.isLoading}}
+        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the release" /></Ui::Card>
+      {{else if this.loadError}}
+        <Ui::Card>
+          <Ui::EmptyState @icon="package" @title="Release not available" @message={{this.loadError}} data-test-release-error>
+            <Ui::Button @route="packages">All packages</Ui::Button>
+          </Ui::EmptyState>
+        </Ui::Card>
+      {{else}}
+        {{#if this.actionError}}
+          <Ui::Alert @tone="danger" @onDismiss={{this.dismissError}} class="mb-3" data-test-release-action-error>{{this.actionError}}</Ui::Alert>
+        {{/if}}
+        {{#if this.drifted}}
+          <Ui::Alert @tone="warning" @title="The release differs from revision {{this.release.Status.Revision}}" class="mb-3" data-test-release-drift>
+            Its resources were changed outside the release.
+            {{#each this.driftEntries as |d|}}
+              <div><span class="font-monospace">{{d.Type}} {{d.Namespace}}/{{d.Name}}</span>: {{d.Reason}}</div>
+            {{/each}}
+            Roll back to the revision, or take the change into the pack variables and upgrade.
+          </Ui::Alert>
+        {{else if this.drift}}
+          <Ui::Alert @tone="success" class="mb-3" data-test-release-in-sync>The resources match revision {{this.drift.Revision}}.</Ui::Alert>
+        {{/if}}
+
+        {{#if this.regionStates.length}}
+          <Ui::Card @title="Regions" @flush={{true}} class="mb-3" data-test-release-regions>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="State per region"
+              @columns={{array (hash key="region" label="Region") (hash key="phase" label="Status") (hash key="revision" label="Revision") (hash key="drift" label="Drift")}}
+              @rows={{this.regionStates}}
+              as |r|
+            >
+              <td><span class="norca-region">{{r.region}}</span></td>
+              <td><Ui::StatusIndicator @tone={{r.tone}} @label={{r.phase}} /></td>
+              <td>{{or r.revision "–"}}</td>
+              <td>{{if r.drifted "drifted" "in sync"}}</td>
+            </Ui::Table>
+          </Ui::Card>
+        {{/if}}
+
+        <div class="row row-cards">
+          <div class="col-lg-6">
+            <Ui::Card @title="Release">
+              <Ui::Datagrid @items={{this.details}} data-test-release-details />
+            </Ui::Card>
+            <Ui::Card @title="Resources in apply order" @flush={{true}} class="mt-3" data-test-release-resources>
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Resources"
+                @columns={{array (hash key="order" label="#") (hash key="type" label="Type") (hash key="name" label="Name") (hash key="hook" label="Hook")}}
+                @rows={{this.resources}}
+                @emptyMessage="The release has no resources."
+                as |res|
+              >
+                <td>{{res.order}}</td>
+                <td>{{res.Type}}</td>
+                <td class="font-monospace">{{if res.Namespace (concat res.Namespace "/")}}{{res.Name}}</td>
+                <td>{{or res.Hook "–"}}</td>
+              </Ui::Table>
+            </Ui::Card>
+          </div>
+          <div class="col-lg-6">
+            <Ui::Card @title="Revisions" data-test-release-history>
+              <Ui::Timeline @items={{this.timeline}} @simple={{true}} />
+            </Ui::Card>
+          </div>
+        </div>
+
+        {{#if (gt this.history.length 1)}}
+          <Ui::Card @title="Compare two revisions" class="mt-3" data-test-release-compare>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <Ui::Field @label="From" class="mb-0" as |f|>
+                  <Ui::Select @id={{f.id}} @options={{this.revisionOptions}} @value={{this.compareA}} @onChange={{this.setCompareA}} data-test-compare-a />
+                </Ui::Field>
+              </div>
+              <div class="col-md-6">
+                <Ui::Field @label="To" class="mb-0" as |f|>
+                  <Ui::Select @id={{f.id}} @options={{this.revisionOptions}} @value={{this.compareB}} @onChange={{this.setCompareB}} data-test-compare-b />
+                </Ui::Field>
+              </div>
+            </div>
+            {{#if this.comparison}}
+              <p data-test-compare-pack>Pack: {{this.comparison.pack}}. {{this.comparison.changedValues}} changed {{if (eq this.comparison.changedValues 1) "value" "values"}}.</p>
+              <Ui::Table
+                @caption="Values"
+                @columns={{array (hash key="key" label="Variable") (hash key="a" label="From") (hash key="b" label="To")}}
+                @rows={{this.comparison.values}}
+                @emptyMessage="Neither revision sets variables."
+                as |v|
+              >
+                <td class="font-monospace">{{v.key}}{{#if v.changed}} <Ui::Badge @color="orange">changed</Ui::Badge>{{/if}}</td>
+                <td class="font-monospace text-break">{{v.a}}</td>
+                <td class="font-monospace text-break">{{v.b}}</td>
+              </Ui::Table>
+              {{#if this.comparison.resources.length}}
+                <h4 class="mt-3">Resources</h4>
+                <Ui::Table
+                  @caption="Changed resources"
+                  @columns={{array (hash key="change" label="Change") (hash key="type" label="Type") (hash key="name" label="Name")}}
+                  @rows={{this.comparison.resources}}
+                  as |r|
+                >
+                  <td><Ui::Badge @color={{if (eq r.change "added") "green" (if (eq r.change "removed") "red" "orange")}} data-test-resource-change>{{r.change}}</Ui::Badge></td>
+                  <td>{{r.Type}}</td>
+                  <td class="font-monospace">{{r.Name}}</td>
+                </Ui::Table>
+              {{/if}}
+            {{/if}}
+          </Ui::Card>
+        {{/if}}
+
+        <div class="row row-cards mt-1">
+          <div class="col-lg-6">
+            <Ui::Card @title="Hooks and tests" @flush={{true}} data-test-release-hooks>
+              <:default>
+                <Ui::Table
+                  @inCard={{true}}
+                  @caption="Hooks of the deployed revision"
+                  @columns={{array (hash key="phase" label="Hook") (hash key="job" label="Job") (hash key="status" label="Result")}}
+                  @rows={{this.hooks}}
+                  @emptyMessage="The deployed revision ran no hooks."
+                  as |h|
+                >
+                  <td>{{h.Phase}}</td>
+                  <td class="font-monospace">{{h.Job}}</td>
+                  <td><Ui::StatusIndicator @status={{if (eq h.Status "succeeded") "successful" h.Status}} @label={{h.Status}} /></td>
+                </Ui::Table>
+              </:default>
+              <:footer>
+                {{#if this.lastTest}}
+                  <span data-test-last-test>Last test of revision {{this.lastTest.Revision}}: {{if this.lastTest.Succeeded "passed" "failed"}}, {{moment-from-now this.lastTest.EndTime}}.</span>
+                {{else}}
+                  <span class="text-secondary">The tests of this release have not run yet.</span>
+                {{/if}}
+              </:footer>
+            </Ui::Card>
+            <Ui::Card @title="Conditions" @flush={{true}} class="mt-3">
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Conditions"
+                @columns={{array (hash key="type" label="Condition") (hash key="status" label="Status") (hash key="reason" label="Reason")}}
+                @rows={{this.conditions}}
+                as |c|
+              >
+                <td>{{c.Type}}</td>
+                <td><Ui::StatusIndicator @tone={{c.tone}} @label={{c.Status}} /></td>
+                <td>{{c.Reason}}{{#if c.Message}}<div class="small text-secondary">{{c.Message}}</div>{{/if}}</td>
+              </Ui::Table>
+            </Ui::Card>
+          </div>
+          <div class="col-lg-6">
+            <Ui::Card @title="Event log" data-test-release-events>
+              {{#if this.eventItems.length}}
+                <Ui::Timeline @items={{this.eventItems}} @simple={{true}} />
+              {{else}}
+                <Ui::EmptyState @compact={{true}} @icon="activity" @title="No events" @message="Deployments, failures, rollbacks, tests and drift are logged here." />
+              {{/if}}
+            </Ui::Card>
+          </div>
+        </div>
+      {{/if}}
+    </div>
+  </div>
+
+  {{#if this.rollback}}
+    <Ui::Confirm
+      @title="Roll back {{@name}}?"
+      @confirmLabel="Roll back"
+      @confirmIcon="history"
+      @tone="primary"
+      @size="lg"
+      @onConfirm={{this.confirmRollback}}
+      @onClose={{this.closeRollback}}
+      @isRunning={{this.rollback.running}}
+      @error={{this.rollback.error}}
+      @disabled={{not this.rollback.preview}}
+    >
+      <Ui::Field @label="Revision" as |f|>
+        <Ui::Select @id={{f.id}} @options={{this.rollbackTargets}} @value={{this.rollback.target}} @onChange={{this.setRollbackTarget}} data-test-rollback-target />
+      </Ui::Field>
+      <p>The resources of the revision are applied again as a new revision; the history keeps every revision.</p>
+      {{#if this.rollback.preview}}
+        <Ui::Table
+          @caption="Changes of the rollback"
+          @columns={{array (hash key="action" label="Action") (hash key="type" label="Type") (hash key="name" label="Name")}}
+          @rows={{this.rollback.preview}}
+          @emptyMessage="Nothing changes."
+          data-test-rollback-preview
+          as |c|
+        >
+          <td>{{c.Action}}</td>
+          <td>{{c.Type}}</td>
+          <td class="font-monospace">{{c.Namespace}}/{{c.Name}}</td>
+        </Ui::Table>
+      {{else if (not this.rollback.error)}}
+        <Ui::Spinner @showLabel={{true}} @label="Computing the changes (dry run)" />
+      {{/if}}
+    </Ui::Confirm>
+  {{/if}}
+
+  {{#if this.uninstalling}}
+    <Ui::Confirm
+      @title="Uninstall {{@name}}?"
+      @confirmLabel="Uninstall"
+      @confirmIcon="trash"
+      @typedValue={{@name}}
+      @onConfirm={{this.uninstall}}
+      @onClose={{this.cancelUninstall}}
+      @isRunning={{eq this.busy "uninstall"}}
+      @error={{this.actionError}}
+    >
+      <p>The {{this.resources.length}} resources of the release are deleted in reverse apply order, then the release and its revisions. This cannot be undone.</p>
+      <Ui::Switch @label="Skip the pre-delete and post-delete hooks" @checked={{this.skipHooks}} @onChange={{this.setSkipHooks}} data-test-skip-hooks />
+    </Ui::Confirm>
+  {{/if}}
+</div>

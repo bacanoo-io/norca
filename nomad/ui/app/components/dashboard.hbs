@@ -148,8 +148,8 @@
               {{#if this.warnings.length}}
                 <div class="list-group list-group-flush">
                   {{#each this.warnings as |warning|}}
-                    {{#if warning.model}}
-                      <LinkTo @route={{warning.route}} @model={{warning.model}} class="list-group-item list-group-item-action" data-test-warning={{warning.tone}}>
+                    {{#if (or warning.model warning.models)}}
+                      <LinkTo @route={{warning.route}} @models={{or warning.models (array warning.model)}} class="list-group-item list-group-item-action" data-test-warning={{warning.tone}}>
                         <div class="d-flex">
                           <Ui::StatusIndicator @dotOnly={{true}} @tone={{warning.tone}} @label={{warning.tone}} class="me-2 mt-2" />
                           <div><strong>{{warning.title}}</strong><div class="text-secondary">{{warning.text}}</div></div>
