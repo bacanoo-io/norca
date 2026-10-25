@@ -59,6 +59,20 @@
 //     rule of the autoscaler (PreserveScaledCounts: a group with its own
 //     scaling block keeps the count the autoscaler gave it).
 //
+// The ecosystem around it (operator framework phase 4):
+//
+//   - Package webhook serves the admission webhooks bound to a kind
+//     (validating and defaulting), which the servers call for the writes
+//     of the kind's objects once an administrator approved them.
+//   - Package envtest runs a real dev agent from the norca binary for the
+//     tests of controllers; package fake is the in-memory backend.
+//   - Writes and watches over a limit of the kind get 429 Too Many
+//     Requests; the SDK reports them as ErrThrottled (IsThrottled) and
+//     retries the reconcile with backoff (result "throttled").
+//   - "norca operator init" scaffolds a controller project with a kind, a
+//     webhook, tests and an operator pack; "norca object-kind lint" checks
+//     a kind and sample objects offline.
+//
 // The package depends only on the Nomad API module. Everything it needs from
 // the API is behind the Backend interface, so controllers can be tested with
 // fakes.

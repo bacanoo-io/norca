@@ -370,6 +370,14 @@ func (c *Controller) process(ctx context.Context, q *Queue[ObjectKey], key Objec
 
 	result := ResultSuccess
 	switch {
+	case err != nil && IsThrottled(err):
+		// The servers throttle this controller (a limit of the object
+		// kind): back off without logging an error per object.
+		result = ResultThrottled
+		if ctx.Err() == nil {
+			c.logger.Debug("reconcile throttled by the servers", "object", key.String(), "retries", q.NumRequeues(key))
+			q.AddRateLimited(key)
+		}
 	case err != nil:
 		result = ResultError
 		if ctx.Err() == nil {
