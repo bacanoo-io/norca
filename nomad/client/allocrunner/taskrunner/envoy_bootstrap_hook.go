@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package taskrunner
@@ -379,7 +380,7 @@ func (h *envoyBootstrapHook) Prestart(ctx context.Context, req *ifs.TaskPrestart
 		// Wrap the last error from Consul and set that as our status.
 		_, recoverable := cmdErr.(*exec.ExitError)
 		return structs.NewRecoverableError(
-			fmt.Errorf("%w: %v; see: <https://www.nomadproject.io/s/envoy-bootstrap-error>",
+			fmt.Errorf("%w: %v; check that the Consul agent is reachable and that its gRPC listener and ACL token allow Connect bootstrapping",
 				errEnvoyBootstrapError,
 				cmdErr,
 			),

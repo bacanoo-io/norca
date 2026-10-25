@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -18,7 +19,6 @@ func TestQuotaInitCommand_Implements(t *testing.T) {
 }
 
 func TestQuotaInitCommand_Run_HCL(t *testing.T) {
-	ci.Parallel(t)
 	ui := cli.NewMockUi()
 	cmd := &QuotaInitCommand{Meta: Meta{Ui: ui}}
 
@@ -28,16 +28,10 @@ func TestQuotaInitCommand_Run_HCL(t *testing.T) {
 	require.Contains(t, ui.ErrorWriter.String(), commandErrorText(cmd))
 	ui.ErrorWriter.Reset()
 
-	// Ensure we change the cwd back
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(origDir)
-
-	// Create a temp dir and change into it
+	// Create a temp dir and change into it. t.Chdir changes the working
+	// directory of the whole process, so this test must not run in parallel.
 	dir := t.TempDir()
-
-	err = os.Chdir(dir)
-	require.NoError(t, err)
+	t.Chdir(dir)
 
 	// Works if the file doesn't exist
 	code = cmd.Run([]string{})
@@ -65,7 +59,6 @@ func TestQuotaInitCommand_Run_HCL(t *testing.T) {
 }
 
 func TestQuotaInitCommand_Run_JSON(t *testing.T) {
-	ci.Parallel(t)
 	ui := cli.NewMockUi()
 	cmd := &QuotaInitCommand{Meta: Meta{Ui: ui}}
 
@@ -75,16 +68,10 @@ func TestQuotaInitCommand_Run_JSON(t *testing.T) {
 	require.Contains(t, ui.ErrorWriter.String(), commandErrorText(cmd))
 	ui.ErrorWriter.Reset()
 
-	// Ensure we change the cwd back
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(origDir)
-
-	// Create a temp dir and change into it
+	// Create a temp dir and change into it. t.Chdir changes the working
+	// directory of the whole process, so this test must not run in parallel.
 	dir := t.TempDir()
-
-	err = os.Chdir(dir)
-	require.NoError(t, err)
+	t.Chdir(dir)
 
 	// Works if the file doesn't exist
 	code = cmd.Run([]string{"-json"})

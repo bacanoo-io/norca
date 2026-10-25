@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -73,7 +74,11 @@ func (s *Server) connectedNodes() map[string]time.Time {
 // addNodeConn adds the mapping between a node and its session.
 func (s *Server) addNodeConn(ctx *RPCContext) {
 	// Hotpath the no-op
-	if ctx == nil || ctx.NodeID == "" {
+	if ctx == nil {
+		return
+	}
+	nodeID := ctx.NodeID()
+	if nodeID == "" {
 		return
 	}
 
@@ -81,7 +86,7 @@ func (s *Server) addNodeConn(ctx *RPCContext) {
 	defer s.nodeConnsLock.Unlock()
 
 	// Capture the tracked connections so far
-	currentConns := s.nodeConns[ctx.NodeID]
+	currentConns := s.nodeConns[nodeID]
 
 	// Check if we already have the connection. If we do, just update the
 	// establish time.
@@ -94,7 +99,7 @@ func (s *Server) addNodeConn(ctx *RPCContext) {
 	}
 
 	// Add the new conn
-	s.nodeConns[ctx.NodeID] = append(s.nodeConns[ctx.NodeID], &nodeConnState{
+	s.nodeConns[nodeID] = append(s.nodeConns[nodeID], &nodeConnState{
 		Session:     ctx.Session,
 		Established: time.Now(),
 		Ctx:         ctx,
@@ -104,13 +109,17 @@ func (s *Server) addNodeConn(ctx *RPCContext) {
 // removeNodeConn removes the mapping between a node and its session.
 func (s *Server) removeNodeConn(ctx *RPCContext) {
 	// Hotpath the no-op
-	if ctx == nil || ctx.NodeID == "" {
+	if ctx == nil {
+		return
+	}
+	nodeID := ctx.NodeID()
+	if nodeID == "" {
 		return
 	}
 
 	s.nodeConnsLock.Lock()
 	defer s.nodeConnsLock.Unlock()
-	conns, ok := s.nodeConns[ctx.NodeID]
+	conns, ok := s.nodeConns[nodeID]
 	if !ok {
 		return
 	}
@@ -126,10 +135,10 @@ func (s *Server) removeNodeConn(ctx *RPCContext) {
 
 			if len(conns) == 1 {
 				// We are deleting the last conn, remove it from the map
-				delete(s.nodeConns, ctx.NodeID)
+				delete(s.nodeConns, nodeID)
 			} else {
 				// Slice out the connection we are deleting
-				s.nodeConns[ctx.NodeID] = append(s.nodeConns[ctx.NodeID][:i], s.nodeConns[ctx.NodeID][i+1:]...)
+				s.nodeConns[nodeID] = append(s.nodeConns[nodeID][:i], s.nodeConns[nodeID][i+1:]...)
 			}
 
 			return

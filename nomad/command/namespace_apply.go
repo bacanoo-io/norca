@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -11,11 +12,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/nomad/api"
 	flaghelper "github.com/hashicorp/nomad/helper/flags"
-	"github.com/mitchellh/mapstructure"
+	"github.com/hashicorp/nomad/helper/resourcespec"
 	"github.com/posener/complete"
 )
 
@@ -25,7 +24,7 @@ type NamespaceApplyCommand struct {
 
 func (c *NamespaceApplyCommand) Help() string {
 	helpText := `
-Usage: nomad namespace apply [options] <input>
+Usage: norca namespace apply [options] <input>
 
   Apply is used to create or update a namespace. The specification file
   will be read from stdin by specifying "-", otherwise a path to the file is
@@ -78,6 +77,11 @@ func (c *NamespaceApplyCommand) Synopsis() string {
 }
 
 func (c *NamespaceApplyCommand) Name() string { return "namespace apply" }
+
+// parseNamespaceSpec is used to parse the namespace specification from HCL
+func parseNamespaceSpec(input []byte) (*api.Namespace, error) {
+	return resourcespec.ParseNamespace(input)
+}
 
 func (c *NamespaceApplyCommand) Run(args []string) int {
 	var jsonInput bool
@@ -193,89 +197,4 @@ func (c *NamespaceApplyCommand) Run(args []string) int {
 	c.Ui.Output(fmt.Sprintf("Successfully applied namespace %q!", namespace.Name))
 
 	return 0
-}
-
-// parseNamespaceSpec is used to parse the namespace specification from HCL
-func parseNamespaceSpec(input []byte) (*api.Namespace, error) {
-	root, err := hcl.ParseBytes(input)
-	if err != nil {
-		return nil, err
-	}
-
-	// Top-level item should be a list
-	list, ok := root.Node.(*ast.ObjectList)
-	if !ok {
-		return nil, fmt.Errorf("error parsing: root should be an object")
-	}
-
-	var spec api.Namespace
-	if err := parseNamespaceSpecImpl(&spec, list); err != nil {
-		return nil, err
-	}
-
-	return &spec, nil
-}
-
-// parseNamespaceSpec parses the quota namespace taking as input the AST tree
-func parseNamespaceSpecImpl(result *api.Namespace, list *ast.ObjectList) error {
-	// Decode the full thing into a map[string]interface for ease
-	var m map[string]interface{}
-	if err := hcl.DecodeObject(&m, list); err != nil {
-		return err
-	}
-
-	delete(m, "capabilities")
-	delete(m, "meta")
-	delete(m, "node_pool_config")
-
-	// Decode the rest
-	if err := mapstructure.WeakDecode(m, result); err != nil {
-		return err
-	}
-
-	cObj := list.Filter("capabilities")
-	if len(cObj.Items) > 0 {
-		for _, o := range cObj.Elem().Items {
-			ot, ok := o.Val.(*ast.ObjectType)
-			if !ok {
-				break
-			}
-			var opts *api.NamespaceCapabilities
-			if err := hcl.DecodeObject(&opts, ot.List); err != nil {
-				return err
-			}
-			result.Capabilities = opts
-			break
-		}
-	}
-
-	npObj := list.Filter("node_pool_config")
-	if len(npObj.Items) > 0 {
-		for _, o := range npObj.Elem().Items {
-			ot, ok := o.Val.(*ast.ObjectType)
-			if !ok {
-				break
-			}
-			var npConfig *api.NamespaceNodePoolConfiguration
-			if err := hcl.DecodeObject(&npConfig, ot.List); err != nil {
-				return err
-			}
-			result.NodePoolConfiguration = npConfig
-			break
-		}
-	}
-
-	if metaO := list.Filter("meta"); len(metaO.Items) > 0 {
-		for _, o := range metaO.Elem().Items {
-			var m map[string]interface{}
-			if err := hcl.DecodeObject(&m, o.Val); err != nil {
-				return err
-			}
-			if err := mapstructure.WeakDecode(m, &result.Meta); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }

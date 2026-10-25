@@ -1,3 +1,0 @@
-```release-note:bug
-core: Fixed a panic that may arise when upgrading pre-1.1.0 cluster to 1.1.x and may cause cluster outage
-```

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -752,7 +753,7 @@ func TestHTTP_AllocSnapshot_Atomic(t *testing.T) {
 				return false, err
 			}
 
-			return serverAlloc.ClientStatus == structs.AllocClientStatusRunning, fmt.Errorf(serverAlloc.ClientStatus)
+			return serverAlloc.ClientStatus == structs.AllocClientStatusRunning, fmt.Errorf("%s", serverAlloc.ClientStatus)
 		}, func(err error) {
 			t.Fatalf("client not running alloc: %v", err)
 		})

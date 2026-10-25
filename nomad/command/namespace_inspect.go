@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -16,7 +17,7 @@ type NamespaceInspectCommand struct {
 
 func (c *NamespaceInspectCommand) Help() string {
 	helpText := `
-Usage: nomad namespace inspect [options] <namespace>
+Usage: norca namespace inspect [options] <namespace>
 
   Inspect is used to view raw information about a particular namespace.
 

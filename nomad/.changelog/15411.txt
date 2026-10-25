@@ -1,3 +1,0 @@
-```release-note:bug
-consul: Fixed a bug where services would continuously re-register when using ipv6
-```

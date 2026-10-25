@@ -1,3 +1,0 @@
-```release-note:improvement
-cli: Add file prediction for operator raft/snapshot commands
-```

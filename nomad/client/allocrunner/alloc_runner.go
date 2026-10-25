@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package allocrunner
@@ -298,6 +299,7 @@ func (ar *allocRunner) initTaskRunners(tasks []*structs.Task) error {
 			ServiceRegWrapper:   ar.serviceRegWrapper,
 			Getter:              ar.getter,
 			AllocHookResources:  ar.hookResources,
+			RPCClient:           ar.rpcClient,
 		}
 
 		if ar.cpusetManager != nil {

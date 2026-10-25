@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package taskrunner
@@ -2102,10 +2103,10 @@ func TestTaskRunner_DriverNetwork(t *testing.T) {
 	}, func(err error) {
 		services, _ := consulAgent.ServicesWithFilterOpts("", nil)
 		for _, s := range services {
-			t.Logf(pretty.Sprint("Service: ", s))
+			t.Log(pretty.Sprint("Service: ", s))
 		}
 		for _, c := range consulAgent.CheckRegs() {
-			t.Logf(pretty.Sprint("Check:   ", c))
+			t.Log(pretty.Sprint("Check:   ", c))
 		}
 		require.NoError(t, err)
 	})

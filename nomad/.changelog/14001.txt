@@ -1,3 +1,0 @@
-```release-note:bug
-deployments: Fixed a bug that prevented auto-approval if canaries were marked as unhealthy during deployment
-```

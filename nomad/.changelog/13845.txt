@@ -1,3 +1,0 @@
-```release-note:bug
-api: Fixed a nil pointer dereference when periodic jobs are missing their periodic spec
-```

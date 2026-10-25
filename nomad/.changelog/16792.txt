@@ -1,3 +1,0 @@
-```release-note:bug
-core: the deployment's list endpoint now supports look up by prefix using the wildcard for namespace
-```

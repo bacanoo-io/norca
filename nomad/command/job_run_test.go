@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -247,7 +248,7 @@ func TestRunCommand_JSON(t *testing.T) {
 		cmd := &JobRunCommand{
 			Meta: Meta{Ui: ui},
 		}
-		t.Logf("run: nomad job run %s", strings.Join(args, " "))
+		t.Logf("run: norca job run %s", strings.Join(args, " "))
 		code = cmd.Run(args)
 		return ui.OutputWriter.String(), ui.ErrorWriter.String(), code
 	}
@@ -298,4 +299,31 @@ func TestRunCommand_JSON(t *testing.T) {
 	require.Zerof(t, code, "stderr: %s\njson: %s\n", stderr, string(buf))
 	require.Empty(t, stderr)
 	require.NotEmpty(t, stdout)
+}
+
+// TestRunCommand_PolicyOverrideWarning asserts that -policy-override is
+// accepted, has no effect on the registration and prints a warning to stderr.
+func TestRunCommand_PolicyOverrideWarning(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, client, addr := testServer(t, false, nil)
+	defer srv.Shutdown()
+
+	ui := cli.NewMockUi()
+	cmd := &JobRunCommand{Meta: Meta{Ui: ui}}
+	code := cmd.Run([]string{"-detach", "-policy-override", "-address", addr, "asset/example-short.nomad.hcl"})
+	require.Zero(t, code, ui.ErrorWriter.String())
+	require.Contains(t, ui.ErrorWriter.String(), policyOverrideWarning)
+	require.NotContains(t, ui.OutputWriter.String(), policyOverrideWarning)
+
+	job, _, err := client.Jobs().Info("example", nil)
+	require.NoError(t, err)
+	require.Equal(t, "example", *job.ID)
+
+	// Without the flag there is no warning.
+	ui = cli.NewMockUi()
+	cmd = &JobRunCommand{Meta: Meta{Ui: ui}}
+	code = cmd.Run([]string{"-detach", "-address", addr, "asset/example-short.nomad.hcl"})
+	require.Zero(t, code, ui.ErrorWriter.String())
+	require.NotContains(t, ui.ErrorWriter.String(), "policy-override")
 }

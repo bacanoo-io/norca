@@ -1,3 +1,0 @@
-```release-note:bug
-services: Fixed a bug that prevented passing query parameters in Nomad native service discovery HTTP health check paths
-```

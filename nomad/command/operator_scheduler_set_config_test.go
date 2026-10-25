@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -77,7 +78,7 @@ func TestOperatorSchedulerSetConfig_Run(t *testing.T) {
 	// Make a Freudian slip with one of the flags to ensure the usage is
 	// returned.
 	require.EqualValues(t, 1, c.Run([]string{"-address=" + addr, "-pause-evil-broker=true"}))
-	require.Contains(t, ui.OutputWriter.String(), "Usage: nomad operator scheduler set-config")
+	require.Contains(t, ui.OutputWriter.String(), "Usage: norca operator scheduler set-config")
 	ui.ErrorWriter.Reset()
 	ui.OutputWriter.Reset()
 

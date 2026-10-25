@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -287,6 +288,11 @@ func (op *Operator) AutopilotSetConfiguration(args *structs.AutopilotSetConfigRe
 	// All servers should be at or above 0.8.0 to apply this operatation
 	if !ServersMeetMinimumVersion(op.srv.Members(), op.srv.Region(), minAutopilotVersion, false) {
 		return fmt.Errorf("All servers should be running version %v to update autopilot config", minAutopilotVersion)
+	}
+
+	// Reject the options the autopilot of this build ignores.
+	if err := validateAutopilotSupported(&args.Config); err != nil {
+		return err
 	}
 
 	// Apply the update

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -26,7 +27,7 @@ type ACLAuthMethodListCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLAuthMethodListCommand) Help() string {
 	helpText := `
-Usage: nomad acl auth-method list [options]
+Usage: norca acl auth-method list [options]
 
   List is used to list existing ACL auth methods.
 

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -19,10 +20,10 @@ type JobRevertCommand struct {
 
 func (c *JobRevertCommand) Help() string {
 	helpText := `
-Usage: nomad job revert [options] <job> <version>
+Usage: norca job revert [options] <job> <version>
 
   Revert is used to revert a job to a prior version of the job. The available
-  versions to revert to can be found using "nomad job history" command.
+  versions to revert to can be found using "norca job history" command.
 
   When ACLs are enabled, this command requires a token with the 'submit-job'
   capability for the job's namespace. The 'list-jobs' capability is required to

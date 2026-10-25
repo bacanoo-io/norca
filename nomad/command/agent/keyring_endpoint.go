@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -33,6 +34,13 @@ func (s *HTTPServer) KeyringRequest(resp http.ResponseWriter, req *http.Request)
 		switch req.Method {
 		case http.MethodPost, http.MethodPut:
 			return s.keyringRotateRequest(resp, req)
+		default:
+			return nil, CodedError(405, ErrInvalidMethod)
+		}
+	case path == "restore":
+		switch req.Method {
+		case http.MethodPost, http.MethodPut:
+			return s.keyringRestoreRequest(resp, req)
 		default:
 			return nil, CodedError(405, ErrInvalidMethod)
 		}

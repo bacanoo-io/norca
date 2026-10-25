@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package raftutil
@@ -133,7 +134,7 @@ func (f *FSMHelper) ApplyNext() (index uint64, term uint64, err error) {
 		if r != nil && strings.HasPrefix(fmt.Sprint(r), "failed to apply request") {
 			// Enterprise specific log entries will fail to load in OSS repository with "failed to apply request."
 			// If not relevant to investigation, we can ignore them and simply worn.
-			f.logger.Warn("failed to apply log; loading Enterprise data-dir in OSS binary?", "index", e.Index)
+			f.logger.Warn("failed to apply log; data-dir contains log entries of an unsupported type?", "index", e.Index)
 
 			f.nextIdx++
 		} else if r != nil {

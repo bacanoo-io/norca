@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -61,7 +62,7 @@ func TestCommand_Metrics_Cases(t *testing.T) {
 			"bad argument",
 			[]string{"-address=" + url, "-foo", "bar"},
 			1,
-			"Usage: nomad operator metrics",
+			"Usage: norca operator metrics",
 			"flag provided but not defined: -foo",
 		},
 		{

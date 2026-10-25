@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package scheduler
@@ -250,6 +251,15 @@ func tasksUpdated(jobA, jobB *structs.Job, taskGroup string) comparison {
 	// Check connect service(s) updated
 	if c := connectServiceUpdated(a.Services, b.Services); c.modified {
 		return c
+	}
+
+	// Check native mTLS enabled or disabled: the certificate hook of the
+	// task runner is set up when the task starts (Norca)
+	if a.UsesMTLS() != b.UsesMTLS() {
+		return difference("mtls", a.UsesMTLS(), b.UsesMTLS())
+	}
+	if structs.MTLSProxiesChanged(a, b) {
+		return difference("mtls proxy", a.Services, b.Services)
 	}
 
 	// Check if volumes are updated (no task driver can support

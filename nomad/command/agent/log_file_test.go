@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -148,7 +149,7 @@ func TestLogFile_deleteArchives(t *testing.T) {
 		var err error
 		path := filepath.Join(tempDir, tempFile.Name())
 		if bytes, err = os.ReadFile(path); err != nil {
-			t.Errorf(err.Error())
+			t.Error(err.Error())
 			return
 		}
 		contents := string(bytes)

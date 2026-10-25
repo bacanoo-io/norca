@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -26,7 +27,7 @@ type JobScalingEventsCommand struct {
 // Help satisfies the cli.Command Help function.
 func (j *JobScalingEventsCommand) Help() string {
 	helpText := `
-Usage: nomad job scaling-events [options] <args>
+Usage: norca job scaling-events [options] <args>
 
   List the scaling events for the specified job.
 

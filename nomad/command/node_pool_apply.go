@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -29,7 +30,7 @@ func (c *NodePoolApplyCommand) Synopsis() string {
 
 func (c *NodePoolApplyCommand) Help() string {
 	helpText := `
-Usage: nomad node pool apply [options] <input>
+Usage: norca node pool apply [options] <input>
 
   Apply is used to create or update a node pool. The specification file is read
   from stdin by specifying "-", otherwise a path to the file is expected.

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -97,7 +98,7 @@ func (o *OperatorSchedulerGetConfig) Synopsis() string {
 
 func (o *OperatorSchedulerGetConfig) Help() string {
 	helpText := `
-Usage: nomad operator scheduler get-config [options]
+Usage: norca operator scheduler get-config [options]
 
   Displays the current scheduler configuration.
 

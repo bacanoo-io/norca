@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -38,7 +39,7 @@ type ACLAuthMethodCreateCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLAuthMethodCreateCommand) Help() string {
 	helpText := `
-Usage: nomad acl auth-method create [options]
+Usage: norca acl auth-method create [options]
 
   Create is used to create new ACL auth methods. Use requires a management token.
 

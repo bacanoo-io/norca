@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -100,6 +101,10 @@ func (s *HTTPServer) AgentSelfRequest(resp http.ResponseWriter, req *http.Reques
 
 	if self.Config != nil && self.Config.Telemetry != nil && self.Config.Telemetry.CirconusAPIToken != "" {
 		self.Config.Telemetry.CirconusAPIToken = "<redacted>"
+	}
+
+	if self.Config != nil && self.Config.Server != nil {
+		self.Config.Server.Backup.Redact()
 	}
 
 	return self, nil

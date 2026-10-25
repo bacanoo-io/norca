@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package fingerprint
@@ -58,8 +59,8 @@ func TestFingerprint_DigitalOcean(t *testing.T) {
 		if !ok {
 			t.Fatal("User-Agent not present in HTTP request header")
 		}
-		if !strings.Contains(uavalue[0], "Nomad/") {
-			t.Fatalf("Expected User-Agent to contain Nomad/, got %s", uavalue[0])
+		if !strings.Contains(uavalue[0], "Norca/") {
+			t.Fatalf("Expected User-Agent to contain Norca/, got %s", uavalue[0])
 		}
 
 		uri := r.RequestURI

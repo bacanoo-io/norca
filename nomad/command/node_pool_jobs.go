@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -27,7 +28,7 @@ func (c *NodePoolJobsCommand) Synopsis() string {
 
 func (c *NodePoolJobsCommand) Help() string {
 	helpText := `
-Usage: nomad node pool jobs <node-pool>
+Usage: norca node pool jobs <node-pool>
 
   Node pool jobs is used to list jobs in a given node pool.
 

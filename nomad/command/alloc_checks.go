@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -19,11 +20,11 @@ type AllocChecksCommand struct {
 
 func (c *AllocChecksCommand) Help() string {
 	helpText := `
-Usage: nomad alloc checks [options] <allocation>
-Alias: nomad checks
+Usage: norca alloc checks [options] <allocation>
+Alias: norca checks
 
   Outputs the latest health check status information for services in the allocation
-  using the Nomad service discovery provider.
+  using the built-in ("nomad") service discovery provider.
 
 General Options:
 

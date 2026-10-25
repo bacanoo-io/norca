@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed a bug where purging a job with a missing plugin would fail
-```

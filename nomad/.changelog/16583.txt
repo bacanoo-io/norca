@@ -1,3 +1,0 @@
-```release-note:bug
-server: Added verification of cron jobs already running before forcing new evals right after leader change
-```

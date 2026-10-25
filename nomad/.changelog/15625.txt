@@ -1,3 +1,0 @@
-```release-note:bug
-agent: Make agent syslog log level follow log_level config
-```

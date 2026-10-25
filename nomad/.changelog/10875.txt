@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Fixed a bug where `-namespace` flag was not respected for `job run` and `job plan` commands.
-```

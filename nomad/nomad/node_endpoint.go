@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -106,8 +107,7 @@ func (n *Node) Register(args *structs.NodeRegisterRequest, reply *structs.NodeUp
 		// We have a valid node connection since there is no error from the
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
-		if err == nil && n.ctx != nil && n.ctx.NodeID == "" && !isForwarded {
-			n.ctx.NodeID = args.Node.ID
+		if err == nil && n.ctx != nil && !isForwarded && n.ctx.setNodeIDIfUnset(args.Node.ID) {
 			n.srv.addNodeConn(n.ctx)
 		}
 
@@ -203,8 +203,7 @@ func (n *Node) Register(args *structs.NodeRegisterRequest, reply *structs.NodeUp
 	// We have a valid node connection, so add the mapping to cache the
 	// connection and allow the server to send RPCs to the client. We only cache
 	// the connection if it is not being forwarded from another server.
-	if n.ctx != nil && n.ctx.NodeID == "" && !args.IsForwarded() {
-		n.ctx.NodeID = args.Node.ID
+	if n.ctx != nil && !args.IsForwarded() && n.ctx.setNodeIDIfUnset(args.Node.ID) {
 		n.srv.addNodeConn(n.ctx)
 	}
 
@@ -319,6 +318,9 @@ func equalDevices(n1, n2 *structs.Node) bool {
 func (n *Node) constructNodeServerInfoResponse(nodeID string, snap *state.StateSnapshot, reply *structs.NodeUpdateResponse) error {
 	leaderAddr, _ := n.srv.raft.LeaderWithID()
 	reply.LeaderRPCAddr = string(leaderAddr)
+
+	// Ask the client for task group usage if the built-in autoscaler needs it
+	reply.TaskGroupUsageInterval = n.srv.autoscalerUsageInterval()
 
 	// Reply with config information required for future RPC requests
 	reply.Servers = make([]*structs.NodeServerInfo, 0, len(n.srv.localPeers))
@@ -540,8 +542,7 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 		// We have a valid node connection since there is no error from the
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
-		if err == nil && n.ctx != nil && n.ctx.NodeID == "" && !isForwarded {
-			n.ctx.NodeID = args.NodeID
+		if err == nil && n.ctx != nil && !isForwarded && n.ctx.setNodeIDIfUnset(args.NodeID) {
 			n.srv.addNodeConn(n.ctx)
 		}
 
@@ -580,8 +581,7 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 	// We have a valid node connection, so add the mapping to cache the
 	// connection and allow the server to send RPCs to the client. We only cache
 	// the connection if it is not being forwarded from another server.
-	if n.ctx != nil && n.ctx.NodeID == "" && !args.IsForwarded() {
-		n.ctx.NodeID = args.NodeID
+	if n.ctx != nil && !args.IsForwarded() && n.ctx.setNodeIDIfUnset(args.NodeID) {
 		n.srv.addNodeConn(n.ctx)
 	}
 
@@ -1173,8 +1173,7 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 		// We have a valid node connection since there is no error from the
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
-		if err == nil && n.ctx != nil && n.ctx.NodeID == "" && !isForwarded {
-			n.ctx.NodeID = args.NodeID
+		if err == nil && n.ctx != nil && !isForwarded && n.ctx.setNodeIDIfUnset(args.NodeID) {
 			n.srv.addNodeConn(n.ctx)
 		}
 
@@ -1219,8 +1218,7 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 				// We have a valid node connection, so add the mapping to cache the
 				// connection and allow the server to send RPCs to the client. We only cache
 				// the connection if it is not being forwarded from another server.
-				if n.ctx != nil && n.ctx.NodeID == "" && !args.IsForwarded() {
-					n.ctx.NodeID = args.NodeID
+				if n.ctx != nil && !args.IsForwarded() && n.ctx.setNodeIDIfUnset(args.NodeID) {
 					n.srv.addNodeConn(n.ctx)
 				}
 
@@ -1334,6 +1332,15 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 	}
 
 	defer metrics.MeasureSince([]string{"nomad", "client", "update_alloc"}, time.Now())
+
+	// Task group usage for the built-in autoscaler goes to the leader's
+	// memory, not to Raft. A request may carry only usage.
+	if args.TaskGroupUsage != nil {
+		n.srv.autoscalerRecordUsage(args)
+		if len(args.Alloc) == 0 {
+			return nil
+		}
+	}
 
 	// Ensure at least a single alloc
 	if len(args.Alloc) == 0 {

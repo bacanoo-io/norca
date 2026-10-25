@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -26,7 +27,7 @@ func (c *NodePoolNodesCommand) Synopsis() string {
 
 func (c *NodePoolNodesCommand) Help() string {
 	helpText := `
-Usage: nomad node pool nodes <node-pool>
+Usage: norca node pool nodes <node-pool>
 
   Node pool nodes is used to list nodes in a given node pool.
 

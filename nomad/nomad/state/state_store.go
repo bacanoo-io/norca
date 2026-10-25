@@ -62,7 +62,7 @@ const (
 	// the same node may indicate an underlying issue not detected by Nomad.
 	// The plan applier keeps track of plan rejection history and will mark
 	// nodes as ineligible if they cross a given threshold.
-	NodeEligibilityEventPlanRejectThreshold = "Node marked as ineligible for scheduling due to multiple plan rejections, refer to https://www.nomadproject.io/s/port-plan-failure for more information"
+	NodeEligibilityEventPlanRejectThreshold = "Node marked as ineligible for scheduling due to multiple plan rejections (see upstream Nomad issue #9506)"
 
 	// NodeRegisterEventRegistered is the message used when the node becomes
 	// registered.
@@ -408,7 +408,7 @@ func (s *StateStore) UpsertPlanResults(msgType structs.MessageType, index uint64
 
 	// Mark nodes as ineligible.
 	for _, nodeID := range results.IneligibleNodes {
-		s.logger.Warn("marking node as ineligible due to multiple plan rejections, refer to https://www.nomadproject.io/s/port-plan-failure for more information", "node_id", nodeID)
+		s.logger.Warn("marking node as ineligible due to multiple plan rejections (see upstream Nomad issue #9506)", "node_id", nodeID)
 
 		nodeEvent := structs.NewNodeEvent().
 			SetSubsystem(structs.NodeEventSubsystemScheduler).
@@ -1790,10 +1790,6 @@ func (s *StateStore) upsertJobImpl(index uint64, sub *structs.JobSubmission, job
 		return fmt.Errorf("unable to update job scaling policies: %v", err)
 	}
 
-	if err := s.updateJobRecommendations(index, txn, existingJob, job); err != nil {
-		return fmt.Errorf("unable to update job recommendations: %v", err)
-	}
-
 	if err := s.updateJobCSIPlugins(index, job, existingJob, txn); err != nil {
 		return fmt.Errorf("unable to update job csi plugins: %v", err)
 	}
@@ -1918,11 +1914,6 @@ func (s *StateStore) DeleteJobTxn(index uint64, namespace, jobID string, txn Txn
 	// Delete any remaining job scaling policies
 	if err := s.deleteJobScalingPolicies(index, job, txn); err != nil {
 		return fmt.Errorf("deleting job scaling policies failed: %v", err)
-	}
-
-	// Delete any job recommendations
-	if err := s.deleteRecommendationsByJob(index, txn, job); err != nil {
-		return fmt.Errorf("deleting job recommendatons failed: %v", err)
 	}
 
 	// Delete the scaling events
@@ -3514,6 +3505,10 @@ func (s *StateStore) DeleteEval(index uint64, evals, allocs []string, userInitia
 		}
 		if raw == nil {
 			continue
+		}
+		// Release any quota still held by a non-terminal allocation.
+		if err := s.updateQuotaWithAlloc(index, nil, raw.(*structs.Allocation), txn); err != nil {
+			return err
 		}
 		if err := txn.Delete("allocs", raw); err != nil {
 			return fmt.Errorf("alloc delete failed: %v", err)
@@ -6844,6 +6839,14 @@ func (s *StateStore) DeleteNamespaces(index uint64, names []string) error {
 				"All variables in namespace must be deleted before it can be deleted", name)
 		}
 
+		// Norca: custom objects
+		if hasObjects, err := namespaceHasCustomObjectsTxn(txn, name); err != nil {
+			return err
+		} else if hasObjects {
+			return fmt.Errorf("namespace %q contains at least one custom object. "+
+				"All custom objects in namespace must be deleted before it can be deleted", name)
+		}
+
 		// Delete the namespace
 		if err := txn.Delete(TableNamespaces, existing); err != nil {
 			return fmt.Errorf("namespace deletion failed: %v", err)
@@ -7349,5 +7352,6 @@ func (s *StateStore) IsRootKeyMetaInUse(keyID string) (bool, error) {
 		return true, nil
 	}
 
-	return false, nil
+	// Norca: the key may encrypt the private key of a native mTLS CA
+	return isRootKeyInUseByMTLS(txn, keyID)
 }

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -22,7 +23,7 @@ type PluginStatusCommand struct {
 
 func (c *PluginStatusCommand) Help() string {
 	helpText := `
-Usage nomad plugin status [options] <plugin>
+Usage norca plugin status [options] <plugin>
 
   Display status information about a plugin. If no plugin id is given,
   a list of all plugins will be displayed.

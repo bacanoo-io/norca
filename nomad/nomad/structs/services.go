@@ -393,14 +393,13 @@ func (sc *ServiceCheck) validateNomad() error {
 		}
 	}
 
-	// success_before_passing is consul only
-	if sc.SuccessBeforePassing != 0 {
-		return errors.New("success_before_passing may only be set for Consul service checks")
+	// success_before_passing and failures_before_critical are applied by the
+	// client to the results of the check (Norca)
+	if sc.SuccessBeforePassing < 0 {
+		return errors.New("success_before_passing must be non-negative")
 	}
-
-	// failures_before_critical is consul only
-	if sc.FailuresBeforeCritical != 0 {
-		return errors.New("failures_before_critical may only be set for Consul service checks")
+	if sc.FailuresBeforeCritical < 0 {
+		return errors.New("failures_before_critical must be non-negative")
 	}
 
 	// tls_server_name is consul only
@@ -658,6 +657,14 @@ type Service struct {
 	// either ServiceProviderConsul or ServiceProviderNomad and defaults to the former when
 	// left empty by the operator.
 	Provider string
+
+	// Discovery holds the discovery settings of a service using the Nomad
+	// provider (Norca).
+	Discovery *ServiceDiscovery
+
+	// MTLS is the native mTLS configuration of a service using the Nomad
+	// provider (Norca).
+	MTLS *ServiceMTLS
 }
 
 // Copy the block recursively. Returns nil if nil.
@@ -683,6 +690,8 @@ func (s *Service) Copy() *Service {
 	ns.Meta = maps.Clone(s.Meta)
 	ns.CanaryMeta = maps.Clone(s.CanaryMeta)
 	ns.TaggedAddresses = maps.Clone(s.TaggedAddresses)
+	ns.Discovery = s.Discovery.Copy()
+	ns.MTLS = s.MTLS.Copy()
 
 	return ns
 }
@@ -739,6 +748,9 @@ func (s *Service) Canonicalize(job, taskGroup, task, jobNamespace string) {
 	} else if s.Provider == ServiceProviderNomad {
 		s.Namespace = jobNamespace
 	}
+
+	s.Discovery.Canonicalize()
+	s.MTLS.Canonicalize()
 }
 
 // Validate checks if the Service definition is valid
@@ -798,6 +810,13 @@ func (s *Service) validateCheckPort(c *ServiceCheck) error {
 // validateConsulService performs validation on a service which is using the
 // consul provider.
 func (s *Service) validateConsulService(mErr *multierror.Error) {
+	if s.Discovery != nil {
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("Service %s invalid: discovery may only be set on services with provider nomad", s.Name))
+	}
+	if s.MTLS != nil {
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("Service %s invalid: mtls may only be set on services with provider nomad", s.Name))
+	}
+
 	// check checks
 	for _, c := range s.Checks {
 		// validat ethe check port
@@ -854,6 +873,14 @@ func (s *Service) validateNomadService(mErr *multierror.Error) {
 	// Services using the Nomad provider do not support Consul connect.
 	if s.Connect != nil {
 		mErr.Errors = append(mErr.Errors, errors.New("Service with provider nomad cannot include Connect blocks"))
+	}
+
+	if err := s.Discovery.Validate(); err != nil {
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("Service %s invalid: %v", s.Name, err))
+	}
+
+	if err := s.MTLS.Validate(); err != nil {
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("Service %s invalid: %v", s.Name, err))
 	}
 }
 
@@ -1019,6 +1046,14 @@ func (s *Service) Equal(o *Service) bool {
 	}
 
 	if s.EnableTagOverride != o.EnableTagOverride {
+		return false
+	}
+
+	if !s.Discovery.Equal(o.Discovery) {
+		return false
+	}
+
+	if !s.MTLS.Equal(o.MTLS) {
 		return false
 	}
 

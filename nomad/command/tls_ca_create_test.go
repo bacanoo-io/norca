@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -16,10 +17,7 @@ import (
 
 func TestCACreateCommand(t *testing.T) {
 	testDir := t.TempDir()
-	previousDirectory, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(testDir))
-	defer os.Chdir(previousDirectory)
+	t.Chdir(testDir)
 
 	type testcase struct {
 		name       string
@@ -38,6 +36,11 @@ func TestCACreateCommand(t *testing.T) {
 				require.Equal(t, 1825*24*time.Hour, time.Until(cert.NotAfter).Round(24*time.Hour))
 				require.False(t, cert.PermittedDNSDomainsCritical)
 				require.Len(t, cert.PermittedDNSDomains, 0)
+				require.Contains(t, cert.Subject.CommonName, "Norca Agent CA")
+				require.Equal(t, []string{"Norca"}, cert.Subject.Organization)
+				require.Empty(t, cert.Subject.Country)
+				require.Empty(t, cert.Subject.Locality)
+				require.Empty(t, cert.Subject.StreetAddress)
 			},
 		},
 		{"ca options",

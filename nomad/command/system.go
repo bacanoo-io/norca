@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -15,7 +16,7 @@ type SystemCommand struct {
 
 func (sc *SystemCommand) Help() string {
 	helpText := `
-Usage: nomad system <subcommand> [options]
+Usage: norca system <subcommand> [options]
 
   This command groups subcommands for interacting with the system API. Users
   can perform system maintenance tasks such as trigger the garbage collector or

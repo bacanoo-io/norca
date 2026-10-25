@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -21,13 +22,13 @@ type OperatorSnapshotStateCommand struct {
 
 func (c *OperatorSnapshotStateCommand) Help() string {
 	helpText := `
-Usage: nomad operator snapshot state [options] <file>
+Usage: norca operator snapshot state [options] <file>
 
   Displays a JSON representation of state in the snapshot.
 
   To inspect the file "backup.snap":
 
-    $ nomad operator snapshot state backup.snap
+    $ norca operator snapshot state backup.snap
 
 Snapshot State Options:
 
@@ -47,7 +48,7 @@ func (c *OperatorSnapshotStateCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *OperatorSnapshotStateCommand) Synopsis() string {
-	return "Displays information about a Nomad snapshot file"
+	return "Displays information about a Norca snapshot file"
 }
 
 func (c *OperatorSnapshotStateCommand) Name() string { return "operator snapshot state" }

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -56,9 +57,9 @@ type TLSCertCreateCommand struct {
 
 func (c *TLSCertCreateCommand) Help() string {
 	helpText := `
-Usage: nomad tls cert create [options]
+Usage: norca tls cert create [options]
 
-  Create a new TLS certificate to use within the Nomad cluster TLS
+  Create a new TLS certificate to use within the Norca cluster TLS
   configuration. You should use the -client, -server or -cli options to create
   certificates for these roles.
 
@@ -77,7 +78,7 @@ Certificate Create Options:
     #DOMAIN#-agent-ca.pem.
 
   -cli
-    Generate a certificate for use with the Nomad CLI.
+    Generate a certificate for use with the Norca CLI.
 
   -client
     Generate a client certificate.

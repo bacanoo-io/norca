@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package jobspec
@@ -386,8 +387,6 @@ func TestParse(t *testing.T) {
 										Splay:         timeToPtr(10 * time.Second),
 										Perms:         stringToPtr("0644"),
 										Envvars:       boolToPtr(true),
-										Uid:           intToPtr(-1),
-										Gid:           intToPtr(-1),
 										VaultGrace:    timeToPtr(33 * time.Second),
 										ErrMissingKey: boolToPtr(true),
 									},
@@ -533,6 +532,7 @@ func TestParse(t *testing.T) {
 				Constraints: []*api.Constraint{
 					{
 						Operand: api.ConstraintDistinctHosts,
+						RTarget: "true",
 					},
 				},
 			},

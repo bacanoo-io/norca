@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package useragent
@@ -8,13 +9,13 @@ import (
 )
 
 func TestUserAgent(t *testing.T) {
-	projectURL = "https://nomad-test.com"
+	norcaVersionFunc = func() string { return "0.9.1" }
 	rt = "go5.0"
 	versionFunc = func() string { return "1.2.3" }
 
 	act := String()
 
-	exp := "Nomad/1.2.3 (+https://nomad-test.com; go5.0)"
+	exp := "Norca/0.9.1 (Nomad API 1.2.3; go5.0)"
 	if exp != act {
 		t.Errorf("expected %q to be %q", act, exp)
 	}

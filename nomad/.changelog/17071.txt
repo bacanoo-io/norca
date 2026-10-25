@@ -1,3 +1,0 @@
-```release-note:bug
-bug: Corrected status description and modification time for canceled evaluations
-```

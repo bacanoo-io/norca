@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -21,7 +22,7 @@ type ACLBootstrapCommand struct {
 
 func (c *ACLBootstrapCommand) Help() string {
 	helpText := `
-Usage: nomad acl bootstrap [options]
+Usage: norca acl bootstrap [options]
 
   Bootstrap is used to bootstrap the ACL system and get an initial token.
 

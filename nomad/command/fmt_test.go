@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -140,12 +141,7 @@ func TestFmtCommand_FromStdin(t *testing.T) {
 func TestFmtCommand_FromWorkingDirectory(t *testing.T) {
 	tmpDir := fmtFixtureWriteDir(t)
 
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-
-	err = os.Chdir(tmpDir)
-	require.NoError(t, err)
-	defer os.Chdir(cwd)
+	t.Chdir(tmpDir)
 
 	tests := []struct {
 		name       string

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -1093,7 +1094,6 @@ func Test_GetConfig(t *testing.T) {
 		AdvertiseAddrs: &AdvertiseAddrs{},
 		Vault:          &config.VaultConfig{},
 		Consul:         &config.ConsulConfig{},
-		Sentinel:       &config.SentinelConfig{},
 	}
 
 	agent := &Agent{

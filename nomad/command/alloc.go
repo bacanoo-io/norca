@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -15,18 +16,18 @@ type AllocCommand struct {
 
 func (f *AllocCommand) Help() string {
 	helpText := `
-Usage: nomad alloc <subcommand> [options] [args]
+Usage: norca alloc <subcommand> [options] [args]
 
   This command groups subcommands for interacting with allocations. Users can
   inspect the status, examine the filesystem or logs of an allocation.
 
   Examine an allocations status:
 
-      $ nomad alloc status <alloc-id>
+      $ norca alloc status <alloc-id>
 
   Stream a task's logs:
 
-      $ nomad alloc logs -f <alloc-id> <task>
+      $ norca alloc logs -f <alloc-id> <task>
 
   Please see the individual subcommand help for detailed usage information.
 `

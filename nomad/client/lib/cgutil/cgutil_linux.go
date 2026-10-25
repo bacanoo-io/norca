@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build linux
@@ -6,6 +7,7 @@
 package cgutil
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +15,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
+	"github.com/opencontainers/cgroups"
 	lcc "github.com/opencontainers/runc/libcontainer/configs"
 )
 
@@ -133,6 +135,33 @@ func FindCgroupMountpointDir() (string, error) {
 		return "", nil
 	}
 	return mount[0].Mountpoint, nil
+}
+
+// EnterPidV1 adds pid to the cgroup v1 hierarchy at path, if that path exists.
+// A missing path is not an error, mirroring how the container runtime treats
+// cgroups that were never created.
+func EnterPidV1(path string, pid int) error {
+	if !cgroups.PathExists(path) {
+		return nil
+	}
+	return cgroups.WriteCgroupProc(path, pid)
+}
+
+// getInitCgroupPathV1 returns the host path of the cgroup v1 subsystem cgroup
+// that PID 1 (the init process) belongs to.
+func getInitCgroupPathV1(subsystem string) (string, error) {
+	if UseV2 {
+		return "", errors.New("cgroup v1 path requested on a cgroup v2 system")
+	}
+	paths, err := cgroups.ParseCgroupFile("/proc/1/cgroup")
+	if err != nil {
+		return "", err
+	}
+	cgroup, ok := paths[subsystem]
+	if !ok {
+		return "", cgroups.NewNotFoundError(subsystem)
+	}
+	return GetCgroupPathHelperV1(subsystem, cgroup)
 }
 
 // CopyCpuset copies the cpuset.cpus value from source into destination.

@@ -1,6 +1,6 @@
 # S3-based scheduled backup and restore – plan
 
-**Status:** Plan · 2026-10-24 · Starting point: Nomad v1.6.5 (MPL 2.0) · Related document: [nomad-fork-development-plan.md](nomad-fork-development-plan.md)
+**Status:** In progress · 2026-10-25 (phases 1, 2 and 4 implemented; phase 3, the web UI, planned with the new UI) · Starting point: Nomad v1.6.5 (MPL 2.0) · Related document: [nomad-fork-development-plan.md](nomad-fork-development-plan.md)
 
 In every region, Norca automatically backs up the cluster state on a schedule to one or more S3-compatible stores. Backups can be browsed, compared and restored in the web UI. A restore can be selective (a single job, a single Variables path), full (an entire region returned to an earlier state), or the building of a new cluster from a backup. The schedule and the stores live in the server configuration; manual backup, versioning and restore live in the UI.
 
@@ -374,8 +374,8 @@ The phases build on each other, but after phase 1 there is already an automatic,
 
 ## Open questions
 
-- [ ] What is the largest expected snapshot size per region? The default timeout and the multipart part size depend on it.
-- [ ] Which S3-compatible store is available in which cloud, and is a native Azure Blob destination needed?
-- [ ] Where should the `age` private key be stored, and who can access it in a disaster?
-- [ ] Should two-person approval be mandatory for every full restore, or only for the authoritative region?
-- [ ] Besides jobs, is browsing the history of deployments and allocations also needed in the UI, or are jobs, Variables, namespaces and ACL enough?
+- [x] What is the largest expected snapshot size per region? Decided 2026-10-24: about 2 GB; defaults (timeout, multipart part size) are tuned for that and stay configurable.
+- [x] Which S3-compatible store is available in which cloud, and is a native Azure Blob destination needed? Decided 2026-10-24: MinIO or AWS S3-compatible stores through the S3 API only; no native Azure Blob destination.
+- [x] Where should the `age` private key be stored, and who can access it in a disaster? Decided 2026-10-24: the administrators keep it outside the cluster; the cluster only knows the public recipient, and an administrator provides the private key at restore time.
+- [x] Should two-person approval be mandatory for every full restore, or only for the authoritative region? Decided 2026-10-24: for every full restore.
+- [x] Besides jobs, is browsing the history of deployments and allocations also needed in the UI, or are jobs, Variables, namespaces and ACL enough? Decided 2026-10-24: deployments and allocations are needed too.

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package jobspec
@@ -194,7 +195,10 @@ func parseConstraints(result *[]*api.Constraint, list *ast.ObjectList) error {
 				continue
 			}
 
+			// Keep the value like the HCL2 parser and the long form
+			// (operator = "distinct_hosts", value = "true") do.
 			m["Operand"] = api.ConstraintDistinctHosts
+			m["RTarget"] = "true"
 		}
 
 		if property, ok := m[api.ConstraintDistinctProperty]; ok {

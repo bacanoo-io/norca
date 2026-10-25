@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -24,7 +25,7 @@ type ScalingPolicyListCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ScalingPolicyListCommand) Help() string {
 	helpText := `
-Usage: nomad scaling policy list [options]
+Usage: norca scaling policy list [options]
 
   List is used to list the currently configured scaling policies.
 
@@ -59,7 +60,7 @@ Policy Info Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ScalingPolicyListCommand) Synopsis() string {
-	return "Display all Nomad scaling policies"
+	return "Display all Norca scaling policies"
 }
 
 func (s *ScalingPolicyListCommand) AutocompleteFlags() complete.Flags {

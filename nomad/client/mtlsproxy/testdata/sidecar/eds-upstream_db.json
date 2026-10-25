@@ -1,0 +1,35 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment",
+      "cluster_name": "upstream_db",
+      "endpoints": [
+        {
+          "lb_endpoints": [
+            {
+              "endpoint": {
+                "address": {
+                  "socket_address": {
+                    "address": "10.0.0.1",
+                    "port_value": 24001
+                  }
+                }
+              }
+            },
+            {
+              "endpoint": {
+                "address": {
+                  "socket_address": {
+                    "address": "10.0.0.2",
+                    "port_value": 24000
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "version_info": "42edd9dd83cbf27a"
+}

@@ -7,14 +7,17 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/nomad/acl"
-	cstructs "github.com/hashicorp/nomad/client/structs"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // autoscalerACLPolicy is the only permission of the built-in autoscaler's
-// system identity: it may scale jobs in any namespace, nothing else.
-const autoscalerACLPolicy = `namespace "*" { capabilities = ["scale-job"] }`
+// system identity: it may scale jobs in any namespace, and write the scale
+// subresource and the event log of custom objects, nothing else.
+const autoscalerACLPolicy = `namespace "*" {
+  capabilities = ["scale-job"]
+  object "*" { capabilities = ["write", "write-events"] }
+}`
 
 var (
 	// autoscalerACLToken is the system identity of the built-in autoscaler.
@@ -50,9 +53,10 @@ func (s *Server) setupAutoscaler() {
 	}
 
 	s.autoscaler = autoscaler.New(s.logger, cfg, &autoscaler.Deps{
-		State:      s.State,
-		Scaler:     &autoscalerJobScaler{srv: s},
-		AllocStats: s.autoscalerAllocStats,
+		State:        s.State,
+		Scaler:       &autoscalerJobScaler{srv: s},
+		ObjectScaler: &autoscalerJobScaler{srv: s},
+		PublishEvent: s.publishScalingEvent,
 		ServersReady: func() bool {
 			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
 		},
@@ -90,26 +94,6 @@ func (s *Server) autoscalerDefaultEngine() string {
 	return s.autoscaler.DefaultEngine()
 }
 
-// autoscalerAllocStats fetches the resource usage of an allocation for the
-// nomad-apm of the built-in autoscaler. It uses the internal
-// ClientAllocations.Stats RPC with the leader's token; this per allocation
-// RPC is transitional until clients push their metrics.
-func (s *Server) autoscalerAllocStats(namespace, allocID string) (*cstructs.AllocResourceUsage, error) {
-	args := &cstructs.AllocStatsRequest{
-		AllocID: allocID,
-		QueryOptions: structs.QueryOptions{
-			Region:    s.Region(),
-			Namespace: namespace,
-			AuthToken: s.getLeaderAcl(),
-		},
-	}
-	var reply cstructs.AllocStatsResponse
-	if err := s.RPC("ClientAllocations.Stats", args, &reply); err != nil {
-		return nil, err
-	}
-	return reply.Stats, nil
-}
-
 // autoscalerJobScaler executes the autoscaler's decisions through the
 // existing Job.Scale endpoint, as an internal call. This keeps the ACL check,
 // the scaling_event and the evaluation creation of Job.Scale unchanged.
@@ -132,6 +116,37 @@ func (a *autoscalerJobScaler) Scale(args *structs.JobScaleRequest) (*structs.Job
 	return &reply, nil
 }
 
+// ScaleObject executes a decision on a custom object through its scale
+// subresource, as an internal call with the autoscaler's identity.
+func (a *autoscalerJobScaler) ScaleObject(args *structs.CustomObjectScaleRequest) (*structs.CustomObjectScaleResponse, error) {
+	secret := a.srv.getAutoscalerSecret()
+	if secret == "" {
+		return nil, fmt.Errorf("not the leader")
+	}
+	args.Region = a.srv.Region()
+	args.AuthToken = secret
+
+	var reply structs.CustomObjectScaleResponse
+	if err := a.srv.RPC("CustomObject.Scale", args, &reply); err != nil {
+		return nil, err
+	}
+	return &reply, nil
+}
+
+// RecordObjectEvents writes events of the autoscaler to the event log of a
+// custom object.
+func (a *autoscalerJobScaler) RecordObjectEvents(args *structs.CustomObjectEventsRequest) error {
+	secret := a.srv.getAutoscalerSecret()
+	if secret == "" {
+		return fmt.Errorf("not the leader")
+	}
+	args.Region = a.srv.Region()
+	args.AuthToken = secret
+
+	var reply structs.GenericResponse
+	return a.srv.RPC("CustomObject.RecordEvents", args, &reply)
+}
+
 // validateScalingEngineFilter validates the Engine filter of a scaling policy
 // list request.
 func validateScalingEngineFilter(engine string) error {
@@ -148,4 +163,31 @@ func validateScalingEngineFilter(engine string) error {
 // filter of a list request.
 func scalingPolicyMatchesEngine(p *structs.ScalingPolicy, engine, defaultEngine string) bool {
 	return engine == "" || autoscaler.PolicyEngine(p, defaultEngine) == engine
+}
+
+// publishScalingEvent publishes an event of the Scaling topic. The event is
+// not written to Raft, so it is only published on the leader that runs the
+// built-in autoscaler.
+func (s *Server) publishScalingEvent(eventType string, ev *structs.ScalingDecisionEvent) {
+	store := s.State()
+	if store == nil {
+		return
+	}
+	broker, err := store.EventBroker()
+	if err != nil {
+		return
+	}
+	index, _ := store.LatestIndex()
+	broker.Publish(&structs.Events{
+		Index: index,
+		Events: []structs.Event{{
+			Topic:      structs.TopicScaling,
+			Type:       eventType,
+			Key:        ev.JobID,
+			Namespace:  ev.Namespace,
+			FilterKeys: []string{ev.Group, ev.PolicyID},
+			Index:      index,
+			Payload:    ev,
+		}},
+	})
 }

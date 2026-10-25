@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -21,19 +22,19 @@ type ScalingPolicyCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ScalingPolicyCommand) Help() string {
 	helpText := `
-Usage: nomad scaling policy <subcommand> [options]
+Usage: norca scaling policy <subcommand> [options]
 
   This command groups subcommands for interacting with scaling policies. Scaling
   policies can be used by an external autoscaler to perform scaling actions on
-  Nomad targets.
+  Norca targets.
 
   List policies:
 
-      $ nomad scaling policy list
+      $ norca scaling policy list
 
   Detail an individual scaling policy:
 
-      $ nomad scaling policy info <policy_id>
+      $ norca scaling policy info <policy_id>
 
   Please see the individual subcommand help for detailed usage information.
 `
@@ -42,7 +43,7 @@ Usage: nomad scaling policy <subcommand> [options]
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ScalingPolicyCommand) Synopsis() string {
-	return "Interact with Nomad scaling policies"
+	return "Interact with Norca scaling policies"
 }
 
 // Name returns the name of this command.

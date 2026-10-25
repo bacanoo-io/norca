@@ -1,0 +1,71 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.config.listener.v3.Listener",
+      "address": {
+        "socket_address": {
+          "address": "0.0.0.0",
+          "port_value": 8443
+        }
+      },
+      "default_filter_chain": {
+        "filters": [
+          {
+            "name": "envoy.filters.network.tcp_proxy",
+            "typed_config": {
+              "@type": "type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy",
+              "cluster": "gateway_unknown",
+              "stat_prefix": "gateway_unknown"
+            }
+          }
+        ]
+      },
+      "filter_chains": [
+        {
+          "filter_chain_match": {
+            "server_names": [
+              "redis.service.cache.eu.nomad"
+            ]
+          },
+          "filters": [
+            {
+              "name": "envoy.filters.network.tcp_proxy",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy",
+                "cluster": "route_cache_redis",
+                "stat_prefix": "route_cache_redis"
+              }
+            }
+          ]
+        },
+        {
+          "filter_chain_match": {
+            "server_names": [
+              "api.service.default.eu.nomad"
+            ]
+          },
+          "filters": [
+            {
+              "name": "envoy.filters.network.tcp_proxy",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy",
+                "cluster": "route_default_api",
+                "stat_prefix": "route_default_api"
+              }
+            }
+          ]
+        }
+      ],
+      "listener_filters": [
+        {
+          "name": "envoy.filters.listener.tls_inspector",
+          "typed_config": {
+            "@type": "type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector"
+          }
+        }
+      ],
+      "name": "gateway"
+    }
+  ],
+  "version_info": "59909115d368a0ad"
+}

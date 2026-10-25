@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package client
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -28,7 +30,6 @@ import (
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 )
 
 func TestAllocations_Restart(t *testing.T) {
@@ -1124,7 +1125,7 @@ func TestAlloc_ExecStreaming_ACL_WithIsolation_Chroot(t *testing.T) {
 	ci.SkipSlow(t, "flaky on GHA; too much disk IO")
 	ci.Parallel(t)
 
-	if runtime.GOOS != "linux" || unix.Geteuid() != 0 {
+	if runtime.GOOS != "linux" || os.Geteuid() != 0 {
 		t.Skip("chroot isolation requires linux root")
 	}
 

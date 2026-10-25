@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -32,7 +33,7 @@ type VarInitCommand struct {
 
 func (c *VarInitCommand) Help() string {
 	helpText := `
-Usage: nomad var init <filename>
+Usage: norca var init <filename>
 
   Creates an example variable specification file that can be used as a starting
   point to customize further. When no filename is supplied, a default filename

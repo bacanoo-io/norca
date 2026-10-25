@@ -1,3 +1,0 @@
-```release-note:bug
-ui: Fixed a bug where the job dispatch form is not displayed when the job doesn't have meta fields
-```

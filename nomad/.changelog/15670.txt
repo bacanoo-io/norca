@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed a bug where secrets that include '=' were incorrectly rejected
-```

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package taskrunner
@@ -158,6 +159,34 @@ func (tr *TaskRunner) initHooks() {
 			tr.runnerHooks = append(tr.runnerHooks, newConnectNativeHook(
 				newConnectNativeHookConfig(alloc, tr.clientConfig.ConsulConfig, hookLogger),
 			))
+		}
+	}
+
+	// If a service of the task group uses native mTLS, get the workload
+	// certificate (Norca).
+	if tg := alloc.Job.LookupTaskGroup(alloc.TaskGroup); tg.UsesMTLS() && tr.rpcClient != nil {
+		tr.runnerHooks = append(tr.runnerHooks, newMTLSHook(&mtlsHookConfig{
+			alloc:   alloc,
+			task:    task,
+			rpc:     tr.rpcClient,
+			region:  tr.clientConfig.Region,
+			nodeKey: tr.clientConfig.Node.SecretID,
+			events:  tr,
+			logger:  hookLogger,
+		}))
+
+		// The Envoy task of a sidecar or gateway mode mtls service gets
+		// its configuration from the client.
+		if task.Kind.IsMTLSProxy() || task.Kind.IsMTLSGateway() {
+			tr.runnerHooks = append(tr.runnerHooks, newMTLSEnvoyHook(&mtlsEnvoyHookConfig{
+				alloc:        alloc,
+				task:         task,
+				rpc:          tr.rpcClient,
+				region:       tr.clientConfig.Region,
+				nodeSecret:   func() string { return tr.clientConfig.Node.SecretID },
+				catalogToken: tr.mtlsCatalogToken,
+				logger:       hookLogger,
+			}))
 		}
 	}
 

@@ -1,3 +1,0 @@
-```release-note:bug
-template: Fixed a bug where template could cause agent panic on startup
-```

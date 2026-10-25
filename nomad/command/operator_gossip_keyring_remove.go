@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -19,7 +20,7 @@ type OperatorGossipKeyringRemoveCommand struct {
 
 func (c *OperatorGossipKeyringRemoveCommand) Help() string {
 	helpText := `
-Usage: nomad operator gossip keyring remove [options] <key>
+Usage: norca operator gossip keyring remove [options] <key>
 
   Remove the given key from the cluster. This operation may only be performed
   on keys which are not currently the primary key.
@@ -76,7 +77,7 @@ func (c *OperatorGossipKeyringRemoveCommand) Run(args []string) int {
 
 	client, err := c.Meta.Client()
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error creating nomad cli client: %s", err))
+		c.Ui.Error(fmt.Sprintf("Error creating norca cli client: %s", err))
 		return 1
 	}
 

@@ -1,3 +1,0 @@
-```release-note:bug
-connect: Added missing ability of setting Connect upstream destination namespace
-```

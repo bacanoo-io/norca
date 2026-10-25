@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package allocrunner
@@ -32,7 +33,7 @@ func TestCSIHook(t *testing.T) {
 
 	alloc := mock.Alloc()
 	testMountSrc := fmt.Sprintf(
-		"test-alloc-dir/%s/testvolume0/ro-file-system-single-node-reader-only", alloc.ID)
+		"fake-mounts/testvolume0@%s/ro-file-system-single-node-reader-only", alloc.ID)
 	logger := testlog.HCLogger(t)
 
 	testcases := []struct {
@@ -223,10 +224,9 @@ func TestCSIHook(t *testing.T) {
 			alloc.Job.TaskGroups[0].Volumes = tc.volumeRequests
 
 			callCounts := testutil.NewCallCounter()
-			vm := &csimanager.MockVolumeManager{
-				CallCounter: callCounts,
-			}
-			mgr := &csimanager.MockCSIManager{VM: vm}
+			mgr := csimanager.NewFakeManager()
+			vm := mgr.Volumes
+			vm.OnCall = callCounts.Inc
 			rpcer := mockRPCer{
 				alloc:            alloc,
 				callCounts:       callCounts,
@@ -250,14 +250,11 @@ func TestCSIHook(t *testing.T) {
 			must.NotNil(t, hook)
 
 			if tc.startsWithValidMounts {
-				// TODO: this works, but it requires knowledge of how the mock works.  would rather vm.MountVolume()
-				vm.Mounts = map[string]bool{
-					tc.expectedMounts["vol0"].Source: true,
-				}
+				vm.MarkMounted(tc.expectedMounts["vol0"].Source)
 			}
 
 			if tc.failsFirstUnmount {
-				vm.NextUnmountVolumeErr = errors.New("bad first attempt")
+				vm.FailNext("UnmountVolume", errors.New("bad first attempt"))
 			}
 
 			if tc.expectedClaimErr != nil {
@@ -347,9 +344,7 @@ func TestCSIHook_Prerun_Validation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			alloc.Job.TaskGroups[0].Volumes = volumeRequests
 
-			mgr := &csimanager.MockCSIManager{
-				VM: &csimanager.MockVolumeManager{},
-			}
+			mgr := csimanager.NewFakeManager()
 			rpcer := mockRPCer{
 				alloc:            alloc,
 				callCounts:       testutil.NewCallCounter(),

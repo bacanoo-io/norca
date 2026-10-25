@@ -1,3 +1,0 @@
-```release-note:improvement
-cli: warn destructive update only when count is greater than 1
-```

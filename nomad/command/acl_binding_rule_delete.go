@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -22,7 +23,7 @@ type ACLBindingRuleDeleteCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLBindingRuleDeleteCommand) Help() string {
 	helpText := `
-Usage: nomad acl binding-rule delete <acl_binding_rule_id>
+Usage: norca acl binding-rule delete <acl_binding_rule_id>
 
   Delete is used to delete an existing ACL binding rule. Use requires a
   management token.

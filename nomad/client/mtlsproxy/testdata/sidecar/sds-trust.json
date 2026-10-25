@@ -1,0 +1,31 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name": "trust",
+      "validation_context": {
+        "custom_validator_config": {
+          "name": "envoy.tls.cert_validator.spiffe",
+          "typed_config": {
+            "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.SPIFFECertValidatorConfig",
+            "trust_domains": [
+              {
+                "name": "global.nomad",
+                "trust_bundle": {
+                  "inline_string": "-----BEGIN CERTIFICATE-----\nCA1\n-----END CERTIFICATE-----\n"
+                }
+              },
+              {
+                "name": "other.nomad",
+                "trust_bundle": {
+                  "inline_string": "-----BEGIN CERTIFICATE-----\nCA2\n-----END CERTIFICATE-----\n"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "version_info": "5a40286837dc8d6b"
+}

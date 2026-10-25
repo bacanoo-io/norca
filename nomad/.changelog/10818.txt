@@ -1,3 +1,0 @@
-```release-note:bug
-csi: fixed a CLI panic when formatting `volume status` with `-verbose` flag
-```

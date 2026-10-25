@@ -7,9 +7,9 @@
 # are themselves collections of one or many tasks.
 #
 # For more information and examples on the "job" block, please see
-# the online documentation at:
+# the reference documentation at:
 #
-#     https://www.nomadproject.io/docs/job-specification/job.html
+#     nomad/website/content/docs/job-specification/job.mdx (Norca repository)
 #
 job "countdash" {
   # The "region" parameter specifies the region in which to execute the job. If
@@ -24,11 +24,11 @@ job "countdash" {
   # The "type" parameter controls the type of job, which impacts the scheduler's
   # decision on placement. This configuration is optional and defaults to
   # "service". For a full list of job types and their differences, please see
-  # the online documentation.
+  # the reference documentation.
   #
-  # For more information, please see the online documentation at:
+  # For more information, please see the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/jobspec/schedulers.html
+  #     nomad/website/content/docs/schedulers.mdx (Norca repository)
   #
   type = "service"
 
@@ -37,9 +37,9 @@ job "countdash" {
   # at the "job", "group", or "task" level, and supports variable interpolation.
   #
   # For more information and examples on the "constraint" block, please see
-  # the online documentation at:
+  # the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/job-specification/constraint.html
+  #     nomad/website/content/docs/job-specification/constraint.mdx (Norca repository)
   #
   # constraint {
   #   attribute = "${attr.kernel.name}"
@@ -54,9 +54,9 @@ job "countdash" {
   # group level, the blocks are merged with the group's taking precedence.
   #
   # For more information and examples on the "update" block, please see
-  # the online documentation at:
+  # the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/job-specification/update.html
+  #     nomad/website/content/docs/job-specification/update.mdx (Norca repository)
   #
   update {
     # The "max_parallel" parameter specifies the maximum number of updates to
@@ -104,9 +104,9 @@ job "countdash" {
   # draining nodes. If omitted, a default migration strategy is applied.
   #
   # For more information on the "migrate" block, please see
-  # the online documentation at:
+  # the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/job-specification/migrate.html
+  #     nomad/website/content/docs/job-specification/migrate.mdx (Norca repository)
   #
   migrate {
     # Specifies the number of task groups that can be migrated at the same
@@ -133,9 +133,9 @@ job "countdash" {
   # client.
   #
   # For more information and examples on the "group" block, please see
-  # the online documentation at:
+  # the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/job-specification/group.html
+  #     nomad/website/content/docs/job-specification/group.mdx (Norca repository)
   #
   group "api" {
     # The "count" parameter specifies the number of the task groups that should
@@ -147,9 +147,9 @@ job "countdash" {
     # left unspecified, a default restart policy is used based on the job type.
     #
     # For more information and examples on the "restart" block, please see
-    # the online documentation at:
+    # the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/restart.html
+    #     nomad/website/content/docs/job-specification/restart.mdx (Norca repository)
     #
     restart {
       # The number of attempts to run the job within the specified interval.
@@ -173,9 +173,9 @@ job "countdash" {
     # tasks in this group will share the same ephemeral disk.
     #
     # For more information and examples on the "ephemeral_disk" block, please
-    # see the online documentation at:
+    # see the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/ephemeral_disk.html
+    #     nomad/website/content/docs/job-specification/ephemeral_disk.mdx (Norca repository)
     #
     ephemeral_disk {
       # When sticky is true and the task group is updated, the scheduler
@@ -197,9 +197,9 @@ job "countdash" {
     # based on node attributes or metadata.
     #
     # For more information and examples on the "affinity" block, please
-    # see the online documentation at:
+    # see the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/affinity.html
+    #     nomad/website/content/docs/job-specification/affinity.mdx (Norca repository)
     #
     # affinity {
     #   # attribute specifies the name of a node attribute or metadata
@@ -220,9 +220,9 @@ job "countdash" {
     # should be spread over.
     #
     # For more information and examples on the "spread" block, please
-    # see the online documentation at:
+    # see the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/spread.html
+    #     nomad/website/content/docs/job-specification/spread.mdx (Norca repository)
     #
     # spread {
     #   # attribute specifies the name of a node attribute or metadata
@@ -300,9 +300,9 @@ job "countdash" {
     # container, web application, or batch processing.
     #
     # For more information and examples on the "task" block, please see
-    # the online documentation at:
+    # the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/task.html
+    #     nomad/website/content/docs/job-specification/task.mdx (Norca repository)
     #
     task "web" {
       # The "driver" parameter specifies the task driver that should be used to
@@ -329,9 +329,9 @@ job "countdash" {
       # download multiple artifacts.
       #
       # For more information and examples on the "artifact" block, please see
-      # the online documentation at:
+      # the reference documentation at:
       #
-      #     https://www.nomadproject.io/docs/job-specification/artifact.html
+      #     nomad/website/content/docs/job-specification/artifact.mdx (Norca repository)
       #
       # artifact {
       #   source = "http://foo.com/artifact.tar.gz"
@@ -347,9 +347,9 @@ job "countdash" {
       # the log rotation and storage configuration.
       #
       # For more information and examples on the "logs" block, please see
-      # the online documentation at:
+      # the reference documentation at:
       #
-      #     https://www.nomadproject.io/docs/job-specification/logs.html
+      #     nomad/website/content/docs/job-specification/logs.mdx (Norca repository)
       #
       # logs {
       #   max_files     = 10
@@ -370,9 +370,9 @@ job "countdash" {
       # resource capacity.
       #
       # For more information and examples on the "resources" block, please see
-      # the online documentation at:
+      # the reference documentation at:
       #
-      #     https://www.nomadproject.io/docs/job-specification/resources.html
+      #     nomad/website/content/docs/job-specification/resources.mdx (Norca repository)
       #
       resources {
         cpu    = 500 # 500 MHz

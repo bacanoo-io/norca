@@ -1,3 +1,0 @@
-```release-note:bug
-api: cleanup whitespace from failed api response body
-```

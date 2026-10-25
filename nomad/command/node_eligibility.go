@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -17,7 +18,7 @@ type NodeEligibilityCommand struct {
 
 func (c *NodeEligibilityCommand) Help() string {
 	helpText := `
-Usage: nomad node eligibility [options] <node>
+Usage: norca node eligibility [options] <node>
 
   Toggles the nodes scheduling eligibility. When a node is marked as ineligible,
   no new allocations will be placed on it but existing allocations will remain.

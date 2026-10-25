@@ -1,3 +1,0 @@
-```release-note:security
-build: Update to go1.20.1
-```

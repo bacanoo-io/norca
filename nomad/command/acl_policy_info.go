@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -16,7 +17,7 @@ type ACLPolicyInfoCommand struct {
 
 func (c *ACLPolicyInfoCommand) Help() string {
 	helpText := `
-Usage: nomad acl policy info <name>
+Usage: norca acl policy info <name>
 
   Info is used to fetch information on an existing ACL policy.
 

@@ -1,3 +1,0 @@
-```release-note:improvement
-raft: remove use of deprecated Leader func
-```

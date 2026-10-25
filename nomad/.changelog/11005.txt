@@ -1,4 +1,0 @@
-
-```release-note:improvement
-client: Speed up client startup time
-```

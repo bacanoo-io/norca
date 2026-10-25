@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package executor
@@ -17,6 +18,7 @@ import (
 	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/helper/users"
 	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/opencontainers/cgroups"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/specconv"
 )
@@ -73,8 +75,8 @@ func setCmdUser(cmd *exec.Cmd, userid string) error {
 // created by the executor
 func (e *UniversalExecutor) configureResourceContainer(pid int) error {
 	cfg := &configs.Config{
-		Cgroups: &configs.Cgroup{
-			Resources: &configs.Resources{},
+		Cgroups: &cgroups.Cgroup{
+			Resources: &cgroups.Resources{},
 		},
 	}
 
@@ -121,7 +123,7 @@ func (e *UniversalExecutor) configureResourceContainer(pid int) error {
 			// permissions, but don't return an error. There is no separate check for
 			// cgroup creation permissions, so this may be the happy path.
 			e.logger.Warn("failed to create cgroup",
-				"docs", "https://www.nomadproject.io/docs/drivers/raw_exec.html#no_cgroups",
+				"hint", "run the client with permission to create cgroups, or set no_cgroups in the raw_exec plugin configuration",
 				"error", err)
 			return nil
 		}

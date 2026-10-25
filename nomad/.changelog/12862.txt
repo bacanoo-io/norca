@@ -1,3 +1,0 @@
-```release-note:improvement
-api: enable setting `?choose` parameter when querying services
-```

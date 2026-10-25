@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package acl
@@ -42,6 +43,7 @@ func TestParse(t *testing.T) {
 							NamespaceCapabilityReadJobScaling,
 							NamespaceCapabilityListScalingPolicies,
 							NamespaceCapabilityReadScalingPolicy,
+							NamespaceCapabilityReadNetworkPolicy,
 						},
 					},
 				},
@@ -117,6 +119,7 @@ func TestParse(t *testing.T) {
 							NamespaceCapabilityReadJobScaling,
 							NamespaceCapabilityListScalingPolicies,
 							NamespaceCapabilityReadScalingPolicy,
+							NamespaceCapabilityReadNetworkPolicy,
 						},
 					},
 					{
@@ -131,6 +134,7 @@ func TestParse(t *testing.T) {
 							NamespaceCapabilityReadJobScaling,
 							NamespaceCapabilityListScalingPolicies,
 							NamespaceCapabilityReadScalingPolicy,
+							NamespaceCapabilityReadNetworkPolicy,
 							NamespaceCapabilityScaleJob,
 							NamespaceCapabilitySubmitJob,
 							NamespaceCapabilityDispatchJob,
@@ -140,7 +144,6 @@ func TestParse(t *testing.T) {
 							NamespaceCapabilityAllocLifecycle,
 							NamespaceCapabilityCSIMountVolume,
 							NamespaceCapabilityCSIWriteVolume,
-							NamespaceCapabilitySubmitRecommendation,
 						},
 					},
 					{
@@ -337,6 +340,7 @@ func TestParse(t *testing.T) {
 							NamespaceCapabilityReadJobScaling,
 							NamespaceCapabilityListScalingPolicies,
 							NamespaceCapabilityReadScalingPolicy,
+							NamespaceCapabilityReadNetworkPolicy,
 						},
 					},
 					{
@@ -351,6 +355,7 @@ func TestParse(t *testing.T) {
 							NamespaceCapabilityReadJobScaling,
 							NamespaceCapabilityListScalingPolicies,
 							NamespaceCapabilityReadScalingPolicy,
+							NamespaceCapabilityReadNetworkPolicy,
 							NamespaceCapabilityScaleJob,
 							NamespaceCapabilitySubmitJob,
 							NamespaceCapabilityDispatchJob,
@@ -360,7 +365,6 @@ func TestParse(t *testing.T) {
 							NamespaceCapabilityAllocLifecycle,
 							NamespaceCapabilityCSIMountVolume,
 							NamespaceCapabilityCSIWriteVolume,
-							NamespaceCapabilitySubmitRecommendation,
 						},
 					},
 					{
@@ -619,6 +623,25 @@ func TestParse(t *testing.T) {
 						Policy: "",
 						Capabilities: []string{
 							NamespaceCapabilitySentinelOverride,
+						},
+					},
+				},
+			},
+		},
+		{
+			`
+			namespace "default" {
+				capabilities = ["submit-recommendation"]
+			}
+			`,
+			"",
+			&Policy{
+				Namespaces: []*NamespacePolicy{
+					{
+						Name:   "default",
+						Policy: "",
+						Capabilities: []string{
+							NamespaceCapabilitySubmitRecommendation,
 						},
 					},
 				},

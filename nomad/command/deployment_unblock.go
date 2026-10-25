@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -17,7 +18,7 @@ type DeploymentUnblockCommand struct {
 
 func (c *DeploymentUnblockCommand) Help() string {
 	helpText := `
-Usage: nomad deployment unblock [options] <deployment id>
+Usage: norca deployment unblock [options] <deployment id>
 
   Unblock is used to unblock a multiregion deployment that's waiting for
   peer region deployments to complete.

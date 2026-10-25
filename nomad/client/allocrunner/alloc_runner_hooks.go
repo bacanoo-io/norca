@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package allocrunner
@@ -117,13 +118,15 @@ func (ar *allocRunner) initRunnerHooks(config *clientconfig.Config) error {
 	// Create the alloc directory hook. This is run first to ensure the
 	// directory path exists for other hooks.
 	alloc := ar.Alloc()
+	netHook := newNetworkHook(hookLogger, ns, alloc, nm, nc, ar, builtTaskEnv)
 	ar.runnerHooks = []interfaces.RunnerHook{
 		newAllocDirHook(hookLogger, ar.allocDir),
 		newCgroupHook(ar.Alloc(), ar.cpusetManager),
 		newUpstreamAllocsHook(hookLogger, ar.prevAllocWatcher),
 		newDiskMigrationHook(hookLogger, ar.prevAllocMigrator, ar.allocDir),
 		newAllocHealthWatcherHook(hookLogger, alloc, newEnvBuilder, hs, ar.Listener(), ar.consulClient, ar.checkStore),
-		newNetworkHook(hookLogger, ns, alloc, nm, nc, ar, builtTaskEnv),
+		netHook,
+		newNetworkPolicyHook(hookLogger, alloc, ar.rpcClient, config, netHook, allocTaskEvents{ar}),
 		newGroupServiceHook(groupServiceHookConfig{
 			alloc:             alloc,
 			providerNamespace: alloc.ServiceProviderNamespace(),

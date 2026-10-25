@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 // This package exists to wrap our e2e provisioning and test framework so that it
@@ -31,6 +32,7 @@ import (
 	_ "github.com/hashicorp/nomad/e2e/podman"
 	_ "github.com/hashicorp/nomad/e2e/quotas"
 	_ "github.com/hashicorp/nomad/e2e/remotetasks"
+	_ "github.com/hashicorp/nomad/e2e/rescheduling"
 	_ "github.com/hashicorp/nomad/e2e/scaling"
 	_ "github.com/hashicorp/nomad/e2e/scalingpolicies"
 	_ "github.com/hashicorp/nomad/e2e/scheduler_sysbatch"
@@ -44,7 +46,6 @@ import (
 	_ "github.com/hashicorp/nomad/e2e/disconnectedclients"
 	_ "github.com/hashicorp/nomad/e2e/namespaces"
 	_ "github.com/hashicorp/nomad/e2e/nodedrain"
-	_ "github.com/hashicorp/nomad/e2e/rescheduling"
 	_ "github.com/hashicorp/nomad/e2e/volumes"
 )
 

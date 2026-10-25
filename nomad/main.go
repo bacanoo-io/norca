@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package main
@@ -26,6 +27,12 @@ import (
 	"github.com/hashicorp/nomad/version"
 	"github.com/mitchellh/cli"
 )
+
+// cliName is the name of the binary and the CLI shown in help and usage
+// output. A copy or symlink of the binary named "nomad" (or "nomad.exe") is
+// a documented compatibility alias: the CLI never looks at argv[0], so the
+// alias behaves exactly like "norca" and prints nothing extra.
+const cliName = "norca"
 
 var (
 	// Hidden hides the commands from both help and autocomplete. Commands that
@@ -85,7 +92,7 @@ func Run(args []string) int {
 	metaPtr := new(command.Meta)
 	metaPtr.SetupUi(args)
 
-	// The Nomad agent never outputs color
+	// The agent never outputs color
 	agentUi := &cli.BasicUi{
 		Reader:      os.Stdin,
 		Writer:      os.Stdout,
@@ -94,7 +101,7 @@ func Run(args []string) int {
 
 	commands := command.Commands(metaPtr, agentUi)
 	cli := &cli.CLI{
-		Name:                       "nomad",
+		Name:                       cliName,
 		Version:                    version.GetVersion().FullVersionNumber(true),
 		Args:                       args,
 		Commands:                   commands,
@@ -102,7 +109,7 @@ func Run(args []string) int {
 		Autocomplete:               true,
 		AutocompleteNoDefaultFlags: true,
 		HelpFunc: groupedHelpFunc(
-			cli.BasicHelpFunc("nomad"),
+			cli.BasicHelpFunc(cliName),
 		),
 		HelpWriter: os.Stdout,
 	}
@@ -121,7 +128,7 @@ func groupedHelpFunc(f cli.HelpFunc) cli.HelpFunc {
 		var b bytes.Buffer
 		tw := tabwriter.NewWriter(&b, 0, 2, 6, ' ', 0)
 
-		fmt.Fprintf(tw, "Usage: nomad [-version] [-help] [-autocomplete-(un)install] <command> [args]\n\n")
+		fmt.Fprintf(tw, "Usage: %s [-version] [-help] [-autocomplete-(un)install] <command> [args]\n\n", cliName)
 		fmt.Fprintf(tw, "Common commands:\n")
 		for _, v := range commonCommands {
 			printCommand(tw, v, commands[v])

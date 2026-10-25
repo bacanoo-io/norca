@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -23,7 +24,7 @@ type inspectedQuota struct {
 
 func (c *QuotaInspectCommand) Help() string {
 	helpText := `
-Usage: nomad quota inspect [options] <quota>
+Usage: norca quota inspect [options] <quota>
 
   Inspect is used to view raw information about a particular quota.
 

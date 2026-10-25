@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -71,6 +72,13 @@ func (sv *Variables) Apply(args *structs.VariablesApplyRequest, reply *structs.V
 		return err
 	}
 
+	// Norca: run the dynamic admission controllers that opted into
+	// Variables writes.
+	admissionWarnings, err := sv.enforceAdmission(args)
+	if err != nil {
+		return err
+	}
+
 	var ev *structs.VariableEncrypted
 
 	switch args.Op {
@@ -110,6 +118,7 @@ func (sv *Variables) Apply(args *structs.VariablesApplyRequest, reply *structs.V
 	}
 	*reply = *r
 	reply.Index = index
+	reply.Warnings = admissionWarnings
 	return nil
 }
 

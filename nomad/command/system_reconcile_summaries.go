@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -16,7 +17,7 @@ type SystemReconcileSummariesCommand struct {
 
 func (c *SystemReconcileSummariesCommand) Help() string {
 	helpText := `
-Usage: nomad system reconcile summaries [options]
+Usage: norca system reconcile summaries [options]
 
   Reconciles the summaries of all registered jobs.
 

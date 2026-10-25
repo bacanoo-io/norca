@@ -59,6 +59,7 @@ type GenericStack struct {
 	taskGroupHostVolumes *HostVolumeChecker
 	taskGroupCSIVolumes  *CSIVolumeChecker
 	taskGroupNetwork     *NetworkChecker
+	taskGroupNetPolicy   *NetworkPolicyChecker
 
 	distinctHostsConstraint    *DistinctHostsIterator
 	distinctPropertyConstraint *DistinctPropertyIterator
@@ -115,6 +116,7 @@ func (s *GenericStack) SetJob(job *structs.Job) {
 	s.nodeAffinity.SetJob(job)
 	s.spread.SetJob(job)
 	s.ctx.Eligibility().SetJob(job)
+	s.taskGroupNetPolicy.SetJob(job)
 	s.taskGroupCSIVolumes.SetNamespace(job.Namespace)
 	s.taskGroupCSIVolumes.SetJobID(job.ID)
 
@@ -166,6 +168,7 @@ func (s *GenericStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ra
 	}
 	s.distinctHostsConstraint.SetTaskGroup(tg)
 	s.distinctPropertyConstraint.SetTaskGroup(tg)
+	s.taskGroupNetPolicy.SetTaskGroup(tg)
 	s.wrappedChecks.SetTaskGroup(tg.Name)
 	s.binPack.SetTaskGroup(tg)
 	if options != nil {
@@ -218,6 +221,7 @@ type SystemStack struct {
 	taskGroupHostVolumes *HostVolumeChecker
 	taskGroupCSIVolumes  *CSIVolumeChecker
 	taskGroupNetwork     *NetworkChecker
+	taskGroupNetPolicy   *NetworkPolicyChecker
 
 	distinctPropertyConstraint *DistinctPropertyIterator
 	allocAffinityTracker       *allocAffinityTracker
@@ -260,6 +264,9 @@ func NewSystemStack(sysbatch bool, ctx Context) *SystemStack {
 	// Filter on available client networks
 	s.taskGroupNetwork = NewNetworkChecker(ctx)
 
+	// Filter on nodes that can enforce the required network policies
+	s.taskGroupNetPolicy = NewNetworkPolicyChecker(ctx)
+
 	// Create the feasibility wrapper which wraps all feasibility checks in
 	// which feasibility checking can be skipped if the computed node class has
 	// previously been marked as eligible or ineligible. Generally this will be
@@ -270,6 +277,7 @@ func NewSystemStack(sysbatch bool, ctx Context) *SystemStack {
 		s.taskGroupConstraint,
 		s.taskGroupDevices,
 		s.taskGroupNetwork,
+		s.taskGroupNetPolicy,
 	}
 	avail := []FeasibilityChecker{
 		s.taskGroupHostVolumes,
@@ -332,6 +340,7 @@ func (s *SystemStack) SetJob(job *structs.Job) {
 	s.allocAffinityTracker.SetJob(job)
 	s.binPack.SetJob(job)
 	s.ctx.Eligibility().SetJob(job)
+	s.taskGroupNetPolicy.SetJob(job)
 	s.taskGroupCSIVolumes.SetNamespace(job.Namespace)
 	s.taskGroupCSIVolumes.SetJobID(job.ID)
 
@@ -365,6 +374,7 @@ func (s *SystemStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ran
 	if len(tg.Networks) > 0 {
 		s.taskGroupNetwork.SetNetwork(tg.Networks[0])
 	}
+	s.taskGroupNetPolicy.SetTaskGroup(tg)
 	s.wrappedChecks.SetTaskGroup(tg.Name)
 	s.distinctPropertyConstraint.SetTaskGroup(tg)
 	s.allocAffinityTracker.SetTaskGroup(tg)
@@ -417,6 +427,9 @@ func NewGenericStack(batch bool, ctx Context) *GenericStack {
 	// Filter on available client networks
 	s.taskGroupNetwork = NewNetworkChecker(ctx)
 
+	// Filter on nodes that can enforce the required network policies
+	s.taskGroupNetPolicy = NewNetworkPolicyChecker(ctx)
+
 	// Create the feasibility wrapper which wraps all feasibility checks in
 	// which feasibility checking can be skipped if the computed node class has
 	// previously been marked as eligible or ineligible. Generally this will be
@@ -427,6 +440,7 @@ func NewGenericStack(batch bool, ctx Context) *GenericStack {
 		s.taskGroupConstraint,
 		s.taskGroupDevices,
 		s.taskGroupNetwork,
+		s.taskGroupNetPolicy,
 	}
 	avail := []FeasibilityChecker{
 		s.taskGroupHostVolumes,

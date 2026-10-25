@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -46,5 +47,5 @@ func TestOperatorSchedulerGetConfig_Run(t *testing.T) {
 
 	// Test an unsupported flag.
 	require.EqualValues(t, 1, c.Run([]string{"-address=" + addr, "-yaml"}))
-	require.Contains(t, ui.OutputWriter.String(), "Usage: nomad operator scheduler get-config")
+	require.Contains(t, ui.OutputWriter.String(), "Usage: norca operator scheduler get-config")
 }

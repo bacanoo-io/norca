@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build linux
@@ -19,9 +20,8 @@ import (
 	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/lib/cpuset"
 	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
-	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
-	"github.com/opencontainers/runc/libcontainer/configs"
+	"github.com/opencontainers/cgroups"
+	"github.com/opencontainers/cgroups/fs"
 	"golang.org/x/sys/unix"
 )
 
@@ -323,9 +323,9 @@ func getCPUsFromCgroupV1(group string) ([]uint16, error) {
 		return nil, err
 	}
 
-	cgroup := &configs.Cgroup{
+	cgroup := &cgroups.Cgroup{
 		Path:      group,
-		Resources: new(configs.Resources),
+		Resources: new(cgroups.Resources),
 	}
 
 	paths := map[string]string{

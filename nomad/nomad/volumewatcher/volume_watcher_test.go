@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package volumewatcher
@@ -111,5 +112,5 @@ func TestVolumeReapBadState(t *testing.T) {
 
 	err = w.volumeReapImpl(vol)
 	require.NoError(t, err)
-	require.Equal(t, 2, srv.countCSIUnpublish)
+	require.Equal(t, int64(2), srv.countCSIUnpublish.Load())
 }

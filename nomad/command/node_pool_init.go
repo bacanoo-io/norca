@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -31,7 +32,7 @@ type NodePoolInitCommand struct {
 
 func (c *NodePoolInitCommand) Help() string {
 	helpText := `
-Usage: nomad node pool init <filename>
+Usage: norca node pool init <filename>
 
   Creates an example node pool specification file that can be used as a starting
   point to customize further. When no filename is supplied, a default filename

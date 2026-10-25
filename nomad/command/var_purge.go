@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )
@@ -19,7 +21,7 @@ type VarPurgeCommand struct {
 
 func (c *VarPurgeCommand) Help() string {
 	helpText := `
-Usage: nomad var purge [options] <path>
+Usage: norca var purge [options] <path>
 
   Purge is used to permanently delete an existing variable.
 
@@ -101,10 +103,11 @@ func (c *VarPurgeCommand) Run(args []string) int {
 		return 1
 	}
 
+	var wm *api.WriteMeta
 	if enforce {
-		_, err = client.Variables().CheckedDelete(path, checkIndex, nil)
+		wm, err = client.Variables().CheckedDelete(path, checkIndex, nil)
 	} else {
-		_, err = client.Variables().Delete(path, nil)
+		wm, err = client.Variables().Delete(path, nil)
 	}
 
 	if err != nil {
@@ -115,6 +118,9 @@ func (c *VarPurgeCommand) Run(args []string) int {
 		return 1
 	}
 
+	if wm != nil && len(wm.Warnings) > 0 {
+		c.Ui.Warn(c.FormatWarnings("Admission", strings.Join(wm.Warnings, "\n")))
+	}
 	c.Ui.Output(fmt.Sprintf("Successfully purged variable %q!", path))
 	return 0
 }

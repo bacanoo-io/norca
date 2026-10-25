@@ -1,3 +1,0 @@
-```release-note:bug
-agent: Don't timestamp active log file.
-```

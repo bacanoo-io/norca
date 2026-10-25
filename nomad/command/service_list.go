@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -24,7 +25,7 @@ type ServiceListCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ServiceListCommand) Help() string {
 	helpText := `
-Usage: nomad service list [options]
+Usage: norca service list [options]
 
   List is used to list the currently registered services.
 
@@ -49,7 +50,7 @@ Service List Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ServiceListCommand) Synopsis() string {
-	return "Display all registered Nomad services"
+	return "Display all registered Norca services"
 }
 
 func (s *ServiceListCommand) AutocompleteFlags() complete.Flags {

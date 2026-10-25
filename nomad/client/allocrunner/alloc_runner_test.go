@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package allocrunner
@@ -878,7 +879,7 @@ func TestAllocRunner_Lifecycle_Restart(t *testing.T) {
 					}
 					if got.Restarts != 0 {
 						errs = multierror.Append(errs, fmt.Errorf(
-							"expected no initial restarts of task %q, not %q",
+							"expected no initial restarts of task %q, not %d",
 							task, got.Restarts))
 					}
 					if expected == "dead" && got.Failed {

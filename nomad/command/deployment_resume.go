@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -17,7 +18,7 @@ type DeploymentResumeCommand struct {
 
 func (c *DeploymentResumeCommand) Help() string {
 	helpText := `
-Usage: nomad deployment resume [options] <deployment id>
+Usage: norca deployment resume [options] <deployment id>
 
   Resume is used to unpause a paused deployment. Resuming a deployment will
   resume the placement of new allocations as part of rolling deployment.

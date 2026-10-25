@@ -5,6 +5,10 @@ THIS_ARCH := $(shell uname -m)
 
 GO_MODULE = github.com/hashicorp/nomad
 
+# BINARY_NAME is the name of the built binary. A copy or symlink named nomad
+# works as a compatibility alias, but it is not built or installed by default.
+BINARY_NAME = norca
+
 GIT_COMMIT := $(shell git rev-parse HEAD)
 GIT_DIRTY := $(if $(shell git status --porcelain),+CHANGES)
 GIT_COMMIT_FLAG = $(GO_MODULE)/version.GitCommit=$(GIT_COMMIT)$(GIT_DIRTY)
@@ -42,10 +46,6 @@ endif
 # tag corresponding to latest release we maintain backward compatibility with
 PROTO_COMPARE_TAG ?= v1.0.3$(if $(findstring ent,$(GO_TAGS)),+ent,)
 
-# LAST_RELEASE is the git sha of the latest release corresponding to this branch. main should have the latest
-# published release, and release branches should point to the latest published release in the X.Y release line.
-LAST_RELEASE ?= v1.6.4
-
 default: help
 
 ifeq (Linux,$(THIS_OS))
@@ -82,11 +82,11 @@ CGO_ENABLED = 1
 # include per-user customization after all variables are defined
 -include GNUMakefile.local
 
-pkg/%/nomad: GO_OUT ?= $@
-pkg/%/nomad: CC ?= $(shell go env CC)
-pkg/%/nomad: ## Build Nomad for GOOS_GOARCH, e.g. pkg/linux_amd64/nomad
+pkg/%/$(BINARY_NAME): GO_OUT ?= $@
+pkg/%/$(BINARY_NAME): CC ?= $(shell go env CC)
+pkg/%/$(BINARY_NAME): ## Build Norca for GOOS_GOARCH, e.g. pkg/linux_amd64/norca
 ifeq (,$(findstring $(THIS_OS),$(SUPPORTED_OSES)))
-	$(warning WARNING: Building Nomad is only supported on $(SUPPORTED_OSES); not $(THIS_OS))
+	$(warning WARNING: Building Norca is only supported on $(SUPPORTED_OSES); not $(THIS_OS))
 endif
 	@echo "==> Building $@ with tags $(GO_TAGS)..."
 	@CGO_ENABLED=$(CGO_ENABLED) \
@@ -96,24 +96,32 @@ endif
 		go build -trimpath -ldflags "$(GO_LDFLAGS)" -tags "$(GO_TAGS)" -o $(GO_OUT)
 
 ifneq (armv7l,$(THIS_ARCH))
-pkg/linux_arm/nomad: CC = arm-linux-gnueabihf-gcc
+pkg/linux_arm/$(BINARY_NAME): CC = arm-linux-gnueabihf-gcc
 endif
 
 ifneq (aarch64,$(THIS_ARCH))
-pkg/linux_arm64/nomad: CC = aarch64-linux-gnu-gcc
+pkg/linux_arm64/$(BINARY_NAME): CC = aarch64-linux-gnu-gcc
 endif
 
 ifeq (Darwin,$(THIS_OS))
-pkg/linux_%/nomad: CGO_ENABLED = 0
+pkg/linux_%/$(BINARY_NAME): CGO_ENABLED = 0
 endif
 
-pkg/windows_%/nomad: GO_OUT = $@.exe
-pkg/windows_%/nomad: GO_TAGS += timetzdata
+pkg/windows_%/$(BINARY_NAME): GO_OUT = $@.exe
+pkg/windows_%/$(BINARY_NAME): GO_TAGS += timetzdata
+
+# The NATS bridge is a separate module (natsbridge/) and needs no cgo.
+pkg/%/norca-natsbridge: ## Build norca-natsbridge for GOOS_GOARCH, e.g. pkg/linux_amd64/norca-natsbridge
+	@echo "==> Building $@..."
+	@CGO_ENABLED=0 \
+		GOOS=$(firstword $(subst _, ,$*)) \
+		GOARCH=$(lastword $(subst _, ,$*)) \
+		go -C natsbridge build -trimpath -o $(PROJECT_ROOT)/$@$(if $(findstring windows_,$*),.exe) ./cmd/norca-natsbridge
 
 # Define package targets for each of the build targets we actually have on this system
 define makePackageTarget
 
-pkg/$(1).zip: pkg/$(1)/nomad
+pkg/$(1).zip: pkg/$(1)/$(BINARY_NAME)
 	@echo "==> Packaging for $(1)..."
 	@zip -j pkg/$(1).zip pkg/$(1)/*
 
@@ -136,7 +144,6 @@ deps:  ## Install build and development dependencies
 	go install github.com/golang/protobuf/protoc-gen-go@v1.3.4
 	go install github.com/hashicorp/go-msgpack/codec/codecgen@v1.1.5
 	go install github.com/bufbuild/buf/cmd/buf@v0.36.0
-	go install github.com/hashicorp/go-changelog/cmd/changelog-build@latest
 	go install golang.org/x/tools/cmd/stringer@v0.1.12
 	go install github.com/hashicorp/hc-install/cmd/hc-install@v0.6.1
 	go install github.com/shoenig/go-modtool@v0.1.1
@@ -164,7 +171,7 @@ check: ## Lint the source code
 	@hclogvet .
 
 	@echo "==> Spell checking website..."
-	@misspell -error -source=text website/pages/
+	@misspell -error -source=text website/content/
 
 	@echo "==> Checking for breaking changes in protos..."
 	@buf breaking --config tools/buf/buf.yaml --against-config tools/buf/buf.yaml --against .git#tag=$(PROTO_COMPARE_TAG)
@@ -222,10 +229,6 @@ proto: ## Generate protobuf bindings
 	@echo "==> Generating proto bindings..."
 	@buf --config tools/buf/buf.yaml --template tools/buf/buf.gen.yaml generate
 
-changelog: ## Generate changelog from entries
-	@changelog-build -last-release $(LAST_RELEASE) -this-release HEAD \
-		-entries-dir .changelog/ -changelog-template ./.changelog/changelog.tmpl -note-template ./.changelog/note.tmpl
-
 ## We skip the terraform directory as there are templated hcl configurations
 ## that do not successfully compile without rendering
 .PHONY: hclfmt
@@ -253,12 +256,12 @@ tidy: ## Tidy up the go mod files
 .PHONY: dev
 dev: GOOS=$(shell go env GOOS)
 dev: GOARCH=$(shell go env GOARCH)
-dev: DEV_TARGET=pkg/$(GOOS)_$(GOARCH)/nomad
+dev: DEV_TARGET=pkg/$(GOOS)_$(GOARCH)/$(BINARY_NAME)
 dev: hclfmt ## Build for the current development platform
 	@echo "==> Removing old development build..."
 	@rm -f $(PROJECT_ROOT)/$(DEV_TARGET)
-	@rm -f $(PROJECT_ROOT)/bin/nomad
-	@rm -f $(BIN)/nomad
+	@rm -f $(PROJECT_ROOT)/bin/$(BINARY_NAME)
+	@rm -f $(BIN)/$(BINARY_NAME)
 	@if [ -d vendor ]; then echo -e "==> WARNING: Found vendor directory.  This may cause build errors, consider running 'rm -r vendor' or 'make clean' to remove.\n"; fi
 	@$(MAKE) --no-print-directory \
 		$(DEV_TARGET) \
@@ -277,6 +280,36 @@ release: GO_TAGS=ui codegen_generated release
 release: clean $(foreach t,$(ALL_TARGETS),pkg/$(t).zip) ## Build all release packages which can be built on this platform.
 	@echo "==> Results:"
 	@tree --dirsfirst $(PROJECT_ROOT)/pkg
+
+# Third-party notices and SBOMs, generated by tools/thirdparty (standard
+# library only; it runs in the tools module).
+REPO_ROOT := $(abspath $(PROJECT_ROOT)/..)
+THIRDPARTY = go -C $(PROJECT_ROOT)/tools run ./thirdparty
+
+.PHONY: notices
+notices: ## Regenerate THIRD_PARTY_NOTICES.md at the repository root
+	@$(THIRDPARTY) notices -root $(REPO_ROOT) -out $(REPO_ROOT)/THIRD_PARTY_NOTICES.md
+
+.PHONY: check-notices
+check-notices: ## Check that THIRD_PARTY_NOTICES.md is up to date and every license is allowed
+	@$(THIRDPARTY) notices -root $(REPO_ROOT) -check $(REPO_ROOT)/THIRD_PARTY_NOTICES.md
+
+SBOM_OS ?= $(shell go env GOOS)
+SBOM_ARCH ?= $(shell go env GOARCH)
+SBOM_PLATFORM = $(SBOM_OS)_$(SBOM_ARCH)
+SBOM_EXE = $(if $(filter windows,$(SBOM_OS)),.exe)
+
+.PHONY: sbom
+sbom: ## Build norca and norca-natsbridge (release tags) and write CycloneDX SBOMs to pkg/sbom/
+	@rm -f pkg/$(SBOM_PLATFORM)/$(BINARY_NAME)$(SBOM_EXE) pkg/$(SBOM_PLATFORM)/norca-natsbridge$(SBOM_EXE)
+	@GO_TAGS="codegen_generated release" $(MAKE) --no-print-directory \
+		pkg/$(SBOM_PLATFORM)/$(BINARY_NAME) pkg/$(SBOM_PLATFORM)/norca-natsbridge
+	@mkdir -p $(PROJECT_ROOT)/pkg/sbom
+	@for b in $(BINARY_NAME) norca-natsbridge; do \
+		$(THIRDPARTY) sbom -root $(REPO_ROOT) -name $$b \
+			-binary $(PROJECT_ROOT)/pkg/$(SBOM_PLATFORM)/$$b$(SBOM_EXE) \
+			-out $(PROJECT_ROOT)/pkg/sbom/$${b}_$(SBOM_PLATFORM).cdx.json || exit 1; \
+	done
 
 .PHONY: test-nomad
 test-nomad: GOTEST_PKGS=$(foreach g,$(GOTEST_GROUP),$(shell go run -modfile=tools/go.mod tools/missing/main.go ci/test-core.json $(g)))
@@ -328,7 +361,7 @@ clean: ## Remove build artifacts
 	@rm -rf "$(PROJECT_ROOT)/bin/"
 	@rm -rf "$(PROJECT_ROOT)/pkg/"
 	@rm -rf "$(PROJECT_ROOT)/vendor/"
-	@rm -f "$(BIN)/nomad"
+	@rm -f "$(BIN)/$(BINARY_NAME)"
 
 .PHONY: testcluster
 testcluster: ## Bring up a Linux test cluster using Vagrant. Set PROVIDER if necessary.

@@ -218,6 +218,10 @@ type Client struct {
 	// pendingUpdates stores allocations that need to be synced to the server.
 	pendingUpdates *pendingClientUpdates
 
+	// taskGroupUsage aggregates task group resource usage for the built-in
+	// autoscaler and holds the report allocSync sends next.
+	taskGroupUsage *taskGroupUsageReporter
+
 	// consulService is the Consul handler implementation for managing services
 	// and checks.
 	consulService serviceregistration.Handler
@@ -225,6 +229,9 @@ type Client struct {
 	// nomadService is the Nomad handler implementation for managing service
 	// registrations.
 	nomadService serviceregistration.Handler
+
+	// discovery holds the service discovery servers of the client (Norca).
+	discovery discoveryServers
 
 	// checkStore is used to store group and task checks and their current pass/fail
 	// status.
@@ -373,6 +380,7 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 		rpcLogger:            logger.Named("rpc"),
 		allocs:               make(map[string]interfaces.AllocRunner),
 		pendingUpdates:       newPendingClientUpdates(),
+		taskGroupUsage:       newTaskGroupUsageReporter(),
 		shutdownCh:           make(chan struct{}),
 		triggerDiscoveryCh:   make(chan struct{}),
 		triggerNodeUpdate:    make(chan struct{}, 8),
@@ -495,6 +503,11 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 	c.serviceRegWrapper = wrapper.NewHandlerWrapper(c.logger, c.consulService, c.nomadService)
 	c.setupCheckRoles()
 
+	// Start the built-in DNS server (Norca).
+	if err := c.setupDiscovery(); err != nil {
+		return nil, err
+	}
+
 	// Batching of initial fingerprints is done to reduce the number of node
 	// updates sent to the server on startup.
 	go c.batchFirstFingerprints()
@@ -585,6 +598,10 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 
 	// Start collecting stats
 	c.shutdownGroup.Go(c.emitStats)
+
+	// Aggregate task group usage for the built-in autoscaler, when the
+	// servers ask for it
+	c.shutdownGroup.Go(c.collectTaskGroupUsage)
 
 	c.logger.Info("started client", "node_id", c.NodeID())
 	return c, nil
@@ -864,6 +881,9 @@ func (c *Client) Shutdown() error {
 	if h, ok := c.nomadService.(*nsd.ServiceRegistrationHandler); ok {
 		h.Shutdown()
 	}
+
+	// Stop the built-in DNS server (Norca).
+	c.shutdownDiscovery()
 
 	// Shutdown the plugin managers
 	c.pluginManagers.Shutdown()
@@ -2113,6 +2133,9 @@ func (c *Client) handleNodeUpdateResponse(resp structs.NodeUpdateResponse) error
 	// rebalance rate.
 	c.servers.SetNumNodes(resp.NumNodes)
 
+	// Start or stop the task group usage reports of the built-in autoscaler.
+	c.taskGroupUsage.setInterval(resp.TaskGroupUsageInterval, time.Now())
+
 	// Convert []*NodeServerInfo to []*servers.Server
 	nomadServers := make([]*servers.Server, 0, len(resp.Servers))
 	for _, s := range resp.Servers {
@@ -2185,14 +2208,19 @@ func (c *Client) allocSync() {
 			updateTicks++
 			toSync := c.pendingUpdates.nextBatch(c, updateTicks)
 
-			if len(toSync) == 0 {
+			// A finished task group usage report rides along with the
+			// allocation updates, or is sent alone if there are none.
+			usage := c.taskGroupUsage.take()
+
+			if len(toSync) == 0 && usage == nil {
 				syncTicker.Reset(allocSyncIntv)
 				continue
 			}
 
 			// Send to server.
 			args := structs.AllocUpdateRequest{
-				Alloc: toSync,
+				Alloc:          toSync,
+				TaskGroupUsage: usage,
 				WriteRequest: structs.WriteRequest{
 					Region:    c.Region(),
 					AuthToken: c.secretNodeID(),
@@ -2201,6 +2229,13 @@ func (c *Client) allocSync() {
 
 			var resp structs.GenericResponse
 			err := c.RPC("Node.UpdateAlloc", &args, &resp)
+			if err != nil && len(toSync) == 0 {
+				// Only the usage report failed; it is dropped, the next
+				// window brings a new one.
+				c.logger.Debug("error sending task group usage", "error", err)
+				syncTicker.Reset(allocSyncIntv)
+				continue
+			}
 			if err != nil {
 				// Error updating allocations, do *not* clear
 				// updates and retry after backoff
@@ -2795,6 +2830,7 @@ func (c *Client) setupNomadServiceRegistrationHandler() {
 			c.logger, nsd.NewStatusGetter(c.checkStore),
 		),
 		CheckStore: c.checkStore,
+		Zone:       c.TopologyZone,
 	}
 	c.nomadService = nsd.NewServiceRegistrationHandler(c.logger, &cfg)
 }

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -20,7 +21,7 @@ type OperatorGossipKeyringListCommand struct {
 
 func (c *OperatorGossipKeyringListCommand) Help() string {
 	helpText := `
-Usage: nomad operator gossip keyring list [options]
+Usage: norca operator gossip keyring list [options]
 
   List all gossip keys currently in use within the cluster.
 
@@ -75,7 +76,7 @@ func (c *OperatorGossipKeyringListCommand) Run(args []string) int {
 
 	client, err := c.Meta.Client()
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error creating nomad cli client: %s", err))
+		c.Ui.Error(fmt.Sprintf("Error creating norca cli client: %s", err))
 		return 1
 	}
 

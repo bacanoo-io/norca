@@ -1,0 +1,140 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/hashicorp/nomad/api"
+	"github.com/hashicorp/nomad/controller"
+	"github.com/hashicorp/nomad/controller/fake"
+	"github.com/hashicorp/nomad/controller/webhook"
+)
+
+// The tests run the controller against the SDK's fake backend: no servers
+// are needed. envtest_test.go runs the same scenario against a dev agent.
+
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func startController(t *testing.T, backend controller.Backend) {
+	t.Helper()
+	r := &Reconciler{Now: time.Now}
+	ctrl, err := controller.New(backend, r, controller.Options{
+		Name:      "test",
+		Kind:      Kind,
+		Storage:   controller.StorageNative,
+		Namespace: "default",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Ctrl = ctrl
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = ctrl.Run(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+}
+
+func status(t *testing.T, co *api.CustomObject) Status {
+	t.Helper()
+	var s Status
+	if co == nil || co.Status == nil {
+		return s
+	}
+	b, _ := json.Marshal(co.Status)
+	if err := json.Unmarshal(b, &s); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestReconcile_Lifecycle(t *testing.T) {
+	b := fake.New()
+	startController(t, b)
+
+	b.PutObject(&api.CustomObject{
+		Group: Kind.Group, Kind: Kind.Kind, Namespace: "<% .Namespace %>", Name: "sample",
+		Spec: map[string]any{"replicas": 3},
+	})
+	waitFor(t, "ready", func() bool {
+		s := status(t, b.GetObject(Kind, "<% .Namespace %>", "sample"))
+		return s.IsTrue(controller.ConditionReady) && s.Replicas == 3
+	})
+	if co := b.GetObject(Kind, "<% .Namespace %>", "sample"); len(co.Finalizers) != 1 || co.Finalizers[0] != Finalizer {
+		t.Fatalf("finalizers = %v, want [%s]", co.Finalizers, Finalizer)
+	}
+
+	// Deleting marks the object; the controller cleans up and removes the
+	// finalizer, then the object is gone.
+	b.RemoveObject(Kind, "<% .Namespace %>", "sample")
+	waitFor(t, "deletion", func() bool { return b.GetObject(Kind, "<% .Namespace %>", "sample") == nil })
+}
+
+func TestReconcile_InvalidSpec(t *testing.T) {
+	b := fake.New()
+	startController(t, b)
+
+	b.PutObject(&api.CustomObject{
+		Group: Kind.Group, Kind: Kind.Kind, Namespace: "<% .Namespace %>", Name: "bad",
+		Spec: map[string]any{"replicas": 1, "message": "forbidden"},
+	})
+	waitFor(t, "degraded", func() bool {
+		s := status(t, b.GetObject(Kind, "<% .Namespace %>", "bad"))
+		return s.IsTrue(controller.ConditionDegraded)
+	})
+}
+
+func TestWebhook_Validate(t *testing.T) {
+	srv := httptest.NewServer(newWebhookMux())
+	defer srv.Close()
+
+	review := func(spec string) *webhook.Response {
+		body, _ := json.Marshal(&webhook.Review{
+			APIVersion: webhook.APIVersion, Kind: webhook.Kind,
+			Request: &webhook.Request{
+				UID: "1", Operation: webhook.OperationCreate,
+				Object: &webhook.Object{Kind: Kind.String(), Spec: json.RawMessage(spec)},
+			},
+		})
+		resp, err := http.Post(srv.URL+"/validate", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out webhook.Review
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			t.Fatal(err)
+		}
+		return out.Response
+	}
+	if r := review(`{"replicas": 2}`); !r.Allowed {
+		t.Fatalf("valid spec denied: %s", r.Message)
+	}
+	if r := review(`{"replicas": 2, "message": "forbidden"}`); r.Allowed || !strings.Contains(r.Message, "forbidden") {
+		t.Fatalf("invalid spec allowed: %+v", r)
+	}
+}

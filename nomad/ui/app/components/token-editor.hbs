@@ -1,0 +1,235 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+<form class="acl-form token-editor" autocomplete="off" novalidate {{on "submit" (perform this.save)}} data-test-token-editor>
+  <div class="acl-form-row">
+    <Hds::Form::TextInput::Field
+      @value={{this.tokenRecord.name}}
+      {{on "input" this.updateName}}
+      data-test-token-name-input
+      as |F|
+    >
+      <F.Label>Token name</F.Label>
+    </Hds::Form::TextInput::Field>
+  </div>
+
+  {{#unless this.tokenRecord.isNew}}
+    <div class="acl-form-row token-identifiers">
+      <div class="token-identifier">
+        <Hds::Form::TextInput::Field
+          @value={{this.tokenRecord.accessor}}
+          readonly
+          data-test-token-accessor
+          as |F|
+        >
+          <F.Label>Accessor ID</F.Label>
+          <F.HelperText>Public identifier of the token, used to look it up or delete it.</F.HelperText>
+        </Hds::Form::TextInput::Field>
+        <CopyButton @clipboardText={{this.tokenRecord.accessor}} @compact={{true}} />
+      </div>
+      <div class="token-identifier">
+        <Hds::Form::TextInput::Field
+          @value={{this.tokenRecord.secret}}
+          readonly
+          data-test-token-secret
+          as |F|
+        >
+          <F.Label>Secret ID</F.Label>
+          <F.HelperText>Used to authenticate requests. Keep it private.</F.HelperText>
+        </Hds::Form::TextInput::Field>
+        <CopyButton @clipboardText={{this.tokenRecord.secret}} @compact={{true}} />
+      </div>
+    </div>
+  {{/unless}}
+
+  <div class="acl-form-row">
+    <Hds::Form::Radio::Group @layout="horizontal" @name="token-type" as |G|>
+      <G.Legend>Token type</G.Legend>
+      <G.HelperText>
+        Management tokens have every permission. Client tokens get their permissions from the roles and policies linked below.
+      </G.HelperText>
+      <G.Radio::Field
+        @value="client"
+        checked={{eq this.tokenRecord.type "client"}}
+        {{on "change" (fn this.updateType "client")}}
+        data-test-token-type="client"
+        as |F|
+      >
+        <F.Label>Client</F.Label>
+      </G.Radio::Field>
+      <G.Radio::Field
+        @value="management"
+        checked={{eq this.tokenRecord.type "management"}}
+        {{on "change" (fn this.updateType "management")}}
+        data-test-token-type="management"
+        as |F|
+      >
+        <F.Label>Management</F.Label>
+      </G.Radio::Field>
+    </Hds::Form::Radio::Group>
+  </div>
+
+  <div class="acl-form-row">
+    <Hds::Form::Checkbox::Field
+      checked={{this.tokenRecord.global}}
+      disabled={{not this.tokenRecord.isNew}}
+      {{on "change" this.toggleGlobal}}
+      data-test-token-global
+      as |F|
+    >
+      <F.Label>Global token</F.Label>
+      <F.HelperText>
+        {{#if this.tokenRecord.isNew}}
+          Replicate the token to every federated region.
+        {{else}}
+          Whether a token is global can only be chosen when it is created.
+        {{/if}}
+      </F.HelperText>
+    </Hds::Form::Checkbox::Field>
+  </div>
+
+  <div class="acl-form-row">
+    {{#if this.tokenRecord.isNew}}
+      <Hds::Form::Radio::Group
+        class="expiration-time"
+        @layout="horizontal"
+        @name="token-expiration"
+        data-test-token-expiration
+        as |G|
+      >
+        <G.Legend>Expires</G.Legend>
+        {{#each this.expirationOptions as |option|}}
+          <G.Radio::Field
+            @value={{option.value}}
+            checked={{eq this.expiration option.value}}
+            {{on "change" (fn this.setExpiration option.value)}}
+            as |F|
+          >
+            <F.Label>{{option.label}}</F.Label>
+          </G.Radio::Field>
+        {{/each}}
+      </Hds::Form::Radio::Group>
+      {{#if (eq this.expiration "custom")}}
+        <Hds::Form::TextInput::Field
+          class="custom-expiration"
+          @type="datetime-local"
+          @value={{this.customExpiration}}
+          min={{this.minExpiration}}
+          {{on "change" this.updateCustomExpiration}}
+          {{on "input" this.updateCustomExpiration}}
+          data-test-token-expiration-time-input
+          as |F|
+        >
+          <F.Label>Expiration time</F.Label>
+          <F.HelperText>In your local time zone. The server limits how far in the future a token may expire.</F.HelperText>
+        </Hds::Form::TextInput::Field>
+      {{/if}}
+    {{else}}
+      <p class="expiration-time {{if this.tokenRecord.isExpired "has-text-danger"}}" data-test-token-expiration>
+        {{#if this.tokenRecord.expirationTime}}
+          {{#if this.tokenRecord.isExpired}}
+            Token expired {{moment-from-now this.tokenRecord.expirationTime interval=1000}}
+          {{else}}
+            Token expires {{moment-from-now this.tokenRecord.expirationTime interval=1000}}
+          {{/if}}
+        {{else}}
+          Token does not expire
+        {{/if}}
+      </p>
+    {{/if}}
+  </div>
+
+  {{#if this.isClientToken}}
+    <div class="acl-form-row">
+      <h3 class="title is-5">Roles</h3>
+      {{#if this.availableRoles.length}}
+        <Hds::Table
+          class="acl-table"
+          @model={{this.availableRoles}}
+          @columns={{this.roleColumns}}
+          @sortBy="name"
+          @density="short"
+          data-test-token-roles
+        >
+          <:body as |B|>
+            <B.Tr>
+              <B.Td>
+                <input
+                  type="checkbox"
+                  class="hds-form-checkbox"
+                  aria-label="Link role {{B.data.name}}"
+                  checked={{includes B.data.id this.selectedRoleIds}}
+                  {{on "change" (fn this.toggleRole B.data)}}
+                />
+              </B.Td>
+              <B.Td data-test-role-name>{{B.data.name}}</B.Td>
+              <B.Td>{{B.data.description}}</B.Td>
+              <B.Td>
+                <div class="tag-group">
+                  {{#each B.data.policies as |policy|}}
+                    <span class="tag">{{policy.name}}</span>
+                  {{else}}
+                    No Policies
+                  {{/each}}
+                </div>
+              </B.Td>
+            </B.Tr>
+          </:body>
+        </Hds::Table>
+      {{else}}
+        <p class="empty-message-body" data-test-token-no-roles>No roles exist yet.</p>
+      {{/if}}
+    </div>
+
+    <div class="acl-form-row">
+      <h3 class="title is-5">Policies</h3>
+      {{#if this.availablePolicies.length}}
+        <Hds::Table
+          class="acl-table"
+          @model={{this.availablePolicies}}
+          @columns={{this.policyColumns}}
+          @sortBy="name"
+          @density="short"
+          data-test-token-policies
+        >
+          <:body as |B|>
+            <B.Tr>
+              <B.Td>
+                <input
+                  type="checkbox"
+                  class="hds-form-checkbox"
+                  aria-label="Link policy {{B.data.name}}"
+                  checked={{includes B.data.id this.selectedPolicyIds}}
+                  {{on "change" (fn this.togglePolicy B.data)}}
+                />
+              </B.Td>
+              <B.Td data-test-policy-name>{{B.data.name}}</B.Td>
+              <B.Td>{{B.data.description}}</B.Td>
+            </B.Tr>
+          </:body>
+        </Hds::Table>
+      {{else}}
+        <p class="empty-message-body" data-test-token-no-policies>No policies exist yet.</p>
+      {{/if}}
+    </div>
+  {{/if}}
+
+  <footer class="acl-form-footer">
+    <Hds::ButtonSet>
+      <Hds::Button
+        @text={{if this.tokenRecord.isNew "Create Token" "Save Token"}}
+        type="submit"
+        disabled={{this.save.isRunning}}
+        data-test-token-save
+      />
+      <Hds::Button
+        @text="Cancel"
+        @color="secondary"
+        @route="access-control.tokens"
+        data-test-token-cancel
+      />
+    </Hds::ButtonSet>
+  </footer>
+</form>

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build windows
@@ -41,6 +42,4 @@ func (serviceWindows) Execute(args []string, r <-chan wsvc.ChangeRequest, s chan
 			return false, 0
 		}
 	}
-
-	return false, 0
 }

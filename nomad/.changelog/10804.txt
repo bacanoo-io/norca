@@ -1,4 +1,0 @@
-```release-note:improvement
-consul/connect: automatically set CONSUL_TLS_SERVER_NAME for connect native tasks
-```
-

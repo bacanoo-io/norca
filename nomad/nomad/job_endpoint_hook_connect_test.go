@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -412,7 +413,7 @@ func TestJobEndpointConnect_ConnectInterpolation(t *testing.T) {
 
 	j := mock.ConnectJob()
 	j.TaskGroups[0].Services[0].Name = "${JOB}-api"
-	j, warnings, err := jobEndpoint.admissionMutators(j)
+	j, warnings, err := jobEndpoint.admissionMutators(j, nil)
 	require.NoError(t, err)
 	require.Nil(t, warnings)
 

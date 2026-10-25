@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -23,7 +24,7 @@ type ACLTokenCreateCommand struct {
 
 func (c *ACLTokenCreateCommand) Help() string {
 	helpText := `
-Usage: nomad acl token create [options]
+Usage: norca acl token create [options]
 
   Create is used to issue new ACL tokens. Requires a management token.
 

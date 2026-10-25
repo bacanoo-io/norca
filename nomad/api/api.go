@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package api
@@ -15,7 +16,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -155,6 +155,11 @@ type WriteMeta struct {
 
 	// How long did the request take
 	RequestTime time.Duration
+
+	// Warnings returned by the server for the write, from the
+	// X-Nomad-Warnings header. Norca returns the warnings of admission
+	// policies and webhooks for Variables writes here.
+	Warnings []string
 }
 
 // HttpBasicAuth is used to authenticate http client with HTTP Basic Authentication
@@ -288,22 +293,25 @@ func defaultHttpClient() *http.Client {
 	return httpClient
 }
 
-// DefaultConfig returns a default configuration for the client
+// DefaultConfig returns a default configuration for the client. It reads the
+// NORCA_* environment variables (e.g. NORCA_ADDR, NORCA_TOKEN) and falls back
+// to the NOMAD_* variable of the same name when the NORCA_* one is unset or
+// empty.
 func DefaultConfig() *Config {
 	config := &Config{
 		Address:   "http://127.0.0.1:4646",
 		TLSConfig: &TLSConfig{},
 	}
-	if addr := os.Getenv("NOMAD_ADDR"); addr != "" {
+	if addr := getEnv("ADDR"); addr != "" {
 		config.Address = addr
 	}
-	if v := os.Getenv("NOMAD_REGION"); v != "" {
+	if v := getEnv("REGION"); v != "" {
 		config.Region = v
 	}
-	if v := os.Getenv("NOMAD_NAMESPACE"); v != "" {
+	if v := getEnv("NAMESPACE"); v != "" {
 		config.Namespace = v
 	}
-	if auth := os.Getenv("NOMAD_HTTP_AUTH"); auth != "" {
+	if auth := getEnv("HTTP_AUTH"); auth != "" {
 		var username, password string
 		if strings.Contains(auth, ":") {
 			split := strings.SplitN(auth, ":", 2)
@@ -320,27 +328,27 @@ func DefaultConfig() *Config {
 	}
 
 	// Read TLS specific env vars
-	if v := os.Getenv("NOMAD_CACERT"); v != "" {
+	if v := getEnv("CACERT"); v != "" {
 		config.TLSConfig.CACert = v
 	}
-	if v := os.Getenv("NOMAD_CAPATH"); v != "" {
+	if v := getEnv("CAPATH"); v != "" {
 		config.TLSConfig.CAPath = v
 	}
-	if v := os.Getenv("NOMAD_CLIENT_CERT"); v != "" {
+	if v := getEnv("CLIENT_CERT"); v != "" {
 		config.TLSConfig.ClientCert = v
 	}
-	if v := os.Getenv("NOMAD_CLIENT_KEY"); v != "" {
+	if v := getEnv("CLIENT_KEY"); v != "" {
 		config.TLSConfig.ClientKey = v
 	}
-	if v := os.Getenv("NOMAD_TLS_SERVER_NAME"); v != "" {
+	if v := getEnv("TLS_SERVER_NAME"); v != "" {
 		config.TLSConfig.TLSServerName = v
 	}
-	if v := os.Getenv("NOMAD_SKIP_VERIFY"); v != "" {
+	if v := getEnv("SKIP_VERIFY"); v != "" {
 		if insecure, err := strconv.ParseBool(v); err == nil {
 			config.TLSConfig.Insecure = insecure
 		}
 	}
-	if v := os.Getenv("NOMAD_TOKEN"); v != "" {
+	if v := getEnv("TOKEN"); v != "" {
 		config.SecretID = v
 	}
 	return config
@@ -1095,6 +1103,9 @@ func parseQueryMeta(resp *http.Response, q *QueryMeta) error {
 // parseWriteMeta is used to help parse write meta-data
 func parseWriteMeta(resp *http.Response, q *WriteMeta) error {
 	header := resp.Header
+
+	// Parse the X-Nomad-Warnings
+	q.Warnings = header.Values("X-Nomad-Warnings")
 
 	// Parse the X-Nomad-Index
 	index, err := strconv.ParseUint(header.Get("X-Nomad-Index"), 10, 64)

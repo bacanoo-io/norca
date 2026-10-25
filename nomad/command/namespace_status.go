@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -18,7 +19,7 @@ type NamespaceStatusCommand struct {
 
 func (c *NamespaceStatusCommand) Help() string {
 	helpText := `
-Usage: nomad namespace status [options] <namespace>
+Usage: norca namespace status [options] <namespace>
 
   Status is used to view the status of a particular namespace.
 

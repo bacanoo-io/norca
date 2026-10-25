@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -31,7 +32,7 @@ type ACLBindingRuleUpdateCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLBindingRuleUpdateCommand) Help() string {
 	helpText := `
-Usage: nomad acl binding-rule update [options] <acl_binding_rule_id>
+Usage: norca acl binding-rule update [options] <acl_binding_rule_id>
 
   Update is used to update an existing ACL binding rule. Requires a management
   token.
@@ -56,7 +57,7 @@ Update Options:
 
   -bind-type
     Specifies adjusts how this binding rule is applied at login time to internal
-    Nomad objects. Valid options are "role", "policy", or "management".
+    Norca objects. Valid options are "role", "policy", or "management".
 
   -bind-name
     Specifies is the target of the binding used on selector match. This can be

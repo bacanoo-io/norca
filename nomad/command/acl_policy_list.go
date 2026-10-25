@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -17,7 +18,7 @@ type ACLPolicyListCommand struct {
 
 func (c *ACLPolicyListCommand) Help() string {
 	helpText := `
-Usage: nomad acl policy list
+Usage: norca acl policy list
 
   List is used to list available ACL policies.
 

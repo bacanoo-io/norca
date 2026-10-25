@@ -1,3 +1,0 @@
-```release-note:improvement
-fingerprint: Detect CNI plugins and set versions as node attributes
-```

@@ -1,0 +1,20 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+app {
+  url = "https://<% .Module %>"
+}
+
+pack {
+  name        = "<% .Name %>"
+  description = "The <% .Group %>/<% .Kind %> operator: the object kind, the ACL policy of the controller and the controller job as one release."
+  version     = "0.1.0"
+
+  requires {
+    norca    = ">= 0.1.0"
+    features = ["releases", "custom-objects", "object-limits"]
+  }
+}
+
+variables_schema = file("values.schema.json")

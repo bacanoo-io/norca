@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package config
@@ -304,6 +305,19 @@ type Config struct {
 	// NomadServiceDiscovery determines whether the Nomad native service
 	// discovery client functionality is enabled.
 	NomadServiceDiscovery bool
+
+	// NativeServiceDiscovery holds the settings of service lookups made by
+	// the workloads of the client (Norca).
+	NativeServiceDiscovery *structsc.NativeServiceDiscoveryConfig
+
+	// Topology holds the topology zone of the node (Norca).
+	Topology *structsc.TopologyConfig
+
+	// DNS configures the built-in DNS server (Norca).
+	DNS *structsc.DNSConfig
+
+	// ConsulCompat configures the Consul-compatible read API (Norca).
+	ConsulCompat *structsc.ConsulCompatConfig
 
 	// TemplateDialer is our custom HTTP dialer for consul-template. This is
 	// used for template functions which require access to the Nomad API.
@@ -752,6 +766,10 @@ func (c *Config) Copy() *Config {
 	nc.TemplateConfig = c.TemplateConfig.Copy()
 	nc.ReservableCores = slices.Clone(c.ReservableCores)
 	nc.Artifact = c.Artifact.Copy()
+	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
+	nc.Topology = c.Topology.Copy()
+	nc.DNS = c.DNS.Copy()
+	nc.ConsulCompat = c.ConsulCompat.Copy()
 	return &nc
 }
 

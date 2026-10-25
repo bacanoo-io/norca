@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -15,13 +16,13 @@ type SystemReconcileCommand struct {
 
 func (s *SystemReconcileCommand) Help() string {
 	helpText := `
-Usage: nomad system reconcile <subcommand> [options]
+Usage: norca system reconcile <subcommand> [options]
 
   This command groups subcommands for interacting with the system reconcile API.
 
   Reconcile the summaries of all registered jobs:
 
-      $ nomad system reconcile summaries
+      $ norca system reconcile summaries
 
   Please see the individual subcommand help for detailed usage information.
 `

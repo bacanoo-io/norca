@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !ui
@@ -14,9 +15,8 @@ func init() {
 	uiEnabled = false
 	stubHTML = `<!DOCTYPE html>
 <html>
-<p>Nomad UI is not available in this binary. To get Nomad UI do one of the following:</p>
+<p>The web UI is not available in this binary. To get the web UI do one of the following:</p>
 <ul>
-<li><a href="https://www.nomadproject.io/downloads.html">Download an official release</a></li>
 <li>Run <pre>make release</pre> to create your own release binaries.
 <li>Run <pre>make dev-ui</pre> to create a development binary with the UI.
 </ul>

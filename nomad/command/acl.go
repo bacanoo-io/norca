@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -15,15 +16,15 @@ type ACLCommand struct {
 
 func (f *ACLCommand) Help() string {
 	helpText := `
-Usage: nomad acl <subcommand> [options] [args]
+Usage: norca acl <subcommand> [options] [args]
 
   This command groups subcommands for interacting with ACL policies and tokens.
-  Users can bootstrap Nomad's ACL system, create policies that restrict access,
+  Users can bootstrap Norca's ACL system, create policies that restrict access,
   and generate tokens from those policies.
 
   Bootstrap ACLs:
 
-      $ nomad acl bootstrap
+      $ norca acl bootstrap
 
   Please see the individual subcommand help for detailed usage information.
 `

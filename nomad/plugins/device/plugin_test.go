@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package device
@@ -62,7 +63,7 @@ func TestDevicePlugin_PluginInfo(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})
@@ -105,7 +106,7 @@ func TestDevicePlugin_ConfigSchema(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})
@@ -152,7 +153,7 @@ func TestDevicePlugin_SetConfig(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})
@@ -236,7 +237,7 @@ func TestDevicePlugin_Fingerprint(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})
@@ -314,7 +315,7 @@ func TestDevicePlugin_Fingerprint_StreamErr(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})
@@ -367,7 +368,7 @@ func TestDevicePlugin_Fingerprint_CancelCtx(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})
@@ -443,7 +444,7 @@ func TestDevicePlugin_Reserve(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})
@@ -553,7 +554,7 @@ func TestDevicePlugin_Stats(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})
@@ -631,7 +632,7 @@ func TestDevicePlugin_Stats_StreamErr(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})
@@ -684,7 +685,7 @@ func TestDevicePlugin_Stats_CancelCtx(t *testing.T) {
 		},
 	}
 
-	client, server := plugin.TestPluginGRPCConn(t, map[string]plugin.Plugin{
+	client, server := plugin.TestPluginGRPCConn(t, false, map[string]plugin.Plugin{
 		base.PluginTypeBase:   &base.PluginBase{Impl: mock},
 		base.PluginTypeDevice: &PluginDevice{Impl: mock},
 	})

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -16,7 +17,7 @@ type ServiceDeleteCommand struct {
 
 func (s *ServiceDeleteCommand) Help() string {
 	helpText := `
-Usage: nomad service delete [options] <service_name> <service_id>
+Usage: norca service delete [options] <service_name> <service_id>
 
   Delete is used to deregister the specified service registration. It should be
   used with caution and can only remove a single registration, via the service

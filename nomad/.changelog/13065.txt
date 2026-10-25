@@ -1,3 +1,0 @@
-```release-note:bug
-api: Fixed a bug where Consul token was not respected for job revert API
-```

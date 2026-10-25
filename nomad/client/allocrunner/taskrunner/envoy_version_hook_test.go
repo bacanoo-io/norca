@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package taskrunner
@@ -44,7 +45,7 @@ func TestEnvoyVersionHook_semver(t *testing.T) {
 
 	t.Run("unexpected", func(t *testing.T) {
 		_, err := semver("foo")
-		must.ErrorContains(t, err, "unexpected envoy version format: Malformed version: foo")
+		must.ErrorContains(t, err, "unexpected envoy version format: malformed version: foo")
 	})
 }
 
@@ -87,7 +88,7 @@ func TestEnvoyVersionHook_tweakImage(t *testing.T) {
 		_, err := (*envoyVersionHook)(nil).tweakImage(image, map[string][]string{
 			"envoy": {"foo", "bar", "baz"},
 		})
-		must.ErrorContains(t, err, "unexpected envoy version format: Malformed version: foo")
+		must.ErrorContains(t, err, "unexpected envoy version format: malformed version: foo")
 	})
 
 	t.Run("standard envoy", func(t *testing.T) {

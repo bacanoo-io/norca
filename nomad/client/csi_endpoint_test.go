@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package client
@@ -995,7 +996,7 @@ func TestCSINode_DetachVolume(t *testing.T) {
 
 	cases := []struct {
 		Name        string
-		ModManager  func(m *csimanager.MockCSIManager)
+		ModManager  func(m *csimanager.FakeManager)
 		Request     *structs.ClientCSINodeDetachVolumeRequest
 		ExpectedErr error
 	}{
@@ -1028,8 +1029,8 @@ func TestCSINode_DetachVolume(t *testing.T) {
 		},
 		{
 			Name: "returns csi manager errors",
-			ModManager: func(m *csimanager.MockCSIManager) {
-				m.NextManagerForPluginErr = errors.New("no plugin")
+			ModManager: func(m *csimanager.FakeManager) {
+				m.FailNext("ManagerForPlugin", errors.New("no plugin"))
 			},
 			Request: &structs.ClientCSINodeDetachVolumeRequest{
 				PluginID: fakeNodePlugin.Name,
@@ -1040,8 +1041,8 @@ func TestCSINode_DetachVolume(t *testing.T) {
 		},
 		{
 			Name: "returns volume manager errors",
-			ModManager: func(m *csimanager.MockCSIManager) {
-				m.VM.NextUnmountVolumeErr = errors.New("error unmounting")
+			ModManager: func(m *csimanager.FakeManager) {
+				m.Volumes.FailNext("UnmountVolume", errors.New("error unmounting"))
 			},
 			Request: &structs.ClientCSINodeDetachVolumeRequest{
 				PluginID: fakeNodePlugin.Name,
@@ -1057,9 +1058,7 @@ func TestCSINode_DetachVolume(t *testing.T) {
 			client, cleanup := TestClient(t, nil)
 			defer cleanup()
 
-			mockManager := &csimanager.MockCSIManager{
-				VM: &csimanager.MockVolumeManager{},
-			}
+			mockManager := csimanager.NewFakeManager()
 			if tc.ModManager != nil {
 				tc.ModManager(mockManager)
 			}
@@ -1086,7 +1085,7 @@ func TestCSINode_ExpandVolume(t *testing.T) {
 	cases := []struct {
 		Name       string
 		ModRequest func(r *structs.ClientCSINodeExpandVolumeRequest)
-		ModManager func(m *csimanager.MockCSIManager)
+		ModManager func(m *csimanager.FakeManager)
 		ExpectErr  error
 	}{
 		{
@@ -1101,22 +1100,22 @@ func TestCSINode_ExpandVolume(t *testing.T) {
 		},
 		{
 			Name: "error waiting for plugin",
-			ModManager: func(m *csimanager.MockCSIManager) {
-				m.NextWaitForPluginErr = errors.New("sad plugin")
+			ModManager: func(m *csimanager.FakeManager) {
+				m.FailNext("WaitForPlugin", errors.New("sad plugin"))
 			},
 			ExpectErr: errors.New("sad plugin"),
 		},
 		{
 			Name: "error from manager expand",
-			ModManager: func(m *csimanager.MockCSIManager) {
-				m.VM.NextExpandVolumeErr = errors.New("no expand, so sad")
+			ModManager: func(m *csimanager.FakeManager) {
+				m.Volumes.FailNext("ExpandVolume", errors.New("no expand, so sad"))
 			},
 			ExpectErr: errors.New("no expand, so sad"),
 		},
 		{
 			Name: "ignorable error from manager expand",
-			ModManager: func(m *csimanager.MockCSIManager) {
-				m.VM.NextExpandVolumeErr = fmt.Errorf("%w: not found", nstructs.ErrCSIClientRPCIgnorable)
+			ModManager: func(m *csimanager.FakeManager) {
+				m.Volumes.FailNext("ExpandVolume", fmt.Errorf("%w: not found", nstructs.ErrCSIClientRPCIgnorable))
 			},
 			ExpectErr: nil, // explicitly expecting no error
 		},
@@ -1125,9 +1124,7 @@ func TestCSINode_ExpandVolume(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 
-			mockManager := &csimanager.MockCSIManager{
-				VM: &csimanager.MockVolumeManager{},
-			}
+			mockManager := csimanager.NewFakeManager()
 			if tc.ModManager != nil {
 				tc.ModManager(mockManager)
 			}
@@ -1158,7 +1155,7 @@ func TestCSINode_ExpandVolume(t *testing.T) {
 			}
 			test.NoError(t, err)
 
-			expect := csimanager.MockExpandVolumeCall{
+			expect := csimanager.ExpandRequest{
 				VolID:    req.VolumeID,
 				RemoteID: req.ExternalID,
 				AllocID:  req.Claim.AllocationID,
@@ -1168,8 +1165,9 @@ func TestCSINode_ExpandVolume(t *testing.T) {
 				},
 			}
 			test.Eq(t, req.Capacity.RequiredBytes, resp.CapacityBytes)
-			test.NotNil(t, mockManager.VM.LastExpandVolumeCall)
-			test.Eq(t, &expect, mockManager.VM.LastExpandVolumeCall)
+			calls := mockManager.Volumes.Expansions()
+			test.SliceLen(t, 1, calls)
+			test.Eq(t, expect, calls[0])
 
 		})
 	}

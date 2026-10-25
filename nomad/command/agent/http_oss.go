@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !ent
@@ -9,26 +10,6 @@ package agent
 import (
 	"net/http"
 )
-
-// registerEnterpriseHandlers is a no-op for the oss release
-func (s *HTTPServer) registerEnterpriseHandlers() {
-	s.mux.HandleFunc("/v1/sentinel/policies", s.wrap(s.entOnly))
-	s.mux.HandleFunc("/v1/sentinel/policy/", s.wrap(s.entOnly))
-
-	s.mux.HandleFunc("/v1/quotas", s.wrap(s.entOnly))
-	s.mux.HandleFunc("/v1/quota-usages", s.wrap(s.entOnly))
-	s.mux.HandleFunc("/v1/quota/", s.wrap(s.entOnly))
-	s.mux.HandleFunc("/v1/quota", s.wrap(s.entOnly))
-
-	s.mux.HandleFunc("/v1/recommendation", s.wrap(s.entOnly))
-	s.mux.HandleFunc("/v1/recommendations", s.wrap(s.entOnly))
-	s.mux.HandleFunc("/v1/recommendations/apply", s.wrap(s.entOnly))
-	s.mux.HandleFunc("/v1/recommendation/", s.wrap(s.entOnly))
-}
-
-func (s *HTTPServer) entOnly(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	return nil, CodedError(501, ErrEntOnly)
-}
 
 // auditHandler wraps the passed handlerFn
 func (s *HTTPServer) auditHandler(h handlerFn) handlerFn {

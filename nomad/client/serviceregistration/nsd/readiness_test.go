@@ -179,19 +179,128 @@ func TestReadinessTracker_NoRoleChecks(t *testing.T) {
 	regs := h.registrations()
 	h.tracker.track(h.workload, regs)(nil)
 
+	// role-less checks do not affect Ready, but they make up the health
 	for _, reg := range regs {
 		must.True(t, reg.Ready)
 	}
-	must.MapEmpty(t, h.tracker.entries)
+	must.Eq(t, structs.ServiceHealthPassing, regs[0].Health)
+	must.Nil(t, regs[0].Checks)
+	must.Eq(t, structs.ServiceHealthCritical, regs[1].Health)
+	must.Eq(t, []*structs.ServiceRegistrationCheck{
+		{Name: "check1", Status: structs.ServiceHealthCritical},
+	}, regs[1].Checks)
+	must.MapLen(t, 1, h.tracker.entries)
 
-	// a nil tracker (no check store) marks everything ready
+	// a nil tracker (no check store) marks everything ready and passing
 	var tracker *readinessTracker
 	regs = h.registrations()
 	tracker.track(h.workload, regs)(nil)
 	for _, reg := range regs {
 		must.True(t, reg.Ready)
+		must.Eq(t, structs.ServiceHealthPassing, reg.Health)
 	}
 	tracker.untrack(regs[0].ID)
+}
+
+func TestReadinessTracker_Health(t *testing.T) {
+	ci.Parallel(t)
+
+	w := roleWorkload()
+	w.Services[1].Checks = append(w.Services[1].Checks, &structs.ServiceCheck{
+		Name:     "plain-check",
+		Type:     "tcp",
+		Interval: 5 * time.Second,
+		Timeout:  time.Second,
+	})
+
+	h := newReadinessHarness(t, w)
+	h.set("started", structs.CheckSuccess)
+	h.set("ready", structs.CheckSuccess)
+	h.set("plain-check", structs.CheckSuccess)
+
+	regs := h.registrations()
+	h.tracker.track(h.workload, regs)(nil)
+	byName := func(regs []*structs.ServiceRegistration) map[string]*structs.ServiceRegistration {
+		m := make(map[string]*structs.ServiceRegistration)
+		for _, reg := range regs {
+			m[reg.ServiceName] = reg
+		}
+		return m
+	}
+	api := byName(regs)["api"]
+	must.True(t, api.Ready)
+	must.Eq(t, structs.ServiceHealthPassing, api.Health)
+	must.Len(t, 2, api.Checks)
+
+	// a failing role-less check makes the instance critical, while it stays
+	// ready
+	h.set("plain-check", structs.CheckFailure)
+	must.NoError(t, h.shim.Set(h.workload.AllocInfo.AllocID, &structs.CheckQueryResult{
+		ID:     structs.NomadCheckID(h.workload.AllocInfo.AllocID, h.workload.AllocInfo.Group, w.Services[1].Checks[1]),
+		Status: structs.CheckFailure,
+		Output: "connection refused",
+	}))
+	h.tracker.update()
+	sent := byName(h.upserts[len(h.upserts)-1])
+	must.MapLen(t, 1, sent)
+	must.True(t, sent["api"].Ready)
+	must.Eq(t, structs.ServiceHealthCritical, sent["api"].Health)
+	must.Eq(t, "connection refused", sent["api"].Checks[1].Output)
+
+	// output changes alone are not sent
+	must.NoError(t, h.shim.Set(h.workload.AllocInfo.AllocID, &structs.CheckQueryResult{
+		ID:     structs.NomadCheckID(h.workload.AllocInfo.AllocID, h.workload.AllocInfo.Group, w.Services[1].Checks[1]),
+		Status: structs.CheckFailure,
+		Output: "timeout",
+	}))
+	must.Nil(t, h.update())
+
+	// an HTTP 429 is a warning
+	must.NoError(t, h.shim.Set(h.workload.AllocInfo.AllocID, &structs.CheckQueryResult{
+		ID:         structs.NomadCheckID(h.workload.AllocInfo.AllocID, h.workload.AllocInfo.Group, w.Services[1].Checks[1]),
+		Status:     structs.CheckFailure,
+		StatusCode: 429,
+	}))
+	h.tracker.update()
+	sent = byName(h.upserts[len(h.upserts)-1])
+	must.Eq(t, structs.ServiceHealthWarning, sent["api"].Health)
+	must.True(t, sent["api"].Healthy())
+
+	// the liveness check of "web" never counts toward its health
+	must.Eq(t, structs.ServiceHealthPassing, byName(regs)["web"].Health)
+	must.Nil(t, byName(regs)["web"].Checks)
+}
+
+func TestReadinessTracker_Reassert(t *testing.T) {
+	ci.Parallel(t)
+
+	h := newReadinessHarness(t, roleWorkload())
+	h.tracker.reassert = 3
+	h.tracker.track(h.workload, h.registrations())(nil)
+
+	must.Nil(t, h.update())
+	must.Nil(t, h.update())
+	// every tracked registration is sent on the third pass
+	must.MapLen(t, 3, h.update())
+	must.Nil(t, h.update())
+}
+
+func TestReadinessTracker_StartupGatesHealth(t *testing.T) {
+	ci.Parallel(t)
+
+	h := newReadinessHarness(t, roleWorkload())
+	regs := h.registrations()
+	h.tracker.track(h.workload, regs)(nil)
+	for _, reg := range regs {
+		must.Eq(t, structs.ServiceHealthCritical, reg.Health)
+		must.False(t, reg.Healthy())
+	}
+
+	h.set("started", structs.CheckSuccess)
+	h.tracker.update()
+	for _, reg := range h.upserts[len(h.upserts)-1] {
+		must.Eq(t, structs.ServiceHealthPassing, reg.Health, must.Sprint(reg.ServiceName))
+	}
 }
 
 func TestReadinessTracker_RestoredResults(t *testing.T) {

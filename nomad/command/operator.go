@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -15,11 +16,11 @@ type OperatorCommand struct {
 
 func (f *OperatorCommand) Help() string {
 	helpText := `
-Usage: nomad operator <subcommand> [options]
+Usage: norca operator <subcommand> [options]
 
-  Provides cluster-level tools for Nomad operators, such as interacting with
+  Provides cluster-level tools for Norca operators, such as interacting with
   the Raft subsystem. NOTE: Use this command with extreme caution, as improper
-  use could lead to a Nomad outage and even loss of data.
+  use could lead to a Norca outage and even loss of data.
 
   Please see the individual subcommand help for detailed usage information.
 `
@@ -27,7 +28,7 @@ Usage: nomad operator <subcommand> [options]
 }
 
 func (f *OperatorCommand) Synopsis() string {
-	return "Provides cluster-level tools for Nomad operators"
+	return "Provides cluster-level tools for Norca operators"
 }
 
 func (f *OperatorCommand) Name() string { return "operator" }

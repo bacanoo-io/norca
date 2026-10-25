@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -16,7 +17,7 @@ type QuotaDeleteCommand struct {
 
 func (c *QuotaDeleteCommand) Help() string {
 	helpText := `
-Usage: nomad quota delete [options] <quota>
+Usage: norca quota delete [options] <quota>
 
   Delete is used to delete an existing quota specification.
 

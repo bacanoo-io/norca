@@ -1,3 +1,0 @@
-```release-note:bug
-core: Fixed a bug where affinity memoization may cause planning problems
-```

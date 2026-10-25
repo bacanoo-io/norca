@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -28,7 +29,7 @@ func (c *NodePoolCommand) Synopsis() string {
 
 func (c *NodePoolCommand) Help() string {
 	helpText := `
-Usage: nomad node pool <subcommand> [options] [args]
+Usage: norca node pool <subcommand> [options] [args]
 
   This command groups subcommands for interacting with node pools. Node pools
   are used to partition and control access to a group of nodes. This command
@@ -36,19 +37,19 @@ Usage: nomad node pool <subcommand> [options] [args]
 
   Create or update a node pool:
 
-    $ nomad node pool apply <path>
+    $ norca node pool apply <path>
 
   List all node pools:
 
-    $ nomad node pool list
+    $ norca node pool list
 
   Fetch information on an existing node pool:
 
-    $ nomad node info <name>
+    $ norca node info <name>
 
   Delete a node pool:
 
-    $ nomad node pool delete <name>
+    $ norca node pool delete <name>
 
   Please refer to individual subcommand help for detailed usage information.
 `

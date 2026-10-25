@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -17,9 +18,9 @@ type DeploymentListCommand struct {
 
 func (c *DeploymentListCommand) Help() string {
 	helpText := `
-Usage: nomad deployment list [options]
+Usage: norca deployment list [options]
 
-  List is used to list the set of deployments tracked by Nomad.
+  List is used to list the set of deployments tracked by Norca.
 
   When ACLs are enabled, this command requires a token with the 'read-job'
   capability for the deployment's namespace.

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package allocrunner
@@ -206,7 +207,7 @@ func TestCheckHook_Checks_ResultsSet(t *testing.T) {
 				return true, nil
 			},
 			func(err error) {
-				t.Fatalf(err.Error())
+				t.Fatal(err.Error())
 			},
 		)
 
@@ -271,7 +272,7 @@ func TestCheckHook_Checks_UpdateSet(t *testing.T) {
 			return true, nil
 		},
 		func(err error) {
-			t.Fatalf(err.Error())
+			t.Fatal(err.Error())
 		},
 	)
 
@@ -308,7 +309,7 @@ func TestCheckHook_Checks_UpdateSet(t *testing.T) {
 			return true, nil
 		},
 		func(err error) {
-			t.Fatalf(err.Error())
+			t.Fatal(err.Error())
 		},
 	)
 

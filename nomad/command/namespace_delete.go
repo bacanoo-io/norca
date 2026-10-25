@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -16,7 +17,7 @@ type NamespaceDeleteCommand struct {
 
 func (c *NamespaceDeleteCommand) Help() string {
 	helpText := `
-Usage: nomad namespace delete [options] <namespace>
+Usage: norca namespace delete [options] <namespace>
 
   Delete is used to remove a namespace.
 

@@ -1,3 +1,0 @@
-```release-note:bug
-cli: fixed a bug in the `operator api` command where the HTTPS scheme was not always correctly calculated
-```

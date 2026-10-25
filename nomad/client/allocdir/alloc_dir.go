@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package allocdir
@@ -470,7 +471,7 @@ func (d *AllocDir) ReadAt(path string, offset int64) (io.ReadCloser, error) {
 		return nil, err
 	}
 	if _, err := f.Seek(offset, 0); err != nil {
-		return nil, fmt.Errorf("can't seek to offset %q: %v", offset, err)
+		return nil, fmt.Errorf("can't seek to offset %d: %v", offset, err)
 	}
 	return f, nil
 }

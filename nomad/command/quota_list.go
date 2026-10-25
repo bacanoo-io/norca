@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -18,7 +19,7 @@ type QuotaListCommand struct {
 
 func (c *QuotaListCommand) Help() string {
 	helpText := `
-Usage: nomad quota list [options]
+Usage: norca quota list [options]
 
   List is used to list available quota specifications.
 

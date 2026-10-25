@@ -1,3 +1,0 @@
-```release-note:bug
-api: Fix panic in `Allocation.Stub` method when `Job` is unset
-```

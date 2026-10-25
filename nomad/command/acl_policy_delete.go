@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -16,7 +17,7 @@ type ACLPolicyDeleteCommand struct {
 
 func (c *ACLPolicyDeleteCommand) Help() string {
 	helpText := `
-Usage: nomad acl policy delete <name>
+Usage: norca acl policy delete <name>
 
   Delete is used to delete an existing ACL policy.
 

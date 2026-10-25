@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package jobspec
@@ -493,8 +494,6 @@ func parseTemplates(result *[]*api.Template, list *ast.ObjectList) error {
 			ChangeMode:    stringToPtr("restart"),
 			Splay:         timeToPtr(5 * time.Second),
 			Perms:         stringToPtr("0644"),
-			Uid:           pointer.Of(-1),
-			Gid:           pointer.Of(-1),
 			ErrMissingKey: pointer.Of(false),
 		}
 

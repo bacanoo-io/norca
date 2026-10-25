@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -21,16 +22,13 @@ func TestNodePoolInitCommand_Implements(t *testing.T) {
 }
 
 func TestNodePoolInitCommand_Run(t *testing.T) {
-	ci.Parallel(t)
+	// The command writes into the working directory. t.Chdir changes the
+	// working directory of the whole process, so neither this test nor its
+	// subtests may run in parallel with other tests.
 	dir := t.TempDir()
-	origDir, err := os.Getwd()
-	must.NoError(t, err)
-	err = os.Chdir(dir)
-	must.NoError(t, err)
-	t.Cleanup(func() { os.Chdir(origDir) })
+	t.Chdir(dir)
 
 	t.Run("hcl", func(t *testing.T) {
-		ci.Parallel(t)
 		dir := dir
 		ui := cli.NewMockUi()
 		cmd := &NodePoolInitCommand{Meta: Meta{Ui: ui}}
@@ -75,7 +73,6 @@ func TestNodePoolInitCommand_Run(t *testing.T) {
 	})
 
 	t.Run("json", func(t *testing.T) {
-		ci.Parallel(t)
 		dir := dir
 		ui := cli.NewMockUi()
 		cmd := &NodePoolInitCommand{Meta: Meta{Ui: ui}}

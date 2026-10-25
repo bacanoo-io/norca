@@ -67,6 +67,11 @@ spec.hcl
 volume.hcl
 nomad_linux_amd64
 nomad_darwin_amd64
+norca_linux_amd64
+norca_darwin_amd64
+
+# binary built in the module root (go build -o norca)
+/norca
 TODO.md
 codecgen-*.generated.go
 **/structs.generated.go

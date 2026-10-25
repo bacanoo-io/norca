@@ -42,6 +42,10 @@ type observer struct {
 	// gate is the startup gate of the workload of the check, nil if the
 	// workload has no startup check.
 	gate *startupGate
+
+	// thresholds applies success_before_passing and failures_before_critical,
+	// nil if the check sets neither.
+	thresholds *checkThresholds
 }
 
 // start checking our check on its interval
@@ -70,6 +74,7 @@ func (o *observer) start() {
 			query := checks.GetCheckQuery(o.check)
 			result := o.checker.Do(o.ctx, o.qc, query)
 			result.Role = o.check.Role
+			o.thresholds.apply(result)
 
 			// and put the results into the store (already logged)
 			_ = o.checkStore.Set(o.allocID, result)
@@ -205,7 +210,8 @@ func (h *checksHook) observe(alloc *structs.Allocation, services []checkedServic
 					Service:          service.Name,
 					Check:            check.Name,
 				},
-				gate: gates[cs.workload],
+				gate:       gates[cs.workload],
+				thresholds: newCheckThresholds(check),
 			}
 
 			// insert a pending result into state store for each check

@@ -1,3 +1,0 @@
-```release-note:improvement
-ui: Add button to restart all tasks in an allocation.
-```

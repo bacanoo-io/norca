@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -19,13 +20,13 @@ type VolumeSnapshotCreateCommand struct {
 
 func (c *VolumeSnapshotCreateCommand) Help() string {
 	helpText := `
-Usage: nomad volume snapshot create <volume id> <snapshot_name>
+Usage: norca volume snapshot create <volume id> <snapshot_name>
 
   Create a snapshot of an external storage volume. This command requires a
   volume ID or prefix and snapthost name. If there is an exact match based on
 	the provided volume ID or prefix, then the specific volume is snapshotted.
 	Otherwise, a list of matching volumes and information will be displayed. The
-	volume must still be registered with Nomad in order to be snapshotted.
+	volume must still be registered with Norca in order to be snapshotted.
 
   Snapshot name will be passed to the CSI plugin to be used as the ID of the
   resulting snapshot.

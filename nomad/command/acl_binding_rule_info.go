@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -25,7 +26,7 @@ type ACLBindingRuleInfoCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLBindingRuleInfoCommand) Help() string {
 	helpText := `
-Usage: nomad acl binding-rule info [options] <acl_binding_rule_id>
+Usage: norca acl binding-rule info [options] <acl_binding_rule_id>
 
   Info is used to fetch information on an existing ACL binding rule. Requires a
   management token.

@@ -1,0 +1,14 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+# A sample <% .Kind %>: norca object apply examples/<% .KindLower %>.hcl
+kind      = "<% .Group %>/<% .Kind %>"
+name      = "sample"
+<%- if .Namespaced %>
+namespace = "<% .Namespace %>"
+<%- end %>
+
+spec {
+  replicas = 2
+}

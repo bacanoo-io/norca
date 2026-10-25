@@ -132,6 +132,48 @@ const (
 	// Namespace types were moved from enterprise and therefore start at 64
 	NamespaceUpsertRequestType MessageType = 64
 	NamespaceDeleteRequestType MessageType = 65
+
+	// Norca: namespace quotas (66-68 assigned to quotas)
+	QuotaSpecUpsertRequestType MessageType = 66
+	QuotaSpecDeleteRequestType MessageType = 67
+	// 68 is reserved for quotas
+
+	// Norca admission control types start at 70. They are sent with the
+	// IgnoreUnknownTypeFlag set.
+	AdmissionPolicyUpsertRequestType MessageType = 70
+	AdmissionPolicyDeleteRequestType MessageType = 71
+
+	// Norca disruption budget types (74-76 assigned to disruption budgets)
+	AllocEvictRequestType MessageType = 74
+	// 75 and 76 are reserved for disruption budgets
+
+	// Norca operator framework custom objects (82-86 assigned). They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	ObjectKindUpsertRequestType   MessageType = 82
+	ObjectKindDeleteRequestType   MessageType = 83
+	CustomObjectUpsertRequestType MessageType = 84
+	CustomObjectDeleteRequestType MessageType = 85
+	// Object lifecycle: the object event log and the bookkeeping of the
+	// object garbage collector.
+	CustomObjectEventsRequestType MessageType = 86
+	ObjectGCRequestType           MessageType = 87
+	// Norca backup types (78-80 assigned to backup and restore). They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	BackupUpsertRequestType        MessageType = 78
+	BackupDeleteRequestType        MessageType = 79
+	BackupRestoreUpsertRequestType MessageType = 80
+	// Norca native mTLS types (97-100 assigned to native mTLS). They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	MTLSRootsUpsertRequestType        MessageType = 97
+	ServiceIntentionUpsertRequestType MessageType = 98
+	ServiceIntentionDeleteRequestType MessageType = 99
+	// 100 is reserved for native mTLS
+	// Norca network rules (101-104 assigned to network policies). They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	NetworkPolicyUpsertRequestType      MessageType = 101
+	NetworkPolicyDeleteRequestType      MessageType = 102
+	AdminNetworkPolicyUpsertRequestType MessageType = 103
+	AdminNetworkPolicyDeleteRequestType MessageType = 104
 )
 
 const (
@@ -724,7 +766,8 @@ type JobRegisterRequest struct {
 	// PreserveCounts is ignored for newly created jobs.
 	PreserveCounts bool
 
-	// PolicyOverride is set when the user is attempting to override any policies
+	// PolicyOverride is ignored: overriding admission policies is not
+	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
 
 	// EvalPriority is an optional priority to use on any evaluation created as
@@ -741,6 +784,14 @@ type JobRegisterRequest struct {
 	// Deployment is the deployment to be create when the job is registered. If
 	// there is an active deployment for the job it will be canceled.
 	Deployment *Deployment
+
+	// MultiregionRegistration is set for a job with a multiregion block that
+	// must not be sent on to the other regions of the job: to
+	// MultiregionRegistrationPeer on the per-region registrations of a
+	// multiregion rollout, or to MultiregionRegistrationLocal to register the
+	// job only in the receiving region. When empty, the receiving region sends
+	// a multiregion job to all of its regions.
+	MultiregionRegistration string
 
 	WriteRequest
 }
@@ -855,7 +906,8 @@ type JobStubFields struct {
 type JobPlanRequest struct {
 	Job  *Job
 	Diff bool // Toggles an annotated diff
-	// PolicyOverride is set when the user is attempting to override any policies
+	// PolicyOverride is ignored: overriding admission policies is not
+	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
 	WriteRequest
 }
@@ -869,7 +921,8 @@ type JobScaleRequest struct {
 	Message string
 	Error   bool
 	Meta    map[string]interface{}
-	// PolicyOverride is set when the user is attempting to override any policies
+	// PolicyOverride is ignored: overriding admission policies is not
+	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
 	WriteRequest
 }
@@ -1139,6 +1192,11 @@ type AllocUpdateRequest struct {
 	// Job is the shared parent job of the allocations.
 	// It is pulled out since it is common to reduce payload size.
 	Job *Job
+
+	// TaskGroupUsage is the resource usage of the client's task groups,
+	// optionally attached by clients for the built-in autoscaler. It is
+	// handed to the leader's in-memory collector and never written to Raft.
+	TaskGroupUsage *TaskGroupUsageReport
 
 	WriteRequest
 }
@@ -1542,6 +1600,12 @@ type NodeUpdateResponse struct {
 	// SchedulingEligibility is used to inform clients what the server-side
 	// has for their scheduling status during heartbeats.
 	SchedulingEligibility string
+
+	// TaskGroupUsageInterval asks the client to aggregate the resource usage
+	// of its task groups over windows of this length and to send it with
+	// Node.UpdateAlloc. Zero (old servers, or the built-in autoscaler is
+	// disabled) means the client does not collect or send it.
+	TaskGroupUsageInterval time.Duration
 
 	QueryMeta
 }
@@ -4774,10 +4838,14 @@ func (j *Job) Validate() error {
 		}
 	}
 
-	if j.IsMultiregion() {
+	if j.Multiregion != nil {
 		if err := j.Multiregion.Validate(j.Type, j.Datacenters); err != nil {
 			mErr.Errors = append(mErr.Errors, err)
 		}
+	}
+
+	if err := j.validateConsulNamespaces(); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
 	}
 
 	return mErr.ErrorOrNil()
@@ -6069,6 +6137,16 @@ type ScalingPolicy struct {
 	// default engine of the servers.
 	Engine string
 
+	// The typed policy of the built-in autoscaler (see scaling_check.go).
+	// When none of these fields is set, they are filled from the untyped
+	// Policy document at submission.
+	EvaluationInterval    time.Duration
+	Cooldown              time.Duration
+	CooldownOnScaleUp     time.Duration
+	OnCheckError          string
+	ScaleDuringDeployment string
+	Checks                []*ScalingCheck
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -6121,6 +6199,13 @@ func (p *ScalingPolicy) Copy() *ScalingPolicy {
 		Engine:      p.Engine,
 		CreateIndex: p.CreateIndex,
 		ModifyIndex: p.ModifyIndex,
+
+		EvaluationInterval:    p.EvaluationInterval,
+		Cooldown:              p.Cooldown,
+		CooldownOnScaleUp:     p.CooldownOnScaleUp,
+		OnCheckError:          p.OnCheckError,
+		ScaleDuringDeployment: p.ScaleDuringDeployment,
+		Checks:                copyScalingChecks(p.Checks),
 	}
 	c.Target = make(map[string]string, len(p.Target))
 	for k, v := range p.Target {
@@ -6617,6 +6702,10 @@ type TaskGroup struct {
 	// Migrate is used to control the migration strategy for this task group
 	Migrate *MigrateStrategy
 
+	// Disruption is the disruption budget limiting voluntary disruptions
+	// (drain, eviction) of this task group (see DisruptionBudget).
+	Disruption *DisruptionBudget
+
 	// Constraints can be specified at a task group level and apply to
 	// all the tasks contained.
 	Constraints []*Constraint
@@ -6688,6 +6777,7 @@ func (tg *TaskGroup) Copy() *TaskGroup {
 	ntg := new(TaskGroup)
 	*ntg = *tg
 	ntg.Update = ntg.Update.Copy()
+	ntg.Disruption = ntg.Disruption.Copy()
 	ntg.Constraints = CopySliceConstraints(ntg.Constraints)
 	ntg.RestartPolicy = ntg.RestartPolicy.Copy()
 	ntg.ReschedulePolicy = ntg.ReschedulePolicy.Copy()
@@ -6788,6 +6878,7 @@ func (tg *TaskGroup) Canonicalize(job *Job) {
 	}
 
 	tg.canonicalizeAllocAffinities()
+	tg.Disruption.Canonicalize()
 
 	for _, task := range tg.Tasks {
 		task.Canonicalize(job, tg)
@@ -6939,6 +7030,10 @@ func (tg *TaskGroup) Validate(j *Job) error {
 		if tg.Migrate != nil {
 			mErr.Errors = append(mErr.Errors, fmt.Errorf("Job type %q does not allow migrate block", j.Type))
 		}
+	}
+
+	if err := tg.validateDisruption(j); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
 	}
 
 	// Check that there is only one leader task if any
@@ -9985,6 +10080,7 @@ const (
 	DeploymentStatusDescriptionBlocked        = "Deployment is complete but waiting for peer region"
 	DeploymentStatusDescriptionUnblocking     = "Deployment is unblocking remaining regions"
 	DeploymentStatusDescriptionPendingForPeer = "Deployment is pending, waiting for peer region"
+	DeploymentStatusDescriptionCancelled      = "Deployment was cancelled"
 )
 
 // DeploymentStatusDescriptionRollback is used to get the status description of
@@ -10033,7 +10129,11 @@ type Deployment struct {
 	// present the correct list of deployments for the job and not old ones.
 	JobCreateIndex uint64
 
-	// Multiregion specifies if deployment is part of multiregion deployment
+	// IsMultiregion specifies if the deployment is part of a multiregion
+	// deployment, which is coordinated with the deployments of the same job
+	// version in the other regions of the job. Only the deployments that
+	// Job.Register creates for a multiregion rollout are; see
+	// NewMultiregionDeployment.
 	IsMultiregion bool
 
 	// TaskGroups is the set of task groups effected by the deployment and their
@@ -10067,7 +10167,6 @@ func NewDeployment(job *Job, evalPriority int) *Deployment {
 		JobModifyIndex:     job.ModifyIndex,
 		JobSpecModifyIndex: job.JobModifyIndex,
 		JobCreateIndex:     job.CreateIndex,
-		IsMultiregion:      job.IsMultiregion(),
 		Status:             DeploymentStatusRunning,
 		StatusDescription:  DeploymentStatusDescriptionRunning,
 		TaskGroups:         make(map[string]*DeploymentState, len(job.TaskGroups)),

@@ -1,3 +1,0 @@
-```release-note:improvement
-agent: emit a warning message if the agent starts with `bootstrap_expect` set to an even number.
-```

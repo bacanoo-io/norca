@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -19,7 +20,7 @@ type OperatorRootKeyringRotateCommand struct {
 
 func (c *OperatorRootKeyringRotateCommand) Help() string {
 	helpText := `
-Usage: nomad operator root keyring rotate [options]
+Usage: norca operator root keyring rotate [options]
 
   Generate a new encryption key for all future variables.
 
@@ -84,7 +85,7 @@ func (c *OperatorRootKeyringRotateCommand) Run(args []string) int {
 
 	client, err := c.Meta.Client()
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error creating nomad cli client: %s", err))
+		c.Ui.Error(fmt.Sprintf("Error creating norca cli client: %s", err))
 		return 1
 	}
 

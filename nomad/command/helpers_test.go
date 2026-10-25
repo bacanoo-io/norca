@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -460,7 +461,7 @@ func TestJobGetter_HTTPServer(t *testing.T) {
 	}
 	if !reflect.DeepEqual(expectedApiJob, aj) {
 		for _, d := range pretty.Diff(expectedApiJob, aj) {
-			t.Logf(d)
+			t.Log(d)
 		}
 		t.Fatalf("Unexpected file")
 	}

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -19,7 +20,7 @@ type ACLPolicyApplyCommand struct {
 
 func (c *ACLPolicyApplyCommand) Help() string {
 	helpText := `
-Usage: nomad acl policy apply [options] <name> <path>
+Usage: norca acl policy apply [options] <name> <path>
 
   Apply is used to create or update an ACL policy. The policy is
   sourced from <path> or from stdin if path is "-".

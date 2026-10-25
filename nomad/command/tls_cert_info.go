@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -20,7 +21,7 @@ type TLSCertInfoCommand struct {
 
 func (c *TLSCertInfoCommand) Help() string {
 	helpText := `
-Usage: nomad tls cert info <certificate file>
+Usage: norca tls cert info <certificate file>
 
   Show information about a TLS certificate.
 `

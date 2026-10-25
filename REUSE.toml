@@ -14,6 +14,13 @@ precedence = "override"
 SPDX-FileCopyrightText = ["2026 Norca contributors", "codecalm.net Paweł Kuna (Tabler)"]
 SPDX-License-Identifier = "MPL-2.0 AND MIT"
 
+# Pack registry: own packs, MPL 2.0 (the files also carry SPDX headers)
+[[annotations]]
+path = ["packs/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
 # Images in the documentation
 [[annotations]]
 path = "docs/**/*.png"
@@ -22,11 +29,37 @@ SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
 # Files of the HashiCorp forks keep their own headers; files without a header
-# (generated code, test data) fall under the license of the fork
+# (generated code, test data) fall under the license of the fork.
+# nomad/pack/** originates from HashiCorp Nomad Pack v0.4.2 (MPL 2.0).
 [[annotations]]
-path = ["nomad/**", "nomad-pack/**"]
+path = ["nomad/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "HashiCorp, Inc. and Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
+# Modules written for Norca (controller SDK, NATS bridge); files without a
+# header (go.mod, go.sum, JSON schemas) are Norca's own.
+[[annotations]]
+path = ["nomad/controller/**", "nomad/natsbridge/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
+# Test fixture copied unmodified from the Nomad Pack Community Registry (MPL 2.0),
+# see nomad/pack/fixtures/community/README.md.
+[[annotations]]
+path = ["nomad/pack/fixtures/community/packs/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "IBM Corp. and the Nomad Pack Community Registry contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
+# THIRD_PARTY_NOTICES.md is generated (nomad/tools/thirdparty) and reproduces the
+# license texts and notices of the dependencies, some of which contain SPDX tags of
+# their own; those describe the dependencies, not this file.
+[[annotations]]
+path = "THIRD_PARTY_NOTICES.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
 # briandowns/spinner (https://github.com/briandowns/spinner, Apache-2.0),
@@ -36,7 +69,7 @@ SPDX-License-Identifier = "MPL-2.0"
 # ("Copyright (c) 2021 Brian J. Downs"); LICENSE in the directory is the
 # Apache License 2.0. This annotation overrides the file headers.
 [[annotations]]
-path = ["nomad-pack/internal/pkg/spinner/**"]
+path = ["nomad/pack/internal/pkg/spinner/**"]
 precedence = "override"
 SPDX-FileCopyrightText = ["2021-2022 Brian J. Downs", "IBM Corp. 2021, 2025"]
 SPDX-License-Identifier = "Apache-2.0 AND MPL-2.0"

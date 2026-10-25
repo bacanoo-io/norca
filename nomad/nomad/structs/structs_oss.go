@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !ent
@@ -19,16 +20,8 @@ func (n *NamespaceNodePoolConfiguration) Canonicalize() {}
 
 func (n *NamespaceNodePoolConfiguration) Validate() error {
 	if n != nil {
-		return errors.New("Node Pools Governance is unlicensed.")
+		return errors.New("namespace node_pool_config is not supported")
 	}
-	return nil
-}
-
-func (m *Multiregion) Validate(jobType string, jobDatacenters []string) error {
-	if m != nil {
-		return errors.New("Multiregion jobs are unlicensed.")
-	}
-
 	return nil
 }
 

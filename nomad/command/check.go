@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -25,9 +26,9 @@ type AgentCheckCommand struct {
 
 func (c *AgentCheckCommand) Help() string {
 	helpText := `
-Usage: nomad check [options]
+Usage: norca check [options]
 
-  Display state of the Nomad agent. The exit code of the command is Nagios
+  Display state of the Norca agent. The exit code of the command is Nagios
   compatible and could be used with alerting systems.
 
 General Options:
@@ -47,7 +48,7 @@ Agent Check Options:
 }
 
 func (c *AgentCheckCommand) Synopsis() string {
-	return "Displays health of the local Nomad agent"
+	return "Displays health of the local Norca agent"
 }
 
 func (c *AgentCheckCommand) Name() string { return "check" }

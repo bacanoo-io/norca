@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -19,9 +20,9 @@ type VolumeDetachCommand struct {
 
 func (c *VolumeDetachCommand) Help() string {
 	helpText := `
-Usage: nomad volume detach [options] <vol id> <node id>
+Usage: norca volume detach [options] <vol id> <node id>
 
-  Detach a volume from a Nomad client.
+  Detach a volume from a Norca client.
 
   When ACLs are enabled, this command requires a token with the
   'csi-write-volume' and 'csi-read-volume' capabilities for the volume's

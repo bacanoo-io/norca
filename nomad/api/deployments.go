@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package api
@@ -117,6 +118,19 @@ func (d *Deployments) Unblock(deploymentID string, q *WriteOptions) (*Deployment
 		DeploymentID: deploymentID,
 	}
 	wm, err := d.client.put("/v1/deployment/unblock/"+deploymentID, req, &resp, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &resp, wm, nil
+}
+
+// Run is used to run the given pending multiregion deployment.
+func (d *Deployments) Run(deploymentID string, q *WriteOptions) (*DeploymentUpdateResponse, *WriteMeta, error) {
+	var resp DeploymentUpdateResponse
+	req := &DeploymentRunRequest{
+		DeploymentID: deploymentID,
+	}
+	wm, err := d.client.put("/v1/deployment/run/"+deploymentID, req, &resp, q)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -283,6 +297,13 @@ type DeploymentSpecificRequest struct {
 
 // DeploymentFailRequest is used to fail a particular deployment
 type DeploymentFailRequest struct {
+	DeploymentID string
+	WriteRequest
+}
+
+// DeploymentRunRequest is used to run a particular pending multiregion
+// deployment
+type DeploymentRunRequest struct {
 	DeploymentID string
 	WriteRequest
 }

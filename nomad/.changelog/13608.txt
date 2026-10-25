@@ -1,3 +1,0 @@
-```release-note:improvement
-api: refactor ACL check when using the all namespaces wildcard in the job and alloc list endpoints
-```

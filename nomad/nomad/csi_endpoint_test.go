@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -2311,7 +2312,7 @@ func TestCSI_SerializedControllerRPC(t *testing.T) {
 			return nil
 		})
 		elapsed := time.Since(now)
-		timeCh <- lang.Pair[string, time.Duration]{pluginID, elapsed}
+		timeCh <- lang.Pair[string, time.Duration]{First: pluginID, Second: elapsed}
 		must.NoError(t, err)
 	}
 

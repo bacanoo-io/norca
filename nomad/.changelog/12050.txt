@@ -1,3 +1,0 @@
-```release-note:bug
-csi: provide `CSI_ENDPOINT` environment variable to plugin tasks
-```

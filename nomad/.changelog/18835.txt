@@ -1,3 +1,0 @@
-```release-note:bug
-metrics: Fixed a bug where CPU counters could report errors for negative values
-```

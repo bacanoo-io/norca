@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -19,9 +20,9 @@ type VolumeDeregisterCommand struct {
 
 func (c *VolumeDeregisterCommand) Help() string {
 	helpText := `
-Usage: nomad volume deregister [options] <id>
+Usage: norca volume deregister [options] <id>
 
-  Remove an unused volume from Nomad.
+  Remove an unused volume from Norca.
 
   When ACLs are enabled, this command requires a token with the
   'csi-write-volume' capability for the volume's namespace.

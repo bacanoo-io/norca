@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -31,8 +32,8 @@ type AllocLogsCommand struct {
 
 func (l *AllocLogsCommand) Help() string {
 	helpText := `
-Usage: nomad alloc logs [options] <allocation> <task>
-Alias: nomad logs
+Usage: norca alloc logs [options] <allocation> <task>
+Alias: norca logs
 
   Streams the stdout/stderr of the given allocation and task.
 
@@ -80,8 +81,8 @@ Logs Specific Options:
   -c
     Sets the tail location in number of bytes relative to the end of the logs.
 
-  Note that the -no-color option applies to Nomad's own output. If the task's
-  logs include terminal escape sequences for color codes, Nomad will not
+  Note that the -no-color option applies to Norca's own output. If the task's
+  logs include terminal escape sequences for color codes, Norca will not
   remove them.
 `
 

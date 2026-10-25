@@ -1,3 +1,0 @@
-```release-note:bug
-agent: Validate reserved_ports are valid to prevent unschedulable nodes.
-```

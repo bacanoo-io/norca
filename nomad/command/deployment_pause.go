@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -17,7 +18,7 @@ type DeploymentPauseCommand struct {
 
 func (c *DeploymentPauseCommand) Help() string {
 	helpText := `
-Usage: nomad deployment pause [options] <deployment id>
+Usage: norca deployment pause [options] <deployment id>
 
   Pause is used to pause a deployment. Pausing a deployment will pause the
   placement of new allocations as part of rolling deployment.

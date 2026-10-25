@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -22,7 +23,7 @@ func (c *OperatorGossipKeyringGenerateCommand) Synopsis() string {
 
 func (c *OperatorGossipKeyringGenerateCommand) Help() string {
 	helpText := `
-Usage: nomad operator gossip keying generate
+Usage: norca operator gossip keying generate
 
   Generates a new 32-byte encryption key that can be used to configure the
   agent to encrypt traffic. The output of this command is already

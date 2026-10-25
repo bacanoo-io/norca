@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 // Package contexts provides constants used with the Nomad Search API.
@@ -18,7 +19,6 @@ const (
 	NodePools       Context = "node_pools"
 	Namespaces      Context = "namespaces"
 	Quotas          Context = "quotas"
-	Recommendations Context = "recommendations"
 	ScalingPolicies Context = "scaling_policy"
 	Plugins         Context = "plugins"
 	Variables       Context = "vars"

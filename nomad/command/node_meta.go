@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -15,7 +16,7 @@ type NodeMetaCommand struct {
 
 func (c *NodeMetaCommand) Help() string {
 	helpText := `
-Usage: nomad node meta [subcommand]
+Usage: norca node meta [subcommand]
 
 	Interact with a node's metadata. The apply subcommand allows for dynamically
 	updating node metadata. The read subcommand allows reading all of the

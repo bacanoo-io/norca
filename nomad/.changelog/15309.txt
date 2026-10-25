@@ -1,3 +1,0 @@
-```release-note:bug
-fingerprint: Ensure Nomad can correctly fingerprint Consul gRPC where the Consul agent is running v1.14.0 or greater
-```

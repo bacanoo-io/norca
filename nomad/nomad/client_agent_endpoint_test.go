@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -10,6 +11,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -528,6 +530,11 @@ func TestMonitor_Monitor_ACL(t *testing.T) {
 	}
 }
 
+// cpuProfileLock serializes the tests that take a CPU profile. The Go runtime
+// allows a single CPU profile per process, so a CPU profile requested while a
+// parallel test is profiling fails with "cpu profiling already in use".
+var cpuProfileLock sync.Mutex
+
 func TestAgentProfile_RemoteClient(t *testing.T) {
 	ci.Parallel(t)
 	require := require.New(t)
@@ -569,7 +576,9 @@ func TestAgentProfile_RemoteClient(t *testing.T) {
 
 	reply := structs.AgentPprofResponse{}
 
+	cpuProfileLock.Lock()
 	err := s1.RPC("Agent.Profile", &req, &reply)
+	cpuProfileLock.Unlock()
 	require.NoError(err)
 
 	require.NotNil(reply.Payload)
@@ -645,7 +654,9 @@ func TestAgentProfile_RemoteRegion(t *testing.T) {
 
 	reply := structs.AgentPprofResponse{}
 
+	cpuProfileLock.Lock()
 	err := s1.RPC("Agent.Profile", &req, &reply)
+	cpuProfileLock.Unlock()
 	require.NoError(err)
 
 	require.NotNil(reply.Payload)
@@ -741,6 +752,10 @@ func TestAgentProfile_Server(t *testing.T) {
 
 			reply := structs.AgentPprofResponse{}
 
+			if tc.reqType == pprof.CPUReq {
+				cpuProfileLock.Lock()
+				defer cpuProfileLock.Unlock()
+			}
 			err := tc.origin.RPC("Agent.Profile", &req, &reply)
 			if tc.expectedErr != "" {
 				require.Contains(err.Error(), tc.expectedErr)

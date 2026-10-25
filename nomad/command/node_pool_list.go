@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -26,7 +27,7 @@ func (c *NodePoolListCommand) Synopsis() string {
 
 func (c *NodePoolListCommand) Help() string {
 	helpText := `
-Usage: nomad node pool list [options]
+Usage: norca node pool list [options]
 
   List is used to list existing node pools.
 

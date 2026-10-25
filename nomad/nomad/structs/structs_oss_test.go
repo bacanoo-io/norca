@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !ent
@@ -29,7 +30,7 @@ func TestNamespace_Validate_Oss(t *testing.T) {
 					Default: "dev",
 				},
 			},
-			expectedErr: "unlicensed",
+			expectedErr: "not supported",
 		},
 	}
 
@@ -43,4 +44,22 @@ func TestNamespace_Validate_Oss(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestJob_Validate_ConsulNamespace_Oss asserts that a Consul namespace set on
+// the job or a task group is rejected: it would be silently ignored.
+func TestJob_Validate_ConsulNamespace_Oss(t *testing.T) {
+	ci.Parallel(t)
+
+	job := testJob()
+	job.ConsulNamespace = "apple"
+	must.ErrorContains(t, job.Validate(), ErrConsulNamespaceNotSupported.Error())
+
+	job = testJob()
+	job.TaskGroups[0].Consul = &Consul{Namespace: "banana"}
+	must.ErrorContains(t, job.Validate(), ErrConsulNamespaceNotSupported.Error())
+
+	job = testJob()
+	job.TaskGroups[0].Consul = &Consul{}
+	must.NoError(t, job.Validate())
 }

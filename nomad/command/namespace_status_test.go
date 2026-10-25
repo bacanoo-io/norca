@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -97,10 +98,6 @@ func TestNamespaceStatusCommand_Run_Quota(t *testing.T) {
 	// Create a server
 	srv, client, url := testServer(t, true, nil)
 	defer srv.Shutdown()
-
-	if !srv.Enterprise {
-		t.Skip("Skipping enterprise-only quota test")
-	}
 
 	ui := cli.NewMockUi()
 	cmd := &NamespaceStatusCommand{Meta: Meta{Ui: ui}}

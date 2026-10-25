@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -18,7 +19,7 @@ type OperatorRootKeyringListCommand struct {
 
 func (c *OperatorRootKeyringListCommand) Help() string {
 	helpText := `
-Usage: nomad operator root keyring list [options]
+Usage: norca operator root keyring list [options]
 
   List the currently installed keys. This list returns key metadata and not
   sensitive key material.
@@ -77,7 +78,7 @@ func (c *OperatorRootKeyringListCommand) Run(args []string) int {
 
 	client, err := c.Meta.Client()
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error creating nomad cli client: %s", err))
+		c.Ui.Error(fmt.Sprintf("Error creating norca cli client: %s", err))
 		return 1
 	}
 

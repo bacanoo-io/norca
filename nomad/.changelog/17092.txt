@@ -1,3 +1,0 @@
-```release-note:bug
-scale: Fixed a bug where evals could be created with the wrong type
-```

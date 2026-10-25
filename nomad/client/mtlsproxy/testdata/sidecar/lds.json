@@ -1,0 +1,226 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.config.listener.v3.Listener",
+      "address": {
+        "socket_address": {
+          "address": "0.0.0.0",
+          "port_value": 25001
+        }
+      },
+      "filter_chains": [
+        {
+          "filters": [
+            {
+              "name": "envoy.filters.network.rbac",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.filters.network.rbac.v3.RBAC",
+                "rules": {
+                  "action": "ALLOW",
+                  "policies": {
+                    "000 default/web -> api": {
+                      "permissions": [
+                        {
+                          "any": true
+                        }
+                      ],
+                      "principals": [
+                        {
+                          "and_ids": {
+                            "ids": [
+                              {
+                                "and_ids": {
+                                  "ids": [
+                                    {
+                                      "authenticated": {
+                                        "principal_name": {
+                                          "safe_regex": {
+                                            "regex": "^spiffe://[^/]+/ns/default/job/[^/]+/group/[^/]+$"
+                                          }
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "authenticated": {
+                                        "principal_name": {
+                                          "exact": "web.service.default.nomad",
+                                          "ignore_case": true
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "not_id": {
+                                  "and_ids": {
+                                    "ids": [
+                                      {
+                                        "authenticated": {
+                                          "principal_name": {
+                                            "safe_regex": {
+                                              "regex": "^spiffe://[^/]+/ns/default/job/[^/]+/group/[^/]+$"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "authenticated": {
+                                          "principal_name": {
+                                            "exact": "batch.service.default.nomad",
+                                            "ignore_case": true
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    "001 prod/* -> api": {
+                      "permissions": [
+                        {
+                          "any": true
+                        }
+                      ],
+                      "principals": [
+                        {
+                          "authenticated": {
+                            "principal_name": {
+                              "safe_regex": {
+                                "regex": "^spiffe://[^/]+/ns/prod/job/[^/]+/group/[^/]+$"
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "stat_prefix": "inbound_rbac"
+              }
+            },
+            {
+              "name": "envoy.filters.network.tcp_proxy",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy",
+                "cluster": "local_app",
+                "stat_prefix": "inbound"
+              }
+            }
+          ],
+          "transport_socket": {
+            "name": "envoy.transport_sockets.tls",
+            "typed_config": {
+              "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext",
+              "common_tls_context": {
+                "tls_certificate_sds_secret_configs": [
+                  {
+                    "name": "workload",
+                    "sds_config": {
+                      "path_config_source": {
+                        "path": "/secrets/envoy/sds-cert.json"
+                      },
+                      "resource_api_version": "V3"
+                    }
+                  }
+                ],
+                "tls_params": {
+                  "tls_minimum_protocol_version": "TLSv1_2"
+                },
+                "validation_context_sds_secret_config": {
+                  "name": "trust",
+                  "sds_config": {
+                    "path_config_source": {
+                      "path": "/secrets/envoy/sds-trust.json"
+                    },
+                    "resource_api_version": "V3"
+                  }
+                }
+              },
+              "require_client_certificate": true
+            }
+          }
+        }
+      ],
+      "name": "inbound"
+    },
+    {
+      "@type": "type.googleapis.com/envoy.config.listener.v3.Listener",
+      "address": {
+        "socket_address": {
+          "address": "127.0.0.1",
+          "port_value": 5432
+        }
+      },
+      "filter_chains": [
+        {
+          "filters": [
+            {
+              "name": "envoy.filters.network.tcp_proxy",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy",
+                "cluster": "upstream_db",
+                "stat_prefix": "upstream_db"
+              }
+            }
+          ]
+        }
+      ],
+      "name": "upstream_db"
+    },
+    {
+      "@type": "type.googleapis.com/envoy.config.listener.v3.Listener",
+      "address": {
+        "socket_address": {
+          "address": "127.0.0.1",
+          "port_value": 7000
+        }
+      },
+      "filter_chains": [
+        {
+          "filters": [
+            {
+              "name": "envoy.filters.network.tcp_proxy",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy",
+                "cluster": "upstream_empty",
+                "stat_prefix": "upstream_empty"
+              }
+            }
+          ]
+        }
+      ],
+      "name": "upstream_empty"
+    },
+    {
+      "@type": "type.googleapis.com/envoy.config.listener.v3.Listener",
+      "address": {
+        "socket_address": {
+          "address": "127.0.0.1",
+          "port_value": 6379
+        }
+      },
+      "filter_chains": [
+        {
+          "filters": [
+            {
+              "name": "envoy.filters.network.tcp_proxy",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy",
+                "cluster": "upstream_remote-cache",
+                "stat_prefix": "upstream_remote-cache"
+              }
+            }
+          ]
+        }
+      ],
+      "name": "upstream_remote-cache"
+    }
+  ],
+  "version_info": "a01751d154852689"
+}

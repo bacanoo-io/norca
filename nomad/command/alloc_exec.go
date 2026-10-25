@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -31,7 +32,7 @@ type AllocExecCommand struct {
 
 func (l *AllocExecCommand) Help() string {
 	helpText := `
-Usage: nomad alloc exec [options] <allocation> <command>
+Usage: norca alloc exec [options] <allocation> <command>
 
   Run command inside the environment of the given allocation and task.
 
