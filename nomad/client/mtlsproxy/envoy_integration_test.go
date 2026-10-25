@@ -9,8 +9,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -97,15 +99,28 @@ func echoServer(t *testing.T) int {
 
 func runEnvoy(t *testing.T, binary, dir string) {
 	t.Helper()
+	level := os.Getenv("NORCA_TEST_ENVOY_LOG_LEVEL")
+	if level == "" {
+		level = "info"
+	}
+	// The log must not be in the configuration directory: Envoy watches it,
+	// and at debug level it logs every file event, including those of its
+	// own log, which feeds itself without end.
+	logFile := filepath.Join(t.TempDir(), "envoy.log")
+	out, err := os.Create(logFile)
+	must.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, binary, "-c", filepath.Join(dir, BootstrapFile),
-		"--disable-hot-restart", "-l", "warning", "--log-path", filepath.Join(dir, "envoy.log"))
+		"--disable-hot-restart", "-l", level)
+	cmd.Stdout = out
+	cmd.Stderr = out
 	must.NoError(t, cmd.Start())
 	t.Cleanup(func() {
 		cancel()
 		_ = cmd.Wait()
+		_ = out.Close()
 		if t.Failed() {
-			b, _ := os.ReadFile(filepath.Join(dir, "envoy.log"))
+			b, _ := os.ReadFile(logFile)
 			t.Logf("envoy log of %s:\n%s", dir, b)
 		}
 	})
@@ -114,17 +129,29 @@ func runEnvoy(t *testing.T, binary, dir string) {
 // roundTrip sends a line through the upstream listener and returns whether
 // it came back.
 func roundTrip(port int) bool {
+	ok, _ := roundTripErr(port)
+	return ok
+}
+
+// roundTripErr is roundTrip with the reason of a failure.
+func roundTripErr(port int) (bool, error) {
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), time.Second)
 	if err != nil {
-		return false
+		return false, err
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(2 * time.Second))
 	if _, err := conn.Write([]byte("hello\n")); err != nil {
-		return false
+		return false, err
 	}
 	line, err := bufio.NewReader(conn).ReadString('\n')
-	return err == nil && line == "hello\n"
+	if err != nil {
+		return false, fmt.Errorf("read %q: %w", line, err)
+	}
+	if line != "hello\n" {
+		return false, fmt.Errorf("unexpected answer %q", line)
+	}
+	return true, nil
 }
 
 func TestEnvoy_SidecarToSidecar(t *testing.T) {
@@ -218,6 +245,26 @@ func TestEnvoy_SidecarToSidecar(t *testing.T) {
 		wait.Timeout(20*time.Second),
 		wait.Gap(200*time.Millisecond),
 	), must.Sprint("the server certificate was not verified"))
+
+	// back to the right server certificate
+	write(apiWriter, api, apiID)
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return roundTrip(upstreamPort) }),
+		wait.Timeout(20*time.Second),
+		wait.Gap(200*time.Millisecond),
+	), must.Sprint("the server certificate was not restored"))
+
+	// a client certificate of a CA outside the trust bundle is rejected by
+	// the inbound listener, even with the right names
+	_, foreignCA, foreignKey := testCA(t, "global.nomad")
+	foreign := issueLeaf(t, foreignCA, foreignKey, "default", "web")
+	foreign.Bundles = bundles
+	write(webWriter, web, foreign)
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return !roundTrip(upstreamPort) }),
+		wait.Timeout(20*time.Second),
+		wait.Gap(200*time.Millisecond),
+	), must.Sprint("a client certificate of an unknown CA was accepted"))
 }
 
 func TestEnvoy_Gateway(t *testing.T) {
@@ -285,6 +332,30 @@ func TestEnvoy_Gateway(t *testing.T) {
 		wait.Timeout(20*time.Second),
 		wait.Gap(200*time.Millisecond),
 	), must.Sprint("connection through the gateway failed"))
+
+	// The gateway passes the TLS connection through: a client connecting
+	// to it directly with the SNI name of api gets the certificate of the
+	// sidecar of api, and a connection with another name is closed.
+	pool := x509.NewCertPool()
+	must.True(t, pool.AppendCertsFromPEM(caPEM))
+	webPair, err := tls.X509KeyPair(webID.CertPEM, webID.KeyPEM)
+	must.NoError(t, err)
+	dialGateway := func(sni string) (*tls.Conn, error) {
+		return tls.DialWithDialer(&net.Dialer{Timeout: 2 * time.Second}, "tcp",
+			net.JoinHostPort("127.0.0.1", strconv.Itoa(gatewayPort)), &tls.Config{
+				ServerName:   sni,
+				RootCAs:      pool,
+				Certificates: []tls.Certificate{webPair},
+			})
+	}
+	conn, err := dialGateway("api.service.default.eu.nomad")
+	must.NoError(t, err)
+	peer := conn.ConnectionState().PeerCertificates
+	must.SliceNotEmpty(t, peer)
+	must.SliceContains(t, peer[0].DNSNames, "api.service.default.eu.nomad")
+	_ = conn.Close()
+	_, err = dialGateway("db.service.default.eu.nomad")
+	must.Error(t, err)
 
 	// an unknown SNI name is closed by the gateway
 	gateway.Routes = nil

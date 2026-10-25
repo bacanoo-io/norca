@@ -42,6 +42,10 @@ const (
 
 	// endpointsPrefix starts the names of the EDS files, one per cluster.
 	endpointsPrefix = "eds-"
+
+	// upstreamTrustPrefix starts the names of the SDS files of the
+	// validation contexts of upstream clusters.
+	upstreamTrustPrefix = "sds-trust-"
 )
 
 // The names of secrets, clusters and listeners.
@@ -241,7 +245,7 @@ func (s *Sidecar) Files(id *Identity) (map[string][]byte, error) {
 
 	add(BootstrapFile, bootstrap(s.NodeID, s.Cluster, s.ConfigDir))
 	add(CertSecretFile, discoveryResponse(certSecret(id)))
-	add(TrustSecretFile, discoveryResponse(trustSecret(id.Bundles)))
+	add(TrustSecretFile, discoveryResponse(trustSecret(trustSecretName, id.Bundles, "")))
 
 	listeners := []any{s.inbound()}
 	clusters := []any{staticCluster(localAppCluster, []Endpoint{{Address: s.AppAddress, Port: s.AppPort}})}
@@ -253,8 +257,9 @@ func (s *Sidecar) Files(id *Identity) (map[string][]byte, error) {
 			[]any{map[string]any{"filters": []any{tcpProxy(name, name)}}}, nil))
 
 		sni := ServiceName(u.Service, u.Namespace, u.Region)
-		clusters = append(clusters, s.edsCluster(name, upstreamTLS(s.ConfigDir, sni)))
+		clusters = append(clusters, s.edsCluster(name, upstreamTLS(s.ConfigDir, name, sni)))
 		add(endpointsFile(name), discoveryResponse(loadAssignment(typeLoadAssign, name, u.Endpoints)))
+		add(upstreamTrustFile(name), discoveryResponse(trustSecret(upstreamTrustSecret(name), id.Bundles, sni)))
 	}
 	add(ListenersFile, discoveryResponse(listeners...))
 	add(ClustersFile, discoveryResponse(clusters...))
@@ -275,7 +280,7 @@ func (s *Sidecar) inbound() any {
 		"transport_socket": transportSocket(map[string]any{
 			"@type":                      typeDownstreamTLS,
 			"require_client_certificate": true,
-			"common_tls_context":         commonTLS(s.ConfigDir, nil),
+			"common_tls_context":         commonTLS(s.ConfigDir, trustSecretName, TrustSecretFile),
 		}),
 		"filters": []any{
 			map[string]any{"name": "envoy.filters.network.rbac", "typed_config": rbac},
@@ -346,9 +351,11 @@ func endpointsFile(cluster string) string {
 	return endpointsPrefix + cluster + ".json"
 }
 
-// IsEndpointsFile returns whether a file name is an EDS file.
+// IsEndpointsFile returns whether a file name is an EDS file, or the SDS
+// file of an upstream cluster: the files that belong to one cluster.
 func IsEndpointsFile(name string) bool {
-	return strings.HasPrefix(name, endpointsPrefix) && strings.HasSuffix(name, ".json")
+	return (strings.HasPrefix(name, endpointsPrefix) || strings.HasPrefix(name, upstreamTrustPrefix)) &&
+		strings.HasSuffix(name, ".json")
 }
 
 func bootstrap(nodeID, cluster, dir string) any {
@@ -392,20 +399,30 @@ func certSecret(id *Identity) any {
 	}
 }
 
-// trustSecret returns the validation context: the SPIFFE validator verifies
-// a peer against the CAs of the trust domain of its SPIFFE ID only.
-func trustSecret(bundles []TrustBundle) any {
-	domains := make([]any, 0, len(bundles))
-	for _, b := range bundles {
-		domains = append(domains, map[string]any{
-			"name":         b.TrustDomain,
-			"trust_bundle": map[string]any{"inline_string": b.PEM},
-		})
-	}
-	return map[string]any{
-		"@type": typeSecret,
-		"name":  trustSecretName,
-		"validation_context": map[string]any{
+// trustSecret returns a validation context.
+//
+// Without san (the inbound listener), the SPIFFE validator verifies a peer
+// against the CAs of the trust domain of its SPIFFE ID only.
+//
+// With san (an upstream cluster), the peer certificate must also carry that
+// DNS name, the regional name of the destination service. The SPIFFE
+// validator of Envoy ignores DNS subject alt name matchers (checked with
+// Envoy 1.39.3 and 1.40.1: a server presenting the certificate of another
+// service was accepted), so upstream clusters use the default validator
+// with every CA of the trust bundle and the DNS name check. Each upstream
+// has its own secret, because the name check is part of the validation
+// context.
+func trustSecret(name string, bundles []TrustBundle, san string) any {
+	var ctx map[string]any
+	if san == "" {
+		domains := make([]any, 0, len(bundles))
+		for _, b := range bundles {
+			domains = append(domains, map[string]any{
+				"name":         b.TrustDomain,
+				"trust_bundle": map[string]any{"inline_string": b.PEM},
+			})
+		}
+		ctx = map[string]any{
 			"custom_validator_config": map[string]any{
 				"name": spiffeValidator,
 				"typed_config": map[string]any{
@@ -413,8 +430,35 @@ func trustSecret(bundles []TrustBundle) any {
 					"trust_domains": domains,
 				},
 			},
-		},
+		}
+	} else {
+		var all strings.Builder
+		for _, b := range bundles {
+			all.WriteString(b.PEM)
+		}
+		ctx = map[string]any{
+			"trusted_ca": map[string]any{"inline_string": all.String()},
+			"match_typed_subject_alt_names": []any{map[string]any{
+				"san_type": "DNS",
+				"matcher":  map[string]any{"exact": san, "ignore_case": true},
+			}},
+		}
 	}
+	return map[string]any{
+		"@type":              typeSecret,
+		"name":               name,
+		"validation_context": ctx,
+	}
+}
+
+// upstreamTrustSecret and upstreamTrustFile name the validation context of
+// an upstream cluster and its SDS file.
+func upstreamTrustSecret(cluster string) string {
+	return trustSecretName + "_" + cluster
+}
+
+func upstreamTrustFile(cluster string) string {
+	return upstreamTrustPrefix + cluster + ".json"
 }
 
 func sdsConfig(dir, name, file string) any {
@@ -422,37 +466,24 @@ func sdsConfig(dir, name, file string) any {
 }
 
 // commonTLS returns the TLS context with the workload certificate and the
-// trust bundle; san, if set, is the DNS name the peer must have.
-func commonTLS(dir string, san *string) any {
-	ctx := map[string]any{
-		"tls_params":                         map[string]any{"tls_minimum_protocol_version": "TLSv1_2"},
-		"tls_certificate_sds_secret_configs": []any{sdsConfig(dir, certSecretName, CertSecretFile)},
+// validation context of the SDS secret trust in file trustFile.
+func commonTLS(dir, trust, trustFile string) any {
+	return map[string]any{
+		"tls_params":                           map[string]any{"tls_minimum_protocol_version": "TLSv1_2"},
+		"tls_certificate_sds_secret_configs":   []any{sdsConfig(dir, certSecretName, CertSecretFile)},
+		"validation_context_sds_secret_config": sdsConfig(dir, trust, trustFile),
 	}
-	trust := sdsConfig(dir, trustSecretName, TrustSecretFile)
-	if san == nil {
-		ctx["validation_context_sds_secret_config"] = trust
-	} else {
-		ctx["combined_validation_context"] = map[string]any{
-			"default_validation_context": map[string]any{
-				"match_typed_subject_alt_names": []any{map[string]any{
-					"san_type": "DNS",
-					"matcher":  map[string]any{"exact": *san, "ignore_case": true},
-				}},
-			},
-			"validation_context_sds_secret_config": trust,
-		}
-	}
-	return ctx
 }
 
 // upstreamTLS originates mTLS to a service: the SNI name lets gateways
 // route the connection, and the server certificate must carry the regional
-// DNS name of the service.
-func upstreamTLS(dir, name string) any {
+// DNS name of the service (checked by the validation context of the
+// cluster).
+func upstreamTLS(dir, cluster, name string) any {
 	return transportSocket(map[string]any{
 		"@type":              typeUpstreamTLS,
 		"sni":                name,
-		"common_tls_context": commonTLS(dir, &name),
+		"common_tls_context": commonTLS(dir, upstreamTrustSecret(cluster), upstreamTrustFile(cluster)),
 	})
 }
 
