@@ -371,5 +371,5 @@ Phases 1 and 2 are independent of each other and can run in parallel; phase 3 ne
 - [x] Which external providers come first? Decided 2026-10-25: none beyond the existing Vault integration for now; further providers (OpenBao/Vault provider blocks, cloud secret managers, plugins) are integrated later, on demand.
 - [ ] Is a built-in dynamic secrets engine needed at all, or are OpenBao's engines enough (proposed: OpenBao's engines)?
 - [x] Should secrets be replicable across regions, and over which connection? Decided 2026-10-25: yes, opt-in per path from the authoritative region, over the Nomad region RPC (the server-to-server connection over the existing VPN); NATS was considered and rejected, it stays an event bridge only.
-- [ ] Is `env` delivery allowed by default, or only `file` delivery unless an admission policy allows `env` (proposed: both allowed, `file` recommended)?
+- [x] Is `env` delivery allowed by default, or only `file` delivery unless an admission policy allows `env`? Decided 2026-10-25: `env` is enabled by default; the documentation recommends `file`, and an admission policy can forbid `env` per namespace.
 - [ ] Where do audit records go besides the event stream: file sink on servers (proposed), and/or a remote sink (S3, syslog)?
