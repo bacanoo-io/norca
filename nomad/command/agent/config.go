@@ -700,6 +700,9 @@ type ServerConfig struct {
 	// Backup configures the scheduled backups to S3-compatible stores.
 	Backup *BackupConfig `hcl:"backup"`
 
+	// Secrets configures the server side of the built-in secret store.
+	Secrets *SecretsConfig `hcl:"secrets"`
+
 	// Admission configures the dynamic admission control webhooks.
 	Admission *config.AdmissionConfig `hcl:"admission"`
 
@@ -735,6 +738,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobTrackedVersions = pointer.Copy(s.JobTrackedVersions)
 	ns.Autoscaler = s.Autoscaler.Copy()
 	ns.Backup = s.Backup.Copy()
+	ns.Secrets = s.Secrets.Copy()
 	ns.Admission = s.Admission.Copy()
 	ns.MTLS = s.MTLS.Copy()
 	return &ns
@@ -2048,6 +2052,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.Backup != nil {
 		result.Backup = result.Backup.Merge(b.Backup)
+	}
+
+	if b.Secrets != nil {
+		result.Secrets = result.Secrets.Merge(b.Secrets)
 	}
 
 	if b.DefaultSchedulerConfig != nil {
