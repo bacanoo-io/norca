@@ -389,6 +389,11 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/admission-policies", s.wrap(s.AdmissionPoliciesRequest))
 	s.mux.HandleFunc("/v1/admission-policy/", s.wrap(s.AdmissionPolicySpecificRequest))
 
+	s.mux.HandleFunc("/v1/network-policies", s.wrap(s.NetworkPoliciesRequest))
+	s.mux.HandleFunc("/v1/network-policy/", s.wrap(s.NetworkPolicySpecificRequest))
+	s.mux.HandleFunc("/v1/admin-network-policies", s.wrap(s.AdminNetworkPoliciesRequest))
+	s.mux.HandleFunc("/v1/admin-network-policy/", s.wrap(s.AdminNetworkPolicySpecificRequest))
+
 	s.mux.HandleFunc("/v1/object-kinds", s.wrap(s.ObjectKindsRequest))
 	s.mux.HandleFunc("/v1/object-kind/", s.wrap(s.ObjectKindSpecificRequest))
 	s.mux.HandleFunc("/v1/objects/", s.wrap(s.ObjectsRequest))
