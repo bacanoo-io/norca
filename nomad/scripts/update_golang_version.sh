@@ -29,9 +29,6 @@ echo "${golang_version}" > .go-version
 # Specifically, we use "* instead of "?, which relies on GNU extension without much loss of
 # correctness in practice.
 
-sed -i'' -e "s|GO_VERSION:[ \"]*[.0-9]*\"*|GO_VERSION: ${golang_version}|g" \
-	.github/workflows/test-core.yaml
-
 sed -i'' -e "s|\\(Install .Go\\) [.0-9]*|\\1 ${golang_version}|g" \
 	contributing/README.md
 
