@@ -7,17 +7,12 @@
 import { _cancelTimers as cancelTimers, later } from '@ember/runloop';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
-import { find, render, settled } from '@ember/test-helpers';
+import { find, render, select, settled } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
 import Pretender from 'pretender';
 import sinon from 'sinon';
 import { logEncode } from '../../../mirage/data/logs';
-import {
-  selectOpen,
-  selectOpenChoose,
-} from '../../utils/ember-power-select-extensions';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
-import { capitalize } from '@ember/string';
 
 module('Integration | Component | agent-monitor', function (hooks) {
   setupRenderingTest(hooks);
@@ -72,7 +67,7 @@ module('Integration | Component | agent-monitor', function (hooks) {
     assert.ok(find('[data-test-level-switcher-parent]'));
     assert.ok(find('[data-test-toggle]'));
     assert.ok(find('[data-test-log-box]'));
-    assert.ok(find('[data-test-log-box].is-full-bleed.is-dark'));
+    assert.ok(find('[data-test-log-box].norca-log-box'));
 
     await componentA11yAudit(this.element, assert);
   });
@@ -127,9 +122,8 @@ module('Integration | Component | agent-monitor', function (hooks) {
 
     await render(commonTemplate);
 
-    const contentId = await selectOpen('[data-test-level-switcher-parent]');
     later(cancelTimers, INTERVAL);
-    await selectOpenChoose(contentId, capitalize(newLevel));
+    await select('[data-test-level-switcher]', newLevel);
     await settled();
 
     assert.ok(onLevelChange.calledOnce);
@@ -158,9 +152,8 @@ module('Integration | Component | agent-monitor', function (hooks) {
       `[INFO] ${LOG_MESSAGE}\n`
     );
 
-    const contentId = await selectOpen('[data-test-level-switcher-parent]');
     later(cancelTimers, INTERVAL);
-    await selectOpenChoose(contentId, capitalize(newLevel));
+    await select('[data-test-level-switcher]', newLevel);
     await settled();
 
     assert.equal(
@@ -201,9 +194,8 @@ module('Integration | Component | agent-monitor', function (hooks) {
 
     assert.equal(find('[data-test-log-cli]').textContent, '');
 
-    const contentId = await selectOpen('[data-test-level-switcher-parent]');
     later(cancelTimers, INTERVAL);
-    await selectOpenChoose(contentId, capitalize(newLevel));
+    await select('[data-test-level-switcher]', newLevel);
     await settled();
 
     assert.equal(

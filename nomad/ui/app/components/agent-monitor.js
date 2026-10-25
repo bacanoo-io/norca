@@ -5,7 +5,9 @@
 
 import { inject as service } from '@ember/service';
 import Component from '@ember/component';
-import { computed } from '@ember/object';
+import { action, computed } from '@ember/object';
+import { capitalize } from '@ember/string';
+import { guidFor } from '@ember/object/internals';
 import { assert } from '@ember/debug';
 import { tagName } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
@@ -24,6 +26,10 @@ export default class AgentMonitor extends Component {
   onLevelChange() {}
 
   levels = LEVELS;
+  levelOptions = LEVELS.map((level) => ({
+    value: level,
+    label: capitalize(level),
+  }));
   monitorUrl = '/v1/agent/monitor';
   isStreaming = true;
   logger = null;
@@ -50,6 +56,10 @@ export default class AgentMonitor extends Component {
     return params;
   }
 
+  get id() {
+    return guidFor(this);
+  }
+
   didInsertElement() {
     super.didInsertElement(...arguments);
     this.updateLogger();
@@ -71,6 +81,7 @@ export default class AgentMonitor extends Component {
     );
   }
 
+  @action
   setLevel(level) {
     this.logger.stop();
     this.set('level', level);
@@ -78,6 +89,7 @@ export default class AgentMonitor extends Component {
     this.updateLogger();
   }
 
+  @action
   toggleStream() {
     this.set('streamMode', 'streaming');
     this.toggleProperty('isStreaming');

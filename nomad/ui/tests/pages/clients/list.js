@@ -9,22 +9,20 @@ import {
   collection,
   clickable,
   fillable,
-  hasClass,
-  isHidden,
   isPresent,
   text,
   visitable,
 } from 'ember-cli-page-object';
 
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
-import pageSizeSelect from 'nomad-ui/tests/pages/components/page-size-select';
+import { filterFacet } from 'nomad-ui/tests/pages/components/facet';
+import { nativePageSizeSelect } from 'nomad-ui/tests/pages/components/page-size-select';
 
 export default create({
   pageSize: 25,
 
   visit: visitable('/clients'),
 
-  search: fillable('.search-box input'),
+  search: fillable('[data-test-clients-search]'),
 
   sortOptions: collection('[data-test-sort-by]', {
     id: attribute('data-test-sort-by'),
@@ -42,12 +40,11 @@ export default create({
     compositeStatus: {
       scope: '[data-test-client-composite-status]',
 
-      tooltip: attribute('aria-label', '.tooltip'),
-
-      isInfo: hasClass('is-info'),
-      isSuccess: hasClass('is-success'),
-      isWarning: hasClass('is-warning'),
-      isUnformatted: isHidden('.status-text'),
+      tooltip: attribute('data-norca-tooltip', '[data-test-tooltip]'),
+      status: attribute(
+        'data-test-composite-status',
+        '[data-test-composite-status]'
+      ),
     },
 
     address: text('[data-test-client-address]'),
@@ -64,10 +61,12 @@ export default create({
 
   isEmpty: isPresent('[data-test-empty-clients-list]'),
   empty: {
-    headline: text('[data-test-empty-clients-list-headline]'),
+    headline: text(
+      '[data-test-empty-clients-list] [data-test-empty-state-title]'
+    ),
   },
 
-  pageSizeSelect: pageSizeSelect(),
+  pageSizeSelect: nativePageSizeSelect(),
 
   error: {
     isPresent: isPresent('[data-test-error]'),
@@ -77,11 +76,11 @@ export default create({
   },
 
   facets: {
-    nodePools: multiFacet('[data-test-node-pool-facet]'),
-    class: multiFacet('[data-test-class-facet]'),
-    state: multiFacet('[data-test-state-facet]'),
-    datacenter: multiFacet('[data-test-datacenter-facet]'),
-    version: multiFacet('[data-test-version-facet]'),
-    volume: multiFacet('[data-test-volume-facet]'),
+    nodePools: filterFacet('[data-test-node-pool-facet]'),
+    class: filterFacet('[data-test-class-facet]'),
+    state: filterFacet('[data-test-state-facet]'),
+    datacenter: filterFacet('[data-test-datacenter-facet]'),
+    version: filterFacet('[data-test-version-facet]'),
+    volume: filterFacet('[data-test-volume-facet]'),
   },
 });

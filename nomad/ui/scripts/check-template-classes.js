@@ -57,6 +57,12 @@ const MIGRATED = [
   'components/image-file.hbs',
   // jobs list, clients, Variables and access (phase 2)
   'templates/jobs/index.hbs',
+  'templates/loading.hbs',
+  'templates/clients.hbs',
+  'templates/clients',
+  'components/clients',
+  'components/agent-monitor.hbs',
+  'components/forbidden-message.hbs',
 ];
 
 const ALLOWED = [
