@@ -243,6 +243,10 @@ type Server struct {
 	// secret store (see setupSecretStore).
 	secretStore *secretstore.Backend
 
+	// secrets is the object layer of the built-in secret store: the write
+	// serialization and the audit trail (see setupSecrets).
+	secrets *serverSecrets
+
 	// volumeControllerFutures is a map of plugin IDs to pending controller RPCs. If
 	// no RPC is pending for a given plugin, this may be nil.
 	volumeControllerFutures map[string]context.Context
@@ -542,6 +546,11 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 	// Setup the storage backend of the built-in secret store.
 	s.setupSecretStore()
 
+	// Setup the secrets of the built-in secret store and their audit trail.
+	if err := s.setupSecrets(); err != nil {
+		return nil, err
+	}
+
 	// Setup the enterprise state
 	if err := s.setupEnterprise(config); err != nil {
 		return nil, err
@@ -774,6 +783,8 @@ func (s *Server) Shutdown() error {
 	if s.serf != nil {
 		s.serf.Shutdown()
 	}
+
+	s.shutdownSecrets()
 
 	if s.raft != nil {
 		s.raftTransport.Close()
@@ -1378,6 +1389,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewReleaseEndpoint(s, ctx))
 	_ = server.Register(NewBackupEndpoint(s, ctx))
 	_ = server.Register(NewNetworkPolicyEndpoint(s, ctx))
+	_ = server.Register(NewSecretEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))
 	_ = server.Register(NewPlanEndpoint(s, ctx))
 	_ = server.Register(NewQuotaEndpoint(s, ctx))
