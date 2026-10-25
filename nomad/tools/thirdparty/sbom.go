@@ -215,13 +215,9 @@ func buildSBOM(c commonFlags, binPath, name, sourceURL string) ([]byte, error) {
 
 	var npm []*npmPackage
 	if b.UI && !c.noUI && contains(tags, "ui") {
-		uiDir := filepath.Join(c.root, "nomad", "ui")
-		src, err := newNPMSource(uiDir, c.cacheDir, c.offline)
-		if err != nil {
-			return nil, err
-		}
 		var p []string
-		if npm, p, err = collectNPM(uiDir, src); err != nil {
+		var err error
+		if npm, p, err = collectUIs(c); err != nil {
 			return nil, err
 		}
 		problems = append(problems, p...)

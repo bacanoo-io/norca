@@ -4,7 +4,7 @@
 
 Norca is licensed under the Mozilla Public License 2.0; see `LICENSE` and `NOTICE`. The `norca` and `norca-natsbridge` binaries and the container images also contain the third-party components listed below, each under its own license. The license files of each component are reproduced in full under "License texts". Where a component ships NOTICE files, their contents are reproduced with it, as section 4(d) of the Apache License 2.0 requires.
 
-The list covers the Go modules linked into the binaries on every release platform (linux/amd64, linux/arm64, darwin/arm64, windows/amd64) and the production npm dependencies of the web UI embedded in `norca` (`nomad/ui/package.json`, `nomad/ui/yarn.lock`).
+The list covers the Go modules linked into the binaries on every release platform (linux/amd64, linux/arm64, darwin/arm64, windows/amd64) and the production npm dependencies of the web UI embedded in `norca` (`nomad/ui/package.json`, `nomad/ui/yarn.lock`) and of the previous UI served at `/ui/legacy` for one release (`nomad/ui-legacy/package.json`, `nomad/ui-legacy/yarn.lock`).
 
 ## Summary
 
@@ -350,64 +350,96 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [@babel/code-frame](#npm-babel-code-frame-7-12-11) (npm) | 7.12.11 | MIT | norca (web UI) |
 | [@babel/code-frame](#npm-babel-code-frame-7-12-13) (npm) | 7.12.13 | MIT | norca (web UI) |
 | [@babel/code-frame](#npm-babel-code-frame-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/code-frame](#npm-babel-code-frame-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/compat-data](#npm-babel-compat-data-7-13-12) (npm) | 7.13.12 | MIT | norca (web UI) |
 | [@babel/compat-data](#npm-babel-compat-data-7-15-0) (npm) | 7.15.0 | MIT | norca (web UI) |
 | [@babel/compat-data](#npm-babel-compat-data-7-17-0) (npm) | 7.17.0 | MIT | norca (web UI) |
+| [@babel/compat-data](#npm-babel-compat-data-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/core](#npm-babel-core-7-12-10) (npm) | 7.12.10 | MIT | norca (web UI) |
 | [@babel/core](#npm-babel-core-7-17-5) (npm) | 7.17.5 | MIT | norca (web UI) |
+| [@babel/core](#npm-babel-core-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/generator](#npm-babel-generator-7-13-9) (npm) | 7.13.9 | MIT | norca (web UI) |
 | [@babel/generator](#npm-babel-generator-7-17-3) (npm) | 7.17.3 | MIT | norca (web UI) |
+| [@babel/generator](#npm-babel-generator-7-29-8) (npm) | 7.29.8 | MIT | norca (web UI) |
 | [@babel/helper-annotate-as-pure](#npm-babel-helper-annotate-as-pure-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-annotate-as-pure](#npm-babel-helper-annotate-as-pure-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-builder-binary-assignment-operator-visitor](#npm-babel-helper-builder-binary-assignment-operator-visitor-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/helper-compilation-targets](#npm-babel-helper-compilation-targets-7-13-10) (npm) | 7.13.10 | MIT | norca (web UI) |
 | [@babel/helper-compilation-targets](#npm-babel-helper-compilation-targets-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-compilation-targets](#npm-babel-helper-compilation-targets-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-create-class-features-plugin](#npm-babel-helper-create-class-features-plugin-7-13-11) (npm) | 7.13.11 | MIT | norca (web UI) |
 | [@babel/helper-create-class-features-plugin](#npm-babel-helper-create-class-features-plugin-7-17-6) (npm) | 7.17.6 | MIT | norca (web UI) |
+| [@babel/helper-create-class-features-plugin](#npm-babel-helper-create-class-features-plugin-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-create-regexp-features-plugin](#npm-babel-helper-create-regexp-features-plugin-7-17-0) (npm) | 7.17.0 | MIT | norca (web UI) |
+| [@babel/helper-create-regexp-features-plugin](#npm-babel-helper-create-regexp-features-plugin-7-29-10) (npm) | 7.29.10 | MIT | norca (web UI) |
 | [@babel/helper-define-polyfill-provider](#npm-babel-helper-define-polyfill-provider-0-1-5) (npm) | 0.1.5 | MIT | norca (web UI) |
 | [@babel/helper-define-polyfill-provider](#npm-babel-helper-define-polyfill-provider-0-3-1) (npm) | 0.3.1 | MIT | norca (web UI) |
+| [@babel/helper-define-polyfill-provider](#npm-babel-helper-define-polyfill-provider-0-6-8) (npm) | 0.6.8 | MIT | norca (web UI) |
 | [@babel/helper-environment-visitor](#npm-babel-helper-environment-visitor-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/helper-explode-assignable-expression](#npm-babel-helper-explode-assignable-expression-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/helper-function-name](#npm-babel-helper-function-name-7-12-13) (npm) | 7.12.13 | MIT | norca (web UI) |
 | [@babel/helper-function-name](#npm-babel-helper-function-name-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/helper-get-function-arity](#npm-babel-helper-get-function-arity-7-12-13) (npm) | 7.12.13 | MIT | norca (web UI) |
 | [@babel/helper-get-function-arity](#npm-babel-helper-get-function-arity-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-globals](#npm-babel-helper-globals-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-hoist-variables](#npm-babel-helper-hoist-variables-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/helper-member-expression-to-functions](#npm-babel-helper-member-expression-to-functions-7-13-12) (npm) | 7.13.12 | MIT | norca (web UI) |
 | [@babel/helper-member-expression-to-functions](#npm-babel-helper-member-expression-to-functions-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-member-expression-to-functions](#npm-babel-helper-member-expression-to-functions-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-module-imports](#npm-babel-helper-module-imports-7-13-12) (npm) | 7.13.12 | MIT | norca (web UI) |
 | [@babel/helper-module-imports](#npm-babel-helper-module-imports-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-module-imports](#npm-babel-helper-module-imports-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-module-transforms](#npm-babel-helper-module-transforms-7-13-12) (npm) | 7.13.12 | MIT | norca (web UI) |
 | [@babel/helper-module-transforms](#npm-babel-helper-module-transforms-7-17-6) (npm) | 7.17.6 | MIT | norca (web UI) |
+| [@babel/helper-module-transforms](#npm-babel-helper-module-transforms-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-optimise-call-expression](#npm-babel-helper-optimise-call-expression-7-12-13) (npm) | 7.12.13 | MIT | norca (web UI) |
 | [@babel/helper-optimise-call-expression](#npm-babel-helper-optimise-call-expression-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-optimise-call-expression](#npm-babel-helper-optimise-call-expression-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-plugin-utils](#npm-babel-helper-plugin-utils-7-13-0) (npm) | 7.13.0 | MIT | norca (web UI) |
 | [@babel/helper-plugin-utils](#npm-babel-helper-plugin-utils-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-plugin-utils](#npm-babel-helper-plugin-utils-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-remap-async-to-generator](#npm-babel-helper-remap-async-to-generator-7-16-8) (npm) | 7.16.8 | MIT | norca (web UI) |
+| [@babel/helper-remap-async-to-generator](#npm-babel-helper-remap-async-to-generator-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-replace-supers](#npm-babel-helper-replace-supers-7-13-12) (npm) | 7.13.12 | MIT | norca (web UI) |
 | [@babel/helper-replace-supers](#npm-babel-helper-replace-supers-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-replace-supers](#npm-babel-helper-replace-supers-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-simple-access](#npm-babel-helper-simple-access-7-13-12) (npm) | 7.13.12 | MIT | norca (web UI) |
 | [@babel/helper-simple-access](#npm-babel-helper-simple-access-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/helper-skip-transparent-expression-wrappers](#npm-babel-helper-skip-transparent-expression-wrappers-7-16-0) (npm) | 7.16.0 | MIT | norca (web UI) |
+| [@babel/helper-skip-transparent-expression-wrappers](#npm-babel-helper-skip-transparent-expression-wrappers-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-split-export-declaration](#npm-babel-helper-split-export-declaration-7-12-13) (npm) | 7.12.13 | MIT | norca (web UI) |
 | [@babel/helper-split-export-declaration](#npm-babel-helper-split-export-declaration-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/helper-string-parser](#npm-babel-helper-string-parser-7-19-4) (npm) | 7.19.4 | MIT | norca (web UI) |
+| [@babel/helper-string-parser](#npm-babel-helper-string-parser-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-validator-identifier](#npm-babel-helper-validator-identifier-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-validator-identifier](#npm-babel-helper-validator-identifier-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-validator-option](#npm-babel-helper-validator-option-7-12-17) (npm) | 7.12.17 | MIT | norca (web UI) |
 | [@babel/helper-validator-option](#npm-babel-helper-validator-option-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/helper-validator-option](#npm-babel-helper-validator-option-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helper-wrap-function](#npm-babel-helper-wrap-function-7-16-8) (npm) | 7.16.8 | MIT | norca (web UI) |
+| [@babel/helper-wrap-function](#npm-babel-helper-wrap-function-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/helpers](#npm-babel-helpers-7-17-2) (npm) | 7.17.2 | MIT | norca (web UI) |
+| [@babel/helpers](#npm-babel-helpers-7-29-10) (npm) | 7.29.10 | MIT | norca (web UI) |
 | [@babel/highlight](#npm-babel-highlight-7-13-10) (npm) | 7.13.10 | MIT | norca (web UI) |
 | [@babel/highlight](#npm-babel-highlight-7-16-10) (npm) | 7.16.10 | MIT | norca (web UI) |
+| [@babel/parser](#npm-babel-parser-7-12-11) (npm) | 7.12.11 | MIT | norca (web UI) |
 | [@babel/parser](#npm-babel-parser-7-13-12) (npm) | 7.13.12 | MIT | norca (web UI) |
 | [@babel/parser](#npm-babel-parser-7-17-3) (npm) | 7.17.3 | MIT | norca (web UI) |
+| [@babel/parser](#npm-babel-parser-7-29-9) (npm) | 7.29.9 | MIT | norca (web UI) |
+| [@babel/plugin-bugfix-firefox-class-in-computed-class-key](#npm-babel-plugin-bugfix-firefox-class-in-computed-class-key-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-bugfix-safari-class-field-initializer-scope](#npm-babel-plugin-bugfix-safari-class-field-initializer-scope-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression](#npm-babel-plugin-bugfix-safari-id-destructuring-collision-in-function-expression-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression](#npm-babel-plugin-bugfix-safari-id-destructuring-collision-in-function-expression-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-bugfix-safari-rest-destructuring-rhs-array](#npm-babel-plugin-bugfix-safari-rest-destructuring-rhs-array-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining](#npm-babel-plugin-bugfix-v8-spread-parameters-in-optional-chaining-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining](#npm-babel-plugin-bugfix-v8-spread-parameters-in-optional-chaining-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-bugfix-v8-static-class-fields-redefine-readonly](#npm-babel-plugin-bugfix-v8-static-class-fields-redefine-readonly-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-async-generator-functions](#npm-babel-plugin-proposal-async-generator-functions-7-16-8) (npm) | 7.16.8 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-class-properties](#npm-babel-plugin-proposal-class-properties-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-class-static-block](#npm-babel-plugin-proposal-class-static-block-7-17-6) (npm) | 7.17.6 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-decorators](#npm-babel-plugin-proposal-decorators-7-13-5) (npm) | 7.13.5 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-decorators](#npm-babel-plugin-proposal-decorators-7-17-2) (npm) | 7.17.2 | MIT | norca (web UI) |
+| [@babel/plugin-proposal-decorators](#npm-babel-plugin-proposal-decorators-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-dynamic-import](#npm-babel-plugin-proposal-dynamic-import-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-export-namespace-from](#npm-babel-plugin-proposal-export-namespace-from-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-json-strings](#npm-babel-plugin-proposal-json-strings-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
@@ -418,15 +450,20 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [@babel/plugin-proposal-optional-catch-binding](#npm-babel-plugin-proposal-optional-catch-binding-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-optional-chaining](#npm-babel-plugin-proposal-optional-chaining-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-private-methods](#npm-babel-plugin-proposal-private-methods-7-16-11) (npm) | 7.16.11 | MIT | norca (web UI) |
+| [@babel/plugin-proposal-private-methods](#npm-babel-plugin-proposal-private-methods-7-18-6) (npm) | 7.18.6 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-private-property-in-object](#npm-babel-plugin-proposal-private-property-in-object-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-proposal-private-property-in-object](#npm-babel-plugin-proposal-private-property-in-object-7-21-0-placeholder-for-preset-env-2) (npm) | 7.21.0-placeholder-for-preset-env.2 | MIT | norca (web UI) |
 | [@babel/plugin-proposal-unicode-property-regex](#npm-babel-plugin-proposal-unicode-property-regex-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-async-generators](#npm-babel-plugin-syntax-async-generators-7-8-4) (npm) | 7.8.4 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-class-properties](#npm-babel-plugin-syntax-class-properties-7-12-13) (npm) | 7.12.13 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-class-static-block](#npm-babel-plugin-syntax-class-static-block-7-14-5) (npm) | 7.14.5 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-decorators](#npm-babel-plugin-syntax-decorators-7-12-13) (npm) | 7.12.13 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-decorators](#npm-babel-plugin-syntax-decorators-7-17-0) (npm) | 7.17.0 | MIT | norca (web UI) |
+| [@babel/plugin-syntax-decorators](#npm-babel-plugin-syntax-decorators-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-dynamic-import](#npm-babel-plugin-syntax-dynamic-import-7-8-3) (npm) | 7.8.3 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-export-namespace-from](#npm-babel-plugin-syntax-export-namespace-from-7-8-3) (npm) | 7.8.3 | MIT | norca (web UI) |
+| [@babel/plugin-syntax-import-assertions](#npm-babel-plugin-syntax-import-assertions-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-syntax-import-attributes](#npm-babel-plugin-syntax-import-attributes-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-json-strings](#npm-babel-plugin-syntax-json-strings-7-8-3) (npm) | 7.8.3 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-logical-assignment-operators](#npm-babel-plugin-syntax-logical-assignment-operators-7-10-4) (npm) | 7.10.4 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-nullish-coalescing-operator](#npm-babel-plugin-syntax-nullish-coalescing-operator-7-8-3) (npm) | 7.8.3 | MIT | norca (web UI) |
@@ -438,86 +475,186 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [@babel/plugin-syntax-top-level-await](#npm-babel-plugin-syntax-top-level-await-7-14-5) (npm) | 7.14.5 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-typescript](#npm-babel-plugin-syntax-typescript-7-12-13) (npm) | 7.12.13 | MIT | norca (web UI) |
 | [@babel/plugin-syntax-typescript](#npm-babel-plugin-syntax-typescript-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-syntax-typescript](#npm-babel-plugin-syntax-typescript-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-syntax-unicode-sets-regex](#npm-babel-plugin-syntax-unicode-sets-regex-7-18-6) (npm) | 7.18.6 | MIT | norca (web UI) |
 | [@babel/plugin-transform-arrow-functions](#npm-babel-plugin-transform-arrow-functions-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-arrow-functions](#npm-babel-plugin-transform-arrow-functions-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-async-generator-functions](#npm-babel-plugin-transform-async-generator-functions-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-async-to-generator](#npm-babel-plugin-transform-async-to-generator-7-16-8) (npm) | 7.16.8 | MIT | norca (web UI) |
+| [@babel/plugin-transform-async-to-generator](#npm-babel-plugin-transform-async-to-generator-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-block-scoped-functions](#npm-babel-plugin-transform-block-scoped-functions-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-block-scoped-functions](#npm-babel-plugin-transform-block-scoped-functions-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-block-scoping](#npm-babel-plugin-transform-block-scoping-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-block-scoping](#npm-babel-plugin-transform-block-scoping-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-class-properties](#npm-babel-plugin-transform-class-properties-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-class-static-block](#npm-babel-plugin-transform-class-static-block-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-classes](#npm-babel-plugin-transform-classes-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-classes](#npm-babel-plugin-transform-classes-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-computed-properties](#npm-babel-plugin-transform-computed-properties-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-computed-properties](#npm-babel-plugin-transform-computed-properties-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-destructuring](#npm-babel-plugin-transform-destructuring-7-17-3) (npm) | 7.17.3 | MIT | norca (web UI) |
+| [@babel/plugin-transform-destructuring](#npm-babel-plugin-transform-destructuring-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-dotall-regex](#npm-babel-plugin-transform-dotall-regex-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-dotall-regex](#npm-babel-plugin-transform-dotall-regex-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-duplicate-keys](#npm-babel-plugin-transform-duplicate-keys-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-duplicate-keys](#npm-babel-plugin-transform-duplicate-keys-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-duplicate-named-capturing-groups-regex](#npm-babel-plugin-transform-duplicate-named-capturing-groups-regex-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-dynamic-import](#npm-babel-plugin-transform-dynamic-import-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-explicit-resource-management](#npm-babel-plugin-transform-explicit-resource-management-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-exponentiation-operator](#npm-babel-plugin-transform-exponentiation-operator-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-exponentiation-operator](#npm-babel-plugin-transform-exponentiation-operator-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-export-namespace-from](#npm-babel-plugin-transform-export-namespace-from-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-for-of](#npm-babel-plugin-transform-for-of-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-for-of](#npm-babel-plugin-transform-for-of-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-function-name](#npm-babel-plugin-transform-function-name-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-function-name](#npm-babel-plugin-transform-function-name-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-json-strings](#npm-babel-plugin-transform-json-strings-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-literals](#npm-babel-plugin-transform-literals-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-literals](#npm-babel-plugin-transform-literals-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-logical-assignment-operators](#npm-babel-plugin-transform-logical-assignment-operators-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-member-expression-literals](#npm-babel-plugin-transform-member-expression-literals-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-member-expression-literals](#npm-babel-plugin-transform-member-expression-literals-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-modules-amd](#npm-babel-plugin-transform-modules-amd-7-13-0) (npm) | 7.13.0 | MIT | norca (web UI) |
 | [@babel/plugin-transform-modules-amd](#npm-babel-plugin-transform-modules-amd-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-modules-amd](#npm-babel-plugin-transform-modules-amd-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-modules-commonjs](#npm-babel-plugin-transform-modules-commonjs-7-16-8) (npm) | 7.16.8 | MIT | norca (web UI) |
+| [@babel/plugin-transform-modules-commonjs](#npm-babel-plugin-transform-modules-commonjs-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-modules-systemjs](#npm-babel-plugin-transform-modules-systemjs-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-modules-systemjs](#npm-babel-plugin-transform-modules-systemjs-7-29-8) (npm) | 7.29.8 | MIT | norca (web UI) |
 | [@babel/plugin-transform-modules-umd](#npm-babel-plugin-transform-modules-umd-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-modules-umd](#npm-babel-plugin-transform-modules-umd-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-named-capturing-groups-regex](#npm-babel-plugin-transform-named-capturing-groups-regex-7-16-8) (npm) | 7.16.8 | MIT | norca (web UI) |
+| [@babel/plugin-transform-named-capturing-groups-regex](#npm-babel-plugin-transform-named-capturing-groups-regex-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-new-target](#npm-babel-plugin-transform-new-target-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-new-target](#npm-babel-plugin-transform-new-target-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-nullish-coalescing-operator](#npm-babel-plugin-transform-nullish-coalescing-operator-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-numeric-separator](#npm-babel-plugin-transform-numeric-separator-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-object-rest-spread](#npm-babel-plugin-transform-object-rest-spread-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-object-super](#npm-babel-plugin-transform-object-super-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-object-super](#npm-babel-plugin-transform-object-super-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-optional-catch-binding](#npm-babel-plugin-transform-optional-catch-binding-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-optional-chaining](#npm-babel-plugin-transform-optional-chaining-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-parameters](#npm-babel-plugin-transform-parameters-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-parameters](#npm-babel-plugin-transform-parameters-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-private-methods](#npm-babel-plugin-transform-private-methods-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-private-property-in-object](#npm-babel-plugin-transform-private-property-in-object-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-property-literals](#npm-babel-plugin-transform-property-literals-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-property-literals](#npm-babel-plugin-transform-property-literals-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-regenerator](#npm-babel-plugin-transform-regenerator-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-regenerator](#npm-babel-plugin-transform-regenerator-7-29-8) (npm) | 7.29.8 | MIT | norca (web UI) |
+| [@babel/plugin-transform-regexp-modifiers](#npm-babel-plugin-transform-regexp-modifiers-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-reserved-words](#npm-babel-plugin-transform-reserved-words-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-reserved-words](#npm-babel-plugin-transform-reserved-words-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-runtime](#npm-babel-plugin-transform-runtime-7-13-10) (npm) | 7.13.10 | MIT | norca (web UI) |
+| [@babel/plugin-transform-runtime](#npm-babel-plugin-transform-runtime-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-shorthand-properties](#npm-babel-plugin-transform-shorthand-properties-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-shorthand-properties](#npm-babel-plugin-transform-shorthand-properties-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-spread](#npm-babel-plugin-transform-spread-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-spread](#npm-babel-plugin-transform-spread-7-29-8) (npm) | 7.29.8 | MIT | norca (web UI) |
 | [@babel/plugin-transform-sticky-regex](#npm-babel-plugin-transform-sticky-regex-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-sticky-regex](#npm-babel-plugin-transform-sticky-regex-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-template-literals](#npm-babel-plugin-transform-template-literals-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-template-literals](#npm-babel-plugin-transform-template-literals-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-typeof-symbol](#npm-babel-plugin-transform-typeof-symbol-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-typeof-symbol](#npm-babel-plugin-transform-typeof-symbol-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-typescript](#npm-babel-plugin-transform-typescript-7-13-0) (npm) | 7.13.0 | MIT | norca (web UI) |
+| [@babel/plugin-transform-typescript](#npm-babel-plugin-transform-typescript-7-29-9) (npm) | 7.29.9 | MIT | norca (web UI) |
 | [@babel/plugin-transform-typescript](#npm-babel-plugin-transform-typescript-7-5-5) (npm) | 7.5.5 | MIT | norca (web UI) |
 | [@babel/plugin-transform-unicode-escapes](#npm-babel-plugin-transform-unicode-escapes-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-unicode-escapes](#npm-babel-plugin-transform-unicode-escapes-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-unicode-property-regex](#npm-babel-plugin-transform-unicode-property-regex-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/plugin-transform-unicode-regex](#npm-babel-plugin-transform-unicode-regex-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-unicode-regex](#npm-babel-plugin-transform-unicode-regex-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/plugin-transform-unicode-sets-regex](#npm-babel-plugin-transform-unicode-sets-regex-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/polyfill](#npm-babel-polyfill-7-12-1) (npm) | 7.12.1 | MIT | norca (web UI) |
 | [@babel/preset-env](#npm-babel-preset-env-7-16-11) (npm) | 7.16.11 | MIT | norca (web UI) |
+| [@babel/preset-env](#npm-babel-preset-env-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
 | [@babel/preset-modules](#npm-babel-preset-modules-0-1-5) (npm) | 0.1.5 | MIT | norca (web UI) |
+| [@babel/preset-modules](#npm-babel-preset-modules-0-1-6-no-external-plugins) (npm) | 0.1.6-no-external-plugins | MIT | norca (web UI) |
 | [@babel/runtime](#npm-babel-runtime-7-12-18) (npm) | 7.12.18 | MIT | norca (web UI) |
 | [@babel/runtime](#npm-babel-runtime-7-17-2) (npm) | 7.17.2 | MIT | norca (web UI) |
 | [@babel/runtime](#npm-babel-runtime-7-22-5) (npm) | 7.22.5 | MIT | norca (web UI) |
+| [@babel/runtime](#npm-babel-runtime-7-29-10) (npm) | 7.29.10 | MIT | norca (web UI) |
 | [@babel/template](#npm-babel-template-7-12-13) (npm) | 7.12.13 | MIT | norca (web UI) |
 | [@babel/template](#npm-babel-template-7-16-7) (npm) | 7.16.7 | MIT | norca (web UI) |
+| [@babel/template](#npm-babel-template-7-29-7) (npm) | 7.29.7 | MIT | norca (web UI) |
+| [@babel/traverse](#npm-babel-traverse-7-12-12) (npm) | 7.12.12 | MIT | norca (web UI) |
 | [@babel/traverse](#npm-babel-traverse-7-13-0) (npm) | 7.13.0 | MIT | norca (web UI) |
 | [@babel/traverse](#npm-babel-traverse-7-17-3) (npm) | 7.17.3 | MIT | norca (web UI) |
+| [@babel/traverse](#npm-babel-traverse-7-29-10) (npm) | 7.29.10 | MIT | norca (web UI) |
+| [@babel/types](#npm-babel-types-7-12-12) (npm) | 7.12.12 | MIT | norca (web UI) |
 | [@babel/types](#npm-babel-types-7-13-12) (npm) | 7.13.12 | MIT | norca (web UI) |
 | [@babel/types](#npm-babel-types-7-17-0) (npm) | 7.17.0 | MIT | norca (web UI) |
+| [@babel/types](#npm-babel-types-7-29-8) (npm) | 7.29.8 | MIT | norca (web UI) |
+| [@ember-data/adapter](#npm-ember-data-adapter-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-data/debug](#npm-ember-data-debug-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-data/graph](#npm-ember-data-graph-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-data/json-api](#npm-ember-data-json-api-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-data/legacy-compat](#npm-ember-data-legacy-compat-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-data/model](#npm-ember-data-model-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-data/private-build-infra](#npm-ember-data-private-build-infra-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-data/request](#npm-ember-data-request-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
 | [@ember-data/rfc395-data](#npm-ember-data-rfc395-data-0-0-4) (npm) | 0.0.4 | MIT | norca (web UI) |
+| [@ember-data/serializer](#npm-ember-data-serializer-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-data/store](#npm-ember-data-store-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-data/tracking](#npm-ember-data-tracking-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [@ember-decorators/component](#npm-ember-decorators-component-6-1-1) (npm) | 6.1.1 | MIT | norca (web UI) |
+| [@ember-decorators/object](#npm-ember-decorators-object-6-1-1) (npm) | 6.1.1 | MIT | norca (web UI) |
+| [@ember-decorators/utils](#npm-ember-decorators-utils-6-1-1) (npm) | 6.1.1 | MIT | norca (web UI) |
 | [@ember/edition-utils](#npm-ember-edition-utils-1-2-0) (npm) | 1.2.0 | MIT | norca (web UI) |
 | [@ember/render-modifiers](#npm-ember-render-modifiers-2-0-4) (npm) | 2.0.4 | MIT | norca (web UI) |
 | [@ember/render-modifiers](#npm-ember-render-modifiers-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
+| [@ember/render-modifiers](#npm-ember-render-modifiers-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
+| [@ember/string](#npm-ember-string-3-1-1) (npm) | 3.1.1 | MIT | norca (web UI) |
+| [@ember/test-waiters](#npm-ember-test-waiters-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [@ember/test-waiters](#npm-ember-test-waiters-3-0-2) (npm) | 3.0.2 | MIT | norca (web UI) |
+| [@ember/test-waiters](#npm-ember-test-waiters-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
+| [@embroider/addon-shim](#npm-embroider-addon-shim-1-10-3) (npm) | 1.10.3 | MIT | norca (web UI) |
 | [@embroider/addon-shim](#npm-embroider-addon-shim-1-5-0) (npm) | 1.5.0 | MIT | norca (web UI) |
 | [@embroider/addon-shim](#npm-embroider-addon-shim-1-8-4) (npm) | 1.8.4 | MIT | norca (web UI) |
 | [@embroider/macros](#npm-embroider-macros-1-10-0) (npm) | 1.10.0 | MIT | norca (web UI) |
 | [@embroider/macros](#npm-embroider-macros-1-2-0) (npm) | 1.2.0 | MIT | norca (web UI) |
+| [@embroider/macros](#npm-embroider-macros-1-20-7) (npm) | 1.20.7 | MIT | norca (web UI) |
+| [@embroider/macros](#npm-embroider-macros-1-21-3) (npm) | 1.21.3 | MIT | norca (web UI) |
 | [@embroider/macros](#npm-embroider-macros-1-5-0) (npm) | 1.5.0 | MIT | norca (web UI) |
+| [@embroider/reverse-exports](#npm-embroider-reverse-exports-0-2-0) (npm) | 0.2.0 | MIT | norca (web UI) |
 | [@embroider/shared-internals](#npm-embroider-shared-internals-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [@embroider/shared-internals](#npm-embroider-shared-internals-1-2-0) (npm) | 1.2.0 | MIT | norca (web UI) |
 | [@embroider/shared-internals](#npm-embroider-shared-internals-1-5-0) (npm) | 1.5.0 | MIT | norca (web UI) |
 | [@embroider/shared-internals](#npm-embroider-shared-internals-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
+| [@embroider/shared-internals](#npm-embroider-shared-internals-3-2-0) (npm) | 3.2.0 | MIT | norca (web UI) |
+| [@embroider/util](#npm-embroider-util-1-13-5) (npm) | 1.13.5 | MIT | norca (web UI) |
 | [@glimmer/component](#npm-glimmer-component-1-1-2) (npm) | 1.1.2 | MIT | norca (web UI) |
 | [@glimmer/di](#npm-glimmer-di-0-1-11) (npm) | 0.1.11 | MIT | norca (web UI) |
 | [@glimmer/env](#npm-glimmer-env-0-1-7) (npm) | 0.1.7 | MIT | norca (web UI) |
+| [@glimmer/interfaces](#npm-glimmer-interfaces-0-94-6) (npm) | 0.94.6 | MIT | norca (web UI) |
+| [@glimmer/syntax](#npm-glimmer-syntax-0-95-0) (npm) | 0.95.0 | MIT | norca (web UI) |
 | [@glimmer/tracking](#npm-glimmer-tracking-1-0-4) (npm) | 1.0.4 | MIT | norca (web UI) |
+| [@glimmer/tracking](#npm-glimmer-tracking-1-1-2) (npm) | 1.1.2 | MIT | norca (web UI) |
 | [@glimmer/util](#npm-glimmer-util-0-44-0) (npm) | 0.44.0 | MIT | norca (web UI) |
+| [@glimmer/util](#npm-glimmer-util-0-94-8) (npm) | 0.94.8 | MIT | norca (web UI) |
 | [@glimmer/validator](#npm-glimmer-validator-0-44-0) (npm) | 0.44.0 | MIT | norca (web UI) |
+| [@glimmer/wire-format](#npm-glimmer-wire-format-0-94-8) (npm) | 0.94.8 | MIT | norca (web UI) |
+| [@handlebars/parser](#npm-handlebars-parser-2-2-4) (npm) | 2.2.4 | ISC | norca (web UI) |
 | [@hashicorp/design-system-components](#npm-hashicorp-design-system-components-2-12-0) (npm) | 2.12.0 | MPL-2.0 | norca (web UI) |
 | [@hashicorp/design-system-tokens](#npm-hashicorp-design-system-tokens-1-8-0) (npm) | 1.8.0 | MPL-2.0 | norca (web UI) |
 | [@hashicorp/ember-flight-icons](#npm-hashicorp-ember-flight-icons-3-0-4) (npm) | 3.0.4 | MPL-2.0 | norca (web UI) |
 | [@hashicorp/ember-flight-icons](#npm-hashicorp-ember-flight-icons-3-1-2) (npm) | 3.1.2 | MPL-2.0 | norca (web UI) |
 | [@hashicorp/flight-icons](#npm-hashicorp-flight-icons-2-13-0) (npm) | 2.13.0 | MPL-2.0 | norca (web UI) |
 | [@hashicorp/flight-icons](#npm-hashicorp-flight-icons-2-19-0) (npm) | 2.19.0 | MPL-2.0 | norca (web UI) |
+| [@hashicorp/structure-icons](#npm-hashicorp-structure-icons-1-9-2) (npm) | 1.9.2 | MPL-2.0 | norca (web UI) |
+| [@jridgewell/gen-mapping](#npm-jridgewell-gen-mapping-0-3-13) (npm) | 0.3.13 | MIT | norca (web UI) |
+| [@jridgewell/remapping](#npm-jridgewell-remapping-2-3-5) (npm) | 2.3.5 | MIT | norca (web UI) |
 | [@jridgewell/resolve-uri](#npm-jridgewell-resolve-uri-3-0-5) (npm) | 3.0.5 | MIT | norca (web UI) |
+| [@jridgewell/resolve-uri](#npm-jridgewell-resolve-uri-3-1-2) (npm) | 3.1.2 | MIT | norca (web UI) |
 | [@jridgewell/sourcemap-codec](#npm-jridgewell-sourcemap-codec-1-4-11) (npm) | 1.4.11 | MIT | norca (web UI) |
+| [@jridgewell/sourcemap-codec](#npm-jridgewell-sourcemap-codec-1-6-0) (npm) | 1.6.0 | MIT | norca (web UI) |
+| [@jridgewell/trace-mapping](#npm-jridgewell-trace-mapping-0-3-31) (npm) | 0.3.31 | MIT | norca (web UI) |
 | [@jridgewell/trace-mapping](#npm-jridgewell-trace-mapping-0-3-4) (npm) | 0.3.4 | MIT | norca (web UI) |
 | [@nodelib/fs.scandir](#npm-nodelib-fs-scandir-2-1-4) (npm) | 2.1.4 | MIT | norca (web UI) |
 | [@nodelib/fs.stat](#npm-nodelib-fs-stat-2-0-4) (npm) | 2.0.4 | MIT | norca (web UI) |
 | [@nodelib/fs.walk](#npm-nodelib-fs-walk-1-2-6) (npm) | 1.2.6 | MIT | norca (web UI) |
+| [@nullvoxpopuli/ember-composable-helpers](#npm-nullvoxpopuli-ember-composable-helpers-5-3-2) (npm) | 5.3.2 | MIT | norca (web UI) |
 | [@percy/cli-build](#npm-percy-cli-build-1-6-1) (npm) | 1.6.1 | MIT | norca (web UI) |
 | [@percy/cli-command](#npm-percy-cli-command-1-6-1) (npm) | 1.6.1 | MIT | norca (web UI) |
 | [@percy/cli-config](#npm-percy-cli-config-1-6-1) (npm) | 1.6.1 | MIT | norca (web UI) |
@@ -535,26 +672,37 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [@percy/logger](#npm-percy-logger-1-6-1) (npm) | 1.6.1 | MIT | norca (web UI) |
 | [@percy/sdk-utils](#npm-percy-sdk-utils-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
 | [@popperjs/core](#npm-popperjs-core-2-11-8) (npm) | 2.11.8 | MIT | norca (web UI) |
+| [@simple-dom/document](#npm-simple-dom-document-1-4-0) (npm) | 1.4.0 | MIT | norca (web UI) |
+| [@simple-dom/interface](#npm-simple-dom-interface-1-4-0) (npm) | 1.4.0 | MIT | norca (web UI) |
+| [@tabler/core](#npm-tabler-core-1-6-1) (npm) | 1.6.1 | MIT | norca (web UI) |
+| [@types/broccoli-plugin](#npm-types-broccoli-plugin-3-0-4) (npm) | 3.0.4 | MIT | norca (web UI) |
 | [@types/fs-extra](#npm-types-fs-extra-5-1-0) (npm) | 5.1.0 | MIT | norca (web UI) |
 | [@types/glob](#npm-types-glob-7-2-0) (npm) | 7.2.0 | MIT | norca (web UI) |
 | [@types/json-schema](#npm-types-json-schema-7-0-9) (npm) | 7.0.9 | MIT | norca (web UI) |
 | [@types/minimatch](#npm-types-minimatch-3-0-5) (npm) | 3.0.5 | MIT | norca (web UI) |
 | [@types/node](#npm-types-node-17-0-21) (npm) | 17.0.21 | MIT | norca (web UI) |
 | [@types/parse-json](#npm-types-parse-json-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
+| [@types/q](#npm-types-q-1-5-4) (npm) | 1.5.4 | MIT | norca (web UI) |
 | [@types/rimraf](#npm-types-rimraf-2-0-5) (npm) | 2.0.5 | MIT | norca (web UI) |
 | [@types/symlink-or-copy](#npm-types-symlink-or-copy-1-2-0) (npm) | 1.2.0 | MIT | norca (web UI) |
 | [@types/yauzl](#npm-types-yauzl-2-10-0) (npm) | 2.10.0 | MIT | norca (web UI) |
+| [JSV](#npm-jsv-4-0-2) (npm) | 4.0.2 | BSD-2-Clause | norca (web UI) |
 | [ajv-formats](#npm-ajv-formats-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
 | [ajv-keywords](#npm-ajv-keywords-3-5-2) (npm) | 3.5.2 | MIT | norca (web UI) |
 | [ajv-keywords](#npm-ajv-keywords-5-1-0) (npm) | 5.1.0 | MIT | norca (web UI) |
 | [ajv](#npm-ajv-6-12-6) (npm) | 6.12.6 | MIT | norca (web UI) |
 | [ajv](#npm-ajv-8-11-0) (npm) | 8.11.0 | MIT | norca (web UI) |
 | [amd-name-resolver](#npm-amd-name-resolver-1-3-1) (npm) | 1.3.1 | MIT | norca (web UI) |
+| [anser](#npm-anser-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
+| [ansi-styles](#npm-ansi-styles-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [ansi-styles](#npm-ansi-styles-3-2-1) (npm) | 3.2.1 | MIT | norca (web UI) |
+| [ansi-styles](#npm-ansi-styles-4-3-0) (npm) | 4.3.0 | MIT | norca (web UI) |
 | [ansi-to-html](#npm-ansi-to-html-0-6-15) (npm) | 0.6.15 | MIT | norca (web UI) |
 | [anymatch](#npm-anymatch-3-1-2) (npm) | 3.1.2 | ISC | norca (web UI) |
+| [argparse](#npm-argparse-1-0-10) (npm) | 1.0.10 | MIT | norca (web UI) |
 | [array-equal](#npm-array-equal-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [assert-never](#npm-assert-never-1-2-1) (npm) | 1.2.1 | MIT | norca (web UI) |
+| [ast-types](#npm-ast-types-0-13-3) (npm) | 0.13.3 | MIT | norca (web UI) |
 | [async-disk-cache](#npm-async-disk-cache-1-3-5) (npm) | 1.3.5 | MIT | norca (web UI) |
 | [async-disk-cache](#npm-async-disk-cache-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
 | [async-promise-queue](#npm-async-promise-queue-1-0-5) (npm) | 1.0.5 | MIT | norca (web UI) |
@@ -563,6 +711,9 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [babel-import-util](#npm-babel-import-util-0-2-0) (npm) | 0.2.0 | MIT | norca (web UI) |
 | [babel-import-util](#npm-babel-import-util-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
 | [babel-import-util](#npm-babel-import-util-1-3-0) (npm) | 1.3.0 | MIT | norca (web UI) |
+| [babel-import-util](#npm-babel-import-util-1-4-1) (npm) | 1.4.1 | MIT | norca (web UI) |
+| [babel-import-util](#npm-babel-import-util-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
+| [babel-import-util](#npm-babel-import-util-3-0-1) (npm) | 3.0.1 | MIT | norca (web UI) |
 | [babel-loader](#npm-babel-loader-8-2-3) (npm) | 8.2.3 | MIT | norca (web UI) |
 | [babel-plugin-debug-macros](#npm-babel-plugin-debug-macros-0-2-0) (npm) | 0.2.0 | MIT | norca (web UI) |
 | [babel-plugin-debug-macros](#npm-babel-plugin-debug-macros-0-3-4) (npm) | 0.3.4 | MIT | norca (web UI) |
@@ -571,74 +722,122 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [babel-plugin-ember-modules-api-polyfill](#npm-babel-plugin-ember-modules-api-polyfill-3-5-0) (npm) | 3.5.0 | MIT | norca (web UI) |
 | [babel-plugin-ember-template-compilation](#npm-babel-plugin-ember-template-compilation-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
 | [babel-plugin-ember-template-compilation](#npm-babel-plugin-ember-template-compilation-2-0-3) (npm) | 2.0.3 | MIT | norca (web UI) |
+| [babel-plugin-ember-template-compilation](#npm-babel-plugin-ember-template-compilation-2-4-1) (npm) | 2.4.1 | MIT | norca (web UI) |
+| [babel-plugin-filter-imports](#npm-babel-plugin-filter-imports-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
+| [babel-plugin-htmlbars-inline-precompile](#npm-babel-plugin-htmlbars-inline-precompile-3-2-0) (npm) | 3.2.0 | MIT | norca (web UI) |
 | [babel-plugin-htmlbars-inline-precompile](#npm-babel-plugin-htmlbars-inline-precompile-5-1-0) (npm) | 5.1.0 | MIT | norca (web UI) |
 | [babel-plugin-htmlbars-inline-precompile](#npm-babel-plugin-htmlbars-inline-precompile-5-3-1) (npm) | 5.3.1 | MIT | norca (web UI) |
 | [babel-plugin-module-resolver](#npm-babel-plugin-module-resolver-3-2-0) (npm) | 3.2.0 | MIT | norca (web UI) |
+| [babel-plugin-module-resolver](#npm-babel-plugin-module-resolver-5-0-3) (npm) | 5.0.3 | MIT | norca (web UI) |
 | [babel-plugin-polyfill-corejs2](#npm-babel-plugin-polyfill-corejs2-0-1-10) (npm) | 0.1.10 | MIT | norca (web UI) |
 | [babel-plugin-polyfill-corejs2](#npm-babel-plugin-polyfill-corejs2-0-3-1) (npm) | 0.3.1 | MIT | norca (web UI) |
+| [babel-plugin-polyfill-corejs2](#npm-babel-plugin-polyfill-corejs2-0-4-17) (npm) | 0.4.17 | MIT | norca (web UI) |
 | [babel-plugin-polyfill-corejs3](#npm-babel-plugin-polyfill-corejs3-0-1-7) (npm) | 0.1.7 | MIT | norca (web UI) |
+| [babel-plugin-polyfill-corejs3](#npm-babel-plugin-polyfill-corejs3-0-13-0) (npm) | 0.13.0 | MIT | norca (web UI) |
+| [babel-plugin-polyfill-corejs3](#npm-babel-plugin-polyfill-corejs3-0-14-2) (npm) | 0.14.2 | MIT | norca (web UI) |
 | [babel-plugin-polyfill-corejs3](#npm-babel-plugin-polyfill-corejs3-0-5-2) (npm) | 0.5.2 | MIT | norca (web UI) |
 | [babel-plugin-polyfill-regenerator](#npm-babel-plugin-polyfill-regenerator-0-1-6) (npm) | 0.1.6 | MIT | norca (web UI) |
 | [babel-plugin-polyfill-regenerator](#npm-babel-plugin-polyfill-regenerator-0-3-1) (npm) | 0.3.1 | MIT | norca (web UI) |
+| [babel-plugin-polyfill-regenerator](#npm-babel-plugin-polyfill-regenerator-0-6-8) (npm) | 0.6.8 | MIT | norca (web UI) |
 | [babel-plugin-syntax-dynamic-import](#npm-babel-plugin-syntax-dynamic-import-6-18-0) (npm) | 6.18.0 | MIT | norca (web UI) |
+| [babel6-plugin-strip-class-callcheck](#npm-babel6-plugin-strip-class-callcheck-6-0-0) (npm) | 6.0.0 | MIT | norca (web UI) |
+| [backburner.js](#npm-backburner-js-2-8-0) (npm) | 2.8.0 | MIT | norca (web UI) |
 | [balanced-match](#npm-balanced-match-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
+| [base64-js](#npm-base64-js-1-5-1) (npm) | 1.5.1 | MIT | norca (web UI) |
+| [baseline-browser-mapping](#npm-baseline-browser-mapping-2-11-28) (npm) | 2.11.28 | Apache-2.0 | norca (web UI) |
+| [better-path-resolve](#npm-better-path-resolve-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [big.js](#npm-big-js-5-2-2) (npm) | 5.2.2 | MIT | norca (web UI) |
 | [binary-extensions](#npm-binary-extensions-2-2-0) (npm) | 2.2.0 | MIT | norca (web UI) |
 | [binaryextensions](#npm-binaryextensions-2-3-0) (npm) | 2.3.0 | MIT | norca (web UI) |
 | [blank-object](#npm-blank-object-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
+| [boolbase](#npm-boolbase-1-0-0) (npm) | 1.0.0 | ISC | norca (web UI) |
 | [brace-expansion](#npm-brace-expansion-1-1-11) (npm) | 1.1.11 | MIT | norca (web UI) |
 | [braces](#npm-braces-3-0-2) (npm) | 3.0.2 | MIT | norca (web UI) |
 | [broccoli-babel-transpiler](#npm-broccoli-babel-transpiler-7-8-0) (npm) | 7.8.0 | MIT | norca (web UI) |
+| [broccoli-babel-transpiler](#npm-broccoli-babel-transpiler-8-1-0) (npm) | 8.1.0 | MIT | norca (web UI) |
 | [broccoli-caching-writer](#npm-broccoli-caching-writer-3-0-3) (npm) | 3.0.3 | MIT | norca (web UI) |
 | [broccoli-debug](#npm-broccoli-debug-0-6-5) (npm) | 0.6.5 | MIT | norca (web UI) |
 | [broccoli-file-creator](#npm-broccoli-file-creator-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
+| [broccoli-flatiron](#npm-broccoli-flatiron-0-1-3) (npm) | 0.1.3 | MIT | norca (web UI) |
 | [broccoli-funnel](#npm-broccoli-funnel-2-0-1) (npm) | 2.0.1 | MIT | norca (web UI) |
 | [broccoli-funnel](#npm-broccoli-funnel-2-0-2) (npm) | 2.0.2 | MIT | norca (web UI) |
+| [broccoli-funnel](#npm-broccoli-funnel-3-0-3) (npm) | 3.0.3 | MIT | norca (web UI) |
 | [broccoli-funnel](#npm-broccoli-funnel-3-0-8) (npm) | 3.0.8 | MIT | norca (web UI) |
 | [broccoli-kitchen-sink-helpers](#npm-broccoli-kitchen-sink-helpers-0-3-1) (npm) | 0.3.1 | MIT | norca (web UI) |
 | [broccoli-merge-trees](#npm-broccoli-merge-trees-3-0-2) (npm) | 3.0.2 | MIT | norca (web UI) |
 | [broccoli-merge-trees](#npm-broccoli-merge-trees-4-2-0) (npm) | 4.2.0 | MIT | norca (web UI) |
 | [broccoli-node-api](#npm-broccoli-node-api-1-7-0) (npm) | 1.7.0 | MIT | norca (web UI) |
 | [broccoli-node-info](#npm-broccoli-node-info-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
+| [broccoli-output-wrapper](#npm-broccoli-output-wrapper-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [broccoli-output-wrapper](#npm-broccoli-output-wrapper-3-2-5) (npm) | 3.2.5 | MIT | norca (web UI) |
+| [broccoli-persistent-filter](#npm-broccoli-persistent-filter-1-4-6) (npm) | 1.4.6 | MIT | norca (web UI) |
 | [broccoli-persistent-filter](#npm-broccoli-persistent-filter-2-3-1) (npm) | 2.3.1 | MIT | norca (web UI) |
 | [broccoli-persistent-filter](#npm-broccoli-persistent-filter-3-1-2) (npm) | 3.1.2 | MIT | norca (web UI) |
+| [broccoli-persistent-filter](#npm-broccoli-persistent-filter-3-1-3) (npm) | 3.1.3 | MIT | norca (web UI) |
 | [broccoli-plugin](#npm-broccoli-plugin-1-3-1) (npm) | 1.3.1 | MIT | norca (web UI) |
 | [broccoli-plugin](#npm-broccoli-plugin-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
+| [broccoli-plugin](#npm-broccoli-plugin-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
 | [broccoli-plugin](#npm-broccoli-plugin-4-0-3) (npm) | 4.0.3 | MIT | norca (web UI) |
 | [broccoli-plugin](#npm-broccoli-plugin-4-0-7) (npm) | 4.0.7 | MIT | norca (web UI) |
+| [broccoli-plugin](#npm-broccoli-plugin-6-0-0) (npm) | 6.0.0 | MIT | norca (web UI) |
+| [broccoli-rollup](#npm-broccoli-rollup-5-0-0) (npm) | 5.0.0 | MIT | norca (web UI) |
 | [broccoli-sass-source-maps](#npm-broccoli-sass-source-maps-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [broccoli-source](#npm-broccoli-source-2-1-2) (npm) | 2.1.2 | MIT | norca (web UI) |
 | [broccoli-source](#npm-broccoli-source-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
+| [broccoli-source](#npm-broccoli-source-3-0-1) (npm) | 3.0.1 | MIT | norca (web UI) |
 | [broccoli-stew](#npm-broccoli-stew-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
+| [broccoli-string-replace](#npm-broccoli-string-replace-0-1-2) (npm) | 0.1.2 | MIT | norca (web UI) |
 | [browserslist](#npm-browserslist-4-19-3) (npm) | 4.19.3 | MIT | norca (web UI) |
+| [browserslist](#npm-browserslist-4-29-3) (npm) | 4.29.3 | MIT | norca (web UI) |
 | [buffer-crc32](#npm-buffer-crc32-0-2-13) (npm) | 0.2.13 | MIT | norca (web UI) |
+| [bulma](#npm-bulma-0-9-3) (npm) | 0.9.3 | MIT | norca (web UI) |
+| [calculate-cache-key-for-tree](#npm-calculate-cache-key-for-tree-1-2-3) (npm) | 1.2.3 | MIT | norca (web UI) |
 | [calculate-cache-key-for-tree](#npm-calculate-cache-key-for-tree-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [call-bind](#npm-call-bind-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
 | [callsites](#npm-callsites-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
 | [can-symlink](#npm-can-symlink-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [caniuse-lite](#npm-caniuse-lite-1-0-30001312) (npm) | 1.0.30001312 | CC-BY-4.0 | norca (web UI) |
+| [caniuse-lite](#npm-caniuse-lite-1-0-30001815) (npm) | 1.0.30001815 | CC-BY-4.0 | norca (web UI) |
+| [chalk](#npm-chalk-0-4-0) (npm) | 0.4.0 | MIT | norca (web UI) |
 | [chalk](#npm-chalk-2-4-2) (npm) | 2.4.2 | MIT | norca (web UI) |
+| [chalk](#npm-chalk-4-1-0) (npm) | 4.1.0 | MIT | norca (web UI) |
+| [chalk](#npm-chalk-4-1-2) (npm) | 4.1.2 | MIT | norca (web UI) |
 | [charcodes](#npm-charcodes-0-2-0) (npm) | 0.2.0 | MIT | norca (web UI) |
 | [chokidar](#npm-chokidar-3-5-2) (npm) | 3.5.2 | MIT | norca (web UI) |
 | [clean-up-path](#npm-clean-up-path-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [clipboard](#npm-clipboard-2-0-11) (npm) | 2.0.11 | MIT | norca (web UI) |
 | [clone](#npm-clone-2-1-2) (npm) | 2.1.2 | MIT | norca (web UI) |
+| [coa](#npm-coa-2-0-2) (npm) | 2.0.2 | MIT | norca (web UI) |
+| [codemirror](#npm-codemirror-5-65-6) (npm) | 5.65.6 | MIT | norca (web UI) |
 | [color-convert](#npm-color-convert-1-9-3) (npm) | 1.9.3 | MIT | norca (web UI) |
+| [color-convert](#npm-color-convert-2-0-1) (npm) | 2.0.1 | MIT | norca (web UI) |
 | [color-name](#npm-color-name-1-1-3) (npm) | 1.1.3 | MIT | norca (web UI) |
+| [color-name](#npm-color-name-1-1-4) (npm) | 1.1.4 | MIT | norca (web UI) |
 | [commander](#npm-commander-7-2-0) (npm) | 7.2.0 | MIT | norca (web UI) |
+| [common-ancestor-path](#npm-common-ancestor-path-1-0-1) (npm) | 1.0.1 | ISC | norca (web UI) |
 | [common-tags](#npm-common-tags-1-8-0) (npm) | 1.8.0 | MIT | norca (web UI) |
 | [commondir](#npm-commondir-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
 | [concat-map](#npm-concat-map-0-0-1) (npm) | 0.0.1 | MIT | norca (web UI) |
 | [content-disposition](#npm-content-disposition-0-5-4) (npm) | 0.5.4 | MIT | norca (web UI) |
+| [content-tag](#npm-content-tag-4-2-1) (npm) | 4.2.1 | MIT | norca (web UI) |
 | [convert-source-map](#npm-convert-source-map-1-8-0) (npm) | 1.8.0 | MIT | norca (web UI) |
+| [convert-source-map](#npm-convert-source-map-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [core-js-compat](#npm-core-js-compat-3-21-1) (npm) | 3.21.1 | MIT | norca (web UI) |
+| [core-js-compat](#npm-core-js-compat-3-50-0) (npm) | 3.50.0 | MIT | norca (web UI) |
 | [core-js-compat](#npm-core-js-compat-3-9-1) (npm) | 3.9.1 | MIT | norca (web UI) |
 | [core-js](#npm-core-js-2-6-12) (npm) | 2.6.12 | MIT | norca (web UI) |
 | [cosmiconfig](#npm-cosmiconfig-7-0-0) (npm) | 7.0.0 | MIT | norca (web UI) |
 | [cross-spawn](#npm-cross-spawn-7-0-3) (npm) | 7.0.3 | MIT | norca (web UI) |
 | [css-loader](#npm-css-loader-5-2-7) (npm) | 5.2.7 | MIT | norca (web UI) |
+| [css-select-base-adapter](#npm-css-select-base-adapter-0-1-1) (npm) | 0.1.1 | MIT | norca (web UI) |
+| [css-select](#npm-css-select-2-1-0) (npm) | 2.1.0 | BSD-2-Clause | norca (web UI) |
+| [css-tree](#npm-css-tree-1-0-0-alpha-28) (npm) | 1.0.0-alpha.28 | MIT | norca (web UI) |
+| [css-tree](#npm-css-tree-1-0-0-alpha-29) (npm) | 1.0.0-alpha.29 | MIT | norca (web UI) |
+| [css-url-regex](#npm-css-url-regex-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
+| [css-what](#npm-css-what-3-4-2) (npm) | 3.4.2 | BSD-2-Clause | norca (web UI) |
 | [cssesc](#npm-cssesc-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
+| [csso](#npm-csso-3-5-1) (npm) | 3.5.1 | MIT | norca (web UI) |
+| [csstype](#npm-csstype-3-2-3) (npm) | 3.2.3 | MIT | norca (web UI) |
 | [curved-arrows](#npm-curved-arrows-0-1-0) (npm) | 0.1.0 | MIT | norca (web UI) |
 | [d3-array](#npm-d3-array-3-1-1) (npm) | 3.1.1 | ISC | norca (web UI) |
 | [d3-axis](#npm-d3-axis-3-0-0) (npm) | 3.0.0 | ISC | norca (web UI) |
@@ -657,6 +856,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [d3-format](#npm-d3-format-3-1-0) (npm) | 3.1.0 | ISC | norca (web UI) |
 | [d3-geo](#npm-d3-geo-3-0-1) (npm) | 3.0.1 | ISC | norca (web UI) |
 | [d3-hierarchy](#npm-d3-hierarchy-3-1-1) (npm) | 3.1.1 | ISC | norca (web UI) |
+| [d3-hierarchy](#npm-d3-hierarchy-3-1-2) (npm) | 3.1.2 | ISC | norca (web UI) |
 | [d3-interpolate](#npm-d3-interpolate-3-0-1) (npm) | 3.0.1 | ISC | norca (web UI) |
 | [d3-path](#npm-d3-path-3-0-1) (npm) | 3.0.1 | ISC | norca (web UI) |
 | [d3-polygon](#npm-d3-polygon-3-0-1) (npm) | 3.0.1 | ISC | norca (web UI) |
@@ -665,6 +865,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [d3-scale-chromatic](#npm-d3-scale-chromatic-3-0-0) (npm) | 3.0.0 | ISC | norca (web UI) |
 | [d3-scale](#npm-d3-scale-4-0-2) (npm) | 4.0.2 | ISC | norca (web UI) |
 | [d3-selection](#npm-d3-selection-3-0-0) (npm) | 3.0.0 | ISC | norca (web UI) |
+| [d3-shape](#npm-d3-shape-3-0-1) (npm) | 3.0.1 | ISC | norca (web UI) |
 | [d3-shape](#npm-d3-shape-3-1-0) (npm) | 3.1.0 | ISC | norca (web UI) |
 | [d3-time-format](#npm-d3-time-format-4-0-0) (npm) | 4.0.0 | ISC | norca (web UI) |
 | [d3-time-format](#npm-d3-time-format-4-1-0) (npm) | 4.1.0 | ISC | norca (web UI) |
@@ -675,23 +876,46 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [d3](#npm-d3-7-3-0) (npm) | 7.3.0 | ISC | norca (web UI) |
 | [debug](#npm-debug-2-6-9) (npm) | 2.6.9 | MIT | norca (web UI) |
 | [debug](#npm-debug-4-3-1) (npm) | 4.3.1 | MIT | norca (web UI) |
+| [debug](#npm-debug-4-3-2) (npm) | 4.3.2 | MIT | norca (web UI) |
 | [debug](#npm-debug-4-3-3) (npm) | 4.3.3 | MIT | norca (web UI) |
+| [debug](#npm-debug-4-4-3) (npm) | 4.4.3 | MIT | norca (web UI) |
+| [decode-uri-component](#npm-decode-uri-component-0-2-0) (npm) | 0.2.0 | MIT | norca (web UI) |
+| [decorator-transforms](#npm-decorator-transforms-1-2-1) (npm) | 1.2.1 | MIT | norca (web UI) |
+| [decorator-transforms](#npm-decorator-transforms-2-4-0) (npm) | 2.4.0 | MIT | norca (web UI) |
 | [define-properties](#npm-define-properties-1-1-3) (npm) | 1.1.3 | MIT | norca (web UI) |
 | [delaunator](#npm-delaunator-5-0-0) (npm) | 5.0.0 | ISC | norca (web UI) |
 | [delegate](#npm-delegate-3-2-0) (npm) | 3.2.0 | MIT | norca (web UI) |
 | [dialog-polyfill](#npm-dialog-polyfill-0-5-6) (npm) | 0.5.6 | BSD-3-Clause | norca (web UI) |
+| [dom-serializer](#npm-dom-serializer-0-2-2) (npm) | 0.2.2 | MIT | norca (web UI) |
+| [domelementtype](#npm-domelementtype-1-3-1) (npm) | 1.3.1 | BSD-2-Clause | norca (web UI) |
+| [domelementtype](#npm-domelementtype-2-1-0) (npm) | 2.1.0 | BSD-2-Clause | norca (web UI) |
+| [domutils](#npm-domutils-1-7-0) (npm) | 1.7.0 | BSD-2-Clause | norca (web UI) |
+| [duration-js](#npm-duration-js-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
+| [echarts](#npm-echarts-6-1-0) (npm) | 6.1.0 | Apache-2.0 | norca (web UI) |
 | [editions](#npm-editions-1-3-4) (npm) | 1.3.4 | MIT | norca (web UI) |
 | [editions](#npm-editions-2-3-1) (npm) | 2.3.1 | MIT | norca (web UI) |
 | [electron-to-chromium](#npm-electron-to-chromium-1-4-72) (npm) | 1.4.72 | ISC | norca (web UI) |
+| [electron-to-chromium](#npm-electron-to-chromium-1-5-452) (npm) | 1.5.452 | ISC | norca (web UI) |
 | [ember-a11y-refocus](#npm-ember-a11y-refocus-3-0-2) (npm) | 3.0.2 | MIT | norca (web UI) |
 | [ember-arg-types](#npm-ember-arg-types-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
+| [ember-assign-helper](#npm-ember-assign-helper-0-5-1) (npm) | 0.5.1 | MIT | norca (web UI) |
+| [ember-async-data](#npm-ember-async-data-1-0-3) (npm) | 1.0.3 | MIT | norca (web UI) |
+| [ember-auto-import](#npm-ember-auto-import-2-13-1) (npm) | 2.13.1 | MIT | norca (web UI) |
 | [ember-auto-import](#npm-ember-auto-import-2-4-0) (npm) | 2.4.0 | MIT | norca (web UI) |
+| [ember-basic-dropdown](#npm-ember-basic-dropdown-8-11-1) (npm) | 8.11.1 | MIT | norca (web UI) |
 | [ember-cache-primitive-polyfill](#npm-ember-cache-primitive-polyfill-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
 | [ember-cached-decorator-polyfill](#npm-ember-cached-decorator-polyfill-0-1-4) (npm) | 0.1.4 | MIT | norca (web UI) |
+| [ember-cached-decorator-polyfill](#npm-ember-cached-decorator-polyfill-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
+| [ember-can](#npm-ember-can-7-0-0) (npm) | 7.0.0 | MIT | norca (web UI) |
+| [ember-classic-decorator](#npm-ember-classic-decorator-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [ember-cli-babel-plugin-helpers](#npm-ember-cli-babel-plugin-helpers-1-1-1) (npm) | 1.1.1 | MIT | norca (web UI) |
 | [ember-cli-babel](#npm-ember-cli-babel-7-26-11) (npm) | 7.26.11 | MIT | norca (web UI) |
+| [ember-cli-babel](#npm-ember-cli-babel-8-3-2) (npm) | 8.3.2 | MIT | norca (web UI) |
 | [ember-cli-clipboard](#npm-ember-cli-clipboard-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
+| [ember-cli-clipboard](#npm-ember-cli-clipboard-1-3-0) (npm) | 1.3.0 | MIT | norca (web UI) |
+| [ember-cli-flash](#npm-ember-cli-flash-5-1-0) (npm) | 5.1.0 | MIT | norca (web UI) |
 | [ember-cli-get-component-path-option](#npm-ember-cli-get-component-path-option-1-0-0) (npm) | 1.0.0 | ISC | norca (web UI) |
+| [ember-cli-htmlbars](#npm-ember-cli-htmlbars-4-5-0) (npm) | 4.5.0 | MIT | norca (web UI) |
 | [ember-cli-htmlbars](#npm-ember-cli-htmlbars-5-7-1) (npm) | 5.7.1 | MIT | norca (web UI) |
 | [ember-cli-htmlbars](#npm-ember-cli-htmlbars-6-0-1) (npm) | 6.0.1 | MIT | norca (web UI) |
 | [ember-cli-htmlbars](#npm-ember-cli-htmlbars-6-1-1) (npm) | 6.1.1 | MIT | norca (web UI) |
@@ -700,7 +924,10 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [ember-cli-normalize-entity-name](#npm-ember-cli-normalize-entity-name-1-0-0) (npm) | 1.0.0 | ISC | norca (web UI) |
 | [ember-cli-path-utils](#npm-ember-cli-path-utils-1-0-0) (npm) | 1.0.0 | ISC | norca (web UI) |
 | [ember-cli-sass](#npm-ember-cli-sass-10-0-1) (npm) | 10.0.1 | MIT | norca (web UI) |
+| [ember-cli-string-helpers](#npm-ember-cli-string-helpers-6-1-0) (npm) | 6.1.0 | MIT | norca (web UI) |
 | [ember-cli-string-utils](#npm-ember-cli-string-utils-1-1-0) (npm) | 1.1.0 | ISC | norca (web UI) |
+| [ember-cli-test-info](#npm-ember-cli-test-info-1-0-0) (npm) | 1.0.0 | ISC | norca (web UI) |
+| [ember-cli-typescript-blueprint-polyfill](#npm-ember-cli-typescript-blueprint-polyfill-0-1-0) (npm) | 0.1.0 | MIT | norca (web UI) |
 | [ember-cli-typescript](#npm-ember-cli-typescript-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [ember-cli-typescript](#npm-ember-cli-typescript-4-2-1) (npm) | 4.2.1 | MIT | norca (web UI) |
 | [ember-cli-typescript](#npm-ember-cli-typescript-5-1-0) (npm) | 5.1.0 | MIT | norca (web UI) |
@@ -709,33 +936,68 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [ember-cli-version-checker](#npm-ember-cli-version-checker-3-1-3) (npm) | 3.1.3 | MIT | norca (web UI) |
 | [ember-cli-version-checker](#npm-ember-cli-version-checker-4-1-1) (npm) | 4.1.1 | MIT | norca (web UI) |
 | [ember-cli-version-checker](#npm-ember-cli-version-checker-5-1-2) (npm) | 5.1.2 | MIT | norca (web UI) |
+| [ember-click-outside](#npm-ember-click-outside-6-1-1) (npm) | 6.1.1 | MIT | norca (web UI) |
 | [ember-compatibility-helpers](#npm-ember-compatibility-helpers-1-2-2) (npm) | 1.2.2 | MIT | norca (web UI) |
 | [ember-compatibility-helpers](#npm-ember-compatibility-helpers-1-2-6) (npm) | 1.2.6 | MIT | norca (web UI) |
+| [ember-compatibility-helpers](#npm-ember-compatibility-helpers-1-2-7) (npm) | 1.2.7 | MIT | norca (web UI) |
 | [ember-composable-helpers](#npm-ember-composable-helpers-4-5-0) (npm) | 4.5.0 | MIT | norca (web UI) |
+| [ember-concurrency](#npm-ember-concurrency-4-0-6) (npm) | 4.0.6 | MIT | norca (web UI) |
+| [ember-copy](#npm-ember-copy-2-0-1) (npm) | 2.0.1 | MIT | norca (web UI) |
+| [ember-data-model-fragments](#npm-ember-data-model-fragments-7-0-3) (npm) | 7.0.3 | MIT | norca (web UI) |
+| [ember-data](#npm-ember-data-4-12-8) (npm) | 4.12.8 | MIT | norca (web UI) |
+| [ember-decorators](#npm-ember-decorators-6-1-1) (npm) | 6.1.1 | MIT | norca (web UI) |
 | [ember-destroyable-polyfill](#npm-ember-destroyable-polyfill-2-0-3) (npm) | 2.0.3 | MIT | norca (web UI) |
+| [ember-element-helper](#npm-ember-element-helper-0-8-8) (npm) | 0.8.8 | MIT | norca (web UI) |
 | [ember-focus-trap](#npm-ember-focus-trap-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
+| [ember-functions-as-helper-polyfill](#npm-ember-functions-as-helper-polyfill-2-1-3) (npm) | 2.1.3 | MIT | norca (web UI) |
 | [ember-get-config](#npm-ember-get-config-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
+| [ember-inflector](#npm-ember-inflector-4-0-2) (npm) | 4.0.2 | MIT | norca (web UI) |
+| [ember-inflector](#npm-ember-inflector-4-0-3) (npm) | 4.0.3 | MIT | norca (web UI) |
+| [ember-inline-svg](#npm-ember-inline-svg-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
 | [ember-keyboard](#npm-ember-keyboard-8-2-1) (npm) | 8.2.1 | MIT | norca (web UI) |
+| [ember-load-initializers](#npm-ember-load-initializers-3-0-1) (npm) | 3.0.1 | MIT | norca (web UI) |
 | [ember-modifier-manager-polyfill](#npm-ember-modifier-manager-polyfill-1-2-0) (npm) | 1.2.0 | MIT | norca (web UI) |
 | [ember-modifier](#npm-ember-modifier-3-2-7) (npm) | 3.2.7 | MIT | norca (web UI) |
 | [ember-modifier](#npm-ember-modifier-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [ember-modifier](#npm-ember-modifier-4-1-0) (npm) | 4.1.0 | MIT | norca (web UI) |
+| [ember-modifier](#npm-ember-modifier-4-3-0) (npm) | 4.3.0 | MIT | norca (web UI) |
+| [ember-on-resize-modifier](#npm-ember-on-resize-modifier-2-0-2) (npm) | 2.0.2 | MIT | norca (web UI) |
+| [ember-overridable-computed](#npm-ember-overridable-computed-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
+| [ember-page-title](#npm-ember-page-title-8-2-4) (npm) | 8.2.4 | MIT | norca (web UI) |
+| [ember-power-select](#npm-ember-power-select-8-12-2) (npm) | 8.12.2 | MIT | norca (web UI) |
+| [ember-render-helpers](#npm-ember-render-helpers-0-2-0) (npm) | 0.2.0 | MIT | norca (web UI) |
+| [ember-resize-observer-service](#npm-ember-resize-observer-service-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
+| [ember-resolver](#npm-ember-resolver-13-2-0) (npm) | 13.2.0 | MIT | norca (web UI) |
 | [ember-resources](#npm-ember-resources-5-6-4) (npm) | 5.6.4 | MIT | norca (web UI) |
+| [ember-resources](#npm-ember-resources-6-5-2) (npm) | 6.5.2 | MIT | norca (web UI) |
+| [ember-responsive](#npm-ember-responsive-5-0-0) (npm) | 5.0.0 | MIT | norca (web UI) |
 | [ember-rfc176-data](#npm-ember-rfc176-data-0-3-17) (npm) | 0.3.17 | MIT | norca (web UI) |
+| [ember-router-generator](#npm-ember-router-generator-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
+| [ember-source](#npm-ember-source-6-12-0) (npm) | 6.12.0 | MIT | norca (web UI) |
 | [ember-stargate](#npm-ember-stargate-0-4-3) (npm) | 0.4.3 | MIT | norca (web UI) |
+| [ember-stargate](#npm-ember-stargate-0-5-0) (npm) | 0.5.0 | MIT | norca (web UI) |
 | [ember-style-modifier](#npm-ember-style-modifier-3-0-1) (npm) | 3.0.1 | MIT | norca (web UI) |
+| [ember-style-modifier](#npm-ember-style-modifier-4-6-0) (npm) | 4.6.0 | MIT | norca (web UI) |
+| [ember-template-imports](#npm-ember-template-imports-4-4-0) (npm) | 4.4.0 | MIT | norca (web UI) |
 | [ember-tracked-storage-polyfill](#npm-ember-tracked-storage-polyfill-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [ember-truth-helpers](#npm-ember-truth-helpers-3-1-1) (npm) | 3.1.1 | MIT | norca (web UI) |
+| [ember-truth-helpers](#npm-ember-truth-helpers-4-0-3) (npm) | 4.0.3 | MIT | norca (web UI) |
+| [ember-truth-helpers](#npm-ember-truth-helpers-5-0-0) (npm) | 5.0.0 | MIT | norca (web UI) |
 | [emojis-list](#npm-emojis-list-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [end-of-stream](#npm-end-of-stream-1-4-4) (npm) | 1.4.4 | MIT | norca (web UI) |
 | [ensure-posix-path](#npm-ensure-posix-path-1-1-1) (npm) | 1.1.1 | ISC | norca (web UI) |
 | [entities](#npm-entities-2-2-0) (npm) | 2.2.0 | BSD-2-Clause | norca (web UI) |
 | [errlop](#npm-errlop-2-2-0) (npm) | 2.2.0 | MIT | norca (web UI) |
 | [error-ex](#npm-error-ex-1-3-2) (npm) | 1.3.2 | MIT | norca (web UI) |
+| [es-abstract](#npm-es-abstract-1-17-7) (npm) | 1.17.7 | MIT | norca (web UI) |
 | [es-abstract](#npm-es-abstract-1-19-1) (npm) | 1.19.1 | MIT | norca (web UI) |
+| [es-errors](#npm-es-errors-1-3-0) (npm) | 1.3.0 | MIT | norca (web UI) |
 | [es-to-primitive](#npm-es-to-primitive-1-2-1) (npm) | 1.2.1 | MIT | norca (web UI) |
 | [escalade](#npm-escalade-3-1-1) (npm) | 3.1.1 | MIT | norca (web UI) |
+| [escalade](#npm-escalade-3-2-0) (npm) | 3.2.0 | MIT | norca (web UI) |
 | [escape-string-regexp](#npm-escape-string-regexp-1-0-5) (npm) | 1.0.5 | MIT | norca (web UI) |
+| [esprima](#npm-esprima-4-0-1) (npm) | 4.0.1 | BSD-2-Clause | norca (web UI) |
+| [estree-walker](#npm-estree-walker-0-6-1) (npm) | 0.6.1 | MIT | norca (web UI) |
 | [esutils](#npm-esutils-2-0-3) (npm) | 2.0.3 | BSD-2-Clause | norca (web UI) |
 | [execa](#npm-execa-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
 | [execa](#npm-execa-4-1-0) (npm) | 4.1.0 | MIT | norca (web UI) |
@@ -747,14 +1009,19 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [fastq](#npm-fastq-1-10-1) (npm) | 1.10.1 | ISC | norca (web UI) |
 | [fd-slicer](#npm-fd-slicer-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
 | [fill-range](#npm-fill-range-7-0-1) (npm) | 7.0.1 | MIT | norca (web UI) |
+| [filter-obj](#npm-filter-obj-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
 | [find-babel-config](#npm-find-babel-config-1-2-0) (npm) | 1.2.0 | MIT | norca (web UI) |
+| [find-babel-config](#npm-find-babel-config-2-1-2) (npm) | 2.1.2 | MIT | norca (web UI) |
 | [find-cache-dir](#npm-find-cache-dir-3-3-2) (npm) | 3.3.2 | MIT | norca (web UI) |
 | [find-up](#npm-find-up-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
+| [find-up](#npm-find-up-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [find-up](#npm-find-up-4-1-0) (npm) | 4.1.0 | MIT | norca (web UI) |
 | [find-up](#npm-find-up-5-0-0) (npm) | 5.0.0 | MIT | norca (web UI) |
 | [fixturify-project](#npm-fixturify-project-1-10-0) (npm) | 1.10.0 | MIT | norca (web UI) |
 | [fixturify](#npm-fixturify-1-3-0) (npm) | 1.3.0 | MIT | norca (web UI) |
+| [flat](#npm-flat-5-0-2) (npm) | 5.0.2 | BSD-3-Clause | norca (web UI) |
 | [focus-trap](#npm-focus-trap-6-9-4) (npm) | 6.9.4 | MIT | norca (web UI) |
+| [fs-extra](#npm-fs-extra-10-1-0) (npm) | 10.1.0 | MIT | norca (web UI) |
 | [fs-extra](#npm-fs-extra-6-0-1) (npm) | 6.0.1 | MIT | norca (web UI) |
 | [fs-extra](#npm-fs-extra-7-0-1) (npm) | 7.0.1 | MIT | norca (web UI) |
 | [fs-extra](#npm-fs-extra-8-1-0) (npm) | 8.1.0 | MIT | norca (web UI) |
@@ -767,11 +1034,14 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [fs.realpath](#npm-fs-realpath-1-0-0) (npm) | 1.0.0 | ISC | norca (web UI) |
 | [fsevents](#npm-fsevents-2-3-2) (npm) | 2.3.2 | MIT | norca (web UI) |
 | [function-bind](#npm-function-bind-1-1-1) (npm) | 1.1.1 | MIT | norca (web UI) |
+| [function-bind](#npm-function-bind-1-1-2) (npm) | 1.1.2 | MIT | norca (web UI) |
+| [fuse.js](#npm-fuse-js-3-6-1) (npm) | 3.6.1 | Apache-2.0 | norca (web UI) |
 | [gensync](#npm-gensync-1-0-0-beta-2) (npm) | 1.0.0-beta.2 | MIT | norca (web UI) |
 | [get-intrinsic](#npm-get-intrinsic-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
 | [get-intrinsic](#npm-get-intrinsic-1-1-1) (npm) | 1.1.1 | MIT | norca (web UI) |
 | [get-stream](#npm-get-stream-5-2-0) (npm) | 5.2.0 | MIT | norca (web UI) |
 | [get-symbol-description](#npm-get-symbol-description-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
+| [git-repo-info](#npm-git-repo-info-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
 | [glob-parent](#npm-glob-parent-5-1-2) (npm) | 5.1.2 | ISC | norca (web UI) |
 | [glob](#npm-glob-5-0-15) (npm) | 5.0.15 | ISC | norca (web UI) |
 | [glob](#npm-glob-7-2-0) (npm) | 7.2.0 | ISC | norca (web UI) |
@@ -780,11 +1050,14 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [graceful-fs](#npm-graceful-fs-4-2-9) (npm) | 4.2.9 | ISC | norca (web UI) |
 | [handlebars](#npm-handlebars-4-7-7) (npm) | 4.7.7 | MIT | norca (web UI) |
 | [has-bigints](#npm-has-bigints-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
+| [has-color](#npm-has-color-0-1-7) (npm) | 0.1.7 | MIT | norca (web UI) |
 | [has-flag](#npm-has-flag-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
+| [has-flag](#npm-has-flag-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [has-symbols](#npm-has-symbols-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
 | [has-tostringtag](#npm-has-tostringtag-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [has](#npm-has-1-0-3) (npm) | 1.0.3 | MIT | norca (web UI) |
 | [hash-for-dep](#npm-hash-for-dep-1-5-1) (npm) | 1.5.1 | ISC | norca (web UI) |
+| [hasown](#npm-hasown-2-0-4) (npm) | 2.0.4 | MIT | norca (web UI) |
 | [heimdalljs-logger](#npm-heimdalljs-logger-0-1-10) (npm) | 0.1.10 | MIT | norca (web UI) |
 | [heimdalljs](#npm-heimdalljs-0-2-6) (npm) | 0.2.6 | MIT | norca (web UI) |
 | [human-signals](#npm-human-signals-1-1-1) (npm) | 1.1.1 | Apache-2.0 | norca (web UI) |
@@ -795,19 +1068,23 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [import-fresh](#npm-import-fresh-3-3-0) (npm) | 3.3.0 | MIT | norca (web UI) |
 | [include-path-searcher](#npm-include-path-searcher-0-1-0) (npm) | 0.1.0 | MIT | norca (web UI) |
 | [indexes-of](#npm-indexes-of-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
+| [inflection](#npm-inflection-2-0-1) (npm) | 2.0.1 | MIT | norca (web UI) |
 | [inflight](#npm-inflight-1-0-6) (npm) | 1.0.6 | ISC | norca (web UI) |
 | [inherits](#npm-inherits-2-0-4) (npm) | 2.0.4 | ISC | norca (web UI) |
 | [internal-slot](#npm-internal-slot-1-0-3) (npm) | 1.0.3 | MIT | norca (web UI) |
 | [internmap](#npm-internmap-2-0-3) (npm) | 2.0.3 | ISC | norca (web UI) |
+| [ip-regex](#npm-ip-regex-4-3-0) (npm) | 4.3.0 | MIT | norca (web UI) |
 | [is-arrayish](#npm-is-arrayish-0-2-1) (npm) | 0.2.1 | MIT | norca (web UI) |
 | [is-bigint](#npm-is-bigint-1-0-4) (npm) | 1.0.4 | MIT | norca (web UI) |
 | [is-binary-path](#npm-is-binary-path-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
 | [is-boolean-object](#npm-is-boolean-object-1-1-2) (npm) | 1.1.2 | MIT | norca (web UI) |
 | [is-callable](#npm-is-callable-1-2-4) (npm) | 1.2.4 | MIT | norca (web UI) |
+| [is-core-module](#npm-is-core-module-2-17-0) (npm) | 2.17.0 | MIT | norca (web UI) |
 | [is-core-module](#npm-is-core-module-2-8-1) (npm) | 2.8.1 | MIT | norca (web UI) |
 | [is-date-object](#npm-is-date-object-1-0-5) (npm) | 1.0.5 | MIT | norca (web UI) |
 | [is-extglob](#npm-is-extglob-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
 | [is-glob](#npm-is-glob-4-0-3) (npm) | 4.0.3 | MIT | norca (web UI) |
+| [is-ip](#npm-is-ip-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
 | [is-negative-zero](#npm-is-negative-zero-2-0-1) (npm) | 2.0.1 | MIT | norca (web UI) |
 | [is-number-object](#npm-is-number-object-1-0-6) (npm) | 1.0.6 | MIT | norca (web UI) |
 | [is-number](#npm-is-number-7-0-0) (npm) | 7.0.0 | MIT | norca (web UI) |
@@ -816,9 +1093,11 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [is-stream](#npm-is-stream-2-0-1) (npm) | 2.0.1 | MIT | norca (web UI) |
 | [is-string](#npm-is-string-1-0-5) (npm) | 1.0.5 | MIT | norca (web UI) |
 | [is-string](#npm-is-string-1-0-7) (npm) | 1.0.7 | MIT | norca (web UI) |
+| [is-subdir](#npm-is-subdir-1-2-0) (npm) | 1.2.0 | MIT | norca (web UI) |
 | [is-symbol](#npm-is-symbol-1-0-3) (npm) | 1.0.3 | MIT | norca (web UI) |
 | [is-symbol](#npm-is-symbol-1-0-4) (npm) | 1.0.4 | MIT | norca (web UI) |
 | [is-weakref](#npm-is-weakref-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
+| [is-windows](#npm-is-windows-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
 | [isarray](#npm-isarray-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [isexe](#npm-isexe-2-0-0) (npm) | 2.0.0 | ISC | norca (web UI) |
 | [isobject](#npm-isobject-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
@@ -826,8 +1105,10 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [istextorbinary](#npm-istextorbinary-2-6-0) (npm) | 2.6.0 | MIT | norca (web UI) |
 | [js-string-escape](#npm-js-string-escape-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
 | [js-tokens](#npm-js-tokens-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
+| [js-yaml](#npm-js-yaml-3-14-1) (npm) | 3.14.1 | MIT | norca (web UI) |
 | [jsesc](#npm-jsesc-0-5-0) (npm) | 0.5.0 | MIT | norca (web UI) |
 | [jsesc](#npm-jsesc-2-5-2) (npm) | 2.5.2 | MIT | norca (web UI) |
+| [jsesc](#npm-jsesc-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
 | [json-parse-even-better-errors](#npm-json-parse-even-better-errors-2-3-1) (npm) | 2.3.1 | MIT | norca (web UI) |
 | [json-schema-traverse](#npm-json-schema-traverse-0-4-1) (npm) | 0.4.1 | MIT | norca (web UI) |
 | [json-schema-traverse](#npm-json-schema-traverse-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
@@ -835,62 +1116,87 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [json5](#npm-json5-0-5-1) (npm) | 0.5.1 | MIT | norca (web UI) |
 | [json5](#npm-json5-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
 | [json5](#npm-json5-2-2-0) (npm) | 2.2.0 | MIT | norca (web UI) |
+| [json5](#npm-json5-2-2-3) (npm) | 2.2.3 | MIT | norca (web UI) |
 | [jsonfile](#npm-jsonfile-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [jsonfile](#npm-jsonfile-6-1-0) (npm) | 6.1.0 | MIT | norca (web UI) |
 | [jsonify](#npm-jsonify-0-0-0) (npm) | 0.0.0 | LicenseRef-Public-Domain | norca (web UI) |
+| [jsonlint](#npm-jsonlint-1-6-3) (npm) | 1.6.3 | MIT | norca (web UI) |
 | [line-column](#npm-line-column-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
 | [lines-and-columns](#npm-lines-and-columns-1-1-6) (npm) | 1.1.6 | MIT | norca (web UI) |
 | [loader-utils](#npm-loader-utils-1-4-0) (npm) | 1.4.0 | MIT | norca (web UI) |
 | [loader-utils](#npm-loader-utils-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
+| [loader.js](#npm-loader-js-4-7-0) (npm) | 4.7.0 | MIT | norca (web UI) |
 | [locate-path](#npm-locate-path-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
+| [locate-path](#npm-locate-path-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [locate-path](#npm-locate-path-5-0-0) (npm) | 5.0.0 | MIT | norca (web UI) |
 | [locate-path](#npm-locate-path-6-0-0) (npm) | 6.0.0 | MIT | norca (web UI) |
 | [lodash.debounce](#npm-lodash-debounce-4-0-8) (npm) | 4.0.8 | MIT | norca (web UI) |
+| [lodash.intersection](#npm-lodash-intersection-4-4-0) (npm) | 4.4.0 | MIT | norca (web UI) |
+| [lodash.isequal](#npm-lodash-isequal-4-5-0) (npm) | 4.5.0 | MIT | norca (web UI) |
 | [lodash](#npm-lodash-4-17-21) (npm) | 4.17.21 | MIT | norca (web UI) |
 | [loose-envify](#npm-loose-envify-1-4-0) (npm) | 1.4.0 | MIT | norca (web UI) |
 | [lower-case](#npm-lower-case-2-0-2) (npm) | 2.0.2 | MIT | norca (web UI) |
+| [lru-cache](#npm-lru-cache-5-1-1) (npm) | 5.1.1 | ISC | norca (web UI) |
 | [lru-cache](#npm-lru-cache-6-0-0) (npm) | 6.0.0 | ISC | norca (web UI) |
 | [lru\_map](#npm-lru-map-0-4-1) (npm) | 0.4.1 | MIT | norca (web UI) |
 | [magic-string](#npm-magic-string-0-25-7) (npm) | 0.25.7 | MIT | norca (web UI) |
 | [make-dir](#npm-make-dir-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
+| [map-age-cleaner](#npm-map-age-cleaner-0-1-3) (npm) | 0.1.3 | MIT | norca (web UI) |
 | [matcher-collection](#npm-matcher-collection-1-1-2) (npm) | 1.1.2 | ISC | norca (web UI) |
 | [matcher-collection](#npm-matcher-collection-2-0-1) (npm) | 2.0.1 | ISC | norca (web UI) |
+| [mdn-data](#npm-mdn-data-1-1-4) (npm) | 1.1.4 | MPL-2.0 | norca (web UI) |
+| [mem](#npm-mem-8-1-1) (npm) | 8.1.1 | MIT | norca (web UI) |
 | [merge-stream](#npm-merge-stream-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [merge-trees](#npm-merge-trees-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [merge2](#npm-merge2-1-4-1) (npm) | 1.4.1 | MIT | norca (web UI) |
+| [merge](#npm-merge-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
 | [micromatch](#npm-micromatch-4-0-4) (npm) | 4.0.4 | MIT | norca (web UI) |
 | [mime-db](#npm-mime-db-1-52-0) (npm) | 1.52.0 | MIT | norca (web UI) |
 | [mime-types](#npm-mime-types-2-1-35) (npm) | 2.1.35 | MIT | norca (web UI) |
 | [mimic-fn](#npm-mimic-fn-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
+| [mimic-fn](#npm-mimic-fn-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
 | [mini-css-extract-plugin](#npm-mini-css-extract-plugin-2-5-3) (npm) | 2.5.3 | MIT | norca (web UI) |
 | [minimatch](#npm-minimatch-3-1-2) (npm) | 3.1.2 | ISC | norca (web UI) |
+| [minimatch](#npm-minimatch-3-1-5) (npm) | 3.1.5 | ISC | norca (web UI) |
 | [minimist](#npm-minimist-1-2-5) (npm) | 1.2.5 | MIT | norca (web UI) |
 | [mkdirp](#npm-mkdirp-0-3-5) (npm) | 0.3.5 | MIT | norca (web UI) |
 | [mkdirp](#npm-mkdirp-0-5-5) (npm) | 0.5.5 | MIT | norca (web UI) |
 | [mktemp](#npm-mktemp-0-4-0) (npm) | 0.4.0 | MIT | norca (web UI) |
+| [moment](#npm-moment-2-31-0) (npm) | 2.31.0 | MIT | norca (web UI) |
 | [ms](#npm-ms-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [ms](#npm-ms-2-1-2) (npm) | 2.1.2 | MIT | norca (web UI) |
+| [ms](#npm-ms-2-1-3) (npm) | 2.1.3 | MIT | norca (web UI) |
 | [nanoid](#npm-nanoid-3-3-1) (npm) | 3.3.1 | MIT | norca (web UI) |
 | [neo-async](#npm-neo-async-2-6-2) (npm) | 2.6.2 | MIT | norca (web UI) |
 | [no-case](#npm-no-case-3-0-4) (npm) | 3.0.4 | MIT | norca (web UI) |
+| [node-modules-path](#npm-node-modules-path-1-0-2) (npm) | 1.0.2 | ISC | norca (web UI) |
 | [node-releases](#npm-node-releases-2-0-2) (npm) | 2.0.2 | MIT | norca (web UI) |
+| [node-releases](#npm-node-releases-2-0-58) (npm) | 2.0.58 | MIT | norca (web UI) |
+| [nomnom](#npm-nomnom-1-8-1) (npm) | 1.8.1 | MIT | norca (web UI) |
 | [normalize-path](#npm-normalize-path-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
+| [npm-git-info](#npm-npm-git-info-1-0-3) (npm) | 1.0.3 | MIT | norca (web UI) |
 | [npm-run-path](#npm-npm-run-path-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
 | [npm-run-path](#npm-npm-run-path-4-0-1) (npm) | 4.0.1 | MIT | norca (web UI) |
+| [nth-check](#npm-nth-check-1-0-2) (npm) | 1.0.2 | BSD-2-Clause | norca (web UI) |
 | [object-assign](#npm-object-assign-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
 | [object-assign](#npm-object-assign-4-1-1) (npm) | 4.1.1 | MIT | norca (web UI) |
 | [object-hash](#npm-object-hash-1-3-1) (npm) | 1.3.1 | MIT | norca (web UI) |
 | [object-inspect](#npm-object-inspect-1-11-0) (npm) | 1.11.0 | MIT | norca (web UI) |
+| [object-inspect](#npm-object-inspect-1-9-0) (npm) | 1.9.0 | MIT | norca (web UI) |
 | [object-keys](#npm-object-keys-1-1-1) (npm) | 1.1.1 | MIT | norca (web UI) |
 | [object.assign](#npm-object-assign-4-1-2) (npm) | 4.1.2 | MIT | norca (web UI) |
+| [object.getownpropertydescriptors](#npm-object-getownpropertydescriptors-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
+| [object.values](#npm-object-values-1-1-2) (npm) | 1.1.2 | MIT | norca (web UI) |
 | [once](#npm-once-1-4-0) (npm) | 1.4.0 | ISC | norca (web UI) |
 | [onetime](#npm-onetime-5-1-2) (npm) | 5.1.2 | MIT | norca (web UI) |
 | [os-tmpdir](#npm-os-tmpdir-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
+| [p-defer](#npm-p-defer-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [p-finally](#npm-p-finally-2-0-1) (npm) | 2.0.1 | MIT | norca (web UI) |
 | [p-limit](#npm-p-limit-1-3-0) (npm) | 1.3.0 | MIT | norca (web UI) |
 | [p-limit](#npm-p-limit-2-3-0) (npm) | 2.3.0 | MIT | norca (web UI) |
 | [p-limit](#npm-p-limit-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
 | [p-locate](#npm-p-locate-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
+| [p-locate](#npm-p-locate-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [p-locate](#npm-p-locate-4-1-0) (npm) | 4.1.0 | MIT | norca (web UI) |
 | [p-locate](#npm-p-locate-5-0-0) (npm) | 5.0.0 | MIT | norca (web UI) |
 | [p-try](#npm-p-try-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
@@ -911,9 +1217,12 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [path-type](#npm-path-type-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [pend](#npm-pend-1-2-0) (npm) | 1.2.0 | MIT | norca (web UI) |
 | [picocolors](#npm-picocolors-1-0-0) (npm) | 1.0.0 | ISC | norca (web UI) |
+| [picocolors](#npm-picocolors-1-1-1) (npm) | 1.1.1 | ISC | norca (web UI) |
 | [picomatch](#npm-picomatch-2-3-0) (npm) | 2.3.0 | MIT | norca (web UI) |
 | [pkg-dir](#npm-pkg-dir-4-2-0) (npm) | 4.2.0 | MIT | norca (web UI) |
+| [pkg-entry-points](#npm-pkg-entry-points-1-1-2) (npm) | 1.1.2 | MIT | norca (web UI) |
 | [pkg-up](#npm-pkg-up-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
+| [pkg-up](#npm-pkg-up-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
 | [postcss-modules-extract-imports](#npm-postcss-modules-extract-imports-3-0-0) (npm) | 3.0.0 | ISC | norca (web UI) |
 | [postcss-modules-local-by-default](#npm-postcss-modules-local-by-default-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [postcss-modules-scope](#npm-postcss-modules-scope-3-0-0) (npm) | 3.0.0 | ISC | norca (web UI) |
@@ -922,38 +1231,56 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [postcss-selector-parser](#npm-postcss-selector-parser-6-0-9) (npm) | 6.0.9 | MIT | norca (web UI) |
 | [postcss-value-parser](#npm-postcss-value-parser-4-1-0) (npm) | 4.1.0 | MIT | norca (web UI) |
 | [postcss](#npm-postcss-8-4-7) (npm) | 8.4.7 | MIT | norca (web UI) |
+| [prettier](#npm-prettier-2-5-1) (npm) | 2.5.1 | MIT | norca (web UI) |
+| [private](#npm-private-0-1-8) (npm) | 0.1.8 | MIT | norca (web UI) |
 | [promise-map-series](#npm-promise-map-series-0-2-3) (npm) | 0.2.3 | MIT | norca (web UI) |
 | [promise-map-series](#npm-promise-map-series-0-3-0) (npm) | 0.3.0 | MIT | norca (web UI) |
 | [prop-types](#npm-prop-types-15-8-1) (npm) | 15.8.1 | MIT | norca (web UI) |
 | [pump](#npm-pump-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [punycode](#npm-punycode-2-1-1) (npm) | 2.1.1 | MIT | norca (web UI) |
+| [q](#npm-q-1-5-1) (npm) | 1.5.1 | MIT | norca (web UI) |
+| [query-string](#npm-query-string-7-0-1) (npm) | 7.0.1 | MIT | norca (web UI) |
 | [queue](#npm-queue-6-0-2) (npm) | 6.0.2 | MIT | norca (web UI) |
 | [quick-temp](#npm-quick-temp-0-1-8) (npm) | 0.1.8 | MIT | norca (web UI) |
 | [react-is](#npm-react-is-16-13-1) (npm) | 16.13.1 | MIT | norca (web UI) |
 | [readdirp](#npm-readdirp-3-6-0) (npm) | 3.6.0 | MIT | norca (web UI) |
+| [recast](#npm-recast-0-18-10) (npm) | 0.18.10 | MIT | norca (web UI) |
 | [regenerate-unicode-properties](#npm-regenerate-unicode-properties-10-0-1) (npm) | 10.0.1 | MIT | norca (web UI) |
+| [regenerate-unicode-properties](#npm-regenerate-unicode-properties-10-3-0) (npm) | 10.3.0 | MIT | norca (web UI) |
 | [regenerate](#npm-regenerate-1-4-2) (npm) | 1.4.2 | MIT | norca (web UI) |
+| [regenerate](#npm-regenerate-1-5-0) (npm) | 1.5.0 | MIT | norca (web UI) |
 | [regenerator-runtime](#npm-regenerator-runtime-0-13-11) (npm) | 0.13.11 | MIT | norca (web UI) |
 | [regenerator-runtime](#npm-regenerator-runtime-0-13-9) (npm) | 0.13.9 | MIT | norca (web UI) |
 | [regenerator-transform](#npm-regenerator-transform-0-14-5) (npm) | 0.14.5 | MIT | norca (web UI) |
 | [regexp.prototype.flags](#npm-regexp-prototype-flags-1-4-1) (npm) | 1.4.1 | MIT | norca (web UI) |
 | [regexpu-core](#npm-regexpu-core-5-0-1) (npm) | 5.0.1 | MIT | norca (web UI) |
+| [regexpu-core](#npm-regexpu-core-6-5-3) (npm) | 6.5.3 | MIT | norca (web UI) |
 | [regjsgen](#npm-regjsgen-0-6-0) (npm) | 0.6.0 | MIT | norca (web UI) |
+| [regjsgen](#npm-regjsgen-0-8-0) (npm) | 0.8.0 | MIT | norca (web UI) |
+| [regjsparser](#npm-regjsparser-0-13-4) (npm) | 0.13.4 | BSD-2-Clause | norca (web UI) |
 | [regjsparser](#npm-regjsparser-0-8-4) (npm) | 0.8.4 | BSD-2-Clause | norca (web UI) |
+| [remove-types](#npm-remove-types-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [require-from-string](#npm-require-from-string-2-0-2) (npm) | 2.0.2 | MIT | norca (web UI) |
 | [reselect](#npm-reselect-3-0-1) (npm) | 3.0.1 | MIT | norca (web UI) |
+| [reselect](#npm-reselect-4-1-8) (npm) | 4.1.8 | MIT | norca (web UI) |
 | [resolve-from](#npm-resolve-from-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [resolve-package-path](#npm-resolve-package-path-1-2-7) (npm) | 1.2.7 | MIT | norca (web UI) |
 | [resolve-package-path](#npm-resolve-package-path-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [resolve-package-path](#npm-resolve-package-path-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
 | [resolve-package-path](#npm-resolve-package-path-4-0-3) (npm) | 4.0.3 | MIT | norca (web UI) |
+| [resolve.exports](#npm-resolve-exports-2-0-3) (npm) | 2.0.3 | MIT | norca (web UI) |
 | [resolve](#npm-resolve-1-19-0) (npm) | 1.19.0 | MIT | norca (web UI) |
 | [resolve](#npm-resolve-1-20-0) (npm) | 1.20.0 | MIT | norca (web UI) |
 | [resolve](#npm-resolve-1-22-0) (npm) | 1.22.0 | MIT | norca (web UI) |
+| [resolve](#npm-resolve-1-22-13) (npm) | 1.22.13 | MIT | norca (web UI) |
 | [reusify](#npm-reusify-1-0-4) (npm) | 1.0.4 | MIT | norca (web UI) |
 | [rimraf](#npm-rimraf-2-7-1) (npm) | 2.7.1 | ISC | norca (web UI) |
 | [rimraf](#npm-rimraf-3-0-2) (npm) | 3.0.2 | ISC | norca (web UI) |
 | [robust-predicates](#npm-robust-predicates-3-0-1) (npm) | 3.0.1 | Unlicense | norca (web UI) |
+| [rollup-pluginutils](#npm-rollup-pluginutils-2-8-2) (npm) | 2.8.2 | MIT | norca (web UI) |
+| [rollup](#npm-rollup-2-80-0) (npm) | 2.80.0 | MIT | norca (web UI) |
+| [route-recognizer](#npm-route-recognizer-0-3-4) (npm) | 0.3.4 | MIT | norca (web UI) |
+| [router\_js](#npm-router-js-8-0-6) (npm) | 8.0.6 | MIT | norca (web UI) |
 | [rsvp](#npm-rsvp-3-2-1) (npm) | 3.2.1 | MIT | norca (web UI) |
 | [rsvp](#npm-rsvp-3-6-2) (npm) | 3.6.2 | MIT | norca (web UI) |
 | [rsvp](#npm-rsvp-4-8-5) (npm) | 4.8.5 | MIT | norca (web UI) |
@@ -963,40 +1290,54 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [safe-buffer](#npm-safe-buffer-5-2-1) (npm) | 5.2.1 | MIT | norca (web UI) |
 | [safer-buffer](#npm-safer-buffer-2-1-2) (npm) | 2.1.2 | MIT | norca (web UI) |
 | [sass](#npm-sass-1-67-0) (npm) | 1.67.0 | MIT | norca (web UI) |
+| [sax](#npm-sax-1-2-4) (npm) | 1.2.4 | ISC | norca (web UI) |
 | [schema-utils](#npm-schema-utils-2-7-1) (npm) | 2.7.1 | MIT | norca (web UI) |
 | [schema-utils](#npm-schema-utils-3-2-0) (npm) | 3.2.0 | MIT | norca (web UI) |
 | [schema-utils](#npm-schema-utils-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [select](#npm-select-1-1-2) (npm) | 1.1.2 | MIT | norca (web UI) |
 | [semver](#npm-semver-5-7-1) (npm) | 5.7.1 | ISC | norca (web UI) |
 | [semver](#npm-semver-6-3-0) (npm) | 6.3.0 | ISC | norca (web UI) |
+| [semver](#npm-semver-6-3-1) (npm) | 6.3.1 | ISC | norca (web UI) |
 | [semver](#npm-semver-7-0-0) (npm) | 7.0.0 | ISC | norca (web UI) |
 | [semver](#npm-semver-7-3-4) (npm) | 7.3.4 | ISC | norca (web UI) |
 | [semver](#npm-semver-7-3-5) (npm) | 7.3.5 | ISC | norca (web UI) |
 | [semver](#npm-semver-7-3-8) (npm) | 7.3.8 | ISC | norca (web UI) |
+| [semver](#npm-semver-7-8-5) (npm) | 7.8.5 | ISC | norca (web UI) |
 | [shebang-command](#npm-shebang-command-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [shebang-regex](#npm-shebang-regex-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [side-channel](#npm-side-channel-1-0-4) (npm) | 1.0.4 | MIT | norca (web UI) |
 | [signal-exit](#npm-signal-exit-3-0-7) (npm) | 3.0.7 | ISC | norca (web UI) |
 | [silent-error](#npm-silent-error-1-1-1) (npm) | 1.1.1 | ISC | norca (web UI) |
+| [simple-html-tokenizer](#npm-simple-html-tokenizer-0-5-11) (npm) | 0.5.11 | MIT | norca (web UI) |
 | [source-map-js](#npm-source-map-js-1-0-2) (npm) | 1.0.2 | BSD-3-Clause | norca (web UI) |
 | [source-map](#npm-source-map-0-5-7) (npm) | 0.5.7 | BSD-3-Clause | norca (web UI) |
 | [source-map](#npm-source-map-0-6-1) (npm) | 0.6.1 | BSD-3-Clause | norca (web UI) |
 | [sourcemap-codec](#npm-sourcemap-codec-1-4-8) (npm) | 1.4.8 | MIT | norca (web UI) |
+| [split-on-first](#npm-split-on-first-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
+| [sprintf-js](#npm-sprintf-js-1-0-3) (npm) | 1.0.3 | BSD-3-Clause | norca (web UI) |
 | [sprintf-js](#npm-sprintf-js-1-1-2) (npm) | 1.1.2 | BSD-3-Clause | norca (web UI) |
+| [stable](#npm-stable-0-1-8) (npm) | 0.1.8 | MIT | norca (web UI) |
 | [stagehand](#npm-stagehand-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
+| [strict-uri-encode](#npm-strict-uri-encode-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [string.prototype.matchall](#npm-string-prototype-matchall-4-0-6) (npm) | 4.0.6 | MIT | norca (web UI) |
+| [string.prototype.trimend](#npm-string-prototype-trimend-1-0-3) (npm) | 1.0.3 | MIT | norca (web UI) |
 | [string.prototype.trimend](#npm-string-prototype-trimend-1-0-4) (npm) | 1.0.4 | MIT | norca (web UI) |
+| [string.prototype.trimstart](#npm-string-prototype-trimstart-1-0-3) (npm) | 1.0.3 | MIT | norca (web UI) |
 | [string.prototype.trimstart](#npm-string-prototype-trimstart-1-0-4) (npm) | 1.0.4 | MIT | norca (web UI) |
+| [strip-ansi](#npm-strip-ansi-0-1-1) (npm) | 0.1.1 | MIT | norca (web UI) |
 | [strip-bom](#npm-strip-bom-4-0-0) (npm) | 4.0.0 | MIT | norca (web UI) |
 | [strip-final-newline](#npm-strip-final-newline-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [style-loader](#npm-style-loader-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [supports-color](#npm-supports-color-5-5-0) (npm) | 5.5.0 | MIT | norca (web UI) |
+| [supports-color](#npm-supports-color-7-2-0) (npm) | 7.2.0 | MIT | norca (web UI) |
 | [supports-preserve-symlinks-flag](#npm-supports-preserve-symlinks-flag-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
+| [svgo](#npm-svgo-1-2-2) (npm) | 1.2.2 | MIT | norca (web UI) |
 | [symlink-or-copy](#npm-symlink-or-copy-1-3-1) (npm) | 1.3.1 | MIT | norca (web UI) |
 | [sync-disk-cache](#npm-sync-disk-cache-1-3-4) (npm) | 1.3.4 | MIT | norca (web UI) |
 | [sync-disk-cache](#npm-sync-disk-cache-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
 | [tabbable](#npm-tabbable-5-3-3) (npm) | 5.3.3 | MIT | norca (web UI) |
 | [tether](#npm-tether-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
+| [text-encoder-lite](#npm-text-encoder-lite-2-0-0) (npm) | 2.0.0 | Apache-2.0 | norca (web UI) |
 | [textextensions](#npm-textextensions-2-6-0) (npm) | 2.6.0 | MIT | norca (web UI) |
 | [tiny-emitter](#npm-tiny-emitter-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
 | [tippy.js](#npm-tippy-js-6-3-7) (npm) | 6.3.7 | MIT | norca (web UI) |
@@ -1008,36 +1349,50 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [tracked-maps-and-sets](#npm-tracked-maps-and-sets-3-0-2) (npm) | 3.0.2 | MIT | norca (web UI) |
 | [tree-sync](#npm-tree-sync-1-4-0) (npm) | 1.4.0 | ISC | norca (web UI) |
 | [tslib](#npm-tslib-2-1-0) (npm) | 2.1.0 | 0BSD | norca (web UI) |
+| [tslib](#npm-tslib-2-3-0) (npm) | 2.3.0 | 0BSD | norca (web UI) |
+| [type-fest](#npm-type-fest-4-41-0) (npm) | 4.41.0 | (MIT OR CC0-1.0) | norca (web UI) |
 | [typescript-memoize](#npm-typescript-memoize-1-0-0-alpha-4) (npm) | 1.0.0-alpha.4 | MIT | norca (web UI) |
 | [typescript-memoize](#npm-typescript-memoize-1-1-0) (npm) | 1.1.0 | MIT | norca (web UI) |
 | [uglify-js](#npm-uglify-js-3-13-5) (npm) | 3.13.5 | BSD-2-Clause | norca (web UI) |
 | [unbox-primitive](#npm-unbox-primitive-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
 | [underscore.string](#npm-underscore-string-3-3-6) (npm) | 3.3.6 | MIT | norca (web UI) |
+| [underscore](#npm-underscore-1-6-0) (npm) | 1.6.0 | MIT | norca (web UI) |
 | [unicode-canonical-property-names-ecmascript](#npm-unicode-canonical-property-names-ecmascript-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [unicode-match-property-ecmascript](#npm-unicode-match-property-ecmascript-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [unicode-match-property-value-ecmascript](#npm-unicode-match-property-value-ecmascript-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
+| [unicode-match-property-value-ecmascript](#npm-unicode-match-property-value-ecmascript-2-2-1) (npm) | 2.2.1 | MIT | norca (web UI) |
 | [unicode-property-aliases-ecmascript](#npm-unicode-property-aliases-ecmascript-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
 | [uniq](#npm-uniq-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
 | [universalify](#npm-universalify-0-1-2) (npm) | 0.1.2 | MIT | norca (web UI) |
 | [universalify](#npm-universalify-2-0-0) (npm) | 2.0.0 | MIT | norca (web UI) |
+| [unquote](#npm-unquote-1-1-1) (npm) | 1.1.1 | MIT | norca (web UI) |
+| [update-browserslist-db](#npm-update-browserslist-db-1-3-4) (npm) | 1.3.4 | MIT | norca (web UI) |
 | [uri-js](#npm-uri-js-4-4-1) (npm) | 4.4.1 | BSD-2-Clause | norca (web UI) |
 | [username-sync](#npm-username-sync-1-0-3) (npm) | 1.0.3 | MIT | norca (web UI) |
 | [util-deprecate](#npm-util-deprecate-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
+| [util.promisify](#npm-util-promisify-1-0-1) (npm) | 1.0.1 | MIT | norca (web UI) |
 | [walk-sync](#npm-walk-sync-0-3-4) (npm) | 0.3.4 | MIT | norca (web UI) |
 | [walk-sync](#npm-walk-sync-1-1-4) (npm) | 1.1.4 | MIT | norca (web UI) |
+| [walk-sync](#npm-walk-sync-2-0-2) (npm) | 2.0.2 | MIT | norca (web UI) |
 | [walk-sync](#npm-walk-sync-2-2-0) (npm) | 2.2.0 | MIT | norca (web UI) |
 | [walk-sync](#npm-walk-sync-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [which-boxed-primitive](#npm-which-boxed-primitive-1-0-2) (npm) | 1.0.2 | MIT | norca (web UI) |
 | [which](#npm-which-2-0-2) (npm) | 2.0.2 | ISC | norca (web UI) |
 | [wordwrap](#npm-wordwrap-1-0-0) (npm) | 1.0.0 | MIT | norca (web UI) |
 | [workerpool](#npm-workerpool-3-1-2) (npm) | 3.1.2 | Apache-2.0 | norca (web UI) |
+| [workerpool](#npm-workerpool-6-5-1) (npm) | 6.5.1 | Apache-2.0 | norca (web UI) |
 | [wrappy](#npm-wrappy-1-0-2) (npm) | 1.0.2 | ISC | norca (web UI) |
 | [ws](#npm-ws-8-6-0) (npm) | 8.6.0 | MIT | norca (web UI) |
+| [xstate](#npm-xstate-4-38-3) (npm) | 4.38.3 | MIT | norca (web UI) |
+| [xterm-addon-fit](#npm-xterm-addon-fit-0-5-0) (npm) | 0.5.0 | MIT | norca (web UI) |
+| [xterm](#npm-xterm-4-15-0) (npm) | 4.15.0 | MIT | norca (web UI) |
+| [yallist](#npm-yallist-3-1-1) (npm) | 3.1.1 | ISC | norca (web UI) |
 | [yallist](#npm-yallist-4-0-0) (npm) | 4.0.0 | ISC | norca (web UI) |
 | [yaml](#npm-yaml-1-10-0) (npm) | 1.10.0 | ISC | norca (web UI) |
 | [yaml](#npm-yaml-2-0-1) (npm) | 2.0.1 | ISC | norca (web UI) |
 | [yauzl](#npm-yauzl-2-10-0) (npm) | 2.10.0 | MIT | norca (web UI) |
 | [yocto-queue](#npm-yocto-queue-0-1-0) (npm) | 0.1.0 | MIT | norca (web UI) |
+| [zrender](#npm-zrender-6-1-0) (npm) | 6.1.0 | BSD-3-Clause | norca (web UI) |
 
 ## Go modules
 
@@ -4193,7 +4548,7 @@ limitations under the License.
 ### @ampproject/remapping 2.1.2
 
 - License: Apache-2.0
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @ampproject/remapping@2.1.2
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @ampproject/remapping@2.1.2
 - Author: Justin Ridgewell &lt;jridgewell@google.com&gt;
 - `LICENSE`: [license text 175](#license-text-175)
 
@@ -4202,7 +4557,7 @@ limitations under the License.
 ### @babel/code-frame 7.12.11
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; @babel/code-frame@7.12.11
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; @babel/code-frame@7.12.11
 - Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4211,7 +4566,7 @@ limitations under the License.
 ### @babel/code-frame 7.12.13
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/template@7.12.13 &gt; @babel/code-frame@7.12.13
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/template@7.12.13 &gt; @babel/code-frame@7.12.13
 - Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4220,7 +4575,16 @@ limitations under the License.
 ### @babel/code-frame 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-code-frame-7-29-7"></a>
+
+### @babel/code-frame 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/code-frame@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4229,7 +4593,7 @@ limitations under the License.
 ### @babel/compat-data 7.13.12
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10 &gt; @babel/compat-data@7.13.12
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10 &gt; @babel/compat-data@7.13.12
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4238,7 +4602,7 @@ limitations under the License.
 ### @babel/compat-data 7.15.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1 &gt; @babel/compat-data@7.15.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1 &gt; @babel/compat-data@7.15.0
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4247,7 +4611,16 @@ limitations under the License.
 ### @babel/compat-data 7.17.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/compat-data@7.17.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; @babel/compat-data@7.17.0
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-compat-data-7-29-7"></a>
+
+### @babel/compat-data 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; @babel/compat-data@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4265,7 +4638,16 @@ limitations under the License.
 ### @babel/core 7.17.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-core-7-29-7"></a>
+
+### @babel/core 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4274,7 +4656,7 @@ limitations under the License.
 ### @babel/generator 7.13.9
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/traverse@7.13.0 &gt; @babel/generator@7.13.9
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/traverse@7.13.0 &gt; @babel/generator@7.13.9
 - Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4283,7 +4665,16 @@ limitations under the License.
 ### @babel/generator 7.17.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/generator@7.17.3
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/generator@7.17.3
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-generator-7-29-8"></a>
+
+### @babel/generator 7.29.8
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/generator@7.29.8
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4292,7 +4683,16 @@ limitations under the License.
 ### @babel/helper-annotate-as-pure 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-private-property-in-object@7.16.7 &gt; @babel/helper-annotate-as-pure@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-private-property-in-object@7.16.7 &gt; @babel/helper-annotate-as-pure@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-annotate-as-pure-7-29-7"></a>
+
+### @babel/helper-annotate-as-pure 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-private-property-in-object@7.29.7 &gt; @babel/helper-annotate-as-pure@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4301,7 +4701,7 @@ limitations under the License.
 ### @babel/helper-builder-binary-assignment-operator-visitor 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-exponentiation-operator@7.16.7 &gt; @babel/helper-builder-binary-assignment-operator-visitor@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-exponentiation-operator@7.16.7 &gt; @babel/helper-builder-binary-assignment-operator-visitor@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4310,7 +4710,7 @@ limitations under the License.
 ### @babel/helper-compilation-targets 7.13.10
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1 &gt; @babel/helper-define-polyfill-provider@0.3.1 &gt; @babel/helper-compilation-targets@7.13.10
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10 &gt; @babel/helper-define-polyfill-provider@0.1.5 &gt; @babel/helper-compilation-targets@7.13.10
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4319,7 +4719,16 @@ limitations under the License.
 ### @babel/helper-compilation-targets 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-compilation-targets-7-29-7"></a>
+
+### @babel/helper-compilation-targets 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4328,7 +4737,7 @@ limitations under the License.
 ### @babel/helper-create-class-features-plugin 7.13.11
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4337,7 +4746,16 @@ limitations under the License.
 ### @babel/helper-create-class-features-plugin 7.17.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/plugin-proposal-class-properties@7.16.7 &gt; @babel/helper-create-class-features-plugin@7.17.6
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-class-properties@7.16.7 &gt; @babel/helper-create-class-features-plugin@7.17.6
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-create-class-features-plugin-7-29-7"></a>
+
+### @babel/helper-create-class-features-plugin 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-proposal-decorators@7.29.7 &gt; @babel/helper-create-class-features-plugin@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4346,7 +4764,16 @@ limitations under the License.
 ### @babel/helper-create-regexp-features-plugin 7.17.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-create-regexp-features-plugin-7-29-10"></a>
+
+### @babel/helper-create-regexp-features-plugin 7.29.10
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-unicode-sets-regex@7.18.6 &gt; @babel/helper-create-regexp-features-plugin@7.29.10
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4355,7 +4782,7 @@ limitations under the License.
 ### @babel/helper-define-polyfill-provider 0.1.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10 &gt; @babel/helper-define-polyfill-provider@0.1.5
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10 &gt; @babel/helper-define-polyfill-provider@0.1.5
 - `LICENSE`: [license text 177](#license-text-177)
 
 <a id="npm-babel-helper-define-polyfill-provider-0-3-1"></a>
@@ -4363,7 +4790,15 @@ limitations under the License.
 ### @babel/helper-define-polyfill-provider 0.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1 &gt; @babel/helper-define-polyfill-provider@0.3.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1 &gt; @babel/helper-define-polyfill-provider@0.3.1
+- `LICENSE`: [license text 177](#license-text-177)
+
+<a id="npm-babel-helper-define-polyfill-provider-0-6-8"></a>
+
+### @babel/helper-define-polyfill-provider 0.6.8
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-runtime@7.29.7 &gt; babel-plugin-polyfill-corejs2@0.4.17 &gt; @babel/helper-define-polyfill-provider@0.6.8
 - `LICENSE`: [license text 177](#license-text-177)
 
 <a id="npm-babel-helper-environment-visitor-7-16-7"></a>
@@ -4371,7 +4806,7 @@ limitations under the License.
 ### @babel/helper-environment-visitor 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6 &gt; @babel/helper-environment-visitor@7.16.7
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6 &gt; @babel/helper-environment-visitor@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4380,7 +4815,7 @@ limitations under the License.
 ### @babel/helper-explode-assignable-expression 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-exponentiation-operator@7.16.7 &gt; @babel/helper-builder-binary-assignment-operator-visitor@7.16.7 &gt; @babel/helper-explode-assignable-expression@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-exponentiation-operator@7.16.7 &gt; @babel/helper-builder-binary-assignment-operator-visitor@7.16.7 &gt; @babel/helper-explode-assignable-expression@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4389,7 +4824,7 @@ limitations under the License.
 ### @babel/helper-function-name 7.12.13
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-function-name@7.12.13
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-function-name@7.12.13
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-helper-function-name-7-16-7"></a>
@@ -4397,7 +4832,7 @@ limitations under the License.
 ### @babel/helper-function-name 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3 &gt; @babel/helper-function-name@7.16.7
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3 &gt; @babel/helper-function-name@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4406,7 +4841,7 @@ limitations under the License.
 ### @babel/helper-get-function-arity 7.12.13
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-function-name@7.12.13 &gt; @babel/helper-get-function-arity@7.12.13
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-function-name@7.12.13 &gt; @babel/helper-get-function-arity@7.12.13
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-helper-get-function-arity-7-16-7"></a>
@@ -4414,7 +4849,16 @@ limitations under the License.
 ### @babel/helper-get-function-arity 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3 &gt; @babel/helper-function-name@7.16.7 &gt; @babel/helper-get-function-arity@7.16.7
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3 &gt; @babel/helper-function-name@7.16.7 &gt; @babel/helper-get-function-arity@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-globals-7-29-7"></a>
+
+### @babel/helper-globals 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/traverse@7.29.10 &gt; @babel/helper-globals@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4423,7 +4867,7 @@ limitations under the License.
 ### @babel/helper-hoist-variables 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3 &gt; @babel/helper-hoist-variables@7.16.7
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3 &gt; @babel/helper-hoist-variables@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4432,7 +4876,7 @@ limitations under the License.
 ### @babel/helper-member-expression-to-functions 7.13.12
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-member-expression-to-functions@7.13.12
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-member-expression-to-functions@7.13.12
 - Author: Justin Ridgewell &lt;justin@ridgewell.name&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4441,7 +4885,16 @@ limitations under the License.
 ### @babel/helper-member-expression-to-functions 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/plugin-proposal-class-properties@7.16.7 &gt; @babel/helper-create-class-features-plugin@7.17.6 &gt; @babel/helper-member-expression-to-functions@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-class-properties@7.16.7 &gt; @babel/helper-create-class-features-plugin@7.17.6 &gt; @babel/helper-member-expression-to-functions@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-member-expression-to-functions-7-29-7"></a>
+
+### @babel/helper-member-expression-to-functions 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-proposal-decorators@7.29.7 &gt; @babel/helper-create-class-features-plugin@7.29.7 &gt; @babel/helper-member-expression-to-functions@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4450,7 +4903,7 @@ limitations under the License.
 ### @babel/helper-module-imports 7.13.12
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; @babel/helper-module-imports@7.13.12
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; @babel/helper-module-imports@7.13.12
 - Author: Logan Smyth &lt;loganfsmyth@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4459,7 +4912,16 @@ limitations under the License.
 ### @babel/helper-module-imports 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6 &gt; @babel/helper-module-imports@7.16.7
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6 &gt; @babel/helper-module-imports@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-module-imports-7-29-7"></a>
+
+### @babel/helper-module-imports 7.29.7
+
+- License: MIT
+- Required through: ember-concurrency@4.0.6 &gt; @babel/helper-module-imports@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4468,7 +4930,7 @@ limitations under the License.
 ### @babel/helper-module-transforms 7.13.12
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12
 - Author: Logan Smyth &lt;loganfsmyth@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4477,7 +4939,16 @@ limitations under the License.
 ### @babel/helper-module-transforms 7.17.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-module-transforms-7-29-7"></a>
+
+### @babel/helper-module-transforms 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-module-transforms@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4486,7 +4957,7 @@ limitations under the License.
 ### @babel/helper-optimise-call-expression 7.12.13
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-optimise-call-expression@7.12.13
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-optimise-call-expression@7.12.13
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-helper-optimise-call-expression-7-16-7"></a>
@@ -4494,7 +4965,16 @@ limitations under the License.
 ### @babel/helper-optimise-call-expression 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/plugin-proposal-class-properties@7.16.7 &gt; @babel/helper-create-class-features-plugin@7.17.6 &gt; @babel/helper-optimise-call-expression@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-class-properties@7.16.7 &gt; @babel/helper-create-class-features-plugin@7.17.6 &gt; @babel/helper-optimise-call-expression@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-optimise-call-expression-7-29-7"></a>
+
+### @babel/helper-optimise-call-expression 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-proposal-decorators@7.29.7 &gt; @babel/helper-create-class-features-plugin@7.29.7 &gt; @babel/helper-optimise-call-expression@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4503,7 +4983,7 @@ limitations under the License.
 ### @babel/helper-plugin-utils 7.13.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-plugin-utils@7.13.0
+- Required through: ember-concurrency@4.0.6 &gt; @babel/helper-plugin-utils@7.13.0
 - Author: Logan Smyth &lt;loganfsmyth@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4512,7 +4992,16 @@ limitations under the License.
 ### @babel/helper-plugin-utils 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/plugin-proposal-class-properties@7.16.7 &gt; @babel/helper-plugin-utils@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-class-properties@7.16.7 &gt; @babel/helper-plugin-utils@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-plugin-utils-7-29-7"></a>
+
+### @babel/helper-plugin-utils 7.29.7
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; @babel/plugin-transform-block-scoping@7.29.7 &gt; @babel/helper-plugin-utils@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4521,7 +5010,16 @@ limitations under the License.
 ### @babel/helper-remap-async-to-generator 7.16.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-async-generator-functions@7.16.8 &gt; @babel/helper-remap-async-to-generator@7.16.8
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-async-generator-functions@7.16.8 &gt; @babel/helper-remap-async-to-generator@7.16.8
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-remap-async-to-generator-7-29-7"></a>
+
+### @babel/helper-remap-async-to-generator 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-async-generator-functions@7.29.7 &gt; @babel/helper-remap-async-to-generator@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4530,7 +5028,7 @@ limitations under the License.
 ### @babel/helper-replace-supers 7.13.12
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-replace-supers@7.13.12
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-replace-supers@7.13.12
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-helper-replace-supers-7-16-7"></a>
@@ -4538,7 +5036,16 @@ limitations under the License.
 ### @babel/helper-replace-supers 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/plugin-proposal-decorators@7.17.2 &gt; @babel/helper-replace-supers@7.16.7
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @babel/plugin-proposal-decorators@7.17.2 &gt; @babel/helper-replace-supers@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-replace-supers-7-29-7"></a>
+
+### @babel/helper-replace-supers 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-proposal-decorators@7.29.7 &gt; @babel/helper-create-class-features-plugin@7.29.7 &gt; @babel/helper-replace-supers@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4547,7 +5054,7 @@ limitations under the License.
 ### @babel/helper-simple-access 7.13.12
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/helper-simple-access@7.13.12
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/helper-simple-access@7.13.12
 - Author: Logan Smyth &lt;loganfsmyth@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4556,7 +5063,7 @@ limitations under the License.
 ### @babel/helper-simple-access 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6 &gt; @babel/helper-simple-access@7.16.7
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6 &gt; @babel/helper-simple-access@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4565,7 +5072,16 @@ limitations under the License.
 ### @babel/helper-skip-transparent-expression-wrappers 7.16.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining@7.16.7 &gt; @babel/helper-skip-transparent-expression-wrappers@7.16.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining@7.16.7 &gt; @babel/helper-skip-transparent-expression-wrappers@7.16.0
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-skip-transparent-expression-wrappers-7-29-7"></a>
+
+### @babel/helper-skip-transparent-expression-wrappers 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-typescript@7.29.9 &gt; @babel/helper-skip-transparent-expression-wrappers@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4574,7 +5090,7 @@ limitations under the License.
 ### @babel/helper-split-export-declaration 7.12.13
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-split-export-declaration@7.12.13
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/helper-create-class-features-plugin@7.13.11 &gt; @babel/helper-split-export-declaration@7.12.13
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-helper-split-export-declaration-7-16-7"></a>
@@ -4582,7 +5098,7 @@ limitations under the License.
 ### @babel/helper-split-export-declaration 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6 &gt; @babel/helper-split-export-declaration@7.16.7
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6 &gt; @babel/helper-split-export-declaration@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4591,7 +5107,16 @@ limitations under the License.
 ### @babel/helper-string-parser 7.19.4
 
 - License: MIT
-- Required through: @babel/helper-string-parser@7.19.4
+- Required through: legacy UI: @babel/helper-string-parser@7.19.4
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-string-parser-7-29-7"></a>
+
+### @babel/helper-string-parser 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/types@7.29.8 &gt; @babel/helper-string-parser@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4600,7 +5125,16 @@ limitations under the License.
 ### @babel/helper-validator-identifier 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/helper-module-transforms@7.17.6 &gt; @babel/helper-validator-identifier@7.16.7
+- Required through: ember-concurrency@4.0.6 &gt; @babel/types@7.13.12 &gt; @babel/helper-validator-identifier@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-validator-identifier-7-29-7"></a>
+
+### @babel/helper-validator-identifier 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/code-frame@7.29.7 &gt; @babel/helper-validator-identifier@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4609,7 +5143,7 @@ limitations under the License.
 ### @babel/helper-validator-option 7.12.17
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1 &gt; @babel/helper-define-polyfill-provider@0.3.1 &gt; @babel/helper-compilation-targets@7.13.10 &gt; @babel/helper-validator-option@7.12.17
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10 &gt; @babel/helper-define-polyfill-provider@0.1.5 &gt; @babel/helper-compilation-targets@7.13.10 &gt; @babel/helper-validator-option@7.12.17
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-helper-validator-option-7-16-7"></a>
@@ -4617,7 +5151,16 @@ limitations under the License.
 ### @babel/helper-validator-option 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/helper-validator-option@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; @babel/helper-validator-option@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-validator-option-7-29-7"></a>
+
+### @babel/helper-validator-option 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; @babel/helper-validator-option@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4626,7 +5169,16 @@ limitations under the License.
 ### @babel/helper-wrap-function 7.16.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-async-generator-functions@7.16.8 &gt; @babel/helper-remap-async-to-generator@7.16.8 &gt; @babel/helper-wrap-function@7.16.8
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-async-generator-functions@7.16.8 &gt; @babel/helper-remap-async-to-generator@7.16.8 &gt; @babel/helper-wrap-function@7.16.8
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helper-wrap-function-7-29-7"></a>
+
+### @babel/helper-wrap-function 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-async-generator-functions@7.29.7 &gt; @babel/helper-remap-async-to-generator@7.29.7 &gt; @babel/helper-wrap-function@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4635,16 +5187,25 @@ limitations under the License.
 ### @babel/helpers 7.17.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/helpers@7.17.2
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/helpers@7.17.2
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-helpers-7-29-10"></a>
+
+### @babel/helpers 7.29.10
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helpers@7.29.10
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 178](#license-text-178)
 
 <a id="npm-babel-highlight-7-13-10"></a>
 
 ### @babel/highlight 7.13.10
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/template@7.12.13 &gt; @babel/code-frame@7.12.13 &gt; @babel/highlight@7.13.10
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/template@7.12.13 &gt; @babel/code-frame@7.12.13 &gt; @babel/highlight@7.13.10
 - Author: suchipi &lt;me@suchipi.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4653,34 +5214,88 @@ limitations under the License.
 ### @babel/highlight 7.16.10
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7 &gt; @babel/highlight@7.16.10
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7 &gt; @babel/highlight@7.16.10
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-parser-7-12-11"></a>
+
+### @babel/parser 7.12.11
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; ember-router-generator@2.0.0 &gt; @babel/parser@7.12.11
+- Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
+- `LICENSE`: [license text 179](#license-text-179)
 
 <a id="npm-babel-parser-7-13-12"></a>
 
 ### @babel/parser 7.13.12
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/template@7.12.13 &gt; @babel/parser@7.13.12
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/template@7.12.13 &gt; @babel/parser@7.13.12
 - Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
-- `LICENSE`: [license text 178](#license-text-178)
+- `LICENSE`: [license text 179](#license-text-179)
 
 <a id="npm-babel-parser-7-17-3"></a>
 
 ### @babel/parser 7.17.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/parser@7.17.3
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/parser@7.17.3
 - Author: The Babel Team (https://babel.dev/team)
-- `LICENSE`: [license text 178](#license-text-178)
+- `LICENSE`: [license text 179](#license-text-179)
+
+<a id="npm-babel-parser-7-29-9"></a>
+
+### @babel/parser 7.29.9
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/parser@7.29.9
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 179](#license-text-179)
+
+<a id="npm-babel-plugin-bugfix-firefox-class-in-computed-class-key-7-29-7"></a>
+
+### @babel/plugin-bugfix-firefox-class-in-computed-class-key 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-bugfix-firefox-class-in-computed-class-key@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-bugfix-safari-class-field-initializer-scope-7-29-7"></a>
+
+### @babel/plugin-bugfix-safari-class-field-initializer-scope 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-bugfix-safari-class-field-initializer-scope@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-bugfix-safari-id-destructuring-collision-in-function-expression-7-16-7"></a>
 
 ### @babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-bugfix-safari-id-destructuring-collision-in-function-expression-7-29-7"></a>
+
+### @babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-bugfix-safari-rest-destructuring-rhs-array-7-29-7"></a>
+
+### @babel/plugin-bugfix-safari-rest-destructuring-rhs-array 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-bugfix-safari-rest-destructuring-rhs-array@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4689,7 +5304,25 @@ limitations under the License.
 ### @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-bugfix-v8-spread-parameters-in-optional-chaining-7-29-7"></a>
+
+### @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-bugfix-v8-static-class-fields-redefine-readonly-7-29-7"></a>
+
+### @babel/plugin-bugfix-v8-static-class-fields-redefine-readonly 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-bugfix-v8-static-class-fields-redefine-readonly@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4698,7 +5331,7 @@ limitations under the License.
 ### @babel/plugin-proposal-async-generator-functions 7.16.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-async-generator-functions@7.16.8
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-async-generator-functions@7.16.8
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4707,7 +5340,7 @@ limitations under the License.
 ### @babel/plugin-proposal-class-properties 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/plugin-proposal-class-properties@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-class-properties@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4716,7 +5349,7 @@ limitations under the License.
 ### @babel/plugin-proposal-class-static-block 7.17.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-class-static-block@7.17.6
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-class-static-block@7.17.6
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4725,7 +5358,7 @@ limitations under the License.
 ### @babel/plugin-proposal-decorators 7.13.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5
 - Author: Logan Smyth &lt;loganfsmyth@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4734,7 +5367,16 @@ limitations under the License.
 ### @babel/plugin-proposal-decorators 7.17.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/plugin-proposal-decorators@7.17.2
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @babel/plugin-proposal-decorators@7.17.2
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-proposal-decorators-7-29-7"></a>
+
+### @babel/plugin-proposal-decorators 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-proposal-decorators@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4743,7 +5385,7 @@ limitations under the License.
 ### @babel/plugin-proposal-dynamic-import 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-dynamic-import@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-dynamic-import@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4752,7 +5394,7 @@ limitations under the License.
 ### @babel/plugin-proposal-export-namespace-from 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-export-namespace-from@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-export-namespace-from@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4761,7 +5403,7 @@ limitations under the License.
 ### @babel/plugin-proposal-json-strings 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-json-strings@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-json-strings@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4770,7 +5412,7 @@ limitations under the License.
 ### @babel/plugin-proposal-logical-assignment-operators 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-logical-assignment-operators@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-logical-assignment-operators@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4779,7 +5421,7 @@ limitations under the License.
 ### @babel/plugin-proposal-nullish-coalescing-operator 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-nullish-coalescing-operator@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-nullish-coalescing-operator@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4788,7 +5430,7 @@ limitations under the License.
 ### @babel/plugin-proposal-numeric-separator 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-numeric-separator@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-numeric-separator@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4797,7 +5439,7 @@ limitations under the License.
 ### @babel/plugin-proposal-object-rest-spread 7.17.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-object-rest-spread@7.17.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-object-rest-spread@7.17.3
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4806,7 +5448,7 @@ limitations under the License.
 ### @babel/plugin-proposal-optional-catch-binding 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-optional-catch-binding@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-optional-catch-binding@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4815,7 +5457,7 @@ limitations under the License.
 ### @babel/plugin-proposal-optional-chaining 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-optional-chaining@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-optional-chaining@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4824,7 +5466,16 @@ limitations under the License.
 ### @babel/plugin-proposal-private-methods 7.16.11
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-private-methods@7.16.11
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-private-methods@7.16.11
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-proposal-private-methods-7-18-6"></a>
+
+### @babel/plugin-proposal-private-methods 7.18.6
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @babel/plugin-proposal-private-methods@7.18.6
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4833,7 +5484,16 @@ limitations under the License.
 ### @babel/plugin-proposal-private-property-in-object 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-private-property-in-object@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-private-property-in-object@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-proposal-private-property-in-object-7-21-0-placeholder-for-preset-env-2"></a>
+
+### @babel/plugin-proposal-private-property-in-object 7.21.0-placeholder-for-preset-env.2
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-proposal-private-property-in-object@7.21.0-placeholder-for-preset-env.2
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4842,7 +5502,7 @@ limitations under the License.
 ### @babel/plugin-proposal-unicode-property-regex 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4851,7 +5511,7 @@ limitations under the License.
 ### @babel/plugin-syntax-async-generators 7.8.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-async-generators@7.8.4
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-async-generators@7.8.4
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-class-properties-7-12-13"></a>
@@ -4859,7 +5519,7 @@ limitations under the License.
 ### @babel/plugin-syntax-class-properties 7.12.13
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-class-properties@7.12.13
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-class-properties@7.12.13
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-class-static-block-7-14-5"></a>
@@ -4867,7 +5527,7 @@ limitations under the License.
 ### @babel/plugin-syntax-class-static-block 7.14.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-class-static-block@7.14.5
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-class-static-block@7.14.5
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4876,7 +5536,7 @@ limitations under the License.
 ### @babel/plugin-syntax-decorators 7.12.13
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/plugin-syntax-decorators@7.12.13
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-decorators@7.13.5 &gt; @babel/plugin-syntax-decorators@7.12.13
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-decorators-7-17-0"></a>
@@ -4884,7 +5544,16 @@ limitations under the License.
 ### @babel/plugin-syntax-decorators 7.17.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/plugin-proposal-decorators@7.17.2 &gt; @babel/plugin-syntax-decorators@7.17.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @babel/plugin-proposal-decorators@7.17.2 &gt; @babel/plugin-syntax-decorators@7.17.0
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-syntax-decorators-7-29-7"></a>
+
+### @babel/plugin-syntax-decorators 7.29.7
+
+- License: MIT
+- Required through: ember-concurrency@4.0.6 &gt; decorator-transforms@1.2.1 &gt; @babel/plugin-syntax-decorators@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4893,7 +5562,7 @@ limitations under the License.
 ### @babel/plugin-syntax-dynamic-import 7.8.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-dynamic-import@7.8.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-dynamic-import@7.8.3
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-export-namespace-from-7-8-3"></a>
@@ -4901,7 +5570,25 @@ limitations under the License.
 ### @babel/plugin-syntax-export-namespace-from 7.8.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-export-namespace-from@7.8.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-export-namespace-from@7.8.3
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-syntax-import-assertions-7-29-7"></a>
+
+### @babel/plugin-syntax-import-assertions 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-import-assertions@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-syntax-import-attributes-7-29-7"></a>
+
+### @babel/plugin-syntax-import-attributes 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-import-attributes@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-json-strings-7-8-3"></a>
@@ -4909,7 +5596,7 @@ limitations under the License.
 ### @babel/plugin-syntax-json-strings 7.8.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-json-strings@7.8.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-json-strings@7.8.3
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-logical-assignment-operators-7-10-4"></a>
@@ -4917,7 +5604,7 @@ limitations under the License.
 ### @babel/plugin-syntax-logical-assignment-operators 7.10.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-logical-assignment-operators@7.10.4
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-logical-assignment-operators@7.10.4
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-nullish-coalescing-operator-7-8-3"></a>
@@ -4925,7 +5612,7 @@ limitations under the License.
 ### @babel/plugin-syntax-nullish-coalescing-operator 7.8.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-nullish-coalescing-operator@7.8.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-nullish-coalescing-operator@7.8.3
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-numeric-separator-7-10-4"></a>
@@ -4933,7 +5620,7 @@ limitations under the License.
 ### @babel/plugin-syntax-numeric-separator 7.10.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-numeric-separator@7.10.4
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-numeric-separator@7.10.4
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-object-rest-spread-7-8-3"></a>
@@ -4941,7 +5628,7 @@ limitations under the License.
 ### @babel/plugin-syntax-object-rest-spread 7.8.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-object-rest-spread@7.8.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-object-rest-spread@7.8.3
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-optional-catch-binding-7-8-3"></a>
@@ -4949,7 +5636,7 @@ limitations under the License.
 ### @babel/plugin-syntax-optional-catch-binding 7.8.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-optional-catch-binding@7.8.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-optional-catch-binding@7.8.3
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-optional-chaining-7-8-3"></a>
@@ -4957,7 +5644,7 @@ limitations under the License.
 ### @babel/plugin-syntax-optional-chaining 7.8.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-optional-chaining@7.8.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-optional-chaining@7.8.3
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-private-property-in-object-7-14-5"></a>
@@ -4965,7 +5652,7 @@ limitations under the License.
 ### @babel/plugin-syntax-private-property-in-object 7.14.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-private-property-in-object@7.14.5
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-proposal-private-property-in-object@7.16.7 &gt; @babel/plugin-syntax-private-property-in-object@7.14.5
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4974,7 +5661,7 @@ limitations under the License.
 ### @babel/plugin-syntax-top-level-await 7.14.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-top-level-await@7.14.5
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-syntax-top-level-await@7.14.5
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -4983,7 +5670,7 @@ limitations under the License.
 ### @babel/plugin-syntax-typescript 7.12.13
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-typescript@7.13.0 &gt; @babel/plugin-syntax-typescript@7.12.13
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-typescript@7.13.0 &gt; @babel/plugin-syntax-typescript@7.12.13
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-syntax-typescript-7-16-7"></a>
@@ -4991,7 +5678,25 @@ limitations under the License.
 ### @babel/plugin-syntax-typescript 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; @babel/plugin-transform-typescript@7.5.5 &gt; @babel/plugin-syntax-typescript@7.16.7
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; @babel/plugin-transform-typescript@7.5.5 &gt; @babel/plugin-syntax-typescript@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-syntax-typescript-7-29-7"></a>
+
+### @babel/plugin-syntax-typescript 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-typescript@7.29.9 &gt; @babel/plugin-syntax-typescript@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-syntax-unicode-sets-regex-7-18-6"></a>
+
+### @babel/plugin-syntax-unicode-sets-regex 7.18.6
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-unicode-sets-regex@7.18.6
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5000,7 +5705,25 @@ limitations under the License.
 ### @babel/plugin-transform-arrow-functions 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-arrow-functions@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-arrow-functions@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-arrow-functions-7-29-7"></a>
+
+### @babel/plugin-transform-arrow-functions 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-arrow-functions@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-async-generator-functions-7-29-7"></a>
+
+### @babel/plugin-transform-async-generator-functions 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-async-generator-functions@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5009,7 +5732,16 @@ limitations under the License.
 ### @babel/plugin-transform-async-to-generator 7.16.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-async-to-generator@7.16.8
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-async-to-generator@7.16.8
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-async-to-generator-7-29-7"></a>
+
+### @babel/plugin-transform-async-to-generator 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-async-to-generator@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5018,7 +5750,16 @@ limitations under the License.
 ### @babel/plugin-transform-block-scoped-functions 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-block-scoped-functions@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-block-scoped-functions@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-block-scoped-functions-7-29-7"></a>
+
+### @babel/plugin-transform-block-scoped-functions 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-block-scoped-functions@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5027,7 +5768,34 @@ limitations under the License.
 ### @babel/plugin-transform-block-scoping 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-block-scoping@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-block-scoping@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-block-scoping-7-29-7"></a>
+
+### @babel/plugin-transform-block-scoping 7.29.7
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; @babel/plugin-transform-block-scoping@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-class-properties-7-29-7"></a>
+
+### @babel/plugin-transform-class-properties 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-class-properties@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-class-static-block-7-29-7"></a>
+
+### @babel/plugin-transform-class-static-block 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-class-static-block@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5036,7 +5804,16 @@ limitations under the License.
 ### @babel/plugin-transform-classes 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-classes@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-classes@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-classes-7-29-7"></a>
+
+### @babel/plugin-transform-classes 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-classes@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5045,7 +5822,16 @@ limitations under the License.
 ### @babel/plugin-transform-computed-properties 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-computed-properties@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-computed-properties@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-computed-properties-7-29-7"></a>
+
+### @babel/plugin-transform-computed-properties 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-computed-properties@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5054,7 +5840,16 @@ limitations under the License.
 ### @babel/plugin-transform-destructuring 7.17.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-destructuring@7.17.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-destructuring@7.17.3
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-destructuring-7-29-7"></a>
+
+### @babel/plugin-transform-destructuring 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-destructuring@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5063,7 +5858,16 @@ limitations under the License.
 ### @babel/plugin-transform-dotall-regex 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-dotall-regex@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-dotall-regex@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-dotall-regex-7-29-7"></a>
+
+### @babel/plugin-transform-dotall-regex 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-dotall-regex@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5072,7 +5876,43 @@ limitations under the License.
 ### @babel/plugin-transform-duplicate-keys 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-duplicate-keys@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-duplicate-keys@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-duplicate-keys-7-29-7"></a>
+
+### @babel/plugin-transform-duplicate-keys 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-duplicate-keys@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-duplicate-named-capturing-groups-regex-7-29-7"></a>
+
+### @babel/plugin-transform-duplicate-named-capturing-groups-regex 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-duplicate-named-capturing-groups-regex@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-dynamic-import-7-29-7"></a>
+
+### @babel/plugin-transform-dynamic-import 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-dynamic-import@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-explicit-resource-management-7-29-7"></a>
+
+### @babel/plugin-transform-explicit-resource-management 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-explicit-resource-management@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5081,7 +5921,25 @@ limitations under the License.
 ### @babel/plugin-transform-exponentiation-operator 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-exponentiation-operator@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-exponentiation-operator@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-exponentiation-operator-7-29-7"></a>
+
+### @babel/plugin-transform-exponentiation-operator 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-exponentiation-operator@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-export-namespace-from-7-29-7"></a>
+
+### @babel/plugin-transform-export-namespace-from 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-export-namespace-from@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5090,7 +5948,16 @@ limitations under the License.
 ### @babel/plugin-transform-for-of 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-for-of@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-for-of@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-for-of-7-29-7"></a>
+
+### @babel/plugin-transform-for-of 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-for-of@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5099,7 +5966,25 @@ limitations under the License.
 ### @babel/plugin-transform-function-name 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-function-name@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-function-name@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-function-name-7-29-7"></a>
+
+### @babel/plugin-transform-function-name 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-function-name@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-json-strings-7-29-7"></a>
+
+### @babel/plugin-transform-json-strings 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-json-strings@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5108,7 +5993,25 @@ limitations under the License.
 ### @babel/plugin-transform-literals 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-literals@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-literals@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-literals-7-29-7"></a>
+
+### @babel/plugin-transform-literals 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-literals@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-logical-assignment-operators-7-29-7"></a>
+
+### @babel/plugin-transform-logical-assignment-operators 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-logical-assignment-operators@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5117,7 +6020,16 @@ limitations under the License.
 ### @babel/plugin-transform-member-expression-literals 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-member-expression-literals@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-member-expression-literals@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-member-expression-literals-7-29-7"></a>
+
+### @babel/plugin-transform-member-expression-literals 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-member-expression-literals@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5126,7 +6038,7 @@ limitations under the License.
 ### @babel/plugin-transform-modules-amd 7.13.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-transform-modules-amd-7-16-7"></a>
@@ -5134,7 +6046,16 @@ limitations under the License.
 ### @babel/plugin-transform-modules-amd 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-modules-amd@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-modules-amd@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-modules-amd-7-29-7"></a>
+
+### @babel/plugin-transform-modules-amd 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-modules-amd@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5143,7 +6064,16 @@ limitations under the License.
 ### @babel/plugin-transform-modules-commonjs 7.16.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-modules-commonjs@7.16.8
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-modules-commonjs@7.16.8
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-modules-commonjs-7-29-7"></a>
+
+### @babel/plugin-transform-modules-commonjs 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-modules-commonjs@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5152,7 +6082,16 @@ limitations under the License.
 ### @babel/plugin-transform-modules-systemjs 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-modules-systemjs@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-modules-systemjs@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-modules-systemjs-7-29-8"></a>
+
+### @babel/plugin-transform-modules-systemjs 7.29.8
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-modules-systemjs@7.29.8
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5161,7 +6100,16 @@ limitations under the License.
 ### @babel/plugin-transform-modules-umd 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-modules-umd@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-modules-umd@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-modules-umd-7-29-7"></a>
+
+### @babel/plugin-transform-modules-umd 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-modules-umd@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5170,7 +6118,16 @@ limitations under the License.
 ### @babel/plugin-transform-named-capturing-groups-regex 7.16.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-named-capturing-groups-regex@7.16.8
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-named-capturing-groups-regex@7.16.8
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-named-capturing-groups-regex-7-29-7"></a>
+
+### @babel/plugin-transform-named-capturing-groups-regex 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-named-capturing-groups-regex@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5179,7 +6136,43 @@ limitations under the License.
 ### @babel/plugin-transform-new-target 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-new-target@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-new-target@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-new-target-7-29-7"></a>
+
+### @babel/plugin-transform-new-target 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-new-target@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-nullish-coalescing-operator-7-29-7"></a>
+
+### @babel/plugin-transform-nullish-coalescing-operator 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-nullish-coalescing-operator@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-numeric-separator-7-29-7"></a>
+
+### @babel/plugin-transform-numeric-separator 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-numeric-separator@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-object-rest-spread-7-29-7"></a>
+
+### @babel/plugin-transform-object-rest-spread 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-object-rest-spread@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5188,7 +6181,34 @@ limitations under the License.
 ### @babel/plugin-transform-object-super 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-object-super@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-object-super@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-object-super-7-29-7"></a>
+
+### @babel/plugin-transform-object-super 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-object-super@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-optional-catch-binding-7-29-7"></a>
+
+### @babel/plugin-transform-optional-catch-binding 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-optional-catch-binding@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-optional-chaining-7-29-7"></a>
+
+### @babel/plugin-transform-optional-chaining 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-optional-chaining@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5197,7 +6217,34 @@ limitations under the License.
 ### @babel/plugin-transform-parameters 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-parameters@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-parameters@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-parameters-7-29-7"></a>
+
+### @babel/plugin-transform-parameters 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-parameters@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-private-methods-7-29-7"></a>
+
+### @babel/plugin-transform-private-methods 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-private-methods@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-private-property-in-object-7-29-7"></a>
+
+### @babel/plugin-transform-private-property-in-object 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-private-property-in-object@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5206,7 +6253,16 @@ limitations under the License.
 ### @babel/plugin-transform-property-literals 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-property-literals@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-property-literals@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-property-literals-7-29-7"></a>
+
+### @babel/plugin-transform-property-literals 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-property-literals@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5215,7 +6271,25 @@ limitations under the License.
 ### @babel/plugin-transform-regenerator 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-regenerator@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-regenerator@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-regenerator-7-29-8"></a>
+
+### @babel/plugin-transform-regenerator 7.29.8
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-regenerator@7.29.8
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 180](#license-text-180)
+
+<a id="npm-babel-plugin-transform-regexp-modifiers-7-29-7"></a>
+
+### @babel/plugin-transform-regexp-modifiers 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-regexp-modifiers@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5224,7 +6298,16 @@ limitations under the License.
 ### @babel/plugin-transform-reserved-words 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-reserved-words@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-reserved-words@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-reserved-words-7-29-7"></a>
+
+### @babel/plugin-transform-reserved-words 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-reserved-words@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5233,7 +6316,16 @@ limitations under the License.
 ### @babel/plugin-transform-runtime 7.13.10
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-runtime-7-29-7"></a>
+
+### @babel/plugin-transform-runtime 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-runtime@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-transform-shorthand-properties-7-16-7"></a>
@@ -5241,7 +6333,16 @@ limitations under the License.
 ### @babel/plugin-transform-shorthand-properties 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-shorthand-properties@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-shorthand-properties@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-shorthand-properties-7-29-7"></a>
+
+### @babel/plugin-transform-shorthand-properties 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-shorthand-properties@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5250,7 +6351,16 @@ limitations under the License.
 ### @babel/plugin-transform-spread 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-spread@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-spread@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-spread-7-29-8"></a>
+
+### @babel/plugin-transform-spread 7.29.8
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-spread@7.29.8
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5259,7 +6369,16 @@ limitations under the License.
 ### @babel/plugin-transform-sticky-regex 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-sticky-regex@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-sticky-regex@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-sticky-regex-7-29-7"></a>
+
+### @babel/plugin-transform-sticky-regex 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-sticky-regex@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5268,7 +6387,16 @@ limitations under the License.
 ### @babel/plugin-transform-template-literals 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-template-literals@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-template-literals@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-template-literals-7-29-7"></a>
+
+### @babel/plugin-transform-template-literals 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-template-literals@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5277,7 +6405,16 @@ limitations under the License.
 ### @babel/plugin-transform-typeof-symbol 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-typeof-symbol@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-typeof-symbol@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-typeof-symbol-7-29-7"></a>
+
+### @babel/plugin-transform-typeof-symbol 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-typeof-symbol@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5286,7 +6423,16 @@ limitations under the License.
 ### @babel/plugin-transform-typescript 7.13.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-typescript@7.13.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-typescript@7.13.0
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-typescript-7-29-9"></a>
+
+### @babel/plugin-transform-typescript 7.29.9
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-typescript@7.29.9
+- Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-transform-typescript-7-5-5"></a>
@@ -5294,7 +6440,7 @@ limitations under the License.
 ### @babel/plugin-transform-typescript 7.5.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; @babel/plugin-transform-typescript@7.5.5
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; @babel/plugin-transform-typescript@7.5.5
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-plugin-transform-unicode-escapes-7-16-7"></a>
@@ -5302,7 +6448,25 @@ limitations under the License.
 ### @babel/plugin-transform-unicode-escapes 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-unicode-escapes@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-unicode-escapes@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-unicode-escapes-7-29-7"></a>
+
+### @babel/plugin-transform-unicode-escapes 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-unicode-escapes@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-unicode-property-regex-7-29-7"></a>
+
+### @babel/plugin-transform-unicode-property-regex 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-unicode-property-regex@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5311,7 +6475,25 @@ limitations under the License.
 ### @babel/plugin-transform-unicode-regex 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-unicode-regex@7.16.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-unicode-regex@7.16.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-unicode-regex-7-29-7"></a>
+
+### @babel/plugin-transform-unicode-regex 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-unicode-regex@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-plugin-transform-unicode-sets-regex-7-29-7"></a>
+
+### @babel/plugin-transform-unicode-sets-regex 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-transform-unicode-sets-regex@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5320,7 +6502,7 @@ limitations under the License.
 ### @babel/polyfill 7.12.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/polyfill@7.12.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/polyfill@7.12.1
 - Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5329,7 +6511,16 @@ limitations under the License.
 ### @babel/preset-env 7.16.11
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-preset-env-7-29-7"></a>
+
+### @babel/preset-env 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5338,15 +6529,23 @@ limitations under the License.
 ### @babel/preset-modules 0.1.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/preset-modules@0.1.5
-- `LICENSE`: [license text 179](#license-text-179)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/preset-modules@0.1.5
+- `LICENSE`: [license text 181](#license-text-181)
+
+<a id="npm-babel-preset-modules-0-1-6-no-external-plugins"></a>
+
+### @babel/preset-modules 0.1.6-no-external-plugins
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/preset-modules@0.1.6-no-external-plugins
+- `LICENSE`: [license text 181](#license-text-181)
 
 <a id="npm-babel-runtime-7-12-18"></a>
 
 ### @babel/runtime 7.12.18
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/runtime@7.12.18
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/runtime@7.12.18
 - Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5355,7 +6554,7 @@ limitations under the License.
 ### @babel/runtime 7.17.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-regenerator@7.16.7 &gt; regenerator-transform@0.14.5 &gt; @babel/runtime@7.17.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-regenerator@7.16.7 &gt; regenerator-transform@0.14.5 &gt; @babel/runtime@7.17.2
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5364,7 +6563,16 @@ limitations under the License.
 ### @babel/runtime 7.22.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; ember-resources@5.6.4 &gt; @babel/runtime@7.22.5
+- Required through: ember-stargate@0.5.0 &gt; ember-resources@6.5.2 &gt; @babel/runtime@7.22.5
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-runtime-7-29-10"></a>
+
+### @babel/runtime 7.29.10
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; @babel/runtime@7.29.10
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5373,7 +6581,7 @@ limitations under the License.
 ### @babel/template 7.12.13
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/template@7.12.13
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/template@7.12.13
 - Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5382,8 +6590,26 @@ limitations under the License.
 ### @babel/template 7.16.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/template@7.16.7
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/template@7.16.7
 - Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-template-7-29-7"></a>
+
+### @babel/template 7.29.7
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/template@7.29.7
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-traverse-7-12-12"></a>
+
+### @babel/traverse 7.12.12
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; ember-router-generator@2.0.0 &gt; @babel/traverse@7.12.12
+- Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-traverse-7-13-0"></a>
@@ -5391,7 +6617,7 @@ limitations under the License.
 ### @babel/traverse 7.13.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/traverse@7.13.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/traverse@7.13.0
 - Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5400,8 +6626,26 @@ limitations under the License.
 ### @babel/traverse 7.17.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3
 - Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-traverse-7-29-10"></a>
+
+### @babel/traverse 7.29.10
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/traverse@7.29.10
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-types-7-12-12"></a>
+
+### @babel/types 7.12.12
+
+- License: MIT
+- Required through: ember-classic-decorator@4.0.0 &gt; babel-plugin-filter-imports@4.0.0 &gt; @babel/types@7.12.12
+- Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
 <a id="npm-babel-types-7-13-12"></a>
@@ -5409,7 +6653,7 @@ limitations under the License.
 ### @babel/types 7.13.12
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; @babel/helper-module-transforms@7.13.12 &gt; @babel/types@7.13.12
+- Required through: ember-concurrency@4.0.6 &gt; @babel/types@7.13.12
 - Author: Sebastian McKenzie &lt;sebmck@gmail.com&gt;
 - `LICENSE`: [license text 176](#license-text-176)
 
@@ -5418,36 +6662,160 @@ limitations under the License.
 ### @babel/types 7.17.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/types@7.17.0
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/types@7.17.0
 - Author: The Babel Team (https://babel.dev/team)
 - `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-babel-types-7-29-8"></a>
+
+### @babel/types 7.29.8
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/types@7.29.8
+- Author: The Babel Team (https://babel.dev/team)
+- `LICENSE`: [license text 176](#license-text-176)
+
+<a id="npm-ember-data-adapter-4-12-8"></a>
+
+### @ember-data/adapter 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/adapter@4.12.8
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-data-debug-4-12-8"></a>
+
+### @ember-data/debug 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/debug@4.12.8
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-data-graph-4-12-8"></a>
+
+### @ember-data/graph 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/graph@4.12.8
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-data-json-api-4-12-8"></a>
+
+### @ember-data/json-api 4.12.8
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-data-legacy-compat-4-12-8"></a>
+
+### @ember-data/legacy-compat 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/legacy-compat@4.12.8
+- Author: Chris Thoburn &lt;runspired@users.noreply.github.com&gt;
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-data-model-4-12-8"></a>
+
+### @ember-data/model 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/model@4.12.8
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-data-private-build-infra-4-12-8"></a>
+
+### @ember-data/private-build-infra 4.12.8
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-data-request-4-12-8"></a>
+
+### @ember-data/request 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/request@4.12.8
+- Author: Chris Thoburn &lt;runspired@users.noreply.github.com&gt;
+- `LICENSE.md`: [license text 182](#license-text-182)
 
 <a id="npm-ember-data-rfc395-data-0-0-4"></a>
 
 ### @ember-data/rfc395-data 0.0.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-ember-data-packages-polyfill@0.1.2 &gt; @ember-data/rfc395-data@0.0.4
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-ember-data-packages-polyfill@0.1.2 &gt; @ember-data/rfc395-data@0.0.4
 - Author: Cyrille David &lt;dcyriller@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-ember-data-serializer-4-12-8"></a>
+
+### @ember-data/serializer 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/serializer@4.12.8
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-data-store-4-12-8"></a>
+
+### @ember-data/store 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/store@4.12.8
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-data-tracking-4-12-8"></a>
+
+### @ember-data/tracking 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/tracking@4.12.8
+- Author: Chris Thoburn &lt;runspired@users.noreply.github.com&gt;
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-decorators-component-6-1-1"></a>
+
+### @ember-decorators/component 6.1.1
+
+- License: MIT
+- Required through: ember-decorators@6.1.1 &gt; @ember-decorators/component@6.1.1
+- `LICENSE.md`: [license text 183](#license-text-183)
+
+<a id="npm-ember-decorators-object-6-1-1"></a>
+
+### @ember-decorators/object 6.1.1
+
+- License: MIT
+- Required through: ember-decorators@6.1.1 &gt; @ember-decorators/object@6.1.1
+- `LICENSE.md`: [license text 183](#license-text-183)
+
+<a id="npm-ember-decorators-utils-6-1-1"></a>
+
+### @ember-decorators/utils 6.1.1
+
+- License: MIT
+- Required through: ember-decorators@6.1.1 &gt; @ember-decorators/component@6.1.1 &gt; @ember-decorators/utils@6.1.1
+- `LICENSE.md`: [license text 183](#license-text-183)
 
 <a id="npm-ember-edition-utils-1-2-0"></a>
 
 ### @ember/edition-utils 1.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; @ember/edition-utils@1.2.0
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember/edition-utils@1.2.0
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
-- `LICENSE`: [license text 180](#license-text-180)
+- `LICENSE`: [license text 184](#license-text-184)
 
 <a id="npm-ember-render-modifiers-2-0-4"></a>
 
 ### @ember/render-modifiers 2.0.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @ember/render-modifiers@2.0.4
+- Required through: ember-stargate@0.5.0 &gt; @ember/render-modifiers@2.0.4
 - Author: Robert Jackson &lt;me@rwjblue&gt;
-- `LICENSE.md`: [license text 181](#license-text-181)
+- `LICENSE.md`: [license text 185](#license-text-185)
 
 <a id="npm-ember-render-modifiers-2-1-0"></a>
 
@@ -5456,7 +6824,32 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0
 - Author: Robert Jackson &lt;me@rwjblue&gt;
-- `LICENSE.md`: [license text 181](#license-text-181)
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-render-modifiers-3-0-0"></a>
+
+### @ember/render-modifiers 3.0.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0
+- Author: Robert Jackson &lt;me@rwjblue&gt;
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-string-3-1-1"></a>
+
+### @ember/string 3.1.1
+
+- License: MIT
+- Required through: @ember/string@3.1.1
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-test-waiters-3-0-0"></a>
+
+### @ember/test-waiters 3.0.0
+
+- License: MIT
+- Required through: ember-stargate@0.5.0 &gt; ember-resources@6.5.2 &gt; ember-async-data@1.0.3 &gt; @ember/test-waiters@3.0.0
+- `LICENSE.md`: [license text 185](#license-text-185)
 
 <a id="npm-ember-test-waiters-3-0-2"></a>
 
@@ -5464,14 +6857,30 @@ limitations under the License.
 
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2
-- `LICENSE.md`: [license text 181](#license-text-181)
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-test-waiters-3-1-0"></a>
+
+### @ember/test-waiters 3.1.0
+
+- License: MIT
+- Required through: @ember/test-waiters@3.1.0
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-embroider-addon-shim-1-10-3"></a>
+
+### @embroider/addon-shim 1.10.3
+
+- License: MIT
+- Required through: @nullvoxpopuli/ember-composable-helpers@5.3.2 &gt; @embroider/addon-shim@1.10.3
+- `LICENSE`: [license text 186](#license-text-186)
 
 <a id="npm-embroider-addon-shim-1-5-0"></a>
 
 ### @embroider/addon-shim 1.5.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-focus-trap@1.1.0 &gt; @embroider/addon-shim@1.5.0
+- Required through: ember-cli-flash@5.1.0 &gt; @embroider/addon-shim@1.5.0
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-embroider-addon-shim-1-8-4"></a>
@@ -5487,7 +6896,7 @@ limitations under the License.
 ### @embroider/macros 1.10.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; @embroider/macros@1.10.0
+- Required through: ember-cli-clipboard@1.3.0 &gt; ember-arg-types@1.0.0 &gt; @embroider/macros@1.10.0
 - Author: Edward Faulkner
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -5496,9 +6905,27 @@ limitations under the License.
 ### @embroider/macros 1.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; @embroider/macros@1.2.0
 - Author: Edward Faulkner
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-embroider-macros-1-20-7"></a>
+
+### @embroider/macros 1.20.7
+
+- License: MIT
+- Required through: @embroider/macros@1.20.7
+- Author: Edward Faulkner
+- `LICENSE`: [license text 186](#license-text-186)
+
+<a id="npm-embroider-macros-1-21-3"></a>
+
+### @embroider/macros 1.21.3
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @embroider/macros@1.21.3
+- Author: Edward Faulkner
+- `LICENSE`: [license text 186](#license-text-186)
 
 <a id="npm-embroider-macros-1-5-0"></a>
 
@@ -5509,12 +6936,20 @@ limitations under the License.
 - Author: Edward Faulkner
 - The package contains no license file; the license is the one declared in its package.json.
 
+<a id="npm-embroider-reverse-exports-0-2-0"></a>
+
+### @embroider/reverse-exports 0.2.0
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @embroider/reverse-exports@0.2.0
+- `LICENSE`: [license text 186](#license-text-186)
+
 <a id="npm-embroider-shared-internals-1-0-0"></a>
 
 ### @embroider/shared-internals 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @embroider/shared-internals@1.0.0
+- Required through: legacy UI: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @embroider/shared-internals@1.0.0
 - Author: Edward Faulkner
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -5523,7 +6958,7 @@ limitations under the License.
 ### @embroider/shared-internals 1.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; @embroider/shared-internals@1.2.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; @embroider/macros@1.2.0 &gt; @embroider/shared-internals@1.2.0
 - Author: Edward Faulkner
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -5532,7 +6967,7 @@ limitations under the License.
 ### @embroider/shared-internals 1.5.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-focus-trap@1.1.0 &gt; @embroider/addon-shim@1.5.0 &gt; @embroider/shared-internals@1.5.0
+- Required through: ember-cli-flash@5.1.0 &gt; @embroider/addon-shim@1.5.0 &gt; @embroider/shared-internals@1.5.0
 - Author: Edward Faulkner
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -5541,33 +6976,66 @@ limitations under the License.
 ### @embroider/shared-internals 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-keyboard@8.2.1 &gt; @embroider/addon-shim@1.8.4 &gt; @embroider/shared-internals@2.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @embroider/shared-internals@2.0.0
 - Author: Edward Faulkner
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-embroider-shared-internals-3-2-0"></a>
+
+### @embroider/shared-internals 3.2.0
+
+- License: MIT
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0
+- Author: Edward Faulkner
+- `LICENSE`: [license text 186](#license-text-186)
+
+<a id="npm-embroider-util-1-13-5"></a>
+
+### @embroider/util 1.13.5
+
+- License: MIT
+- Required through: ember-basic-dropdown@8.11.1 &gt; @embroider/util@1.13.5
+- `LICENSE.md`: [license text 187](#license-text-187)
 
 <a id="npm-glimmer-component-1-1-2"></a>
 
 ### @glimmer/component 1.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2
-- `LICENSE`: [license text 182](#license-text-182)
+- Required through: @glimmer/component@1.1.2
+- `LICENSE`: [license text 188](#license-text-188)
 
 <a id="npm-glimmer-di-0-1-11"></a>
 
 ### @glimmer/di 0.1.11
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; @glimmer/di@0.1.11
-- `LICENSE`: [license text 183](#license-text-183)
+- Required through: @glimmer/component@1.1.2 &gt; @glimmer/di@0.1.11
+- `LICENSE`: [license text 189](#license-text-189)
 
 <a id="npm-glimmer-env-0-1-7"></a>
 
 ### @glimmer/env 0.1.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cached-decorator-polyfill@0.1.4 &gt; @glimmer/tracking@1.0.4 &gt; @glimmer/env@0.1.7
-- `LICENSE`: [license text 184](#license-text-184)
+- Required through: @glimmer/component@1.1.2 &gt; @glimmer/env@0.1.7
+- `LICENSE`: [license text 190](#license-text-190)
+
+<a id="npm-glimmer-interfaces-0-94-6"></a>
+
+### @glimmer/interfaces 0.94.6
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-ember-template-compilation@2.4.1 &gt; @glimmer/syntax@0.95.0 &gt; @glimmer/interfaces@0.94.6
+- `LICENSE`: [license text 188](#license-text-188)
+
+<a id="npm-glimmer-syntax-0-95-0"></a>
+
+### @glimmer/syntax 0.95.0
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-ember-template-compilation@2.4.1 &gt; @glimmer/syntax@0.95.0
+- `LICENSE`: [license text 188](#license-text-188)
 
 <a id="npm-glimmer-tracking-1-0-4"></a>
 
@@ -5575,23 +7043,55 @@ limitations under the License.
 
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cached-decorator-polyfill@0.1.4 &gt; @glimmer/tracking@1.0.4
-- `LICENSE`: [license text 182](#license-text-182)
+- `LICENSE`: [license text 188](#license-text-188)
+
+<a id="npm-glimmer-tracking-1-1-2"></a>
+
+### @glimmer/tracking 1.1.2
+
+- License: MIT
+- Required through: @glimmer/tracking@1.1.2
+- `LICENSE`: [license text 188](#license-text-188)
 
 <a id="npm-glimmer-util-0-44-0"></a>
 
 ### @glimmer/util 0.44.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; @glimmer/util@0.44.0
-- `LICENSE`: [license text 182](#license-text-182)
+- Required through: @glimmer/component@1.1.2 &gt; @glimmer/util@0.44.0
+- `LICENSE`: [license text 188](#license-text-188)
+
+<a id="npm-glimmer-util-0-94-8"></a>
+
+### @glimmer/util 0.94.8
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-ember-template-compilation@2.4.1 &gt; @glimmer/syntax@0.95.0 &gt; @glimmer/util@0.94.8
+- `LICENSE`: [license text 188](#license-text-188)
 
 <a id="npm-glimmer-validator-0-44-0"></a>
 
 ### @glimmer/validator 0.44.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cached-decorator-polyfill@0.1.4 &gt; @glimmer/tracking@1.0.4 &gt; @glimmer/validator@0.44.0
-- `LICENSE`: [license text 182](#license-text-182)
+- Required through: @glimmer/tracking@1.1.2 &gt; @glimmer/validator@0.44.0
+- `LICENSE`: [license text 188](#license-text-188)
+
+<a id="npm-glimmer-wire-format-0-94-8"></a>
+
+### @glimmer/wire-format 0.94.8
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-ember-template-compilation@2.4.1 &gt; @glimmer/syntax@0.95.0 &gt; @glimmer/wire-format@0.94.8
+- `LICENSE`: [license text 188](#license-text-188)
+
+<a id="npm-handlebars-parser-2-2-4"></a>
+
+### @handlebars/parser 2.2.4
+
+- License: ISC
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-ember-template-compilation@2.4.1 &gt; @glimmer/syntax@0.95.0 &gt; @handlebars/parser@2.2.4
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-hashicorp-design-system-components-2-12-0"></a>
 
@@ -5600,7 +7100,7 @@ limitations under the License.
 - License: MPL-2.0
 - Required through: @hashicorp/design-system-components@2.12.0
 - Author: HashiCorp Design Systems &lt;design-systems@hashicorp.com&gt;
-- `LICENSE.md`: [license text 185](#license-text-185)
+- `LICENSE.md`: [license text 191](#license-text-191)
 
 <a id="npm-hashicorp-design-system-tokens-1-8-0"></a>
 
@@ -5609,7 +7109,7 @@ limitations under the License.
 - License: MPL-2.0
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; @hashicorp/design-system-tokens@1.8.0
 - Author: HashiCorp Design Systems &lt;design-systems@hashicorp.com&gt;
-- `LICENSE.md`: [license text 185](#license-text-185)
+- `LICENSE.md`: [license text 191](#license-text-191)
 
 <a id="npm-hashicorp-ember-flight-icons-3-0-4"></a>
 
@@ -5618,7 +7118,7 @@ limitations under the License.
 - License: MPL-2.0
 - Required through: @hashicorp/ember-flight-icons@3.0.4
 - Author: HashiCorp Design Systems &lt;design-systems@hashicorp.com&gt;
-- `LICENSE.md`: [license text 185](#license-text-185)
+- `LICENSE.md`: [license text 191](#license-text-191)
 
 <a id="npm-hashicorp-ember-flight-icons-3-1-2"></a>
 
@@ -5627,7 +7127,7 @@ limitations under the License.
 - License: MPL-2.0
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; @hashicorp/ember-flight-icons@3.1.2
 - Author: HashiCorp Design Systems &lt;design-systems@hashicorp.com&gt;
-- `LICENSE.md`: [license text 185](#license-text-185)
+- `LICENSE.md`: [license text 191](#license-text-191)
 
 <a id="npm-hashicorp-flight-icons-2-13-0"></a>
 
@@ -5636,7 +7136,7 @@ limitations under the License.
 - License: MPL-2.0
 - Required through: @hashicorp/ember-flight-icons@3.0.4 &gt; @hashicorp/flight-icons@2.13.0
 - Author: HashiCorp Design Systems &lt;design-systems@hashicorp.com&gt;
-- `LICENSE.md`: [license text 185](#license-text-185)
+- `LICENSE.md`: [license text 191](#license-text-191)
 
 <a id="npm-hashicorp-flight-icons-2-19-0"></a>
 
@@ -5645,321 +7145,454 @@ limitations under the License.
 - License: MPL-2.0
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; @hashicorp/ember-flight-icons@3.1.2 &gt; @hashicorp/flight-icons@2.19.0
 - Author: HashiCorp Design Systems &lt;design-systems@hashicorp.com&gt;
-- `LICENSE.md`: [license text 185](#license-text-185)
+- `LICENSE.md`: [license text 191](#license-text-191)
+
+<a id="npm-hashicorp-structure-icons-1-9-2"></a>
+
+### @hashicorp/structure-icons 1.9.2
+
+- License: MPL-2.0
+- Required through: @hashicorp/structure-icons@1.9.2
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-jridgewell-gen-mapping-0-3-13"></a>
+
+### @jridgewell/gen-mapping 0.3.13
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/generator@7.29.8 &gt; @jridgewell/gen-mapping@0.3.13
+- Author: Justin Ridgewell &lt;justin@ridgewell.name&gt;
+- `LICENSE`: [license text 192](#license-text-192)
+
+<a id="npm-jridgewell-remapping-2-3-5"></a>
+
+### @jridgewell/remapping 2.3.5
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @jridgewell/remapping@2.3.5
+- Author: Justin Ridgewell &lt;justin@ridgewell.name&gt;
+- `LICENSE`: [license text 192](#license-text-192)
 
 <a id="npm-jridgewell-resolve-uri-3-0-5"></a>
 
 ### @jridgewell/resolve-uri 3.0.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @ampproject/remapping@2.1.2 &gt; @jridgewell/trace-mapping@0.3.4 &gt; @jridgewell/resolve-uri@3.0.5
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @ampproject/remapping@2.1.2 &gt; @jridgewell/trace-mapping@0.3.4 &gt; @jridgewell/resolve-uri@3.0.5
 - Author: Justin Ridgewell &lt;justin@ridgewell.name&gt;
-- `LICENSE`: [license text 186](#license-text-186)
+- `LICENSE`: [license text 193](#license-text-193)
+
+<a id="npm-jridgewell-resolve-uri-3-1-2"></a>
+
+### @jridgewell/resolve-uri 3.1.2
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/generator@7.29.8 &gt; @jridgewell/trace-mapping@0.3.31 &gt; @jridgewell/resolve-uri@3.1.2
+- Author: Justin Ridgewell &lt;justin@ridgewell.name&gt;
+- `LICENSE`: [license text 193](#license-text-193)
 
 <a id="npm-jridgewell-sourcemap-codec-1-4-11"></a>
 
 ### @jridgewell/sourcemap-codec 1.4.11
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @ampproject/remapping@2.1.2 &gt; @jridgewell/trace-mapping@0.3.4 &gt; @jridgewell/sourcemap-codec@1.4.11
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @ampproject/remapping@2.1.2 &gt; @jridgewell/trace-mapping@0.3.4 &gt; @jridgewell/sourcemap-codec@1.4.11
 - Author: Rich Harris
-- `LICENSE`: [license text 187](#license-text-187)
+- `LICENSE`: [license text 194](#license-text-194)
+
+<a id="npm-jridgewell-sourcemap-codec-1-6-0"></a>
+
+### @jridgewell/sourcemap-codec 1.6.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/generator@7.29.8 &gt; @jridgewell/gen-mapping@0.3.13 &gt; @jridgewell/sourcemap-codec@1.6.0
+- Author: Justin Ridgewell &lt;justin@ridgewell.name&gt;
+- `LICENSE`: [license text 192](#license-text-192)
+
+<a id="npm-jridgewell-trace-mapping-0-3-31"></a>
+
+### @jridgewell/trace-mapping 0.3.31
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/generator@7.29.8 &gt; @jridgewell/trace-mapping@0.3.31
+- Author: Justin Ridgewell &lt;justin@ridgewell.name&gt;
+- `LICENSE`: [license text 192](#license-text-192)
 
 <a id="npm-jridgewell-trace-mapping-0-3-4"></a>
 
 ### @jridgewell/trace-mapping 0.3.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @ampproject/remapping@2.1.2 &gt; @jridgewell/trace-mapping@0.3.4
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @ampproject/remapping@2.1.2 &gt; @jridgewell/trace-mapping@0.3.4
 - Author: Justin Ridgewell &lt;justin@ridgewell.name&gt;
-- `LICENSE`: [license text 188](#license-text-188)
+- `LICENSE`: [license text 195](#license-text-195)
 
 <a id="npm-nodelib-fs-scandir-2-1-4"></a>
 
 ### @nodelib/fs.scandir 2.1.4
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6 &gt; @nodelib/fs.scandir@2.1.4
-- `LICENSE`: [license text 189](#license-text-189)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6 &gt; @nodelib/fs.scandir@2.1.4
+- `LICENSE`: [license text 196](#license-text-196)
 
 <a id="npm-nodelib-fs-stat-2-0-4"></a>
 
 ### @nodelib/fs.stat 2.0.4
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.stat@2.0.4
-- `LICENSE`: [license text 189](#license-text-189)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.stat@2.0.4
+- `LICENSE`: [license text 196](#license-text-196)
 
 <a id="npm-nodelib-fs-walk-1-2-6"></a>
 
 ### @nodelib/fs.walk 1.2.6
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6
-- `LICENSE`: [license text 189](#license-text-189)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6
+- `LICENSE`: [license text 196](#license-text-196)
+
+<a id="npm-nullvoxpopuli-ember-composable-helpers-5-3-2"></a>
+
+### @nullvoxpopuli/ember-composable-helpers 5.3.2
+
+- License: MIT
+- Required through: @nullvoxpopuli/ember-composable-helpers@5.3.2
+- Author: The Ember Community
+- `LICENSE.md`: [license text 197](#license-text-197)
 
 <a id="npm-percy-cli-build-1-6-1"></a>
 
 ### @percy/cli-build 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-build@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-build@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-cli-command-1-6-1"></a>
 
 ### @percy/cli-command 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-cli-config-1-6-1"></a>
 
 ### @percy/cli-config 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-config@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-config@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-cli-exec-1-6-1"></a>
 
 ### @percy/cli-exec 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-exec@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-exec@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-cli-snapshot-1-6-1"></a>
 
 ### @percy/cli-snapshot 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-snapshot@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-snapshot@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-cli-upload-1-6-1"></a>
 
 ### @percy/cli-upload 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-cli-1-6-1"></a>
 
 ### @percy/cli 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-client-1-6-1"></a>
 
 ### @percy/client 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/client@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/client@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-config-1-6-1"></a>
 
 ### @percy/config 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-core-1-6-1"></a>
 
 ### @percy/core 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-dom-1-6-1"></a>
 
 ### @percy/dom 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; @percy/dom@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; @percy/dom@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-ember-3-0-0"></a>
 
 ### @percy/ember 3.0.0
 
 - License: MIT
-- Required through: @percy/ember@3.0.0
+- Required through: legacy UI: @percy/ember@3.0.0
 - Author: Perceptual Inc.
-- `LICENSE`: [license text 191](#license-text-191)
+- `LICENSE`: [license text 199](#license-text-199)
 
 <a id="npm-percy-env-1-6-1"></a>
 
 ### @percy/env 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/client@1.6.1 &gt; @percy/env@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/client@1.6.1 &gt; @percy/env@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-logger-1-1-0"></a>
 
 ### @percy/logger 1.1.0
 
 - License: MIT
-- Required through: @percy/ember@3.0.0 &gt; @percy/sdk-utils@1.1.0 &gt; @percy/logger@1.1.0
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/ember@3.0.0 &gt; @percy/sdk-utils@1.1.0 &gt; @percy/logger@1.1.0
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-logger-1-6-1"></a>
 
 ### @percy/logger 1.6.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/logger@1.6.1
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/logger@1.6.1
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-percy-sdk-utils-1-1-0"></a>
 
 ### @percy/sdk-utils 1.1.0
 
 - License: MIT
-- Required through: @percy/ember@3.0.0 &gt; @percy/sdk-utils@1.1.0
-- `LICENSE`: [license text 190](#license-text-190)
+- Required through: legacy UI: @percy/ember@3.0.0 &gt; @percy/sdk-utils@1.1.0
+- `LICENSE`: [license text 198](#license-text-198)
 
 <a id="npm-popperjs-core-2-11-8"></a>
 
 ### @popperjs/core 2.11.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; tippy.js@6.3.7 &gt; @popperjs/core@2.11.8
+- Required through: @popperjs/core@2.11.8
 - Author: Federico Zivolo &lt;federico.zivolo@gmail.com&gt;
-- `LICENSE.md`: [license text 192](#license-text-192)
+- `LICENSE.md`: [license text 200](#license-text-200)
+
+<a id="npm-simple-dom-document-1-4-0"></a>
+
+### @simple-dom/document 1.4.0
+
+- License: MIT
+- Required through: ember-page-title@8.2.4 &gt; @simple-dom/document@1.4.0
+- Author: Kris Selden
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-simple-dom-interface-1-4-0"></a>
+
+### @simple-dom/interface 1.4.0
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; @simple-dom/interface@1.4.0
+- Author: Kris Selden
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-tabler-core-1-6-1"></a>
+
+### @tabler/core 1.6.1
+
+- License: MIT
+- Required through: @tabler/core@1.6.1
+- Author: codecalm
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-types-broccoli-plugin-3-0-4"></a>
+
+### @types/broccoli-plugin 3.0.4
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; broccoli-rollup@5.0.0 &gt; @types/broccoli-plugin@3.0.4
+- `LICENSE`: [license text 201](#license-text-201)
 
 <a id="npm-types-fs-extra-5-1-0"></a>
 
 ### @types/fs-extra 5.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; @types/fs-extra@5.1.0
-- `LICENSE`: [license text 193](#license-text-193)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; @types/fs-extra@5.1.0
+- `LICENSE`: [license text 202](#license-text-202)
 
 <a id="npm-types-glob-7-2-0"></a>
 
 ### @types/glob 7.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; @types/rimraf@2.0.5 &gt; @types/glob@7.2.0
-- `LICENSE`: [license text 194](#license-text-194)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; @types/rimraf@2.0.5 &gt; @types/glob@7.2.0
+- `LICENSE`: [license text 201](#license-text-201)
 
 <a id="npm-types-json-schema-7-0-9"></a>
 
 ### @types/json-schema 7.0.9
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; @types/json-schema@7.0.9
-- `LICENSE`: [license text 194](#license-text-194)
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; @types/json-schema@7.0.9
+- `LICENSE`: [license text 201](#license-text-201)
 
 <a id="npm-types-minimatch-3-0-5"></a>
 
 ### @types/minimatch 3.0.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; walk-sync@3.0.0 &gt; @types/minimatch@3.0.5
-- `LICENSE`: [license text 194](#license-text-194)
+- Required through: ember-inline-svg@1.0.1 &gt; walk-sync@2.0.2 &gt; @types/minimatch@3.0.5
+- `LICENSE`: [license text 201](#license-text-201)
 
 <a id="npm-types-node-17-0-21"></a>
 
 ### @types/node 17.0.21
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; @types/fs-extra@5.1.0 &gt; @types/node@17.0.21
-- `LICENSE`: [license text 194](#license-text-194)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; @types/fs-extra@5.1.0 &gt; @types/node@17.0.21
+- `LICENSE`: [license text 201](#license-text-201)
 
 <a id="npm-types-parse-json-4-0-0"></a>
 
 ### @types/parse-json 4.0.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; @types/parse-json@4.0.0
-- `LICENSE`: [license text 193](#license-text-193)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; @types/parse-json@4.0.0
+- `LICENSE`: [license text 202](#license-text-202)
+
+<a id="npm-types-q-1-5-4"></a>
+
+### @types/q 1.5.4
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; coa@2.0.2 &gt; @types/q@1.5.4
+- `LICENSE`: [license text 201](#license-text-201)
 
 <a id="npm-types-rimraf-2-0-5"></a>
 
 ### @types/rimraf 2.0.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; @types/rimraf@2.0.5
-- `LICENSE`: [license text 194](#license-text-194)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; @types/rimraf@2.0.5
+- `LICENSE`: [license text 201](#license-text-201)
 
 <a id="npm-types-symlink-or-copy-1-2-0"></a>
 
 ### @types/symlink-or-copy 1.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; fs-tree-diff@2.0.1 &gt; @types/symlink-or-copy@1.2.0
-- `LICENSE`: [license text 193](#license-text-193)
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; fs-tree-diff@2.0.1 &gt; @types/symlink-or-copy@1.2.0
+- `LICENSE`: [license text 202](#license-text-202)
 
 <a id="npm-types-yauzl-2-10-0"></a>
 
 ### @types/yauzl 2.10.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; @types/yauzl@2.10.0
-- `LICENSE`: [license text 194](#license-text-194)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; @types/yauzl@2.10.0
+- `LICENSE`: [license text 201](#license-text-201)
+
+<a id="npm-jsv-4-0-2"></a>
+
+### JSV 4.0.2
+
+- License: BSD-2-Clause (declared: FreeBSD)
+- License decision: package.json declares the non-SPDX value "FreeBSD" (the FreeBSD License); the license text, the BSD 2-clause text (Copyright 2010 Gary Court), is the header of lib/jsv.js. A dependency of the jsonlint command line tool, not part of the UI bundle.
+- Required through: jsonlint@1.6.3 &gt; JSV@4.0.2
+- Author: Gary Court &lt;gary.court@gmail.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-ajv-formats-2-1-1"></a>
 
 ### ajv-formats 2.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; mini-css-extract-plugin@2.5.3 &gt; schema-utils@4.0.0 &gt; ajv-formats@2.1.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; mini-css-extract-plugin@2.5.3 &gt; schema-utils@4.0.0 &gt; ajv-formats@2.1.1
 - Author: Evgeny Poberezkin
-- `LICENSE`: [license text 195](#license-text-195)
+- `LICENSE`: [license text 203](#license-text-203)
 
 <a id="npm-ajv-keywords-3-5-2"></a>
 
 ### ajv-keywords 3.5.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv-keywords@3.5.2
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv-keywords@3.5.2
 - Author: Evgeny Poberezkin
-- `LICENSE`: [license text 196](#license-text-196)
+- `LICENSE`: [license text 204](#license-text-204)
 
 <a id="npm-ajv-keywords-5-1-0"></a>
 
 ### ajv-keywords 5.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; mini-css-extract-plugin@2.5.3 &gt; schema-utils@4.0.0 &gt; ajv-keywords@5.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; mini-css-extract-plugin@2.5.3 &gt; schema-utils@4.0.0 &gt; ajv-keywords@5.1.0
 - Author: Evgeny Poberezkin
-- `LICENSE`: [license text 196](#license-text-196)
+- `LICENSE`: [license text 204](#license-text-204)
 
 <a id="npm-ajv-6-12-6"></a>
 
 ### ajv 6.12.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv@6.12.6
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv@6.12.6
 - Author: Evgeny Poberezkin
-- `LICENSE`: [license text 197](#license-text-197)
+- `LICENSE`: [license text 205](#license-text-205)
 
 <a id="npm-ajv-8-11-0"></a>
 
 ### ajv 8.11.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; ajv@8.11.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; mini-css-extract-plugin@2.5.3 &gt; schema-utils@4.0.0 &gt; ajv@8.11.0
 - Author: Evgeny Poberezkin
-- `LICENSE`: [license text 198](#license-text-198)
+- `LICENSE`: [license text 206](#license-text-206)
 
 <a id="npm-amd-name-resolver-1-3-1"></a>
 
 ### amd-name-resolver 1.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; amd-name-resolver@1.3.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; amd-name-resolver@1.3.1
 - Author: Ember CLI contributors
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-anser-2-1-1"></a>
+
+### anser 2.1.1
+
+- License: MIT
+- Required through: anser@2.1.1
+- Author: Ionică Bizău &lt;bizauionica@gmail.com&gt; (https://ionicabizau.net)
+- `LICENSE`: [license text 207](#license-text-207)
+
+<a id="npm-ansi-styles-1-0-0"></a>
+
+### ansi-styles 1.0.0
+
+- License: MIT
+- Required through: jsonlint@1.6.3 &gt; nomnom@1.8.1 &gt; chalk@0.4.0 &gt; ansi-styles@1.0.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-ansi-styles-3-2-1"></a>
@@ -5967,18 +7600,27 @@ limitations under the License.
 ### ansi-styles 3.2.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7 &gt; @babel/highlight@7.16.10 &gt; chalk@2.4.2 &gt; ansi-styles@3.2.1
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; chalk@2.4.2 &gt; ansi-styles@3.2.1
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-ansi-styles-4-3-0"></a>
+
+### ansi-styles 4.3.0
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; chalk@4.1.0 &gt; ansi-styles@4.3.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-ansi-to-html-0-6-15"></a>
 
 ### ansi-to-html 0.6.15
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; ansi-to-html@0.6.15
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; ansi-to-html@0.6.15
 - Author: Rob Burns &lt;rburns@paiges.net&gt;
-- `LICENSE-MIT.txt`: [license text 200](#license-text-200)
+- `LICENSE-MIT.txt`: [license text 209](#license-text-209)
 
 <a id="npm-anymatch-3-1-2"></a>
 
@@ -5987,32 +7629,49 @@ limitations under the License.
 - License: ISC
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; anymatch@3.1.2
 - Author: Elan Shanker
-- `LICENSE`: [license text 201](#license-text-201)
+- `LICENSE`: [license text 210](#license-text-210)
+
+<a id="npm-argparse-1-0-10"></a>
+
+### argparse 1.0.10
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; js-yaml@3.14.1 &gt; argparse@1.0.10
+- `LICENSE`: [license text 211](#license-text-211)
 
 <a id="npm-array-equal-1-0-0"></a>
 
 ### array-equal 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-funnel@3.0.8 &gt; array-equal@1.0.0
+- Required through: ember-cli-string-helpers@6.1.0 &gt; broccoli-funnel@3.0.3 &gt; array-equal@1.0.0
 - Author: Jonathan Ong &lt;me@jongleberry.com&gt;
-- `LICENSE`: [license text 202](#license-text-202)
+- `LICENSE`: [license text 212](#license-text-212)
 
 <a id="npm-assert-never-1-2-1"></a>
 
 ### assert-never 1.2.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; assert-never@1.2.1
+- Required through: @embroider/macros@1.20.7 &gt; assert-never@1.2.1
 - Author: Daniel Lytkin &lt;dan.lytkin@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-ast-types-0-13-3"></a>
+
+### ast-types 0.13.3
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; ember-router-generator@2.0.0 &gt; recast@0.18.10 &gt; ast-types@0.13.3
+- Author: Ben Newman &lt;bn@cs.stanford.edu&gt;
+- `LICENSE`: [license text 213](#license-text-213)
 
 <a id="npm-async-disk-cache-1-3-5"></a>
 
 ### async-disk-cache 1.3.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0 &gt; broccoli-persistent-filter@2.3.1 &gt; async-disk-cache@1.3.5
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; broccoli-persistent-filter@2.3.1 &gt; async-disk-cache@1.3.5
 - Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -6041,16 +7700,16 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; broccoli-persistent-filter@3.1.2 &gt; async-promise-queue@1.0.5 &gt; async@2.6.3
 - Author: Caolan McMahon
-- `LICENSE`: [license text 203](#license-text-203)
+- `LICENSE`: [license text 214](#license-text-214)
 
 <a id="npm-at-least-node-1-0-0"></a>
 
 ### at-least-node 1.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @embroider/shared-internals@1.0.0 &gt; fs-extra@9.1.0 &gt; at-least-node@1.0.0
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; fs-extra@9.1.0 &gt; at-least-node@1.0.0
 - Author: Ryan Zimmerman &lt;opensrc@ryanzim.com&gt;
-- `LICENSE`: [license text 204](#license-text-204)
+- `LICENSE`: [license text 215](#license-text-215)
 
 <a id="npm-babel-import-util-0-2-0"></a>
 
@@ -6066,7 +7725,7 @@ limitations under the License.
 ### babel-import-util 1.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; babel-import-util@1.1.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; @embroider/macros@1.2.0 &gt; babel-import-util@1.1.0
 - Author: Edward Faulkner &lt;edward@eaf4.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -6075,7 +7734,34 @@ limitations under the License.
 ### babel-import-util 1.3.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; babel-plugin-ember-template-compilation@2.0.3 &gt; babel-import-util@1.3.0
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; babel-import-util@1.3.0
+- Author: Edward Faulkner &lt;edward@eaf4.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-babel-import-util-1-4-1"></a>
+
+### babel-import-util 1.4.1
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/model@4.12.8 &gt; ember-cached-decorator-polyfill@1.0.2 &gt; babel-import-util@1.4.1
+- Author: Edward Faulkner &lt;edward@eaf4.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-babel-import-util-2-1-1"></a>
+
+### babel-import-util 2.1.1
+
+- License: MIT
+- Required through: ember-concurrency@4.0.6 &gt; decorator-transforms@1.2.1 &gt; babel-import-util@2.1.1
+- Author: Edward Faulkner &lt;edward@eaf4.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-babel-import-util-3-0-1"></a>
+
+### babel-import-util 3.0.1
+
+- License: MIT
+- Required through: @embroider/macros@1.20.7 &gt; babel-import-util@3.0.1
 - Author: Edward Faulkner &lt;edward@eaf4.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -6084,16 +7770,16 @@ limitations under the License.
 ### babel-loader 8.2.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3
 - Author: Luis Couto &lt;hello@luiscouto.pt&gt;
-- `LICENSE`: [license text 205](#license-text-205)
+- `LICENSE`: [license text 216](#license-text-216)
 
 <a id="npm-babel-plugin-debug-macros-0-2-0"></a>
 
 ### babel-plugin-debug-macros 0.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; ember-modifier-manager-polyfill@1.2.0 &gt; ember-compatibility-helpers@1.2.2 &gt; babel-plugin-debug-macros@0.2.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-compatibility-helpers@1.2.6 &gt; babel-plugin-debug-macros@0.2.0
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-babel-plugin-debug-macros-0-3-4"></a>
@@ -6101,7 +7787,7 @@ limitations under the License.
 ### babel-plugin-debug-macros 0.3.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-debug-macros@0.3.4
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; babel-plugin-debug-macros@0.3.4
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-babel-plugin-dynamic-import-node-2-3-3"></a>
@@ -6109,27 +7795,27 @@ limitations under the License.
 ### babel-plugin-dynamic-import-node 2.3.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; babel-plugin-dynamic-import-node@2.3.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; babel-plugin-dynamic-import-node@2.3.3
 - Author: Jordan Gensler &lt;jordan.gensler@airbnb.com&gt;
-- `LICENSE`: [license text 206](#license-text-206)
+- `LICENSE`: [license text 217](#license-text-217)
 
 <a id="npm-babel-plugin-ember-data-packages-polyfill-0-1-2"></a>
 
 ### babel-plugin-ember-data-packages-polyfill 0.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-ember-data-packages-polyfill@0.1.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-ember-data-packages-polyfill@0.1.2
 - Author: Chris Thoburn &lt;runspired@gmail.com&gt;
-- `LICENSE`: [license text 207](#license-text-207)
+- `LICENSE`: [license text 218](#license-text-218)
 
 <a id="npm-babel-plugin-ember-modules-api-polyfill-3-5-0"></a>
 
 ### babel-plugin-ember-modules-api-polyfill 3.5.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-ember-modules-api-polyfill@3.5.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-ember-modules-api-polyfill@3.5.0
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
-- `LICENSE`: [license text 207](#license-text-207)
+- `LICENSE`: [license text 218](#license-text-218)
 
 <a id="npm-babel-plugin-ember-template-compilation-1-0-1"></a>
 
@@ -6149,12 +7835,39 @@ limitations under the License.
 - Author: Edward Faulkner &lt;edward@eaf4.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
+<a id="npm-babel-plugin-ember-template-compilation-2-4-1"></a>
+
+### babel-plugin-ember-template-compilation 2.4.1
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-ember-template-compilation@2.4.1
+- Author: Edward Faulkner &lt;edward@eaf4.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-babel-plugin-filter-imports-4-0-0"></a>
+
+### babel-plugin-filter-imports 4.0.0
+
+- License: MIT
+- Required through: ember-classic-decorator@4.0.0 &gt; babel-plugin-filter-imports@4.0.0
+- Author: Martin Muñoz &lt;im.mmun@gmail.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-babel-plugin-htmlbars-inline-precompile-3-2-0"></a>
+
+### babel-plugin-htmlbars-inline-precompile 3.2.0
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; babel-plugin-htmlbars-inline-precompile@3.2.0
+- Author: Clemens Müller &lt;cmueller.418@gmail.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
+
 <a id="npm-babel-plugin-htmlbars-inline-precompile-5-1-0"></a>
 
 ### babel-plugin-htmlbars-inline-precompile 5.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; tracked-maps-and-sets@3.0.2 &gt; ember-tracked-storage-polyfill@1.0.0 &gt; ember-cli-htmlbars@5.7.1 &gt; babel-plugin-htmlbars-inline-precompile@5.1.0
+- Required through: ember-on-resize-modifier@2.0.2 &gt; ember-cli-htmlbars@5.7.1 &gt; babel-plugin-htmlbars-inline-precompile@5.1.0
 - Author: Clemens Müller &lt;cmueller.418@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -6163,7 +7876,7 @@ limitations under the License.
 ### babel-plugin-htmlbars-inline-precompile 5.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1
 - Author: Clemens Müller &lt;cmueller.418@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -6172,16 +7885,25 @@ limitations under the License.
 ### babel-plugin-module-resolver 3.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0
 - Author: Tommy Leunen &lt;tommy.leunen@gmail.com&gt;
-- `LICENSE.md`: [license text 208](#license-text-208)
+- `LICENSE.md`: [license text 219](#license-text-219)
+
+<a id="npm-babel-plugin-module-resolver-5-0-3"></a>
+
+### babel-plugin-module-resolver 5.0.3
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3
+- Author: Tommy Leunen &lt;tommy.leunen@gmail.com&gt;
+- `LICENSE.md`: [license text 219](#license-text-219)
 
 <a id="npm-babel-plugin-polyfill-corejs2-0-1-10"></a>
 
 ### babel-plugin-polyfill-corejs2 0.1.10
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10
 - `LICENSE`: [license text 177](#license-text-177)
 
 <a id="npm-babel-plugin-polyfill-corejs2-0-3-1"></a>
@@ -6189,7 +7911,15 @@ limitations under the License.
 ### babel-plugin-polyfill-corejs2 0.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1
+- `LICENSE`: [license text 177](#license-text-177)
+
+<a id="npm-babel-plugin-polyfill-corejs2-0-4-17"></a>
+
+### babel-plugin-polyfill-corejs2 0.4.17
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-runtime@7.29.7 &gt; babel-plugin-polyfill-corejs2@0.4.17
 - `LICENSE`: [license text 177](#license-text-177)
 
 <a id="npm-babel-plugin-polyfill-corejs3-0-1-7"></a>
@@ -6197,7 +7927,23 @@ limitations under the License.
 ### babel-plugin-polyfill-corejs3 0.1.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs3@0.1.7
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs3@0.1.7
+- `LICENSE`: [license text 177](#license-text-177)
+
+<a id="npm-babel-plugin-polyfill-corejs3-0-13-0"></a>
+
+### babel-plugin-polyfill-corejs3 0.13.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-runtime@7.29.7 &gt; babel-plugin-polyfill-corejs3@0.13.0
+- `LICENSE`: [license text 177](#license-text-177)
+
+<a id="npm-babel-plugin-polyfill-corejs3-0-14-2"></a>
+
+### babel-plugin-polyfill-corejs3 0.14.2
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; babel-plugin-polyfill-corejs3@0.14.2
 - `LICENSE`: [license text 177](#license-text-177)
 
 <a id="npm-babel-plugin-polyfill-corejs3-0-5-2"></a>
@@ -6205,7 +7951,7 @@ limitations under the License.
 ### babel-plugin-polyfill-corejs3 0.5.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs3@0.5.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs3@0.5.2
 - `LICENSE`: [license text 177](#license-text-177)
 
 <a id="npm-babel-plugin-polyfill-regenerator-0-1-6"></a>
@@ -6213,7 +7959,7 @@ limitations under the License.
 ### babel-plugin-polyfill-regenerator 0.1.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-regenerator@0.1.6
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-regenerator@0.1.6
 - `LICENSE`: [license text 177](#license-text-177)
 
 <a id="npm-babel-plugin-polyfill-regenerator-0-3-1"></a>
@@ -6221,7 +7967,15 @@ limitations under the License.
 ### babel-plugin-polyfill-regenerator 0.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-regenerator@0.3.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-regenerator@0.3.1
+- `LICENSE`: [license text 177](#license-text-177)
+
+<a id="npm-babel-plugin-polyfill-regenerator-0-6-8"></a>
+
+### babel-plugin-polyfill-regenerator 0.6.8
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-runtime@7.29.7 &gt; babel-plugin-polyfill-regenerator@0.6.8
 - `LICENSE`: [license text 177](#license-text-177)
 
 <a id="npm-babel-plugin-syntax-dynamic-import-6-18-0"></a>
@@ -6229,26 +7983,70 @@ limitations under the License.
 ### babel-plugin-syntax-dynamic-import 6.18.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-syntax-dynamic-import@6.18.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-syntax-dynamic-import@6.18.0
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-babel6-plugin-strip-class-callcheck-6-0-0"></a>
+
+### babel6-plugin-strip-class-callcheck 6.0.0
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; babel6-plugin-strip-class-callcheck@6.0.0
+- Author: Chris Thoburn
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-backburner-js-2-8-0"></a>
+
+### backburner.js 2.8.0
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; backburner.js@2.8.0
+- Author: Erik Bryn
+- `LICENSE`: [license text 220](#license-text-220)
 
 <a id="npm-balanced-match-1-0-2"></a>
 
 ### balanced-match 1.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-funnel@3.0.8 &gt; minimatch@3.1.2 &gt; brace-expansion@1.1.11 &gt; balanced-match@1.0.2
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; minimatch@3.1.2 &gt; brace-expansion@1.1.11 &gt; balanced-match@1.0.2
 - Author: Julian Gruber &lt;mail@juliangruber.com&gt;
-- `LICENSE.md`: [license text 209](#license-text-209)
+- `LICENSE.md`: [license text 221](#license-text-221)
+
+<a id="npm-base64-js-1-5-1"></a>
+
+### base64-js 1.5.1
+
+- License: MIT
+- Required through: base64-js@1.5.1
+- Author: T. Jameson Little &lt;t.jameson.little@gmail.com&gt;
+- `LICENSE`: [license text 222](#license-text-222)
+
+<a id="npm-baseline-browser-mapping-2-11-28"></a>
+
+### baseline-browser-mapping 2.11.28
+
+- License: Apache-2.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; browserslist@4.29.3 &gt; baseline-browser-mapping@2.11.28
+- `LICENSE.txt`: [license text 2](#license-text-2)
+
+<a id="npm-better-path-resolve-1-0-0"></a>
+
+### better-path-resolve 1.0.0
+
+- License: MIT
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; is-subdir@1.2.0 &gt; better-path-resolve@1.0.0
+- Author: Zoltan Kochan
+- `LICENSE`: [license text 223](#license-text-223)
 
 <a id="npm-big-js-5-2-2"></a>
 
 ### big.js 5.2.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; loader-utils@1.4.0 &gt; big.js@5.2.2
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; loader-utils@1.4.0 &gt; big.js@5.2.2
 - Author: Michael Mclaughlin &lt;M8ch88l@gmail.com&gt;
-- `LICENCE`: [license text 210](#license-text-210)
+- `LICENCE`: [license text 224](#license-text-224)
 
 <a id="npm-binary-extensions-2-2-0"></a>
 
@@ -6257,7 +8055,7 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; is-binary-path@2.1.0 &gt; binary-extensions@2.2.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 211](#license-text-211)
+- `license`: [license text 225](#license-text-225)
 
 <a id="npm-binaryextensions-2-3-0"></a>
 
@@ -6266,15 +8064,24 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; broccoli-persistent-filter@3.1.2 &gt; async-disk-cache@2.1.0 &gt; istextorbinary@2.6.0 &gt; binaryextensions@2.3.0
 - Author: 2013+ Bevry Pty Ltd &lt;us@bevry.me&gt; (http://bevry.me)
-- `LICENSE.md`: [license text 212](#license-text-212)
+- `LICENSE.md`: [license text 226](#license-text-226)
 
 <a id="npm-blank-object-1-0-2"></a>
 
 ### blank-object 1.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-funnel@2.0.2 &gt; blank-object@1.0.2
+- Required through: ember-cli-string-helpers@6.1.0 &gt; broccoli-funnel@3.0.3 &gt; blank-object@1.0.2
 - Author: Stefan Penner
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-boolbase-1-0-0"></a>
+
+### boolbase 1.0.0
+
+- License: ISC
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-select@2.1.0 &gt; boolbase@1.0.0
+- Author: Felix Boehm &lt;me@feedic.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-brace-expansion-1-1-11"></a>
@@ -6282,9 +8089,9 @@ limitations under the License.
 ### brace-expansion 1.1.11
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-funnel@3.0.8 &gt; minimatch@3.1.2 &gt; brace-expansion@1.1.11
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; minimatch@3.1.2 &gt; brace-expansion@1.1.11
 - Author: Julian Gruber &lt;mail@juliangruber.com&gt;
-- `LICENSE`: [license text 213](#license-text-213)
+- `LICENSE`: [license text 227](#license-text-227)
 
 <a id="npm-braces-3-0-2"></a>
 
@@ -6293,43 +8100,61 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; braces@3.0.2
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 214](#license-text-214)
+- `LICENSE`: [license text 228](#license-text-228)
 
 <a id="npm-broccoli-babel-transpiler-7-8-0"></a>
 
 ### broccoli-babel-transpiler 7.8.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0
 - Author: nightire &lt;nightire@very-geek.com&gt; (http://very-geek.com/)
-- `LICENSE`: [license text 215](#license-text-215)
+- `LICENSE`: [license text 229](#license-text-229)
+
+<a id="npm-broccoli-babel-transpiler-8-1-0"></a>
+
+### broccoli-babel-transpiler 8.1.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; broccoli-babel-transpiler@8.1.0
+- Author: nightire &lt;nightire@very-geek.com&gt; (http://very-geek.com/)
+- `LICENSE`: [license text 229](#license-text-229)
 
 <a id="npm-broccoli-caching-writer-3-0-3"></a>
 
 ### broccoli-caching-writer 3.0.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1 &gt; broccoli-sass-source-maps@4.0.0 &gt; broccoli-caching-writer@3.0.3
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-caching-writer@3.0.3
 - Author: Robert Jackson
-- `LICENSE`: [license text 216](#license-text-216)
+- `LICENSE`: [license text 230](#license-text-230)
 
 <a id="npm-broccoli-debug-0-6-5"></a>
 
 ### broccoli-debug 0.6.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-debug@0.6.5
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; broccoli-debug@0.6.5
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
-- `LICENSE`: [license text 217](#license-text-217)
+- `LICENSE`: [license text 231](#license-text-231)
 
 <a id="npm-broccoli-file-creator-2-1-1"></a>
 
 ### broccoli-file-creator 2.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; broccoli-file-creator@2.1.1
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-file-creator@2.1.1
 - Author: Robert Jackson
-- `LICENSE`: [license text 216](#license-text-216)
+- `LICENSE`: [license text 230](#license-text-230)
+
+<a id="npm-broccoli-flatiron-0-1-3"></a>
+
+### broccoli-flatiron 0.1.3
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-flatiron@0.1.3
+- Author: Jan Buschtöns
+- `LICENSE`: [license text 232](#license-text-232)
 
 <a id="npm-broccoli-funnel-2-0-1"></a>
 
@@ -6338,88 +8163,115 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-composable-helpers@4.5.0 &gt; broccoli-funnel@2.0.1
 - Author: Robert Jackson
-- `LICENSE`: [license text 216](#license-text-216)
+- `LICENSE`: [license text 230](#license-text-230)
 
 <a id="npm-broccoli-funnel-2-0-2"></a>
 
 ### broccoli-funnel 2.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-funnel@2.0.2
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-funnel@2.0.2
 - Author: Robert Jackson
-- `LICENSE`: [license text 216](#license-text-216)
+- `LICENSE`: [license text 230](#license-text-230)
+
+<a id="npm-broccoli-funnel-3-0-3"></a>
+
+### broccoli-funnel 3.0.3
+
+- License: MIT
+- Required through: ember-cli-string-helpers@6.1.0 &gt; broccoli-funnel@3.0.3
+- Author: Robert Jackson
+- `LICENSE`: [license text 230](#license-text-230)
 
 <a id="npm-broccoli-funnel-3-0-8"></a>
 
 ### broccoli-funnel 3.0.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-funnel@3.0.8
+- Required through: ember-source@6.12.0 &gt; broccoli-funnel@3.0.8
 - Author: Robert Jackson
-- `LICENSE`: [license text 216](#license-text-216)
+- `LICENSE`: [license text 230](#license-text-230)
 
 <a id="npm-broccoli-kitchen-sink-helpers-0-3-1"></a>
 
 ### broccoli-kitchen-sink-helpers 0.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; hash-for-dep@1.5.1 &gt; broccoli-kitchen-sink-helpers@0.3.1
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-caching-writer@3.0.3 &gt; broccoli-kitchen-sink-helpers@0.3.1
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 218](#license-text-218)
+- `LICENSE`: [license text 233](#license-text-233)
 
 <a id="npm-broccoli-merge-trees-3-0-2"></a>
 
 ### broccoli-merge-trees 3.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1 &gt; broccoli-merge-trees@3.0.2
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-merge-trees@3.0.2
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-broccoli-merge-trees-4-2-0"></a>
 
 ### broccoli-merge-trees 4.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-merge-trees@4.2.0
+- Required through: ember-data@4.12.8 &gt; broccoli-merge-trees@4.2.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-broccoli-node-api-1-7-0"></a>
 
 ### broccoli-node-api 1.7.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; broccoli-node-api@1.7.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; broccoli-source@3.0.1 &gt; broccoli-node-api@1.7.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 220](#license-text-220)
+- `LICENSE`: [license text 235](#license-text-235)
 
 <a id="npm-broccoli-node-info-2-1-0"></a>
 
 ### broccoli-node-info 2.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; fs-merger@3.1.0 &gt; broccoli-node-info@2.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; broccoli-plugin@4.0.3 &gt; fs-merger@3.1.0 &gt; broccoli-node-info@2.1.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 221](#license-text-221)
+- `LICENSE`: [license text 236](#license-text-236)
+
+<a id="npm-broccoli-output-wrapper-2-0-0"></a>
+
+### broccoli-output-wrapper 2.0.0
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; broccoli-plugin@3.1.0 &gt; broccoli-output-wrapper@2.0.0
+- Author: sparshithNR &lt;nairbali@usc.edu&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-broccoli-output-wrapper-3-2-5"></a>
 
 ### broccoli-output-wrapper 3.2.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; broccoli-output-wrapper@3.2.5
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; broccoli-plugin@4.0.3 &gt; broccoli-output-wrapper@3.2.5
 - Author: sparshithNR &lt;nairbali@usc.edu&gt;
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-broccoli-persistent-filter-1-4-6"></a>
+
+### broccoli-persistent-filter 1.4.6
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; broccoli-string-replace@0.1.2 &gt; broccoli-persistent-filter@1.4.6
+- Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
+- `LICENSE`: [license text 237](#license-text-237)
 
 <a id="npm-broccoli-persistent-filter-2-3-1"></a>
 
 ### broccoli-persistent-filter 2.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0 &gt; broccoli-persistent-filter@2.3.1
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; broccoli-persistent-filter@2.3.1
 - Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
-- `LICENSE`: [license text 222](#license-text-222)
+- `LICENSE`: [license text 237](#license-text-237)
 
 <a id="npm-broccoli-persistent-filter-3-1-2"></a>
 
@@ -6428,43 +8280,79 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; broccoli-persistent-filter@3.1.2
 - Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
-- `LICENSE`: [license text 222](#license-text-222)
+- `LICENSE`: [license text 237](#license-text-237)
+
+<a id="npm-broccoli-persistent-filter-3-1-3"></a>
+
+### broccoli-persistent-filter 3.1.3
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; broccoli-babel-transpiler@8.1.0 &gt; broccoli-persistent-filter@3.1.3
+- Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
+- `LICENSE`: [license text 237](#license-text-237)
 
 <a id="npm-broccoli-plugin-1-3-1"></a>
 
 ### broccoli-plugin 1.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-debug@0.6.5 &gt; broccoli-plugin@1.3.1
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-file-creator@2.1.1 &gt; broccoli-plugin@1.3.1
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 223](#license-text-223)
+- `LICENSE`: [license text 238](#license-text-238)
 
 <a id="npm-broccoli-plugin-2-1-0"></a>
 
 ### broccoli-plugin 2.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; broccoli-stew@3.0.0 &gt; broccoli-plugin@2.1.0
+- Required through: ember-data-model-fragments@7.0.3 &gt; ember-template-imports@4.4.0 &gt; broccoli-stew@3.0.0 &gt; broccoli-plugin@2.1.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 223](#license-text-223)
+- `LICENSE`: [license text 238](#license-text-238)
+
+<a id="npm-broccoli-plugin-3-1-0"></a>
+
+### broccoli-plugin 3.1.0
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; broccoli-plugin@3.1.0
+- Author: Jo Liss &lt;joliss42@gmail.com&gt;
+- `LICENSE`: [license text 238](#license-text-238)
 
 <a id="npm-broccoli-plugin-4-0-3"></a>
 
 ### broccoli-plugin 4.0.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; broccoli-plugin@4.0.3
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 223](#license-text-223)
+- `LICENSE`: [license text 238](#license-text-238)
 
 <a id="npm-broccoli-plugin-4-0-7"></a>
 
 ### broccoli-plugin 4.0.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-funnel@3.0.8 &gt; broccoli-plugin@4.0.7
+- Required through: ember-source@6.12.0 &gt; broccoli-funnel@3.0.8 &gt; broccoli-plugin@4.0.7
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 223](#license-text-223)
+- `LICENSE`: [license text 238](#license-text-238)
+
+<a id="npm-broccoli-plugin-6-0-0"></a>
+
+### broccoli-plugin 6.0.0
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; broccoli-rollup@5.0.0 &gt; @types/broccoli-plugin@3.0.4 &gt; broccoli-plugin@6.0.0
+- Author: Jo Liss &lt;joliss42@gmail.com&gt;
+- `LICENSE`: [license text 238](#license-text-238)
+
+<a id="npm-broccoli-rollup-5-0-0"></a>
+
+### broccoli-rollup 5.0.0
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; broccoli-rollup@5.0.0
+- Author: Chad Hietala &lt;chadhietala@gmail.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-broccoli-sass-source-maps-4-0-0"></a>
 
@@ -6473,59 +8361,104 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1 &gt; broccoli-sass-source-maps@4.0.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-broccoli-source-2-1-2"></a>
 
 ### broccoli-source 2.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-source@2.1.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; broccoli-source@2.1.2
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 223](#license-text-223)
+- `LICENSE`: [license text 238](#license-text-238)
 
 <a id="npm-broccoli-source-3-0-0"></a>
 
 ### broccoli-source 3.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-source@3.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; broccoli-source@3.0.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 223](#license-text-223)
+- `LICENSE`: [license text 238](#license-text-238)
+
+<a id="npm-broccoli-source-3-0-1"></a>
+
+### broccoli-source 3.0.1
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; broccoli-source@3.0.1
+- Author: Jo Liss &lt;joliss42@gmail.com&gt;
+- `LICENSE`: [license text 238](#license-text-238)
 
 <a id="npm-broccoli-stew-3-0-0"></a>
 
 ### broccoli-stew 3.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; broccoli-stew@3.0.0
+- Required through: ember-data-model-fragments@7.0.3 &gt; ember-template-imports@4.4.0 &gt; broccoli-stew@3.0.0
 - Author: Stefan Penner & Robert Jackson
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-broccoli-string-replace-0-1-2"></a>
+
+### broccoli-string-replace 0.1.2
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; broccoli-string-replace@0.1.2
+- Author: Robert Jackson
+- `LICENSE`: [license text 230](#license-text-230)
 
 <a id="npm-browserslist-4-19-3"></a>
 
 ### browserslist 4.19.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3
 - Author: Andrey Sitnik &lt;andrey@sitnik.ru&gt;
-- `LICENSE`: [license text 224](#license-text-224)
+- `LICENSE`: [license text 239](#license-text-239)
+
+<a id="npm-browserslist-4-29-3"></a>
+
+### browserslist 4.29.3
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; browserslist@4.29.3
+- Author: Andrey Sitnik &lt;andrey@sitnik.es&gt;
+- `LICENSE`: [license text 240](#license-text-240)
 
 <a id="npm-buffer-crc32-0-2-13"></a>
 
 ### buffer-crc32 0.2.13
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; yauzl@2.10.0 &gt; buffer-crc32@0.2.13
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; yauzl@2.10.0 &gt; buffer-crc32@0.2.13
 - Author: Brian J. Brennan &lt;brianloveswords@gmail.com&gt;
-- `LICENSE`: [license text 225](#license-text-225)
+- `LICENSE`: [license text 241](#license-text-241)
+
+<a id="npm-bulma-0-9-3"></a>
+
+### bulma 0.9.3
+
+- License: MIT
+- Required through: bulma@0.9.3
+- Author: Jeremy Thomas &lt;bbxdesign@gmail.com&gt;
+- `LICENSE`: [license text 242](#license-text-242)
+
+<a id="npm-calculate-cache-key-for-tree-1-2-3"></a>
+
+### calculate-cache-key-for-tree 1.2.3
+
+- License: MIT
+- Required through: ember-data-model-fragments@7.0.3 &gt; calculate-cache-key-for-tree@1.2.3
+- Author: Robert Jackson &lt;me@rwjblue.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-calculate-cache-key-for-tree-2-0-0"></a>
 
 ### calculate-cache-key-for-tree 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2 &gt; calculate-cache-key-for-tree@2.0.0
+- Required through: @ember/test-waiters@3.1.0 &gt; calculate-cache-key-for-tree@2.0.0
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -6534,25 +8467,25 @@ limitations under the License.
 ### call-bind 1.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; call-bind@1.0.2
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; call-bind@1.0.2
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 226](#license-text-226)
+- `LICENSE`: [license text 243](#license-text-243)
 
 <a id="npm-callsites-3-1-0"></a>
 
 ### callsites 3.1.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; import-fresh@3.3.0 &gt; parent-module@1.0.1 &gt; callsites@3.1.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; import-fresh@3.3.0 &gt; parent-module@1.0.1 &gt; callsites@3.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-can-symlink-1-0-0"></a>
 
 ### can-symlink 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-merge-trees@4.2.0 &gt; merge-trees@2.0.0 &gt; fs-updater@1.0.4 &gt; can-symlink@1.0.0
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-merge-trees@3.0.2 &gt; merge-trees@2.0.0 &gt; fs-updater@1.0.4 &gt; can-symlink@1.0.0
 - Author: raytiley
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -6561,25 +8494,60 @@ limitations under the License.
 ### caniuse-lite 1.0.30001312
 
 - License: CC-BY-4.0
-- License decision: Legacy UI exception. Browser support data used by browserslist while Babel builds the legacy UI (@hashicorp/design-system-components > ember-cli-babel); a build-time dependency, not part of the UI bundle, listed because the addon declares ember-cli-babel as a production dependency.
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; caniuse-lite@1.0.30001312
+- License decision: Build-time exception (legacy UI decision of 2026-10-25; pending for the new UI). Browser support data used by browserslist while Babel builds the UI (ember-cli-babel > @babel/helper-compilation-targets > browserslist); a build-time dependency, not part of the UI bundle, listed because the Ember addons declare ember-cli-babel as a production dependency.
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; caniuse-lite@1.0.30001312
 - Author: Ben Briggs &lt;beneb.info@gmail.com&gt;
-- `LICENSE`: [license text 227](#license-text-227)
+- `LICENSE`: [license text 244](#license-text-244)
+
+<a id="npm-caniuse-lite-1-0-30001815"></a>
+
+### caniuse-lite 1.0.30001815
+
+- License: CC-BY-4.0
+- License decision: Build-time exception (legacy UI decision of 2026-10-25; pending for the new UI). Browser support data used by browserslist while Babel builds the UI (ember-cli-babel > @babel/helper-compilation-targets > browserslist); a build-time dependency, not part of the UI bundle, listed because the Ember addons declare ember-cli-babel as a production dependency.
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; browserslist@4.29.3 &gt; caniuse-lite@1.0.30001815
+- Author: Ben Briggs &lt;beneb.info@gmail.com&gt;
+- `LICENSE`: [license text 244](#license-text-244)
+
+<a id="npm-chalk-0-4-0"></a>
+
+### chalk 0.4.0
+
+- License: MIT
+- Required through: jsonlint@1.6.3 &gt; nomnom@1.8.1 &gt; chalk@0.4.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-chalk-2-4-2"></a>
 
 ### chalk 2.4.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7 &gt; @babel/highlight@7.16.10 &gt; chalk@2.4.2
-- `license`: [license text 199](#license-text-199)
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; chalk@2.4.2
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-chalk-4-1-0"></a>
+
+### chalk 4.1.0
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; chalk@4.1.0
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-chalk-4-1-2"></a>
+
+### chalk 4.1.2
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; chalk@4.1.2
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-charcodes-0-2-0"></a>
 
 ### charcodes 0.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/plugin-proposal-decorators@7.17.2 &gt; charcodes@0.2.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @babel/plugin-proposal-decorators@7.17.2 &gt; charcodes@0.2.0
 - Author: Sven Sauleau
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -6590,165 +8558,308 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2
 - Author: Paul Miller (https://paulmillr.com)
-- `LICENSE`: [license text 228](#license-text-228)
+- `LICENSE`: [license text 245](#license-text-245)
 
 <a id="npm-clean-up-path-1-0-0"></a>
 
 ### clean-up-path 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-merge-trees@4.2.0 &gt; merge-trees@2.0.0 &gt; fs-updater@1.0.4 &gt; clean-up-path@1.0.0
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-merge-trees@3.0.2 &gt; merge-trees@2.0.0 &gt; fs-updater@1.0.4 &gt; clean-up-path@1.0.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 229](#license-text-229)
+- `LICENSE`: [license text 246](#license-text-246)
 
 <a id="npm-clipboard-2-0-11"></a>
 
 ### clipboard 2.0.11
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; clipboard@2.0.11
-- `LICENSE`: [license text 230](#license-text-230)
+- Required through: ember-cli-clipboard@1.3.0 &gt; clipboard@2.0.11
+- `LICENSE`: [license text 247](#license-text-247)
 
 <a id="npm-clone-2-1-2"></a>
 
 ### clone 2.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; clone@2.1.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; clone@2.1.2
 - Author: Paul Vorbach &lt;paul@vorba.ch&gt; (http://paul.vorba.ch/)
-- `LICENSE`: [license text 231](#license-text-231)
+- `LICENSE`: [license text 248](#license-text-248)
+
+<a id="npm-coa-2-0-2"></a>
+
+### coa 2.0.2
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; coa@2.0.2
+- Author: Sergey Berezhnoy &lt;veged@ya.ru&gt; (http://github.com/veged)
+- `LICENSE`: [license text 249](#license-text-249)
+
+<a id="npm-codemirror-5-65-6"></a>
+
+### codemirror 5.65.6
+
+- License: MIT
+- Required through: codemirror@5.65.6
+- Author: Marijn Haverbeke &lt;marijnh@gmail.com&gt;
+- `LICENSE`: [license text 250](#license-text-250)
 
 <a id="npm-color-convert-1-9-3"></a>
 
 ### color-convert 1.9.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7 &gt; @babel/highlight@7.16.10 &gt; chalk@2.4.2 &gt; ansi-styles@3.2.1 &gt; color-convert@1.9.3
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; chalk@2.4.2 &gt; ansi-styles@3.2.1 &gt; color-convert@1.9.3
 - Author: Heather Arthur &lt;fayearthur@gmail.com&gt;
-- `LICENSE`: [license text 232](#license-text-232)
+- `LICENSE`: [license text 251](#license-text-251)
+
+<a id="npm-color-convert-2-0-1"></a>
+
+### color-convert 2.0.1
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; chalk@4.1.0 &gt; ansi-styles@4.3.0 &gt; color-convert@2.0.1
+- Author: Heather Arthur &lt;fayearthur@gmail.com&gt;
+- `LICENSE`: [license text 251](#license-text-251)
 
 <a id="npm-color-name-1-1-3"></a>
 
 ### color-name 1.1.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7 &gt; @babel/highlight@7.16.10 &gt; chalk@2.4.2 &gt; ansi-styles@3.2.1 &gt; color-convert@1.9.3 &gt; color-name@1.1.3
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; chalk@2.4.2 &gt; ansi-styles@3.2.1 &gt; color-convert@1.9.3 &gt; color-name@1.1.3
 - Author: DY &lt;dfcreative@gmail.com&gt;
-- `LICENSE`: [license text 233](#license-text-233)
+- `LICENSE`: [license text 252](#license-text-252)
+
+<a id="npm-color-name-1-1-4"></a>
+
+### color-name 1.1.4
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; chalk@4.1.0 &gt; ansi-styles@4.3.0 &gt; color-convert@2.0.1 &gt; color-name@1.1.4
+- Author: DY &lt;dfcreative@gmail.com&gt;
+- `LICENSE`: [license text 252](#license-text-252)
 
 <a id="npm-commander-7-2-0"></a>
 
 ### commander 7.2.0
 
 - License: MIT
-- Required through: d3@7.3.0 &gt; d3-dsv@3.0.1 &gt; commander@7.2.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-dsv@3.0.1 &gt; commander@7.2.0
 - Author: TJ Holowaychuk &lt;tj@vision-media.ca&gt;
-- `LICENSE`: [license text 234](#license-text-234)
+- `LICENSE`: [license text 253](#license-text-253)
+
+<a id="npm-common-ancestor-path-1-0-1"></a>
+
+### common-ancestor-path 1.0.1
+
+- License: ISC
+- Required through: @nullvoxpopuli/ember-composable-helpers@5.3.2 &gt; @embroider/addon-shim@1.10.3 &gt; common-ancestor-path@1.0.1
+- Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (https://izs.me)
+- `LICENSE`: [license text 254](#license-text-254)
 
 <a id="npm-common-tags-1-8-0"></a>
 
 ### common-tags 1.8.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; tracked-maps-and-sets@3.0.2 &gt; ember-tracked-storage-polyfill@1.0.0 &gt; ember-cli-htmlbars@5.7.1 &gt; common-tags@1.8.0
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; common-tags@1.8.0
 - Author: Declan de Wet &lt;declandewet@me.com&gt;
-- `license.md`: [license text 235](#license-text-235)
+- `license.md`: [license text 255](#license-text-255)
 
 <a id="npm-commondir-1-0-1"></a>
 
 ### commondir 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; commondir@1.0.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; commondir@1.0.1
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 236](#license-text-236)
+- `LICENSE`: [license text 256](#license-text-256)
 
 <a id="npm-concat-map-0-0-1"></a>
 
 ### concat-map 0.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-funnel@3.0.8 &gt; minimatch@3.1.2 &gt; brace-expansion@1.1.11 &gt; concat-map@0.0.1
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; minimatch@3.1.2 &gt; brace-expansion@1.1.11 &gt; concat-map@0.0.1
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 237](#license-text-237)
+- `LICENSE`: [license text 257](#license-text-257)
 
 <a id="npm-content-disposition-0-5-4"></a>
 
 ### content-disposition 0.5.4
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; content-disposition@0.5.4
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; content-disposition@0.5.4
 - Author: Douglas Christopher Wilson &lt;doug@somethingdoug.com&gt;
-- `LICENSE`: [license text 238](#license-text-238)
+- `LICENSE`: [license text 258](#license-text-258)
+
+<a id="npm-content-tag-4-2-1"></a>
+
+### content-tag 4.2.1
+
+- License: MIT
+- Required through: ember-data-model-fragments@7.0.3 &gt; ember-template-imports@4.4.0 &gt; content-tag@4.2.1
+- `LICENSE`: [license text 259](#license-text-259)
 
 <a id="npm-convert-source-map-1-8-0"></a>
 
 ### convert-source-map 1.8.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; convert-source-map@1.8.0
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; convert-source-map@1.8.0
 - Author: Thorsten Lorenz &lt;thlorenz@gmx.de&gt;
-- `LICENSE`: [license text 239](#license-text-239)
+- `LICENSE`: [license text 260](#license-text-260)
+
+<a id="npm-convert-source-map-2-0-0"></a>
+
+### convert-source-map 2.0.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; convert-source-map@2.0.0
+- Author: Thorsten Lorenz &lt;thlorenz@gmx.de&gt;
+- `LICENSE`: [license text 260](#license-text-260)
 
 <a id="npm-core-js-compat-3-21-1"></a>
 
 ### core-js-compat 3.21.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; core-js-compat@3.21.1
-- `LICENSE`: [license text 240](#license-text-240)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; core-js-compat@3.21.1
+- `LICENSE`: [license text 261](#license-text-261)
+
+<a id="npm-core-js-compat-3-50-0"></a>
+
+### core-js-compat 3.50.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; core-js-compat@3.50.0
+- Author: Denis Pushkarev &lt;zloirock@zloirock.ru&gt;
+- `LICENSE`: [license text 262](#license-text-262)
 
 <a id="npm-core-js-compat-3-9-1"></a>
 
 ### core-js-compat 3.9.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs3@0.1.7 &gt; core-js-compat@3.9.1
-- `LICENSE`: [license text 241](#license-text-241)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs3@0.1.7 &gt; core-js-compat@3.9.1
+- `LICENSE`: [license text 263](#license-text-263)
 
 <a id="npm-core-js-2-6-12"></a>
 
 ### core-js 2.6.12
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/polyfill@7.12.1 &gt; core-js@2.6.12
-- `LICENSE`: [license text 242](#license-text-242)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/polyfill@7.12.1 &gt; core-js@2.6.12
+- `LICENSE`: [license text 264](#license-text-264)
 
 <a id="npm-cosmiconfig-7-0-0"></a>
 
 ### cosmiconfig 7.0.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0
 - Author: David Clark &lt;david.dave.clark@gmail.com&gt;
-- `LICENSE`: [license text 243](#license-text-243)
+- `LICENSE`: [license text 265](#license-text-265)
 
 <a id="npm-cross-spawn-7-0-3"></a>
 
 ### cross-spawn 7.0.3
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-exec@1.6.1 &gt; cross-spawn@7.0.3
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; cross-spawn@7.0.3
 - Author: André Cruz &lt;andre@moxy.studio&gt;
-- `LICENSE`: [license text 244](#license-text-244)
+- `LICENSE`: [license text 266](#license-text-266)
 
 <a id="npm-css-loader-5-2-7"></a>
 
 ### css-loader 5.2.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7
 - Author: Tobias Koppers @sokra
-- `LICENSE`: [license text 245](#license-text-245)
+- `LICENSE`: [license text 267](#license-text-267)
+
+<a id="npm-css-select-base-adapter-0-1-1"></a>
+
+### css-select-base-adapter 0.1.1
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-select-base-adapter@0.1.1
+- Author: Nik Coughlin &lt;nrkn.com@gmail.com&gt;
+- `LICENSE`: [license text 268](#license-text-268)
+
+<a id="npm-css-select-2-1-0"></a>
+
+### css-select 2.1.0
+
+- License: BSD-2-Clause
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-select@2.1.0
+- Author: Felix Boehm &lt;me@feedic.com&gt;
+- `LICENSE`: [license text 269](#license-text-269)
+
+<a id="npm-css-tree-1-0-0-alpha-28"></a>
+
+### css-tree 1.0.0-alpha.28
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-tree@1.0.0-alpha.28
+- Author: Roman Dvornov &lt;rdvornov@gmail.com&gt; (https://github.com/lahmatiy)
+- `LICENSE`: [license text 270](#license-text-270)
+
+<a id="npm-css-tree-1-0-0-alpha-29"></a>
+
+### css-tree 1.0.0-alpha.29
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; csso@3.5.1 &gt; css-tree@1.0.0-alpha.29
+- Author: Roman Dvornov &lt;rdvornov@gmail.com&gt; (https://github.com/lahmatiy)
+- `LICENSE`: [license text 270](#license-text-270)
+
+<a id="npm-css-url-regex-1-1-0"></a>
+
+### css-url-regex 1.1.0
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-url-regex@1.1.0
+- Author: John Otander &lt;johnotander@gmail.com&gt; (http://johnotander.com/)
+- `license`: [license text 271](#license-text-271)
+
+<a id="npm-css-what-3-4-2"></a>
+
+### css-what 3.4.2
+
+- License: BSD-2-Clause
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-select@2.1.0 &gt; css-what@3.4.2
+- Author: Felix Böhm &lt;me@feedic.com&gt; (http://feedic.com)
+- `LICENSE`: [license text 269](#license-text-269)
 
 <a id="npm-cssesc-3-0-0"></a>
 
 ### cssesc 3.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0 &gt; postcss-selector-parser@6.0.4 &gt; cssesc@3.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0 &gt; postcss-selector-parser@6.0.4 &gt; cssesc@3.0.0
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
+
+<a id="npm-csso-3-5-1"></a>
+
+### csso 3.5.1
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; csso@3.5.1
+- Author: Sergey Kryzhanovsky &lt;skryzhanovsky@ya.ru&gt; (https://github.com/afelix)
+- `LICENSE`: [license text 273](#license-text-273)
+
+<a id="npm-csstype-3-2-3"></a>
+
+### csstype 3.2.3
+
+- License: MIT
+- Required through: ember-basic-dropdown@8.11.1 &gt; ember-style-modifier@4.6.0 &gt; csstype@3.2.3
+- Author: Fredrik Nicol &lt;fredrik.nicol@gmail.com&gt;
+- `LICENSE`: [license text 274](#license-text-274)
 
 <a id="npm-curved-arrows-0-1-0"></a>
 
@@ -6757,356 +8868,419 @@ limitations under the License.
 - License: MIT
 - Required through: curved-arrows@0.1.0
 - Author: Alexander Wang &lt;zxcvb22217@gmail.com&gt;
-- `LICENSE`: [license text 247](#license-text-247)
+- `LICENSE`: [license text 275](#license-text-275)
 
 <a id="npm-d3-array-3-1-1"></a>
 
 ### d3-array 3.1.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-array@3.1.1
+- Required through: d3-array@3.1.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-axis-3-0-0"></a>
 
 ### d3-axis 3.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-axis@3.0.0
+- Required through: d3-axis@3.0.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-brush-3-0-0"></a>
 
 ### d3-brush 3.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-brush@3.0.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-brush@3.0.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-chord-3-0-1"></a>
 
 ### d3-chord 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-chord@3.0.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-chord@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-color-3-0-1"></a>
 
 ### d3-color 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-color@3.0.1
+- Required through: d3-transition@3.0.1 &gt; d3-color@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-contour-3-0-1"></a>
 
 ### d3-contour 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-contour@3.0.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-contour@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 249](#license-text-249)
+- `LICENSE`: [license text 277](#license-text-277)
 
 <a id="npm-d3-delaunay-6-0-2"></a>
 
 ### d3-delaunay 6.0.2
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-delaunay@6.0.2
+- Required through: legacy UI: d3@7.3.0 &gt; d3-delaunay@6.0.2
 - Author: Mike Bostock
-- `LICENSE`: [license text 250](#license-text-250)
+- `LICENSE`: [license text 278](#license-text-278)
 
 <a id="npm-d3-dispatch-3-0-1"></a>
 
 ### d3-dispatch 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-dispatch@3.0.1
+- Required through: d3-transition@3.0.1 &gt; d3-dispatch@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-drag-3-0-0"></a>
 
 ### d3-drag 3.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-drag@3.0.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-drag@3.0.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-dsv-3-0-1"></a>
 
 ### d3-dsv 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-dsv@3.0.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-dsv@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 251](#license-text-251)
+- `LICENSE`: [license text 279](#license-text-279)
 
 <a id="npm-d3-ease-3-0-1"></a>
 
 ### d3-ease 3.0.1
 
 - License: BSD-3-Clause
-- Required through: d3@7.3.0 &gt; d3-ease@3.0.1
+- Required through: d3-transition@3.0.1 &gt; d3-ease@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 252](#license-text-252)
+- `LICENSE`: [license text 280](#license-text-280)
 
 <a id="npm-d3-fetch-3-0-1"></a>
 
 ### d3-fetch 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-fetch@3.0.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-fetch@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 253](#license-text-253)
+- `LICENSE`: [license text 281](#license-text-281)
 
 <a id="npm-d3-force-3-0-0"></a>
 
 ### d3-force 3.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-force@3.0.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-force@3.0.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-format-3-0-1"></a>
 
 ### d3-format 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-scale@4.0.2 &gt; d3-format@3.0.1
+- Required through: d3-format@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-format-3-1-0"></a>
 
 ### d3-format 3.1.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-format@3.1.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-format@3.1.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-geo-3-0-1"></a>
 
 ### d3-geo 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-geo@3.0.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-geo@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 254](#license-text-254)
+- `LICENSE`: [license text 282](#license-text-282)
 
 <a id="npm-d3-hierarchy-3-1-1"></a>
 
 ### d3-hierarchy 3.1.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-hierarchy@3.1.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-hierarchy@3.1.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
+
+<a id="npm-d3-hierarchy-3-1-2"></a>
+
+### d3-hierarchy 3.1.2
+
+- License: ISC
+- Required through: d3-hierarchy@3.1.2
+- Author: Mike Bostock
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-interpolate-3-0-1"></a>
 
 ### d3-interpolate 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-interpolate@3.0.1
+- Required through: d3-scale@4.0.2 &gt; d3-interpolate@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-path-3-0-1"></a>
 
 ### d3-path 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-path@3.0.1
+- Required through: d3-shape@3.0.1 &gt; d3-path@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 255](#license-text-255)
+- `LICENSE`: [license text 283](#license-text-283)
 
 <a id="npm-d3-polygon-3-0-1"></a>
 
 ### d3-polygon 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-polygon@3.0.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-polygon@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-quadtree-3-0-1"></a>
 
 ### d3-quadtree 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-quadtree@3.0.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-quadtree@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-random-3-0-1"></a>
 
 ### d3-random 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-random@3.0.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-random@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-scale-chromatic-3-0-0"></a>
 
 ### d3-scale-chromatic 3.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-scale-chromatic@3.0.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-scale-chromatic@3.0.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 256](#license-text-256)
+- `LICENSE`: [license text 284](#license-text-284)
 
 <a id="npm-d3-scale-4-0-2"></a>
 
 ### d3-scale 4.0.2
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-scale@4.0.2
+- Required through: d3-scale@4.0.2
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-selection-3-0-0"></a>
 
 ### d3-selection 3.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-selection@3.0.0
+- Required through: d3-selection@3.0.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
+
+<a id="npm-d3-shape-3-0-1"></a>
+
+### d3-shape 3.0.1
+
+- License: ISC
+- Required through: d3-shape@3.0.1
+- Author: Mike Bostock
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-shape-3-1-0"></a>
 
 ### d3-shape 3.1.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-shape@3.1.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-shape@3.1.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-time-format-4-0-0"></a>
 
 ### d3-time-format 4.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-scale@4.0.2 &gt; d3-time-format@4.0.0
+- Required through: d3-time-format@4.0.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-time-format-4-1-0"></a>
 
 ### d3-time-format 4.1.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-time-format@4.1.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-time-format@4.1.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-time-3-0-0"></a>
 
 ### d3-time 3.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-time@3.0.0
+- Required through: d3-scale@4.0.2 &gt; d3-time@3.0.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-timer-3-0-1"></a>
 
 ### d3-timer 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-timer@3.0.1
+- Required through: d3-transition@3.0.1 &gt; d3-timer@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-transition-3-0-1"></a>
 
 ### d3-transition 3.0.1
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-transition@3.0.1
+- Required through: d3-transition@3.0.1
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-zoom-3-0-0"></a>
 
 ### d3-zoom 3.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-zoom@3.0.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-zoom@3.0.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-d3-7-3-0"></a>
 
 ### d3 7.3.0
 
 - License: ISC
-- Required through: d3@7.3.0
+- Required through: legacy UI: d3@7.3.0
 - Author: Mike Bostock
-- `LICENSE`: [license text 248](#license-text-248)
+- `LICENSE`: [license text 276](#license-text-276)
 
 <a id="npm-debug-2-6-9"></a>
 
 ### debug 2.6.9
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-funnel@2.0.2 &gt; debug@2.6.9
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-caching-writer@3.0.3 &gt; debug@2.6.9
 - Author: TJ Holowaychuk &lt;tj@vision-media.ca&gt;
-- `LICENSE`: [license text 257](#license-text-257)
+- `LICENSE`: [license text 285](#license-text-285)
 
 <a id="npm-debug-4-3-1"></a>
 
 ### debug 4.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; debug@4.3.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; debug@4.3.1
 - Author: TJ Holowaychuk &lt;tj@vision-media.ca&gt;
-- `LICENSE`: [license text 257](#license-text-257)
+- `LICENSE`: [license text 285](#license-text-285)
+
+<a id="npm-debug-4-3-2"></a>
+
+### debug 4.3.2
+
+- License: MIT
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; debug@4.3.2
+- Author: TJ Holowaychuk &lt;tj@vision-media.ca&gt;
+- `LICENSE`: [license text 285](#license-text-285)
 
 <a id="npm-debug-4-3-3"></a>
 
 ### debug 4.3.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; debug@4.3.3
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; debug@4.3.3
 - Author: Josh Junon &lt;josh.junon@protonmail.com&gt;
-- `LICENSE`: [license text 258](#license-text-258)
+- `LICENSE`: [license text 286](#license-text-286)
+
+<a id="npm-debug-4-4-3"></a>
+
+### debug 4.4.3
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-runtime@7.29.7 &gt; babel-plugin-polyfill-corejs2@0.4.17 &gt; @babel/helper-define-polyfill-provider@0.6.8 &gt; debug@4.4.3
+- Author: Josh Junon (https://github.com/qix-)
+- `LICENSE`: [license text 286](#license-text-286)
+
+<a id="npm-decode-uri-component-0-2-0"></a>
+
+### decode-uri-component 0.2.0
+
+- License: MIT
+- Required through: query-string@7.0.1 &gt; decode-uri-component@0.2.0
+- Author: Sam Verschueren &lt;sam.verschueren@gmail.com&gt;
+- `license`: [license text 287](#license-text-287)
+
+<a id="npm-decorator-transforms-1-2-1"></a>
+
+### decorator-transforms 1.2.1
+
+- License: MIT
+- Required through: ember-concurrency@4.0.6 &gt; decorator-transforms@1.2.1
+- Author: Edward Faulkner &lt;edward@eaf4.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-decorator-transforms-2-4-0"></a>
+
+### decorator-transforms 2.4.0
+
+- License: MIT
+- Required through: @nullvoxpopuli/ember-composable-helpers@5.3.2 &gt; decorator-transforms@2.4.0
+- Author: Edward Faulkner &lt;edward@eaf4.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-define-properties-1-1-3"></a>
 
 ### define-properties 1.1.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; define-properties@1.1.3
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; define-properties@1.1.3
 - Author: Jordan Harband
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-delaunator-5-0-0"></a>
 
 ### delaunator 5.0.0
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-delaunay@6.0.2 &gt; delaunator@5.0.0
+- Required through: legacy UI: d3@7.3.0 &gt; d3-delaunay@6.0.2 &gt; delaunator@5.0.0
 - Author: Vladimir Agafonkin
-- `LICENSE`: [license text 260](#license-text-260)
+- `LICENSE`: [license text 289](#license-text-289)
 
 <a id="npm-delegate-3-2-0"></a>
 
 ### delegate 3.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; clipboard@2.0.11 &gt; good-listener@1.2.2 &gt; delegate@3.2.0
+- Required through: ember-cli-clipboard@1.3.0 &gt; clipboard@2.0.11 &gt; good-listener@1.2.2 &gt; delegate@3.2.0
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-dialog-polyfill-0-5-6"></a>
@@ -7117,16 +9291,79 @@ limitations under the License.
 - License decision: package.json declares the non-SPDX value "BSD"; the LICENSE file is the BSD 3-clause text (The Chromium Authors).
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; dialog-polyfill@0.5.6
 - Author: The Chromium Authors
-- `LICENSE`: [license text 261](#license-text-261)
+- `LICENSE`: [license text 290](#license-text-290)
+
+<a id="npm-dom-serializer-0-2-2"></a>
+
+### dom-serializer 0.2.2
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-select@2.1.0 &gt; domutils@1.7.0 &gt; dom-serializer@0.2.2
+- Author: Felix Boehm &lt;me@feedic.com&gt;
+- `LICENSE`: [license text 291](#license-text-291)
+
+<a id="npm-domelementtype-1-3-1"></a>
+
+### domelementtype 1.3.1
+
+- License: BSD-2-Clause
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-select@2.1.0 &gt; domutils@1.7.0 &gt; domelementtype@1.3.1
+- Author: Felix Boehm &lt;me@feedic.com&gt;
+- `LICENSE`: [license text 269](#license-text-269)
+
+<a id="npm-domelementtype-2-1-0"></a>
+
+### domelementtype 2.1.0
+
+- License: BSD-2-Clause
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-select@2.1.0 &gt; domutils@1.7.0 &gt; dom-serializer@0.2.2 &gt; domelementtype@2.1.0
+- Author: Felix Boehm &lt;me@feedic.com&gt;
+- `LICENSE`: [license text 269](#license-text-269)
+
+<a id="npm-domutils-1-7-0"></a>
+
+### domutils 1.7.0
+
+- License: BSD-2-Clause
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-select@2.1.0 &gt; domutils@1.7.0
+- Author: Felix Boehm &lt;me@feedic.com&gt;
+- `LICENSE`: [license text 269](#license-text-269)
+
+<a id="npm-duration-js-4-0-0"></a>
+
+### duration-js 4.0.0
+
+- License: MIT
+- Required through: duration-js@4.0.0
+- Author: Ilia Choly
+- `LICENSE`: [license text 292](#license-text-292)
+
+<a id="npm-echarts-6-1-0"></a>
+
+### echarts 6.1.0
+
+- License: Apache-2.0
+- Required through: echarts@6.1.0
+- `LICENSE`: [license text 293](#license-text-293)
+
+NOTICE (`NOTICE`):
+
+```text
+Apache ECharts
+Copyright 2017-2026 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+```
 
 <a id="npm-editions-1-3-4"></a>
 
 ### editions 1.3.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0 &gt; broccoli-persistent-filter@2.3.1 &gt; async-disk-cache@1.3.5 &gt; istextorbinary@2.1.0 &gt; editions@1.3.4
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; broccoli-persistent-filter@2.3.1 &gt; async-disk-cache@1.3.5 &gt; istextorbinary@2.1.0 &gt; editions@1.3.4
 - Author: 2016+ Bevry Pty Ltd &lt;us@bevry.me&gt; (http://bevry.me)
-- `LICENSE.md`: [license text 262](#license-text-262)
+- `LICENSE.md`: [license text 294](#license-text-294)
 
 <a id="npm-editions-2-3-1"></a>
 
@@ -7135,16 +9372,25 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; broccoli-persistent-filter@3.1.2 &gt; async-disk-cache@2.1.0 &gt; istextorbinary@2.6.0 &gt; editions@2.3.1
 - Author: 2016+ Bevry Pty Ltd &lt;us@bevry.me&gt; (http://bevry.me)
-- `LICENSE.md`: [license text 263](#license-text-263)
+- `LICENSE.md`: [license text 295](#license-text-295)
 
 <a id="npm-electron-to-chromium-1-4-72"></a>
 
 ### electron-to-chromium 1.4.72
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; electron-to-chromium@1.4.72
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; electron-to-chromium@1.4.72
 - Author: Kilian Valkhof
-- `LICENSE`: [license text 264](#license-text-264)
+- `LICENSE`: [license text 296](#license-text-296)
+
+<a id="npm-electron-to-chromium-1-5-452"></a>
+
+### electron-to-chromium 1.5.452
+
+- License: ISC
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; browserslist@4.29.3 &gt; electron-to-chromium@1.5.452
+- Author: Kilian Valkhof
+- `LICENSE`: [license text 296](#license-text-296)
 
 <a id="npm-ember-a11y-refocus-3-0-2"></a>
 
@@ -7153,25 +9399,61 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-a11y-refocus@3.0.2
 - Author: Melanie Sumner &lt;melaniersumner@gmail.com&gt;
-- `LICENSE.md`: [license text 265](#license-text-265)
+- `LICENSE.md`: [license text 297](#license-text-297)
 
 <a id="npm-ember-arg-types-1-0-0"></a>
 
 ### ember-arg-types 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0
+- Required through: ember-cli-clipboard@1.3.0 &gt; ember-arg-types@1.0.0
 - Author: Jon Kilroy &lt;jkusa7@gmail.com&gt;
-- `LICENSE.md`: [license text 266](#license-text-266)
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-assign-helper-0-5-1"></a>
+
+### ember-assign-helper 0.5.1
+
+- License: MIT
+- Required through: ember-power-select@8.12.2 &gt; ember-assign-helper@0.5.1
+- Author: Miguel Camba
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-ember-async-data-1-0-3"></a>
+
+### ember-async-data 1.0.3
+
+- License: MIT
+- Required through: ember-stargate@0.5.0 &gt; ember-resources@6.5.2 &gt; ember-async-data@1.0.3
+- Author: Chris Krycho &lt;hello@chriskrycho.com&gt;
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-auto-import-2-13-1"></a>
+
+### ember-auto-import 2.13.1
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1
+- Author: Edward Faulkner &lt;edward@eaf4.com&gt;
+- `LICENSE.md`: [license text 183](#license-text-183)
 
 <a id="npm-ember-auto-import-2-4-0"></a>
 
 ### ember-auto-import 2.4.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0
+- Required through: legacy UI: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0
 - Author: Edward Faulkner &lt;edward@eaf4.com&gt;
-- `LICENSE.md`: [license text 267](#license-text-267)
+- `LICENSE.md`: [license text 183](#license-text-183)
+
+<a id="npm-ember-basic-dropdown-8-11-1"></a>
+
+### ember-basic-dropdown 8.11.1
+
+- License: MIT
+- Required through: ember-basic-dropdown@8.11.1
+- Author: Miguel Camba
+- `LICENSE.md`: [license text 298](#license-text-298)
 
 <a id="npm-ember-cache-primitive-polyfill-1-0-1"></a>
 
@@ -7179,7 +9461,7 @@ limitations under the License.
 
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cached-decorator-polyfill@0.1.4 &gt; ember-cache-primitive-polyfill@1.0.1
-- `LICENSE.md`: [license text 266](#license-text-266)
+- `LICENSE.md`: [license text 187](#license-text-187)
 
 <a id="npm-ember-cached-decorator-polyfill-0-1-4"></a>
 
@@ -7188,14 +9470,40 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cached-decorator-polyfill@0.1.4
 - Author: Jan Buschtöns &lt;jan@buschtoens.me&gt; (https://jan.buschtoens.me)
-- `LICENSE.md`: [license text 266](#license-text-266)
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-cached-decorator-polyfill-1-0-2"></a>
+
+### ember-cached-decorator-polyfill 1.0.2
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; @ember-data/model@4.12.8 &gt; ember-cached-decorator-polyfill@1.0.2
+- Author: Jan Buschtöns &lt;jan@buschtoens.me&gt; (https://jan.buschtoens.me)
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-can-7-0-0"></a>
+
+### ember-can 7.0.0
+
+- License: MIT
+- Required through: ember-can@7.0.0
+- Author: Richard Livsey &lt;richard@minutebase.com&gt;
+- `LICENSE.md`: [license text 299](#license-text-299)
+
+<a id="npm-ember-classic-decorator-4-0-0"></a>
+
+### ember-classic-decorator 4.0.0
+
+- License: MIT
+- Required through: ember-classic-decorator@4.0.0
+- `LICENSE.md`: [license text 185](#license-text-185)
 
 <a id="npm-ember-cli-babel-plugin-helpers-1-1-1"></a>
 
 ### ember-cli-babel-plugin-helpers 1.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cached-decorator-polyfill@0.1.4 &gt; ember-cli-babel-plugin-helpers@1.1.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; ember-cli-babel-plugin-helpers@1.1.1
 - Author: Dan Freeman &lt;dfreeman@salsify.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7204,9 +9512,18 @@ limitations under the License.
 ### ember-cli-babel 7.26.11
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11
 - Author: Gordon Kristan
-- `LICENSE`: [license text 268](#license-text-268)
+- `LICENSE`: [license text 300](#license-text-300)
+
+<a id="npm-ember-cli-babel-8-3-2"></a>
+
+### ember-cli-babel 8.3.2
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2
+- Author: Gordon Kristan
+- `LICENSE`: [license text 300](#license-text-300)
 
 <a id="npm-ember-cli-clipboard-1-0-0"></a>
 
@@ -7215,25 +9532,52 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0
 - Author: Jon Kilroy &lt;jkusa7@gmail.com&gt;
-- `LICENSE.md`: [license text 266](#license-text-266)
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-cli-clipboard-1-3-0"></a>
+
+### ember-cli-clipboard 1.3.0
+
+- License: MIT
+- Required through: ember-cli-clipboard@1.3.0
+- Author: Jon Kilroy &lt;jkusa7@gmail.com&gt;
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-cli-flash-5-1-0"></a>
+
+### ember-cli-flash 5.1.0
+
+- License: MIT
+- Required through: ember-cli-flash@5.1.0
+- Author: Lauren Tan
+- `LICENSE.md`: [license text 301](#license-text-301)
 
 <a id="npm-ember-cli-get-component-path-option-1-0-0"></a>
 
 ### ember-cli-get-component-path-option 1.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-get-component-path-option@1.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-get-component-path-option@1.0.0
 - Author: Stefan Penner
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-ember-cli-htmlbars-4-5-0"></a>
+
+### ember-cli-htmlbars 4.5.0
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0
+- Author: Jonathan Jackson & Chase McCarthy
+- `LICENSE.md`: [license text 302](#license-text-302)
 
 <a id="npm-ember-cli-htmlbars-5-7-1"></a>
 
 ### ember-cli-htmlbars 5.7.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; tracked-maps-and-sets@3.0.2 &gt; ember-tracked-storage-polyfill@1.0.0 &gt; ember-cli-htmlbars@5.7.1
+- Required through: ember-on-resize-modifier@2.0.2 &gt; ember-cli-htmlbars@5.7.1
 - Author: Jonathan Jackson & Chase McCarthy
-- `LICENSE.md`: [license text 269](#license-text-269)
+- `LICENSE.md`: [license text 302](#license-text-302)
 
 <a id="npm-ember-cli-htmlbars-6-0-1"></a>
 
@@ -7242,7 +9586,7 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-a11y-refocus@3.0.2 &gt; ember-cli-htmlbars@6.0.1
 - Author: Jonathan Jackson & Chase McCarthy
-- `LICENSE.md`: [license text 269](#license-text-269)
+- `LICENSE.md`: [license text 302](#license-text-302)
 
 <a id="npm-ember-cli-htmlbars-6-1-1"></a>
 
@@ -7251,7 +9595,7 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/ember-flight-icons@3.0.4 &gt; ember-cli-htmlbars@6.1.1
 - Author: Jonathan Jackson & Chase McCarthy
-- `LICENSE.md`: [license text 269](#license-text-269)
+- `LICENSE.md`: [license text 302](#license-text-302)
 
 <a id="npm-ember-cli-htmlbars-6-2-0"></a>
 
@@ -7260,14 +9604,14 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0
 - Author: Jonathan Jackson & Chase McCarthy
-- `LICENSE.md`: [license text 269](#license-text-269)
+- `LICENSE.md`: [license text 302](#license-text-302)
 
 <a id="npm-ember-cli-is-package-missing-1-0-0"></a>
 
 ### ember-cli-is-package-missing 1.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-is-package-missing@1.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-is-package-missing@1.0.0
 - Author: ember-cli contributors
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7276,7 +9620,7 @@ limitations under the License.
 ### ember-cli-normalize-entity-name 1.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-modifier@3.2.7 &gt; ember-cli-normalize-entity-name@1.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-normalize-entity-name@1.0.0
 - Author: ember-cli contributors
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7285,7 +9629,7 @@ limitations under the License.
 ### ember-cli-path-utils 1.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-path-utils@1.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-path-utils@1.0.0
 - Author: ember-cli contributors
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7296,59 +9640,85 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1
 - Author: @aexmachina
-- `LICENSE.md`: [license text 270](#license-text-270)
+- `LICENSE.md`: [license text 303](#license-text-303)
+
+<a id="npm-ember-cli-string-helpers-6-1-0"></a>
+
+### ember-cli-string-helpers 6.1.0
+
+- License: MIT
+- Required through: ember-cli-string-helpers@6.1.0
+- `LICENSE.md`: [license text 304](#license-text-304)
 
 <a id="npm-ember-cli-string-utils-1-1-0"></a>
 
 ### ember-cli-string-utils 1.1.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-modifier@3.2.7 &gt; ember-cli-string-utils@1.1.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-string-utils@1.1.0
 - Author: ember-cli contributors
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-ember-cli-test-info-1-0-0"></a>
+
+### ember-cli-test-info 1.0.0
+
+- License: ISC
+- Required through: ember-data@4.12.8 &gt; @ember-data/adapter@4.12.8 &gt; ember-cli-test-info@1.0.0
+- Author: ember-cli contributors
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-ember-cli-typescript-blueprint-polyfill-0-1-0"></a>
+
+### ember-cli-typescript-blueprint-polyfill 0.1.0
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; ember-cli-typescript-blueprint-polyfill@0.1.0
+- Author: Chris Freeman
+- `LICENSE`: [license text 305](#license-text-305)
 
 <a id="npm-ember-cli-typescript-3-0-0"></a>
 
 ### ember-cli-typescript 3.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0
 - Author: Chris Krycho &lt;chris@chriskrycho.com&gt; (http://www.chriskrycho.com)
-- `LICENSE.md`: [license text 271](#license-text-271)
+- `LICENSE.md`: [license text 306](#license-text-306)
 
 <a id="npm-ember-cli-typescript-4-2-1"></a>
 
 ### ember-cli-typescript 4.2.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; tracked-maps-and-sets@3.0.2 &gt; ember-cli-typescript@4.2.1
+- Required through: ember-render-helpers@0.2.0 &gt; ember-cli-typescript@4.2.1
 - Author: Chris Krycho &lt;chris@chriskrycho.com&gt; (http://www.chriskrycho.com)
-- `LICENSE.md`: [license text 271](#license-text-271)
+- `LICENSE.md`: [license text 306](#license-text-306)
 
 <a id="npm-ember-cli-typescript-5-1-0"></a>
 
 ### ember-cli-typescript 5.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-modifier@3.2.7 &gt; ember-cli-typescript@5.1.0
+- Required through: ember-truth-helpers@4.0.3 &gt; ember-functions-as-helper-polyfill@2.1.3 &gt; ember-cli-typescript@5.1.0
 - Author: Chris Krycho &lt;hello@chriskrycho.com&gt; (https://www.chriskrycho.com)
-- `LICENSE.md`: [license text 271](#license-text-271)
+- `LICENSE.md`: [license text 306](#license-text-306)
 
 <a id="npm-ember-cli-typescript-5-2-1"></a>
 
 ### ember-cli-typescript 5.2.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1
+- Required through: ember-cli-clipboard@1.3.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1
 - Author: Chris Krycho &lt;hello@chriskrycho.com&gt; (https://www.chriskrycho.com)
-- `LICENSE.md`: [license text 271](#license-text-271)
+- `LICENSE.md`: [license text 306](#license-text-306)
 
 <a id="npm-ember-cli-version-checker-2-2-0"></a>
 
 ### ember-cli-version-checker 2.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1 &gt; ember-cli-version-checker@2.2.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-modifier-manager-polyfill@1.2.0 &gt; ember-cli-version-checker@2.2.0
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7357,7 +9727,7 @@ limitations under the License.
 ### ember-cli-version-checker 3.1.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-version-checker@3.1.3
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-version-checker@3.1.3
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7366,7 +9736,7 @@ limitations under the License.
 ### ember-cli-version-checker 4.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; ember-cli-version-checker@4.1.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; ember-cli-version-checker@4.1.1
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7375,25 +9745,42 @@ limitations under the License.
 ### ember-cli-version-checker 5.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2 &gt; ember-cli-version-checker@5.1.2
+- Required through: @ember/test-waiters@3.1.0 &gt; ember-cli-version-checker@5.1.2
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-ember-click-outside-6-1-1"></a>
+
+### ember-click-outside 6.1.1
+
+- License: MIT
+- Required through: ember-click-outside@6.1.1
+- Author: Gabor Babicz &lt;gabor@gaborbabicz.com&gt;
+- `LICENSE.md`: [license text 307](#license-text-307)
 
 <a id="npm-ember-compatibility-helpers-1-2-2"></a>
 
 ### ember-compatibility-helpers 1.2.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; ember-modifier-manager-polyfill@1.2.0 &gt; ember-compatibility-helpers@1.2.2
-- `LICENSE.md`: [license text 267](#license-text-267)
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-modifier-manager-polyfill@1.2.0 &gt; ember-compatibility-helpers@1.2.2
+- `LICENSE.md`: [license text 183](#license-text-183)
 
 <a id="npm-ember-compatibility-helpers-1-2-6"></a>
 
 ### ember-compatibility-helpers 1.2.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-modifier@3.2.7 &gt; ember-compatibility-helpers@1.2.6
-- `LICENSE.md`: [license text 267](#license-text-267)
+- Required through: @glimmer/component@1.1.2 &gt; ember-compatibility-helpers@1.2.6
+- `LICENSE.md`: [license text 183](#license-text-183)
+
+<a id="npm-ember-compatibility-helpers-1-2-7"></a>
+
+### ember-compatibility-helpers 1.2.7
+
+- License: MIT
+- Required through: ember-data-model-fragments@7.0.3 &gt; ember-compatibility-helpers@1.2.7
+- `LICENSE.md`: [license text 183](#license-text-183)
 
 <a id="npm-ember-composable-helpers-4-5-0"></a>
 
@@ -7402,7 +9789,51 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-composable-helpers@4.5.0
 - Author: Dockyard &lt;oss@dockyard.com&gt;
-- `LICENSE.md`: [license text 272](#license-text-272)
+- `LICENSE.md`: [license text 304](#license-text-304)
+
+<a id="npm-ember-concurrency-4-0-6"></a>
+
+### ember-concurrency 4.0.6
+
+- License: MIT
+- Required through: ember-concurrency@4.0.6
+- Author: Alex Matchneer &lt;machty@gmail.com&gt;
+- `LICENSE.md`: [license text 308](#license-text-308)
+
+<a id="npm-ember-copy-2-0-1"></a>
+
+### ember-copy 2.0.1
+
+- License: MIT
+- Required through: ember-copy@2.0.1
+- Author: Lupestro
+- `LICENSE.md`: [license text 309](#license-text-309)
+
+<a id="npm-ember-data-model-fragments-7-0-3"></a>
+
+### ember-data-model-fragments 7.0.3
+
+- License: MIT
+- Required through: ember-data-model-fragments@7.0.3
+- Author: Steven Lindberg &lt;steven@lytics.io&gt;
+- `LICENSE.md`: [license text 310](#license-text-310)
+
+<a id="npm-ember-data-4-12-8"></a>
+
+### ember-data 4.12.8
+
+- License: MIT
+- Required through: ember-data@4.12.8
+- `LICENSE.md`: [license text 182](#license-text-182)
+
+<a id="npm-ember-decorators-6-1-1"></a>
+
+### ember-decorators 6.1.1
+
+- License: MIT
+- Required through: ember-decorators@6.1.1
+- Author: Robert Jackson &lt;me@rwjblue.com&gt;
+- `LICENSE.md`: [license text 183](#license-text-183)
 
 <a id="npm-ember-destroyable-polyfill-2-0-3"></a>
 
@@ -7411,7 +9842,16 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-keyboard@8.2.1 &gt; ember-destroyable-polyfill@2.0.3
 - Author: Jan Buschtöns &lt;jan@buschtoens.me&gt; (https://jan.buschtoens.me)
-- `LICENSE.md`: [license text 266](#license-text-266)
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-element-helper-0-8-8"></a>
+
+### ember-element-helper 0.8.8
+
+- License: MIT
+- Required through: ember-basic-dropdown@8.11.1 &gt; ember-element-helper@0.8.8
+- Author: Godfrey Chan &lt;godfrey@tilde.io&gt;
+- `LICENSE.md`: [license text 183](#license-text-183)
 
 <a id="npm-ember-focus-trap-1-1-0"></a>
 
@@ -7420,15 +9860,51 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-focus-trap@1.1.0
 - Author: Josemar Luedke &lt;josemarluedke@gmail.com&gt;
-- `LICENSE.md`: [license text 181](#license-text-181)
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-functions-as-helper-polyfill-2-1-3"></a>
+
+### ember-functions-as-helper-polyfill 2.1.3
+
+- License: MIT
+- Required through: ember-truth-helpers@4.0.3 &gt; ember-functions-as-helper-polyfill@2.1.3
+- Author: NullVoxPopuli
+- `LICENSE.md`: [license text 297](#license-text-297)
 
 <a id="npm-ember-get-config-2-1-1"></a>
 
 ### ember-get-config 2.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-get-config@2.1.1
-- `LICENSE.md`: [license text 271](#license-text-271)
+- Required through: ember-cli-clipboard@1.3.0 &gt; ember-arg-types@1.0.0 &gt; ember-get-config@2.1.1
+- `LICENSE.md`: [license text 306](#license-text-306)
+
+<a id="npm-ember-inflector-4-0-2"></a>
+
+### ember-inflector 4.0.2
+
+- License: MIT
+- Required through: ember-data@4.12.8 &gt; ember-inflector@4.0.2
+- Author: Stefan Penner, Manuel Wiedenmann and Trace Wax
+- `LICENSE.md`: [license text 311](#license-text-311)
+
+<a id="npm-ember-inflector-4-0-3"></a>
+
+### ember-inflector 4.0.3
+
+- License: MIT
+- Required through: ember-inflector@4.0.3
+- Author: Stefan Penner, Manuel Wiedenmann and Trace Wax
+- `LICENSE.md`: [license text 312](#license-text-312)
+
+<a id="npm-ember-inline-svg-1-0-1"></a>
+
+### ember-inline-svg 1.0.1
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1
+- Author: Richard Livsey &lt;richard@minutebase.com&gt;
+- `LICENSE.md`: [license text 185](#license-text-185)
 
 <a id="npm-ember-keyboard-8-2-1"></a>
 
@@ -7436,16 +9912,24 @@ limitations under the License.
 
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-keyboard@8.2.1
-- `LICENSE.md`: [license text 265](#license-text-265)
+- `LICENSE.md`: [license text 297](#license-text-297)
+
+<a id="npm-ember-load-initializers-3-0-1"></a>
+
+### ember-load-initializers 3.0.1
+
+- License: MIT
+- Required through: ember-load-initializers@3.0.1
+- `LICENSE.md`: [license text 306](#license-text-306)
 
 <a id="npm-ember-modifier-manager-polyfill-1-2-0"></a>
 
 ### ember-modifier-manager-polyfill 1.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; ember-modifier-manager-polyfill@1.2.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-modifier-manager-polyfill@1.2.0
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
-- `LICENSE.md`: [license text 267](#license-text-267)
+- `LICENSE.md`: [license text 183](#license-text-183)
 
 <a id="npm-ember-modifier-3-2-7"></a>
 
@@ -7453,7 +9937,7 @@ limitations under the License.
 
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-modifier@3.2.7
-- `LICENSE.md`: [license text 181](#license-text-181)
+- `LICENSE.md`: [license text 185](#license-text-185)
 
 <a id="npm-ember-modifier-4-0-0"></a>
 
@@ -7461,15 +9945,86 @@ limitations under the License.
 
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-keyboard@8.2.1 &gt; ember-modifier@4.0.0
-- `LICENSE.md`: [license text 181](#license-text-181)
+- `LICENSE.md`: [license text 185](#license-text-185)
 
 <a id="npm-ember-modifier-4-1-0"></a>
 
 ### ember-modifier 4.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-style-modifier@3.0.1 &gt; ember-modifier@4.1.0
-- `LICENSE.md`: [license text 181](#license-text-181)
+- Required through: legacy UI: @hashicorp/design-system-components@2.12.0 &gt; ember-style-modifier@3.0.1 &gt; ember-modifier@4.1.0
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-modifier-4-3-0"></a>
+
+### ember-modifier 4.3.0
+
+- License: MIT
+- Required through: ember-modifier@4.3.0
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-on-resize-modifier-2-0-2"></a>
+
+### ember-on-resize-modifier 2.0.2
+
+- License: MIT
+- Required through: ember-on-resize-modifier@2.0.2
+- Author: Precision Nutrition Team
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-overridable-computed-1-0-0"></a>
+
+### ember-overridable-computed 1.0.0
+
+- License: MIT
+- Required through: ember-overridable-computed@1.0.0
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-page-title-8-2-4"></a>
+
+### ember-page-title 8.2.4
+
+- License: MIT
+- Required through: ember-page-title@8.2.4
+- Author: Tim Evans &lt;tim.c.evans@me.com&gt;
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-power-select-8-12-2"></a>
+
+### ember-power-select 8.12.2
+
+- License: MIT
+- Required through: ember-power-select@8.12.2
+- Author: Miguel Camba &lt;miguel.camba@gmail.com&gt;
+- `LICENSE.md`: [license text 313](#license-text-313)
+
+<a id="npm-ember-render-helpers-0-2-0"></a>
+
+### ember-render-helpers 0.2.0
+
+- License: MIT
+- Required through: ember-render-helpers@0.2.0
+- Author: Jan Buschtöns &lt;jan@buschtoens.me&gt; (https://jan.buschtoens.me)
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-resize-observer-service-1-1-0"></a>
+
+### ember-resize-observer-service 1.1.0
+
+- License: MIT
+- Required through: ember-on-resize-modifier@2.0.2 &gt; ember-resize-observer-service@1.1.0
+- Author: Precision Nutrition Team
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-resolver-13-2-0"></a>
+
+### ember-resolver 13.2.0
+
+- License: MIT
+- Required through: ember-resolver@13.2.0
+- Author: Robert Jackson &lt;me@rwjblue.com&gt;
+- `LICENSE`: [license text 314](#license-text-314)
+- `LICENSE.md`: [license text 306](#license-text-306)
 
 <a id="npm-ember-resources-5-6-4"></a>
 
@@ -7478,16 +10033,51 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; ember-resources@5.6.4
 - Author: NullVoxPopuli
-- `LICENSE.md`: [license text 265](#license-text-265)
+- `LICENSE.md`: [license text 297](#license-text-297)
+
+<a id="npm-ember-resources-6-5-2"></a>
+
+### ember-resources 6.5.2
+
+- License: MIT
+- Required through: ember-stargate@0.5.0 &gt; ember-resources@6.5.2
+- Author: NullVoxPopuli
+- `LICENSE.md`: [license text 297](#license-text-297)
+
+<a id="npm-ember-responsive-5-0-0"></a>
+
+### ember-responsive 5.0.0
+
+- License: MIT
+- Required through: ember-responsive@5.0.0
+- Author: FreshBooks
+- `LICENSE.md`: [license text 315](#license-text-315)
 
 <a id="npm-ember-rfc176-data-0-3-17"></a>
 
 ### ember-rfc176-data 0.3.17
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @embroider/shared-internals@1.0.0 &gt; ember-rfc176-data@0.3.17
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; ember-rfc176-data@0.3.17
 - Author: Tom Dale &lt;tom@tomdale.net&gt;
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-ember-router-generator-2-0-0"></a>
+
+### ember-router-generator 2.0.0
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; ember-router-generator@2.0.0
+- Author: Adolfo Builes
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-ember-source-6-12-0"></a>
+
+### ember-source 6.12.0
+
+- License: MIT
+- Required through: ember-source@6.12.0
+- `LICENSE`: [license text 316](#license-text-316)
 
 <a id="npm-ember-stargate-0-4-3"></a>
 
@@ -7498,22 +10088,47 @@ limitations under the License.
 - Author: Simon Ihmig &lt;simon.ihmig@kaliber5.de&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
+<a id="npm-ember-stargate-0-5-0"></a>
+
+### ember-stargate 0.5.0
+
+- License: MIT
+- Required through: ember-stargate@0.5.0
+- Author: Simon Ihmig &lt;simon.ihmig@kaliber5.de&gt;
+- `LICENSE.md`: [license text 187](#license-text-187)
+
 <a id="npm-ember-style-modifier-3-0-1"></a>
 
 ### ember-style-modifier 3.0.1
 
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-style-modifier@3.0.1
-- `LICENSE.md`: [license text 181](#license-text-181)
+- `LICENSE.md`: [license text 185](#license-text-185)
+
+<a id="npm-ember-style-modifier-4-6-0"></a>
+
+### ember-style-modifier 4.6.0
+
+- License: MIT
+- Required through: ember-basic-dropdown@8.11.1 &gt; ember-style-modifier@4.6.0
+- `LICENSE.md`: [license text 299](#license-text-299)
+
+<a id="npm-ember-template-imports-4-4-0"></a>
+
+### ember-template-imports 4.4.0
+
+- License: MIT
+- Required through: ember-data-model-fragments@7.0.3 &gt; ember-template-imports@4.4.0
+- `LICENSE.md`: [license text 297](#license-text-297)
 
 <a id="npm-ember-tracked-storage-polyfill-1-0-0"></a>
 
 ### ember-tracked-storage-polyfill 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; tracked-maps-and-sets@3.0.2 &gt; ember-tracked-storage-polyfill@1.0.0
+- Required through: ember-stargate@0.5.0 &gt; tracked-maps-and-sets@3.0.2 &gt; ember-tracked-storage-polyfill@1.0.0
 - Author: Chris Hewell Garrett
-- `LICENSE.md`: [license text 265](#license-text-265)
+- `LICENSE.md`: [license text 297](#license-text-297)
 
 <a id="npm-ember-truth-helpers-3-1-1"></a>
 
@@ -7522,32 +10137,50 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-truth-helpers@3.1.1
 - Author: James Murphy
-- `LICENSE.md`: [license text 266](#license-text-266)
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-truth-helpers-4-0-3"></a>
+
+### ember-truth-helpers 4.0.3
+
+- License: MIT
+- Required through: ember-truth-helpers@4.0.3
+- Author: James Murphy
+- `LICENSE.md`: [license text 187](#license-text-187)
+
+<a id="npm-ember-truth-helpers-5-0-0"></a>
+
+### ember-truth-helpers 5.0.0
+
+- License: MIT
+- Required through: ember-basic-dropdown@8.11.1 &gt; ember-truth-helpers@5.0.0
+- Author: James Murphy
+- `LICENSE.md`: [license text 187](#license-text-187)
 
 <a id="npm-emojis-list-3-0-0"></a>
 
 ### emojis-list 3.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; loader-utils@1.4.0 &gt; emojis-list@3.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; loader-utils@1.4.0 &gt; emojis-list@3.0.0
 - Author: Kiko Beats &lt;josefrancisco.verdu@gmail.com&gt;
-- `LICENSE.md`: [license text 273](#license-text-273)
+- `LICENSE.md`: [license text 317](#license-text-317)
 
 <a id="npm-end-of-stream-1-4-4"></a>
 
 ### end-of-stream 1.4.4
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; get-stream@5.2.0 &gt; pump@3.0.0 &gt; end-of-stream@1.4.4
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; get-stream@5.2.0 &gt; pump@3.0.0 &gt; end-of-stream@1.4.4
 - Author: Mathias Buus &lt;mathiasbuus@gmail.com&gt;
-- `LICENSE`: [license text 274](#license-text-274)
+- `LICENSE`: [license text 318](#license-text-318)
 
 <a id="npm-ensure-posix-path-1-1-1"></a>
 
 ### ensure-posix-path 1.1.1
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; ensure-posix-path@1.1.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; ensure-posix-path@1.1.1
 - Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7556,9 +10189,9 @@ limitations under the License.
 ### entities 2.2.0
 
 - License: BSD-2-Clause
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; ansi-to-html@0.6.15 &gt; entities@2.2.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; ansi-to-html@0.6.15 &gt; entities@2.2.0
 - Author: Felix Boehm &lt;me@feedic.com&gt;
-- `LICENSE`: [license text 275](#license-text-275)
+- `LICENSE`: [license text 269](#license-text-269)
 
 <a id="npm-errlop-2-2-0"></a>
 
@@ -7567,120 +10200,165 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; broccoli-persistent-filter@3.1.2 &gt; async-disk-cache@2.1.0 &gt; istextorbinary@2.6.0 &gt; editions@2.3.1 &gt; errlop@2.2.0
 - Author: 2018+ Benjamin Lupton &lt;b@lupton.cc&gt;
-- `LICENSE.md`: [license text 276](#license-text-276)
+- `LICENSE.md`: [license text 319](#license-text-319)
 
 <a id="npm-error-ex-1-3-2"></a>
 
 ### error-ex 1.3.2
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; error-ex@1.3.2
-- `LICENSE`: [license text 277](#license-text-277)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; error-ex@1.3.2
+- `LICENSE`: [license text 320](#license-text-320)
+
+<a id="npm-es-abstract-1-17-7"></a>
+
+### es-abstract 1.17.7
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; util.promisify@1.0.1 &gt; es-abstract@1.17.7
+- Author: Jordan Harband &lt;ljharb@gmail.com&gt;
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-es-abstract-1-19-1"></a>
 
 ### es-abstract 1.19.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
+
+<a id="npm-es-errors-1-3-0"></a>
+
+### es-errors 1.3.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; resolve@1.22.13 &gt; es-errors@1.3.0
+- Author: Jordan Harband &lt;ljharb@gmail.com&gt;
+- `LICENSE`: [license text 321](#license-text-321)
 
 <a id="npm-es-to-primitive-1-2-1"></a>
 
 ### es-to-primitive 1.2.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; es-to-primitive@1.2.1
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; es-to-primitive@1.2.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-escalade-3-1-1"></a>
 
 ### escalade 3.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; escalade@3.1.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; escalade@3.1.1
 - Author: Luke Edwards &lt;luke.edwards05@gmail.com&gt;
-- `license`: [license text 278](#license-text-278)
+- `license`: [license text 322](#license-text-322)
+
+<a id="npm-escalade-3-2-0"></a>
+
+### escalade 3.2.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; browserslist@4.29.3 &gt; update-browserslist-db@1.3.4 &gt; escalade@3.2.0
+- Author: Luke Edwards &lt;luke.edwards05@gmail.com&gt;
+- `license`: [license text 322](#license-text-322)
 
 <a id="npm-escape-string-regexp-1-0-5"></a>
 
 ### escape-string-regexp 1.0.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7 &gt; @babel/highlight@7.16.10 &gt; chalk@2.4.2 &gt; escape-string-regexp@1.0.5
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; chalk@2.4.2 &gt; escape-string-regexp@1.0.5
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
+
+<a id="npm-esprima-4-0-1"></a>
+
+### esprima 4.0.1
+
+- License: BSD-2-Clause
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; js-yaml@3.14.1 &gt; esprima@4.0.1
+- Author: Ariya Hidayat &lt;ariya.hidayat@gmail.com&gt;
+- `LICENSE.BSD`: [license text 324](#license-text-324)
+
+<a id="npm-estree-walker-0-6-1"></a>
+
+### estree-walker 0.6.1
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; broccoli-rollup@5.0.0 &gt; rollup-pluginutils@2.8.2 &gt; estree-walker@0.6.1
+- Author: Rich Harris
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-esutils-2-0-3"></a>
 
 ### esutils 2.0.3
 
 - License: BSD-2-Clause
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/preset-modules@0.1.5 &gt; esutils@2.0.3
-- `LICENSE.BSD`: [license text 280](#license-text-280)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/preset-modules@0.1.5 &gt; esutils@2.0.3
+- `LICENSE.BSD`: [license text 325](#license-text-325)
 
 <a id="npm-execa-2-1-0"></a>
 
 ### execa 2.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-execa-4-1-0"></a>
 
 ### execa 4.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; execa@4.1.0
+- Required through: ember-render-helpers@0.2.0 &gt; ember-cli-typescript@4.2.1 &gt; execa@4.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-extract-zip-2-0-1"></a>
 
 ### extract-zip 2.0.1
 
 - License: BSD-2-Clause
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1
 - Author: max ogden
-- `LICENSE`: [license text 282](#license-text-282)
+- `LICENSE`: [license text 327](#license-text-327)
 
 <a id="npm-fast-deep-equal-3-1-3"></a>
 
 ### fast-deep-equal 3.1.3
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; ajv@8.11.0 &gt; fast-deep-equal@3.1.3
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv@6.12.6 &gt; fast-deep-equal@3.1.3
 - Author: Evgeny Poberezkin
-- `LICENSE`: [license text 283](#license-text-283)
+- `LICENSE`: [license text 328](#license-text-328)
 
 <a id="npm-fast-glob-3-2-11"></a>
 
 ### fast-glob 3.2.11
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11
 - Author: Denis Malinochkin
-- `LICENSE`: [license text 189](#license-text-189)
+- `LICENSE`: [license text 196](#license-text-196)
 
 <a id="npm-fast-json-stable-stringify-2-1-0"></a>
 
 ### fast-json-stable-stringify 2.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv@6.12.6 &gt; fast-json-stable-stringify@2.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv@6.12.6 &gt; fast-json-stable-stringify@2.1.0
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 284](#license-text-284)
+- `LICENSE`: [license text 329](#license-text-329)
 
 <a id="npm-fast-ordered-set-1-0-3"></a>
 
 ### fast-ordered-set 1.0.3
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-funnel@2.0.2 &gt; fast-ordered-set@1.0.3
+- Required through: ember-cli-string-helpers@6.1.0 &gt; broccoli-funnel@3.0.3 &gt; fast-ordered-set@1.0.3
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-fastq-1-10-1"></a>
@@ -7688,18 +10366,18 @@ limitations under the License.
 ### fastq 1.10.1
 
 - License: ISC
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6 &gt; fastq@1.10.1
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6 &gt; fastq@1.10.1
 - Author: Matteo Collina &lt;hello@matteocollina.com&gt;
-- `LICENSE`: [license text 285](#license-text-285)
+- `LICENSE`: [license text 330](#license-text-330)
 
 <a id="npm-fd-slicer-1-1-0"></a>
 
 ### fd-slicer 1.1.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; yauzl@2.10.0 &gt; fd-slicer@1.1.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; yauzl@2.10.0 &gt; fd-slicer@1.1.0
 - Author: Andrew Kelley &lt;superjoe30@gmail.com&gt;
-- `LICENSE`: [license text 286](#license-text-286)
+- `LICENSE`: [license text 331](#license-text-331)
 
 <a id="npm-fill-range-7-0-1"></a>
 
@@ -7708,58 +10386,85 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; braces@3.0.2 &gt; fill-range@7.0.1
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 287](#license-text-287)
+- `LICENSE`: [license text 332](#license-text-332)
+
+<a id="npm-filter-obj-1-1-0"></a>
+
+### filter-obj 1.1.0
+
+- License: MIT
+- Required through: query-string@7.0.1 &gt; filter-obj@1.1.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 323](#license-text-323)
 
 <a id="npm-find-babel-config-1-2-0"></a>
 
 ### find-babel-config 1.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; find-babel-config@1.2.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; find-babel-config@1.2.0
 - Author: Tommy Leunen &lt;tommy.leunen@gmail.com&gt; (http://tommyleunen.com)
-- `LICENSE.md`: [license text 288](#license-text-288)
+- `LICENSE.md`: [license text 333](#license-text-333)
+
+<a id="npm-find-babel-config-2-1-2"></a>
+
+### find-babel-config 2.1.2
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; find-babel-config@2.1.2
+- Author: Tommy Leunen &lt;tommy.leunen@gmail.com&gt; (http://tommyleunen.com)
+- `LICENSE.md`: [license text 333](#license-text-333)
 
 <a id="npm-find-cache-dir-3-3-2"></a>
 
 ### find-cache-dir 3.3.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2
-- `license`: [license text 281](#license-text-281)
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-find-up-2-1-0"></a>
 
 ### find-up 2.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
+
+<a id="npm-find-up-3-0-0"></a>
+
+### find-up 3.0.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; pkg-up@3.1.0 &gt; find-up@3.0.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-find-up-4-1-0"></a>
 
 ### find-up 4.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0 &gt; find-up@4.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0 &gt; find-up@4.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-find-up-5-0-0"></a>
 
 ### find-up 5.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; find-up@5.0.0
+- Required through: @embroider/macros@1.20.7 &gt; find-up@5.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-fixturify-project-1-10-0"></a>
 
 ### fixturify-project 1.10.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0
 - Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7768,9 +10473,18 @@ limitations under the License.
 ### fixturify 1.3.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
+
+<a id="npm-flat-5-0-2"></a>
+
+### flat 5.0.2
+
+- License: BSD-3-Clause
+- Required through: flat@5.0.2
+- Author: Hugh Kennedy &lt;hughskennedy@gmail.com&gt; (http://hughskennedy.com)
+- `LICENSE`: [license text 334](#license-text-334)
 
 <a id="npm-focus-trap-6-9-4"></a>
 
@@ -7779,50 +10493,59 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-focus-trap@1.1.0 &gt; focus-trap@6.9.4
 - Author: David Clark
-- `LICENSE`: [license text 289](#license-text-289)
+- `LICENSE`: [license text 335](#license-text-335)
+
+<a id="npm-fs-extra-10-1-0"></a>
+
+### fs-extra 10.1.0
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; fs-extra@10.1.0
+- Author: JP Richardson &lt;jprichardson@gmail.com&gt;
+- `LICENSE`: [license text 336](#license-text-336)
 
 <a id="npm-fs-extra-6-0-1"></a>
 
 ### fs-extra 6.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; fs-extra@6.0.1
+- Required through: legacy UI: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; fs-extra@6.0.1
 - Author: JP Richardson &lt;jprichardson@gmail.com&gt;
-- `LICENSE`: [license text 290](#license-text-290)
+- `LICENSE`: [license text 336](#license-text-336)
 
 <a id="npm-fs-extra-7-0-1"></a>
 
 ### fs-extra 7.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; fs-extra@7.0.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; fixturify@1.3.0 &gt; fs-extra@7.0.1
 - Author: JP Richardson &lt;jprichardson@gmail.com&gt;
-- `LICENSE`: [license text 290](#license-text-290)
+- `LICENSE`: [license text 336](#license-text-336)
 
 <a id="npm-fs-extra-8-1-0"></a>
 
 ### fs-extra 8.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; broccoli-output-wrapper@3.2.5 &gt; fs-extra@8.1.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; fs-extra@8.1.0
 - Author: JP Richardson &lt;jprichardson@gmail.com&gt;
-- `LICENSE`: [license text 290](#license-text-290)
+- `LICENSE`: [license text 336](#license-text-336)
 
 <a id="npm-fs-extra-9-1-0"></a>
 
 ### fs-extra 9.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @embroider/shared-internals@1.0.0 &gt; fs-extra@9.1.0
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; fs-extra@9.1.0
 - Author: JP Richardson &lt;jprichardson@gmail.com&gt;
-- `LICENSE`: [license text 290](#license-text-290)
+- `LICENSE`: [license text 336](#license-text-336)
 
 <a id="npm-fs-merger-3-1-0"></a>
 
 ### fs-merger 3.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; fs-merger@3.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; broccoli-plugin@4.0.3 &gt; fs-merger@3.1.0
 - Author: Sparshith NR
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7831,7 +10554,7 @@ limitations under the License.
 ### fs-merger 3.2.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-funnel@3.0.8 &gt; broccoli-plugin@4.0.7 &gt; fs-merger@3.2.1
+- Required through: ember-source@6.12.0 &gt; broccoli-funnel@3.0.8 &gt; broccoli-plugin@4.0.7 &gt; fs-merger@3.2.1
 - Author: Sparshith NR
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7840,7 +10563,7 @@ limitations under the License.
 ### fs-tree-diff 0.5.9
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-debug@0.6.5 &gt; fs-tree-diff@0.5.9
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-funnel@2.0.2 &gt; fs-tree-diff@0.5.9
 - Author: Stefan Penner, David J. Hamilton, Chad Hietala
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7849,7 +10572,7 @@ limitations under the License.
 ### fs-tree-diff 2.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; fs-tree-diff@2.0.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; fs-tree-diff@2.0.1
 - Author: Stefan Penner, David J. Hamilton, Chad Hietala
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -7858,18 +10581,18 @@ limitations under the License.
 ### fs-updater 1.0.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-merge-trees@4.2.0 &gt; merge-trees@2.0.0 &gt; fs-updater@1.0.4
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-merge-trees@3.0.2 &gt; merge-trees@2.0.0 &gt; fs-updater@1.0.4
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 229](#license-text-229)
+- `LICENSE`: [license text 246](#license-text-246)
 
 <a id="npm-fs-realpath-1-0-0"></a>
 
 ### fs.realpath 1.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; glob@7.2.0 &gt; fs.realpath@1.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; glob@7.2.0 &gt; fs.realpath@1.0.0
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 291](#license-text-291)
+- `LICENSE`: [license text 337](#license-text-337)
 
 <a id="npm-fsevents-2-3-2"></a>
 
@@ -7877,61 +10600,88 @@ limitations under the License.
 
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; fsevents@2.3.2
-- `LICENSE`: [license text 292](#license-text-292)
+- `LICENSE`: [license text 338](#license-text-338)
 
 <a id="npm-function-bind-1-1-1"></a>
 
 ### function-bind 1.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; call-bind@1.0.2 &gt; function-bind@1.1.1
+- Required through: @embroider/macros@1.20.7 &gt; resolve@1.22.0 &gt; is-core-module@2.8.1 &gt; has@1.0.3 &gt; function-bind@1.1.1
 - Author: Raynos &lt;raynos2@gmail.com&gt;
-- `LICENSE`: [license text 293](#license-text-293)
+- `LICENSE`: [license text 339](#license-text-339)
+
+<a id="npm-function-bind-1-1-2"></a>
+
+### function-bind 1.1.2
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; resolve@1.22.13 &gt; is-core-module@2.17.0 &gt; hasown@2.0.4 &gt; function-bind@1.1.2
+- Author: Raynos &lt;raynos2@gmail.com&gt;
+- `LICENSE`: [license text 339](#license-text-339)
+
+<a id="npm-fuse-js-3-6-1"></a>
+
+### fuse.js 3.6.1
+
+- License: Apache-2.0
+- Required through: fuse.js@3.6.1
+- Author: Kirollos Risk &lt;kirollos@gmail.com&gt;
+- `LICENSE`: [license text 340](#license-text-340)
 
 <a id="npm-gensync-1-0-0-beta-2"></a>
 
 ### gensync 1.0.0-beta.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; gensync@1.0.0-beta.2
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; gensync@1.0.0-beta.2
 - Author: Logan Smyth &lt;loganfsmyth@gmail.com&gt;
-- `LICENSE`: [license text 294](#license-text-294)
+- `LICENSE`: [license text 341](#license-text-341)
 
 <a id="npm-get-intrinsic-1-1-0"></a>
 
 ### get-intrinsic 1.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; internal-slot@1.0.3 &gt; get-intrinsic@1.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; internal-slot@1.0.3 &gt; get-intrinsic@1.1.0
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 226](#license-text-226)
+- `LICENSE`: [license text 243](#license-text-243)
 
 <a id="npm-get-intrinsic-1-1-1"></a>
 
 ### get-intrinsic 1.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; get-intrinsic@1.1.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; get-intrinsic@1.1.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 226](#license-text-226)
+- `LICENSE`: [license text 243](#license-text-243)
 
 <a id="npm-get-stream-5-2-0"></a>
 
 ### get-stream 5.2.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; get-stream@5.2.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; get-stream@5.2.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-get-symbol-description-1-0-0"></a>
 
 ### get-symbol-description 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; get-symbol-description@1.0.0
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; get-symbol-description@1.0.0
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 295](#license-text-295)
+- `LICENSE`: [license text 342](#license-text-342)
+
+<a id="npm-git-repo-info-2-1-1"></a>
+
+### git-repo-info 2.1.1
+
+- License: MIT
+- Required through: ember-data-model-fragments@7.0.3 &gt; git-repo-info@2.1.1
+- Author: Robert Jackson &lt;me@rwjblue.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-glob-parent-5-1-2"></a>
 
@@ -7940,41 +10690,41 @@ limitations under the License.
 - License: ISC
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; glob-parent@5.1.2
 - Author: Gulp Team &lt;team@gulpjs.com&gt; (https://gulpjs.com/)
-- `LICENSE`: [license text 296](#license-text-296)
+- `LICENSE`: [license text 343](#license-text-343)
 
 <a id="npm-glob-5-0-15"></a>
 
 ### glob 5.0.15
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; hash-for-dep@1.5.1 &gt; broccoli-kitchen-sink-helpers@0.3.1 &gt; glob@5.0.15
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-caching-writer@3.0.3 &gt; broccoli-kitchen-sink-helpers@0.3.1 &gt; glob@5.0.15
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-glob-7-2-0"></a>
 
 ### glob 7.2.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; glob@7.2.0
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; glob@7.2.0
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 298](#license-text-298)
+- `LICENSE`: [license text 345](#license-text-345)
 
 <a id="npm-globals-11-12-0"></a>
 
 ### globals 11.12.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3 &gt; globals@11.12.0
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/traverse@7.17.3 &gt; globals@11.12.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-good-listener-1-2-2"></a>
 
 ### good-listener 1.2.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; clipboard@2.0.11 &gt; good-listener@1.2.2
+- Required through: ember-cli-clipboard@1.3.0 &gt; clipboard@2.0.11 &gt; good-listener@1.2.2
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-graceful-fs-4-2-9"></a>
@@ -7982,62 +10732,80 @@ limitations under the License.
 ### graceful-fs 4.2.9
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; fs-extra@6.0.1 &gt; graceful-fs@4.2.9
-- `LICENSE`: [license text 299](#license-text-299)
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; fs-extra@9.1.0 &gt; graceful-fs@4.2.9
+- `LICENSE`: [license text 346](#license-text-346)
 
 <a id="npm-handlebars-4-7-7"></a>
 
 ### handlebars 4.7.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; handlebars@4.7.7
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; handlebars@4.7.7
 - Author: Yehuda Katz
-- `LICENSE`: [license text 300](#license-text-300)
+- `LICENSE`: [license text 347](#license-text-347)
 
 <a id="npm-has-bigints-1-0-1"></a>
 
 ### has-bigints 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; has-bigints@1.0.1
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; has-bigints@1.0.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 301](#license-text-301)
+- `LICENSE`: [license text 348](#license-text-348)
+
+<a id="npm-has-color-0-1-7"></a>
+
+### has-color 0.1.7
+
+- License: MIT
+- Required through: jsonlint@1.6.3 &gt; nomnom@1.8.1 &gt; chalk@0.4.0 &gt; has-color@0.1.7
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-has-flag-3-0-0"></a>
 
 ### has-flag 3.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7 &gt; @babel/highlight@7.16.10 &gt; chalk@2.4.2 &gt; supports-color@5.5.0 &gt; has-flag@3.0.0
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; chalk@2.4.2 &gt; supports-color@5.5.0 &gt; has-flag@3.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-has-flag-4-0-0"></a>
+
+### has-flag 4.0.0
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; chalk@4.1.0 &gt; supports-color@7.2.0 &gt; has-flag@4.0.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-has-symbols-1-0-2"></a>
 
 ### has-symbols 1.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; has-symbols@1.0.2
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; util.promisify@1.0.1 &gt; has-symbols@1.0.2
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 302](#license-text-302)
+- `LICENSE`: [license text 349](#license-text-349)
 
 <a id="npm-has-tostringtag-1-0-0"></a>
 
 ### has-tostringtag 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; is-regex@1.1.4 &gt; has-tostringtag@1.0.0
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; is-regex@1.1.4 &gt; has-tostringtag@1.0.0
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 295](#license-text-295)
+- `LICENSE`: [license text 342](#license-text-342)
 
 <a id="npm-has-1-0-3"></a>
 
 ### has 1.0.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; resolve@1.22.0 &gt; is-core-module@2.8.1 &gt; has@1.0.3
+- Required through: @embroider/macros@1.20.7 &gt; resolve@1.22.0 &gt; is-core-module@2.8.1 &gt; has@1.0.3
 - Author: Thiago de Arruda &lt;tpadilha84@gmail.com&gt;
-- `LICENSE-MIT`: [license text 303](#license-text-303)
+- `LICENSE-MIT`: [license text 350](#license-text-350)
 
 <a id="npm-hash-for-dep-1-5-1"></a>
 
@@ -8048,6 +10816,15 @@ limitations under the License.
 - Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
+<a id="npm-hasown-2-0-4"></a>
+
+### hasown 2.0.4
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; resolve@1.22.13 &gt; is-core-module@2.17.0 &gt; hasown@2.0.4
+- Author: Jordan Harband &lt;ljharb@gmail.com&gt;
+- `LICENSE`: [license text 351](#license-text-351)
+
 <a id="npm-heimdalljs-logger-0-1-10"></a>
 
 ### heimdalljs-logger 0.1.10
@@ -8055,14 +10832,14 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; heimdalljs-logger@0.1.10
 - Author: David J. Hamilton &lt;davidjh@hjdivad.com&gt;
-- `LICENSE`: [license text 304](#license-text-304)
+- `LICENSE`: [license text 352](#license-text-352)
 
 <a id="npm-heimdalljs-0-2-6"></a>
 
 ### heimdalljs 0.2.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-debug@0.6.5 &gt; heimdalljs@0.2.6
+- Required through: ember-cli-string-helpers@6.1.0 &gt; broccoli-funnel@3.0.3 &gt; heimdalljs@0.2.6
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-human-signals-1-1-1"></a>
@@ -8070,36 +10847,36 @@ limitations under the License.
 ### human-signals 1.1.1
 
 - License: Apache-2.0
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; execa@4.1.0 &gt; human-signals@1.1.1
+- Required through: ember-render-helpers@0.2.0 &gt; ember-cli-typescript@4.2.1 &gt; execa@4.1.0 &gt; human-signals@1.1.1
 - Author: ehmicky &lt;ehmicky@gmail.com&gt; (https://github.com/ehmicky)
-- `LICENSE`: [license text 305](#license-text-305)
+- `LICENSE`: [license text 353](#license-text-353)
 
 <a id="npm-iconv-lite-0-6-3"></a>
 
 ### iconv-lite 0.6.3
 
 - License: MIT
-- Required through: d3@7.3.0 &gt; d3-dsv@3.0.1 &gt; iconv-lite@0.6.3
+- Required through: legacy UI: d3@7.3.0 &gt; d3-dsv@3.0.1 &gt; iconv-lite@0.6.3
 - Author: Alexander Shtuchkin &lt;ashtuchkin@gmail.com&gt;
-- `LICENSE`: [license text 306](#license-text-306)
+- `LICENSE`: [license text 354](#license-text-354)
 
 <a id="npm-icss-utils-5-1-0"></a>
 
 ### icss-utils 5.1.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; icss-utils@5.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; icss-utils@5.1.0
 - Author: Glen Maddern
-- `LICENSE.md`: [license text 307](#license-text-307)
+- `LICENSE.md`: [license text 355](#license-text-355)
 
 <a id="npm-image-size-1-0-1"></a>
 
 ### image-size 1.0.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; image-size@1.0.1
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; image-size@1.0.1
 - Author: netroy &lt;aditya@netroy.in&gt; (http://netroy.in/)
-- `LICENSE`: [license text 308](#license-text-308)
+- `LICENSE`: [license text 356](#license-text-356)
 
 <a id="npm-immutable-4-1-0"></a>
 
@@ -8108,16 +10885,16 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; immutable@4.1.0
 - Author: Lee Byron
-- `LICENSE`: [license text 309](#license-text-309)
+- `LICENSE`: [license text 357](#license-text-357)
 
 <a id="npm-import-fresh-3-3-0"></a>
 
 ### import-fresh 3.3.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; import-fresh@3.3.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; import-fresh@3.3.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-include-path-searcher-0-1-0"></a>
 
@@ -8126,69 +10903,87 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1 &gt; broccoli-sass-source-maps@4.0.0 &gt; include-path-searcher@0.1.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-indexes-of-1-0-1"></a>
 
 ### indexes-of 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0 &gt; postcss-selector-parser@6.0.4 &gt; indexes-of@1.0.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0 &gt; postcss-selector-parser@6.0.4 &gt; indexes-of@1.0.1
 - Author: Dominic Tarr &lt;dominic.tarr@gmail.com&gt; (dominictarr.com)
-- `LICENSE`: [license text 310](#license-text-310)
+- `LICENSE`: [license text 358](#license-text-358)
+
+<a id="npm-inflection-2-0-1"></a>
+
+### inflection 2.0.1
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; inflection@2.0.1
+- Author: dreamerslab &lt;ben@dreamerslab.com&gt;
+- `LICENSE`: [license text 359](#license-text-359)
 
 <a id="npm-inflight-1-0-6"></a>
 
 ### inflight 1.0.6
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; glob@7.2.0 &gt; inflight@1.0.6
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; glob@7.2.0 &gt; inflight@1.0.6
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 311](#license-text-311)
+- `LICENSE`: [license text 254](#license-text-254)
 
 <a id="npm-inherits-2-0-4"></a>
 
 ### inherits 2.0.4
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; glob@7.2.0 &gt; inherits@2.0.4
-- `LICENSE`: [license text 311](#license-text-311)
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; glob@7.2.0 &gt; inherits@2.0.4
+- `LICENSE`: [license text 254](#license-text-254)
 
 <a id="npm-internal-slot-1-0-3"></a>
 
 ### internal-slot 1.0.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; internal-slot@1.0.3
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; internal-slot@1.0.3
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 301](#license-text-301)
+- `LICENSE`: [license text 348](#license-text-348)
 
 <a id="npm-internmap-2-0-3"></a>
 
 ### internmap 2.0.3
 
 - License: ISC
-- Required through: d3@7.3.0 &gt; d3-array@3.1.1 &gt; internmap@2.0.3
+- Required through: d3-array@3.1.1 &gt; internmap@2.0.3
 - Author: Mike Bostock
-- `LICENSE`: [license text 312](#license-text-312)
+- `LICENSE`: [license text 360](#license-text-360)
+
+<a id="npm-ip-regex-4-3-0"></a>
+
+### ip-regex 4.3.0
+
+- License: MIT
+- Required through: is-ip@3.1.0 &gt; ip-regex@4.3.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-is-arrayish-0-2-1"></a>
 
 ### is-arrayish 0.2.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; error-ex@1.3.2 &gt; is-arrayish@0.2.1
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; error-ex@1.3.2 &gt; is-arrayish@0.2.1
 - Author: Qix (http://github.com/qix-)
-- `LICENSE`: [license text 277](#license-text-277)
+- `LICENSE`: [license text 320](#license-text-320)
 
 <a id="npm-is-bigint-1-0-4"></a>
 
 ### is-bigint 1.0.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-bigint@1.0.4
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-bigint@1.0.4
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 313](#license-text-313)
+- `LICENSE`: [license text 361](#license-text-361)
 
 <a id="npm-is-binary-path-2-1-0"></a>
 
@@ -8197,43 +10992,52 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; is-binary-path@2.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 211](#license-text-211)
+- `license`: [license text 225](#license-text-225)
 
 <a id="npm-is-boolean-object-1-1-2"></a>
 
 ### is-boolean-object 1.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-boolean-object@1.1.2
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-boolean-object@1.1.2
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-is-callable-1-2-4"></a>
 
 ### is-callable 1.2.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; is-callable@1.2.4
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; is-callable@1.2.4
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
+
+<a id="npm-is-core-module-2-17-0"></a>
+
+### is-core-module 2.17.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; resolve@1.22.13 &gt; is-core-module@2.17.0
+- Author: Jordan Harband &lt;ljharb@gmail.com&gt;
+- `LICENSE`: [license text 362](#license-text-362)
 
 <a id="npm-is-core-module-2-8-1"></a>
 
 ### is-core-module 2.8.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; resolve@1.22.0 &gt; is-core-module@2.8.1
+- Required through: @embroider/macros@1.20.7 &gt; resolve@1.22.0 &gt; is-core-module@2.8.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 314](#license-text-314)
+- `LICENSE`: [license text 362](#license-text-362)
 
 <a id="npm-is-date-object-1-0-5"></a>
 
 ### is-date-object 1.0.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; es-to-primitive@1.2.1 &gt; is-date-object@1.0.5
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; es-to-primitive@1.2.1 &gt; is-date-object@1.0.5
 - Author: Jordan Harband
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-is-extglob-2-1-1"></a>
 
@@ -8242,7 +11046,7 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; is-glob@4.0.3 &gt; is-extglob@2.1.1
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 315](#license-text-315)
+- `LICENSE`: [license text 363](#license-text-363)
 
 <a id="npm-is-glob-4-0-3"></a>
 
@@ -8251,25 +11055,34 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; is-glob@4.0.3
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 316](#license-text-316)
+- `LICENSE`: [license text 364](#license-text-364)
+
+<a id="npm-is-ip-3-1-0"></a>
+
+### is-ip 3.1.0
+
+- License: MIT
+- Required through: is-ip@3.1.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-is-negative-zero-2-0-1"></a>
 
 ### is-negative-zero 2.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; is-negative-zero@2.0.1
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; is-negative-zero@2.0.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 317](#license-text-317)
+- `LICENSE`: [license text 365](#license-text-365)
 
 <a id="npm-is-number-object-1-0-6"></a>
 
 ### is-number-object 1.0.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-number-object@1.0.6
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-number-object@1.0.6
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-is-number-7-0-0"></a>
 
@@ -8278,86 +11091,104 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; braces@3.0.2 &gt; fill-range@7.0.1 &gt; to-regex-range@5.0.1 &gt; is-number@7.0.0
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 287](#license-text-287)
+- `LICENSE`: [license text 332](#license-text-332)
 
 <a id="npm-is-regex-1-1-4"></a>
 
 ### is-regex 1.1.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; is-regex@1.1.4
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; is-regex@1.1.4
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 317](#license-text-317)
+- `LICENSE`: [license text 365](#license-text-365)
 
 <a id="npm-is-shared-array-buffer-1-0-1"></a>
 
 ### is-shared-array-buffer 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; is-shared-array-buffer@1.0.1
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; is-shared-array-buffer@1.0.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 295](#license-text-295)
+- `LICENSE`: [license text 342](#license-text-342)
 
 <a id="npm-is-stream-2-0-1"></a>
 
 ### is-stream 2.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; execa@4.1.0 &gt; is-stream@2.0.1
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; is-stream@2.0.1
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-is-string-1-0-5"></a>
 
 ### is-string 1.0.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-string@1.0.5
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-string@1.0.5
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-is-string-1-0-7"></a>
 
 ### is-string 1.0.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; is-string@1.0.7
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; is-string@1.0.7
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
+
+<a id="npm-is-subdir-1-2-0"></a>
+
+### is-subdir 1.2.0
+
+- License: MIT
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; is-subdir@1.2.0
+- Author: Zoltan Kochan
+- `LICENSE`: [license text 366](#license-text-366)
 
 <a id="npm-is-symbol-1-0-3"></a>
 
 ### is-symbol 1.0.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-symbol@1.0.3
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2 &gt; is-symbol@1.0.3
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-is-symbol-1-0-4"></a>
 
 ### is-symbol 1.0.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; es-to-primitive@1.2.1 &gt; is-symbol@1.0.4
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; es-to-primitive@1.2.1 &gt; is-symbol@1.0.4
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-is-weakref-1-0-1"></a>
 
 ### is-weakref 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; is-weakref@1.0.1
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; is-weakref@1.0.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 318](#license-text-318)
+- `LICENSE`: [license text 367](#license-text-367)
+
+<a id="npm-is-windows-1-0-2"></a>
+
+### is-windows 1.0.2
+
+- License: MIT
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; is-subdir@1.2.0 &gt; better-path-resolve@1.0.0 &gt; is-windows@1.0.2
+- Author: Jon Schlinkert (https://github.com/jonschlinkert)
+- `LICENSE`: [license text 368](#license-text-368)
 
 <a id="npm-isarray-1-0-0"></a>
 
 ### isarray 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; line-column@1.0.2 &gt; isarray@1.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; line-column@1.0.2 &gt; isarray@1.0.0
 - Author: Julian Gruber &lt;mail@juliangruber.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -8366,27 +11197,27 @@ limitations under the License.
 ### isexe 2.0.0
 
 - License: ISC
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-exec@1.6.1 &gt; which@2.0.2 &gt; isexe@2.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; cross-spawn@7.0.3 &gt; which@2.0.2 &gt; isexe@2.0.0
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-isobject-2-1-0"></a>
 
 ### isobject 2.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; line-column@1.0.2 &gt; isobject@2.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; line-column@1.0.2 &gt; isobject@2.1.0
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 315](#license-text-315)
+- `LICENSE`: [license text 363](#license-text-363)
 
 <a id="npm-istextorbinary-2-1-0"></a>
 
 ### istextorbinary 2.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0 &gt; broccoli-persistent-filter@2.3.1 &gt; async-disk-cache@1.3.5 &gt; istextorbinary@2.1.0
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; broccoli-persistent-filter@2.3.1 &gt; async-disk-cache@1.3.5 &gt; istextorbinary@2.1.0
 - Author: 2012+ Bevry Pty Ltd &lt;us@bevry.me&gt; (http://bevry.me), 2011 Benjamin Lupton &lt;b@lupton.cc&gt; (https://balupton.com)
-- `LICENSE.md`: [license text 319](#license-text-319)
+- `LICENSE.md`: [license text 369](#license-text-369)
 
 <a id="npm-istextorbinary-2-6-0"></a>
 
@@ -8395,133 +11226,170 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; broccoli-persistent-filter@3.1.2 &gt; async-disk-cache@2.1.0 &gt; istextorbinary@2.6.0
 - Author: 2012+ Bevry Pty Ltd &lt;us@bevry.me&gt; (http://bevry.me), 2011 Benjamin Lupton &lt;b@lupton.cc&gt; (http://balupton.com)
-- `LICENSE.md`: [license text 320](#license-text-320)
+- `LICENSE.md`: [license text 370](#license-text-370)
 
 <a id="npm-js-string-escape-1-0-1"></a>
 
 ### js-string-escape 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; js-string-escape@1.0.1
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; js-string-escape@1.0.1
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 218](#license-text-218)
+- `LICENSE`: [license text 233](#license-text-233)
 
 <a id="npm-js-tokens-4-0-0"></a>
 
 ### js-tokens 4.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; prop-types@15.8.1 &gt; loose-envify@1.4.0 &gt; js-tokens@4.0.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/code-frame@7.29.7 &gt; js-tokens@4.0.0
 - Author: Simon Lydell
-- `LICENSE`: [license text 321](#license-text-321)
+- `LICENSE`: [license text 371](#license-text-371)
+
+<a id="npm-js-yaml-3-14-1"></a>
+
+### js-yaml 3.14.1
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; js-yaml@3.14.1
+- Author: Vladimir Zapparov &lt;dervus.grim@gmail.com&gt;
+- `LICENSE`: [license text 372](#license-text-372)
 
 <a id="npm-jsesc-0-5-0"></a>
 
 ### jsesc 0.5.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regjsparser@0.8.4 &gt; jsesc@0.5.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regjsparser@0.8.4 &gt; jsesc@0.5.0
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 322](#license-text-322)
+- `LICENSE-MIT.txt`: [license text 373](#license-text-373)
 
 <a id="npm-jsesc-2-5-2"></a>
 
 ### jsesc 2.5.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/generator@7.17.3 &gt; jsesc@2.5.2
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; @babel/generator@7.17.3 &gt; jsesc@2.5.2
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
+
+<a id="npm-jsesc-3-1-0"></a>
+
+### jsesc 3.1.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/generator@7.29.8 &gt; jsesc@3.1.0
+- Author: Mathias Bynens
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
 
 <a id="npm-json-parse-even-better-errors-2-3-1"></a>
 
 ### json-parse-even-better-errors 2.3.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; json-parse-even-better-errors@2.3.1
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; json-parse-even-better-errors@2.3.1
 - Author: Kat Marchán &lt;kzm@zkat.tech&gt;
-- `LICENSE.md`: [license text 323](#license-text-323)
+- `LICENSE.md`: [license text 374](#license-text-374)
 
 <a id="npm-json-schema-traverse-0-4-1"></a>
 
 ### json-schema-traverse 0.4.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv@6.12.6 &gt; json-schema-traverse@0.4.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv@6.12.6 &gt; json-schema-traverse@0.4.1
 - Author: Evgeny Poberezkin
-- `LICENSE`: [license text 283](#license-text-283)
+- `LICENSE`: [license text 328](#license-text-328)
 
 <a id="npm-json-schema-traverse-1-0-0"></a>
 
 ### json-schema-traverse 1.0.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; ajv@8.11.0 &gt; json-schema-traverse@1.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; mini-css-extract-plugin@2.5.3 &gt; schema-utils@4.0.0 &gt; ajv@8.11.0 &gt; json-schema-traverse@1.0.0
 - Author: Evgeny Poberezkin
-- `LICENSE`: [license text 283](#license-text-283)
+- `LICENSE`: [license text 328](#license-text-328)
 
 <a id="npm-json-stable-stringify-1-0-1"></a>
 
 ### json-stable-stringify 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2 &gt; calculate-cache-key-for-tree@2.0.0 &gt; json-stable-stringify@1.0.1
+- Required through: @ember/test-waiters@3.1.0 &gt; calculate-cache-key-for-tree@2.0.0 &gt; json-stable-stringify@1.0.1
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 237](#license-text-237)
+- `LICENSE`: [license text 257](#license-text-257)
 
 <a id="npm-json5-0-5-1"></a>
 
 ### json5 0.5.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; find-babel-config@1.2.0 &gt; json5@0.5.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; find-babel-config@1.2.0 &gt; json5@0.5.1
 - Author: Aseem Kishore &lt;aseem.kishore@gmail.com&gt;
-- `LICENSE.md`: [license text 324](#license-text-324)
+- `LICENSE.md`: [license text 375](#license-text-375)
 
 <a id="npm-json5-1-0-1"></a>
 
 ### json5 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; loader-utils@1.4.0 &gt; json5@1.0.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; loader-utils@1.4.0 &gt; json5@1.0.1
 - Author: Aseem Kishore &lt;aseem.kishore@gmail.com&gt;
-- `LICENSE.md`: [license text 325](#license-text-325)
+- `LICENSE.md`: [license text 376](#license-text-376)
 
 <a id="npm-json5-2-2-0"></a>
 
 ### json5 2.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; json5@2.2.0
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; json5@2.2.0
 - Author: Aseem Kishore &lt;aseem.kishore@gmail.com&gt;
-- `LICENSE.md`: [license text 325](#license-text-325)
+- `LICENSE.md`: [license text 376](#license-text-376)
+
+<a id="npm-json5-2-2-3"></a>
+
+### json5 2.2.3
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; json5@2.2.3
+- Author: Aseem Kishore &lt;aseem.kishore@gmail.com&gt;
+- `LICENSE.md`: [license text 376](#license-text-376)
 
 <a id="npm-jsonfile-4-0-0"></a>
 
 ### jsonfile 4.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; fs-extra@6.0.1 &gt; jsonfile@4.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; fs-extra@8.1.0 &gt; jsonfile@4.0.0
 - Author: JP Richardson &lt;jprichardson@gmail.com&gt;
-- `LICENSE`: [license text 326](#license-text-326)
+- `LICENSE`: [license text 377](#license-text-377)
 
 <a id="npm-jsonfile-6-1-0"></a>
 
 ### jsonfile 6.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @embroider/shared-internals@1.0.0 &gt; fs-extra@9.1.0 &gt; jsonfile@6.1.0
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; fs-extra@9.1.0 &gt; jsonfile@6.1.0
 - Author: JP Richardson &lt;jprichardson@gmail.com&gt;
-- `LICENSE`: [license text 326](#license-text-326)
+- `LICENSE`: [license text 377](#license-text-377)
 
 <a id="npm-jsonify-0-0-0"></a>
 
 ### jsonify 0.0.0
 
 - License: LicenseRef-Public-Domain (declared: Public Domain)
-- License decision: Legacy UI exception. Declared "Public Domain" in package.json, no license file. A build-time dependency (@ember/test-waiters > calculate-cache-key-for-tree > json-stable-stringify), not part of the UI bundle.
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2 &gt; calculate-cache-key-for-tree@2.0.0 &gt; json-stable-stringify@1.0.1 &gt; jsonify@0.0.0
+- License decision: Build-time exception (legacy UI decision of 2026-10-25; pending for the new UI). Declared "Public Domain" in package.json, no license file. A build-time dependency (calculate-cache-key-for-tree, ember-cli-htmlbars and broccoli-babel-transpiler > json-stable-stringify 1.0), not part of the UI bundle.
+- Required through: @ember/test-waiters@3.1.0 &gt; calculate-cache-key-for-tree@2.0.0 &gt; json-stable-stringify@1.0.1 &gt; jsonify@0.0.0
 - Author: Douglas Crockford
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-jsonlint-1-6-3"></a>
+
+### jsonlint 1.6.3
+
+- License: MIT
+- License decision: package.json has no license field and the package no license file; its README.md states "MIT License" (Copyright (C) 2012 Zachary Carter). The UI bundles lib/jsonlint.js for the JSON linting of the code editor.
+- Required through: jsonlint@1.6.3
+- Author: Zach Carter &lt;zach@carter.name&gt; (http://zaa.ch)
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-line-column-1-0-2"></a>
@@ -8529,90 +11397,125 @@ limitations under the License.
 ### line-column 1.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; line-column@1.0.2
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; line-column@1.0.2
 - Author: IRIDE Monad &lt;iride.monad@gmail.com&gt;
-- `LICENSE`: [license text 327](#license-text-327)
+- `LICENSE`: [license text 378](#license-text-378)
 
 <a id="npm-lines-and-columns-1-1-6"></a>
 
 ### lines-and-columns 1.1.6
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; lines-and-columns@1.1.6
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0 &gt; lines-and-columns@1.1.6
 - Author: Brian Donovan &lt;me@brian-donovan.com&gt;
-- `LICENSE`: [license text 328](#license-text-328)
+- `LICENSE`: [license text 379](#license-text-379)
 
 <a id="npm-loader-utils-1-4-0"></a>
 
 ### loader-utils 1.4.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; loader-utils@1.4.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; loader-utils@1.4.0
 - Author: Tobias Koppers @sokra
-- `LICENSE`: [license text 245](#license-text-245)
+- `LICENSE`: [license text 267](#license-text-267)
 
 <a id="npm-loader-utils-2-0-0"></a>
 
 ### loader-utils 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; loader-utils@2.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; loader-utils@2.0.0
 - Author: Tobias Koppers @sokra
-- `LICENSE`: [license text 245](#license-text-245)
+- `LICENSE`: [license text 267](#license-text-267)
+
+<a id="npm-loader-js-4-7-0"></a>
+
+### loader.js 4.7.0
+
+- License: MIT
+- Required through: loader.js@4.7.0
+- `LICENSE.md`: [license text 380](#license-text-380)
 
 <a id="npm-locate-path-2-0-0"></a>
 
 ### locate-path 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0 &gt; locate-path@2.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0 &gt; locate-path@2.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
+
+<a id="npm-locate-path-3-0-0"></a>
+
+### locate-path 3.0.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; pkg-up@3.1.0 &gt; find-up@3.0.0 &gt; locate-path@3.0.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-locate-path-5-0-0"></a>
 
 ### locate-path 5.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0 &gt; find-up@4.1.0 &gt; locate-path@5.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0 &gt; find-up@4.1.0 &gt; locate-path@5.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-locate-path-6-0-0"></a>
 
 ### locate-path 6.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; find-up@5.0.0 &gt; locate-path@6.0.0
+- Required through: @embroider/macros@1.20.7 &gt; find-up@5.0.0 &gt; locate-path@6.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-lodash-debounce-4-0-8"></a>
 
 ### lodash.debounce 4.0.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1 &gt; @babel/helper-define-polyfill-provider@0.3.1 &gt; lodash.debounce@4.0.8
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10 &gt; @babel/helper-define-polyfill-provider@0.1.5 &gt; lodash.debounce@4.0.8
 - Author: John-David Dalton &lt;john.david.dalton@gmail.com&gt; (http://allyoucanleet.com/)
-- `LICENSE`: [license text 329](#license-text-329)
+- `LICENSE`: [license text 381](#license-text-381)
+
+<a id="npm-lodash-intersection-4-4-0"></a>
+
+### lodash.intersection 4.4.0
+
+- License: MIT
+- Required through: lodash.intersection@4.4.0
+- Author: John-David Dalton &lt;john.david.dalton@gmail.com&gt; (http://allyoucanleet.com/)
+- `LICENSE`: [license text 381](#license-text-381)
+
+<a id="npm-lodash-isequal-4-5-0"></a>
+
+### lodash.isequal 4.5.0
+
+- License: MIT
+- Required through: lodash.isequal@4.5.0
+- Author: John-David Dalton &lt;john.david.dalton@gmail.com&gt; (http://allyoucanleet.com/)
+- `LICENSE`: [license text 382](#license-text-382)
 
 <a id="npm-lodash-4-17-21"></a>
 
 ### lodash 4.17.21
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; lodash@4.17.21
+- Required through: @embroider/macros@1.20.7 &gt; lodash@4.17.21
 - Author: John-David Dalton &lt;john.david.dalton@gmail.com&gt;
-- `LICENSE`: [license text 330](#license-text-330)
+- `LICENSE`: [license text 383](#license-text-383)
 
 <a id="npm-loose-envify-1-4-0"></a>
 
 ### loose-envify 1.4.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; prop-types@15.8.1 &gt; loose-envify@1.4.0
+- Required through: ember-cli-clipboard@1.3.0 &gt; prop-types@15.8.1 &gt; loose-envify@1.4.0
 - Author: Andres Suarez &lt;zertosh@gmail.com&gt;
-- `LICENSE`: [license text 331](#license-text-331)
+- `LICENSE`: [license text 384](#license-text-384)
 
 <a id="npm-lower-case-2-0-2"></a>
 
@@ -8621,16 +11524,25 @@ limitations under the License.
 - License: MIT
 - Required through: no-case@3.0.4 &gt; lower-case@2.0.2
 - Author: Blake Embrey &lt;hello@blakeembrey.com&gt;
-- `LICENSE`: [license text 332](#license-text-332)
+- `LICENSE`: [license text 385](#license-text-385)
+
+<a id="npm-lru-cache-5-1-1"></a>
+
+### lru-cache 5.1.1
+
+- License: ISC
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; lru-cache@5.1.1
+- Author: Isaac Z. Schlueter &lt;i@izs.me&gt;
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-lru-cache-6-0-0"></a>
 
 ### lru-cache 6.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2 &gt; semver@7.3.5 &gt; lru-cache@6.0.0
+- Required through: @ember/test-waiters@3.1.0 &gt; semver@7.3.5 &gt; lru-cache@6.0.0
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt;
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-lru-map-0-4-1"></a>
 
@@ -8646,25 +11558,34 @@ limitations under the License.
 ### magic-string 0.25.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; magic-string@0.25.7
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; magic-string@0.25.7
 - Author: Rich Harris
-- `LICENSE`: [license text 333](#license-text-333)
+- `LICENSE`: [license text 386](#license-text-386)
 
 <a id="npm-make-dir-3-1-0"></a>
 
 ### make-dir 3.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; make-dir@3.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; make-dir@3.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-map-age-cleaner-0-1-3"></a>
+
+### map-age-cleaner 0.1.3
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @embroider/reverse-exports@0.2.0 &gt; mem@8.1.1 &gt; map-age-cleaner@0.1.3
+- Author: Sam Verschueren &lt;sam.verschueren@gmail.com&gt;
+- `license`: [license text 387](#license-text-387)
 
 <a id="npm-matcher-collection-1-1-2"></a>
 
 ### matcher-collection 1.1.2
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-funnel@2.0.2 &gt; walk-sync@0.3.4 &gt; matcher-collection@1.1.2
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-caching-writer@3.0.3 &gt; walk-sync@0.3.4 &gt; matcher-collection@1.1.2
 - Author: Stefan Penner
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -8673,96 +11594,141 @@ limitations under the License.
 ### matcher-collection 2.0.1
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; walk-sync@3.0.0 &gt; matcher-collection@2.0.1
+- Required through: ember-inline-svg@1.0.1 &gt; walk-sync@2.0.2 &gt; matcher-collection@2.0.1
 - Author: Stefan Penner
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-mdn-data-1-1-4"></a>
+
+### mdn-data 1.1.4
+
+- License: MPL-2.0
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-tree@1.0.0-alpha.28 &gt; mdn-data@1.1.4
+- Author: Mozilla Developer Network
+- `LICENSE`: [license text 80](#license-text-80)
+
+<a id="npm-mem-8-1-1"></a>
+
+### mem 8.1.1
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @embroider/reverse-exports@0.2.0 &gt; mem@8.1.1
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-merge-stream-2-0-0"></a>
 
 ### merge-stream 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; execa@4.1.0 &gt; merge-stream@2.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; merge-stream@2.0.0
 - Author: Stephen Sugden &lt;me@stephensugden.com&gt;
-- `LICENSE`: [license text 334](#license-text-334)
+- `LICENSE`: [license text 388](#license-text-388)
 
 <a id="npm-merge-trees-2-0-0"></a>
 
 ### merge-trees 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-merge-trees@4.2.0 &gt; merge-trees@2.0.0
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-merge-trees@3.0.2 &gt; merge-trees@2.0.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-merge2-1-4-1"></a>
 
 ### merge2 1.4.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; merge2@1.4.1
-- `LICENSE`: [license text 335](#license-text-335)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; merge2@1.4.1
+- `LICENSE`: [license text 389](#license-text-389)
+
+<a id="npm-merge-2-1-1"></a>
+
+### merge 2.1.1
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; merge@2.1.1
+- Author: yeikos
+- `LICENSE`: [license text 390](#license-text-390)
 
 <a id="npm-micromatch-4-0-4"></a>
 
 ### micromatch 4.0.4
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; micromatch@4.0.4
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; micromatch@4.0.4
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 287](#license-text-287)
+- `LICENSE`: [license text 332](#license-text-332)
 
 <a id="npm-mime-db-1-52-0"></a>
 
 ### mime-db 1.52.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; mime-types@2.1.35 &gt; mime-db@1.52.0
-- `LICENSE`: [license text 336](#license-text-336)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; mime-types@2.1.35 &gt; mime-db@1.52.0
+- `LICENSE`: [license text 391](#license-text-391)
 
 <a id="npm-mime-types-2-1-35"></a>
 
 ### mime-types 2.1.35
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; mime-types@2.1.35
-- `LICENSE`: [license text 337](#license-text-337)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; mime-types@2.1.35
+- `LICENSE`: [license text 392](#license-text-392)
 
 <a id="npm-mimic-fn-2-1-0"></a>
 
 ### mimic-fn 2.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; execa@4.1.0 &gt; onetime@5.1.2 &gt; mimic-fn@2.1.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; onetime@5.1.2 &gt; mimic-fn@2.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-mimic-fn-3-1-0"></a>
+
+### mimic-fn 3.1.0
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @embroider/reverse-exports@0.2.0 &gt; mem@8.1.1 &gt; mimic-fn@3.1.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-mini-css-extract-plugin-2-5-3"></a>
 
 ### mini-css-extract-plugin 2.5.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; mini-css-extract-plugin@2.5.3
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; mini-css-extract-plugin@2.5.3
 - Author: Tobias Koppers @sokra
-- `LICENSE`: [license text 245](#license-text-245)
+- `LICENSE`: [license text 267](#license-text-267)
 
 <a id="npm-minimatch-3-1-2"></a>
 
 ### minimatch 3.1.2
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-funnel@3.0.8 &gt; minimatch@3.1.2
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; minimatch@3.1.2
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me)
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
+
+<a id="npm-minimatch-3-1-5"></a>
+
+### minimatch 3.1.5
+
+- License: ISC
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; broccoli-string-replace@0.1.2 &gt; minimatch@3.1.5
+- Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-minimist-1-2-5"></a>
 
 ### minimist 1.2.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; handlebars@4.7.7 &gt; minimist@1.2.5
+- Required through: ember-inline-svg@1.0.1 &gt; mkdirp@0.5.5 &gt; minimist@1.2.5
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 237](#license-text-237)
+- `LICENSE`: [license text 257](#license-text-257)
 
 <a id="npm-mkdirp-0-3-5"></a>
 
@@ -8771,58 +11737,74 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1 &gt; broccoli-sass-source-maps@4.0.0 &gt; mkdirp@0.3.5
 - Author: James Halliday &lt;mail@substack.net&gt; (http://substack.net)
-- `LICENSE`: [license text 338](#license-text-338)
+- `LICENSE`: [license text 393](#license-text-393)
 
 <a id="npm-mkdirp-0-5-5"></a>
 
 ### mkdirp 0.5.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-funnel@2.0.2 &gt; mkdirp@0.5.5
+- Required through: ember-inline-svg@1.0.1 &gt; mkdirp@0.5.5
 - Author: James Halliday &lt;mail@substack.net&gt; (http://substack.net)
-- `LICENSE`: [license text 338](#license-text-338)
+- `LICENSE`: [license text 393](#license-text-393)
 
 <a id="npm-mktemp-0-4-0"></a>
 
 ### mktemp 0.4.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; quick-temp@0.1.8 &gt; mktemp@0.4.0
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-file-creator@2.1.1 &gt; broccoli-plugin@1.3.1 &gt; quick-temp@0.1.8 &gt; mktemp@0.4.0
 - Author: sasa+1 &lt;sasaplus1@gmail.com&gt;
-- `LICENSE`: [license text 339](#license-text-339)
+- `LICENSE`: [license text 394](#license-text-394)
+
+<a id="npm-moment-2-31-0"></a>
+
+### moment 2.31.0
+
+- License: MIT
+- Required through: moment@2.31.0
+- `LICENSE`: [license text 395](#license-text-395)
 
 <a id="npm-ms-2-0-0"></a>
 
 ### ms 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-funnel@2.0.2 &gt; debug@2.6.9 &gt; ms@2.0.0
-- `license.md`: [license text 340](#license-text-340)
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-caching-writer@3.0.3 &gt; debug@2.6.9 &gt; ms@2.0.0
+- `license.md`: [license text 396](#license-text-396)
 
 <a id="npm-ms-2-1-2"></a>
 
 ### ms 2.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; debug@4.3.1 &gt; ms@2.1.2
-- `license.md`: [license text 340](#license-text-340)
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; debug@4.3.3 &gt; ms@2.1.2
+- `license.md`: [license text 396](#license-text-396)
+
+<a id="npm-ms-2-1-3"></a>
+
+### ms 2.1.3
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/plugin-transform-runtime@7.29.7 &gt; babel-plugin-polyfill-corejs2@0.4.17 &gt; @babel/helper-define-polyfill-provider@0.6.8 &gt; debug@4.4.3 &gt; ms@2.1.3
+- `license.md`: [license text 397](#license-text-397)
 
 <a id="npm-nanoid-3-3-1"></a>
 
 ### nanoid 3.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss@8.4.7 &gt; nanoid@3.3.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss@8.4.7 &gt; nanoid@3.3.1
 - Author: Andrey Sitnik &lt;andrey@sitnik.ru&gt;
-- `LICENSE`: [license text 341](#license-text-341)
+- `LICENSE`: [license text 398](#license-text-398)
 
 <a id="npm-neo-async-2-6-2"></a>
 
 ### neo-async 2.6.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; handlebars@4.7.7 &gt; neo-async@2.6.2
-- `LICENSE`: [license text 342](#license-text-342)
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; handlebars@4.7.7 &gt; neo-async@2.6.2
+- `LICENSE`: [license text 399](#license-text-399)
 
 <a id="npm-no-case-3-0-4"></a>
 
@@ -8831,16 +11813,43 @@ limitations under the License.
 - License: MIT
 - Required through: no-case@3.0.4
 - Author: Blake Embrey &lt;hello@blakeembrey.com&gt;
-- `LICENSE`: [license text 332](#license-text-332)
+- `LICENSE`: [license text 385](#license-text-385)
+
+<a id="npm-node-modules-path-1-0-2"></a>
+
+### node-modules-path 1.0.2
+
+- License: ISC
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; broccoli-rollup@5.0.0 &gt; node-modules-path@1.0.2
+- Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
+- `LICENSE`: [license text 400](#license-text-400)
 
 <a id="npm-node-releases-2-0-2"></a>
 
 ### node-releases 2.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; node-releases@2.0.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; node-releases@2.0.2
 - Author: Sergey Rubanov &lt;chi187@gmail.com&gt;
-- `LICENSE`: [license text 343](#license-text-343)
+- `LICENSE`: [license text 401](#license-text-401)
+
+<a id="npm-node-releases-2-0-58"></a>
+
+### node-releases 2.0.58
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; browserslist@4.29.3 &gt; node-releases@2.0.58
+- Author: Sergey Rubanov &lt;chi187@gmail.com&gt;
+- `LICENSE`: [license text 401](#license-text-401)
+
+<a id="npm-nomnom-1-8-1"></a>
+
+### nomnom 1.8.1
+
+- License: MIT
+- Required through: jsonlint@1.6.3 &gt; nomnom@1.8.1
+- Author: Heather Arthur &lt;fayearthur@gmail.com&gt;
+- `LICENSE`: [license text 402](#license-text-402)
 
 <a id="npm-normalize-path-3-0-0"></a>
 
@@ -8849,25 +11858,43 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; normalize-path@3.0.0
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 214](#license-text-214)
+- `LICENSE`: [license text 228](#license-text-228)
+
+<a id="npm-npm-git-info-1-0-3"></a>
+
+### npm-git-info 1.0.3
+
+- License: MIT
+- Required through: ember-data-model-fragments@7.0.3 &gt; npm-git-info@1.0.3
+- Author: Ryunosuke SATO
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-npm-run-path-3-1-0"></a>
 
 ### npm-run-path 3.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; npm-run-path@3.1.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; npm-run-path@3.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-npm-run-path-4-0-1"></a>
 
 ### npm-run-path 4.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; execa@4.1.0 &gt; npm-run-path@4.0.1
+- Required through: ember-render-helpers@0.2.0 &gt; ember-cli-typescript@4.2.1 &gt; execa@4.1.0 &gt; npm-run-path@4.0.1
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-nth-check-1-0-2"></a>
+
+### nth-check 1.0.2
+
+- License: BSD-2-Clause
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; css-select@2.1.0 &gt; nth-check@1.0.2
+- Author: Felix Boehm &lt;me@feedic.com&gt;
+- `LICENSE`: [license text 269](#license-text-269)
 
 <a id="npm-object-assign-2-1-1"></a>
 
@@ -8876,303 +11903,357 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1 &gt; broccoli-sass-source-maps@4.0.0 &gt; object-assign@2.1.1
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
 
 <a id="npm-object-assign-4-1-1"></a>
 
 ### object-assign 4.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; fs-tree-diff@2.0.1 &gt; object-assign@4.1.1
+- Required through: ember-cli-clipboard@1.3.0 &gt; prop-types@15.8.1 &gt; object-assign@4.1.1
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
 
 <a id="npm-object-hash-1-3-1"></a>
 
 ### object-hash 1.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; amd-name-resolver@1.3.1 &gt; object-hash@1.3.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; amd-name-resolver@1.3.1 &gt; object-hash@1.3.1
 - Author: Scott Puleo &lt;puleos@gmail.com&gt;
-- `LICENSE`: [license text 344](#license-text-344)
+- `LICENSE`: [license text 403](#license-text-403)
 
 <a id="npm-object-inspect-1-11-0"></a>
 
 ### object-inspect 1.11.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; object-inspect@1.11.0
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; object-inspect@1.11.0
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 345](#license-text-345)
+- `LICENSE`: [license text 404](#license-text-404)
+
+<a id="npm-object-inspect-1-9-0"></a>
+
+### object-inspect 1.9.0
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; util.promisify@1.0.1 &gt; es-abstract@1.17.7 &gt; object-inspect@1.9.0
+- Author: James Halliday &lt;mail@substack.net&gt;
+- `LICENSE`: [license text 404](#license-text-404)
 
 <a id="npm-object-keys-1-1-1"></a>
 
 ### object-keys 1.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; define-properties@1.1.3 &gt; object-keys@1.1.1
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; define-properties@1.1.3 &gt; object-keys@1.1.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 346](#license-text-346)
+- `LICENSE`: [license text 405](#license-text-405)
 
 <a id="npm-object-assign-4-1-2"></a>
 
 ### object.assign 4.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; babel-plugin-dynamic-import-node@2.3.3 &gt; object.assign@4.1.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-modules-amd@7.13.0 &gt; babel-plugin-dynamic-import-node@2.3.3 &gt; object.assign@4.1.2
 - Author: Jordan Harband
-- `LICENSE`: [license text 317](#license-text-317)
+- `LICENSE`: [license text 365](#license-text-365)
+
+<a id="npm-object-getownpropertydescriptors-2-1-1"></a>
+
+### object.getownpropertydescriptors 2.1.1
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; util.promisify@1.0.1 &gt; object.getownpropertydescriptors@2.1.1
+- Author: Jordan Harband &lt;ljharb@gmail.com&gt;
+- `LICENSE`: [license text 288](#license-text-288)
+
+<a id="npm-object-values-1-1-2"></a>
+
+### object.values 1.1.2
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2
+- Author: Jordan Harband &lt;ljharb@gmail.com&gt;
+- `LICENSE`: [license text 288](#license-text-288)
 
 <a id="npm-once-1-4-0"></a>
 
 ### once 1.4.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; glob@7.2.0 &gt; once@1.4.0
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; glob@7.2.0 &gt; once@1.4.0
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-onetime-5-1-2"></a>
 
 ### onetime 5.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; execa@4.1.0 &gt; onetime@5.1.2
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; onetime@5.1.2
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-os-tmpdir-1-0-2"></a>
 
 ### os-tmpdir 1.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; tmp@0.0.33 &gt; os-tmpdir@1.0.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; tmp@0.0.33 &gt; os-tmpdir@1.0.2
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
+
+<a id="npm-p-defer-1-0-0"></a>
+
+### p-defer 1.0.0
+
+- License: MIT
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; @embroider/reverse-exports@0.2.0 &gt; mem@8.1.1 &gt; map-age-cleaner@0.1.3 &gt; p-defer@1.0.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 323](#license-text-323)
 
 <a id="npm-p-finally-2-0-1"></a>
 
 ### p-finally 2.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; p-finally@2.0.1
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; p-finally@2.0.1
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-p-limit-1-3-0"></a>
 
 ### p-limit 1.3.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0 &gt; locate-path@2.0.0 &gt; p-locate@2.0.0 &gt; p-limit@1.3.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0 &gt; locate-path@2.0.0 &gt; p-locate@2.0.0 &gt; p-limit@1.3.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-p-limit-2-3-0"></a>
 
 ### p-limit 2.3.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0 &gt; find-up@4.1.0 &gt; locate-path@5.0.0 &gt; p-locate@4.1.0 &gt; p-limit@2.3.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; pkg-up@3.1.0 &gt; find-up@3.0.0 &gt; locate-path@3.0.0 &gt; p-locate@3.0.0 &gt; p-limit@2.3.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-p-limit-3-1-0"></a>
 
 ### p-limit 3.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; find-up@5.0.0 &gt; locate-path@6.0.0 &gt; p-locate@5.0.0 &gt; p-limit@3.1.0
+- Required through: @embroider/macros@1.20.7 &gt; find-up@5.0.0 &gt; locate-path@6.0.0 &gt; p-locate@5.0.0 &gt; p-limit@3.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-p-locate-2-0-0"></a>
 
 ### p-locate 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0 &gt; locate-path@2.0.0 &gt; p-locate@2.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0 &gt; locate-path@2.0.0 &gt; p-locate@2.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
+
+<a id="npm-p-locate-3-0-0"></a>
+
+### p-locate 3.0.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; pkg-up@3.1.0 &gt; find-up@3.0.0 &gt; locate-path@3.0.0 &gt; p-locate@3.0.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-p-locate-4-1-0"></a>
 
 ### p-locate 4.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0 &gt; find-up@4.1.0 &gt; locate-path@5.0.0 &gt; p-locate@4.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0 &gt; find-up@4.1.0 &gt; locate-path@5.0.0 &gt; p-locate@4.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-p-locate-5-0-0"></a>
 
 ### p-locate 5.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; find-up@5.0.0 &gt; locate-path@6.0.0 &gt; p-locate@5.0.0
+- Required through: @embroider/macros@1.20.7 &gt; find-up@5.0.0 &gt; locate-path@6.0.0 &gt; p-locate@5.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-p-try-1-0-0"></a>
 
 ### p-try 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0 &gt; locate-path@2.0.0 &gt; p-locate@2.0.0 &gt; p-limit@1.3.0 &gt; p-try@1.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0 &gt; find-up@2.1.0 &gt; locate-path@2.0.0 &gt; p-locate@2.0.0 &gt; p-limit@1.3.0 &gt; p-try@1.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
 
 <a id="npm-p-try-2-2-0"></a>
 
 ### p-try 2.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0 &gt; find-up@4.1.0 &gt; locate-path@5.0.0 &gt; p-locate@4.1.0 &gt; p-limit@2.3.0 &gt; p-try@2.2.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; pkg-up@3.1.0 &gt; find-up@3.0.0 &gt; locate-path@3.0.0 &gt; p-locate@3.0.0 &gt; p-limit@2.3.0 &gt; p-try@2.2.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-parent-module-1-0-1"></a>
 
 ### parent-module 1.0.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; import-fresh@3.3.0 &gt; parent-module@1.0.1
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; import-fresh@3.3.0 &gt; parent-module@1.0.1
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-parse-json-5-2-0"></a>
 
 ### parse-json 5.2.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; parse-json@5.2.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
 
 <a id="npm-parse-static-imports-1-1-0"></a>
 
 ### parse-static-imports 1.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; parse-static-imports@1.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; parse-static-imports@1.1.0
 - Author: Cody A Price &lt;dev.cprice@gmail.com&gt;
-- `LICENSE`: [license text 347](#license-text-347)
+- `LICENSE`: [license text 406](#license-text-406)
 
 <a id="npm-parse5-6-0-1"></a>
 
 ### parse5 6.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; parse5@6.0.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; parse5@6.0.1
 - Author: Ivan Nikulin &lt;ifaaan@gmail.com&gt; (https://github.com/inikulin)
-- `LICENSE`: [license text 348](#license-text-348)
+- `LICENSE`: [license text 407](#license-text-407)
 
 <a id="npm-path-exists-3-0-0"></a>
 
 ### path-exists 3.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; find-babel-config@1.2.0 &gt; path-exists@3.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; find-babel-config@1.2.0 &gt; path-exists@3.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
 
 <a id="npm-path-exists-4-0-0"></a>
 
 ### path-exists 4.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; find-up@5.0.0 &gt; path-exists@4.0.0
+- Required through: @embroider/macros@1.20.7 &gt; find-up@5.0.0 &gt; path-exists@4.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-path-is-absolute-1-0-1"></a>
 
 ### path-is-absolute 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; glob@7.2.0 &gt; path-is-absolute@1.0.1
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; glob@7.2.0 &gt; path-is-absolute@1.0.1
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
 
 <a id="npm-path-key-3-1-1"></a>
 
 ### path-key 3.1.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-exec@1.6.1 &gt; cross-spawn@7.0.3 &gt; path-key@3.1.1
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; cross-spawn@7.0.3 &gt; path-key@3.1.1
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-path-parse-1-0-7"></a>
 
 ### path-parse 1.0.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; resolve@1.22.0 &gt; path-parse@1.0.7
+- Required through: @embroider/macros@1.20.7 &gt; resolve@1.22.0 &gt; path-parse@1.0.7
 - Author: Javier Blanco &lt;http://jbgutierrez.info&gt;
-- `LICENSE`: [license text 349](#license-text-349)
+- `LICENSE`: [license text 408](#license-text-408)
 
 <a id="npm-path-posix-1-0-0"></a>
 
 ### path-posix 1.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; fs-tree-diff@2.0.1 &gt; path-posix@1.0.0
+- Required through: ember-cli-string-helpers@6.1.0 &gt; broccoli-funnel@3.0.3 &gt; path-posix@1.0.0
 - Author: jden &lt;jason@denizac.org&gt;
-- `LICENSE.md`: [license text 350](#license-text-350)
+- `LICENSE.md`: [license text 409](#license-text-409)
 
 <a id="npm-path-root-regex-0-1-2"></a>
 
 ### path-root-regex 0.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; resolve-package-path@3.1.0 &gt; path-root@0.1.1 &gt; path-root-regex@0.1.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; resolve-package-path@3.1.0 &gt; path-root@0.1.1 &gt; path-root-regex@0.1.2
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 351](#license-text-351)
+- `LICENSE`: [license text 410](#license-text-410)
 
 <a id="npm-path-root-0-1-1"></a>
 
 ### path-root 0.1.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; resolve-package-path@3.1.0 &gt; path-root@0.1.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; resolve-package-path@3.1.0 &gt; path-root@0.1.1
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 351](#license-text-351)
+- `LICENSE`: [license text 410](#license-text-410)
 
 <a id="npm-path-to-regexp-6-2-0"></a>
 
 ### path-to-regexp 6.2.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; path-to-regexp@6.2.0
-- `LICENSE`: [license text 332](#license-text-332)
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; path-to-regexp@6.2.0
+- `LICENSE`: [license text 385](#license-text-385)
 
 <a id="npm-path-type-4-0-0"></a>
 
 ### path-type 4.0.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; path-type@4.0.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; path-type@4.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-pend-1-2-0"></a>
 
 ### pend 1.2.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; yauzl@2.10.0 &gt; fd-slicer@1.1.0 &gt; pend@1.2.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; yauzl@2.10.0 &gt; fd-slicer@1.1.0 &gt; pend@1.2.0
 - Author: Andrew Kelley &lt;superjoe30@gmail.com&gt;
-- `LICENSE`: [license text 352](#license-text-352)
+- `LICENSE`: [license text 411](#license-text-411)
 
 <a id="npm-picocolors-1-0-0"></a>
 
 ### picocolors 1.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss@8.4.7 &gt; picocolors@1.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; picocolors@1.0.0
 - Author: Alexey Raspopov
-- `LICENSE`: [license text 353](#license-text-353)
+- `LICENSE`: [license text 412](#license-text-412)
+
+<a id="npm-picocolors-1-1-1"></a>
+
+### picocolors 1.1.1
+
+- License: ISC
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/code-frame@7.29.7 &gt; picocolors@1.1.1
+- Author: Alexey Raspopov
+- `LICENSE`: [license text 413](#license-text-413)
 
 <a id="npm-picomatch-2-3-0"></a>
 
@@ -9181,165 +12262,219 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; anymatch@3.1.2 &gt; picomatch@2.3.0
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 354](#license-text-354)
+- `LICENSE`: [license text 414](#license-text-414)
 
 <a id="npm-pkg-dir-4-2-0"></a>
 
 ### pkg-dir 4.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; find-cache-dir@3.3.2 &gt; pkg-dir@4.2.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-pkg-entry-points-1-1-2"></a>
+
+### pkg-entry-points 1.1.2
+
+- License: MIT
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; pkg-entry-points@1.1.2
+- Author: Hiroki Osame &lt;hiroki.osame@gmail.com&gt;
+- `LICENSE`: [license text 415](#license-text-415)
 
 <a id="npm-pkg-up-2-0-0"></a>
 
 ### pkg-up 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; pkg-up@2.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 279](#license-text-279)
+- `license`: [license text 323](#license-text-323)
+
+<a id="npm-pkg-up-3-1-0"></a>
+
+### pkg-up 3.1.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; pkg-up@3.1.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-postcss-modules-extract-imports-3-0-0"></a>
 
 ### postcss-modules-extract-imports 3.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-modules-extract-imports@3.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-modules-extract-imports@3.0.0
 - Author: Glen Maddern
-- `LICENSE`: [license text 355](#license-text-355)
+- `LICENSE`: [license text 416](#license-text-416)
 
 <a id="npm-postcss-modules-local-by-default-4-0-0"></a>
 
 ### postcss-modules-local-by-default 4.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0
 - Author: Mark Dalgleish
-- `LICENSE`: [license text 356](#license-text-356)
+- `LICENSE`: [license text 417](#license-text-417)
 
 <a id="npm-postcss-modules-scope-3-0-0"></a>
 
 ### postcss-modules-scope 3.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-modules-scope@3.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-modules-scope@3.0.0
 - Author: Glen Maddern
-- `LICENSE`: [license text 357](#license-text-357)
+- `LICENSE`: [license text 418](#license-text-418)
 
 <a id="npm-postcss-modules-values-4-0-0"></a>
 
 ### postcss-modules-values 4.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-modules-values@4.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-modules-values@4.0.0
 - Author: Glen Maddern
-- `LICENSE`: [license text 357](#license-text-357)
+- `LICENSE`: [license text 418](#license-text-418)
 
 <a id="npm-postcss-selector-parser-6-0-4"></a>
 
 ### postcss-selector-parser 6.0.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0 &gt; postcss-selector-parser@6.0.4
-- `LICENSE-MIT`: [license text 358](#license-text-358)
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0 &gt; postcss-selector-parser@6.0.4
+- `LICENSE-MIT`: [license text 419](#license-text-419)
 
 <a id="npm-postcss-selector-parser-6-0-9"></a>
 
 ### postcss-selector-parser 6.0.9
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-modules-scope@3.0.0 &gt; postcss-selector-parser@6.0.9
-- `LICENSE-MIT`: [license text 358](#license-text-358)
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-modules-scope@3.0.0 &gt; postcss-selector-parser@6.0.9
+- `LICENSE-MIT`: [license text 419](#license-text-419)
 
 <a id="npm-postcss-value-parser-4-1-0"></a>
 
 ### postcss-value-parser 4.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-value-parser@4.1.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-value-parser@4.1.0
 - Author: Bogdan Chadkin &lt;trysound@yandex.ru&gt;
-- `LICENSE`: [license text 359](#license-text-359)
+- `LICENSE`: [license text 420](#license-text-420)
 
 <a id="npm-postcss-8-4-7"></a>
 
 ### postcss 8.4.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss@8.4.7
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss@8.4.7
 - Author: Andrey Sitnik &lt;andrey@sitnik.ru&gt;
-- `LICENSE`: [license text 360](#license-text-360)
+- `LICENSE`: [license text 421](#license-text-421)
+
+<a id="npm-prettier-2-5-1"></a>
+
+### prettier 2.5.1
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; ember-cli-typescript-blueprint-polyfill@0.1.0 &gt; remove-types@1.0.0 &gt; prettier@2.5.1
+- Author: James Long
+- `LICENSE`: [license text 422](#license-text-422)
+
+<a id="npm-private-0-1-8"></a>
+
+### private 0.1.8
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; ember-router-generator@2.0.0 &gt; recast@0.18.10 &gt; private@0.1.8
+- Author: Ben Newman &lt;bn@cs.stanford.edu&gt;
+- `LICENSE`: [license text 423](#license-text-423)
 
 <a id="npm-promise-map-series-0-2-3"></a>
 
 ### promise-map-series 0.2.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; promise-map-series@0.2.3
+- Required through: ember-inline-svg@1.0.1 &gt; promise-map-series@0.2.3
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-promise-map-series-0-3-0"></a>
 
 ### promise-map-series 0.3.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-funnel@3.0.8 &gt; broccoli-plugin@4.0.7 &gt; promise-map-series@0.3.0
+- Required through: ember-source@6.12.0 &gt; broccoli-funnel@3.0.8 &gt; broccoli-plugin@4.0.7 &gt; promise-map-series@0.3.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-prop-types-15-8-1"></a>
 
 ### prop-types 15.8.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; prop-types@15.8.1
-- `LICENSE`: [license text 361](#license-text-361)
+- Required through: ember-cli-clipboard@1.3.0 &gt; prop-types@15.8.1
+- `LICENSE`: [license text 424](#license-text-424)
 
 <a id="npm-pump-3-0-0"></a>
 
 ### pump 3.0.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; get-stream@5.2.0 &gt; pump@3.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; get-stream@5.2.0 &gt; pump@3.0.0
 - Author: Mathias Buus Madsen &lt;mathiasbuus@gmail.com&gt;
-- `LICENSE`: [license text 274](#license-text-274)
+- `LICENSE`: [license text 318](#license-text-318)
 
 <a id="npm-punycode-2-1-1"></a>
 
 ### punycode 2.1.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; ajv@8.11.0 &gt; uri-js@4.4.1 &gt; punycode@2.1.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv@6.12.6 &gt; uri-js@4.4.1 &gt; punycode@2.1.1
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
+
+<a id="npm-q-1-5-1"></a>
+
+### q 1.5.1
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; coa@2.0.2 &gt; q@1.5.1
+- Author: Kris Kowal &lt;kris@cixar.com&gt; (https://github.com/kriskowal)
+- `LICENSE`: [license text 425](#license-text-425)
+
+<a id="npm-query-string-7-0-1"></a>
+
+### query-string 7.0.1
+
+- License: MIT
+- Required through: query-string@7.0.1
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 426](#license-text-426)
 
 <a id="npm-queue-6-0-2"></a>
 
 ### queue 6.0.2
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; image-size@1.0.1 &gt; queue@6.0.2
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; image-size@1.0.1 &gt; queue@6.0.2
 - Author: Jesse Tane &lt;jesse.tane@gmail.com&gt;
-- `LICENSE`: [license text 362](#license-text-362)
+- `LICENSE`: [license text 427](#license-text-427)
 
 <a id="npm-quick-temp-0-1-8"></a>
 
 ### quick-temp 0.1.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; quick-temp@0.1.8
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-file-creator@2.1.1 &gt; broccoli-plugin@1.3.1 &gt; quick-temp@0.1.8
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 218](#license-text-218)
+- `LICENSE`: [license text 233](#license-text-233)
 
 <a id="npm-react-is-16-13-1"></a>
 
 ### react-is 16.13.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; prop-types@15.8.1 &gt; react-is@16.13.1
-- `LICENSE`: [license text 363](#license-text-363)
+- Required through: ember-cli-clipboard@1.3.0 &gt; prop-types@15.8.1 &gt; react-is@16.13.1
+- `LICENSE`: [license text 428](#license-text-428)
 
 <a id="npm-readdirp-3-6-0"></a>
 
@@ -9348,121 +12483,192 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; readdirp@3.6.0
 - Author: Thorsten Lorenz &lt;thlorenz@gmx.de&gt; (thlorenz.com)
-- `LICENSE`: [license text 364](#license-text-364)
+- `LICENSE`: [license text 429](#license-text-429)
+
+<a id="npm-recast-0-18-10"></a>
+
+### recast 0.18.10
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; ember-router-generator@2.0.0 &gt; recast@0.18.10
+- Author: Ben Newman &lt;bn@cs.stanford.edu&gt;
+- `LICENSE`: [license text 430](#license-text-430)
 
 <a id="npm-regenerate-unicode-properties-10-0-1"></a>
 
 ### regenerate-unicode-properties 10.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regenerate-unicode-properties@10.0.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regenerate-unicode-properties@10.0.1
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
+
+<a id="npm-regenerate-unicode-properties-10-3-0"></a>
+
+### regenerate-unicode-properties 10.3.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-unicode-sets-regex@7.18.6 &gt; @babel/helper-create-regexp-features-plugin@7.29.10 &gt; regexpu-core@6.5.3 &gt; regenerate-unicode-properties@10.3.0
+- Author: Mathias Bynens
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
 
 <a id="npm-regenerate-1-4-2"></a>
 
 ### regenerate 1.4.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regenerate@1.4.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regenerate@1.4.2
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
+
+<a id="npm-regenerate-1-5-0"></a>
+
+### regenerate 1.5.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-unicode-sets-regex@7.18.6 &gt; @babel/helper-create-regexp-features-plugin@7.29.10 &gt; regexpu-core@6.5.3 &gt; regenerate@1.5.0
+- Author: Mathias Bynens
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
 
 <a id="npm-regenerator-runtime-0-13-11"></a>
 
 ### regenerator-runtime 0.13.11
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; ember-resources@5.6.4 &gt; @babel/runtime@7.22.5 &gt; regenerator-runtime@0.13.11
+- Required through: ember-stargate@0.5.0 &gt; ember-resources@6.5.2 &gt; @babel/runtime@7.22.5 &gt; regenerator-runtime@0.13.11
 - Author: Ben Newman &lt;bn@cs.stanford.edu&gt;
-- `LICENSE`: [license text 365](#license-text-365)
+- `LICENSE`: [license text 431](#license-text-431)
 
 <a id="npm-regenerator-runtime-0-13-9"></a>
 
 ### regenerator-runtime 0.13.9
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; @babel/polyfill@7.12.1 &gt; regenerator-runtime@0.13.9
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/polyfill@7.12.1 &gt; regenerator-runtime@0.13.9
 - Author: Ben Newman &lt;bn@cs.stanford.edu&gt;
-- `LICENSE`: [license text 365](#license-text-365)
+- `LICENSE`: [license text 431](#license-text-431)
 
 <a id="npm-regenerator-transform-0-14-5"></a>
 
 ### regenerator-transform 0.14.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-regenerator@7.16.7 &gt; regenerator-transform@0.14.5
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-transform-regenerator@7.16.7 &gt; regenerator-transform@0.14.5
 - Author: Ben Newman &lt;bn@cs.stanford.edu&gt;
-- `LICENSE`: [license text 365](#license-text-365)
+- `LICENSE`: [license text 431](#license-text-431)
 
 <a id="npm-regexp-prototype-flags-1-4-1"></a>
 
 ### regexp.prototype.flags 1.4.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; regexp.prototype.flags@1.4.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; regexp.prototype.flags@1.4.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 317](#license-text-317)
+- `LICENSE`: [license text 365](#license-text-365)
 
 <a id="npm-regexpu-core-5-0-1"></a>
 
 ### regexpu-core 5.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
+
+<a id="npm-regexpu-core-6-5-3"></a>
+
+### regexpu-core 6.5.3
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-unicode-sets-regex@7.18.6 &gt; @babel/helper-create-regexp-features-plugin@7.29.10 &gt; regexpu-core@6.5.3
+- Author: Mathias Bynens
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
 
 <a id="npm-regjsgen-0-6-0"></a>
 
 ### regjsgen 0.6.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regjsgen@0.6.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regjsgen@0.6.0
 - Author: Benjamin Tan
-- `LICENSE-MIT.txt`: [license text 366](#license-text-366)
+- `LICENSE-MIT.txt`: [license text 432](#license-text-432)
+
+<a id="npm-regjsgen-0-8-0"></a>
+
+### regjsgen 0.8.0
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-unicode-sets-regex@7.18.6 &gt; @babel/helper-create-regexp-features-plugin@7.29.10 &gt; regexpu-core@6.5.3 &gt; regjsgen@0.8.0
+- Author: Benjamin Tan
+- `LICENSE-MIT.txt`: [license text 432](#license-text-432)
+
+<a id="npm-regjsparser-0-13-4"></a>
+
+### regjsparser 0.13.4
+
+- License: BSD-2-Clause
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-unicode-sets-regex@7.18.6 &gt; @babel/helper-create-regexp-features-plugin@7.29.10 &gt; regexpu-core@6.5.3 &gt; regjsparser@0.13.4
+- Author: 'Julian Viereck' &lt;julian.viereck@gmail.com&gt;
+- `LICENSE.BSD`: [license text 433](#license-text-433)
 
 <a id="npm-regjsparser-0-8-4"></a>
 
 ### regjsparser 0.8.4
 
 - License: BSD-2-Clause
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regjsparser@0.8.4
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; regjsparser@0.8.4
 - Author: 'Julian Viereck' &lt;julian.viereck@gmail.com&gt;
-- `LICENSE.BSD`: [license text 367](#license-text-367)
+- `LICENSE.BSD`: [license text 433](#license-text-433)
+
+<a id="npm-remove-types-1-0-0"></a>
+
+### remove-types 1.0.0
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; ember-cli-typescript-blueprint-polyfill@0.1.0 &gt; remove-types@1.0.0
+- Author: Chris Freeman
+- `LICENSE`: [license text 305](#license-text-305)
 
 <a id="npm-require-from-string-2-0-2"></a>
 
 ### require-from-string 2.0.2
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; ajv@8.11.0 &gt; require-from-string@2.0.2
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; mini-css-extract-plugin@2.5.3 &gt; schema-utils@4.0.0 &gt; ajv@8.11.0 &gt; require-from-string@2.0.2
 - Author: Vsevolod Strukchinsky &lt;floatdrop@gmail.com&gt;
-- `license`: [license text 368](#license-text-368)
+- `license`: [license text 434](#license-text-434)
 
 <a id="npm-reselect-3-0-1"></a>
 
 ### reselect 3.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; reselect@3.0.1
-- `LICENSE`: [license text 369](#license-text-369)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; reselect@3.0.1
+- `LICENSE`: [license text 435](#license-text-435)
+
+<a id="npm-reselect-4-1-8"></a>
+
+### reselect 4.1.8
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; reselect@4.1.8
+- `LICENSE`: [license text 436](#license-text-436)
 
 <a id="npm-resolve-from-4-0-0"></a>
 
 ### resolve-from 4.0.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; import-fresh@3.3.0 &gt; resolve-from@4.0.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; import-fresh@3.3.0 &gt; resolve-from@4.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-resolve-package-path-1-2-7"></a>
 
 ### resolve-package-path 1.2.7
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; hash-for-dep@1.5.1 &gt; resolve-package-path@1.2.7
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-version-checker@3.1.3 &gt; resolve-package-path@1.2.7
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-resolve-package-path-2-0-0"></a>
@@ -9470,7 +12676,7 @@ limitations under the License.
 ### resolve-package-path 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; ember-cli-version-checker@4.1.1 &gt; resolve-package-path@2.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; ember-cli-version-checker@4.1.1 &gt; resolve-package-path@2.0.0
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-resolve-package-path-3-1-0"></a>
@@ -9478,7 +12684,7 @@ limitations under the License.
 ### resolve-package-path 3.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; resolve-package-path@3.1.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; resolve-package-path@3.1.0
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-resolve-package-path-4-0-3"></a>
@@ -9486,62 +12692,80 @@ limitations under the License.
 ### resolve-package-path 4.0.3
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @embroider/shared-internals@1.0.0 &gt; resolve-package-path@4.0.3
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; resolve-package-path@4.0.3
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-resolve-exports-2-0-3"></a>
+
+### resolve.exports 2.0.3
+
+- License: MIT
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; resolve.exports@2.0.3
+- Author: Luke Edwards &lt;luke.edwards05@gmail.com&gt;
+- `license`: [license text 437](#license-text-437)
 
 <a id="npm-resolve-1-19-0"></a>
 
 ### resolve 1.19.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1 &gt; ember-cli-version-checker@2.2.0 &gt; resolve@1.19.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-modifier-manager-polyfill@1.2.0 &gt; ember-cli-version-checker@2.2.0 &gt; resolve@1.19.0
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 370](#license-text-370)
+- `LICENSE`: [license text 438](#license-text-438)
 
 <a id="npm-resolve-1-20-0"></a>
 
 ### resolve 1.20.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; babel-plugin-polyfill-corejs2@0.3.1 &gt; @babel/helper-define-polyfill-provider@0.3.1 &gt; resolve@1.20.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/plugin-transform-runtime@7.13.10 &gt; babel-plugin-polyfill-corejs2@0.1.10 &gt; @babel/helper-define-polyfill-provider@0.1.5 &gt; resolve@1.20.0
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 370](#license-text-370)
+- `LICENSE`: [license text 438](#license-text-438)
 
 <a id="npm-resolve-1-22-0"></a>
 
 ### resolve 1.22.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; resolve@1.22.0
+- Required through: @embroider/macros@1.20.7 &gt; resolve@1.22.0
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 370](#license-text-370)
+- `LICENSE`: [license text 438](#license-text-438)
+
+<a id="npm-resolve-1-22-13"></a>
+
+### resolve 1.22.13
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; babel-plugin-module-resolver@5.0.3 &gt; resolve@1.22.13
+- Author: James Halliday &lt;mail@substack.net&gt;
+- `LICENSE`: [license text 438](#license-text-438)
 
 <a id="npm-reusify-1-0-4"></a>
 
 ### reusify 1.0.4
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6 &gt; fastq@1.10.1 &gt; reusify@1.0.4
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6 &gt; fastq@1.10.1 &gt; reusify@1.0.4
 - Author: Matteo Collina &lt;hello@matteocollina.com&gt;
-- `LICENSE`: [license text 371](#license-text-371)
+- `LICENSE`: [license text 439](#license-text-439)
 
 <a id="npm-rimraf-2-7-1"></a>
 
 ### rimraf 2.7.1
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-funnel@2.0.2 &gt; rimraf@2.7.1
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-caching-writer@3.0.3 &gt; rimraf@2.7.1
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-rimraf-3-0-2"></a>
 
 ### rimraf 3.0.2
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; rimraf@3.0.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; rimraf@3.0.2
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-robust-predicates-3-0-1"></a>
 
@@ -9549,81 +12773,117 @@ limitations under the License.
 
 - License: Unlicense
 - License decision: Legacy UI exception. The Unlicense (public domain dedication with a permissive fallback, OSI approved) is not on the allow-list; the package is part of the legacy UI bundle through d3 > d3-delaunay > delaunator.
-- Required through: d3@7.3.0 &gt; d3-delaunay@6.0.2 &gt; delaunator@5.0.0 &gt; robust-predicates@3.0.1
+- Required through: legacy UI: d3@7.3.0 &gt; d3-delaunay@6.0.2 &gt; delaunator@5.0.0 &gt; robust-predicates@3.0.1
 - Author: Vladimir Agafonkin
-- `LICENSE`: [license text 372](#license-text-372)
+- `LICENSE`: [license text 440](#license-text-440)
+
+<a id="npm-rollup-pluginutils-2-8-2"></a>
+
+### rollup-pluginutils 2.8.2
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; broccoli-rollup@5.0.0 &gt; rollup-pluginutils@2.8.2
+- Author: Rich Harris &lt;richard.a.harris@gmail.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-rollup-2-80-0"></a>
+
+### rollup 2.80.0
+
+- License: MIT
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; broccoli-rollup@5.0.0 &gt; rollup@2.80.0
+- Author: Rich Harris
+- `LICENSE.md`: [license text 441](#license-text-441)
+
+<a id="npm-route-recognizer-0-3-4"></a>
+
+### route-recognizer 0.3.4
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; route-recognizer@0.3.4
+- Author: Yehuda Katz
+- `LICENSE`: [license text 442](#license-text-442)
+
+<a id="npm-router-js-8-0-6"></a>
+
+### router\_js 8.0.6
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; router\_js@8.0.6
+- Author: Tilde, Inc.
+- `LICENSE`: [license text 443](#license-text-443)
 
 <a id="npm-rsvp-3-2-1"></a>
 
 ### rsvp 3.2.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-debug@0.6.5 &gt; heimdalljs@0.2.6 &gt; rsvp@3.2.1
+- Required through: ember-cli-string-helpers@6.1.0 &gt; broccoli-funnel@3.0.3 &gt; heimdalljs@0.2.6 &gt; rsvp@3.2.1
 - Author: Tilde, Inc. & Stefan Penner
-- `LICENSE`: [license text 373](#license-text-373)
+- `LICENSE`: [license text 444](#license-text-444)
 
 <a id="npm-rsvp-3-6-2"></a>
 
 ### rsvp 3.6.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-sass@10.0.1 &gt; broccoli-sass-source-maps@4.0.0 &gt; rsvp@3.6.2
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-caching-writer@3.0.3 &gt; rsvp@3.6.2
 - Author: Tilde, Inc. & Stefan Penner
-- `LICENSE`: [license text 373](#license-text-373)
+- `LICENSE`: [license text 444](#license-text-444)
 
 <a id="npm-rsvp-4-8-5"></a>
 
 ### rsvp 4.8.5
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0 &gt; rsvp@4.8.5
+- Required through: rsvp@4.8.5
 - Author: Tilde, Inc. & Stefan Penner
-- `LICENSE`: [license text 373](#license-text-373)
+- `LICENSE`: [license text 444](#license-text-444)
 
 <a id="npm-run-parallel-1-1-10"></a>
 
 ### run-parallel 1.1.10
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6 &gt; @nodelib/fs.scandir@2.1.4 &gt; run-parallel@1.1.10
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-upload@1.6.1 &gt; fast-glob@3.2.11 &gt; @nodelib/fs.walk@1.2.6 &gt; @nodelib/fs.scandir@2.1.4 &gt; run-parallel@1.1.10
 - Author: Feross Aboukhadijeh &lt;feross@feross.org&gt;
-- `LICENSE`: [license text 374](#license-text-374)
+- `LICENSE`: [license text 445](#license-text-445)
 
 <a id="npm-rw-1-3-3"></a>
 
 ### rw 1.3.3
 
 - License: BSD-3-Clause
-- Required through: d3@7.3.0 &gt; d3-dsv@3.0.1 &gt; rw@1.3.3
+- Required through: legacy UI: d3@7.3.0 &gt; d3-dsv@3.0.1 &gt; rw@1.3.3
 - Author: Mike Bostock
-- `LICENSE`: [license text 375](#license-text-375)
+- `LICENSE`: [license text 446](#license-text-446)
 
 <a id="npm-safe-buffer-5-1-2"></a>
 
 ### safe-buffer 5.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; convert-source-map@1.8.0 &gt; safe-buffer@5.1.2
+- Required through: ember-cli-string-helpers@6.1.0 &gt; @babel/core@7.17.5 &gt; convert-source-map@1.8.0 &gt; safe-buffer@5.1.2
 - Author: Feross Aboukhadijeh &lt;feross@feross.org&gt;
-- `LICENSE`: [license text 374](#license-text-374)
+- `LICENSE`: [license text 445](#license-text-445)
 
 <a id="npm-safe-buffer-5-2-1"></a>
 
 ### safe-buffer 5.2.1
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; content-disposition@0.5.4 &gt; safe-buffer@5.2.1
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; content-disposition@0.5.4 &gt; safe-buffer@5.2.1
 - Author: Feross Aboukhadijeh &lt;feross@feross.org&gt;
-- `LICENSE`: [license text 374](#license-text-374)
+- `LICENSE`: [license text 445](#license-text-445)
 
 <a id="npm-safer-buffer-2-1-2"></a>
 
 ### safer-buffer 2.1.2
 
 - License: MIT
-- Required through: d3@7.3.0 &gt; d3-dsv@3.0.1 &gt; iconv-lite@0.6.3 &gt; safer-buffer@2.1.2
+- Required through: legacy UI: d3@7.3.0 &gt; d3-dsv@3.0.1 &gt; iconv-lite@0.6.3 &gt; safer-buffer@2.1.2
 - Author: Nikita Skovoroda &lt;chalkerx@gmail.com&gt;
-- `LICENSE`: [license text 376](#license-text-376)
+- `LICENSE`: [license text 447](#license-text-447)
 
 <a id="npm-sass-1-67-0"></a>
 
@@ -9632,41 +12892,50 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0
 - Author: Natalie Weizenbaum &lt;nweiz@google.com&gt;
-- `LICENSE`: [license text 377](#license-text-377)
+- `LICENSE`: [license text 448](#license-text-448)
+
+<a id="npm-sax-1-2-4"></a>
+
+### sax 1.2.4
+
+- License: ISC
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; sax@1.2.4
+- Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
+- `LICENSE`: [license text 449](#license-text-449)
 
 <a id="npm-schema-utils-2-7-1"></a>
 
 ### schema-utils 2.7.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1
 - Author: webpack Contrib (https://github.com/webpack-contrib)
-- `LICENSE`: [license text 245](#license-text-245)
+- `LICENSE`: [license text 267](#license-text-267)
 
 <a id="npm-schema-utils-3-2-0"></a>
 
 ### schema-utils 3.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; schema-utils@3.2.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; schema-utils@3.2.0
 - Author: webpack Contrib (https://github.com/webpack-contrib)
-- `LICENSE`: [license text 245](#license-text-245)
+- `LICENSE`: [license text 267](#license-text-267)
 
 <a id="npm-schema-utils-4-0-0"></a>
 
 ### schema-utils 4.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; mini-css-extract-plugin@2.5.3 &gt; schema-utils@4.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; mini-css-extract-plugin@2.5.3 &gt; schema-utils@4.0.0
 - Author: webpack Contrib (https://github.com/webpack-contrib)
-- `LICENSE`: [license text 245](#license-text-245)
+- `LICENSE`: [license text 267](#license-text-267)
 
 <a id="npm-select-1-1-2"></a>
 
 ### select 1.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; clipboard@2.0.11 &gt; select@1.1.2
+- Required through: ember-cli-clipboard@1.3.0 &gt; clipboard@2.0.11 &gt; select@1.1.2
 - The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-semver-5-7-1"></a>
@@ -9674,94 +12943,120 @@ limitations under the License.
 ### semver 5.7.1
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; semver@5.7.1
-- `LICENSE`: [license text 297](#license-text-297)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; semver@5.7.1
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-semver-6-3-0"></a>
 
 ### semver 6.3.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; semver@6.3.0
-- `LICENSE`: [license text 297](#license-text-297)
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; semver@6.3.0
+- `LICENSE`: [license text 344](#license-text-344)
+
+<a id="npm-semver-6-3-1"></a>
+
+### semver 6.3.1
+
+- License: ISC
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; semver@6.3.1
+- Author: GitHub Inc.
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-semver-7-0-0"></a>
 
 ### semver 7.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; core-js-compat@3.21.1 &gt; semver@7.0.0
-- `LICENSE`: [license text 297](#license-text-297)
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; core-js-compat@3.21.1 &gt; semver@7.0.0
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-semver-7-3-4"></a>
 
 ### semver 7.3.4
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; semver@7.3.4
-- `LICENSE`: [license text 297](#license-text-297)
+- Required through: @embroider/macros@1.20.7 &gt; semver@7.3.4
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-semver-7-3-5"></a>
 
 ### semver 7.3.5
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2 &gt; semver@7.3.5
-- `LICENSE`: [license text 297](#license-text-297)
+- Required through: @ember/test-waiters@3.1.0 &gt; semver@7.3.5
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-semver-7-3-8"></a>
 
 ### semver 7.3.8
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-keyboard@8.2.1 &gt; @embroider/addon-shim@1.8.4 &gt; semver@7.3.8
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; semver@7.3.8
 - Author: GitHub Inc.
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
+
+<a id="npm-semver-7-8-5"></a>
+
+### semver 7.8.5
+
+- License: ISC
+- Required through: ember-source@6.12.0 &gt; semver@7.8.5
+- Author: GitHub Inc.
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-shebang-command-2-0-0"></a>
 
 ### shebang-command 2.0.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-exec@1.6.1 &gt; cross-spawn@7.0.3 &gt; shebang-command@2.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; cross-spawn@7.0.3 &gt; shebang-command@2.0.0
 - Author: Kevin Mårtensson &lt;kevinmartensson@gmail.com&gt;
-- `license`: [license text 378](#license-text-378)
+- `license`: [license text 450](#license-text-450)
 
 <a id="npm-shebang-regex-3-0-0"></a>
 
 ### shebang-regex 3.0.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-exec@1.6.1 &gt; cross-spawn@7.0.3 &gt; shebang-command@2.0.0 &gt; shebang-regex@3.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; cross-spawn@7.0.3 &gt; shebang-command@2.0.0 &gt; shebang-regex@3.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-side-channel-1-0-4"></a>
 
 ### side-channel 1.0.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; side-channel@1.0.4
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; side-channel@1.0.4
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 301](#license-text-301)
+- `LICENSE`: [license text 348](#license-text-348)
 
 <a id="npm-signal-exit-3-0-7"></a>
 
 ### signal-exit 3.0.7
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; execa@4.1.0 &gt; signal-exit@3.0.7
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; signal-exit@3.0.7
 - Author: Ben Coe &lt;ben@npmjs.com&gt;
-- `LICENSE.txt`: [license text 379](#license-text-379)
+- `LICENSE.txt`: [license text 451](#license-text-451)
 
 <a id="npm-silent-error-1-1-1"></a>
 
 ### silent-error 1.1.1
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; silent-error@1.1.1
+- Required through: ember-source@6.12.0 &gt; silent-error@1.1.1
 - Author: Stefan Penner &lt;stefan.penner@gmai.com&gt;
-- `LICENSE`: [license text 380](#license-text-380)
+- `LICENSE`: [license text 452](#license-text-452)
+
+<a id="npm-simple-html-tokenizer-0-5-11"></a>
+
+### simple-html-tokenizer 0.5.11
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; simple-html-tokenizer@0.5.11
+- `LICENSE`: [license text 453](#license-text-453)
 
 <a id="npm-source-map-js-1-0-2"></a>
 
@@ -9770,7 +13065,7 @@ limitations under the License.
 - License: BSD-3-Clause
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; source-map-js@1.0.2
 - Author: Valentin 7rulnik Semirulnik &lt;v7rulnik@gmail.com&gt;
-- `LICENSE`: [license text 381](#license-text-381)
+- `LICENSE`: [license text 454](#license-text-454)
 
 <a id="npm-source-map-0-5-7"></a>
 
@@ -9779,131 +13074,212 @@ limitations under the License.
 - License: BSD-3-Clause
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-composable-helpers@4.5.0 &gt; @babel/core@7.12.10 &gt; source-map@0.5.7
 - Author: Nick Fitzgerald &lt;nfitzgerald@mozilla.com&gt;
-- `LICENSE`: [license text 381](#license-text-381)
+- `LICENSE`: [license text 454](#license-text-454)
 
 <a id="npm-source-map-0-6-1"></a>
 
 ### source-map 0.6.1
 
 - License: BSD-3-Clause
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; handlebars@4.7.7 &gt; source-map@0.6.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; handlebars@4.7.7 &gt; source-map@0.6.1
 - Author: Nick Fitzgerald &lt;nfitzgerald@mozilla.com&gt;
-- `LICENSE`: [license text 381](#license-text-381)
+- `LICENSE`: [license text 454](#license-text-454)
 
 <a id="npm-sourcemap-codec-1-4-8"></a>
 
 ### sourcemap-codec 1.4.8
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; magic-string@0.25.7 &gt; sourcemap-codec@1.4.8
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; magic-string@0.25.7 &gt; sourcemap-codec@1.4.8
 - Author: Rich Harris
-- `LICENSE`: [license text 187](#license-text-187)
+- `LICENSE`: [license text 194](#license-text-194)
+
+<a id="npm-split-on-first-1-1-0"></a>
+
+### split-on-first 1.1.0
+
+- License: MIT
+- Required through: query-string@7.0.1 &gt; split-on-first@1.1.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-sprintf-js-1-0-3"></a>
+
+### sprintf-js 1.0.3
+
+- License: BSD-3-Clause
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; js-yaml@3.14.1 &gt; argparse@1.0.10 &gt; sprintf-js@1.0.3
+- Author: Alexandru Marasteanu &lt;hello@alexei.ro&gt; (http://alexei.ro/)
+- `LICENSE`: [license text 455](#license-text-455)
 
 <a id="npm-sprintf-js-1-1-2"></a>
 
 ### sprintf-js 1.1.2
 
 - License: BSD-3-Clause
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; quick-temp@0.1.8 &gt; underscore.string@3.3.6 &gt; sprintf-js@1.1.2
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-file-creator@2.1.1 &gt; broccoli-plugin@1.3.1 &gt; quick-temp@0.1.8 &gt; underscore.string@3.3.6 &gt; sprintf-js@1.1.2
 - Author: Alexandru Mărășteanu &lt;hello@alexei.ro&gt;
-- `LICENSE`: [license text 382](#license-text-382)
+- `LICENSE`: [license text 456](#license-text-456)
+
+<a id="npm-stable-0-1-8"></a>
+
+### stable 0.1.8
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; stable@0.1.8
+- Author: Angry Bytes &lt;info@angrybytes.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-stagehand-1-0-0"></a>
 
 ### stagehand 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; stagehand@1.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; stagehand@1.0.0
 - Author: Dan Freeman &lt;dfreeman@salsify.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-strict-uri-encode-2-0-0"></a>
+
+### strict-uri-encode 2.0.0
+
+- License: MIT
+- Required through: query-string@7.0.1 &gt; strict-uri-encode@2.0.0
+- Author: Kevin Mårtensson &lt;kevinmartensson@gmail.com&gt;
+- `license`: [license text 457](#license-text-457)
 
 <a id="npm-string-prototype-matchall-4-0-6"></a>
 
 ### string.prototype.matchall 4.0.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 259](#license-text-259)
+- `LICENSE`: [license text 288](#license-text-288)
+
+<a id="npm-string-prototype-trimend-1-0-3"></a>
+
+### string.prototype.trimend 1.0.3
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; util.promisify@1.0.1 &gt; es-abstract@1.17.7 &gt; string.prototype.trimend@1.0.3
+- Author: Jordan Harband &lt;ljharb@gmail.com&gt;
+- `LICENSE`: [license text 458](#license-text-458)
 
 <a id="npm-string-prototype-trimend-1-0-4"></a>
 
 ### string.prototype.trimend 1.0.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; string.prototype.trimend@1.0.4
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; string.prototype.trimend@1.0.4
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 383](#license-text-383)
+- `LICENSE`: [license text 458](#license-text-458)
+
+<a id="npm-string-prototype-trimstart-1-0-3"></a>
+
+### string.prototype.trimstart 1.0.3
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; util.promisify@1.0.1 &gt; es-abstract@1.17.7 &gt; string.prototype.trimstart@1.0.3
+- Author: Jordan Harband &lt;ljharb@gmail.com&gt;
+- `LICENSE`: [license text 458](#license-text-458)
 
 <a id="npm-string-prototype-trimstart-1-0-4"></a>
 
 ### string.prototype.trimstart 1.0.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; string.prototype.trimstart@1.0.4
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; string.prototype.trimstart@1.0.4
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 383](#license-text-383)
+- `LICENSE`: [license text 458](#license-text-458)
+
+<a id="npm-strip-ansi-0-1-1"></a>
+
+### strip-ansi 0.1.1
+
+- License: MIT
+- Required through: jsonlint@1.6.3 &gt; nomnom@1.8.1 &gt; chalk@0.4.0 &gt; strip-ansi@0.1.1
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- The package contains no license file; the license is the one declared in its package.json.
 
 <a id="npm-strip-bom-4-0-0"></a>
 
 ### strip-bom 4.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-a11y-refocus@3.0.2 &gt; ember-cli-htmlbars@6.0.1 &gt; strip-bom@4.0.0
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; strip-bom@4.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-strip-final-newline-2-0-0"></a>
 
 ### strip-final-newline 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; ember-arg-types@1.0.0 &gt; ember-cli-typescript@5.2.1 &gt; execa@4.1.0 &gt; strip-final-newline@2.0.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; strip-final-newline@2.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-style-loader-2-0-0"></a>
 
 ### style-loader 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; style-loader@2.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; style-loader@2.0.0
 - Author: Tobias Koppers @sokra
-- `LICENSE`: [license text 245](#license-text-245)
+- `LICENSE`: [license text 267](#license-text-267)
 
 <a id="npm-supports-color-5-5-0"></a>
 
 ### supports-color 5.5.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/code-frame@7.16.7 &gt; @babel/highlight@7.16.10 &gt; chalk@2.4.2 &gt; supports-color@5.5.0
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; chalk@2.4.2 &gt; supports-color@5.5.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 199](#license-text-199)
+- `license`: [license text 208](#license-text-208)
+
+<a id="npm-supports-color-7-2-0"></a>
+
+### supports-color 7.2.0
+
+- License: MIT
+- Required through: ember-source@6.12.0 &gt; chalk@4.1.0 &gt; supports-color@7.2.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license`: [license text 208](#license-text-208)
 
 <a id="npm-supports-preserve-symlinks-flag-1-0-0"></a>
 
 ### supports-preserve-symlinks-flag 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; resolve@1.22.0 &gt; supports-preserve-symlinks-flag@1.0.0
+- Required through: @embroider/macros@1.20.7 &gt; resolve@1.22.0 &gt; supports-preserve-symlinks-flag@1.0.0
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 384](#license-text-384)
+- `LICENSE`: [license text 459](#license-text-459)
+
+<a id="npm-svgo-1-2-2"></a>
+
+### svgo 1.2.2
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2
+- Author: Kir Belevich &lt;kir@soulshine.in&gt;
+- `LICENSE`: [license text 460](#license-text-460)
 
 <a id="npm-symlink-or-copy-1-3-1"></a>
 
 ### symlink-or-copy 1.3.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-debug@0.6.5 &gt; symlink-or-copy@1.3.1
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-funnel@2.0.2 &gt; symlink-or-copy@1.3.1
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 385](#license-text-385)
+- `LICENSE`: [license text 461](#license-text-461)
 
 <a id="npm-sync-disk-cache-1-3-4"></a>
 
 ### sync-disk-cache 1.3.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0 &gt; broccoli-persistent-filter@2.3.1 &gt; sync-disk-cache@1.3.4
+- Required through: ember-inline-svg@1.0.1 &gt; ember-cli-htmlbars@4.5.0 &gt; broccoli-persistent-filter@2.3.1 &gt; sync-disk-cache@1.3.4
 - Author: Stefan Penner &lt;stefan.penner@gmail.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -9923,7 +13299,7 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-focus-trap@1.1.0 &gt; focus-trap@6.9.4 &gt; tabbable@5.3.3
 - Author: David Clark
-- `LICENSE`: [license text 243](#license-text-243)
+- `LICENSE`: [license text 265](#license-text-265)
 
 <a id="npm-tether-2-0-0"></a>
 
@@ -9931,7 +13307,16 @@ limitations under the License.
 
 - License: MIT
 - Required through: tether@2.0.0
-- `LICENSE`: [license text 386](#license-text-386)
+- `LICENSE`: [license text 462](#license-text-462)
+
+<a id="npm-text-encoder-lite-2-0-0"></a>
+
+### text-encoder-lite 2.0.0
+
+- License: Apache-2.0
+- Required through: text-encoder-lite@2.0.0
+- Author: AJ ONeal &lt;coolaj86@gmail.com&gt;
+- `LICENSE.md`: [license text 463](#license-text-463)
 
 <a id="npm-textextensions-2-6-0"></a>
 
@@ -9940,16 +13325,16 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; broccoli-persistent-filter@3.1.2 &gt; async-disk-cache@2.1.0 &gt; istextorbinary@2.6.0 &gt; textextensions@2.6.0
 - Author: 2013+ Bevry Pty Ltd &lt;us@bevry.me&gt; (http://bevry.me)
-- `LICENSE.md`: [license text 212](#license-text-212)
+- `LICENSE.md`: [license text 226](#license-text-226)
 
 <a id="npm-tiny-emitter-2-1-0"></a>
 
 ### tiny-emitter 2.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-clipboard@1.0.0 &gt; clipboard@2.0.11 &gt; tiny-emitter@2.1.0
+- Required through: ember-cli-clipboard@1.3.0 &gt; clipboard@2.0.11 &gt; tiny-emitter@2.1.0
 - Author: Scott Corgan
-- `LICENSE`: [license text 387](#license-text-387)
+- `LICENSE`: [license text 464](#license-text-464)
 
 <a id="npm-tippy-js-6-3-7"></a>
 
@@ -9958,7 +13343,7 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; tippy.js@6.3.7
 - Author: atomiks
-- `LICENSE`: [license text 388](#license-text-388)
+- `LICENSE`: [license text 465](#license-text-465)
 
 <a id="npm-title-case-3-0-3"></a>
 
@@ -9967,34 +13352,34 @@ limitations under the License.
 - License: MIT
 - Required through: title-case@3.0.3
 - Author: Blake Embrey &lt;hello@blakeembrey.com&gt;
-- `LICENSE`: [license text 332](#license-text-332)
+- `LICENSE`: [license text 385](#license-text-385)
 
 <a id="npm-tmp-0-0-28"></a>
 
 ### tmp 0.0.28
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-merge-trees@4.2.0 &gt; merge-trees@2.0.0 &gt; fs-updater@1.0.4 &gt; can-symlink@1.0.0 &gt; tmp@0.0.28
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-merge-trees@3.0.2 &gt; merge-trees@2.0.0 &gt; fs-updater@1.0.4 &gt; can-symlink@1.0.0 &gt; tmp@0.0.28
 - Author: KARASZI István &lt;github@spam.raszi.hu&gt; (http://raszi.hu/)
-- `LICENSE`: [license text 389](#license-text-389)
+- `LICENSE`: [license text 466](#license-text-466)
 
 <a id="npm-tmp-0-0-33"></a>
 
 ### tmp 0.0.33
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; tmp@0.0.33
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; fixturify-project@1.10.0 &gt; tmp@0.0.33
 - Author: KARASZI István &lt;github@spam.raszi.hu&gt; (http://raszi.hu/)
-- `LICENSE`: [license text 389](#license-text-389)
+- `LICENSE`: [license text 466](#license-text-466)
 
 <a id="npm-to-fast-properties-2-0-0"></a>
 
 ### to-fast-properties 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/core@7.17.5 &gt; @babel/types@7.17.0 &gt; to-fast-properties@2.0.0
+- Required through: ember-concurrency@4.0.6 &gt; @babel/types@7.13.12 &gt; to-fast-properties@2.0.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 390](#license-text-390)
+- `license`: [license text 467](#license-text-467)
 
 <a id="npm-to-regex-range-5-0-1"></a>
 
@@ -10003,23 +13388,23 @@ limitations under the License.
 - License: MIT
 - Required through: @hashicorp/design-system-components@2.12.0 &gt; sass@1.67.0 &gt; chokidar@3.5.2 &gt; braces@3.0.2 &gt; fill-range@7.0.1 &gt; to-regex-range@5.0.1
 - Author: Jon Schlinkert (https://github.com/jonschlinkert)
-- `LICENSE`: [license text 391](#license-text-391)
+- `LICENSE`: [license text 468](#license-text-468)
 
 <a id="npm-tracked-maps-and-sets-3-0-2"></a>
 
 ### tracked-maps-and-sets 3.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-stargate@0.4.3 &gt; tracked-maps-and-sets@3.0.2
+- Required through: ember-stargate@0.5.0 &gt; tracked-maps-and-sets@3.0.2
 - Author: Chris Hewell Garrett
-- `LICENSE.md`: [license text 266](#license-text-266)
+- `LICENSE.md`: [license text 187](#license-text-187)
 
 <a id="npm-tree-sync-1-4-0"></a>
 
 ### tree-sync 1.4.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-debug@0.6.5 &gt; tree-sync@1.4.0
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; broccoli-debug@0.6.5 &gt; tree-sync@1.4.0
 - Author: Stefan Penner
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -10030,14 +13415,33 @@ limitations under the License.
 - License: 0BSD
 - Required through: no-case@3.0.4 &gt; tslib@2.1.0
 - Author: Microsoft Corp.
-- `LICENSE.txt`: [license text 392](#license-text-392)
+- `LICENSE.txt`: [license text 469](#license-text-469)
+
+<a id="npm-tslib-2-3-0"></a>
+
+### tslib 2.3.0
+
+- License: 0BSD
+- Required through: echarts@6.1.0 &gt; tslib@2.3.0
+- Author: Microsoft Corp.
+- `LICENSE.txt`: [license text 469](#license-text-469)
+
+<a id="npm-type-fest-4-41-0"></a>
+
+### type-fest 4.41.0
+
+- License: (MIT OR CC0-1.0)
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-plugin-ember-template-compilation@2.4.1 &gt; @glimmer/syntax@0.95.0 &gt; @glimmer/interfaces@0.94.6 &gt; type-fest@4.41.0
+- Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
+- `license-cc0`: [license text 470](#license-text-470)
+- `license-mit`: [license text 326](#license-text-326)
 
 <a id="npm-typescript-memoize-1-0-0-alpha-4"></a>
 
 ### typescript-memoize 1.0.0-alpha.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; typescript-memoize@1.0.0-alpha.4
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; typescript-memoize@1.0.0-alpha.4
 - Author: Darryl Hodgins &lt;darrylh@darryh.ca&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -10046,7 +13450,7 @@ limitations under the License.
 ### typescript-memoize 1.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @embroider/shared-internals@1.0.0 &gt; typescript-memoize@1.1.0
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; typescript-memoize@1.1.0
 - Author: Darryl Hodgins &lt;darrylh@darryh.ca&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -10055,98 +13459,134 @@ limitations under the License.
 ### uglify-js 3.13.5
 
 - License: BSD-2-Clause
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; handlebars@4.7.7 &gt; uglify-js@3.13.5
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; handlebars@4.7.7 &gt; uglify-js@3.13.5
 - Author: Mihai Bazon &lt;mihai.bazon@gmail.com&gt; (http://lisperator.net/)
-- `LICENSE`: [license text 393](#license-text-393)
+- `LICENSE`: [license text 471](#license-text-471)
 
 <a id="npm-unbox-primitive-1-0-1"></a>
 
 ### unbox-primitive 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 301](#license-text-301)
+- `LICENSE`: [license text 348](#license-text-348)
 
 <a id="npm-underscore-string-3-3-6"></a>
 
 ### underscore.string 3.3.6
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; quick-temp@0.1.8 &gt; underscore.string@3.3.6
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-file-creator@2.1.1 &gt; broccoli-plugin@1.3.1 &gt; quick-temp@0.1.8 &gt; underscore.string@3.3.6
 - The package contains no license file; the license is the one declared in its package.json.
+
+<a id="npm-underscore-1-6-0"></a>
+
+### underscore 1.6.0
+
+- License: MIT
+- Required through: jsonlint@1.6.3 &gt; nomnom@1.8.1 &gt; underscore@1.6.0
+- Author: Jeremy Ashkenas &lt;jeremy@documentcloud.org&gt;
+- `LICENSE`: [license text 472](#license-text-472)
 
 <a id="npm-unicode-canonical-property-names-ecmascript-2-0-0"></a>
 
 ### unicode-canonical-property-names-ecmascript 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; unicode-match-property-ecmascript@2.0.0 &gt; unicode-canonical-property-names-ecmascript@2.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; unicode-match-property-ecmascript@2.0.0 &gt; unicode-canonical-property-names-ecmascript@2.0.0
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
 
 <a id="npm-unicode-match-property-ecmascript-2-0-0"></a>
 
 ### unicode-match-property-ecmascript 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; unicode-match-property-ecmascript@2.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; unicode-match-property-ecmascript@2.0.0
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
 
 <a id="npm-unicode-match-property-value-ecmascript-2-0-0"></a>
 
 ### unicode-match-property-value-ecmascript 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; unicode-match-property-value-ecmascript@2.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; unicode-match-property-value-ecmascript@2.0.0
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
+
+<a id="npm-unicode-match-property-value-ecmascript-2-2-1"></a>
+
+### unicode-match-property-value-ecmascript 2.2.1
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; @babel/preset-env@7.29.7 &gt; @babel/plugin-syntax-unicode-sets-regex@7.18.6 &gt; @babel/helper-create-regexp-features-plugin@7.29.10 &gt; regexpu-core@6.5.3 &gt; unicode-match-property-value-ecmascript@2.2.1
+- Author: Mathias Bynens
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
 
 <a id="npm-unicode-property-aliases-ecmascript-2-0-0"></a>
 
 ### unicode-property-aliases-ecmascript 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; unicode-match-property-ecmascript@2.0.0 &gt; unicode-property-aliases-ecmascript@2.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/preset-env@7.16.11 &gt; @babel/plugin-proposal-unicode-property-regex@7.16.7 &gt; @babel/helper-create-regexp-features-plugin@7.17.0 &gt; regexpu-core@5.0.1 &gt; unicode-match-property-ecmascript@2.0.0 &gt; unicode-property-aliases-ecmascript@2.0.0
 - Author: Mathias Bynens
-- `LICENSE-MIT.txt`: [license text 246](#license-text-246)
+- `LICENSE-MIT.txt`: [license text 272](#license-text-272)
 
 <a id="npm-uniq-1-0-1"></a>
 
 ### uniq 1.0.1
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0 &gt; postcss-selector-parser@6.0.4 &gt; uniq@1.0.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; css-loader@5.2.7 &gt; postcss-modules-local-by-default@4.0.0 &gt; postcss-selector-parser@6.0.4 &gt; uniq@1.0.1
 - Author: Mikola Lysenko
-- `LICENSE`: [license text 394](#license-text-394)
+- `LICENSE`: [license text 473](#license-text-473)
 
 <a id="npm-universalify-0-1-2"></a>
 
 ### universalify 0.1.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; fs-extra@6.0.1 &gt; universalify@0.1.2
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; fs-extra@8.1.0 &gt; universalify@0.1.2
 - Author: Ryan Zimmerman &lt;opensrc@ryanzim.com&gt;
-- `LICENSE`: [license text 395](#license-text-395)
+- `LICENSE`: [license text 474](#license-text-474)
 
 <a id="npm-universalify-2-0-0"></a>
 
 ### universalify 2.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; @embroider/shared-internals@1.0.0 &gt; fs-extra@9.1.0 &gt; universalify@2.0.0
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; fs-extra@9.1.0 &gt; universalify@2.0.0
 - Author: Ryan Zimmerman &lt;opensrc@ryanzim.com&gt;
-- `LICENSE`: [license text 395](#license-text-395)
+- `LICENSE`: [license text 474](#license-text-474)
+
+<a id="npm-unquote-1-1-1"></a>
+
+### unquote 1.1.1
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; unquote@1.1.1
+- Author: Cameron Lakenen &lt;cameron@lakenen.com&gt;
+- `LICENSE`: [license text 475](#license-text-475)
+
+<a id="npm-update-browserslist-db-1-3-4"></a>
+
+### update-browserslist-db 1.3.4
+
+- License: MIT
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; browserslist@4.29.3 &gt; update-browserslist-db@1.3.4
+- Author: Andrey Sitnik &lt;andrey@sitnik.es&gt;
+- `LICENSE`: [license text 476](#license-text-476)
 
 <a id="npm-uri-js-4-4-1"></a>
 
 ### uri-js 4.4.1
 
 - License: BSD-2-Clause
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; ajv@8.11.0 &gt; uri-js@4.4.1
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; babel-loader@8.2.3 &gt; schema-utils@2.7.1 &gt; ajv@6.12.6 &gt; uri-js@4.4.1
 - Author: Gary Court &lt;gary.court@gmail.com&gt;
-- `LICENSE`: [license text 396](#license-text-396)
+- `LICENSE`: [license text 477](#license-text-477)
 
 <a id="npm-username-sync-1-0-3"></a>
 
@@ -10162,144 +13602,214 @@ limitations under the License.
 ### util-deprecate 1.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; broccoli-plugin@4.0.3 &gt; quick-temp@0.1.8 &gt; underscore.string@3.3.6 &gt; util-deprecate@1.0.2
+- Required through: @glimmer/component@1.1.2 &gt; broccoli-file-creator@2.1.1 &gt; broccoli-plugin@1.3.1 &gt; quick-temp@0.1.8 &gt; underscore.string@3.3.6 &gt; util-deprecate@1.0.2
 - Author: Nathan Rajlich &lt;nathan@tootallnate.net&gt; (http://n8.io/)
-- `LICENSE`: [license text 397](#license-text-397)
+- `LICENSE`: [license text 478](#license-text-478)
+
+<a id="npm-util-promisify-1-0-1"></a>
+
+### util.promisify 1.0.1
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; util.promisify@1.0.1
+- Author: Jordan Harband &lt;ljharb@gmail.com&gt;
+- `LICENSE`: [license text 479](#license-text-479)
 
 <a id="npm-walk-sync-0-3-4"></a>
 
 ### walk-sync 0.3.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-funnel@2.0.2 &gt; walk-sync@0.3.4
+- Required through: ember-inline-svg@1.0.1 &gt; broccoli-caching-writer@3.0.3 &gt; walk-sync@0.3.4
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-walk-sync-1-1-4"></a>
 
 ### walk-sync 1.1.4
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0 &gt; broccoli-persistent-filter@2.3.1 &gt; walk-sync@1.1.4
+- Required through: ember-data-model-fragments@7.0.3 &gt; ember-template-imports@4.4.0 &gt; broccoli-stew@3.0.0 &gt; walk-sync@1.1.4
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
+
+<a id="npm-walk-sync-2-0-2"></a>
+
+### walk-sync 2.0.2
+
+- License: MIT
+- Required through: ember-inline-svg@1.0.1 &gt; walk-sync@2.0.2
+- Author: Jo Liss &lt;joliss42@gmail.com&gt;
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-walk-sync-2-2-0"></a>
 
 ### walk-sync 2.2.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-htmlbars@6.2.0 &gt; walk-sync@2.2.0
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; walk-sync@2.2.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-walk-sync-3-0-0"></a>
 
 ### walk-sync 3.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; walk-sync@3.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; walk-sync@3.0.0
 - Author: Jo Liss &lt;joliss42@gmail.com&gt;
-- `LICENSE`: [license text 219](#license-text-219)
+- `LICENSE`: [license text 234](#license-text-234)
 
 <a id="npm-which-boxed-primitive-1-0-2"></a>
 
 ### which-boxed-primitive 1.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; babel-plugin-htmlbars-inline-precompile@5.3.1 &gt; string.prototype.matchall@4.0.6 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2
+- Required through: ember-inline-svg@1.0.1 &gt; svgo@1.2.2 &gt; object.values@1.1.2 &gt; es-abstract@1.19.1 &gt; unbox-primitive@1.0.1 &gt; which-boxed-primitive@1.0.2
 - Author: Jordan Harband &lt;ljharb@gmail.com&gt;
-- `LICENSE`: [license text 301](#license-text-301)
+- `LICENSE`: [license text 348](#license-text-348)
 
 <a id="npm-which-2-0-2"></a>
 
 ### which 2.0.2
 
 - License: ISC
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-exec@1.6.1 &gt; which@2.0.2
+- Required through: @glimmer/component@1.1.2 &gt; ember-cli-typescript@3.0.0 &gt; execa@2.1.0 &gt; cross-spawn@7.0.3 &gt; which@2.0.2
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me)
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-wordwrap-1-0-0"></a>
 
 ### wordwrap 1.0.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.4.0 &gt; handlebars@4.7.7 &gt; wordwrap@1.0.0
+- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-auto-import@2.13.1 &gt; handlebars@4.7.7 &gt; wordwrap@1.0.0
 - Author: James Halliday &lt;mail@substack.net&gt;
-- `LICENSE`: [license text 237](#license-text-237)
+- `LICENSE`: [license text 257](#license-text-257)
 
 <a id="npm-workerpool-3-1-2"></a>
 
 ### workerpool 3.1.2
 
 - License: Apache-2.0
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0 &gt; workerpool@3.1.2
+- Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; broccoli-babel-transpiler@7.8.0 &gt; workerpool@3.1.2
 - Author: Jos de Jong &lt;wjosdejong@gmail.com&gt; (https://github.com/josdejong)
 - `LICENSE`: [license text 2](#license-text-2)
+
+<a id="npm-workerpool-6-5-1"></a>
+
+### workerpool 6.5.1
+
+- License: Apache-2.0
+- Required through: @ember/render-modifiers@3.0.0 &gt; ember-cli-babel@8.3.2 &gt; broccoli-babel-transpiler@8.1.0 &gt; workerpool@6.5.1
+- Author: Jos de Jong &lt;wjosdejong@gmail.com&gt; (https://github.com/josdejong)
+- `LICENSE`: [license text 480](#license-text-480)
 
 <a id="npm-wrappy-1-0-2"></a>
 
 ### wrappy 1.0.2
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; ember-cli-babel@7.26.11 &gt; babel-plugin-module-resolver@3.2.0 &gt; glob@7.2.0 &gt; inflight@1.0.6 &gt; wrappy@1.0.2
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; glob@7.2.0 &gt; inflight@1.0.6 &gt; wrappy@1.0.2
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-ws-8-6-0"></a>
 
 ### ws 8.6.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; ws@8.6.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; ws@8.6.0
 - Author: Einar Otto Stangvik &lt;einaros@gmail.com&gt; (http://2x.io)
-- `LICENSE`: [license text 398](#license-text-398)
+- `LICENSE`: [license text 481](#license-text-481)
+
+<a id="npm-xstate-4-38-3"></a>
+
+### xstate 4.38.3
+
+- License: MIT
+- Required through: xstate@4.38.3
+- Author: David Khourshid &lt;davidkpiano@gmail.com&gt;
+- `LICENSE`: [license text 482](#license-text-482)
+
+<a id="npm-xterm-addon-fit-0-5-0"></a>
+
+### xterm-addon-fit 0.5.0
+
+- License: MIT
+- Required through: xterm-addon-fit@0.5.0
+- Author: The xterm.js authors
+- `LICENSE`: [license text 483](#license-text-483)
+
+<a id="npm-xterm-4-15-0"></a>
+
+### xterm 4.15.0
+
+- License: MIT
+- Required through: xterm@4.15.0
+- `LICENSE`: [license text 484](#license-text-484)
+
+<a id="npm-yallist-3-1-1"></a>
+
+### yallist 3.1.1
+
+- License: ISC
+- Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; lru-cache@5.1.1 &gt; yallist@3.1.1
+- Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-yallist-4-0-0"></a>
 
 ### yallist 4.0.0
 
 - License: ISC
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2 &gt; semver@7.3.5 &gt; lru-cache@6.0.0 &gt; yallist@4.0.0
+- Required through: @ember/test-waiters@3.1.0 &gt; semver@7.3.5 &gt; lru-cache@6.0.0 &gt; yallist@4.0.0
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
-- `LICENSE`: [license text 297](#license-text-297)
+- `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-yaml-1-10-0"></a>
 
 ### yaml 1.10.0
 
 - License: ISC
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; yaml@1.10.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/config@1.6.1 &gt; cosmiconfig@7.0.0 &gt; yaml@1.10.0
 - Author: Eemeli Aro &lt;eemeli@gmail.com&gt;
-- `LICENSE`: [license text 399](#license-text-399)
+- `LICENSE`: [license text 485](#license-text-485)
 
 <a id="npm-yaml-2-0-1"></a>
 
 ### yaml 2.0.1
 
 - License: ISC
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-snapshot@1.6.1 &gt; yaml@2.0.1
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-snapshot@1.6.1 &gt; yaml@2.0.1
 - Author: Eemeli Aro &lt;eemeli@gmail.com&gt;
-- `LICENSE`: [license text 400](#license-text-400)
+- `LICENSE`: [license text 486](#license-text-486)
 
 <a id="npm-yauzl-2-10-0"></a>
 
 ### yauzl 2.10.0
 
 - License: MIT
-- Required through: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; yauzl@2.10.0
+- Required through: legacy UI: @percy/cli@1.6.1 &gt; @percy/cli-command@1.6.1 &gt; @percy/core@1.6.1 &gt; extract-zip@2.0.1 &gt; yauzl@2.10.0
 - Author: Josh Wolfe &lt;thejoshwolfe@gmail.com&gt;
-- `LICENSE`: [license text 401](#license-text-401)
+- `LICENSE`: [license text 487](#license-text-487)
 
 <a id="npm-yocto-queue-0-1-0"></a>
 
 ### yocto-queue 0.1.0
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/render-modifiers@2.1.0 &gt; @embroider/macros@1.2.0 &gt; find-up@5.0.0 &gt; locate-path@6.0.0 &gt; p-locate@5.0.0 &gt; p-limit@3.1.0 &gt; yocto-queue@0.1.0
+- Required through: @embroider/macros@1.20.7 &gt; find-up@5.0.0 &gt; locate-path@6.0.0 &gt; p-locate@5.0.0 &gt; p-limit@3.1.0 &gt; yocto-queue@0.1.0
 - Author: Sindre Sorhus &lt;sindresorhus@gmail.com&gt;
-- `license`: [license text 281](#license-text-281)
+- `license`: [license text 326](#license-text-326)
+
+<a id="npm-zrender-6-1-0"></a>
+
+### zrender 6.1.0
+
+- License: BSD-3-Clause
+- Required through: echarts@6.1.0 &gt; zrender@6.1.0
+- `LICENSE`: [license text 488](#license-text-488)
 
 ## License texts
 
@@ -10343,7 +13853,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### License text 2
 
-Used by: cel.dev/expr v0.25.2, cloud.google.com/go v0.121.6, cloud.google.com/go/auth v0.20.0, cloud.google.com/go/auth/oauth2adapt v0.2.8, cloud.google.com/go/compute/metadata v0.9.0, cloud.google.com/go/iam v1.5.3, cloud.google.com/go/monitoring v1.24.3, cloud.google.com/go/storage v1.56.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0, github.com/Masterminds/goutils v1.1.1, github.com/agext/levenshtein v1.2.1, github.com/aws/aws-sdk-go v1.44.184, github.com/checkpoint-restore/go-criu/v8 v8.3.0, github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2, github.com/container-storage-interface/spec v1.7.0, github.com/containerd/go-cni v1.1.9, github.com/containernetworking/cni v1.1.2, github.com/containernetworking/plugins v1.2.0, github.com/coreos/go-oidc/v3 v3.1.0, github.com/dimchansky/utfbom v1.1.0, github.com/distribution/reference v0.6.0, github.com/docker/distribution v2.8.3+incompatible, github.com/envoyproxy/go-control-plane/envoy v1.37.0, github.com/envoyproxy/protoc-gen-validate v1.3.3, github.com/go-jose/go-jose/v4 v4.1.4, github.com/go-logr/logr v1.4.3, github.com/go-logr/stdr v1.2.2, github.com/google/btree v1.0.1, github.com/google/nftables v0.3.0, github.com/google/s2a-go v0.1.9, github.com/googleapis/enterprise-certificate-proxy v0.3.15, github.com/grpc-ecosystem/go-grpc-middleware v1.4.0, github.com/hashicorp/cronexpr v1.1.2, github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07, github.com/matttproud/golang\_protobuf\_extensions/v2 v2.0.0, github.com/minio/crc64nvme v1.1.1, github.com/minio/md5-simd v1.1.2, github.com/minio/minio-go/v7 v7.3.0, github.com/moby/sys/devices v0.1.0, github.com/moby/sys/mount v0.3.3, github.com/moby/sys/mountinfo v0.7.2, github.com/moby/sys/sequential v0.5.0, github.com/moby/sys/user v0.4.1, github.com/moby/sys/userns v0.2.1, github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd, github.com/modern-go/reflect2 v1.0.2, github.com/nats-io/nats.go v1.54.0, github.com/nats-io/nkeys v0.4.16, github.com/nats-io/nuid v1.0.1, github.com/oklog/run v1.1.0, github.com/opencontainers/cgroups v0.1.0, github.com/opencontainers/selinux v1.13.1, github.com/prometheus/client\_golang v1.18.0, github.com/prometheus/client\_model v0.6.2, github.com/prometheus/common v0.45.0, github.com/prometheus/procfs v0.12.0, github.com/skeema/knownhosts v1.3.1, github.com/softlayer/softlayer-go v0.0.0-20180806151055-260589d94c7d, github.com/spiffe/go-spiffe/v2 v2.8.1, github.com/tklauser/numcpus v0.6.0, github.com/vmware/govmomi v0.18.0, github.com/xanzy/ssh-agent v0.3.3, github.com/zclconf/go-cty-yaml v1.0.3, go.opentelemetry.io/auto/sdk v1.2.1, google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7, google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800, google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800, google.golang.org/grpc v1.84.0, gopkg.in/square/go-jose.v2 v2.6.0, gopkg.in/yaml.v2 v2.4.0, workerpool 3.1.2
+Used by: cel.dev/expr v0.25.2, cloud.google.com/go v0.121.6, cloud.google.com/go/auth v0.20.0, cloud.google.com/go/auth/oauth2adapt v0.2.8, cloud.google.com/go/compute/metadata v0.9.0, cloud.google.com/go/iam v1.5.3, cloud.google.com/go/monitoring v1.24.3, cloud.google.com/go/storage v1.56.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0, github.com/Masterminds/goutils v1.1.1, github.com/agext/levenshtein v1.2.1, github.com/aws/aws-sdk-go v1.44.184, github.com/checkpoint-restore/go-criu/v8 v8.3.0, github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2, github.com/container-storage-interface/spec v1.7.0, github.com/containerd/go-cni v1.1.9, github.com/containernetworking/cni v1.1.2, github.com/containernetworking/plugins v1.2.0, github.com/coreos/go-oidc/v3 v3.1.0, github.com/dimchansky/utfbom v1.1.0, github.com/distribution/reference v0.6.0, github.com/docker/distribution v2.8.3+incompatible, github.com/envoyproxy/go-control-plane/envoy v1.37.0, github.com/envoyproxy/protoc-gen-validate v1.3.3, github.com/go-jose/go-jose/v4 v4.1.4, github.com/go-logr/logr v1.4.3, github.com/go-logr/stdr v1.2.2, github.com/google/btree v1.0.1, github.com/google/nftables v0.3.0, github.com/google/s2a-go v0.1.9, github.com/googleapis/enterprise-certificate-proxy v0.3.15, github.com/grpc-ecosystem/go-grpc-middleware v1.4.0, github.com/hashicorp/cronexpr v1.1.2, github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07, github.com/matttproud/golang\_protobuf\_extensions/v2 v2.0.0, github.com/minio/crc64nvme v1.1.1, github.com/minio/md5-simd v1.1.2, github.com/minio/minio-go/v7 v7.3.0, github.com/moby/sys/devices v0.1.0, github.com/moby/sys/mount v0.3.3, github.com/moby/sys/mountinfo v0.7.2, github.com/moby/sys/sequential v0.5.0, github.com/moby/sys/user v0.4.1, github.com/moby/sys/userns v0.2.1, github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd, github.com/modern-go/reflect2 v1.0.2, github.com/nats-io/nats.go v1.54.0, github.com/nats-io/nkeys v0.4.16, github.com/nats-io/nuid v1.0.1, github.com/oklog/run v1.1.0, github.com/opencontainers/cgroups v0.1.0, github.com/opencontainers/selinux v1.13.1, github.com/prometheus/client\_golang v1.18.0, github.com/prometheus/client\_model v0.6.2, github.com/prometheus/common v0.45.0, github.com/prometheus/procfs v0.12.0, github.com/skeema/knownhosts v1.3.1, github.com/softlayer/softlayer-go v0.0.0-20180806151055-260589d94c7d, github.com/spiffe/go-spiffe/v2 v2.8.1, github.com/tklauser/numcpus v0.6.0, github.com/vmware/govmomi v0.18.0, github.com/xanzy/ssh-agent v0.3.3, github.com/zclconf/go-cty-yaml v1.0.3, go.opentelemetry.io/auto/sdk v1.2.1, google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7, google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800, google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800, google.golang.org/grpc v1.84.0, gopkg.in/square/go-jose.v2 v2.6.0, gopkg.in/yaml.v2 v2.4.0, baseline-browser-mapping 2.11.28, workerpool 3.1.2
 
 ```text
                                  Apache License
@@ -16714,7 +20224,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### License text 80
 
-Used by: github.com/hashicorp/cap v0.2.0, github.com/hashicorp/errwrap v1.0.0, github.com/hashicorp/errwrap v1.1.0, github.com/hashicorp/go-cleanhttp v0.5.2, github.com/hashicorp/go-connlimit v0.3.0, github.com/hashicorp/go-cty-funcs v0.0.0-20200930094925-2721b1e36840, github.com/hashicorp/go-discover v0.0.0-20220621183603-a413e131e836, github.com/hashicorp/go-envparse v0.0.0-20180119215841-310ca1881b22, github.com/hashicorp/go-immutable-radix v1.3.1, github.com/hashicorp/go-memdb v1.3.4, github.com/hashicorp/go-multierror v1.1.1, github.com/hashicorp/go-rootcerts v1.0.2, github.com/hashicorp/go-safetemp v1.0.0, github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.4, github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7, github.com/hashicorp/go-secure-stdlib/reloadutil v0.1.1, github.com/hashicorp/go-secure-stdlib/strutil v0.1.2, github.com/hashicorp/go-secure-stdlib/tlsutil v0.1.2, github.com/hashicorp/go-sockaddr v1.0.2, github.com/hashicorp/golang-lru v0.5.4, github.com/hashicorp/hcl v1.0.1-vault-3, github.com/hashicorp/hil v0.0.0-20210521165536-27a72121fd40, github.com/hashicorp/logutils v1.0.0, github.com/hashicorp/memberlist v0.5.0, github.com/hashicorp/raft-autopilot v0.1.6, github.com/hashicorp/raft-boltdb/v2 v2.2.2, github.com/hashicorp/serf v0.10.1, github.com/joyent/triton-go v0.0.0-20190112182421-51ffac552869, github.com/mitchellh/cli v1.1.5, github.com/shoenig/go-landlock v0.1.5, github.com/shoenig/go-m1cpu v0.1.6, github.com/shoenig/test v0.6.7
+Used by: github.com/hashicorp/cap v0.2.0, github.com/hashicorp/errwrap v1.0.0, github.com/hashicorp/errwrap v1.1.0, github.com/hashicorp/go-cleanhttp v0.5.2, github.com/hashicorp/go-connlimit v0.3.0, github.com/hashicorp/go-cty-funcs v0.0.0-20200930094925-2721b1e36840, github.com/hashicorp/go-discover v0.0.0-20220621183603-a413e131e836, github.com/hashicorp/go-envparse v0.0.0-20180119215841-310ca1881b22, github.com/hashicorp/go-immutable-radix v1.3.1, github.com/hashicorp/go-memdb v1.3.4, github.com/hashicorp/go-multierror v1.1.1, github.com/hashicorp/go-rootcerts v1.0.2, github.com/hashicorp/go-safetemp v1.0.0, github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.4, github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7, github.com/hashicorp/go-secure-stdlib/reloadutil v0.1.1, github.com/hashicorp/go-secure-stdlib/strutil v0.1.2, github.com/hashicorp/go-secure-stdlib/tlsutil v0.1.2, github.com/hashicorp/go-sockaddr v1.0.2, github.com/hashicorp/golang-lru v0.5.4, github.com/hashicorp/hcl v1.0.1-vault-3, github.com/hashicorp/hil v0.0.0-20210521165536-27a72121fd40, github.com/hashicorp/logutils v1.0.0, github.com/hashicorp/memberlist v0.5.0, github.com/hashicorp/raft-autopilot v0.1.6, github.com/hashicorp/raft-boltdb/v2 v2.2.2, github.com/hashicorp/serf v0.10.1, github.com/joyent/triton-go v0.0.0-20190112182421-51ffac552869, github.com/mitchellh/cli v1.1.5, github.com/shoenig/go-landlock v0.1.5, github.com/shoenig/go-m1cpu v0.1.6, github.com/shoenig/test v0.6.7, mdn-data 1.1.4
 
 ```text
 Mozilla Public License, version 2.0
@@ -26719,7 +30229,7 @@ Used by: @ampproject/remapping 2.1.2
 
 ### License text 176
 
-Used by: @babel/code-frame 7.12.11, @babel/code-frame 7.12.13, @babel/code-frame 7.16.7, @babel/compat-data 7.13.12, @babel/compat-data 7.15.0, @babel/compat-data 7.17.0, @babel/core 7.12.10, @babel/core 7.17.5, @babel/generator 7.13.9, @babel/generator 7.17.3, @babel/helper-annotate-as-pure 7.16.7, @babel/helper-builder-binary-assignment-operator-visitor 7.16.7, @babel/helper-compilation-targets 7.13.10, @babel/helper-compilation-targets 7.16.7, @babel/helper-create-class-features-plugin 7.13.11, @babel/helper-create-class-features-plugin 7.17.6, @babel/helper-create-regexp-features-plugin 7.17.0, @babel/helper-environment-visitor 7.16.7, @babel/helper-explode-assignable-expression 7.16.7, @babel/helper-function-name 7.12.13, @babel/helper-function-name 7.16.7, @babel/helper-get-function-arity 7.12.13, @babel/helper-get-function-arity 7.16.7, @babel/helper-hoist-variables 7.16.7, @babel/helper-member-expression-to-functions 7.13.12, @babel/helper-member-expression-to-functions 7.16.7, @babel/helper-module-imports 7.13.12, @babel/helper-module-imports 7.16.7, @babel/helper-module-transforms 7.13.12, @babel/helper-module-transforms 7.17.6, @babel/helper-optimise-call-expression 7.12.13, @babel/helper-optimise-call-expression 7.16.7, @babel/helper-plugin-utils 7.13.0, @babel/helper-plugin-utils 7.16.7, @babel/helper-remap-async-to-generator 7.16.8, @babel/helper-replace-supers 7.13.12, @babel/helper-replace-supers 7.16.7, @babel/helper-simple-access 7.13.12, @babel/helper-simple-access 7.16.7, @babel/helper-skip-transparent-expression-wrappers 7.16.0, @babel/helper-split-export-declaration 7.12.13, @babel/helper-split-export-declaration 7.16.7, @babel/helper-string-parser 7.19.4, @babel/helper-validator-identifier 7.16.7, @babel/helper-validator-option 7.12.17, @babel/helper-validator-option 7.16.7, @babel/helper-wrap-function 7.16.8, @babel/helpers 7.17.2, @babel/highlight 7.13.10, @babel/highlight 7.16.10, @babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression 7.16.7, @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining 7.16.7, @babel/plugin-proposal-async-generator-functions 7.16.8, @babel/plugin-proposal-class-properties 7.16.7, @babel/plugin-proposal-class-static-block 7.17.6, @babel/plugin-proposal-decorators 7.13.5, @babel/plugin-proposal-decorators 7.17.2, @babel/plugin-proposal-dynamic-import 7.16.7, @babel/plugin-proposal-export-namespace-from 7.16.7, @babel/plugin-proposal-json-strings 7.16.7, @babel/plugin-proposal-logical-assignment-operators 7.16.7, @babel/plugin-proposal-nullish-coalescing-operator 7.16.7, @babel/plugin-proposal-numeric-separator 7.16.7, @babel/plugin-proposal-object-rest-spread 7.17.3, @babel/plugin-proposal-optional-catch-binding 7.16.7, @babel/plugin-proposal-optional-chaining 7.16.7, @babel/plugin-proposal-private-methods 7.16.11, @babel/plugin-proposal-private-property-in-object 7.16.7, @babel/plugin-proposal-unicode-property-regex 7.16.7, @babel/plugin-syntax-async-generators 7.8.4, @babel/plugin-syntax-class-properties 7.12.13, @babel/plugin-syntax-class-static-block 7.14.5, @babel/plugin-syntax-decorators 7.12.13, @babel/plugin-syntax-decorators 7.17.0, @babel/plugin-syntax-dynamic-import 7.8.3, @babel/plugin-syntax-export-namespace-from 7.8.3, @babel/plugin-syntax-json-strings 7.8.3, @babel/plugin-syntax-logical-assignment-operators 7.10.4, @babel/plugin-syntax-nullish-coalescing-operator 7.8.3, @babel/plugin-syntax-numeric-separator 7.10.4, @babel/plugin-syntax-object-rest-spread 7.8.3, @babel/plugin-syntax-optional-catch-binding 7.8.3, @babel/plugin-syntax-optional-chaining 7.8.3, @babel/plugin-syntax-private-property-in-object 7.14.5, @babel/plugin-syntax-top-level-await 7.14.5, @babel/plugin-syntax-typescript 7.12.13, @babel/plugin-syntax-typescript 7.16.7, @babel/plugin-transform-arrow-functions 7.16.7, @babel/plugin-transform-async-to-generator 7.16.8, @babel/plugin-transform-block-scoped-functions 7.16.7, @babel/plugin-transform-block-scoping 7.16.7, @babel/plugin-transform-classes 7.16.7, @babel/plugin-transform-computed-properties 7.16.7, @babel/plugin-transform-destructuring 7.17.3, @babel/plugin-transform-dotall-regex 7.16.7, @babel/plugin-transform-duplicate-keys 7.16.7, @babel/plugin-transform-exponentiation-operator 7.16.7, @babel/plugin-transform-for-of 7.16.7, @babel/plugin-transform-function-name 7.16.7, @babel/plugin-transform-literals 7.16.7, @babel/plugin-transform-member-expression-literals 7.16.7, @babel/plugin-transform-modules-amd 7.13.0, @babel/plugin-transform-modules-amd 7.16.7, @babel/plugin-transform-modules-commonjs 7.16.8, @babel/plugin-transform-modules-systemjs 7.16.7, @babel/plugin-transform-modules-umd 7.16.7, @babel/plugin-transform-named-capturing-groups-regex 7.16.8, @babel/plugin-transform-new-target 7.16.7, @babel/plugin-transform-object-super 7.16.7, @babel/plugin-transform-parameters 7.16.7, @babel/plugin-transform-property-literals 7.16.7, @babel/plugin-transform-regenerator 7.16.7, @babel/plugin-transform-reserved-words 7.16.7, @babel/plugin-transform-runtime 7.13.10, @babel/plugin-transform-shorthand-properties 7.16.7, @babel/plugin-transform-spread 7.16.7, @babel/plugin-transform-sticky-regex 7.16.7, @babel/plugin-transform-template-literals 7.16.7, @babel/plugin-transform-typeof-symbol 7.16.7, @babel/plugin-transform-typescript 7.13.0, @babel/plugin-transform-typescript 7.5.5, @babel/plugin-transform-unicode-escapes 7.16.7, @babel/plugin-transform-unicode-regex 7.16.7, @babel/polyfill 7.12.1, @babel/preset-env 7.16.11, @babel/runtime 7.12.18, @babel/runtime 7.17.2, @babel/runtime 7.22.5, @babel/template 7.12.13, @babel/template 7.16.7, @babel/traverse 7.13.0, @babel/traverse 7.17.3, @babel/types 7.13.12, @babel/types 7.17.0
+Used by: @babel/code-frame 7.12.11, @babel/code-frame 7.12.13, @babel/code-frame 7.16.7, @babel/code-frame 7.29.7, @babel/compat-data 7.13.12, @babel/compat-data 7.15.0, @babel/compat-data 7.17.0, @babel/compat-data 7.29.7, @babel/core 7.12.10, @babel/core 7.17.5, @babel/core 7.29.7, @babel/generator 7.13.9, @babel/generator 7.17.3, @babel/generator 7.29.8, @babel/helper-annotate-as-pure 7.16.7, @babel/helper-annotate-as-pure 7.29.7, @babel/helper-builder-binary-assignment-operator-visitor 7.16.7, @babel/helper-compilation-targets 7.13.10, @babel/helper-compilation-targets 7.16.7, @babel/helper-compilation-targets 7.29.7, @babel/helper-create-class-features-plugin 7.13.11, @babel/helper-create-class-features-plugin 7.17.6, @babel/helper-create-class-features-plugin 7.29.7, @babel/helper-create-regexp-features-plugin 7.17.0, @babel/helper-create-regexp-features-plugin 7.29.10, @babel/helper-environment-visitor 7.16.7, @babel/helper-explode-assignable-expression 7.16.7, @babel/helper-function-name 7.12.13, @babel/helper-function-name 7.16.7, @babel/helper-get-function-arity 7.12.13, @babel/helper-get-function-arity 7.16.7, @babel/helper-globals 7.29.7, @babel/helper-hoist-variables 7.16.7, @babel/helper-member-expression-to-functions 7.13.12, @babel/helper-member-expression-to-functions 7.16.7, @babel/helper-member-expression-to-functions 7.29.7, @babel/helper-module-imports 7.13.12, @babel/helper-module-imports 7.16.7, @babel/helper-module-imports 7.29.7, @babel/helper-module-transforms 7.13.12, @babel/helper-module-transforms 7.17.6, @babel/helper-module-transforms 7.29.7, @babel/helper-optimise-call-expression 7.12.13, @babel/helper-optimise-call-expression 7.16.7, @babel/helper-optimise-call-expression 7.29.7, @babel/helper-plugin-utils 7.13.0, @babel/helper-plugin-utils 7.16.7, @babel/helper-plugin-utils 7.29.7, @babel/helper-remap-async-to-generator 7.16.8, @babel/helper-remap-async-to-generator 7.29.7, @babel/helper-replace-supers 7.13.12, @babel/helper-replace-supers 7.16.7, @babel/helper-replace-supers 7.29.7, @babel/helper-simple-access 7.13.12, @babel/helper-simple-access 7.16.7, @babel/helper-skip-transparent-expression-wrappers 7.16.0, @babel/helper-skip-transparent-expression-wrappers 7.29.7, @babel/helper-split-export-declaration 7.12.13, @babel/helper-split-export-declaration 7.16.7, @babel/helper-string-parser 7.19.4, @babel/helper-string-parser 7.29.7, @babel/helper-validator-identifier 7.16.7, @babel/helper-validator-identifier 7.29.7, @babel/helper-validator-option 7.12.17, @babel/helper-validator-option 7.16.7, @babel/helper-validator-option 7.29.7, @babel/helper-wrap-function 7.16.8, @babel/helper-wrap-function 7.29.7, @babel/helpers 7.17.2, @babel/highlight 7.13.10, @babel/highlight 7.16.10, @babel/plugin-bugfix-firefox-class-in-computed-class-key 7.29.7, @babel/plugin-bugfix-safari-class-field-initializer-scope 7.29.7, @babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression 7.16.7, @babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression 7.29.7, @babel/plugin-bugfix-safari-rest-destructuring-rhs-array 7.29.7, @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining 7.16.7, @babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining 7.29.7, @babel/plugin-bugfix-v8-static-class-fields-redefine-readonly 7.29.7, @babel/plugin-proposal-async-generator-functions 7.16.8, @babel/plugin-proposal-class-properties 7.16.7, @babel/plugin-proposal-class-static-block 7.17.6, @babel/plugin-proposal-decorators 7.13.5, @babel/plugin-proposal-decorators 7.17.2, @babel/plugin-proposal-decorators 7.29.7, @babel/plugin-proposal-dynamic-import 7.16.7, @babel/plugin-proposal-export-namespace-from 7.16.7, @babel/plugin-proposal-json-strings 7.16.7, @babel/plugin-proposal-logical-assignment-operators 7.16.7, @babel/plugin-proposal-nullish-coalescing-operator 7.16.7, @babel/plugin-proposal-numeric-separator 7.16.7, @babel/plugin-proposal-object-rest-spread 7.17.3, @babel/plugin-proposal-optional-catch-binding 7.16.7, @babel/plugin-proposal-optional-chaining 7.16.7, @babel/plugin-proposal-private-methods 7.16.11, @babel/plugin-proposal-private-methods 7.18.6, @babel/plugin-proposal-private-property-in-object 7.16.7, @babel/plugin-proposal-private-property-in-object 7.21.0-placeholder-for-preset-env.2, @babel/plugin-proposal-unicode-property-regex 7.16.7, @babel/plugin-syntax-async-generators 7.8.4, @babel/plugin-syntax-class-properties 7.12.13, @babel/plugin-syntax-class-static-block 7.14.5, @babel/plugin-syntax-decorators 7.12.13, @babel/plugin-syntax-decorators 7.17.0, @babel/plugin-syntax-decorators 7.29.7, @babel/plugin-syntax-dynamic-import 7.8.3, @babel/plugin-syntax-export-namespace-from 7.8.3, @babel/plugin-syntax-import-assertions 7.29.7, @babel/plugin-syntax-import-attributes 7.29.7, @babel/plugin-syntax-json-strings 7.8.3, @babel/plugin-syntax-logical-assignment-operators 7.10.4, @babel/plugin-syntax-nullish-coalescing-operator 7.8.3, @babel/plugin-syntax-numeric-separator 7.10.4, @babel/plugin-syntax-object-rest-spread 7.8.3, @babel/plugin-syntax-optional-catch-binding 7.8.3, @babel/plugin-syntax-optional-chaining 7.8.3, @babel/plugin-syntax-private-property-in-object 7.14.5, @babel/plugin-syntax-top-level-await 7.14.5, @babel/plugin-syntax-typescript 7.12.13, @babel/plugin-syntax-typescript 7.16.7, @babel/plugin-syntax-typescript 7.29.7, @babel/plugin-syntax-unicode-sets-regex 7.18.6, @babel/plugin-transform-arrow-functions 7.16.7, @babel/plugin-transform-arrow-functions 7.29.7, @babel/plugin-transform-async-generator-functions 7.29.7, @babel/plugin-transform-async-to-generator 7.16.8, @babel/plugin-transform-async-to-generator 7.29.7, @babel/plugin-transform-block-scoped-functions 7.16.7, @babel/plugin-transform-block-scoped-functions 7.29.7, @babel/plugin-transform-block-scoping 7.16.7, @babel/plugin-transform-block-scoping 7.29.7, @babel/plugin-transform-class-properties 7.29.7, @babel/plugin-transform-class-static-block 7.29.7, @babel/plugin-transform-classes 7.16.7, @babel/plugin-transform-classes 7.29.7, @babel/plugin-transform-computed-properties 7.16.7, @babel/plugin-transform-computed-properties 7.29.7, @babel/plugin-transform-destructuring 7.17.3, @babel/plugin-transform-destructuring 7.29.7, @babel/plugin-transform-dotall-regex 7.16.7, @babel/plugin-transform-dotall-regex 7.29.7, @babel/plugin-transform-duplicate-keys 7.16.7, @babel/plugin-transform-duplicate-keys 7.29.7, @babel/plugin-transform-duplicate-named-capturing-groups-regex 7.29.7, @babel/plugin-transform-dynamic-import 7.29.7, @babel/plugin-transform-explicit-resource-management 7.29.7, @babel/plugin-transform-exponentiation-operator 7.16.7, @babel/plugin-transform-exponentiation-operator 7.29.7, @babel/plugin-transform-export-namespace-from 7.29.7, @babel/plugin-transform-for-of 7.16.7, @babel/plugin-transform-for-of 7.29.7, @babel/plugin-transform-function-name 7.16.7, @babel/plugin-transform-function-name 7.29.7, @babel/plugin-transform-json-strings 7.29.7, @babel/plugin-transform-literals 7.16.7, @babel/plugin-transform-literals 7.29.7, @babel/plugin-transform-logical-assignment-operators 7.29.7, @babel/plugin-transform-member-expression-literals 7.16.7, @babel/plugin-transform-member-expression-literals 7.29.7, @babel/plugin-transform-modules-amd 7.13.0, @babel/plugin-transform-modules-amd 7.16.7, @babel/plugin-transform-modules-amd 7.29.7, @babel/plugin-transform-modules-commonjs 7.16.8, @babel/plugin-transform-modules-commonjs 7.29.7, @babel/plugin-transform-modules-systemjs 7.16.7, @babel/plugin-transform-modules-systemjs 7.29.8, @babel/plugin-transform-modules-umd 7.16.7, @babel/plugin-transform-modules-umd 7.29.7, @babel/plugin-transform-named-capturing-groups-regex 7.16.8, @babel/plugin-transform-named-capturing-groups-regex 7.29.7, @babel/plugin-transform-new-target 7.16.7, @babel/plugin-transform-new-target 7.29.7, @babel/plugin-transform-nullish-coalescing-operator 7.29.7, @babel/plugin-transform-numeric-separator 7.29.7, @babel/plugin-transform-object-rest-spread 7.29.7, @babel/plugin-transform-object-super 7.16.7, @babel/plugin-transform-object-super 7.29.7, @babel/plugin-transform-optional-catch-binding 7.29.7, @babel/plugin-transform-optional-chaining 7.29.7, @babel/plugin-transform-parameters 7.16.7, @babel/plugin-transform-parameters 7.29.7, @babel/plugin-transform-private-methods 7.29.7, @babel/plugin-transform-private-property-in-object 7.29.7, @babel/plugin-transform-property-literals 7.16.7, @babel/plugin-transform-property-literals 7.29.7, @babel/plugin-transform-regenerator 7.16.7, @babel/plugin-transform-regexp-modifiers 7.29.7, @babel/plugin-transform-reserved-words 7.16.7, @babel/plugin-transform-reserved-words 7.29.7, @babel/plugin-transform-runtime 7.13.10, @babel/plugin-transform-runtime 7.29.7, @babel/plugin-transform-shorthand-properties 7.16.7, @babel/plugin-transform-shorthand-properties 7.29.7, @babel/plugin-transform-spread 7.16.7, @babel/plugin-transform-spread 7.29.8, @babel/plugin-transform-sticky-regex 7.16.7, @babel/plugin-transform-sticky-regex 7.29.7, @babel/plugin-transform-template-literals 7.16.7, @babel/plugin-transform-template-literals 7.29.7, @babel/plugin-transform-typeof-symbol 7.16.7, @babel/plugin-transform-typeof-symbol 7.29.7, @babel/plugin-transform-typescript 7.13.0, @babel/plugin-transform-typescript 7.29.9, @babel/plugin-transform-typescript 7.5.5, @babel/plugin-transform-unicode-escapes 7.16.7, @babel/plugin-transform-unicode-escapes 7.29.7, @babel/plugin-transform-unicode-property-regex 7.29.7, @babel/plugin-transform-unicode-regex 7.16.7, @babel/plugin-transform-unicode-regex 7.29.7, @babel/plugin-transform-unicode-sets-regex 7.29.7, @babel/polyfill 7.12.1, @babel/preset-env 7.16.11, @babel/preset-env 7.29.7, @babel/runtime 7.12.18, @babel/runtime 7.17.2, @babel/runtime 7.22.5, @babel/runtime 7.29.10, @babel/template 7.12.13, @babel/template 7.16.7, @babel/template 7.29.7, @babel/traverse 7.12.12, @babel/traverse 7.13.0, @babel/traverse 7.17.3, @babel/traverse 7.29.10, @babel/types 7.12.12, @babel/types 7.13.12, @babel/types 7.17.0, @babel/types 7.29.8
 
 ```text
 MIT License
@@ -26750,7 +30260,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### License text 177
 
-Used by: @babel/helper-define-polyfill-provider 0.1.5, @babel/helper-define-polyfill-provider 0.3.1, babel-plugin-polyfill-corejs2 0.1.10, babel-plugin-polyfill-corejs2 0.3.1, babel-plugin-polyfill-corejs3 0.1.7, babel-plugin-polyfill-corejs3 0.5.2, babel-plugin-polyfill-regenerator 0.1.6, babel-plugin-polyfill-regenerator 0.3.1
+Used by: @babel/helper-define-polyfill-provider 0.1.5, @babel/helper-define-polyfill-provider 0.3.1, @babel/helper-define-polyfill-provider 0.6.8, babel-plugin-polyfill-corejs2 0.1.10, babel-plugin-polyfill-corejs2 0.3.1, babel-plugin-polyfill-corejs2 0.4.17, babel-plugin-polyfill-corejs3 0.1.7, babel-plugin-polyfill-corejs3 0.13.0, babel-plugin-polyfill-corejs3 0.14.2, babel-plugin-polyfill-corejs3 0.5.2, babel-plugin-polyfill-regenerator 0.1.6, babel-plugin-polyfill-regenerator 0.3.1, babel-plugin-polyfill-regenerator 0.6.8
 
 ```text
 MIT License
@@ -26781,7 +30291,39 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### License text 178
 
-Used by: @babel/parser 7.13.12, @babel/parser 7.17.3
+Used by: @babel/helpers 7.29.10
+
+```text
+MIT License
+
+Copyright (c) 2014-present Sebastian McKenzie and other contributors
+Copyright (c) 2014-present, Facebook, Inc. (ONLY ./src/helpers/regenerator* files)
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-179"></a>
+
+### License text 179
+
+Used by: @babel/parser 7.12.11, @babel/parser 7.13.12, @babel/parser 7.17.3, @babel/parser 7.29.9
 
 ```text
 Copyright (C) 2012-2014 by various contributors (see AUTHORS)
@@ -26805,11 +30347,43 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-179"></a>
+<a id="license-text-180"></a>
 
-### License text 179
+### License text 180
 
-Used by: @babel/preset-modules 0.1.5
+Used by: @babel/plugin-transform-regenerator 7.29.8
+
+```text
+MIT License
+
+Copyright (c) 2014-present Sebastian McKenzie and other contributors
+Copyright (c) 2014-present Facebook, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-181"></a>
+
+### License text 181
+
+Used by: @babel/preset-modules 0.1.5, @babel/preset-modules 0.1.6-no-external-plugins
 
 ```text
 MIT License
@@ -26835,9 +30409,47 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-180"></a>
+<a id="license-text-182"></a>
 
-### License text 180
+### License text 182
+
+Used by: @ember-data/adapter 4.12.8, @ember-data/debug 4.12.8, @ember-data/graph 4.12.8, @ember-data/json-api 4.12.8, @ember-data/legacy-compat 4.12.8, @ember-data/model 4.12.8, @ember-data/private-build-infra 4.12.8, @ember-data/request 4.12.8, @ember-data/serializer 4.12.8, @ember-data/store 4.12.8, @ember-data/tracking 4.12.8, ember-data 4.12.8
+
+```text
+The MIT License (MIT)
+
+Copyright (C) 2017-2023 Ember.js contributors
+Portions Copyright (C) 2011-2017 Tilde, Inc. and contributors.
+Portions Copyright (C) 2011 LivingSocial Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-183"></a>
+
+### License text 183
+
+Used by: @ember-decorators/component 6.1.1, @ember-decorators/object 6.1.1, @ember-decorators/utils 6.1.1, ember-auto-import 2.13.1, ember-auto-import 2.4.0, ember-compatibility-helpers 1.2.2, ember-compatibility-helpers 1.2.6, ember-compatibility-helpers 1.2.7, ember-decorators 6.1.1, ember-element-helper 0.8.8, ember-modifier-manager-polyfill 1.2.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2018
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-184"></a>
+
+### License text 184
 
 Used by: @ember/edition-utils 1.2.0
 
@@ -26865,11 +30477,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-181"></a>
+<a id="license-text-185"></a>
 
-### License text 181
+### License text 185
 
-Used by: @ember/render-modifiers 2.0.4, @ember/render-modifiers 2.1.0, @ember/test-waiters 3.0.2, ember-focus-trap 1.1.0, ember-modifier 3.2.7, ember-modifier 4.0.0, ember-modifier 4.1.0, ember-style-modifier 3.0.1
+Used by: @ember/render-modifiers 2.0.4, @ember/render-modifiers 2.1.0, @ember/render-modifiers 3.0.0, @ember/string 3.1.1, @ember/test-waiters 3.0.0, @ember/test-waiters 3.0.2, @ember/test-waiters 3.1.0, ember-classic-decorator 4.0.0, ember-focus-trap 1.1.0, ember-inline-svg 1.0.1, ember-modifier 3.2.7, ember-modifier 4.0.0, ember-modifier 4.1.0, ember-modifier 4.3.0, ember-overridable-computed 1.0.0, ember-render-helpers 0.2.0, ember-style-modifier 3.0.1
 
 ```text
 The MIT License (MIT)
@@ -26883,11 +30495,59 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-182"></a>
+<a id="license-text-186"></a>
 
-### License text 182
+### License text 186
 
-Used by: @glimmer/component 1.1.2, @glimmer/tracking 1.0.4, @glimmer/util 0.44.0, @glimmer/validator 0.44.0
+Used by: @embroider/addon-shim 1.10.3, @embroider/macros 1.20.7, @embroider/macros 1.21.3, @embroider/reverse-exports 0.2.0, @embroider/shared-internals 3.2.0
+
+```text
+MIT License
+
+Copyright (c) 2018 Edward Faulkner
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-187"></a>
+
+### License text 187
+
+Used by: @embroider/util 1.13.5, ember-arg-types 1.0.0, ember-async-data 1.0.3, ember-cache-primitive-polyfill 1.0.1, ember-cached-decorator-polyfill 0.1.4, ember-cached-decorator-polyfill 1.0.2, ember-cli-clipboard 1.0.0, ember-cli-clipboard 1.3.0, ember-destroyable-polyfill 2.0.3, ember-on-resize-modifier 2.0.2, ember-page-title 8.2.4, ember-resize-observer-service 1.1.0, ember-stargate 0.5.0, ember-truth-helpers 3.1.1, ember-truth-helpers 4.0.3, ember-truth-helpers 5.0.0, tracked-maps-and-sets 3.0.2
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2020
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-188"></a>
+
+### License text 188
+
+Used by: @glimmer/component 1.1.2, @glimmer/interfaces 0.94.6, @glimmer/syntax 0.95.0, @glimmer/tracking 1.0.4, @glimmer/tracking 1.1.2, @glimmer/util 0.44.0, @glimmer/util 0.94.8, @glimmer/validator 0.44.0, @glimmer/wire-format 0.94.8
 
 ```text
 Copyright (c) 2015 Tilde, Inc.
@@ -26911,9 +30571,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-183"></a>
+<a id="license-text-189"></a>
 
-### License text 183
+### License text 189
 
 Used by: @glimmer/di 0.1.11
 
@@ -26939,9 +30599,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-184"></a>
+<a id="license-text-190"></a>
 
-### License text 184
+### License text 190
 
 Used by: @glimmer/env 0.1.7
 
@@ -26967,9 +30627,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-185"></a>
+<a id="license-text-191"></a>
 
-### License text 185
+### License text 191
 
 Used by: @hashicorp/design-system-components 2.12.0, @hashicorp/design-system-tokens 1.8.0, @hashicorp/ember-flight-icons 3.0.4, @hashicorp/ember-flight-icons 3.1.2, @hashicorp/flight-icons 2.13.0, @hashicorp/flight-icons 2.19.0
 
@@ -27351,11 +31011,39 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ```
 
-<a id="license-text-186"></a>
+<a id="license-text-192"></a>
 
-### License text 186
+### License text 192
 
-Used by: @jridgewell/resolve-uri 3.0.5
+Used by: @jridgewell/gen-mapping 0.3.13, @jridgewell/remapping 2.3.5, @jridgewell/sourcemap-codec 1.6.0, @jridgewell/trace-mapping 0.3.31
+
+```text
+Copyright 2024 Justin Ridgewell <justin@ridgewell.name>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-193"></a>
+
+### License text 193
+
+Used by: @jridgewell/resolve-uri 3.0.5, @jridgewell/resolve-uri 3.1.2
 
 ```text
 Copyright 2019 Justin Ridgewell <jridgewell@google.com>
@@ -27379,9 +31067,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-187"></a>
+<a id="license-text-194"></a>
 
-### License text 187
+### License text 194
 
 Used by: @jridgewell/sourcemap-codec 1.4.11, sourcemap-codec 1.4.8
 
@@ -27409,9 +31097,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-188"></a>
+<a id="license-text-195"></a>
 
-### License text 188
+### License text 195
 
 Used by: @jridgewell/trace-mapping 0.3.4
 
@@ -27437,9 +31125,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-189"></a>
+<a id="license-text-196"></a>
 
-### License text 189
+### License text 196
 
 Used by: @nodelib/fs.scandir 2.1.4, @nodelib/fs.stat 2.0.4, @nodelib/fs.walk 1.2.6, fast-glob 3.2.11
 
@@ -27467,9 +31155,53 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-190"></a>
+<a id="license-text-197"></a>
 
-### License text 190
+### License text 197
+
+Used by: @nullvoxpopuli/ember-composable-helpers 5.3.2
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2024
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+The MIT License (MIT)
+
+Copyright (c) 2016 DockYard, Inc
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+For code taken from `ember-compose-action-helper`
+
+The MIT License (MIT)
+
+Copyright (c) 2016 Ryan Tablada
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-198"></a>
+
+### License text 198
 
 Used by: @percy/cli-build 1.6.1, @percy/cli-command 1.6.1, @percy/cli-config 1.6.1, @percy/cli-exec 1.6.1, @percy/cli-snapshot 1.6.1, @percy/cli-upload 1.6.1, @percy/cli 1.6.1, @percy/client 1.6.1, @percy/config 1.6.1, @percy/core 1.6.1, @percy/dom 1.6.1, @percy/env 1.6.1, @percy/logger 1.1.0, @percy/logger 1.6.1, @percy/sdk-utils 1.1.0
 
@@ -27494,9 +31226,9 @@ OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-191"></a>
+<a id="license-text-199"></a>
 
-### License text 191
+### License text 199
 
 Used by: @percy/ember 3.0.0
 
@@ -27524,9 +31256,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-192"></a>
+<a id="license-text-200"></a>
 
-### License text 192
+### License text 200
 
 Used by: @popperjs/core 2.11.8
 
@@ -27553,9 +31285,39 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-193"></a>
+<a id="license-text-201"></a>
 
-### License text 193
+### License text 201
+
+Used by: @types/broccoli-plugin 3.0.4, @types/glob 7.2.0, @types/json-schema 7.0.9, @types/minimatch 3.0.5, @types/node 17.0.21, @types/q 1.5.4, @types/rimraf 2.0.5, @types/yauzl 2.10.0
+
+```text
+    MIT License
+
+    Copyright (c) Microsoft Corporation.
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE
+```
+
+<a id="license-text-202"></a>
+
+### License text 202
 
 Used by: @types/fs-extra 5.1.0, @types/parse-json 4.0.0, @types/symlink-or-copy 1.2.0
 
@@ -27583,39 +31345,9 @@ Used by: @types/fs-extra 5.1.0, @types/parse-json 4.0.0, @types/symlink-or-copy 
     SOFTWARE
 ```
 
-<a id="license-text-194"></a>
+<a id="license-text-203"></a>
 
-### License text 194
-
-Used by: @types/glob 7.2.0, @types/json-schema 7.0.9, @types/minimatch 3.0.5, @types/node 17.0.21, @types/rimraf 2.0.5, @types/yauzl 2.10.0
-
-```text
-    MIT License
-
-    Copyright (c) Microsoft Corporation.
-
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE
-```
-
-<a id="license-text-195"></a>
-
-### License text 195
+### License text 203
 
 Used by: ajv-formats 2.1.1
 
@@ -27643,9 +31375,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-196"></a>
+<a id="license-text-204"></a>
 
-### License text 196
+### License text 204
 
 Used by: ajv-keywords 3.5.2, ajv-keywords 5.1.0
 
@@ -27673,9 +31405,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-197"></a>
+<a id="license-text-205"></a>
 
-### License text 197
+### License text 205
 
 Used by: ajv 6.12.6
 
@@ -27703,9 +31435,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-198"></a>
+<a id="license-text-206"></a>
 
-### License text 198
+### License text 206
 
 Used by: ajv 8.11.0
 
@@ -27733,11 +31465,41 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-199"></a>
+<a id="license-text-207"></a>
 
-### License text 199
+### License text 207
 
-Used by: ansi-styles 3.2.1, callsites 3.1.0, chalk 2.4.2, execa 2.1.0, find-up 4.1.0, globals 11.12.0, has-flag 3.0.0, locate-path 5.0.0, make-dir 3.1.0, mimic-fn 2.1.0, npm-run-path 3.1.0, npm-run-path 4.0.1, p-finally 2.0.1, p-limit 1.3.0, p-limit 2.3.0, p-locate 4.1.0, p-try 2.2.0, parent-module 1.0.1, path-exists 4.0.0, path-key 3.1.1, path-type 4.0.0, pkg-dir 4.2.0, resolve-from 4.0.0, shebang-regex 3.0.0, strip-bom 4.0.0, strip-final-newline 2.0.0, supports-color 5.5.0
+Used by: anser 2.1.1
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2012-22 Ionică Bizău <bizauionica@gmail.com> (https://ionicabizau.net)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-208"></a>
+
+### License text 208
+
+Used by: ansi-styles 3.2.1, ansi-styles 4.3.0, callsites 3.1.0, chalk 2.4.2, chalk 4.1.0, chalk 4.1.2, execa 2.1.0, find-up 3.0.0, find-up 4.1.0, globals 11.12.0, has-flag 3.0.0, has-flag 4.0.0, ip-regex 4.3.0, is-ip 3.1.0, locate-path 3.0.0, locate-path 5.0.0, make-dir 3.1.0, mimic-fn 2.1.0, mimic-fn 3.1.0, npm-run-path 3.1.0, npm-run-path 4.0.1, p-finally 2.0.1, p-limit 1.3.0, p-limit 2.3.0, p-locate 3.0.0, p-locate 4.1.0, p-try 2.2.0, parent-module 1.0.1, path-exists 4.0.0, path-key 3.1.1, path-type 4.0.0, pkg-dir 4.2.0, pkg-up 3.1.0, resolve-from 4.0.0, shebang-regex 3.0.0, split-on-first 1.1.0, strip-bom 4.0.0, strip-final-newline 2.0.0, supports-color 5.5.0, supports-color 7.2.0
 
 ```text
 MIT License
@@ -27751,9 +31513,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-200"></a>
+<a id="license-text-209"></a>
 
-### License text 200
+### License text 209
 
 Used by: ansi-to-html 0.6.15
 
@@ -27782,9 +31544,9 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-201"></a>
+<a id="license-text-210"></a>
 
-### License text 201
+### License text 210
 
 Used by: anymatch 3.1.2
 
@@ -27806,9 +31568,39 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-202"></a>
+<a id="license-text-211"></a>
 
-### License text 202
+### License text 211
+
+Used by: argparse 1.0.10
+
+```text
+(The MIT License)
+
+Copyright (C) 2012 by Vitaly Puzrin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-212"></a>
+
+### License text 212
 
 Used by: array-equal 1.0.0
 
@@ -27836,9 +31628,38 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-203"></a>
+<a id="license-text-213"></a>
 
-### License text 203
+### License text 213
+
+Used by: ast-types 0.13.3
+
+```text
+Copyright (c) 2013 Ben Newman <bn@cs.stanford.edu>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-214"></a>
+
+### License text 214
 
 Used by: async 2.6.3
 
@@ -27864,9 +31685,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-204"></a>
+<a id="license-text-215"></a>
 
-### License text 204
+### License text 215
 
 Used by: at-least-node 1.0.0
 
@@ -27879,9 +31700,9 @@ Permission to use, copy, modify, and/or distribute this software for any purpose
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-205"></a>
+<a id="license-text-216"></a>
 
-### License text 205
+### License text 216
 
 Used by: babel-loader 8.2.3
 
@@ -27910,9 +31731,9 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-206"></a>
+<a id="license-text-217"></a>
 
-### License text 206
+### License text 217
 
 Used by: babel-plugin-dynamic-import-node 2.3.3
 
@@ -27940,9 +31761,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-207"></a>
+<a id="license-text-218"></a>
 
-### License text 207
+### License text 218
 
 Used by: babel-plugin-ember-data-packages-polyfill 0.1.2, babel-plugin-ember-modules-api-polyfill 3.5.0
 
@@ -27970,11 +31791,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-208"></a>
+<a id="license-text-219"></a>
 
-### License text 208
+### License text 219
 
-Used by: babel-plugin-module-resolver 3.2.0
+Used by: babel-plugin-module-resolver 3.2.0, babel-plugin-module-resolver 5.0.3
 
 ```text
 The MIT License (MIT)
@@ -28000,9 +31821,37 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-209"></a>
+<a id="license-text-220"></a>
 
-### License text 209
+### License text 220
+
+Used by: backburner.js 2.8.0
+
+```text
+Copyright (c) 2014 Erik Bryn and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-221"></a>
+
+### License text 221
 
 Used by: balanced-match 1.0.2
 
@@ -28030,9 +31879,69 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-210"></a>
+<a id="license-text-222"></a>
 
-### License text 210
+### License text 222
+
+Used by: base64-js 1.5.1
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2014 Jameson Little
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-223"></a>
+
+### License text 223
+
+Used by: better-path-resolve 1.0.0
+
+```text
+MIT License
+
+Copyright (c) 2019 Zoltan Kochan <z@kochan.io>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-224"></a>
+
+### License text 224
 
 Used by: big.js 5.2.2
 
@@ -28061,9 +31970,9 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-211"></a>
+<a id="license-text-225"></a>
 
-### License text 211
+### License text 225
 
 Used by: binary-extensions 2.2.0, is-binary-path 2.1.0
 
@@ -28079,9 +31988,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-212"></a>
+<a id="license-text-226"></a>
 
-### License text 212
+### License text 226
 
 Used by: binaryextensions 2.3.0, textextensions 2.6.0
 
@@ -28111,9 +32020,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 <!-- /LICENSEFILE -->
 ```
 
-<a id="license-text-213"></a>
+<a id="license-text-227"></a>
 
-### License text 213
+### License text 227
 
 Used by: brace-expansion 1.1.11
 
@@ -28141,9 +32050,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-214"></a>
+<a id="license-text-228"></a>
 
-### License text 214
+### License text 228
 
 Used by: braces 3.0.2, normalize-path 3.0.0
 
@@ -28171,11 +32080,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-215"></a>
+<a id="license-text-229"></a>
 
-### License text 215
+### License text 229
 
-Used by: broccoli-babel-transpiler 7.8.0
+Used by: broccoli-babel-transpiler 7.8.0, broccoli-babel-transpiler 8.1.0
 
 ```text
 The MIT License (MIT)
@@ -28201,11 +32110,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-216"></a>
+<a id="license-text-230"></a>
 
-### License text 216
+### License text 230
 
-Used by: broccoli-caching-writer 3.0.3, broccoli-file-creator 2.1.1, broccoli-funnel 2.0.1, broccoli-funnel 2.0.2, broccoli-funnel 3.0.8
+Used by: broccoli-caching-writer 3.0.3, broccoli-file-creator 2.1.1, broccoli-funnel 2.0.1, broccoli-funnel 2.0.2, broccoli-funnel 3.0.3, broccoli-funnel 3.0.8, broccoli-string-replace 0.1.2
 
 ```text
 The MIT License (MIT)
@@ -28230,9 +32139,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-217"></a>
+<a id="license-text-231"></a>
 
-### License text 217
+### License text 231
 
 Used by: broccoli-debug 0.6.5
 
@@ -28260,9 +32169,38 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-218"></a>
+<a id="license-text-232"></a>
 
-### License text 218
+### License text 232
+
+Used by: broccoli-flatiron 0.1.3
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2014 DockYard
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-233"></a>
+
+### License text 233
 
 Used by: broccoli-kitchen-sink-helpers 0.3.1, js-string-escape 1.0.1, quick-temp 0.1.8
 
@@ -28290,11 +32228,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-219"></a>
+<a id="license-text-234"></a>
 
-### License text 219
+### License text 234
 
-Used by: broccoli-merge-trees 3.0.2, broccoli-merge-trees 4.2.0, broccoli-sass-source-maps 4.0.0, fixturify 1.3.0, include-path-searcher 0.1.0, merge-trees 2.0.0, promise-map-series 0.2.3, promise-map-series 0.3.0, walk-sync 0.3.4, walk-sync 1.1.4, walk-sync 2.2.0, walk-sync 3.0.0
+Used by: broccoli-merge-trees 3.0.2, broccoli-merge-trees 4.2.0, broccoli-sass-source-maps 4.0.0, fixturify 1.3.0, include-path-searcher 0.1.0, merge-trees 2.0.0, promise-map-series 0.2.3, promise-map-series 0.3.0, walk-sync 0.3.4, walk-sync 1.1.4, walk-sync 2.0.2, walk-sync 2.2.0, walk-sync 3.0.0
 
 ```text
 The MIT License (MIT)
@@ -28320,9 +32258,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-220"></a>
+<a id="license-text-235"></a>
 
-### License text 220
+### License text 235
 
 Used by: broccoli-node-api 1.7.0
 
@@ -28350,9 +32288,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-221"></a>
+<a id="license-text-236"></a>
 
-### License text 221
+### License text 236
 
 Used by: broccoli-node-info 2.1.0
 
@@ -28380,11 +32318,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-222"></a>
+<a id="license-text-237"></a>
 
-### License text 222
+### License text 237
 
-Used by: broccoli-persistent-filter 2.3.1, broccoli-persistent-filter 3.1.2
+Used by: broccoli-persistent-filter 1.4.6, broccoli-persistent-filter 2.3.1, broccoli-persistent-filter 3.1.2, broccoli-persistent-filter 3.1.3
 
 ```text
 The MIT License (MIT)
@@ -28411,11 +32349,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-223"></a>
+<a id="license-text-238"></a>
 
-### License text 223
+### License text 238
 
-Used by: broccoli-plugin 1.3.1, broccoli-plugin 2.1.0, broccoli-plugin 4.0.3, broccoli-plugin 4.0.7, broccoli-source 2.1.2, broccoli-source 3.0.0
+Used by: broccoli-plugin 1.3.1, broccoli-plugin 2.1.0, broccoli-plugin 3.1.0, broccoli-plugin 4.0.3, broccoli-plugin 4.0.7, broccoli-plugin 6.0.0, broccoli-source 2.1.2, broccoli-source 3.0.0, broccoli-source 3.0.1
 
 ```text
 The MIT License (MIT)
@@ -28441,9 +32379,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-224"></a>
+<a id="license-text-239"></a>
 
-### License text 224
+### License text 239
 
 Used by: browserslist 4.19.3
 
@@ -28470,9 +32408,38 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-225"></a>
+<a id="license-text-240"></a>
 
-### License text 225
+### License text 240
+
+Used by: browserslist 4.29.3
+
+```text
+The MIT License (MIT)
+
+Copyright 2014 Andrey Sitnik <andrey@sitnik.es> and other contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-241"></a>
+
+### License text 241
 
 Used by: buffer-crc32 0.2.13
 
@@ -28498,9 +32465,39 @@ FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TOR
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-226"></a>
+<a id="license-text-242"></a>
 
-### License text 226
+### License text 242
+
+Used by: bulma 0.9.3
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2020 Jeremy Thomas
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-243"></a>
+
+### License text 243
 
 Used by: call-bind 1.0.2, get-intrinsic 1.1.0, get-intrinsic 1.1.1
 
@@ -28528,11 +32525,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-227"></a>
+<a id="license-text-244"></a>
 
-### License text 227
+### License text 244
 
-Used by: caniuse-lite 1.0.30001312
+Used by: caniuse-lite 1.0.30001312, caniuse-lite 1.0.30001815
 
 ```text
 Attribution 4.0 International
@@ -28932,9 +32929,9 @@ public licenses.
 Creative Commons may be contacted at creativecommons.org.
 ```
 
-<a id="license-text-228"></a>
+<a id="license-text-245"></a>
 
-### License text 228
+### License text 245
 
 Used by: chokidar 3.5.2
 
@@ -28962,9 +32959,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-229"></a>
+<a id="license-text-246"></a>
 
-### License text 229
+### License text 246
 
 Used by: clean-up-path 1.0.0, fs-updater 1.0.4
 
@@ -28992,9 +32989,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-230"></a>
+<a id="license-text-247"></a>
 
-### License text 230
+### License text 247
 
 Used by: clipboard 2.0.11
 
@@ -29022,9 +33019,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-231"></a>
+<a id="license-text-248"></a>
 
-### License text 231
+### License text 248
 
 Used by: clone 2.1.2
 
@@ -29049,11 +33046,71 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-232"></a>
+<a id="license-text-249"></a>
 
-### License text 232
+### License text 249
 
-Used by: color-convert 1.9.3
+Used by: coa 2.0.2
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015-present Sergey Berezhnoy <veged@ya.ru>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-250"></a>
+
+### License text 250
+
+Used by: codemirror 5.65.6
+
+```text
+MIT License
+
+Copyright (C) 2017 by Marijn Haverbeke <marijnh@gmail.com> and others
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-251"></a>
+
+### License text 251
+
+Used by: color-convert 1.9.3, color-convert 2.0.1
 
 ```text
 Copyright (c) 2011-2016 Heather Arthur <fayearthur@gmail.com>
@@ -29078,11 +33135,11 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-233"></a>
+<a id="license-text-252"></a>
 
-### License text 233
+### License text 252
 
-Used by: color-name 1.1.3
+Used by: color-name 1.1.3, color-name 1.1.4
 
 ```text
 The MIT License (MIT)
@@ -29095,9 +33152,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-234"></a>
+<a id="license-text-253"></a>
 
-### License text 234
+### License text 253
 
 Used by: commander 7.2.0
 
@@ -29126,9 +33183,33 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-235"></a>
+<a id="license-text-254"></a>
 
-### License text 235
+### License text 254
+
+Used by: common-ancestor-path 1.0.1, inflight 1.0.6, inherits 2.0.4
+
+```text
+The ISC License
+
+Copyright (c) Isaac Z. Schlueter
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+```
+
+<a id="license-text-255"></a>
+
+### License text 255
 
 Used by: common-tags 1.8.0
 
@@ -29145,9 +33226,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-236"></a>
+<a id="license-text-256"></a>
 
-### License text 236
+### License text 256
 
 Used by: commondir 1.0.1
 
@@ -29178,9 +33259,9 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-237"></a>
+<a id="license-text-257"></a>
 
-### License text 237
+### License text 257
 
 Used by: concat-map 0.0.1, json-stable-stringify 1.0.1, minimist 1.2.5, wordwrap 1.0.0
 
@@ -29205,9 +33286,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-238"></a>
+<a id="license-text-258"></a>
 
-### License text 238
+### License text 258
 
 Used by: content-disposition 0.5.4
 
@@ -29236,11 +33317,41 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-239"></a>
+<a id="license-text-259"></a>
 
-### License text 239
+### License text 259
 
-Used by: convert-source-map 1.8.0
+Used by: content-tag 4.2.1
+
+```text
+MIT License
+
+Copyright (c) 2023 Edward Faulkner
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-260"></a>
+
+### License text 260
+
+Used by: convert-source-map 1.8.0, convert-source-map 2.0.0
 
 ```text
 Copyright 2013 Thorsten Lorenz.
@@ -29268,9 +33379,9 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-240"></a>
+<a id="license-text-261"></a>
 
-### License text 240
+### License text 261
 
 Used by: core-js-compat 3.21.1
 
@@ -29296,9 +33407,38 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-241"></a>
+<a id="license-text-262"></a>
 
-### License text 241
+### License text 262
+
+Used by: core-js-compat 3.50.0
+
+```text
+Copyright (c) 2013–2025 Denis Pushkarev (zloirock.ru)
+Copyright (c) 2025–2026 CoreJS Company (core-js.io)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-263"></a>
+
+### License text 263
 
 Used by: core-js-compat 3.9.1
 
@@ -29324,9 +33464,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-242"></a>
+<a id="license-text-264"></a>
 
-### License text 242
+### License text 264
 
 Used by: core-js 2.6.12
 
@@ -29352,9 +33492,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-243"></a>
+<a id="license-text-265"></a>
 
-### License text 243
+### License text 265
 
 Used by: cosmiconfig 7.0.0, tabbable 5.3.3
 
@@ -29382,9 +33522,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-244"></a>
+<a id="license-text-266"></a>
 
-### License text 244
+### License text 266
 
 Used by: cross-spawn 7.0.3
 
@@ -29412,9 +33552,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-245"></a>
+<a id="license-text-267"></a>
 
-### License text 245
+### License text 267
 
 Used by: css-loader 5.2.7, loader-utils 1.4.0, loader-utils 2.0.0, mini-css-extract-plugin 2.5.3, schema-utils 2.7.1, schema-utils 3.2.0, schema-utils 4.0.0, style-loader 2.0.0
 
@@ -29441,11 +33581,119 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-246"></a>
+<a id="license-text-268"></a>
 
-### License text 246
+### License text 268
 
-Used by: cssesc 3.0.0, jsesc 2.5.2, punycode 2.1.1, regenerate-unicode-properties 10.0.1, regenerate 1.4.2, regexpu-core 5.0.1, unicode-canonical-property-names-ecmascript 2.0.0, unicode-match-property-ecmascript 2.0.0, unicode-match-property-value-ecmascript 2.0.0, unicode-property-aliases-ecmascript 2.0.0
+Used by: css-select-base-adapter 0.1.1
+
+```text
+MIT License
+
+Copyright (c) 2018 Nik Coughlin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-269"></a>
+
+### License text 269
+
+Used by: css-select 2.1.0, css-what 3.4.2, domelementtype 1.3.1, domelementtype 2.1.0, domutils 1.7.0, entities 2.2.0, nth-check 1.0.2
+
+```text
+Copyright (c) Felix Böhm
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+THIS IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+<a id="license-text-270"></a>
+
+### License text 270
+
+Used by: css-tree 1.0.0-alpha.28, css-tree 1.0.0-alpha.29
+
+```text
+Copyright (C) 2016 by Roman Dvornov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-271"></a>
+
+### License text 271
+
+Used by: css-url-regex 1.1.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) John Otander <johnotander@gmail.com> (johnotander.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-272"></a>
+
+### License text 272
+
+Used by: cssesc 3.0.0, jsesc 2.5.2, jsesc 3.1.0, punycode 2.1.1, regenerate-unicode-properties 10.0.1, regenerate-unicode-properties 10.3.0, regenerate 1.4.2, regenerate 1.5.0, regexpu-core 5.0.1, regexpu-core 6.5.3, unicode-canonical-property-names-ecmascript 2.0.0, unicode-match-property-ecmascript 2.0.0, unicode-match-property-value-ecmascript 2.0.0, unicode-match-property-value-ecmascript 2.2.1, unicode-property-aliases-ecmascript 2.0.0
 
 ```text
 Copyright Mathias Bynens <https://mathiasbynens.be/>
@@ -29470,9 +33718,65 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-247"></a>
+<a id="license-text-273"></a>
 
-### License text 247
+### License text 273
+
+Used by: csso 3.5.1
+
+```text
+Copyright (C) 2011-2017 by Sergey Kryzhanovsky
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-274"></a>
+
+### License text 274
+
+Used by: csstype 3.2.3
+
+```text
+Copyright (c) 2017-2018 Fredrik Nicol
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-275"></a>
+
+### License text 275
 
 Used by: curved-arrows 0.1.0
 
@@ -29500,11 +33804,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-248"></a>
+<a id="license-text-276"></a>
 
-### License text 248
+### License text 276
 
-Used by: d3-array 3.1.1, d3-axis 3.0.0, d3-brush 3.0.0, d3-chord 3.0.1, d3-color 3.0.1, d3-dispatch 3.0.1, d3-drag 3.0.0, d3-force 3.0.0, d3-format 3.0.1, d3-format 3.1.0, d3-hierarchy 3.1.1, d3-interpolate 3.0.1, d3-polygon 3.0.1, d3-quadtree 3.0.1, d3-random 3.0.1, d3-scale 4.0.2, d3-selection 3.0.0, d3-shape 3.1.0, d3-time-format 4.0.0, d3-time-format 4.1.0, d3-time 3.0.0, d3-timer 3.0.1, d3-transition 3.0.1, d3-zoom 3.0.0, d3 7.3.0
+Used by: d3-array 3.1.1, d3-axis 3.0.0, d3-brush 3.0.0, d3-chord 3.0.1, d3-color 3.0.1, d3-dispatch 3.0.1, d3-drag 3.0.0, d3-force 3.0.0, d3-format 3.0.1, d3-format 3.1.0, d3-hierarchy 3.1.1, d3-hierarchy 3.1.2, d3-interpolate 3.0.1, d3-polygon 3.0.1, d3-quadtree 3.0.1, d3-random 3.0.1, d3-scale 4.0.2, d3-selection 3.0.0, d3-shape 3.0.1, d3-shape 3.1.0, d3-time-format 4.0.0, d3-time-format 4.1.0, d3-time 3.0.0, d3-timer 3.0.1, d3-transition 3.0.1, d3-zoom 3.0.0, d3 7.3.0
 
 ```text
 Copyright 2010-2021 Mike Bostock
@@ -29522,9 +33826,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-249"></a>
+<a id="license-text-277"></a>
 
-### License text 249
+### License text 277
 
 Used by: d3-contour 3.0.1
 
@@ -29544,9 +33848,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-250"></a>
+<a id="license-text-278"></a>
 
-### License text 250
+### License text 278
 
 Used by: d3-delaunay 6.0.2
 
@@ -29567,9 +33871,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-251"></a>
+<a id="license-text-279"></a>
 
-### License text 251
+### License text 279
 
 Used by: d3-dsv 3.0.1
 
@@ -29589,9 +33893,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-252"></a>
+<a id="license-text-280"></a>
 
-### License text 252
+### License text 280
 
 Used by: d3-ease 3.0.1
 
@@ -29626,9 +33930,9 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="license-text-253"></a>
+<a id="license-text-281"></a>
 
-### License text 253
+### License text 281
 
 Used by: d3-fetch 3.0.1
 
@@ -29648,9 +33952,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-254"></a>
+<a id="license-text-282"></a>
 
-### License text 254
+### License text 282
 
 Used by: d3-geo 3.0.1
 
@@ -29691,9 +33995,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-255"></a>
+<a id="license-text-283"></a>
 
-### License text 255
+### License text 283
 
 Used by: d3-path 3.0.1
 
@@ -29713,9 +34017,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-256"></a>
+<a id="license-text-284"></a>
 
-### License text 256
+### License text 284
 
 Used by: d3-scale-chromatic 3.0.0
 
@@ -29750,11 +34054,11 @@ CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 ```
 
-<a id="license-text-257"></a>
+<a id="license-text-285"></a>
 
-### License text 257
+### License text 285
 
-Used by: debug 2.6.9, debug 4.3.1
+Used by: debug 2.6.9, debug 4.3.1, debug 4.3.2
 
 ```text
 (The MIT License)
@@ -29777,11 +34081,11 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN 
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-258"></a>
+<a id="license-text-286"></a>
 
-### License text 258
+### License text 286
 
-Used by: debug 4.3.3
+Used by: debug 4.3.3, debug 4.4.3
 
 ```text
 (The MIT License)
@@ -29805,11 +34109,41 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN 
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-259"></a>
+<a id="license-text-287"></a>
 
-### License text 259
+### License text 287
 
-Used by: define-properties 1.1.3, es-abstract 1.19.1, es-to-primitive 1.2.1, is-boolean-object 1.1.2, is-callable 1.2.4, is-date-object 1.0.5, is-number-object 1.0.6, is-string 1.0.5, is-string 1.0.7, is-symbol 1.0.3, is-symbol 1.0.4, string.prototype.matchall 4.0.6
+Used by: decode-uri-component 0.2.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) Sam Verschueren <sam.verschueren@gmail.com> (github.com/SamVerschueren)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-288"></a>
+
+### License text 288
+
+Used by: define-properties 1.1.3, es-abstract 1.17.7, es-abstract 1.19.1, es-to-primitive 1.2.1, is-boolean-object 1.1.2, is-callable 1.2.4, is-date-object 1.0.5, is-number-object 1.0.6, is-string 1.0.5, is-string 1.0.7, is-symbol 1.0.3, is-symbol 1.0.4, object.getownpropertydescriptors 2.1.1, object.values 1.1.2, string.prototype.matchall 4.0.6
 
 ```text
 The MIT License (MIT)
@@ -29835,9 +34169,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-260"></a>
+<a id="license-text-289"></a>
 
-### License text 260
+### License text 289
 
 Used by: delaunator 5.0.0
 
@@ -29859,9 +34193,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-261"></a>
+<a id="license-text-290"></a>
 
-### License text 261
+### License text 290
 
 Used by: dialog-polyfill 0.5.6
 
@@ -29895,9 +34229,289 @@ Used by: dialog-polyfill 0.5.6
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="license-text-262"></a>
+<a id="license-text-291"></a>
 
-### License text 262
+### License text 291
+
+Used by: dom-serializer 0.2.2
+
+```text
+License
+
+(The MIT License)
+
+Copyright (c) 2014 The cheeriojs contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the 'Software'), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-292"></a>
+
+### License text 292
+
+Used by: duration-js 4.0.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2013 Ilia Choly
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-293"></a>
+
+### License text 293
+
+Used by: echarts 6.1.0
+
+```text
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright [yyyy] [name of copyright owner]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+
+
+
+
+========================================================================
+Apache ECharts Subcomponents:
+
+The Apache ECharts project contains subcomponents with separate copyright
+notices and license terms. Your use of the source code for these
+subcomponents is also subject to the terms and conditions of the following
+licenses.
+
+BSD 3-Clause (d3.js):
+The following files embed [d3.js](https://github.com/d3/d3) BSD 3-Clause:
+    `/src/chart/treemap/treemapLayout.ts`,
+    `/src/chart/tree/layoutHelper.ts`,
+    `/src/chart/graph/forceHelper.ts`,
+    `/src/util/number.ts`
+See `/licenses/LICENSE-d3` for details of the license.
+```
+
+<a id="license-text-294"></a>
+
+### License text 294
 
 Used by: editions 1.3.4
 
@@ -29927,9 +34541,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 <!-- /LICENSEFILE -->
 ```
 
-<a id="license-text-263"></a>
+<a id="license-text-295"></a>
 
-### License text 263
+### License text 295
 
 Used by: editions 2.3.1
 
@@ -29959,11 +34573,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 <!-- /LICENSEFILE -->
 ```
 
-<a id="license-text-264"></a>
+<a id="license-text-296"></a>
 
-### License text 264
+### License text 296
 
-Used by: electron-to-chromium 1.4.72
+Used by: electron-to-chromium 1.4.72, electron-to-chromium 1.5.452
 
 ```text
 Copyright 2018 Kilian Valkhof
@@ -29973,11 +34587,11 @@ Permission to use, copy, modify, and/or distribute this software for any purpose
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-265"></a>
+<a id="license-text-297"></a>
 
-### License text 265
+### License text 297
 
-Used by: ember-a11y-refocus 3.0.2, ember-keyboard 8.2.1, ember-resources 5.6.4, ember-tracked-storage-polyfill 1.0.0
+Used by: ember-a11y-refocus 3.0.2, ember-functions-as-helper-polyfill 2.1.3, ember-keyboard 8.2.1, ember-resources 5.6.4, ember-resources 6.5.2, ember-template-imports 4.4.0, ember-tracked-storage-polyfill 1.0.0
 
 ```text
 The MIT License (MIT)
@@ -29991,16 +34605,16 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-266"></a>
+<a id="license-text-298"></a>
 
-### License text 266
+### License text 298
 
-Used by: ember-arg-types 1.0.0, ember-cache-primitive-polyfill 1.0.1, ember-cached-decorator-polyfill 0.1.4, ember-cli-clipboard 1.0.0, ember-destroyable-polyfill 2.0.3, ember-truth-helpers 3.1.1, tracked-maps-and-sets 3.0.2
+Used by: ember-basic-dropdown 8.11.1
 
 ```text
 The MIT License (MIT)
 
-Copyright (c) 2020
+Copyright (c) 2023
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -30009,16 +34623,16 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-267"></a>
+<a id="license-text-299"></a>
 
-### License text 267
+### License text 299
 
-Used by: ember-auto-import 2.4.0, ember-compatibility-helpers 1.2.2, ember-compatibility-helpers 1.2.6, ember-modifier-manager-polyfill 1.2.0
+Used by: ember-can 7.0.0, ember-style-modifier 4.6.0
 
 ```text
 The MIT License (MIT)
 
-Copyright (c) 2018
+Copyright (c) 2024
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -30027,11 +34641,11 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-268"></a>
+<a id="license-text-300"></a>
 
-### License text 268
+### License text 300
 
-Used by: ember-cli-babel 7.26.11
+Used by: ember-cli-babel 7.26.11, ember-cli-babel 8.3.2
 
 ```text
 The MIT License (MIT)
@@ -30057,11 +34671,41 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-269"></a>
+<a id="license-text-301"></a>
 
-### License text 269
+### License text 301
 
-Used by: ember-cli-htmlbars 5.7.1, ember-cli-htmlbars 6.0.1, ember-cli-htmlbars 6.1.1, ember-cli-htmlbars 6.2.0
+Used by: ember-cli-flash 5.1.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2018 Lauren Elizabeth Tan
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-302"></a>
+
+### License text 302
+
+Used by: ember-cli-htmlbars 4.5.0, ember-cli-htmlbars 5.7.1, ember-cli-htmlbars 6.0.1, ember-cli-htmlbars 6.1.1, ember-cli-htmlbars 6.2.0
 
 ```text
 The MIT License (MIT)
@@ -30087,9 +34731,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-270"></a>
+<a id="license-text-303"></a>
 
-### License text 270
+### License text 303
 
 Used by: ember-cli-sass 10.0.1
 
@@ -30105,29 +34749,11 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-271"></a>
+<a id="license-text-304"></a>
 
-### License text 271
+### License text 304
 
-Used by: ember-cli-typescript 3.0.0, ember-cli-typescript 4.2.1, ember-cli-typescript 5.1.0, ember-cli-typescript 5.2.1, ember-get-config 2.1.1
-
-```text
-The MIT License (MIT)
-
-Copyright (c) 2016
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-```
-
-<a id="license-text-272"></a>
-
-### License text 272
-
-Used by: ember-composable-helpers 4.5.0
+Used by: ember-cli-string-helpers 6.1.0, ember-composable-helpers 4.5.0
 
 ```text
 The MIT License (MIT)
@@ -30155,9 +34781,272 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-273"></a>
+<a id="license-text-305"></a>
 
-### License text 273
+### License text 305
+
+Used by: ember-cli-typescript-blueprint-polyfill 0.1.0, remove-types 1.0.0
+
+```text
+MIT License
+
+Copyright (c) 2022 Chris Freeman
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-306"></a>
+
+### License text 306
+
+Used by: ember-cli-typescript 3.0.0, ember-cli-typescript 4.2.1, ember-cli-typescript 5.1.0, ember-cli-typescript 5.2.1, ember-get-config 2.1.1, ember-load-initializers 3.0.1, ember-resolver 13.2.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2016
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-307"></a>
+
+### License text 307
+
+Used by: ember-click-outside 6.1.1
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2023 Gabor Babicz
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-308"></a>
+
+### License text 308
+
+Used by: ember-concurrency 4.0.6
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2016 Alex Matchneer <machty@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-309"></a>
+
+### License text 309
+
+Used by: ember-copy 2.0.1
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2018-2020
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-310"></a>
+
+### License text 310
+
+Used by: ember-data-model-fragments 7.0.3
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2025 Lytics, Inc. and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-311"></a>
+
+### License text 311
+
+Used by: ember-inflector 4.0.2
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015-2020 Stefan Penner and ember-inflector contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-312"></a>
+
+### License text 312
+
+Used by: ember-inflector 4.0.3
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015-2024 Stefan Penner and ember-inflector contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-313"></a>
+
+### License text 313
+
+Used by: ember-power-select 8.12.2
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2017
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-314"></a>
+
+### License text 314
+
+Used by: ember-resolver 13.2.0
+
+```text
+Copyright (c) 2013 Stefan Penner and Ember App Kit Contributors
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-315"></a>
+
+### License text 315
+
+Used by: ember-responsive 5.0.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015 FreshBooks
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-316"></a>
+
+### License text 316
+
+Used by: ember-source 6.12.0
+
+```text
+Copyright (c) 2011 Yehuda Katz, Tom Dale and Ember.js contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-317"></a>
+
+### License text 317
 
 Used by: emojis-list 3.0.0
 
@@ -30173,9 +35062,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-274"></a>
+<a id="license-text-318"></a>
 
-### License text 274
+### License text 318
 
 Used by: end-of-stream 1.4.4, pump 3.0.0
 
@@ -30203,29 +35092,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-275"></a>
+<a id="license-text-319"></a>
 
-### License text 275
-
-Used by: entities 2.2.0
-
-```text
-Copyright (c) Felix Böhm
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-
-THIS IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS,
-EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-```
-
-<a id="license-text-276"></a>
-
-### License text 276
+### License text 319
 
 Used by: errlop 2.2.0
 
@@ -30255,9 +35124,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 <!-- /LICENSEFILE -->
 ```
 
-<a id="license-text-277"></a>
+<a id="license-text-320"></a>
 
-### License text 277
+### License text 320
 
 Used by: error-ex 1.3.2, is-arrayish 0.2.1
 
@@ -30285,11 +35154,41 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-278"></a>
+<a id="license-text-321"></a>
 
-### License text 278
+### License text 321
 
-Used by: escalade 3.1.1
+Used by: es-errors 1.3.0
+
+```text
+MIT License
+
+Copyright (c) 2024 Jordan Harband
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-322"></a>
+
+### License text 322
+
+Used by: escalade 3.1.1, escalade 3.2.0
 
 ```text
 MIT License
@@ -30303,11 +35202,11 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-279"></a>
+<a id="license-text-323"></a>
 
-### License text 279
+### License text 323
 
-Used by: escape-string-regexp 1.0.5, find-up 2.1.0, locate-path 2.0.0, object-assign 2.1.1, object-assign 4.1.1, os-tmpdir 1.0.2, p-locate 2.0.0, p-try 1.0.0, path-exists 3.0.0, path-is-absolute 1.0.1, pkg-up 2.0.0
+Used by: escape-string-regexp 1.0.5, filter-obj 1.1.0, find-up 2.1.0, locate-path 2.0.0, object-assign 2.1.1, object-assign 4.1.1, os-tmpdir 1.0.2, p-defer 1.0.0, p-locate 2.0.0, p-try 1.0.0, path-exists 3.0.0, path-is-absolute 1.0.1, pkg-up 2.0.0
 
 ```text
 The MIT License (MIT)
@@ -30333,9 +35232,39 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-280"></a>
+<a id="license-text-324"></a>
 
-### License text 280
+### License text 324
+
+Used by: esprima 4.0.1
+
+```text
+Copyright JS Foundation and other contributors, https://js.foundation/
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+<a id="license-text-325"></a>
+
+### License text 325
 
 Used by: esutils 2.0.3
 
@@ -30361,11 +35290,11 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="license-text-281"></a>
+<a id="license-text-326"></a>
 
-### License text 281
+### License text 326
 
-Used by: execa 4.1.0, find-cache-dir 3.3.2, find-up 5.0.0, get-stream 5.2.0, import-fresh 3.3.0, is-stream 2.0.1, locate-path 6.0.0, onetime 5.1.2, p-limit 3.1.0, p-locate 5.0.0, parse-json 5.2.0, yocto-queue 0.1.0
+Used by: execa 4.1.0, find-cache-dir 3.3.2, find-up 5.0.0, get-stream 5.2.0, import-fresh 3.3.0, is-stream 2.0.1, locate-path 6.0.0, mem 8.1.1, onetime 5.1.2, p-limit 3.1.0, p-locate 5.0.0, parse-json 5.2.0, type-fest 4.41.0, yocto-queue 0.1.0
 
 ```text
 MIT License
@@ -30379,9 +35308,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-282"></a>
+<a id="license-text-327"></a>
 
-### License text 282
+### License text 327
 
 Used by: extract-zip 2.0.1
 
@@ -30411,9 +35340,9 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="license-text-283"></a>
+<a id="license-text-328"></a>
 
-### License text 283
+### License text 328
 
 Used by: fast-deep-equal 3.1.3, json-schema-traverse 0.4.1, json-schema-traverse 1.0.0
 
@@ -30441,9 +35370,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-284"></a>
+<a id="license-text-329"></a>
 
-### License text 284
+### License text 329
 
 Used by: fast-json-stable-stringify 2.1.0
 
@@ -30471,9 +35400,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-285"></a>
+<a id="license-text-330"></a>
 
-### License text 285
+### License text 330
 
 Used by: fastq 1.10.1
 
@@ -30493,9 +35422,9 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-286"></a>
+<a id="license-text-331"></a>
 
-### License text 286
+### License text 331
 
 Used by: fd-slicer 1.1.0
 
@@ -30523,9 +35452,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-287"></a>
+<a id="license-text-332"></a>
 
-### License text 287
+### License text 332
 
 Used by: fill-range 7.0.1, is-number 7.0.0, micromatch 4.0.4
 
@@ -30553,11 +35482,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-288"></a>
+<a id="license-text-333"></a>
 
-### License text 288
+### License text 333
 
-Used by: find-babel-config 1.2.0
+Used by: find-babel-config 1.2.0, find-babel-config 2.1.2
 
 ```text
 The MIT License (MIT)
@@ -30583,9 +35512,30 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-289"></a>
+<a id="license-text-334"></a>
 
-### License text 289
+### License text 334
+
+Used by: flat 5.0.2
+
+```text
+Copyright (c) 2014, Hugh Kennedy
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+3. Neither the name of the  nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+<a id="license-text-335"></a>
+
+### License text 335
 
 Used by: focus-trap 6.9.4
 
@@ -30613,11 +35563,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-290"></a>
+<a id="license-text-336"></a>
 
-### License text 290
+### License text 336
 
-Used by: fs-extra 6.0.1, fs-extra 7.0.1, fs-extra 8.1.0, fs-extra 9.1.0
+Used by: fs-extra 10.1.0, fs-extra 6.0.1, fs-extra 7.0.1, fs-extra 8.1.0, fs-extra 9.1.0
 
 ```text
 (The MIT License)
@@ -30637,9 +35587,9 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-291"></a>
+<a id="license-text-337"></a>
 
-### License text 291
+### License text 337
 
 Used by: fs.realpath 1.0.0
 
@@ -30689,9 +35639,9 @@ the licensed code:
   DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-292"></a>
+<a id="license-text-338"></a>
 
-### License text 292
+### License text 338
 
 Used by: fsevents 2.3.2
 
@@ -30720,11 +35670,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-293"></a>
+<a id="license-text-339"></a>
 
-### License text 293
+### License text 339
 
-Used by: function-bind 1.1.1
+Used by: function-bind 1.1.1, function-bind 1.1.2
 
 ```text
 Copyright (c) 2013 Raynos.
@@ -30748,9 +35698,219 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-294"></a>
+<a id="license-text-340"></a>
 
-### License text 294
+### License text 340
+
+Used by: fuse.js 3.6.1
+
+```text
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "{}"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2017 Kirollos Risk
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
+
+<a id="license-text-341"></a>
+
+### License text 341
 
 Used by: gensync 1.0.0-beta.2
 
@@ -30764,9 +35924,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-295"></a>
+<a id="license-text-342"></a>
 
-### License text 295
+### License text 342
 
 Used by: get-symbol-description 1.0.0, has-tostringtag 1.0.0, is-shared-array-buffer 1.0.1
 
@@ -30794,9 +35954,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-296"></a>
+<a id="license-text-343"></a>
 
-### License text 296
+### License text 343
 
 Used by: glob-parent 5.1.2
 
@@ -30818,11 +35978,11 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-297"></a>
+<a id="license-text-344"></a>
 
-### License text 297
+### License text 344
 
-Used by: glob 5.0.15, isexe 2.0.0, lru-cache 6.0.0, minimatch 3.1.2, once 1.4.0, rimraf 2.7.1, rimraf 3.0.2, semver 5.7.1, semver 6.3.0, semver 7.0.0, semver 7.3.4, semver 7.3.5, semver 7.3.8, which 2.0.2, wrappy 1.0.2, yallist 4.0.0
+Used by: glob 5.0.15, isexe 2.0.0, lru-cache 5.1.1, lru-cache 6.0.0, minimatch 3.1.2, minimatch 3.1.5, once 1.4.0, rimraf 2.7.1, rimraf 3.0.2, semver 5.7.1, semver 6.3.0, semver 6.3.1, semver 7.0.0, semver 7.3.4, semver 7.3.5, semver 7.3.8, semver 7.8.5, which 2.0.2, wrappy 1.0.2, yallist 3.1.1, yallist 4.0.0
 
 ```text
 The ISC License
@@ -30842,9 +36002,9 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-298"></a>
+<a id="license-text-345"></a>
 
-### License text 298
+### License text 345
 
 Used by: glob 7.2.0
 
@@ -30872,9 +36032,9 @@ under a Creative Commons Attribution-ShareAlike 4.0 International License
 https://creativecommons.org/licenses/by-sa/4.0/
 ```
 
-<a id="license-text-299"></a>
+<a id="license-text-346"></a>
 
-### License text 299
+### License text 346
 
 Used by: graceful-fs 4.2.9
 
@@ -30896,9 +36056,9 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-300"></a>
+<a id="license-text-347"></a>
 
-### License text 300
+### License text 347
 
 Used by: handlebars 4.7.7
 
@@ -30924,9 +36084,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-301"></a>
+<a id="license-text-348"></a>
 
-### License text 301
+### License text 348
 
 Used by: has-bigints 1.0.1, internal-slot 1.0.3, side-channel 1.0.4, unbox-primitive 1.0.1, which-boxed-primitive 1.0.2
 
@@ -30954,9 +36114,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-302"></a>
+<a id="license-text-349"></a>
 
-### License text 302
+### License text 349
 
 Used by: has-symbols 1.0.2
 
@@ -30984,9 +36144,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-303"></a>
+<a id="license-text-350"></a>
 
-### License text 303
+### License text 350
 
 Used by: has 1.0.3
 
@@ -31015,9 +36175,39 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-304"></a>
+<a id="license-text-351"></a>
 
-### License text 304
+### License text 351
+
+Used by: hasown 2.0.4
+
+```text
+MIT License
+
+Copyright (c) Jordan Harband and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-352"></a>
+
+### License text 352
 
 Used by: heimdalljs-logger 0.1.10
 
@@ -31045,9 +36235,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-305"></a>
+<a id="license-text-353"></a>
 
-### License text 305
+### License text 353
 
 Used by: human-signals 1.1.1
 
@@ -31255,9 +36445,9 @@ Used by: human-signals 1.1.1
    limitations under the License.
 ```
 
-<a id="license-text-306"></a>
+<a id="license-text-354"></a>
 
-### License text 306
+### License text 354
 
 Used by: iconv-lite 0.6.3
 
@@ -31284,9 +36474,9 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-307"></a>
+<a id="license-text-355"></a>
 
-### License text 307
+### License text 355
 
 Used by: icss-utils 5.1.0
 
@@ -31299,9 +36489,9 @@ Permission to use, copy, modify, and/or distribute this software for any purpose
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-308"></a>
+<a id="license-text-356"></a>
 
-### License text 308
+### License text 356
 
 Used by: image-size 1.0.1
 
@@ -31317,9 +36507,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-309"></a>
+<a id="license-text-357"></a>
 
-### License text 309
+### License text 357
 
 Used by: immutable 4.1.0
 
@@ -31347,9 +36537,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-310"></a>
+<a id="license-text-358"></a>
 
-### License text 310
+### License text 358
 
 Used by: indexes-of 1.0.1
 
@@ -31378,33 +36568,39 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-311"></a>
+<a id="license-text-359"></a>
 
-### License text 311
+### License text 359
 
-Used by: inflight 1.0.6, inherits 2.0.4
+Used by: inflection 2.0.1
 
 ```text
-The ISC License
+MIT License
 
-Copyright (c) Isaac Z. Schlueter
+Copyright (c) 2021 dreamerslab
 
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
-IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
-<a id="license-text-312"></a>
+<a id="license-text-360"></a>
 
-### License text 312
+### License text 360
 
 Used by: internmap 2.0.3
 
@@ -31424,9 +36620,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-313"></a>
+<a id="license-text-361"></a>
 
-### License text 313
+### License text 361
 
 Used by: is-bigint 1.0.4
 
@@ -31454,11 +36650,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-314"></a>
+<a id="license-text-362"></a>
 
-### License text 314
+### License text 362
 
-Used by: is-core-module 2.8.1
+Used by: is-core-module 2.17.0, is-core-module 2.8.1
 
 ```text
 The MIT License (MIT)
@@ -31483,9 +36679,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-315"></a>
+<a id="license-text-363"></a>
 
-### License text 315
+### License text 363
 
 Used by: is-extglob 2.1.1, isobject 2.1.0
 
@@ -31513,9 +36709,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-316"></a>
+<a id="license-text-364"></a>
 
-### License text 316
+### License text 364
 
 Used by: is-glob 4.0.3
 
@@ -31543,9 +36739,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-317"></a>
+<a id="license-text-365"></a>
 
-### License text 317
+### License text 365
 
 Used by: is-negative-zero 2.0.1, is-regex 1.1.4, object.assign 4.1.2, regexp.prototype.flags 1.4.1
 
@@ -31572,9 +36768,39 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-318"></a>
+<a id="license-text-366"></a>
 
-### License text 318
+### License text 366
+
+Used by: is-subdir 1.2.0
+
+```text
+MIT License
+
+Copyright (c) 2017-2020 Zoltan Kochan <z@kochan.io>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-367"></a>
+
+### License text 367
 
 Used by: is-weakref 1.0.1
 
@@ -31602,9 +36828,39 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-319"></a>
+<a id="license-text-368"></a>
 
-### License text 319
+### License text 368
+
+Used by: is-windows 1.0.2
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015-2018, Jon Schlinkert.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-369"></a>
+
+### License text 369
 
 Used by: istextorbinary 2.1.0
 
@@ -31635,9 +36891,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 <!-- /LICENSEFILE -->
 ```
 
-<a id="license-text-320"></a>
+<a id="license-text-370"></a>
 
-### License text 320
+### License text 370
 
 Used by: istextorbinary 2.6.0
 
@@ -31668,9 +36924,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 <!-- /LICENSEFILE -->
 ```
 
-<a id="license-text-321"></a>
+<a id="license-text-371"></a>
 
-### License text 321
+### License text 371
 
 Used by: js-tokens 4.0.0
 
@@ -31698,9 +36954,39 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-322"></a>
+<a id="license-text-372"></a>
 
-### License text 322
+### License text 372
+
+Used by: js-yaml 3.14.1
+
+```text
+(The MIT License)
+
+Copyright (C) 2011-2015 by Vitaly Puzrin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-373"></a>
+
+### License text 373
 
 Used by: jsesc 0.5.0
 
@@ -31727,9 +37013,9 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-323"></a>
+<a id="license-text-374"></a>
 
-### License text 323
+### License text 374
 
 Used by: json-parse-even-better-errors 2.3.1
 
@@ -31761,9 +37047,9 @@ This library is a fork of 'better-json-errors' by Kat Marchán, extended and
 distributed under the terms of the MIT license above.
 ```
 
-<a id="license-text-324"></a>
+<a id="license-text-375"></a>
 
-### License text 324
+### License text 375
 
 Used by: json5 0.5.1
 
@@ -31791,11 +37077,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-325"></a>
+<a id="license-text-376"></a>
 
-### License text 325
+### License text 376
 
-Used by: json5 1.0.1, json5 2.2.0
+Used by: json5 1.0.1, json5 2.2.0, json5 2.2.3
 
 ```text
 MIT License
@@ -31823,9 +37109,9 @@ SOFTWARE.
 [others]: https://github.com/json5/json5/contributors
 ```
 
-<a id="license-text-326"></a>
+<a id="license-text-377"></a>
 
-### License text 326
+### License text 377
 
 Used by: jsonfile 4.0.0, jsonfile 6.1.0
 
@@ -31847,9 +37133,9 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHE
  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-327"></a>
+<a id="license-text-378"></a>
 
-### License text 327
+### License text 378
 
 Used by: line-column 1.0.2
 
@@ -31875,9 +37161,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-328"></a>
+<a id="license-text-379"></a>
 
-### License text 328
+### License text 379
 
 Used by: lines-and-columns 1.1.6
 
@@ -31905,11 +37191,41 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-329"></a>
+<a id="license-text-380"></a>
 
-### License text 329
+### License text 380
 
-Used by: lodash.debounce 4.0.8
+Used by: loader.js 4.7.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2014 Yehuda Katz, Stefan Penner, and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-381"></a>
+
+### License text 381
+
+Used by: lodash.debounce 4.0.8, lodash.intersection 4.4.0
 
 ```text
 Copyright jQuery Foundation and other contributors <https://jquery.org/>
@@ -31961,9 +37277,65 @@ licenses; we recommend you read them, as their terms may differ from the
 terms above.
 ```
 
-<a id="license-text-330"></a>
+<a id="license-text-382"></a>
 
-### License text 330
+### License text 382
+
+Used by: lodash.isequal 4.5.0
+
+```text
+Copyright JS Foundation and other contributors <https://js.foundation/>
+
+Based on Underscore.js, copyright Jeremy Ashkenas,
+DocumentCloud and Investigative Reporters & Editors <http://underscorejs.org/>
+
+This software consists of voluntary contributions made by many
+individuals. For exact contribution history, see the revision history
+available at https://github.com/lodash/lodash
+
+The following license applies to all parts of this software except as
+documented below:
+
+====
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+====
+
+Copyright and related rights for sample code are waived via CC0. Sample
+code is defined as all source code displayed within the prose of the
+documentation.
+
+CC0: http://creativecommons.org/publicdomain/zero/1.0/
+
+====
+
+Files located in the node_modules and vendor directories are externally
+maintained libraries used by this software which have their own
+licenses; we recommend you read them, as their terms may differ from the
+terms above.
+```
+
+<a id="license-text-383"></a>
+
+### License text 383
 
 Used by: lodash 4.17.21
 
@@ -32017,9 +37389,9 @@ licenses; we recommend you read them, as their terms may differ from the
 terms above.
 ```
 
-<a id="license-text-331"></a>
+<a id="license-text-384"></a>
 
-### License text 331
+### License text 384
 
 Used by: loose-envify 1.4.0
 
@@ -32047,9 +37419,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-332"></a>
+<a id="license-text-385"></a>
 
-### License text 332
+### License text 385
 
 Used by: lower-case 2.0.2, no-case 3.0.4, path-to-regexp 6.2.0, title-case 3.0.3
 
@@ -32077,9 +37449,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-333"></a>
+<a id="license-text-386"></a>
 
-### License text 333
+### License text 386
 
 Used by: magic-string 0.25.7
 
@@ -32093,9 +37465,27 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-334"></a>
+<a id="license-text-387"></a>
 
-### License text 334
+### License text 387
+
+Used by: map-age-cleaner 0.1.3
+
+```text
+MIT License
+
+Copyright (c) Sam Verschueren <sam.verschueren@gmail.com> (github.com/SamVerschueren)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-388"></a>
+
+### License text 388
 
 Used by: merge-stream 2.0.0
 
@@ -32123,9 +37513,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-335"></a>
+<a id="license-text-389"></a>
 
-### License text 335
+### License text 389
 
 Used by: merge2 1.4.1
 
@@ -32153,9 +37543,37 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-336"></a>
+<a id="license-text-390"></a>
 
-### License text 336
+### License text 390
+
+Used by: merge 2.1.1
+
+```text
+The MIT License (MIT)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-391"></a>
+
+### License text 391
 
 Used by: mime-db 1.52.0
 
@@ -32185,9 +37603,9 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-337"></a>
+<a id="license-text-392"></a>
 
-### License text 337
+### License text 392
 
 Used by: mime-types 2.1.35
 
@@ -32217,9 +37635,9 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-338"></a>
+<a id="license-text-393"></a>
 
-### License text 338
+### License text 393
 
 Used by: mkdirp 0.3.5, mkdirp 0.5.5
 
@@ -32247,9 +37665,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-339"></a>
+<a id="license-text-394"></a>
 
-### License text 339
+### License text 394
 
 Used by: mktemp 0.4.0
 
@@ -32277,9 +37695,40 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 ```
 
-<a id="license-text-340"></a>
+<a id="license-text-395"></a>
 
-### License text 340
+### License text 395
+
+Used by: moment 2.31.0
+
+```text
+Copyright (c) OpenJS Foundation and other contributors
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-396"></a>
+
+### License text 396
 
 Used by: ms 2.0.0, ms 2.1.2
 
@@ -32307,9 +37756,39 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-341"></a>
+<a id="license-text-397"></a>
 
-### License text 341
+### License text 397
+
+Used by: ms 2.1.3
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2020 Vercel, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-398"></a>
+
+### License text 398
 
 Used by: nanoid 3.3.1
 
@@ -32336,9 +37815,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-342"></a>
+<a id="license-text-399"></a>
 
-### License text 342
+### License text 399
 
 Used by: neo-async 2.6.2
 
@@ -32367,11 +37846,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-343"></a>
+<a id="license-text-400"></a>
 
-### License text 343
+### License text 400
 
-Used by: node-releases 2.0.2
+Used by: node-modules-path 1.0.2
+
+```text
+Copyright 2018 Stefan Penner <stefan.penner@gmail.com>
+
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+```
+
+<a id="license-text-401"></a>
+
+### License text 401
+
+Used by: node-releases 2.0.2, node-releases 2.0.58
 
 ```text
 The MIT License
@@ -32397,9 +37890,38 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-344"></a>
+<a id="license-text-402"></a>
 
-### License text 344
+### License text 402
+
+Used by: nomnom 1.8.1
+
+```text
+Copyright (c) 2010 Heather Arthur
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-403"></a>
+
+### License text 403
 
 Used by: object-hash 1.3.1
 
@@ -32427,11 +37949,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-345"></a>
+<a id="license-text-404"></a>
 
-### License text 345
+### License text 404
 
-Used by: object-inspect 1.11.0
+Used by: object-inspect 1.11.0, object-inspect 1.9.0
 
 ```text
 MIT License
@@ -32457,9 +37979,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-346"></a>
+<a id="license-text-405"></a>
 
-### License text 346
+### License text 405
 
 Used by: object-keys 1.1.1
 
@@ -32487,9 +38009,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-347"></a>
+<a id="license-text-406"></a>
 
-### License text 347
+### License text 406
 
 Used by: parse-static-imports 1.1.0
 
@@ -32517,9 +38039,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-348"></a>
+<a id="license-text-407"></a>
 
-### License text 348
+### License text 407
 
 Used by: parse5 6.0.1
 
@@ -32545,9 +38067,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-349"></a>
+<a id="license-text-408"></a>
 
-### License text 349
+### License text 408
 
 Used by: path-parse 1.0.7
 
@@ -32575,9 +38097,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-350"></a>
+<a id="license-text-409"></a>
 
-### License text 350
+### License text 409
 
 Used by: path-posix 1.0.0
 
@@ -32608,9 +38130,9 @@ IN THE SOFTWARE.
 ====
 ```
 
-<a id="license-text-351"></a>
+<a id="license-text-410"></a>
 
-### License text 351
+### License text 410
 
 Used by: path-root-regex 0.1.2, path-root 0.1.1
 
@@ -32638,9 +38160,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-352"></a>
+<a id="license-text-411"></a>
 
-### License text 352
+### License text 411
 
 Used by: pend 1.2.0
 
@@ -32670,9 +38192,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-353"></a>
+<a id="license-text-412"></a>
 
-### License text 353
+### License text 412
 
 Used by: picocolors 1.0.0
 
@@ -32694,9 +38216,33 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-354"></a>
+<a id="license-text-413"></a>
 
-### License text 354
+### License text 413
+
+Used by: picocolors 1.1.1
+
+```text
+ISC License
+
+Copyright (c) 2021-2024 Oleksii Raspopov, Kostiantyn Denysov, Anton Verinov
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+```
+
+<a id="license-text-414"></a>
+
+### License text 414
 
 Used by: picomatch 2.3.0
 
@@ -32724,9 +38270,39 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-355"></a>
+<a id="license-text-415"></a>
 
-### License text 355
+### License text 415
+
+Used by: pkg-entry-points 1.1.2
+
+```text
+MIT License
+
+Copyright (c) Hiroki Osame <hiroki.osame@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-416"></a>
+
+### License text 416
 
 Used by: postcss-modules-extract-imports 3.0.0
 
@@ -32738,9 +38314,9 @@ Permission to use, copy, modify, and/or distribute this software for any purpose
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-356"></a>
+<a id="license-text-417"></a>
 
-### License text 356
+### License text 417
 
 Used by: postcss-modules-local-by-default 4.0.0
 
@@ -32767,9 +38343,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-357"></a>
+<a id="license-text-418"></a>
 
-### License text 357
+### License text 418
 
 Used by: postcss-modules-scope 3.0.0, postcss-modules-values 4.0.0
 
@@ -32783,9 +38359,9 @@ Permission to use, copy, modify, and/or distribute this software for any purpose
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-358"></a>
+<a id="license-text-419"></a>
 
-### License text 358
+### License text 419
 
 Used by: postcss-selector-parser 6.0.4, postcss-selector-parser 6.0.9
 
@@ -32814,9 +38390,9 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-359"></a>
+<a id="license-text-420"></a>
 
-### License text 359
+### License text 420
 
 Used by: postcss-value-parser 4.1.0
 
@@ -32845,9 +38421,9 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-360"></a>
+<a id="license-text-421"></a>
 
-### License text 360
+### License text 421
 
 Used by: postcss 8.4.7
 
@@ -32874,9 +38450,54 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-361"></a>
+<a id="license-text-422"></a>
 
-### License text 361
+### License text 422
+
+Used by: prettier 2.5.1
+
+```text
+Copyright © James Long and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-423"></a>
+
+### License text 423
+
+Used by: private 0.1.8
+
+```text
+Copyright (c) 2014 Ben Newman <bn@cs.stanford.edu>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-424"></a>
+
+### License text 424
 
 Used by: prop-types 15.8.1
 
@@ -32904,9 +38525,54 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-362"></a>
+<a id="license-text-425"></a>
 
-### License text 362
+### License text 425
+
+Used by: q 1.5.1
+
+```text
+Copyright 2009–2017 Kristopher Michael Kowal. All rights reserved.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.
+```
+
+<a id="license-text-426"></a>
+
+### License text 426
+
+Used by: query-string 7.0.1
+
+```text
+MIT License
+
+Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (http://sindresorhus.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-427"></a>
+
+### License text 427
 
 Used by: queue 6.0.2
 
@@ -32921,9 +38587,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-363"></a>
+<a id="license-text-428"></a>
 
-### License text 363
+### License text 428
 
 Used by: react-is 16.13.1
 
@@ -32951,9 +38617,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-364"></a>
+<a id="license-text-429"></a>
 
-### License text 364
+### License text 429
 
 Used by: readdirp 3.6.0
 
@@ -32981,9 +38647,38 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-365"></a>
+<a id="license-text-430"></a>
 
-### License text 365
+### License text 430
+
+Used by: recast 0.18.10
+
+```text
+Copyright (c) 2012 Ben Newman <bn@cs.stanford.edu>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-431"></a>
+
+### License text 431
 
 Used by: regenerator-runtime 0.13.11, regenerator-runtime 0.13.9, regenerator-transform 0.14.5
 
@@ -33011,11 +38706,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-366"></a>
+<a id="license-text-432"></a>
 
-### License text 366
+### License text 432
 
-Used by: regjsgen 0.6.0
+Used by: regjsgen 0.6.0, regjsgen 0.8.0
 
 ```text
 The MIT License (MIT)
@@ -33042,11 +38737,11 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-367"></a>
+<a id="license-text-433"></a>
 
-### License text 367
+### License text 433
 
-Used by: regjsparser 0.8.4
+Used by: regjsparser 0.13.4, regjsparser 0.8.4
 
 ```text
 Copyright (c) Julian Viereck and Contributors, All Rights Reserved.
@@ -33072,9 +38767,9 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="license-text-368"></a>
+<a id="license-text-434"></a>
 
-### License text 368
+### License text 434
 
 Used by: require-from-string 2.0.2
 
@@ -33102,9 +38797,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-369"></a>
+<a id="license-text-435"></a>
 
-### License text 369
+### License text 435
 
 Used by: reselect 3.0.1
 
@@ -33132,11 +38827,71 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-370"></a>
+<a id="license-text-436"></a>
 
-### License text 370
+### License text 436
 
-Used by: resolve 1.19.0, resolve 1.20.0, resolve 1.22.0
+Used by: reselect 4.1.8
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015-2018 Reselect Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-437"></a>
+
+### License text 437
+
+Used by: resolve.exports 2.0.3
+
+```text
+The MIT License (MIT)
+
+Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (lukeed.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-438"></a>
+
+### License text 438
+
+Used by: resolve 1.19.0, resolve 1.20.0, resolve 1.22.0, resolve 1.22.13
 
 ```text
 MIT License
@@ -33162,9 +38917,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-371"></a>
+<a id="license-text-439"></a>
 
-### License text 371
+### License text 439
 
 Used by: reusify 1.0.4
 
@@ -33192,9 +38947,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-372"></a>
+<a id="license-text-440"></a>
 
-### License text 372
+### License text 440
 
 Used by: robust-predicates 3.0.1
 
@@ -33225,9 +38980,777 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org>
 ```
 
-<a id="license-text-373"></a>
+<a id="license-text-441"></a>
 
-### License text 373
+### License text 441
+
+Used by: rollup 2.80.0
+
+```text
+# Rollup core license
+Rollup is released under the MIT license:
+
+The MIT License (MIT)
+
+Copyright (c) 2017 [these people](https://github.com/rollup/rollup/graphs/contributors)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+# Licenses of bundled dependencies
+The published Rollup artifact additionally contains code with the following licenses:
+MIT, ISC
+
+# Bundled dependencies:
+## @rollup/pluginutils
+License: MIT
+By: Rich Harris
+Repository: rollup/plugins
+
+---------------------------------------
+
+## acorn
+License: MIT
+By: Marijn Haverbeke, Ingvar Stepanyan, Adrian Heine
+Repository: https://github.com/acornjs/acorn.git
+
+> MIT License
+>
+> Copyright (C) 2012-2022 by various contributors (see AUTHORS)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## acorn-walk
+License: MIT
+By: Marijn Haverbeke, Ingvar Stepanyan, Adrian Heine
+Repository: https://github.com/acornjs/acorn.git
+
+> MIT License
+>
+> Copyright (C) 2012-2020 by various contributors (see AUTHORS)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## anymatch
+License: ISC
+By: Elan Shanker
+Repository: https://github.com/micromatch/anymatch
+
+> The ISC License
+>
+> Copyright (c) 2019 Elan Shanker, Paul Miller (https://paulmillr.com)
+>
+> Permission to use, copy, modify, and/or distribute this software for any
+> purpose with or without fee is hereby granted, provided that the above
+> copyright notice and this permission notice appear in all copies.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+> WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+> MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+> ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+> WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+> ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+> IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---------------------------------------
+
+## binary-extensions
+License: MIT
+By: Sindre Sorhus
+Repository: sindresorhus/binary-extensions
+
+> MIT License
+>
+> Copyright (c) 2019 Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com), Paul Miller (https://paulmillr.com)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------
+
+## braces
+License: MIT
+By: Jon Schlinkert, Brian Woodward, Elan Shanker, Eugene Sharygin, hemanth.hm
+Repository: micromatch/braces
+
+> The MIT License (MIT)
+>
+> Copyright (c) 2014-2018, Jon Schlinkert.
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## chokidar
+License: MIT
+By: Paul Miller, Elan Shanker
+Repository: git+https://github.com/paulmillr/chokidar.git
+
+> The MIT License (MIT)
+>
+> Copyright (c) 2012-2019 Paul Miller (https://paulmillr.com), Elan Shanker
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the “Software”), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## colorette
+License: MIT
+By: Jorge Bucaran
+Repository: jorgebucaran/colorette
+
+> Copyright © Jorge Bucaran <<https://jorgebucaran.com>>
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the 'Software'), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------
+
+## date-time
+License: MIT
+By: Sindre Sorhus
+Repository: sindresorhus/date-time
+
+> MIT License
+>
+> Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------
+
+## fill-range
+License: MIT
+By: Jon Schlinkert, Edo Rivai, Paul Miller, Rouven Weßling
+Repository: jonschlinkert/fill-range
+
+> The MIT License (MIT)
+>
+> Copyright (c) 2014-present, Jon Schlinkert.
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## glob-parent
+License: ISC
+By: Gulp Team, Elan Shanker, Blaine Bublitz
+Repository: gulpjs/glob-parent
+
+> The ISC License
+>
+> Copyright (c) 2015, 2019 Elan Shanker
+>
+> Permission to use, copy, modify, and/or distribute this software for any
+> purpose with or without fee is hereby granted, provided that the above
+> copyright notice and this permission notice appear in all copies.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+> WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+> MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+> ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+> WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+> ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+> IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---------------------------------------
+
+## hash.js
+License: MIT
+By: Fedor Indutny
+Repository: git@github.com:indutny/hash.js
+
+---------------------------------------
+
+## inherits
+License: ISC
+Repository: git://github.com/isaacs/inherits
+
+> The ISC License
+>
+> Copyright (c) Isaac Z. Schlueter
+>
+> Permission to use, copy, modify, and/or distribute this software for any
+> purpose with or without fee is hereby granted, provided that the above
+> copyright notice and this permission notice appear in all copies.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+> REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+> FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+> INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+> LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+> OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+> PERFORMANCE OF THIS SOFTWARE.
+
+---------------------------------------
+
+## is-binary-path
+License: MIT
+By: Sindre Sorhus
+Repository: sindresorhus/is-binary-path
+
+> MIT License
+>
+> Copyright (c) 2019 Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com), Paul Miller (https://paulmillr.com)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------
+
+## is-extglob
+License: MIT
+By: Jon Schlinkert
+Repository: jonschlinkert/is-extglob
+
+> The MIT License (MIT)
+>
+> Copyright (c) 2014-2016, Jon Schlinkert
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## is-glob
+License: MIT
+By: Jon Schlinkert, Brian Woodward, Daniel Perez
+Repository: micromatch/is-glob
+
+> The MIT License (MIT)
+>
+> Copyright (c) 2014-2017, Jon Schlinkert.
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## is-number
+License: MIT
+By: Jon Schlinkert, Olsten Larck, Rouven Weßling
+Repository: jonschlinkert/is-number
+
+> The MIT License (MIT)
+>
+> Copyright (c) 2014-present, Jon Schlinkert.
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## is-reference
+License: MIT
+By: Rich Harris
+Repository: git+https://github.com/Rich-Harris/is-reference.git
+
+---------------------------------------
+
+## locate-character
+License: MIT
+By: Rich Harris
+Repository: Rich-Harris/locate-character
+
+---------------------------------------
+
+## magic-string
+License: MIT
+By: Rich Harris
+Repository: https://github.com/rich-harris/magic-string
+
+> Copyright 2018 Rich Harris
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------
+
+## minimalistic-assert
+License: ISC
+Repository: https://github.com/calvinmetcalf/minimalistic-assert.git
+
+> Copyright 2015 Calvin Metcalf
+>
+> Permission to use, copy, modify, and/or distribute this software for any purpose
+> with or without fee is hereby granted, provided that the above copyright notice
+> and this permission notice appear in all copies.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+> REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+> FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+> INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+> LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+> OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+> PERFORMANCE OF THIS SOFTWARE.
+
+---------------------------------------
+
+## normalize-path
+License: MIT
+By: Jon Schlinkert, Blaine Bublitz
+Repository: jonschlinkert/normalize-path
+
+> The MIT License (MIT)
+>
+> Copyright (c) 2014-2018, Jon Schlinkert.
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## parse-ms
+License: MIT
+By: Sindre Sorhus
+Repository: sindresorhus/parse-ms
+
+> MIT License
+>
+> Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------
+
+## picomatch
+License: MIT
+By: Jon Schlinkert
+Repository: micromatch/picomatch
+
+> The MIT License (MIT)
+>
+> Copyright (c) 2017-present, Jon Schlinkert.
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## pretty-bytes
+License: MIT
+By: Sindre Sorhus
+Repository: sindresorhus/pretty-bytes
+
+> MIT License
+>
+> Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------
+
+## pretty-ms
+License: MIT
+By: Sindre Sorhus
+Repository: sindresorhus/pretty-ms
+
+> MIT License
+>
+> Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------
+
+## readdirp
+License: MIT
+By: Thorsten Lorenz, Paul Miller
+Repository: git://github.com/paulmillr/readdirp.git
+
+> MIT License
+>
+> Copyright (c) 2012-2019 Thorsten Lorenz, Paul Miller (https://paulmillr.com)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
+
+---------------------------------------
+
+## signal-exit
+License: ISC
+By: Ben Coe
+Repository: https://github.com/tapjs/signal-exit.git
+
+> The ISC License
+>
+> Copyright (c) 2015, Contributors
+>
+> Permission to use, copy, modify, and/or distribute this software
+> for any purpose with or without fee is hereby granted, provided
+> that the above copyright notice and this permission notice
+> appear in all copies.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+> WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES
+> OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE
+> LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
+> OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+> WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+> ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---------------------------------------
+
+## sourcemap-codec
+License: MIT
+By: Rich Harris
+Repository: https://github.com/Rich-Harris/sourcemap-codec
+
+> The MIT License
+>
+> Copyright (c) 2015 Rich Harris
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## time-zone
+License: MIT
+By: Sindre Sorhus
+Repository: sindresorhus/time-zone
+
+> MIT License
+>
+> Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------
+
+## to-regex-range
+License: MIT
+By: Jon Schlinkert, Rouven Weßling
+Repository: micromatch/to-regex-range
+
+> The MIT License (MIT)
+>
+> Copyright (c) 2015-present, Jon Schlinkert.
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.
+
+---------------------------------------
+
+## yargs-parser
+License: ISC
+By: Ben Coe
+Repository: https://github.com/yargs/yargs-parser.git
+
+> Copyright (c) 2016, Contributors
+>
+> Permission to use, copy, modify, and/or distribute this software
+> for any purpose with or without fee is hereby granted, provided
+> that the above copyright notice and this permission notice
+> appear in all copies.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+> WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES
+> OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE
+> LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
+> OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+> WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+> ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+```
+
+<a id="license-text-442"></a>
+
+### License text 442
+
+Used by: route-recognizer 0.3.4
+
+```text
+Copyright (c) 2016 Yehuda Katz and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-443"></a>
+
+### License text 443
+
+Used by: router\_js 8.0.6
+
+```text
+Copyright (c) 2014 Yehuda Katz, Tom Dale, and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE
+```
+
+<a id="license-text-444"></a>
+
+### License text 444
 
 Used by: rsvp 3.2.1, rsvp 3.6.2, rsvp 4.8.5
 
@@ -33253,9 +39776,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-374"></a>
+<a id="license-text-445"></a>
 
-### License text 374
+### License text 445
 
 Used by: run-parallel 1.1.10, safe-buffer 5.1.2, safe-buffer 5.2.1
 
@@ -33282,9 +39805,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-375"></a>
+<a id="license-text-446"></a>
 
-### License text 375
+### License text 446
 
 Used by: rw 1.3.3
 
@@ -33317,9 +39840,9 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="license-text-376"></a>
+<a id="license-text-447"></a>
 
-### License text 376
+### License text 447
 
 Used by: safer-buffer 2.1.2
 
@@ -33347,9 +39870,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-377"></a>
+<a id="license-text-448"></a>
 
-### License text 377
+### License text 448
 
 Used by: sass 1.67.0
 
@@ -34952,9 +41475,59 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-378"></a>
+<a id="license-text-449"></a>
 
-### License text 378
+### License text 449
+
+Used by: sax 1.2.4
+
+```text
+The ISC License
+
+Copyright (c) Isaac Z. Schlueter and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+====
+
+`String.fromCodePoint` by Mathias Bynens used according to terms of MIT
+License, as follows:
+
+    Copyright Mathias Bynens <https://mathiasbynens.be/>
+
+    Permission is hereby granted, free of charge, to any person obtaining
+    a copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to
+    the following conditions:
+
+    The above copyright notice and this permission notice shall be
+    included in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+    NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+    LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+    WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-450"></a>
+
+### License text 450
 
 Used by: shebang-command 2.0.0
 
@@ -34970,9 +41543,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-379"></a>
+<a id="license-text-451"></a>
 
-### License text 379
+### License text 451
 
 Used by: signal-exit 3.0.7
 
@@ -34995,9 +41568,9 @@ WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
 ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-380"></a>
+<a id="license-text-452"></a>
 
-### License text 380
+### License text 452
 
 Used by: silent-error 1.1.1
 
@@ -35009,9 +41582,37 @@ Permission to use, copy, modify, and/or distribute this software for any purpose
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-381"></a>
+<a id="license-text-453"></a>
 
-### License text 381
+### License text 453
+
+Used by: simple-html-tokenizer 0.5.11
+
+```text
+Copyright (c) 2014 Yehuda Katz and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-454"></a>
+
+### License text 454
 
 Used by: source-map-js 1.0.2, source-map 0.5.7, source-map 0.6.1
 
@@ -35045,9 +41646,42 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="license-text-382"></a>
+<a id="license-text-455"></a>
 
-### License text 382
+### License text 455
+
+Used by: sprintf-js 1.0.3
+
+```text
+Copyright (c) 2007-2014, Alexandru Marasteanu <hello [at) alexei (dot] ro>
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+* Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+* Neither the name of this software nor the names of its contributors may be
+  used to endorse or promote products derived from this software without
+  specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+<a id="license-text-456"></a>
+
+### License text 456
 
 Used by: sprintf-js 1.1.2
 
@@ -35078,11 +41712,41 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="license-text-383"></a>
+<a id="license-text-457"></a>
 
-### License text 383
+### License text 457
 
-Used by: string.prototype.trimend 1.0.4, string.prototype.trimstart 1.0.4
+Used by: strict-uri-encode 2.0.0
+
+```text
+The MIT License (MIT)
+
+Copyright (c) Kevin Martensson <kevinmartensson@gmail.com> (github.com/kevva)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-458"></a>
+
+### License text 458
+
+Used by: string.prototype.trimend 1.0.3, string.prototype.trimend 1.0.4, string.prototype.trimstart 1.0.3, string.prototype.trimstart 1.0.4
 
 ```text
 MIT License
@@ -35108,9 +41772,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-384"></a>
+<a id="license-text-459"></a>
 
-### License text 384
+### License text 459
 
 Used by: supports-preserve-symlinks-flag 1.0.0
 
@@ -35138,9 +41802,73 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-385"></a>
+<a id="license-text-460"></a>
 
-### License text 385
+### License text 460
+
+Used by: svgo 1.2.2
+
+```text
+The MIT License
+
+Copyright © 2012–2016 Kir Belevich
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Лицензия MIT
+
+Copyright © 2012–2016 Кир Белевич
+
+Данная лицензия разрешает лицам, получившим копию данного
+программного обеспечения и сопутствующей документации
+(в дальнейшем именуемыми «Программное Обеспечение»), безвозмездно
+использовать Программное Обеспечение без ограничений, включая
+неограниченное право на использование, копирование, изменение,
+добавление, публикацию, распространение, сублицензирование
+и/или продажу копий Программного Обеспечения, также как и лицам,
+которым предоставляется данное Программное Обеспечение,
+при соблюдении следующих условий:
+
+Указанное выше уведомление об авторском праве и данные условия
+должны быть включены во все копии или значимые части данного
+Программного Обеспечения.
+
+ДАННОЕ ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ ПРЕДОСТАВЛЯЕТСЯ «КАК ЕСТЬ»,
+БЕЗ КАКИХ-ЛИБО ГАРАНТИЙ, ЯВНО ВЫРАЖЕННЫХ ИЛИ ПОДРАЗУМЕВАЕМЫХ,
+ВКЛЮЧАЯ, НО НЕ ОГРАНИЧИВАЯСЬ ГАРАНТИЯМИ ТОВАРНОЙ ПРИГОДНОСТИ,
+СООТВЕТСТВИЯ ПО ЕГО КОНКРЕТНОМУ НАЗНАЧЕНИЮ И ОТСУТСТВИЯ НАРУШЕНИЙ
+ПРАВ. НИ В КАКОМ СЛУЧАЕ АВТОРЫ ИЛИ ПРАВООБЛАДАТЕЛИ НЕ НЕСУТ
+ОТВЕТСТВЕННОСТИ ПО ИСКАМ О ВОЗМЕЩЕНИИ УЩЕРБА, УБЫТКОВ ИЛИ ДРУГИХ
+ТРЕБОВАНИЙ ПО ДЕЙСТВУЮЩИМ КОНТРАКТАМ, ДЕЛИКТАМ ИЛИ ИНОМУ,
+ВОЗНИКШИМ ИЗ, ИМЕЮЩИМ ПРИЧИНОЙ ИЛИ СВЯЗАННЫМ С ПРОГРАММНЫМ
+ОБЕСПЕЧЕНИЕМ ИЛИ ИСПОЛЬЗОВАНИЕМ ПРОГРАММНОГО ОБЕСПЕЧЕНИЯ
+ИЛИ ИНЫМИ ДЕЙСТВИЯМИ С ПРОГРАММНЫМ ОБЕСПЕЧЕНИЕМ.
+```
+
+<a id="license-text-461"></a>
+
+### License text 461
 
 Used by: symlink-or-copy 1.3.1
 
@@ -35168,9 +41896,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-386"></a>
+<a id="license-text-462"></a>
 
-### License text 386
+### License text 462
 
 Used by: tether 2.0.0
 
@@ -35185,9 +41913,219 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-387"></a>
+<a id="license-text-463"></a>
 
-### License text 387
+### License text 463
+
+Used by: text-encoder-lite 2.0.0
+
+```text
+                                 Apache License
+                           Version 2.0, January 2011
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright [yyyy] [name of copyright owner]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
+
+<a id="license-text-464"></a>
+
+### License text 464
 
 Used by: tiny-emitter 2.1.0
 
@@ -35215,9 +42153,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-388"></a>
+<a id="license-text-465"></a>
 
-### License text 388
+### License text 465
 
 Used by: tippy.js 6.3.7
 
@@ -35245,9 +42183,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-389"></a>
+<a id="license-text-466"></a>
 
-### License text 389
+### License text 466
 
 Used by: tmp 0.0.28, tmp 0.0.33
 
@@ -35275,9 +42213,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-390"></a>
+<a id="license-text-467"></a>
 
-### License text 390
+### License text 467
 
 Used by: to-fast-properties 2.0.0
 
@@ -35294,9 +42232,9 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-391"></a>
+<a id="license-text-468"></a>
 
-### License text 391
+### License text 468
 
 Used by: to-regex-range 5.0.1
 
@@ -35324,11 +42262,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-392"></a>
+<a id="license-text-469"></a>
 
-### License text 392
+### License text 469
 
-Used by: tslib 2.1.0
+Used by: tslib 2.1.0, tslib 2.3.0
 
 ```text
 Copyright (c) Microsoft Corporation.
@@ -35345,9 +42283,139 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 ```
 
-<a id="license-text-393"></a>
+<a id="license-text-470"></a>
 
-### License text 393
+### License text 470
+
+Used by: type-fest 4.41.0
+
+```text
+Creative Commons Legal Code
+
+CC0 1.0 Universal
+
+    CREATIVE COMMONS CORPORATION IS NOT A LAW FIRM AND DOES NOT PROVIDE
+    LEGAL SERVICES. DISTRIBUTION OF THIS DOCUMENT DOES NOT CREATE AN
+    ATTORNEY-CLIENT RELATIONSHIP. CREATIVE COMMONS PROVIDES THIS
+    INFORMATION ON AN "AS-IS" BASIS. CREATIVE COMMONS MAKES NO WARRANTIES
+    REGARDING THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS
+    PROVIDED HEREUNDER, AND DISCLAIMS LIABILITY FOR DAMAGES RESULTING FROM
+    THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS PROVIDED
+    HEREUNDER.
+
+Statement of Purpose
+
+The laws of most jurisdictions throughout the world automatically confer
+exclusive Copyright and Related Rights (defined below) upon the creator
+and subsequent owner(s) (each and all, an "owner") of an original work of
+authorship and/or a database (each, a "Work").
+
+Certain owners wish to permanently relinquish those rights to a Work for
+the purpose of contributing to a commons of creative, cultural and
+scientific works ("Commons") that the public can reliably and without fear
+of later claims of infringement build upon, modify, incorporate in other
+works, reuse and redistribute as freely as possible in any form whatsoever
+and for any purposes, including without limitation commercial purposes.
+These owners may contribute to the Commons to promote the ideal of a free
+culture and the further production of creative, cultural and scientific
+works, or to gain reputation or greater distribution for their Work in
+part through the use and efforts of others.
+
+For these and/or other purposes and motivations, and without any
+expectation of additional consideration or compensation, the person
+associating CC0 with a Work (the "Affirmer"), to the extent that he or she
+is an owner of Copyright and Related Rights in the Work, voluntarily
+elects to apply CC0 to the Work and publicly distribute the Work under its
+terms, with knowledge of his or her Copyright and Related Rights in the
+Work and the meaning and intended legal effect of CC0 on those rights.
+
+1. Copyright and Related Rights. A Work made available under CC0 may be
+protected by copyright and related or neighboring rights ("Copyright and
+Related Rights"). Copyright and Related Rights include, but are not
+limited to, the following:
+
+  i. the right to reproduce, adapt, distribute, perform, display,
+     communicate, and translate a Work;
+ ii. moral rights retained by the original author(s) and/or performer(s);
+iii. publicity and privacy rights pertaining to a person's image or
+     likeness depicted in a Work;
+ iv. rights protecting against unfair competition in regards to a Work,
+     subject to the limitations in paragraph 4(a), below;
+  v. rights protecting the extraction, dissemination, use and reuse of data
+     in a Work;
+ vi. database rights (such as those arising under Directive 96/9/EC of the
+     European Parliament and of the Council of 11 March 1996 on the legal
+     protection of databases, and under any national implementation
+     thereof, including any amended or successor version of such
+     directive); and
+vii. other similar, equivalent or corresponding rights throughout the
+     world based on applicable law or treaty, and any national
+     implementations thereof.
+
+2. Waiver. To the greatest extent permitted by, but not in contravention
+of, applicable law, Affirmer hereby overtly, fully, permanently,
+irrevocably and unconditionally waives, abandons, and surrenders all of
+Affirmer's Copyright and Related Rights and associated claims and causes
+of action, whether now known or unknown (including existing as well as
+future claims and causes of action), in the Work (i) in all territories
+worldwide, (ii) for the maximum duration provided by applicable law or
+treaty (including future time extensions), (iii) in any current or future
+medium and for any number of copies, and (iv) for any purpose whatsoever,
+including without limitation commercial, advertising or promotional
+purposes (the "Waiver"). Affirmer makes the Waiver for the benefit of each
+member of the public at large and to the detriment of Affirmer's heirs and
+successors, fully intending that such Waiver shall not be subject to
+revocation, rescission, cancellation, termination, or any other legal or
+equitable action to disrupt the quiet enjoyment of the Work by the public
+as contemplated by Affirmer's express Statement of Purpose.
+
+3. Public License Fallback. Should any part of the Waiver for any reason
+be judged legally invalid or ineffective under applicable law, then the
+Waiver shall be preserved to the maximum extent permitted taking into
+account Affirmer's express Statement of Purpose. In addition, to the
+extent the Waiver is so judged Affirmer hereby grants to each affected
+person a royalty-free, non transferable, non sublicensable, non exclusive,
+irrevocable and unconditional license to exercise Affirmer's Copyright and
+Related Rights in the Work (i) in all territories worldwide, (ii) for the
+maximum duration provided by applicable law or treaty (including future
+time extensions), (iii) in any current or future medium and for any number
+of copies, and (iv) for any purpose whatsoever, including without
+limitation commercial, advertising or promotional purposes (the
+"License"). The License shall be deemed effective as of the date CC0 was
+applied by Affirmer to the Work. Should any part of the License for any
+reason be judged legally invalid or ineffective under applicable law, such
+partial invalidity or ineffectiveness shall not invalidate the remainder
+of the License, and in such case Affirmer hereby affirms that he or she
+will not (i) exercise any of his or her remaining Copyright and Related
+Rights in the Work or (ii) assert any associated claims and causes of
+action with respect to the Work, in either case contrary to Affirmer's
+express Statement of Purpose.
+
+4. Limitations and Disclaimers.
+
+ a. No trademark or patent rights held by Affirmer are waived, abandoned,
+    surrendered, licensed or otherwise affected by this document.
+ b. Affirmer offers the Work as-is and makes no representations or
+    warranties of any kind concerning the Work, express, implied,
+    statutory or otherwise, including without limitation warranties of
+    title, merchantability, fitness for a particular purpose, non
+    infringement, or the absence of latent or other defects, accuracy, or
+    the present or absence of errors, whether or not discoverable, all to
+    the greatest extent permissible under applicable law.
+ c. Affirmer disclaims responsibility for clearing rights of other persons
+    that may apply to the Work or any use thereof, including without
+    limitation any person's Copyright and Related Rights in the Work.
+    Further, Affirmer disclaims responsibility for obtaining any necessary
+    consents, permissions or other rights required for any use of the
+    Work.
+ d. Affirmer understands and acknowledges that Creative Commons is not a
+    party to this document and has no duty or obligation with respect to
+    this CC0 or use of the Work.
+```
+
+<a id="license-text-471"></a>
+
+### License text 471
 
 Used by: uglify-js 3.13.5
 
@@ -35383,9 +42451,41 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
 ```
 
-<a id="license-text-394"></a>
+<a id="license-text-472"></a>
 
-### License text 394
+### License text 472
+
+Used by: underscore 1.6.0
+
+```text
+Copyright (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative
+Reporters & Editors
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-473"></a>
+
+### License text 473
 
 Used by: uniq 1.0.1
 
@@ -35413,9 +42513,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-<a id="license-text-395"></a>
+<a id="license-text-474"></a>
 
-### License text 395
+### License text 474
 
 Used by: universalify 0.1.2, universalify 2.0.0
 
@@ -35442,9 +42542,71 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-396"></a>
+<a id="license-text-475"></a>
 
-### License text 396
+### License text 475
+
+Used by: unquote 1.1.1
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2017 Cameron Lakenen
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sub-license, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-476"></a>
+
+### License text 476
+
+Used by: update-browserslist-db 1.3.4
+
+```text
+The MIT License (MIT)
+
+Copyright 2022 Andrey Sitnik <andrey@sitnik.es> and other contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+<a id="license-text-477"></a>
+
+### License text 477
 
 Used by: uri-js 4.4.1
 
@@ -35462,9 +42624,9 @@ THIS SOFTWARE IS PROVIDED BY GARY COURT "AS IS" AND ANY EXPRESS OR IMPLIED WARRA
 The views and conclusions contained in the software and documentation are those of the authors and should not be interpreted as representing official policies, either expressed or implied, of Gary Court.
 ```
 
-<a id="license-text-397"></a>
+<a id="license-text-478"></a>
 
-### License text 397
+### License text 478
 
 Used by: util-deprecate 1.0.2
 
@@ -35495,9 +42657,249 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="license-text-398"></a>
+<a id="license-text-479"></a>
 
-### License text 398
+### License text 479
+
+Used by: util.promisify 1.0.1
+
+```text
+MIT License
+
+Copyright (c) 2017 Jordan Harband
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-480"></a>
+
+### License text 480
+
+Used by: workerpool 6.5.1
+
+```text
+Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "{}"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright (C) 2014-2023 Jos de Jong wjosdejong@gmail.com
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
+
+<a id="license-text-481"></a>
+
+### License text 481
 
 Used by: ws 8.6.0
 
@@ -35523,9 +42925,97 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="license-text-399"></a>
+<a id="license-text-482"></a>
 
-### License text 399
+### License text 482
+
+Used by: xstate 4.38.3
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015 David Khourshid
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+<a id="license-text-483"></a>
+
+### License text 483
+
+Used by: xterm-addon-fit 0.5.0
+
+```text
+Copyright (c) 2019, The xterm.js authors (https://github.com/xtermjs/xterm.js)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-484"></a>
+
+### License text 484
+
+Used by: xterm 4.15.0
+
+```text
+Copyright (c) 2017-2019, The xterm.js authors (https://github.com/xtermjs/xterm.js)
+Copyright (c) 2014-2016, SourceLair Private Company (https://www.sourcelair.com)
+Copyright (c) 2012-2013, Christopher Jeffrey (https://github.com/chjj/)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+<a id="license-text-485"></a>
+
+### License text 485
 
 Used by: yaml 1.10.0
 
@@ -35545,9 +43035,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-400"></a>
+<a id="license-text-486"></a>
 
-### License text 400
+### License text 486
 
 Used by: yaml 2.0.1
 
@@ -35567,9 +43057,9 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-<a id="license-text-401"></a>
+<a id="license-text-487"></a>
 
-### License text 401
+### License text 487
 
 Used by: yauzl 2.10.0
 
@@ -35595,4 +43085,42 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+<a id="license-text-488"></a>
+
+### License text 488
+
+Used by: zrender 6.1.0
+
+```text
+BSD 3-Clause License
+
+Copyright (c) 2017, Baidu Inc.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```

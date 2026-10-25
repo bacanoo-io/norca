@@ -14,9 +14,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path"
@@ -127,7 +129,7 @@ type npmPackage struct {
 	Author   string
 	Homepage string
 	Resolved string
-	// Via is the dependency path from nomad/ui/package.json.
+	// Via is the dependency path from the package.json of the UI.
 	Via string
 
 	Licenses []textFile
@@ -147,7 +149,22 @@ type packageJSON struct {
 	Author   json.RawMessage `json:"author"`
 	Homepage string          `json:"homepage"`
 
-	Dependencies map[string]string `json:"dependencies"`
+	Dependencies depMap `json:"dependencies"`
+}
+
+// depMap is the "dependencies" object of a package.json. Some old packages
+// (JSV 4.0.2) write an empty array instead; anything but an object reads as
+// no dependencies.
+type depMap map[string]string
+
+func (d *depMap) UnmarshalJSON(b []byte) error {
+	var m map[string]string
+	if json.Unmarshal(b, &m) == nil {
+		*d = m
+		return nil
+	}
+	*d = nil
+	return nil
 }
 
 // declaredLicense returns the license of a package.json as an SPDX
@@ -459,17 +476,90 @@ func verifier(integrity, frag string) (func([]byte) error, error) {
 	}, nil
 }
 
-// collectNPM resolves the production dependencies of the UI (the
+// embeddedUI is a web UI embedded in norca.
+type embeddedUI struct {
+	// Dir holds its package.json and yarn.lock, relative to the repository
+	// root.
+	Dir string
+	// Legacy marks the previous UI, served at /ui/legacy for one release.
+	// Only its package manifests are kept in the tree (the UI is built from
+	// LEGACY_UI_REF, see ember-dist-legacy in nomad/GNUmakefile), and the
+	// directory is optional: it is removed together with the legacy UI.
+	Legacy bool
+}
+
+var embeddedUIs = []embeddedUI{
+	{Dir: "nomad/ui"},
+	{Dir: "nomad/ui-legacy", Legacy: true},
+}
+
+// legacyUIPresent reports whether the tree still holds the package
+// manifests of the previous UI.
+func legacyUIPresent(root string) bool {
+	for _, ui := range embeddedUIs {
+		if !ui.Legacy {
+			continue
+		}
+		_, err := os.Stat(filepath.Join(root, filepath.FromSlash(ui.Dir), "package.json"))
+		return !errors.Is(err, fs.ErrNotExist)
+	}
+	return false
+}
+
+// collectUIs inventories the production npm dependencies of every embedded
+// UI. A package used by several UIs is listed once, with the dependency
+// path of the first.
+func collectUIs(c commonFlags) ([]*npmPackage, []string, error) {
+	var all []*npmPackage
+	var problems []string
+	seen := map[string]bool{}
+	seenProblem := map[string]bool{}
+	for _, ui := range embeddedUIs {
+		dir := filepath.Join(c.root, filepath.FromSlash(ui.Dir))
+		if ui.Legacy && !legacyUIPresent(c.root) {
+			continue
+		}
+		src, err := newNPMSource(dir, c.cacheDir, c.offline)
+		if err != nil {
+			return nil, nil, err
+		}
+		pkgs, p, err := collectNPM(dir, src, ui.Legacy)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %v", ui.Dir, err)
+		}
+		for _, problem := range p {
+			if !seenProblem[problem] {
+				seenProblem[problem] = true
+				problems = append(problems, problem)
+			}
+		}
+		for _, pkg := range pkgs {
+			if seen[pkg.key()] {
+				continue
+			}
+			seen[pkg.key()] = true
+			if ui.Legacy {
+				pkg.Via = "legacy UI: " + pkg.Via
+			}
+			all = append(all, pkg)
+		}
+	}
+	sort.SliceStable(all, func(i, j int) bool { return all[i].key() < all[j].key() })
+	return all, problems, nil
+}
+
+// collectNPM resolves the production dependencies of a UI (the
 // "dependencies" of package.json and, transitively, their dependencies and
 // optional dependencies) through yarn.lock and reads their license files.
-func collectNPM(uiDir string, src *npmSource) ([]*npmPackage, []string, error) {
+// legacy reports whether uiDir is the previous UI (see embeddedUI).
+func collectNPM(uiDir string, src *npmSource, legacy bool) ([]*npmPackage, []string, error) {
 	pjData, err := os.ReadFile(filepath.Join(uiDir, "package.json"))
 	if err != nil {
 		return nil, nil, err
 	}
 	var pj packageJSON
 	if err := json.Unmarshal(pjData, &pj); err != nil {
-		return nil, nil, fmt.Errorf("nomad/ui/package.json: %v", err)
+		return nil, nil, fmt.Errorf("package.json: %v", err)
 	}
 	lockData, err := os.ReadFile(filepath.Join(uiDir, "yarn.lock"))
 	if err != nil {
@@ -493,7 +583,7 @@ func collectNPM(uiDir string, src *npmSource) ([]*npmPackage, []string, error) {
 		queue = queue[1:]
 		e, ok := lock[it.name+"@"+it.rng]
 		if !ok {
-			return nil, nil, fmt.Errorf("yarn.lock has no entry for %s@%s; run yarn install in nomad/ui", it.name, it.rng)
+			return nil, nil, fmt.Errorf("yarn.lock has no entry for %s@%s; run yarn install", it.name, it.rng)
 		}
 		k := it.name + "@" + e.Version
 		if _, done := entries[k]; done {
@@ -558,6 +648,10 @@ func collectNPM(uiDir string, src *npmSource) ([]*npmPackage, []string, error) {
 			p.Override = o
 			p.Expr = o.License
 			applyExcerpt(o, p.Licenses)
+			if o.LegacyOnly && !legacy {
+				problems = append(problems, fmt.Sprintf("npm %s: the license decision applies to the legacy UI only (overrides.go), but the web UI uses the package; via %s", k, p.Via))
+				continue
+			}
 			if !o.Pending && !o.Exception && !exprAllowed(o.License, allowedNPM) {
 				problems = append(problems, fmt.Sprintf("npm %s: override license %q is not on the allow-list", k, o.License))
 			}
