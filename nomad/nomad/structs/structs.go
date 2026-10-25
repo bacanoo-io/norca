@@ -2498,6 +2498,16 @@ func (n *Node) Stub(fields *NodeStubFields) *NodeListStub {
 		}
 	}
 
+	// The Norca product version of the client: Version above is the Nomad
+	// API version it is compatible with. Clients that predate Norca do not
+	// have the attribute.
+	if v, ok := n.Attributes["norca.version"]; ok {
+		if s.Attributes == nil {
+			s.Attributes = make(map[string]string, 1)
+		}
+		s.Attributes["norca.version"] = v
+	}
+
 	return s
 }
 

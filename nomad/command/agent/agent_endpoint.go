@@ -25,6 +25,7 @@ import (
 	"github.com/hashicorp/nomad/command/agent/pprof"
 	"github.com/hashicorp/nomad/nomad"
 	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/hashicorp/nomad/version"
 	"github.com/hashicorp/serf/serf"
 )
 
@@ -80,8 +81,10 @@ func (s *HTTPServer) AgentSelfRequest(resp http.ResponseWriter, req *http.Reques
 	}
 
 	self := agentSelf{
-		Member: nomadMember(member),
-		Stats:  s.agent.Stats(),
+		Member:       nomadMember(member),
+		Stats:        s.agent.Stats(),
+		NorcaVersion: version.NorcaVersion,
+		NomadVersion: version.GetVersion().VersionNumber(),
 	}
 
 	self.Config = s.agent.GetConfig().Copy()
@@ -569,6 +572,12 @@ type agentSelf struct {
 	Config *Config                      `json:"config"`
 	Member Member                       `json:"member,omitempty"`
 	Stats  map[string]map[string]string `json:"stats"`
+
+	// NorcaVersion is the Norca product version of the agent and
+	// NomadVersion the Nomad API version it is compatible with. Both are
+	// set on client-only agents too, which have no member.
+	NorcaVersion string `json:"norca_version"`
+	NomadVersion string `json:"nomad_version"`
 }
 
 type joinResult struct {
