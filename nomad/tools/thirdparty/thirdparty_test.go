@@ -120,3 +120,22 @@ func TestFence(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestFindSourceCopy(t *testing.T) {
+	for path, want := range map[string]string{
+		"github.com/hashicorp/nomad/secretstore/ubix":                  "github.com/cwolsen7905/ubixvault",
+		"github.com/hashicorp/nomad/secretstore/ubix/internal/barrier": "github.com/cwolsen7905/ubixvault",
+		"github.com/hashicorp/nomad/secretstore/ubix/export/core":      "github.com/cwolsen7905/ubixvault",
+		"github.com/hashicorp/nomad/secretstore":                       "",
+		"github.com/hashicorp/nomad/secretstore/ubixother":             "",
+		"github.com/hashicorp/nomad/nomad":                             "",
+	} {
+		got := ""
+		if c := findSourceCopy(path); c != nil {
+			got = c.Path
+		}
+		if got != want {
+			t.Errorf("%s: got %q, want %q", path, got, want)
+		}
+	}
+}

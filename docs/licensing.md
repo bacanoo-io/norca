@@ -17,6 +17,7 @@ This document records under which license each part of the project falls, where 
 | HashiCorp Nomad | v1.6.5 (2023-12-13) | `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f` | MPL 2.0 | The last MPL release; everything from v1.6.6 on is BSL 1.1 |
 | HashiCorp Nomad Autoscaler | v0.6.0 (2026-09-28) | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 | There was no license change; its code goes into the `nomad/autoscaler` package of the Nomad fork |
 | HashiCorp Nomad Pack | v0.4.2 (2026-03-13) | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 | Upstream, its test helper (`internal/cli/testhelper`) pulls in the BSL main Nomad module; in the fork it lives in `nomad/pack/` inside the Nomad module and uses the fork's own packages |
+| uBixVault | v1.5.0 (2026-09-30) | `817554750c2ccd2dd9a8ac072615630ade05b025` | BSD-3-Clause | The core of the built-in secret store ([secrets-plan.md](design/secrets-plan.md)); imported with its history into `nomad/secretstore/ubix/`, where `nomad/tools/ubixsync` removes the parts Norca does not use, rewrites the import paths to the Nomad module and generates the facades of its internal packages. Its files keep the BSD-3-Clause license (`REUSE.toml`, `THIRD_PARTY_NOTICES.md`) |
 
 Nomad v1.6.5 goes into the repository together with its git history (for example `git subtree add --prefix nomad https://github.com/hashicorp/nomad.git v1.6.5`), so anyone can verify that the starting point was an MPL commit. Nomad Pack likewise, with its history; it was imported into `nomad-pack/` and later moved into `nomad/pack/`, where it is part of the Nomad Go module and runs as the `norca pack` subcommand (`git log --follow` keeps the history).
 
@@ -108,7 +109,7 @@ We do not mix licenses within one file: code from a third party goes into a sepa
 
 ```
 norca/
-├── LICENSES/                 # MPL-2.0.txt (+ the license texts needed for third-party files, e.g. MIT.txt, Apache-2.0.txt)
+├── LICENSES/                 # MPL-2.0.txt (+ the license texts needed for third-party files, e.g. MIT.txt, BSD-3-Clause.txt)
 ├── REUSE.toml
 ├── README.md
 ├── NOTICE
@@ -121,6 +122,7 @@ norca/
 │   ├── api/                  # API client (separate Go module)
 │   ├── controller/           # controller SDK and sample operators (separate Go module, uses only api/)
 │   ├── natsbridge/           # event stream → NATS bridge (separate Go module, uses only api/ and controller/)
+│   ├── secretstore/ubix/     # uBixVault v1.5.0 (BSD-3-Clause), with history; core of the built-in secret store
 │   └── pack/                 # Nomad Pack v0.4.2 fork, with history; `norca pack` subcommand
 └── .github/
     ├── pull_request_template.md

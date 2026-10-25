@@ -124,7 +124,14 @@ jobs:
             ./nomad/state/... \
             ./nomad/structs/... \
             ./scheduler/... \
+            ./secretstore/... \
             ./version/...
+      - name: uBixVault subtree adapted to the nomad module
+        # nomad/secretstore/ubix must match what nomad/tools/ubixsync makes
+        # of it (no unused upstream code, rewritten imports, current facades).
+        # Its tests, including the fuzz and property tests in their normal,
+        # non-fuzzing mode, run with ./secretstore/... above.
+        run: go -C nomad/tools run ./ubixsync -root "$GITHUB_WORKSPACE" -check
       - name: api, controller, natsbridge and tools modules
         run: |
           for m in nomad/api nomad/controller nomad/natsbridge nomad/tools; do

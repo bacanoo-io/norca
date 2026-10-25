@@ -40,6 +40,9 @@ type goModule struct {
 	Expr string
 	// Override is the reviewed decision applied, if any.
 	Override *override
+	// CopyDir is set for a source copy (see sourceCopies): its directory,
+	// relative to the repository root.
+	CopyDir string
 }
 
 // key identifies a module version.
@@ -140,7 +143,24 @@ func listDeps(root string, b binary, goos, goarch string, cgo bool, tags []strin
 		}
 		if p.Module.Main || isLocal(absRoot, p.Module) {
 			// Norca's own code (the main module and the api and
-			// controller modules replaced by local directories).
+			// controller modules replaced by local directories), except
+			// third-party source copied into it.
+			if c := findSourceCopy(p.ImportPath); c != nil {
+				m := mods[c.Path+"@"+c.Version]
+				if m == nil {
+					m = &goModule{
+						Path:    c.Path,
+						Version: c.Version,
+						Dir:     filepath.Join(absRoot, filepath.FromSlash(c.Dir)),
+						PkgDirs: map[string]bool{},
+						UsedIn:  map[string]bool{},
+						CopyDir: c.Dir,
+					}
+					mods[m.key()] = m
+				}
+				m.PkgDirs[p.Dir] = true
+				m.UsedIn[b.Name] = true
+			}
 			continue
 		}
 		m := mods[p.Module.Path+"@"+p.Module.Version]
