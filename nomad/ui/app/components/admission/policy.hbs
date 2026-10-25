@@ -1,0 +1,76 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-admission-policy {{this.setup @name this.region}}>
+  <Ui::PageHeader @pretitle="Admission policies" @title={{@name}} @subtitle={{this.policy.Description}}>
+    <:actions>
+      {{#if (and this.policy this.canWrite)}}
+        <Ui::Button @variant="outline-danger" @icon="trash" data-test-delete-admission {{on "click" this.ask}}>Delete</Ui::Button>
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
+
+  <div class="page-body">
+    <div class="container-xl">
+      {{#if this.isLoading}}
+        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the admission policy" /></Ui::Card>
+      {{else if this.loadError}}
+        <Ui::Card>
+          <Ui::EmptyState @icon="shield-check" @title="Admission policy not available" @message={{this.loadError}} data-test-admission-policy-error>
+            <Ui::Button @route="admission">All admission policies</Ui::Button>
+          </Ui::EmptyState>
+        </Ui::Card>
+      {{else}}
+        <div class="row row-cards">
+          <div class="col-lg-8">
+            <Ui::Card @title="Policy">
+              <Ui::Datagrid @items={{this.details}} data-test-admission-details />
+            </Ui::Card>
+            <Ui::Card @title="Rules" @subtitle="CEL over job, request, variable, oldVariable and release" @flush={{true}} class="mt-3" data-test-admission-rules>
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Rules"
+                @columns={{array (hash key="expression" label="Expression") (hash key="message" label="Message")}}
+                @rows={{this.policy.Rules}}
+                @emptyMessage="No CEL rules."
+                as |r|
+              >
+                <td class="w-50"><Ui::CodeBlock @label="Rule expression" @code={{r.Expression}} @wrap={{true}} /></td>
+                <td>{{or r.Message "The rule expression is reported."}}</td>
+              </Ui::Table>
+            </Ui::Card>
+            <p class="text-secondary small mt-3">
+              Editing rules waits for the unified editor. Testing a policy on the existing jobs needs a dry-run endpoint the server does not have yet;
+              until then, set the action to warn and watch the warnings of the submissions.
+            </p>
+          </div>
+          <div class="col-lg-4">
+            <Ui::Card @title="Denials" @subtitle="Seen while this page is open" data-test-admission-policy-denials>
+              {{#if this.denials.length}}
+                <Ui::Timeline @items={{this.denials}} @simple={{true}} />
+              {{else}}
+                <Ui::EmptyState @compact={{true}} @icon="shield-check" @title="No denials yet" @message="Writes this policy denies appear here as they happen." />
+              {{/if}}
+            </Ui::Card>
+          </div>
+        </div>
+      {{/if}}
+    </div>
+  </div>
+
+  {{#if this.confirming}}
+    <Ui::Confirm
+      @title="Delete {{@name}}?"
+      @confirmLabel="Delete policy"
+      @confirmIcon="trash"
+      @typedValue={{@name}}
+      @onConfirm={{this.delete}}
+      @onClose={{this.cancel}}
+      @isRunning={{this.isDeleting}}
+      @error={{this.deleteError}}
+    >
+      Writes that the policy denied are accepted from now on.
+    </Ui::Confirm>
+  {{/if}}
+</div>

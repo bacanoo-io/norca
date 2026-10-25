@@ -161,6 +161,18 @@ Router.map(function () {
     this.route('release', { path: '/:namespace/:name' });
   });
 
+  this.route('objects', function () {
+    this.route('object', { path: '/:group/:kind/:name' });
+  });
+
+  this.route('kinds', function () {
+    this.route('kind', { path: '/:group/:kind' });
+  });
+
+  this.route('admission', function () {
+    this.route('policy', { path: '/:name' });
+  });
+
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {
     this.route('oidc-mock');

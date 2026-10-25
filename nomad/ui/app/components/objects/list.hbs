@@ -1,0 +1,63 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-objects {{this.setup this.region}}>
+  <Ui::PageHeader @pretitle="Workloads" @title="Objects" @subtitle={{this.scopeLabel}}>
+    <:actions>
+      {{#if this.kinds.length}}
+        <Ui::Select @label="Type" @options={{this.kindOptions}} @value={{if this.kind (concat this.kind.Group "/" this.kind.Kind)}} @onChange={{this.selectKind}} data-test-kind-select />
+      {{/if}}
+      <Ui::Button @route="kinds" @icon="list-details">Type definitions</Ui::Button>
+    </:actions>
+  </Ui::PageHeader>
+
+  <div class="page-body">
+    <div class="container-xl">
+      {{#if this.isLoading}}
+        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the object kinds" /></Ui::Card>
+      {{else if this.error}}
+        <Ui::Alert @tone="warning" @title="The object kinds could not be loaded" data-test-objects-error>{{this.error}}</Ui::Alert>
+      {{else if this.kind}}
+        <div {{this.objectsLoader (concat this.kind.Group "/" this.kind.Kind) this.namespace}}>
+          {{#if this.kind.Description}}<p class="text-secondary">{{this.kind.Description}}</p>{{/if}}
+          {{#if this.objectsError}}
+            <Ui::Alert @tone="warning" data-test-objects-load-error>{{this.objectsError}}</Ui::Alert>
+          {{else}}
+            <Ui::Card @flush={{true}} @title={{concat this.kind.Group "/" this.kind.Kind}} data-test-object-list>
+              <:actions>
+                <Ui::Button @size="sm" @variant="ghost" @route="kinds.kind" @models={{array this.kind.Group this.kind.Kind}}>Definition</Ui::Button>
+              </:actions>
+              <:default>
+                <Ui::Table
+                  @inCard={{true}}
+                  @caption="Objects"
+                  @columns={{this.columns}}
+                  @rows={{this.rows}}
+                  @emptyMessage={{if this.objectsLoading "Loading…" "No object of this type in scope. Objects are created with the object API or CLI, or by a controller."}}
+                  as |o|
+                >
+                  <td>
+                    <LinkTo @route="objects.object" @models={{array o.Group o.Kind o.Name}} @query={{hash namespace=(or o.Namespace null)}} data-test-object-link={{o.Name}}>{{o.Name}}</LinkTo>
+                  </td>
+                  {{#if this.kind.Namespaced}}<td>{{o.Namespace}}</td>{{/if}}
+                  {{#each o.cells as |cell|}}
+                    <td data-test-object-cell>{{cell}}</td>
+                  {{/each}}
+                  <td><Ui::StatusIndicator @tone={{o.health.tone}} @label={{o.health.label}} data-test-object-health /></td>
+                  <td title="generation / observed by the controller" data-test-object-generation>{{o.generation}}</td>
+                </Ui::Table>
+              </:default>
+            </Ui::Card>
+          {{/if}}
+        </div>
+      {{else}}
+        <Ui::Card>
+          <Ui::EmptyState @icon="box" @title="No object kinds" @message="Objects need a type definition first. Packages with operators register their kinds when they are installed; operators can also add them with the object-kind API or CLI." data-test-no-kinds>
+            <Ui::Button @route="packages">Packages</Ui::Button>
+          </Ui::EmptyState>
+        </Ui::Card>
+      {{/if}}
+    </div>
+  </div>
+</div>

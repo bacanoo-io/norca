@@ -39,6 +39,12 @@ export const NAVIGATION = [
         route: 'packages',
       },
       {
+        id: 'objects',
+        label: 'Objects',
+        icon: 'box',
+        route: 'objects',
+      },
+      {
         id: 'deployments',
         label: 'Deployments',
         icon: 'git-branch',
@@ -113,6 +119,19 @@ export const NAVIGATION = [
         route: 'variables',
         shortcut: ['g', 'v'],
         ability: 'list variables',
+      },
+      {
+        id: 'admission',
+        label: 'Admission policies',
+        icon: 'shield-check',
+        route: 'admission',
+        ability: 'read admission',
+      },
+      {
+        id: 'kinds',
+        label: 'Type definitions',
+        icon: 'list-details',
+        route: 'kinds',
       },
     ],
   },
