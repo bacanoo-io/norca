@@ -1,0 +1,87 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-quota-detail {{this.live @name this.region}}>
+  <Ui::PageHeader @pretitle="Quotas" @title={{@name}} @subtitle={{this.spec.Description}}>
+    <:actions>
+      {{#if (and this.spec this.canWrite)}}
+        <Ui::Button @variant="outline-danger" @icon="trash" data-test-delete-quota {{on "click" this.askDelete}}>Delete</Ui::Button>
+        <Ui::Button @variant="primary" @icon="settings" @route="quotas.edit" @model={{@name}} data-test-edit-quota>Edit</Ui::Button>
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
+
+  <div class="page-body">
+    <div class="container-xl">
+      {{#if this.isLoading}}
+        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the quota" /></Ui::Card>
+      {{else if this.notFound}}
+        <Ui::Card>
+          <Ui::EmptyState @icon="chart-pie" @title="Quota not found" @message="It may have been deleted. Go back to the list to see the existing quotas." data-test-quota-not-found>
+            <Ui::Button @route="quotas.index">All quotas</Ui::Button>
+          </Ui::EmptyState>
+        </Ui::Card>
+      {{else if this.loadError}}
+        <Ui::Alert @tone="danger" @title="The quota could not be loaded">{{this.loadError}}</Ui::Alert>
+      {{else}}
+        <div class="row row-cards">
+          <div class="col-lg-7">
+            {{#each this.limits as |limit|}}
+              <Ui::Card @title={{concat "Region " (or limit.region "local")}} class="mb-3" data-test-quota-limit={{limit.region}}>
+                {{#if limit.unavailable}}
+                  <p class="text-secondary mb-0">The usage of this region could not be read. Check that the region is reachable.</p>
+                {{else}}
+                  <Quotas::Usage @rows={{limit.rows}} @label={{concat @name " in " limit.region}} />
+                {{/if}}
+              </Ui::Card>
+            {{else}}
+              <Ui::Card><Ui::EmptyState @icon="chart-pie" @title="No limits" @message="The quota limits no region yet. Edit it to add a limit per region." /></Ui::Card>
+            {{/each}}
+          </div>
+          <div class="col-lg-5">
+            <Ui::Card @title="Task limits" class="mb-3">
+              <Ui::Datagrid @items={{this.taskLimits}} data-test-quota-task-limits />
+            </Ui::Card>
+            <Ui::Card @title="Namespaces" data-test-quota-used-by>
+              {{#each this.usedBy as |ns|}}
+                <Ui::Badge class="me-1">{{ns.Name}}</Ui::Badge>
+              {{else}}
+                <p class="text-secondary mb-0">No namespace uses this quota. Set <code>quota = "{{@name}}"</code> in a namespace specification to apply it.</p>
+              {{/each}}
+            </Ui::Card>
+          </div>
+        </div>
+        <Ui::Card @title="Blocked evaluations" @flush={{true}} class="mt-3" data-test-quota-blocked>
+          <Ui::Table
+            @inCard={{true}}
+            @caption="Evaluations blocked by this quota"
+            @columns={{array (hash key="job" label="Job") (hash key="namespace" label="Namespace") (hash key="exhausted" label="Exhausted")}}
+            @rows={{this.blocked}}
+            @emptyMessage="This quota blocks no evaluation."
+            as |e|
+          >
+            <td><LinkTo @route="jobs.job.index" @model={{e.jobRouteId}}>{{e.JobID}}</LinkTo></td>
+            <td>{{e.Namespace}}</td>
+            <td>{{e.dimensionText}}</td>
+          </Ui::Table>
+        </Ui::Card>
+      {{/if}}
+    </div>
+  </div>
+
+  {{#if this.confirmingDelete}}
+    <Ui::Confirm
+      @title="Delete quota {{@name}}?"
+      @confirmLabel="Delete quota"
+      @confirmIcon="trash"
+      @typedValue={{@name}}
+      @onConfirm={{this.deleteQuota}}
+      @onClose={{this.cancelDelete}}
+      @isRunning={{this.isDeleting}}
+      @error={{this.deleteError}}
+    >
+      <p class="mb-0">The limits stop applying in every region. A quota that a namespace still uses cannot be deleted: change the quota of those namespaces first.</p>
+    </Ui::Confirm>
+  {{/if}}
+</div>

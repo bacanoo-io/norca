@@ -13,27 +13,7 @@ import Backups from 'nomad-ui/tests/pages/backups';
 import seedBackups from 'nomad-ui/mirage/norca/seeds/backups';
 import { backupIdentity } from 'nomad-ui/mirage/norca/backups';
 import { collection } from 'nomad-ui/mirage/norca/util';
-
-function lastRequest(method, fragment) {
-  return server.pretender.handledRequests
-    .filter((r) => r.method === method && r.url.includes(fragment))
-    .pop();
-}
-
-function useToken(rulesJSON, type = 'client') {
-  const token = server.create('token', { type });
-  if (rulesJSON) {
-    const policy = server.create('policy', {
-      id: `policy-${token.id}`,
-      name: `policy-${token.id}`,
-      rulesJSON,
-    });
-    token.policyIds = [policy.id];
-    token.save();
-  }
-  window.localStorage.nomadTokenSecret = token.secretId;
-  return token;
-}
+import { useToken, lastRequest } from 'nomad-ui/tests/helpers/norca';
 
 async function unlock() {
   await fillIn('[data-test-identity-input]', backupIdentity);

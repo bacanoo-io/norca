@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
+import { usageRows, limitFor, usedFor } from 'nomad-ui/utils/quotas';
+
 // Data of the dashboard: one summary per region, built from the list APIs
 // (status/leader, agent/members, nodes, jobs with summaries, deployments,
 // evaluations). The fetches go through the token service's raw request so
@@ -141,28 +143,45 @@ export async function fetchRegionSummary(
   { region, namespace, members }
 ) {
   const params = { region, namespace: namespace || '*' };
-  const [leader, nodes, jobs, deployments, evaluations, backups] =
-    await Promise.all([
-      getJSON(request, '/v1/status/leader', { region }).catch(() => ({
-        body: null,
-        index: 0,
-      })),
-      optional(getJSON(request, '/v1/nodes', { region }), []),
-      optional(getJSON(request, '/v1/jobs', { ...params, meta: 'true' }), []),
-      optional(getJSON(request, '/v1/deployments', params), []),
-      optional(
-        getJSON(request, '/v1/evaluations', {
-          ...params,
-          filter: 'Status == "blocked"',
-        }),
-        []
-      ),
-      // the backup schedule: any failure (no permission) leaves it out
-      getJSON(request, '/v1/operator/backups', { region }).catch(() => ({
-        body: null,
-        index: 0,
-      })),
-    ]);
+  const [
+    leader,
+    nodes,
+    jobs,
+    deployments,
+    evaluations,
+    backups,
+    quotas,
+    usages,
+  ] = await Promise.all([
+    getJSON(request, '/v1/status/leader', { region }).catch(() => ({
+      body: null,
+      index: 0,
+    })),
+    optional(getJSON(request, '/v1/nodes', { region }), []),
+    optional(getJSON(request, '/v1/jobs', { ...params, meta: 'true' }), []),
+    optional(getJSON(request, '/v1/deployments', params), []),
+    optional(
+      getJSON(request, '/v1/evaluations', {
+        ...params,
+        filter: 'Status == "blocked"',
+      }),
+      []
+    ),
+    // the backup schedule: any failure (no permission) leaves it out
+    getJSON(request, '/v1/operator/backups', { region }).catch(() => ({
+      body: null,
+      index: 0,
+    })),
+    // quotas and their usage in the region: left out without permission
+    getJSON(request, '/v1/quotas', { region }).catch(() => ({
+      body: null,
+      index: 0,
+    })),
+    getJSON(request, '/v1/quota-usages', { region }).catch(() => ({
+      body: null,
+      index: 0,
+    })),
+  ]);
 
   const servers = summarizeServers(members, region);
   const latest = latestDeployments(deployments.body || []);
@@ -190,6 +209,7 @@ export async function fetchRegionSummary(
       (e) => e.Status === 'blocked'
     ),
     backup: summarizeBackups(backups.body),
+    quotas: nearlyFullQuotas(quotas.body, usages.body, region),
     // the newest index of the fetched state, to resume the event stream after
     index: Math.max(
       nodes.index,
@@ -215,6 +235,25 @@ export function summarizeBackups(body) {
   };
 }
 
+// The quota dimensions of the region at 90 % or more of their limit.
+export function nearlyFullQuotas(specs, usages, region) {
+  const result = [];
+  for (const spec of specs || []) {
+    const limit = limitFor(spec, region);
+    if (!limit) continue;
+    const usage = (usages || []).find((u) => u.Name === spec.Name);
+    for (const row of usageRows(limit, usedFor(usage, limit))) {
+      if (row.state === 'nearly' || row.state === 'full')
+        result.push({
+          name: spec.Name,
+          dimension: row.label,
+          percent: row.percent,
+        });
+    }
+  }
+  return result;
+}
+
 export function unreachableRegion(region, error) {
   return {
     region,
@@ -228,6 +267,7 @@ export function unreachableRegion(region, error) {
     failedDeployments: [],
     blockedEvaluations: [],
     backup: null,
+    quotas: [],
     index: 0,
     error: error?.message || String(error),
   };
@@ -287,8 +327,37 @@ export function buildWarnings(summaries) {
         route: 'clients',
       });
     }
-    if (s.blockedEvaluations.length) {
-      const n = s.blockedEvaluations.length;
+    const quotaBlocked = s.blockedEvaluations.filter(
+      (e) => e.QuotaLimitReached
+    );
+    for (const name of [
+      ...new Set(quotaBlocked.map((e) => e.QuotaLimitReached)),
+    ]) {
+      const n = quotaBlocked.filter((e) => e.QuotaLimitReached === name).length;
+      warnings.push({
+        tone: 'warning',
+        title: `${n} ${
+          n === 1 ? 'evaluation is' : 'evaluations are'
+        } blocked by quota ${name} in ${where}.`,
+        text: 'They run when the quota frees up: stop other work of the namespaces or raise the limit.',
+        route: 'quotas.quota',
+        model: name,
+      });
+    }
+    for (const q of s.quotas || []) {
+      warnings.push({
+        tone: q.percent >= 100 ? 'danger' : 'warning',
+        title: `Quota ${q.name} is ${
+          q.percent >= 100 ? 'full' : 'nearly full'
+        } in ${where}: ${q.dimension} at ${q.percent}%.`,
+        text: 'New work of its namespaces will wait or be rejected. Raise the limit or free resources.',
+        route: 'quotas.quota',
+        model: q.name,
+      });
+    }
+    const otherBlocked = s.blockedEvaluations.length - quotaBlocked.length;
+    if (otherBlocked) {
+      const n = otherBlocked;
       warnings.push({
         tone: 'warning',
         title: `${n} ${

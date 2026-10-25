@@ -22,6 +22,7 @@ const ICONS = [
   'book',
   'box',
   'briefcase',
+  'chart-pie',
   'check',
   'chevron-down',
   'chevron-right',

@@ -1,0 +1,19 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The usage bars of a quota limit (utils/quotas usageRows).
+~}}
+{{#each @rows as |row|}}
+  <div class="mb-3" data-test-quota-usage={{row.id}}>
+    <div class="d-flex justify-content-between small">
+      <span>{{row.label}}</span>
+      <span class={{if (eq row.state "full") "text-danger" (if (eq row.state "nearly") "text-warning")}} data-test-quota-usage-text>{{row.text}}</span>
+    </div>
+    {{#if row.segments.length}}
+      <Ui::StackedBar @label={{concat @label " " row.label}} @segments={{row.segments}} class="mt-1" />
+    {{/if}}
+  </div>
+{{else}}
+  <p class="text-secondary mb-0">This limit sets no CPU, memory, allocation or Variables bound.</p>
+{{/each}}

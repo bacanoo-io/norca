@@ -1,0 +1,99 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-quota-form {{this.setup}}>
+  <Ui::PageHeader @pretitle="Quotas" @title={{if this.isNew "New quota" (concat "Edit " @name)}} />
+  <div class="page-body">
+    <div class="container-xl">
+      {{#if this.isLoading}}
+        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the quota" /></Ui::Card>
+      {{else}}
+        <form {{on "submit" this.save}} novalidate>
+          <Ui::Card @title="Quota" class="mb-3">
+            <div class="row">
+              <div class="col-md-4">
+                <Ui::Field @label="Name" @required={{true}} @error={{this.nameError}} @help={{if this.isNew "Letters, digits, dashes and underscores."}} as |f|>
+                  <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @invalid={{f.invalid}} @value={{this.name}} @onInput={{fn this.set "name"}} @readonly={{not this.isNew}} @monospace={{true}} data-test-quota-name />
+                </Ui::Field>
+              </div>
+              <div class="col-md-8">
+                <Ui::Field @label="Description" as |f|>
+                  <Ui::Input @id={{f.id}} @value={{this.description}} @onInput={{fn this.set "description"}} data-test-quota-description />
+                </Ui::Field>
+              </div>
+            </div>
+            <Ui::Field @label="Enforce" @help="At submission, a job that does not fit is rejected; when scheduling, its evaluation waits until the quota frees up." as |f|>
+              <Ui::Select @id={{f.id}} @describedBy={{f.describedBy}} @options={{this.enforceOptions}} @value={{this.enforce}} @onChange={{fn this.set "enforce"}} data-test-quota-enforce />
+            </Ui::Field>
+          </Ui::Card>
+
+          <Ui::Card @title="Limits per region" @subtitle="Empty means unlimited, -1 disallows the resource." class="mb-3">
+            <:actions>
+              <Ui::Button @size="sm" @icon="plus" data-test-add-limit {{on "click" this.addLimit}}>Add a region</Ui::Button>
+            </:actions>
+            <:default>
+              {{#if this.limitErrors}}
+                <Ui::Alert @tone="danger">{{this.limitErrors}}</Ui::Alert>
+              {{/if}}
+              {{#each this.limits as |limit index|}}
+                <fieldset class="mb-3" data-test-limit={{index}}>
+                  <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                      <Ui::Field @label="Region" class="mb-0" as |f|>
+                        <Ui::Select @id={{f.id}} @options={{this.regionOptions}} @value={{limit.region}} @onChange={{fn this.setLimit limit "region"}} data-test-limit-region />
+                      </Ui::Field>
+                    </div>
+                    {{#each this.dimensions as |d|}}
+                      <div class="col-md-2">
+                        <Ui::Field @label={{if d.unit (concat d.label " (" d.unit ")") d.label}} class="mb-0" as |f|>
+                          <Ui::Input @id={{f.id}} @type="number" @value={{get limit d.id}} @onInput={{fn this.setLimit limit d.id}} @placeholder="unlimited" data-test-limit-input={{d.id}} />
+                        </Ui::Field>
+                      </div>
+                    {{/each}}
+                  </div>
+                  {{#if (gt this.limits.length 1)}}
+                    <Ui::Button @size="sm" @variant="ghost" @icon="trash" class="mt-1" {{on "click" (fn this.removeLimit limit)}}>Remove {{limit.region}}</Ui::Button>
+                  {{/if}}
+                </fieldset>
+              {{/each}}
+            </:default>
+          </Ui::Card>
+
+          <Ui::Card @title="Task limits" @subtitle="Defaults apply to tasks that set no resources; the maximum caps every task." class="mb-3">
+            <div class="row">
+              <div class="col-md-3">
+                <Ui::Field @label="Default CPU (MHz)" as |f|>
+                  <Ui::Input @id={{f.id}} @type="number" @value={{this.taskDefaultCPU}} @onInput={{fn this.set "taskDefaultCPU"}} />
+                </Ui::Field>
+              </div>
+              <div class="col-md-3">
+                <Ui::Field @label="Default memory (MB)" as |f|>
+                  <Ui::Input @id={{f.id}} @type="number" @value={{this.taskDefaultMemory}} @onInput={{fn this.set "taskDefaultMemory"}} />
+                </Ui::Field>
+              </div>
+              <div class="col-md-3">
+                <Ui::Field @label="Maximum CPU (MHz)" as |f|>
+                  <Ui::Input @id={{f.id}} @type="number" @value={{this.taskMaxCPU}} @onInput={{fn this.set "taskMaxCPU"}} data-test-task-max-cpu />
+                </Ui::Field>
+              </div>
+              <div class="col-md-3">
+                <Ui::Field @label="Maximum memory (MB)" as |f|>
+                  <Ui::Input @id={{f.id}} @type="number" @value={{this.taskMaxMemory}} @onInput={{fn this.set "taskMaxMemory"}} />
+                </Ui::Field>
+              </div>
+            </div>
+          </Ui::Card>
+
+          {{#if this.error}}
+            <Ui::Alert @tone="danger" @title="The quota was not saved" data-test-quota-save-error>{{this.error}}</Ui::Alert>
+          {{/if}}
+          <div class="d-flex justify-content-end gap-2">
+            <Ui::Button @route={{if this.isNew "quotas.index" "quotas.quota"}} @models={{if this.isNew (array) (array @name)}}>Cancel</Ui::Button>
+            <Ui::Button @variant="primary" @type="submit" @isLoading={{this.isSaving}} data-test-quota-save>{{if this.isNew "Create quota" "Save quota"}}</Ui::Button>
+          </div>
+        </form>
+      {{/if}}
+    </div>
+  </div>
+</div>

@@ -134,6 +134,12 @@ Router.map(function () {
     this.route('restore', { path: '/:backup_id/restore' });
   });
 
+  this.route('quotas', function () {
+    this.route('new');
+    this.route('quota', { path: '/:name' });
+    this.route('edit', { path: '/:name/edit' });
+  });
+
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {
     this.route('oidc-mock');

@@ -58,6 +58,14 @@ export const NAVIGATION = [
         route: 'csi',
         shortcut: ['g', 'r'],
       },
+      {
+        id: 'quotas',
+        label: 'Quotas',
+        icon: 'chart-pie',
+        route: 'quotas',
+        shortcut: ['g', 'q'],
+        ability: 'read quota-spec',
+      },
     ],
   },
   {
