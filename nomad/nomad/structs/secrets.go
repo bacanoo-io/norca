@@ -447,6 +447,11 @@ type SecretAccessEvent struct {
 	// Versions are the versions a delete, undelete or destroy targeted.
 	Versions []uint64 `json:",omitempty"`
 
+	// BackupID and BackupVersion name the backup and the version of the
+	// secret in it whose value a restore wrote as the new Version.
+	BackupID      string `json:",omitempty"`
+	BackupVersion uint64 `json:",omitempty"`
+
 	Operation string
 	Result    string
 

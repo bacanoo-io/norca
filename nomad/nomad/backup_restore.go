@@ -147,8 +147,11 @@ func validateBackupRestoreItem(item *structs.BackupRestoreItem) error {
 	default:
 		return fmt.Errorf("invalid restore item type %q", item.Type)
 	}
-	if item.Version != nil && item.Type != structs.BackupRestoreItemJob {
-		return fmt.Errorf("a version can only be restored for jobs")
+	if item.Version != nil && item.Type != structs.BackupRestoreItemJob && item.Type != structs.BackupRestoreItemSecret {
+		return fmt.Errorf("a version can only be restored for jobs and secrets")
+	}
+	if item.WithMetadata && item.Type != structs.BackupRestoreItemSecret {
+		return fmt.Errorf("the metadata option is only used for secrets")
 	}
 	if item.CheckIndex != nil && item.Type != structs.BackupRestoreItemVariable && item.Type != structs.BackupRestoreItemSecret {
 		return fmt.Errorf("a check index can only be given for Variables and secrets")

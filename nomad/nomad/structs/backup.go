@@ -533,14 +533,24 @@ type BackupRestoreItem struct {
 	// ACL role name.
 	ID string
 
-	// Version of the job in the backup; nil restores the version that was
-	// current at the time of the backup.
+	// Version of the job or the secret in the backup; nil restores the
+	// version that was current at the time of the backup.
 	Version *uint64
 
 	// CheckIndex is the check-and-set index of a Variables entry: 0 (the
 	// default) restores the entry only if it does not exist, otherwise it
-	// must be the current modify index of the entry.
+	// must be the current modify index of the entry. For a secret it is an
+	// optional guard: nil writes the restored value as a new version in any
+	// case, 0 only if the secret does not exist, otherwise it must be the
+	// current modify index of the secret.
 	CheckIndex *uint64
+
+	// WithMetadata restores the metadata of a secret (labels, owner,
+	// description, expiry, rotation and max versions) from the backup too;
+	// by default only the value is restored and the current metadata is
+	// kept. A secret that does not exist gets the backup's metadata either
+	// way.
+	WithMetadata bool
 }
 
 func (i *BackupRestoreItem) String() string {
@@ -553,6 +563,9 @@ func (i *BackupRestoreItem) String() string {
 	case BackupRestoreItemVariable:
 		return fmt.Sprintf("variable %s/%s", i.Namespace, i.ID)
 	case BackupRestoreItemSecret:
+		if i.Version != nil {
+			return fmt.Sprintf("secret %s/%s version %d", i.Namespace, i.ID, *i.Version)
+		}
 		return fmt.Sprintf("secret %s/%s", i.Namespace, i.ID)
 	default:
 		return fmt.Sprintf("%s %s", i.Type, i.ID)
@@ -699,6 +712,12 @@ type BackupRestoreItemResult struct {
 	// Index is the Raft index of the write; 0 for a dry run or an error.
 	Index uint64
 	Error string
+
+	// BackupVersion is the version of a secret in the backup whose value
+	// was restored, and NewVersion the version the restore wrote (for a
+	// dry run, the version it would write).
+	BackupVersion uint64
+	NewVersion    uint64
 }
 
 // BackupRestore is the record of a restore, and the audit trail of who

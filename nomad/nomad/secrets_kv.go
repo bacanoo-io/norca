@@ -309,30 +309,58 @@ func (s *Server) lockedSecretCore() (*core.Core, func(), error) {
 // secretUpsert writes a new version of a secret and/or its metadata on the
 // leader's core.
 func (s *Server) secretUpsert(args *structs.SecretUpsertRequest) (*structs.Secret, uint64, error) {
+	return s.secretWrite(&secretWrite{
+		namespace:  args.RequestNamespace(),
+		path:       args.Path,
+		items:      args.Items,
+		meta:       args.Meta,
+		checkIndex: args.CheckIndex,
+	})
+}
+
+// secretWrite is a write of a new version of a secret and/or its metadata.
+type secretWrite struct {
+	namespace, path string
+	items           structs.SecretItems
+
+	// meta replaces the metadata; nil keeps the current metadata, or uses
+	// metaIfNew if the secret does not exist.
+	meta      *structs.SecretMeta
+	metaIfNew *structs.SecretMeta
+
+	checkIndex *uint64
+}
+
+// secretWrite writes a new version of a secret and/or its metadata on the
+// leader's core. Every write of a value goes through it: the secret API and
+// the selective restore of a secret from a backup.
+func (s *Server) secretWrite(args *secretWrite) (*structs.Secret, uint64, error) {
 	c, unlock, err := s.lockedSecretCore()
 	if err != nil {
 		return nil, 0, err
 	}
 	defer unlock()
 
-	ns, path := args.RequestNamespace(), args.Path
+	ns, path := args.namespace, args.path
 	existing, err := s.fsm.State().SecretByPath(nil, ns, path)
 	if err != nil {
 		return nil, 0, err
 	}
-	if err := checkSecretIndex(existing, args.CheckIndex); err != nil {
+	if err := checkSecretIndex(existing, args.checkIndex); err != nil {
 		return nil, 0, err
 	}
-	if len(args.Items) == 0 && existing == nil {
+	if len(args.items) == 0 && existing == nil {
 		return nil, 0, structs.ErrSecretNotFound
 	}
 
 	var meta structs.SecretMeta
 	switch {
-	case args.Meta != nil:
-		meta = *args.Meta.Copy()
+	case args.meta != nil:
+		meta = *args.meta.Copy()
 	case existing != nil:
 		meta = *existing.SecretMeta.Copy()
+	case args.metaIfNew != nil:
+		meta = *args.metaIfNew.Copy()
 	}
 	meta.Canonicalize()
 
@@ -349,9 +377,9 @@ func (s *Server) secretUpsert(args *structs.SecretUpsertRequest) (*structs.Secre
 		return nil, 0, err
 	}
 	var written *kv.VersionMeta
-	if len(args.Items) > 0 {
-		data := make(map[string]any, len(args.Items))
-		for k, v := range args.Items {
+	if len(args.items) > 0 {
+		data := make(map[string]any, len(args.items))
+		for k, v := range args.items {
 			data[k] = v
 		}
 		if written, err = eng.Write(ctx, key, data); err != nil {
@@ -366,9 +394,9 @@ func (s *Server) secretUpsert(args *structs.SecretUpsertRequest) (*structs.Secre
 	row := secretRow(existing, ns, path, meta, kvMeta, time.Now())
 	if written != nil {
 		if sv := row.Version(uint64(written.Version)); sv != nil {
-			sv.ValueHash = secretValueHash(hashKey, ns, path, args.Items)
+			sv.ValueHash = secretValueHash(hashKey, ns, path, args.items)
 		}
-		row.ItemKeys = args.Items.Keys()
+		row.ItemKeys = args.items.Keys()
 		secretRowCurrent(row)
 	}
 

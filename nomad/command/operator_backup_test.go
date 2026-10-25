@@ -288,3 +288,98 @@ func TestOperatorBackup_EndToEnd(t *testing.T) {
 	must.Zero(t, code, must.Sprint(errOut))
 	must.StrContains(t, out, "pinned=true")
 }
+
+// TestOperatorBackup_RestoreSecret restores a secret from a backup as a new
+// version with the CLI.
+func TestOperatorBackup_RestoreSecret(t *testing.T) {
+	ci.Parallel(t)
+	const value = "canary-cli-7d1e-value"
+
+	s3 := s3fake.New()
+	defer s3.Close()
+	identity, err := age.GenerateX25519Identity()
+	must.NoError(t, err)
+	tmpDir := t.TempDir()
+	identityFile := filepath.Join(tmpDir, "key.txt")
+	must.NoError(t, os.WriteFile(identityFile, []byte(identity.String()+"\n"), 0o600))
+
+	srv, client, url := testServer(t, false, func(c *agent.Config) {
+		c.DevMode = false
+		c.DataDir = filepath.Join(tmpDir, "server")
+		c.AdvertiseAddrs.HTTP = "127.0.0.1"
+		c.AdvertiseAddrs.RPC = "127.0.0.1"
+		c.AdvertiseAddrs.Serf = "127.0.0.1"
+		c.Server.Backup = &agent.BackupConfig{
+			Destinations: []*agent.BackupDestinationConfig{{
+				Name: "primary", Type: "s3", Endpoint: s3.Endpoint(), Bucket: "backups", Region: "us-east-1",
+				ForcePathStyle: pointer.Of(true), AccessKey: "test", SecretKey: "testsecret",
+			}},
+			Encryption: &agent.BackupEncryptionConfig{Recipients: []string{identity.Recipient().String()}},
+		}
+	})
+	defer srv.Shutdown()
+	testutil.WaitForLeader(t, srv.Agent.RPC)
+
+	must.Wait(t, wait.InitialSuccess(
+		wait.ErrorFunc(func() error {
+			_, _, err := client.Secrets().Write("app/db", &api.SecretWrite{Items: map[string]string{"k": value}}, nil)
+			return err
+		}),
+		wait.Timeout(10*time.Second),
+		wait.Gap(200*time.Millisecond),
+	))
+	var saved *api.BackupSaveResponse
+	must.Wait(t, wait.InitialSuccess(
+		wait.ErrorFunc(func() error {
+			saved, _, err = client.Backups().Save(nil, nil)
+			return err
+		}),
+		wait.Timeout(10*time.Second),
+		wait.Gap(200*time.Millisecond),
+	))
+	_, _, err = client.Secrets().Write("app/db", &api.SecretWrite{Items: map[string]string{"k": "two"}}, nil)
+	must.NoError(t, err)
+
+	run := func(args ...string) (int, string, string) {
+		ui := cli.NewMockUi()
+		cmd := &OperatorBackupRestoreCommand{Meta: Meta{Ui: ui}}
+		code := cmd.Run(append([]string{"-address=" + url, "-age-identity", identityFile}, args...))
+		return code, ui.OutputWriter.String(), ui.ErrorWriter.String()
+	}
+
+	code, out, errOut := run("-secret", "app/db", saved.ID)
+	must.Zero(t, code, must.Sprint(errOut))
+	must.StrContains(t, out, "restored as version 3")
+	must.StrNotContains(t, out, value)
+	read, _, err := client.Secrets().Read("app/db", 0, nil)
+	must.NoError(t, err)
+	must.Eq(t, 3, read.Version)
+	must.Eq(t, value, read.Items["k"])
+
+	code, out, errOut = run("-dry-run", "-secret", "app/db", "-version", "1", "-with-metadata", saved.ID)
+	must.Zero(t, code, must.Sprint(errOut))
+	must.StrContains(t, out, "secret default/app/db version 1")
+	must.StrContains(t, out, "would update as version 4")
+
+	code, out, errOut = run("-json", "-secret", "app/db@0", saved.ID)
+	must.One(t, code)
+	must.StrContains(t, out, "check index mismatch")
+
+	code, out, _ = run("-secret", "app/db", "-version", "9", saved.ID)
+	must.One(t, code)
+	must.StrContains(t, out, "not in the backup")
+
+	code, out, errOut = run("-json", "-secret", "app/db", saved.ID)
+	must.Zero(t, code, must.Sprint(errOut))
+	must.StrContains(t, out, `"NewVersion": 4`)
+	must.StrContains(t, out, `"BackupVersion": 1`)
+	must.StrNotContains(t, out, value)
+
+	// Flag validation.
+	code, _, errOut = run("-secret", "a", "-secret", "b", "-version", "1", saved.ID)
+	must.One(t, code)
+	must.StrContains(t, errOut, "single -secret")
+	code, _, errOut = run("-job", "web", "-with-metadata", saved.ID)
+	must.One(t, code)
+	must.StrContains(t, errOut, "only used with -secret")
+}
