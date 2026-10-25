@@ -60,6 +60,10 @@ const (
 	BackupContentACLRoles    = "acl-roles"
 	BackupContentDeployments = "deployments"
 	BackupContentAllocations = "allocations"
+
+	// BackupContentSecrets are the secrets of the built-in secret store:
+	// paths, metadata and value hashes, never values.
+	BackupContentSecrets = "secrets"
 )
 
 // BackupContentTypes are the content types in display order.
@@ -68,6 +72,7 @@ var BackupContentTypes = []string{
 	BackupContentJobs,
 	BackupContentJobVersions,
 	BackupContentVariables,
+	BackupContentSecrets,
 	BackupContentACLPolicies,
 	BackupContentACLRoles,
 	BackupContentDeployments,
@@ -94,6 +99,7 @@ const (
 	BackupRestoreItemNamespace = "namespace"
 	BackupRestoreItemACLPolicy = "acl-policy"
 	BackupRestoreItemACLRole   = "acl-role"
+	BackupRestoreItemSecret    = "secret"
 )
 
 // BackupRecord describes a backup of the Raft state (and the keyring) of a
@@ -411,6 +417,7 @@ type BackupContents struct {
 	Jobs        []*BackupJobStub
 	JobVersions []*Job
 	Variables   []*BackupVariableStub
+	Secrets     []*SecretStub
 	ACLPolicies []*ACLPolicyListStub
 	ACLRoles    []*ACLRoleListStub
 	Deployments []*Deployment
@@ -537,6 +544,8 @@ func (i *BackupRestoreItem) String() string {
 		return fmt.Sprintf("job %s/%s", i.Namespace, i.ID)
 	case BackupRestoreItemVariable:
 		return fmt.Sprintf("variable %s/%s", i.Namespace, i.ID)
+	case BackupRestoreItemSecret:
+		return fmt.Sprintf("secret %s/%s", i.Namespace, i.ID)
 	default:
 		return fmt.Sprintf("%s %s", i.Type, i.ID)
 	}
