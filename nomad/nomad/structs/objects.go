@@ -149,6 +149,20 @@ type ObjectKind struct {
 	// is reserved; replication is not implemented and true is rejected.
 	Replicated bool
 
+	// Version is the schema version (1 by default). It never decreases;
+	// raising it converts the stored objects with Migration (see
+	// objects_ecosystem.go).
+	Version uint64
+
+	// Migration converts objects stored at an older schema version.
+	Migration *ObjectKindMigration
+
+	// Webhooks are the admission webhooks bound to the kind.
+	Webhooks []*ObjectKindWebhook
+
+	// Limits is the load management of the objects of the kind.
+	Limits *ObjectKindLimits
+
 	// Raft indexes.
 	CreateIndex uint64
 	ModifyIndex uint64
@@ -250,6 +264,9 @@ func (k *ObjectKind) Validate() error {
 	if k.Replicated {
 		mErr = multierror.Append(mErr, fmt.Errorf("replicated object kinds are not supported yet"))
 	}
+	if err := k.validateEcosystem(); err != nil {
+		mErr = multierror.Append(mErr, err)
+	}
 	return mErr.ErrorOrNil()
 }
 
@@ -301,6 +318,7 @@ func (k *ObjectKind) Copy() *ObjectKind {
 		sc := *k.Scale
 		nk.Scale = &sc
 	}
+	k.copyEcosystem(nk)
 	return nk
 }
 
@@ -341,6 +359,11 @@ type CustomObject struct {
 
 	// Generation increases on every change of the spec.
 	Generation uint64
+
+	// KindVersion is the schema version of the kind the object was last
+	// written or migrated at (0 for objects stored before schema versions:
+	// version 1).
+	KindVersion uint64
 
 	// Spec is the desired state, written by users. Status is the observed
 	// state, written by controllers on the status endpoint.
@@ -560,12 +583,25 @@ type ObjectKindUpsertRequest struct {
 	// DryRun validates and compiles the kind without writing it.
 	DryRun bool
 
+	// CAS, if set, is the expected modify index of the stored kind (0: the
+	// kind must not exist). A mismatch fails with 409 Conflict.
+	CAS *uint64
+
 	WriteRequest
 }
 
 // ObjectKindUpsertResponse is the response to an object kind upsert.
 type ObjectKindUpsertResponse struct {
 	ObjectKind *ObjectKind
+
+	// Migration reports the effect of the write on the stored objects of
+	// the kind, when they were checked (schema, rules or version changed).
+	Migration *ObjectKindMigrationReport
+
+	// Warnings are problems that don't reject the write, such as stored
+	// objects that violate a new CEL rule or webhooks pending approval.
+	Warnings []string
+
 	WriteMeta
 }
 
@@ -647,6 +683,10 @@ type CustomObjectWriteResponse struct {
 	// Unchanged reports that the write did not change the object, so
 	// nothing was written.
 	Unchanged bool
+
+	// Warnings are problems that didn't reject the write, such as type-bound
+	// webhooks that failed with the failure policy "ignore".
+	Warnings []string
 
 	WriteMeta
 }

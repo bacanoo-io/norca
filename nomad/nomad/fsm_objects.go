@@ -30,8 +30,11 @@ func (n *nomadFSM) applyObjectKindUpsert(msgType structs.MessageType, buf []byte
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
-	if err := n.state.UpsertObjectKind(msgType, index, req.ObjectKind); err != nil {
-		n.logger.Error("UpsertObjectKind failed", "error", err)
+	// A check-and-set conflict is an expected outcome, not an FSM failure.
+	if err := n.state.UpsertObjectKindCAS(msgType, index, req.ObjectKind, req.CAS); err != nil {
+		if !structs.IsObjectConflictError(err) {
+			n.logger.Error("UpsertObjectKind failed", "error", err)
+		}
 		return err
 	}
 	return nil

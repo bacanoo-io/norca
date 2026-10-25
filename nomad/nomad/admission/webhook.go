@@ -75,6 +75,17 @@ type ReviewRequest struct {
 	// sets include_variable_items.
 	Variable    *ReviewVariable `json:"variable,omitempty"`
 	OldVariable *ReviewVariable `json:"old_variable,omitempty"`
+
+	// ObjectKind is the "group/Kind" reference of the custom object under
+	// review, Object the object as it would be stored ({"kind",
+	// "metadata", "spec", "status"}, like CEL rules see it) and OldObject
+	// the stored object, if any. They are only set for custom objects
+	// (resource "object"), which only the webhooks bound to the kind see.
+	// A defaulting webhook's patch applies to Object; only changes of its
+	// spec are kept.
+	ObjectKind string         `json:"object_kind,omitempty"`
+	Object     map[string]any `json:"object,omitempty"`
+	OldObject  map[string]any `json:"old_object,omitempty"`
 }
 
 // ReviewVariable is the wire form of a Variable under review.
@@ -158,20 +169,56 @@ type Webhook struct {
 // NewWebhook builds a webhook client from its configuration. The
 // configuration must be canonicalized and validated.
 func NewWebhook(cfg *config.AdmissionWebhookConfig) (*Webhook, error) {
+	var caPEM []byte
+	if cfg.CAFile != "" {
+		pem, err := os.ReadFile(cfg.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("admission webhook %q: failed to read ca_file: %w", cfg.Name, err)
+		}
+		caPEM = pem
+	}
+	return newWebhook(cfg, caPEM)
+}
+
+// NewObjectWebhook builds the client of a webhook bound to an object kind.
+// Its CA bundle comes from the kind (the package that ships the webhook),
+// not from a file of the server; it never sends a client certificate.
+func NewObjectWebhook(kindRef string, w *structs.ObjectKindWebhook) (*Webhook, error) {
+	mode := config.AdmissionWebhookModeValidate
+	if w.Mode == structs.ObjectWebhookModeDefault {
+		mode = config.AdmissionWebhookModeMutate
+	}
+	failurePolicy := config.AdmissionFailurePolicyFail
+	if w.IgnoreFailure() {
+		failurePolicy = config.AdmissionFailurePolicyIgnore
+	}
+	cfg := &config.AdmissionWebhookConfig{
+		Name:          kindRef + "/" + w.Name,
+		URL:           w.URL,
+		Mode:          mode,
+		Timeout:       w.Timeout,
+		FailurePolicy: failurePolicy,
+		TLSServerName: w.TLSServerName,
+	}
+	var caPEM []byte
+	if w.CACert != "" {
+		caPEM = []byte(w.CACert)
+	}
+	return newWebhook(cfg, caPEM)
+}
+
+func newWebhook(cfg *config.AdmissionWebhookConfig, caPEM []byte) (*Webhook, error) {
 	transport := cleanhttp.DefaultPooledTransport()
 
 	tlsConf := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		ServerName: cfg.TLSServerName,
 	}
-	if cfg.CAFile != "" {
-		pem, err := os.ReadFile(cfg.CAFile)
-		if err != nil {
-			return nil, fmt.Errorf("admission webhook %q: failed to read ca_file: %w", cfg.Name, err)
-		}
+	if caPEM != nil {
+		pem := caPEM
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(pem) {
-			return nil, fmt.Errorf("admission webhook %q: no certificates found in ca_file", cfg.Name)
+			return nil, fmt.Errorf("admission webhook %q: no certificates found in the CA bundle", cfg.Name)
 		}
 		tlsConf.RootCAs = pool
 	}
