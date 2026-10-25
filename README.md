@@ -85,7 +85,8 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Service discovery without Consul: native mTLS, managed Consul install | Planned | [plan](docs/design/consul-independence-plan.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |
 | Package management, client-side supply chain: OCI registries, cosign-compatible signing and trust policies, offline bundles (air-gapped), `pack.lock` | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/supply-chain.md) |
-| Package management: server-side releases, rollback, signature enforcement in admission | Planned | [plan](docs/design/package-management-plan.md) |
+| Package management: server-side releases (`packs.norca.io/Release` objects with revision history, atomic install/upgrade, hooks and tests, rollback, drift detection, uninstall), signature enforcement in admission (`trusted_keys`) | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
+| Package management: variable schemas, multi-region install | Planned | [plan](docs/design/package-management-plan.md) |
 | New web UI | Planned | [plan](docs/design/ui-plan.md) |
 
 Only features marked "Available" can be used; the others are being built or are in the design phase.
