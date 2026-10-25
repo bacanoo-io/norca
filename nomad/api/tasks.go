@@ -462,6 +462,8 @@ type TaskGroup struct {
 	MaxClientDisconnect       *time.Duration            `mapstructure:"max_client_disconnect" hcl:"max_client_disconnect,optional"`
 	Scaling                   *ScalingPolicy            `hcl:"scaling,block"`
 	Consul                    *Consul                   `hcl:"consul,block"`
+	Secrets                   *SecretsConfig            `hcl:"secrets,block" json:",omitempty"`
+	SecretAccess              []*SecretAccess           `mapstructure:"secret_access" hcl:"secret_access,block" json:",omitempty"`
 }
 
 // NewTaskGroup creates a new TaskGroup.
@@ -733,6 +735,8 @@ type Task struct {
 	Kind            string                 `hcl:"kind,optional"`
 	ScalingPolicies []*ScalingPolicy       `hcl:"scaling,block"`
 	Identity        *WorkloadIdentity      `hcl:"identity,block"`
+	Secrets         []*TaskSecret          `hcl:"secret,block" json:",omitempty"`
+	SecretAccess    []*SecretAccess        `mapstructure:"secret_access" hcl:"secret_access,block" json:",omitempty"`
 }
 
 func (t *Task) Canonicalize(tg *TaskGroup, job *Job) {

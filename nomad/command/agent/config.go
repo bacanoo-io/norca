@@ -368,6 +368,10 @@ type ClientConfig struct {
 	// ConsulCompat configures the Consul-compatible read API (Norca).
 	ConsulCompat *config.ConsulCompatConfig `hcl:"consul_compat"`
 
+	// Secrets configures the secret delivery of the client: the routes of
+	// secret paths to providers (Norca).
+	Secrets *ClientSecretsConfig `hcl:"secrets"`
+
 	// Artifact contains the configuration for artifacts.
 	Artifact *config.ArtifactConfig `hcl:"artifact"`
 
@@ -399,6 +403,7 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.Topology = c.Topology.Copy()
 	nc.DNS = c.DNS.Copy()
 	nc.ConsulCompat = c.ConsulCompat.Copy()
+	nc.Secrets = c.Secrets.Copy()
 	nc.Artifact = c.Artifact.Copy()
 	nc.Drain = c.Drain.Copy()
 	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
@@ -2304,6 +2309,7 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	result.Topology = a.Topology.Merge(b.Topology)
 	result.DNS = a.DNS.Merge(b.DNS)
 	result.ConsulCompat = a.ConsulCompat.Merge(b.ConsulCompat)
+	result.Secrets = a.Secrets.Merge(b.Secrets)
 
 	result.Artifact = a.Artifact.Merge(b.Artifact)
 	result.Drain = a.Drain.Merge(b.Drain)

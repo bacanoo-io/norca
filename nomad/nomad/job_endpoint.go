@@ -77,6 +77,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobExposeCheckHook{},
 			jobImpliedConstraints{},
 			jobNodePoolMutatingHook{srv: s},
+			jobSecretsHook{srv: s},
 			admissionWebhookMutator{srv: s},
 			jobQuotaMutatingHook{srv: s},
 		},
@@ -92,6 +93,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobQuotaValidatingHook{srv: s},
 			jobScalingHook{srv: s},
 			jobNetworkPolicyHook{srv: s},
+			jobSecretsHook{srv: s},
 			&jobValidate{srv: s},
 			&memoryOversubscriptionValidate{srv: s},
 		},
@@ -207,6 +209,11 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		// Colocate and separate rules observe the jobs of their target namespaces
 		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
 			return structs.ErrPermissionDenied
+		}
+
+		// secret_access bindings grant no more than the submitter holds (Norca)
+		if err := checkSecretAccessGrants(aclObj, args.Job); err != nil {
+			return err
 		}
 	}
 
@@ -1786,6 +1793,9 @@ func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		}
 		if !allowAllocAffinityNamespaces(aclObj, args.Job) {
 			return structs.ErrPermissionDenied
+		}
+		if err := checkSecretAccessGrants(aclObj, args.Job); err != nil {
+			return err
 		}
 	}
 

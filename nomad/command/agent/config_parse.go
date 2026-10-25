@@ -244,6 +244,15 @@ func extraKeys(c *Config) error {
 		helper.RemoveEqualFold(&c.Client.ExtraKeysHCL, "host_network")
 	}
 
+	// Remove the key of the repeated route blocks of the client's secrets
+	// block (Norca)
+	if c.Client.Secrets != nil {
+		for _, r := range c.Client.Secrets.Routes {
+			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, r.Prefix)
+			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, "route")
+		}
+	}
+
 	// Remove AuditConfig extra keys
 	for _, f := range c.Audit.Filters {
 		helper.RemoveEqualFold(&c.Audit.ExtraKeysHCL, f.Name)
