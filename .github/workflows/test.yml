@@ -1,0 +1,134 @@
+# SPDX-FileCopyrightText: 2026 Norca contributors
+# SPDX-License-Identifier: MPL-2.0
+#
+# Builds every Go module for Linux and Windows, runs go vet, and runs the unit
+# tests that need neither root nor Docker, Consul or Vault. Tests that start
+# an agent use a norca binary built in the job and put on the PATH. The
+# integration suites (drivers, client, command, nomad, e2e) still run only
+# locally; see CONTRIBUTING.md.
+#
+# Actions are pinned by commit (as in compliance.yml and release.yml):
+#   actions/checkout v7.0.1, actions/setup-go v7.0.0.
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # The nomad module and the separate modules inside it.
+  MODULES: nomad nomad/api nomad/controller nomad/natsbridge nomad/tools
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, windows]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: nomad/go.mod
+          cache-dependency-path: |
+            nomad/go.sum
+            nomad/api/go.sum
+            nomad/controller/go.sum
+            nomad/natsbridge/go.sum
+            nomad/tools/go.sum
+      - name: go build ./...
+        env:
+          GOOS: ${{ matrix.goos }}
+        run: |
+          for m in $MODULES; do
+            echo "::group::$m"
+            go -C "$m" build ./...
+            echo "::endgroup::"
+          done
+
+  vet:
+    name: go vet
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: nomad/go.mod
+          cache-dependency-path: |
+            nomad/go.sum
+            nomad/api/go.sum
+            nomad/controller/go.sum
+            nomad/natsbridge/go.sum
+            nomad/tools/go.sum
+      - name: go vet ./...
+        # Every package of every module was vet-clean when this job was added;
+        # keep it that way rather than narrowing the package list.
+        run: |
+          for m in $MODULES; do
+            echo "::group::$m"
+            go -C "$m" vet ./...
+            echo "::endgroup::"
+          done
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NOMAD_TEST_LOG_LEVEL: "OFF"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: nomad/go.mod
+          cache-dependency-path: |
+            nomad/go.sum
+            nomad/api/go.sum
+            nomad/controller/go.sum
+            nomad/natsbridge/go.sum
+            nomad/tools/go.sum
+      - name: Build norca for the tests that start an agent
+        # The api, controller and natsbridge tests start a dev agent from the
+        # norca binary on the PATH (they skip those tests without one).
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          go -C nomad build -o "$RUNNER_TEMP/bin/norca" .
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: nomad module
+        working-directory: nomad
+        run: |
+          go test -count=1 -p 4 \
+            ./acl/... \
+            ./client/allocrunner/netpolicy \
+            ./client/mtlsproxy \
+            ./helper/... \
+            ./jobspec/... \
+            ./jobspec2/... \
+            ./lib/... \
+            ./nomad/state/... \
+            ./nomad/structs/... \
+            ./scheduler/... \
+            ./version/...
+      - name: api, controller, natsbridge and tools modules
+        run: |
+          for m in nomad/api nomad/controller nomad/natsbridge nomad/tools; do
+            echo "::group::$m"
+            go -C "$m" test -count=1 -p 4 ./...
+            echo "::endgroup::"
+          done
