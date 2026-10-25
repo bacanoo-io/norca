@@ -173,6 +173,20 @@ func (tr *TaskRunner) initHooks() {
 			events:  tr,
 			logger:  hookLogger,
 		}))
+
+		// The Envoy task of a sidecar or gateway mode mtls service gets
+		// its configuration from the client.
+		if task.Kind.IsMTLSProxy() || task.Kind.IsMTLSGateway() {
+			tr.runnerHooks = append(tr.runnerHooks, newMTLSEnvoyHook(&mtlsEnvoyHookConfig{
+				alloc:        alloc,
+				task:         task,
+				rpc:          tr.rpcClient,
+				region:       tr.clientConfig.Region,
+				nodeSecret:   func() string { return tr.clientConfig.Node.SecretID },
+				catalogToken: tr.mtlsCatalogToken,
+				logger:       hookLogger,
+			}))
+		}
 	}
 
 	// Always add the script checks hook. A task with no script check hook on

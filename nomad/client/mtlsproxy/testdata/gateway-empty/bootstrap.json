@@ -1,0 +1,20 @@
+{
+  "dynamic_resources": {
+    "cds_config": {
+      "path_config_source": {
+        "path": "/secrets/envoy/cds.json"
+      },
+      "resource_api_version": "V3"
+    },
+    "lds_config": {
+      "path_config_source": {
+        "path": "/secrets/envoy/lds.json"
+      },
+      "resource_api_version": "V3"
+    }
+  },
+  "node": {
+    "cluster": "c",
+    "id": "n"
+  }
+}

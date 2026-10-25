@@ -257,6 +257,9 @@ func tasksUpdated(jobA, jobB *structs.Job, taskGroup string) comparison {
 	if a.UsesMTLS() != b.UsesMTLS() {
 		return difference("mtls", a.UsesMTLS(), b.UsesMTLS())
 	}
+	if structs.MTLSProxiesChanged(a, b) {
+		return difference("mtls proxy", a.Services, b.Services)
+	}
 
 	// Check if volumes are updated (no task driver can support
 	// altering mounts in-place)

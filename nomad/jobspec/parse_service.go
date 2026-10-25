@@ -1225,7 +1225,7 @@ func parseServiceMTLS(o *ast.ObjectItem) (*api.ServiceMTLS, error) {
 			return nil, fmt.Errorf("mtls -> upstream: must have exactly one label")
 		}
 		name := uo.Keys[0].Token.Value().(string)
-		if err := checkHCLKeys(uo.Val, []string{"service", "local_port"}); err != nil {
+		if err := checkHCLKeys(uo.Val, []string{"service", "namespace", "region", "gateway", "local_port"}); err != nil {
 			return nil, multierror.Prefix(err, fmt.Sprintf("mtls -> upstream %q ->", name))
 		}
 		var um map[string]interface{}

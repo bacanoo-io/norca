@@ -448,7 +448,7 @@ func TestMTLS_JobValidation(t *testing.T) {
 		Mode:      structs.MTLSModeSidecar,
 		Upstreams: []*structs.ServiceMTLSUpstream{{Name: "db", Service: "postgres", LocalPort: 5432}},
 	}))
-	must.ErrorContains(t, err, `mtls mode "sidecar" is not implemented yet`)
+	must.ErrorContains(t, err, `mtls mode "sidecar" is only supported on group services`)
 
 	job := withMTLS(&structs.ServiceMTLS{})
 	job.ID = "web@v2"
@@ -525,4 +525,96 @@ func TestMTLS_FullRestore(t *testing.T) {
 	must.Eq(t, parsePEMCert(t, original.RootCert).SerialNumber.String(), signer.cert.SerialNumber.String())
 	_, err = srv.State().MTLSRootByID(nil, rotate.RootID)
 	must.NoError(t, err)
+}
+
+func TestMTLS_JobProxyInjection(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, cleanup := TestServer(t, func(c *Config) {
+		c.NumSchedulers = 0
+	})
+	defer cleanup()
+	codec := rpcClient(t, srv)
+	testutil.WaitForLeader(t, srv.RPC)
+
+	register := func(job *structs.Job) error {
+		var resp structs.JobRegisterResponse
+		return msgpackrpc.CallWithCodec(codec, "Job.Register", &structs.JobRegisterRequest{
+			Job:          job,
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace},
+		}, &resp)
+	}
+
+	job := mock.Job()
+	tg := job.TaskGroups[0]
+	tg.Tasks[0].Services = nil
+	tg.Networks = structs.Networks{{Mode: "bridge", ReservedPorts: []structs.Port{{Label: "gw", Value: 8443, To: 8443}}}}
+	tg.Services = []*structs.Service{
+		{
+			Name: "api", PortLabel: "8080", Provider: structs.ServiceProviderNomad,
+			MTLS: &structs.ServiceMTLS{Mode: structs.MTLSModeSidecar, Upstreams: []*structs.ServiceMTLSUpstream{
+				{Name: "db", Service: "postgres", LocalPort: 5432},
+				{Name: "remote", Service: "redis", Region: "eu", LocalPort: 6379},
+			}},
+		},
+		{
+			Name: "mtls-gateway", PortLabel: "gw", Provider: structs.ServiceProviderNomad,
+			MTLS: &structs.ServiceMTLS{Mode: structs.MTLSModeGateway},
+		},
+	}
+	must.NoError(t, register(job))
+
+	stored, err := srv.State().JobByID(nil, job.Namespace, job.ID)
+	must.NoError(t, err)
+	stg := stored.TaskGroups[0]
+	must.Len(t, 3, stg.Tasks)
+
+	proxy := stg.LookupTask("mtls-proxy-api")
+	must.NotNil(t, proxy)
+	must.True(t, proxy.Kind.IsMTLSProxy())
+	must.Eq(t, "api", proxy.Kind.Value())
+	must.NotNil(t, proxy.Lifecycle)
+	must.True(t, proxy.Lifecycle.Sidecar)
+	must.Eq(t, "${meta.norca.mtls.envoy_image}", proxy.Config["image"])
+
+	gateway := stg.LookupTask("mtls-gateway-mtls-gateway")
+	must.NotNil(t, gateway)
+	must.True(t, gateway.Kind.IsMTLSGateway())
+	must.Nil(t, gateway.Lifecycle)
+
+	var injected *structs.Port
+	for i, p := range stg.Networks[0].DynamicPorts {
+		if p.Label == "mtls-proxy-api" {
+			injected = &stg.Networks[0].DynamicPorts[i]
+		}
+	}
+	must.NotNil(t, injected)
+	must.Eq(t, -1, injected.To)
+
+	// registering the job again doesn't inject twice
+	must.NoError(t, register(stored.Copy()))
+	stored, err = srv.State().JobByID(nil, job.Namespace, job.ID)
+	must.NoError(t, err)
+	must.Len(t, 3, stored.TaskGroups[0].Tasks)
+
+	// sidecars need bridge networking
+	host := job.Copy()
+	host.ID = "host"
+	host.TaskGroups[0].Networks[0].Mode = "host"
+	must.ErrorContains(t, register(host), "requires bridge networking")
+
+	// a task with the kind of the proxy replaces the injected one
+	custom := job.Copy()
+	custom.ID = "custom"
+	custom.TaskGroups[0].Tasks = append(custom.TaskGroups[0].Tasks, &structs.Task{
+		Name: "my-envoy", Driver: "docker", Kind: structs.NewTaskKind(structs.MTLSProxyPrefix, "api"),
+		Config:    map[string]interface{}{"image": "mirror.local/envoy:v1"},
+		Resources: structs.DefaultResources(),
+		LogConfig: structs.DefaultLogConfig(),
+	})
+	must.NoError(t, register(custom))
+	stored, err = srv.State().JobByID(nil, custom.Namespace, custom.ID)
+	must.NoError(t, err)
+	must.Len(t, 3, stored.TaskGroups[0].Tasks)
+	must.Nil(t, stored.TaskGroups[0].LookupTask("mtls-proxy-api"))
 }
