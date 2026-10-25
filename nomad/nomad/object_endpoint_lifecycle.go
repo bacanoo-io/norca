@@ -235,12 +235,29 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 			return err
 		}
 
+		if attempt == 1 {
+			if err := c.srv.checkObjectWriteLimits(kind, args); err != nil {
+				return err
+			}
+		}
+
 		// A repeated deletion of an object being deleted changes nothing.
 		if existing.Deleting() {
 			reply.Object = existing
 			reply.Unchanged = true
 			reply.Index = existing.ModifyIndex
 			return nil
+		}
+
+		// Validating type-bound webhooks that review deletions.
+		if attempt == 1 && len(kind.Webhooks) > 0 {
+			review := &objectReview{kind: kind, operation: objectOperationDelete, obj: existing,
+				existing: existing, args: args, dryRun: args.DryRun}
+			warnings, err := c.srv.runValidatingWebhooks(review)
+			reply.Warnings = warnings
+			if err != nil {
+				return err
+			}
 		}
 
 		removeNow := len(existing.Finalizers) == 0 && propagation != structs.ObjectPropagationForeground
@@ -404,6 +421,13 @@ func (c *CustomObject) RecordEvents(args *structs.CustomObjectEventsRequest, rep
 	obj, err := c.authorizedObject(aclObj, args.Group, args.Kind, args.RequestNamespace(), args.Name, acl.ObjectCapabilityWriteEvents)
 	if err != nil {
 		return err
+	}
+	if kind, err := c.srv.State().ObjectKindByName(nil, args.Group, args.Kind); err != nil {
+		return err
+	} else if kind != nil {
+		if err := c.srv.checkObjectWriteLimits(kind, args); err != nil {
+			return err
+		}
 	}
 
 	if !ServersMeetMinimumNorcaVersion(c.srv.serf.Members(), c.srv.Region(), false) {

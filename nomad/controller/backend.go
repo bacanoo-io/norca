@@ -22,6 +22,11 @@ var (
 	// ErrConflict is returned when a check-and-set write fails because the
 	// stored object was modified since it was read.
 	ErrConflict = errors.New("check-and-set conflict")
+
+	// ErrThrottled is returned when the servers rejected a write or a
+	// watch because it exceeded a limit of the object kind (429 Too Many
+	// Requests). The reconcile is retried with backoff.
+	ErrThrottled = errors.New("throttled by the servers")
 )
 
 // VariablesAPI is the part of the Variables API the SDK uses.
@@ -253,8 +258,16 @@ func objectError(kind Kind, namespace, name string, err error) error {
 		return fmt.Errorf("%w: %v", ErrConflict, err)
 	case statusCode(err) == http.StatusNotFound:
 		return fmt.Errorf("%s %s/%s: %w (%v)", kind, namespace, name, ErrNotFound, err)
+	case statusCode(err) == http.StatusTooManyRequests:
+		return fmt.Errorf("%s %s/%s: %w (%v)", kind, namespace, name, ErrThrottled, err)
 	}
 	return err
+}
+
+// IsThrottled reports whether err is a 429 Too Many Requests response or
+// wraps ErrThrottled.
+func IsThrottled(err error) bool {
+	return errors.Is(err, ErrThrottled) || statusCode(err) == http.StatusTooManyRequests
 }
 
 func (b *apiBackend) ApplyObject(ctx context.Context, obj *api.CustomObject, cas uint64) (*api.CustomObject, error) {

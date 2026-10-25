@@ -46,9 +46,13 @@
 //
 //	loadbalancer [controller] [flags]   run the controller (default)
 //	loadbalancer proxy -listen :8080 -targets local/targets
+//	loadbalancer webhook -tls-cert cert.pem -tls-key key.pem [-classes nomad,aws-nlb]
 //
-// See loadbalancer.nomad.hcl and loadbalancer-policy.hcl for running the
-// controller as a job.
+// The operator is installed as a pack (packs/loadbalancer-operator in the
+// repository): the kind, the ACL policy bound to the controller job, an
+// admission policy and the controller job as one release. See
+// loadbalancer.nomad.hcl and loadbalancer-policy.hcl for running the
+// controller by hand.
 package main
 
 import (
@@ -84,8 +88,10 @@ func main() {
 		err = runController(ctx, args)
 	case "proxy":
 		err = runProxy(ctx, args)
+	case "webhook":
+		err = runWebhook(ctx, args)
 	default:
-		err = fmt.Errorf("unknown subcommand %q (use controller or proxy)", cmd)
+		err = fmt.Errorf("unknown subcommand %q (use controller, proxy or webhook)", cmd)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

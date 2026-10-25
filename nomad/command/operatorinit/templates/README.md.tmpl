@@ -1,0 +1,53 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+# <% .Name %>
+
+The operator of the `<% .Group %>/<% .Kind %>` objects, built with the Norca
+controller SDK. Scaffolded by `norca operator init`.
+
+| File | |
+| --- | --- |
+| `<% .KindLower %>.kind.hcl`, `<% .KindLower %>.schema.json` | the object kind: JSON Schema with defaults, CEL rules, columns, version, webhook, limits |
+| `examples/<% .KindLower %>.hcl` | a sample object |
+| `types.go` | `Spec` and `Status` of the kind |
+| `reconcile.go` | the reconciler: finalizer, status conditions, event log |
+| `webhook.go` | the validating webhook (`<% .Name %> webhook`) |
+| `main.go` | flags, API client, leader election, metrics |
+| `reconcile_test.go` | tests against the SDK's fake backend |
+| `envtest_test.go` | tests against a dev agent (needs the `norca` binary) |
+| `pack/<% .Name %>` | the operator pack: kind, ACL policy, controller job |
+
+## Develop
+
+```shell
+go mod tidy                     # after pointing the replace directives of go.mod at your Norca checkout
+norca object-kind lint <% .KindLower %>.kind.hcl examples/<% .KindLower %>.hcl
+go test ./...                   # fake backend; envtest_test.go also starts a dev agent if norca is on the PATH
+```
+
+Run the controller locally against a dev agent:
+
+```shell
+norca agent -dev &                               # in another terminal
+norca object-kind apply <% .KindLower %>.kind.hcl
+NORCA_ADDR=http://127.0.0.1:4646 go run . -leader-election=false
+norca object apply examples/<% .KindLower %>.hcl
+norca object list <% .Group %>/<% .Kind %>
+norca object events <% .Group %>/<% .Kind %> sample
+```
+
+## Change the schema
+
+Raise `version` in the kind and add a `migration` when stored objects would
+no longer match the schema. `norca object-kind apply -dry-run` reports how
+many objects change, which would be invalid, and sample conversions; the
+servers reject a change that would make stored objects invalid.
+
+## Install
+
+```shell
+go build -o /usr/local/bin/<% .Name %> .       # on every node, or build an image
+norca pack run ./pack/<% .Name %> --name=<% .Name %>
+```

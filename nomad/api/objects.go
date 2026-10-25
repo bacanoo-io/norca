@@ -76,6 +76,17 @@ type ObjectKind struct {
 	// Replicated is reserved for multi-region replication.
 	Replicated bool
 
+	// Version is the schema version (1 by default); Migration converts
+	// objects stored at older versions.
+	Version   uint64
+	Migration *ObjectKindMigration
+
+	// Webhooks are the admission webhooks bound to the kind.
+	Webhooks []*ObjectKindWebhook
+
+	// Limits is the server-side load management of the kind's objects.
+	Limits *ObjectKindLimits
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -130,6 +141,10 @@ type CustomObject struct {
 
 	// Generation increases on every change of the spec.
 	Generation uint64
+
+	// KindVersion is the schema version of the kind the object was last
+	// written or migrated at (0: version 1).
+	KindVersion uint64
 
 	Spec   map[string]any
 	Status map[string]any

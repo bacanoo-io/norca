@@ -414,6 +414,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Start the garbage collector of custom objects.
 	s.objectGC.SetEnabled(true)
 
+	// Migrate stored custom objects to raised schema versions.
+	go s.objectMigrationLoop(stopCh)
+
 	// Setup the heartbeat timers. This is done both when starting up or when
 	// a leader fail over happens. Since the timers are maintained by the leader
 	// node, effectively this means all the timers are renewed at the time of failover.

@@ -157,7 +157,10 @@ func releaseResourceHash(res *structs.ReleaseResource) string {
 	case structs.ReleaseResourceVariable:
 		v = res.Variable.Items
 	case structs.ReleaseResourceObjectKind:
-		k := res.ObjectKind.Copy()
+		// Approvals of webhooks are server state, and the servers fill in
+		// the defaults of the ecosystem fields.
+		k := res.ObjectKind.WithoutApprovals()
+		k.Canonicalize()
 		k.CreateIndex, k.ModifyIndex = 0, 0
 		v = k
 	case structs.ReleaseResourceAdmissionPolicy:

@@ -34,6 +34,11 @@ var releaseFeatures = []string{
 	"multiregion-deployments",
 	"native-service-catalog",
 	"backups",
+	// Operator framework phase 4: type-bound webhooks, schema migrations
+	// and object limits of kinds.
+	"object-webhooks",
+	"object-migrations",
+	"object-limits",
 }
 
 // releaseOp is a running operation on a release.

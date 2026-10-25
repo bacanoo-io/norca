@@ -5,156 +5,28 @@ package controller_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"math/rand/v2"
-	"net"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/controller"
+	"github.com/hashicorp/nomad/controller/envtest"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
 
-// The integration tests run against a real dev agent started from the
-// binary named by NORCA_BINARY, or "norca" (or "nomad") on the PATH. The
+// The integration tests run against a real dev agent started by envtest from
+// the binary named by NORCA_BINARY, or "norca" (or "nomad") on the PATH. The
 // controller module cannot import the main module's in-process test server,
 // so the agent runs as a separate process. They are skipped with -short or
 // when no binary is found.
 
-func agentBinary(t *testing.T) string {
-	if testing.Short() {
-		t.Skip("integration test skipped with -short")
-	}
-	if bin := os.Getenv("NORCA_BINARY"); bin != "" {
-		return bin
-	}
-	for _, name := range []string{"norca", "nomad"} {
-		if bin, err := exec.LookPath(name); err == nil {
-			return bin
-		}
-	}
-	t.Skip("no norca binary: set NORCA_BINARY or put norca on the PATH")
-	return ""
-}
-
-// freePort returns a port that is free for TCP and UDP (serf uses both).
-func freePort(t *testing.T) int {
-	// Ephemeral ports are avoided: on Windows many of them are reserved.
-	for range 100 {
-		port := 20000 + rand.IntN(12000)
-		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-		if err != nil {
-			continue
-		}
-		udp, err := net.ListenPacket("udp", fmt.Sprintf("127.0.0.1:%d", port))
-		ln.Close()
-		if err == nil {
-			udp.Close()
-			return port
-		}
-	}
-	t.Fatal("no free port")
-	return 0
-}
-
 // startAgent starts a dev agent with a small event buffer and returns a
-// client for it. Starting is retried, since a port found free can be taken
-// (or reserved by the OS) by the time the agent binds it.
+// client for it.
 func startAgent(t *testing.T, eventBuffer int) *api.Client {
-	bin := agentBinary(t)
-	for attempt := 1; ; attempt++ {
-		client, err := tryStartAgent(t, bin, eventBuffer)
-		if err == nil {
-			return client
-		}
-		if attempt == 3 {
-			t.Fatalf("starting the agent failed: %v", err)
-		}
-		t.Logf("starting the agent failed, retrying: %v", err)
-	}
-}
-
-func tryStartAgent(t *testing.T, bin string, eventBuffer int) (*api.Client, error) {
-	dir := t.TempDir()
-	httpPort := freePort(t)
-	config := fmt.Sprintf(`
-bind_addr = "127.0.0.1"
-data_dir  = %q
-ports {
-  http = %d
-  rpc  = %d
-  serf = %d
-}
-server {
-  event_buffer_size = %d
-}
-`, filepath.ToSlash(filepath.Join(dir, "data")), httpPort, freePort(t), freePort(t), eventBuffer)
-	configFile := filepath.Join(dir, "agent.hcl")
-	must.NoError(t, os.WriteFile(configFile, []byte(config), 0o600))
-	logFile, err := os.Create(filepath.Join(dir, "agent.log"))
-	must.NoError(t, err)
-
-	cmd := exec.Command(bin, "agent", "-dev", "-config", configFile)
-	cmd.Stdout, cmd.Stderr = logFile, logFile
-	must.NoError(t, cmd.Start())
-	exited := make(chan struct{})
-	go func() {
-		_ = cmd.Wait()
-		close(exited)
-	}()
-	stop := func() {
-		_ = cmd.Process.Kill()
-		<-exited
-		_ = logFile.Close()
-	}
-
-	conf := api.DefaultConfig()
-	conf.Address = fmt.Sprintf("http://127.0.0.1:%d", httpPort)
-	conf.SecretID = ""
-	client, err := api.NewClient(conf)
-	must.NoError(t, err)
-
-	deadline := time.Now().Add(90 * time.Second)
-	for {
-		leader, err := client.Status().Leader()
-		if err == nil && leader != "" {
-			break
-		}
-		select {
-		case <-exited:
-			_ = logFile.Close()
-			b, _ := os.ReadFile(logFile.Name())
-			return nil, fmt.Errorf("agent exited:\n%s", tail(b, 2000))
-		case <-time.After(250 * time.Millisecond):
-		}
-		if time.Now().After(deadline) {
-			stop()
-			return nil, errors.New("no leader within 90s")
-		}
-	}
-
-	t.Cleanup(func() {
-		stop()
-		if t.Failed() {
-			if b, err := os.ReadFile(logFile.Name()); err == nil && len(b) > 0 {
-				t.Logf("agent log (tail):\n%s", tail(b, 4000))
-			}
-		}
-	})
-	return client, nil
-}
-func tail(b []byte, n int) string {
-	if len(b) > n {
-		b = b[len(b)-n:]
-	}
-	return string(b)
+	return envtest.StartT(t, envtest.Options{EventBufferSize: eventBuffer}).Client
 }
 
 // gatedBackend can interrupt the event streams of a backend and hold new

@@ -18,6 +18,11 @@ const (
 	ResultSuccess = "success"
 	ResultRequeue = "requeue"
 	ResultError   = "error"
+
+	// ResultThrottled is a reconcile that failed because the servers
+	// throttled a write (a limit of the object kind); it is retried with
+	// backoff.
+	ResultThrottled = "throttled"
 )
 
 // Metrics receives the measurements of a controller. Implementations must be

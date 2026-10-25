@@ -632,6 +632,21 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		"object-kind list": func() (cli.Command, error) {
 			return &ObjectKindListCommand{Meta: meta}, nil
 		},
+		"object-kind lint": func() (cli.Command, error) {
+			return &ObjectKindLintCommand{Meta: meta}, nil
+		},
+		"object-kind webhook": func() (cli.Command, error) {
+			return &ObjectKindWebhookCommand{Meta: meta}, nil
+		},
+		"object-kind webhook approve": func() (cli.Command, error) {
+			return &ObjectKindWebhookApproveCommand{Meta: meta}, nil
+		},
+		"object-kind webhook revoke": func() (cli.Command, error) {
+			return &ObjectKindWebhookApproveCommand{Meta: meta, revoke: true}, nil
+		},
+		"operator init": func() (cli.Command, error) {
+			return &OperatorInitCommand{Meta: meta}, nil
+		},
 		"node": func() (cli.Command, error) {
 			return &NodeCommand{
 				Meta: meta,

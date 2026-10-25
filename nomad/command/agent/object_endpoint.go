@@ -38,10 +38,24 @@ func (s *HTTPServer) ObjectKindsRequest(resp http.ResponseWriter, req *http.Requ
 // ObjectKindSpecificRequest handles /v1/object-kind/:group/:kind.
 func (s *HTTPServer) ObjectKindSpecificRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
 	parts := strings.Split(strings.TrimPrefix(req.URL.Path, "/v1/object-kind/"), "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
 		return nil, CodedError(http.StatusBadRequest, "path must be /v1/object-kind/<group>/<kind>")
 	}
 	group, kind := parts[0], parts[1]
+	switch {
+	case len(parts) == 3 && parts[2] == "plan":
+		if req.Method != http.MethodPut && req.Method != http.MethodPost {
+			return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+		}
+		return s.objectKindPlan(resp, req, group, kind)
+	case len(parts) == 5 && parts[2] == "webhook" && parts[3] != "" && (parts[4] == "approve" || parts[4] == "revoke"):
+		if req.Method != http.MethodPut && req.Method != http.MethodPost {
+			return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+		}
+		return s.objectKindWebhookApproval(resp, req, group, kind, parts[3], parts[4] == "revoke")
+	case len(parts) != 2:
+		return nil, CodedError(http.StatusNotFound, "unknown object kind endpoint")
+	}
 
 	switch req.Method {
 	case http.MethodGet:
@@ -100,6 +114,49 @@ func (s *HTTPServer) objectKindUpsert(resp http.ResponseWriter, req *http.Reques
 		return nil, err
 	}
 
+	setIndex(resp, out.Index)
+	return out.ObjectKind, nil
+}
+
+// objectKindPlanResponse is the response of /v1/object-kind/:group/:kind/plan.
+type objectKindPlanResponse struct {
+	ObjectKind *structs.ObjectKind
+	Migration  *structs.ObjectKindMigrationReport
+	Warnings   []string
+}
+
+// objectKindPlan runs a dry run of a kind write and returns the report of
+// the stored objects.
+func (s *HTTPServer) objectKindPlan(resp http.ResponseWriter, req *http.Request, group, kind string) (any, error) {
+	var objectKind structs.ObjectKind
+	if err := decodeBody(req, &objectKind); err != nil {
+		return nil, CodedError(http.StatusBadRequest, err.Error())
+	}
+	if objectKind.Group == "" && objectKind.Kind == "" {
+		objectKind.Group, objectKind.Kind = group, kind
+	}
+	if objectKind.Group != group || objectKind.Kind != kind {
+		return nil, CodedError(http.StatusBadRequest, "Object kind does not match request path")
+	}
+	args := structs.ObjectKindUpsertRequest{ObjectKind: &objectKind, DryRun: true}
+	s.parseWriteRequest(req, &args.WriteRequest)
+
+	var out structs.ObjectKindUpsertResponse
+	if err := s.agent.RPC("ObjectKind.UpsertObjectKind", &args, &out); err != nil {
+		return nil, err
+	}
+	return &objectKindPlanResponse{ObjectKind: out.ObjectKind, Migration: out.Migration, Warnings: out.Warnings}, nil
+}
+
+// objectKindWebhookApproval approves or revokes a type-bound webhook.
+func (s *HTTPServer) objectKindWebhookApproval(resp http.ResponseWriter, req *http.Request, group, kind, webhook string, revoke bool) (any, error) {
+	args := structs.ObjectKindWebhookApprovalRequest{Group: group, Kind: kind, Webhook: webhook, Revoke: revoke}
+	s.parseWriteRequest(req, &args.WriteRequest)
+
+	var out structs.ObjectKindUpsertResponse
+	if err := s.agent.RPC("ObjectKind.ApproveWebhook", &args, &out); err != nil {
+		return nil, err
+	}
 	setIndex(resp, out.Index)
 	return out.ObjectKind, nil
 }

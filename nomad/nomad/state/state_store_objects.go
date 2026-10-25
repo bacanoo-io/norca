@@ -214,6 +214,12 @@ func objectKindByNameTxn(txn ReadTxn, ws memdb.WatchSet, group, kind string) (*s
 // UpsertObjectKind inserts or updates an object kind. A kind's scope
 // (namespaced or not) can't change while objects of the kind exist.
 func (s *StateStore) UpsertObjectKind(msgType structs.MessageType, index uint64, kind *structs.ObjectKind) error {
+	return s.UpsertObjectKindCAS(msgType, index, kind, nil)
+}
+
+// UpsertObjectKindCAS is UpsertObjectKind with check-and-set: a non-nil cas
+// is the expected modify index of the stored kind (0: it must not exist).
+func (s *StateStore) UpsertObjectKindCAS(msgType structs.MessageType, index uint64, kind *structs.ObjectKind, cas *uint64) error {
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
 
@@ -224,6 +230,15 @@ func (s *StateStore) UpsertObjectKind(msgType structs.MessageType, index uint64,
 	existing, err := objectKindByNameTxn(txn, nil, kind.Group, kind.Kind)
 	if err != nil {
 		return err
+	}
+	if cas != nil {
+		switch {
+		case existing == nil && *cas != 0:
+			return structs.NewObjectConflictError("object kind %q does not exist", kind.KindRef())
+		case existing != nil && existing.ModifyIndex != *cas:
+			return structs.NewObjectConflictError("object kind %q has modify index %d, expected %d",
+				kind.KindRef(), existing.ModifyIndex, *cas)
+		}
 	}
 	if existing != nil {
 		if existing.Namespaced != kind.Namespaced {

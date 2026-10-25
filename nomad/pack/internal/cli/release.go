@@ -173,7 +173,11 @@ func jobRenders(renders map[string]string) (jobs map[string]string, others []str
 	jobs = map[string]string{}
 	for name, content := range renders {
 		if release.IsResourceTemplate(name) {
-			others = append(others, name)
+			// A resource template that renders nothing is a resource the
+			// variables switched off.
+			if strings.TrimSpace(content) != "" {
+				others = append(others, name)
+			}
 		} else {
 			jobs[name] = content
 		}

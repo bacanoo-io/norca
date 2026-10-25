@@ -223,6 +223,34 @@ func (e *ObjectRuleEngine) Evaluate(ctx context.Context, kind *structs.ObjectKin
 	if len(kind.Rules) == 0 {
 		return nil
 	}
+	programs, compileErr := e.programs(kind)
+	return evaluateObjectRules(ctx, kind, programs, compileErr, self, oldSelf, request)
+}
+
+// PreparedRules are the compiled rules of a kind that is not stored (yet),
+// for evaluating them on many objects.
+type PreparedRules struct {
+	kind       *structs.ObjectKind
+	programs   []cel.Program
+	compileErr error
+}
+
+// Prepare compiles the rules of a kind without caching them.
+func (e *ObjectRuleEngine) Prepare(kind *structs.ObjectKind) *PreparedRules {
+	programs, err := e.compile(kind)
+	return &PreparedRules{kind: kind, programs: programs, compileErr: err}
+}
+
+// Evaluate evaluates the prepared rules like ObjectRuleEngine.Evaluate.
+func (p *PreparedRules) Evaluate(ctx context.Context, self, oldSelf any, request map[string]any) []*Violation {
+	if len(p.kind.Rules) == 0 {
+		return nil
+	}
+	return evaluateObjectRules(ctx, p.kind, p.programs, p.compileErr, self, oldSelf, request)
+}
+
+func evaluateObjectRules(ctx context.Context, kind *structs.ObjectKind, programs []cel.Program, compileErr error,
+	self, oldSelf any, request map[string]any) []*Violation {
 
 	ctx, cancel := context.WithTimeout(ctx, celEvalTimeout)
 	defer cancel()
@@ -236,7 +264,6 @@ func (e *ObjectRuleEngine) Evaluate(ctx context.Context, kind *structs.ObjectKin
 		vars[VarOldSelf] = types.NullValue
 	}
 
-	programs, compileErr := e.programs(kind)
 	var violations []*Violation
 	for i, rule := range kind.Rules {
 		violation := func(msg string) {

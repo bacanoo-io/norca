@@ -48,6 +48,9 @@ const (
 type objectRegistry struct {
 	rules *admission.ObjectRuleEngine
 
+	// eco holds the webhook clients, migrations and limiters of the kinds.
+	eco *objectEcosystem
+
 	lock    sync.Mutex
 	schemas map[string]*compiledObjectSchema
 }
@@ -63,8 +66,13 @@ func newObjectRegistry() (*objectRegistry, error) {
 	if err != nil {
 		return nil, err
 	}
+	eco, err := newObjectEcosystem()
+	if err != nil {
+		return nil, err
+	}
 	return &objectRegistry{
 		rules:   rules,
+		eco:     eco,
 		schemas: make(map[string]*compiledObjectSchema),
 	}, nil
 }
@@ -104,6 +112,7 @@ func (r *objectRegistry) forget(kindRef string) {
 	delete(r.schemas, kindRef)
 	r.lock.Unlock()
 	r.rules.Forget(kindRef)
+	r.eco.forget(kindRef)
 }
 
 // objectACLNamespace returns the namespace the ACL rules of an object are
@@ -272,6 +281,7 @@ func (k *ObjectKind) UpsertObjectKind(args *structs.ObjectKindUpsertRequest, rep
 		return errBuiltinObjectGroup(kind.Group)
 	}
 	kind.CreateIndex, kind.ModifyIndex = 0, 0
+	kind.Canonicalize()
 	if err := kind.Validate(); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid object kind %q: %v", kind.KindRef(), err)
 	}
@@ -287,6 +297,21 @@ func (k *ObjectKind) UpsertObjectKind(args *structs.ObjectKindUpsertRequest, rep
 	if err != nil {
 		return err
 	}
+	if args.CAS != nil {
+		switch {
+		case existing == nil && *args.CAS != 0:
+			return structs.NewObjectConflictError("object kind %q does not exist", kind.KindRef())
+		case existing != nil && existing.ModifyIndex != *args.CAS:
+			return structs.NewObjectConflictError("object kind %q has modify index %d, expected %d",
+				kind.KindRef(), existing.ModifyIndex, *args.CAS)
+		}
+	}
+	report, warnings, err := k.prepareObjectKindUpsert(args, aclObj, kind, existing, snap)
+	if err != nil {
+		return err
+	}
+	reply.Migration = report
+	reply.Warnings = warnings
 	if existing != nil && existing.Namespaced != kind.Namespaced {
 		iter, err := snap.CustomObjects(nil, kind.Group, kind.Kind, structs.AllNamespacesSentinel, state.SortDefault)
 		if err != nil {
@@ -305,8 +330,11 @@ func (k *ObjectKind) UpsertObjectKind(args *structs.ObjectKindUpsertRequest, rep
 		reply.ObjectKind = kind
 		return nil
 	}
+	if report != nil && report.Failed > 0 {
+		return migrationReportError(kind, report)
+	}
 
-	req := &structs.ObjectKindUpsertRequest{ObjectKind: kind, WriteRequest: args.WriteRequest}
+	req := &structs.ObjectKindUpsertRequest{ObjectKind: kind, CAS: args.CAS, WriteRequest: args.WriteRequest}
 	_, index, err := k.srv.raftApply(structs.ObjectKindUpsertRequestType|structs.IgnoreUnknownTypeFlag, req)
 	if err != nil {
 		return err
@@ -419,6 +447,12 @@ func (c *CustomObject) List(args *structs.CustomObjectListRequest, reply *struct
 		return err
 	}
 
+	release, err := c.srv.objectWatch(args.Group, args.Kind, &args.QueryOptions, args)
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	kindRef := structs.ObjectKindRef(args.Group, args.Kind)
 	requested := args.RequestNamespace()
 	sort := state.SortOption(args.Reverse)
@@ -528,6 +562,12 @@ func (c *CustomObject) GetCustomObject(args *structs.CustomObjectSpecificRequest
 	if err != nil {
 		return err
 	}
+
+	release, err := c.srv.objectWatch(args.Group, args.Kind, &args.QueryOptions, args)
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	kindRef := structs.ObjectKindRef(args.Group, args.Kind)
 	opts := blockingOptions{
@@ -645,10 +685,17 @@ func (c *CustomObject) writeObject(w *objectWrite, reply *structs.CustomObjectWr
 			}
 		}
 
-		existing, err := snap.CustomObjectByName(nil, w.group, w.kind, namespace, w.name)
+		if attempt == 1 {
+			if err := c.srv.checkObjectWriteLimits(kind, w.args); err != nil {
+				return err
+			}
+		}
+
+		stored, err := snap.CustomObjectByName(nil, w.group, w.kind, namespace, w.name)
 		if err != nil {
 			return err
 		}
+		existing := stored
 		if w.cas != nil {
 			switch {
 			case existing == nil && *w.cas != 0:
@@ -665,17 +712,61 @@ func (c *CustomObject) writeObject(w *objectWrite, reply *structs.CustomObjectWr
 			}
 		}
 
+		// Objects the background migration hasn't reached yet are migrated
+		// first; metadata writes go ahead on the stored form if that fails,
+		// so that a broken migration can't block deletions.
+		if migrated, err := c.srv.migrateOnWrite(kind, existing); err == nil {
+			existing = migrated
+		} else if !w.metadataOnly {
+			return err
+		}
+		if existing == nil && !w.dryRun {
+			if err := checkObjectCount(snap, kind, namespace); err != nil {
+				return err
+			}
+		}
+
 		obj, operation, err := w.build(kind, namespace, existing, aclObj, snap)
 		if err != nil {
 			return err
+		}
+		if !w.metadataOnly {
+			obj.KindVersion = kind.SchemaVersion()
+			if existing != nil && existing.SchemaVersion() == kind.SchemaVersion() {
+				obj.KindVersion = existing.KindVersion
+			}
+		}
+
+		// Type-bound webhooks review spec writes: defaulting webhooks
+		// before the schema and the rules, validating ones after them.
+		var review *objectReview
+		var warnings []string
+		if !w.metadataOnly && (operation == objectOperationCreate || operation == objectOperationUpdate) && len(kind.Webhooks) > 0 {
+			review = &objectReview{kind: kind, operation: operation, obj: obj, existing: existing, args: w.args, dryRun: w.dryRun}
+			warns, err := c.srv.runDefaultingWebhooks(review)
+			warnings = append(warnings, warns...)
+			if err != nil {
+				return err
+			}
+			if err := c.reapplyDefaults(kind, obj, existing); err != nil {
+				return err
+			}
 		}
 		if !w.metadataOnly {
 			if err := c.validateObject(kind, obj, existing, operation, w); err != nil {
 				return err
 			}
 		}
+		if review != nil {
+			warns, err := c.srv.runValidatingWebhooks(review)
+			warnings = append(warnings, warns...)
+			if err != nil {
+				return err
+			}
+		}
+		reply.Warnings = warnings
 
-		if existing != nil && objectUnchanged(existing, obj) {
+		if existing != nil && existing == stored && objectUnchanged(existing, obj) {
 			reply.Object = existing
 			reply.Unchanged = true
 			reply.Index = existing.ModifyIndex
@@ -720,6 +811,28 @@ func (c *CustomObject) writeObject(w *objectWrite, reply *structs.CustomObjectWr
 	}
 }
 
+// reapplyDefaults fills in the defaults of the kind's schema again after
+// defaulting webhooks changed the spec, and recomputes the generation.
+func (c *CustomObject) reapplyDefaults(kind *structs.ObjectKind, obj, existing *structs.CustomObject) error {
+	schema, err := c.srv.objects.schema(kind)
+	if err != nil {
+		return fmt.Errorf("object kind %q has an invalid schema: %v", kind.KindRef(), err)
+	}
+	doc := map[string]any{"spec": structs.CopyObjectMap(obj.Spec)}
+	if obj.Spec == nil {
+		doc["spec"] = map[string]any{}
+	}
+	schema.ApplyDefaults(doc)
+	obj.Spec, _ = doc["spec"].(map[string]any)
+	if existing != nil {
+		obj.Generation = existing.Generation
+		if !structs.ObjectMapsEqual(existing.Spec, obj.Spec) {
+			obj.Generation++
+		}
+	}
+	return nil
+}
+
 // validateObject checks the size of the object and validates it against
 // the schema and the CEL rules of its kind.
 func (c *CustomObject) validateObject(kind *structs.ObjectKind, obj, existing *structs.CustomObject, operation string, w *objectWrite) error {
@@ -754,19 +867,7 @@ func (c *CustomObject) validateObject(kind *structs.ObjectKind, obj, existing *s
 			return err
 		}
 	}
-	user := admissionUser(w.args)
-	request := map[string]any{
-		"operation": operation,
-		"namespace": obj.Namespace,
-		"dryRun":    w.dryRun,
-		"user": map[string]any{
-			"accessor_id": user.AccessorID,
-			"name":        user.Name,
-			"type":        user.Type,
-			"roles":       user.Roles,
-			"policies":    user.Policies,
-		},
-	}
+	request := objectRuleRequest(operation, obj.Namespace, w.dryRun, admissionUser(w.args))
 	violations := c.srv.objects.rules.Evaluate(context.Background(), kind, self, oldSelf, request)
 	if len(violations) == 0 {
 		return nil
@@ -813,6 +914,7 @@ func objectCELValue(obj *structs.CustomObject) map[string]any {
 			"modifyIndex": obj.ModifyIndex,
 			"finalizers":  finalizers,
 			"deleting":    obj.Deleting(),
+			"kindVersion": obj.SchemaVersion(),
 		},
 		"spec": obj.Spec,
 	}
@@ -829,6 +931,7 @@ func objectCELValue(obj *structs.CustomObject) map[string]any {
 // it is.
 func objectUnchanged(existing, obj *structs.CustomObject) bool {
 	return existing.Generation == obj.Generation &&
+		existing.SchemaVersion() == obj.SchemaVersion() &&
 		existing.ManagedBy == obj.ManagedBy &&
 		existing.DeletionTime == obj.DeletionTime &&
 		existing.DeletionPropagation == obj.DeletionPropagation &&

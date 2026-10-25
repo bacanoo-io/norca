@@ -1,0 +1,39 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+[[- $v := vars . ]]
+[[- if $v.acl_policy_enabled ]]
+policy [[ $v.job_name | quote ]] {
+  description = "Permissions of the <% .Group %>/<% .Kind %> operator (bound to its controller job)"
+  rules       = <<EOT
+namespace "[[ $v.namespace ]]" {
+  capabilities = ["list-jobs", "read-job", "submit-job"]
+
+  variables {
+    # Leader election lease of the controller instances.
+    path "controller-lease/<% .Name %>" {
+      capabilities = ["list", "read", "write"]
+    }
+  }
+
+  object "<% .Group %>/<% .Kind %>" {
+    capabilities = ["read", "write-status", "write-events", "manage-finalizers"]
+  }
+}
+<%- if not .Namespaced %>
+
+namespace "*" {
+  object "<% .Group %>/<% .Kind %>" {
+    capabilities = ["read", "write-status", "write-events", "manage-finalizers"]
+  }
+}
+<%- end %>
+EOT
+
+  job_acl {
+    namespace = [[ $v.namespace | quote ]]
+    job_id    = [[ $v.job_name | quote ]]
+  }
+}
+[[- end ]]
