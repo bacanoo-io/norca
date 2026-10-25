@@ -8,11 +8,8 @@ import (
 	"golang.org/x/text/language"
 )
 
-var (
-	titleFmt = cases.Title(language.AmericanEnglish)
-)
-
-// Title returns the American English title format of s.
+// Title returns the American English title format of s. A Caser keeps state
+// and must not be shared between goroutines, so every call uses its own.
 func Title(s string) string {
-	return titleFmt.String(s)
+	return cases.Title(language.AmericanEnglish).String(s)
 }
