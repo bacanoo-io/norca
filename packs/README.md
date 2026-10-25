@@ -11,6 +11,7 @@ subdirectory of `packs/` is one pack (`metadata.hcl`, `variables.hcl`,
 
 | Pack | |
 |---|---|
+| [consul](consul/README.md) | Installs and manages the official HashiCorp Consul release (BSL 1.1, referenced, never shipped): servers on host volumes over zones, client agents, gossip/TLS/ACL bootstrap from Variables, optional snapshots to S3 |
 | [nats](nats/README.md) | NATS cluster per region (JetStream, supercluster gateways, TLS and auth from Variables) and the event stream → NATS bridge |
 
 ## Using it
