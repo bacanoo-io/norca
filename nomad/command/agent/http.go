@@ -386,6 +386,11 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/node/pools", s.wrap(s.NodePoolsRequest))
 	s.mux.HandleFunc("/v1/node/pool/", s.wrap(s.NodePoolSpecificRequest))
 
+	s.mux.HandleFunc("/v1/mtls/roots", s.wrap(s.MTLSRootsRequest))
+	s.mux.HandleFunc("/v1/mtls/ca/rotate", s.wrap(s.MTLSRotateRequest))
+	s.mux.HandleFunc("/v1/service-intentions", s.wrap(s.ServiceIntentionsRequest))
+	s.mux.HandleFunc("/v1/service-intention", s.wrap(s.ServiceIntentionRequest))
+
 	s.mux.HandleFunc("/v1/admission-policies", s.wrap(s.AdmissionPoliciesRequest))
 	s.mux.HandleFunc("/v1/admission-policy/", s.wrap(s.AdmissionPolicySpecificRequest))
 

@@ -355,6 +355,18 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		conf.AdmissionConfig = admissionConf
 	}
 
+	if mtlsConf := agentConfig.Server.MTLS.Copy(); mtlsConf != nil {
+		if err := mtlsConf.Finalize(); err != nil {
+			return nil, fmt.Errorf("invalid server mtls configuration: %w", err)
+		}
+		if mtlsConf.TrustDomain != "" {
+			if err := structs.ValidateSPIFFETrustDomain(mtlsConf.TrustDomain); err != nil {
+				return nil, fmt.Errorf("invalid server mtls configuration: %w", err)
+			}
+		}
+		conf.MTLSConfig = mtlsConf
+	}
+
 	// Set up the bind addresses
 	rpcAddr, err := net.ResolveTCPAddr("tcp", agentConfig.normalizedAddrs.RPC)
 	if err != nil {

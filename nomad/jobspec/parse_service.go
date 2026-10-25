@@ -57,6 +57,7 @@ func parseService(o *ast.ObjectItem) (*api.Service, error) {
 		"on_update",
 		"provider",
 		"discovery",
+		"mtls",
 	}
 	if err := checkHCLKeys(o.Val, valid); err != nil {
 		return nil, err
@@ -69,6 +70,7 @@ func parseService(o *ast.ObjectItem) (*api.Service, error) {
 	}
 
 	delete(m, "discovery")
+	delete(m, "mtls")
 	delete(m, "check")
 	delete(m, "check_restart")
 	delete(m, "connect")
@@ -117,6 +119,18 @@ func parseService(o *ast.ObjectItem) (*api.Service, error) {
 			return nil, multierror.Prefix(err, fmt.Sprintf("'%s',", service.Name))
 		}
 		service.Discovery = d
+	}
+
+	// Filter mtls
+	if mo := listVal.Filter("mtls"); len(mo.Items) > 0 {
+		if len(mo.Items) > 1 {
+			return nil, fmt.Errorf("mtls '%s': cannot have more than 1 mtls block", service.Name)
+		}
+		mtls, err := parseServiceMTLS(mo.Items[0])
+		if err != nil {
+			return nil, multierror.Prefix(err, fmt.Sprintf("'%s',", service.Name))
+		}
+		service.MTLS = mtls
 	}
 
 	// Filter connect
@@ -1180,4 +1194,50 @@ func parseCheckRestart(cro *ast.ObjectItem) (*api.CheckRestart, error) {
 	}
 
 	return &checkRestart, nil
+}
+
+func parseServiceMTLS(o *ast.ObjectItem) (*api.ServiceMTLS, error) {
+	valid := []string{
+		"mode",
+		"upstream",
+	}
+	if err := checkHCLKeys(o.Val, valid); err != nil {
+		return nil, multierror.Prefix(err, "mtls ->")
+	}
+
+	var m map[string]interface{}
+	if err := hcl.DecodeObject(&m, o.Val); err != nil {
+		return nil, err
+	}
+	delete(m, "upstream")
+
+	var mtls api.ServiceMTLS
+	if err := mapstructure.WeakDecode(m, &mtls); err != nil {
+		return nil, err
+	}
+
+	ot, ok := o.Val.(*ast.ObjectType)
+	if !ok {
+		return nil, fmt.Errorf("mtls: should be an object")
+	}
+	for _, uo := range ot.List.Filter("upstream").Items {
+		if len(uo.Keys) != 1 {
+			return nil, fmt.Errorf("mtls -> upstream: must have exactly one label")
+		}
+		name := uo.Keys[0].Token.Value().(string)
+		if err := checkHCLKeys(uo.Val, []string{"service", "local_port"}); err != nil {
+			return nil, multierror.Prefix(err, fmt.Sprintf("mtls -> upstream %q ->", name))
+		}
+		var um map[string]interface{}
+		if err := hcl.DecodeObject(&um, uo.Val); err != nil {
+			return nil, err
+		}
+		upstream := api.ServiceMTLSUpstream{Name: name}
+		if err := mapstructure.WeakDecode(um, &upstream); err != nil {
+			return nil, err
+		}
+		upstream.Name = name
+		mtls.Upstreams = append(mtls.Upstreams, &upstream)
+	}
+	return &mtls, nil
 }

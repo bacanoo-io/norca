@@ -161,6 +161,20 @@ func (tr *TaskRunner) initHooks() {
 		}
 	}
 
+	// If a service of the task group uses native mTLS, get the workload
+	// certificate (Norca).
+	if tg := alloc.Job.LookupTaskGroup(alloc.TaskGroup); tg.UsesMTLS() && tr.rpcClient != nil {
+		tr.runnerHooks = append(tr.runnerHooks, newMTLSHook(&mtlsHookConfig{
+			alloc:   alloc,
+			task:    task,
+			rpc:     tr.rpcClient,
+			region:  tr.clientConfig.Region,
+			nodeKey: tr.clientConfig.Node.SecretID,
+			events:  tr,
+			logger:  hookLogger,
+		}))
+	}
+
 	// Always add the script checks hook. A task with no script check hook on
 	// initial registration may be updated to include script checks, which must
 	// be handled with this hook.

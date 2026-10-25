@@ -1485,6 +1485,7 @@ func ApiServicesToStructs(in []*api.Service, group bool) []*structs.Service {
 			OnUpdate:          s.OnUpdate,
 			Provider:          s.Provider,
 			Discovery:         apiServiceDiscoveryToStructs(s.Discovery),
+			MTLS:              apiServiceMTLSToStructs(s.MTLS),
 		}
 
 		if l := len(s.Checks); l != 0 {

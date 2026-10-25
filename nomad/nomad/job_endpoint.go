@@ -87,6 +87,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobNodePoolValidatingHook{srv: s},
 			jobAllocAffinityHook{srv: s},
 			jobDisruptionHook{srv: s},
+			jobMTLSHook{srv: s},
 			jobQuotaValidatingHook{srv: s},
 			jobScalingHook{srv: s},
 			jobNetworkPolicyHook{srv: s},

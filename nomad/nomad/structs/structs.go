@@ -161,6 +161,12 @@ const (
 	BackupUpsertRequestType        MessageType = 78
 	BackupDeleteRequestType        MessageType = 79
 	BackupRestoreUpsertRequestType MessageType = 80
+	// Norca native mTLS types (97-100 assigned to native mTLS). They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	MTLSRootsUpsertRequestType        MessageType = 97
+	ServiceIntentionUpsertRequestType MessageType = 98
+	ServiceIntentionDeleteRequestType MessageType = 99
+	// 100 is reserved for native mTLS
 	// Norca network rules (101-104 assigned to network policies). They are
 	// sent with the IgnoreUnknownTypeFlag set.
 	NetworkPolicyUpsertRequestType      MessageType = 101

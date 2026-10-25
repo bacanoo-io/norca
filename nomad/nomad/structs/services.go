@@ -660,6 +660,10 @@ type Service struct {
 	// Discovery holds the discovery settings of a service using the Nomad
 	// provider (Norca).
 	Discovery *ServiceDiscovery
+
+	// MTLS is the native mTLS configuration of a service using the Nomad
+	// provider (Norca).
+	MTLS *ServiceMTLS
 }
 
 // Copy the block recursively. Returns nil if nil.
@@ -686,6 +690,7 @@ func (s *Service) Copy() *Service {
 	ns.CanaryMeta = maps.Clone(s.CanaryMeta)
 	ns.TaggedAddresses = maps.Clone(s.TaggedAddresses)
 	ns.Discovery = s.Discovery.Copy()
+	ns.MTLS = s.MTLS.Copy()
 
 	return ns
 }
@@ -744,6 +749,7 @@ func (s *Service) Canonicalize(job, taskGroup, task, jobNamespace string) {
 	}
 
 	s.Discovery.Canonicalize()
+	s.MTLS.Canonicalize()
 }
 
 // Validate checks if the Service definition is valid
@@ -806,6 +812,9 @@ func (s *Service) validateConsulService(mErr *multierror.Error) {
 	if s.Discovery != nil {
 		mErr.Errors = append(mErr.Errors, fmt.Errorf("Service %s invalid: discovery may only be set on services with provider nomad", s.Name))
 	}
+	if s.MTLS != nil {
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("Service %s invalid: mtls may only be set on services with provider nomad", s.Name))
+	}
 
 	// check checks
 	for _, c := range s.Checks {
@@ -866,6 +875,10 @@ func (s *Service) validateNomadService(mErr *multierror.Error) {
 	}
 
 	if err := s.Discovery.Validate(); err != nil {
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("Service %s invalid: %v", s.Name, err))
+	}
+
+	if err := s.MTLS.Validate(); err != nil {
 		mErr.Errors = append(mErr.Errors, fmt.Errorf("Service %s invalid: %v", s.Name, err))
 	}
 }
@@ -1036,6 +1049,10 @@ func (s *Service) Equal(o *Service) bool {
 	}
 
 	if !s.Discovery.Equal(o.Discovery) {
+		return false
+	}
+
+	if !s.MTLS.Equal(o.MTLS) {
 		return false
 	}
 

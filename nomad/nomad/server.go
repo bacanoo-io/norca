@@ -253,6 +253,9 @@ type Server struct {
 	// workload identities
 	encrypter *Encrypter
 
+	// mtls is the native mTLS certificate authority (Norca)
+	mtls *mtlsCA
+
 	// admission holds the dynamic admission controllers (webhooks and the
 	// CEL policy engine)
 	admission *dynamicAdmission
@@ -460,6 +463,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		return nil, err
 	}
 	s.encrypter = encrypter
+	s.mtls = newMTLSCA(s, s.logger)
 
 	// Set up the OIDC provider cache. This is needed by the setupRPC, but must
 	// be done separately so that the server can stop all background processes
@@ -1359,6 +1363,8 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewNodeEndpoint(s, ctx))
 	_ = server.Register(NewNodePoolEndpoint(s, ctx))
 	_ = server.Register(NewAdmissionPolicyEndpoint(s, ctx))
+	_ = server.Register(NewMTLSEndpoint(s, ctx))
+	_ = server.Register(NewServiceIntentionEndpoint(s, ctx))
 	_ = server.Register(NewObjectKindEndpoint(s, ctx))
 	_ = server.Register(NewCustomObjectEndpoint(s, ctx))
 	_ = server.Register(NewReleaseEndpoint(s, ctx))

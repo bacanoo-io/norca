@@ -222,6 +222,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 			return objectEventFromChange(change)
 		case TableBackups:
 			return backupEventFromChange(change)
+		case TableServiceIntentions:
+			return serviceIntentionEventFromChange(change)
 		case TableNetworkPolicies, TableAdminNetworkPolicies:
 			return networkPolicyEventFromChange(change)
 		}
@@ -413,6 +415,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 		return objectEventFromChange(change)
 	case TableBackups, TableBackupRestores:
 		return backupEventFromChange(change)
+	case TableServiceIntentions:
+		return serviceIntentionEventFromChange(change)
 	case TableNetworkPolicies, TableAdminNetworkPolicies:
 		return networkPolicyEventFromChange(change)
 	}
