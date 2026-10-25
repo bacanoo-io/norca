@@ -58,7 +58,7 @@ We do not mix licenses within one file: code from a third party goes into a sepa
 
 **Allowed licenses** in the compiled binaries and in the UI bundle: MPL-2.0, Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC, and the Go and Go standard library license (BSD-3-Clause).
 
-**Legacy UI exceptions** (decision of 2026-10-25): the old Ember UI, served at `/ui/legacy` for one release, may also contain `robust-predicates` (Unlicense), `caniuse-lite` (CC-BY-4.0, build time only) and `jsonify` (public domain, build time only). The exceptions are recorded in `nomad/tools/thirdparty/overrides.go` and in the `ui-licenses` CI job, are removed together with the legacy UI, and do not apply to the new UI.
+**UI exceptions** (decisions of 2026-10-25): the old Ember UI, served at `/ui/legacy` for one release, may also contain `robust-predicates` (Unlicense); this exception is removed together with the legacy UI and does not apply to the new UI. Both UIs may contain `caniuse-lite` (CC-BY-4.0) and `jsonify` (public domain): build-time dependencies of the Ember tooling (Babel/browserslist and json-stable-stringify 1.0) that the Ember addons declare as production dependencies, not part of the UI bundle. The exceptions are recorded in `nomad/tools/thirdparty/overrides.go` and in the `ui-licenses` CI job.
 
 **Prohibited:**
 
