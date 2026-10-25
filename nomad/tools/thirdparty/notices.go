@@ -159,6 +159,9 @@ func goVersion(m *goModule) string {
 	if m.ReplacePath != "" {
 		return fmt.Sprintf("%s (replaced by %s %s)", m.Version, m.ReplacePath, m.ReplaceVersion)
 	}
+	if m.CopyDir != "" {
+		return fmt.Sprintf("%s (source copy in %s)", m.Version, m.CopyDir)
+	}
 	return m.Version
 }
 
