@@ -381,6 +381,14 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyBackupDelete(msgType, buf[1:], log.Index)
 	case structs.BackupRestoreUpsertRequestType:
 		return n.applyBackupRestoreUpsert(msgType, buf[1:], log.Index)
+	case structs.NetworkPolicyUpsertRequestType:
+		return n.applyNetworkPolicyUpsert(msgType, buf[1:], log.Index)
+	case structs.NetworkPolicyDeleteRequestType:
+		return n.applyNetworkPolicyDelete(msgType, buf[1:], log.Index)
+	case structs.AdminNetworkPolicyUpsertRequestType:
+		return n.applyAdminNetworkPolicyUpsert(msgType, buf[1:], log.Index)
+	case structs.AdminNetworkPolicyDeleteRequestType:
+		return n.applyAdminNetworkPolicyDelete(msgType, buf[1:], log.Index)
 	}
 
 	// Check enterprise only message types.
@@ -1931,6 +1939,11 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case NetworkPolicySnapshot, AdminNetworkPolicySnapshot:
+			if err := restoreNetworkPolicySnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
 		case AdmissionPolicySnapshot:
 			policy := new(structs.AdmissionPolicy)
 			if err := dec.Decode(policy); err != nil {
@@ -2519,6 +2532,10 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistBackups(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistNetworkPolicies(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}
