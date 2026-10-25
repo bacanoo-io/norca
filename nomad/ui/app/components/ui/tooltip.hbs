@@ -1,0 +1,23 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A short tooltip shown on hover and keyboard focus (CSS only, as in the
+  previous UI; the text is not part of the content). Long texts are
+  shortened unless @full is set. The tooltip is a visual aid: give icons
+  inside their own @label, and do not put information only here.
+
+    <Ui::Tooltip @text={{@allocation.node.name}}>
+      <LinkTo ...>{{@allocation.node.shortId}}</LinkTo>
+    </Ui::Tooltip>
+--}}
+{{#if this.isShown}}
+  <span
+    class="norca-tooltip {{if (or @wide @full) 'norca-tooltip-wide'}} {{if @below 'norca-tooltip-below'}}"
+    data-norca-tooltip={{this.text}}
+    data-test-tooltip
+    ...attributes
+  >{{yield}}</span>
+{{else}}
+  {{yield}}
+{{/if}}

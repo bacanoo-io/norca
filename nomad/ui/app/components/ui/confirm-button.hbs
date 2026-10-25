@@ -1,0 +1,65 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<span class="d-inline-flex flex-wrap align-items-center gap-2 norca-confirm" data-test-confirm-state={{this.state}} {{this.outside}} ...attributes>
+  {{#if (eq this.state "prompt")}}
+    <span class="text-secondary" role="status" data-test-confirmation-message>{{@message}}</span>
+    <Ui::Button
+      @size={{@size}}
+      @disabled={{@isRunning}}
+      data-test-cancel-button
+      {{on "click" this.cancel}}
+      {{autofocus}}
+    >{{or @cancelLabel "Cancel"}}</Ui::Button>
+    <Ui::Button
+      @size={{@size}}
+      @variant={{or @variant "danger"}}
+      @isLoading={{@isRunning}}
+      data-test-confirm-button
+      {{on "click" this.confirm}}
+    >{{or @confirmLabel "Yes"}}</Ui::Button>
+  {{else}}
+    <Ui::Button
+      @size={{@size}}
+      @icon={{@icon}}
+      @variant={{or @idleVariant (if (eq (or @variant "danger") "danger") "outline-danger" @variant)}}
+      @disabled={{@disabled}}
+      @isLoading={{and @isRunning (not this.isTyped)}}
+      title={{@disabledReason}}
+      data-test-idle-button
+      {{on "click" this.prompt}}
+    >{{@label}}</Ui::Button>
+  {{/if}}
+</span>
+
+{{#if (eq this.state "typed")}}
+  <Ui::Modal @title={{or @title @label}} @tone="danger" @onClose={{this.cancel}} data-test-typed-confirmation>
+    <:default>
+      <p data-test-confirmation-message>{{@message}}</p>
+      <form id={{this.formId}} {{on "submit" this.submitTyped}}>
+        <Ui::Field @label={{concat "Type " @typedConfirmation " to confirm"}} as |f|>
+          <Ui::Input
+            @id={{f.id}}
+            @value={{this.typed}}
+            @onInput={{this.setTyped}}
+            @monospace={{true}}
+            data-test-typed-confirmation-input
+            {{autofocus}}
+          />
+        </Ui::Field>
+      </form>
+    </:default>
+    <:footer>
+      <Ui::Button data-test-cancel-button {{on "click" this.cancel}}>{{or @cancelLabel "Cancel"}}</Ui::Button>
+      <Ui::Button
+        @variant={{or @variant "danger"}}
+        @type="submit"
+        @disabled={{not this.typedMatches}}
+        @isLoading={{@isRunning}}
+        form={{this.formId}}
+        data-test-confirm-button
+      >{{or @confirmLabel "Yes"}}</Ui::Button>
+    </:footer>
+  </Ui::Modal>
+{{/if}}

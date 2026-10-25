@@ -1,0 +1,15 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A list of items (Tabler list group); @flush inside cards. Items are
+  links (@route/@model(s)/@query), buttons (attach {{on "click"}} with
+  @action={{true}}) or plain items.
+
+    <Ui::ListGroup @flush={{true}} as |l|>
+      <l.Item @route="jobs.job.index" @model={{job}}>{{job.name}}</l.Item>
+    </Ui::ListGroup>
+--}}
+<div class="list-group {{if @flush 'list-group-flush'}}" data-test-list-group ...attributes>
+  {{yield (hash Item=(component "ui/list-group/item"))}}
+</div>

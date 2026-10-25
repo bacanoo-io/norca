@@ -16,6 +16,7 @@ import {
   triggerable,
   value,
 } from 'ember-cli-page-object';
+import { getter } from 'ember-cli-page-object/macros';
 
 export default create({
   navbar: {
@@ -153,10 +154,20 @@ export default create({
     isShown: isPresent('[data-test-inline-error]'),
     title: text('[data-test-inline-error-title]'),
     message: text('[data-test-inline-error-body]'),
-    dismiss: clickable('[data-test-inline-error-close]'),
+    // The previous pages close with data-test-inline-error-close, the
+    // migrated ones with the dismiss button of Ui::Alert.
+    dismiss: clickable('[data-test-inline-error] [data-test-alert-dismiss]'),
 
-    isDanger: hasClass('is-danger', '[data-test-inline-error]'),
-    isWarning: hasClass('is-warning', '[data-test-inline-error]'),
+    isDangerLegacy: hasClass('is-danger', '[data-test-inline-error]'),
+    isWarningLegacy: hasClass('is-warning', '[data-test-inline-error]'),
+    isDangerAlert: hasClass('alert-danger', '[data-test-inline-error]'),
+    isWarningAlert: hasClass('alert-warning', '[data-test-inline-error]'),
+    isDanger: getter(function () {
+      return this.isDangerLegacy || this.isDangerAlert;
+    }),
+    isWarning: getter(function () {
+      return this.isWarningLegacy || this.isWarningAlert;
+    }),
   },
 
   keyboard: {

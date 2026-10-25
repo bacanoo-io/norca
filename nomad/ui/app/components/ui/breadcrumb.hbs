@@ -1,0 +1,45 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The position of a page in the hierarchy, shown in the page header. The
+  last item is the current page. Each item: { label, route?, model?,
+  models?, query? }. The u key goes up one level (to the item before the
+  current page; @shortcut={{false}} turns that off).
+
+    <Ui::Breadcrumb @items={{array (hash label="Jobs" route="jobs.index")
+                                   (hash label="example")}} />
+--}}
+<nav aria-label="Breadcrumb" data-test-breadcrumbs ...attributes>
+  <ol class="breadcrumb breadcrumb-arrows m-0">
+    {{#each @items as |item index|}}
+      <li
+        class="breadcrumb-item {{if (eq index (dec @items.length)) 'active'}}"
+        aria-current={{if (eq index (dec @items.length)) "page"}}
+      >
+        {{#if (this.isUpTarget index)}}
+          <span
+            hidden
+            {{keyboard-shortcut
+              label="Go up a level"
+              pattern=(array "u")
+              menuLevel=true
+              exclusive=true
+              action=(fn this.goTo item)
+            }}
+          ></span>
+        {{/if}}
+        {{#if (and item.route (not-eq index (dec @items.length)))}}
+          <LinkTo
+            @route={{item.route}}
+            @models={{if item.models item.models (if (not-eq item.model undefined) (array item.model) (array))}}
+            @query={{or item.query (hash)}}
+            data-test-breadcrumb={{or item.id item.route}}
+          >{{item.label}}</LinkTo>
+        {{else}}
+          <span data-test-breadcrumb={{or item.id item.route index}}>{{item.label}}</span>
+        {{/if}}
+      </li>
+    {{/each}}
+  </ol>
+</nav>
