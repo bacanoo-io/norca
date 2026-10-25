@@ -7,13 +7,18 @@ import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { hbs } from 'ember-cli-htmlbars';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
-import { click, typeIn, find, findAll, render } from '@ember/test-helpers';
+import {
+  click,
+  typeIn,
+  find,
+  findAll,
+  render,
+  select,
+} from '@ember/test-helpers';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
 import { codeFillable, code } from 'nomad-ui/tests/pages/helpers/codemirror';
 import percySnapshot from '@percy/ember';
-import { selectChoose } from 'ember-power-select/test-support';
-import { clickTrigger } from 'ember-power-select/test-support/helpers';
 import faker from 'nomad-ui/mirage/faker';
 
 module('Integration | Component | variable-form', function (hooks) {
@@ -44,7 +49,7 @@ module('Integration | Component | variable-form', function (hooks) {
 
     await render(hbs`<VariableForm @model={{this.mockedModel}} />`);
     assert.equal(
-      findAll('div.key-value').length,
+      findAll('[data-test-kv-row]').length,
       1,
       'A single KV row exists by default'
     );
@@ -55,7 +60,7 @@ module('Integration | Component | variable-form', function (hooks) {
         'The "Add More" button is disabled until key and value are filled'
       );
 
-    await typeIn('.key-value label:nth-child(1) input', 'foo');
+    await typeIn('[data-test-kv-row] [data-test-var-key]', 'foo');
 
     assert
       .dom('[data-test-add-kv]')
@@ -63,7 +68,7 @@ module('Integration | Component | variable-form', function (hooks) {
         'The "Add More" button is still disabled with only key filled'
       );
 
-    await typeIn('.key-value label:nth-child(2) input', 'bar');
+    await typeIn('[data-test-kv-row] [data-test-var-value]', 'bar');
 
     assert
       .dom('[data-test-add-kv]')
@@ -74,26 +79,29 @@ module('Integration | Component | variable-form', function (hooks) {
     await click('[data-test-add-kv]');
 
     assert.equal(
-      findAll('div.key-value').length,
+      findAll('[data-test-kv-row]').length,
       2,
       'A second KV row exists after adding a new one'
     );
 
-    await typeIn('.key-value:last-of-type label:nth-child(1) input', 'foo');
-    await typeIn('.key-value:last-of-type label:nth-child(2) input', 'bar');
+    await typeIn('[data-test-kv-row]:last-of-type [data-test-var-key]', 'foo');
+    await typeIn(
+      '[data-test-kv-row]:last-of-type [data-test-var-value]',
+      'bar'
+    );
 
     await click('[data-test-add-kv]');
 
     assert.equal(
-      findAll('div.key-value').length,
+      findAll('[data-test-kv-row]').length,
       3,
       'A third KV row exists after adding a new one'
     );
 
-    await click('.key-value button.delete-row');
+    await click('[data-test-kv-row] [data-test-delete-row]');
 
     assert.equal(
-      findAll('div.key-value').length,
+      findAll('[data-test-kv-row]').length,
       2,
       'Back down to two rows after hitting delete'
     );
@@ -114,7 +122,7 @@ module('Integration | Component | variable-form', function (hooks) {
       await render(hbs`<VariableForm @model={{this.mockedModel}} />`);
       await click('[data-test-add-kv]'); // add a second variable
 
-      findAll('input.value-input').forEach((input, iter) => {
+      findAll('[data-test-var-value]').forEach((input, iter) => {
         assert.equal(
           input.getAttribute('type'),
           'password',
@@ -122,8 +130,8 @@ module('Integration | Component | variable-form', function (hooks) {
         );
       });
 
-      await click('.key-value button.show-hide-values');
-      const [firstRow, secondRow] = findAll('input.value-input');
+      await click('[data-test-kv-row] [data-test-toggle-value]');
+      const [firstRow, secondRow] = findAll('[data-test-var-value]');
 
       assert.equal(
         firstRow.getAttribute('type'),
@@ -136,7 +144,7 @@ module('Integration | Component | variable-form', function (hooks) {
         'Rows that are not clicked remain obscured'
       );
 
-      await click('.key-value button.show-hide-values');
+      await click('[data-test-kv-row] [data-test-toggle-value]');
       assert.equal(
         firstRow.getAttribute('type'),
         'password',
@@ -170,12 +178,12 @@ module('Integration | Component | variable-form', function (hooks) {
     );
     await render(hbs`<VariableForm @model={{this.mockedModel}} />`);
     assert.equal(
-      findAll('div.key-value').length,
+      findAll('[data-test-kv-row]').length,
       5,
       'Shows 5 existing key values'
     );
     assert.equal(
-      findAll('button.delete-row').length,
+      findAll('[data-test-delete-row]').length,
       5,
       'Shows "delete" for all five rows'
     );
@@ -185,15 +193,15 @@ module('Integration | Component | variable-form', function (hooks) {
       'Shows "add more" only on the last row'
     );
 
-    findAll('div.key-value').forEach((row, idx) => {
+    findAll('[data-test-kv-row]').forEach((row, idx) => {
       assert.equal(
-        row.querySelector(`label:nth-child(1) input`).value,
+        row.querySelector('[data-test-var-key]').value,
         keyValues[idx].key,
         `Key ${idx + 1} is correct`
       );
 
       assert.equal(
-        row.querySelector(`label:nth-child(2) input`).value,
+        row.querySelector('[data-test-var-value]').value,
         keyValues[idx].value,
         keyValues[idx].value
       );
@@ -212,9 +220,9 @@ module('Integration | Component | variable-form', function (hooks) {
     variable.isNew = false;
     this.set('variable', variable);
     await render(hbs`<VariableForm @model={{this.variable}} />`);
-    assert.dom('input.path-input').hasValue('/baz/bat', 'Path is set');
+    assert.dom('[data-test-path-input]').hasValue('/baz/bat', 'Path is set');
     assert
-      .dom('input.path-input')
+      .dom('[data-test-path-input]')
       .isDisabled('Existing variable is in disabled state');
 
     variable.isNew = true;
@@ -222,7 +230,7 @@ module('Integration | Component | variable-form', function (hooks) {
     this.set('variable', variable);
     await render(hbs`<VariableForm @model={{this.variable}} />`);
     assert
-      .dom('input.path-input')
+      .dom('[data-test-path-input]')
       .isNotDisabled('New variable is not in disabled state');
   });
 
@@ -252,27 +260,26 @@ module('Integration | Component | variable-form', function (hooks) {
         hbs`<VariableForm @model={{this.mockedModel}} @existingVariables={{this.existingVariables}} />`
       );
 
-      await typeIn('.path-input', 'foo/bar');
-      assert.dom('.duplicate-path-error').doesNotExist();
-      assert.dom('.path-input').doesNotHaveClass('error');
+      await typeIn('[data-test-path-input]', 'foo/bar');
+      assert.dom('[data-test-duplicate-path-error]').doesNotExist();
+      assert.dom('[data-test-path-input]').doesNotHaveClass('is-invalid');
 
-      document.querySelector('.path-input').value = ''; // clear current input
-      await typeIn('.path-input', 'baz/bat');
-      assert.dom('.duplicate-path-error').exists();
-      assert.dom('.path-input').hasClass('error');
+      document.querySelector('[data-test-path-input]').value = ''; // clear current input
+      await typeIn('[data-test-path-input]', 'baz/bat');
+      assert.dom('[data-test-duplicate-path-error]').exists();
+      assert.dom('[data-test-path-input]').hasClass('is-invalid');
 
-      await clickTrigger('[data-test-variable-namespace-filter]');
-      await selectChoose(
+      await select(
         '[data-test-variable-namespace-filter]',
         server.db.namespaces[2].id
       );
-      assert.dom('.duplicate-path-error').doesNotExist();
-      assert.dom('.path-input').doesNotHaveClass('error');
+      assert.dom('[data-test-duplicate-path-error]').doesNotExist();
+      assert.dom('[data-test-path-input]').doesNotHaveClass('is-invalid');
 
-      document.querySelector('.path-input').value = ''; // clear current input
-      await typeIn('.path-input', 'baz/bat/qux');
-      assert.dom('.duplicate-path-error').exists();
-      assert.dom('.path-input').hasClass('error');
+      document.querySelector('[data-test-path-input]').value = ''; // clear current input
+      await typeIn('[data-test-path-input]', 'baz/bat/qux');
+      assert.dom('[data-test-duplicate-path-error]').exists();
+      assert.dom('[data-test-path-input]').hasClass('is-invalid');
     });
 
     test('warns you when you set a key with . in it', async function (assert) {
@@ -324,9 +331,9 @@ module('Integration | Component | variable-form', function (hooks) {
         await render(hbs`<VariableForm @model={{this.mockedModel}} />`);
         await typeIn('[data-test-var-key]', tc.key);
         if (tc.warn) {
-          assert.dom('.key-value-error').exists(tc.name);
+          assert.dom('[data-test-key-value-error]').exists(tc.name);
         } else {
-          assert.dom('.key-value-error').doesNotExist(tc.name);
+          assert.dom('[data-test-key-value-error]').doesNotExist(tc.name);
         }
       }
     });
@@ -345,12 +352,12 @@ module('Integration | Component | variable-form', function (hooks) {
 
       const secondKey = document.querySelectorAll('[data-test-var-key]')[1];
       await typeIn(secondKey, 'myWonderfulKey');
-      assert.dom('.key-value-error').doesNotExist();
+      assert.dom('[data-test-key-value-error]').doesNotExist();
 
       secondKey.value = '';
 
       await typeIn(secondKey, 'myKey');
-      assert.dom('.key-value-error').exists();
+      assert.dom('[data-test-key-value-error]').exists();
     });
   });
 
@@ -376,11 +383,11 @@ module('Integration | Component | variable-form', function (hooks) {
       await render(
         hbs`<VariableForm @model={{this.mockedModel}} @existingVariables={{this.existingVariables}} @view={{this.view}} />`
       );
-      assert.dom('.key-value').exists();
+      assert.dom('[data-test-kv-row]').exists();
       assert.dom('.CodeMirror').doesNotExist();
 
       this.set('view', 'json');
-      assert.dom('.key-value').doesNotExist();
+      assert.dom('[data-test-kv-row]').doesNotExist();
       assert.dom('.CodeMirror').exists();
     });
 
@@ -413,7 +420,7 @@ module('Integration | Component | variable-form', function (hooks) {
       }, {});
 
       assert.equal(
-        code('.editor-wrapper').get(),
+        code('[data-test-json-editor-wrapper]').get(),
         JSON.stringify(keyValuesAsJSON, null, 2),
         'JSON editor contains the key values, stringified, by default'
       );
@@ -422,9 +429,12 @@ module('Integration | Component | variable-form', function (hooks) {
 
       await click('[data-test-add-kv]');
 
-      await typeIn('.key-value:last-of-type label:nth-child(1) input', 'howdy');
       await typeIn(
-        '.key-value:last-of-type label:nth-child(2) input',
+        '[data-test-kv-row]:last-of-type [data-test-var-key]',
+        'howdy'
+      );
+      await typeIn(
+        '[data-test-kv-row]:last-of-type [data-test-var-value]',
         'partner'
       );
 
@@ -457,13 +467,13 @@ module('Integration | Component | variable-form', function (hooks) {
       );
       this.set('view', 'table');
       assert.equal(
-        find(`.key-value:last-of-type label:nth-child(1) input`).value,
+        find('[data-test-kv-row]:last-of-type [data-test-var-key]').value,
         'golden',
         'Key persists from JSON to Table'
       );
 
       assert.equal(
-        find(`.key-value:last-of-type label:nth-child(2) input`).value,
+        find('[data-test-kv-row]:last-of-type [data-test-var-value]').value,
         'gate',
         'Value persists from JSON to Table'
       );

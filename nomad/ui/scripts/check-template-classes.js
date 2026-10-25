@@ -63,6 +63,10 @@ const MIGRATED = [
   'components/clients',
   'components/agent-monitor.hbs',
   'components/forbidden-message.hbs',
+  'templates/variables.hbs',
+  'templates/variables',
+  'components/variable-form.hbs',
+  'components/variable-form',
 ];
 
 const ALLOWED = [
