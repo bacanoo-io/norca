@@ -2,7 +2,7 @@
 
 **Status:** Planned · 2026-10-25 · Starting point: Nomad v1.6.5 (MPL 2.0) and the Norca features built on it (Variables, keyring, workload identities, backup) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md), [backup-restore-plan.md](backup-restore-plan.md), [consul-independence-plan.md](consul-independence-plan.md), [package-management-plan.md](package-management-plan.md)
 
-Norca gets a built-in secret store, so that a cluster can keep and hand out passwords, API keys and certificates without running a separate secret server. The same delivery path to tasks also works with an **external provider**: OpenBao or Vault, a cloud secret manager, or a third-party plugin. A job says *which* secret it needs and *where* it should appear in the task; whether the value comes from the built-in store or from an external one is a configuration choice that can differ per secret.
+Norca gets a built-in secret store, so that a cluster can keep and hand out passwords, API keys and certificates without running a separate secret server. The **existing external Vault integration stays exactly as it is**, and further external modules (OpenBao, cloud secret managers, plugins) can be added. The rule that ties the two together: **a secret lookup goes to the external store when one is defined for it, and falls back to the built-in store when none is defined.** This also holds for jobs written for Vault: on a cluster without Vault, their `vault` blocks and `secret` template calls are served by the built-in store, unchanged.
 
 ## Table of contents
 
@@ -11,6 +11,8 @@ Norca gets a built-in secret store, so that a cluster can keep and hand out pass
 - [Architecture](#architecture)
 - [Key protection (seal)](#key-protection-seal)
 - [The built-in store](#the-built-in-store)
+- [Provider resolution and fallback](#provider-resolution-and-fallback)
+- [Vault compatibility](#vault-compatibility)
 - [Delivery to tasks](#delivery-to-tasks)
 - [External providers](#external-providers)
 - [Permissions](#permissions)
@@ -53,6 +55,8 @@ Variables are therefore already an encrypted, replicated, access-controlled stor
 - Secrets at rest are protected by a key that is **not** on the servers' disks in usable form (cloud KMS, an OpenBao/Vault transit key, or operator-held unseal shares).
 - A first-class secret object with versions, metadata, expiry and rotation reminders, separate from configuration Variables, with value redaction everywhere (API listings, events, logs, UI, backups browsing).
 - One declarative `secret` block in the jobspec that delivers values as files or environment variables, re-delivers them on change, and works identically for the built-in store and for external providers.
+- **The existing Vault integration is unchanged:** the agent's `vault` block, server-derived Vault tokens, the task `vault` block and the `secret` template function keep working against a configured Vault exactly as in Nomad 1.6.5.
+- **Fallback:** every secret lookup is resolved to an external store if one is defined for it, otherwise to the built-in store. Jobs written for Vault run without Vault: the built-in store answers their KV reads.
 - A **provider interface** with built-in providers (the embedded store, OpenBao/Vault, the cloud secret managers of the supported clouds) and external plugins over the same gRPC plugin mechanism as the autoscaler's external plugins.
 - Workload identity as the only credential a task needs; no long-lived tokens in jobspecs or on clients where the provider supports identity federation.
 - An audit trail of every value read and write.
@@ -90,7 +94,8 @@ flowchart LR
 
 - **Servers** own the seal, the keyring and the built-in store. Values are encrypted with the active root key (as Variables are); the root keys are wrapped by the seal.
 - **Clients** run a `secret` task-runner hook. For each `secret` block it picks the provider, authenticates with the task's workload identity, fetches the value, writes it into the task's `secrets/` directory or environment, and watches for changes.
-- **Providers** are one interface; `norca` is the built-in one. External providers are either compiled in (OpenBao/Vault and the cloud secret managers) or loaded as plugins.
+- **Providers** are one interface; `norca` is the built-in one. External providers are either compiled in (OpenBao/Vault and the cloud secret managers) or loaded as plugins. The existing Vault integration is wrapped as the `vault` provider without changing its behaviour.
+- **Resolution:** the client decides per lookup which provider answers it (see the next section); `norca` is always the last fallback, so a lookup never fails just because no external store is configured.
 
 ## Key protection (seal)
 
@@ -143,12 +148,40 @@ server {
 - **Values never leave the servers except** through an explicit value read (API/CLI with `read-value`, or the client `secret` hook). Listings, events, the event stream, backup browsing, release drift and the UI only ever show metadata and a value hash.
 - **Size and load:** secret writes are rare; reads by clients use blocking queries on metadata and fetch the value only when the version changes.
 
+## Provider resolution and fallback
+
+Every secret lookup – a `secret` block, a `secret`/`nomadSecret` template call, a task `vault` block, or a read through the Vault-compatible endpoint – is resolved by the client in this order; the first step that defines a provider wins:
+
+| Step | Where it is defined | Example |
+| --- | --- | --- |
+| 1. Explicit | `provider` in the `secret` block, or the `provider:` prefix in a template call | `provider = "aws"`, `{{ secret "bao:kv/data/db" }}` |
+| 2. Path mapping | `secrets { route }` rules in the client configuration, matched on the path prefix | `route { prefix = "kv/" provider = "vault" }` |
+| 3. Job or namespace default | `secrets { default_provider }` in the namespace metadata, or in the job's group | `default_provider = "bao"` for the `prod` namespace |
+| 4. Vault integration | The agent's existing `vault { enabled = true }` block: Vault-style lookups (task `vault` block, `secret` template calls) go to that Vault, exactly as today | unchanged Nomad 1.6.5 behaviour |
+| 5. **Fallback** | Nothing above defines a provider | the built-in `norca` store |
+
+- **Fallback means "not defined", never "failed".** If a provider is defined but unreachable, or denies the request, or the secret does not exist there, the lookup fails with that provider's error; it does **not** silently fall through to the built-in store. A silent fallback could hand a task a stale or different value without anyone noticing.
+- The resolved provider of each secret of a task is shown in the task events and the allocation status (`secret db: provider norca (fallback)`), never the value.
+- Admission policies can require a provider for a namespace (for example: `prod` must use `bao`), so that a missing configuration fails at job submission instead of falling back.
+- Servers use the same order for server-side lookups (for example the pack release `secret_items`).
+
+## Vault compatibility
+
+The existing Vault integration is kept as it is: the agent's `vault` block, the server-derived Vault tokens, the task `vault` block (`policies`, `change_mode`, `env`), `VAULT_TOKEN`/`VAULT_ADDR` injection and the `secret` template function. With a configured Vault (step 4 above) nothing changes.
+
+When **no Vault is configured** (and no other provider is defined for the lookup), Vault-style lookups fall back to the built-in store:
+
+- **Template calls:** `{{ with secret "kv/data/app/db" }}{{ .Data.data.password }}{{ end }}` reads the built-in secret `app/db` and returns it in the KV v2 response shape (`.Data.data`, `.Data.metadata.version`), so existing templates render unchanged. KV v1 paths (`secret/app/db` → `.Data.password`) are supported as well. The mount prefix is mapped by configurable rules (default: `kv/data/<p>`, `secret/data/<p>` and `secret/<p>` → `<p>`).
+- **Task `vault` block:** without Vault, the task gets a short-lived, task-scoped token for a **Vault-compatible read endpoint on the local client agent** (`VAULT_ADDR` points to it), so applications that use a Vault SDK directly can read their KV secrets from the built-in store. The endpoint implements only KV v1/v2 reads, `token/lookup-self`, `token/renew-self` and `sys/health`; everything else returns a clear "not supported by the built-in store" error. Access is checked with the task's workload identity and the `read-secret` policy, not with Vault policies; the `policies` list of the `vault` block is used only for a warning if no matching Norca policy exists.
+- This mirrors the Consul-compatible read layer of the Consul independence plan: same idea, same "subset plus explicit errors" rule.
+- Dynamic Vault engines (database, AWS, PKI) have no built-in fallback; such lookups fail with a message that a Vault/OpenBao provider is required.
+
 ## Delivery to tasks
 
 ```hcl
 task "api" {
   secret "db" {
-    provider = "norca"            # default; or a configured external provider name
+    provider = "aws"              # optional; omitted = resolution order, fallback to the built-in store
     path     = "prod/db/postgres" # provider-specific path
     version  = 0                  # 0 = latest
 
@@ -169,7 +202,7 @@ task "api" {
 
 - The hook runs before the task starts (`prestart`) and blocks the start until every required secret is delivered (`optional = true` makes a secret non-blocking).
 - Files are written atomically into `secrets/` (tmpfs on Linux where available) with mode 0400 and the task's user as owner; `env` values go only into the task's environment, never into the allocation API or logs.
-- A **template function** `{{ secret "norca:prod/db/postgres" }}` gives the same data to templates; the existing Vault `secret` function keeps working for `vault` providers.
+- A **template function** `{{ nomadSecret "prod/db/postgres" }}` (optionally with a `provider:` prefix) gives the same data to templates and follows the same resolution order; the existing Vault `secret` function keeps working, against Vault when one is configured and against the built-in store otherwise.
 - Values are never written into the job spec, the allocation, client state on disk, or task events. Restarted clients fetch them again.
 - Jobs reference secrets by path; admission policies (CEL) can restrict which paths a namespace may reference.
 
@@ -197,8 +230,9 @@ secrets {
 
 | Provider type | Backend | Authentication of the task | Notes |
 | --- | --- | --- | --- |
-| `norca` | Built-in store | Workload identity, server RPC | Always available |
-| `openbao`, `vault` | OpenBao or Vault KV v2 (also dynamic secrets engines, read as leases) | JWT auth with the workload identity (no Vault token in the job) | The legacy `vault` block keeps working unchanged |
+| `norca` | Built-in store | Workload identity, server RPC | Always available; the fallback |
+| `vault` (existing integration) | The Vault configured in the agent's `vault` block | Server-derived Vault tokens, as in Nomad 1.6.5 | Unchanged; defined implicitly when `vault { enabled = true }` |
+| `openbao`, `vault` (new provider block) | OpenBao or Vault KV v2 (also dynamic secrets engines, read as leases) | JWT auth with the workload identity (no Vault token in the job) | Optional newer path; can run next to the existing integration |
 | `aws-secretsmanager` | AWS Secrets Manager | STS `AssumeRoleWithWebIdentity` with the workload identity, or the node's instance role | |
 | `gcp-secretmanager` | Google Secret Manager | Workload Identity Federation with the workload identity, or the node's service account | |
 | `scaleway-secretmanager` | Scaleway Secret Manager | API key from the client configuration (no identity federation) | |
@@ -268,7 +302,7 @@ New namespace capabilities for the built-in store, none of them included in the 
 ## Migration
 
 - **Variables → secrets:** `norca secret import -from-variable <path>` moves (or copies) a Variable into the store; a deprecation warning can be enabled for Variables items that look secret (same heuristics as the pack release redaction).
-- **Vault templates:** jobs using `vault {}` and `{{ with secret "kv/data/..." }}` keep working; switching a job to an `openbao`/`vault` provider with JWT auth removes the need for server-derived Vault tokens. The old token flow is kept for compatibility and documented as legacy.
+- **Vault jobs:** jobs using `vault {}` and `{{ with secret "kv/data/..." }}` keep working against a configured Vault with no change. To move a cluster off Vault, copy the KV secrets into the built-in store (`norca secret import -from-vault <mount>/<prefix>`, reading through the existing Vault configuration), then remove the agent's `vault` block: the same jobs now resolve to the built-in store through the fallback. Switching to an `openbao`/`vault` provider block with JWT auth is optional and removes the need for server-derived Vault tokens.
 - **Keyring:** clusters start with `aead` (today's behaviour) until a `keyring { seal … }` block is added; `norca operator keyring rewrap` then moves to the new seal online.
 
 ## Implementation and schedule
@@ -277,12 +311,13 @@ New namespace capabilities for the built-in store, none of them included in the 
 | --- | --- | --- |
 | 1. Seal | `keyring { seal }` with `awskms`, `gcpckms`, `scwkms`, `transit`, `shares`, `aead`; sealed state; unseal, seal status, rewrap; backup manifest records the seal | `nomad/encrypter.go`, new `nomad/seal/`, `command/operator_unseal.go`, `nomad/backup/` |
 | 2. Built-in store | `Secret` object, Raft table, versions, soft delete, ACL capabilities, redaction, `SecretAccess` events, audit file sink, API, CLI | new `nomad/secrets_endpoint.go`, `nomad/structs/secrets.go`, `nomad/state/state_store_secrets.go`, `acl/policy.go`, `api/secrets.go`, `command/secret_*.go` |
-| 3. Delivery | `secret` jobspec block, task-runner hook, `secret` template function, change modes, admission on referenced paths | `jobspec2`, `nomad/structs`, `client/allocrunner/taskrunner/secret_hook.go`, `client/secrets/` |
-| 4. External providers | Provider interface, `openbao`/`vault` (JWT), `aws-secretsmanager`, `gcp-secretmanager`, `scaleway-secretmanager`, plugin mechanism and SDK, OIDC discovery/JWKS | `client/secrets/providers/`, `api/secretsplugin/`, `command/agent/` |
-| 5. Lifecycle | Expiry and rotation events, rotation jobs, replicated paths, UI page | `nomad/secrets_watcher.go`, `nomad/leader.go`, `ui/` |
-| 6. (optional) Built-in dynamic secrets | Lease-based database and cloud credentials | later decision |
+| 3. Delivery and fallback | `secret` jobspec block, task-runner hook, `nomadSecret` template function, change modes, provider interface with the `norca` provider and the existing Vault integration wrapped as the `vault` provider, the resolution order with fallback, admission on referenced paths and required providers | `jobspec2`, `nomad/structs`, `client/allocrunner/taskrunner/secret_hook.go`, `client/secrets/` |
+| 4. Vault compatibility | Vault-style template calls and the task `vault` block served by the built-in store when no Vault is configured; Vault-compatible KV read endpoint on the client agent; `secret import -from-vault` | `client/allocrunner/taskrunner/vault_hook.go`, `client/allocrunner/taskrunner/template/`, new `client/vaultcompat/` |
+| 5. External providers | `openbao`/`vault` provider blocks (JWT), `aws-secretsmanager`, `gcp-secretmanager`, `scaleway-secretmanager`, plugin mechanism and SDK, OIDC discovery/JWKS | `client/secrets/providers/`, `api/secretsplugin/`, `command/agent/` |
+| 6. Lifecycle | Expiry and rotation events, rotation jobs, replicated paths, UI page | `nomad/secrets_watcher.go`, `nomad/leader.go`, `ui/` |
+| 7. (optional) Built-in dynamic secrets | Lease-based database and cloud credentials | later decision |
 
-Phases 1 and 2 are independent of each other and can run in parallel; phase 3 needs 2; phase 4 needs 3 (except the OIDC discovery part, which can start at any time).
+Phases 1 and 2 are independent of each other and can run in parallel; phase 3 needs 2; phases 4 and 5 need 3 and can run in parallel (the OIDC discovery part of phase 5 can start at any time). The existing Vault integration keeps working throughout; no phase changes its behaviour when a Vault is configured.
 
 ## Testing and acceptance
 
@@ -293,6 +328,9 @@ Phases 1 and 2 are independent of each other and can run in parallel; phase 3 ne
 - A task without a policy granting `read-secret` cannot start if it requires the secret, and the denial is in the audit trail.
 - Updating a secret re-delivers it to running tasks according to `change_mode` within 10 seconds.
 - The same job with `provider = "norca"` and with `provider = "bao"` (OpenBao test server, JWT auth with the workload identity) yields the same files and environment.
+- **Fallback:** a job without any `provider` setting, on a client with no route, no namespace default and no `vault` block, gets its secrets from the built-in store; adding a namespace default makes the same job read from that provider; making that provider unreachable makes the task fail with the provider's error instead of falling back.
+- **Vault compatibility:** an unmodified job that uses `vault {}` and `{{ with secret "kv/data/app/db" }}` renders the same file with a real Vault (existing integration, OpenBao/Vault test server) and, after removing the agent's `vault` block, from the built-in store; an application using the Vault Go client with `VAULT_ADDR`/`VAULT_TOKEN` reads the same KV value through the client's compatible endpoint.
+- The existing Vault integration tests of Nomad 1.6.5 pass unchanged.
 - Each cloud secret-manager provider is tested against the provider's API (integration tests gated on credentials; contract tests with recorded responses in CI).
 - A replicated path written in the authoritative region appears in the other regions, re-encrypted, within the replication interval.
 
@@ -306,6 +344,8 @@ Phases 1 and 2 are independent of each other and can run in parallel; phase 3 ne
 | Too many secret reads load Raft | Clients watch metadata and fetch values only on version change; reads are served by followers with stale-OK for metadata |
 | External provider differences (versions, leases, naming) | Provider capability flags; contract tests per provider; clear errors for unsupported features |
 | Confusion between Variables and secrets | Documentation, `secret import`, warnings for secret-looking Variables |
+| A job silently reads from the built-in store although an external store was intended (missing configuration) | The resolved provider is shown in task events and the allocation status; admission policies can require a provider per namespace; fallback only when nothing is defined, never on errors |
+| The Vault-compatible endpoint is mistaken for a full Vault | Only KV reads and token self-operations; explicit errors for everything else; documented subset |
 
 ## License
 
@@ -317,6 +357,9 @@ Phases 1 and 2 are independent of each other and can run in parallel; phase 3 ne
 
 ## Open questions
 
+- [x] What happens to the existing Vault integration, and how do built-in and external stores relate? Decided 2026-10-25: the existing Vault integration stays as it is; external modules remain possible; secret lookups go to the external store when one is defined and fall back to the built-in store when none is defined.
+- [ ] Should a defined but failing external provider ever fall back to the built-in store (proposed: never; fallback only when no provider is defined)?
+- [ ] Should the Vault-compatible read endpoint on the client agent be part of the first version (proposed: yes, KV reads only), or only the template fallback?
 - [ ] Separate `Secret` object next to Variables (proposed), or extend Variables with secret features?
 - [ ] Which seals are needed first? Proposed: `awskms`, `gcpckms`, `scwkms` and `shares` (for Hetzner); `transit` with OpenBao next.
 - [ ] Which external providers come first? Proposed: OpenBao/Vault with JWT auth, then the AWS, GCP and Scaleway secret managers; the plugin mechanism together with the first provider.
