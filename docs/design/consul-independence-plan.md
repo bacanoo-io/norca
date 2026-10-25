@@ -1,6 +1,6 @@
 # Consul independence – plan
 
-**Status:** In progress · 2026-10-25 (phases 1–4 and 6 implemented; phase 5, native mTLS: steps 1–2 implemented, step 3 in progress) · Starting point: Nomad v1.6.5 (MPL 2.0) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md), [kubernetes-features-spec.md](kubernetes-features-spec.md)
+**Status:** In progress · 2026-10-25 (phases 1–4 and 6 implemented; phase 5, native mTLS: steps 1–3 implemented; the real-Envoy sidecar test is being fixed) · Starting point: Nomad v1.6.5 (MPL 2.0) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md), [kubernetes-features-spec.md](kubernetes-features-spec.md)
 
 One of Nomad's biggest practical drawbacks is that service discovery, DNS and the service mesh require Consul to be installed and operated separately. The goal is that most users no longer need Consul, while external tools built on the Consul API (Traefik, Prometheus and many others) keep working unchanged or through a native Nomad integration. Anyone who needs a full service mesh can still use Consul, but Nomad installs and manages it.
 

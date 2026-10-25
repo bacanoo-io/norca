@@ -1,6 +1,6 @@
 # Package management: Nomad Pack integration – plan
 
-**Status:** In progress · 2026-10-25 (phases 1–3 implemented except the UI; phase 4: OCI registries, signing, admission check and `pack.lock` implemented, variable schemas and multi-region install in progress) · Starting point: Nomad v1.6.5 (MPL 2.0), Nomad Pack v0.4.2 (MPL 2.0) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md), [kubernetes-features-spec.md](kubernetes-features-spec.md), [backup-restore-plan.md](backup-restore-plan.md)
+**Status:** In progress · 2026-10-25 (phases 1–3 implemented except the UI; phase 4 implemented: OCI registries, signing, admission check, `pack.lock`, variable schemas, multi-region install) · Starting point: Nomad v1.6.5 (MPL 2.0), Nomad Pack v0.4.2 (MPL 2.0) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md), [kubernetes-features-spec.md](kubernetes-features-spec.md), [backup-restore-plan.md](backup-restore-plan.md)
 
 Norca's package manager will be Nomad Pack: the package format and the command-line tool remain, while the capabilities missing compared to Helm (a release object with revisions, rollback, non-job resources, atomic install, hooks, tests, OCI registry, signing) are provided by Norca's server side, building on the features already planned. The same format also serves as the operator package for Kubernetes item 8, so there is a single package format.
 
