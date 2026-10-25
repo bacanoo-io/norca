@@ -261,6 +261,14 @@ func tasksUpdated(jobA, jobB *structs.Job, taskGroup string) comparison {
 		return difference("mtls proxy", a.Services, b.Services)
 	}
 
+	// Check the secret default providers: the secret hook resolves the
+	// providers when the task starts (Norca). secret_access bindings are
+	// checked by the servers against the allocation's job and need no new
+	// allocation.
+	if pa, pb := jobA.SecretDefaultProvider(a), jobB.SecretDefaultProvider(b); pa != pb {
+		return difference("secrets default provider", pa, pb)
+	}
+
 	// Check if volumes are updated (no task driver can support
 	// altering mounts in-place)
 	if !maps.EqualFunc(a.Volumes, b.Volumes, func(a, b *structs.VolumeRequest) bool { return a.Equal(b) }) {
@@ -300,6 +308,9 @@ func tasksUpdated(jobA, jobB *structs.Job, taskGroup string) comparison {
 		}
 		if !slices.EqualFunc(at.Templates, bt.Templates, func(a, b *structs.Template) bool { return a.Equal(b) }) {
 			return difference("task templates", at.Templates, bt.Templates)
+		}
+		if !structs.TaskSecretsEqual(at.Secrets, bt.Secrets) {
+			return difference("task secrets", at.Secrets, bt.Secrets)
 		}
 		if !at.CSIPluginConfig.Equal(bt.CSIPluginConfig) {
 			return difference("task csi config", at.CSIPluginConfig, bt.CSIPluginConfig)

@@ -278,16 +278,28 @@ func (k *Keyring) Get(args *structs.KeyringGetRootKeyRequest, reply *structs.Key
 				return k.srv.replySetIndex(state.TableRootKeyMeta, &reply.QueryMeta)
 			}
 
-			// retrieve the key material from the keyring
-			key, err := k.encrypter.GetKey(keyMeta.KeyID)
-			if err != nil {
-				return err
+			if m := k.srv.seal; m != nil && m.realSeal() {
+				// Norca: with a seal other than aead the key leaves the
+				// server only wrapped by that seal
+				wrapped, err := k.encrypter.wrapKeyForTransfer(keyMeta.KeyID)
+				if err != nil {
+					return err
+				}
+				wrapped.Meta = keyMeta
+				reply.Key = nil
+				reply.WrappedKey = wrapped
+			} else {
+				// retrieve the key material from the keyring
+				key, err := k.encrypter.GetKey(keyMeta.KeyID)
+				if err != nil {
+					return err
+				}
+				rootKey := &structs.RootKey{
+					Meta: keyMeta,
+					Key:  key,
+				}
+				reply.Key = rootKey
 			}
-			rootKey := &structs.RootKey{
-				Meta: keyMeta,
-				Key:  key,
-			}
-			reply.Key = rootKey
 
 			// Use the last index that affected the policy table
 			index, err := s.Index(state.TableRootKeyMeta)

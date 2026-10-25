@@ -36,28 +36,41 @@
 //     state store is caught up), and it is lost when leadership is revoked.
 //     There is one lock per server; the lock name is ignored.
 //
-// # Extension points
+// # The core
 //
-// The core is not created yet; the seal (phase 1) and the store (phase 2)
-// build on the following:
+// The seal (Norca phase 1, nomad/nomad/secret_store.go and nomad/nomad/seal)
+// creates the core over the backend on every server and drives it:
 //
 //   - The server creates the backend at startup (nomad.Server.setupSecretStore,
 //     see [New] and [Deps]) and reports leadership changes to it
 //     ([Backend.SetLeader] from establishLeadership and revokeLeadership).
 //
 //   - The core is created over it with HA, with the server's Raft ID as the
-//     holder ID:
+//     holder ID, and in uBixVault's auto-unseal mode with seal.CoreSeal: its
+//     master key is wrapped by the server's keyring seals (aead, shares, ...)
+//     and stored at "core/auto-master". RunHA runs until shutdown.
 //
-//     c := core.New(backend, core.WithHA(core.HAConfig{Backend: backend, HolderID: raftID}))
-//     go c.RunHA(ctx, logf)
+//     Every server unseals its own core as soon as its keyring seal is
+//     unsealed; only the leader's core becomes active, and
+//     [Backend.HALock] fences writes of a core that lost leadership with
+//     storage.ErrFenced. The leader initializes the core (core.Initialize,
+//     which takes the lock) the first time it is used; Norca drops the root
+//     token and recovery shares Initialize returns.
 //
-//     Every server unseals its own core; only the leader's core becomes
-//     active, and [Backend.HALock] fences writes of a core that lost
-//     leadership with storage.ErrFenced. Initialization (core.Initialize)
-//     takes the lock and therefore has to run on the leader.
+//   - The store (phase 2) reaches the active core through
+//     nomad.Server.secretCore. Followers forward secret requests to the
+//     leader over Nomad's RPC forwarding, not over uBixVault's HTTP
+//     forwarding; the lock's Holder reports the leader's server ID and RPC
+//     address for diagnostics only.
 //
-//   - Followers forward secret requests to the leader over Nomad's RPC
-//     forwarding (later phases), not over uBixVault's HTTP forwarding; the
-//     lock's Holder reports the leader's server ID and RPC address for
-//     diagnostics only.
+// # Batched writes
+//
+// The secrets of the store (nomad/secrets_kv.go) drive uBixVault's KV engine
+// with a context carrying a [Batch]: the backend then collects the barrier's
+// writes, serves them to reads made with the same context, and the store
+// applies them together with the secret's metadata row as one Raft entry
+// (SecretApplyRequestType), so values and metadata change atomically.
+// [Backend.CheckWrite] applies the version gate and the HA fencing to such
+// a batch. The audit trail of the store uses uBixVault's audit broker with
+// Norca's [AuditFile] device.
 package secretstore

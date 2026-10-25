@@ -110,6 +110,9 @@ func (b *Backend) Get(ctx context.Context, key string) (*storage.Entry, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if e, ok := getBatched(ctx, key); ok {
+		return e, nil
+	}
 	blob, err := b.deps.State().SecretStoreBlobByPath(nil, key)
 	if err != nil {
 		return nil, fmt.Errorf("secret store: %w", err)
@@ -175,6 +178,10 @@ func (b *Backend) Put(ctx context.Context, entry *storage.Entry) error {
 	if len(entry.Value) > b.deps.MaxValueSize {
 		return fmt.Errorf("%w: %q is %d bytes, the limit is %d", ErrValueTooLarge, entry.Key, len(entry.Value), b.deps.MaxValueSize)
 	}
+	if batch := batchFrom(ctx); batch != nil {
+		batch.put(entry.Key, entry.Value)
+		return nil
+	}
 	if err := b.checkWrite(ctx); err != nil {
 		return err
 	}
@@ -191,6 +198,10 @@ func (b *Backend) Put(ctx context.Context, entry *storage.Entry) error {
 func (b *Backend) Delete(ctx context.Context, key string) error {
 	if err := storage.ValidateKey(key); err != nil {
 		return err
+	}
+	if batch := batchFrom(ctx); batch != nil {
+		batch.delete(key)
+		return nil
 	}
 	if err := b.checkWrite(ctx); err != nil {
 		return err

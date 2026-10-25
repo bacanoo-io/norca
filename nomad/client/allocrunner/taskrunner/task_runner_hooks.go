@@ -101,6 +101,24 @@ func (tr *TaskRunner) initHooks() {
 		}))
 	}
 
+	// If the task has secret blocks, add the secret hook (Norca). It runs
+	// after the identity and Vault hooks, whose tokens the providers use,
+	// and before the templates, which may read the delivered files.
+	if len(task.Secrets) != 0 {
+		tr.runnerHooks = append(tr.runnerHooks, newSecretHook(&secretHookConfig{
+			alloc:      tr.Alloc(),
+			task:       task,
+			registry:   tr.secretRegistry(),
+			auditor:    tr.secretAuditRecorder(),
+			lifecycle:  tr,
+			events:     tr,
+			envBuilder: tr.envBuilder,
+			logger:     hookLogger,
+			nomadToken: tr.getNomadToken,
+			vaultToken: tr.getVaultToken,
+		}))
+	}
+
 	// Get the consul namespace for the TG of the allocation.
 	consulNamespace := tr.alloc.ConsulNamespace()
 
@@ -120,6 +138,7 @@ func (tr *TaskRunner) initHooks() {
 			consulNamespace:     consulNamespace,
 			nomadNamespace:      tr.alloc.Job.Namespace,
 			renderOnTaskRestart: task.RestartPolicy.RenderTemplates,
+			secrets:             tr.secretTemplateSource(hookLogger),
 		}))
 	}
 

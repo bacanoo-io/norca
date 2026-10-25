@@ -57,19 +57,17 @@ var overrides = []override{
 		Reason: "Legacy UI exception. The Unlicense (public domain dedication with a permissive fallback, OSI approved) is not on the " +
 			"allow-list; the package is part of the legacy UI bundle through d3 > d3-delaunay > delaunator.",
 	},
-	// Build-time exceptions decided for the legacy UI that the new UI needs
-	// as well: every Ember addon declares ember-cli-babel (and so Babel,
-	// browserslist and caniuse-lite) as a production dependency, and the
-	// Ember build tools use json-stable-stringify 1.0 (jsonify). Neither is
-	// part of the UI bundle. Pending until the decision is extended to the
-	// new UI (docs/licensing.md); the legacy UI is covered either way.
+	// Build-time exceptions for both UIs (legacy UI decision of 2026-10-25,
+	// extended to the new UI the same day): every Ember addon declares
+	// ember-cli-babel (and so Babel, browserslist and caniuse-lite) as a
+	// production dependency, and the Ember build tools use
+	// json-stable-stringify 1.0 (jsonify). Neither is part of the UI bundle.
 	{
 		Kind:      "npm",
 		Name:      "caniuse-lite",
 		License:   "CC-BY-4.0",
 		Exception: true,
-		Pending:   true,
-		Reason: "Build-time exception (legacy UI decision of 2026-10-25; pending for the new UI). Browser support data used by " +
+		Reason: "Build-time exception (decision of 2026-10-25, both UIs). Browser support data used by " +
 			"browserslist while Babel builds the UI (ember-cli-babel > @babel/helper-compilation-targets > browserslist); a " +
 			"build-time dependency, not part of the UI bundle, listed because the Ember addons declare ember-cli-babel as a " +
 			"production dependency.",
@@ -79,8 +77,7 @@ var overrides = []override{
 		Name:      "jsonify",
 		License:   "LicenseRef-Public-Domain",
 		Exception: true,
-		Pending:   true,
-		Reason: "Build-time exception (legacy UI decision of 2026-10-25; pending for the new UI). Declared \"Public Domain\" in " +
+		Reason: "Build-time exception (decision of 2026-10-25, both UIs). Declared \"Public Domain\" in " +
 			"package.json, no license file. A build-time dependency (calculate-cache-key-for-tree, ember-cli-htmlbars and " +
 			"broccoli-babel-transpiler > json-stable-stringify 1.0), not part of the UI bundle.",
 	},

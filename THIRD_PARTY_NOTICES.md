@@ -8494,7 +8494,7 @@ limitations under the License.
 ### caniuse-lite 1.0.30001312
 
 - License: CC-BY-4.0
-- License decision: Build-time exception (legacy UI decision of 2026-10-25; pending for the new UI). Browser support data used by browserslist while Babel builds the UI (ember-cli-babel > @babel/helper-compilation-targets > browserslist); a build-time dependency, not part of the UI bundle, listed because the Ember addons declare ember-cli-babel as a production dependency.
+- License decision: Build-time exception (decision of 2026-10-25, both UIs). Browser support data used by browserslist while Babel builds the UI (ember-cli-babel > @babel/helper-compilation-targets > browserslist); a build-time dependency, not part of the UI bundle, listed because the Ember addons declare ember-cli-babel as a production dependency.
 - Required through: @ember-data/json-api@4.12.8 &gt; ember-cli-babel@7.26.11 &gt; @babel/helper-compilation-targets@7.16.7 &gt; browserslist@4.19.3 &gt; caniuse-lite@1.0.30001312
 - Author: Ben Briggs &lt;beneb.info@gmail.com&gt;
 - `LICENSE`: [license text 245](#license-text-245)
@@ -8504,7 +8504,7 @@ limitations under the License.
 ### caniuse-lite 1.0.30001815
 
 - License: CC-BY-4.0
-- License decision: Build-time exception (legacy UI decision of 2026-10-25; pending for the new UI). Browser support data used by browserslist while Babel builds the UI (ember-cli-babel > @babel/helper-compilation-targets > browserslist); a build-time dependency, not part of the UI bundle, listed because the Ember addons declare ember-cli-babel as a production dependency.
+- License decision: Build-time exception (decision of 2026-10-25, both UIs). Browser support data used by browserslist while Babel builds the UI (ember-cli-babel > @babel/helper-compilation-targets > browserslist); a build-time dependency, not part of the UI bundle, listed because the Ember addons declare ember-cli-babel as a production dependency.
 - Required through: @ember/render-modifiers@3.0.0 &gt; @babel/core@7.29.7 &gt; @babel/helper-compilation-targets@7.29.7 &gt; browserslist@4.29.3 &gt; caniuse-lite@1.0.30001815
 - Author: Ben Briggs &lt;beneb.info@gmail.com&gt;
 - `LICENSE`: [license text 245](#license-text-245)
@@ -11377,7 +11377,7 @@ The Apache Software Foundation (https://www.apache.org/).
 ### jsonify 0.0.0
 
 - License: LicenseRef-Public-Domain (declared: Public Domain)
-- License decision: Build-time exception (legacy UI decision of 2026-10-25; pending for the new UI). Declared "Public Domain" in package.json, no license file. A build-time dependency (calculate-cache-key-for-tree, ember-cli-htmlbars and broccoli-babel-transpiler > json-stable-stringify 1.0), not part of the UI bundle.
+- License decision: Build-time exception (decision of 2026-10-25, both UIs). Declared "Public Domain" in package.json, no license file. A build-time dependency (calculate-cache-key-for-tree, ember-cli-htmlbars and broccoli-babel-transpiler > json-stable-stringify 1.0), not part of the UI bundle.
 - Required through: ember-data-model-fragments@7.0.3 &gt; calculate-cache-key-for-tree@1.2.3 &gt; json-stable-stringify@1.0.1 &gt; jsonify@0.0.0
 - Author: Douglas Crockford
 - The package contains no license file; the license is the one declared in its package.json.

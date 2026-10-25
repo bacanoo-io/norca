@@ -103,8 +103,9 @@ jobs:
           # the devDependencies, which license-checker's --production flag
           # does not filter out reliably in a hoisted yarn tree.
           yarn install --production --ignore-optional --frozen-lockfile --ignore-scripts --ignore-engines
-          # --excludePackagesStartingWith: legacy UI exceptions
-          # (docs/licensing.md), removed with /ui/legacy.
+          # --excludePackagesStartingWith: recorded exceptions (docs/licensing.md):
+          # robust-predicates is legacy UI only (removed with /ui/legacy);
+          # caniuse-lite and jsonify are build-time exceptions for both UIs.
           # --excludePackages: non-SPDX license fields whose license files are
           # allowed licenses: dialog-polyfill "BSD" (BSD-3-Clause text, see
           # THIRD_PARTY_NOTICES.md), source-map 0.1.43 "BSD" (BSD-3-Clause

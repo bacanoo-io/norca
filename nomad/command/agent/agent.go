@@ -355,6 +355,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		conf.AdmissionConfig = admissionConf
 	}
 
+	if keyringConf := agentConfig.Server.Keyring.Copy(); keyringConf != nil {
+		if err := keyringConf.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid server keyring configuration: %w", err)
+		}
+		conf.KeyringConfig = keyringConf
+	}
+
 	if mtlsConf := agentConfig.Server.MTLS.Copy(); mtlsConf != nil {
 		if err := mtlsConf.Finalize(); err != nil {
 			return nil, fmt.Errorf("invalid server mtls configuration: %w", err)
@@ -590,6 +597,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		return nil, err
 	}
 	conf.Backup = backupConf
+
+	// Set the audit file of the built-in secret store.
+	secretsAudit, err := agentConfig.Server.Secrets.toAuditFileConfig()
+	if err != nil {
+		return nil, err
+	}
+	conf.SecretsAudit = secretsAudit
 
 	// Add the search configuration
 	if search := agentConfig.Server.Search; search != nil {
@@ -886,6 +900,13 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 		return nil, fmt.Errorf("invalid consul_compat config: %v", err)
 	}
 	conf.ConsulCompat = agentConfig.Client.ConsulCompat.Copy()
+	conf.Secrets = agentConfig.Client.Secrets.toClientConfig()
+	if err := conf.Secrets.Validate(func(name string) bool {
+		return name == structs.SecretProviderNorca ||
+			(name == structs.SecretProviderVault && conf.VaultConfig != nil && conf.VaultConfig.IsEnabled())
+	}); err != nil {
+		return nil, fmt.Errorf("invalid client secrets config: %v", err)
+	}
 
 	artifactConfig, err := clientconfig.ArtifactConfigFromAgent(agentConfig.Client.Artifact)
 	if err != nil {

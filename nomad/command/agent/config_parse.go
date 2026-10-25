@@ -244,6 +244,15 @@ func extraKeys(c *Config) error {
 		helper.RemoveEqualFold(&c.Client.ExtraKeysHCL, "host_network")
 	}
 
+	// Remove the key of the repeated route blocks of the client's secrets
+	// block (Norca)
+	if c.Client.Secrets != nil {
+		for _, r := range c.Client.Secrets.Routes {
+			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, r.Prefix)
+			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, "route")
+		}
+	}
+
 	// Remove AuditConfig extra keys
 	for _, f := range c.Audit.Filters {
 		helper.RemoveEqualFold(&c.Audit.ExtraKeysHCL, f.Name)
@@ -279,6 +288,17 @@ func extraKeys(c *Config) error {
 	// Remove the labels of the backup destination blocks
 	if err := c.Server.Backup.extraKeys(); err != nil {
 		return err
+	}
+
+	// Remove the labels of the keyring seal blocks
+	if c.Server.Keyring != nil {
+		for _, seal := range c.Server.Keyring.Seals {
+			helper.RemoveEqualFold(&c.Server.Keyring.ExtraKeysHCL, seal.Type)
+			helper.RemoveEqualFold(&c.Server.Keyring.ExtraKeysHCL, "seal")
+			if err := helper.UnusedKeys(seal); err != nil {
+				return fmt.Errorf("server.keyring.seal.%s: %w", seal.Type, err)
+			}
+		}
 	}
 
 	// Remove admission webhook extra keys

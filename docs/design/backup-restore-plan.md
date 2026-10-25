@@ -155,6 +155,7 @@ server {
       manifest.json                unencrypted metadata (contains no content)
       state.snap.age               the Raft snapshot, compressed and encrypted
       keyring.age                  the keystore, compressed and encrypted
+      secret-store-key.age         the key of the built-in secret store core, encrypted (Norca, with the keyring; see secrets-plan.md)
   latest.json                      pointer to the most recent successful backup
 ```
 
@@ -255,6 +256,7 @@ This is the most common in day-to-day use, and it provides the "versioning":
 - **Job versions from backups.** By default Nomad keeps only the last 6 versions of a job (`job_tracked_versions`). Much older versions can be brought back from the backups. The UI extends the existing version history of the job with the versions found in the backups, and they can be compared with the existing diff view.
 - **Restore as a new version.** The selected version is re-registered through the normal `Job.Register` path, like `nomad job revert`, except that the source is the backup. It therefore goes through the admission chain, the quota and all checks, and the restore itself becomes a new, traceable version.
 - **Variables.** The server decrypts the backed-up Variables entries with the backup's own keystore and re-encrypts them with the current keys, using the existing check-and-set write, so an entry modified in the meantime is not silently overwritten.
+- **Secrets** of the built-in store: the value of one version of the secret in the backup is written as a new version of the secret with the normal secret write (`write-secret`, check-and-set, audit), never replacing its history; see "Backup and restore" in `secrets-plan.md`.
 - **Namespaces and ACL policies** can be restored the same way, one by one, as normal writes.
 
 ### Full region restore

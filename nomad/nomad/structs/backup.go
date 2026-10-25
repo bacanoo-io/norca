@@ -48,6 +48,11 @@ const (
 	BackupObjectState    = "state"
 	BackupObjectKeyring  = "keyring"
 	BackupObjectManifest = "manifest"
+
+	// BackupObjectSecretStoreKey (Norca) is the key of the secret store
+	// core, written next to the keyring object and encrypted the same way,
+	// so a restore can re-wrap it with the seals of the target region.
+	BackupObjectSecretStoreKey = "secret_store_key"
 )
 
 // Content types of a backup that can be browsed and compared.
@@ -60,6 +65,10 @@ const (
 	BackupContentACLRoles    = "acl-roles"
 	BackupContentDeployments = "deployments"
 	BackupContentAllocations = "allocations"
+
+	// BackupContentSecrets are the secrets of the built-in secret store:
+	// paths, metadata and value hashes, never values.
+	BackupContentSecrets = "secrets"
 )
 
 // BackupContentTypes are the content types in display order.
@@ -68,6 +77,7 @@ var BackupContentTypes = []string{
 	BackupContentJobs,
 	BackupContentJobVersions,
 	BackupContentVariables,
+	BackupContentSecrets,
 	BackupContentACLPolicies,
 	BackupContentACLRoles,
 	BackupContentDeployments,
@@ -94,6 +104,7 @@ const (
 	BackupRestoreItemNamespace = "namespace"
 	BackupRestoreItemACLPolicy = "acl-policy"
 	BackupRestoreItemACLRole   = "acl-role"
+	BackupRestoreItemSecret    = "secret"
 )
 
 // BackupRecord describes a backup of the Raft state (and the keyring) of a
@@ -137,6 +148,13 @@ type BackupRecord struct {
 
 	// KeyIDs are the IDs of the root keys in the keyring object.
 	KeyIDs []string
+
+	// Seals (Norca) are the keyring seals of the region when the backup
+	// was taken, without key checks. The key of the secret store in the
+	// state is wrapped by them: restoring it into a cluster requires one
+	// of these seals (for shares, the unseal shares). The keyring object is
+	// the age copy of the root keys and needs no seal.
+	Seals []*SealInfo
 
 	// Summary holds object counts only, never names or content.
 	Summary map[string]int
@@ -228,6 +246,7 @@ func (b *BackupRecord) Copy() *BackupRecord {
 		nb.Destinations = append(nb.Destinations, &nd)
 	}
 	nb.KeyIDs = slices.Clone(b.KeyIDs)
+	nb.Seals = copySealInfos(b.Seals)
 	if b.Summary != nil {
 		nb.Summary = make(map[string]int, len(b.Summary))
 		for k, v := range b.Summary {
@@ -411,6 +430,7 @@ type BackupContents struct {
 	Jobs        []*BackupJobStub
 	JobVersions []*Job
 	Variables   []*BackupVariableStub
+	Secrets     []*SecretStub
 	ACLPolicies []*ACLPolicyListStub
 	ACLRoles    []*ACLRoleListStub
 	Deployments []*Deployment
@@ -518,14 +538,24 @@ type BackupRestoreItem struct {
 	// ACL role name.
 	ID string
 
-	// Version of the job in the backup; nil restores the version that was
-	// current at the time of the backup.
+	// Version of the job or the secret in the backup; nil restores the
+	// version that was current at the time of the backup.
 	Version *uint64
 
 	// CheckIndex is the check-and-set index of a Variables entry: 0 (the
 	// default) restores the entry only if it does not exist, otherwise it
-	// must be the current modify index of the entry.
+	// must be the current modify index of the entry. For a secret it is an
+	// optional guard: nil writes the restored value as a new version in any
+	// case, 0 only if the secret does not exist, otherwise it must be the
+	// current modify index of the secret.
 	CheckIndex *uint64
+
+	// WithMetadata restores the metadata of a secret (labels, owner,
+	// description, expiry, rotation and max versions) from the backup too;
+	// by default only the value is restored and the current metadata is
+	// kept. A secret that does not exist gets the backup's metadata either
+	// way.
+	WithMetadata bool
 }
 
 func (i *BackupRestoreItem) String() string {
@@ -537,6 +567,11 @@ func (i *BackupRestoreItem) String() string {
 		return fmt.Sprintf("job %s/%s", i.Namespace, i.ID)
 	case BackupRestoreItemVariable:
 		return fmt.Sprintf("variable %s/%s", i.Namespace, i.ID)
+	case BackupRestoreItemSecret:
+		if i.Version != nil {
+			return fmt.Sprintf("secret %s/%s version %d", i.Namespace, i.ID, *i.Version)
+		}
+		return fmt.Sprintf("secret %s/%s", i.Namespace, i.ID)
 	default:
 		return fmt.Sprintf("%s %s", i.Type, i.ID)
 	}
@@ -649,6 +684,11 @@ type BackupRestoreListResponse struct {
 type KeyringRestoreRequest struct {
 	Keys      []*RootKey
 	LocalOnly bool
+
+	// WrappedKeys (Norca) replace Keys in the fan-out of a region with a
+	// seal other than aead: the keys wrapped by those seals, which every
+	// server unwraps with its own unsealed seal.
+	WrappedKeys []*KeyEncryptionKeyWrapper
 	WriteRequest
 }
 
@@ -682,6 +722,12 @@ type BackupRestoreItemResult struct {
 	// Index is the Raft index of the write; 0 for a dry run or an error.
 	Index uint64
 	Error string
+
+	// BackupVersion is the version of a secret in the backup whose value
+	// was restored, and NewVersion the version the restore wrote (for a
+	// dry run, the version it would write).
+	BackupVersion uint64
+	NewVersion    uint64
 }
 
 // BackupRestore is the record of a restore, and the audit trail of who
