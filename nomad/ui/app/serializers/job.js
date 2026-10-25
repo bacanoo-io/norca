@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { assign } from '@ember/polyfills';
 import ApplicationSerializer from './application';
 import queryString from 'query-string';
 import classic from 'ember-classic-decorator';
@@ -80,7 +79,7 @@ export default class JobSerializer extends ApplicationSerializer {
       ? JSON.parse(hash.ParentID)[0]
       : hash.PlainId;
 
-    return assign(super.extractRelationships(...arguments), {
+    return Object.assign(super.extractRelationships(...arguments), {
       allocations: {
         links: {
           related: buildURL(`${jobURL}/allocations`, { namespace }),

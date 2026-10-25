@@ -4,9 +4,10 @@
  */
 
 import Route from '@ember/routing/route';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 export default class IndexRoute extends Route {
   redirect() {
-    this.transitionTo('jobs');
+    legacyTransitionTo(this, 'jobs');
   }
 }

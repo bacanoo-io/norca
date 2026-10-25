@@ -36,7 +36,7 @@ module('Integration | Component | attributes table', function (hooks) {
     assert.expect(2);
 
     this.set('attributes', commonAttributes);
-    await render(hbs`<AttributesTable @attributePairs={{attributes}} />`);
+    await render(hbs`<AttributesTable @attributePairs={{this.attributes}} />`);
 
     const rowsCount = Object.keys(flatten(commonAttributes)).length;
     assert.equal(
@@ -52,7 +52,7 @@ module('Integration | Component | attributes table', function (hooks) {
 
   test('should render the full path of key/value pair from the root of the object', async function (assert) {
     this.set('attributes', commonAttributes);
-    await render(hbs`<AttributesTable @attributePairs={{attributes}} />`);
+    await render(hbs`<AttributesTable @attributePairs={{this.attributes}} />`);
 
     assert.equal(
       find('[data-test-key]').textContent.trim(),
@@ -84,7 +84,7 @@ module('Integration | Component | attributes table', function (hooks) {
 
   test('should render a row for key/value pairs even when the value is another object', async function (assert) {
     this.set('attributes', commonAttributes);
-    await render(hbs`<AttributesTable @attributePairs={{attributes}} />`);
+    await render(hbs`<AttributesTable @attributePairs={{this.attributes}} />`);
 
     const countOfParentRows = countOfParentKeys(commonAttributes);
     assert.equal(

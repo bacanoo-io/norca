@@ -12,7 +12,7 @@ import { setupMirage } from 'ember-cli-mirage/test-support';
 import Layout from 'nomad-ui/tests/pages/layout';
 import JobsList from 'nomad-ui/tests/pages/jobs/list';
 import { selectSearch } from 'ember-power-select/test-support';
-import Response from 'ember-cli-mirage/response';
+import { Response } from 'miragejs';
 
 module('Acceptance | search', function (hooks) {
   setupApplicationTest(hooks);

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Ember from 'ember';
+import { isTesting } from '@ember/debug';
 import { inject as service } from '@ember/service';
 import Component from '@ember/component';
 import { action, computed } from '@ember/object';
@@ -198,7 +198,7 @@ export default class File extends Component {
       // Don't download in tests. Unfortunately, since the download is triggered
       // by the download attribute of the ephemeral anchor element, there's no
       // way to stub this in tests.
-      if (Ember.testing) return;
+      if (isTesting()) return;
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);

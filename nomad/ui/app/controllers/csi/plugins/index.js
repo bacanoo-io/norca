@@ -11,6 +11,7 @@ import SortableFactory from 'nomad-ui/mixins/sortable-factory';
 import Searchable from 'nomad-ui/mixins/searchable';
 import { lazyClick } from 'nomad-ui/helpers/lazy-click';
 import classic from 'ember-classic-decorator';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 @classic
 export default class IndexController extends Controller.extend(
@@ -65,7 +66,7 @@ export default class IndexController extends Controller.extend(
   @action
   gotoPlugin(plugin, event) {
     lazyClick([
-      () => this.transitionToRoute('csi.plugins.plugin', plugin.plainId),
+      () => legacyTransitionTo(this, 'csi.plugins.plugin', plugin.plainId),
       event,
     ]);
   }

@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { assign } from '@ember/polyfills';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { render } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
 import { create } from 'ember-cli-page-object';
 import sinon from 'sinon';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import jobEditor from 'nomad-ui/tests/pages/components/job-editor';
 import { initialize as fragmentSerializerInitializer } from 'nomad-ui/initializers/fragment-serializer';
 import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
@@ -29,7 +28,7 @@ module('Integration | Component | job-editor', function (hooks) {
     fragmentSerializerInitializer(this.owner);
 
     this.store = this.owner.lookup('service:store');
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
 
     // Required for placing allocations (a result of creating jobs)
     this.server.create('node-pool');
@@ -44,7 +43,7 @@ module('Integration | Component | job-editor', function (hooks) {
   const newJobTaskGroupName = 'redis';
   const jsonJob = (overrides) => {
     return JSON.stringify(
-      assign(
+      Object.assign(
         {},
         {
           Name: newJobName,
@@ -83,10 +82,10 @@ module('Integration | Component | job-editor', function (hooks) {
 
   const commonTemplate = hbs`
     <JobEditor
-      @job={{job}}
-      @context={{context}}
-      @onSubmit={{onSubmit}}
-      @handleSaveAsTemplate={{handleSaveAsTemplate}}
+      @job={{this.job}}
+      @context={{this.context}}
+      @onSubmit={{this.onSubmit}}
+      @handleSaveAsTemplate={{this.handleSaveAsTemplate}}
     />
   `;
 
@@ -97,7 +96,7 @@ module('Integration | Component | job-editor', function (hooks) {
       handleSaveAsTemplate: sinon.spy(),
       context: 'new',
     });
-    await component.render(commonTemplate);
+    await render(commonTemplate);
   };
 
   const planJob = async (spec) => {

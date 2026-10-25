@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { run } from '@ember/runloop';
+import { _cancelTimers as cancelTimers, later } from '@ember/runloop';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { find, click, render, settled } from '@ember/test-helpers';
@@ -80,11 +80,11 @@ module('Integration | Component | task log', function (hooks) {
   test('Basic appearance', async function (assert) {
     assert.expect(8);
 
-    run.later(run, run.cancelTimers, commonProps.interval);
+    later(cancelTimers, commonProps.interval);
 
     this.setProperties(commonProps);
     await render(
-      hbs`<TaskLog @allocation={{allocation}} @task={{taskState}} />`
+      hbs`<TaskLog @allocation={{this.allocation}} @task={{this.taskState}} />`
     );
 
     assert.ok(find('[data-test-log-action="stdout"]'), 'Stdout button');
@@ -112,11 +112,11 @@ module('Integration | Component | task log', function (hooks) {
   test('Streaming starts on creation', async function (assert) {
     assert.expect(3);
 
-    run.later(run, run.cancelTimers, commonProps.interval);
+    later(cancelTimers, commonProps.interval);
 
     this.setProperties(commonProps);
     await render(
-      hbs`<TaskLog @allocation={{allocation}} @task={{taskState}} />`
+      hbs`<TaskLog @allocation={{this.allocation}} @task={{this.taskState}} />`
     );
 
     const logUrlRegex = new RegExp(
@@ -140,11 +140,11 @@ module('Integration | Component | task log', function (hooks) {
 
   test('Clicking Head loads the log head', async function (assert) {
     logMode = 'head';
-    run.later(run, run.cancelTimers, commonProps.interval);
+    later(cancelTimers, commonProps.interval);
 
     this.setProperties(commonProps);
     await render(
-      hbs`<TaskLog @allocation={{allocation}} @task={{taskState}} />`
+      hbs`<TaskLog @allocation={{this.allocation}} @task={{this.taskState}} />`
     );
 
     click('[data-test-log-action="head"]');
@@ -165,11 +165,11 @@ module('Integration | Component | task log', function (hooks) {
 
   test('Clicking Tail loads the log tail', async function (assert) {
     logMode = 'tail';
-    run.later(run, run.cancelTimers, commonProps.interval);
+    later(cancelTimers, commonProps.interval);
 
     this.setProperties(commonProps);
     await render(
-      hbs`<TaskLog @allocation={{allocation}} @task={{taskState}} />`
+      hbs`<TaskLog @allocation={{this.allocation}} @task={{this.taskState}} />`
     );
 
     click('[data-test-log-action="tail"]');
@@ -191,15 +191,15 @@ module('Integration | Component | task log', function (hooks) {
   test('Clicking toggleStream starts and stops the log stream', async function (assert) {
     assert.expect(3);
 
-    run.later(run, run.cancelTimers, commonProps.interval);
+    later(cancelTimers, commonProps.interval);
 
     const { interval } = commonProps;
     this.setProperties(commonProps);
     await render(
-      hbs`<TaskLog @allocation={{allocation}} @task={{taskState}} @interval={{interval}} />`
+      hbs`<TaskLog @allocation={{this.allocation}} @task={{this.taskState}} @interval={{this.interval}} />`
     );
 
-    run.later(() => {
+    later(() => {
       click('[data-test-log-action="toggle-stream"]');
     }, interval);
 
@@ -210,14 +210,14 @@ module('Integration | Component | task log', function (hooks) {
       'First frame loaded'
     );
 
-    run.later(() => {
+    later(() => {
       assert.equal(
         find('[data-test-log-cli]').textContent,
         streamFrames[0],
         'Still only first frame'
       );
       click('[data-test-log-action="toggle-stream"]');
-      run.later(run, run.cancelTimers, interval * 2);
+      later(cancelTimers, interval * 2);
     }, interval * 2);
 
     await settled();
@@ -229,15 +229,15 @@ module('Integration | Component | task log', function (hooks) {
   });
 
   test('Clicking stderr switches the log to standard error', async function (assert) {
-    run.later(run, run.cancelTimers, commonProps.interval);
+    later(cancelTimers, commonProps.interval);
 
     this.setProperties(commonProps);
     await render(
-      hbs`<TaskLog @allocation={{allocation}} @task={{taskState}} />`
+      hbs`<TaskLog @allocation={{this.allocation}} @task={{this.taskState}} />`
     );
 
     click('[data-test-log-action="stderr"]');
-    run.later(run, run.cancelTimers, commonProps.interval);
+    later(cancelTimers, commonProps.interval);
 
     await settled();
     assert.ok(
@@ -251,14 +251,14 @@ module('Integration | Component | task log', function (hooks) {
   test('Clicking stderr/stdout mode buttons does nothing when the mode remains the same', async function (assert) {
     const { interval } = commonProps;
 
-    run.later(() => {
+    later(() => {
       click('[data-test-log-action="stdout"]');
-      run.later(run, run.cancelTimers, interval * 6);
+      later(cancelTimers, interval * 6);
     }, interval * 2);
 
     this.setProperties(commonProps);
     await render(
-      hbs`<TaskLog @allocation={{allocation}} @task={{taskState}} />`
+      hbs`<TaskLog @allocation={{this.allocation}} @task={{this.taskState}} />`
     );
 
     assert.equal(
@@ -269,7 +269,7 @@ module('Integration | Component | task log', function (hooks) {
   });
 
   test('When the client is inaccessible, task-log falls back to requesting logs through the server', async function (assert) {
-    run.later(run, run.cancelTimers, allowedConnectionTime * 2);
+    later(cancelTimers, allowedConnectionTime * 2);
 
     // override client response to timeout
     this.server.get(
@@ -280,10 +280,10 @@ module('Integration | Component | task log', function (hooks) {
 
     this.setProperties(commonProps);
     await render(hbs`<TaskLog
-      @allocation={{allocation}}
-      @task={{taskState}}
-      @clientTimeout={{clientTimeout}}
-      @serverTimeout={{serverTimeout}} />`);
+      @allocation={{this.allocation}}
+      @task={{this.taskState}}
+      @clientTimeout={{this.clientTimeout}}
+      @serverTimeout={{this.serverTimeout}} />`);
 
     const clientUrlRegex = new RegExp(
       `${HOST}/v1/client/fs/logs/${commonProps.allocation.id}`
@@ -313,7 +313,7 @@ module('Integration | Component | task log', function (hooks) {
   test('When both the client and the server are inaccessible, an error message is shown', async function (assert) {
     assert.expect(5);
 
-    run.later(run, run.cancelTimers, allowedConnectionTime * 5);
+    later(cancelTimers, allowedConnectionTime * 5);
 
     // override client and server responses to timeout
     this.server.get(
@@ -329,10 +329,10 @@ module('Integration | Component | task log', function (hooks) {
 
     this.setProperties(commonProps);
     await render(hbs`<TaskLog
-      @allocation={{allocation}}
-      @task={{taskState}}
-      @clientTimeout={{clientTimeout}}
-      @serverTimeout={{serverTimeout}} />`);
+      @allocation={{this.allocation}}
+      @task={{this.taskState}}
+      @clientTimeout={{this.clientTimeout}}
+      @serverTimeout={{this.serverTimeout}} />`);
 
     const clientUrlRegex = new RegExp(
       `${HOST}/v1/client/fs/logs/${commonProps.allocation.id}`
@@ -371,17 +371,17 @@ module('Integration | Component | task log', function (hooks) {
     );
 
     // Click stderr before the client request responds
-    run.later(() => {
+    later(() => {
       click('[data-test-log-action="stderr"]');
-      run.later(run, run.cancelTimers, commonProps.interval * 5);
+      later(cancelTimers, commonProps.interval * 5);
     }, allowedConnectionTime / 2);
 
     this.setProperties(commonProps);
     await render(hbs`<TaskLog
-      @allocation={{allocation}}
-      @task={{taskState}}
-      @clientTimeout={{clientTimeout}}
-      @serverTimeout={{serverTimeout}} />`);
+      @allocation={{this.allocation}}
+      @task={{this.taskState}}
+      @clientTimeout={{this.clientTimeout}}
+      @serverTimeout={{this.serverTimeout}} />`);
 
     const clientUrlRegex = new RegExp(
       `${HOST}/v1/client/fs/logs/${commonProps.allocation.id}`
@@ -415,11 +415,11 @@ module('Integration | Component | task log', function (hooks) {
   test('The log streaming mode is persisted in localStorage', async function (assert) {
     window.localStorage.nomadLogMode = JSON.stringify('stderr');
 
-    run.later(run, run.cancelTimers, commonProps.interval);
+    later(cancelTimers, commonProps.interval);
 
     this.setProperties(commonProps);
     await render(
-      hbs`<TaskLog @allocation={{allocation}} @task={{taskState}} />`
+      hbs`<TaskLog @allocation={{this.allocation}} @task={{this.taskState}} />`
     );
 
     assert.ok(
@@ -434,7 +434,7 @@ module('Integration | Component | task log', function (hooks) {
     );
 
     click('[data-test-log-action="stdout"]');
-    run.later(run, run.cancelTimers, commonProps.interval);
+    later(cancelTimers, commonProps.interval);
 
     await settled();
     assert.ok(

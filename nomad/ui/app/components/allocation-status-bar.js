@@ -11,8 +11,6 @@ import classic from 'ember-classic-decorator';
 @classic
 @attributeBindings('data-test-allocation-status-bar')
 export default class AllocationStatusBar extends DistributionBar {
-  layoutName = 'components/distribution-bar';
-
   allocationContainer = null;
   job = null;
 

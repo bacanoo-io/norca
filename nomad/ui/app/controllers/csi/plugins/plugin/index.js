@@ -5,6 +5,7 @@
 
 import Controller from '@ember/controller';
 import { action, computed } from '@ember/object';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 export default class IndexController extends Controller {
   @computed('model.controllers.@each.updateTime')
@@ -19,6 +20,6 @@ export default class IndexController extends Controller {
 
   @action
   gotoAllocation(allocation) {
-    this.transitionToRoute('allocations.allocation', allocation.id);
+    legacyTransitionTo(this, 'allocations.allocation', allocation.id);
   }
 }

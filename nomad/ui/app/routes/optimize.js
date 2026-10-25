@@ -9,6 +9,7 @@ import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
 import { next } from '@ember/runloop';
 import RSVP from 'rsvp';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 @classic
 export default class OptimizeRoute extends Route {
@@ -17,7 +18,7 @@ export default class OptimizeRoute extends Route {
 
   beforeModel() {
     if (this.can.cannot('accept recommendation')) {
-      this.transitionTo('jobs');
+      legacyTransitionTo(this, 'jobs');
     }
   }
 
@@ -43,7 +44,7 @@ export default class OptimizeRoute extends Route {
     this.store.unloadAll('recommendation-summary');
 
     next(() => {
-      this.transitionTo('optimize');
+      legacyTransitionTo(this, 'optimize');
       this.refresh();
     });
   }

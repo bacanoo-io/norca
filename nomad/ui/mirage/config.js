@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Ember from 'ember';
-import Response from 'ember-cli-mirage/response';
+import { isTesting } from '@ember/debug';
+import { createServer, Response } from 'miragejs';
+import { discoverEmberDataModels } from 'ember-cli-mirage';
 import { HOSTS } from './common';
 import { logFrames, logEncode } from './data/logs';
 import { generateDiff } from './factories/job-version';
@@ -27,13 +28,25 @@ export function filesForPath(allocFiles, filterPath) {
   );
 }
 
-export default function () {
+export default function makeServer(config) {
+  return createServer({
+    ...config,
+    // Mirage models default to the Ember Data models; mirage/models adds
+    // the ones that need more.
+    models: { ...discoverEmberDataModels(config.store), ...config.models },
+    // Tests inspect server.pretender.handledRequests.
+    trackRequests: isTesting(),
+    routes,
+  });
+}
+
+function routes() {
   this.timing = 0; // delay for each request, automatically set to 0 during testing
 
   this.logging = window.location.search.includes('mirage-logging=true');
 
   this.namespace = 'v1';
-  this.trackRequests = Ember.testing;
+  this.trackRequests = isTesting();
 
   const nomadIndices = {}; // used for tracking blocking queries
   const server = this;

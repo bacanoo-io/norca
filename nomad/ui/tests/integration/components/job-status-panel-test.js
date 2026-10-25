@@ -7,7 +7,7 @@ import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { find, render, settled } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import { initialize as fragmentSerializerInitializer } from 'nomad-ui/initializers/fragment-serializer';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
 import percySnapshot from '@percy/ember';
@@ -21,7 +21,7 @@ module(
       fragmentSerializerInitializer(this.owner);
       window.localStorage.clear();
       this.store = this.owner.lookup('service:store');
-      this.server = startMirage();
+      this.server = startMirage(this.owner);
       this.server.create('node-pool');
       this.server.create('namespace');
     });
@@ -562,8 +562,8 @@ module(
       // Set the deployment's requiresPromotion to true
       await Promise.all(
         this.get('job.latestDeployment.taskGroupSummaries').map(async (a) => {
+          // requiresPromotion follows desiredCanaries
           await a.set('desiredCanaries', 3);
-          await a.set('requiresPromotion', true);
         })
       );
 

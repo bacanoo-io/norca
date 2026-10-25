@@ -7,8 +7,7 @@ import { next } from '@ember/runloop';
 import { settled } from '@ember/test-helpers';
 import { setupTest } from 'ember-qunit';
 import { module, test } from 'qunit';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
-import { AbortController } from 'fetch';
+import startMirage from 'ember-cli-mirage/start-mirage';
 
 module('Unit | Adapter | Volume', function (hooks) {
   setupTest(hooks);
@@ -20,7 +19,7 @@ module('Unit | Adapter | Volume', function (hooks) {
     window.sessionStorage.clear();
     window.localStorage.clear();
 
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
 
     this.initializeUI = async () => {
       this.server.create('namespace');

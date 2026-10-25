@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { assign } from '@ember/polyfills';
-import { Factory, trait } from 'ember-cli-mirage';
+import { Factory, trait } from 'miragejs';
+import { assert } from '@ember/debug';
 import faker from 'nomad-ui/mirage/faker';
 import { provide, pickOne } from '../utils';
 import { DATACENTERS } from '../common';
@@ -200,7 +200,7 @@ export default Factory.extend({
   shallow: false,
 
   afterCreate(job, server) {
-    Ember.assert(
+    assert(
       '[Mirage] No node pools! make sure node pools are created before jobs',
       server.db.nodePools.length
     );
@@ -330,7 +330,7 @@ export default Factory.extend({
         server.create(
           'evaluation',
           'withPlacementFailures',
-          assign(knownEvaluationProperties, {
+          Object.assign(knownEvaluationProperties, {
             modifyIndex: 4000,
           })
         );

@@ -6,7 +6,6 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { get } from '@ember/object';
-import { copy } from 'ember-copy';
 
 export default class ScaleEventsChart extends Component {
   /** Args
@@ -40,7 +39,8 @@ export default class ScaleEventsChart extends Component {
     return this.args.events.rejectBy('hasCount').map((ev) => ({
       type: ev.error ? 'error' : 'info',
       time: ev.time,
-      event: copy(ev),
+      // fragments are not Copyable any more; the chart only reads the event
+      event: ev,
     }));
   }
 

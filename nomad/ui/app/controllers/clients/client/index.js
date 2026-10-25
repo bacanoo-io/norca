@@ -23,6 +23,7 @@ import classic from 'ember-classic-decorator';
 import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
 import { inject as service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 @classic
 export default class ClientController extends Controller.extend(
@@ -205,7 +206,7 @@ export default class ClientController extends Controller.extend(
 
   @action
   gotoAllocation(allocation) {
-    this.transitionToRoute('allocations.allocation', allocation.id);
+    legacyTransitionTo(this, 'allocations.allocation', allocation.id);
   }
 
   @action

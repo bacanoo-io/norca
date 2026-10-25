@@ -49,7 +49,9 @@ export default class PolicyEditorComponent extends Component {
           `A policy with name ${this.policy.name} already exists.`
         );
       }
-      this.policy.set('id', this.policy.name);
+      if (this.policy.isNew) {
+        this.policy.set('id', this.policy.name);
+      }
       await this.policy.save();
 
       this.notifications.add({

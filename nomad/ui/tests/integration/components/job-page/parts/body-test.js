@@ -7,7 +7,7 @@ import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { find, findAll, render } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
 
 module('Integration | Component | job-page/parts/body', function (hooks) {
@@ -15,7 +15,7 @@ module('Integration | Component | job-page/parts/body', function (hooks) {
 
   hooks.beforeEach(function () {
     window.localStorage.clear();
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
     this.server.createList('namespace', 3);
   });
 
@@ -28,7 +28,7 @@ module('Integration | Component | job-page/parts/body', function (hooks) {
     this.set('job', {});
 
     await render(hbs`
-      <JobPage::Parts::Body @job={{job}}>
+      <JobPage::Parts::Body @job={{this.job}}>
         <div class="inner-content">Inner content</div>
       </JobPage::Parts::Body>
     `);
@@ -47,7 +47,7 @@ module('Integration | Component | job-page/parts/body', function (hooks) {
     this.set('job', job);
 
     await render(hbs`
-      <JobPage::Parts::Body @job={{job}}>
+      <JobPage::Parts::Body @job={{this.job}}>
         <div class="inner-content">Inner content</div>
       </JobPage::Parts::Body>
     `);
@@ -82,7 +82,7 @@ module('Integration | Component | job-page/parts/body', function (hooks) {
     this.set('job', job);
 
     await render(hbs`
-      <JobPage::Parts::Body @job={{job}}>
+      <JobPage::Parts::Body @job={{this.job}}>
         <div class="inner-content">Inner content</div>
       </JobPage::Parts::Body>
     `);
@@ -108,7 +108,7 @@ module('Integration | Component | job-page/parts/body', function (hooks) {
     this.set('job', {});
 
     await render(hbs`
-      <JobPage::Parts::Body @job={{job}}>
+      <JobPage::Parts::Body @job={{this.job}}>
         <div class="inner-content">Inner content</div>
       </JobPage::Parts::Body>
     `);

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Ember from 'ember';
+import { isTesting } from '@ember/debug';
 import Component from '@glimmer/component';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
@@ -48,7 +48,7 @@ export default class TaskSubRowComponent extends Component {
 
   @computed
   get enablePolling() {
-    return !Ember.testing;
+    return !isTesting();
   }
 
   @computed('task.name', 'stats.tasks.[]')

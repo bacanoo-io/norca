@@ -5,11 +5,8 @@
 
 @import './core';
 
-@import 'ember-power-select';
+@import 'ember-power-select/ember-power-select';
 
 @import './components';
 @import '@hashicorp/design-system-components';
 @import './charts';
-
-// Only necessary in dev
-@import './storybook.scss';

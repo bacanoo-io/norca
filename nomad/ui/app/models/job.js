@@ -355,7 +355,7 @@ export default class Job extends Model {
   // that will be submitted to the create job endpoint, another prop is necessary.
   @attr('string') _newDefinitionJSON;
 
-  @computed('variables.[]', 'parent', 'plainId')
+  // Not cached: autotracking follows the async variables relationship.
   get pathLinkedVariable() {
     if (this.parent.get('id')) {
       return this.variables?.findBy(

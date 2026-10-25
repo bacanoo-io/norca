@@ -9,8 +9,7 @@ import { action } from '@ember/object';
 import { tracked } from '@glimmer/tracking';
 import { schedule } from '@ember/runloop';
 import { inject as service } from '@ember/service';
-import { useMachine } from 'ember-statecharts';
-import { use } from 'ember-usable';
+import { useMachine } from 'nomad-ui/utils/statechart';
 import evaluationsMachine from '../../machines/evaluations';
 
 const ALL_NAMESPACE_WILDCARD = '*';
@@ -20,7 +19,6 @@ export default class EvaluationsController extends Controller {
   @service userSettings;
 
   // We use statecharts here to manage complex user flows for the sidebar logic
-  @use
   statechart = useMachine(evaluationsMachine).withConfig({
     services: {
       loadEvaluation: this.loadEvaluation,

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { Model, hasMany } from 'ember-cli-mirage';
+import { Model, hasMany } from 'miragejs';
 
 export default Model.extend({
   events: hasMany('node-event'),

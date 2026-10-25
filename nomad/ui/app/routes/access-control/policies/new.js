@@ -85,6 +85,8 @@ operator {
 `;
 
 export default class AccessControlPoliciesNewRoute extends Route {
+  @service store;
+
   @service can;
   @service router;
 

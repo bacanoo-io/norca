@@ -26,10 +26,10 @@ module('Integration | Component | toggle', function (hooks) {
 
   const commonTemplate = hbs`
     <Toggle
-      @isActive={{isActive}}
-      @isDisabled={{isDisabled}}
-      @onToggle={{onToggle}}>
-      {{label}}
+      @isActive={{this.isActive}}
+      @isDisabled={{this.isDisabled}}
+      @onToggle={{this.onToggle}}>
+      {{this.label}}
     </Toggle>
   `;
 

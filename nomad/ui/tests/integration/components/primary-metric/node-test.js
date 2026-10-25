@@ -10,7 +10,7 @@ import { initialize as fragmentSerializerInitializer } from 'nomad-ui/initialize
 import hbs from 'htmlbars-inline-precompile';
 import { setupPrimaryMetricMocks, primaryMetric } from './primary-metric';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import { formatScheduledHertz } from 'nomad-ui/utils/units';
 
 module('Integration | Component | PrimaryMetric::Node', function (hooks) {
@@ -20,7 +20,7 @@ module('Integration | Component | PrimaryMetric::Node', function (hooks) {
   hooks.beforeEach(function () {
     fragmentSerializerInitializer(this.owner);
     this.store = this.owner.lookup('service:store');
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
     this.server.create('namespace');
     this.server.create('node-pool');
     this.server.create('node');

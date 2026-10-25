@@ -9,9 +9,9 @@ import { makeArray } from '@ember/array';
 import JSONSerializer from '@ember-data/serializer/json';
 import { pluralize, singularize } from 'ember-inflector';
 import removeRecord from '../utils/remove-record';
-import { assign } from '@ember/polyfills';
 import classic from 'ember-classic-decorator';
 import { camelize, capitalize, dasherize } from '@ember/string';
+
 @classic
 export default class Application extends JSONSerializer {
   primaryKey = 'ID';
@@ -134,7 +134,7 @@ export default class Application extends JSONSerializer {
               const propertiesForKey = map[mapKey] || {};
               const convertedMap = { Name: mapKey };
 
-              assign(convertedMap, propertiesForKey);
+              Object.assign(convertedMap, propertiesForKey);
 
               return convertedMap;
             });
@@ -151,6 +151,23 @@ export default class Application extends JSONSerializer {
     }
 
     return super.normalize(modelClass, hash);
+  }
+
+  // Several Nomad write endpoints answer with an empty body or without the
+  // record's ID. Ember Data 4 requires the saved record to keep its ID, so
+  // an update response is attributed to the record that was saved.
+  normalizeUpdateRecordResponse(store, modelClass, payload, id) {
+    if (
+      !payload ||
+      (typeof payload === 'object' && !Object.keys(payload).length)
+    ) {
+      return { data: null };
+    }
+    const result = super.normalizeUpdateRecordResponse(...arguments);
+    if (result && result.data && result.data.id == null && id != null) {
+      result.data.id = id;
+    }
+    return result;
   }
 
   normalizeFindAllResponse(store, modelClass) {

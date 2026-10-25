@@ -3,12 +3,11 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { assign } from '@ember/polyfills';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { click, find, render } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import {
   startJob,
   stopJob,
@@ -29,7 +28,7 @@ module('Integration | Component | job-page/service', function (hooks) {
     fragmentSerializerInitializer(this.owner);
     window.localStorage.clear();
     this.store = this.owner.lookup('service:store');
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
     this.server.create('namespace');
     this.server.create('node-pool');
     this.server.create('node');
@@ -42,13 +41,13 @@ module('Integration | Component | job-page/service', function (hooks) {
 
   const commonTemplate = hbs`
     <JobPage::Service
-      @job={{job}}
-      @sortProperty={{sortProperty}}
-      @sortDescending={{sortDescending}}
-      @currentPage={{currentPage}}
-      @gotoJob={{gotoJob}}
-      @statusMode={{statusMode}}
-      @setStatusMode={{setStatusMode}}
+      @job={{this.job}}
+      @sortProperty={{this.sortProperty}}
+      @sortDescending={{this.sortDescending}}
+      @currentPage={{this.currentPage}}
+      @gotoJob={{this.gotoJob}}
+      @statusMode={{this.statusMode}}
+      @setStatusMode={{this.setStatusMode}}
       />
   `;
 
@@ -65,7 +64,7 @@ module('Integration | Component | job-page/service', function (hooks) {
   const makeMirageJob = (server, props = {}) =>
     server.create(
       'job',
-      assign(
+      Object.assign(
         {
           type: 'service',
           createAllocations: false,

@@ -11,8 +11,6 @@ import { attributeBindings } from '@ember-decorators/component';
 @classic
 @attributeBindings('data-test-children-status-bar')
 export default class ChildrenStatusBar extends DistributionBar {
-  layoutName = 'components/distribution-bar';
-
   job = null;
 
   'data-test-children-status-bar' = true;

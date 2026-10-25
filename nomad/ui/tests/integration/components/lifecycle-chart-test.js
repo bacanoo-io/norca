@@ -54,7 +54,7 @@ module('Integration | Component | lifecycle-chart', function (hooks) {
 
     this.set('tasks', tasks);
 
-    await render(hbs`<LifecycleChart @tasks={{tasks}} />`);
+    await render(hbs`<LifecycleChart @tasks={{this.tasks}} />`);
     assert.ok(Chart.isPresent);
 
     assert.equal(Chart.phases[0].name, 'Prestart');
@@ -105,14 +105,14 @@ module('Integration | Component | lifecycle-chart', function (hooks) {
       },
     ]);
 
-    await render(hbs`<LifecycleChart @tasks={{tasks}} />`);
+    await render(hbs`<LifecycleChart @tasks={{this.tasks}} />`);
     assert.notOk(Chart.isPresent);
   });
 
   test('it renders all phases when there are any non-main tasks', async function (assert) {
     this.set('tasks', [tasks[0], tasks[6]]);
 
-    await render(hbs`<LifecycleChart @tasks={{tasks}} />`);
+    await render(hbs`<LifecycleChart @tasks={{this.tasks}} />`);
     assert.equal(Chart.phases.length, 4);
   });
 
@@ -126,7 +126,7 @@ module('Integration | Component | lifecycle-chart', function (hooks) {
       })
     );
 
-    await render(hbs`<LifecycleChart @taskStates={{taskStates}} />`);
+    await render(hbs`<LifecycleChart @taskStates={{this.taskStates}} />`);
     assert.ok(Chart.isPresent);
 
     Chart.phases.forEach((phase) => assert.notOk(phase.isActive));
@@ -183,7 +183,7 @@ module('Integration | Component | lifecycle-chart', function (hooks) {
         tasks.map((task) => ({ task }))
       );
 
-      await render(hbs`<LifecycleChart @taskStates={{taskStates}} />`);
+      await render(hbs`<LifecycleChart @taskStates={{this.taskStates}} />`);
 
       runningTaskNames.forEach((taskName) => {
         const taskState = this.taskStates.find((taskState) =>

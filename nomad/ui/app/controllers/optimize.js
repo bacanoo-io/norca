@@ -21,6 +21,7 @@ import EmberObject, { computed } from '@ember/object';
 import { alias } from '@ember/object/computed';
 import Searchable from 'nomad-ui/mixins/searchable';
 import classic from 'ember-classic-decorator';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 export default class OptimizeController extends Controller {
   @controller('optimize/summary') summaryController;
@@ -181,7 +182,7 @@ export default class OptimizeController extends Controller {
     return this.summarySearch.listSearched.filter((summary) => {
       const job = summary.get('job');
 
-      if (job.isDestroying) {
+      if (!job || job.isDestroying) {
         return false;
       }
 
@@ -247,7 +248,7 @@ export default class OptimizeController extends Controller {
 
   @action
   transitionToSummary(summary) {
-    this.transitionToRoute('optimize.summary', summary.slug, {
+    legacyTransitionTo(this, 'optimize.summary', summary.slug, {
       queryParams: { jobNamespace: summary.jobNamespace },
     });
   }
@@ -270,7 +271,7 @@ export default class OptimizeController extends Controller {
         if (firstFilteredSummary) {
           this.transitionToSummary(firstFilteredSummary);
         } else {
-          this.transitionToRoute('optimize');
+          legacyTransitionTo(this, 'optimize');
         }
       }
     });

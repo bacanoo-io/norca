@@ -7,7 +7,7 @@ import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { click, find, render, settled, waitUntil } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import { initialize as fragmentSerializerInitializer } from 'nomad-ui/initializers/fragment-serializer';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
 
@@ -57,7 +57,7 @@ module('Integration | Component | task group row', function (hooks) {
     fragmentSerializerInitializer(this.owner);
     this.store = this.owner.lookup('service:store');
     this.token = this.owner.lookup('service:token');
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
     this.server.create('node-pool');
     this.server.create('node');
 
@@ -72,7 +72,7 @@ module('Integration | Component | task group row', function (hooks) {
   });
 
   const commonTemplate = hbs`
-    <TaskGroupRow @taskGroup={{group}} />
+    <TaskGroupRow @taskGroup={{this.group}} />
   `;
 
   test('Task group row conditionally shows scaling buttons based on the presence of the scaling attr on the task group', async function (assert) {

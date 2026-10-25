@@ -5,6 +5,7 @@
 
 /* eslint-disable ember/no-controller-access-in-routes */
 import Route from '@ember/routing/route';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 export default class OptimizeIndexRoute extends Route {
   async activate() {
@@ -14,7 +15,7 @@ export default class OptimizeIndexRoute extends Route {
     if (summaries.length) {
       const firstSummary = summaries.objectAt(0);
 
-      return this.transitionTo('optimize.summary', firstSummary.slug, {
+      return legacyTransitionTo(this, 'optimize.summary', firstSummary.slug, {
         queryParams: {
           jobNamespace: firstSummary.jobNamespace || 'default',
         },

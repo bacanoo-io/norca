@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { assign } from '@ember/polyfills';
 import config from 'nomad-ui/config/environment';
 import * as topoScenarios from './topo';
 import * as sysbatchScenarios from './sysbatch';
@@ -323,7 +322,7 @@ function smallCluster(server) {
   const newJobTaskGroupName = 'redis';
   const jsonJob = (overrides) => {
     return JSON.stringify(
-      assign(
+      Object.assign(
         {},
         {
           Name: newJobName,

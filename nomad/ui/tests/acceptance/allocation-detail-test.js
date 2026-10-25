@@ -6,9 +6,8 @@
 /* eslint-disable qunit/require-expect */
 /* Mirage fixtures are random so we can't expect a set number of assertions */
 import AdapterError from '@ember-data/adapter/error';
-import { run } from '@ember/runloop';
+import { later } from '@ember/runloop';
 import { currentURL, click, triggerEvent, waitFor } from '@ember/test-helpers';
-import { assign } from '@ember/polyfills';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -42,7 +41,7 @@ module('Acceptance | allocation detail', function (hooks) {
 
     // Make sure the node has an unhealthy driver
     node.update({
-      driver: assign(node.drivers, {
+      driver: Object.assign(node.drivers, {
         docker: {
           detected: true,
           healthy: false,
@@ -401,7 +400,7 @@ module('Acceptance | allocation detail', function (hooks) {
 
     await Allocation.stop.idle();
 
-    run.later(() => {
+    later(() => {
       assert.ok(Allocation.stop.isRunning, 'Stop is loading');
       assert.ok(Allocation.restart.isDisabled, 'Restart is disabled');
       assert.ok(Allocation.restartAll.isDisabled, 'Restart All is disabled');

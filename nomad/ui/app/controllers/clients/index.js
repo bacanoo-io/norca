@@ -17,6 +17,7 @@ import {
   deserializedQueryParam as selection,
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 @classic
 export default class IndexController extends Controller.extend(
@@ -256,6 +257,6 @@ export default class IndexController extends Controller.extend(
 
   @action
   gotoNode(node) {
-    this.transitionToRoute('clients.client', node);
+    legacyTransitionTo(this, 'clients.client', node);
   }
 }
