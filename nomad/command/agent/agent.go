@@ -355,6 +355,13 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		conf.AdmissionConfig = admissionConf
 	}
 
+	if keyringConf := agentConfig.Server.Keyring.Copy(); keyringConf != nil {
+		if err := keyringConf.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid server keyring configuration: %w", err)
+		}
+		conf.KeyringConfig = keyringConf
+	}
+
 	if mtlsConf := agentConfig.Server.MTLS.Copy(); mtlsConf != nil {
 		if err := mtlsConf.Finalize(); err != nil {
 			return nil, fmt.Errorf("invalid server mtls configuration: %w", err)

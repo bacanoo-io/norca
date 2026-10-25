@@ -50,6 +50,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/volumewatcher"
 	"github.com/hashicorp/nomad/scheduler"
 	"github.com/hashicorp/nomad/secretstore"
+	"github.com/hashicorp/nomad/secretstore/ubix/export/core"
 )
 
 const (
@@ -242,6 +243,13 @@ type Server struct {
 	// secretStore is the Raft storage and HA lock backend of the built-in
 	// secret store (see setupSecretStore).
 	secretStore *secretstore.Backend
+
+	// secretStoreCore is the uBixVault core of the built-in secret store
+	// over secretStore; see setupSecretStore and secretCore.
+	secretStoreCore *core.Core
+
+	// seal is the keyring seal of this server (see seal_server.go).
+	seal *sealManager
 
 	// volumeControllerFutures is a map of plugin IDs to pending controller RPCs. If
 	// no RPC is pending for a given plugin, this may be nil.
@@ -463,6 +471,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 			return nil, fmt.Errorf("Failed to create keystore tempdir")
 		}
 	}
+	s.seal = newSealManager(s, s.config.KeyringConfig)
 	encrypter, err := NewEncrypter(s, keystorePath)
 	if err != nil {
 		return nil, err
@@ -541,6 +550,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 
 	// Setup the storage backend of the built-in secret store.
 	s.setupSecretStore()
+	go s.seal.run(s.shutdownCtx)
 
 	// Setup the enterprise state
 	if err := s.setupEnterprise(config); err != nil {

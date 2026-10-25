@@ -25,6 +25,7 @@ import (
 
 	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/crypto"
+	"github.com/hashicorp/nomad/nomad/seal"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -44,6 +45,17 @@ type Encrypter struct {
 
 	keyring map[string]*keyset
 	lock    sync.RWMutex
+
+	// sealedKeys (Norca) are the keystore files whose keys could not be
+	// unwrapped because the server is sealed, by key ID; guarded by lock.
+	sealedKeys map[string]*structs.KeyEncryptionKeyWrapper
+
+	// storedWraps (Norca) are the seal wraps of every keystore file, by key
+	// ID (see sealWrapTags); guarded by storeLock, which serializes the
+	// writes of the keystore.
+	storedWraps map[string][]string
+	wrapsLock   sync.Mutex
+	storeLock   sync.Mutex
 }
 
 type keyset struct {
@@ -60,6 +72,8 @@ func NewEncrypter(srv *Server, keystorePath string) (*Encrypter, error) {
 		srv:          srv,
 		keystorePath: keystorePath,
 		keyring:      make(map[string]*keyset),
+		sealedKeys:   make(map[string]*structs.KeyEncryptionKeyWrapper),
+		storedWraps:  make(map[string][]string),
 	}
 
 	err := encrypter.loadKeystore()
@@ -94,18 +108,33 @@ func (e *Encrypter) loadKeystore() error {
 			return nil
 		}
 
-		key, err := e.loadKeyFromStore(path)
+		kekWrapper, err := e.readKeyFile(path)
 		if err != nil {
 			return fmt.Errorf("could not load key file %s from keystore: %v", path, err)
 		}
-		if key.Meta.KeyID != id {
-			return fmt.Errorf("root key ID %s must match key file %s", key.Meta.KeyID, path)
+		if kekWrapper.Meta.KeyID != id {
+			return fmt.Errorf("root key ID %s must match key file %s", kekWrapper.Meta.KeyID, path)
+		}
+		key, err := e.unwrapKeyFile(kekWrapper)
+		if structs.IsErrSealed(err) {
+			// Norca: the key stays wrapped until the server is unsealed
+			e.lock.Lock()
+			e.sealedKeys[id] = kekWrapper
+			e.lock.Unlock()
+			e.setStoredWraps(id, sealWrapTagsOfFile(kekWrapper))
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("could not load key file %s from keystore: %v", path, err)
 		}
 
-		err = e.AddKey(key)
+		// The key is already on disk: only add its cipher (Nomad wrote
+		// the file again here).
+		err = e.addCipher(key)
 		if err != nil {
 			return fmt.Errorf("could not add key file %s to keystore: %v", path, err)
 		}
+		e.setStoredWraps(id, sealWrapTagsOfFile(kekWrapper))
 		return nil
 	})
 }
@@ -115,6 +144,9 @@ func (e *Encrypter) loadKeystore() error {
 // the key ID used to encrypt it
 func (e *Encrypter) Encrypt(cleartext []byte) ([]byte, string, error) {
 
+	if e.isSealed() {
+		return nil, "", structs.ErrSealed
+	}
 	keyset, err := e.activeKeySet()
 	if err != nil {
 		return nil, "", err
@@ -139,6 +171,9 @@ func (e *Encrypter) Encrypt(cleartext []byte) ([]byte, string, error) {
 // Decrypt takes an encrypted buffer and then root key ID. It extracts
 // the nonce, decrypts the content, and returns the cleartext data.
 func (e *Encrypter) Decrypt(ciphertext []byte, keyID string) ([]byte, error) {
+	if e.isSealed() {
+		return nil, structs.ErrSealed
+	}
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 
@@ -163,6 +198,10 @@ const keyIDHeader = "kid"
 // (including both the claim and its signature), the key ID of the key used to
 // sign it, and any error.
 func (e *Encrypter) SignClaims(claim *structs.IdentityClaims) (string, string, error) {
+
+	if e.isSealed() {
+		return "", "", structs.ErrSealed
+	}
 
 	// If a key is rotated immediately following a leader election, plans that
 	// are in-flight may get signed before the new leader has the key. Allow for
@@ -218,6 +257,11 @@ func (e *Encrypter) VerifyClaim(tokenString string) (*structs.IdentityClaims, er
 		defer e.lock.RUnlock()
 		keyset, err := e.keysetByIDLocked(keyID)
 		if err != nil {
+			// Norca: a sealed server verifies with the public key stored
+			// next to the wrapped key
+			if pub := e.sealedPublicKeyLocked(keyID); pub != nil {
+				return pub, nil
+			}
 			return nil, err
 		}
 		return keyset.privateKey.Public(), nil
@@ -236,6 +280,13 @@ func (e *Encrypter) VerifyClaim(tokenString string) (*structs.IdentityClaims, er
 
 // AddKey stores the key in the keystore and creates a new cipher for it.
 func (e *Encrypter) AddKey(rootKey *structs.RootKey) error {
+
+	// Norca: the key can only be stored if the seal can wrap it
+	if m := e.sealMgr(); m != nil {
+		if _, err := m.wrapSeals(); err != nil {
+			return err
+		}
+	}
 
 	// note: we don't lock the keyring here but inside addCipher
 	// instead, so that we're not holding the lock while performing
@@ -285,6 +336,9 @@ func (e *Encrypter) addCipher(rootKey *structs.RootKey) error {
 
 // GetKey retrieves the key material by ID from the keyring
 func (e *Encrypter) GetKey(keyID string) ([]byte, error) {
+	if e.isSealed() {
+		return nil, structs.ErrSealed
+	}
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 
@@ -330,8 +384,24 @@ func (e *Encrypter) RemoveKey(keyID string) error {
 	return nil
 }
 
-// saveKeyToStore serializes a root key to the on-disk keystore.
+// saveKeyToStore serializes a root key to the on-disk keystore. The root
+// key is encrypted with a new key-encrypting key (KEK), which is wrapped by
+// the seals of the region (Norca, see nomad/seal): the aead seal stores it in
+// the clear in Nomad's format, the other seals wrap it.
 func (e *Encrypter) saveKeyToStore(rootKey *structs.RootKey) error {
+	e.storeLock.Lock()
+	defer e.storeLock.Unlock()
+
+	seals, err := e.keystoreSeals()
+	if err != nil {
+		return err
+	}
+	return e.saveKeyLocked(rootKey, seals)
+}
+
+// saveKeyLocked writes a key file wrapped by the given seals. The caller
+// holds storeLock.
+func (e *Encrypter) saveKeyLocked(rootKey *structs.RootKey, seals []seal.Seal) error {
 
 	kek, err := crypto.Bytes(32)
 	if err != nil {
@@ -341,7 +411,7 @@ func (e *Encrypter) saveKeyToStore(rootKey *structs.RootKey) error {
 	if err != nil {
 		return fmt.Errorf("failed to create encryption wrapper: %v", err)
 	}
-	blob, err := wrapper.Encrypt(e.srv.shutdownCtx, rootKey.Key)
+	blob, err := wrapper.Encrypt(e.shutdownCtx(), rootKey.Key)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt root key: %v", err)
 	}
@@ -349,7 +419,18 @@ func (e *Encrypter) saveKeyToStore(rootKey *structs.RootKey) error {
 	kekWrapper := &structs.KeyEncryptionKeyWrapper{
 		Meta:                       rootKey.Meta,
 		EncryptedDataEncryptionKey: blob.Ciphertext,
-		KeyEncryptionKey:           kek,
+		PublicKey:                  ed25519.NewKeyFromSeed(rootKey.Key).Public().(ed25519.PublicKey),
+	}
+	for _, s := range seals {
+		if s.Type() == structs.SealTypeAEAD {
+			kekWrapper.KeyEncryptionKey = kek
+			continue
+		}
+		w, err := s.Wrap(e.shutdownCtx(), kek, keystoreAAD(rootKey.Meta.KeyID))
+		if err != nil {
+			return fmt.Errorf("failed to wrap root key with the %s seal: %w", s.Type(), err)
+		}
+		kekWrapper.SealedKEKs = append(kekWrapper.SealedKEKs, w)
 	}
 
 	buf, err := json.Marshal(kekWrapper)
@@ -357,16 +438,34 @@ func (e *Encrypter) saveKeyToStore(rootKey *structs.RootKey) error {
 		return err
 	}
 
+	// Norca: write a temporary file and rename it, so a rewrap never leaves
+	// a partly written key behind
 	path := filepath.Join(e.keystorePath, rootKey.Meta.KeyID+nomadKeystoreExtension)
-	err = os.WriteFile(path, buf, 0o600)
-	if err != nil {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, buf, 0o600); err != nil {
 		return err
 	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	e.setStoredWraps(rootKey.Meta.KeyID, sealWrapTagsOfFile(kekWrapper))
 	return nil
 }
 
-// loadKeyFromStore deserializes a root key from disk.
+// loadKeyFromStore deserializes a root key from disk. It returns an error
+// wrapping structs.ErrSealed if the key is wrapped by a seal that is not
+// unsealed.
 func (e *Encrypter) loadKeyFromStore(path string) (*structs.RootKey, error) {
+	kekWrapper, err := e.readKeyFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return e.unwrapKeyFile(kekWrapper)
+}
+
+// readKeyFile reads a keystore file without unwrapping it.
+func (e *Encrypter) readKeyFile(path string) (*structs.KeyEncryptionKeyWrapper, error) {
 
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -378,18 +477,36 @@ func (e *Encrypter) loadKeyFromStore(path string) (*structs.RootKey, error) {
 		return nil, err
 	}
 
-	meta := kekWrapper.Meta
-	if err = meta.Validate(); err != nil {
+	if err = kekWrapper.Meta.Validate(); err != nil {
 		return nil, err
+	}
+	return kekWrapper, nil
+}
+
+// unwrapKeyFile unwraps the root key of a keystore file: with the KEK in
+// the clear (aead), or with a KEK unwrapped by a seal.
+func (e *Encrypter) unwrapKeyFile(kekWrapper *structs.KeyEncryptionKeyWrapper) (*structs.RootKey, error) {
+	meta := kekWrapper.Meta
+	kek := kekWrapper.KeyEncryptionKey
+	if len(kek) == 0 && len(kekWrapper.SealedKEKs) > 0 {
+		m := e.sealMgr()
+		if m == nil {
+			return nil, fmt.Errorf("%w: root key %s is wrapped by a seal", structs.ErrSealed, meta.KeyID)
+		}
+		var err error
+		kek, err = m.UnwrapKey(e.shutdownCtx(), kekWrapper.SealedKEKs, keystoreAAD(meta.KeyID))
+		if err != nil {
+			return nil, fmt.Errorf("unable to unwrap root key %s: %w", meta.KeyID, err)
+		}
 	}
 
 	// the errors that bubble up from this library can be a bit opaque, so make
 	// sure we wrap them with as much context as possible
-	wrapper, err := e.newKMSWrapper(meta.KeyID, kekWrapper.KeyEncryptionKey)
+	wrapper, err := e.newKMSWrapper(meta.KeyID, kek)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create key wrapper cipher: %v", err)
 	}
-	key, err := wrapper.Decrypt(e.srv.shutdownCtx, &kms.BlobInfo{
+	key, err := wrapper.Decrypt(e.shutdownCtx(), &kms.BlobInfo{
 		Ciphertext: kekWrapper.EncryptedDataEncryptionKey,
 	})
 	if err != nil {
@@ -459,6 +576,17 @@ func (krr *KeyringReplicator) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
+			// Norca: a sealed server can neither store replicated keys nor
+			// should it hold them; it replicates once it is unsealed
+			if m := krr.encrypter.sealMgr(); m != nil && m.sealed() {
+				select {
+				case <-ctx.Done():
+				case <-krr.srv.shutdownCtx.Done():
+				case <-m.changedCh():
+				case <-time.After(5 * time.Second):
+				}
+				continue
+			}
 			err := limiter.Wait(ctx)
 			if err != nil {
 				continue // rate limit exceeded
