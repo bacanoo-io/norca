@@ -376,7 +376,7 @@ Every source in the plan is MPL 2.0 or under a compatible license, so the autosc
 ## Open questions
 
 - [x] How large is the target cluster (number of servers, nodes, scaled task groups)? Decided 2026-10-24: up to 150 client nodes per region with at most 20 scaled task groups each, i.e. up to 3,000 scaled task groups per region; the load test uses this size.
-- [x] Is node-level (cloud) scaling needed, and with which provider? If not, phase 4 can be dropped. Decided 2026-10-24: not for now; phase 4 is postponed.
+- [x] Is node-level (cloud) scaling needed, and with which provider? If not, phase 4 can be dropped. Decided 2026-10-24: not for now; phase 4 is postponed. Decided 2026-10-25: when phase 4 is built, its cloud provider targets are Hetzner Cloud, Scaleway, AWS and GCP (the same four as the LoadBalancer operator's providers).
 - [x] Which plugins of the external autoscaler are in use today? Decided 2026-10-24: the built-in set is the `nomad` and Prometheus APMs and the four strategies; the Datadog, InfluxDB and Instana APMs are not ported (usable only as external plugins).
 - [x] Does the namespace quota development precede this plan? If not, the quota coordination from phase 2 has to be added later. Resolved: quotas were implemented first, and phase 2 caps scale-ups at the quota ceiling.
 - [x] Is it acceptable that there is no scale-down during the first metric window (default 5 minutes) after a leader change? Decided 2026-10-24: yes.
@@ -390,5 +390,5 @@ Every source in the plan is MPL 2.0 or under a compatible license, so the autosc
 <!-- -->
 
 - [x] A separate region per cloud (proposed) or one region with clients in several clouds? Decided 2026-10-24: a separate region per cloud, so multiregion deployment is developed.
-- [x] Which clouds and sites take part, and is there already a VPN or dedicated connection between them that can be built on instead of the WireGuard mesh? Decided 2026-10-24: AWS, GCP and Hetzner Cloud, one provider per region (providers are not mixed within a region); a VPN between them already exists and is used instead of a new WireGuard mesh.
+- [x] Which clouds and sites take part, and is there already a VPN or dedicated connection between them that can be built on instead of the WireGuard mesh? Decided 2026-10-24: AWS, GCP and Hetzner Cloud, one provider per region (providers are not mixed within a region); a VPN between them already exists and is used instead of a new WireGuard mesh. Added 2026-10-25: Scaleway is the fourth supported cloud provider (the one-provider-per-region rule applies to it too).
 - [x] Do we use NATS only as an event and notification bridge, or is application-to-application messaging also built on it? Decided 2026-10-24: only as an event and notification bridge. (The control of Nomad, including multiregion deployment, runs over the Nomad RPC in both cases.)

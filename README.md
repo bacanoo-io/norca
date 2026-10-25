@@ -65,7 +65,7 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Nomad v1.6.5 core features | Available | – |
 | Dependency updates (Go 1.27, gRPC 1.84, security fixes) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Built-in autoscaler (leader subsystem; built-in strategies; `nomad` metrics pushed by clients and Prometheus; external APM/strategy plugins; typed, validated `scaling` policies; quota and deployment aware; `Scaling` events; off by default) | Available | [development plan](docs/design/nomad-fork-development-plan.md) |
-| Built-in autoscaler: node pool scaling with cloud providers (phase 4) | Postponed | [development plan](docs/design/nomad-fork-development-plan.md) |
+| Built-in autoscaler: node pool scaling with cloud providers (phase 4; targets: Hetzner Cloud, Scaleway, AWS, GCP) | Postponed | [development plan](docs/design/nomad-fork-development-plan.md) |
 | Namespace quotas | Available | [specification, item 1](docs/design/kubernetes-features-spec.md) |
 | Dynamic admission control (CEL policies, webhooks) | Available | [specification, item 2](docs/design/kubernetes-features-spec.md) |
 | Event stream: Variables topic, resumable subscriptions | Available | [specification, item 3](docs/design/kubernetes-features-spec.md) |
