@@ -62,4 +62,15 @@
 //     leader over Nomad's RPC forwarding, not over uBixVault's HTTP
 //     forwarding; the lock's Holder reports the leader's server ID and RPC
 //     address for diagnostics only.
+//
+// # Batched writes
+//
+// The secrets of the store (nomad/secrets_kv.go) drive uBixVault's KV engine
+// with a context carrying a [Batch]: the backend then collects the barrier's
+// writes, serves them to reads made with the same context, and the store
+// applies them together with the secret's metadata row as one Raft entry
+// (SecretApplyRequestType), so values and metadata change atomically.
+// [Backend.CheckWrite] applies the version gate and the HA fencing to such
+// a batch. The audit trail of the store uses uBixVault's audit broker with
+// Norca's [AuditFile] device.
 package secretstore
