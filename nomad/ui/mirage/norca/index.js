@@ -10,12 +10,14 @@ import seedBackups from './seeds/backups';
 import registerQuotaRoutes, { seedQuotas } from './quotas';
 import registerScalingRoutes, { seedScaling } from './scaling';
 import registerNetworkRoutes, { seedNetwork } from './network';
+import registerDeploymentRoutes from './deployments';
 
 export function registerNorcaAreas(server) {
   registerBackupRoutes(server);
   registerQuotaRoutes(server);
   registerScalingRoutes(server);
   registerNetworkRoutes(server);
+  registerDeploymentRoutes(server);
 }
 
 // Development data (the default scenario).

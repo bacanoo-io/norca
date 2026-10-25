@@ -233,7 +233,7 @@ module('Acceptance | keyboard', function (hooks) {
       await triggerEvent('.page-layout', 'keydown', { key: 'Shift' });
       assert.equal(
         document.querySelectorAll('[data-test-keyboard-hint]').length,
-        11,
+        12,
         'Shows a hint for every menu item and Sign in'
       );
       await triggerEvent('.page-layout', 'keyup', { key: 'Shift' });

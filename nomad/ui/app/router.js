@@ -153,6 +153,10 @@ Router.map(function () {
     this.route('admin-policy', { path: '/admin/:name' });
   });
 
+  this.route('deployments', function () {
+    this.route('deployment', { path: '/:deployment_id' });
+  });
+
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {
     this.route('oidc-mock');

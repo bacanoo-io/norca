@@ -32,6 +32,12 @@ export const NAVIGATION = [
         route: 'jobs',
         shortcut: ['g', 'j'],
       },
+      {
+        id: 'deployments',
+        label: 'Deployments',
+        icon: 'git-branch',
+        route: 'deployments',
+      },
     ],
   },
   {

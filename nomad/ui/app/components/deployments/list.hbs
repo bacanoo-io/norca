@@ -1,0 +1,60 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-deployments {{this.setup this.scopedRegions this.namespace}}>
+  <Ui::PageHeader @pretitle="Workloads" @title="Deployments" @subtitle={{this.scopeLabel}} />
+
+  <div class="page-body">
+    <div class="container-xl">
+      {{#if this.isLoading}}
+        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the deployments" /></Ui::Card>
+      {{else}}
+        {{#each this.errors as |r|}}
+          <Ui::Alert @tone="danger" @title="The deployments of {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
+        {{/each}}
+
+        {{#each this.rollouts as |rollout|}}
+          <Ui::Card @title={{concat "In progress: " rollout.job " v" rollout.version " (multiregion)"}} class="mb-3" data-test-rollout-card={{rollout.job}}>
+            <Deployments::Rollout
+              @job={{rollout.job}}
+              @namespace={{rollout.namespace}}
+              @version={{rollout.version}}
+              @homeRegion={{rollout.homeRegion}}
+              @onChange={{this.refresh}}
+            />
+          </Ui::Card>
+        {{/each}}
+
+        <Ui::Card @flush={{true}} @title={{if this.showAll "All deployments" "Active deployments"}} data-test-deployment-list>
+          <:actions>
+            <Ui::Switch @switch={{true}} @label="Show finished" @checked={{this.showAll}} @onChange={{this.setShowAll}} data-test-show-all />
+          </:actions>
+          <:default>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Deployments"
+              @columns={{this.columns}}
+              @rows={{this.rows}}
+              @emptyMessage={{if this.showAll "No deployment yet. Service jobs with an update block create a deployment on every new version." "No deployment in progress. Turn on Show finished to see the recent ones."}}
+              as |d|
+            >
+              <td>
+                <LinkTo @route="deployments.deployment" @model={{d.ID}} @query={{hash region=(or d.region null)}} data-test-deployment-link={{d.JobID}}>{{d.JobID}}</LinkTo>
+                {{#if d.IsMultiregion}}<Ui::Badge @color="azure" class="ms-1">multiregion</Ui::Badge>{{/if}}
+              </td>
+              <td>v{{d.JobVersion}}</td>
+              {{#if this.isAllRegions}}<td><span class="norca-region">{{d.region}}</span></td>{{/if}}
+              <td><Ui::StatusIndicator @status={{d.Status}} data-test-deployment-status /></td>
+              <td class="w-25">
+                <div class="small text-secondary">{{d.progress.healthy}} of {{d.progress.desired}}</div>
+                <Ui::StackedBar @label={{concat "Deployment of " d.JobID}} @segments={{d.progress.segments}} />
+              </td>
+              <td>{{d.StatusDescription}}</td>
+            </Ui::Table>
+          </:default>
+        </Ui::Card>
+      {{/if}}
+    </div>
+  </div>
+</div>
