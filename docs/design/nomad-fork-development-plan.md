@@ -1,8 +1,8 @@
 # Nomad fork development plan: built-in autoscaler and Kubernetes features
 
-**Status:** In progress · 2026-10-24
+**Status:** In progress · 2026-10-25
 
-Progress: autoscaler phase 1 implemented, phases 2–3 in progress, phase 4 planned; dependency updates done.
+Progress: autoscaler phases 1–3 implemented, phase 4 (node pools with cloud providers) postponed; dependency updates, multiregion deployments and the NATS bridge implemented; the Kubernetes features have their status in [kubernetes-features-spec.md](kubernetes-features-spec.md).
 
 ## Summary and goals
 

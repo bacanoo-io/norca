@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+-->
+
 # Pack supply chain: OCI registries, signing, offline bundles, pack.lock
 
 Besides git registries, `norca pack` stores packs as artifacts in OCI registries (Harbor,

@@ -84,12 +84,12 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Service discovery without Consul: external services (address or DNS alias, TTL/HTTP/TCP checks, `norca service register`), Consul agent write endpoints in the compat layer | Available (phase 4) | [plan](docs/design/consul-independence-plan.md) |
 | Full Consul as an option: `packs/consul` installs and manages the official Consul release (not distributed by this project; BSL 1.1, accepted by the user at install) with gossip, TLS and ACL bootstrap through Norca Variables | Available (phase 6) | [plan](docs/design/consul-independence-plan.md), [packs/consul](packs/consul/README.md) |
 | Native mTLS, steps 1–2: per-region CA (key encrypted in Raft, backed up, federated trust bundle), short-lived SPIFFE workload certificates in `secrets/mtls` (`mtls { mode = "app" }`), `ServiceIntention` objects (`norca service intention`), Go library `api/mtls` | Available (phase 5, steps 1–2) | [plan](docs/design/consul-independence-plan.md) |
-| Native mTLS, step 3: Envoy sidecar (`mtls { mode = "sidecar" }`, file-based xDS, intentions as Envoy RBAC), upstreams on local ports, cross-region SNI passthrough gateway (`mode = "gateway"`, `upstream { region }`) | Available (phase 5, step 3) | [plan](docs/design/consul-independence-plan.md), [usage](docs/native-mtls.md) |
+| Native mTLS, step 3: Envoy sidecar (`mtls { mode = "sidecar" }`, file-based xDS, intentions as Envoy RBAC), upstreams on local ports, cross-region SNI passthrough gateway (`mode = "gateway"`, `upstream { region }`) | Available (phase 5, step 3; the sidecar test against a real Envoy is being fixed) | [plan](docs/design/consul-independence-plan.md), [usage](docs/native-mtls.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](docs/design/package-management-plan.md) |
 | Package management, client-side supply chain: OCI registries, cosign-compatible signing and trust policies, offline bundles (air-gapped), `pack.lock` | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/supply-chain.md) |
 | Package management: server-side releases (`packs.norca.io/Release` objects with revision history, atomic install/upgrade, hooks and tests, rollback, drift detection, uninstall), signature enforcement in admission (`trusted_keys`) | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
-| Package management: variable schemas, multi-region install | Planned | [plan](docs/design/package-management-plan.md) |
-| New web UI | Planned | [plan](docs/design/ui-plan.md) |
+| Package management: JSON Schema for pack variables (`variables_schema`, checked by the CLI and the servers), multi-region installs (`--regions`, global resources from the authoritative region, per-region status) | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
+| New web UI | In progress (phase 1) | [plan](docs/design/ui-plan.md) |
 
 Only features marked "Available" can be used; the others are being built or are in the design phase.
 

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+-->
+
 # Pack releases: revisions, server-side apply, hooks, drift
 
 When the Norca servers support it, `norca pack run` does not deploy jobs from the client any more:

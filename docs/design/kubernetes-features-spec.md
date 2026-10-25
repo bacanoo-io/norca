@@ -1,6 +1,6 @@
 # Kubernetes features in the Norca fork – detailed specification
 
-**Status:** In progress · 2026-10-24 · Starting point: Nomad v1.6.5 (MPL 2.0) · Related document: [nomad-fork-development-plan.md](nomad-fork-development-plan.md)
+**Status:** In progress · 2026-10-25 (items 1–7 implemented; item 8: phases 1–3 implemented, phase 4 planned) · Starting point: Nomad v1.6.5 (MPL 2.0) · Related document: [nomad-fork-development-plan.md](nomad-fork-development-plan.md)
 
 Status per item:
 
@@ -8,10 +8,10 @@ Status per item:
 - **2.** Dynamic admission control: Implemented
 - **3.** Event stream extension: Implemented
 - **4.** Cross-job affinity and anti-affinity: Implemented
-- **5.** Disruption budget: In progress
+- **5.** Disruption budget: Implemented
 - **6.** Health check roles: Implemented
 - **7.** Network rules: Implemented (levels A and B; level C dropped)
-- **8.** Operator framework: Plan
+- **8.** Operator framework: Implemented up to phase 3 (prototype with the controller SDK, native objects, lifecycle); phase 4 (ecosystem) planned
 
 This document is the detailed specification of the seven items listed in the "Features adopted from Kubernetes" chapter of the development plan, plus the operator framework (item 8) built on top of them. The numbering matches the plan. Every chapter follows the same structure: what Kubernetes does, what already exists in Nomad 1.6.5, what we propose (semantics, jobspec, API, data model), where the code has to change, and the acceptance criteria.
 

@@ -1,6 +1,6 @@
 # S3-based scheduled backup and restore – plan
 
-**Status:** Plan · 2026-10-24 · Starting point: Nomad v1.6.5 (MPL 2.0) · Related document: [nomad-fork-development-plan.md](nomad-fork-development-plan.md)
+**Status:** In progress · 2026-10-25 (phases 1, 2 and 4 implemented; phase 3, the web UI, planned with the new UI) · Starting point: Nomad v1.6.5 (MPL 2.0) · Related document: [nomad-fork-development-plan.md](nomad-fork-development-plan.md)
 
 In every region, Norca automatically backs up the cluster state on a schedule to one or more S3-compatible stores. Backups can be browsed, compared and restored in the web UI. A restore can be selective (a single job, a single Variables path), full (an entire region returned to an earlier state), or the building of a new cluster from a backup. The schedule and the stores live in the server configuration; manual backup, versioning and restore live in the UI.
 
