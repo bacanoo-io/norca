@@ -129,13 +129,15 @@ norca/
 
 ## Pre-publication checklist
 
-- [ ] `nomad/` imported from the v1.6.5 tag, with history; its LICENSE file is MPL 2.0
-- [ ] Nomad Pack imported from the v0.4.2 tag (now `nomad/pack/`); the test helper switched to the fork's build, no BSL module in the `go.mod` files
+Checked on 2026-10-25 (branch `chore/prepublish-audit`); each item notes how it was verified.
+
+- [x] `nomad/` imported from the v1.6.5 tag, with history; its LICENSE file is MPL 2.0 — the upstream tag commit `a7cfff37` is an ancestor of `main` (`git merge-base --is-ancestor`), the `nomad/` tree of the import merge `df6b4d59` is identical to the tag's tree, `nomad/LICENSE` is byte-identical to the tag's MPL 2.0 LICENSE, and no tracked file carries a `BUSL-1.1` header or Business Source License text (`THIRD_PARTY_NOTICES.md` contains none; the remaining mentions are documentation, the license classifier and the `packs/consul` notices about the official Consul)
+- [x] Nomad Pack imported from the v0.4.2 tag (now `nomad/pack/`); the test helper switched to the fork's build, no BSL module in the `go.mod` files — `cd4d2a41` is an ancestor and the tree of the import merge `ecae2433` equals the tag's tree; `internal/cli/testhelper` imports the fork's `command/agent` from the same module; in the nomad, api, controller, natsbridge and tools modules `go list -m all` lists `github.com/hashicorp/nomad[/...]` only as the main module or as a local `replace`, and no `go.sum` has an entry for them
 - [x] Binary and CLI named `norca` (CLI text, build outputs, container image, `NORCA_*` CLI environment variables); `nomad` remains only as a documented, not shipped compatibility alias
-- [ ] Neutral project name; trademark notice in the README and the NOTICE; HashiCorp logos and branding removed
-- [ ] The original copyright and SPDX headers are intact; `reuse lint` is clean
-- [ ] License check in CI: no prohibited license, no ApexCharts
-- [x] THIRD_PARTY_NOTICES generated, and included in the binaries and the container images (release archives and image via `release.yml`; the release is blocked until the decisions marked pending in `nomad/tools/thirdparty/overrides.go` are resolved)
+- [ ] Neutral project name; trademark notice in the README and the NOTICE; HashiCorp logos and branding removed — name, README and NOTICE notices done; outside the UI the HashiCorp logos were removed from the OIDC login page, the upstream `nomad/README.md` and the unreferenced website assets (logos, press kit, favicons, patterns); open: the UI branding (UI phase 4 of [ui-plan.md](design/ui-plan.md)) and the fate of `nomad/website`, whose `LICENSE.md` calls the website design proprietary to HashiCorp
+- [x] The original copyright and SPDX headers are intact; `reuse lint` is clean — reuse 5.0.2: compliant with REUSE 3.3, licenses MIT and MPL-2.0 only; for every file of the two upstream tags still present, the copyright and SPDX lines are unchanged, except the 43 BUSL-1.1 files replaced clean room at the same paths, which carry Norca headers
+- [x] License check in CI: no prohibited license, no ApexCharts — the commands of every job of `.github/workflows/compliance.yml` were replayed locally: `go-licenses` v1.6.0 passes for the nomad, api, controller, natsbridge and tools modules, the UI license checker passes on the production dependencies, `make check-notices` passes, and no lock or package file names `apexcharts`
+- [x] THIRD_PARTY_NOTICES generated, and included in the binaries and the container images (release archives and image via `release.yml`; no decision in `nomad/tools/thirdparty/overrides.go` is pending: the legacy UI exceptions are recorded as `Exception` overrides, and the `-strict` check of the release passes)
 - [x] In the release process: source tag link, MPL notice, OCI labels, SBOM
-- [ ] CONTRIBUTING.md, pull request template, DCO check
-- [ ] The design documents have a status marker, the README has a feature status table
+- [x] CONTRIBUTING.md, pull request template, DCO check — the three agree on sign-off, headers, the BSL and clean room rules, third-party code and dependencies; the `dco` job's command finds no unsigned commit on `main` after the repository skeleton; CONTRIBUTING.md now lists the checks CI actually runs (no test workflow yet)
+- [x] The design documents have a status marker, the README has a feature status table — every `docs/design/*.md` starts with a status line updated on 2026-10-25, and the README table matches the merged branches
