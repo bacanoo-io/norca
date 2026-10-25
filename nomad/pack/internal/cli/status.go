@@ -19,6 +19,7 @@ import (
 type StatusCommand struct {
 	*baseCommand
 	packConfig *caching.PackConfig
+	regions    string
 }
 
 func (c *StatusCommand) Run(args []string) int {
@@ -63,6 +64,12 @@ func (c *StatusCommand) Run(args []string) int {
 		} else if name, err := releaseNameFor(c.packConfig, c.deploymentName); err == nil {
 			if rel, _, err := client.Releases().Info(name, nil); err == nil {
 				printRelease(c.ui, rel)
+				c.ui.Output("")
+			}
+			// The releases of all regions of a multi-region install.
+			if regions, global := releaseRegions(client, name, splitRegions(c.regions)); len(regions) > 0 {
+				c.ui.Output("Regions:")
+				printRegionReleases(c.ui, global, regionReleases(client, name, regions))
 				c.ui.Output("")
 			}
 		}
@@ -143,6 +150,13 @@ func (c *StatusCommand) Flags() *flag.Sets {
 					defaults to latest.
 
 					Using ref with a file path is not supported.`,
+		})
+
+		f.StringVar(&flag.StringVar{
+			Name:   "regions",
+			Target: &c.regions,
+			Usage: `Comma separated regions whose releases to show. By default the
+					regions of a multi-region install are taken from the release.`,
 		})
 	})
 }

@@ -38,6 +38,11 @@ type PackManager struct {
 
 	// loadedPack is unavailable until the loadAndValidatePacks func is run.
 	loadedPack *pack.Pack
+
+	// schemas and schemaValues are the variables schemas of the packs and
+	// the values validated against them, set by ProcessTemplates.
+	schemas      []*api.ReleaseVariablesSchema
+	schemaValues map[string]map[string]any
 }
 
 func NewPackManager(cfg *Config, client *api.Client) *PackManager {
@@ -138,6 +143,12 @@ func (pm *PackManager) ProcessTemplates(renderAux bool, format bool, ignoreMissi
 	tplCtx, diags := parsedVars.ToPackTemplateContext(pm.loadedPack)
 	if diags != nil && diags.HasErrors() {
 		return nil, errors.HCLDiagsToWrappedUIContext(diags)
+	}
+
+	// Validate the variables against the variables schemas of the packs
+	// before rendering.
+	if wErr := pm.validateVariables(parsedVars); wErr != nil {
+		return nil, wErr
 	}
 
 	r := new(renderer.Renderer)

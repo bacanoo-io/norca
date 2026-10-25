@@ -15,6 +15,15 @@ type Metadata struct {
 	Pack         *MetadataPack        `hcl:"pack,block"`
 	Integration  *MetadataIntegration `hcl:"integration,block"`
 	Dependencies []*Dependency        `hcl:"dependency,block"`
+
+	// VariablesSchema is an optional JSON Schema for the variable values of
+	// the pack, usually read with file("values.schema.json") (Norca
+	// extension).
+	VariablesSchema string `hcl:"variables_schema,optional"`
+
+	// Regions installs the pack in these regions in one operation unless
+	// the command line names the regions (Norca extension).
+	Regions []string `hcl:"regions,optional"`
 }
 
 // MetadataApp contains information regarding the application that the pack is

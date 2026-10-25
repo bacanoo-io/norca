@@ -80,6 +80,25 @@ type ReleaseSpec struct {
 	Revision    uint64       `json:"revision"`
 	MaxHistory  int          `json:"maxHistory"`
 	Atomic      bool         `json:"atomic"`
+
+	// Multiregion describes the multi-region install of the newest
+	// revision, nil for a release of its region only.
+	Multiregion *ReleaseMultiregion `json:"multiregion,omitempty"`
+}
+
+// ReleaseMultiregion describes a multi-region install: the regions in the
+// order they were applied, and the region whose release applies the global
+// resources (namespaces, quotas, ACL policies).
+type ReleaseMultiregion struct {
+	Regions      []string `json:"regions"`
+	GlobalRegion string   `json:"globalRegion"`
+}
+
+// ReleaseVariablesSchema is the JSON Schema of the variables of a pack or of
+// one of its dependencies (Pack is its path, such as "app.redis").
+type ReleaseVariablesSchema struct {
+	Pack   string `json:"pack"`
+	Schema string `json:"schema"`
 }
 
 // ReleaseStatus is the observed state of a release.
@@ -197,18 +216,22 @@ type ReleaseRevision struct {
 
 // ReleaseRevisionSpec is the content of a revision.
 type ReleaseRevisionSpec struct {
-	Release       string                `json:"release"`
-	Revision      uint64                `json:"revision"`
-	Action        string                `json:"action"`
-	RollbackOf    uint64                `json:"rollbackOf,omitempty"`
-	Pack          *ReleasePack          `json:"pack,omitempty"`
-	Description   string                `json:"description,omitempty"`
-	Values        map[string]any        `json:"values,omitempty"`
-	ValuesHash    string                `json:"valuesHash,omitempty"`
-	Resources     []*ReleaseResourceRef `json:"resources,omitempty"`
-	ContentDigest string                `json:"contentDigest"`
-	User          string                `json:"user,omitempty"`
-	CreateTime    string                `json:"createTime,omitempty"`
+	Release     string                `json:"release"`
+	Revision    uint64                `json:"revision"`
+	Action      string                `json:"action"`
+	RollbackOf  uint64                `json:"rollbackOf,omitempty"`
+	Pack        *ReleasePack          `json:"pack,omitempty"`
+	Description string                `json:"description,omitempty"`
+	Values      map[string]any        `json:"values,omitempty"`
+	ValuesHash  string                `json:"valuesHash,omitempty"`
+	Resources   []*ReleaseResourceRef `json:"resources,omitempty"`
+
+	VariablesSchemas []*ReleaseVariablesSchema `json:"variablesSchemas,omitempty"`
+	Multiregion      *ReleaseMultiregion       `json:"multiregion,omitempty"`
+
+	ContentDigest string `json:"contentDigest"`
+	User          string `json:"user,omitempty"`
+	CreateTime    string `json:"createTime,omitempty"`
 }
 
 // ReleaseRevisionStatus is the state of a revision.
@@ -268,6 +291,17 @@ type ReleaseApplyRequest struct {
 
 	// RecordOnly records resources the client applied itself.
 	RecordOnly bool
+
+	// VariablesSchemas are the variables schemas of the pack and its
+	// dependencies; the servers validate VariableValues (the effective
+	// values by pack path, never stored) against them.
+	VariablesSchemas []*ReleaseVariablesSchema
+	VariableValues   map[string]map[string]any
+
+	// Regions installs the release in several regions: the receiving
+	// region applies it on the leader of every region in turn and returns
+	// the results per region (ReleaseApplyResponse.Regions).
+	Regions []string
 }
 
 // ReleaseApplyResponse is the result of an apply, plan or rollback.
@@ -276,7 +310,22 @@ type ReleaseApplyResponse struct {
 	Revision uint64
 	Changes  []*ReleaseResourceChange
 	Warnings []string
+
+	// Regions are the results per region of a multi-region install.
+	Regions []*ReleaseRegionResult
 	WriteMeta
+}
+
+// ReleaseRegionResult is the result of a multi-region install in a region.
+// Error is set if the operation failed there; the other regions keep their
+// releases.
+type ReleaseRegionResult struct {
+	Region   string
+	Release  *Release
+	Revision uint64
+	Changes  []*ReleaseResourceChange
+	Warnings []string
+	Error    string
 }
 
 // ReleaseResourceChange is a planned or performed change.
@@ -288,7 +337,11 @@ type ReleaseResourceChange struct {
 	Hook      string
 	Owner     string
 	JobDiff   *JobDiff
-	Error     string
+
+	// Region is the region whose release applies a "remote" resource or
+	// registers an adopted multiregion job.
+	Region string
+	Error  string
 }
 
 // ReleaseRollbackRequest rolls back to a revision (0: the previous one).

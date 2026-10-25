@@ -82,6 +82,12 @@ func (r *Release) Apply(args *structs.ReleaseApplyRequest, reply *structs.Releas
 	}
 	defer metrics.MeasureSince([]string{"nomad", "release", "apply"}, time.Now())
 
+	// A multi-region install is coordinated here and applied by every
+	// region, which authorizes it.
+	if len(args.Regions) > 0 {
+		return r.applyMultiregion(args, reply)
+	}
+
 	namespace := args.RequestNamespace()
 	if _, err := r.authorize(args, namespace, acl.ObjectCapabilityWrite); err != nil {
 		return err
@@ -97,6 +103,14 @@ func (r *Release) Apply(args *structs.ReleaseApplyRequest, reply *structs.Releas
 	}
 	if args.DryRun && args.RecordOnly {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "dry_run and record_only are exclusive")
+	}
+	if err := validateReleaseVariables(args.VariablesSchemas, args.VariableValues); err != nil {
+		return err
+	}
+	if args.Multiregion != nil {
+		if err := args.Multiregion.Validate(r.srv.Region()); err != nil {
+			return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
+		}
 	}
 	resolveSecretNamespaces(args.Secrets, args.Resources, namespace)
 	secrets, err := secretsByPath(args.Secrets, namespace)
@@ -123,6 +137,9 @@ func (r *Release) Apply(args *structs.ReleaseApplyRequest, reply *structs.Releas
 		maxHistory:    args.MaxHistory,
 		dryRun:        args.DryRun,
 		recordOnly:    args.RecordOnly,
+
+		variablesSchemas: args.VariablesSchemas,
+		multiregion:      args.Multiregion,
 	}
 	if in.pack != nil {
 		p := *in.pack
@@ -259,6 +276,9 @@ func (r *Release) Rollback(args *structs.ReleaseRollbackRequest, reply *structs.
 		wait:        args.Wait,
 		timeout:     args.Timeout,
 		dryRun:      args.DryRun,
+
+		variablesSchemas: rev.Spec.VariablesSchemas,
+		multiregion:      rev.Spec.Multiregion.Copy(),
 	}
 	if in.pack != nil {
 		p := *in.pack
