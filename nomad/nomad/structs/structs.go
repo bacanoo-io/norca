@@ -173,6 +173,11 @@ const (
 	NetworkPolicyDeleteRequestType      MessageType = 102
 	AdminNetworkPolicyUpsertRequestType MessageType = 103
 	AdminNetworkPolicyDeleteRequestType MessageType = 104
+	// Norca built-in secret store (105-106 assigned to the secret store
+	// import): the physical storage of the uBixVault barrier, ciphertext
+	// blobs by storage path. They are sent with the IgnoreUnknownTypeFlag set.
+	SecretStoreBlobsUpsertRequestType MessageType = 105
+	SecretStoreBlobsDeleteRequestType MessageType = 106
 )
 
 const (
