@@ -128,7 +128,7 @@ func (e *Secret) ReadMetadata(args *structs.SecretReadMetadataRequest, reply *st
 		return err
 	}
 	namespace := args.RequestNamespace()
-	if !aclObj.AllowSecretOperation(namespace, args.Path, acl.NamespaceCapabilityListSecrets) {
+	if !e.allowed(aclObj, args, namespace, args.Path, acl.NamespaceCapabilityListSecrets) {
 		return structs.ErrPermissionDenied
 	}
 	return e.readMetadata(namespace, args.Path, &args.QueryOptions, &reply.QueryMeta, &reply.Secret)
@@ -178,7 +178,7 @@ func (e *Secret) Read(args *structs.SecretReadRequest, reply *structs.SecretRead
 	if err != nil {
 		return e.finish(rec, err)
 	}
-	if !aclObj.AllowSecretOperation(namespace, args.Path, acl.NamespaceCapabilityReadSecret) {
+	if !e.allowed(aclObj, args, namespace, args.Path, acl.NamespaceCapabilityReadSecret) {
 		return e.denied(rec)
 	}
 
@@ -354,6 +354,80 @@ func (e *Secret) resolveACL(args structs.RequestWithIdentity) (*acl.ACL, error) 
 		return nil, structs.ErrPermissionDenied
 	}
 	return aclObj, err
+}
+
+// RecordAccess records the audit record of a fetch a client made from an
+// external provider for a task (Norca, phase 3). The request is
+// authenticated with the task's workload identity, which is the accessor of
+// the record; the client supplies only the provider, path, version and
+// result. Fetches from the built-in store are recorded by Read itself and
+// are not accepted here.
+func (e *Secret) RecordAccess(args *structs.SecretRecordAccessRequest, reply *structs.GenericResponse) error {
+	authErr := e.srv.Authenticate(e.ctx, args)
+	if done, err := e.srv.forward(structs.SecretRecordAccessRPCMethod, args, args, reply); done {
+		return err
+	}
+	e.srv.MeasureRPCRate("secret", structs.RateMetricWrite, args)
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+	claims := args.GetIdentity().GetClaims()
+	if claims == nil {
+		return structs.NewErrRPCCoded(http.StatusForbidden, "secret access records require a workload identity")
+	}
+	alloc, err := e.srv.State().AllocByID(nil, claims.AllocationID)
+	if err != nil {
+		return err
+	}
+	if alloc == nil || alloc.Job == nil || alloc.ClientTerminalStatus() {
+		return structs.ErrPermissionDenied
+	}
+
+	in := args.Record
+	switch {
+	case in == nil:
+		return structs.NewErrRPCCoded(http.StatusBadRequest, "missing record")
+	case in.Provider == "" || in.Provider == structs.SecretProviderNorca:
+		return structs.NewErrRPCCoded(http.StatusBadRequest, "records are only accepted for external providers")
+	case in.Path == "" || len(in.Path) > 512 || len(in.Provider) > 64 || len(in.ProviderVersion) > 128:
+		return structs.NewErrRPCCoded(http.StatusBadRequest, "invalid record")
+	}
+	rec := e.auditRecord(args.GetIdentity(), structs.SecretOpRead, alloc.Namespace, in.Path)
+	rec.Provider = in.Provider
+	rec.ProviderVersion = in.ProviderVersion
+	switch in.Result {
+	case structs.SecretAccessResultOK, structs.SecretAccessResultDenied, structs.SecretAccessResultNotFound,
+		structs.SecretAccessResultSealed, structs.SecretAccessResultInvalid:
+		rec.Result = in.Result
+	default:
+		rec.Result = structs.SecretAccessResultError
+	}
+	if rec.Result != structs.SecretAccessResultOK {
+		rec.Error = in.Error
+		if len(rec.Error) > 1024 {
+			rec.Error = rec.Error[:1024]
+		}
+	}
+	return e.srv.secretAudit(rec, true)
+}
+
+// allowed checks a secret capability: granted by the ACL object, or, for
+// read-secret and list-secrets of a workload identity, by the secret_access
+// bindings of its allocation's job (Norca, phase 3). The submitter of the
+// job was authorized for the bindings at registration.
+func (e *Secret) allowed(aclObj *acl.ACL, args structs.RequestWithIdentity, namespace, path, capability string) bool {
+	if aclObj.AllowSecretOperation(namespace, path, capability) {
+		return true
+	}
+	claims := args.GetIdentity().GetClaims()
+	if claims == nil {
+		return false
+	}
+	alloc, err := e.srv.State().AllocByID(nil, claims.AllocationID)
+	if err != nil || alloc == nil || alloc.TerminalStatus() {
+		return false
+	}
+	return secretAccessGranted(alloc, claims, namespace, path, capability)
 }
 
 // auditRecord starts the audit record of an access.

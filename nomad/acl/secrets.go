@@ -147,6 +147,113 @@ func (a *ACL) AllowSecretOperation(ns, path, op string) bool {
 	return (nsOK && grants(nsCaps)) || (pathOK && grants(pathCaps))
 }
 
+// AllowSecretGrant checks that the token may hand the capability on the
+// secret path pattern to someone else, as a job's secret_access binding
+// hands read-secret to the job's workload identities. It allows only what
+// the token holds itself on every path the pattern can match: the pattern
+// must be allowed as a whole (by a namespace capability or a rule covering
+// it), and no deny, and no rule at least as specific as the one covering
+// the pattern that lacks the capability, may intersect it. The check is
+// conservative: overlapping rules that can't be ordered deny the grant.
+func (a *ACL) AllowSecretGrant(ns, pattern, op string) bool {
+	switch {
+	case a == nil:
+		return true
+	case a.management:
+		return true
+	}
+	if !a.AllowSecretOperation(ns, pattern, op) {
+		return false
+	}
+
+	grants := func(caps capabilitySet) bool {
+		return caps.Check(op) ||
+			(op == NamespaceCapabilityListSecrets && caps.Check(NamespaceCapabilityReadSecret))
+	}
+	nsCaps, nsOK := a.matchingNamespaceCapabilitySet(ns)
+	nsGrants := nsOK && grants(nsCaps)
+
+	// The literal length of the most specific rule covering the pattern;
+	// -1 if the pattern is allowed by the namespace capabilities alone.
+	key := ns + "\x00" + pattern
+	covering := -1
+	if a.secrets != nil {
+		if _, ok := a.secrets.Get([]byte(key)); ok {
+			covering = len(key)
+		}
+	}
+	if covering < 0 && a.wildcardSecrets != nil {
+		for _, m := range findAllMatchingWildcards(a.wildcardSecrets, key) {
+			if l := len(m.name) - strings.Count(m.name, "*"); l > covering {
+				covering = l
+			}
+		}
+	}
+
+	ok := true
+	check := func(exact bool) func(k []byte, caps capabilitySet) bool {
+		return func(k []byte, caps capabilitySet) bool {
+			rule := string(k)
+			if rule == key || !globsIntersect(rule, key) {
+				return false
+			}
+			if caps.Check(NamespaceCapabilityDeny) {
+				ok = false
+				return true
+			}
+			if grants(caps) || nsGrants {
+				return false
+			}
+			// A rule without the capability wins over the covering rule
+			// for the paths it matches if it is exact or at least as
+			// specific.
+			if exact || len(rule)-strings.Count(rule, "*") >= covering {
+				ok = false
+				return true
+			}
+			return false
+		}
+	}
+	if a.secrets != nil {
+		a.secrets.Root().Walk(check(true))
+	}
+	if ok && a.wildcardSecrets != nil {
+		a.wildcardSecrets.Root().Walk(check(false))
+	}
+	return ok
+}
+
+// globsIntersect reports whether two patterns, in which "*" matches any
+// sequence of characters, match a common string.
+func globsIntersect(a, b string) bool {
+	type pos struct{ i, j int }
+	seen := map[pos]bool{}
+	var walk func(i, j int) bool
+	walk = func(i, j int) bool {
+		p := pos{i, j}
+		if v, ok := seen[p]; ok {
+			return v
+		}
+		seen[p] = false
+		var r bool
+		switch {
+		case i == len(a) && j == len(b):
+			r = true
+		case i < len(a) && a[i] == '*':
+			// The star matches nothing, or one more character of b (a
+			// literal, or what b's own star stands for).
+			r = walk(i+1, j) || (j < len(b) && walk(i, j+1))
+		case j < len(b) && b[j] == '*':
+			r = walk(i, j+1) || (i < len(a) && walk(i+1, j))
+		case i < len(a) && j < len(b):
+			r = a[i] == b[j] && walk(i+1, j+1)
+		}
+		seen[p] = r
+		return r
+	}
+	return walk(0, 0)
+}
+
 // AllowSecretSearch is a loose check that the token may list some secrets in
 // the namespace ("*" for any namespace); the results must be filtered per
 // secret with AllowSecretOperation.
