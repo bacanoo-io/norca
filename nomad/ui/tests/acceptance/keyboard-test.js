@@ -201,7 +201,7 @@ module('Acceptance | keyboard', function (hooks) {
       await triggerEvent('.page-layout', 'keydown', { key: 'c' });
       assert.equal(
         currentURL(),
-        `/jobs`,
+        `/`,
         'After a refresh with a localStorage-found binding, a default key binding doesnt do anything'
       );
 
