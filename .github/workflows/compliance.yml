@@ -143,6 +143,10 @@ jobs:
       - name: Check Signed-off-by
         run: |
           # The imported upstream history (nomad/, Nomad Pack) has no sign-offs; only commits of the PR are checked.
+          # A git subtree add or pull in the PR brings upstream history along: the commits reachable from the
+          # upstream commit it names (git-subtree-split) are not the PR's own and are left out.
+          upstream=$(git log --merges --format=%B origin/${{ github.base_ref }}..HEAD |
+            sed -n 's/^git-subtree-split: *\([0-9a-f]\{40\}\)$/^\1/p')
           missing=$(git log --no-merges --format='%H %(trailers:key=Signed-off-by,valueonly,separator=;)' \
-            origin/${{ github.base_ref }}..HEAD | awk 'NF<2 {print $1}')
+            origin/${{ github.base_ref }}..HEAD $upstream | awk 'NF<2 {print $1}')
           if [ -n "$missing" ]; then echo "Missing DCO sign-off: $missing" >&2; exit 1; fi
