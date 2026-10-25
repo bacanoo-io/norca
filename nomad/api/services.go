@@ -354,6 +354,10 @@ type Service struct {
 	// Discovery holds the discovery settings of a service using the Nomad
 	// provider.
 	Discovery *ServiceDiscovery `hcl:"discovery,block"`
+
+	// MTLS is the native mTLS configuration of a service using the Nomad
+	// provider.
+	MTLS *ServiceMTLS `hcl:"mtls,block"`
 }
 
 const (
@@ -383,6 +387,7 @@ func (s *Service) Canonicalize(t *Task, tg *TaskGroup, job *Job) {
 	}
 
 	s.Discovery.Canonicalize()
+	s.MTLS.Canonicalize()
 
 	// Default to OnUpdateRequireHealthy
 	if s.OnUpdate == "" {

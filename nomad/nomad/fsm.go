@@ -381,6 +381,12 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyBackupDelete(msgType, buf[1:], log.Index)
 	case structs.BackupRestoreUpsertRequestType:
 		return n.applyBackupRestoreUpsert(msgType, buf[1:], log.Index)
+	case structs.MTLSRootsUpsertRequestType:
+		return n.applyMTLSRootsUpsert(msgType, buf[1:], log.Index)
+	case structs.ServiceIntentionUpsertRequestType:
+		return n.applyServiceIntentionUpsert(msgType, buf[1:], log.Index)
+	case structs.ServiceIntentionDeleteRequestType:
+		return n.applyServiceIntentionDelete(msgType, buf[1:], log.Index)
 	}
 
 	// Check enterprise only message types.
@@ -1931,6 +1937,11 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case MTLSRootSnapshot, ServiceIntentionSnapshot:
+			if err := restoreMTLSSnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
 		case AdmissionPolicySnapshot:
 			policy := new(structs.AdmissionPolicy)
 			if err := dec.Decode(policy); err != nil {
@@ -2519,6 +2530,10 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistBackups(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistMTLS(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}

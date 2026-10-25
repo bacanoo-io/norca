@@ -252,6 +252,12 @@ func tasksUpdated(jobA, jobB *structs.Job, taskGroup string) comparison {
 		return c
 	}
 
+	// Check native mTLS enabled or disabled: the certificate hook of the
+	// task runner is set up when the task starts (Norca)
+	if a.UsesMTLS() != b.UsesMTLS() {
+		return difference("mtls", a.UsesMTLS(), b.UsesMTLS())
+	}
+
 	// Check if volumes are updated (no task driver can support
 	// altering mounts in-place)
 	if !maps.EqualFunc(a.Volumes, b.Volumes, func(a, b *structs.VolumeRequest) bool { return a.Equal(b) }) {

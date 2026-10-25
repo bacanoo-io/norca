@@ -428,6 +428,10 @@ type Config struct {
 
 	// AdmissionConfig configures the dynamic admission control webhooks.
 	AdmissionConfig *config.AdmissionConfig
+
+	// MTLSConfig configures the native mTLS certificate authority. Nil means
+	// the defaults.
+	MTLSConfig *config.MTLSConfig
 }
 
 func (c *Config) Copy() *Config {
@@ -455,6 +459,7 @@ func (c *Config) Copy() *Config {
 	nc.AutopilotConfig = c.AutopilotConfig.Copy()
 	nc.SearchConfig = c.SearchConfig.Copy()
 	nc.AdmissionConfig = c.AdmissionConfig.Copy()
+	nc.MTLSConfig = c.MTLSConfig.Copy()
 
 	return &nc
 }

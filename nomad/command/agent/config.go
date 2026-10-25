@@ -702,6 +702,9 @@ type ServerConfig struct {
 
 	// Admission configures the dynamic admission control webhooks.
 	Admission *config.AdmissionConfig `hcl:"admission"`
+
+	// MTLS configures the native mTLS certificate authority.
+	MTLS *config.MTLSConfig `hcl:"mtls"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -733,6 +736,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.Autoscaler = s.Autoscaler.Copy()
 	ns.Backup = s.Backup.Copy()
 	ns.Admission = s.Admission.Copy()
+	ns.MTLS = s.MTLS.Copy()
 	return &ns
 }
 
@@ -2092,6 +2096,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.Admission != nil {
 		result.Admission = result.Admission.Merge(b.Admission)
+	}
+
+	if b.MTLS != nil {
+		result.MTLS = result.MTLS.Merge(b.MTLS)
 	}
 
 	// Add the schedulers

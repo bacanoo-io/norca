@@ -370,6 +370,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Create the first root key if it doesn't already exist
 	go s.initializeKeyring(stopCh)
 
+	// Run the native mTLS certificate authority of the region
+	go s.runMTLSCA(stopCh)
+
 	// Restore the periodic dispatcher state
 	if err := s.restorePeriodicDispatcher(); err != nil {
 		return err

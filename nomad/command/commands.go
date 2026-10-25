@@ -1100,6 +1100,36 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"service intention": func() (cli.Command, error) {
+			return &ServiceIntentionCommand{
+				Meta: meta,
+			}, nil
+		},
+		"service intention create": func() (cli.Command, error) {
+			return &ServiceIntentionCreateCommand{
+				Meta: meta,
+			}, nil
+		},
+		"service intention delete": func() (cli.Command, error) {
+			return &ServiceIntentionDeleteCommand{
+				Meta: meta,
+			}, nil
+		},
+		"service intention list": func() (cli.Command, error) {
+			return &ServiceIntentionListCommand{
+				Meta: meta,
+			}, nil
+		},
+		"service intention info": func() (cli.Command, error) {
+			return &ServiceIntentionInfoCommand{
+				Meta: meta,
+			}, nil
+		},
+		"service intention check": func() (cli.Command, error) {
+			return &ServiceIntentionCheckCommand{
+				Meta: meta,
+			}, nil
+		},
 		"status": func() (cli.Command, error) {
 			return &StatusCommand{
 				Meta: meta,

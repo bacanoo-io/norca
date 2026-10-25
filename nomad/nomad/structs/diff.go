@@ -752,6 +752,11 @@ func serviceDiff(old, new *Service, contextual bool) *ObjectDiff {
 		diff.Objects = append(diff.Objects, dDiff)
 	}
 
+	// mTLS diffs (Norca)
+	if mDiff := serviceMTLSDiff(old.MTLS, new.MTLS, contextual); mDiff != nil {
+		diff.Objects = append(diff.Objects, mDiff)
+	}
+
 	return diff
 }
 

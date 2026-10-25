@@ -60,6 +60,12 @@ const (
 	// renewing and deregistering external services (Norca). It is not part
 	// of any policy shorthand and must be granted explicitly.
 	NamespaceCapabilityRegisterExternalService = "register-external-service"
+
+	// NamespaceCapabilityWriteIntention allows creating, updating and
+	// deleting the service intentions of the namespace (Norca). It is not
+	// part of any policy shorthand and must be granted explicitly; reading
+	// intentions requires read-job.
+	NamespaceCapabilityWriteIntention = "write-intention"
 )
 
 var (
@@ -221,7 +227,7 @@ func isNamespaceCapabilityValid(cap string) bool {
 		NamespaceCapabilityAllocExec, NamespaceCapabilityAllocNodeExec,
 		NamespaceCapabilityCSIReadVolume, NamespaceCapabilityCSIWriteVolume, NamespaceCapabilityCSIListVolume, NamespaceCapabilityCSIMountVolume, NamespaceCapabilityCSIRegisterPlugin,
 		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob,
-		NamespaceCapabilityRegisterExternalService:
+		NamespaceCapabilityRegisterExternalService, NamespaceCapabilityWriteIntention:
 		return true
 	// Capabilities without effect, accepted for compatibility with existing
 	// policies
