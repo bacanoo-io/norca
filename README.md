@@ -90,7 +90,7 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Package management: server-side releases (`packs.norca.io/Release` objects with revision history, atomic install/upgrade, hooks and tests, rollback, drift detection, uninstall), signature enforcement in admission (`trusted_keys`) | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
 | Package management: JSON Schema for pack variables (`variables_schema`, checked by the CLI and the servers), multi-region installs (`--regions`, global resources from the authoritative region, per-region status) | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
 | Embedded secret storage (sealed keyring with cloud KMS, transit or unseal shares; versioned, audited secrets; `secret` block delivering files and env); the existing Vault integration stays, further external providers (OpenBao, AWS, GCP and Scaleway secret managers, plugins) can be added, and lookups fall back to the built-in store when no external store is defined | In progress (phase 0: uBixVault core on Norca's Raft) | [plan](docs/design/secrets-plan.md) |
-| New web UI | In progress (phase 1) | [plan](docs/design/ui-plan.md) |
+| New web UI: Ember 6.12 LTS with a Tabler base and ECharts, live updates over the event stream, dashboard as the landing page; the previous UI stays at `/ui/legacy` for one release | In progress (phase 1 available; phases 2–4 planned) | [plan](docs/design/ui-plan.md) |
 
 Only features marked "Available" can be used; the others are being built or are in the design phase.
 
