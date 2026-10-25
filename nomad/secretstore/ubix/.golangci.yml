@@ -1,0 +1,23 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - revive
+    - bodyclose
+    - gosec
+
+  settings:
+    gosec:
+      excludes:
+        - G104 # handled by errcheck; avoids duplicate findings
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

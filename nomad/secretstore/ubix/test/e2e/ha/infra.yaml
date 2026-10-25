@@ -1,0 +1,54 @@
+# The shared database and the load generator, both pinned to the control-plane
+# node. Test-only: no persistence, a throwaway root password.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: mariadb}
+  template:
+    metadata:
+      labels: {app: mariadb}
+    spec:
+      nodeSelector: {node-role.kubernetes.io/control-plane: ""}
+      tolerations:
+        - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+      containers:
+        - name: mariadb
+          image: mariadb:11
+          env:
+            - {name: MARIADB_ROOT_PASSWORD, value: root}
+            - {name: MARIADB_DATABASE, value: ubixvault}
+          ports:
+            - containerPort: 3306
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb
+spec:
+  selector: {app: mariadb}
+  ports:
+    - port: 3306
+---
+# Sends a read through the vault's Service every 50ms and logs
+# "<unix-seconds> <http-code>" per request (000 = no HTTP response). It never
+# retries: every failure a client would see is counted.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: loadgen
+spec:
+  nodeSelector: {node-role.kubernetes.io/control-plane: ""}
+  tolerations:
+    - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+  containers:
+    - name: loadgen
+      image: curlimages/curl:8.10.1
+      command: ["sh", "-c", "sleep infinity"]

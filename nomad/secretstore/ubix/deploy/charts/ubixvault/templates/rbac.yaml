@@ -1,0 +1,19 @@
+{{- if .Values.kubernetesAuth.enabled -}}
+# The Kubernetes auth method validates pod ServiceAccount tokens with the
+# TokenReview API. That requires the vault's ServiceAccount to be bound to the
+# built-in system:auth-delegator ClusterRole.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ubixvault.fullname" . }}-auth-delegator
+  labels:
+    {{- include "ubixvault.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ubixvault.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

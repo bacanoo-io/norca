@@ -1,0 +1,15 @@
+{{- if and .Values.ha.enabled .Values.ha.podDisruptionBudget.enabled -}}
+# With HA, a voluntary disruption (a node drain, a cluster upgrade) takes at most
+# maxUnavailable replicas at a time, so one is always left to be active.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ubixvault.fullname" . }}
+  labels:
+    {{- include "ubixvault.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.ha.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "ubixvault.selectorLabels" . | nindent 6 }}
+{{- end }}

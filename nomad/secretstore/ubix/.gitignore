@@ -1,0 +1,45 @@
+# Binaries and build output
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+# Anchored to repo root so it never matches the cmd/ubixvault source directory.
+/ubixvault
+/ubixvault-*
+
+# Test and coverage artifacts
+*.test
+*.out
+coverage.*
+/coverage/
+
+# Go workspace / module cache
+/vendor/
+go.work
+go.work.sum
+
+# Local configuration and secrets (never commit these)
+*.local
+*.local.*
+.env
+.env.*
+*.pem
+*.key
+/data/
+/.ubixvault/
+
+# Editor / IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Live per-sandbox agent coordination state — never committed (see AGENTS-COORD.template.md)
+/AGENTS-COORD.md
+
+# Local per-workflow agent guide — kept local, not part of the public repo
+/CLAUDE.md

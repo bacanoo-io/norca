@@ -1,0 +1,27 @@
+{{- if .Values.metrics.serviceMonitor.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ubixvault.fullname" . }}
+  labels:
+    {{- include "ubixvault.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ubixvault.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: {{ if .Values.tls.enabled }}https{{ else }}http{{ end }}
+      path: /v1/sys/metrics
+      scheme: {{ if .Values.tls.enabled }}https{{ else }}http{{ end }}
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
+      {{- if .Values.tls.enabled }}
+      # The vault's cert is issued for the ingress host, not the Service DNS
+      # name Prometheus dials, so verification can't succeed here.
+      tlsConfig:
+        insecureSkipVerify: true
+      {{- end }}
+{{- end }}

@@ -1,0 +1,27 @@
+apiVersion: v2
+name: ubixvault
+description: |
+  uBixVault — a self-hosted secrets manager (HashiCorp Vault-style). Deploys one
+  replica, or several in active/standby HA over MySQL storage (ha.enabled).
+type: application
+# Chart version — bump on chart changes, independent of the app.
+version: 0.1.20
+# The uBixVault release this chart targets. values.yaml image.tag defaults to
+# this when empty, so it must track the current release (a stale appVersion means
+# a plain `helm upgrade` deploys the wrong image).
+# NOTE: liveness/startup probes use GET /v1/sys/livez — requires >= 0.2.0-beta.10.
+appVersion: "1.5.0"
+kubeVersion: ">=1.24.0-0"
+home: https://github.com/cwolsen7905/ubixvault
+sources:
+  - https://github.com/cwolsen7905/ubixvault
+keywords:
+  - secrets
+  - vault
+  - security
+  - kv
+  - transit
+  - encryption
+maintainers:
+  - name: cwolsen
+    url: https://github.com/cwolsen7905

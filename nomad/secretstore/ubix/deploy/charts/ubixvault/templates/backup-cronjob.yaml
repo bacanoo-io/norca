@@ -1,0 +1,81 @@
+{{- if .Values.backup.enabled }}
+{{- if not .Values.backup.tokenSecret }}
+{{- fail "backup.enabled requires backup.tokenSecret (a Secret holding a token authorized for sys/snapshot)" }}
+{{- end }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ubixvault.fullname" . }}-backup
+  labels:
+    {{- include "ubixvault.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: {{ .Values.backup.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "ubixvault.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+          {{- with .Values.backup.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        spec:
+          restartPolicy: Never
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backup.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumes:
+            - name: backup
+              {{- if .Values.backup.persistence.existingClaim }}
+              persistentVolumeClaim:
+                claimName: {{ .Values.backup.persistence.existingClaim }}
+              {{- else if .Values.backup.persistence.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ include "ubixvault.fullname" . }}-backup
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+          containers:
+            - name: snapshot
+              image: {{ include "ubixvault.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              # The distroless image's entrypoint is the ubixvault binary; the
+              # operator client reads address/token/TLS from the environment.
+              args: ["operator", "snapshot", "save", {{ printf "%s/ubixvault.snapshot" .Values.backup.mountPath | quote }}]
+              env:
+                - name: UBIXVAULT_ADDR
+                  value: {{ include "ubixvault.backupAddress" . | quote }}
+                - name: UBIXVAULT_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.tokenSecret }}
+                      key: {{ .Values.backup.tokenSecretKey }}
+                {{- if .Values.backup.tlsSkipVerify }}
+                - name: UBIXVAULT_TLS_SKIP_VERIFY
+                  value: "true"
+                {{- end }}
+                {{- with .Values.backup.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              volumeMounts:
+                - name: backup
+                  mountPath: {{ .Values.backup.mountPath }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+{{- end }}

@@ -1,0 +1,9 @@
+# One control-plane node (MariaDB and the load generator run there, so draining
+# a worker never takes them down) and three workers for the vault replicas.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker
+  - role: worker

@@ -1,0 +1,46 @@
+name: HA failover (kind)
+
+# Three replicas on a kind cluster, a client reading through the Service the
+# whole time, and every way the active replica can go away: pod deletion, node
+# drain, rolling restart, sys/step-down, force-delete (all must cost zero
+# failed requests), and a frozen node — a real crash, recovered within the lock
+# TTL, with the thawed former active stepping down. See test/e2e/ha/run.sh.
+on:
+  push:
+    branches: ["**"] # every branch the GitLab mirror pushes, i.e. every MR
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "deploy/charts/**"
+      - "test/e2e/ha/**"
+      - "Dockerfile"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/ha-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  failover:
+    name: Failover under load
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t ubixvault:e2e --build-arg VERSION=e2e-${GITHUB_SHA::8} .
+
+      - name: Create the kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ha
+          config: test/e2e/ha/kind.yaml
+
+      - name: Load the image into the cluster
+        run: kind load docker-image ubixvault:e2e --name ha
+
+      - name: Run the failover scenarios
+        run: test/e2e/ha/run.sh

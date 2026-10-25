@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>uBixVault — Console</title>
+<link rel="stylesheet" href="console.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="mark">uBixVault</span><span class="sub">Console</span></div>
+  <div class="version" id="version" title="server version">—</div>
+</header>
+
+<main>
+  <!-- Signature: the vault's seal state, front and center. -->
+  <section class="seal" id="seal" data-state="unknown" aria-live="polite">
+    <div class="seal-bar"></div>
+    <div class="seal-main">
+      <span class="dot"></span>
+      <div>
+        <div class="word" id="seal-word">Connecting…</div>
+        <div class="tagline" id="seal-tagline">Reading vault status</div>
+      </div>
+    </div>
+    <dl class="seal-meta">
+      <div><dt>Initialized</dt><dd id="m-init">—</dd></div>
+      <div><dt>Seal type</dt><dd id="m-type">—</dd></div>
+      <div><dt>Uptime</dt><dd id="m-uptime">—</dd></div>
+    </dl>
+    <button class="ghost" id="refresh" type="button">Refresh</button>
+  </section>
+
+  <!-- Lifecycle: shown only while the vault needs it (see refreshStatus). -->
+  <section class="panel" id="init-panel" hidden>
+    <h2>Initialize</h2>
+    <p class="hint">Sets up a new vault: generates its master key, splits it into key shares, and
+      issues the first root token. This happens once. The shares and the root token are shown
+      once and never again &mdash; store each share with a different person, offline.</p>
+    <form class="row" id="init-form">
+      <label class="inline" for="init-shares">Key shares</label>
+      <input type="number" id="init-shares" min="2" max="255" value="5" class="num">
+      <label class="inline" for="init-threshold">Threshold</label>
+      <input type="number" id="init-threshold" min="2" max="255" value="3" class="num">
+      <button type="submit">Initialize</button>
+    </form>
+    <div id="init-out" class="out" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" id="unseal-panel" hidden>
+    <h2>Unseal</h2>
+    <p class="hint" id="unseal-hint">Enter key shares one at a time; the vault unseals when enough
+      have been given. A share is sent only to this vault and is not kept in the browser.</p>
+    <form class="row" id="unseal-form">
+      <input type="password" id="unseal-key" placeholder="key share (hex or base64)" autocomplete="off" spellcheck="false" aria-label="unseal key share">
+      <button type="submit">Submit share</button>
+      <span class="tag" id="unseal-progress" data-set="false">0 of ?</span>
+    </form>
+    <div id="unseal-out" class="out" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" id="session">
+    <h2>Sign in</h2>
+    <p class="hint">Your token stays in this browser tab and is sent only to this vault.</p>
+
+    <!-- Shown while signed out -->
+    <form class="row" id="login-form">
+      <select id="login-method" aria-label="sign-in method">
+        <option value="userpass">Username &amp; password</option>
+        <option value="ldap">LDAP</option>
+        <option value="token">Token</option>
+      </select>
+      <input type="text" id="login-user" placeholder="username" autocomplete="username" spellcheck="false" aria-label="username">
+      <input type="password" id="login-pass" placeholder="password" autocomplete="current-password" aria-label="password">
+      <input type="password" id="login-token" placeholder="uv.…" autocomplete="off" spellcheck="false" aria-label="token" hidden>
+      <button type="submit">Sign in</button>
+    </form>
+
+    <!-- Shown while signed in -->
+    <div id="whoami" hidden>
+      <table class="kv-table" id="whoami-table"></table>
+      <div class="kv-actions">
+        <button type="button" id="renew" class="ghost">Renew</button>
+        <button type="button" id="logout">Sign out</button>
+      </div>
+    </div>
+
+    <div id="session-out" class="out" aria-live="polite"></div>
+  </section>
+
+  <section class="panel">
+    <h2>KV&nbsp;v2 secrets</h2>
+    <form class="row" id="kv-form">
+      <input type="text" id="kv-path" placeholder="path, e.g. app/config" spellcheck="false" aria-label="secret path">
+      <button type="submit">Read</button>
+      <button type="button" id="kv-list" class="ghost">List</button>
+      <button type="button" id="kv-history" class="ghost">History</button>
+      <button type="button" id="kv-new" class="ghost">New / edit</button>
+    </form>
+
+    <!-- Editor (hidden until New/edit) -->
+    <form class="editor" id="kv-editor" hidden>
+      <div class="editor-head">
+        <span id="editor-title">New secret</span>
+        <span class="editor-path" id="editor-path"></span>
+      </div>
+      <div id="editor-fields"></div>
+      <div class="row editor-actions">
+        <button type="button" id="editor-add" class="ghost">Add field</button>
+        <button type="submit" id="editor-save">Save version</button>
+        <button type="button" id="editor-cancel" class="ghost">Cancel</button>
+      </div>
+    </form>
+
+    <div id="kv-out" class="out" aria-live="polite"></div>
+  </section>
+
+  <section class="panel">
+    <h2>ACL policies</h2>
+    <form class="row" id="pol-form">
+      <input type="text" id="pol-name" placeholder="policy name" spellcheck="false" aria-label="policy name">
+      <button type="submit">Read</button>
+      <button type="button" id="pol-list" class="ghost">List</button>
+      <button type="button" id="pol-new" class="ghost">New / edit</button>
+      <button type="button" id="pol-delete" class="ghost btn-danger">Delete</button>
+    </form>
+    <form class="editor" id="pol-editor" hidden>
+      <div class="editor-head"><span>Policy document</span><span class="editor-path" id="pol-editor-name"></span></div>
+      <textarea id="pol-body" rows="7" spellcheck="false"
+        placeholder='{"path":{"secret/data/app/*":{"capabilities":["read","list"]}}}'></textarea>
+      <div class="row editor-actions">
+        <button type="submit">Save policy</button>
+        <button type="button" id="pol-cancel" class="ghost">Cancel</button>
+      </div>
+    </form>
+    <div id="pol-out" class="out" aria-live="polite"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Create token</h2>
+    <p class="hint">Mint a child token scoped to one or more policies. The token is shown once.</p>
+    <form class="row" id="tok-form">
+      <input type="text" id="tok-policies" placeholder="policies (comma-separated)" spellcheck="false" aria-label="policies">
+      <input type="text" id="tok-ttl" class="ttl" placeholder="ttl, e.g. 1h (optional)" spellcheck="false" aria-label="ttl">
+      <button type="submit">Create</button>
+    </form>
+    <div id="tok-out" class="out" aria-live="polite"></div>
+  </section>
+
+  <section class="panel">
+    <h2>PKI — certificates</h2>
+
+    <h3 class="sub">Certificate authority</h3>
+    <form class="row" id="pki-ca-form">
+      <input type="text" id="pki-ca-cn" placeholder="root CA common name, e.g. uBix Root CA" spellcheck="false">
+      <button type="submit">Generate root</button>
+      <button type="button" id="pki-ca-view" class="ghost">View CA</button>
+    </form>
+    <div id="pki-ca-out" class="out" aria-live="polite"></div>
+
+    <h3 class="sub">Roles</h3>
+    <form class="row" id="pki-role-form">
+      <input type="text" id="pki-role-name" placeholder="role name" spellcheck="false">
+      <button type="submit">Read</button>
+      <button type="button" id="pki-role-list" class="ghost">List</button>
+      <button type="button" id="pki-role-new" class="ghost">New / edit</button>
+    </form>
+    <form class="editor" id="pki-role-editor" hidden>
+      <div class="editor-head"><span>Role</span><span class="editor-path" id="pki-role-editor-name"></span></div>
+      <div class="field"><label for="pki-role-domains">Allowed domains (comma-separated)</label>
+        <input type="text" id="pki-role-domains" placeholder="example.com, internal.test" spellcheck="false"></div>
+      <div class="field"><label><input type="checkbox" id="pki-role-subdomains"> Allow subdomains</label></div>
+      <div class="field"><label for="pki-role-ttl">Max TTL</label>
+        <input type="text" id="pki-role-ttl" placeholder="e.g. 72h" spellcheck="false"></div>
+      <div class="field"><label for="pki-role-keytype">Key type</label>
+        <select id="pki-role-keytype"><option value="ec">ec (P-256)</option><option value="rsa">rsa (2048)</option></select></div>
+      <div class="row editor-actions"><button type="submit">Save role</button><button type="button" id="pki-role-cancel" class="ghost">Cancel</button></div>
+    </form>
+    <div id="pki-role-out" class="out" aria-live="polite"></div>
+
+    <h3 class="sub">Issue a certificate</h3>
+    <form class="row" id="pki-issue-form">
+      <input type="text" id="pki-issue-role" placeholder="role" spellcheck="false">
+      <input type="text" id="pki-issue-cn" placeholder="common name, e.g. app.example.com" spellcheck="false">
+      <input type="text" id="pki-issue-alt" placeholder="alt names (comma-separated, optional)" spellcheck="false">
+      <input type="text" id="pki-issue-ttl" class="ttl" placeholder="ttl (optional)" spellcheck="false">
+      <button type="submit">Issue</button>
+    </form>
+    <div id="pki-issue-out" class="out" aria-live="polite"></div>
+  </section>
+</main>
+
+<footer>
+  <span>uBixVault console · beta</span>
+  <a href="/v1/sys/health">Health</a>
+</footer>
+
+<script src="console.js"></script>
+</body>
+</html>

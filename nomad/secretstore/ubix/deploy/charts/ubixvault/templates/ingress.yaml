@@ -1,0 +1,41 @@
+{{- if .Values.ingress.enabled -}}
+{{- if not .Values.ingress.host -}}
+{{- fail "ingress.enabled is true but ingress.host is empty" -}}
+{{- end -}}
+{{- if not .Values.tls.enabled -}}
+{{- fail "ingress.enabled requires tls.enabled: the vault serves HTTPS, and the Ingress is configured to reach it over HTTPS (backend-protocol)" -}}
+{{- end -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ubixvault.fullname" . }}
+  labels:
+    {{- include "ubixvault.labels" . | nindent 4 }}
+  annotations:
+    # The vault serves HTTPS, so ingress-nginx must speak HTTPS to the backend
+    # (traffic stays encrypted ingress -> pod; the vault never sees plaintext).
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    {{- with .Values.ingress.whitelistSourceRange }}
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ required "ingress.tlsSecret is required (the synced wildcard, e.g. tls-wildcard-ubixsys-prod)" .Values.ingress.tlsSecret }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ubixvault.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

@@ -1,0 +1,286 @@
+# Default values for the ubixvault chart.
+
+# One replica unless ha.enabled — then 3 is the recommendation: it survives a
+# planned drain plus an unplanned loss. Without HA, more than 1 is refused.
+replicaCount: 1
+
+# Active/standby high availability (ADR D-021, docs/design/ha-active-standby.md).
+# Requires storage.type=mysql. Every replica unseals; the one holding a lock in
+# the database is active and the rest forward to it, so the Service can send
+# traffic to any of them. A drain or rolling restart hands over in about half a
+# second; a crashed active is replaced within lockTTL. Replicas talk to each
+# other on clusterPort with mutual TLS from a CA the vault keeps itself — no
+# certificates to supply. Read the rolling-upgrade notes in docs/DEPLOYMENT.md
+# before enabling this on an existing single-replica install.
+ha:
+  enabled: false
+  clusterPort: 8201
+  lockTTL: 15s            # unplanned failover takes up to this long
+  retryInterval: 500ms    # how often standbys try for the lock
+  # On shutdown, keep serving this long after handing the active role over, so
+  # the Service stops routing here before the listener closes.
+  shutdownDelay: 5s
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1     # a drain never takes two replicas at once
+  # Spread replicas across nodes: soft (preferred; still schedules on a small
+  # cluster), hard (required; needs >= replicaCount nodes), or none. Ignored
+  # when .affinity below is set.
+  antiAffinity: soft
+
+# Long enough for an HA replica to step down (hand the lock over, <=10s), keep
+# serving for ha.shutdownDelay, then drain in-flight requests (<=10s).
+terminationGracePeriodSeconds: 30
+
+image:
+  # No official image is published yet; point this at wherever you build/push
+  # the Dockerfile at the repo root. The tag defaults to the chart's appVersion.
+  repository: ghcr.io/cwolsen7905/ubixvault
+  tag: ""            # defaults to .Chart.AppVersion when empty
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Port the container listens on (inside the pod).
+containerPort: 8200
+
+service:
+  type: ClusterIP
+  port: 8200
+  annotations: {}
+
+# --- Ingress ---------------------------------------------------------------
+# Expose the vault over an ingress. Requires tls.enabled: the vault serves
+# HTTPS and the Ingress reaches it over HTTPS (backend-protocol), so traffic
+# stays encrypted end to end. A secrets manager is sensitive — prefer keeping
+# it internal, or restrict access with whitelistSourceRange.
+ingress:
+  enabled: false
+  className: nginx
+  host: ""                    # e.g. vault.prod.ubixsys.com
+  # TLS Secret to terminate on (must exist in this namespace). With Replikate,
+  # label the namespace so the wildcard is synced in, then name it here.
+  tlsSecret: ""               # e.g. tls-wildcard-ubixsys-prod
+  # Optional CIDR allow-list (comma-separated) — restrict who can reach it.
+  whitelistSourceRange: ""    # e.g. "10.0.0.0/8,192.168.0.0/16"
+  annotations: {}
+
+# --- Metrics ---------------------------------------------------------------
+# The vault exposes Prometheus metrics at GET /v1/sys/metrics (unauthenticated,
+# operational data only — no secrets). Optionally create a Prometheus Operator
+# ServiceMonitor to scrape it. Requires the monitoring.coreos.com CRDs.
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}          # extra labels, e.g. { release: kube-prometheus-stack }
+
+# --- Storage backend -------------------------------------------------------
+# Where the encrypted store lives.
+#   file  (default): on the persistence PVC below — single node, single disk.
+#   mysql: in a MySQL/MariaDB database — durable, replaceable-node storage. The
+#          node can die and reschedule against the same database, whose own HA
+#          handles durability. The vault CREATEs its tables automatically; you
+#          just provide a database, a user with rights on it, and a DSN Secret.
+#          Single active writer — replicaCount stays 1; this is durability, not
+#          multi-writer HA. When mysql, the persistence PVC below is not used.
+storage:
+  type: file                 # file | mysql
+  mysql:
+    # A Secret holding the go-sql-driver DSN, e.g.
+    #   ubixvault:PASSWORD@tcp(mariadb.db:3306)/ubixvault?tls=true
+    dsnSecret: ""            # REQUIRED when type=mysql
+    dsnSecretKey: dsn
+
+# --- Persistence -----------------------------------------------------------
+# The encrypted data directory (storage.type=file only). The whole vault at
+# rest — back it up. Ignored when storage.type=mysql.
+persistence:
+  enabled: true
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  # storageClass: ""       # "" = cluster default; "-" = disable dynamic provisioning
+  # existingClaim: ""      # use a pre-created PVC instead of a volumeClaimTemplate
+  mountPath: /var/lib/ubixvault
+
+# --- Auto-unseal -----------------------------------------------------------
+# Strongly recommended in Kubernetes: without it, every pod restart needs a
+# human to feed Shamir unseal shares. The master key is wrapped by a 32-byte
+# key-encryption key (KEK) supplied here as 64 hex chars.
+autoUnseal:
+  enabled: true
+  # Provide the KEK one of two ways:
+  #  1. existingSecret — reference a Secret you manage (recommended):
+  existingSecret: ""       # name of a Secret containing the KEK
+  secretKey: auto-unseal-key
+  #  2. create — let the chart create a Secret from a value you pass in.
+  #     Do NOT commit a real KEK to values; pass via --set-string or a sealed secret.
+  create: false
+  key: ""                  # 64 hex chars (32 bytes); only used when create=true
+
+# --- Transit auto-unseal (alternative to autoUnseal above) -----------------
+# Unseal by wrapping the master key via another Vault-compatible Transit engine,
+# so no KEK lives on this host. Mutually exclusive with autoUnseal.
+sealTransit:
+  enabled: false
+  address: ""              # e.g. https://seal-vault.infra:8200
+  key: ""                  # transit key name
+  existingSecret: ""       # Secret holding the transit token
+  secretKey: token
+  tlsSkipVerify: false
+
+# --- TLS -------------------------------------------------------------------
+# Serve HTTPS. Without TLS the server refuses to serve on a non-loopback address
+# unless devNoTLS is set (INSECURE — trusted networks / testing only).
+tls:
+  enabled: true
+  # Mount an existing Secret of type kubernetes.io/tls (keys: tls.crt, tls.key).
+  existingSecret: ""
+  mountPath: /etc/ubixvault/tls
+  # Optionally have cert-manager issue the certificate into `existingSecret`.
+  certManager:
+    enabled: false
+    secretName: ubixvault-tls    # cert-manager writes here; set tls.existingSecret to match
+    dnsNames: []                 # e.g. [ubixvault.svc.cluster.local]
+    duration: 2160h              # 90d
+    renewBefore: 360h            # 15d
+    issuerRef:
+      name: ""
+      kind: ClusterIssuer        # or Issuer
+      group: cert-manager.io
+
+# Allow plaintext HTTP on a non-loopback address. INSECURE — only for trusted
+# networks or testing. Ignored when tls.enabled is true.
+devNoTLS: false
+
+# --- Audit logging ---------------------------------------------------------
+# Audit is FAIL-CLOSED: if the sink is unavailable or full, the vault stops
+# serving. Off by default so a filling disk cannot take the vault down
+# unexpectedly. Enable with a DEDICATED volume in production-like use.
+audit:
+  enabled: false
+  # Must live under audit.persistence.mountPath below — the server opens this
+  # file without creating parent dirs, and audit is fail-closed, so a path
+  # outside the mounted volume stops the vault from serving.
+  path: /var/log/ubixvault/audit.log
+  persistence:
+    enabled: true
+    size: 512Mi
+    accessModes:
+      - ReadWriteOnce
+    # storageClass: ""
+    mountPath: /var/log/ubixvault
+
+# --- Backups ---------------------------------------------------------------
+# Scheduled off-node snapshots of the encrypted store. A CronJob runs
+# `operator snapshot save` against the running vault using a token you supply
+# (least privilege: a policy allowing POST sys/snapshot — see the chart README).
+# Snapshots are ciphertext, so they are safe at rest, but a restore still needs
+# the unseal shares / KEK. Point persistence.storageClass at a network-backed
+# class so the backup survives loss of the vault's node.
+#
+# This keeps the LATEST snapshot (fixed filename). Timestamped history, retention,
+# and upload to object storage are a planned follow-up (they need an uploader
+# image alongside the shell-less distroless vault image).
+backup:
+  enabled: false
+  schedule: "0 */6 * * *"          # every 6 hours (cron syntax, UTC)
+  tokenSecret: ""                  # REQUIRED when enabled: Secret holding a sys/snapshot token
+  tokenSecretKey: token
+  # The vault's in-cluster TLS cert may not cover the Service DNS name; the
+  # backup client stays inside the cluster, so verification is skipped by default.
+  tlsSkipVerify: true
+  mountPath: /backup
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  backoffLimit: 2
+  persistence:
+    enabled: true
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
+    # storageClass: ""             # prefer a network / off-node class
+    existingClaim: ""
+  resources: {}
+  nodeSelector: {}
+  podAnnotations: {}
+  extraEnv: []
+
+# --- Rate limiting ---------------------------------------------------------
+# Per-client API request throttling (in-house token bucket). Health, metrics,
+# and the console are exempt. Off by default. Behind an ingress, keep
+# trustForwarded on so limits key on the real client (X-Forwarded-For), not the
+# ingress IP (which would throttle all clients together).
+rateLimit:
+  enabled: false
+  perSecond: 20
+  burst: 40
+  trustForwarded: true
+
+# --- Kubernetes auth method ------------------------------------------------
+# The vault validates pod ServiceAccount tokens via the TokenReview API, which
+# requires the vault's own ServiceAccount to be bound to system:auth-delegator.
+# Leave enabled if you plan to use the kubernetes auth method.
+kubernetesAuth:
+  enabled: true
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Extra server args / env appended verbatim.
+extraArgs: []
+extraEnv: []
+
+# --- Scheduling & security -------------------------------------------------
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+podSecurityContext:
+  # distroless :nonroot runs as uid/gid 65532; fsGroup makes the PVC writable.
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+podLabels: {}
+
+# Probe tuning. Liveness and startup use /v1/sys/livez, which answers 200
+# whenever the process serves, sealed or not — /v1/sys/health would return 503
+# while sealed and crash-loop the pod. Readiness uses /v1/sys/health: only an
+# initialized, unsealed vault gets traffic (with HA, standbys too).
+probes:
+  startup:
+    failureThreshold: 30
+    periodSeconds: 5
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 15
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 3
+    periodSeconds: 10
+    failureThreshold: 3

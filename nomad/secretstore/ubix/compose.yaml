@@ -1,0 +1,16 @@
+# Local MariaDB for the MySQL storage backend and the integration tests.
+#   docker compose up -d mariadb
+# DSN: root:root@tcp(127.0.0.1:3306)/ubixvault  (matches the Makefile default).
+services:
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: ubixvault
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

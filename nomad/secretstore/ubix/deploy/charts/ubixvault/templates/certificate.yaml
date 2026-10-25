@@ -1,0 +1,30 @@
+{{- if and .Values.tls.enabled .Values.tls.certManager.enabled -}}
+{{- if not .Values.tls.certManager.issuerRef.name -}}
+{{- fail "tls.certManager.enabled is true but tls.certManager.issuerRef.name is empty" -}}
+{{- end -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "ubixvault.fullname" . }}
+  labels:
+    {{- include "ubixvault.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.tls.certManager.secretName }}
+  duration: {{ .Values.tls.certManager.duration }}
+  renewBefore: {{ .Values.tls.certManager.renewBefore }}
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  dnsNames:
+    {{- if .Values.tls.certManager.dnsNames }}
+    {{- toYaml .Values.tls.certManager.dnsNames | nindent 4 }}
+    {{- else }}
+    - {{ include "ubixvault.fullname" . }}
+    - {{ include "ubixvault.fullname" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "ubixvault.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+    {{- end }}
+  issuerRef:
+    name: {{ .Values.tls.certManager.issuerRef.name }}
+    kind: {{ .Values.tls.certManager.issuerRef.kind }}
+    group: {{ .Values.tls.certManager.issuerRef.group }}
+{{- end }}
