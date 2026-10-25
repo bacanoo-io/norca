@@ -1,6 +1,6 @@
 # Embedded secret storage with external providers – plan
 
-**Status:** Planned · 2026-10-25 · Starting point: Nomad v1.6.5 (MPL 2.0) and the Norca features built on it (Variables, keyring, workload identities, backup) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md), [backup-restore-plan.md](backup-restore-plan.md), [consul-independence-plan.md](consul-independence-plan.md), [package-management-plan.md](package-management-plan.md)
+**Status:** Planned · 2026-10-25 (decisions recorded, development not started) · Starting point: Nomad v1.6.5 (MPL 2.0) and the Norca features built on it (Variables, keyring, workload identities, backup) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md), [backup-restore-plan.md](backup-restore-plan.md), [consul-independence-plan.md](consul-independence-plan.md), [package-management-plan.md](package-management-plan.md)
 
 Norca gets a built-in secret store, so that a cluster can keep and hand out passwords, API keys and certificates without running a separate secret server. The **existing external Vault integration stays exactly as it is**, and further external modules (OpenBao, cloud secret managers, plugins) can be added. The rule that ties the two together: **a secret lookup goes to the external store when one is defined for it, and falls back to the built-in store when none is defined.** This also holds for jobs written for Vault: on a cluster without Vault, their `vault` blocks and `secret` template calls are served by the built-in store, unchanged.
 
@@ -126,6 +126,7 @@ server {
 | `shares` | A random unseal key split into Shamir shares held by operators | Manual: `norca operator unseal` with `threshold` shares | Hetzner (no managed KMS), bare metal, highest protection |
 | `aead` | Today's behaviour (key next to the key) | Automatic | Development and migration only; the agent warns |
 
+- **Decided 2026-10-25:** the first version implements `shares` (and `aead` for development and migration). The KMS and `transit` seals above are the designed extension points and are integrated later, when someone needs them.
 - Hetzner Cloud has no managed KMS; Hetzner regions use `transit` (an OpenBao in another region or on dedicated hosts) or `shares`.
 - **Sealed state:** a server whose keys cannot be unwrapped joins Raft and serves everything that needs no decryption, but rejects secret and Variable reads, workload-identity signing and mTLS issuance with a clear `sealed` error until unsealed. `norca operator seal-status` shows it per server.
 - **Seal migration** (`norca operator keyring rewrap -to <seal>`) re-wraps all root keys online; both seals stay valid until the rewrap finishes on every server.
@@ -309,15 +310,16 @@ New namespace capabilities for the built-in store, none of them included in the 
 
 | Phase | Content | Main code locations |
 | --- | --- | --- |
-| 1. Seal | `keyring { seal }` with `awskms`, `gcpckms`, `scwkms`, `transit`, `shares`, `aead`; sealed state; unseal, seal status, rewrap; backup manifest records the seal | `nomad/encrypter.go`, new `nomad/seal/`, `command/operator_unseal.go`, `nomad/backup/` |
+| 1. Seal | `keyring { seal }` with `shares` (and `aead`, today's behaviour, for development and migration); a seal interface that later seals plug into; sealed state; unseal, seal status, rewrap; backup manifest records the seal | `nomad/encrypter.go`, new `nomad/seal/`, `command/operator_unseal.go`, `nomad/backup/` |
 | 2. Built-in store | `Secret` object, Raft table, versions, soft delete, ACL capabilities, redaction, `SecretAccess` events, audit file sink, API, CLI | new `nomad/secrets_endpoint.go`, `nomad/structs/secrets.go`, `nomad/state/state_store_secrets.go`, `acl/policy.go`, `api/secrets.go`, `command/secret_*.go` |
 | 3. Delivery and fallback | `secret` jobspec block, task-runner hook, `nomadSecret` template function, change modes, provider interface with the `norca` provider and the existing Vault integration wrapped as the `vault` provider, the resolution order with fallback, admission on referenced paths and required providers | `jobspec2`, `nomad/structs`, `client/allocrunner/taskrunner/secret_hook.go`, `client/secrets/` |
 | 4. Vault compatibility | Vault-style template calls and the task `vault` block served by the built-in store when no Vault is configured; Vault-compatible KV read endpoint on the client agent; `secret import -from-vault` | `client/allocrunner/taskrunner/vault_hook.go`, `client/allocrunner/taskrunner/template/`, new `client/vaultcompat/` |
-| 5. External providers | `openbao`/`vault` provider blocks (JWT), `aws-secretsmanager`, `gcp-secretmanager`, `scaleway-secretmanager`, plugin mechanism and SDK, OIDC discovery/JWKS | `client/secrets/providers/`, `api/secretsplugin/`, `command/agent/` |
+| 5. Further external providers (on demand) | `openbao`/`vault` provider blocks (JWT), `aws-secretsmanager`, `gcp-secretmanager`, `scaleway-secretmanager`, plugin mechanism and SDK, OIDC discovery/JWKS; built only when a user needs them | `client/secrets/providers/`, `api/secretsplugin/`, `command/agent/` |
+| – Further seals (on demand) | `awskms`, `gcpckms`, `scwkms`, `transit`, behind the phase 1 seal interface; built only when a user needs them | `nomad/seal/` |
 | 6. Lifecycle | Expiry and rotation events, rotation jobs, replicated paths, UI page | `nomad/secrets_watcher.go`, `nomad/leader.go`, `ui/` |
 | 7. (optional) Built-in dynamic secrets | Lease-based database and cloud credentials | later decision |
 
-Phases 1 and 2 are independent of each other and can run in parallel; phase 3 needs 2; phases 4 and 5 need 3 and can run in parallel (the OIDC discovery part of phase 5 can start at any time). The existing Vault integration keeps working throughout; no phase changes its behaviour when a Vault is configured.
+Phases 1 and 2 are independent of each other and can run in parallel; phase 3 needs 2; phase 4 needs 3. Phase 5 and the further seals are built on demand (decided 2026-10-25); the interfaces of phases 1 and 3 are designed so that they can be added without changing jobs or stored data. The existing Vault integration keeps working throughout; no phase changes its behaviour when a Vault is configured.
 
 ## Testing and acceptance
 
@@ -358,11 +360,11 @@ Phases 1 and 2 are independent of each other and can run in parallel; phase 3 ne
 ## Open questions
 
 - [x] What happens to the existing Vault integration, and how do built-in and external stores relate? Decided 2026-10-25: the existing Vault integration stays as it is; external modules remain possible; secret lookups go to the external store when one is defined and fall back to the built-in store when none is defined.
-- [ ] Should a defined but failing external provider ever fall back to the built-in store (proposed: never; fallback only when no provider is defined)?
-- [ ] Should the Vault-compatible read endpoint on the client agent be part of the first version (proposed: yes, KV reads only), or only the template fallback?
-- [ ] Separate `Secret` object next to Variables (proposed), or extend Variables with secret features?
-- [ ] Which seals are needed first? Proposed: `awskms`, `gcpckms`, `scwkms` and `shares` (for Hetzner); `transit` with OpenBao next.
-- [ ] Which external providers come first? Proposed: OpenBao/Vault with JWT auth, then the AWS, GCP and Scaleway secret managers; the plugin mechanism together with the first provider.
+- [x] Should a defined but failing external provider ever fall back to the built-in store? Decided 2026-10-25: never; fallback only when no provider is defined.
+- [x] Should the Vault-compatible read endpoint on the client agent be part of the first version, or only the template fallback? Decided 2026-10-25: part of the first version, KV reads only (as proposed).
+- [x] Separate `Secret` object next to Variables, or extend Variables with secret features? Decided 2026-10-25: a separate `Secret` object.
+- [x] Which seals are needed first? Decided 2026-10-25: `shares` for now (plus `aead` for development and migration); KMS and `transit` seals are integrated later, when someone needs a more complex setup.
+- [x] Which external providers come first? Decided 2026-10-25: none beyond the existing Vault integration for now; further providers (OpenBao/Vault provider blocks, cloud secret managers, plugins) are integrated later, on demand.
 - [ ] Is a built-in dynamic secrets engine needed at all, or are OpenBao's engines enough (proposed: OpenBao's engines)?
 - [ ] Should secrets be replicable across regions (proposed: opt-in per path from the authoritative region), or strictly region-local?
 - [ ] Is `env` delivery allowed by default, or only `file` delivery unless an admission policy allows `env` (proposed: both allowed, `file` recommended)?
