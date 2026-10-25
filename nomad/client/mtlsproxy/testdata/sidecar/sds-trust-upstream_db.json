@@ -1,0 +1,23 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name": "trust_upstream_db",
+      "validation_context": {
+        "match_typed_subject_alt_names": [
+          {
+            "matcher": {
+              "exact": "postgres.service.default.global.nomad",
+              "ignore_case": true
+            },
+            "san_type": "DNS"
+          }
+        ],
+        "trusted_ca": {
+          "inline_string": "-----BEGIN CERTIFICATE-----\nCA1\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nCA2\n-----END CERTIFICATE-----\n"
+        }
+      }
+    }
+  ],
+  "version_info": "4f725f8ce34500e8"
+}
