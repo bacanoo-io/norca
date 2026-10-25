@@ -10,7 +10,7 @@ Status per item:
 - **4.** Cross-job affinity and anti-affinity: Implemented
 - **5.** Disruption budget: In progress
 - **6.** Health check roles: Implemented
-- **7.** Network rules: Plan
+- **7.** Network rules: Implemented (levels A and B; level C dropped)
 - **8.** Operator framework: Plan
 
 This document is the detailed specification of the seven items listed in the "Features adopted from Kubernetes" chapter of the development plan, plus the operator framework (item 8) built on top of them. The numbering matches the plan. Every chapter follows the same structure: what Kubernetes does, what already exists in Nomad 1.6.5, what we propose (semantics, jobspec, API, data model), where the code has to change, and the acceptance criteria.
@@ -626,6 +626,17 @@ enforcement = "required"   # or "best_effort"
 2. **Scheduler:** with `enforcement = "required"`, a feasibility filter for nodes that cannot enforce the rule (the client's fingerprint signals nftables support and the network mode).
 3. **Client:** a new network hook in the allocation runner (next to `client/allocrunner/network_hook.go`), which writes and updates nftables rules in the allocation's network namespace; it receives the rule set from the server with a blocking query.
 4. **Level C:** address-set computation on the server, distribution to the clients, and a documented reference setup with routed allocation subnets.
+
+### Implemented (levels A and B)
+
+Level C is dropped: node-to-node identity comes from native mTLS (see the decision point below).
+
+- **Objects:** `NetworkPolicy` (namespace; `selector`, `ingress`/`egress` rules with `from`/`to` peers and `ports`, `default_deny`, `enforcement`, default `required`) and `AdminNetworkPolicy` (cluster; `priority` 0–1000, lower first, then name; `namespaces` globs; rule `action` = `allow` | `deny` | `pass`). Raft message types 101–104 with `IgnoreUnknownTypeFlag`, snapshot types 101 and 103, tables `network_policies` and `admin_network_policies` (`nomad/structs/network_policy.go`, `nomad/state/state_store_network_policy.go`, `nomad/fsm_network_policy.go`).
+- **Semantics:** the selector matches the job meta overridden by the task group meta (empty selects all). A namespace policy isolates a direction if it has rules there or lists it in `default_deny`; then only the union of the allowed traffic of all selecting policies passes. A rule matches if one of its peers and one of its ports match (none means any). Peers are CIDR blocks or allocations on the same node selected by `namespace` (empty: the policy's namespace, `*`: all) and `selector`. Ports are `5432/tcp`, `8000-8100/udp`, `53` (TCP) or, for ingress, port labels (`db/tcp`, resolved to the `to` port). Admin rules are evaluated first in priority order: `allow` accepts and `deny` drops regardless of namespace policies, `pass` hands over to them; admin policies do not isolate by themselves. Always allowed: loopback, `established,related` (stateful), IPv6 neighbor discovery and, for ingress, the gateway of the allocation network (the node itself, so client health checks work).
+- **API:** RPC `NetworkPolicy.*` (writes behind `ServersMeetMinimumNorcaVersion`), HTTP `/v1/network-policies`, `/v1/network-policy/:name[/status]`, `/v1/admin-network-policies`, `/v1/admin-network-policy/:name[/status]`, api client `NetworkPolicies()`, CLI `norca network-policy apply|list|status|delete [-admin]`. ACL: namespace capabilities `read-network-policy` (included in the namespace `read` and `write` policies) and `write-network-policy` (explicit, or `network_policy { policy = "write" }` in a namespace block); admin policies need operator read/write. Event topic `NetworkPolicy` (`NetworkPolicyUpserted/Deleted`, `AdminNetworkPolicyUpserted/Deleted`).
+- **Scheduler:** `NetworkPolicyChecker` in the task group feasibility checks: when a `required` policy (namespace or admin) selects the group, only nodes with `norca.network_policy.nftables = true` are feasible, and none in `host` mode. `best_effort` does not filter; job registration warns about groups whose network mode cannot enforce the selecting policies, and the client emits a "Network Policy Not Enforced" task event when enforcement fails.
+- **Client:** fingerprint `norca.network_policy.nftables`; alloc runner hook `network_policy` (after the network hook) fetches the effective rules (`NetworkPolicy.GetAllocRules`, blocking query, node secret), compiles them with the pure function `netpolicy.Compile` and programs table `inet norca` in the allocation network namespace with `github.com/google/nftables` (Apache-2.0) in one atomic transaction. Bridge and CNI modes only; without selecting policies no table is written. Drop counters per admin deny rule and per default deny: metric `client.allocs.network_policy.dropped` (with `publish_allocation_metrics`).
+- **Not done:** CIDR `except` blocks, sampled drop logs, deletion protection of namespaces with network policies, and a node-level (instead of per-allocation) watch.
 
 ### Testing and acceptance
 
