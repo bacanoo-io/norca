@@ -1,3 +1,0 @@
-```release-note:bug
-parser: Fixed a panic in the job spec parser when a variable validation block was missing its condition
-```

@@ -1,3 +1,0 @@
-```release-note:bug
-consul/connect: Fixed a bug causing high CPU with multiple connect sidecars in one group
-```

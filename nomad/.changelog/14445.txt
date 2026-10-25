@@ -1,3 +1,0 @@
-```release-note:improvement
-consul: Allow interpolation of task environment values into Consul Service Mesh configuration
-```

@@ -1,3 +1,0 @@
-```release-note:improvement
-ui: color-code node and server status cells
-```

@@ -1,3 +1,0 @@
-```release-note:bug
-client: Fixed a bug where Nomad could not detect cores on recent RHEL systems
-```

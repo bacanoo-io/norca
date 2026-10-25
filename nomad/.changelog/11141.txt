@@ -1,3 +1,0 @@
-```release-note:bug
-ui: Fixed an issue when dispatching jobs from a non-default namespace
-```

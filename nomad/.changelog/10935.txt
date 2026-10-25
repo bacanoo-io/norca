@@ -1,3 +1,0 @@
-```release-note:bug
-events: Fixed wildcard namespace handling
-```

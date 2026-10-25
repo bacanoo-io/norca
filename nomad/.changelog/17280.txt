@@ -1,3 +1,0 @@
-```release-note:bug
-api: add missing field NetworkStatus for Allocation
-```

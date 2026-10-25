@@ -1,3 +1,0 @@
-```release-note:improvement
-status: go-getter failure reason now shown in `alloc status`
-```

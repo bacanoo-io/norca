@@ -1,3 +1,0 @@
-```release-note:bug
-cleanup: prevent leaks from time.After
-```

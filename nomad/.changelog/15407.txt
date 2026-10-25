@@ -1,3 +1,0 @@
-```release-note:improvement
-client: detect and cleanup leaked iptables rules
-```

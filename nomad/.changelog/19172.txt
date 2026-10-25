@@ -1,3 +1,0 @@
-```release-note:bug
-agent: Correct websocket status code handling
-```

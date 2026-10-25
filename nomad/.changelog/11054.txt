@@ -1,3 +1,0 @@
-```release-note:bug
-core: Fixed a bug where system jobs with non-unique IDs may not be placed on new nodes
-```

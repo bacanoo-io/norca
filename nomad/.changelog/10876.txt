@@ -1,3 +1,0 @@
-```release-note:bug
-client: Fixed bug where meta blocks were not interpolated with task environment
-```

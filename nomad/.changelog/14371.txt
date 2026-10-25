@@ -1,3 +1,0 @@
-```release-note:improvement
-cgroups: use cgroup.kill interface file when using cgroups v2
-```

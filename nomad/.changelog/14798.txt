@@ -1,3 +1,0 @@
-```release-note:bug-fix
-ui:  always show ports on allocations page
-```

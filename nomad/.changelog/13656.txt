@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Fixed a bug in the names of the `node drain` and `node status` sub-commands
-```

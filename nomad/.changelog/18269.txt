@@ -1,3 +1,0 @@
-```release-note:bug
-client: Ignore stale server updates to prevent GCing allocations that should be running
-```

@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed a bug where volume snapshot timestamps were always zero values
-```

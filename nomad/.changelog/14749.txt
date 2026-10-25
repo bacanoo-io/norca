@@ -1,3 +1,0 @@
-```release-note:bug
-template: Fixed a bug where the `splay` timeout was not being applied when `change_mode` was set to `script`.
-```

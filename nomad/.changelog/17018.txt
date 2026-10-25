@@ -1,3 +1,0 @@
-```release-note:bug
-identity: Fixed a bug where workload identities for periodic and dispatch jobs would not have access to their parent job's ACL policy
-```

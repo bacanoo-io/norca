@@ -1,3 +1,0 @@
-```release-note:bug
-ui: using start/stop from the job page in the UI will no longer fail when the job lacks HCL submission data
-```

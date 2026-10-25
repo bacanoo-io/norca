@@ -1,3 +1,0 @@
-```release-note:bug
-client: return 404 instead of 500 when trying to access logs and files from allocations that have been garbage collected
-```

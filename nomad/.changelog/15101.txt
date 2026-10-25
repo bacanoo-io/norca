@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed race condition that can cause a panic when volume is garbage collected
-```

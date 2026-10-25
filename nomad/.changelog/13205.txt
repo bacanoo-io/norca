@@ -1,3 +1,0 @@
-```release-note:bug
-core: Fixed a bug where an evicted batch job would not be rescheduled
-```

@@ -46,10 +46,6 @@ endif
 # tag corresponding to latest release we maintain backward compatibility with
 PROTO_COMPARE_TAG ?= v1.0.3$(if $(findstring ent,$(GO_TAGS)),+ent,)
 
-# LAST_RELEASE is the git sha of the latest release corresponding to this branch. main should have the latest
-# published release, and release branches should point to the latest published release in the X.Y release line.
-LAST_RELEASE ?= v1.6.4
-
 default: help
 
 ifeq (Linux,$(THIS_OS))
@@ -148,7 +144,6 @@ deps:  ## Install build and development dependencies
 	go install github.com/golang/protobuf/protoc-gen-go@v1.3.4
 	go install github.com/hashicorp/go-msgpack/codec/codecgen@v1.1.5
 	go install github.com/bufbuild/buf/cmd/buf@v0.36.0
-	go install github.com/hashicorp/go-changelog/cmd/changelog-build@latest
 	go install golang.org/x/tools/cmd/stringer@v0.1.12
 	go install github.com/hashicorp/hc-install/cmd/hc-install@v0.6.1
 	go install github.com/shoenig/go-modtool@v0.1.1
@@ -176,7 +171,7 @@ check: ## Lint the source code
 	@hclogvet .
 
 	@echo "==> Spell checking website..."
-	@misspell -error -source=text website/pages/
+	@misspell -error -source=text website/content/
 
 	@echo "==> Checking for breaking changes in protos..."
 	@buf breaking --config tools/buf/buf.yaml --against-config tools/buf/buf.yaml --against .git#tag=$(PROTO_COMPARE_TAG)
@@ -233,10 +228,6 @@ generate-structs: ## Update generated code
 proto: ## Generate protobuf bindings
 	@echo "==> Generating proto bindings..."
 	@buf --config tools/buf/buf.yaml --template tools/buf/buf.gen.yaml generate
-
-changelog: ## Generate changelog from entries
-	@changelog-build -last-release $(LAST_RELEASE) -this-release HEAD \
-		-entries-dir .changelog/ -changelog-template ./.changelog/changelog.tmpl -note-template ./.changelog/note.tmpl
 
 ## We skip the terraform directory as there are templated hcl configurations
 ## that do not successfully compile without rendering

@@ -1,3 +1,0 @@
-```release-note:improvement
-deps: update go-memdb for goroutine leak fix
-```

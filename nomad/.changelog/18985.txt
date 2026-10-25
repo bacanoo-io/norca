@@ -1,3 +1,0 @@
-```release-note:bug
-vault: Fixed an issue that could cause Nomad to attempt to renew a Vault token that is already expired
-```

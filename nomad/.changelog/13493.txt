@@ -1,3 +1,0 @@
-```release-note:bug
-client: Fixed a problem calculating a services namespace
-```

@@ -1,3 +1,0 @@
-```release-note:bug
-vault: Fixed a bug where poststop tasks would not get a Vault token
-```

@@ -1,3 +1,0 @@
-```release-note:bug
-metrics: Revert upgrade of `go-metrics` to fix an issue where metrics from dependencies, such as raft, were no longer emitted
-```

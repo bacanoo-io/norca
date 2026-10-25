@@ -1,3 +1,0 @@
-```release-note:improvement
-cli: update default redis and use nomad service discovery
-```

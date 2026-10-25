@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Snapshot name is required in `volume snapshot create` command
-```

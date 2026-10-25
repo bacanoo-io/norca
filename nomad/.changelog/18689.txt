@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Fixed an unexpected behavior of the `nomad acl token update` command that could cause a management token to be downgraded to client on update
-```
