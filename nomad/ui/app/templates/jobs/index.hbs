@@ -1,225 +1,156 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Jobs"}}
-<section class="section">
-  <div class="toolbar">
-    <div class="toolbar-item">
-      {{#if this.visibleJobs.length}}
-        <SearchBox
-          data-test-jobs-search
-          @searchTerm={{mut this.searchTerm}}
-          @onChange={{action this.resetPagination}}
-          @placeholder="Search jobs..."
-        />
+<PageLayout @legacy={{false}}>
+  <Ui::PageHeader @pretitle="Workloads" @title="Jobs" @subtitle={{this.scopeLabel}}>
+    <:actions>
+      {{#if (can "run job" namespace=this.qpNamespace)}}
+        <Ui::Button
+          @route="jobs.run"
+          @query={{hash namespace=this.qpNamespace}}
+          @variant="primary"
+          @icon="plus"
+          data-test-run-job
+          {{keyboard-shortcut label="Run Job" pattern=(array "r" "u" "n") action=(action this.goToRun)}}
+        >Run job</Ui::Button>
+      {{else}}
+        <Ui::Button
+          @variant="primary"
+          @icon="plus"
+          @disabled={{true}}
+          title="You don’t have permission to run jobs"
+          data-test-run-job
+        >Run job</Ui::Button>
       {{/if}}
-    </div>
-    {{#if (media "isMobile")}}
-      <div class="toolbar-item is-right-aligned">
-        {{#if (can "run job" namespace=this.qpNamespace)}}
-          <LinkTo
-            @route="jobs.run"
-            @query={{hash namespace=this.qpNamespace}}
-            data-test-run-job
-            class="button is-primary"
-          >
-            Run Job
-          </LinkTo>
-        {{else}}
-          <button
-            data-test-run-job
-            class="button is-primary is-disabled tooltip is-right-aligned"
-            aria-label="You don’t have permission to run jobs"
-            disabled
-            type="button"
-          >
-            Run Job
-          </button>
-        {{/if}}
-      </div>
-    {{/if}}
-    <div class="toolbar-item is-right-aligned is-mobile-full-width">
-      <div class="button-bar">
-        {{#if this.system.shouldShowNamespaces}}
-          <SingleSelectDropdown
-            data-test-namespace-facet
-            @label="Namespace"
-            @options={{this.optionsNamespaces}}
-            @selection={{this.qpNamespace}}
-            @onSelect={{action this.setFacetQueryParam "qpNamespace"}}
-          />
-        {{/if}}
-        <MultiSelectDropdown
-          data-test-type-facet
-          @label="Type"
-          @options={{this.optionsType}}
-          @selection={{this.selectionType}}
-          @onSelect={{action this.setFacetQueryParam "qpType"}}
-        />
-        <MultiSelectDropdown
-          data-test-node-pool-facet
-          @label="Node Pool"
-          @options={{this.optionsNodePool}}
-          @selection={{this.selectionNodePool}}
-          @onSelect={{action this.setFacetQueryParam "qpNodePool"}}
-        />
-        <MultiSelectDropdown
-          data-test-status-facet
-          @label="Status"
-          @options={{this.optionsStatus}}
-          @selection={{this.selectionStatus}}
-          @onSelect={{action this.setFacetQueryParam "qpStatus"}}
-        />
-        <MultiSelectDropdown
-          data-test-datacenter-facet
-          @label="Datacenter"
-          @options={{this.optionsDatacenter}}
-          @selection={{this.selectionDatacenter}}
-          @onSelect={{action this.setFacetQueryParam "qpDatacenter"}}
-        />
-        <MultiSelectDropdown
-          data-test-prefix-facet
-          @label="Prefix"
-          @options={{this.optionsPrefix}}
-          @selection={{this.selectionPrefix}}
-          @onSelect={{action this.setFacetQueryParam "qpPrefix"}}
-        />
-      </div>
-    </div>
-    {{#if (not (media "isMobile"))}}
-      <div class="toolbar-item is-right-aligned">
-        {{#if (can "run job" namespace=this.qpNamespace)}}
-          <LinkTo
-            @route="jobs.run"
-            @query={{hash namespace=this.qpNamespace}}
-            data-test-run-job
-            class="button is-primary"
-            {{keyboard-shortcut
-              label="Run Job"
-              pattern=(array "r" "u" "n")
-              action=(action this.goToRun)
-            }}
-          >
-            Run Job
-          </LinkTo>
-        {{else}}
-          <button
-            data-test-run-job
-            class="button is-primary is-disabled tooltip is-right-aligned"
-            aria-label="You don’t have permission to run jobs"
-            disabled
-            type="button"
-          >
-            Run Job
-          </button>
-        {{/if}}
-      </div>
-    {{/if}}
-  </div>
-  {{#if this.isForbidden}}
-    <ForbiddenMessage />
-  {{else if this.sortedJobs}}
-    <ListPagination
-      @source={{this.sortedJobs}}
-      @size={{this.pageSize}}
-      @page={{this.currentPage}}
-      as |p|
-    >
-      <ListTable
-        @source={{p.list}}
-        @sortProperty={{this.sortProperty}}
+    </:actions>
+  </Ui::PageHeader>
+
+  <Ui::PageBody>
+    {{#if this.isAllRegions}}
+      <Jobs::FederatedList @regions={{this.frame.scopedRegions}} @namespace={{this.qpNamespace}} />
+    {{else if this.isForbidden}}
+      <Ui::Card>
+        <ForbiddenMessage />
+      </Ui::Card>
+    {{else}}
+      <Ui::DataTable
+        @id="jobs"
+        @caption="Jobs"
+        @columns={{this.columns}}
+        @rows={{this.sortedJobs}}
+        @sortBy={{this.sortProperty}}
         @sortDescending={{this.sortDescending}}
-        @class="with-foot"
-        as |t|
+        @onSort={{this.sort}}
+        @pageSize={{this.pageSize}}
+        @page={{this.currentPage}}
+        @onPageChange={{this.setPage}}
+        @onPageSizeChange={{this.setPageSize}}
+        @onRowClick={{this.gotoJob}}
+        @enumerate={{true}}
+        @noun="jobs"
+        @viewState={{this.viewState}}
+        @onApplyView={{this.applyView}}
+        data-test-jobs-list
       >
-        <t.head>
-          <t.sort-by @prop="name">
-            Name
-          </t.sort-by>
+        <:filters>
+          <Ui::Input
+            @type="search"
+            @icon="search"
+            @placeholder="Search jobs..."
+            @value={{this.searchTerm}}
+            @onInput={{this.search}}
+            aria-label="Search jobs"
+            data-test-jobs-search
+          />
           {{#if this.system.shouldShowNamespaces}}
-            <t.sort-by @prop="namespace.name">
-              Namespace
-            </t.sort-by>
+            <Ui::Select
+              @label="Namespace"
+              @options={{this.namespaceSelectOptions}}
+              @value={{this.qpNamespace}}
+              @onChange={{this.setNamespace}}
+              class="w-auto"
+              data-test-namespace-facet
+            />
           {{/if}}
-          <t.sort-by @prop="status">
-            Status
-          </t.sort-by>
-          <t.sort-by @prop="type">
-            Type
-          </t.sort-by>
-          <t.sort-by @prop="nodePool">
-              Node Pool
-          </t.sort-by>
-          <t.sort-by @prop="priority">
-            Priority
-          </t.sort-by>
-          <th>
-            Groups
-          </th>
-          <th class="is-3">
-            Summary
-          </th>
-        </t.head>
-        <t.body @key="model.id" as |row|>
-          <JobRow @data-test-job-row={{row.model.plainId}} @job={{row.model}} />
-        </t.body>
-      </ListTable>
-      <div class="table-foot">
-        <PageSizeSelect @onChange={{action this.resetPagination}} />
-        <nav class="pagination">
-          <div class="pagination-numbers">
-            {{p.startsAt}}
-            –
-            {{p.endsAt}}
-            of
-            {{this.sortedJobs.length}}
-            {{#if this.searchTerm}}
-              <em>
-                (
-                {{dec this.sortedJobs.length this.filteredJobs.length}}
-                hidden by search term)
-              </em>
-            {{/if}}
-          </div>
-          <p.prev @class="pagination-previous">
-            {{x-icon "chevron-left"}}
-          </p.prev>
-          <p.next @class="pagination-next">
-            {{x-icon "chevron-right"}}
-          </p.next>
-          <ul class="pagination-list"></ul>
-        </nav>
-      </div>
-    </ListPagination>
-  {{else}}
-    <div data-test-empty-jobs-list class="empty-message">
-      {{#if (eq this.visibleJobs.length 0)}}
-        <h3 data-test-empty-jobs-list-headline class="empty-message-headline">
-          No Jobs
-        </h3>
-        <p class="empty-message-body">
-          The cluster is currently empty.
-        </p>
-      {{else if (eq this.filteredJobs.length 0)}}
-        <h3 data-test-empty-jobs-list-headline class="empty-message-headline">
-          No Matches
-        </h3>
-        <p class="empty-message-body">
-          No jobs match your current filter selection.
-        </p>
-      {{else if this.searchTerm}}
-        <h3 data-test-empty-jobs-list-headline class="empty-message-headline">
-          No Matches
-        </h3>
-        <p class="empty-message-body">
-          No jobs match the term
-          <strong>
-            {{this.searchTerm}}
-          </strong>
-        </p>
-      {{/if}}
-    </div>
-  {{/if}}
-</section>
+          <Ui::FilterDropdown
+            @label="Type"
+            @options={{this.optionsType}}
+            @selection={{this.selectionType}}
+            @onSelect={{fn this.setFilter "qpType"}}
+            data-test-type-facet
+          />
+          <Ui::FilterDropdown
+            @label="Node Pool"
+            @options={{this.optionsNodePool}}
+            @selection={{this.selectionNodePool}}
+            @onSelect={{fn this.setFilter "qpNodePool"}}
+            data-test-node-pool-facet
+          />
+          <Ui::FilterDropdown
+            @label="Status"
+            @options={{this.optionsStatus}}
+            @selection={{this.selectionStatus}}
+            @onSelect={{fn this.setFilter "qpStatus"}}
+            data-test-status-facet
+          />
+          <Ui::FilterDropdown
+            @label="Datacenter"
+            @options={{this.optionsDatacenter}}
+            @selection={{this.selectionDatacenter}}
+            @onSelect={{fn this.setFilter "qpDatacenter"}}
+            data-test-datacenter-facet
+          />
+          <Ui::FilterDropdown
+            @label="Prefix"
+            @options={{this.optionsPrefix}}
+            @selection={{this.selectionPrefix}}
+            @onSelect={{fn this.setFilter "qpPrefix"}}
+            data-test-prefix-facet
+          />
+        </:filters>
+        <:row as |job r|>
+          <Jobs::ListRow @job={{job}} @r={{r}} />
+        </:row>
+        <:empty>
+          {{#if (eq this.visibleJobs.length 0)}}
+            <Ui::EmptyState
+              @icon="briefcase"
+              @title="No Jobs"
+              @message="The cluster has no jobs in this namespace yet. Run a job to see it here."
+              data-test-empty-jobs-list
+            >
+              {{#if (can "run job" namespace=this.qpNamespace)}}
+                <Ui::Button @route="jobs.run" @query={{hash namespace=this.qpNamespace}} @variant="primary" @icon="plus">Run job</Ui::Button>
+              {{/if}}
+            </Ui::EmptyState>
+          {{else if (eq this.filteredJobs.length 0)}}
+            <Ui::EmptyState
+              @icon="filter-off"
+              @title="No Matches"
+              @message="No jobs match your current filter selection. Clear the filters to see every job."
+              data-test-empty-jobs-list
+            />
+          {{else}}
+            <Ui::EmptyState
+              @icon="search"
+              @title="No Matches"
+              @message="No jobs match the term {{this.searchTerm}}."
+              data-test-empty-jobs-list
+            />
+          {{/if}}
+        </:empty>
+        <:footer>
+          {{#if this.searchTerm}}
+            <span class="text-secondary" data-test-hidden-by-search>
+              ({{dec this.sortedJobs.length this.filteredJobs.length}} hidden by search term)
+            </span>
+          {{/if}}
+        </:footer>
+      </Ui::DataTable>
+    {{/if}}
+  </Ui::PageBody>
+</PageLayout>

@@ -55,6 +55,8 @@ const MIGRATED = [
   'components/fs',
   'components/primary-metric',
   'components/image-file.hbs',
+  // jobs list, clients, Variables and access (phase 2)
+  'templates/jobs/index.hbs',
 ];
 
 const ALLOWED = [
