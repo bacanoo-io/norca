@@ -1,0 +1,46 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"net/http"
+
+	"github.com/hashicorp/nomad/controller/webhook"
+)
+
+// newWebhookMux returns the handler of the validating webhook of the kind
+// (the webhook "validate" block of <% .KindLower %>.kind.hcl).
+func newWebhookMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("/validate", webhook.Validating(func(_ context.Context, req *webhook.Request) ([]string, error) {
+		if req.Operation == webhook.OperationDelete {
+			return nil, nil
+		}
+		var spec Spec
+		if err := req.Object.DecodeSpec(&spec); err != nil {
+			return nil, fmt.Errorf("invalid spec: %w", err)
+		}
+		return nil, spec.Validate()
+	}))
+	return mux
+}
+
+func runWebhook(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("webhook", flag.ContinueOnError)
+	listen := fs.String("listen", ":8443", "address to listen on")
+	certFile := fs.String("tls-cert", "", "PEM certificate (its CA goes into the kind's ca_cert)")
+	keyFile := fs.String("tls-key", "", "PEM key")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *certFile == "" || *keyFile == "" {
+		return errors.New("-tls-cert and -tls-key are required: the servers call webhooks over https only")
+	}
+	return webhook.ListenAndServeTLS(ctx, *listen, *certFile, *keyFile, newWebhookMux())
+}

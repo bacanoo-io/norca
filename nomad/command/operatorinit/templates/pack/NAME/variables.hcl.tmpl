@@ -1,0 +1,51 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+variable "job_name" {
+  description = "Name of the controller job; the ACL policy of the operator is bound to it."
+  type        = string
+  default     = "<% .Name %>"
+}
+
+variable "namespace" {
+  description = "Namespace of the controller job and of the objects it reconciles."
+  type        = string
+  default     = "default"
+}
+
+variable "datacenters" {
+  description = "Datacenters of the controller job."
+  type        = list(string)
+  default     = ["*"]
+}
+
+variable "count" {
+  description = "Instances of the controller (leader election picks one)."
+  type        = number
+  default     = 2
+}
+
+variable "driver" {
+  description = "Task driver: raw_exec or exec (binary on the nodes), docker (image), mock_driver (tests on dev agents)."
+  type        = string
+  default     = "raw_exec"
+}
+
+variable "binary" {
+  description = "Path of the operator binary on the nodes (raw_exec, exec)."
+  type        = string
+  default     = "/usr/local/bin/<% .Name %>"
+}
+
+variable "image" {
+  description = "Container image with the operator binary as its entrypoint (docker)."
+  type        = string
+  default     = ""
+}
+
+variable "acl_policy_enabled" {
+  description = "Install the ACL policy of the controller, bound to its job. Disable it on agents without ACLs (dev agents)."
+  type        = bool
+  default     = true
+}

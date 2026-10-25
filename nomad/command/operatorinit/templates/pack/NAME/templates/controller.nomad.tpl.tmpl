@@ -1,0 +1,55 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+[[- $v := vars . ]]
+job [[ $v.job_name | quote ]] {
+  type        = "service"
+  namespace   = [[ $v.namespace | quote ]]
+  datacenters = [[ $v.datacenters | toStringList ]]
+
+  group "controller" {
+    count = [[ $v.count ]]
+
+    network {
+      port "metrics" {}
+    }
+
+    task "controller" {
+      driver = [[ $v.driver | quote ]]
+
+      config {
+[[- if eq $v.driver "mock_driver" ]]
+        run_for = "87600h"
+[[- else ]]
+[[- if eq $v.driver "docker" ]]
+        image = [[ $v.image | quote ]]
+        ports = ["metrics"]
+[[- else ]]
+        command = [[ $v.binary | quote ]]
+[[- end ]]
+        args = [
+          "controller",
+          "-namespace", [[ $v.namespace | quote ]],
+          "-metrics-addr", "${NOMAD_ADDR_metrics}",
+        ]
+[[- end ]]
+      }
+
+      # The controller calls the API on the task API socket with its
+      # workload identity; the pack's ACL policy is bound to this job.
+      identity {
+        env = true
+      }
+
+      env {
+        NORCA_ADDR = "unix://${NOMAD_SECRETS_DIR}/api.sock"
+      }
+
+      resources {
+        cpu    = 100
+        memory = 64
+      }
+    }
+  }
+}

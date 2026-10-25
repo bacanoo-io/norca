@@ -7,7 +7,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/cli"
@@ -50,6 +52,14 @@ Usage: norca object-kind <subcommand> [options] [args]
   Delete an object kind (it must not have objects):
 
       $ norca object-kind delete db.example.com/PostgresCluster
+
+  Check an object kind and sample objects offline:
+
+      $ norca object-kind lint postgrescluster.hcl sample.hcl
+
+  Approve a webhook bound to an object kind:
+
+      $ norca object-kind webhook approve db.example.com/PostgresCluster validate
 
   Please see the individual subcommand help for detailed usage information.
 `
@@ -105,8 +115,11 @@ Usage: norca object-kind apply [options] <input>
   Apply is used to create or update an object kind. The specification file
   is read from stdin by specifying "-", otherwise a path to the file is
   expected. The server compiles the JSON Schema and the CEL rules and
-  rejects the kind if one of them is invalid. Objects already stored are
-  not validated again when the schema changes.
+  rejects the kind if one of them is invalid. When the schema, the rules or
+  the schema version change, the stored objects are checked against the new
+  kind: a change that would make stored objects invalid is rejected, unless
+  the version is raised with a migration that converts them (the leader then
+  migrates them in the background). -dry-run shows the report.
 
   Example specification:
 
@@ -130,10 +143,33 @@ Usage: norca object-kind apply [options] <input>
         column "Replicas" { path = "status.readyReplicas" }
         column "Ready"    { path = "status.conditions[?type=='Ready'].status" }
       }
+
+      # schema version and the conversion of objects stored at older ones
+      version = 2
+      migration {
+        spec = "self.spec.omit(['size']).merge({'storage': self.spec.size})"
+      }
+
+      # admission webhook bound to this kind (https, CA from the package)
+      webhook "validate" {
+        url            = "https://pg-operator.service.consul:8443/validate"
+        ca_cert        = file("ca.pem")
+        failure_policy = "fail" # or "ignore"
+      }
+
+      # load management: 429 Too Many Requests over a limit
+      limits {
+        write_rate                = 50
+        identity_write_rate       = 10
+        max_objects_per_namespace = 100
+        max_watches_per_identity  = 10
+      }
     }
 
   If ACLs are enabled, this command requires a token with the 'write'
-  capability of the 'operator' policy.
+  capability of the 'operator' policy. Webhooks of kinds applied with a
+  management token are approved at once; others wait for
+  "norca object-kind webhook approve".
 
 General Options:
 
@@ -142,7 +178,8 @@ General Options:
 Apply Options:
 
   -dry-run
-    Validate and compile the object kind without writing it.
+    Validate and compile the object kind without writing it, and report
+    what the write does to the stored objects (migration, validation).
 
   -json
     Parse the input as a JSON object kind (also used for .json files).
@@ -197,17 +234,93 @@ func (c *ObjectKindApplyCommand) Run(args []string) int {
 		return 1
 	}
 
-	if _, _, err := client.ObjectKinds().Register(kind, &api.ObjectWriteOptions{DryRun: dryRun}, nil); err != nil {
-		c.Ui.Error(fmt.Sprintf("Error applying object kind: %s", err))
-		return 1
-	}
-
 	if dryRun {
+		plan, _, err := client.ObjectKinds().Plan(kind, nil)
+		if err != nil {
+			c.Ui.Error(fmt.Sprintf("Error applying object kind: %s", err))
+			return 1
+		}
+		c.Ui.Output(c.Colorize().Color(formatObjectKindPlan(plan)))
+		if plan.Migration != nil && plan.Migration.Failed > 0 {
+			c.Ui.Error(fmt.Sprintf("Object kind %q would make %d stored objects invalid (dry run, nothing was written)",
+				kind.KindRef(), plan.Migration.Failed))
+			return 1
+		}
 		c.Ui.Output(fmt.Sprintf("Object kind %q is valid (dry run, nothing was written)", kind.KindRef()))
 		return 0
 	}
+
+	stored, _, err := client.ObjectKinds().Register(kind, nil, nil)
+	if err != nil {
+		c.Ui.Error(fmt.Sprintf("Error applying object kind: %s", err))
+		return 1
+	}
 	c.Ui.Output(fmt.Sprintf("Successfully applied object kind %q!", kind.KindRef()))
+	for _, w := range stored.Webhooks {
+		if !w.Approved() {
+			c.Ui.Warn(fmt.Sprintf("Webhook %q is pending approval by an administrator:\n  norca object-kind webhook approve %s %s",
+				w.Name, kind.KindRef(), w.Name))
+		}
+	}
 	return 0
+}
+
+// formatObjectKindPlan formats the report of a dry run of a kind write.
+func formatObjectKindPlan(plan *api.ObjectKindPlan) string {
+	var b strings.Builder
+	if k := plan.ObjectKind; k != nil {
+		b.WriteString(fmt.Sprintf("[bold]Object kind %s[reset], schema version %d\n", k.KindRef(), k.SchemaVersion()))
+		for _, w := range k.Webhooks {
+			state := "approved"
+			if !w.Approved() {
+				state = "pending approval"
+			}
+			b.WriteString(fmt.Sprintf("  webhook %q (%s, %s): %s\n", w.Name, w.Mode, w.URL, state))
+		}
+	}
+	if m := plan.Migration; m != nil {
+		b.WriteString(fmt.Sprintf("\n[bold]Stored objects[reset] (schema version %d -> %d)\n", m.FromVersion, m.ToVersion))
+		b.WriteString(formatKV([]string{
+			fmt.Sprintf("Checked|%d", m.Objects),
+			fmt.Sprintf("At older versions (migrated)|%d", m.Pending),
+			fmt.Sprintf("Changed|%d", m.Changed),
+			fmt.Sprintf("Invalid|%d", m.Failed),
+		}))
+		b.WriteString("\n")
+		if len(m.Failures) > 0 {
+			rows := []string{"Namespace|Name|Error"}
+			for _, f := range m.Failures {
+				rows = append(rows, fmt.Sprintf("%s|%s|%s", f.Namespace, f.Name, f.Error))
+			}
+			b.WriteString("\n[bold]Invalid objects[reset]\n" + formatList(rows) + "\n")
+		}
+		for _, s := range m.Samples {
+			b.WriteString(fmt.Sprintf("\n[bold]Change of %s[reset]\n", objectSampleName(s)))
+			b.WriteString(fmt.Sprintf("  spec:   %s\n       -> %s\n", compactJSON(s.SpecBefore), compactJSON(s.SpecAfter)))
+			if !reflect.DeepEqual(s.StatusBefore, s.StatusAfter) {
+				b.WriteString(fmt.Sprintf("  status: %s\n       -> %s\n", compactJSON(s.StatusBefore), compactJSON(s.StatusAfter)))
+			}
+		}
+	}
+	for _, w := range plan.Warnings {
+		b.WriteString(fmt.Sprintf("\n[yellow]Warning:[reset] %s", w))
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func objectSampleName(s *api.ObjectMigrationSample) string {
+	if s.Namespace == "" {
+		return s.Name
+	}
+	return s.Namespace + "/" + s.Name
+}
+
+func compactJSON(v any) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprint(v)
+	}
+	return string(b)
 }
 
 // ObjectKindListCommand lists object kinds.
@@ -414,7 +527,35 @@ func (c *ObjectKindInspectCommand) Run(args []string) int {
 	if kind.Scale != nil {
 		basic = append(basic, fmt.Sprintf("Scale|%s -> %s", kind.Scale.SpecPath, kind.Scale.StatusPath))
 	}
+	basic = append(basic, fmt.Sprintf("Schema Version|%d", kind.SchemaVersion()))
+	if l := kind.Limits; l != nil {
+		basic = append(basic, fmt.Sprintf("Limits|%s", formatObjectKindLimits(l)))
+	}
 	out := formatKV(basic)
+
+	if m := kind.Migration; m != nil {
+		rows := []string{}
+		if m.Spec != "" {
+			rows = append(rows, fmt.Sprintf("Spec|%s", m.Spec))
+		}
+		if m.Status != "" {
+			rows = append(rows, fmt.Sprintf("Status|%s", m.Status))
+		}
+		out += "\n\n[bold]Migration[reset]\n" + formatKV(rows)
+	}
+	if len(kind.Webhooks) > 0 {
+		rows := []string{"Name|Mode|URL|Operations|Failure Policy|Approval"}
+		for _, w := range kind.Webhooks {
+			approval := "pending"
+			if w.Approval != nil {
+				approval = fmt.Sprintf("by %s at %s", w.Approval.ApprovedBy,
+					time.Unix(0, w.Approval.ApproveTime).UTC().Format(time.RFC3339))
+			}
+			rows = append(rows, fmt.Sprintf("%s|%s|%s|%s|%s|%s", w.Name, w.Mode, w.URL,
+				strings.Join(w.Operations, ","), w.FailurePolicy, approval))
+		}
+		out += "\n\n[bold]Webhooks[reset]\n" + formatList(rows)
+	}
 
 	if len(kind.Rules) > 0 {
 		rows := []string{"#|Expression|Message"}
@@ -503,6 +644,27 @@ func (c *ObjectKindDeleteCommand) Run(args []string) int {
 
 // prettyJSONString indents a JSON document, or returns it unchanged if it
 // isn't valid JSON.
+// formatObjectKindLimits formats the limits of a kind on one line.
+func formatObjectKindLimits(l *api.ObjectKindLimits) string {
+	var parts []string
+	if l.WriteRate > 0 {
+		parts = append(parts, fmt.Sprintf("writes %g/s (burst %d)", l.WriteRate, l.WriteBurst))
+	}
+	if l.IdentityWriteRate > 0 {
+		parts = append(parts, fmt.Sprintf("writes per identity %g/s (burst %d)", l.IdentityWriteRate, l.IdentityWriteBurst))
+	}
+	if l.MaxObjectsPerNamespace > 0 {
+		parts = append(parts, fmt.Sprintf("%d objects per namespace", l.MaxObjectsPerNamespace))
+	}
+	if l.MaxWatchesPerIdentity > 0 {
+		parts = append(parts, fmt.Sprintf("%d watches per identity", l.MaxWatchesPerIdentity))
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, ", ")
+}
+
 func prettyJSONString(s string) string {
 	var buf bytes.Buffer
 	if err := json.Indent(&buf, []byte(s), "", "    "); err != nil {

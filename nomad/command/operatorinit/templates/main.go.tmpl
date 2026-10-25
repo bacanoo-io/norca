@@ -1,0 +1,130 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+// Command <% .Name %> is the operator of the <% .Group %>/<% .Kind %> objects,
+// built with the Norca controller SDK (scaffolded by "norca operator init").
+//
+//	<% .Name %> [controller] [flags]   run the controller (default)
+//	<% .Name %> webhook [flags]        serve the validating webhook of the kind
+//
+// The controller reaches the API at NORCA_ADDR (in a job: the task API socket,
+// with the workload identity of the task) and reconciles the native objects of
+// the kind registered from <% .KindLower %>.kind.hcl.
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/hashicorp/nomad/controller"
+)
+
+func main() {
+	args := os.Args[1:]
+	cmd := "controller"
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		cmd, args = args[0], args[1:]
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var err error
+	switch cmd {
+	case "controller":
+		err = runController(ctx, args)
+	case "webhook":
+		err = runWebhook(ctx, args)
+	default:
+		err = fmt.Errorf("unknown subcommand %q (use controller or webhook)", cmd)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+}
+
+func newLogger(level string) (*slog.Logger, error) {
+	var l slog.Level
+	if err := l.UnmarshalText([]byte(level)); err != nil {
+		return nil, err
+	}
+	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: l})), nil
+}
+
+func runController(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("controller", flag.ContinueOnError)
+	namespace := fs.String("namespace", "default", `namespace of the objects ("*" for all)`)
+	workers := fs.Int("workers", 2, "concurrent reconciles")
+	leaderElection := fs.Bool("leader-election", true, "reconcile only on the elected leader")
+	metricsAddr := fs.String("metrics-addr", "", "address of the /metrics endpoint (disabled if empty)")
+	logLevel := fs.String("log-level", "info", "log level")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	logger, err := newLogger(*logLevel)
+	if err != nil {
+		return err
+	}
+
+	client, err := controller.NewAPIClient()
+	if err != nil {
+		return err
+	}
+	backend := controller.NewBackend(client)
+
+	metrics := controller.NewTextMetrics()
+	if *metricsAddr != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", metrics)
+		srv := &http.Server{Addr: *metricsAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+		go func() {
+			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("metrics endpoint failed", "error", err)
+			}
+		}()
+		go func() {
+			<-ctx.Done()
+			_ = srv.Close()
+		}()
+	}
+
+	var election *controller.LeaderElectionConfig
+	if *leaderElection {
+		leaseNS := *namespace
+		if leaseNS == "*" {
+			leaseNS = ""
+		}
+		election = &controller.LeaderElectionConfig{Namespace: leaseNS, ReleaseOnCancel: true}
+	}
+
+	r := &Reconciler{Now: time.Now}
+	ctrl, err := controller.New(backend, r, controller.Options{
+		Name:           "<% .Name %>",
+		Kind:           Kind,
+		Storage:        controller.StorageNative,
+		Namespace:      *namespace,
+		Workers:        *workers,
+		LeaderElection: election,
+		Metrics:        metrics,
+		Logger:         logger,
+	})
+	if err != nil {
+		return err
+	}
+	r.Ctrl = ctrl
+
+	if err := ctrl.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
+}

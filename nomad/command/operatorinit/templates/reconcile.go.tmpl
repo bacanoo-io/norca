@@ -1,0 +1,114 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/hashicorp/nomad/controller"
+)
+
+// Reconciler maintains <% .Kind %> objects.
+type Reconciler struct {
+	Ctrl *controller.Controller
+	Now  func() time.Time
+}
+
+// Reconcile brings what an object describes in line with its spec and
+// reports the result in its status. It is called for every change of the
+// object (and periodically); it must be idempotent.
+func (r *Reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (time.Duration, error) {
+	obj, ok := r.Ctrl.Get(key)
+	if !ok {
+		// The object is gone; the finalizer made sure the cleanup ran.
+		r.Ctrl.Recorder().Forget(key)
+		return 0, nil
+	}
+
+	if obj.Deleting() {
+		if !obj.HasFinalizer(Finalizer) {
+			return 0, nil
+		}
+		if err := r.cleanup(ctx, obj); err != nil {
+			r.Ctrl.Recorder().Event(ctx, key, controller.EventTypeWarning, "CleanupFailed", err.Error())
+			return 0, err
+		}
+		_, err := r.Ctrl.Objects().RemoveFinalizer(ctx, obj, Finalizer)
+		if errors.Is(err, controller.ErrNotFound) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	if !obj.HasFinalizer(Finalizer) {
+		next, err := r.Ctrl.Objects().AddFinalizer(ctx, obj, Finalizer)
+		if err != nil {
+			if errors.Is(err, controller.ErrConflict) || errors.Is(err, controller.ErrNotFound) {
+				return time.Second, nil // changed or deleted meanwhile
+			}
+			return 0, err
+		}
+		obj = next
+	}
+
+	var status Status
+	_ = obj.DecodeStatus(&status)
+	status.Observe(obj)
+
+	var spec Spec
+	if err := obj.DecodeSpec(&spec); err != nil {
+		return 0, r.fail(ctx, obj, &status, "InvalidSpec", err.Error())
+	}
+	if err := spec.Validate(); err != nil {
+		return 0, r.fail(ctx, obj, &status, "InvalidSpec", err.Error())
+	}
+
+	// TODO: create or update what the object describes here: jobs owned by
+	// the object (controller.SetOwner, controller.SetManagedBy; the servers
+	// delete them with the object), Variables, external resources.
+	status.Replicas = spec.Replicas
+
+	now := r.Now()
+	status.SetCondition(controller.Condition{
+		Type: controller.ConditionReady, Status: controller.ConditionTrue,
+		Reason: "Reconciled", Message: fmt.Sprintf("%d replicas", spec.Replicas),
+	}, now)
+	status.SetCondition(controller.Condition{
+		Type: controller.ConditionDegraded, Status: controller.ConditionFalse, Reason: "Reconciled",
+	}, now)
+	if _, err := r.Ctrl.Objects().UpdateStatus(ctx, obj, status); err != nil {
+		if errors.Is(err, controller.ErrNotFound) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	r.Ctrl.Recorder().Event(ctx, key, controller.EventTypeNormal, "Reconciled",
+		fmt.Sprintf("generation %d: %d replicas", obj.Generation, spec.Replicas))
+	return 0, nil
+}
+
+// cleanup removes what the object created. It runs before the finalizer is
+// removed, also when the controller was down when the object was deleted.
+func (r *Reconciler) cleanup(ctx context.Context, obj *controller.Object) error {
+	// TODO: delete external resources. Jobs and objects owned by the object
+	// are deleted by the servers' garbage collector.
+	return nil
+}
+
+// fail records a problem of the spec in the status and the event log. It
+// is not retried: the next change of the spec reconciles again.
+func (r *Reconciler) fail(ctx context.Context, obj *controller.Object, status *Status, reason, message string) error {
+	r.Ctrl.Recorder().Event(ctx, obj.Key, controller.EventTypeWarning, reason, message)
+	now := r.Now()
+	status.SetCondition(controller.Condition{Type: controller.ConditionReady, Status: controller.ConditionFalse, Reason: reason, Message: message}, now)
+	status.SetCondition(controller.Condition{Type: controller.ConditionDegraded, Status: controller.ConditionTrue, Reason: reason, Message: message}, now)
+	_, err := r.Ctrl.Objects().UpdateStatus(ctx, obj, status)
+	if errors.Is(err, controller.ErrNotFound) {
+		return nil
+	}
+	return err
+}

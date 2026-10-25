@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-cty-funcs/filesystem"
 	"github.com/hashicorp/hcl/v2"
@@ -60,15 +61,61 @@ type objectKindHCL struct {
 }
 
 type objectKindBodyHCL struct {
-	Name        string                `hcl:"name,label"`
-	Group       string                `hcl:"group"`
-	Description string                `hcl:"description,optional"`
-	Namespaced  *bool                 `hcl:"namespaced,optional"`
-	Schema      string                `hcl:"schema"`
-	Rules       []*objectKindRuleHCL  `hcl:"rule,block"`
-	Columns     *objectKindColumnsHCL `hcl:"columns,block"`
-	Scale       *objectKindScaleHCL   `hcl:"scale,block"`
-	Replicated  bool                  `hcl:"replicated,optional"`
+	Name        string                  `hcl:"name,label"`
+	Group       string                  `hcl:"group"`
+	Description string                  `hcl:"description,optional"`
+	Namespaced  *bool                   `hcl:"namespaced,optional"`
+	Schema      string                  `hcl:"schema"`
+	Rules       []*objectKindRuleHCL    `hcl:"rule,block"`
+	Columns     *objectKindColumnsHCL   `hcl:"columns,block"`
+	Scale       *objectKindScaleHCL     `hcl:"scale,block"`
+	Replicated  bool                    `hcl:"replicated,optional"`
+	Version     uint64                  `hcl:"version,optional"`
+	Migration   *objectKindMigrationHCL `hcl:"migration,block"`
+	Webhooks    []*objectKindWebhookHCL `hcl:"webhook,block"`
+	Limits      *objectKindLimitsHCL    `hcl:"limits,block"`
+}
+
+// objectKindMigrationHCL converts objects stored at older schema versions:
+//
+//	migration {
+//	  spec   = "self.spec.omit(['port']).merge({'ports': [self.spec.port]})"
+//	  status = "{}"
+//	}
+type objectKindMigrationHCL struct {
+	Spec   string `hcl:"spec,optional"`
+	Status string `hcl:"status,optional"`
+}
+
+// objectKindWebhookHCL is a type-bound admission webhook:
+//
+//	webhook "validate" {
+//	  mode           = "validate"   # or "default"
+//	  url            = "https://lb-webhook.service.consul:8443/validate"
+//	  ca_cert        = file("ca.pem")
+//	  timeout        = "5s"
+//	  failure_policy = "fail"       # or "ignore"
+//	  operations     = ["create", "update"]
+//	}
+type objectKindWebhookHCL struct {
+	Name          string   `hcl:"name,label"`
+	Mode          string   `hcl:"mode,optional"`
+	URL           string   `hcl:"url"`
+	CACert        string   `hcl:"ca_cert,optional"`
+	TLSServerName string   `hcl:"tls_server_name,optional"`
+	Timeout       string   `hcl:"timeout,optional"`
+	FailurePolicy string   `hcl:"failure_policy,optional"`
+	Operations    []string `hcl:"operations,optional"`
+}
+
+// objectKindLimitsHCL is the load management of the objects of a kind.
+type objectKindLimitsHCL struct {
+	WriteRate              float64 `hcl:"write_rate,optional"`
+	WriteBurst             int     `hcl:"write_burst,optional"`
+	IdentityWriteRate      float64 `hcl:"identity_write_rate,optional"`
+	IdentityWriteBurst     int     `hcl:"identity_write_burst,optional"`
+	MaxObjectsPerNamespace int     `hcl:"max_objects_per_namespace,optional"`
+	MaxWatchesPerIdentity  int     `hcl:"max_watches_per_identity,optional"`
 }
 
 type objectKindRuleHCL struct {
@@ -129,6 +176,39 @@ func ParseObjectKind(path string, content []byte, jsonInput bool) (*api.ObjectKi
 	}
 	if body.Scale != nil {
 		kind.Scale = &api.ObjectKindScale{SpecPath: body.Scale.SpecPath, StatusPath: body.Scale.StatusPath}
+	}
+	kind.Version = body.Version
+	if m := body.Migration; m != nil {
+		kind.Migration = &api.ObjectKindMigration{Spec: m.Spec, Status: m.Status}
+	}
+	for _, w := range body.Webhooks {
+		hook := &api.ObjectKindWebhook{
+			Name:          w.Name,
+			Mode:          w.Mode,
+			URL:           w.URL,
+			CACert:        w.CACert,
+			TLSServerName: w.TLSServerName,
+			FailurePolicy: w.FailurePolicy,
+			Operations:    w.Operations,
+		}
+		if w.Timeout != "" {
+			d, err := time.ParseDuration(w.Timeout)
+			if err != nil {
+				return nil, fmt.Errorf("webhook %q: invalid timeout: %w", w.Name, err)
+			}
+			hook.Timeout = d
+		}
+		kind.Webhooks = append(kind.Webhooks, hook)
+	}
+	if l := body.Limits; l != nil {
+		kind.Limits = &api.ObjectKindLimits{
+			WriteRate:              l.WriteRate,
+			WriteBurst:             l.WriteBurst,
+			IdentityWriteRate:      l.IdentityWriteRate,
+			IdentityWriteBurst:     l.IdentityWriteBurst,
+			MaxObjectsPerNamespace: l.MaxObjectsPerNamespace,
+			MaxWatchesPerIdentity:  l.MaxWatchesPerIdentity,
+		}
 	}
 	return kind, nil
 }
