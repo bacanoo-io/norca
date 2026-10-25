@@ -9,7 +9,9 @@ and uninstall it. Rendering stays on the client. See the
 - [Quick start](#quick-start)
 - [Releases and revisions](#releases-and-revisions)
 - [Extended package format](#extended-package-format)
+- [Variables schema](#variables-schema)
 - [Install, upgrade, rollback, uninstall](#install-upgrade-rollback-uninstall)
+- [Multi-region installs](#multi-region-installs)
 - [Atomic mode and production namespaces](#atomic-mode-and-production-namespaces)
 - [Hooks and tests](#hooks-and-tests)
 - [Drift detection](#drift-detection)
@@ -111,6 +113,58 @@ Jobs without `namespace` or `region` belong to the namespace and region of the r
 resources of a release must be in its region; jobs with a `multiregion` block use the multiregion
 deployment as usual.
 
+## Variables schema
+
+A pack can describe its variables with a JSON Schema (draft 2020-12 unless the schema declares
+another draft with `$schema`) in `metadata.hcl`:
+
+```hcl
+pack {
+  name    = "redis"
+  version = "0.3.0"
+}
+
+variables_schema = file("values.schema.json")
+```
+
+`file()` reads a file of the pack (paths can't leave the pack directory); an inline string works
+too. The schema describes the object of the variable values by variable name, after defaults,
+variable files, `--var` and environment overrides are applied; variables without a value are left
+out, so `required` reports unset variables:
+
+```json
+{
+  "type": "object",
+  "required": ["image"],
+  "properties": {
+    "app_count": {"type": "integer", "minimum": 1, "maximum": 3},
+    "image": {"type": "string", "pattern": "^redis:"},
+    "resources": {
+      "type": "object",
+      "properties": {"cpu": {"type": "number", "maximum": 4000}}
+    }
+  }
+}
+```
+
+`render`, `plan`, `run` and `upgrade` validate the values before rendering and stop with the path
+of every failing variable:
+
+```text
+! invalid variable values
+!   Error: the variables of pack "redis" do not match its variables_schema: at /app_count:
+!   maximum: got 5, want 3; at /resources/cpu: maximum: got 9000, want 4000
+```
+
+Every pack of the dependency tree can have its own schema; its values are those of the pack (its
+path, such as `app.redis`, names it in errors). The release request carries the schemas and the
+effective values, the servers validate them again with the same validator as the schemas of
+object kinds (so releases applied through the API keep to the schemas too) and store the schemas
+in the revision (`spec.variablesSchemas`; a rollback keeps them). The effective values are never
+stored, as they can contain secrets; the revision keeps only the redacted overrides as before.
+Schemas must be self-contained (`#/$defs/...` references only) and are limited to 64 KiB per
+release. A schema that doesn't compile is rejected when the pack is loaded.
+
 ## Install, upgrade, rollback, uninstall
 
 The leader runs one operation per release at a time (a second one gets `409 Conflict`):
@@ -132,6 +186,59 @@ order, runs the `post-delete` hooks and deletes the release; `--orphan` keeps th
 `--no-hooks` skips the hooks.
 
 An operation interrupted by a leader change is marked `failed` by the new leader.
+
+## Multi-region installs
+
+A release lives in a region, like every other object; `--region` installs it in another region.
+`--regions` (or `regions` in `metadata.hcl`; the flag wins) installs it in several regions in one
+operation:
+
+```shell
+norca pack run redis --registry=community --name=cache --regions=eu-aws,eu-gcp
+norca pack plan redis --registry=community --name=cache --regions=eu-aws,eu-gcp
+norca pack status redis --registry=community --name=cache   # one row per region
+norca pack history cache                                     # the revisions of every region
+norca pack uninstall cache --all-regions                     # or --regions=eu-gcp
+```
+
+```hcl
+# metadata.hcl
+regions = ["eu-aws", "eu-gcp"]
+```
+
+The region that receives the request coordinates it: it sends the release to the leader of every
+region in turn over the cross-region RPC forwarding, and prints one result per region. Each region
+applies it as an ordinary release operation of its own, with its own release object, revisions,
+atomic mode, hooks and drift detection; `spec.multiregion` of every release records the regions
+of the install and its global region.
+
+- **Order and global resources.** Namespaces, quotas and ACL policies are global: the servers
+  write them in the authoritative region and replicate them to the others. They are applied and
+  owned only by the release of the **global region**, the authoritative region if it is one of the
+  regions (otherwise the first region given, whose writes the servers forward to the authoritative
+  region). The global region goes first; the other regions show these resources as `remote` in
+  their changes and wait (up to a minute, then with a warning) until the replicated copies match
+  before they apply their own resources. Replication needs ACLs enabled, as in Nomad.
+- **Jobs with a `multiregion` block** use Norca's multiregion deployment: the release of the first
+  region of the install that the job lists registers it, which registers it in all regions of the
+  job with the same version and rolls it out region by region. The releases of the other listed
+  regions **adopt** their copy: they own it (drift detection, uninstall) and wait for it, but
+  don't register it. A job that lists none of the regions is registered by the global region.
+  Upgrade multiregion jobs through the install (or the submitting region).
+- **Other resources** (Variables, object kinds, admission policies, objects, jobs without a
+  `multiregion` block) are applied in every region. Jobs without `region` (or with `region =
+  "global"`) are placed in each region; a job naming another region is rejected.
+- **Partial success.** A failure in one region (including a restore by atomic mode, which is per
+  region) doesn't affect the releases of the other regions; the remaining regions are still
+  applied. The command exits with 1 and the failed regions in the table; the request fails only
+  if every region failed.
+- **Per-region operations.** `upgrade`, `rollback` and `test` of a single region (`--region`) keep
+  the division of work recorded in the release. Revision numbers are per region and may differ
+  after failures, so `rollback` has no `--regions`. `uninstall --all-regions` (or `--regions`)
+  uninstalls in reverse order, the global region last; `uninstall` alone uninstalls the local
+  release and warns that the install has other regions.
+
+The token must be valid in every region: with ACLs, use a global token.
 
 ## Atomic mode and production namespaces
 
@@ -241,7 +348,7 @@ and rollback work for client-side deployments as well.
 | Operation | HTTP |
 | --- | --- |
 | List, details | `GET /v1/releases?namespace=`, `GET /v1/release/:name` |
-| Install, upgrade | `PUT /v1/release/:name` (body: `Pack`, `Resources`, `Secrets`, `Atomic`, `Wait`, `Timeout`, `TakeOwnership`, `MaxHistory`, `RecordOnly`) |
+| Install, upgrade | `PUT /v1/release/:name` (body: `Pack`, `Resources`, `Secrets`, `Atomic`, `Wait`, `Timeout`, `TakeOwnership`, `MaxHistory`, `RecordOnly`, `VariablesSchemas`, `VariableValues`, `Regions`; with `Regions` the response has `Regions`, one result per region) |
 | Plan | `POST /v1/release/:name/plan` |
 | Revisions | `GET /v1/release/:name/history`, `GET /v1/release/:name/revision/:n` |
 | Rollback | `POST /v1/release/:name/rollback` (`Revision`, `Atomic`, `Wait`, `Timeout`, `DryRun`) |
