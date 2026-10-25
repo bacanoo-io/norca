@@ -1,0 +1,14 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A badge. @color is a Tabler color (green, red, orange, yellow, blue, azure,
+  purple, secondary...); the light variant is the default, @solid={{true}}
+  gives the filled one.
+
+    <Ui::Badge @color="green">running</Ui::Badge>
+--}}
+<span
+  class="badge {{if @solid (concat 'bg-' (or @color 'secondary') ' text-' (or @color 'secondary') '-fg') (concat 'bg-' (or @color 'secondary') '-lt')}}"
+  ...attributes
+>{{#if @icon}}<Ui::Icon @name={{@icon}} @size="sm" class="me-1" />{{/if}}{{yield}}</span>

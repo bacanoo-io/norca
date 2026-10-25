@@ -4,7 +4,7 @@
  */
 
 /* eslint-disable ember/no-string-prototype-extensions */
-import { run } from '@ember/runloop';
+import { _cancelTimers as cancelTimers, later } from '@ember/runloop';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { find, render, settled } from '@ember/test-helpers';
@@ -65,7 +65,7 @@ module('Integration | Component | agent-monitor', function (hooks) {
       client: { id: 'client1' },
     });
 
-    run.later(run, run.cancelTimers, INTERVAL);
+    later(cancelTimers, INTERVAL);
 
     await render(commonTemplate);
 
@@ -83,7 +83,7 @@ module('Integration | Component | agent-monitor', function (hooks) {
       client: { id: 'client1', region: 'us-west-1' },
     });
 
-    run.later(run, run.cancelTimers, INTERVAL);
+    later(cancelTimers, INTERVAL);
 
     await render(commonTemplate);
 
@@ -101,7 +101,7 @@ module('Integration | Component | agent-monitor', function (hooks) {
       server: { id: 'server1', region: 'us-west-1' },
     });
 
-    run.later(run, run.cancelTimers, INTERVAL);
+    later(cancelTimers, INTERVAL);
 
     await render(commonTemplate);
 
@@ -123,12 +123,12 @@ module('Integration | Component | agent-monitor', function (hooks) {
       onLevelChange,
     });
 
-    run.later(run, run.cancelTimers, INTERVAL);
+    later(cancelTimers, INTERVAL);
 
     await render(commonTemplate);
 
     const contentId = await selectOpen('[data-test-level-switcher-parent]');
-    run.later(run, run.cancelTimers, INTERVAL);
+    later(cancelTimers, INTERVAL);
     await selectOpenChoose(contentId, capitalize(newLevel));
     await settled();
 
@@ -149,7 +149,7 @@ module('Integration | Component | agent-monitor', function (hooks) {
       onLevelChange,
     });
 
-    run.later(run, run.cancelTimers, INTERVAL);
+    later(cancelTimers, INTERVAL);
 
     await render(commonTemplate);
 
@@ -159,7 +159,7 @@ module('Integration | Component | agent-monitor', function (hooks) {
     );
 
     const contentId = await selectOpen('[data-test-level-switcher-parent]');
-    run.later(run, run.cancelTimers, INTERVAL);
+    later(cancelTimers, INTERVAL);
     await selectOpenChoose(contentId, capitalize(newLevel));
     await settled();
 
@@ -195,14 +195,14 @@ module('Integration | Component | agent-monitor', function (hooks) {
       onLevelChange,
     });
 
-    run.later(run, run.cancelTimers, INTERVAL);
+    later(cancelTimers, INTERVAL);
 
     await render(commonTemplate);
 
     assert.equal(find('[data-test-log-cli]').textContent, '');
 
     const contentId = await selectOpen('[data-test-level-switcher-parent]');
-    run.later(run, run.cancelTimers, INTERVAL);
+    later(cancelTimers, INTERVAL);
     await selectOpenChoose(contentId, capitalize(newLevel));
     await settled();
 

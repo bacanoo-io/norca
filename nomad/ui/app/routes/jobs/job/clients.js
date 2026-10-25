@@ -12,6 +12,7 @@ import {
   watchAll,
 } from 'nomad-ui/utils/properties/watch';
 import { collect } from '@ember/object/computed';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 export default class ClientsRoute extends Route.extend(WithWatchers) {
   @service can;
@@ -19,7 +20,7 @@ export default class ClientsRoute extends Route.extend(WithWatchers) {
 
   beforeModel() {
     if (this.can.cannot('read client')) {
-      this.transitionTo('jobs.job');
+      legacyTransitionTo(this, 'jobs.job');
     }
   }
 

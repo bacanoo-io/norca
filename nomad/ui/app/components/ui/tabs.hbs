@@ -1,0 +1,59 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.isRouteBased}}
+  <nav aria-label={{or @label "Sections"}} ...attributes>
+    <ul class="nav nav-tabs {{if @inCard 'card-header-tabs'}}">
+      {{#each this.tabs as |tab|}}
+        <li class="nav-item">
+          <LinkTo
+            @route={{tab.route}}
+            @models={{tab.models}}
+            @query={{tab.query}}
+            class="nav-link"
+            data-test-tab={{tab.id}}
+          >
+            {{#if tab.icon}}<Ui::Icon @name={{tab.icon}} class="me-2" />{{/if}}
+            {{tab.label}}
+            {{#if (not-eq tab.count undefined)}}
+              <span class="badge bg-secondary-lt ms-2">{{tab.count}}</span>
+            {{/if}}
+          </LinkTo>
+        </li>
+      {{/each}}
+    </ul>
+  </nav>
+{{else}}
+  {{! template-lint-disable no-invalid-interactive no-down-event-binding no-invalid-role }}
+  <ul
+    class="nav nav-tabs {{if @inCard 'card-header-tabs'}}"
+    role="tablist"
+    aria-label={{@label}}
+    {{on "keydown" this.keydown}}
+    ...attributes
+  >
+    {{#each this.tabs as |tab|}}
+      {{! the list items are presentational inside a tablist (WAI-ARIA tabs) }}
+      <li class="nav-item" role="presentation">
+        <button
+          type="button"
+          role="tab"
+          class="nav-link {{if tab.isSelected 'active'}}"
+          aria-selected={{if tab.isSelected "true" "false"}}
+          aria-controls={{@panelId}}
+          tabindex={{if tab.isSelected "0" "-1"}}
+          disabled={{tab.disabled}}
+          data-test-tab={{tab.id}}
+          {{on "click" (fn this.select tab)}}
+        >
+          {{#if tab.icon}}<Ui::Icon @name={{tab.icon}} class="me-2" />{{/if}}
+          {{tab.label}}
+          {{#if (not-eq tab.count undefined)}}
+            <span class="badge bg-secondary-lt ms-2">{{tab.count}}</span>
+          {{/if}}
+        </button>
+      </li>
+    {{/each}}
+  </ul>
+{{/if}}

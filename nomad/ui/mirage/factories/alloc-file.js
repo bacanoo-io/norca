@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { Factory, trait } from 'ember-cli-mirage';
+import { Factory, trait } from 'miragejs';
 import { dasherize } from '@ember/string';
 import faker from 'nomad-ui/mirage/faker';
 import { pickOne } from '../utils';

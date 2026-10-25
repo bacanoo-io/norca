@@ -1,0 +1,16 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="mb-3" data-test-field ...attributes>
+  {{#if @label}}
+    <label class="form-label {{if @required 'required'}}" for={{this.id}} data-test-field-label>{{@label}}</label>
+  {{/if}}
+  {{yield (hash id=this.id describedBy=this.describedBy invalid=(if @error true false))}}
+  {{#if @error}}
+    <div class="invalid-feedback d-block" id={{this.errorId}} data-test-field-error>{{@error}}</div>
+  {{/if}}
+  {{#if @help}}
+    <small class="form-hint" id={{this.helpId}} data-test-field-help>{{@help}}</small>
+  {{/if}}
+</div>

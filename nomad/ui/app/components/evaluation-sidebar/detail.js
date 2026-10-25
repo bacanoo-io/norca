@@ -6,8 +6,8 @@
 import { action } from '@ember/object';
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
-import d3 from 'd3';
-import { matchesState } from 'ember-statecharts';
+import { stratify } from 'd3-hierarchy';
+import { matchesState } from 'nomad-ui/utils/statechart';
 
 export default class Detail extends Component {
   get statechart() {
@@ -45,8 +45,7 @@ export default class Detail extends Component {
       const data = this.currentEvalDetail?.relatedEvals;
 
       if (data) {
-        return d3
-          .stratify()
+        return stratify()
           .id((d) => {
             return d.id;
           })

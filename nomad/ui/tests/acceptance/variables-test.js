@@ -13,10 +13,8 @@ import {
   visit,
 } from '@ember/test-helpers';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import {
-  selectChoose,
-  clickTrigger,
-} from 'ember-power-select/test-support/helpers';
+import { selectChoose } from 'ember-power-select/test-support';
+import { clickTrigger } from 'ember-power-select/test-support/helpers';
 import { setupApplicationTest } from 'ember-qunit';
 import { module, test } from 'qunit';
 import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
@@ -368,7 +366,7 @@ module('Acceptance | variables', function (hooks) {
     await typeIn('.path-input', 'foo/bar');
     await click('button[type="submit"]');
     assert.dom('.flash-message.alert-critical').exists();
-    await click('.flash-message.alert-critical .hds-dismiss-button');
+    await click('.flash-message.alert-critical [data-test-toast-dismiss]');
     assert.dom('.flash-message.alert-critical').doesNotExist();
 
     await typeIn('.key-value label:nth-child(1) input', 'myKey');

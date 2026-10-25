@@ -1,0 +1,22 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A checkbox or a switch (@switch={{true}}). @onChange receives the new
+  checked state.
+
+    <Ui::Switch @switch={{true}} @label="Live updates" @checked={{this.live}} @onChange={{this.setLive}} />
+--}}
+<label class="form-check {{if @switch 'form-switch'}} {{if @inline 'form-check-inline'}}" data-test-switch ...attributes>
+  <input
+    class="form-check-input"
+    type="checkbox"
+    role={{if @switch "switch"}}
+    checked={{@checked}}
+    disabled={{@disabled}}
+    data-test-switch-input
+    {{on "change" this.change}}
+  />
+  <span class="form-check-label">{{@label}}</span>
+  {{#if @help}}<span class="form-check-description">{{@help}}</span>{{/if}}
+</label>

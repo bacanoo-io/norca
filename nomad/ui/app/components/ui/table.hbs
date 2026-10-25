@@ -1,0 +1,57 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{! template-lint-disable no-down-event-binding }}
+<div class="table-responsive">
+  <table
+    class="table table-vcenter {{if @inCard 'card-table'}} {{if @striped 'table-striped'}}"
+    data-test-ui-table
+    ...attributes
+  >
+    {{#if @caption}}<caption class="visually-hidden">{{@caption}}</caption>{{/if}}
+    <thead>
+      <tr>
+        {{#each this.columns as |column|}}
+          <th
+            scope="col"
+            class={{column.class}}
+            aria-sort={{column.ariaSort}}
+            data-test-ui-table-header={{column.key}}
+          >
+            {{#if column.sortable}}
+              <button
+                type="button"
+                class="table-sort {{if column.isSorted (if @sortDescending 'desc' 'asc')}}"
+                {{on "click" (fn this.sort column)}}
+              >{{column.label}}</button>
+            {{else}}
+              {{column.label}}
+            {{/if}}
+          </th>
+        {{/each}}
+      </tr>
+    </thead>
+    <tbody>
+      {{#each @rows as |row index|}}
+        {{#if @onRowClick}}
+          <tr
+            class="cursor-pointer"
+            tabindex="0"
+            data-test-ui-table-row
+            {{on "click" (fn @onRowClick row)}}
+            {{on "keydown" (fn this.rowKeydown row)}}
+          >{{yield row index}}</tr>
+        {{else}}
+          <tr data-test-ui-table-row>{{yield row index}}</tr>
+        {{/if}}
+      {{else}}
+        <tr>
+          <td colspan={{this.columns.length}} class="text-center text-secondary py-4" data-test-ui-table-empty>
+            {{or @emptyMessage "Nothing to show."}}
+          </td>
+        </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>

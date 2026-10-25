@@ -1,0 +1,32 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The global frame: left menu, top bar, page content. Pages that are not
+  migrated to the component layer yet render inside the `.legacy` scope
+  (Bulma styles, light theme, breadcrumbs from the breadcrumbs service);
+  migrated pages set the legacy argument to false and render their own Ui::PageHeader.
+~}}
+<div
+  class="page page-layout norca-shell {{if this.frame.sidebarCollapsed 'norca-sidebar-collapsed'}}"
+  data-test-frame
+>
+  <a class="visually-hidden-focusable norca-skip-link" href="#main-content">Skip to content</a>
+  <Frame::Sidebar />
+  <div class="page-wrapper">
+    <Frame::Topbar />
+    <main id="main-content" class="norca-main" tabindex="-1" data-test-page-content>
+      {{#if (eq @legacy false)}}
+        {{yield}}
+      {{else}}
+        <Frame::Breadcrumbs />
+        <div class="legacy norca-legacy-page" data-bs-theme="light" data-test-legacy-scope>
+          {{yield}}
+        </div>
+      {{/if}}
+    </main>
+  </div>
+</div>
+{{#if this.frame.paletteOpen}}
+  <Frame::CommandPalette />
+{{/if}}

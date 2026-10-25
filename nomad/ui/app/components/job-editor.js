@@ -5,6 +5,7 @@
 
 // @ts-check
 import Component from '@glimmer/component';
+import { schedule } from '@ember/runloop';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
 import { task } from 'ember-concurrency';
@@ -33,16 +34,24 @@ export default class JobEditor extends Component {
   constructor() {
     super(...arguments);
 
-    if (this.definition) {
-      this.setDefinitionOnModel();
-    }
+    // The job model is updated after the first render: setting attributes
+    // of a record while it renders invalidates state that the render already
+    // read (Ember Data 4.12 / Ember 6 assert on that).
+    schedule('actions', this, () => {
+      if (this.isDestroying || this.isDestroyed) return;
+      if (this.definition) {
+        this.setDefinitionOnModel();
+      }
 
-    if (this.args.variables) {
-      this.args.job.set(
-        '_newDefinitionVariables',
-        jsonToHcl(this.args.variables.flags).concat(this.args.variables.literal)
-      );
-    }
+      if (this.args.variables) {
+        this.args.job.set(
+          '_newDefinitionVariables',
+          jsonToHcl(this.args.variables.flags).concat(
+            this.args.variables.literal
+          )
+        );
+      }
+    });
   }
 
   /**

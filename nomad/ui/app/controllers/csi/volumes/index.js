@@ -13,6 +13,7 @@ import Searchable from 'nomad-ui/mixins/searchable';
 import { lazyClick } from 'nomad-ui/helpers/lazy-click';
 import { serialize } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 @classic
 export default class IndexController extends Controller.extend(
@@ -114,7 +115,8 @@ export default class IndexController extends Controller.extend(
   gotoVolume(volume, event) {
     lazyClick([
       () =>
-        this.transitionToRoute(
+        legacyTransitionTo(
+          this,
           'csi.volumes.volume',
           volume.get('idWithNamespace')
         ),

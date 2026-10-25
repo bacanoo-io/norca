@@ -1,0 +1,58 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if @multiline}}
+  <textarea
+    id={{@id}}
+    class="form-control {{if @invalid 'is-invalid'}} {{if @monospace 'font-monospace'}}"
+    rows={{or @rows 4}}
+    placeholder={{@placeholder}}
+    disabled={{@disabled}}
+    readonly={{@readonly}}
+    required={{@required}}
+    aria-describedby={{@describedBy}}
+    aria-invalid={{if @invalid "true"}}
+    value={{@value}}
+    data-test-input
+    {{on "input" this.input}}
+    ...attributes
+  ></textarea>
+{{else if @icon}}
+  <div class="input-icon">
+    <span class="input-icon-addon"><Ui::Icon @name={{@icon}} /></span>
+    <input
+      id={{@id}}
+      type={{this.type}}
+      class="form-control {{if @invalid 'is-invalid'}}"
+      placeholder={{@placeholder}}
+      disabled={{@disabled}}
+      readonly={{@readonly}}
+      required={{@required}}
+      autocomplete={{or @autocomplete "off"}}
+      aria-describedby={{@describedBy}}
+      aria-invalid={{if @invalid "true"}}
+      value={{@value}}
+      data-test-input
+      {{on "input" this.input}}
+      ...attributes
+    />
+  </div>
+{{else}}
+  <input
+    id={{@id}}
+    type={{this.type}}
+    class="form-control {{if @invalid 'is-invalid'}} {{if @monospace 'font-monospace'}}"
+    placeholder={{@placeholder}}
+    disabled={{@disabled}}
+    readonly={{@readonly}}
+    required={{@required}}
+    autocomplete={{@autocomplete}}
+    aria-describedby={{@describedBy}}
+    aria-invalid={{if @invalid "true"}}
+    value={{@value}}
+    data-test-input
+    {{on "input" this.input}}
+    ...attributes
+  />
+{{/if}}

@@ -3,11 +3,10 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { assign } from '@ember/polyfills';
 import hbs from 'htmlbars-inline-precompile';
 import { findAll, find, render } from '@ember/test-helpers';
 import { module, test } from 'qunit';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import { setupRenderingTest } from 'ember-qunit';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
 import {
@@ -23,7 +22,7 @@ module(
     hooks.beforeEach(function () {
       window.localStorage.clear();
       this.store = this.owner.lookup('service:store');
-      this.server = startMirage();
+      this.server = startMirage(this.owner);
       this.server.create('namespace');
       this.server.create('node-pool');
     });
@@ -33,7 +32,7 @@ module(
     });
 
     const props = (job, options = {}) =>
-      assign(
+      Object.assign(
         {
           job,
           sortProperty: 'name',

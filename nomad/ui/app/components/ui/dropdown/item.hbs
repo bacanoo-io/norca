@@ -1,0 +1,44 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  An item of Ui::Dropdown: a route link (@route, @model/@models, @query), an
+  external link (@href) or a button (attach {{on "click"}}). @tone="danger"
+  marks destructive actions.
+--}}
+{{#if @route}}
+  <LinkTo
+    @route={{@route}}
+    @models={{if @models @models (if (not-eq @model undefined) (array @model) (array))}}
+    @query={{or @query (hash)}}
+    class="dropdown-item {{if (eq @tone 'danger') 'text-danger'}}"
+    data-test-dropdown-item
+    ...attributes
+  >
+    {{#if @icon}}<Ui::Icon @name={{@icon}} class="dropdown-item-icon" />{{/if}}
+    {{yield}}
+  </LinkTo>
+{{else if @href}}
+  <a
+    href={{@href}}
+    class="dropdown-item"
+    target={{if @external "_blank"}}
+    rel={{if @external "noopener noreferrer"}}
+    data-test-dropdown-item
+    ...attributes
+  >
+    {{#if @icon}}<Ui::Icon @name={{@icon}} class="dropdown-item-icon" />{{/if}}
+    {{yield}}
+  </a>
+{{else}}
+  <button
+    type="button"
+    class="dropdown-item {{if (eq @tone 'danger') 'text-danger'}}"
+    disabled={{@disabled}}
+    data-test-dropdown-item
+    ...attributes
+  >
+    {{#if @icon}}<Ui::Icon @name={{@icon}} class="dropdown-item-icon" />{{/if}}
+    {{yield}}
+  </button>
+{{/if}}

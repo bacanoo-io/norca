@@ -12,12 +12,10 @@ import {
   visit,
   settled,
 } from '@ember/test-helpers';
-import { assign } from '@ember/polyfills';
 import { module, test } from 'qunit';
-import {
-  selectChoose,
-  clickTrigger,
-} from 'ember-power-select/test-support/helpers';
+import { notifyPropertyChange } from '@ember/object';
+import { selectChoose } from 'ember-power-select/test-support';
+import { clickTrigger } from 'ember-power-select/test-support/helpers';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
@@ -33,7 +31,7 @@ let managementToken, clientToken;
 
 const jsonJob = (overrides) => {
   return JSON.stringify(
-    assign(
+    Object.assign(
       {},
       {
         Name: newJobName,
@@ -86,7 +84,7 @@ module('Acceptance | job run', function (hooks) {
     await JobRun.visit();
 
     assert.equal(currentURL(), '/jobs/run');
-    assert.equal(document.title, 'Run a job - Nomad');
+    assert.equal(document.title, 'Run a job - Norca');
   });
 
   test('when submitting a job, the site redirects to the new job overview page', async function (assert) {
@@ -375,7 +373,14 @@ module('Acceptance | job run', function (hooks) {
       server.create('namespace', { id: 'test' });
 
       this.system = this.owner.lookup('service:system');
-      this.system.shouldShowNamespaces = true;
+      // shouldShowNamespaces is a computed property without a setter; shadow
+      // it on the instance (Ember 6 no longer lets a set override it).
+      Object.defineProperty(this.system, 'shouldShowNamespaces', {
+        value: true,
+        configurable: true,
+        writable: true,
+      });
+      notifyPropertyChange(this.system, 'shouldShowNamespaces');
 
       // Assert
       assert
@@ -400,7 +405,8 @@ module('Acceptance | job run', function (hooks) {
         );
 
       // Clean-up
-      this.system.shouldShowNamespaces = false;
+      delete this.system.shouldShowNamespaces;
+      notifyPropertyChange(this.system, 'shouldShowNamespaces');
     });
 
     test('a user can save code from the editor as a template', async function (assert) {

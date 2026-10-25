@@ -14,6 +14,7 @@ import {
   deserializedQueryParam as selection,
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 @classic
 export default class AllocationsController extends Controller.extend(
@@ -113,7 +114,7 @@ export default class AllocationsController extends Controller.extend(
   @action
   gotoAllocation(allocation, event) {
     lazyClick([
-      () => this.transitionToRoute('allocations.allocation', allocation.id),
+      () => legacyTransitionTo(this, 'allocations.allocation', allocation.id),
       event,
     ]);
   }

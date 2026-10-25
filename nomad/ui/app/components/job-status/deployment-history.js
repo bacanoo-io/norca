@@ -63,7 +63,7 @@ export default class JobStatusDeploymentHistoryComponent extends Component {
         .map((a) =>
           a
             .get('states')
-            .map((s) => s.events.content)
+            .map((s) => s.events.toArray())
             .flat()
         )
         .flat()

@@ -50,9 +50,7 @@ module('Acceptance | access control', function (hooks) {
     await AccessControl.visit();
 
     assert.equal(currentURL(), '/access-control');
-    assert
-      .dom('[data-test-gutter-link="access-control"]')
-      .hasClass('is-active');
+    assert.dom('[data-test-gutter-link="access-control"]').hasClass('active');
     assert.equal(AccessControl.title, 'Access Control');
 
     assert.equal(

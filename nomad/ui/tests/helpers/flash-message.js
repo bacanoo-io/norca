@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import FlashObject from 'ember-cli-flash/flash/object';
+import { disableTimeout } from 'ember-cli-flash/test-support';
 
-FlashObject.reopen({ init() {} });
+// Flash messages stay until dismissed in tests (their timers would keep
+// settled() waiting and remove the messages before the assertions).
+disableTimeout();

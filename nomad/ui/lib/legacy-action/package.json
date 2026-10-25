@@ -1,0 +1,7 @@
+{
+  "name": "legacy-action",
+  "private": true,
+  "keywords": [
+    "ember-addon"
+  ]
+}

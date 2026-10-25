@@ -22,7 +22,7 @@ module.exports = function (environment) {
     modulePrefix: 'nomad-ui',
     environment: environment,
     rootURL: '/ui/',
-    locationType: 'auto',
+    locationType: 'history',
     EmberENV: {
       FEATURES: {
         // Here you can enable experimental features on an ember canary build
@@ -40,7 +40,6 @@ module.exports = function (environment) {
       mirageWithNamespaces: true,
       mirageWithTokens: true,
       mirageWithRegions: true,
-      showStorybookLink: process.env.STORYBOOK_LINK === 'true',
     },
 
     percy: {
@@ -60,10 +59,9 @@ module.exports = function (environment) {
       excludeFilesFromBuild: !USE_MIRAGE,
     };
 
-    if (process.env.STORYBOOK === 'true') {
-      ENV.APP.autoboot = false;
-      ENV.rootURL = '/';
-    }
+    // Mirage cannot stream: the event stream client (services/event-stream)
+    // only connects to a real agent.
+    ENV.APP.eventStream = !USE_MIRAGE;
   }
 
   if (environment === 'test') {
@@ -76,6 +74,9 @@ module.exports = function (environment) {
 
     ENV.APP.rootElement = '#ember-testing';
     ENV.APP.autoboot = false;
+
+    // Tests enable the event stream client explicitly with a stubbed request.
+    ENV.APP.eventStream = false;
 
     ENV.browserify = {
       tests: true,

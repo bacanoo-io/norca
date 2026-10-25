@@ -4,8 +4,11 @@
  */
 
 import Route from '@ember/routing/route';
+import { inject as service } from '@ember/service';
 
 export default class VariablesNewRoute extends Route {
+  @service store;
+
   async model(params) {
     const namespaces = await this.store.peekAll('namespace');
     return this.store.createRecord('variable', {

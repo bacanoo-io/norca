@@ -6,7 +6,7 @@
 <Trigger @onError={{action this.onError}} @do={{this.fetchParent}} as |trigger|>
   {{did-insert trigger.fns.do}}
   {{#if trigger.data.isBusy}}
-    <li>
+    <li class="breadcrumb-item">
       <a href="#" aria-label="loading" data-test-breadcrumb="loading">
         …
       </a>
@@ -14,7 +14,7 @@
   {{/if}}
   {{#if trigger.data.isSuccess}}
     {{#if (and trigger.data.result this.hasParent)}}
-      <li>
+      <li class="breadcrumb-item">
         <LinkTo
           @route="jobs.job.index"
           @model={{trigger.data.result}}
@@ -31,7 +31,7 @@
         </LinkTo>
       </li>
     {{/if}}
-    <li
+    <li class="breadcrumb-item"
       {{(modifier
         this.maybeKeyboardShortcut
         label="Go up a level"

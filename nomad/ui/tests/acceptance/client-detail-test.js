@@ -15,7 +15,6 @@ import {
   triggerEvent,
   findAll,
 } from '@ember/test-helpers';
-import { assign } from '@ember/polyfills';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -599,7 +598,7 @@ module('Acceptance | client detail', function (hooks) {
 
     const drivers = Object.keys(node.drivers)
       .map((driverName) =>
-        assign({ Name: driverName }, node.drivers[driverName])
+        Object.assign({ Name: driverName }, node.drivers[driverName])
       )
       .sortBy('Name');
 
@@ -657,7 +656,7 @@ module('Acceptance | client detail', function (hooks) {
 
     const driver = Object.keys(node.drivers)
       .map((driverName) =>
-        assign({ Name: driverName }, node.drivers[driverName])
+        Object.assign({ Name: driverName }, node.drivers[driverName])
       )
       .sortBy('Name')[0];
 

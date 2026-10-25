@@ -9,7 +9,6 @@
 @import './components/codemirror';
 @import './components/copy-button';
 @import './components/cli-window';
-@import './components/das-interstitial';
 @import './components/dashboard-metric';
 @import './components/dropdown-nomad-internal';
 @import './components/ember-power-select';
@@ -20,10 +19,6 @@
 @import './components/exec-window';
 @import './components/flex-masonry';
 @import './components/fs-explorer';
-@import './components/global-search-container';
-@import './components/global-search-dropdown';
-@import './components/gutter';
-@import './components/gutter-toggle';
 @import './components/image-file.scss';
 @import './components/inline-definitions';
 @import './components/job-diff';
@@ -33,13 +28,8 @@
 @import './components/loading-spinner';
 @import './components/metrics';
 @import './components/node-status-light';
-@import './components/nomad-logo';
-@import './components/page-layout';
 @import './components/popover-menu';
 @import './components/primary-metric';
-@import './components/recommendation-accordion';
-@import './components/recommendation-card';
-@import './components/recommendation-row';
 @import './components/search-box';
 @import './components/sidebar';
 @import './components/simple-list';

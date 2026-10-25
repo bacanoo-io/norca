@@ -11,7 +11,8 @@ import { alias } from '@ember/object/computed';
 import { action } from '@ember/object';
 import classic from 'ember-classic-decorator';
 import { tracked } from '@glimmer/tracking';
-import Ember from 'ember';
+import { isTesting } from '@ember/debug';
+import { schedule } from '@ember/runloop';
 
 /**
  * @type {RegExp}
@@ -85,11 +86,15 @@ export default class Tokens extends Controller {
     );
   }
 
+  // Called from a {{did-insert}} helper while rendering: the default is
+  // applied after the render (Ember 6 forbids updating state the render read).
   @action
   setCurrentAuthMethod() {
-    if (!this.jwtAuthMethod) {
-      this.jwtAuthMethod = this.defaultJWTAuthMethod?.name;
-    }
+    schedule('actions', this, () => {
+      if (!this.jwtAuthMethod) {
+        this.jwtAuthMethod = this.defaultJWTAuthMethod?.name;
+      }
+    });
   }
 
   /**
@@ -191,7 +196,7 @@ export default class Tokens extends Controller {
     window.localStorage.setItem('nomadOIDCAuthMethod', provider);
 
     let redirectURL;
-    if (Ember.testing) {
+    if (isTesting()) {
       redirectURL = this.router.currentURL;
     } else {
       redirectURL = new URL(window.location.toString());
@@ -206,7 +211,7 @@ export default class Tokens extends Controller {
         RedirectUri: redirectURL,
       })
       .then(({ AuthURL }) => {
-        if (Ember.testing) {
+        if (isTesting()) {
           this.router.transitionTo(AuthURL.split('/ui')[1]);
         } else {
           window.location = AuthURL;
@@ -228,7 +233,7 @@ export default class Tokens extends Controller {
 
   async validateSSO() {
     let redirectURL;
-    if (Ember.testing) {
+    if (isTesting()) {
       redirectURL = this.router.currentURL;
     } else {
       redirectURL = new URL(window.location.toString());

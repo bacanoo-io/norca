@@ -1,0 +1,99 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{keyboard-commands this.regionKeyCommands}}
+<header class="navbar navbar-expand-md d-print-none norca-topbar" data-test-global-header>
+  <div class="container-xl gap-2 flex-wrap">
+    <button
+      type="button"
+      class="btn norca-palette-button"
+      aria-haspopup="dialog"
+      aria-keyshortcuts="Control+K"
+      data-test-palette-open
+      {{on "click" this.frame.openPalette}}
+    >
+      <Ui::Icon @name="search" class="me-2" />
+      <span class="norca-palette-label">Search and commands</span>
+      <kbd class="norca-kbd ms-auto">Ctrl K</kbd>
+    </button>
+
+    {{#if this.uiConfig.Label.Text}}
+      <span class="badge norca-custom-label" style={{this.labelStyle}} data-test-custom-label>
+        {{this.uiConfig.Label.Text}}
+      </span>
+    {{/if}}
+
+    <div class="d-flex gap-2 ms-auto align-items-center flex-wrap norca-topbar-end">
+      {{#if this.system.shouldShowRegions}}
+        <span data-test-region-switcher-parent>
+          <Ui::Select
+            @label="Region"
+            @options={{this.regionOptions}}
+            @value={{this.regionValue}}
+            @onChange={{this.frame.selectRegion}}
+            class="w-auto"
+            data-test-region-switcher
+          />
+        </span>
+      {{/if}}
+      {{#if this.system.shouldShowNamespaces}}
+        <Ui::Select
+          @label="Namespace"
+          @options={{this.namespaceOptions}}
+          @value={{this.frame.namespace}}
+          @onChange={{this.frame.selectNamespace}}
+          class="w-auto"
+          data-test-namespace-switcher
+        />
+      {{/if}}
+
+      <Frame::Notifications />
+
+      <Ui::Button
+        @iconOnly={{true}}
+        @icon={{if (eq this.frame.effectiveTheme "dark") "sun" "moon"}}
+        @label={{if (eq this.frame.effectiveTheme "dark") "Switch to light mode" "Switch to dark mode"}}
+        @variant="ghost"
+        data-test-theme-toggle
+        {{on "click" this.frame.toggleTheme}}
+      />
+
+      {{#if this.token.selfToken}}
+        <Ui::Dropdown @label={{or this.token.selfToken.name "Token"}} @icon="user" @triggerClass="btn-ghost-secondary" data-test-header-profile-dropdown as |dd|>
+          <dd.Header>Signed in</dd.Header>
+          <dd.Header class="text-body" data-test-profile-token-name>{{this.token.selfToken.name}}</dd.Header>
+          <dd.Divider />
+          <dd.Item @route="settings.tokens" @icon="key" data-test-profile-dropdown-profile-link>Profile and token</dd.Item>
+          {{#if this.uiConfig.Consul.BaseUIURL}}
+            <dd.Item @href={{this.uiConfig.Consul.BaseUIURL}} @external={{true}} @icon="external-link" data-test-header-consul-link>Consul</dd.Item>
+          {{/if}}
+          {{#if this.uiConfig.Vault.BaseUIURL}}
+            <dd.Item @href={{this.uiConfig.Vault.BaseUIURL}} @external={{true}} @icon="external-link" data-test-header-vault-link>Vault</dd.Item>
+          {{/if}}
+          <dd.Item @href={{this.legacyURL}} @icon="history" data-test-legacy-ui-link>Previous UI</dd.Item>
+          <dd.Divider />
+          <dd.Item @tone="danger" @icon="logout" data-test-profile-dropdown-sign-out-link {{on "click" this.signOut}}>Sign out</dd.Item>
+        </Ui::Dropdown>
+      {{else}}
+        <Ui::Dropdown @label="More" @icon="dots-vertical" @iconOnly={{true}} @triggerClass="btn-ghost-secondary" data-test-header-more as |dd|>
+          {{#if this.uiConfig.Consul.BaseUIURL}}
+            <dd.Item @href={{this.uiConfig.Consul.BaseUIURL}} @external={{true}} @icon="external-link" data-test-header-consul-link>Consul</dd.Item>
+          {{/if}}
+          {{#if this.uiConfig.Vault.BaseUIURL}}
+            <dd.Item @href={{this.uiConfig.Vault.BaseUIURL}} @external={{true}} @icon="external-link" data-test-header-vault-link>Vault</dd.Item>
+          {{/if}}
+          <dd.Item @href={{this.legacyURL}} @icon="history" data-test-legacy-ui-link>Previous UI</dd.Item>
+        </Ui::Dropdown>
+        {{#if this.aclEnabled}}
+          <Ui::Button
+            @route="settings.tokens"
+            @icon="key"
+            data-test-header-signin-link
+            {{keyboard-shortcut menuLevel=true pattern=(array "g" "p")}}
+          >Sign in</Ui::Button>
+        {{/if}}
+      {{/if}}
+    </div>
+  </div>
+</header>

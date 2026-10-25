@@ -7,7 +7,7 @@ import hbs from 'htmlbars-inline-precompile';
 import { find, click, render } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import { initialize as fragmentSerializerInitializer } from 'nomad-ui/initializers/fragment-serializer';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
 
@@ -18,7 +18,7 @@ module('Integration | Component | job-page/parts/summary', function (hooks) {
     fragmentSerializerInitializer(this.owner);
     window.localStorage.clear();
     this.store = this.owner.lookup('service:store');
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
     this.server.create('namespace');
     this.server.create('node-pool');
   });
@@ -40,7 +40,7 @@ module('Integration | Component | job-page/parts/summary', function (hooks) {
     this.set('job', this.store.peekAll('job').get('firstObject'));
 
     await render(hbs`
-      <JobPage::Parts::Summary @job={{job}} />
+      <JobPage::Parts::Summary @job={{this.job}} />
     `);
 
     assert.ok(
@@ -67,7 +67,7 @@ module('Integration | Component | job-page/parts/summary', function (hooks) {
     this.set('job', this.store.peekAll('job').get('firstObject'));
 
     await render(hbs`
-      <JobPage::Parts::Summary @job={{job}} />
+      <JobPage::Parts::Summary @job={{this.job}} />
     `);
 
     assert.ok(
@@ -92,7 +92,7 @@ module('Integration | Component | job-page/parts/summary', function (hooks) {
     this.set('job', this.store.peekAll('job').get('firstObject'));
 
     await render(hbs`
-      <JobPage::Parts::Summary @job={{job}} />
+      <JobPage::Parts::Summary @job={{this.job}} />
     `);
 
     assert.equal(
@@ -142,7 +142,7 @@ module('Integration | Component | job-page/parts/summary', function (hooks) {
     this.set('job', this.store.peekAll('job').get('firstObject'));
 
     await render(hbs`
-      <JobPage::Parts::Summary @job={{job}} />
+      <JobPage::Parts::Summary @job={{this.job}} />
     `);
 
     assert.equal(
@@ -174,7 +174,7 @@ module('Integration | Component | job-page/parts/summary', function (hooks) {
     this.set('job', this.store.peekAll('job').get('firstObject'));
 
     await render(hbs`
-      <JobPage::Parts::Summary @job={{job}} />
+      <JobPage::Parts::Summary @job={{this.job}} />
     `);
 
     await click('[data-test-accordion-toggle]');
@@ -195,7 +195,7 @@ module('Integration | Component | job-page/parts/summary', function (hooks) {
     await this.set('job', this.store.peekAll('job').get('firstObject'));
 
     await render(hbs`
-      <JobPage::Parts::Summary @job={{job}} />
+      <JobPage::Parts::Summary @job={{this.job}} />
     `);
 
     await click('[data-test-accordion-toggle]');
@@ -222,7 +222,7 @@ module('Integration | Component | job-page/parts/summary', function (hooks) {
     this.set('job', this.store.peekAll('job').get('firstObject'));
 
     await render(hbs`
-      <JobPage::Parts::Summary @job={{job}} />
+      <JobPage::Parts::Summary @job={{this.job}} />
     `);
 
     assert.notOk(
@@ -250,7 +250,7 @@ module('Integration | Component | job-page/parts/summary', function (hooks) {
     this.set('job', this.store.peekAll('job').get('firstObject'));
 
     await render(hbs`
-      <JobPage::Parts::Summary @job={{job}} />
+      <JobPage::Parts::Summary @job={{this.job}} />
     `);
 
     assert.ok(

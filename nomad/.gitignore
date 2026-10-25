@@ -49,6 +49,7 @@ ui/static/base.css
 
 ui/static/application.min.js
 ui/dist/
+/build/ui-legacy/
 
 *.swp
 *.iml

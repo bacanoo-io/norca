@@ -1,0 +1,45 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if @route}}
+  <LinkTo
+    @route={{@route}}
+    @models={{this.models}}
+    @query={{this.query}}
+    @disabled={{this.isDisabled}}
+    class={{this.classes}}
+    aria-label={{if @iconOnly @label}}
+    title={{if @iconOnly @label}}
+    ...attributes
+  >
+    {{#if @icon}}<Ui::Icon @name={{@icon}} class={{unless @iconOnly "me-2"}} />{{/if}}
+    {{#unless @iconOnly}}{{#if (has-block)}}{{yield}}{{else}}{{@label}}{{/if}}{{/unless}}
+  </LinkTo>
+{{else if @href}}
+  <a
+    href={{@href}}
+    class={{this.classes}}
+    target={{if @external "_blank"}}
+    rel={{if @external "noopener noreferrer"}}
+    aria-label={{if @iconOnly @label}}
+    title={{if @iconOnly @label}}
+    ...attributes
+  >
+    {{#if @icon}}<Ui::Icon @name={{@icon}} class={{unless @iconOnly "me-2"}} />{{/if}}
+    {{#unless @iconOnly}}{{#if (has-block)}}{{yield}}{{else}}{{@label}}{{/if}}{{/unless}}
+  </a>
+{{else}}
+  <button
+    type={{this.type}}
+    class={{this.classes}}
+    disabled={{this.isDisabled}}
+    aria-busy={{if @isLoading "true"}}
+    aria-label={{if @iconOnly @label}}
+    title={{if @iconOnly @label}}
+    ...attributes
+  >
+    {{#if @icon}}<Ui::Icon @name={{@icon}} class={{unless @iconOnly "me-2"}} />{{/if}}
+    {{#unless @iconOnly}}{{#if (has-block)}}{{yield}}{{else}}{{@label}}{{/if}}{{/unless}}
+  </button>
+{{/if}}

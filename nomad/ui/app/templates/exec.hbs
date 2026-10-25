@@ -2,12 +2,13 @@
   Copyright (c) HashiCorp, Inc.
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
 {{page-title "Exec"}}
+{{! A full-screen page outside the frame, not migrated yet. }}
+<div class="legacy norca-legacy-fullscreen" data-bs-theme="light">
 <nav class="navbar is-popup">
   <div class="navbar-brand">
     <div class="navbar-item is-logo">
-      <NomadLogo />
+      <strong class="norca-exec-brand">Norca</strong>
     </div>
   </div>
     {{#if this.system.shouldShowRegions}}
@@ -29,7 +30,6 @@
       <span data-test-job>{{this.model.name}}</span>
     </div>
   <div class="navbar-end">
-    <a href="https://nomadproject.io/docs" target="_blank" rel="noopener noreferrer" class="navbar-item">Documentation</a>
     {{x-icon "lock-closed"}}
   </div>
 </nav>
@@ -61,3 +61,4 @@
     <ExecTerminal @terminal={{this.terminal}} />
   </div>
 {{/if}}
+</div>

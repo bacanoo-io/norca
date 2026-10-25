@@ -7,6 +7,7 @@ import Controller from '@ember/controller';
 import { inject as service } from '@ember/service';
 import { action, computed } from '@ember/object';
 import { qpBuilder } from 'nomad-ui/utils/classes/query-params';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 export default class VolumeController extends Controller {
   // Used in the template
@@ -60,6 +61,6 @@ export default class VolumeController extends Controller {
 
   @action
   gotoAllocation(allocation) {
-    this.transitionToRoute('allocations.allocation', allocation.id);
+    legacyTransitionTo(this, 'allocations.allocation', allocation.id);
   }
 }

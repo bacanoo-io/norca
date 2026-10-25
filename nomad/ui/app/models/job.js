@@ -153,8 +153,6 @@ export default class Job extends Model {
   @belongsTo('job-scale') scaleState;
   @hasMany('services') services;
 
-  @hasMany('recommendation-summary') recommendationSummaries;
-
   @computed('taskGroups.@each.drivers')
   get drivers() {
     return this.taskGroups
@@ -355,7 +353,7 @@ export default class Job extends Model {
   // that will be submitted to the create job endpoint, another prop is necessary.
   @attr('string') _newDefinitionJSON;
 
-  @computed('variables.[]', 'parent', 'plainId')
+  // Not cached: autotracking follows the async variables relationship.
   get pathLinkedVariable() {
     if (this.parent.get('id')) {
       return this.variables?.findBy(

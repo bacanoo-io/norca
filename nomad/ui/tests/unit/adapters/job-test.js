@@ -4,12 +4,10 @@
  */
 
 import { next } from '@ember/runloop';
-import { assign } from '@ember/polyfills';
 import { settled } from '@ember/test-helpers';
 import { setupTest } from 'ember-qunit';
 import { module, test } from 'qunit';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
-import { AbortController } from 'fetch';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import { TextEncoderLite } from 'text-encoder-lite';
 import base64js from 'base64-js';
 import addToPath from 'nomad-ui/utils/add-to-path';
@@ -26,7 +24,7 @@ module('Unit | Adapter | Job', function (hooks) {
     window.sessionStorage.clear();
     window.localStorage.clear();
 
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
 
     this.initializeUI = async ({ region, namespace } = {}) => {
       if (namespace) window.localStorage.nomadActiveNamespace = namespace;
@@ -682,7 +680,7 @@ module('Unit | Adapter | Job', function (hooks) {
 });
 
 function makeMockModel(id, options) {
-  return assign(
+  return Object.assign(
     {
       relationshipFor(name) {
         return {

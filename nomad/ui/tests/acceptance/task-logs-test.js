@@ -10,7 +10,7 @@ import {
   findAll,
   triggerKeyEvent,
 } from '@ember/test-helpers';
-import { run } from '@ember/runloop';
+import { _cancelTimers as cancelTimers, later } from '@ember/runloop';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -40,7 +40,7 @@ module('Acceptance | task logs', function (hooks) {
     });
     task = server.db.taskStates.where({ allocationId: allocation.id })[0];
 
-    run.later(run, run.cancelTimers, 1000);
+    later(cancelTimers, 1000);
   });
 
   test('it passes an accessibility audit', async function (assert) {
@@ -80,15 +80,15 @@ module('Acceptance | task logs', function (hooks) {
     assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
     assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 100);
     await click('[data-test-word-wrap-toggle]');
     assert.dom('[data-test-word-wrap-toggle]').isChecked();
     assert.dom('[data-test-output]').hasClass('wrapped');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 100);
     await click('[data-test-word-wrap-toggle]');
     assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
@@ -104,8 +104,8 @@ module('Acceptance | task logs', function (hooks) {
       name: task.name,
     });
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 500);
 
     const taskRow = [
@@ -119,8 +119,8 @@ module('Acceptance | task logs', function (hooks) {
     assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
     assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 500);
 
     // type "ww" to trigger word wrap
@@ -131,8 +131,8 @@ module('Acceptance | task logs', function (hooks) {
     assert.dom('[data-test-word-wrap-toggle]').isChecked();
     assert.dom('[data-test-output]').hasClass('wrapped');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 100);
 
     triggerKeyEvent('.sidebar', 'keydown', W_KEY);
@@ -151,8 +151,8 @@ module('Acceptance | task logs', function (hooks) {
     });
     assert.notOk(TaskLogs.sidebarIsPresent, 'Sidebar is not present');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 500);
 
     const taskRow = [

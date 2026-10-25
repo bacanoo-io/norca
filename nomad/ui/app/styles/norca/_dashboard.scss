@@ -1,0 +1,76 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// The federation strip: one column per region in the region's color. It is
+// the dashboard's single emphasized element (UI plan, visual direction).
+.norca-federation {
+  display: grid;
+  grid-template-columns: repeat(var(--norca-columns, 1), minmax(0, 1fr));
+
+  .norca-federation-column {
+    padding: 1.1rem 1.25rem 1.25rem;
+    border-top: 5px solid var(--norca-region-color, var(--tblr-secondary));
+  }
+
+  .norca-federation-column + .norca-federation-column {
+    border-left: 1px solid var(--tblr-border-color);
+  }
+
+  .norca-federation-name {
+    font-size: 1.35rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.75rem;
+  }
+
+  .norca-federation-rows {
+    margin: 0;
+  }
+
+  .norca-federation-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.28rem 0;
+    border-bottom: 1px dashed var(--tblr-border-color);
+    font-size: 0.88rem;
+
+    &:last-child {
+      border-bottom: 0;
+    }
+
+    dt {
+      font-weight: 400;
+    }
+
+    dd {
+      margin: 0;
+      font-weight: 600;
+      text-align: right;
+    }
+  }
+
+  // Allocations: the numbers, then the bar on a line of its own.
+  .norca-federation-row-wrap {
+    flex-wrap: wrap;
+
+    .norca-federation-bar {
+      flex: 1 0 100%;
+      margin-top: 0.25rem;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .norca-federation {
+    grid-template-columns: 1fr;
+
+    .norca-federation-column + .norca-federation-column {
+      border-left: 0;
+      border-top-width: 5px;
+    }
+  }
+}

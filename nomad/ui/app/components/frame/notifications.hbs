@@ -1,0 +1,60 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<span
+  class="d-inline-flex"
+  data-test-notifications
+  {{this.subscribe this.frame.scopedRegions this.frame.namespace this.topics}}
+>
+  <Ui::Dropdown
+    @label="Notifications"
+    @icon="bell"
+    @iconOnly={{true}}
+    @badge={{this.hasUnseen}}
+    @triggerClass="btn-ghost-secondary position-relative"
+    @menuClass="dropdown-menu-card norca-notifications"
+    @onOpen={{this.markSeen}}
+    as |dd|
+  >
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Notifications</h3>
+      </div>
+      {{#if this.items.length}}
+        <div class="list-group list-group-flush">
+          {{#each this.items as |item|}}
+            {{#if item.route}}
+              <dd.Item
+                @route={{item.route}}
+                @model={{item.model}}
+                class="list-group-item list-group-item-action d-flex align-items-start"
+                data-test-notification
+              >
+                <Ui::StatusIndicator @tone={{item.tone}} @dotOnly={{true}} @label={{item.tone}} class="me-2 mt-2" />
+                <span>
+                  <span class="d-block">{{item.title}}</span>
+                  {{#if item.region}}<span class="text-secondary small">{{item.region}}</span>{{/if}}
+                </span>
+              </dd.Item>
+            {{else}}
+              <div class="list-group-item d-flex align-items-start" data-test-notification>
+                <Ui::StatusIndicator @tone={{item.tone}} @dotOnly={{true}} @label={{item.tone}} class="me-2 mt-2" />
+                <span>{{item.title}}</span>
+              </div>
+            {{/if}}
+          {{/each}}
+        </div>
+      {{else}}
+        <div class="card-body">
+          <Ui::EmptyState
+            @compact={{true}}
+            @icon="bell"
+            @title="Nothing needs attention"
+            @message="Failed deployments and allocations, blocked evaluations and clients going down appear here as they happen."
+          />
+        </div>
+      {{/if}}
+    </div>
+  </Ui::Dropdown>
+</span>
