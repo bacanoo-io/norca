@@ -22,6 +22,7 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
 	"github.com/hashicorp/nomad/client/config"
+	"github.com/hashicorp/nomad/client/secrets"
 	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -53,6 +54,15 @@ type TaskTemplateManager struct {
 
 	// lookup allows looking up the set of Nomad templates by their consul-template ID
 	lookup map[string][]*structs.Template
+
+	// hidden are the IDs of the internal templates of the runner that are
+	// not task templates: the trigger of the nomadSecret re-renders.
+	hidden map[string]struct{}
+
+	// secretTrigger is the file whose change makes the templates render
+	// again after a secret of a nomadSecret call changed; "" if there is
+	// none.
+	secretTrigger string
 
 	// runner is the consul-template runner
 	runner *manager.Runner
@@ -115,6 +125,10 @@ type TaskTemplateManagerConfig struct {
 
 	// NomadToken is the Nomad token or identity claim for the task
 	NomadToken string
+
+	// Secrets serves the nomadSecret template function (Norca); nil
+	// leaves the function undefined.
+	Secrets *secrets.TemplateSource
 }
 
 // Validate validates the configuration.
@@ -176,6 +190,14 @@ func NewTaskTemplateManager(config *TaskTemplateManagerConfig) (*TaskTemplateMan
 	}
 	tm.runner = runner
 	tm.lookup = lookup
+	tm.hidden = map[string]struct{}{}
+	for id, tmpls := range lookup {
+		if len(tmpls) == 0 {
+			tm.hidden[id] = struct{}{}
+			delete(tm.lookup, id)
+			tm.secretTrigger = secretTriggerPath(config.TaskDir)
+		}
+	}
 
 	go tm.run()
 	return tm, nil
@@ -218,6 +240,11 @@ func (tm *TaskTemplateManager) run() {
 
 	// Start the runner
 	go tm.runner.Start()
+
+	// Render again when a secret of a nomadSecret call changes (Norca)
+	if tm.secretTrigger != "" && tm.config.Secrets != nil {
+		go tm.relaySecretChanges()
+	}
 
 	// Block till all the templates have been rendered
 	tm.handleFirstRender()
@@ -288,7 +315,7 @@ WAIT:
 			events := tm.runner.RenderEvents()
 
 			// Not all templates have been rendered yet
-			if len(events) < len(tm.lookup) {
+			if len(events) < len(tm.lookup)+len(tm.hidden) {
 				continue
 			}
 
@@ -413,6 +440,12 @@ func (tm *TaskTemplateManager) onTemplateRendered(handledRenders map[string]time
 
 	events := tm.runner.RenderEvents()
 	for id, event := range events {
+
+		// The internal templates have no change mode (Norca)
+		if _, ok := tm.hidden[id]; ok {
+			handledRenders[id] = event.LastDidRender
+			continue
+		}
 
 		// First time through
 		if allRenderedTime.After(event.LastDidRender) || allRenderedTime.Equal(event.LastDidRender) {
@@ -620,6 +653,13 @@ func templateRunner(config *TaskTemplateManagerConfig) (
 		return nil, nil, err
 	}
 
+	// Add the trigger of the nomadSecret re-renders (Norca)
+	if trigger, err := secretTriggerTemplate(config); err != nil {
+		return nil, nil, err
+	} else if trigger != nil {
+		ctmplMapping[trigger] = nil
+	}
+
 	// Create the runner configuration.
 	runnerConfig, err := newRunnerConfig(config, ctmplMapping)
 	if err != nil {
@@ -642,11 +682,13 @@ func templateRunner(config *TaskTemplateManagerConfig) (
 	idMap := runner.TemplateConfigMapping()
 	lookup := make(map[string][]*structs.Template, len(idMap))
 	for id, ctmpls := range idMap {
+		templates := lookup[id]
 		for _, ctmpl := range ctmpls {
-			templates := lookup[id]
-			templates = append(templates, ctmplMapping[ctmpl])
-			lookup[id] = templates
+			if t := ctmplMapping[ctmpl]; t != nil {
+				templates = append(templates, t)
+			}
 		}
+		lookup[id] = templates
 	}
 
 	return runner, lookup, nil
@@ -699,6 +741,9 @@ func parseTemplateConfigs(config *TaskTemplateManagerConfig) (map[*ctconf.Templa
 		ct.RightDelim = &tmpl.RightDelim
 		ct.ErrMissingKey = &tmpl.ErrMissingKey
 		ct.FunctionDenylist = config.ClientConfig.TemplateConfig.FunctionDenylist
+		if config.Secrets != nil {
+			ct.ExtFuncMap[secretTemplateFunc] = config.Secrets.Func
+		}
 		if sandboxEnabled {
 			ct.SandboxPath = &config.TaskDir
 		}

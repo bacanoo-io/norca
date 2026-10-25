@@ -13,6 +13,7 @@ import (
 	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
 	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/template"
 	"github.com/hashicorp/nomad/client/config"
+	"github.com/hashicorp/nomad/client/secrets"
 	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
@@ -48,6 +49,9 @@ type templateHookConfig struct {
 
 	// renderOnTaskRestart is flag to explicitly render templates on task restart
 	renderOnTaskRestart bool
+
+	// secrets serves the nomadSecret template function (Norca)
+	secrets *secrets.TemplateSource
 }
 
 type templateHook struct {
@@ -169,6 +173,7 @@ func (h *templateHook) newManager() (unblock chan struct{}, err error) {
 		MaxTemplateEventRate: template.DefaultMaxTemplateEventRate,
 		NomadNamespace:       h.config.nomadNamespace,
 		NomadToken:           h.nomadToken,
+		Secrets:              h.config.secrets,
 	})
 	if err != nil {
 		h.logger.Error("failed to create template manager", "error", err)
@@ -189,6 +194,9 @@ func (h *templateHook) Stop(ctx context.Context, req *interfaces.TaskStopRequest
 	// Shutdown any created template
 	if h.templateManager != nil {
 		h.templateManager.Stop()
+	}
+	if h.config.secrets != nil {
+		h.config.secrets.Stop()
 	}
 
 	return nil
