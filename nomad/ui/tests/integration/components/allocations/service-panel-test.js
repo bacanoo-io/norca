@@ -37,6 +37,7 @@ module('Integration | Component | allocations/service-panel', function (hooks) {
     this.set('allocation', {
       id: 'myAlloc',
       shortId: 'myAlloc',
+      nodeShortId: 'node-1',
       clientStatus: 'running',
       node: { id: 'node-1', shortId: 'node-1', name: 'Node 1' },
     });

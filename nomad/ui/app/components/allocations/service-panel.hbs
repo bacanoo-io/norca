@@ -47,7 +47,7 @@
       </g.Item>
       <g.Item @title="Client">
         <Ui::Tooltip @text={{@allocation.node.name}}>
-          <LinkTo @route="clients.client" @model={{@allocation.node}} class="font-monospace">{{@allocation.node.shortId}}</LinkTo>
+          <LinkTo @route="clients.client" @model={{@allocation.node}} class="font-monospace">{{@allocation.nodeShortId}}</LinkTo>
         </Ui::Tooltip>
       </g.Item>
       {{#if (or @service.tags.length @service.canary_tags.length)}}

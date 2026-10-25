@@ -10,7 +10,7 @@
   <div class="norca-update-params" data-test-update-params>
     <h4 class="h3">Update parameters</h4>
     {{#if (and trigger.data.isSuccess (not trigger.data.isError))}}
-      <ul class="norca-update-params-list">
+      <ul class="norca-update-params-list" tabindex="0" aria-label="Update parameters of the task groups">
         {{#each this.updateParamGroups as |group|}}
           <li>
             <span class="fw-medium">Group "{{group.name}}"</span>

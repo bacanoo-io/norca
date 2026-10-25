@@ -70,7 +70,7 @@
       </g.Item>
       <g.Item @title="Client">
         <Ui::Tooltip @text={{this.model.node.name}}>
-          <LinkTo @route="clients.client" @model={{this.model.node}} class="font-monospace" data-test-client-link>{{this.model.node.shortId}}</LinkTo>
+          <LinkTo @route="clients.client" @model={{this.model.node}} class="font-monospace" data-test-client-link>{{this.model.nodeShortId}}</LinkTo>
         </Ui::Tooltip>
       </g.Item>
       <g.Item @title="Namespace">{{this.model.job.namespace.name}}</g.Item>

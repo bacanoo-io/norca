@@ -19,9 +19,13 @@ const A_KEY = 65;
 @classic
 @tagName('pre')
 @classNames('cli-window', 'norca-log-window')
-@attributeBindings('data-test-log-cli')
+@attributeBindings('data-test-log-cli', 'tabindex', 'ariaLabel:aria-label')
 export default class StreamingFile extends Component.extend(WindowResizable) {
   'data-test-log-cli' = true;
+
+  // The log scrolls, so it can take the keyboard focus.
+  tabindex = 0;
+  ariaLabel = 'Log output';
 
   mode = 'streaming'; // head, tail, streaming
   isStreaming = true;

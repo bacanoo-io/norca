@@ -1,0 +1,89 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// WCAG 2.1 AA contrast (4.5:1) for the text of Tabler's tinted status
+// indicators and light badges, outline danger buttons and secondary text,
+// in the light and the dark theme. The text colors are the Tabler colors
+// darkened (light theme) or lightened (dark theme) just enough to reach
+// 4.6:1 on their tint over the page and card surfaces. Only the text
+// changes: the tints and the status dots keep Tabler's colors.
+
+$norca-aa-text: (
+  blue: (#0668c4, #5ba0e1),
+  azure: (#306ea2, #5ca7e5),
+  indigo: (#3e5ddd, #7e95f1),
+  purple: (#a039b9, #c87cda),
+  pink: (#bc2d5f, #e4789e),
+  red: (#c13333, #e47c7c),
+  orange: (#b24a05, #f87c2a),
+  yellow: (#935f00, #f59f00),
+  lime: (#4a760e, #74b816),
+  green: (#207a2e, #40b953),
+  teal: (#097856, #33b48e),
+  cyan: (#117584, #37afc2),
+  secondary: (#6a6a6a, #9d9d9d),
+);
+
+@mixin norca-aa-text($theme) {
+  @each $name, $pair in $norca-aa-text {
+    $color: if($theme == light, nth($pair, 1), nth($pair, 2));
+
+    .status-#{$name} {
+      --tblr-status-color: #{$color};
+    }
+
+    .status-#{$name} .status-dot,
+    .status-dot.status-#{$name} {
+      --tblr-status-color: var(--tblr-#{$name});
+    }
+
+    .bg-#{$name}-lt {
+      --tblr-#{$name}: #{$color};
+    }
+  }
+
+  .btn-outline-danger {
+    --tblr-danger: #{if($theme == light, #c13333, #e47c7c)};
+  }
+
+  .nav {
+    --tblr-nav-link-color: #{if($theme == light, #6a6a6a, #9d9d9d)};
+  }
+
+  .text-primary {
+    --tblr-primary: #{if($theme == light, #0668c4, #5ba0e1)};
+  }
+}
+
+// White text on the danger buttons.
+.btn-danger {
+  --tblr-danger: #c13333;
+}
+
+:root {
+  --tblr-secondary: #6a6a6a;
+
+  @include norca-aa-text(light);
+}
+
+[data-bs-theme='dark'] {
+  --tblr-secondary: #9d9d9d;
+
+  @include norca-aa-text(dark);
+}
+
+// The previous UI keeps the light theme inside its scope.
+[data-bs-theme='dark'] [data-bs-theme='light'] {
+  --tblr-secondary: #6a6a6a;
+
+  @include norca-aa-text(light);
+}
+
+// Links in running text are underlined, not told apart by color only.
+p a:not(.btn),
+.text-secondary a:not(.btn),
+.alert a:not(.btn) {
+  text-decoration: underline;
+}

@@ -50,7 +50,7 @@
   <@r.Cell @key="version" class="tabular-nums" data-test-job-version>{{@allocation.jobVersion}}</@r.Cell>
   <@r.Cell @key="client" class="font-monospace" data-test-client>
     <Ui::Tooltip @text={{@allocation.node.name}}>
-      <LinkTo @route="clients.client" @model={{@allocation.node}}>{{@allocation.node.shortId}}</LinkTo>
+      <LinkTo @route="clients.client" @model={{@allocation.node}}>{{@allocation.nodeShortId}}</LinkTo>
     </Ui::Tooltip>
   </@r.Cell>
   <@r.Cell @key="volume" data-test-volume>{{if @allocation.taskGroup.volumes.length "Yes"}}</@r.Cell>
