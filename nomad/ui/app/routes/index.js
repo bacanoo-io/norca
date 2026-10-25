@@ -4,10 +4,7 @@
  */
 
 import Route from '@ember/routing/route';
-import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
-export default class IndexRoute extends Route {
-  redirect() {
-    legacyTransitionTo(this, 'jobs');
-  }
-}
+// The overview dashboard is the landing page; it loads its own data (see
+// components/dashboard).
+export default class IndexRoute extends Route {}

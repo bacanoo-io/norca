@@ -285,6 +285,19 @@ function routes() {
     return new Response(204, {}, '');
   });
 
+  this.get('/deployments', function ({ deployments, jobs }, { queryParams }) {
+    const namespace = queryParams.namespace || 'default';
+    return this.serialize(deployments.all())
+      .map((deployment) => ({
+        ...deployment,
+        Namespace:
+          deployment.Namespace ||
+          jobs.find(deployment.JobID)?.namespaceId ||
+          'default',
+      }))
+      .filter((deployment) => namespace === '*' || deployment.Namespace === namespace);
+  });
+
   this.get('/deployment/:id');
 
   this.post('/deployment/fail/:id', function () {
