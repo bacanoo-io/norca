@@ -39,4 +39,4 @@ Code taken from other projects (for example Kubernetes) goes into a separate fil
 
 ## Checks
 
-Every pull request runs: `reuse lint`, license checks for the Go modules and the UI packages, the DCO check, and the tests.
+Every pull request runs (`.github/workflows/`): `reuse lint`, license checks for the Go modules and the UI packages, the check that `THIRD_PARTY_NOTICES.md` is up to date (`make notices` in `nomad/` regenerates it), the ApexCharts ban, the DCO check, and the check that the generated msgpack codec (`nomad/nomad/structs/structs.generated.go`) is current. The test suites do not run in CI yet: run the tests of the packages you change, and of their direct dependents, before opening a pull request.
