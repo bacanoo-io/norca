@@ -42,12 +42,33 @@ var MsgTypeEvents = map[structs.MessageType]string{
 	structs.ServiceRegistrationDeleteByIDRequestType:     structs.TypeServiceDeregistration,
 	structs.ServiceRegistrationDeleteByNodeIDRequestType: structs.TypeServiceDeregistration,
 	structs.VarApplyStateRequestType:                     structs.TypeVariableUpserted,
+	structs.AdmissionPolicyUpsertRequestType:             structs.TypeAdmissionPolicyUpserted,
+	structs.AdmissionPolicyDeleteRequestType:             structs.TypeAdmissionPolicyDeleted,
+	structs.AllocEvictRequestType:                        structs.TypeAllocationEvicted,
+	structs.ObjectKindUpsertRequestType:                  structs.TypeObjectKindUpserted,
+	structs.ObjectKindDeleteRequestType:                  structs.TypeObjectKindDeleted,
+	structs.CustomObjectUpsertRequestType:                structs.TypeCustomObjectUpserted,
+	structs.CustomObjectDeleteRequestType:                structs.TypeCustomObjectDeleted,
+	structs.CustomObjectEventsRequestType:                structs.TypeCustomObjectEventRecorded,
+	structs.BackupUpsertRequestType:                      structs.TypeBackupUpdated,
+	structs.BackupDeleteRequestType:                      structs.TypeBackupDeleted,
+	structs.BackupRestoreUpsertRequestType:               structs.TypeBackupRestoreFinished,
+	structs.NetworkPolicyUpsertRequestType:               structs.TypeNetworkPolicyUpserted,
+	structs.NetworkPolicyDeleteRequestType:               structs.TypeNetworkPolicyDeleted,
+	structs.AdminNetworkPolicyUpsertRequestType:          structs.TypeAdminNetworkPolicyUpserted,
+	structs.AdminNetworkPolicyDeleteRequestType:          structs.TypeAdminNetworkPolicyDeleted,
 }
 
 func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
+	// Quota events carry their own type, independent of the message type.
+	quotaEvents := quotaEventsFromChanges(tx, changes)
+
 	eventType, ok := MsgTypeEvents[changes.MsgType]
 	if !ok {
-		return nil
+		if len(quotaEvents) == 0 {
+			return nil
+		}
+		return &structs.Events{Index: changes.Index, Events: quotaEvents}
 	}
 
 	var events []structs.Event
@@ -62,6 +83,7 @@ func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
 			events = append(events, event)
 		}
 	}
+	events = append(events, quotaEvents...)
 
 	return &structs.Events{Index: changes.Index, Events: events}
 }
@@ -130,6 +152,21 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 					ACLBindingRule: before,
 				},
 			}, true
+		case "jobs":
+			// A purged (or garbage collected) job: the event carries the
+			// last known version of the job.
+			before, ok := change.Before.(*structs.Job)
+			if !ok {
+				return structs.Event{}, false
+			}
+			return structs.Event{
+				Topic:     structs.TopicJob,
+				Key:       before.ID,
+				Namespace: before.Namespace,
+				Payload: &structs.JobEvent{
+					Job: before,
+				},
+			}, true
 		case "nodes":
 			before, ok := change.Before.(*structs.Node)
 			if !ok {
@@ -179,6 +216,16 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 				return structs.Event{}, false
 			}
 			return variableEvent(structs.TypeVariableDeleted, before), true
+		case TableAdmissionPolicies:
+			return admissionPolicyEventFromChange(change)
+		case TableObjectKinds, TableCustomObjects:
+			return objectEventFromChange(change)
+		case TableBackups:
+			return backupEventFromChange(change)
+		case TableServiceIntentions:
+			return serviceIntentionEventFromChange(change)
+		case TableNetworkPolicies, TableAdminNetworkPolicies:
+			return networkPolicyEventFromChange(change)
 		}
 		return structs.Event{}, false
 	}
@@ -362,6 +409,16 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 			return structs.Event{}, false
 		}
 		return variableEvent(structs.TypeVariableUpserted, after), true
+	case TableAdmissionPolicies:
+		return admissionPolicyEventFromChange(change)
+	case TableObjectKinds, TableCustomObjects, TableObjectEvents:
+		return objectEventFromChange(change)
+	case TableBackups, TableBackupRestores:
+		return backupEventFromChange(change)
+	case TableServiceIntentions:
+		return serviceIntentionEventFromChange(change)
+	case TableNetworkPolicies, TableAdminNetworkPolicies:
+		return networkPolicyEventFromChange(change)
 	}
 
 	return structs.Event{}, false

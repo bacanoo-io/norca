@@ -298,6 +298,7 @@ func (ar *allocRunner) initTaskRunners(tasks []*structs.Task) error {
 			ServiceRegWrapper:   ar.serviceRegWrapper,
 			Getter:              ar.getter,
 			AllocHookResources:  ar.hookResources,
+			RPCClient:           ar.rpcClient,
 		}
 
 		if ar.cpusetManager != nil {

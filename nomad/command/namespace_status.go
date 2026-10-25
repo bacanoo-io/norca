@@ -18,7 +18,7 @@ type NamespaceStatusCommand struct {
 
 func (c *NamespaceStatusCommand) Help() string {
 	helpText := `
-Usage: nomad namespace status [options] <namespace>
+Usage: norca namespace status [options] <namespace>
 
   Status is used to view the status of a particular namespace.
 

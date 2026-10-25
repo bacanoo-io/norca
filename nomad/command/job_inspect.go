@@ -18,8 +18,8 @@ type JobInspectCommand struct {
 
 func (c *JobInspectCommand) Help() string {
 	helpText := `
-Usage: nomad job inspect [options] <job>
-Alias: nomad inspect
+Usage: norca job inspect [options] <job>
+Alias: norca inspect
 
   Inspect is used to see the specification of a submitted job.
 

@@ -1,3 +1,0 @@
-```release-note:improvement
-client/plugins/drivermanager: log if there is an error in a driver event
-```

@@ -414,6 +414,16 @@ func handleTaskGroup(snap *state.StateSnapshot, batch bool, tg *structs.TaskGrou
 	// Determine how many we can drain
 	thresholdCount := tg.Count - tg.Migrate.MaxParallel
 	numToDrain := healthy - thresholdCount
+
+	// A disruption budget further limits which allocations can be drained;
+	// the stricter of the two limits applies.
+	if tg.Disruption != nil && len(drainable) > 0 {
+		var err error
+		if drainable, err = disruptableAllocs(snap, tg, allocs, drainable); err != nil {
+			return err
+		}
+	}
+
 	numToDrain = min(len(drainable), numToDrain)
 	if numToDrain <= 0 {
 		return nil
@@ -421,6 +431,18 @@ func handleTaskGroup(snap *state.StateSnapshot, batch bool, tg *structs.TaskGrou
 
 	result.drain = append(result.drain, drainable[0:numToDrain]...)
 	return nil
+}
+
+// disruptableAllocs returns the drainable allocations that the disruption
+// budget of the task group allows to disrupt now.
+func disruptableAllocs(snap *state.StateSnapshot, tg *structs.TaskGroup,
+	allocs, drainable []*structs.Allocation) ([]*structs.Allocation, error) {
+
+	deployment, err := snap.LatestDeploymentByJobID(nil, drainable[0].Namespace, drainable[0].JobID)
+	if err != nil {
+		return nil, err
+	}
+	return structs.NewDisruptionStatus(tg, allocs, deployment).Disruptable(drainable), nil
 }
 
 // getJobAllocs returns all allocations for draining jobs
@@ -469,6 +491,13 @@ func (w *drainingJobWatcher) getJobAllocsImpl(ws memdb.WatchSet, state *state.St
 				maxIndex = alloc.ModifyIndex
 			}
 		}
+
+		// Disruption budgets also depend on the job and its deployment.
+		budgetIndex, err := disruptionBudgetIndex(ws, state, jns)
+		if err != nil {
+			return nil, index, err
+		}
+		maxIndex = max(maxIndex, budgetIndex)
 	}
 
 	// Prefer using the actual max index of affected allocs since it means less
@@ -478,6 +507,26 @@ func (w *drainingJobWatcher) getJobAllocsImpl(ws memdb.WatchSet, state *state.St
 	}
 
 	return resp, index, nil
+}
+
+// disruptionBudgetIndex watches the job and, if the job has a disruption
+// budget, its latest deployment, and returns the highest modify index of the
+// two so that changes to the budget or to the deployment re-evaluate the
+// drain. It returns 0 for jobs without a disruption budget.
+func disruptionBudgetIndex(ws memdb.WatchSet, state *state.StateStore, jns structs.NamespacedID) (uint64, error) {
+	job, err := state.JobByID(ws, jns.Namespace, jns.ID)
+	if err != nil || job == nil || !job.UsesDisruptionBudgets() {
+		return 0, err
+	}
+	index := job.ModifyIndex
+	d, err := state.LatestDeploymentByJobID(ws, jns.Namespace, jns.ID)
+	if err != nil {
+		return 0, err
+	}
+	if d != nil {
+		index = max(index, d.ModifyIndex)
+	}
+	return index, nil
 }
 
 // drainingJobs captures the set of draining jobs.

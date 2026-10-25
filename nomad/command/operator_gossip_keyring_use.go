@@ -19,7 +19,7 @@ type OperatorGossipKeyringUseCommand struct {
 
 func (c *OperatorGossipKeyringUseCommand) Help() string {
 	helpText := `
-Usage: nomad operator gossip keyring use [options] <key>
+Usage: norca operator gossip keyring use [options] <key>
 
   Change the encryption key used for gossip. The key must already be installed
   before this operator can succeed.
@@ -76,7 +76,7 @@ func (c *OperatorGossipKeyringUseCommand) Run(args []string) int {
 
 	client, err := c.Meta.Client()
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error creating nomad cli client: %s", err))
+		c.Ui.Error(fmt.Sprintf("Error creating norca cli client: %s", err))
 		return 1
 	}
 

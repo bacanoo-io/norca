@@ -1,3 +1,0 @@
-```release-note:improvement
-env/ec2: update cpu metadata
-```

@@ -370,6 +370,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Create the first root key if it doesn't already exist
 	go s.initializeKeyring(stopCh)
 
+	// Run the native mTLS certificate authority of the region
+	go s.runMTLSCA(stopCh)
+
 	// Restore the periodic dispatcher state
 	if err := s.restorePeriodicDispatcher(); err != nil {
 		return err
@@ -386,7 +389,7 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	go s.reapDupBlockedEvaluations(stopCh)
 
 	// Reap any cancelable evaluations
-	s.reapCancelableEvalsCh = s.reapCancelableEvaluations(stopCh)
+	s.reapCancelableEvaluations(stopCh)
 
 	// Periodically unblock failed allocations
 	go s.periodicUnblockFailedEvals(stopCh)
@@ -401,6 +404,18 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// valid on this leader.
 	s.setAutoscalerSecret(uuid.Generate())
 	s.autoscaler.SetLeader(true)
+
+	// Start the scheduled backups.
+	s.backup.SetLeader(true)
+
+	// Register the built-in release kinds and check releases for drift.
+	go s.releaseLeaderLoop(stopCh)
+
+	// Start the garbage collector of custom objects.
+	s.objectGC.SetEnabled(true)
+
+	// Migrate stored custom objects to raised schema versions.
+	go s.objectMigrationLoop(stopCh)
 
 	// Setup the heartbeat timers. This is done both when starting up or when
 	// a leader fail over happens. Since the timers are maintained by the leader
@@ -435,6 +450,7 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 			go s.replicateACLBindingRules(stopCh)
 			go s.replicateNamespaces(stopCh)
 			go s.replicateNodePools(stopCh)
+			go s.replicateQuotaSpecs(stopCh)
 		}
 	}
 
@@ -1197,9 +1213,9 @@ func (s *Server) reapDupBlockedEvaluations(stopCh chan struct{}) {
 // whenever an eval Acks, but this ensures that we don't have a straggling batch
 // when the cluster doesn't have any more work to do. Returns a wake-up channel
 // that can be used to trigger a new reap without waiting for the timer
-func (s *Server) reapCancelableEvaluations(stopCh chan struct{}) chan struct{} {
+func (s *Server) reapCancelableEvaluations(stopCh chan struct{}) {
 
-	wakeCh := make(chan struct{}, 1)
+	wakeCh := s.reapCancelableEvalsCh
 	go func() {
 
 		timer, cancel := helper.NewSafeTimer(s.config.EvalReapCancelableInterval)
@@ -1216,8 +1232,6 @@ func (s *Server) reapCancelableEvaluations(stopCh chan struct{}) chan struct{} {
 			}
 		}
 	}()
-
-	return wakeCh
 }
 
 const cancelableEvalsBatchSize = 728 // structs.MaxUUIDsPerWriteRequest / 10
@@ -1468,6 +1482,12 @@ func (s *Server) revokeLeadership() error {
 	// Stop the built-in autoscaler and invalidate its system identity.
 	s.autoscaler.SetLeader(false)
 	s.setAutoscalerSecret("")
+
+	// Stop the scheduled backups; an upload in progress is aborted.
+	s.backup.SetLeader(false)
+
+	// Stop the garbage collector of custom objects.
+	s.objectGC.SetEnabled(false)
 
 	// Disable any enterprise systems required.
 	if err := s.revokeEnterpriseLeadership(); err != nil {

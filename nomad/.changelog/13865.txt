@@ -1,3 +1,0 @@
-```release-note:bug
-ui: Add missing breadcrumb in the Evaluations page.
-```

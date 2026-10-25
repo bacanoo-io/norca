@@ -36,6 +36,13 @@ func (s *HTTPServer) KeyringRequest(resp http.ResponseWriter, req *http.Request)
 		default:
 			return nil, CodedError(405, ErrInvalidMethod)
 		}
+	case path == "restore":
+		switch req.Method {
+		case http.MethodPost, http.MethodPut:
+			return s.keyringRestoreRequest(resp, req)
+		default:
+			return nil, CodedError(405, ErrInvalidMethod)
+		}
 	default:
 		return nil, CodedError(405, ErrInvalidMethod)
 	}

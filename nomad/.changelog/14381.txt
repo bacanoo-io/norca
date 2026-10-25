@@ -1,3 +1,0 @@
-```release-note:bug
-ui: Revert a change that resulted in UI errors when ACLs were not used.
-```

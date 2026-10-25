@@ -1,3 +1,0 @@
-```release-note:bug
-client: Fixed bug where clients could attempt to connect to servers with invalid addresses retrieved from Consul.
-```

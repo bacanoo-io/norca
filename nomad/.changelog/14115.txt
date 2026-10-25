@@ -1,3 +1,0 @@
-```release-note:bug
-ui: Removes duplicate breadcrumb header when navigating from child job back to parent.
-```

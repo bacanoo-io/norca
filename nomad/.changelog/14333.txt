@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Fixed a bug where forcing a periodic job would fail if the job ID prefix-matched other periodic jobs
-```

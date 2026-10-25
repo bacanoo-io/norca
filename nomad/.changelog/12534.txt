@@ -1,3 +1,0 @@
-```release-note:improvement
-api: support Authorization Bearer header in lieu of X-Nomad-Token header
-```

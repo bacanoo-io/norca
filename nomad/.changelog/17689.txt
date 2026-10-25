@@ -1,3 +1,0 @@
-```release-note:bug
-api: Fixed a bug that caused a panic when calling the `Jobs().Plan()` function with a job missing an ID
-```

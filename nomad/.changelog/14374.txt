@@ -1,3 +1,0 @@
-```release-note:bug
-template: Fixed a bug that could cause Nomad to panic when using `change_mode = "script"`
-```

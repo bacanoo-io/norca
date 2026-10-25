@@ -75,15 +75,18 @@ type jobValidator interface {
 	Validate(*structs.Job) (warnings []error, err error)
 }
 
-func (j *Job) admissionControllers(job *structs.Job) (out *structs.Job, warnings []error, err error) {
+// admissionControllers runs the admission chain. areq is the request context
+// of the dynamic admission controllers; it is nil when they must not run.
+func (j *Job) admissionControllers(job *structs.Job, areq *admissionRequest) (out *structs.Job, warnings []error, err error) {
 	// Mutators run first before validators, so validators view the final rendered job.
 	// So, mutators must handle invalid jobs.
-	out, warnings, err = j.admissionMutators(job)
+	out, warnings, err = j.admissionMutators(job, areq)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	validateWarnings, err := j.admissionValidators(job)
+	// Validate the mutated job: a mutator may return a new job object.
+	validateWarnings, err := j.admissionValidators(out)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -93,10 +96,14 @@ func (j *Job) admissionControllers(job *structs.Job) (out *structs.Job, warnings
 }
 
 // admissionMutator returns an updated job as well as warnings or an error.
-func (j *Job) admissionMutators(job *structs.Job) (_ *structs.Job, warnings []error, err error) {
+func (j *Job) admissionMutators(job *structs.Job, areq *admissionRequest) (_ *structs.Job, warnings []error, err error) {
 	var w []error
 	for _, mutator := range j.mutators {
-		job, w, err = mutator.Mutate(job)
+		if rm, ok := mutator.(jobRequestMutator); ok {
+			job, w, err = rm.MutateWithRequest(areq, job)
+		} else {
+			job, w, err = mutator.Mutate(job)
+		}
 		j.logger.Trace("job mutate results", "mutator", mutator.Name(), "warnings", w, "error", err)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in job mutator %s: %v", mutator.Name(), err)

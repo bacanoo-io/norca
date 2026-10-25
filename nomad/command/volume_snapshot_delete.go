@@ -19,7 +19,7 @@ type VolumeSnapshotDeleteCommand struct {
 
 func (c *VolumeSnapshotDeleteCommand) Help() string {
 	helpText := `
-Usage: nomad volume snapshot delete [options] <plugin id> <snapshot id>
+Usage: norca volume snapshot delete [options] <plugin id> <snapshot id>
 
   Delete a snapshot from an external storage provider.
 

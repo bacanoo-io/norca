@@ -38,7 +38,7 @@ type ACLAuthMethodUpdateCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLAuthMethodUpdateCommand) Help() string {
 	helpText := `
-Usage: nomad acl auth-method update [options] <acl_auth_method_name>
+Usage: norca acl auth-method update [options] <acl_auth_method_name>
 
   Update is used to update ACL auth methods. Use requires a management token.
 

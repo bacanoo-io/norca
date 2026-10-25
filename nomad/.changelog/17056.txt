@@ -1,3 +1,0 @@
-```release-note:improvement
-build: Update from Go 1.20.3 to Go 1.20.4
-```

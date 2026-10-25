@@ -22,7 +22,7 @@ type JobHistoryCommand struct {
 
 func (c *JobHistoryCommand) Help() string {
 	helpText := `
-Usage: nomad job history [options] <job>
+Usage: norca job history [options] <job>
 
   History is used to display the known versions of a particular job. The command
   can display the diff between job versions and can be useful for understanding

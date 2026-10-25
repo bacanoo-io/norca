@@ -20,7 +20,7 @@ type OperatorClientStateCommand struct {
 
 func (c *OperatorClientStateCommand) Help() string {
 	helpText := `
-Usage: nomad operator client-state <path_to_nomad_dir>
+Usage: norca operator client-state <path_to_nomad_dir>
 
   Emits a representation of the stored client state in JSON format.
 `
@@ -35,7 +35,7 @@ func (c *OperatorClientStateCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *OperatorClientStateCommand) Synopsis() string {
-	return "Dump the nomad client state"
+	return "Dump the norca client state"
 }
 func (c *OperatorClientStateCommand) Name() string { return "operator client-state" }
 

@@ -15,33 +15,33 @@ type VolumeCommand struct {
 
 func (c *VolumeCommand) Help() string {
 	helpText := `
-Usage: nomad volume <subcommand> [options]
+Usage: norca volume <subcommand> [options]
 
   volume groups commands that interact with volumes.
 
   Register a new volume or update an existing volume:
 
-      $ nomad volume register <input>
+      $ norca volume register <input>
 
   Examine the status of a volume:
 
-      $ nomad volume status <id>
+      $ norca volume status <id>
 
   Deregister an unused volume:
 
-      $ nomad volume deregister <id>
+      $ norca volume deregister <id>
 
   Detach an unused volume:
 
-      $ nomad volume detach <vol id> <node id>
+      $ norca volume detach <vol id> <node id>
 
   Create an external volume and register it:
 
-      $ nomad volume create <input>
+      $ norca volume create <input>
 
   Delete an external volume and deregister it:
 
-      $ nomad volume delete <external id>
+      $ norca volume delete <external id>
 
   Please see the individual subcommand help for detailed usage information.
 `

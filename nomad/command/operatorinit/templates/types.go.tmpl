@@ -1,0 +1,50 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+package main
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/hashicorp/nomad/controller"
+)
+
+// Kind is the object kind this operator maintains (<% .KindLower %>.kind.hcl).
+var Kind = controller.Kind{Group: "<% .Group %>", Kind: "<% .Kind %>"}
+
+// Finalizer keeps a deleted object until the controller cleaned up after it.
+const Finalizer = "<% .Finalizer %>"
+
+// Spec is the desired state of a <% .Kind %>. Keep it in line with the spec
+// of <% .KindLower %>.schema.json; the servers fill in the schema's defaults.
+type Spec struct {
+	// Replicas is an example field: replace it with what the object
+	// describes.
+	Replicas int `json:"replicas"`
+
+	// Message is another example field.
+	Message string `json:"message,omitempty"`
+}
+
+// Validate checks what the schema can't express. The validating webhook
+// runs it before an object is stored, the controller again before acting.
+func (s *Spec) Validate() error {
+	var errs []error
+	if s.Replicas < 0 || s.Replicas > 100 {
+		errs = append(errs, fmt.Errorf("replicas must be between 0 and 100, got %d", s.Replicas))
+	}
+	if s.Message == "forbidden" {
+		errs = append(errs, errors.New(`message must not be "forbidden"`))
+	}
+	return errors.Join(errs...)
+}
+
+// Status is the observed state of a <% .Kind %>, written by the controller.
+type Status struct {
+	controller.CommonStatus
+
+	// Replicas is an example field of the status.
+	Replicas int `json:"replicas,omitempty"`
+}

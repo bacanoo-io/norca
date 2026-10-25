@@ -22,7 +22,7 @@ type OperatorRootKeyringCommand struct {
 
 func (c *OperatorRootKeyringCommand) Help() string {
 	helpText := `
-Usage: nomad operator root keyring [options]
+Usage: norca operator root keyring [options]
 
   Manages encryption keys used for storing variables and signing workload
   identities. This command may be used to examine active encryption keys
@@ -32,15 +32,15 @@ Usage: nomad operator root keyring [options]
 
   Rotate the encryption key:
 
-      $ nomad operator root keyring rotate
+      $ norca operator root keyring rotate
 
   List all encryption key metadata:
 
-      $ nomad operator root keyring list
+      $ norca operator root keyring list
 
   Remove an encryption key from the keyring:
 
-      $ nomad operator root keyring remove <key ID>
+      $ norca operator root keyring remove <key ID>
 
   Please see individual subcommand help for detailed usage information.
 `

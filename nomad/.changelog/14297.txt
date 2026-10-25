@@ -1,3 +1,0 @@
-```release-note:bug
-client/logmon: fixed a bug where logmon cannot find nomad executable
-```

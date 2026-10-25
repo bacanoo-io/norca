@@ -1,3 +1,0 @@
-```release-note:bug
-api: Ensure all request body decode errors return a 400 status code
-```

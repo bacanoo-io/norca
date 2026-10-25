@@ -19,9 +19,9 @@ type VolumeDeregisterCommand struct {
 
 func (c *VolumeDeregisterCommand) Help() string {
 	helpText := `
-Usage: nomad volume deregister [options] <id>
+Usage: norca volume deregister [options] <id>
 
-  Remove an unused volume from Nomad.
+  Remove an unused volume from Norca.
 
   When ACLs are enabled, this command requires a token with the
   'csi-write-volume' capability for the volume's namespace.

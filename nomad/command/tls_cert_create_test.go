@@ -6,7 +6,6 @@ package command
 import (
 	"crypto/x509"
 	"net"
-	"os"
 	"strings"
 	"testing"
 
@@ -61,10 +60,7 @@ func TestTlsCertCreateCommand_InvalidArgs(t *testing.T) {
 
 func TestTlsCertCreateCommandDefaults_fileCreate(t *testing.T) {
 	testDir := t.TempDir()
-	previousDirectory, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(testDir))
-	defer os.Chdir(previousDirectory)
+	t.Chdir(testDir)
 
 	ui := cli.NewMockUi()
 	caCmd := &TLSCACreateCommand{Meta: Meta{Ui: ui}}

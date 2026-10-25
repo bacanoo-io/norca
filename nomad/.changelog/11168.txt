@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Fixed a bug where the NOMAD_CLI_NO_COLOR environment variable was not always applied
-```

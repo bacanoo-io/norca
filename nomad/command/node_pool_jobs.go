@@ -27,7 +27,7 @@ func (c *NodePoolJobsCommand) Synopsis() string {
 
 func (c *NodePoolJobsCommand) Help() string {
 	helpText := `
-Usage: nomad node pool jobs <node-pool>
+Usage: norca node pool jobs <node-pool>
 
   Node pool jobs is used to list jobs in a given node pool.
 

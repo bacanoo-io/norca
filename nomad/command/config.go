@@ -15,14 +15,14 @@ type ConfigCommand struct {
 
 func (f *ConfigCommand) Help() string {
 	helpText := `
-Usage: nomad config <subcommand> [options] [args]
+Usage: norca config <subcommand> [options] [args]
 
   This command groups subcommands for interacting with configurations.
-  Users can validate configurations for the Nomad agent.
+  Users can validate configurations for the Norca agent.
 
   Validate configuration:
 
-      $ nomad config validate <config_path> [<config_path>...]
+      $ norca config validate <config_path> [<config_path>...]
 
   Please see the individual subcommand help for detailed usage information.
 `

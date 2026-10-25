@@ -162,9 +162,8 @@ func (v *Variable) Value() (cty.Value, hcl.Diagnostics) {
 		return cty.UnknownVal(v.Type), hcl.Diagnostics{&hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  fmt.Sprintf("Unset variable %q", v.Name),
-			Detail: "A used variable must be set or have a default value; see " +
-				"https://www.nomadproject.io/docs/job-specification/hcl2/variables for " +
-				"details.",
+			Detail: "A used variable must be set or have a default value; set it with " +
+				"the -var or -var-file flag, or give it a default in its variable block.",
 			Context: v.Range.Ptr(),
 		}}
 	}

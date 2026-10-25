@@ -1,3 +1,0 @@
-```release-note:improvement
-deps: Updated `go-memdb` to `v1.3.2`
-```

@@ -16,18 +16,18 @@ type TLSCACommand struct {
 
 func (c *TLSCACommand) Help() string {
 	helpText := `
-Usage: nomad tls ca <subcommand> [options]
+Usage: norca tls ca <subcommand> [options]
 
   This command groups subcommands for interacting with certificate authorities.
   For examples, see the documentation.
 
   Create a certificate authority.
 
-      $ nomad tls ca create
+      $ norca tls ca create
 
   Show information about a certificate authority.
 
-      $ nomad tls ca info
+      $ norca tls ca info
 `
 	return strings.TrimSpace(helpText)
 }

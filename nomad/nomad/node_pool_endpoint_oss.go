@@ -14,7 +14,7 @@ import (
 
 func (n *NodePool) validateLicense(pool *structs.NodePool) error {
 	if pool != nil && pool.SchedulerConfiguration != nil {
-		return errors.New(`Feature "Node Pools Governance" is unlicensed`)
+		return errors.New("node pool scheduler_config is not supported")
 	}
 
 	return nil

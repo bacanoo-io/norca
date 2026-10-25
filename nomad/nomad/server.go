@@ -40,8 +40,10 @@ import (
 	"github.com/hashicorp/nomad/helper/tlsutil"
 	"github.com/hashicorp/nomad/lib/auth/oidc"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
+	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/drainer"
+	"github.com/hashicorp/nomad/nomad/objectgc"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
@@ -153,9 +155,17 @@ type Server struct {
 	// to this server
 	serverRpcAdvertise net.Addr
 
-	// rpcTLS is the TLS config for incoming TLS requests
-	rpcTLS    *tls.Config
+	// rpcTLS is the TLS config for incoming TLS requests. It is nil if TLS
+	// is not enabled for RPC. It is replaced when the TLS configuration is
+	// reloaded, so it must only be accessed atomically.
+	rpcTLS    atomic.Pointer[tls.Config]
 	rpcCancel context.CancelFunc
+
+	// tlsConfig is the current TLS configuration of the server. It starts out
+	// as config.TLSConfig and is replaced when the TLS configuration is
+	// reloaded, so it must be read using getTLSConfig rather than via
+	// config.TLSConfig, which only holds the initial configuration.
+	tlsConfig atomic.Pointer[config.TLSConfig]
 
 	// streamingRpcs is the registry holding our streaming RPC handlers.
 	streamingRpcs *structs.StreamingRpcRegistry
@@ -206,7 +216,9 @@ type Server struct {
 	// transitions to collide and create inconsistent state.
 	brokerLock sync.Mutex
 
-	// reapCancelableEvalsCh is used to signal the cancelable evals reaper to wake up
+	// reapCancelableEvalsCh is used to signal the cancelable evals reaper to
+	// wake up. It is created once and never reassigned, because RPC handlers
+	// send on it without holding a lock across leadership changes.
 	reapCancelableEvalsCh chan struct{}
 
 	// deploymentWatcher is used to watch deployments and their allocations and
@@ -222,6 +234,10 @@ type Server struct {
 	// autoscaler is the built-in autoscaler, running on the leader.
 	autoscaler *autoscaler.Autoscaler
 
+	// backup takes the scheduled backups of the region, running on the
+	// leader.
+	backup *backup.Manager
+
 	// volumeControllerFutures is a map of plugin IDs to pending controller RPCs. If
 	// no RPC is pending for a given plugin, this may be nil.
 	volumeControllerFutures map[string]context.Context
@@ -236,6 +252,24 @@ type Server struct {
 	// encrypter is the root keyring for encrypting variables and signing
 	// workload identities
 	encrypter *Encrypter
+
+	// mtls is the native mTLS certificate authority (Norca)
+	mtls *mtlsCA
+
+	// admission holds the dynamic admission controllers (webhooks and the
+	// CEL policy engine)
+	admission *dynamicAdmission
+
+	// objects is the type registry of custom objects (compiled schemas and
+	// CEL rules of the object kinds)
+	objects *objectRegistry
+
+	// releases runs the operations on pack releases on the leader
+	releases *releaseManager
+
+	// objectGC is the garbage collector of custom objects, running on the
+	// leader.
+	objectGC *objectgc.Collector
 
 	// periodicDispatcher is used to track and create evaluations for periodic jobs.
 	periodicDispatcher *PeriodicDispatch
@@ -302,6 +336,14 @@ type Server struct {
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 	shutdownCh     <-chan struct{}
+
+	// serviceHealth holds back service health changes that come too fast
+	// (Norca flapping protection).
+	serviceHealth *serviceHealthDamper
+
+	// externalServices maintains the external service registrations on the
+	// leader (Norca): TTL expiry and garbage collection.
+	externalServices *externalServices
 }
 
 // NewServer is used to construct a new Nomad server from the
@@ -334,11 +376,6 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 	// Create the logger
 	logger := config.Logger.ResetNamedIntercept("nomad")
 
-	// Validate enterprise license before anything stateful happens
-	if err = config.LicenseConfig.Validate(); err != nil {
-		return nil, err
-	}
-
 	// Create the server
 	s := &Server{
 		config:                  config,
@@ -357,12 +394,14 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		readyForConsistentReads: &atomic.Bool{},
 		eventCh:                 make(chan serf.Event, 256),
 		evalBroker:              evalBroker,
-		reapCancelableEvalsCh:   make(chan struct{}),
+		reapCancelableEvalsCh:   make(chan struct{}, 1),
 		blockedEvals:            NewBlockedEvals(evalBroker, logger),
-		rpcTLS:                  incomingTLS,
 		aclCache:                aclCache,
 		workersEventCh:          make(chan interface{}, 1),
 	}
+
+	s.tlsConfig.Store(config.TLSConfig)
+	s.rpcTLS.Store(incomingTLS)
 
 	s.shutdownCtx, s.shutdownCancel = context.WithCancel(context.Background())
 	s.shutdownCh = s.shutdownCtx.Done()
@@ -396,6 +435,21 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		return nil, fmt.Errorf("Failed to setup Vault client: %v", err)
 	}
 
+	// Setup dynamic admission control
+	if s.admission, err = newDynamicAdmission(s.config.AdmissionConfig, s.logger); err != nil {
+		s.Shutdown()
+		s.logger.Error("failed to setup admission control", "error", err)
+		return nil, fmt.Errorf("Failed to setup admission control: %v", err)
+	}
+
+	// Setup the custom object type registry
+	if s.objects, err = newObjectRegistry(); err != nil {
+		s.Shutdown()
+		s.logger.Error("failed to setup the object registry", "error", err)
+		return nil, fmt.Errorf("Failed to setup the object registry: %v", err)
+	}
+	s.releases = newReleaseManager(s, s.logger)
+
 	// Set up the keyring
 	keystorePath := filepath.Join(s.config.DataDir, "keystore")
 	if s.config.DevMode && s.config.DataDir == "" {
@@ -409,6 +463,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		return nil, err
 	}
 	s.encrypter = encrypter
+	s.mtls = newMTLSCA(s, s.logger)
 
 	// Set up the OIDC provider cache. This is needed by the setupRPC, but must
 	// be done separately so that the server can stop all background processes
@@ -473,6 +528,12 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 	// Setup the built-in autoscaler.
 	s.setupAutoscaler()
 
+	// Setup the garbage collector of custom objects.
+	s.setupObjectGC()
+
+	// Setup the scheduled backups.
+	s.setupBackup()
+
 	// Setup the enterprise state
 	if err := s.setupEnterprise(config); err != nil {
 		return nil, err
@@ -507,6 +568,14 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 
 	// Emit raft and state store metrics
 	go s.EmitRaftStats(10*time.Second, s.shutdownCh)
+
+	// Apply the service health changes held back by the flapping protection
+	s.serviceHealth = newServiceHealthDamper(s)
+	go s.serviceHealth.run(s.shutdownCh)
+
+	// Expire the TTL checks of external services on the leader
+	s.externalServices = newExternalServices(s)
+	go s.externalServices.run(s.shutdownCh)
 
 	// Start enterprise background workers
 	s.startEnterpriseBackground()
@@ -636,13 +705,15 @@ func (s *Server) reloadTLSConnections(newTLSConfig *config.TLSConfig) error {
 
 	// Keeping configuration in sync is important for other places that require
 	// access to config information, such as rpc.go, where we decide on what kind
-	// of network connections to accept depending on the server configuration
-	s.config.TLSConfig = newTLSConfig
+	// of network connections to accept depending on the server configuration.
+	// RPC handlers read it concurrently, so it is swapped atomically instead of
+	// overwriting s.config.TLSConfig.
+	s.tlsConfig.Store(newTLSConfig)
 
 	// Kill any old listeners
 	s.rpcCancel()
 
-	s.rpcTLS = incomingTLS
+	s.rpcTLS.Store(incomingTLS)
 	s.connPool.ReloadTLS(tlsWrap)
 
 	if err := s.rpcListener.Close(); err != nil {
@@ -685,6 +756,9 @@ func (s *Server) Shutdown() error {
 	s.shutdown = true
 	s.shutdownCancel()
 
+	if s.backup != nil {
+		s.backup.SetLeader(false)
+	}
 	if s.autoscaler != nil {
 		s.autoscaler.SetLeader(false)
 	}
@@ -858,7 +932,7 @@ func (s *Server) Reload(newConfig *Config) error {
 		}
 	}
 
-	shouldReloadTLS, err := tlsutil.ShouldReloadRPCConnections(s.config.TLSConfig, newConfig.TLSConfig)
+	shouldReloadTLS, err := tlsutil.ShouldReloadRPCConnections(s.getTLSConfig(), newConfig.TLSConfig)
 	if err != nil {
 		s.logger.Error("error checking whether to reload TLS configuration", "error", err)
 	}
@@ -870,17 +944,18 @@ func (s *Server) Reload(newConfig *Config) error {
 		}
 	}
 
-	if newConfig.LicenseConfig.LicenseEnvBytes != "" || newConfig.LicenseConfig.LicensePath != "" {
-		if err = s.EnterpriseState.ReloadLicense(newConfig); err != nil {
-			s.logger.Error("error reloading license", "error", err)
-			_ = multierror.Append(&mErr, err)
-		}
-	}
-
 	// Apply the built-in autoscaler configuration; it can be switched on and
 	// off at runtime.
 	if s.autoscaler != nil && newConfig.Autoscaler != nil {
 		s.autoscaler.SetConfig(newConfig.Autoscaler)
+	}
+
+	// Apply the backup configuration.
+	if s.backup != nil && newConfig.Backup != nil {
+		if err := s.backup.SetConfig(newConfig.Backup); err != nil {
+			s.logger.Error("invalid backup configuration", "error", err)
+			_ = multierror.Append(&mErr, err)
+		}
 	}
 
 	// Because this is a new configuration, we extract the worker pool arguments without acquiring a lock
@@ -1287,8 +1362,17 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewNamespaceEndpoint(s, ctx))
 	_ = server.Register(NewNodeEndpoint(s, ctx))
 	_ = server.Register(NewNodePoolEndpoint(s, ctx))
+	_ = server.Register(NewAdmissionPolicyEndpoint(s, ctx))
+	_ = server.Register(NewMTLSEndpoint(s, ctx))
+	_ = server.Register(NewServiceIntentionEndpoint(s, ctx))
+	_ = server.Register(NewObjectKindEndpoint(s, ctx))
+	_ = server.Register(NewCustomObjectEndpoint(s, ctx))
+	_ = server.Register(NewReleaseEndpoint(s, ctx))
+	_ = server.Register(NewBackupEndpoint(s, ctx))
+	_ = server.Register(NewNetworkPolicyEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))
 	_ = server.Register(NewPlanEndpoint(s, ctx))
+	_ = server.Register(NewQuotaEndpoint(s, ctx))
 	_ = server.Register(NewRegionEndpoint(s, ctx))
 	_ = server.Register(NewScalingEndpoint(s, ctx))
 	_ = server.Register(NewSearchEndpoint(s, ctx))
@@ -1841,7 +1925,7 @@ func (s *Server) listenWorkerEvents() {
 				if err != nil {
 					s.logger.Debug("failed to encode event to JSON", "error", err)
 				}
-				s.logger.Warn("unexpected node port collision, refer to https://www.nomadproject.io/s/port-plan-failure for more information",
+				s.logger.Warn("unexpected node port collision (see upstream Nomad issue #9506)",
 					"node_id", event.Node.ID, "reason", event.Reason, "event", string(eventJson))
 				loggedAt[event.Node.ID] = time.Now()
 			}
@@ -1977,13 +2061,19 @@ func (s *Server) Stats() map[string]map[string]string {
 		return strconv.FormatUint(v, 10)
 	}
 	leader, _ := s.raft.LeaderWithID()
+
+	// The peers are updated by serf events, so they must be read under lock.
+	s.peerLock.RLock()
+	knownRegions := len(s.peers)
+	s.peerLock.RUnlock()
+
 	stats := map[string]map[string]string{
 		"nomad": {
 			"server":        "true",
 			"leader":        fmt.Sprintf("%v", s.IsLeader()),
 			"leader_addr":   string(leader),
 			"bootstrap":     fmt.Sprintf("%v", s.isSingleServerCluster()),
-			"known_regions": toString(uint64(len(s.peers))),
+			"known_regions": toString(uint64(knownRegions)),
 		},
 		"raft":    s.raft.Stats(),
 		"serf":    s.serf.Stats(),
@@ -2056,6 +2146,16 @@ func (s *Server) Datacenter() string {
 	return s.config.Datacenter
 }
 
+// getTLSConfig returns the current TLS configuration of the server, which
+// reflects any reload of the TLS configuration. It falls back to the initial
+// configuration for servers not created by NewServer (e.g. in unit tests).
+func (s *Server) getTLSConfig() *config.TLSConfig {
+	if c := s.tlsConfig.Load(); c != nil {
+		return c
+	}
+	return s.config.TLSConfig
+}
+
 // GetConfig returns the config of the server for testing purposes only
 func (s *Server) GetConfig() *Config {
 	return s.config
@@ -2116,9 +2216,8 @@ func (s *Server) isSingleServerCluster() bool {
 const peersInfoContent = `
 As of Nomad 0.5.5, the peers.json file is only used for recovery
 after an outage. The format of this file depends on what the server has
-configured for its Raft protocol version. Please see the server configuration
-page at https://www.nomadproject.io/docs/configuration/server#raft_protocol for more
-details about this parameter.
+configured for its Raft protocol version, set by the raft_protocol parameter
+of the server block in the agent configuration.
 For Raft protocol version 2 and earlier, this should be formatted as a JSON
 array containing the address and port of each Nomad server in the cluster, like
 this:
@@ -2152,9 +2251,7 @@ the server starts up, or in the "node-id" file inside the server's data
 directory.
 The "address" field is the address and port of the server.
 The "non_voter" field controls whether the server is a non-voter, which is used
-in some advanced Autopilot configurations, please see
-https://www.nomadproject.io/guides/operations/outage.html for more information. If
-"non_voter" is omitted it will default to false, which is typical for most
+in some advanced Autopilot configurations. If "non_voter" is omitted it will default to false, which is typical for most
 clusters.
 
 Under normal operation, the peers.json file will not be present.
@@ -2169,6 +2266,4 @@ outage. It's crucial that all servers in the cluster are shut down before
 creating the peers.json file, and that all servers receive the same
 configuration. Once the peers.json file is successfully ingested and applied, it
 will be deleted.
-
-Please see https://www.nomadproject.io/guides/outage.html for more information.
 `

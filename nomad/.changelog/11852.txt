@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed a bug where deregistering volumes would attempt to deregister the wrong volume if the ID was a prefix of the intended volume
-```

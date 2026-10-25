@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/nomad/ci"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,11 +32,11 @@ func TestGenericNotifier(t *testing.T) {
 	var timeoutWG sync.WaitGroup
 
 	for i := 0; i < 6; i++ {
+		timeoutWG.Add(1)
 		go func(wg *sync.WaitGroup) {
-			wg.Add(1)
+			defer wg.Done()
 			msg := notifier.WaitForChange(100 * time.Millisecond)
-			require.Equal(t, "wait timed out after 100ms", msg)
-			wg.Done()
+			assert.Equal(t, "wait timed out after 100ms", msg)
 		}(&timeoutWG)
 	}
 	timeoutWG.Wait()
@@ -45,11 +46,11 @@ func TestGenericNotifier(t *testing.T) {
 	var notifiedWG sync.WaitGroup
 
 	for i := 0; i < 6; i++ {
+		notifiedWG.Add(1)
 		go func(wg *sync.WaitGroup) {
-			wg.Add(1)
+			defer wg.Done()
 			msg := notifier.WaitForChange(3 * time.Second)
-			require.Equal(t, "we got an update and not a timeout", msg)
-			wg.Done()
+			assert.Equal(t, "we got an update and not a timeout", msg)
 		}(&notifiedWG)
 	}
 

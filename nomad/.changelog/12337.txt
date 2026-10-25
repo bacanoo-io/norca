@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed a bug where single-use access modes were not enforced during validation
-```

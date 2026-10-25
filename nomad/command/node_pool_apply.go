@@ -29,7 +29,7 @@ func (c *NodePoolApplyCommand) Synopsis() string {
 
 func (c *NodePoolApplyCommand) Help() string {
 	helpText := `
-Usage: nomad node pool apply [options] <input>
+Usage: norca node pool apply [options] <input>
 
   Apply is used to create or update a node pool. The specification file is read
   from stdin by specifying "-", otherwise a path to the file is expected.

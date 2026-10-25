@@ -1,3 +1,0 @@
-```release-note:improvement
-api: return a more descriptive error when /v1/acl/bootstrap fails to decode request body
-```

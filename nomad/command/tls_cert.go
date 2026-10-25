@@ -16,18 +16,18 @@ type TLSCertCommand struct {
 
 func (c *TLSCertCommand) Help() string {
 	helpText := `
-Usage: nomad tls cert <subcommand> [options]
+Usage: norca tls cert <subcommand> [options]
 
   This command groups subcommands for interacting with certificates.
   For examples, see the documentation.
 
   Create a TLS certificate.
 
-      $ nomad tls cert create
+      $ norca tls cert create
 
   Show information about a TLS certificate.
 
-      $ nomad tls cert info
+      $ norca tls cert info
 `
 	return strings.TrimSpace(helpText)
 }

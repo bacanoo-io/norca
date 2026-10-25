@@ -1,3 +1,0 @@
-```release-note:bug
-lifecycle: Fixed a bug where successful poststart tasks were marked as unhealthy
-```

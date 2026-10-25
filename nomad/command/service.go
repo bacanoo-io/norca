@@ -15,21 +15,27 @@ type ServiceCommand struct {
 
 func (c *ServiceCommand) Help() string {
 	helpText := `
-Usage: nomad service <subcommand> [options]
+Usage: norca service <subcommand> [options]
 
   This command groups subcommands for interacting with the services API.
 
   List services:
 
-      $ nomad service list
+      $ norca service list
 
   Detail an individual service:
 
-      $ nomad service info <service_name>
+      $ norca service info <service_name>
 
   Delete an individual service registration:
 
-      $ nomad service delete <service_name> <service_id>
+      $ norca service delete <service_name> <service_id>
+
+  Register an external service, renew its TTL check and deregister it:
+
+      $ norca service register -address 10.0.0.5 -port 5432 -ttl 30s <service_name>
+      $ norca service ttl <service_id>
+      $ norca service deregister <service_id>
 
   Please see the individual subcommand help for detailed usage information.
 `

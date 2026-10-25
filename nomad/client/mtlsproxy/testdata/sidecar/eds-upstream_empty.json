@@ -1,0 +1,9 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment",
+      "cluster_name": "upstream_empty"
+    }
+  ],
+  "version_info": "78ed3b1f2bbf4e4b"
+}

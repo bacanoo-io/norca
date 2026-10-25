@@ -453,6 +453,7 @@ type TaskGroup struct {
 	EphemeralDisk             *EphemeralDisk            `hcl:"ephemeral_disk,block"`
 	Update                    *UpdateStrategy           `hcl:"update,block"`
 	Migrate                   *MigrateStrategy          `hcl:"migrate,block"`
+	Disruption                *DisruptionBudget         `hcl:"disruption,block"`
 	Networks                  []*NetworkResource        `hcl:"network,block"`
 	Meta                      map[string]string         `hcl:"meta,block"`
 	Services                  []*Service                `hcl:"service,block"`

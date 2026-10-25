@@ -1,3 +1,0 @@
-```release-note:bug
-core: Fixed a bug where blocked eval resources were incorrectly computed
-```

@@ -686,7 +686,7 @@ func sufficientSearchPerms(aclObj *acl.ACL, namespace string, context structs.Co
 	case structs.Namespaces:
 		return aclObj.AllowNamespace(namespace)
 	case structs.Allocs, structs.Deployments, structs.Evals, structs.Jobs,
-		structs.ScalingPolicies, structs.Recommendations:
+		structs.ScalingPolicies:
 		return aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityReadJob)
 	case structs.Volumes:
 		return acl.NamespaceValidator(acl.NamespaceCapabilityCSIListVolume,
@@ -783,7 +783,7 @@ func (s *Search) FuzzySearch(args *structs.FuzzySearchRequest, reply *structs.Fu
 			for _, ctx := range prefixContexts {
 				switch ctx {
 				// only apply on the types that use UUID prefix searching
-				case structs.Evals, structs.Deployments, structs.ScalingPolicies, structs.Volumes, structs.Quotas, structs.Recommendations:
+				case structs.Evals, structs.Deployments, structs.ScalingPolicies, structs.Volumes, structs.Quotas:
 					iter, err := getResourceIter(ctx, aclObj, namespace, roundUUIDDownIfOdd(args.Prefix, args.Context), ws, state)
 					if err != nil {
 						if !s.silenceError(err) {
@@ -799,7 +799,7 @@ func (s *Search) FuzzySearch(args *structs.FuzzySearchRequest, reply *structs.Fu
 			for _, ctx := range fuzzyContexts {
 				switch ctx {
 				// skip the types that use UUID prefix searching
-				case structs.Evals, structs.Deployments, structs.ScalingPolicies, structs.Volumes, structs.Quotas, structs.Recommendations:
+				case structs.Evals, structs.Deployments, structs.ScalingPolicies, structs.Volumes, structs.Quotas:
 					continue
 				default:
 					iter, err := getFuzzyResourceIterator(ctx, aclObj, namespace, ws, state)

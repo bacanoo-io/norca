@@ -11,6 +11,7 @@ import (
 	"net/rpc"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -839,8 +840,11 @@ func TestClientEndpoint_UpdateStatus_Reconnect(t *testing.T) {
 	err := msgpackrpc.CallWithCodec(codec, "Node.Register", reg, &nodeUpdateResp)
 	must.NoError(t, err)
 
-	// Start heartbeat.
-	heartbeat := func(ctx context.Context) {
+	// Start heartbeat. An RPC codec is not safe for concurrent use, so each
+	// heartbeat loop uses its own connection.
+	heartbeat := func(ctx context.Context, codec rpc.ClientCodec) {
+		defer codec.Close()
+
 		ticker := time.NewTicker(heartbeatTTL / 2)
 		defer ticker.Stop()
 
@@ -867,7 +871,7 @@ func TestClientEndpoint_UpdateStatus_Reconnect(t *testing.T) {
 	}
 	heartbeatCtx, cancelHeartbeat := context.WithCancel(context.Background())
 	defer cancelHeartbeat()
-	go heartbeat(heartbeatCtx)
+	go heartbeat(heartbeatCtx, rpcClient(t, s))
 
 	// Wait for node to be ready.
 	testutil.WaitForClientStatus(t, s.RPC, node.ID, "global", structs.NodeStatusReady)
@@ -942,7 +946,7 @@ func TestClientEndpoint_UpdateStatus_Reconnect(t *testing.T) {
 	// Restart heartbeat to reconnect node.
 	heartbeatCtx, cancelHeartbeat = context.WithCancel(context.Background())
 	defer cancelHeartbeat()
-	go heartbeat(heartbeatCtx)
+	go heartbeat(heartbeatCtx, rpcClient(t, s))
 
 	// Wait a few heartbeats and check that the node is still initializing.
 	//
@@ -1303,6 +1307,65 @@ func TestClientEndpoint_UpdateStatus_HeartbeatOnly(t *testing.T) {
 	ttl = resp2.HeartbeatTTL
 	if ttl < s1.config.MinHeartbeatTTL || ttl > 2*s1.config.MinHeartbeatTTL {
 		t.Fatalf("bad: %#v", ttl)
+	}
+}
+
+// TestClientEndpoint_UpdateStatus_GetClientAllocs_SharedConn asserts that
+// concurrent RPCs multiplexed over the same client connection, and therefore
+// sharing one RPCContext, can safely associate that connection with the node.
+// Run with -race to detect unsynchronized access to the context.
+func TestClientEndpoint_UpdateStatus_GetClientAllocs_SharedConn(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, nil)
+	defer cleanupS1()
+	testutil.WaitForLeader(t, s1.RPC)
+
+	node := mock.Node()
+	must.NoError(t, s1.fsm.State().UpsertNode(structs.MsgTypeTestSetup, 10, node))
+
+	for i := 0; i < 10; i++ {
+		p1, p2 := net.Pipe()
+		rpcCtx := &RPCContext{Conn: p1}
+		endpoint := NewNodeEndpoint(s1, rpcCtx)
+
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for j := 0; j < 4; j++ {
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				<-start
+				req := &structs.NodeUpdateStatusRequest{
+					NodeID:       node.ID,
+					Status:       structs.NodeStatusReady,
+					WriteRequest: structs.WriteRequest{Region: "global"},
+				}
+				var resp structs.NodeUpdateResponse
+				must.NoError(t, endpoint.UpdateStatus(req, &resp))
+			}()
+			go func() {
+				defer wg.Done()
+				<-start
+				req := &structs.NodeSpecificRequest{
+					NodeID:       node.ID,
+					SecretID:     node.SecretID,
+					QueryOptions: structs.QueryOptions{Region: "global"},
+				}
+				var resp structs.NodeClientAllocsResponse
+				must.NoError(t, endpoint.GetClientAllocs(req, &resp))
+			}()
+		}
+		close(start)
+		wg.Wait()
+
+		must.Eq(t, node.ID, rpcCtx.NodeID())
+		_, ok := s1.getNodeConn(node.ID)
+		must.True(t, ok)
+
+		s1.removeNodeConn(rpcCtx)
+		p1.Close()
+		p2.Close()
 	}
 }
 

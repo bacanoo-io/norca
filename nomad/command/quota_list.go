@@ -18,7 +18,7 @@ type QuotaListCommand struct {
 
 func (c *QuotaListCommand) Help() string {
 	helpText := `
-Usage: nomad quota list [options]
+Usage: norca quota list [options]
 
   List is used to list available quota specifications.
 

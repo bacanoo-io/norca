@@ -68,6 +68,9 @@ const (
 
 	// Namespace appliers were moved from enterprise and therefore start at 64
 	NamespaceSnapshot SnapshotType = 64
+
+	// Norca admission control snapshot types mirror their message types
+	AdmissionPolicySnapshot SnapshotType = 70
 )
 
 // LogApplier is the definition of a function that can apply a Raft log
@@ -314,6 +317,10 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyNamespaceUpsert(buf[1:], log.Index)
 	case structs.NamespaceDeleteRequestType:
 		return n.applyNamespaceDelete(buf[1:], log.Index)
+	case structs.QuotaSpecUpsertRequestType:
+		return n.applyQuotaSpecUpsert(msgType, buf[1:], log.Index)
+	case structs.QuotaSpecDeleteRequestType:
+		return n.applyQuotaSpecDelete(msgType, buf[1:], log.Index)
 	// COMPAT(1.0): These messages were added and removed during the 1.0-beta
 	// series and should not be immediately reused for other purposes
 	case structs.EventSinkUpsertRequestType,
@@ -350,6 +357,44 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyACLBindingRulesUpsert(buf[1:], log.Index)
 	case structs.ACLBindingRulesDeleteRequestType:
 		return n.applyACLBindingRulesDelete(buf[1:], log.Index)
+	case structs.AdmissionPolicyUpsertRequestType:
+		return n.applyAdmissionPolicyUpsert(msgType, buf[1:], log.Index)
+	case structs.AdmissionPolicyDeleteRequestType:
+		return n.applyAdmissionPolicyDelete(msgType, buf[1:], log.Index)
+	case structs.AllocEvictRequestType:
+		return n.applyAllocEvict(msgType, buf[1:], log.Index)
+	case structs.ObjectKindUpsertRequestType:
+		return n.applyObjectKindUpsert(msgType, buf[1:], log.Index)
+	case structs.ObjectKindDeleteRequestType:
+		return n.applyObjectKindDelete(msgType, buf[1:], log.Index)
+	case structs.CustomObjectUpsertRequestType:
+		return n.applyCustomObjectUpsert(msgType, buf[1:], log.Index)
+	case structs.CustomObjectDeleteRequestType:
+		return n.applyCustomObjectDelete(msgType, buf[1:], log.Index)
+	case structs.CustomObjectEventsRequestType:
+		return n.applyCustomObjectEvents(msgType, buf[1:], log.Index)
+	case structs.ObjectGCRequestType:
+		return n.applyObjectGC(msgType, buf[1:], log.Index)
+	case structs.BackupUpsertRequestType:
+		return n.applyBackupUpsert(msgType, buf[1:], log.Index)
+	case structs.BackupDeleteRequestType:
+		return n.applyBackupDelete(msgType, buf[1:], log.Index)
+	case structs.BackupRestoreUpsertRequestType:
+		return n.applyBackupRestoreUpsert(msgType, buf[1:], log.Index)
+	case structs.MTLSRootsUpsertRequestType:
+		return n.applyMTLSRootsUpsert(msgType, buf[1:], log.Index)
+	case structs.ServiceIntentionUpsertRequestType:
+		return n.applyServiceIntentionUpsert(msgType, buf[1:], log.Index)
+	case structs.ServiceIntentionDeleteRequestType:
+		return n.applyServiceIntentionDelete(msgType, buf[1:], log.Index)
+	case structs.NetworkPolicyUpsertRequestType:
+		return n.applyNetworkPolicyUpsert(msgType, buf[1:], log.Index)
+	case structs.NetworkPolicyDeleteRequestType:
+		return n.applyNetworkPolicyDelete(msgType, buf[1:], log.Index)
+	case structs.AdminNetworkPolicyUpsertRequestType:
+		return n.applyAdminNetworkPolicyUpsert(msgType, buf[1:], log.Index)
+	case structs.AdminNetworkPolicyDeleteRequestType:
+		return n.applyAdminNetworkPolicyDelete(msgType, buf[1:], log.Index)
 	}
 
 	// Check enterprise only message types.
@@ -1109,6 +1154,9 @@ func (n *nomadFSM) applyPlanResults(msgType structs.MessageType, buf []byte, ind
 
 	// Add evals for jobs that were preempted
 	n.handleUpsertedEvals(req.PreemptionEvals)
+
+	// Unblock evals waiting on quota released by stopped allocations
+	n.unblockQuotasForPlanResults(&req, index)
 	return nil
 }
 
@@ -1882,6 +1930,40 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case QuotaSpecSnapshot, QuotaUsageSnapshot:
+			if err := restoreQuotaSnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
+		case ObjectKindSnapshot, CustomObjectSnapshot, ObjectEventLogSnapshot, ObjectTombstoneSnapshot:
+			if err := restoreObjectSnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
+		case BackupSnapshot, BackupRestoreSnapshot:
+			if err := restoreBackupSnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
+		case MTLSRootSnapshot, ServiceIntentionSnapshot:
+			if err := restoreMTLSSnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
+		case NetworkPolicySnapshot, AdminNetworkPolicySnapshot:
+			if err := restoreNetworkPolicySnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
+		case AdmissionPolicySnapshot:
+			policy := new(structs.AdmissionPolicy)
+			if err := dec.Decode(policy); err != nil {
+				return err
+			}
+			if err := restore.AdmissionPolicyRestore(policy); err != nil {
+				return err
+			}
+
 		default:
 			// Check if this is an enterprise only object being restored
 			restorer, ok := n.enterpriseRestorers[snapType]
@@ -2412,6 +2494,14 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		sink.Cancel()
 		return err
 	}
+	if err := s.persistAdmissionPolicies(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistObjects(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
 	if err := s.persistSchedulerConfig(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
@@ -2445,6 +2535,22 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistACLBindingRules(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistQuotas(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistBackups(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistMTLS(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistNetworkPolicies(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}

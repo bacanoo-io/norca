@@ -18,9 +18,9 @@ type VolumeCreateCommand struct {
 
 func (c *VolumeCreateCommand) Help() string {
 	helpText := `
-Usage: nomad volume create [options] <input>
+Usage: norca volume create [options] <input>
 
-  Creates a volume in an external storage provider and registers it in Nomad.
+  Creates a volume in an external storage provider and registers it in Norca.
 
   If the supplied path is "-" the volume file is read from stdin. Otherwise, it
   is read from the file at the supplied path.

@@ -30,7 +30,7 @@ type JobStatusCommand struct {
 
 func (c *JobStatusCommand) Help() string {
 	helpText := `
-Usage: nomad status [options] <job>
+Usage: norca status [options] <job>
 
   Display status information about a job. If no job ID is given, a list of all
   known jobs will be displayed.
@@ -400,6 +400,8 @@ func (c *JobStatusCommand) outputJobInfo(client *api.Client, job *api.Job) error
 		c.Ui.Output(c.Colorize().Color(c.formatDeployment(client, latestDeployment)))
 	}
 
+	c.outputDisruptionBudgets(client, job, q)
+
 	// Format the allocs
 	c.Ui.Output(c.Colorize().Color("\n[bold]Allocations[reset]"))
 	c.Ui.Output(formatAllocListStubs(jobAllocs, c.verbose, c.length))
@@ -422,7 +424,7 @@ func (c *JobStatusCommand) formatDeployment(client *api.Client, d *api.Deploymen
 			base += "\n\nError fetching Multiregion deployments\n\n"
 		} else if len(regions) > 0 {
 			base += "\n\n[bold]Multiregion Deployment[reset]\n"
-			base += formatMultiregionDeployment(regions, 8)
+			base += formatMultiregionDeployment(regions, c.length)
 		}
 	}
 

@@ -1,3 +1,0 @@
-```release-note:breaking-change
-core: Honor job's namespace when checking `distinct_hosts` feasibility
-```

@@ -53,11 +53,11 @@ func TestServer_removeNodeConn_differentAddrs(t *testing.T) {
 	nodeID := uuid.Generate()
 	ctx1 := &RPCContext{
 		Conn:   w1,
-		NodeID: nodeID,
+		nodeID: nodeID,
 	}
 	ctx2 := &RPCContext{
 		Conn:   w2,
-		NodeID: nodeID,
+		nodeID: nodeID,
 	}
 
 	s1.addNodeConn(ctx1)
@@ -143,7 +143,7 @@ func TestServerWithNodeConn_Path(t *testing.T) {
 	// Create a fake connection for the node on server 2
 	nodeID := uuid.Generate()
 	s2.addNodeConn(&RPCContext{
-		NodeID: nodeID,
+		nodeID: nodeID,
 	})
 
 	srv, err := s1.serverWithNodeConn(nodeID, s1.Region())
@@ -169,7 +169,7 @@ func TestServerWithNodeConn_Path_Region(t *testing.T) {
 	// Create a fake connection for the node on server 2
 	nodeID := uuid.Generate()
 	s2.addNodeConn(&RPCContext{
-		NodeID: nodeID,
+		nodeID: nodeID,
 	})
 
 	srv, err := s1.serverWithNodeConn(nodeID, s2.Region())
@@ -202,10 +202,10 @@ func TestServerWithNodeConn_Path_Newest(t *testing.T) {
 	// Create a fake connection for the node on server 2 and 3
 	nodeID := uuid.Generate()
 	s2.addNodeConn(&RPCContext{
-		NodeID: nodeID,
+		nodeID: nodeID,
 	})
 	s3.addNodeConn(&RPCContext{
-		NodeID: nodeID,
+		nodeID: nodeID,
 	})
 
 	srv, err := s1.serverWithNodeConn(nodeID, s1.Region())
@@ -238,7 +238,7 @@ func TestServerWithNodeConn_PathAndErr(t *testing.T) {
 	// Create a fake connection for the node on server 2
 	nodeID := uuid.Generate()
 	s2.addNodeConn(&RPCContext{
-		NodeID: nodeID,
+		nodeID: nodeID,
 	})
 
 	// Shutdown the RPC layer for server 3

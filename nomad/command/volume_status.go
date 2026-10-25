@@ -22,7 +22,7 @@ type VolumeStatusCommand struct {
 
 func (c *VolumeStatusCommand) Help() string {
 	helpText := `
-Usage: nomad volume status [options] <id>
+Usage: norca volume status [options] <id>
 
   Display status information about a CSI volume. If no volume id is given, a
   list of all volumes will be displayed.

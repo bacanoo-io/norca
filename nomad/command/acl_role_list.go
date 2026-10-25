@@ -23,7 +23,7 @@ type ACLRoleListCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLRoleListCommand) Help() string {
 	helpText := `
-Usage: nomad acl role list [options]
+Usage: norca acl role list [options]
 
   List is used to list existing ACL roles.
 

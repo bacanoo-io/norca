@@ -29,7 +29,7 @@ type ACLRoleCreateCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLRoleCreateCommand) Help() string {
 	helpText := `
-Usage: nomad acl role create [options]
+Usage: norca acl role create [options]
 
   Create is used to create new ACL roles. Use requires a management token.
 

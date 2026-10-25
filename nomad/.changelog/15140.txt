@@ -1,3 +1,0 @@
-```release-note:bug
-client: prevent allocations from failing on client reconnect by retrying RPC requests when no servers are available yet
-```

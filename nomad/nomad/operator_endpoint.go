@@ -289,6 +289,11 @@ func (op *Operator) AutopilotSetConfiguration(args *structs.AutopilotSetConfigRe
 		return fmt.Errorf("All servers should be running version %v to update autopilot config", minAutopilotVersion)
 	}
 
+	// Reject the options the autopilot of this build ignores.
+	if err := validateAutopilotSupported(&args.Config); err != nil {
+		return err
+	}
+
 	// Apply the update
 	resp, _, err := op.srv.raftApply(structs.AutopilotRequestType, args)
 	if err != nil {

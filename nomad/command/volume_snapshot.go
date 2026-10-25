@@ -25,22 +25,22 @@ func (f *VolumeSnapshotCommand) Synopsis() string {
 
 func (f *VolumeSnapshotCommand) Help() string {
 	helpText := `
-Usage: nomad volume snapshot <subcommand> [options] [args]
+Usage: norca volume snapshot <subcommand> [options] [args]
 
   This command groups subcommands for interacting with CSI volume snapshots.
 
   Create a snapshot of an external storage volume:
 
-      $ nomad volume snapshot create <volume id>
+      $ norca volume snapshot create <volume id>
 
   Display a list of CSI volume snapshots along with their
   source volume ID as known to the external storage provider.
 
-      $ nomad volume snapshot list -plugin <plugin id>
+      $ norca volume snapshot list -plugin <plugin id>
 
   Delete a snapshot of an external storage volume:
 
-      $ nomad volume snapshot delete <snapshot id>
+      $ norca volume snapshot delete <snapshot id>
 
   Please see the individual subcommand help for detailed usage information.
 `

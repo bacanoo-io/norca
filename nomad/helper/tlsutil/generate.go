@@ -101,6 +101,15 @@ func (c *CAOpts) IsNotCustom() bool {
 		c.Name == ""
 }
 
+// nonEmpty returns a single-value slice of s for a certificate subject
+// attribute, or nil if s is empty so that the attribute is omitted.
+func nonEmpty(s string) []string {
+	if s == "" {
+		return nil
+	}
+	return []string{s}
+}
+
 // GenerateCA generates a new CA for agent TLS (not to be confused with Connect TLS)
 func GenerateCA(opts CAOpts) (string, string, error) {
 	var (
@@ -132,17 +141,13 @@ func GenerateCA(opts CAOpts) (string, string, error) {
 	}
 
 	if opts.IsNotCustom() {
-		opts.Name = fmt.Sprintf("Nomad Agent CA %d", sn)
+		// Neutral defaults: no country or postal address is set.
+		opts.Name = fmt.Sprintf("Norca Agent CA %d", sn)
 		if opts.Days == 0 {
 			opts.Days = 1825
 		}
-		opts.Country = "US"
-		opts.PostalCode = "94105"
-		opts.Province = "CA"
-		opts.Locality = "San Francisco"
-		opts.StreetAddress = "101 Second Street"
-		opts.Organization = "HashiCorp Inc."
-		opts.OrganizationalUnit = "Nomad"
+		opts.Organization = "Norca"
+		opts.OrganizationalUnit = "Norca"
 	} else {
 		if opts.Name == "" {
 			return "", "", errors.New("common name value not provided")
@@ -166,13 +171,13 @@ func GenerateCA(opts CAOpts) (string, string, error) {
 	template := x509.Certificate{
 		SerialNumber: sn,
 		Subject: pkix.Name{
-			Country:            []string{opts.Country},
-			PostalCode:         []string{opts.PostalCode},
-			Province:           []string{opts.Province},
-			Locality:           []string{opts.Locality},
-			StreetAddress:      []string{opts.StreetAddress},
-			Organization:       []string{opts.Organization},
-			OrganizationalUnit: []string{opts.OrganizationalUnit},
+			Country:            nonEmpty(opts.Country),
+			PostalCode:         nonEmpty(opts.PostalCode),
+			Province:           nonEmpty(opts.Province),
+			Locality:           nonEmpty(opts.Locality),
+			StreetAddress:      nonEmpty(opts.StreetAddress),
+			Organization:       nonEmpty(opts.Organization),
+			OrganizationalUnit: nonEmpty(opts.OrganizationalUnit),
 			CommonName:         opts.Name,
 		},
 		BasicConstraintsValid: true,

@@ -101,7 +101,7 @@ func TestVolumeWatch_LeadershipTransition(t *testing.T) {
 
 	vol, _ = srv.State().CSIVolumeByID(nil, vol.Namespace, vol.ID)
 	require.Len(t, vol.PastClaims, 0, "expected to have 0 PastClaims")
-	require.Equal(t, srv.countCSIUnpublish, 0, "expected no CSI.Unpublish RPC calls")
+	require.Equal(t, int64(0), srv.countCSIUnpublish.Load(), "expected no CSI.Unpublish RPC calls")
 
 	// trying to test a dropped watch is racy, so to reliably simulate
 	// this condition, step-down the watcher first and then perform
@@ -136,15 +136,17 @@ func TestVolumeWatch_LeadershipTransition(t *testing.T) {
 	watcher.quiescentTimeout = 100 * time.Millisecond
 	watcher.SetEnabled(true, srv.State(), "")
 
+	// wait for the new watcher to reap the claim and then stop; checking
+	// only for zero watchers could succeed before the watcher has started
 	require.Eventually(t, func() bool {
 		watcher.wlock.RLock()
 		defer watcher.wlock.RUnlock()
-		return 0 == len(watcher.watchers)
+		return 1 == srv.countCSIUnpublish.Load() && 0 == len(watcher.watchers)
 	}, time.Second, 10*time.Millisecond)
 
 	vol, _ = srv.State().CSIVolumeByID(nil, vol.Namespace, vol.ID)
 	require.Len(t, vol.PastClaims, 1, "expected to have 1 PastClaim")
-	require.Equal(t, srv.countCSIUnpublish, 1, "expected CSI.Unpublish RPC to be called")
+	require.Equal(t, int64(1), srv.countCSIUnpublish.Load(), "expected CSI.Unpublish RPC to be called")
 }
 
 // TestVolumeWatch_StartStop tests the start and stop of the watcher when

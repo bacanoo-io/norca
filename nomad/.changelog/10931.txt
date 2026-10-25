@@ -1,3 +1,0 @@
-```release-note:improvement
-cli: Support recent job spec construct in the HCLv1 parser
-```

@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Fixed a bug where the `-stale` flag was not respected by `nomad operator debug`
-```

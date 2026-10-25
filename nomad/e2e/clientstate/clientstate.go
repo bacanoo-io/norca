@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -190,7 +189,7 @@ func (tc *ClientStateTC) TestClientState_Kill(f *framework.F) {
 		f.False(state.Success())
 
 		// Assert sleeper is still running
-		f.NoError(syscall.Kill(pid, 0))
+		f.NoError(processExists(pid))
 		assertHealthy()
 
 		// Should not be able to reach its filesystem
@@ -422,7 +421,7 @@ func (tc *ClientStateTC) TestClientState_Corrupt(f *framework.F) {
 	f.True(procState.Exited())
 
 	// Assert sleeper is still running
-	f.NoError(syscall.Kill(pid, 0))
+	f.NoError(processExists(pid))
 	assertHealthy()
 
 	// Remove task bucket from client state

@@ -1,3 +1,0 @@
-```release-note:bug
-device: Fixed a bug where device plugins would not fingerprint on startup
-```

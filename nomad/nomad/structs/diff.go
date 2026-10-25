@@ -344,6 +344,11 @@ func (tg *TaskGroup) Diff(other *TaskGroup, contextual bool) (*TaskGroupDiff, er
 		diff.Objects = append(diff.Objects, uDiff)
 	}
 
+	// Disruption budget diff
+	if dDiff := primitiveObjectDiff(tg.Disruption, other.Disruption, nil, "Disruption", contextual); dDiff != nil {
+		diff.Objects = append(diff.Objects, dDiff)
+	}
+
 	// Network Resources diff
 	if nDiffs := networkResourceDiffs(tg.Networks, other.Networks, contextual); nDiffs != nil {
 		diff.Objects = append(diff.Objects, nDiffs...)
@@ -639,6 +644,7 @@ func scalingDiff(old, new *ScalingPolicy, contextual bool) *ObjectDiff {
 	var oldPrimitiveFlat, newPrimitiveFlat map[string]string
 
 	filter := []string{"CreateIndex", "ModifyIndex", "ID", "Type", "Target[Job]", "Target[Group]", "Target[Namespace]"}
+	filter = append(filter, scalingTypedFields...)
 
 	if reflect.DeepEqual(old, new) {
 		return nil
@@ -663,6 +669,11 @@ func scalingDiff(old, new *ScalingPolicy, contextual bool) *ObjectDiff {
 	if pDiff := policyDiff(old.Policy, new.Policy, contextual); pDiff != nil {
 		diff.Objects = append(diff.Objects, pDiff)
 	}
+
+	// Diff the typed policy
+	typedFields, typedObjects := scalingTypedDiff(old, new, contextual)
+	diff.Fields = append(diff.Fields, typedFields...)
+	diff.Objects = append(diff.Objects, typedObjects...)
 
 	sort.Sort(FieldDiffs(diff.Fields))
 	sort.Sort(ObjectDiffs(diff.Objects))
@@ -734,6 +745,16 @@ func serviceDiff(old, new *Service, contextual bool) *ObjectDiff {
 	// Consul Connect diffs
 	if conDiffs := connectDiffs(old.Connect, new.Connect, contextual); conDiffs != nil {
 		diff.Objects = append(diff.Objects, conDiffs)
+	}
+
+	// Discovery diffs (Norca)
+	if dDiff := serviceDiscoveryDiff(old.Discovery, new.Discovery, contextual); dDiff != nil {
+		diff.Objects = append(diff.Objects, dDiff)
+	}
+
+	// mTLS diffs (Norca)
+	if mDiff := serviceMTLSDiff(old.MTLS, new.MTLS, contextual); mDiff != nil {
+		diff.Objects = append(diff.Objects, mDiff)
 	}
 
 	return diff

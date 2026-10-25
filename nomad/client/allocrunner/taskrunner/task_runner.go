@@ -182,6 +182,9 @@ type TaskRunner struct {
 	// allocHookResources captures the resources provided by the allocrunner hooks
 	allocHookResources *cstructs.AllocHookResources
 
+	// rpcClient is used by hooks that talk to the servers
+	rpcClient config.RPCer
+
 	// consulClient is the client used by the consul service hook for
 	// registering services and checks
 	consulServiceClient serviceregistration.Handler
@@ -338,6 +341,9 @@ type Config struct {
 	// AllocHookResources is how taskrunner hooks can get state written by
 	// allocrunner hooks
 	AllocHookResources *cstructs.AllocHookResources
+
+	// RPCClient is used by hooks that talk to the servers (native mTLS).
+	RPCClient config.RPCer
 }
 
 func NewTaskRunner(config *Config) (*TaskRunner, error) {
@@ -378,6 +384,7 @@ func NewTaskRunner(config *Config) (*TaskRunner, error) {
 		state:                  tstate,
 		localState:             state.NewLocalState(),
 		allocHookResources:     config.AllocHookResources,
+		rpcClient:              config.RPCClient,
 		stateDB:                config.StateDB,
 		stateUpdater:           config.StateUpdater,
 		deviceStatsReporter:    config.DeviceStatsReporter,

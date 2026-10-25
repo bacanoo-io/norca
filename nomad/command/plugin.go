@@ -11,7 +11,7 @@ type PluginCommand struct {
 
 func (c *PluginCommand) Help() string {
 	helpText := `
-Usage nomad plugin status [options] [plugin]
+Usage norca plugin status [options] [plugin]
 
     This command groups subcommands for interacting with plugins.
 `

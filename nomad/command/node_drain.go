@@ -28,7 +28,7 @@ type NodeDrainCommand struct {
 
 func (c *NodeDrainCommand) Help() string {
 	helpText := `
-Usage: nomad node drain [options] <node>
+Usage: norca node drain [options] <node>
 
   Toggles node draining on a specified node. It is required that either
   -enable or -disable is specified, but not both.  The -self flag is useful to

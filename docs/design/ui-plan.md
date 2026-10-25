@@ -1,6 +1,6 @@
 # Web UI and Tabler migration – plan
 
-**Status:** Plan · 2026-10-24 · Starting point: the Nomad v1.6.5 web UI · Visual mockup: [mockups/ui-mockup.html](mockups/ui-mockup.html) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md) and the other design documents
+**Status:** In progress · 2026-10-25 (phase 1, foundation, in progress) · Starting point: the Nomad v1.6.5 web UI · Visual mockup: [mockups/ui-mockup.html](mockups/ui-mockup.html) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md) and the other design documents
 
 The fork's UI gets a new information architecture, an overview dashboard, cross-region views, and pages for the planned features (backup, packages, objects, quotas, admission, networking, scaling, multiregion deployment). The visual base is Tabler (MIT), through our own Ember component layer. The visual mockup is the clickable realization of this plan, with real Tabler CSS.
 
@@ -171,7 +171,7 @@ Bulma and Bootstrap partly use the same class names (`table`, `modal`, `dropdown
 
 ## Open questions
 
-- [ ] What should the fork's final product name and branding be ("Norca")?
-- [ ] ECharts or Chart.js for the new charts?
-- [ ] Should the old UI remain available in parallel for a transition period (for example `/ui/legacy`)?
-- [ ] Which languages are needed beyond English and Hungarian?
+- [x] What should the fork's final product name and branding be ("Norca")? Decided 2026-10-24: the name is Norca; the visual identity stays the neutral Tabler base (no custom logo or palette for now).
+- [x] ECharts or Chart.js for the new charts? Decided 2026-10-24: ECharts.
+- [x] Should the old UI remain available in parallel for a transition period (for example `/ui/legacy`)? Decided 2026-10-24: yes, at `/ui/legacy` for one release.
+- [x] Which languages are needed beyond English and Hungarian? Decided 2026-10-24: English only; no translation layer (`ember-intl` is dropped from phase 1).

@@ -21,7 +21,7 @@ type ACLBootstrapCommand struct {
 
 func (c *ACLBootstrapCommand) Help() string {
 	helpText := `
-Usage: nomad acl bootstrap [options]
+Usage: norca acl bootstrap [options]
 
   Bootstrap is used to bootstrap the ACL system and get an initial token.
 

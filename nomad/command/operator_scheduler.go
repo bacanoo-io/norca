@@ -18,18 +18,18 @@ type OperatorSchedulerCommand struct {
 
 func (o *OperatorSchedulerCommand) Help() string {
 	helpText := `
-Usage: nomad operator scheduler <subcommand> [options]
+Usage: norca operator scheduler <subcommand> [options]
 
-  This command groups subcommands for interacting with Nomad's scheduler
+  This command groups subcommands for interacting with Norca's scheduler
   subsystem.
 
   Get the scheduler configuration:
 
-      $ nomad operator scheduler get-config
+      $ norca operator scheduler get-config
 
   Set the scheduler to use the spread algorithm:
 
-      $ nomad operator scheduler set-config -scheduler-algorithm=spread
+      $ norca operator scheduler set-config -scheduler-algorithm=spread
 
   Please see the individual subcommand help for detailed usage information.
 `

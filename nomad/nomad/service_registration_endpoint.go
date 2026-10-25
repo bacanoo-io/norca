@@ -97,6 +97,47 @@ func (s *ServiceRegistration) Upsert(
 		}
 	}
 
+	// The health-based catalog (health, checks, zone, meta and discovery
+	// settings, with flapping protection) is enabled once every server of the
+	// region runs Norca; until then registrations keep the fields known to
+	// every server.
+	stateStore := s.srv.fsm.State()
+	if !ServersMeetMinimumNorcaVersion(s.srv.Members(), s.srv.Region(), false) {
+		// Drop the registrations that would not change, as clients
+		// re-assert the health of their instances periodically.
+		services := make([]*structs.ServiceRegistration, 0, len(args.Services))
+		for _, service := range args.Services {
+			service.StripNorcaFields()
+			existing, err := stateStore.GetServiceRegistrationByID(nil, service.Namespace, service.ID)
+			if err != nil {
+				return err
+			}
+			if !service.Equal(existing) {
+				services = append(services, service)
+			}
+		}
+		args.Services = services
+	} else if s.srv.serviceHealth != nil {
+		services, err := s.srv.serviceHealth.filter(args.Services,
+			func(namespace, id string) (*structs.ServiceRegistration, error) {
+				return stateStore.GetServiceRegistrationByID(nil, namespace, id)
+			})
+		if err != nil {
+			return err
+		}
+		args.Services = services
+	}
+
+	// Nothing changes: skip the Raft write.
+	if len(args.Services) == 0 {
+		index, err := stateStore.Index(state.TableServiceRegistrations)
+		if err != nil {
+			return err
+		}
+		reply.Index = index
+		return nil
+	}
+
 	// Update via Raft.
 	_, index, err := s.srv.raftApply(structs.ServiceRegistrationUpsertRequestType, args)
 	if err != nil {
@@ -447,7 +488,20 @@ func (s *ServiceRegistration) GetService(
 
 			// Build the paginator. This includes the function that is
 			// responsible for appending a registration to the services array.
-			paginatorImpl, err := paginator.NewPaginator(iter, tokenizer, nil, args.QueryOptions,
+			// Filter for healthy instances if requested, and remember the
+			// discovery settings of the service.
+			var discoveryRegs []*structs.ServiceRegistration
+			filters := []paginator.Filter{paginator.GenericFilter{
+				Allow: func(raw interface{}) (bool, error) {
+					reg := raw.(*structs.ServiceRegistration)
+					if reg.Discovery != nil {
+						discoveryRegs = append(discoveryRegs, reg)
+					}
+					return !args.HealthyOnly || reg.Discoverable(), nil
+				},
+			}}
+
+			paginatorImpl, err := paginator.NewPaginator(iter, tokenizer, filters, args.QueryOptions,
 				func(raw interface{}) error {
 					services = append(services, raw.(*structs.ServiceRegistration))
 					return nil
@@ -463,6 +517,12 @@ func (s *ServiceRegistration) GetService(
 			if err != nil {
 				return structs.NewErrRPCCodedf(
 					http.StatusBadRequest, "failed to read result page: %v", err)
+			}
+
+			// Select the instances by topology if requested.
+			reply.Discovery = structs.EffectiveDiscovery(discoveryRegs)
+			if args.Near != nil {
+				services = structs.SelectByTopology(services, *args.Near, reply.Discovery)
 			}
 
 			// Select which subset and the order of services to return if using ?choose

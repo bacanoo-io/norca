@@ -1,3 +1,0 @@
-```release-note:bug
-config: Fixed a bug where the `reservable_cores` setting was not respected
-```

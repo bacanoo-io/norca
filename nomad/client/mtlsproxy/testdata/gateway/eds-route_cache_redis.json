@@ -1,0 +1,35 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment",
+      "cluster_name": "route_cache_redis",
+      "endpoints": [
+        {
+          "lb_endpoints": [
+            {
+              "endpoint": {
+                "address": {
+                  "socket_address": {
+                    "address": "10.1.0.2",
+                    "port_value": 25002
+                  }
+                }
+              }
+            },
+            {
+              "endpoint": {
+                "address": {
+                  "socket_address": {
+                    "address": "10.1.0.3",
+                    "port_value": 25003
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "version_info": "dd3357a4d5815046"
+}

@@ -1,3 +1,0 @@
-```release-note: bug
-server: Fixed a panic on arm64 platform when dispatching a job with a payload
-```

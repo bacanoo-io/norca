@@ -22,6 +22,11 @@ var (
 	// ErrVariablePathNotFound is returned when trying to read a variable that
 	// does not exist.
 	ErrVariablePathNotFound = errors.New("variable not found")
+
+	// ErrVariablePermissionDenied is returned when reading a variable is not
+	// permitted. The error is an UnexpectedResponseError with status 403 that
+	// wraps ErrVariablePermissionDenied, so errors.Is can detect it.
+	ErrVariablePermissionDenied = errors.New("permission denied")
 )
 
 // Variables is used to access variables.
@@ -59,11 +64,12 @@ func (vars *Variables) CheckedCreate(v *Variable, qo *WriteOptions) (*Variable, 
 }
 
 // Read is used to query a single variable by path. This will error
-// if the variable is not found.
+// if the variable is not found (ErrVariablePathNotFound) or reading it is not
+// permitted (ErrVariablePermissionDenied).
 func (vars *Variables) Read(path string, qo *QueryOptions) (*Variable, *QueryMeta, error) {
 	path = cleanPathString(path)
 	var v = new(Variable)
-	qm, err := vars.readInternal("/v1/var/"+path, &v, qo)
+	qm, err := vars.readInternal("/v1/var/"+path, &v, qo, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,11 +80,11 @@ func (vars *Variables) Read(path string, qo *QueryOptions) (*Variable, *QueryMet
 }
 
 // Peek is used to query a single variable by path, but does not error
-// when the variable is not found
+// when the variable is not found or reading it is not permitted
 func (vars *Variables) Peek(path string, qo *QueryOptions) (*Variable, *QueryMeta, error) {
 	path = cleanPathString(path)
 	var v = new(Variable)
-	qm, err := vars.readInternal("/v1/var/"+path, &v, qo)
+	qm, err := vars.readInternal("/v1/var/"+path, &v, qo, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -170,7 +176,7 @@ func (vars *Variables) GetVariableItems(path string, qo *QueryOptions) (Variable
 	path = cleanPathString(path)
 	v := new(Variable)
 
-	qm, err := vars.readInternal("/v1/var/"+path, &v, qo)
+	qm, err := vars.readInternal("/v1/var/"+path, &v, qo, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -184,10 +190,11 @@ func (vars *Variables) GetVariableItems(path string, qo *QueryOptions) (Variable
 }
 
 // readInternal exists because the API's higher-level read method requires
-// the status code to be 200 (OK). For Peek(), we do not consider 403 (Permission
-// Denied or 404 (Not Found) an error, this function just returns a nil in those
-// cases.
-func (vars *Variables) readInternal(endpoint string, out **Variable, q *QueryOptions) (*QueryMeta, error) {
+// the status code to be 200 (OK). We do not consider 404 (Not Found) an error,
+// this function just returns a nil in that case. With allowForbidden (for
+// Peek()), a 403 (Permission Denied) returns a nil as well; otherwise it
+// returns an error wrapping ErrVariablePermissionDenied.
+func (vars *Variables) readInternal(endpoint string, out **Variable, q *QueryOptions, allowForbidden bool) (*QueryMeta, error) {
 	// todo(shoenig): seems like this could just return a *Variable instead of taking
 	// in a **Variable and modifying it?
 
@@ -211,6 +218,13 @@ func (vars *Variables) readInternal(endpoint string, out **Variable, q *QueryOpt
 		*out = nil
 		_ = resp.Body.Close()
 		return qm, nil
+	}
+
+	if resp.StatusCode == http.StatusForbidden && !allowForbidden {
+		*out = nil
+		return nil, newUnexpectedResponseError(fromHTTPResponse(resp),
+			withExpectedStatuses([]int{http.StatusOK, http.StatusNotFound}),
+			withError(ErrVariablePermissionDenied))
 	}
 
 	if resp.StatusCode == http.StatusForbidden {

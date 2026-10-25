@@ -8,11 +8,10 @@ package nomad
 
 import (
 	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // refreshIndex returns the index the scheduler should refresh to as the maximum
-// of both the allocation and node tables.
+// of the allocation, node and quota specification tables.
 func refreshIndex(snap *state.StateSnapshot) (uint64, error) {
 	allocIndex, err := snap.Index("allocs")
 	if err != nil {
@@ -22,10 +21,9 @@ func refreshIndex(snap *state.StateSnapshot) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return maxUint64(nodeIndex, allocIndex), nil
-}
-
-// evaluatePlanQuota returns whether the plan would be over quota
-func evaluatePlanQuota(_ *state.StateSnapshot, _ *structs.Plan) (bool, error) {
-	return false, nil
+	quotaIndex, err := snap.Index(state.TableQuotaSpecs)
+	if err != nil {
+		return 0, err
+	}
+	return maxUint64(nodeIndex, allocIndex, quotaIndex), nil
 }

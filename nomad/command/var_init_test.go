@@ -19,16 +19,13 @@ func TestVarInitCommand_Implements(t *testing.T) {
 }
 
 func TestVarInitCommand_Run(t *testing.T) {
-	ci.Parallel(t)
+	// The command writes into the working directory. t.Chdir changes the
+	// working directory of the whole process, so neither this test nor its
+	// subtests may run in parallel with other tests.
 	dir := t.TempDir()
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	err = os.Chdir(dir)
-	require.NoError(t, err)
-	t.Cleanup(func() { os.Chdir(origDir) })
+	t.Chdir(dir)
 
 	t.Run("hcl", func(t *testing.T) {
-		ci.Parallel(t)
 		dir := dir
 		ui := cli.NewMockUi()
 		cmd := &VarInitCommand{Meta: Meta{Ui: ui}}
@@ -72,7 +69,6 @@ func TestVarInitCommand_Run(t *testing.T) {
 		require.Equal(t, defaultHclVarSpec, string(content))
 	})
 	t.Run("json", func(t *testing.T) {
-		ci.Parallel(t)
 		dir := dir
 		ui := cli.NewMockUi()
 		cmd := &VarInitCommand{Meta: Meta{Ui: ui}}

@@ -1,3 +1,0 @@
-```release-note:bug
-core: Fixed auto-promotion of canaries in jobs with at least one task group without canaries.
-```

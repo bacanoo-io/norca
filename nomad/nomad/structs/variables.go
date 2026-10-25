@@ -300,6 +300,11 @@ type VariablesApplyResponse struct {
 	Error    error              // Error if any
 	Conflict *VariableDecrypted // Conflicting value if applicable
 	Output   *VariableDecrypted // Operation Result if successful; nil for successful deletes
+
+	// Warnings are returned by admission policies with the "warn" action and
+	// by admission webhooks that admitted the write (Norca).
+	Warnings []string
+
 	WriteMeta
 }
 

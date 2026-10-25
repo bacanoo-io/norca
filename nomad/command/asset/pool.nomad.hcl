@@ -11,8 +11,8 @@ node_pool "example" {
 
   # The scheduler configuration options specific to this node pool. This block
   # supports a subset of the fields supported in the global scheduler
-  # configuration as described at:
-  # https://developer.hashicorp.com/nomad/docs/commands/operator/scheduler/set-config
+  # configuration as described in the help of
+  # 'norca operator scheduler set-config'.
   #
   # * scheduler_algorithm is the scheduling algorithm to use for the pool.
   #   If not defined, the global cluster scheduling algorithm is used.

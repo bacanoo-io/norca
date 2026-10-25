@@ -1,3 +1,0 @@
-```release-note:bug
-cni: Fixed a bug where fingerprinting of CNI configuration failed with default `cni_config_dir` and `cni_path`
-```

@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Fix a bug in the `var put` command which prevented combining items as CLI arguments and other parameters as flags
-```

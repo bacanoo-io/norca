@@ -19,7 +19,7 @@ type TLSCAInfoCommand struct {
 
 func (c *TLSCAInfoCommand) Help() string {
 	helpText := `
-Usage: nomad tls ca info <CA file>
+Usage: norca tls ca info <CA file>
 
   Show information about a certificate authority.
 `

@@ -1,3 +1,0 @@
-```release-note:improvement
-client: Allow Docker hostnames to be configured and interpolated in bridged networking mode
-```

@@ -50,6 +50,9 @@ func (s *HTTPServer) DeploymentSpecificRequest(resp http.ResponseWriter, req *ht
 	case strings.HasPrefix(path, "allocation-health/"):
 		deploymentID := strings.TrimPrefix(path, "allocation-health/")
 		return s.deploymentSetAllocHealth(resp, req, deploymentID)
+	case strings.HasPrefix(path, "run/"):
+		deploymentID := strings.TrimPrefix(path, "run/")
+		return s.deploymentRun(resp, req, deploymentID)
 	case strings.HasPrefix(path, "unblock/"):
 		deploymentID := strings.TrimPrefix(path, "unblock/")
 		return s.deploymentUnblock(resp, req, deploymentID)
@@ -145,6 +148,31 @@ func (s *HTTPServer) deploymentUnblock(resp http.ResponseWriter, req *http.Reque
 
 	var out structs.DeploymentUpdateResponse
 	if err := s.agent.RPC("Deployment.Unblock", &unblockRequest, &out); err != nil {
+		return nil, err
+	}
+	setIndex(resp, out.Index)
+	return out, nil
+}
+
+func (s *HTTPServer) deploymentRun(resp http.ResponseWriter, req *http.Request, deploymentID string) (interface{}, error) {
+	if req.Method != http.MethodPut && req.Method != http.MethodPost {
+		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+	}
+
+	var runRequest structs.DeploymentRunRequest
+	if err := decodeBody(req, &runRequest); err != nil {
+		return nil, CodedError(http.StatusBadRequest, err.Error())
+	}
+	if runRequest.DeploymentID == "" {
+		return nil, CodedError(http.StatusBadRequest, "DeploymentID must be specified")
+	}
+	if runRequest.DeploymentID != deploymentID {
+		return nil, CodedError(http.StatusBadRequest, "Deployment ID does not match")
+	}
+	s.parseWriteRequest(req, &runRequest.WriteRequest)
+
+	var out structs.DeploymentUpdateResponse
+	if err := s.agent.RPC("Deployment.Run", &runRequest, &out); err != nil {
 		return nil, err
 	}
 	setIndex(resp, out.Index)

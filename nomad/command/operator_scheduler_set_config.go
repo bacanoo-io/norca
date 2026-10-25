@@ -155,7 +155,7 @@ func (o *OperatorSchedulerSetConfig) Synopsis() string {
 
 func (o *OperatorSchedulerSetConfig) Help() string {
 	helpText := `
-Usage: nomad operator scheduler set-config [options]
+Usage: norca operator scheduler set-config [options]
 
   Modifies the current scheduler configuration.
 

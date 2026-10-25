@@ -26,7 +26,7 @@ type JobScalingEventsCommand struct {
 // Help satisfies the cli.Command Help function.
 func (j *JobScalingEventsCommand) Help() string {
 	helpText := `
-Usage: nomad job scaling-events [options] <args>
+Usage: norca job scaling-events [options] <args>
 
   List the scaling events for the specified job.
 

@@ -1,0 +1,53 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+# The <% .Group %>/<% .Kind %> object kind. Check it offline and register it with
+#
+#   norca object-kind lint <% .KindLower %>.kind.hcl examples/<% .KindLower %>.hcl
+#   norca object-kind apply <% .KindLower %>.kind.hcl
+#
+# (operator write is required). The operator pack in pack/<% .Name %> installs
+# the same kind together with the controller.
+kind "<% .Kind %>" {
+  group       = "<% .Group %>"
+  description = "TODO: describe what a <% .Kind %> is"
+  namespaced  = <% .Namespaced %>
+  schema      = file("<% .KindLower %>.schema.json")
+
+  # The schema version. Raise it when the schema changes incompatibly, and
+  # convert the stored objects with a migration (CEL: self, fromVersion,
+  # toVersion; maps have merge() and omit()). "norca object-kind apply
+  # -dry-run" shows what a change does to the stored objects.
+  version = 1
+  # migration {
+  #   spec = "self.spec.omit(['message']).merge({'greeting': self.spec.message})"
+  # }
+
+  rule {
+    # A transition rule: oldSelf is the stored object, null on create.
+    expression = "!has(oldSelf) || self.spec.replicas <= oldSelf.spec.replicas + 10"
+    message    = "replicas can grow by at most 10 at a time."
+  }
+
+  columns {
+    column "Replicas" { path = "spec.replicas" }
+    column "Ready" { path = "status.conditions[?type=='Ready'].status" }
+  }
+
+  # The validating webhook ("<% .Name %> webhook"), reachable over https.
+  # Kinds applied with a management token approve their webhooks; others
+  # need "norca object-kind webhook approve <% .Group %>/<% .Kind %> validate".
+  # webhook "validate" {
+  #   url            = "https://<% .Name %>-webhook.example.internal:8443/validate"
+  #   ca_cert        = file("ca.pem")
+  #   failure_policy = "fail"
+  # }
+
+  # Load management of the objects: writes over a limit get 429.
+  limits {
+    write_rate               = 50
+    identity_write_rate      = 20
+    max_watches_per_identity = 16
+  }
+}

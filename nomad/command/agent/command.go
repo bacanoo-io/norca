@@ -22,7 +22,6 @@ import (
 	"github.com/armon/go-metrics/circonus"
 	"github.com/armon/go-metrics/datadog"
 	"github.com/armon/go-metrics/prometheus"
-	checkpoint "github.com/hashicorp/go-checkpoint"
 	discover "github.com/hashicorp/go-discover"
 	hclog "github.com/hashicorp/go-hclog"
 	gsyslog "github.com/hashicorp/go-syslog"
@@ -290,12 +289,6 @@ func (c *Command) readConfig() *Config {
 		config.PluginDir = filepath.Join(config.DataDir, "plugins")
 	}
 
-	// License configuration options
-	config.Server.LicenseEnv = os.Getenv("NOMAD_LICENSE")
-	if config.Server.LicensePath == "" {
-		config.Server.LicensePath = os.Getenv("NOMAD_LICENSE_PATH")
-	}
-
 	config.Server.DefaultSchedulerConfig.Canonicalize()
 
 	if !c.IsValidConfig(config, cmdConfig) {
@@ -310,6 +303,14 @@ func (c *Command) IsValidConfig(config, cmdConfig *Config) bool {
 	// Check that the server is running in at least one mode.
 	if !(config.Server.Enabled || config.Client.Enabled) {
 		c.Ui.Error("Must specify either server, client or dev mode for the agent.")
+		return false
+	}
+
+	// Reject options that are parsed but have no effect in this build.
+	if msgs := config.unsupportedOptions(); len(msgs) > 0 {
+		for _, msg := range msgs {
+			c.Ui.Error(msg)
+		}
 		return false
 	}
 
@@ -335,7 +336,7 @@ func (c *Command) IsValidConfig(config, cmdConfig *Config) bool {
 	}
 	if !config.DevMode && (config.TLSConfig == nil ||
 		!config.TLSConfig.EnableHTTP || !config.TLSConfig.EnableRPC) {
-		c.Ui.Error("WARNING: mTLS is not configured - Nomad is not secure without mTLS!")
+		c.Ui.Error("WARNING: mTLS is not configured - Norca is not secure without mTLS!")
 	}
 
 	if config.Server.EncryptKey != "" {
@@ -564,7 +565,7 @@ func SetupLoggers(ui cli.Ui, config *Config) (*logutils.LevelFilter, *gatedwrite
 
 // setupAgent is used to start the agent and various interfaces
 func (c *Command) setupAgent(config *Config, logger hclog.InterceptLogger, logOutput io.Writer, inmem *metrics.InmemSink) error {
-	c.Ui.Output("Starting Nomad agent...")
+	c.Ui.Output("Starting Norca agent...")
 
 	agent, err := NewAgent(config, logger, logOutput, inmem)
 	if err != nil {
@@ -584,51 +585,7 @@ func (c *Command) setupAgent(config *Config, logger hclog.InterceptLogger, logOu
 	}
 	c.httpServers = httpServers
 
-	// If DisableUpdateCheck is not enabled, set up update checking
-	// (DisableUpdateCheck is false by default)
-	if config.DisableUpdateCheck != nil && !*config.DisableUpdateCheck {
-		version := config.Version.Version
-		if config.Version.VersionPrerelease != "" {
-			version += fmt.Sprintf("-%s", config.Version.VersionPrerelease)
-		}
-		updateParams := &checkpoint.CheckParams{
-			Product: "nomad",
-			Version: version,
-		}
-		if !config.DisableAnonymousSignature {
-			updateParams.SignatureFile = filepath.Join(config.DataDir, "checkpoint-signature")
-		}
-
-		// Schedule a periodic check with expected interval of 24 hours
-		checkpoint.CheckInterval(updateParams, 24*time.Hour, c.checkpointResults)
-
-		// Do an immediate check within the next 30 seconds
-		go func() {
-			time.Sleep(helper.RandomStagger(30 * time.Second))
-			c.checkpointResults(checkpoint.Check(updateParams))
-		}()
-	}
-
 	return nil
-}
-
-// checkpointResults is used to handler periodic results from our update checker
-func (c *Command) checkpointResults(results *checkpoint.CheckResponse, err error) {
-	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Failed to check for updates: %v", err))
-		return
-	}
-	if results.Outdated {
-		c.Ui.Error(fmt.Sprintf("Newer Nomad version available: %s (currently running: %s)", results.CurrentVersion, c.Version.VersionNumber()))
-	}
-	for _, alert := range results.Alerts {
-		switch alert.Level {
-		case "info":
-			c.Ui.Info(fmt.Sprintf("Bulletin [%s]: %s (%s)", alert.Level, alert.Message, alert.URL))
-		default:
-			c.Ui.Error(fmt.Sprintf("Bulletin [%s]: %s (%s)", alert.Level, alert.Message, alert.URL))
-		}
-	}
 }
 
 func (c *Command) AutocompleteFlags() complete.Flags {
@@ -798,7 +755,7 @@ func (c *Command) Run(args []string) int {
 
 	// Compile agent information for output later
 	info := make(map[string]string)
-	info["version"] = config.Version.VersionNumber()
+	info["version"] = fmt.Sprintf("%s (Nomad API %s compatible)", version.NorcaVersion, config.Version.VersionNumber())
 	info["client"] = strconv.FormatBool(config.Client.Enabled)
 	info["log level"] = config.LogLevel
 	info["server"] = strconv.FormatBool(config.Server.Enabled)
@@ -821,7 +778,7 @@ func (c *Command) Run(args []string) int {
 
 	// Agent configuration output
 	padding := 18
-	c.Ui.Output("Nomad agent configuration:\n")
+	c.Ui.Output("Norca agent configuration:\n")
 	for _, k := range infoKeys {
 		c.Ui.Info(fmt.Sprintf(
 			"%s%s: %s",
@@ -832,7 +789,7 @@ func (c *Command) Run(args []string) int {
 	c.Ui.Output("")
 
 	// Output the header that the server has started
-	c.Ui.Output("Nomad agent started! Log data will stream in below:\n")
+	c.Ui.Output("Norca agent started! Log data will stream in below:\n")
 
 	// Enable log streaming
 	logGate.Flush()
@@ -1297,17 +1254,17 @@ func (c *Command) getAdvertiseAddrSynopsis() string {
 }
 
 func (c *Command) Synopsis() string {
-	return "Runs a Nomad agent"
+	return "Runs a Norca agent"
 }
 
 func (c *Command) Help() string {
 	helpText := `
-Usage: nomad agent [options]
+Usage: norca agent [options]
 
-  Starts the Nomad agent and runs until an interrupt is received.
+  Starts the Norca agent and runs until an interrupt is received.
   The agent may be a client and/or server.
 
-  The Nomad agent's configuration primarily comes from the config
+  The Norca agent's configuration primarily comes from the config
   files used, but a subset of the options may also be passed directly
   as CLI arguments, listed below.
 
@@ -1320,7 +1277,7 @@ General Options (clients and servers):
 
   -config=<path>
     The path to either a single config file or a directory of config
-    files to use for configuring the Nomad agent. This option may be
+    files to use for configuring the Norca agent. This option may be
     specified multiple times. If multiple config files are used, the
     values from each will be merged together. During merging, values
     from files found later in the list are merged over values from
@@ -1333,15 +1290,15 @@ General Options (clients and servers):
     dir is also used to store the replicated log.
 
   -plugin-dir=<path>
-    The plugin directory is used to discover Nomad plugins. If not specified,
+    The plugin directory is used to discover Norca plugins. If not specified,
     the plugin directory defaults to be that of <data-dir>/plugins/.
 
   -dc=<datacenter>
-    The name of the datacenter this Nomad agent is a member of. By
+    The name of the datacenter this Norca agent is a member of. By
     default this is set to "dc1".
 
   -log-level=<level>
-    Specify the verbosity level of Nomad's logs. Valid values include
+    Specify the verbosity level of Norca's logs. Valid values include
     DEBUG, INFO, and WARN, in decreasing order of verbosity. The
     default is INFO.
 
@@ -1357,13 +1314,13 @@ General Options (clients and servers):
     the current hostname of the machine.
 
   -region=<region>
-    Name of the region the Nomad agent will be a member of. By default
+    Name of the region the Norca agent will be a member of. By default
     this value is set to "global".
 
   -dev
     Start the agent in development mode. This enables a pre-configured
     dual-role agent (client + server) which is useful for developing
-    or testing Nomad. No other configuration is required to start the
+    or testing Norca. No other configuration is required to start the
     agent in this mode, but you may pass an optional comma-separated
     list of mode configurations:
 
@@ -1383,7 +1340,7 @@ Server Options:
   -bootstrap-expect=<num>
     Configures the expected number of servers nodes to wait for before
     bootstrapping the cluster. Once <num> servers have joined each other,
-    Nomad initiates the bootstrap process.
+    Norca initiates the bootstrap process.
 
   -encrypt=<key>
     Provides the gossip encryption key
@@ -1473,10 +1430,10 @@ Consul Options:
     Consul Agent, given in the format username:password.
 
   -consul-auto-advertise
-    Specifies if Nomad should advertise its services in Consul. The services
-    are named according to server_service_name and client_service_name. Nomad
+    Specifies if Norca should advertise its services in Consul. The services
+    are named according to server_service_name and client_service_name. Norca
     servers and clients advertise their respective services, each tagged
-    appropriately with either http or rpc tag. Nomad servers also advertise a
+    appropriately with either http or rpc tag. Norca servers also advertise a
     serf tagged service.
 
   -consul-ca-file=<path>
@@ -1492,35 +1449,35 @@ Consul Options:
     default, this is the bind address.
 
   -consul-client-auto-join
-    Specifies if the Nomad clients should automatically discover servers in the
+    Specifies if the Norca clients should automatically discover servers in the
     same region by searching for the Consul service name defined in the
     server_service_name option.
 
   -consul-client-service-name=<name>
-    Specifies the name of the service in Consul for the Nomad clients.
+    Specifies the name of the service in Consul for the Norca clients.
 
   -consul-client-http-check-name=<name>
-    Specifies the HTTP health check name in Consul for the Nomad clients.
+    Specifies the HTTP health check name in Consul for the Norca clients.
 
   -consul-key-file=<path>
     Specifies the path to the private key used for Consul communication. If this
     is set then you need to also set cert_file.
 
   -consul-server-service-name=<name>
-    Specifies the name of the service in Consul for the Nomad servers.
+    Specifies the name of the service in Consul for the Norca servers.
 
   -consul-server-http-check-name=<name>
-    Specifies the HTTP health check name in Consul for the Nomad servers.
+    Specifies the HTTP health check name in Consul for the Norca servers.
 
   -consul-server-serf-check-name=<name>
-    Specifies the Serf health check name in Consul for the Nomad servers.
+    Specifies the Serf health check name in Consul for the Norca servers.
 
   -consul-server-rpc-check-name=<name>
-    Specifies the RPC health check name in Consul for the Nomad servers.
+    Specifies the RPC health check name in Consul for the Norca servers.
 
   -consul-server-auto-join
-    Specifies if the Nomad servers should automatically discover and join other
-    Nomad servers by searching for the Consul service name defined in the
+    Specifies if the Norca servers should automatically discover and join other
+    Norca servers by searching for the Consul service name defined in the
     server_service_name option. This search only happens if the server does not
     have a leader.
 

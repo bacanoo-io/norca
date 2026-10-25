@@ -246,11 +246,14 @@ func (a *allocReconciler) computeDeploymentUpdates(deploymentComplete bool) {
 	if a.deployment != nil {
 		// Mark the deployment as complete if possible
 		if deploymentComplete {
-			if a.job.IsMultiregion() {
-				// the unblocking/successful states come after blocked, so we
+			if a.deployment.IsMultiregion {
+				// A multiregion deployment that completed its rollout waits
+				// for its peer regions in the blocked state. Only a running
+				// deployment completes: pending deployments wait for their
+				// turn, paused ones for the operator, and the
+				// unblocking/successful states come after blocked, so we
 				// need to make sure we don't revert those states
-				if a.deployment.Status != structs.DeploymentStatusUnblocking &&
-					a.deployment.Status != structs.DeploymentStatusSuccessful {
+				if a.deployment.Status == structs.DeploymentStatusRunning {
 					a.result.deploymentUpdates = append(a.result.deploymentUpdates, &structs.DeploymentStatusUpdate{
 						DeploymentID:      a.deployment.ID,
 						Status:            structs.DeploymentStatusBlocked,

@@ -1,0 +1,279 @@
+# SPDX-FileCopyrightText: 2026 Norca contributors
+# SPDX-License-Identifier: MPL-2.0
+#
+# Release pipeline, started by pushing a tag v<NorcaVersion>, e.g. v0.1.0 or
+# v0.1.0-rc.1. It builds norca and norca-natsbridge for the release platforms,
+# writes a CycloneDX SBOM per binary, packages the binaries with LICENSE,
+# NOTICE and THIRD_PARTY_NOTICES.md, builds and pushes the container image to
+# GHCR and creates a draft GitHub release with the archives, checksums, SBOMs
+# and release notes (.github/release-notes.md) that link the source tag.
+#
+# The platforms, build tags and cgo settings must match the lists in
+# nomad/tools/thirdparty/main.go, which THIRD_PARTY_NOTICES.md is built from.
+#
+# Actions are pinned by commit:
+#   actions/checkout v7.0.1, actions/setup-go v7.0.0,
+#   actions/upload-artifact v7.0.2, actions/download-artifact v8.0.2,
+#   docker/setup-buildx-action v4.4.1, docker/login-action v4.6.0,
+#   docker/build-push-action v7.4.0.
+# The Linux binaries are built in ubuntu:focal-20250404 (glibc 2.31, like the
+# upstream Nomad releases), so that they run on older distributions too.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Build tags of norca on every platform (see binaries in tools/thirdparty).
+  NORCA_TAGS: ui,codegen_generated,release
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    name: Check version and licenses
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build-date: ${{ steps.version.outputs.build-date }}
+      source-date-epoch: ${{ steps.version.outputs.source-date-epoch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: nomad/go.mod
+          cache: false
+      - name: Check the tag against version.NorcaVersion
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          norca="$(sed -n 's/^[[:space:]]*NorcaVersion[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' nomad/version/version.go)"
+          version="${TAG#v}"
+          if [ "${version%%-*}" != "$norca" ]; then
+            echo "::error::tag $TAG does not match NorcaVersion $norca in nomad/version/version.go"
+            exit 1
+          fi
+          {
+            echo "version=$version"
+            echo "build-date=$(TZ=UTC0 git show -s --format=%cd --date=format-local:'%Y-%m-%dT%H:%M:%SZ' HEAD)"
+            echo "source-date-epoch=$(git show -s --format=%ct HEAD)"
+          } >> "$GITHUB_OUTPUT"
+      - name: THIRD_PARTY_NOTICES.md is current and every license decision is final
+        # -strict also fails on license decisions pending legal review
+        # (nomad/tools/thirdparty/overrides.go).
+        run: go -C nomad/tools run ./thirdparty notices -root "$GITHUB_WORKSPACE" -strict -check "$GITHUB_WORKSPACE/THIRD_PARTY_NOTICES.md"
+
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            runner: ubuntu-24.04
+            container: ubuntu:focal-20250404@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214
+            cgo: "1"
+            cc: gcc
+            tags: ""
+          - goos: linux
+            goarch: arm64
+            runner: ubuntu-24.04
+            container: ubuntu:focal-20250404@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214
+            cgo: "1"
+            cc: aarch64-linux-gnu-gcc
+            tags: ""
+          - goos: darwin
+            goarch: arm64
+            runner: macos-15
+            container: ""
+            cgo: "1"
+            cc: clang
+            tags: ",netcgo"
+          - goos: windows
+            goarch: amd64
+            runner: ubuntu-24.04
+            container: ""
+            cgo: "0"
+            cc: ""
+            tags: ",timetzdata"
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD_DATE: ${{ needs.prepare.outputs.build-date }}
+      TARGET: ${{ matrix.goos }}_${{ matrix.goarch }}
+    steps:
+      - name: Install the build tools
+        if: matrix.container != ''
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates git gcc libc6-dev gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: nomad/go.mod
+          cache: false
+      - name: Build norca and norca-natsbridge
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cc }}
+          CGO: ${{ matrix.cgo }}
+          TAGS: ${{ env.NORCA_TAGS }}${{ matrix.tags }}
+        run: |
+          ext=""
+          if [ "$GOOS" = windows ]; then ext=".exe"; fi
+          out="$GITHUB_WORKSPACE/dist/bin/$TARGET"
+          mkdir -p "$out"
+          ldflags="-X github.com/hashicorp/nomad/version.GitCommit=$GITHUB_SHA -X github.com/hashicorp/nomad/version.BuildDate=$BUILD_DATE"
+          CGO_ENABLED="$CGO" go -C nomad build -trimpath -tags "$TAGS" -ldflags "$ldflags" -o "$out/norca$ext" .
+          CGO_ENABLED=0 go -C nomad/natsbridge build -trimpath -o "$out/norca-natsbridge$ext" ./cmd/norca-natsbridge
+          go version -m "$out/norca$ext" | sed -n '1,20p'
+      - name: Required glibc version
+        if: matrix.goos == 'linux'
+        run: |
+          # The highest GLIBC_x.y symbol version the binary needs.
+          go tool nm "dist/bin/$TARGET/norca" | grep -o 'GLIBC_[0-9.]*' | sort -u -V | tail -n 1
+      - name: SBOMs
+        env:
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}
+        run: |
+          ext=""
+          if [ "$TARGET" = windows_amd64 ]; then ext=".exe"; fi
+          mkdir -p dist/sbom
+          for b in norca norca-natsbridge; do
+            go -C nomad/tools run ./thirdparty sbom -root "$GITHUB_WORKSPACE" -strict -name "$b" \
+              -binary "$GITHUB_WORKSPACE/dist/bin/$TARGET/$b$ext" -source-url "$SOURCE_URL" \
+              -out "$GITHUB_WORKSPACE/dist/sbom/${b}_${VERSION}_${TARGET}.cdx.json"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  image:
+    name: Container image
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+      digest: ${{ steps.push.outputs.digest }}
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-linux-*
+          path: dist
+          merge-multiple: true
+      - name: Stage the binaries and the license files
+        run: |
+          for arch in amd64 arm64; do
+            install -D -m 0755 "dist/bin/linux_$arch/norca" "nomad/dist/linux/$arch/norca"
+          done
+          install -D -m 0644 nomad/LICENSE nomad/dist/doc/LICENSE
+          install -D -m 0644 NOTICE nomad/dist/doc/NOTICE
+          install -D -m 0644 THIRD_PARTY_NOTICES.md nomad/dist/doc/THIRD_PARTY_NOTICES.md
+      - name: Image name
+        id: name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "image=ghcr.io/${OWNER,,}/norca" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: nomad
+          file: nomad/Dockerfile
+          target: release
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            PRODUCT_VERSION=${{ env.VERSION }}
+            PRODUCT_REVISION=${{ github.sha }}
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+          tags: ${{ steps.name.outputs.image }}:${{ env.VERSION }}
+          sbom: true
+          provenance: mode=max
+          push: true
+
+  release:
+    name: GitHub release
+    needs: [prepare, build, image]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      TAG: ${{ github.ref_name }}
+      SOURCE_DATE_EPOCH: ${{ needs.prepare.outputs.source-date-epoch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-*
+          path: dist
+          merge-multiple: true
+      - name: Archives and checksums
+        run: |
+          mkdir -p release
+          for dir in dist/bin/*/; do
+            target="$(basename "$dir")"
+            name="norca_${VERSION}_${target}"
+            mkdir -p "stage/$name"
+            install -m 0755 "$dir"/* "stage/$name/"
+            install -m 0644 nomad/LICENSE NOTICE THIRD_PARTY_NOTICES.md "stage/$name/"
+            find "stage/$name" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+            if [ "${target%%_*}" = windows ]; then
+              (cd stage && zip -X -q -r "../release/$name.zip" "$name")
+            else
+              tar -C stage --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$SOURCE_DATE_EPOCH" \
+                -cf - "$name" | gzip -n -9 > "release/$name.tar.gz"
+            fi
+          done
+          cp dist/sbom/*.cdx.json release/
+          (cd release && sha256sum -- * > "norca_${VERSION}_SHA256SUMS")
+          ls -l release
+      - name: Release notes
+        env:
+          TAG_URL: ${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}
+          IMAGE: ${{ needs.image.outputs.image }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+          REVISION: ${{ github.sha }}
+        run: |
+          sed -e "s|{{VERSION}}|$VERSION|g" -e "s|{{TAG_URL}}|$TAG_URL|g" -e "s|{{IMAGE}}|$IMAGE|g" \
+            -e "s|{{DIGEST}}|$DIGEST|g" -e "s|{{REVISION}}|$REVISION|g" \
+            .github/release-notes.md > release-notes.md
+          cat release-notes.md
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=(--draft --verify-tag --title "Norca $VERSION" --notes-file release-notes.md)
+          case "$VERSION" in *-*) flags+=(--prerelease) ;; esac
+          gh release create "$TAG" "${flags[@]}" release/*

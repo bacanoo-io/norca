@@ -1,0 +1,23 @@
+{
+  "resources": [
+    {
+      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name": "trust_upstream_empty",
+      "validation_context": {
+        "match_typed_subject_alt_names": [
+          {
+            "matcher": {
+              "exact": "no-trusted-ca.invalid",
+              "ignore_case": true
+            },
+            "san_type": "DNS"
+          }
+        ],
+        "trusted_ca": {
+          "inline_string": "-----BEGIN CERTIFICATE-----\nWORKLOAD\n-----END CERTIFICATE-----\n"
+        }
+      }
+    }
+  ],
+  "version_info": "07612d1cf75f33c9"
+}

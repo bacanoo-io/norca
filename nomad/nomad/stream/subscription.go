@@ -69,6 +69,11 @@ type SubscribeRequest struct {
 	// the closest index in the buffer will be returned if there is not
 	// an exact match
 	StartExactlyAtIndex bool
+
+	// ResolveACL, if set, resolves the ACL of Token when the subscription is
+	// created with an ACL check and every time ACL tokens, policies or roles
+	// change. If nil, Token is resolved as an ACL token secret ID.
+	ResolveACL ACLResolver
 }
 
 func newSubscription(req *SubscribeRequest, item *bufferItem, unsub func()) *Subscription {

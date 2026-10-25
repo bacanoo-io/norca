@@ -1,3 +1,0 @@
-```release-note:improvement
-template: add script change_mode that allows scripts to be executed on template change
-```

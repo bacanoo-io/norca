@@ -242,6 +242,90 @@ func TestPlanApply_applyPlan(t *testing.T) {
 	assert.Equal(index, evalOut.ModifyIndex)
 }
 
+// TestPlanApply_applyPlan_SharedJob asserts that optimistically applying a plan
+// to the planner's snapshot does not mutate the jobs it references, which the
+// scheduler reads from the state store and so shares with it. Run with -race
+// to also detect concurrent readers of those jobs.
+func TestPlanApply_applyPlan_SharedJob(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, nil)
+	defer cleanupS1()
+	testutil.WaitForLeader(t, s1.RPC)
+
+	node := mock.Node()
+	testRegisterNode(t, s1, node)
+
+	// Store a job that is not canonical, so that canonicalizing the shared
+	// object in place is observable.
+	job := mock.Job()
+	job.Meta = map[string]string{}
+	must.NoError(t, s1.State().UpsertJob(structs.MsgTypeTestSetup, 1000, nil, job))
+	stateJob, err := s1.State().JobByID(nil, job.Namespace, job.ID)
+	must.NoError(t, err)
+
+	eval := mock.Eval()
+	eval.JobID = job.ID
+	must.NoError(t, s1.State().UpsertEvals(structs.MsgTypeTestSetup, 1001, []*structs.Evaluation{eval}))
+
+	// One alloc is normalized and takes the plan job, the other references
+	// the job explicitly.
+	alloc1 := mock.Alloc()
+	alloc1.NodeID = node.ID
+	alloc1.JobID = job.ID
+	alloc1.Job = nil
+	alloc2 := mock.Alloc()
+	alloc2.NodeID = node.ID
+	alloc2.JobID = job.ID
+	alloc2.Job = stateJob
+
+	planRes := &structs.PlanResult{
+		NodeAllocation: map[string][]*structs.Allocation{
+			node.ID: {alloc1, alloc2},
+		},
+	}
+	plan := &structs.Plan{
+		Job:    stateJob,
+		EvalID: eval.ID,
+	}
+	snap, err := s1.State().Snapshot()
+	must.NoError(t, err)
+
+	// Read the job from the state store while the plan is applied
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	go func() {
+		defer close(doneCh)
+		for {
+			select {
+			case <-stopCh:
+				return
+			default:
+				out, _ := s1.State().JobByID(nil, job.Namespace, job.ID)
+				_ = out.Copy()
+			}
+		}
+	}()
+
+	future, err := s1.applyPlan(plan, planRes, snap)
+	must.NoError(t, err)
+	_, err = planWaitFuture(future)
+	must.NoError(t, err)
+	close(stopCh)
+	<-doneCh
+
+	must.NotNil(t, stateJob.Meta, must.Sprint("job shared with the state store was canonicalized"))
+
+	// The optimistic snapshot holds the allocs with their job attached
+	for _, alloc := range []*structs.Allocation{alloc1, alloc2} {
+		out, err := snap.AllocByID(nil, alloc.ID)
+		must.NoError(t, err)
+		must.NotNil(t, out)
+		must.NotNil(t, out.Job)
+		must.Eq(t, job.ID, out.Job.ID)
+	}
+}
+
 // Verifies that applyPlan properly updates the constituent objects in MemDB,
 // when the plan contains normalized allocs.
 func TestPlanApply_applyPlanWithNormalizedAllocs(t *testing.T) {

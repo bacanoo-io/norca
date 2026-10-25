@@ -1,3 +1,0 @@
-```release-note:bug
-client: Fix CNI plugin version fingerprint when output includes protocol version
-```

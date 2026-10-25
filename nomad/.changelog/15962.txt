@@ -1,3 +1,0 @@
-```release-note:bug
-docker: Fixed a bug where images referenced by multiple tags would not be GC'd
-```

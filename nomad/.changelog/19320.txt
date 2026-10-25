@@ -1,3 +1,0 @@
-```release-note:security
-build: Update to go1.21.5 to resolve Windows path validation CVE in Go
-```

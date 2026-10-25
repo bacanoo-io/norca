@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Fixed system commands, so they correctly use passed flags
-```

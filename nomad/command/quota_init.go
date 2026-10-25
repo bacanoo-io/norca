@@ -29,7 +29,7 @@ type QuotaInitCommand struct {
 
 func (c *QuotaInitCommand) Help() string {
 	helpText := `
-Usage: nomad quota init <filename>
+Usage: norca quota init <filename>
 
   Creates an example quota specification file that can be used as a starting
   point to customize further. If no filename is given, the default of "spec.hcl"
@@ -124,7 +124,24 @@ limit {
     memory_max = 1000
   }
   variables_limit = 1000
+  allocations     = 100
 }
+
+# Resources filled in for tasks that do not set them.
+task_defaults {
+  cpu    = 100
+  memory = 256
+}
+
+# Maximum resources a single task may request.
+task_max {
+  cpu    = 1000
+  memory = 1000
+}
+
+# "schedule" places allocations up to the limit and blocks the rest,
+# "submit" also rejects jobs whose total demand exceeds the limit.
+enforce = "schedule"
 `)
 
 var defaultJsonQuotaSpec = strings.TrimSpace(`
@@ -139,8 +156,18 @@ var defaultJsonQuotaSpec = strings.TrimSpace(`
 				"MemoryMB": 1000,
 				"MemoryMaxMB": 1000
 			},
-			"VariablesLimit": 1000
+			"VariablesLimit": 1000,
+			"Allocations": 100
 		}
-	]
+	],
+	"TaskDefaults": {
+		"CPU": 100,
+		"MemoryMB": 256
+	},
+	"TaskMax": {
+		"CPU": 1000,
+		"MemoryMB": 1000
+	},
+	"Enforce": "schedule"
 }
 `)

@@ -30,11 +30,11 @@ import (
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/plugins/drivers"
+	ldevices "github.com/moby/sys/devices"
+	"github.com/opencontainers/cgroups"
+	devices "github.com/opencontainers/cgroups/devices/config"
 	"github.com/opencontainers/runc/libcontainer"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
 	lconfigs "github.com/opencontainers/runc/libcontainer/configs"
-	"github.com/opencontainers/runc/libcontainer/devices"
-	ldevices "github.com/opencontainers/runc/libcontainer/devices"
 	"github.com/opencontainers/runc/libcontainer/specconv"
 	lutils "github.com/opencontainers/runc/libcontainer/utils"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -64,7 +64,7 @@ type LibcontainerExecutor struct {
 	systemCpuStats *stats.CpuStats
 	pidCollector   *pidCollector
 
-	container      libcontainer.Container
+	container      *libcontainer.Container
 	userProc       *libcontainer.Process
 	userProcExited chan interface{}
 	exitState      *ProcessState
@@ -96,25 +96,16 @@ func (l *LibcontainerExecutor) Launch(command *ExecCommand) (*ProcessState, erro
 
 	l.command = command
 
-	// create a new factory which will store the container state in the allocDir
-	factory, err := libcontainer.New(
-		path.Join(command.TaskDir, "../alloc/container"),
-		// note that os.Args[0] refers to the executor shim typically
-		// and first args arguments is ignored now due
-		// until https://github.com/opencontainers/runc/pull/1888 is merged
-		libcontainer.InitArgs(os.Args[0], "libcontainer-shim"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create factory: %v", err)
-	}
-
 	// A container groups processes under the same isolation enforcement
 	containerCfg, err := newLibcontainerConfig(command)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure container(%s): %v", l.id, err)
 	}
 
-	container, err := factory.Create(l.id, containerCfg)
+	// create the container, storing its state in the allocDir; libcontainer
+	// re-executes this binary as "<os.Args[0]> init" to set up the container
+	// (see libcontainer_nsenter_linux.go)
+	container, err := libcontainer.Create(path.Join(command.TaskDir, "../alloc/container"), l.id, containerCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create container(%s): %v", l.id, err)
 	}
@@ -150,8 +141,9 @@ func (l *LibcontainerExecutor) Launch(command *ExecCommand) (*ProcessState, erro
 		Init:   true,
 	}
 
-	if command.User != "" {
-		process.User = command.User
+	if err := setProcessUser(process, command.TaskDir, command.User); err != nil {
+		container.Destroy()
+		return nil, err
 	}
 	l.userProc = process
 
@@ -271,9 +263,10 @@ func (l *LibcontainerExecutor) Shutdown(signal string, grace time.Duration) erro
 			return fmt.Errorf("error unknown signal given for shutdown: %s", signal)
 		}
 
-		// Signal initial container processes only during graceful
-		// shutdown; hence `false` arg.
-		err = l.container.Signal(sig, false)
+		// Signal the initial container process only during graceful
+		// shutdown; libcontainer signals just the init process for any
+		// signal other than SIGKILL.
+		err = l.container.Signal(sig)
 		if err != nil {
 			return err
 		}
@@ -282,14 +275,14 @@ func (l *LibcontainerExecutor) Shutdown(signal string, grace time.Duration) erro
 		case <-l.userProcExited:
 			return nil
 		case <-time.After(grace):
-			// Force kill all container processes after grace period,
-			// hence `true` argument.
-			if err := l.container.Signal(os.Kill, true); err != nil {
+			// Force kill all container processes after grace period;
+			// libcontainer kills every process of the container on SIGKILL.
+			if err := l.container.Signal(os.Kill); err != nil {
 				return err
 			}
 		}
 	} else {
-		err := l.container.Signal(os.Kill, true)
+		err := l.container.Signal(os.Kill)
 		if err != nil {
 			return err
 		}
@@ -423,6 +416,11 @@ func (l *LibcontainerExecutor) Exec(deadline time.Time, cmd string, args []strin
 		Stderr: buf,
 	}
 
+	// checks run as the container default user (root), as before
+	if err := setProcessUser(process, l.command.TaskDir, ""); err != nil {
+		return nil, 0, err
+	}
+
 	err := l.container.Run(process)
 	if err != nil {
 		return nil, 0, err
@@ -461,7 +459,7 @@ func (l *LibcontainerExecutor) newTerminalSocket() (pty func() (*os.File, error)
 		return nil, nil, fmt.Errorf("failed to create terminal: %v", err)
 	}
 
-	return func() (*os.File, error) { return lutils.RecvFd(parent) }, child, err
+	return func() (*os.File, error) { return recvFile(parent) }, child, err
 
 }
 
@@ -470,11 +468,13 @@ func (l *LibcontainerExecutor) ExecStreaming(ctx context.Context, cmd []string, 
 
 	// the task process will be started by the container
 	process := &libcontainer.Process{
-		Args: cmd,
-		Env:  l.userProc.Env,
-		User: l.userProc.User,
-		Init: false,
-		Cwd:  "/",
+		Args:             cmd,
+		Env:              l.userProc.Env,
+		UID:              l.userProc.UID,
+		GID:              l.userProc.GID,
+		AdditionalGroups: l.userProc.AdditionalGroups,
+		Init:             false,
+		Cwd:              "/",
 	}
 
 	execHelper := &execHelper{
@@ -713,8 +713,8 @@ func configureCgroups(cfg *lconfigs.Config, command *ExecCommand) error {
 
 func newLibcontainerConfig(command *ExecCommand) (*lconfigs.Config, error) {
 	cfg := &lconfigs.Config{
-		Cgroups: &lconfigs.Cgroup{
-			Resources: &lconfigs.Resources{
+		Cgroups: &cgroups.Cgroup{
+			Resources: &cgroups.Resources{
 				MemorySwappiness: nil,
 			},
 		},

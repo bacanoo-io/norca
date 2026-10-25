@@ -68,6 +68,11 @@ type ACL struct {
 	variables         *iradix.Tree[capabilitySet]
 	wildcardVariables *iradix.Tree[capabilitySet]
 
+	// objects and wildcardObjects hold the custom object rules (Norca),
+	// keyed by namespace and "group/Kind" reference.
+	objects         *iradix.Tree[capabilitySet]
+	wildcardObjects *iradix.Tree[capabilitySet]
+
 	// The attributes below store the policy value for policies that don't have
 	// fine-grained capabilities.
 	agent    string
@@ -75,6 +80,12 @@ type ACL struct {
 	operator string
 	quota    string
 	plugin   string
+
+	// admission is the policy for admission control objects (Norca).
+	admission string
+
+	// backup is the policy for the backups of the region (Norca).
+	backup string
 }
 
 // maxPrivilege returns the policy which grants the most privilege
@@ -115,6 +126,9 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 	svTxn := iradix.New[capabilitySet]().Txn()
 	wsvTxn := iradix.New[capabilitySet]().Txn()
 
+	objTxn := iradix.New[capabilitySet]().Txn()
+	wobjTxn := iradix.New[capabilitySet]().Txn()
+
 	for _, policy := range policies {
 	NAMESPACES:
 		for _, ns := range policy.Namespaces {
@@ -139,6 +153,22 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 				} else {
 					capabilities = make(capabilitySet)
 					nsTxn.Insert([]byte(ns.Name), capabilities)
+				}
+			}
+
+			for _, op := range ns.Objects {
+				txn := objTxn
+				if globDefinition || strings.Contains(op.Kind, "*") {
+					txn = wobjTxn
+				}
+				key := objectsKey(ns.Name, op.Kind)
+				objCapabilities, ok := txn.Get(key)
+				if !ok {
+					objCapabilities = make(capabilitySet)
+					txn.Insert(key, objCapabilities)
+				}
+				for _, cap := range op.Capabilities {
+					objCapabilities.Set(cap)
 				}
 			}
 
@@ -281,6 +311,12 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 		if policy.Plugin != nil {
 			acl.plugin = maxPrivilege(acl.plugin, policy.Plugin.Policy)
 		}
+		if policy.Admission != nil {
+			acl.admission = maxPrivilege(acl.admission, policy.Admission.Policy)
+		}
+		if policy.Backup != nil {
+			acl.backup = maxPrivilege(acl.backup, policy.Backup.Policy)
+		}
 	}
 
 	// Finalize policies with capabilities.
@@ -295,6 +331,9 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 
 	acl.variables = svTxn.Commit()
 	acl.wildcardVariables = wsvTxn.Commit()
+
+	acl.objects = objTxn.Commit()
+	acl.wildcardObjects = wobjTxn.Commit()
 
 	return acl, nil
 }
@@ -769,6 +808,9 @@ func (a *ACL) AllowOperatorWrite() bool {
 // AllowQuotaRead checks if read operations are allowed for all quotas
 func (a *ACL) AllowQuotaRead() bool {
 	switch {
+	// a is nil if ACLs are disabled.
+	case a == nil:
+		return true
 	case a.management:
 		return true
 	case a.quota == PolicyWrite:
@@ -783,6 +825,9 @@ func (a *ACL) AllowQuotaRead() bool {
 // AllowQuotaWrite checks if write operations are allowed for quotas
 func (a *ACL) AllowQuotaWrite() bool {
 	switch {
+	// a is nil if ACLs are disabled.
+	case a == nil:
+		return true
 	case a.management:
 		return true
 	case a.quota == PolicyWrite:

@@ -1,3 +1,0 @@
-```release-note:bug
-cli: Ignore Vault token when generating job diff.
-```

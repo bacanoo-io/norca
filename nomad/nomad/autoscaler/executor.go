@@ -39,6 +39,8 @@ type executor struct {
 	logger  hclog.Logger
 	cfg     *Config
 	scaler  JobScaler
+	objects ObjectScaler
+	events  EventPublisher
 	limiter *rate.Limiter
 
 	// l protects the maps below.
@@ -53,11 +55,13 @@ type executor struct {
 	suspended map[targetKey]time.Time
 }
 
-func newExecutor(logger hclog.Logger, cfg *Config, scaler JobScaler) *executor {
+func newExecutor(logger hclog.Logger, cfg *Config, scaler JobScaler, objects ObjectScaler, events EventPublisher) *executor {
 	return &executor{
-		logger: logger,
-		cfg:    cfg,
-		scaler: scaler,
+		logger:  logger,
+		cfg:     cfg,
+		scaler:  scaler,
+		objects: objects,
+		events:  events,
 		// The bucket starts full. It is always used with AllowN and the
 		// injected clock, which keeps it deterministic in tests.
 		limiter:   rate.NewLimiter(rate.Limit(cfg.RateLimit), cfg.RateLimitBurst),
@@ -97,7 +101,7 @@ func (e *executor) forget(key targetKey) {
 // execute performs the scaling action on the target. It returns an error if
 // the action failed; skipped actions (rate limit, oscillation, active
 // deployment) are not errors.
-func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.ScalingAction, now time.Time) error {
+func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.ScalingAction, check string, now time.Time) error {
 	key := c.key
 	logger := e.logger.With("policy_id", c.policy.ID, "target", key.String())
 
@@ -129,6 +133,10 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 		metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "rate_limited"}, 1)
 		logger.Debug("scaling action dropped by the rate limit", "count", action.Count)
 		return nil
+	}
+
+	if c.object != nil {
+		return e.executeObject(c, t, action, check, now, dryRun, logger)
 	}
 
 	meta := make(map[string]interface{}, len(action.Meta)+1)
@@ -183,6 +191,27 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 
 	logger.Info("scaled task group", "from", t.status.Count, "to", action.Count,
 		"reason", action.Reason, "cooldown", cd)
+
+	ev := &structs.ScalingDecisionEvent{
+		Namespace:     key.namespace,
+		JobID:         key.job,
+		Group:         key.group,
+		PolicyID:      c.policy.ID,
+		PreviousCount: t.status.Count,
+		Count:         action.Count,
+		Direction:     action.Direction.String(),
+		Check:         check,
+		Reason:        action.Reason,
+		DryRun:        dryRun,
+		Time:          now.UnixNano(),
+	}
+	if dryRun {
+		if n, ok := action.Meta["nomad_autoscaler.dry_run.count"].(int64); ok {
+			ev.Count = n
+		}
+		ev.Direction = sdk.ScaleDirection(sdk.ScaleDirectionNone).String()
+	}
+	e.publish(structs.TypeScalingDecision, ev)
 	return nil
 }
 
@@ -199,6 +228,11 @@ func (e *executor) suspend(c *compiledPolicy, now time.Time, logger hclog.Logger
 	logger.Warn("task group scaling oscillates, suspending the policy",
 		"direction_changes", e.cfg.OscillationThreshold, "window", e.cfg.OscillationWindow,
 		"suspended_until", until)
+
+	if c.object != nil {
+		e.suspendObject(c, until, logger)
+		return
+	}
 
 	_, err := e.scaler.Scale(&structs.JobScaleRequest{
 		JobID: c.key.job,

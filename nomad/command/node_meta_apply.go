@@ -18,7 +18,7 @@ type NodeMetaApplyCommand struct {
 
 func (c *NodeMetaApplyCommand) Help() string {
 	helpText := `
-Usage: nomad node meta apply [-node-id ...] [-unset ...] key1=value1 ... kN=vN
+Usage: norca node meta apply [-node-id ...] [-unset ...] key1=value1 ... kN=vN
 
 	Modify a node's metadata. This command only applies to client agents, and can
 	be used to update the scheduling metadata the node registers.
@@ -40,7 +40,7 @@ Node Meta Apply Options:
     Unset the comma separated list of keys.
 
   Example:
-    $ nomad node meta apply -unset testing,tempvar ready=1 role=preinit-db
+    $ norca node meta apply -unset testing,tempvar ready=1 role=preinit-db
 `
 	return strings.TrimSpace(helpText)
 }

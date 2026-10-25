@@ -65,7 +65,7 @@ type OperatorDebugCommand struct {
 }
 
 const (
-	userAgent                     = "nomad operator debug"
+	userAgent                     = "norca operator debug"
 	clusterDir                    = "cluster"
 	clientDir                     = "client"
 	serverDir                     = "server"
@@ -75,9 +75,9 @@ const (
 
 func (c *OperatorDebugCommand) Help() string {
 	helpText := `
-Usage: nomad operator debug [options]
+Usage: norca operator debug [options]
 
-  Build an archive containing Nomad cluster configuration and state, and Consul
+  Build an archive containing Norca cluster configuration and state, and Consul
   and Vault status. Include logs and pprof profiles for selected servers and
   client nodes.
 
@@ -173,7 +173,7 @@ Debug Options:
     Defaults to "none" (disabled).
 
   -interval=<interval>
-    The interval between snapshots of the Nomad state. Set interval equal to
+    The interval between snapshots of the Norca state. Set interval equal to
     duration to capture a single snapshot. Defaults to 30s.
 
   -log-level=<level>
@@ -188,7 +188,7 @@ Debug Options:
     to 10, set to 0 for unlimited.
 
   -node-id=<node1>,<node2>
-    Comma separated list of Nomad client node ids to monitor for logs, API
+    Comma separated list of Norca client node ids to monitor for logs, API
     outputs, and pprof profiles. Accepts id prefixes, and "all" to select all
     nodes (up to count = max-nodes). Defaults to "all".
 
@@ -204,7 +204,7 @@ Debug Options:
    -pprof-duration, whichever is less.
 
   -server-id=<server1>,<server2>
-    Comma separated list of Nomad server names to monitor for logs, API
+    Comma separated list of Norca server names to monitor for logs, API
     outputs, and pprof profiles. Accepts server names, "leader", or "all".
     Defaults to "all".
 
@@ -637,7 +637,7 @@ func (c *OperatorDebugCommand) Run(args []string) int {
 	// Display general info about the capture
 	c.Ui.Output("Starting debugger...")
 	c.Ui.Output("")
-	c.Ui.Output(fmt.Sprintf("Nomad CLI Version: %s", version.GetVersion().FullVersionNumber(true)))
+	c.Ui.Output(fmt.Sprintf("Norca CLI Version: %s", version.GetVersion().FullVersionNumber(true)))
 	c.Ui.Output(fmt.Sprintf("           Region: %s", c.region))
 	c.Ui.Output(fmt.Sprintf("        Namespace: %s", c.namespace))
 	c.Ui.Output(fmt.Sprintf("          Servers: (%d/%d) %v", serverCaptureCount, serversFound, c.serverIDs))
@@ -930,7 +930,7 @@ func (c *OperatorDebugCommand) collectAgentHost(path, id string, client *api.Cli
 
 		if strings.Contains(err.Error(), api.PermissionDeniedErrorContent) {
 			// Drop a hint to help the operator resolve the error
-			c.Ui.Warn("Agent host retrieval requires agent:read ACL or enable_debug=true.  See https://www.nomadproject.io/api-docs/agent#host for more information.")
+			c.Ui.Warn("Agent host retrieval (/v1/agent/host) requires agent:read ACL or enable_debug=true.")
 		}
 		return // exit on any error
 	}
@@ -1024,7 +1024,7 @@ func (c *OperatorDebugCommand) collectPprof(path, id string, client *api.Client,
 			// one permission failure before we bail.
 			// But lets first drop a hint to help the operator resolve the error
 
-			c.Ui.Warn("Pprof retrieval requires agent:write ACL or enable_debug=true.  See https://www.nomadproject.io/api-docs/agent#agent-runtime-profiles for more information.")
+			c.Ui.Warn("Pprof retrieval (/v1/agent/pprof) requires agent:write ACL or enable_debug=true.")
 			return // only exit on 403
 		}
 	} else {
@@ -1126,9 +1126,6 @@ func (c *OperatorDebugCommand) collectOperator(dir string, client *api.Client) {
 	ah, _, err := client.Operator().AutopilotServerHealth(c.queryOpts())
 	c.reportErr(writeResponseOrErrorToFile(
 		ah, err, c.newFile(dir, "operator-autopilot-health.json")))
-
-	lic, _, err := client.Operator().LicenseGet(c.queryOpts())
-	c.reportErr(writeResponseOrErrorToFile(lic, err, c.newFile(dir, "license.json")))
 }
 
 // collectNomad captures the nomad cluster state

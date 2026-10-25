@@ -1,3 +1,0 @@
-```release-note:improvement
-consul/connect: Added support for `DestinationPeer`, `DestinationType`, `LocalBindSocketPath`, and `LocalBindSocketMode` in upstream block
-```

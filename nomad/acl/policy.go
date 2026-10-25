@@ -28,6 +28,10 @@ const (
 	// The Policy field is a short hand for granting several of these. When capabilities are
 	// combined we take the union of all capabilities. If the deny capability is present, it
 	// takes precedence and overwrites all other capabilities.
+	//
+	// sentinel-override and submit-recommendation have no effect: Sentinel
+	// policies and recommendations are not supported. They are still accepted
+	// so that existing ACL policies that grant them keep loading.
 
 	NamespaceCapabilityDeny                 = "deny"
 	NamespaceCapabilityListJobs             = "list-jobs"
@@ -40,7 +44,7 @@ const (
 	NamespaceCapabilityAllocExec            = "alloc-exec"
 	NamespaceCapabilityAllocNodeExec        = "alloc-node-exec"
 	NamespaceCapabilityAllocLifecycle       = "alloc-lifecycle"
-	NamespaceCapabilitySentinelOverride     = "sentinel-override"
+	NamespaceCapabilitySentinelOverride     = "sentinel-override" // no effect
 	NamespaceCapabilityCSIRegisterPlugin    = "csi-register-plugin"
 	NamespaceCapabilityCSIWriteVolume       = "csi-write-volume"
 	NamespaceCapabilityCSIReadVolume        = "csi-read-volume"
@@ -50,7 +54,26 @@ const (
 	NamespaceCapabilityReadScalingPolicy    = "read-scaling-policy"
 	NamespaceCapabilityReadJobScaling       = "read-job-scaling"
 	NamespaceCapabilityScaleJob             = "scale-job"
-	NamespaceCapabilitySubmitRecommendation = "submit-recommendation"
+	NamespaceCapabilitySubmitRecommendation = "submit-recommendation" // no effect
+
+	// NamespaceCapabilityRegisterExternalService allows registering,
+	// renewing and deregistering external services (Norca). It is not part
+	// of any policy shorthand and must be granted explicitly.
+	NamespaceCapabilityRegisterExternalService = "register-external-service"
+
+	// NamespaceCapabilityWriteIntention allows creating, updating and
+	// deleting the service intentions of the namespace (Norca). It is not
+	// part of any policy shorthand and must be granted explicitly; reading
+	// intentions requires read-job.
+	NamespaceCapabilityWriteIntention = "write-intention"
+
+	// NamespaceCapabilityReadNetworkPolicy and
+	// NamespaceCapabilityWriteNetworkPolicy allow reading and managing the
+	// network policies of the namespace (Norca). The namespace "read" and
+	// "write" policies include read-network-policy; write-network-policy
+	// must be granted explicitly, e.g. with a network_policy block.
+	NamespaceCapabilityReadNetworkPolicy  = "read-network-policy"
+	NamespaceCapabilityWriteNetworkPolicy = "write-network-policy"
 )
 
 var (
@@ -112,6 +135,8 @@ type Policy struct {
 	Operator    *OperatorPolicy     `hcl:"operator"`
 	Quota       *QuotaPolicy        `hcl:"quota"`
 	Plugin      *PluginPolicy       `hcl:"plugin"`
+	Admission   *AdmissionPolicy    `hcl:"admission"`
+	Backup      *BackupPolicy       `hcl:"backup"`
 	Raw         string              `hcl:"-"`
 }
 
@@ -125,7 +150,9 @@ func (p *Policy) IsEmpty() bool {
 		p.Node == nil &&
 		p.Operator == nil &&
 		p.Quota == nil &&
-		p.Plugin == nil
+		p.Plugin == nil &&
+		p.Admission == nil &&
+		p.Backup == nil
 }
 
 // NamespacePolicy is the policy for a specific namespace
@@ -134,6 +161,10 @@ type NamespacePolicy struct {
 	Policy       string
 	Capabilities []string
 	Variables    *VariablesPolicy `hcl:"variables"`
+	Objects      []*ObjectPolicy  `hcl:"object,expand"`
+
+	// NetworkPolicy is the network_policy block (Norca).
+	NetworkPolicy *NetworkPolicyRule `hcl:"network_policy"`
 }
 
 // NodePoolPolicy is the policfy for a specific node pool.
@@ -206,9 +237,12 @@ func isNamespaceCapabilityValid(cap string) bool {
 		NamespaceCapabilityReadFS, NamespaceCapabilityAllocLifecycle,
 		NamespaceCapabilityAllocExec, NamespaceCapabilityAllocNodeExec,
 		NamespaceCapabilityCSIReadVolume, NamespaceCapabilityCSIWriteVolume, NamespaceCapabilityCSIListVolume, NamespaceCapabilityCSIMountVolume, NamespaceCapabilityCSIRegisterPlugin,
-		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob:
+		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob,
+		NamespaceCapabilityRegisterExternalService, NamespaceCapabilityWriteIntention,
+		NamespaceCapabilityReadNetworkPolicy, NamespaceCapabilityWriteNetworkPolicy:
 		return true
-	// Separate the enterprise-only capabilities
+	// Capabilities without effect, accepted for compatibility with existing
+	// policies
 	case NamespaceCapabilitySentinelOverride, NamespaceCapabilitySubmitRecommendation:
 		return true
 	default:
@@ -240,6 +274,7 @@ func expandNamespacePolicy(policy string) []string {
 		NamespaceCapabilityReadJobScaling,
 		NamespaceCapabilityListScalingPolicies,
 		NamespaceCapabilityReadScalingPolicy,
+		NamespaceCapabilityReadNetworkPolicy,
 	}
 
 	write := make([]string, len(read))
@@ -255,7 +290,6 @@ func expandNamespacePolicy(policy string) []string {
 		NamespaceCapabilityAllocLifecycle,
 		NamespaceCapabilityCSIMountVolume,
 		NamespaceCapabilityCSIWriteVolume,
-		NamespaceCapabilitySubmitRecommendation,
 	}...)
 
 	switch policy {
@@ -407,6 +441,13 @@ func Parse(rules string) (*Policy, error) {
 
 		}
 
+		if err := parseObjectPolicies(ns); err != nil {
+			return nil, err
+		}
+		if err := parseNetworkPolicyRule(ns); err != nil {
+			return nil, err
+		}
+
 	}
 
 	for _, np := range p.NodePools {
@@ -465,6 +506,14 @@ func Parse(rules string) (*Policy, error) {
 		return nil, fmt.Errorf("Invalid quota policy: %#v", p.Quota)
 	}
 
+	if p.Admission != nil && !p.Admission.isValid() {
+		return nil, fmt.Errorf("Invalid admission policy: %#v", p.Admission)
+	}
+
+	if p.Backup != nil && !p.Backup.isValid() {
+		return nil, fmt.Errorf("Invalid backup policy: %#v", p.Backup)
+	}
+
 	if p.Plugin != nil && !p.Plugin.isValid() {
 		return nil, fmt.Errorf("Invalid plugin policy: %#v", p.Plugin)
 	}
@@ -514,6 +563,14 @@ func hclDecode(p *Policy, rules string) (err error) {
 		if !ok {
 			continue
 		}
+
+		// Fix missing object kinds.
+		for j, objObj := range nsOT.List.Filter("object").Items {
+			if len(objObj.Keys) == 0 && j < len(p.Namespaces[i].Objects) {
+				p.Namespaces[i].Objects[j].Kind = ""
+			}
+		}
+
 		varsList := nsOT.List.Filter("variables")
 		if varsList == nil || len(varsList.Items) == 0 {
 			continue

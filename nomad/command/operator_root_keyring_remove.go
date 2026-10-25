@@ -20,7 +20,7 @@ type OperatorRootKeyringRemoveCommand struct {
 
 func (c *OperatorRootKeyringRemoveCommand) Help() string {
 	helpText := `
-Usage: nomad operator root keyring remove [options] <key ID>
+Usage: norca operator root keyring remove [options] <key ID>
 
   Remove an encryption key from the cluster. This operation may only be
   performed on keys that are not the active key.
@@ -71,7 +71,7 @@ func (c *OperatorRootKeyringRemoveCommand) Run(args []string) int {
 
 	client, err := c.Meta.Client()
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error creating nomad cli client: %s", err))
+		c.Ui.Error(fmt.Sprintf("Error creating norca cli client: %s", err))
 		return 1
 	}
 	_, err = client.Keyring().Delete(&api.KeyringDeleteOptions{

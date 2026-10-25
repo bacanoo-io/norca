@@ -1,3 +1,0 @@
-```release-note:bug
-csi: Fixed a bug where the maximum number of volume claims was incorrectly enforced when an allocation claims a volume
-```

@@ -1,0 +1,202 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// Styles for the Access Control section: overview, token/role/policy lists
+// and the token, role and policy editors.
+
+.acl-explainer {
+  color: $grey;
+  max-width: 60rem;
+  margin-bottom: 1rem;
+}
+
+.acl-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  .title {
+    margin-bottom: 0.5rem;
+  }
+
+  .acl-list-actions {
+    flex-shrink: 0;
+  }
+}
+
+// Tables listing tokens, roles and policies
+table.acl-table {
+  width: 100%;
+  margin-bottom: 1.5rem;
+
+  tr.is-interactive {
+    cursor: pointer;
+
+    &:hover {
+      background-color: $white-bis;
+    }
+  }
+
+  .number-expired {
+    color: $danger;
+    margin-left: 0.25rem;
+  }
+
+  .has-text-danger {
+    color: $danger;
+  }
+}
+
+// Roles and policies linked to a token or role, shown as pills
+.tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  color: $grey;
+
+  .tag:not(body) {
+    text-transform: none;
+    font-size: $size-7;
+    background-color: $white-ter;
+    color: $text;
+
+    a {
+      color: inherit;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+// Overview page
+.access-control-overview {
+  .access-control-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 1rem;
+  }
+
+  .access-control-card {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0;
+
+    .boxed-section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      h2 {
+        font-size: $size-5;
+        font-weight: $weight-semibold;
+      }
+    }
+
+    .boxed-section-body {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      flex-grow: 1;
+      gap: 1rem;
+    }
+  }
+
+  .access-control-count {
+    font-size: $size-4;
+    font-weight: $weight-bold;
+  }
+}
+
+// Editor forms (tokens, roles, policies)
+.acl-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+
+  .acl-form-row {
+    max-width: 80rem;
+
+    .title {
+      margin-bottom: 0.5rem;
+    }
+  }
+
+  .token-identifiers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+    gap: 1rem;
+
+    .token-identifier {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+
+      .hds-form-field {
+        flex-grow: 1;
+      }
+
+      input {
+        font-family: $family-monospace;
+      }
+    }
+  }
+
+  .expiration-time {
+    &.has-text-danger {
+      color: $danger;
+    }
+  }
+
+  .custom-expiration {
+    margin-top: 0.75rem;
+    max-width: 20rem;
+  }
+
+  .policy-editor {
+    min-height: 20rem;
+
+    .CodeMirror {
+      min-height: 20rem;
+      height: auto;
+    }
+  }
+
+  .acl-form-footer {
+    margin-top: 0.5rem;
+  }
+}
+
+// Policy page: test token and CLI hint boxes
+.token-operations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+
+  .boxed-section {
+    margin-bottom: 0;
+  }
+}
+
+.token-operations pre,
+pre.acl-cli-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  white-space: pre-wrap;
+}
+
+@media screen and (max-width: 768px) {
+  .acl-list-header {
+    flex-direction: column;
+  }
+}
