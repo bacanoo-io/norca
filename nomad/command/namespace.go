@@ -21,8 +21,7 @@ Usage: norca namespace <subcommand> [options] [args]
 
   This command groups subcommands for interacting with namespaces. Namespaces
   allow jobs and their associated objects to be segmented from each other and
-  other users of the cluster. For a full guide on namespaces see:
-  https://learn.hashicorp.com/tutorials/nomad/namespaces
+  other users of the cluster.
 
   Create or update a namespace:
 

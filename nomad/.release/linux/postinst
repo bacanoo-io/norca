@@ -1,9 +1,0 @@
-#!/bin/bash
-
-mkdir -p /opt/nomad/data
-chown nomad:nomad /opt/nomad/data
-chown -R nomad:nomad /etc/nomad.d
-
-if [ -d /run/systemd/system ]; then
-    systemctl --system daemon-reload >/dev/null || true
-fi

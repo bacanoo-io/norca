@@ -7,9 +7,9 @@
 # are themselves collections of one or many tasks.
 #
 # For more information and examples on the "job" block, please see
-# the online documentation at:
+# the reference documentation at:
 #
-#     https://www.nomadproject.io/docs/job-specification/job
+#     nomad/website/content/docs/job-specification/job.mdx (Norca repository)
 #
 job "example" {
   # The "region" parameter specifies the region in which to execute the job.
@@ -24,11 +24,11 @@ job "example" {
   # The "type" parameter controls the type of job, which impacts the scheduler's
   # decision on placement. This configuration is optional and defaults to
   # "service". For a full list of job types and their differences, please see
-  # the online documentation.
+  # the reference documentation.
   #
-  # For more information, please see the online documentation at:
+  # For more information, please see the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/schedulers
+  #     nomad/website/content/docs/schedulers.mdx (Norca repository)
   #
   type = "service"
 
@@ -37,9 +37,9 @@ job "example" {
   # at the "job", "group", or "task" level, and supports variable interpolation.
   #
   # For more information and examples on the "constraint" block, please see
-  # the online documentation at:
+  # the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/job-specification/constraint
+  #     nomad/website/content/docs/job-specification/constraint.mdx (Norca repository)
   #
   # constraint {
   #   attribute = "${attr.kernel.name}"
@@ -54,9 +54,9 @@ job "example" {
   # group level, the blocks are merged with the group's taking precedence.
   #
   # For more information and examples on the "update" block, please see
-  # the online documentation at:
+  # the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/job-specification/update
+  #     nomad/website/content/docs/job-specification/update.mdx (Norca repository)
   #
   update {
     # The "max_parallel" parameter specifies the maximum number of updates to
@@ -104,9 +104,9 @@ job "example" {
   # draining nodes. If omitted, a default migration strategy is applied.
   #
   # For more information on the "migrate" block, please see
-  # the online documentation at:
+  # the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/job-specification/migrate
+  #     nomad/website/content/docs/job-specification/migrate.mdx (Norca repository)
   #
   migrate {
     # Specifies the number of task groups that can be migrated at the same
@@ -133,9 +133,9 @@ job "example" {
   # client.
   #
   # For more information and examples on the "group" block, please see
-  # the online documentation at:
+  # the reference documentation at:
   #
-  #     https://www.nomadproject.io/docs/job-specification/group
+  #     nomad/website/content/docs/job-specification/group.mdx (Norca repository)
   #
   group "cache" {
     # The "count" parameter specifies the number of the task groups that should
@@ -147,9 +147,9 @@ job "example" {
     # including requesting port bindings.
     #
     # For more information and examples on the "network" block, please see
-    # the online documentation at:
+    # the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/network
+    #     nomad/website/content/docs/job-specification/network.mdx (Norca repository)
     #
     network {
       port "db" {
@@ -163,9 +163,9 @@ job "example" {
     # port.
     #
     # For more information and examples on the "service" block, please see
-    # the online documentation at:
+    # the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/service
+    #     nomad/website/content/docs/job-specification/service.mdx (Norca repository)
     #
     service {
       name     = "redis-cache"
@@ -191,9 +191,9 @@ job "example" {
     # left unspecified, a default restart policy is used based on the job type.
     #
     # For more information and examples on the "restart" block, please see
-    # the online documentation at:
+    # the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/restart
+    #     nomad/website/content/docs/job-specification/restart.mdx (Norca repository)
     #
     restart {
       # The number of attempts to run the job within the specified interval.
@@ -217,9 +217,9 @@ job "example" {
     # tasks in this group will share the same ephemeral disk.
     #
     # For more information and examples on the "ephemeral_disk" block, please
-    # see the online documentation at:
+    # see the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/ephemeral_disk
+    #     nomad/website/content/docs/job-specification/ephemeral_disk.mdx (Norca repository)
     #
     ephemeral_disk {
       # When sticky is true and the task group is updated, the scheduler
@@ -241,9 +241,9 @@ job "example" {
     # based on node attributes or metadata.
     #
     # For more information and examples on the "affinity" block, please
-    # see the online documentation at:
+    # see the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/affinity
+    #     nomad/website/content/docs/job-specification/affinity.mdx (Norca repository)
     #
     # affinity {
     # attribute specifies the name of a node attribute or metadata
@@ -266,9 +266,9 @@ job "example" {
     # should be spread over.
     #
     # For more information and examples on the "spread" block, please
-    # see the online documentation at:
+    # see the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/spread
+    #     nomad/website/content/docs/job-specification/spread.mdx (Norca repository)
     #
     # spread {
     # attribute specifies the name of a node attribute or metadata
@@ -290,9 +290,9 @@ job "example" {
     # container, web application, or batch processing.
     #
     # For more information and examples on the "task" block, please see
-    # the online documentation at:
+    # the reference documentation at:
     #
-    #     https://www.nomadproject.io/docs/job-specification/task
+    #     nomad/website/content/docs/job-specification/task.mdx (Norca repository)
     #
     task "redis" {
       # The "driver" parameter specifies the task driver that should be used to
@@ -320,9 +320,9 @@ job "example" {
       # download multiple artifacts.
       #
       # For more information and examples on the "artifact" block, please see
-      # the online documentation at:
+      # the reference documentation at:
       #
-      #     https://www.nomadproject.io/docs/job-specification/artifact
+      #     nomad/website/content/docs/job-specification/artifact.mdx (Norca repository)
       #
       # artifact {
       #   source = "http://foo.com/artifact.tar.gz"
@@ -337,9 +337,9 @@ job "example" {
       # the log rotation and storage configuration.
       #
       # For more information and examples on the "logs" block, please see
-      # the online documentation at:
+      # the reference documentation at:
       #
-      #     https://www.nomadproject.io/docs/job-specification/logs
+      #     nomad/website/content/docs/job-specification/logs.mdx (Norca repository)
       #
       # logs {
       #   max_files     = 10
@@ -360,9 +360,9 @@ job "example" {
       # resource capacity.
       #
       # For more information and examples on the "resources" block, please see
-      # the online documentation at:
+      # the reference documentation at:
       #
-      #     https://www.nomadproject.io/docs/job-specification/resources
+      #     nomad/website/content/docs/job-specification/resources.mdx (Norca repository)
       #
       resources {
         cpu    = 500 # 500 MHz
@@ -375,9 +375,9 @@ job "example" {
       # from Consul or Vault to populate runtime configuration data.
       #
       # For more information and examples on the "template" block, please see
-      # the online documentation at:
+      # the reference documentation at:
       #
-      #     https://www.nomadproject.io/docs/job-specification/template
+      #     nomad/website/content/docs/job-specification/template.mdx (Norca repository)
       #
       # template {
       #   data          = "---\nkey: {{ key \"service/my-key\" }}"
@@ -404,9 +404,9 @@ job "example" {
       # and revocation of the Vault token.
       #
       # For more information and examples on the "vault" block, please see
-      # the online documentation at:
+      # the reference documentation at:
       #
-      #     https://www.nomadproject.io/docs/job-specification/vault
+      #     nomad/website/content/docs/job-specification/vault.mdx (Norca repository)
       #
       # vault {
       #   policies      = ["cdn", "frontend"]

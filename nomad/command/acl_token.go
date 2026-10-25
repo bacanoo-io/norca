@@ -20,7 +20,6 @@ Usage: norca acl token <subcommand> [options] [args]
   This command groups subcommands for interacting with ACL tokens. Norca's ACL
   system can be used to control access to data and APIs. ACL tokens are
   associated with one or more ACL policies which grant specific capabilities.
-  For a full guide see: https://www.nomadproject.io/guides/acl.html
 
   Create an ACL token:
 

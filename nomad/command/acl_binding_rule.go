@@ -25,8 +25,7 @@ func (a *ACLBindingRuleCommand) Help() string {
 Usage: norca acl binding-rule <subcommand> [options] [args]
 
   This command groups subcommands for interacting with ACL binding rules.
-  Norca's ACL system can be used to control access to data and APIs. For a full
-  guide see: https://www.nomadproject.io/guides/acl.html
+  Norca's ACL system can be used to control access to data and APIs.
 
   Create an ACL binding rule:
 
