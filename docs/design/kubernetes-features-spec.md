@@ -889,7 +889,7 @@ service {
 
 ### Open questions
 
-- [ ] Which JSON Schema implementation do we use (license, performance)?
+- [x] Which JSON Schema implementation do we use (license, performance)? Decided 2026-10-25: `github.com/santhosh-tekuri/jsonschema/v6` (Apache-2.0, pure Go, draft 2020-12), shared by object kinds and pack variable schemas.
 - [x] Is field-level ownership (server-side apply) needed already in the first version, or is the `managed_by` rule enough? Decided 2026-10-24: the `managed_by` rule is enough.
 - [x] The first sample operator is the LoadBalancer (see above).
 
