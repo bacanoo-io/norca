@@ -606,9 +606,8 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [@ember/render-modifiers](#npm-ember-render-modifiers-2-1-0) (npm) | 2.1.0 | MIT | norca (web UI) |
 | [@ember/render-modifiers](#npm-ember-render-modifiers-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [@ember/string](#npm-ember-string-3-1-1) (npm) | 3.1.1 | MIT | norca (web UI) |
-| [@ember/test-waiters](#npm-ember-test-waiters-3-0-0) (npm) | 3.0.0 | MIT | norca (web UI) |
 | [@ember/test-waiters](#npm-ember-test-waiters-3-0-2) (npm) | 3.0.2 | MIT | norca (web UI) |
-| [@ember/test-waiters](#npm-ember-test-waiters-3-1-0) (npm) | 3.1.0 | MIT | norca (web UI) |
+| [@ember/test-waiters](#npm-ember-test-waiters-4-1-2) (npm) | 4.1.2 | MIT | norca (web UI) |
 | [@embroider/addon-shim](#npm-embroider-addon-shim-1-10-3) (npm) | 1.10.3 | MIT | norca (web UI) |
 | [@embroider/addon-shim](#npm-embroider-addon-shim-1-5-0) (npm) | 1.5.0 | MIT | norca (web UI) |
 | [@embroider/addon-shim](#npm-embroider-addon-shim-1-8-4) (npm) | 1.8.4 | MIT | norca (web UI) |
@@ -6843,28 +6842,20 @@ limitations under the License.
 - Required through: @ember/string@3.1.1
 - `LICENSE.md`: [license text 185](#license-text-185)
 
-<a id="npm-ember-test-waiters-3-0-0"></a>
-
-### @ember/test-waiters 3.0.0
-
-- License: MIT
-- Required through: ember-stargate@0.5.0 &gt; ember-resources@6.5.2 &gt; ember-async-data@1.0.3 &gt; @ember/test-waiters@3.0.0
-- `LICENSE.md`: [license text 185](#license-text-185)
-
 <a id="npm-ember-test-waiters-3-0-2"></a>
 
 ### @ember/test-waiters 3.0.2
 
 - License: MIT
-- Required through: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2
+- Required through: legacy UI: @hashicorp/design-system-components@2.12.0 &gt; @ember/test-waiters@3.0.2
 - `LICENSE.md`: [license text 185](#license-text-185)
 
-<a id="npm-ember-test-waiters-3-1-0"></a>
+<a id="npm-ember-test-waiters-4-1-2"></a>
 
-### @ember/test-waiters 3.1.0
+### @ember/test-waiters 4.1.2
 
 - License: MIT
-- Required through: @ember/test-waiters@3.1.0
+- Required through: @ember/test-waiters@4.1.2
 - `LICENSE.md`: [license text 185](#license-text-185)
 
 <a id="npm-embroider-addon-shim-1-10-3"></a>
@@ -6872,7 +6863,7 @@ limitations under the License.
 ### @embroider/addon-shim 1.10.3
 
 - License: MIT
-- Required through: @nullvoxpopuli/ember-composable-helpers@5.3.2 &gt; @embroider/addon-shim@1.10.3
+- Required through: @ember/test-waiters@4.1.2 &gt; @embroider/addon-shim@1.10.3
 - `LICENSE`: [license text 186](#license-text-186)
 
 <a id="npm-embroider-addon-shim-1-5-0"></a>
@@ -8458,7 +8449,7 @@ limitations under the License.
 ### calculate-cache-key-for-tree 2.0.0
 
 - License: MIT
-- Required through: @ember/test-waiters@3.1.0 &gt; calculate-cache-key-for-tree@2.0.0
+- Required through: @ember-data/json-api@4.12.8 &gt; @ember-data/private-build-infra@4.12.8 &gt; calculate-cache-key-for-tree@2.0.0
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -8654,7 +8645,7 @@ limitations under the License.
 ### common-ancestor-path 1.0.1
 
 - License: ISC
-- Required through: @nullvoxpopuli/ember-composable-helpers@5.3.2 &gt; @embroider/addon-shim@1.10.3 &gt; common-ancestor-path@1.0.1
+- Required through: @ember/test-waiters@4.1.2 &gt; @embroider/addon-shim@1.10.3 &gt; common-ancestor-path@1.0.1
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (https://izs.me)
 - `LICENSE`: [license text 254](#license-text-254)
 
@@ -9745,7 +9736,7 @@ The Apache Software Foundation (https://www.apache.org/).
 ### ember-cli-version-checker 5.1.2
 
 - License: MIT
-- Required through: @ember/test-waiters@3.1.0 &gt; ember-cli-version-checker@5.1.2
+- Required through: ember-source@6.12.0 &gt; ember-cli-version-checker@5.1.2
 - Author: Robert Jackson &lt;me@rwjblue.com&gt;
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -11314,7 +11305,7 @@ The Apache Software Foundation (https://www.apache.org/).
 ### json-stable-stringify 1.0.1
 
 - License: MIT
-- Required through: @ember/test-waiters@3.1.0 &gt; calculate-cache-key-for-tree@2.0.0 &gt; json-stable-stringify@1.0.1
+- Required through: ember-data-model-fragments@7.0.3 &gt; calculate-cache-key-for-tree@1.2.3 &gt; json-stable-stringify@1.0.1
 - Author: James Halliday &lt;mail@substack.net&gt;
 - `LICENSE`: [license text 257](#license-text-257)
 
@@ -11378,7 +11369,7 @@ The Apache Software Foundation (https://www.apache.org/).
 
 - License: LicenseRef-Public-Domain (declared: Public Domain)
 - License decision: Build-time exception (legacy UI decision of 2026-10-25; pending for the new UI). Declared "Public Domain" in package.json, no license file. A build-time dependency (calculate-cache-key-for-tree, ember-cli-htmlbars and broccoli-babel-transpiler > json-stable-stringify 1.0), not part of the UI bundle.
-- Required through: @ember/test-waiters@3.1.0 &gt; calculate-cache-key-for-tree@2.0.0 &gt; json-stable-stringify@1.0.1 &gt; jsonify@0.0.0
+- Required through: ember-data-model-fragments@7.0.3 &gt; calculate-cache-key-for-tree@1.2.3 &gt; json-stable-stringify@1.0.1 &gt; jsonify@0.0.0
 - Author: Douglas Crockford
 - The package contains no license file; the license is the one declared in its package.json.
 
@@ -11540,7 +11531,7 @@ The Apache Software Foundation (https://www.apache.org/).
 ### lru-cache 6.0.0
 
 - License: ISC
-- Required through: @ember/test-waiters@3.1.0 &gt; semver@7.3.5 &gt; lru-cache@6.0.0
+- Required through: @embroider/macros@1.20.7 &gt; semver@7.3.4 &gt; lru-cache@6.0.0
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt;
 - `LICENSE`: [license text 344](#license-text-344)
 
@@ -12984,7 +12975,7 @@ The Apache Software Foundation (https://www.apache.org/).
 ### semver 7.3.5
 
 - License: ISC
-- Required through: @ember/test-waiters@3.1.0 &gt; semver@7.3.5
+- Required through: @embroider/macros@1.20.7 &gt; @embroider/shared-internals@3.2.0 &gt; semver@7.3.5
 - `LICENSE`: [license text 344](#license-text-344)
 
 <a id="npm-semver-7-3-8"></a>
@@ -13763,7 +13754,7 @@ The Apache Software Foundation (https://www.apache.org/).
 ### yallist 4.0.0
 
 - License: ISC
-- Required through: @ember/test-waiters@3.1.0 &gt; semver@7.3.5 &gt; lru-cache@6.0.0 &gt; yallist@4.0.0
+- Required through: @embroider/macros@1.20.7 &gt; semver@7.3.4 &gt; lru-cache@6.0.0 &gt; yallist@4.0.0
 - Author: Isaac Z. Schlueter &lt;i@izs.me&gt; (http://blog.izs.me/)
 - `LICENSE`: [license text 344](#license-text-344)
 
@@ -30481,7 +30472,7 @@ SOFTWARE.
 
 ### License text 185
 
-Used by: @ember/render-modifiers 2.0.4, @ember/render-modifiers 2.1.0, @ember/render-modifiers 3.0.0, @ember/string 3.1.1, @ember/test-waiters 3.0.0, @ember/test-waiters 3.0.2, @ember/test-waiters 3.1.0, ember-classic-decorator 4.0.0, ember-focus-trap 1.1.0, ember-inline-svg 1.0.1, ember-modifier 3.2.7, ember-modifier 4.0.0, ember-modifier 4.1.0, ember-modifier 4.3.0, ember-overridable-computed 1.0.0, ember-render-helpers 0.2.0, ember-style-modifier 3.0.1
+Used by: @ember/render-modifiers 2.0.4, @ember/render-modifiers 2.1.0, @ember/render-modifiers 3.0.0, @ember/string 3.1.1, @ember/test-waiters 3.0.2, @ember/test-waiters 4.1.2, ember-classic-decorator 4.0.0, ember-focus-trap 1.1.0, ember-inline-svg 1.0.1, ember-modifier 3.2.7, ember-modifier 4.0.0, ember-modifier 4.1.0, ember-modifier 4.3.0, ember-overridable-computed 1.0.0, ember-render-helpers 0.2.0, ember-style-modifier 3.0.1
 
 ```text
 The MIT License (MIT)

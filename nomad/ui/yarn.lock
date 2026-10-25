@@ -2402,42 +2402,12 @@
     decorator-transforms "^2.0.0"
     dom-element-descriptors "^0.5.0"
 
-"@ember/test-waiters@^2.4.3 || ^3.0.0 || ^4.0.0", "@ember/test-waiters@^3.1.0 || ^4.0.0":
+"@ember/test-waiters@^2.4.3 || ^3.0.0 || ^4.0.0", "@ember/test-waiters@^3.0.0", "@ember/test-waiters@^3.0.2", "@ember/test-waiters@^3.1.0 || ^4.0.0", "@ember/test-waiters@^4.1.2":
   version "4.1.2"
   resolved "https://registry.yarnpkg.com/@ember/test-waiters/-/test-waiters-4.1.2.tgz#4f02b4168e6e608a2fa75a9e48bc237d6be0589d"
   integrity sha512-zJwFaHLHjJn6mKoXYVM1SEyMT+U1JpaaSKg3JBmxHJwiIoJRI5djJ/CE33Z7N09mk5JfXd2xdhbd9LBWdlvAzg==
   dependencies:
     "@embroider/addon-shim" "^1.9.0"
-
-"@ember/test-waiters@^3.0.0":
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/@ember/test-waiters/-/test-waiters-3.0.0.tgz#b66a35cd5b78ec3c296a6f5f5fb3852780a5d3c8"
-  integrity sha512-z6+gIlq/rXLKroWv2wxAoiiLtgSOGQFCw6nUufERausV+jLnA7CYbWwzEo5R7XaOejSDpgA5d6haXIBsD5j0oQ==
-  dependencies:
-    calculate-cache-key-for-tree "^2.0.0"
-    ember-cli-babel "^7.26.6"
-    ember-cli-version-checker "^5.1.2"
-    semver "^7.3.5"
-
-"@ember/test-waiters@^3.0.2":
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/@ember/test-waiters/-/test-waiters-3.0.2.tgz#5b950c580a1891ed1d4ee64f9c6bacf49a15ea6f"
-  integrity sha512-H8Q3Xy9rlqhDKnQpwt2pzAYDouww4TZIGSI1pZJhM7mQIGufQKuB0ijzn/yugA6Z+bNdjYp1HioP8Y4hn2zazQ==
-  dependencies:
-    calculate-cache-key-for-tree "^2.0.0"
-    ember-cli-babel "^7.26.6"
-    ember-cli-version-checker "^5.1.2"
-    semver "^7.3.5"
-
-"@ember/test-waiters@^3.1.0":
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/@ember/test-waiters/-/test-waiters-3.1.0.tgz#61399919cbf793978da0b8bfdfdb7bca0cb80e9e"
-  integrity sha512-bb9h95ktG2wKY9+ja1sdsFBdOms2lB19VWs8wmNpzgHv1NCetonBoV5jHBV4DHt0uS1tg9z66cZqhUVlYs96KQ==
-  dependencies:
-    calculate-cache-key-for-tree "^2.0.0"
-    ember-cli-babel "^7.26.6"
-    ember-cli-version-checker "^5.1.2"
-    semver "^7.3.5"
 
 "@embroider/addon-shim@^1.0.0", "@embroider/addon-shim@^1.2.0":
   version "1.5.0"
