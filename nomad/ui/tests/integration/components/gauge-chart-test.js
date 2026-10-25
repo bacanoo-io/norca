@@ -47,7 +47,7 @@ module('Integration | Component | gauge chart', function (hooks) {
     this.setProperties(props);
 
     await render(hbs`
-      <div style="width:100px">
+      <div class="legacy" style="width:100px">
         <GaugeChart
           @value={{this.value}}
           @total={{this.total}}

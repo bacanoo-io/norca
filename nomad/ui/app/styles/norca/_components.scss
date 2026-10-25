@@ -1,0 +1,27 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// Additions of the component layer (app/components/ui) to Tabler.
+
+.norca-stacked-bar {
+  height: 0.55rem;
+}
+
+.table-sort {
+  // Tabler styles the sort button; keep the header text color.
+  color: inherit;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.norca-chart {
+  width: 100%;
+}
+
+.dropdown-menu .dropdown-item-icon {
+  margin-right: 0.5rem;
+}

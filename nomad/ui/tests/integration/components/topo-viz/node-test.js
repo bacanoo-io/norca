@@ -280,7 +280,7 @@ module('Integration | Component | TopoViz::Node', function (hooks) {
     );
 
     await render(hbs`
-      <div style="width:100px">
+      <div class="legacy" style="width:100px">
         <TopoViz::Node
           @node={{this.node}}
           @isDense={{this.isDense}}

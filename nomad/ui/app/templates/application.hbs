@@ -9,6 +9,9 @@
   "Nomad"
   separator=" - "
 }}
+{{! The pages inherited from Nomad 1.6 use the legacy styles, scoped to
+    .legacy at build time (lib/norca-styles). }}
+<div class="legacy" data-bs-theme="light">
 <SvgPatterns />
 
 <section class="notifications">
@@ -105,3 +108,4 @@
 {{else}}
   {{outlet}}
 {{/if}}
+</div>

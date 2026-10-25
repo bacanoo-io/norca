@@ -1,0 +1,8 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="d-inline-flex align-items-center gap-2 text-secondary" role="status" data-test-spinner ...attributes>
+  <span class="spinner-border {{if @small 'spinner-border-sm'}}" aria-hidden="true"></span>
+  <span class={{if @showLabel "" "visually-hidden"}}>{{or @label "Loading"}}</span>
+</div>

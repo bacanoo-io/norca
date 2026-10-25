@@ -1,0 +1,12 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// Styles of the new UI: design tokens and the few additions the component
+// layer (app/components/ui) needs on top of Tabler. Imported at the end of
+// app.scss, after the marker that ends the .legacy scope (see
+// lib/norca-styles). Tabler itself is loaded as a cascade layer.
+
+@import './norca/tokens';
+@import './norca/components';
