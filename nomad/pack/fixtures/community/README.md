@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+-->
+
 # Community registry fixtures
 
 `packs/redis` is an unmodified copy of the `redis` pack of the
