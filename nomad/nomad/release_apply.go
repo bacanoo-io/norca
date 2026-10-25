@@ -84,6 +84,19 @@ type applyInput struct {
 	maxHistory    int
 	dryRun        bool
 	recordOnly    bool
+
+	// variablesSchemas are stored in the revision.
+	variablesSchemas []*structs.ReleaseVariablesSchema
+
+	// multiregion describes the multi-region install this region applies
+	// its part of, nil for a release of this region only.
+	multiregion *structs.ReleaseMultiregion
+
+	// adopted maps the keys of the multiregion jobs that another region
+	// registers to that region; global are the global resources that the
+	// global region applies. Both are set by runApply.
+	adopted map[string]string
+	global  []*structs.ReleaseResource
 }
 
 func (m *releaseManager) newOp(args structs.RequestWithIdentity, token, namespace, name string, timeout time.Duration) (*releaseOp, context.CancelFunc) {
@@ -329,6 +342,23 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	if err != nil {
 		return err
 	}
+
+	// A region of a multi-region install applies its part of the pack. An
+	// operation on a release of such an install from this region alone keeps
+	// the division of work.
+	if in.multiregion == nil && rel != nil && rel.Spec.Multiregion != nil &&
+		slices.Contains(rel.Spec.Multiregion.Regions, m.srv.Region()) {
+		in.multiregion = rel.Spec.Multiregion.Copy()
+	}
+	var remoteChanges []*structs.ReleaseResourceChange
+	if in.multiregion != nil {
+		resources, in.global, in.adopted, remoteChanges = multiregionSplit(in.multiregion, m.srv.Region(), resources)
+		op.changes = append(op.changes, remoteChanges...)
+	}
+	globalKeys := map[string]bool{}
+	for _, res := range in.global {
+		globalKeys[res.Ref().Key()] = true
+	}
 	warnings, err := m.admitRelease(snap, op, in)
 	if err != nil {
 		return err
@@ -366,7 +396,9 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	}
 	var removed []*structs.ReleaseResourceRef
 	for _, ref := range previous {
-		if ref == nil || ref.Hook != "" {
+		// Global resources the global region now applies are no longer
+		// owned here, but they are not deleted.
+		if ref == nil || ref.Hook != "" || globalKeys[ref.Key()] {
 			continue
 		}
 		if _, ok := desired[ref.Key()]; !ok {
@@ -376,11 +408,11 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	sortRefsForDeletion(removed)
 
 	if in.dryRun {
-		changes, err := op.plan(snap, resources, removed, taken)
+		changes, err := op.plan(snap, resources, removed, taken, in.adopted)
 		if err != nil {
 			return err
 		}
-		reply.Changes = changes
+		reply.Changes = append(remoteChanges, changes...)
 		reply.Release = rel
 		reply.Warnings = op.warnings
 		if rel != nil {
@@ -411,10 +443,14 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	if err != nil {
 		return err
 	}
-	if len(content) > structs.MaxReleaseRevisionContentSize {
+	schemaSize := 0
+	for _, s := range in.variablesSchemas {
+		schemaSize += len(s.Schema)
+	}
+	if limit := structs.MaxReleaseRevisionContentSize - schemaSize; len(content) > limit {
 		return structs.NewErrRPCCodedf(http.StatusRequestEntityTooLarge,
 			"the rendered resources are too large for a revision (%d bytes compressed, at most %d)",
-			len(content), structs.MaxReleaseRevisionContentSize)
+			len(content), limit)
 	}
 
 	start := nowRFC3339()
@@ -439,6 +475,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	rel.Spec.Description = in.description
 	rel.Spec.Revision = revNum
 	rel.Spec.Atomic = op.atomic
+	rel.Spec.Multiregion = in.multiregion
 	rel.Status.Phase = structs.ReleasePhaseApplying
 	rel.Status.LastOperation = &structs.ReleaseOperation{
 		Action: in.action, Revision: revNum, User: op.user, StartTime: start,
@@ -460,19 +497,22 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		Release:   op.name,
 		Revision:  revNum,
 		Spec: &structs.ReleaseRevisionSpec{
-			Release:       op.name,
-			Revision:      revNum,
-			Action:        in.action,
-			RollbackOf:    in.rollbackOf,
-			Pack:          in.pack,
-			Description:   in.description,
-			Values:        in.values,
-			ValuesHash:    in.valuesHash,
-			Resources:     refs,
-			Content:       content,
-			ContentDigest: digest,
-			User:          op.user,
-			CreateTime:    start,
+			Release:     op.name,
+			Revision:    revNum,
+			Action:      in.action,
+			RollbackOf:  in.rollbackOf,
+			Pack:        in.pack,
+			Description: in.description,
+			Values:      in.values,
+			ValuesHash:  in.valuesHash,
+			Resources:   refs,
+			Content:     content,
+			User:        op.user,
+			CreateTime:  start,
+
+			ContentDigest:    digest,
+			VariablesSchemas: in.variablesSchemas,
+			Multiregion:      in.multiregion,
 		},
 		Status: &structs.ReleaseRevisionStatus{Phase: structs.ReleasePhasePending},
 	}
@@ -813,7 +853,7 @@ func sortRefsForDeletion(refs []*structs.ReleaseResourceRef) {
 
 // plan computes the changes an apply would make, without writing.
 func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.ReleaseResource,
-	removed []*structs.ReleaseResourceRef, taken map[string]string) ([]*structs.ReleaseResourceChange, error) {
+	removed []*structs.ReleaseResourceRef, taken, adopted map[string]string) ([]*structs.ReleaseResourceChange, error) {
 
 	var changes []*structs.ReleaseResourceChange
 	for _, res := range resources {
@@ -824,6 +864,10 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 		changes = append(changes, change)
 		if res.IsHook() {
 			change.Action = structs.ReleaseChangeHook
+			continue
+		}
+		if submitter, ok := adopted[ref.Key()]; ok {
+			change.Action, change.Region = structs.ReleaseChangeAdopt, submitter
 			continue
 		}
 		live, err := op.m.readLive(snap, ref)
@@ -910,6 +954,9 @@ func (op *releaseOp) execute(in *applyInput, resources []*structs.ReleaseResourc
 	if in.action == structs.ReleaseActionInstall {
 		pre, post = structs.ReleaseHookPreInstall, structs.ReleaseHookPostInstall
 	}
+	if in.multiregion != nil {
+		op.waitReplicated(in.global, in.multiregion.GlobalRegion)
+	}
 	if err := op.runHooks(resources, pre); err != nil {
 		return err
 	}
@@ -955,6 +1002,23 @@ func (op *releaseOp) execute(in *applyInput, resources []*structs.ReleaseResourc
 		before, err := op.m.readLive(snap, ref)
 		if err != nil {
 			return err
+		}
+
+		// A multiregion job that another region registers in this region
+		// is adopted: the release owns and waits for it, but doesn't
+		// register it.
+		if submitter, ok := in.adopted[ref.Key()]; ok {
+			change := &structs.ReleaseResourceChange{
+				Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: structs.ReleaseChangeAdopt, Region: submitter,
+			}
+			op.changes = append(op.changes, change)
+			if !before.exists() {
+				change.Error = "not registered in this region"
+				return fmt.Errorf("multiregion job %q is registered by the release in region %q, but it does not exist in region %q",
+					ref.Name, submitter, op.m.srv.Region())
+			}
+			jobs = append(jobs, &registeredJob{namespace: ref.Namespace, id: ref.Name})
+			continue
 		}
 
 		toApply := res

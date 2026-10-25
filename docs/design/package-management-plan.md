@@ -19,6 +19,7 @@ Norca's package manager will be Nomad Pack: the package format and the command-l
 - [Permissions](#permissions)
 - [Schedule](#schedule)
 - [Testing and acceptance](#testing-and-acceptance)
+- [Implementation](#implementation)
 - [Risks](#risks)
 - [License](#license)
 - [Open questions](#open-questions)
@@ -213,6 +214,35 @@ Phase 1 can start immediately and on its own provides unified package management
 - A job modified by hand results in a `Drifted` state at the next check.
 - A pack without a signature is rejected in a protected namespace.
 - Today's Nomad Pack packs (the samples of the community registry) can be installed without modification.
+
+## Implementation
+
+Phases 2 and 3 (release objects, server-side apply, hooks, drift) and the supply chain part of phase 4 are documented for users in [`nomad/pack/docs/releases.md`](../../nomad/pack/docs/releases.md) and [`supply-chain.md`](../../nomad/pack/docs/supply-chain.md). This section records the remaining items of phase 4.
+
+### Variables schema
+
+- **Format:** `variables_schema` is a top-level attribute of `metadata.hcl` (as in the example above). `metadata.hcl` is now decoded with an evaluation context whose only function is `file(path)`, which reads a file of the loaded pack (cleaned path, never outside the pack directory; `pack.DecodeMetadata` in `pack/sdk/pack`, also used by `deps vendor`). The schema is compiled when the pack is loaded, so a broken schema fails early.
+- **One validator:** the JSON Schema library of the object kinds (`santhosh-tekuri/jsonschema/v6`, wrapped by `nomad/objectschema`) is reused: `objectschema.CompileDocument` compiles a self-contained document that is not an object kind schema, `Schema.ValidateValue` validates any Go value through its JSON encoding. Errors keep the `at /<path>: <message>` form of object validation, so they name the variable path (`at /resources/cpu: maximum: got 9000, want 4000`).
+- **Client:** the pack manager validates, after variable parsing and before rendering (`render`, `plan`, `run`, `upgrade`), the effective values of every pack of the dependency tree that has a schema against its own schema; null (unset) variables are left out so that `required` reports them.
+- **Server:** the release request carries `VariablesSchemas` (pack path and schema) and `VariableValues` (effective values by pack path). `Release.Apply` (also dry runs) validates them again and stores the schemas in `spec.variablesSchemas` of the revision; rollbacks copy them. The effective values are never stored (they can contain secrets); the revision keeps the redacted overrides as before. The schemas of a release are limited to 64 KiB, which is subtracted from the content limit of the revision.
+- CEL rules for variables (mentioned in the comparison table) are not implemented; JSON Schema covers the plan's acceptance needs.
+
+### Multi-region
+
+- **Coordination:** `ReleaseApplyRequest.Regions` (CLI `--regions`, or `regions = [...]` at the top level of `metadata.hcl`) makes the receiving region's leader the coordinator. It validates the regions (known, all servers at the Norca minimum version), requires a global token when ACLs are on and other regions are involved, orders the regions (global region first) and sends every region a copy of the request with a `ReleaseMultiregion` description (`Regions`, `GlobalRegion`) over the normal region forwarding (`Release.Apply` to each region's leader). The reply has one `ReleaseRegionResult` per region. No new Raft message types: each region writes its own release objects.
+- **Global resources:** namespaces, quotas and ACL policies are written in the authoritative region and replicated by the servers. Only the release of the global region (the authoritative region if listed, otherwise the first region given) applies and owns them; the others report them as `remote` changes, wait (bounded, 1 minute, warning on timeout) until the replicated copies match, and never delete them (a resource that moves to the global region's ownership is dropped from the local release, not deleted).
+- **Multiregion jobs:** the submitting region of a job with a `multiregion` block is the first region of the install that the job lists (`ReleaseMultiregion.JobSubmitter`); its release registers the job, Norca's multiregion registration fans it out with the same version and the deployment watchers run the staged rollout. Other listed regions adopt the job (owned, waited for, not registered); regions the job doesn't list skip it.
+- **Partial success and atomic mode:** the regions are applied in turn; a failure is recorded in that region's result and the remaining regions are still applied. Atomic mode runs inside each region's operation, so it restores only that region. The RPC fails only if every region failed.
+- **Persistence of the division of work:** `spec.multiregion` of the release and of every revision records the install; later single-region operations (upgrade, rollback, record-only) of such a release keep it.
+- **CLI:** `run`, `upgrade`, `plan` print a per-region table; `status` and `history` show every region of the install (found in `spec.multiregion`, or `--regions`); `uninstall --all-regions`/`--regions` uninstalls in reverse install order (global region last). The client-side job conflict check runs in every region of the install.
+
+**Provisional decisions (reversible):**
+
+1. `regions` and `variables_schema` are top-level attributes of `metadata.hcl` (not inside `pack {}`), next to each other as in the design example; `--regions` overrides `regions`.
+2. When the authoritative region is not among the regions, the first region given owns the global resources (its writes are forwarded to the authoritative region), instead of failing or creating a release in the authoritative region.
+3. Regions are applied sequentially; after a failure the remaining regions are still applied (no `stop-on-failure` option).
+4. A replication wait that times out is a warning, not a failure (resources that need the namespace then fail on their own); without ACLs the servers don't replicate, which is reported as a warning.
+5. `rollback` and `test` stay per region (revision numbers can differ between regions).
 
 ## Risks
 

@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 
 	gg "github.com/hashicorp/go-getter"
-	"github.com/hashicorp/hcl/v2/hclsimple"
 
 	"github.com/hashicorp/nomad/pack/internal/pkg/oci"
 	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
@@ -43,8 +42,17 @@ func Vendor(ctx context.Context, ui terminal.UI, targetPath string) error {
 // client configuration.
 func VendorWithOptions(ctx context.Context, ui terminal.UI, targetPath string, opts Options) error {
 	// attempt to read metadata.hcl
-	metadata := &pack.Metadata{}
-	err := hclsimple.DecodeFile(filepath.Join(targetPath, "metadata.hcl"), nil, metadata)
+	metadataPath := filepath.Join(targetPath, "metadata.hcl")
+	src, err := os.ReadFile(metadataPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("the configuration file %s does not exist", metadataPath)
+	}
+	if err != nil {
+		return err
+	}
+	metadata, err := pack.DecodeMetadata("metadata.hcl", src, func(name string) ([]byte, error) {
+		return os.ReadFile(filepath.Join(targetPath, filepath.FromSlash(name)))
+	})
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/nomad/api"
 
@@ -94,7 +95,13 @@ func (c *PlanCommand) Run(args []string) int {
 	}
 
 	// Let the servers plan the release if they can.
-	if releasesSupported(client) && !c.release.clientSide {
+	releasesOK := releasesSupported(client)
+	if regions := c.release.regionList(packManager.Metadata()); len(regions) > 0 && (!releasesOK || c.release.clientSide) {
+		c.ui.ErrorWithContext(fmt.Errorf("a multi-region plan (regions %v) needs servers with pack release support", regions),
+			"failed to plan pack", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+	if releasesOK && !c.release.clientSide {
 		return c.planRelease(client, packManager, provenance, r, errorContext)
 	}
 	parents, others := jobRenders(r.ParentRenders())
@@ -188,18 +195,36 @@ func (c *PlanCommand) planRelease(client *api.Client, packManager *manager.PackM
 		return c.exitCodeError
 	}
 
-	c.ui.Info(fmt.Sprintf("Release %q, revision %d:", name, resp.Revision))
-	printChanges(c.ui, resp.Changes)
 	changed := false
-	for _, ch := range resp.Changes {
-		if ch.Action != "unchanged" && ch.Action != "hook" {
-			changed = true
-		}
-		if ch.JobDiff != nil && ch.Action != "unchanged" && c.jobConfig.PlanConfig.Diff {
-			job.FormatJobDiff(ch.JobDiff, c.jobConfig.PlanConfig.Verbose, c.ui)
+	countChanges := func(changes []*api.ReleaseResourceChange) {
+		for _, ch := range changes {
+			switch ch.Action {
+			case "unchanged", "hook", "remote", "adopt":
+			default:
+				changed = true
+			}
+			if ch.JobDiff != nil && ch.Action != "unchanged" && c.jobConfig.PlanConfig.Diff {
+				job.FormatJobDiff(ch.JobDiff, c.jobConfig.PlanConfig.Verbose, c.ui)
+			}
 		}
 	}
-	printWarnings(c.ui, resp.Warnings)
+	if len(req.Regions) > 0 && len(resp.Regions) > 0 {
+		c.ui.Info(fmt.Sprintf("Release %q in the regions %s:", name, strings.Join(req.Regions, ", ")))
+		if c.printRegionResults(name, resp, true) != 0 {
+			return c.exitCodeError
+		}
+		for _, r := range resp.Regions {
+			countChanges(r.Changes)
+		}
+	} else {
+		if len(req.Regions) > 0 {
+			c.ui.Warning("The servers do not support multi-region installs; the plan is for their region only")
+		}
+		c.ui.Info(fmt.Sprintf("Release %q, revision %d:", name, resp.Revision))
+		printChanges(c.ui, resp.Changes)
+		countChanges(resp.Changes)
+		printWarnings(c.ui, resp.Warnings)
+	}
 	c.ui.Success("Plan succeeded")
 	if changed {
 		return c.exitCodeChanges

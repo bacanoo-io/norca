@@ -48,12 +48,23 @@ type Schema struct {
 type noLoader struct{}
 
 func (noLoader) Load(url string) (any, error) {
-	return nil, fmt.Errorf("loading %q is not allowed, object kind schemas must be self-contained", url)
+	return nil, fmt.Errorf("loading %q is not allowed, schemas must be self-contained", url)
 }
 
 // Compile compiles the JSON Schema document of the kind identified by
 // group and kind.
 func Compile(group, kind, doc string) (*Schema, error) {
+	return compile(fmt.Sprintf("https://objectkinds.norca.invalid/%s/%s.json", group, kind), doc)
+}
+
+// CompileDocument compiles a JSON Schema document that is not the schema of
+// an object kind, such as the variables schema of a pack. name identifies
+// the document in references.
+func CompileDocument(name, doc string) (*Schema, error) {
+	return compile("https://schemas.norca.invalid/"+neturl.PathEscape(name)+".json", doc)
+}
+
+func compile(loc, doc string) (*Schema, error) {
 	var root map[string]any
 	if err := json.Unmarshal([]byte(doc), &root); err != nil {
 		return nil, fmt.Errorf("schema is not a JSON object: %v", err)
@@ -67,7 +78,6 @@ func Compile(group, kind, doc string) (*Schema, error) {
 		return nil, fmt.Errorf("failed to parse schema: %v", err)
 	}
 
-	loc := fmt.Sprintf("https://objectkinds.norca.invalid/%s/%s.json", group, kind)
 	c := jsonschema.NewCompiler()
 	c.DefaultDraft(jsonschema.Draft2020)
 	c.UseLoader(noLoader{})
@@ -149,6 +159,21 @@ func escapePointer(tok string) string {
 // Validate validates the object document {"spec": ..., "status": ...}.
 func (s *Schema) Validate(doc map[string]any) error {
 	return describe(s.compiled.Validate(any(doc)))
+}
+
+// ValidateValue validates any value that has a JSON encoding. The value is
+// normalized through its JSON encoding first, so that Go values such as
+// []string or integer types validate like the JSON they encode to.
+func (s *Schema) ValidateValue(v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("value has no JSON encoding: %v", err)
+	}
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	return describe(s.compiled.Validate(doc))
 }
 
 // describe turns a validation error into a one-line error listing the

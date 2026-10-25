@@ -6,6 +6,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/hashicorp/nomad/pack/internal/pkg/supplychain"
 	"github.com/hashicorp/nomad/pack/internal/runner"
 	"github.com/hashicorp/nomad/pack/internal/runner/job"
+	"github.com/hashicorp/nomad/pack/sdk/pack"
 	"github.com/hashicorp/nomad/pack/terminal"
 )
 
@@ -40,6 +42,7 @@ type releaseOptions struct {
 	maxHistory    int
 	secrets       stringList
 	clientSide    bool
+	regions       string
 }
 
 // stringList is a repeatable string flag that does not split on commas.
@@ -85,6 +88,37 @@ func (o *releaseOptions) addFlags(f *flag.Set) {
 				letting the servers apply the release; the servers only record
 				the revision. Also set by NORCA_PACK_CLIENT_SIDE=1.`,
 	})
+	f.StringVar(&flag.StringVar{
+		Name:   "regions",
+		Target: &o.regions,
+		Usage: `Comma separated regions to install the release in, in one
+				operation: the servers apply it on the leader of every region
+				(the authoritative region first) and report the result per
+				region. Overrides the regions of metadata.hcl.`,
+	})
+}
+
+// regionList returns the regions of a multi-region install: those of
+// --regions, or else those of the metadata of the pack.
+func (o *releaseOptions) regionList(md *pack.Metadata) []string {
+	if o.regions != "" {
+		return splitRegions(o.regions)
+	}
+	if md != nil {
+		return splitRegions(strings.Join(md.Regions, ","))
+	}
+	return nil
+}
+
+// splitRegions splits a comma separated region list.
+func splitRegions(s string) []string {
+	var out []string
+	for _, r := range strings.Split(s, ",") {
+		if r = strings.TrimSpace(r); r != "" && !slices.Contains(out, r) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func (o *releaseOptions) atomicPtr() (*bool, error) {
@@ -190,6 +224,8 @@ func (c *baseCommand) buildRelease(
 		}
 	}
 	req.Values, req.ValuesHash = release.Values(c.vars, varFiles)
+	req.VariablesSchemas, req.VariableValues = packManager.VariablesSchemas()
+	req.Regions = opts.regionList(packManager.Metadata())
 
 	for _, name := range others {
 		res, err := release.ParseResource(name, renders[name])
@@ -237,11 +273,26 @@ func (c *baseCommand) buildRelease(
 			req.TakeOwnership = true
 		}
 		if !req.TakeOwnership {
-			if errs := jobRunner.CheckForConflicts(errorContext); errs != nil {
-				for _, e := range errs {
-					c.ui.ErrorWithContext(e.Err, e.Subject, e.Context.GetAll()...)
+			// A multi-region install checks every region of the install
+			// rather than the region named by the templates.
+			regions := req.Regions
+			if len(regions) == 0 {
+				regions = []string{""}
+			}
+			for _, region := range regions {
+				if region != "" {
+					parseClient.SetRegion(region)
 				}
-				return nil, false
+				if errs := jobRunner.CheckForConflicts(errorContext); errs != nil {
+					for _, e := range errs {
+						ctx := e.Context.GetAll()
+						if region != "" {
+							ctx = append(ctx, "Region: "+region)
+						}
+						c.ui.ErrorWithContext(e.Err, e.Subject, ctx...)
+					}
+					return nil, false
+				}
 			}
 		}
 		parsed := jobRunner.ParsedTemplates().(map[string]job.ParsedTemplate)
@@ -345,10 +396,26 @@ func printWarnings(ui terminal.UI, warnings []string) {
 // the result. It returns the exit code.
 func (c *baseCommand) applyRelease(client *api.Client, name string, req *api.ReleaseApplyRequest, upgradeOnly bool) int {
 	if upgradeOnly {
-		if _, _, err := client.Releases().Info(name, nil); err != nil {
-			c.ui.ErrorWithContext(err, fmt.Sprintf("release %q not found; use run to install it", name))
+		regions := req.Regions
+		if len(regions) == 0 {
+			regions = []string{""}
+		}
+		for _, region := range regions {
+			if _, _, err := client.Releases().Info(name, &api.QueryOptions{Region: region}); err != nil {
+				c.ui.ErrorWithContext(err, fmt.Sprintf("release %q not found%s; use run to install it", name, inRegion(region)))
+				return 1
+			}
+		}
+	}
+	if len(req.Regions) > 0 {
+		c.ui.Info(fmt.Sprintf("Applying release %q (%d resources) in the regions %s",
+			name, len(req.Resources), strings.Join(req.Regions, ", ")))
+		resp, _, err := client.Releases().Apply(name, req, nil)
+		if err != nil {
+			c.ui.ErrorWithContext(err, "release failed", "Release: "+name)
 			return 1
 		}
+		return c.printRegionResults(name, resp, false)
 	}
 	c.ui.Info(fmt.Sprintf("Applying release %q (%d resources)", name, len(req.Resources)))
 	resp, _, err := client.Releases().Apply(name, req, nil)

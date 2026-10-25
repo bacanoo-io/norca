@@ -100,6 +100,11 @@ func (c *RunCommand) run() int {
 	// Let the servers apply the release if they can.
 	releasesOK := releasesSupported(client)
 	relName, nameErr := c.releaseName(c.packConfig)
+	if regions := c.release.regionList(packManager.Metadata()); len(regions) > 0 && (!releasesOK || c.release.clientSide) {
+		c.ui.ErrorWithContext(fmt.Errorf("a multi-region install (regions %v) needs server-side apply by servers with pack release support", regions),
+			"failed to deploy pack", errorContext.GetAll()...)
+		return 1
+	}
 	if releasesOK && !c.release.clientSide {
 		if nameErr != nil {
 			c.ui.ErrorWithContext(nameErr, "invalid release name", errorContext.GetAll()...)

@@ -29,6 +29,10 @@ type releaseApplyBody struct {
 	TakeOwnership bool
 	MaxHistory    int
 	RecordOnly    bool
+
+	VariablesSchemas []*structs.ReleaseVariablesSchema
+	VariableValues   map[string]map[string]any
+	Regions          []string
 }
 
 type releaseResourceBody struct {
@@ -163,6 +167,10 @@ func (s *HTTPServer) releaseApply(resp http.ResponseWriter, req *http.Request, n
 		MaxHistory:    body.MaxHistory,
 		DryRun:        dryRun,
 		RecordOnly:    body.RecordOnly,
+
+		VariablesSchemas: body.VariablesSchemas,
+		VariableValues:   body.VariableValues,
+		Regions:          body.Regions,
 	}
 	s.parseWriteRequest(req, &args.WriteRequest)
 	namespace := args.Namespace

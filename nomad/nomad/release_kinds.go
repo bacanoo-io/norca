@@ -42,7 +42,8 @@ const releaseKindSchema = `{
         "description": {"type": "string"},
         "revision": {"type": "integer", "minimum": 0},
         "maxHistory": {"type": "integer", "minimum": 1},
-        "atomic": {"type": "boolean"}
+        "atomic": {"type": "boolean"},
+        "multiregion": {"type": "object"}
       }
     },
     "status": {
@@ -71,6 +72,8 @@ const releaseRevisionKindSchema = `{
         "rollbackOf": {"type": "integer", "minimum": 0},
         "pack": {"type": "object"},
         "values": {"type": "object"},
+        "variablesSchemas": {"type": "array", "items": {"type": "object"}},
+        "multiregion": {"type": "object"},
         "resources": {"type": "array", "items": {"type": "object"}},
         "content": {"type": "string"},
         "contentDigest": {"type": "string"}

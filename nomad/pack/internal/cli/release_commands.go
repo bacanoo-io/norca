@@ -57,6 +57,11 @@ func printRelease(ui terminal.UI, rel *api.Release) {
 		{Name: "Atomic", Value: spec.Atomic},
 		{Name: "Max history", Value: spec.MaxHistory},
 	}
+	if mr := spec.Multiregion; mr != nil {
+		values = append(values,
+			terminal.NamedValue{Name: "Regions", Value: strings.Join(mr.Regions, ", ")},
+			terminal.NamedValue{Name: "Global region", Value: mr.GlobalRegion})
+	}
 	if p := spec.Pack; p != nil {
 		values = append(values,
 			terminal.NamedValue{Name: "Pack", Value: p.Name},
@@ -128,6 +133,7 @@ func printReleases(ui terminal.UI, releases []*api.Release) {
 // HistoryCommand lists the revisions of a release.
 type HistoryCommand struct {
 	*baseCommand
+	regions string
 }
 
 func (c *HistoryCommand) Run(args []string) int {
@@ -141,15 +147,50 @@ func (c *HistoryCommand) Run(args []string) int {
 	if !ok {
 		return 1
 	}
-	revs, _, err := client.Releases().History(c.args[0], nil)
+	name := c.args[0]
+
+	// A multi-region install has a history per region.
+	if regions, global := releaseRegions(client, name, splitRegions(c.regions)); len(regions) > 0 {
+		found := false
+		for _, region := range regions {
+			label := fmt.Sprintf("Region %q", region)
+			if region == global {
+				label += " (global)"
+			}
+			c.ui.Output(label + ":")
+			revs, _, err := client.Releases().History(name, &api.QueryOptions{Region: region})
+			switch {
+			case err != nil:
+				c.ui.Warning(fmt.Sprintf("failed to read the release history: %v", err))
+			case len(revs) == 0:
+				c.ui.Warning(fmt.Sprintf("release %q not found", name))
+			default:
+				found = true
+				printHistory(c.ui, revs)
+			}
+			c.ui.Output("")
+		}
+		if !found {
+			return 1
+		}
+		return 0
+	}
+
+	revs, _, err := client.Releases().History(name, nil)
 	if err != nil {
-		c.ui.ErrorWithContext(err, "failed to read the release history", "Release: "+c.args[0])
+		c.ui.ErrorWithContext(err, "failed to read the release history", "Release: "+name)
 		return 1
 	}
 	if len(revs) == 0 {
-		c.ui.Warning(fmt.Sprintf("release %q not found", c.args[0]))
+		c.ui.Warning(fmt.Sprintf("release %q not found", name))
 		return 1
 	}
+	printHistory(c.ui, revs)
+	return 0
+}
+
+// printHistory prints the revisions of a release.
+func printHistory(ui terminal.UI, revs []*api.ReleaseRevision) {
 	tbl := terminal.NewTable("Revision", "Created", "Action", "Pack", "Version", "Phase", "User", "Description")
 	for _, rev := range revs {
 		s, st := rev.Spec, rev.Status
@@ -171,12 +212,19 @@ func (c *HistoryCommand) Run(args []string) int {
 			strconv.FormatUint(rev.Revision, 10), s.CreateTime, s.Action, pack, ver, st.Phase, s.User, desc,
 		})
 	}
-	c.ui.Table(tbl)
-	return 0
+	ui.Table(tbl)
 }
 
 func (c *HistoryCommand) Flags() *flag.Sets {
-	return c.flagSet(flagSetNomadClient, nil)
+	return c.flagSet(flagSetNomadClient, func(set *flag.Sets) {
+		f := set.NewSet("History Options")
+		f.StringVar(&flag.StringVar{
+			Name:   "regions",
+			Target: &c.regions,
+			Usage: `Comma separated regions whose histories to show. By default the
+					regions of a multi-region install are taken from the release.`,
+		})
+	})
 }
 
 func (c *HistoryCommand) AutocompleteArgs() complete.Predictor { return complete.PredictAnything }
@@ -294,9 +342,11 @@ func (c *RollbackCommand) Help() string {
 // UninstallCommand uninstalls a release.
 type UninstallCommand struct {
 	*baseCommand
-	orphan  bool
-	noHooks bool
-	timeout time.Duration
+	orphan     bool
+	noHooks    bool
+	timeout    time.Duration
+	regions    string
+	allRegions bool
 }
 
 func (c *UninstallCommand) Run(args []string) int {
@@ -310,22 +360,55 @@ func (c *UninstallCommand) Run(args []string) int {
 	if !ok {
 		return 1
 	}
-	return c.uninstallRelease(client, c.args[0], c.orphan, c.noHooks, c.timeout)
+	name := c.args[0]
+
+	// A multi-region install is uninstalled in the reverse order of the
+	// install: the global region, whose release owns the global resources,
+	// comes last.
+	given := splitRegions(c.regions)
+	if c.allRegions || len(given) > 0 {
+		regions, global := releaseRegions(client, name, given)
+		if len(regions) == 0 {
+			c.ui.ErrorWithContext(fmt.Errorf("release %q is not a multi-region install; name the regions with --regions", name),
+				"uninstall failed", "Release: "+name)
+			return 1
+		}
+		code := 0
+		for _, region := range uninstallOrder(regions, global) {
+			c.ui.Info(fmt.Sprintf("Uninstalling release %q in region %q", name, region))
+			if c.uninstallReleaseIn(client, name, region, c.orphan, c.noHooks, c.timeout) != 0 {
+				code = 1
+			}
+		}
+		return code
+	}
+	if rel, _, err := client.Releases().Info(name, nil); err == nil && rel.Spec != nil &&
+		rel.Spec.Multiregion != nil && len(rel.Spec.Multiregion.Regions) > 1 {
+		c.ui.Warning(fmt.Sprintf("Release %q is part of a multi-region install (%s); uninstalling it in this region only (use --all-regions for all)",
+			name, strings.Join(rel.Spec.Multiregion.Regions, ", ")))
+	}
+	return c.uninstallRelease(client, name, c.orphan, c.noHooks, c.timeout)
 }
 
 // uninstallRelease uninstalls a release and reports the result.
 func (c *baseCommand) uninstallRelease(client *api.Client, name string, orphan, noHooks bool, timeout time.Duration) int {
+	return c.uninstallReleaseIn(client, name, "", orphan, noHooks, timeout)
+}
+
+// uninstallReleaseIn uninstalls the release of a region ("": the region of
+// the client) and reports the result.
+func (c *baseCommand) uninstallReleaseIn(client *api.Client, name, region string, orphan, noHooks bool, timeout time.Duration) int {
 	opts := &api.ReleaseDeleteOptions{NoHooks: noHooks, Timeout: timeout}
 	if orphan {
 		opts.Propagation = api.ReleasePropagationOrphan
 	}
-	resp, _, err := client.Releases().Delete(name, opts, nil)
+	resp, _, err := client.Releases().Delete(name, opts, &api.WriteOptions{Region: region})
 	if err != nil {
-		c.ui.ErrorWithContext(err, "uninstall failed", "Release: "+name)
+		c.ui.ErrorWithContext(err, "uninstall failed", "Release: "+name+inRegion(region))
 		return 1
 	}
 	printChanges(c.ui, resp.Changes)
-	c.ui.Success(fmt.Sprintf("Release %q uninstalled", name))
+	c.ui.Success(fmt.Sprintf("Release %q uninstalled%s", name, inRegion(region)))
 	return 0
 }
 
@@ -344,6 +427,15 @@ func (c *UninstallCommand) Flags() *flag.Sets {
 		f.DurationVar(&flag.DurationVar{
 			Name: "timeout", Target: &c.timeout, Default: 5 * time.Minute,
 			Usage: `How long the servers wait for the hooks.`,
+		})
+		f.StringVar(&flag.StringVar{
+			Name: "regions", Target: &c.regions,
+			Usage: `Comma separated regions to uninstall the release in, the global
+					region of a multi-region install last.`,
+		})
+		f.BoolVar(&flag.BoolVar{
+			Name: "all-regions", Target: &c.allRegions,
+			Usage: `Uninstall the release in all regions of its multi-region install.`,
 		})
 	})
 }
