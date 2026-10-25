@@ -24,6 +24,7 @@ type SealRewrap struct {
 	ID        string
 	To        []*SealInfo
 	Done      []string
+	Sealed    []string
 	StartTime int64
 }
 
@@ -54,6 +55,9 @@ type ServerSealStatus struct {
 	SecretCoreInitialized bool
 	SecretCoreSealed      bool
 	SecretCoreActive      bool
+	SecretCoreSeals       []string
+	SecretCoreRecovery    bool
+	RecoveryProgress      int
 	Error                 string
 }
 
@@ -133,6 +137,46 @@ type KeyringRewrapResponse struct {
 func (k *Keyring) Rewrap(req *KeyringRewrapRequest, w *WriteOptions) (*KeyringRewrapResponse, *WriteMeta, error) {
 	var resp KeyringRewrapResponse
 	wm, err := k.client.put("/v1/operator/keyring/rewrap", req, &resp, w)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &resp, wm, nil
+}
+
+// SealRecoverRequest recovers the key of a restored secret store that is
+// wrapped by none of the seals of the region (a full restore of a backup
+// taken with other shares). The leader re-wraps it with the region's seals.
+type SealRecoverRequest struct {
+	// Key is one unseal share of the seal that wrapped the restored store
+	// (the old shares), base64 encoded.
+	Key string `json:",omitempty"`
+
+	// CoreKey is the key of the secret store core from the secret store key
+	// object of a backup; it needs a management token.
+	CoreKey []byte `json:",omitempty"`
+
+	// Reset discards the old shares entered so far.
+	Reset bool `json:",omitempty"`
+}
+
+// SealRecoverResponse is the state of the recovery.
+type SealRecoverResponse struct {
+	// Recovered is true once the key of the secret store is wrapped by the
+	// seals of the region.
+	Recovered bool
+
+	// Progress is the number of old shares entered so far.
+	Progress int
+
+	// Seals are the seals that wrap the key now (type:key ID).
+	Seals []string
+}
+
+// SealRecover enters one old unseal share, or the key itself, toward the
+// recovery of a restored secret store.
+func (op *Operator) SealRecover(req *SealRecoverRequest, w *WriteOptions) (*SealRecoverResponse, *WriteMeta, error) {
+	var resp SealRecoverResponse
+	wm, err := op.c.put("/v1/operator/seal/recover", req, &resp, w)
 	if err != nil {
 		return nil, nil, err
 	}

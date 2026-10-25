@@ -4,11 +4,14 @@
 package nomad
 
 import (
+	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/nomad/helper/snapshot"
 	"github.com/hashicorp/nomad/nomad/backup"
+	"github.com/hashicorp/nomad/nomad/seal"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
@@ -28,10 +31,11 @@ func (s *Server) setupBackup() {
 		ServersReady: func() bool {
 			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
 		},
-		Snapshot:     s.backupSnapshot,
-		Keyring:      s.backupKeyring,
-		KeyringReady: func() bool { _, err := s.backupKeyring(); return err == nil },
-		State:        func() *state.StateStore { return s.fsm.State() },
+		Snapshot:       s.backupSnapshot,
+		Keyring:        s.backupKeyring,
+		SecretStoreKey: s.backupSecretStoreKey,
+		KeyringReady:   func() bool { _, err := s.backupKeyring(); return err == nil },
+		State:          func() *state.StateStore { return s.fsm.State() },
 		Apply: func(msgType structs.MessageType, req any) (uint64, error) {
 			_, index, err := s.raftApply(msgType, req)
 			return index, err
@@ -62,6 +66,23 @@ func (s *Server) backupKeyring() ([]*structs.RootKey, error) {
 		}
 	}
 	return nil, errors.New("active root key is not in the local keyring yet")
+}
+
+// backupSecretStoreKey returns the key of the secret store core, unwrapped
+// with the seal of this server, for the secret store key object of a backup
+// (Norca): a restore re-wraps it with the seals of the target region. It
+// returns nil if the store is not initialized.
+func (s *Server) backupSecretStoreKey() ([]byte, error) {
+	if s.fsm == nil || s.seal == nil {
+		return nil, nil
+	}
+	blob, err := s.fsm.State().SecretStoreBlobByPath(nil, seal.CoreMasterKeyPath)
+	if err != nil || blob == nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(s.shutdownCtx, 10*time.Second)
+	defer cancel()
+	return (&seal.CoreSeal{Keyring: s.seal}).Unwrap(ctx, blob.Value)
 }
 
 // backupSnapshot is a Raft snapshot taken for a backup.

@@ -107,6 +107,10 @@ func (s *Server) secretCore() (*core.Core, error) {
 	if s.seal.sealed() {
 		return nil, fmt.Errorf("%w: unseal the server with 'norca operator unseal'", structs.ErrSecretStoreSealed)
 	}
+	if s.secretCoreNeedsRecovery() {
+		return nil, fmt.Errorf("%w: the restored secret store is wrapped by seals this region does not use; "+
+			"recover it with the old shares ('norca operator unseal -recover')", structs.ErrSecretStoreSealed)
+	}
 	if !s.IsLeader() {
 		return nil, fmt.Errorf("%w: the secret store core is active on the leader only", structs.ErrSecretStoreSealed)
 	}
@@ -190,13 +194,23 @@ func (s *Server) runSecretCoreUnseal(ctx context.Context) {
 				c.Seal()
 				unsealedKeyring = nil
 			}
+			// Norca: a restored core key wrapped by seals the region does not
+			// use keeps the store sealed until it is recovered, even if the
+			// core runs with the same barrier key
+			recovery := master != nil && s.coreValueNeedsRecovery(master.Value)
+			if recovery && !c.Barrier().Sealed() {
+				logger.Warn("the restored secret store is wrapped by seals this region does not use; " +
+					"it is sealed until it is recovered with the old shares ('norca operator unseal -recover')")
+				c.Seal()
+				unsealedKeyring = nil
+			}
 			switch {
 			case !c.Barrier().Sealed():
 				if unsealedKeyring == nil && keyring != nil {
 					// unsealed by Initialize on this server
 					unsealedKeyring = slices.Clone(keyring.Value)
 				}
-			case master == nil || keyring == nil || s.seal.sealed():
+			case master == nil || keyring == nil || s.seal.sealed() || recovery:
 				// not initialized, or not with Norca's seal, or sealed
 			default:
 				err := c.AutoUnseal(ctx)
@@ -228,26 +242,42 @@ func (s *Server) runSecretCoreUnseal(ctx context.Context) {
 // rewrapSecretCoreKey wraps the stored master key of the core with the
 // seals keys are wrapped with now, on the leader. It does nothing if the
 // core is not initialized with Norca's seal or already wrapped that way.
-func (s *Server) rewrapSecretCoreKey(ctx context.Context) error {
+// During a rewrap (add) it adds the wraps of the new seals; otherwise it
+// never adds an aead wrap, like rewrapKeystore. A key wrapped by no seal this
+// server holds (a restored store that needs recovery) is left alone.
+func (s *Server) rewrapSecretCoreKey(ctx context.Context, add bool) error {
 	blob, err := s.State().SecretStoreBlobByPath(nil, seal.CoreMasterKeyPath)
 	if err != nil || blob == nil {
 		return err
+	}
+	env, err := seal.ParseCoreEnvelope(blob.Value)
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(env.Wraps, s.seal.canUnwrap) {
+		return nil
 	}
 	seals, err := s.seal.wrapSeals()
 	if err != nil {
 		return err
 	}
-	want := sealWrapTags(seals)
-	cs := &seal.CoreSeal{Keyring: s.seal}
-	value, err := cs.Rewrap(ctx, blob.Value, func(env *seal.CoreEnvelope) bool {
-		have := make([]string, 0, len(env.Wraps))
-		for _, w := range env.Wraps {
-			have = append(have, sealWrapTag(w.Seal, w.KeyID))
+	have := make([]string, 0, len(env.Wraps))
+	for _, w := range env.Wraps {
+		have = append(have, sealWrapTag(w.Seal, w.KeyID))
+	}
+	slices.Sort(have)
+	if !add {
+		seals = keepOrStrengthen(seals, have)
+		if len(seals) == 0 {
+			return nil
 		}
-		slices.Sort(have)
-		return slices.Equal(have, want)
-	})
-	if err != nil || value == nil {
+	}
+	want := sealWrapTags(seals)
+	if slices.Equal(have, want) {
+		return nil
+	}
+	value, err := seal.RewrapCoreKey(ctx, s.seal, env, seals)
+	if err != nil {
 		return err
 	}
 	if err := s.putSecretStoreBlob(ctx, seal.CoreMasterKeyPath, value); err != nil {

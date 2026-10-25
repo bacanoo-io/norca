@@ -70,6 +70,38 @@ func (s *HTTPServer) OperatorUnsealRequest(resp http.ResponseWriter, req *http.R
 	return out, nil
 }
 
+// operatorSealRecoverBody is the body of POST /v1/operator/seal/recover.
+type operatorSealRecoverBody struct {
+	Key     string
+	CoreKey []byte
+	Reset   bool
+}
+
+// OperatorSealRecoverRequest is POST /v1/operator/seal/recover: one old
+// unseal share (or the key of the secret store from a backup) toward the
+// recovery of a restored secret store. The leader collects the shares. The
+// share is read from the body, never from the URL.
+func (s *HTTPServer) OperatorSealRecoverRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if req.Method != http.MethodPost && req.Method != http.MethodPut {
+		return nil, CodedError(405, ErrInvalidMethod)
+	}
+	var body operatorSealRecoverBody
+	if err := decodeBody(req, &body); err != nil {
+		return nil, CodedError(400, err.Error())
+	}
+	args := structs.SealRecoverRequest{Key: body.Key, CoreKey: body.CoreKey, Reset: body.Reset}
+	s.parseWriteRequest(req, &args.WriteRequest)
+
+	var out structs.SealRecoverResponse
+	err := s.agent.RPC("Operator.SealRecover", &args, &out)
+	clear(args.CoreKey)
+	if err != nil {
+		return nil, err
+	}
+	setIndex(resp, out.Index)
+	return out, nil
+}
+
 // keyringRewrapRequest is POST /v1/operator/keyring/rewrap.
 func (s *HTTPServer) keyringRewrapRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var args structs.KeyringRewrapRequest

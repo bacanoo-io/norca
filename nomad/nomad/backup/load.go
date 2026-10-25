@@ -31,6 +31,11 @@ type Loaded struct {
 	// Keys are the root keys of the backup; nil if the backup has no
 	// keyring object.
 	Keys []*structs.RootKey
+
+	// SecretStoreKey is the key of the secret store core of the backup
+	// (Norca); nil if the backup has no secret store key object, as backups
+	// taken before Norca wrote it.
+	SecretStoreKey []byte
 }
 
 // RestoreFunc restores a Raft snapshot archive into a new state store.
@@ -125,6 +130,19 @@ func (m *Manager) Load(ctx context.Context, record *structs.BackupRecord, destNa
 		rc.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load the keyring of backup %s: %w", record.ID, err)
+		}
+	}
+
+	rc, err = m.Open(ctx, record, dest.Name(), structs.BackupObjectSecretStoreKey, ids)
+	switch {
+	case errors.Is(err, ErrNotFound):
+	case err != nil:
+		return nil, err
+	default:
+		loaded.SecretStoreKey, err = DecodeSecretStoreKey(rc)
+		rc.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load the secret store key of backup %s: %w", record.ID, err)
 		}
 	}
 

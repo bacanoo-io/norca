@@ -60,6 +60,11 @@ type Deps struct {
 	// Keyring returns the root keys of the local keyring.
 	Keyring func() ([]*structs.RootKey, error)
 
+	// SecretStoreKey, if set, returns the key of the secret store core
+	// (Norca), or nil if the store is not initialized. It is written next to
+	// the keyring, so a restore can re-wrap it with the seals of the region.
+	SecretStoreKey func() ([]byte, error)
+
 	// KeyringReady, if set, reports whether the keyring is initialized;
 	// scheduled backups that include the keyring wait for it.
 	KeyringReady func() bool
@@ -397,6 +402,19 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 		}
 		slices.Sort(record.KeyIDs)
 	}
+	var coreKey []byte
+	if cfg.IncludeKeyring && m.deps.SecretStoreKey != nil {
+		key, err := m.deps.SecretStoreKey()
+		if err == nil && key != nil {
+			coreKey, err = EncodeSecretStoreKey(key)
+			clear(key)
+		}
+		if err != nil {
+			// The backup stays usable; its secret store can be recovered
+			// with the shares of its seal.
+			m.logger.Warn("the backup does not include the key of the secret store", "id", record.ID, "error", err)
+		}
+	}
 
 	// Upload to every destination in parallel; one failing destination does
 	// not stop the others.
@@ -406,7 +424,7 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			statuses[i] = m.upload(ctx, cfg, d, record, snap, keyring)
+			statuses[i] = m.upload(ctx, cfg, d, record, snap, keyring, coreKey)
 		}()
 	}
 	wg.Wait()
@@ -502,7 +520,7 @@ func (m *Manager) finishFailed(record *structs.BackupRecord, err error) (*struct
 // upload encrypts and uploads the objects of a backup to a destination and
 // verifies them.
 func (m *Manager) upload(ctx context.Context, cfg *Config, dest Destination, record *structs.BackupRecord,
-	snap Snapshot, keyring []byte) *structs.BackupDestinationStatus {
+	snap Snapshot, keyring, coreKey []byte) *structs.BackupDestinationStatus {
 
 	start := time.Now()
 	st := &structs.BackupDestinationStatus{
@@ -543,6 +561,14 @@ func (m *Manager) upload(ctx context.Context, cfg *Config, dest Destination, rec
 		}
 		obj.Key = KeyringKey
 		st.Objects[structs.BackupObjectKeyring] = obj
+	}
+	if coreKey != nil {
+		obj, err := putEncrypted(ctx, dest, path.Join(record.Path, SecretStoreKeyKey), bytes.NewReader(coreKey), enc, cfg.VerifyChecksum)
+		if err != nil {
+			return fail(err)
+		}
+		obj.Key = SecretStoreKeyKey
+		st.Objects[structs.BackupObjectSecretStoreKey] = obj
 	}
 
 	st.Status = structs.BackupDestinationStatusVerified
@@ -934,6 +960,38 @@ func EncodeKeyring(keys []*structs.RootKey) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// secretStoreKeyVersion is the version of the secret store key object.
+const secretStoreKeyVersion = 1
+
+// secretStoreKeyObject is the (unencrypted) content of the secret store key
+// object: JSON with the key of the secret store core.
+type secretStoreKeyObject struct {
+	Version int    `json:"norca_secret_store_key"`
+	CoreKey []byte `json:"core_key"`
+}
+
+// EncodeSecretStoreKey serializes the key of the secret store core into the
+// content of the secret store key object.
+func EncodeSecretStoreKey(key []byte) ([]byte, error) {
+	return json.Marshal(&secretStoreKeyObject{Version: secretStoreKeyVersion, CoreKey: key})
+}
+
+// DecodeSecretStoreKey parses the secret store key object content.
+func DecodeSecretStoreKey(r io.Reader) ([]byte, error) {
+	var obj secretStoreKeyObject
+	if err := json.NewDecoder(io.LimitReader(r, 64<<10)).Decode(&obj); err != nil {
+		return nil, fmt.Errorf("invalid secret store key object: %w", err)
+	}
+	if obj.Version != secretStoreKeyVersion || len(obj.CoreKey) == 0 {
+		return nil, fmt.Errorf("invalid secret store key object (version %d)", obj.Version)
+	}
+	// Read to the end so the caller's checksum covers the whole object.
+	if _, err := io.Copy(io.Discard, r); err != nil {
+		return nil, err
+	}
+	return obj.CoreKey, nil
 }
 
 // DecodeKeyring parses the keyring object content.

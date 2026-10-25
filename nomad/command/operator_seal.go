@@ -126,6 +126,20 @@ func formatSealStatus(status *api.SealStatusResponse) string {
 			"Rewrap|"+cfg.Rewrap.ID+" to "+formatSealInfos(cfg.Rewrap.To),
 			fmt.Sprintf("Rewrap started|%s", time.Unix(0, cfg.Rewrap.StartTime).UTC().Format(time.RFC3339)),
 			fmt.Sprintf("Servers done|%d (%s)", len(cfg.Rewrap.Done), strings.Join(cfg.Rewrap.Done, ", ")))
+		if len(cfg.Rewrap.Sealed) > 0 {
+			kv = append(kv, fmt.Sprintf("Servers sealed|%d (%s): unseal them with the new shares after the rewrap",
+				len(cfg.Rewrap.Sealed), strings.Join(cfg.Rewrap.Sealed, ", ")))
+		}
+	}
+	for _, s := range status.Servers {
+		if s.SecretCoreRecovery {
+			kv = append(kv, fmt.Sprintf("Secret store|needs recovery: its key is wrapped by %s, not by a seal of the region; "+
+				"enter the old shares with 'norca operator unseal -recover'", strings.Join(s.SecretCoreSeals, ", ")))
+			if s.Leader && s.RecoveryProgress > 0 {
+				kv = append(kv, fmt.Sprintf("Recovery progress|%d old shares entered", s.RecoveryProgress))
+			}
+			break
+		}
 	}
 	b.WriteString(formatKV(kv))
 	b.WriteString("\n\n")
@@ -142,6 +156,8 @@ func formatSealStatus(status *api.SealStatusResponse) string {
 		}
 		core := "not initialized"
 		switch {
+		case s.SecretCoreRecovery:
+			core = "needs recovery"
 		case s.SecretCoreActive:
 			core = "active"
 		case s.SecretCoreInitialized && s.SecretCoreSealed:
@@ -199,6 +215,12 @@ Usage: norca operator unseal [options]
   standard input is a terminal. It is never taken from the command line, so
   it does not end up in the shell history.
 
+  With -recover, the share is one of the old shares of a secret store that a
+  full restore brought back wrapped by a seal the region no longer uses
+  ('norca operator seal-status' shows "needs recovery"). The leader collects
+  the old shares until they unwrap the key of the store, then wraps it with
+  the seals of the region, and the store unseals.
+
   If ACLs are enabled, this command requires a token with operator:write.
 
 General Options:
@@ -212,6 +234,11 @@ Unseal Options:
 
   -reset
     Discard the shares entered so far on the server.
+
+  -recover
+    Enter an old share toward the recovery of a restored secret store,
+    on the leader (-server-id is ignored). With -reset, discard the old
+    shares entered so far.
 `
 	return strings.TrimSpace(helpText)
 }
@@ -225,6 +252,7 @@ func (c *OperatorUnsealCommand) AutocompleteFlags() complete.Flags {
 		complete.Flags{
 			"-server-id": complete.PredictAnything,
 			"-reset":     complete.PredictNothing,
+			"-recover":   complete.PredictNothing,
 		})
 }
 
@@ -236,11 +264,12 @@ func (c *OperatorUnsealCommand) Name() string { return "operator unseal" }
 
 func (c *OperatorUnsealCommand) Run(args []string) int {
 	var serverID string
-	var reset bool
+	var reset, recoverStore bool
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.StringVar(&serverID, "server-id", "", "")
 	flags.BoolVar(&reset, "reset", false, "")
+	flags.BoolVar(&recoverStore, "recover", false, "")
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
@@ -265,6 +294,9 @@ func (c *OperatorUnsealCommand) Run(args []string) int {
 		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
 		return 1
 	}
+	if recoverStore {
+		return c.runRecover(client, req)
+	}
 	st, _, err := client.Operator().Unseal(req, nil)
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error unsealing: %s", err))
@@ -277,6 +309,25 @@ func (c *OperatorUnsealCommand) Run(args []string) int {
 		c.Ui.Output(fmt.Sprintf("Unseal progress of server %q reset", st.Name))
 	default:
 		c.Ui.Output(fmt.Sprintf("Server %q is sealed: %d of %d shares entered", st.Name, st.Progress, st.Threshold))
+	}
+	return 0
+}
+
+// runRecover enters an old share toward the recovery of a restored secret
+// store.
+func (c *OperatorUnsealCommand) runRecover(client *api.Client, req *api.UnsealRequest) int {
+	resp, _, err := client.Operator().SealRecover(&api.SealRecoverRequest{Key: req.Key, Reset: req.Reset}, nil)
+	if err != nil {
+		c.Ui.Error(fmt.Sprintf("Error recovering the secret store: %s", err))
+		return 1
+	}
+	switch {
+	case resp.Recovered:
+		c.Ui.Output(fmt.Sprintf("The secret store is recovered: its key is wrapped by %s", strings.Join(resp.Seals, ", ")))
+	case req.Reset:
+		c.Ui.Output("Old shares of the secret store recovery discarded")
+	default:
+		c.Ui.Output(fmt.Sprintf("Secret store recovery: %d old shares entered; enter the next one", resp.Progress))
 	}
 	return 0
 }
@@ -319,14 +370,19 @@ Usage: norca operator keyring rewrap -to <seal> [options]
 
   Move the keys of the region to another keyring seal, online: every server
   adds wraps of the new seal to its root keys and to the key of the secret
-  store, and once every server is done the wraps of the old seal are dropped.
-  Until then both seals unwrap the keys. Follow the progress with
+  store, and once every running, unsealed server is done the wraps of the
+  old seal are dropped. Until then both seals unwrap the keys. Servers that
+  are down or sealed don't hold the rewrap up: unseal them with the shares
+  of the new seal afterwards. Follow the progress with
   'norca operator seal-status'.
 
   Rewrapping to "shares" generates a new unseal key and prints its shares
-  once: they are stored nowhere, hand them to the share holders. In a new
-  region whose servers are configured with seal "shares", the first rewrap
-  to shares initializes the keyring.
+  once: they are stored nowhere, hand them to the share holders. From
+  "shares" to "shares" it replaces the shares (the old ones stop working
+  when the rewrap is complete). The new unseal key reaches the other servers
+  only wrapped by the current seal. In a new region whose servers are
+  configured with seal "shares", the first rewrap to shares initializes the
+  keyring; unseal every other server with the new shares.
 
   A rewrap does not rotate the keys: after leaving the aead seal, rotate the
   root keys (norca operator root keyring rotate -full), since copies of the

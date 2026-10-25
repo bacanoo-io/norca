@@ -47,9 +47,10 @@ func secretKVDataPrefix(namespace, path string) string {
 // errSecretBackupUndecryptable is returned when the data of a secret in a
 // backup can not be decrypted with the region's secret store core.
 var errSecretBackupUndecryptable = errors.New("the secret's data in the backup can not be decrypted with this " +
-	"region's secret store: the backup was probably made by a store wrapped by another seal. Recover that " +
-	"store first, with the age copy of the backup or the recovery unseal with the old unseal shares " +
-	`(see "Restoring a store wrapped by another seal" in the secrets plan), then restore the secret again`)
+	"region's secret store: the backup was made by another store, or by a store wrapped by another seal. " +
+	"Bring that store back first with a full restore of the backup: the age copy of the backup carries its " +
+	"secret store key, which the restore re-wraps with this region's seal; for backups without one, use the " +
+	"recovery unseal with the old unseal shares ('norca operator unseal -recover'). Then restore the secret again")
 
 func (r *backupRestorer) restoreSecret(item *structs.BackupRestoreItem, result *structs.BackupRestoreItemResult) error {
 	srv := r.b.srv

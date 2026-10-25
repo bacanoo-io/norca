@@ -618,6 +618,10 @@ func (op *Operator) snapshotRestore(conn io.ReadWriteCloser) {
 
 	reader, errCh := decodeStreamOutput(decoder)
 
+	// Norca: the keystores are not in the snapshot; keep the seals that
+	// wrap them
+	keptSeals := op.srv.seal.keptSealConfig()
+
 	err = snapshot.Restore(op.logger.Named("snapshot"), reader, op.srv.raft)
 	if err != nil {
 		handleFailure(500, fmt.Errorf("failed to restore from snapshot: %v", err))
@@ -663,6 +667,11 @@ func (op *Operator) snapshotRestore(conn io.ReadWriteCloser) {
 
 	// Make sure we don't get stuck during shutdown
 	case <-op.srv.shutdownCh:
+	}
+
+	if err := op.srv.reapplySealConfig(keptSeals); err != nil {
+		handleFailure(500, fmt.Errorf("failed to keep the keyring seal configuration: %v", err))
+		return
 	}
 
 	reply.Index, _ = op.srv.State().LatestIndex()

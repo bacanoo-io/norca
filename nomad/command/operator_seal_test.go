@@ -60,4 +60,15 @@ func TestOperatorSeal_RewrapStatusUnseal(t *testing.T) {
 	code = cmd.Run([]string{"-address=" + addr})
 	must.Zero(t, code, must.Sprint(ui.ErrorWriter.String()))
 	must.StrContains(t, ui.OutputWriter.String(), "is unsealed")
+
+	// -recover: an old share for a restored secret store, never as an
+	// argument; this store needs no recovery
+	ui = cli.NewMockUi()
+	code = (&OperatorUnsealCommand{Meta: Meta{Ui: ui}}).Run([]string{"-address=" + addr, "-recover", shares[1][1]})
+	must.One(t, code)
+	ui = cli.NewMockUi()
+	cmd = &OperatorUnsealCommand{Meta: Meta{Ui: ui}, testStdin: strings.NewReader(shares[1][1] + "\n")}
+	code = cmd.Run([]string{"-address=" + addr, "-recover"})
+	out := ui.OutputWriter.String() + ui.ErrorWriter.String()
+	must.True(t, strings.Contains(out, "is recovered") || strings.Contains(out, "nothing to recover"), must.Sprint(out))
 }

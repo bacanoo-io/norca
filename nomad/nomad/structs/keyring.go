@@ -230,6 +230,12 @@ type KeyringGetRootKeyRequest struct {
 
 type KeyringGetRootKeyResponse struct {
 	Key *RootKey
+
+	// WrappedKey (Norca) replaces Key in a region with a seal other than
+	// aead: the root key encrypted with a key-encrypting key that is
+	// wrapped by those seals only, as in the keystore. The receiving server
+	// unwraps it with its own unsealed seal.
+	WrappedKey *KeyEncryptionKeyWrapper
 	QueryMeta
 }
 

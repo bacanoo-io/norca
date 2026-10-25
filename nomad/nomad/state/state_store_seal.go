@@ -81,6 +81,13 @@ func (s *StateStore) UpsertSealConfig(msgType structs.MessageType, index uint64,
 // SealRewrapDone records that a server has finished the rewrap with the
 // given ID. A report for another rewrap than the one in progress is ignored.
 func (s *StateStore) SealRewrapDone(msgType structs.MessageType, index uint64, rewrapID, serverID string) error {
+	return s.SealRewrapReport(msgType, index, rewrapID, serverID, false)
+}
+
+// SealRewrapReport records that a server has finished the rewrap with the
+// given ID, or with sealed set, that it is sealed and can't take part. A
+// server that finished is never moved back to sealed.
+func (s *StateStore) SealRewrapReport(msgType structs.MessageType, index uint64, rewrapID, serverID string, sealed bool) error {
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
 
@@ -93,12 +100,19 @@ func (s *StateStore) SealRewrapDone(msgType structs.MessageType, index uint64, r
 	}
 	cfg := raw.(*structs.SealConfig)
 	if cfg.Rewrap == nil || cfg.Rewrap.ID != rewrapID || serverID == "" ||
-		slices.Contains(cfg.Rewrap.Done, serverID) {
+		slices.Contains(cfg.Rewrap.Done, serverID) ||
+		(sealed && slices.Contains(cfg.Rewrap.Sealed, serverID)) {
 		return nil
 	}
 	cfg = cfg.Copy()
-	cfg.Rewrap.Done = append(cfg.Rewrap.Done, serverID)
-	slices.Sort(cfg.Rewrap.Done)
+	if sealed {
+		cfg.Rewrap.Sealed = append(cfg.Rewrap.Sealed, serverID)
+		slices.Sort(cfg.Rewrap.Sealed)
+	} else {
+		cfg.Rewrap.Done = append(cfg.Rewrap.Done, serverID)
+		slices.Sort(cfg.Rewrap.Done)
+		cfg.Rewrap.Sealed = slices.DeleteFunc(cfg.Rewrap.Sealed, func(id string) bool { return id == serverID })
+	}
 	cfg.ModifyIndex = index
 	if err := txn.Insert(TableSealConfig, cfg); err != nil {
 		return fmt.Errorf("seal config insert failed: %w", err)

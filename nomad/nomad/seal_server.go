@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/seal"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/hashicorp/serf/serf"
 )
 
 // sealManager is the keyring seal of this server (see nomad/seal for what
@@ -29,9 +31,17 @@ import (
 // region is uninitialized until the first rewrap generates the shares.
 //
 // A server is sealed while none of the region's seals is available to it.
-// The aead seal is always available; a shares seal is available once the
-// unseal key is reconstructed from shares (Operator.SealUnseal), or handed
-// over by another server during a rewrap.
+// The aead seal is always available; a shares seal is available once its
+// unseal key is reconstructed from shares (Operator.SealUnseal), or, during
+// a rewrap, unwrapped from the rewrap record with a current seal.
+//
+// Key distribution (decided 2026-10-25, the model Vault documents): in a
+// region with a seal other than aead, key material never travels between
+// servers in usable form. Keyring.Get, the keyring restore fan-out and the
+// rewrap carry keys wrapped by the region's seals only, and every server
+// unwraps them with its own unsealed seal; a sealed server, or a client with
+// a stolen server certificate, gets nothing it can use. With the aead seal
+// the keys travel as in Nomad.
 type sealManager struct {
 	srv    *Server
 	logger hclog.Logger
@@ -39,8 +49,27 @@ type sealManager struct {
 	// cfg is the seal of the agent configuration, with defaults.
 	cfg *config.KeyringSealConfig
 
-	aead   seal.AEAD
-	shares *seal.Shares
+	aead seal.AEAD
+
+	// unsealer collects the shares entered toward the next unseal; once
+	// they reconstruct the unseal key, the key moves to shares.
+	unsealer *seal.Shares
+
+	// sealedShares stands for a shares seal whose key this server does not
+	// hold: it is never available, so unwrapping with it reports sealed.
+	sealedShares *seal.Shares
+
+	// shares are the unsealed shares seals of this server by unseal key ID:
+	// one, or two during a rewrap from shares to shares; guarded by
+	// keysLock.
+	shares   map[string]*seal.Shares
+	keysLock sync.Mutex
+
+	// recovery collects the old shares entered on the leader to recover the
+	// key of a restored secret store core (Operator.SealRecover); guarded
+	// by recoveryLock.
+	recovery     [][]byte
+	recoveryLock sync.Mutex
 
 	// rewrapLock serializes the start of rewraps on the leader.
 	rewrapLock sync.Mutex
@@ -55,15 +84,20 @@ type sealManager struct {
 	configIndex uint64
 	// lastErr is the last error of the reconcile loop, logged once.
 	lastErr string
+	// reportedSealed is the ID of the last rewrap this server reported it
+	// can't take part in.
+	reportedSealed string
 }
 
 func newSealManager(s *Server, cfg *config.KeyringConfig) *sealManager {
 	m := &sealManager{
-		srv:     s,
-		logger:  s.logger.Named("seal"),
-		cfg:     cfg.Seal(),
-		shares:  seal.NewShares(),
-		changed: make(chan struct{}),
+		srv:          s,
+		logger:       s.logger.Named("seal"),
+		cfg:          cfg.Seal(),
+		unsealer:     seal.NewShares(),
+		sealedShares: seal.NewShares(),
+		shares:       make(map[string]*seal.Shares),
+		changed:      make(chan struct{}),
 	}
 	if m.cfg.Type == structs.SealTypeAEAD {
 		m.logger.Warn("the keyring uses the aead seal: the root keys are stored next to their key-encrypting keys; " +
@@ -84,6 +118,50 @@ func (m *sealManager) notify() {
 	defer m.lock.Unlock()
 	close(m.changed)
 	m.changed = make(chan struct{})
+}
+
+// sharesKey returns the unsealed shares seal of an unseal key, or nil.
+func (m *sealManager) sharesKey(keyID string) *seal.Shares {
+	m.keysLock.Lock()
+	defer m.keysLock.Unlock()
+	return m.shares[keyID]
+}
+
+// addSharesKey makes a shares seal available with its unseal key.
+func (m *sealManager) addSharesKey(info *structs.SealInfo, key []byte) error {
+	s := seal.NewShares()
+	if err := s.SetKey(info, key); err != nil {
+		return err
+	}
+	m.keysLock.Lock()
+	defer m.keysLock.Unlock()
+	if old := m.shares[info.KeyID]; old != nil {
+		old.Clear()
+	}
+	m.shares[info.KeyID] = s
+	return nil
+}
+
+// dropSharesKey forgets the unseal key of a shares seal.
+func (m *sealManager) dropSharesKey(keyID string) {
+	m.keysLock.Lock()
+	defer m.keysLock.Unlock()
+	if s := m.shares[keyID]; s != nil {
+		s.Clear()
+		delete(m.shares, keyID)
+	}
+}
+
+// heldSharesKeys returns the IDs of the unseal keys this server holds.
+func (m *sealManager) heldSharesKeys() []string {
+	m.keysLock.Lock()
+	defer m.keysLock.Unlock()
+	ids := make([]string, 0, len(m.shares))
+	for id := range m.shares {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 // clusterConfig returns the seal configuration in the state, or nil.
@@ -125,6 +203,17 @@ func (m *sealManager) current() ([]*structs.SealInfo, *structs.SealRewrap) {
 	return []*structs.SealInfo{{Type: structs.SealTypeAEAD}}, nil
 }
 
+// realSeal reports whether the region has a seal other than aead, in place,
+// as the target of a rewrap, or as the configured seal of a new region: key
+// material then travels between servers only wrapped by such a seal.
+func (m *sealManager) realSeal() bool {
+	seals, rewrap := m.current()
+	if len(seals) == 0 && rewrap == nil {
+		return true
+	}
+	return (&structs.SealConfig{Seals: seals, Rewrap: rewrap}).RealSeal()
+}
+
 // keyringInitialized reports whether the region or this server has a root
 // key.
 func (m *sealManager) keyringInitialized() bool {
@@ -139,13 +228,15 @@ func (m *sealManager) keyringInitialized() bool {
 }
 
 // sealFor returns the seal of this server for a seal of the region, or nil
-// for an unknown seal type.
+// for an unknown seal type or a shares seal whose key it does not hold.
 func (m *sealManager) sealFor(info *structs.SealInfo) seal.Seal {
 	switch info.Type {
 	case structs.SealTypeAEAD:
 		return m.aead
 	case structs.SealTypeShares:
-		return m.shares
+		if s := m.sharesKey(info.KeyID); s != nil {
+			return s
+		}
 	}
 	return nil
 }
@@ -154,10 +245,7 @@ func (m *sealManager) sealFor(info *structs.SealInfo) seal.Seal {
 // this server.
 func (m *sealManager) available(info *structs.SealInfo) bool {
 	s := m.sealFor(info)
-	if s == nil || !s.Available() {
-		return false
-	}
-	return info.Type != structs.SealTypeShares || s.KeyID() == info.KeyID
+	return s != nil && s.Available()
 }
 
 // sealed reports whether this server can't use the keys of the keyring.
@@ -185,7 +273,9 @@ func (m *sealManager) wrapSeals() ([]seal.Seal, error) {
 	var out []seal.Seal
 	add := func(info *structs.SealInfo) {
 		s := m.sealFor(info)
-		if s != nil && !slices.ContainsFunc(out, func(o seal.Seal) bool { return o.Type() == s.Type() }) {
+		if s != nil && !slices.ContainsFunc(out, func(o seal.Seal) bool {
+			return o.Type() == s.Type() && o.KeyID() == s.KeyID()
+		}) {
 			out = append(out, s)
 		}
 	}
@@ -212,13 +302,32 @@ func (m *sealManager) wrapSeals() ([]seal.Seal, error) {
 	return out, nil
 }
 
+// transferSeals returns the seals a key is wrapped with to send it to
+// another server of a region with a real seal: the seals of wrapSeals other
+// than aead, whose wraps would carry the key in usable form.
+func (m *sealManager) transferSeals() ([]seal.Seal, error) {
+	seals, err := m.wrapSeals()
+	if err != nil {
+		return nil, err
+	}
+	seals = slices.DeleteFunc(seals, func(s seal.Seal) bool { return s.Type() == structs.SealTypeAEAD })
+	if len(seals) == 0 {
+		return nil, fmt.Errorf("%w: this server holds no seal other than aead to wrap the key for another server",
+			structs.ErrSealed)
+	}
+	return seals, nil
+}
+
 // lookup returns the seal that unwraps a wrap.
 func (m *sealManager) lookup(w *structs.SealWrappedKey) seal.Seal {
 	switch w.Seal {
 	case structs.SealTypeAEAD:
 		return m.aead
 	case structs.SealTypeShares:
-		return m.shares
+		if s := m.sharesKey(w.KeyID); s != nil {
+			return s
+		}
+		return m.sealedShares
 	}
 	return nil
 }
@@ -237,23 +346,17 @@ func (m *sealManager) UnwrapKey(ctx context.Context, wraps []*structs.SealWrappe
 	return seal.UnwrapAny(ctx, m.lookup, wraps, aad)
 }
 
-// wantedWrap reports whether a wrap belongs to a seal keys are wrapped with
-// now; the others are dropped once no rewrap is in progress.
-func (m *sealManager) wantedWrap(w *structs.SealWrappedKey) bool {
-	seals, rewrap := m.current()
-	match := func(info *structs.SealInfo) bool {
-		return info.Type == w.Seal && (info.Type != structs.SealTypeShares || info.KeyID == w.KeyID)
-	}
-	if slices.ContainsFunc(seals, match) {
-		return true
-	}
-	return rewrap != nil && slices.ContainsFunc(rewrap.To, match)
+// canUnwrap reports whether this server holds the seal of a wrap.
+func (m *sealManager) canUnwrap(w *structs.SealWrappedKey) bool {
+	s := m.lookup(w)
+	return s != nil && s.Available()
 }
 
-// sharesInfo returns the description of the unseal key of the region's
-// shares seal: from the seal configuration, or, before the configuration is
-// replicated, from the wraps in the keystore with the Shamir parameters of
-// the agent configuration.
+// sharesInfo returns the description of the unseal key a sealed server is
+// unsealed with: that of the region's shares seal, or in a new region that
+// of its first rewrap. Before the configuration is replicated it comes from
+// the wraps in the keystore with the Shamir parameters of the agent
+// configuration.
 func (m *sealManager) sharesInfo() *structs.SealInfo {
 	seals, rewrap := m.current()
 	all := slices.Clone(seals)
@@ -282,8 +385,8 @@ func (m *sealManager) unseal(share []byte) error {
 	if threshold == 0 {
 		threshold = m.cfg.Threshold
 	}
-	m.shares.SetInfo(info)
-	_, unsealed, err := m.shares.Unseal(share, threshold, func(key []byte) error {
+	m.unsealer.SetInfo(info)
+	_, unsealed, err := m.unsealer.Unseal(share, threshold, func(key []byte) error {
 		if len(info.KeyCheck) > 0 {
 			if seal.CheckKey(info, key) {
 				return nil
@@ -298,10 +401,18 @@ func (m *sealManager) unseal(share []byte) error {
 	if err != nil {
 		return err
 	}
-	if unsealed {
-		m.logger.Info("server unsealed", "key_id", info.KeyID)
-		m.onKeyAdded()
+	if !unsealed {
+		return nil
 	}
+	_, key := m.unsealer.Key()
+	m.unsealer.Clear()
+	err = m.addSharesKey(info, key)
+	clear(key)
+	if err != nil {
+		return err
+	}
+	m.logger.Info("server unsealed", "key_id", info.KeyID)
+	m.onKeyAdded()
 	return nil
 }
 
@@ -310,7 +421,11 @@ func (m *sealManager) unseal(share []byte) error {
 func (m *sealManager) onKeyAdded() {
 	if m.srv.encrypter != nil {
 		if err := m.srv.encrypter.unsealKeystore(); err != nil {
-			m.logger.Error("failed to unwrap the keystore", "error", err)
+			// Keys wrapped only by a seal the region left (a server that was
+			// down during a rewrap) are fetched, wrapped, from the other
+			// servers by the keyring replication.
+			m.logger.Warn("some keys of the keystore are not wrapped by a seal this server holds; "+
+				"they are replicated from the other servers", "error", err)
 		}
 	}
 	m.notify()
@@ -319,7 +434,7 @@ func (m *sealManager) onKeyAdded() {
 // status returns the seal status of this server.
 func (m *sealManager) status() *structs.ServerSealStatus {
 	s := m.srv
-	seals, _ := m.current()
+	seals, rewrap := m.current()
 	st := &structs.ServerSealStatus{
 		ID:             string(s.config.RaftConfig.LocalID),
 		Name:           s.config.NodeName,
@@ -328,6 +443,10 @@ func (m *sealManager) status() *structs.ServerSealStatus {
 		Initialized:    m.initialized(),
 		Seals:          structs.SealInfoTypes(seals),
 		ConfiguredSeal: m.cfg.Type,
+		KeyIDs:         m.heldSharesKeys(),
+	}
+	if len(st.KeyIDs) == 0 {
+		st.KeyIDs = nil
 	}
 	if s.config.ServerRPCAdvertise != nil {
 		st.Address = s.config.ServerRPCAdvertise.String()
@@ -337,10 +456,7 @@ func (m *sealManager) status() *structs.ServerSealStatus {
 		if st.Threshold == 0 {
 			st.Threshold, st.Shares = m.cfg.Threshold, m.cfg.Shares
 		}
-		st.Progress = m.shares.Progress()
-	}
-	if m.shares.Available() {
-		st.KeyIDs = []string{m.shares.KeyID()}
+		st.Progress = m.unsealer.Progress()
 	}
 	if c := s.secretStoreCore; c != nil {
 		ctx, cancel := context.WithTimeout(s.shutdownCtx, 2*time.Second)
@@ -349,13 +465,36 @@ func (m *sealManager) status() *structs.ServerSealStatus {
 		st.SecretCoreSealed = c.Barrier().Sealed()
 		st.SecretCoreActive = c.Active()
 	}
+	if env := s.secretCoreEnvelope(); env != nil {
+		st.SecretCoreSeals = env.Seals()
+		st.SecretCoreRecovery = coreNeedsRecovery(env, seals, rewrap)
+		if st.SecretCoreRecovery && st.Leader {
+			st.RecoveryProgress = m.recoveryProgress()
+		}
+	}
 	return st
+}
+
+// rewrapKeyAAD binds the wraps of the key of a new seal in a rewrap record
+// to that key.
+func rewrapKeyAAD(sealType, keyID string) []byte {
+	return []byte("norca-seal-rewrap-key:" + sealType + ":" + keyID)
 }
 
 // startRewrap starts a rewrap of the region's keys to another seal on the
 // leader. A rewrap to shares generates the unseal key and its shares, which
-// are returned once. In a new region with a shares seal the first rewrap
+// are returned once; a rewrap from shares to shares replaces the unseal key
+// (a rekey). In a new region with a shares seal the first rewrap
 // initializes the seal.
+//
+// The key of a new shares seal reaches the other servers only in the rewrap
+// record in Raft (structs.SealRewrap.Keys), wrapped by the active root key of
+// the keyring: every server unsealed with a current seal holds the root key
+// and unwraps it there, while on disk the root keys are only wrapped by the
+// seals. (A wrap by the aead seal would leave the key usable in the Raft log
+// of every server; the root key is protected by the new seal once the rewrap
+// has rewritten the keystores.) A new region has no root key yet, so its
+// other servers are unsealed with the new shares.
 func (m *sealManager) startRewrap(args *structs.KeyringRewrapRequest) (*structs.KeyringRewrapResponse, error) {
 	m.rewrapLock.Lock()
 	defer m.rewrapLock.Unlock()
@@ -369,7 +508,7 @@ func (m *sealManager) startRewrap(args *structs.KeyringRewrapRequest) (*structs.
 		return nil, fmt.Errorf("rewrap %s to %v is in progress: wait for every server to finish (norca operator seal-status)",
 			rewrap.ID, structs.SealInfoTypes(rewrap.To))
 	}
-	if len(seals) == 1 && seals[0].Type == args.To {
+	if len(seals) == 1 && seals[0].Type == args.To && args.To != structs.SealTypeShares {
 		return nil, fmt.Errorf("the keys are already wrapped by the %s seal", args.To)
 	}
 	if len(seals) > 0 && m.sealed() {
@@ -378,6 +517,7 @@ func (m *sealManager) startRewrap(args *structs.KeyringRewrapRequest) (*structs.
 
 	resp := &structs.KeyringRewrapResponse{}
 	var target *structs.SealInfo
+	var keys []*structs.SealKeyWraps
 	switch args.To {
 	case structs.SealTypeAEAD:
 		target = &structs.SealInfo{Type: structs.SealTypeAEAD}
@@ -401,14 +541,23 @@ func (m *sealManager) startRewrap(args *structs.KeyringRewrapRequest) (*structs.
 		if err != nil {
 			return nil, err
 		}
-		if err := m.shares.SetKey(info, key); err != nil {
-			return nil, err
+		defer clear(key)
+		if active, _ := s.State().GetActiveRootKeyMeta(nil); len(seals) > 0 && active != nil && s.encrypter != nil {
+			// the key of the new seal reaches the other servers wrapped by
+			// the active root key, which the current seals protect (without
+			// a root key yet, the servers are unsealed with the new shares)
+			w, err := s.encrypter.wrapWithActiveKey(key, rewrapKeyAAD(info.Type, info.KeyID))
+			if err != nil {
+				return nil, fmt.Errorf("failed to wrap the key of the new seal: %w", err)
+			}
+			keys = []*structs.SealKeyWraps{{Seal: info.Type, KeyID: info.KeyID, Wraps: []*structs.SealWrappedKey{w}}}
 		}
-		for i := range key {
-			key[i] = 0
+		if err := m.addSharesKey(info, key); err != nil {
+			return nil, err
 		}
 		for _, p := range parts {
 			resp.Shares = append(resp.Shares, base64.StdEncoding.EncodeToString(p))
+			clear(p)
 		}
 		target = info
 	case "":
@@ -426,6 +575,7 @@ func (m *sealManager) startRewrap(args *structs.KeyringRewrapRequest) (*structs.
 			ID:        uuid.Generate(),
 			To:        []*structs.SealInfo{target},
 			StartTime: time.Now().UnixNano(),
+			Keys:      keys,
 		},
 	}
 	if old := m.clusterConfig(); old != nil {
@@ -434,6 +584,9 @@ func (m *sealManager) startRewrap(args *structs.KeyringRewrapRequest) (*structs.
 	_, index, err := s.raftApply(structs.SealConfigUpsertRequestType|structs.IgnoreUnknownTypeFlag,
 		&structs.SealConfigUpsertRequest{Config: cfg})
 	if err != nil {
+		if target.Type == structs.SealTypeShares {
+			m.dropSharesKey(target.KeyID)
+		}
 		return nil, err
 	}
 	m.notify()
@@ -476,6 +629,10 @@ func (m *sealManager) run(ctx context.Context) {
 			err = m.reconcile(ctx, cfg)
 		}
 		wait := 30 * time.Second
+		if cfg != nil && cfg.Rewrap != nil {
+			// the leader notices servers that went down during a rewrap
+			wait = 3 * time.Second
+		}
 		if err != nil {
 			if err.Error() != m.lastErr {
 				m.logger.Warn("failed to reconcile the keyring seal; retrying", "error", err)
@@ -497,12 +654,6 @@ func (m *sealManager) run(ctx context.Context) {
 // reconcile brings this server in line with a seal configuration.
 func (m *sealManager) reconcile(ctx context.Context, cfg *structs.SealConfig) error {
 	s := m.srv
-	for _, info := range append(slices.Clone(cfg.Seals), rewrapTargets(cfg)...) {
-		if info.Type == structs.SealTypeShares {
-			m.shares.SetInfo(info)
-		}
-	}
-
 	if rw := cfg.Rewrap; rw != nil {
 		if !slices.Contains(rw.Done, m.localID()) {
 			if err := m.rewrapLocal(ctx, rw); err != nil {
@@ -516,31 +667,45 @@ func (m *sealManager) reconcile(ctx context.Context, cfg *structs.SealConfig) er
 	}
 
 	// No rewrap in progress: drop the wraps of seals that are no longer
-	// used, and the unseal key of a shares seal the region left.
-	if !slices.ContainsFunc(cfg.Seals, func(i *structs.SealInfo) bool { return i.Type == structs.SealTypeShares }) &&
-		m.shares.Available() {
-		m.shares.Clear()
-		m.logger.Info("dropped the unseal key of the shares seal: the region no longer uses it")
-	}
+	// used, then the unseal keys of shares seals the region left. Outside a
+	// rewrap no aead wrap is ever added: a configuration that does not match
+	// the keystore (the restored one, for the moment between a snapshot
+	// restore and the re-applied configuration of the region) can't weaken
+	// it, while a server that was down during a rewrap away from aead wraps
+	// its keys with the new seal once it is unsealed.
 	if m.sealed() {
 		return nil
 	}
 	if s.encrypter != nil {
-		if err := s.encrypter.rewrapKeystore(); err != nil {
+		if err := s.encrypter.rewrapKeystore(false); err != nil {
 			return err
 		}
 	}
 	if s.IsLeader() {
-		return s.rewrapSecretCoreKey(ctx)
+		if err := s.rewrapSecretCoreKey(ctx, false); err != nil {
+			return err
+		}
 	}
+	m.dropUnusedSharesKeys(cfg)
 	return nil
 }
 
-func rewrapTargets(cfg *structs.SealConfig) []*structs.SealInfo {
-	if cfg.Rewrap == nil {
-		return nil
+// dropUnusedSharesKeys forgets the unseal keys of shares seals that are not
+// seals of the region and wrap no key of the keystore any more: after a
+// rewrap completes, the old shares stop working.
+func (m *sealManager) dropUnusedSharesKeys(cfg *structs.SealConfig) {
+	for _, id := range m.heldSharesKeys() {
+		if slices.ContainsFunc(cfg.Seals, func(i *structs.SealInfo) bool {
+			return i.Type == structs.SealTypeShares && i.KeyID == id
+		}) {
+			continue
+		}
+		if m.srv.encrypter != nil && m.srv.encrypter.keystoreUsesSeal(structs.SealTypeShares, id) {
+			continue
+		}
+		m.dropSharesKey(id)
+		m.logger.Info("dropped the unseal key of a shares seal the region no longer uses", "key_id", id)
 	}
-	return cfg.Rewrap.To
 }
 
 // localID is the Raft ID of this server, as rewraps record it.
@@ -548,127 +713,191 @@ func (m *sealManager) localID() string {
 	return string(m.srv.config.RaftConfig.LocalID)
 }
 
+// errRewrapSealed is returned when this server can't take part in a rewrap:
+// it holds no seal that unwraps the key of the new seal.
+var errRewrapSealed = errors.New("this server holds no seal that unwraps the key of the new seal")
+
 // rewrapLocal wraps the keys of this server with the seals of a rewrap and
-// reports it to the leader.
+// reports it to the leader. A server that can't take part (sealed, or a
+// server of a new region) reports that instead; it is unsealed with the new
+// shares later.
 func (m *sealManager) rewrapLocal(ctx context.Context, rw *structs.SealRewrap) error {
 	s := m.srv
 	seals, _ := m.current()
 	if len(seals) > 0 && m.sealed() {
-		// a sealed server takes part once an operator unsealed it
-		return nil
+		return m.reportSealed(rw)
 	}
 	for _, info := range rw.To {
 		if info.Type != structs.SealTypeShares || m.available(info) {
 			continue
 		}
-		key, err := m.fetchRewrapKey(rw.ID, info.KeyID)
+		key, err := m.rewrapKeyFromRecord(ctx, rw, info)
+		if errors.Is(err, errRewrapSealed) {
+			return m.reportSealed(rw)
+		}
 		if err != nil {
-			return fmt.Errorf("failed to get the key of the %s seal of rewrap %s: %w", info.Type, rw.ID, err)
+			return fmt.Errorf("failed to unwrap the key of the %s seal of rewrap %s: %w", info.Type, rw.ID, err)
 		}
-		err = m.shares.SetKey(info, key)
-		for i := range key {
-			key[i] = 0
-		}
+		err = m.addSharesKey(info, key)
+		clear(key)
 		if err != nil {
 			return err
 		}
 		m.onKeyAdded()
 	}
 	if s.encrypter != nil {
-		if err := s.encrypter.rewrapKeystore(); err != nil {
+		if err := s.encrypter.rewrapKeystore(true); err != nil {
 			return err
 		}
 	}
 	if s.IsLeader() {
-		if err := s.rewrapSecretCoreKey(ctx); err != nil {
+		if err := s.rewrapSecretCoreKey(ctx, true); err != nil {
 			return err
 		}
 	}
+	return m.reportRewrap(rw, false)
+}
 
+// rewrapKeyFromRecord unwraps the key of a seal of a rewrap from the rewrap
+// record with a seal this server holds.
+func (m *sealManager) rewrapKeyFromRecord(ctx context.Context, rw *structs.SealRewrap, info *structs.SealInfo) ([]byte, error) {
+	i := slices.IndexFunc(rw.Keys, func(k *structs.SealKeyWraps) bool {
+		return k.Seal == info.Type && k.KeyID == info.KeyID
+	})
+	if i < 0 || m.srv.encrypter == nil {
+		return nil, errRewrapSealed
+	}
+	aad := rewrapKeyAAD(info.Type, info.KeyID)
+	var key []byte
+	err := errRewrapSealed
+	for _, w := range rw.Keys[i].Wraps {
+		if w == nil || w.Seal != structs.SealWrapKeyring {
+			continue
+		}
+		// An unsealed server that lacks the root key (just rotated) retries
+		// once the keyring replication has it.
+		key, err = m.srv.encrypter.unwrapWithRootKey(w, aad)
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(info.KeyCheck) > 0 && !seal.CheckKey(info, key) {
+		clear(key)
+		return nil, errors.New("the key in the rewrap record does not match the key check of the new seal")
+	}
+	return key, nil
+}
+
+// reportSealed tells the leader once per rewrap that this server can't
+// take part in it.
+func (m *sealManager) reportSealed(rw *structs.SealRewrap) error {
+	if slices.Contains(rw.Sealed, m.localID()) {
+		return nil
+	}
+	m.lock.Lock()
+	reported := m.reportedSealed == rw.ID
+	m.lock.Unlock()
+	if reported {
+		return nil
+	}
+	if err := m.reportRewrap(rw, true); err != nil {
+		return err
+	}
+	m.lock.Lock()
+	m.reportedSealed = rw.ID
+	m.lock.Unlock()
+	return nil
+}
+
+// reportRewrap reports to the leader that this server finished a rewrap,
+// or that it is sealed and can't take part.
+func (m *sealManager) reportRewrap(rw *structs.SealRewrap, sealed bool) error {
+	s := m.srv
 	req := &structs.SealRewrapDoneRequest{
 		RewrapID:     rw.ID,
 		ServerID:     m.localID(),
+		Sealed:       sealed,
 		WriteRequest: structs.WriteRequest{Region: s.Region()},
 	}
 	var resp structs.GenericResponse
 	if err := s.RPC("Operator.SealRewrapDone", req, &resp); err != nil {
 		return fmt.Errorf("failed to report the rewrap to the leader: %w", err)
 	}
-	m.logger.Info("keys wrapped with the new seal", "rewrap_id", rw.ID, "to", structs.SealInfoTypes(rw.To))
+	if sealed {
+		m.logger.Warn("this server is sealed and does not take part in the keyring rewrap; "+
+			"unseal it with the shares of the new seal once the rewrap is complete", "rewrap_id", rw.ID)
+	} else {
+		m.logger.Info("keys wrapped with the new seal", "rewrap_id", rw.ID, "to", structs.SealInfoTypes(rw.To))
+	}
 	return nil
 }
 
-// fetchRewrapKey gets the key of a seal of a rewrap from the leader, or from
-// any other server that has it.
-func (m *sealManager) fetchRewrapKey(rewrapID, keyID string) ([]byte, error) {
+// aliveServers returns the Raft IDs and addresses of the servers of the
+// region that are alive in Serf.
+func (m *sealManager) aliveServers() map[string]bool {
 	s := m.srv
-	req := &structs.SealRewrapKeyRequest{
-		RewrapID:     rewrapID,
-		KeyID:        keyID,
-		QueryOptions: structs.QueryOptions{Region: s.Region()},
+	alive := map[string]bool{}
+	if s.serf == nil {
+		return alive
 	}
-	var resp structs.SealRewrapKeyResponse
-	err := s.RPC("Operator.SealRewrapKey", req, &resp)
-	if err == nil && len(resp.Key) > 0 {
-		return resp.Key, nil
-	}
-	req.AllowStale = true
-	for _, peer := range s.keyringReplicator.getAllPeers() {
-		if peer.ID == s.config.NodeID {
+	for _, member := range s.serf.Members() {
+		ok, parts := isNomadServer(member)
+		if !ok || parts.Region != s.Region() || member.Status != serf.StatusAlive {
 			continue
 		}
-		resp = structs.SealRewrapKeyResponse{}
-		if err = s.forwardServer(peer, "Operator.SealRewrapKey", req, &resp); err == nil && len(resp.Key) > 0 {
-			return resp.Key, nil
-		}
+		alive[parts.ID] = true
+		alive[parts.Addr.String()] = true
 	}
-	if err == nil {
-		err = errors.New("no server has the key")
-	}
-	return nil, err
+	return alive
 }
 
-// rewrapKey returns the key of a seal of the rewrap in progress, for
-// another server taking part in it.
-func (m *sealManager) rewrapKey(rewrapID, keyID string) ([]byte, error) {
-	_, rw := m.current()
-	if rw == nil || rw.ID != rewrapID {
-		return nil, fmt.Errorf("rewrap %s is not in progress", rewrapID)
-	}
-	if !slices.ContainsFunc(rw.To, func(i *structs.SealInfo) bool {
-		return i.Type == structs.SealTypeShares && i.KeyID == keyID
-	}) {
-		return nil, fmt.Errorf("rewrap %s has no seal key %s", rewrapID, keyID)
-	}
-	info, key := m.shares.Key()
-	if info == nil || info.KeyID != keyID {
-		return nil, nil
-	}
-	return key, nil
-}
-
-// completeRewrap makes the seals of a rewrap the seals of the region once
-// every server of the Raft configuration has finished it.
+// completeRewrap makes the seals of a rewrap the seals of the region (and
+// drops the key wraps of the rewrap record) once the leader has wrapped the
+// keys and the key of the secret store core with them, and every other
+// server of the Raft configuration has finished, is sealed and can't take
+// part, or is down. A server that did not take part is unsealed with the
+// shares of the new seal when it returns and fetches the keys, wrapped, from
+// the other servers; the old shares stop working.
 func (m *sealManager) completeRewrap(cfg *structs.SealConfig) error {
 	s := m.srv
+	rw := cfg.Rewrap
+	if !slices.Contains(rw.Done, m.localID()) {
+		return nil
+	}
 	future := s.raft.GetConfiguration()
 	if err := future.Error(); err != nil {
 		return err
 	}
+	alive := m.aliveServers()
+	var skipped []string
 	for _, server := range future.Configuration().Servers {
-		if !slices.Contains(cfg.Rewrap.Done, string(server.ID)) {
+		id := string(server.ID)
+		switch {
+		case slices.Contains(rw.Done, id):
+		case slices.Contains(rw.Sealed, id):
+			skipped = append(skipped, id+" (sealed)")
+		case !alive[id] && !alive[string(server.Address)]:
+			skipped = append(skipped, id+" (down)")
+		default:
 			return nil
 		}
 	}
 	next := &structs.SealConfig{
-		Seals:        cfg.Rewrap.To,
-		LastRewrapID: cfg.Rewrap.ID,
+		Seals:        rw.To,
+		LastRewrapID: rw.ID,
 	}
 	if _, _, err := s.raftApply(structs.SealConfigUpsertRequestType|structs.IgnoreUnknownTypeFlag,
 		&structs.SealConfigUpsertRequest{Config: next}); err != nil {
 		return err
 	}
-	m.logger.Info("keyring rewrap complete", "rewrap_id", cfg.Rewrap.ID, "seals", structs.SealInfoTypes(next.Seals))
+	m.logger.Info("keyring rewrap complete", "rewrap_id", rw.ID, "seals", structs.SealInfoTypes(next.Seals))
+	if len(skipped) > 0 {
+		m.logger.Warn("servers that did not take part in the rewrap must be unsealed with the shares of the new seal",
+			"rewrap_id", rw.ID, "servers", strings.Join(skipped, ", "))
+	}
 	return nil
 }
 
@@ -693,9 +922,23 @@ func (m *sealManager) waitUnsealed(stopCh <-chan struct{}) bool {
 	}
 }
 
-// reapplySealConfig writes a seal configuration of before a full restore
-// over the one of the restored state: the keystores of the servers are not
-// restored, so the seals that wrap them must not be rolled back.
+// keptSealConfig returns the seal configuration a restore of a Raft
+// snapshot must keep: the keystores of the servers are not part of the
+// snapshot, so the seals that wrap them must not be rolled back. A region
+// with the implicit aead seal keeps it explicitly.
+func (m *sealManager) keptSealConfig() *structs.SealConfig {
+	if cfg := m.clusterConfig(); cfg != nil {
+		return cfg.Copy()
+	}
+	seals, rewrap := m.current()
+	if rewrap == nil && len(seals) == 1 && seals[0].Type == structs.SealTypeAEAD {
+		return &structs.SealConfig{Seals: []*structs.SealInfo{{Type: structs.SealTypeAEAD}}}
+	}
+	return nil
+}
+
+// reapplySealConfig writes a seal configuration of before a restore of a
+// Raft snapshot (keptSealConfig) over the one of the restored state.
 func (s *Server) reapplySealConfig(before *structs.SealConfig) error {
 	if before == nil {
 		return nil
@@ -704,7 +947,11 @@ func (s *Server) reapplySealConfig(before *structs.SealConfig) error {
 	if err != nil {
 		return err
 	}
-	if restored != nil && restored.ModifyIndex == before.ModifyIndex {
+	switch {
+	case restored == nil && before.ModifyIndex == 0:
+		// the implicit aead seal, before and after
+		return nil
+	case restored != nil && restored.ModifyIndex == before.ModifyIndex:
 		return nil
 	}
 	_, _, err = s.raftApply(structs.SealConfigUpsertRequestType|structs.IgnoreUnknownTypeFlag,
@@ -712,23 +959,45 @@ func (s *Server) reapplySealConfig(before *structs.SealConfig) error {
 	return err
 }
 
+// coreNeedsRecovery reports whether the stored key of a secret store core
+// is wrapped by none of the seals of the region (a restore of a backup
+// taken with other seals). The aead seal unwraps anywhere.
+func coreNeedsRecovery(env *seal.CoreEnvelope, seals []*structs.SealInfo, rewrap *structs.SealRewrap) bool {
+	if env == nil {
+		return false
+	}
+	all := slices.Clone(seals)
+	if rewrap != nil {
+		all = append(all, rewrap.To...)
+	}
+	for _, w := range env.Wraps {
+		if w == nil {
+			continue
+		}
+		if w.Seal == structs.SealTypeAEAD {
+			return false
+		}
+		if slices.ContainsFunc(all, func(i *structs.SealInfo) bool { return i.Type == w.Seal && i.KeyID == w.KeyID }) {
+			return false
+		}
+	}
+	return true
+}
+
 // secretStoreSealWarning returns a warning for a full restore if the secret
-// store of a backup is wrapped by a seal key the region does not have: its
-// core then stays sealed after the restore. The aead seal unwraps anywhere.
-func secretStoreSealWarning(backupSeals, current []*structs.SealInfo) string {
-	if len(backupSeals) == 0 {
+// store of a backup is wrapped by seals the region does not have, and how
+// the restore recovers it: with the secret store key object of the backup,
+// or, for backups without one (taken before Norca wrote it, or without the
+// keyring), with the old shares.
+func secretStoreSealWarning(env *seal.CoreEnvelope, current []*structs.SealInfo, hasCoreKey bool) string {
+	if !coreNeedsRecovery(env, current, nil) {
 		return ""
 	}
-	for _, b := range backupSeals {
-		if b.Type == structs.SealTypeAEAD {
-			return ""
-		}
-		for _, c := range current {
-			if c.Type == b.Type && c.KeyID == b.KeyID {
-				return ""
-			}
-		}
+	msg := fmt.Sprintf("the secret store of the backup is wrapped by seals %v that this region does not use", env.Seals())
+	if hasCoreKey {
+		return msg + ": the restore re-wraps its key, from the secret store key of the backup, with the seals of the region"
 	}
-	return fmt.Sprintf("the secret store of the backup is wrapped by seals %v that this region does not use: "+
-		"its core stays sealed after the restore", structs.SealInfoTypes(backupSeals))
+	return msg + " and the backup has no copy of its key (taken before Norca recorded it, or without the keyring): " +
+		"its core stays sealed after the restore until an operator enters the old unseal shares " +
+		"with 'norca operator unseal -recover'"
 }

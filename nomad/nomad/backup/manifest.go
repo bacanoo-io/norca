@@ -22,6 +22,10 @@ const (
 	KeyringKey  = "keyring.age"
 	LatestKey   = "latest.json"
 
+	// SecretStoreKeyKey is the key of the secret store core (Norca), next
+	// to the keyring and encrypted the same way.
+	SecretStoreKeyKey = "secret-store-key.age"
+
 	// idTimeFormat is the time part of a backup ID.
 	idTimeFormat = "20060102T150405Z"
 )
@@ -34,6 +38,8 @@ func ObjectKey(object string) (string, error) {
 		return StateKey, nil
 	case structs.BackupObjectKeyring:
 		return KeyringKey, nil
+	case structs.BackupObjectSecretStoreKey:
+		return SecretStoreKeyKey, nil
 	case structs.BackupObjectManifest:
 		return ManifestKey, nil
 	}

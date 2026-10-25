@@ -40,7 +40,7 @@ func (n *nomadFSM) applySealRewrapDone(msgType structs.MessageType, buf []byte, 
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
-	if err := n.state.SealRewrapDone(msgType, index, req.RewrapID, req.ServerID); err != nil {
+	if err := n.state.SealRewrapReport(msgType, index, req.RewrapID, req.ServerID, req.Sealed); err != nil {
 		n.logger.Error("SealRewrapDone failed", "error", err)
 		return err
 	}

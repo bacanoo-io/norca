@@ -99,6 +99,36 @@ func (c *CoreSeal) Unwrap(ctx context.Context, wrapped []byte) ([]byte, error) {
 	return c.Keyring.UnwrapKey(ctx, env.Wraps, coreAAD)
 }
 
+// WrapCoreKey returns the stored form of the core's master key wrapped by
+// the given seals (all must be available).
+func WrapCoreKey(ctx context.Context, seals []Seal, key []byte) ([]byte, error) {
+	wraps, err := WrapAll(ctx, seals, key, coreAAD)
+	if err != nil {
+		return nil, err
+	}
+	return (&CoreEnvelope{Wraps: wraps}).Encode()
+}
+
+// RewrapCoreKey unwraps the stored master key of the core with the keyring
+// and returns it wrapped by the given seals.
+func RewrapCoreKey(ctx context.Context, kr Keyring, env *CoreEnvelope, seals []Seal) ([]byte, error) {
+	key, err := kr.UnwrapKey(ctx, env.Wraps, coreAAD)
+	if err != nil {
+		return nil, err
+	}
+	defer zero(key)
+	if len(key) == 0 {
+		return nil, errors.New("seal: empty secret store key")
+	}
+	return WrapCoreKey(ctx, seals, key)
+}
+
+// UnwrapCoreKeyWith unwraps a shares wrap of the core's master key with a
+// candidate unseal key.
+func UnwrapCoreKeyWith(key []byte, w *structs.SealWrappedKey) ([]byte, error) {
+	return UnwrapWithKey(key, w, coreAAD)
+}
+
 // Rewrap returns the stored master key of the core wrapped again with the
 // keyring's current seals. It returns (nil, nil) if nothing changes.
 func (c *CoreSeal) Rewrap(ctx context.Context, wrapped []byte, same func(*CoreEnvelope) bool) ([]byte, error) {

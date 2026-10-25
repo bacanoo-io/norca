@@ -48,6 +48,11 @@ const (
 	BackupObjectState    = "state"
 	BackupObjectKeyring  = "keyring"
 	BackupObjectManifest = "manifest"
+
+	// BackupObjectSecretStoreKey (Norca) is the key of the secret store
+	// core, written next to the keyring object and encrypted the same way,
+	// so a restore can re-wrap it with the seals of the target region.
+	BackupObjectSecretStoreKey = "secret_store_key"
 )
 
 // Content types of a backup that can be browsed and compared.
@@ -679,6 +684,11 @@ type BackupRestoreListResponse struct {
 type KeyringRestoreRequest struct {
 	Keys      []*RootKey
 	LocalOnly bool
+
+	// WrappedKeys (Norca) replace Keys in the fan-out of a region with a
+	// seal other than aead: the keys wrapped by those seals, which every
+	// server unwraps with its own unsealed seal.
+	WrappedKeys []*KeyEncryptionKeyWrapper
 	WriteRequest
 }
 

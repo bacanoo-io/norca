@@ -297,6 +297,10 @@ func (e *Encrypter) AddKey(rootKey *structs.RootKey) error {
 	if err := e.saveKeyToStore(rootKey); err != nil {
 		return err
 	}
+	// Norca: a key file that was sealed is replaced
+	e.lock.Lock()
+	delete(e.sealedKeys, rootKey.Meta.KeyID)
+	e.lock.Unlock()
 	return nil
 }
 
@@ -403,34 +407,9 @@ func (e *Encrypter) saveKeyToStore(rootKey *structs.RootKey) error {
 // holds storeLock.
 func (e *Encrypter) saveKeyLocked(rootKey *structs.RootKey, seals []seal.Seal) error {
 
-	kek, err := crypto.Bytes(32)
+	kekWrapper, err := e.newKeyFile(rootKey, seals)
 	if err != nil {
-		return fmt.Errorf("failed to generate key wrapper key: %v", err)
-	}
-	wrapper, err := e.newKMSWrapper(rootKey.Meta.KeyID, kek)
-	if err != nil {
-		return fmt.Errorf("failed to create encryption wrapper: %v", err)
-	}
-	blob, err := wrapper.Encrypt(e.shutdownCtx(), rootKey.Key)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt root key: %v", err)
-	}
-
-	kekWrapper := &structs.KeyEncryptionKeyWrapper{
-		Meta:                       rootKey.Meta,
-		EncryptedDataEncryptionKey: blob.Ciphertext,
-		PublicKey:                  ed25519.NewKeyFromSeed(rootKey.Key).Public().(ed25519.PublicKey),
-	}
-	for _, s := range seals {
-		if s.Type() == structs.SealTypeAEAD {
-			kekWrapper.KeyEncryptionKey = kek
-			continue
-		}
-		w, err := s.Wrap(e.shutdownCtx(), kek, keystoreAAD(rootKey.Meta.KeyID))
-		if err != nil {
-			return fmt.Errorf("failed to wrap root key with the %s seal: %w", s.Type(), err)
-		}
-		kekWrapper.SealedKEKs = append(kekWrapper.SealedKEKs, w)
+		return err
 	}
 
 	buf, err := json.Marshal(kekWrapper)
@@ -451,6 +430,42 @@ func (e *Encrypter) saveKeyLocked(rootKey *structs.RootKey, seals []seal.Seal) e
 	}
 	e.setStoredWraps(rootKey.Meta.KeyID, sealWrapTagsOfFile(kekWrapper))
 	return nil
+}
+
+// newKeyFile returns a root key encrypted with a new key-encrypting key
+// that is wrapped by the given seals: the content of a key file, also sent
+// to other servers in a region with a real seal (Norca).
+func (e *Encrypter) newKeyFile(rootKey *structs.RootKey, seals []seal.Seal) (*structs.KeyEncryptionKeyWrapper, error) {
+	kek, err := crypto.Bytes(32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate key wrapper key: %v", err)
+	}
+	wrapper, err := e.newKMSWrapper(rootKey.Meta.KeyID, kek)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create encryption wrapper: %v", err)
+	}
+	blob, err := wrapper.Encrypt(e.shutdownCtx(), rootKey.Key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt root key: %v", err)
+	}
+
+	kekWrapper := &structs.KeyEncryptionKeyWrapper{
+		Meta:                       rootKey.Meta,
+		EncryptedDataEncryptionKey: blob.Ciphertext,
+		PublicKey:                  ed25519.NewKeyFromSeed(rootKey.Key).Public().(ed25519.PublicKey),
+	}
+	for _, s := range seals {
+		if s.Type() == structs.SealTypeAEAD {
+			kekWrapper.KeyEncryptionKey = kek
+			continue
+		}
+		w, err := s.Wrap(e.shutdownCtx(), kek, keystoreAAD(rootKey.Meta.KeyID))
+		if err != nil {
+			return nil, fmt.Errorf("failed to wrap root key with the %s seal: %w", s.Type(), err)
+		}
+		kekWrapper.SealedKEKs = append(kekWrapper.SealedKEKs, w)
+	}
+	return kekWrapper, nil
 }
 
 // loadKeyFromStore deserializes a root key from disk. It returns an error
@@ -640,8 +655,12 @@ func (krr *KeyringReplicator) replicateKey(ctx context.Context, keyMeta *structs
 	}
 	getResp := &structs.KeyringGetRootKeyResponse{}
 	err := krr.srv.RPC("Keyring.Get", getReq, getResp)
+	var key *structs.RootKey
+	if err == nil {
+		key, err = krr.receivedKey(keyID, getResp)
+	}
 
-	if err != nil || getResp.Key == nil {
+	if err != nil || key == nil {
 		// Key replication needs to tolerate leadership flapping. If a key is
 		// rotated during a leadership transition, it's possible that the new
 		// leader has not yet replicated the key from the old leader before the
@@ -650,25 +669,42 @@ func (krr *KeyringReplicator) replicateKey(ctx context.Context, keyMeta *structs
 			"key", keyID, "error", err)
 		getReq.AllowStale = true
 		for _, peer := range krr.getAllPeers() {
+			getResp = &structs.KeyringGetRootKeyResponse{}
 			err = krr.srv.forwardServer(peer, "Keyring.Get", getReq, getResp)
-			if err == nil && getResp.Key != nil {
+			if err == nil {
+				key, err = krr.receivedKey(keyID, getResp)
+			}
+			if err == nil && key != nil {
 				break
 			}
 		}
-		if getResp.Key == nil {
+		if key == nil {
 			krr.logger.Error("failed to fetch key from any peer",
 				"key", keyID, "error", err)
 			return fmt.Errorf("failed to fetch key from any peer: %v", err)
 		}
 	}
 
-	err = krr.encrypter.AddKey(getResp.Key)
+	err = krr.encrypter.AddKey(key)
 	if err != nil {
 		return fmt.Errorf("failed to add key to keyring: %v", err)
 	}
 
 	krr.logger.Debug("added key", "key", keyID)
 	return nil
+}
+
+// receivedKey returns the root key of a Keyring.Get response: the key
+// itself (aead seal), or (Norca) the wrapped key unwrapped with this
+// server's seal. It returns nil if the response has neither.
+func (krr *KeyringReplicator) receivedKey(keyID string, resp *structs.KeyringGetRootKeyResponse) (*structs.RootKey, error) {
+	switch {
+	case resp.WrappedKey != nil:
+		return krr.encrypter.unwrapTransferredKey(keyID, resp.WrappedKey)
+	case resp.Key != nil && len(resp.Key.Key) > 0:
+		return resp.Key, nil
+	}
+	return nil, nil
 }
 
 // TODO: move this method into Server?

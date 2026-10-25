@@ -155,6 +155,7 @@ server {
       manifest.json                unencrypted metadata (contains no content)
       state.snap.age               the Raft snapshot, compressed and encrypted
       keyring.age                  the keystore, compressed and encrypted
+      secret-store-key.age         the key of the built-in secret store core, encrypted (Norca, with the keyring; see secrets-plan.md)
   latest.json                      pointer to the most recent successful backup
 ```
 

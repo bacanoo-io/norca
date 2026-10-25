@@ -25,6 +25,12 @@ const (
 	SealTypeShares = "shares"
 )
 
+// SealWrapKeyring marks a wrap made with a root key of the keyring (KeyID is
+// the root key ID) instead of a seal. It is used only for the key of a new
+// seal in a rewrap record (SealRewrap.Keys): every unsealed server holds the
+// root keys in memory, while on disk they are wrapped by the seals only.
+const SealWrapKeyring = "keyring"
+
 const errSealed = "server is sealed"
 
 var (
@@ -156,8 +162,23 @@ func (c *SealConfig) Stub() *SealConfig {
 		for i, s := range nc.Rewrap.To {
 			nc.Rewrap.To[i] = s.Stub()
 		}
+		nc.Rewrap.Keys = nil
 	}
 	return nc
+}
+
+// RealSeal reports whether a seal configuration has a seal other than aead,
+// in place or as the target of a rewrap: key material then travels between
+// servers only wrapped by such a seal.
+func (c *SealConfig) RealSeal() bool {
+	if c == nil {
+		return false
+	}
+	isReal := func(s *SealInfo) bool { return s.Type != SealTypeAEAD }
+	if slices.ContainsFunc(c.Seals, isReal) {
+		return true
+	}
+	return c.Rewrap != nil && slices.ContainsFunc(c.Rewrap.To, isReal)
 }
 
 // SealTypes returns the types of the seals.
@@ -204,8 +225,25 @@ type SealRewrap struct {
 	// with the To seals.
 	Done []string
 
+	// Sealed are the Raft IDs of the servers that reported they can't take
+	// part: they are sealed and hold no seal that unwraps the Keys (or the
+	// region is new). They don't block the rewrap; once it is complete they
+	// are unsealed with the shares of the To seals. A server that takes part
+	// later moves to Done.
+	Sealed []string
+
 	// StartTime is the start of the rewrap (Unix nanoseconds).
 	StartTime int64
+
+	// Keys are the keys of the To seals that have one (a new shares seal),
+	// wrapped by the active root key of the keyring (SealWrapKeyring), which
+	// the current seals protect: a server unsealed with a current seal holds
+	// the root key, unwraps them from Raft and takes part in the rewrap; the
+	// key of a seal never travels between servers in any other form. They
+	// are dropped from the state when the rewrap completes. Empty in a new
+	// region, which has no root key yet: its servers are unsealed with the
+	// new shares. Never in API responses (see SealConfig.Stub).
+	Keys []*SealKeyWraps
 }
 
 // Copy returns a deep copy.
@@ -216,7 +254,36 @@ func (r *SealRewrap) Copy() *SealRewrap {
 	nr := *r
 	nr.To = copySealInfos(r.To)
 	nr.Done = slices.Clone(r.Done)
+	nr.Sealed = slices.Clone(r.Sealed)
+	if r.Keys != nil {
+		nr.Keys = make([]*SealKeyWraps, len(r.Keys))
+		for i, k := range r.Keys {
+			nr.Keys[i] = k.Copy()
+		}
+	}
 	return &nr
+}
+
+// SealKeyWraps is the key of a seal (Seal, KeyID), wrapped by other seals.
+type SealKeyWraps struct {
+	Seal  string
+	KeyID string
+	Wraps []*SealWrappedKey
+}
+
+// Copy returns a deep copy.
+func (k *SealKeyWraps) Copy() *SealKeyWraps {
+	if k == nil {
+		return nil
+	}
+	nk := *k
+	if k.Wraps != nil {
+		nk.Wraps = make([]*SealWrappedKey, len(k.Wraps))
+		for i, w := range k.Wraps {
+			nk.Wraps[i] = w.Copy()
+		}
+	}
+	return &nk
 }
 
 // SealConfigUpsertRequest writes the seal configuration of the region. It
@@ -232,6 +299,10 @@ type SealConfigUpsertRequest struct {
 type SealRewrapDoneRequest struct {
 	RewrapID string
 	ServerID string
+
+	// Sealed (Norca seal hardening) reports instead that the server is
+	// sealed and can't take part in the rewrap (SealRewrap.Sealed).
+	Sealed bool
 	WriteRequest
 }
 
@@ -285,6 +356,19 @@ type ServerSealStatus struct {
 	SecretCoreSealed      bool
 	SecretCoreActive      bool
 
+	// SecretCoreSeals are the seals that wrap the key of the secret store
+	// core in the state (type:key ID).
+	SecretCoreSeals []string
+
+	// SecretCoreRecovery is true while the key of the secret store core is
+	// wrapped by no seal of the region (a full restore of a backup taken
+	// with other seals): the store stays sealed until it is recovered with
+	// the old shares ('norca operator unseal -recover') or the age copy of
+	// the backup. RecoveryProgress is the number of old shares entered on
+	// the leader.
+	SecretCoreRecovery bool
+	RecoveryProgress   int
+
 	// Error is set if the status of the server could not be read.
 	Error string
 }
@@ -329,16 +413,36 @@ type KeyringRewrapResponse struct {
 	WriteMeta
 }
 
-// SealRewrapKeyRequest asks a server for the key of a seal of a rewrap in
-// progress. Only servers may send it.
-type SealRewrapKeyRequest struct {
-	RewrapID string
-	KeyID    string
-	QueryOptions
+// SealRecoverRequest recovers the key of a secret store core that is wrapped
+// by no seal of the region (a full restore of a backup taken with other
+// seals). The leader re-wraps the recovered key with the region's seals.
+// Exactly one of Key, CoreKey and Reset is used.
+type SealRecoverRequest struct {
+	// Key is one unseal share of the seal that wrapped the restored core
+	// key (the old shares), base64 encoded. Shares are collected on the
+	// leader until they reconstruct the old unseal key.
+	Key string
+
+	// CoreKey is the key of the core itself, from the secret store key
+	// object of a backup (decrypted with the age identity by the CLI of
+	// restore-bootstrap). It needs a management token.
+	CoreKey []byte
+
+	// Reset discards the old shares entered so far.
+	Reset bool
+	WriteRequest
 }
 
-// SealRewrapKeyResponse carries the key of a seal.
-type SealRewrapKeyResponse struct {
-	Key []byte
-	QueryMeta
+// SealRecoverResponse is the state of the recovery after the request.
+type SealRecoverResponse struct {
+	// Recovered is true once the core key is wrapped by the region's seals
+	// (also when it needed no recovery).
+	Recovered bool
+
+	// Progress is the number of old shares entered so far.
+	Progress int
+
+	// Seals are the seals that wrap the core key now (type:key ID).
+	Seals []string
+	WriteMeta
 }

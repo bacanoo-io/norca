@@ -51,6 +51,19 @@ func TestStateStore_SealConfig(t *testing.T) {
 	must.Eq(t, []string{"a", "b"}, cfg.Rewrap.Done)
 	must.Eq(t, uint64(12), cfg.ModifyIndex)
 
+	// A sealed server is recorded apart; once it takes part it moves to
+	// done, and a done server never goes back to sealed.
+	must.NoError(t, s.SealRewrapReport(structs.SealRewrapDoneRequestType, 15, "rw1", "c", true))
+	must.NoError(t, s.SealRewrapReport(structs.SealRewrapDoneRequestType, 16, "rw1", "a", true))
+	cfg, err = s.SealConfig(nil)
+	must.NoError(t, err)
+	must.Eq(t, []string{"c"}, cfg.Rewrap.Sealed)
+	must.NoError(t, s.SealRewrapReport(structs.SealRewrapDoneRequestType, 17, "rw1", "c", false))
+	cfg, err = s.SealConfig(nil)
+	must.NoError(t, err)
+	must.Eq(t, []string{"a", "b", "c"}, cfg.Rewrap.Done)
+	must.SliceEmpty(t, cfg.Rewrap.Sealed)
+
 	// Completion.
 	must.NoError(t, s.UpsertSealConfig(structs.SealConfigUpsertRequestType, 20, &structs.SealConfig{
 		Seals: cfg.Rewrap.To, LastRewrapID: "rw1",

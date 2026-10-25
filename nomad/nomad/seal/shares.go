@@ -166,7 +166,8 @@ func (s *Shares) SetKey(info *structs.SealInfo, key []byte) error {
 }
 
 // Key returns the description and a copy of the unseal key, or nil if the
-// seal is sealed. Servers hand the key to each other during a rewrap.
+// seal is sealed. It never leaves the server in usable form: during a
+// rewrap the leader wraps it with the region's current seals.
 func (s *Shares) Key() (*structs.SealInfo, []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

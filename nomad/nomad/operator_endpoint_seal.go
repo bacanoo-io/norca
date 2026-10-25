@@ -134,7 +134,7 @@ func (op *Operator) SealUnseal(args *structs.SealUnsealRequest, reply *structs.S
 	m := op.srv.seal
 	switch {
 	case args.Reset:
-		m.shares.ResetProgress()
+		m.unsealer.ResetProgress()
 	case args.Key == "":
 		return structs.NewErrRPCCoded(http.StatusBadRequest, "an unseal share is required")
 	default:
@@ -171,30 +171,6 @@ func decodeShare(s string) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("%w: not base64", seal.ErrInvalidShare)
-}
-
-// SealRewrapKey returns the key of a seal of the rewrap in progress to
-// another server of the region, which wraps its keys with it. Only servers
-// may call it, as for the root keys of Keyring.Get.
-func (op *Operator) SealRewrapKey(args *structs.SealRewrapKeyRequest, reply *structs.SealRewrapKeyResponse) error {
-	authErr := op.srv.Authenticate(op.ctx, args)
-	if err := validateTLSCertificateLevel(op.srv, op.ctx, tlsCertificateLevelServer); err != nil {
-		return err
-	}
-	if done, err := op.srv.forward("Operator.SealRewrapKey", args, args, reply); done {
-		return err
-	}
-	op.srv.MeasureRPCRate("operator", structs.RateMetricRead, args)
-	if authErr != nil {
-		return structs.ErrPermissionDenied
-	}
-	key, err := op.srv.seal.rewrapKey(args.RewrapID, args.KeyID)
-	if err != nil {
-		return err
-	}
-	reply.Key = key
-	op.srv.setQueryMeta(&reply.QueryMeta)
-	return nil
 }
 
 // SealRewrapDone records on the leader that a server has wrapped its keys

@@ -502,6 +502,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/operator/keyring/", s.wrap(s.KeyringRequest))
 	s.mux.HandleFunc("/v1/operator/seal", s.wrap(s.OperatorSealStatusRequest))
 	s.mux.HandleFunc("/v1/operator/unseal", s.wrap(s.OperatorUnsealRequest))
+	s.mux.HandleFunc("/v1/operator/seal/recover", s.wrap(s.OperatorSealRecoverRequest))
 	s.mux.HandleFunc("/v1/operator/autopilot/configuration", s.wrap(s.OperatorAutopilotConfiguration))
 	s.mux.HandleFunc("/v1/operator/autopilot/health", s.wrap(s.OperatorServerHealth))
 	s.mux.HandleFunc("/v1/operator/snapshot", s.wrap(s.SnapshotRequest))
