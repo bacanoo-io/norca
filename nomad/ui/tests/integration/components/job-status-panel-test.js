@@ -446,7 +446,7 @@ module(
         .exists({ count: 1 }, 'Failed block exists only once');
       assert
         .dom('.norca-alloc-status-block .norca-alloc.norca-alloc-failed')
-        .hasClass('rest', 'Failed block is a summary block');
+        .hasClass('norca-alloc-rest', 'Failed block is a summary block');
 
       await Promise.all(
         this.get('job.allocations')
