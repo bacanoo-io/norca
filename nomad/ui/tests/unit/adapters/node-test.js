@@ -5,7 +5,7 @@
 
 import { run } from '@ember/runloop';
 import { module, test } from 'qunit';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import startMirage from 'ember-cli-mirage/start-mirage';
 import { setupTest } from 'ember-qunit';
 import { settled } from '@ember/test-helpers';
 
@@ -18,7 +18,7 @@ module('Unit | Adapter | Node', function (hooks) {
 
     window.localStorage.clear();
 
-    this.server = startMirage();
+    this.server = startMirage(this.owner);
 
     this.server.create('region', { id: 'region-1' });
     this.server.create('region', { id: 'region-2' });

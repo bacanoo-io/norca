@@ -27,8 +27,14 @@ Router.map(function () {
       });
     });
     this.route('job', { path: '/:job_name' }, function () {
-      this.route('task-group', { path: '/:name' });
+      // Task groups live under /groups so that their names cannot collide
+      // with the tabs of the job page; the previous /:name URLs redirect.
+      this.route('task-group', { path: '/groups/:name' });
+      this.route('task-group-redirect', { path: '/:name' });
       this.route('definition');
+      this.route('scaling');
+      this.route('placement');
+      this.route('events');
       this.route('versions');
       this.route('deployments');
       this.route('dispatch');
@@ -40,10 +46,6 @@ Router.map(function () {
       });
       this.route('variables');
     });
-  });
-
-  this.route('optimize', function () {
-    this.route('summary', { path: '*slug' });
   });
 
   this.route('clients', function () {
@@ -130,7 +132,54 @@ Router.map(function () {
         path: '/:id',
       });
     });
+    this.route('auth-methods');
   });
+  this.route('backups', function () {
+    this.route('job-history');
+    this.route('request', { path: '/restores/:restore_id' });
+    this.route('backup', { path: '/:backup_id' });
+    this.route('restore', { path: '/:backup_id/restore' });
+  });
+
+  this.route('quotas', function () {
+    this.route('new');
+    this.route('quota', { path: '/:name' });
+    this.route('edit', { path: '/:name/edit' });
+  });
+
+  this.route('scaling', function () {
+    this.route('policy', { path: '/:policy_id' });
+  });
+
+  this.route('services', function () {
+    this.route('service', { path: '/:name' });
+  });
+
+  this.route('network', function () {
+    this.route('policy', { path: '/policies/:namespace/:name' });
+    this.route('admin-policy', { path: '/admin/:name' });
+  });
+
+  this.route('deployments', function () {
+    this.route('deployment', { path: '/:deployment_id' });
+  });
+
+  this.route('packages', function () {
+    this.route('release', { path: '/:namespace/:name' });
+  });
+
+  this.route('objects', function () {
+    this.route('object', { path: '/:group/:kind/:name' });
+  });
+
+  this.route('kinds', function () {
+    this.route('kind', { path: '/:group/:kind' });
+  });
+
+  this.route('admission', function () {
+    this.route('policy', { path: '/:name' });
+  });
+
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {
     this.route('oidc-mock');

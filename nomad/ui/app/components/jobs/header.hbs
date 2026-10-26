@@ -1,0 +1,124 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The header of the job page: position, name and status, the region,
+  namespace, type and owner, and the job's actions.
+~}}
+<Ui::PageHeader @breadcrumbs={{this.breadcrumbs}} data-test-job-header>
+  <:title>
+    <span class="d-inline-flex flex-wrap align-items-center gap-2">
+      <span data-test-job-name>{{or @title @job.trimmedName @job.name}}</span>
+      <Ui::StatusIndicator @status={{@job.status}} data-test-job-status />
+      {{#if @job.periodic}}<Ui::Badge @color="azure" data-test-job-kind>periodic</Ui::Badge>{{/if}}
+      {{#if @job.parameterized}}<Ui::Badge @color="azure" data-test-job-kind>parameterized</Ui::Badge>{{/if}}
+      {{#if @job.meta.structured.pack}}
+        <Ui::Badge @icon="package" @color="purple" data-test-pack-tag>Pack</Ui::Badge>
+      {{/if}}
+    </span>
+  </:title>
+  <:subtitle>
+    <span class="d-inline-flex flex-wrap align-items-center gap-3">
+      {{#if this.region}}
+        <span data-test-job-region><span class="visually-hidden">Region </span><span class="norca-region">{{this.region}}</span></span>
+      {{/if}}
+      {{#if this.system.shouldShowNamespaces}}
+        <span data-test-job-namespace>Namespace {{@job.namespace.name}}</span>
+      {{/if}}
+      <span data-test-job-type>{{@job.displayType.type}}{{#if @job.displayType.isPack}} (pack){{/if}}</span>
+      {{#if this.owner}}
+        <span data-test-job-owner>
+          Managed by
+          {{#if (eq this.owner.kind "release")}}
+            <Ui::Badge @icon="package" @color="purple">release {{this.owner.name}}</Ui::Badge>
+          {{else}}
+            <Ui::Badge @icon="box" @color="purple">{{this.owner.kind}} {{this.owner.name}}</Ui::Badge>
+          {{/if}}
+        </span>
+      {{/if}}
+    </span>
+  </:subtitle>
+  <:actions>
+    {{#if (not (eq @job.status "dead"))}}
+      <Exec::OpenButton @job={{@job}} />
+    {{/if}}
+    {{#if @job.periodic}}
+      <Ui::Button
+        @icon="player-play"
+        @isLoading={{this.forceLaunch.isRunning}}
+        data-test-force-launch
+        {{on "click" (perform this.forceLaunch)}}
+      >Force launch</Ui::Button>
+    {{/if}}
+    {{#if (and @job.parameterized (not this.isDispatchPage))}}
+      {{#if (can "dispatch job" namespace=@job.namespaceName)}}
+        <Ui::Button @route="jobs.job.dispatch" @model={{@job}} @icon="send" @variant="primary" data-test-dispatch-button>
+          Dispatch job
+        </Ui::Button>
+      {{else}}
+        <Ui::Button
+          @icon="send"
+          @variant="primary"
+          @disabled={{true}}
+          title="You don’t have permission to dispatch jobs"
+          data-test-dispatch-button
+        >Dispatch job</Ui::Button>
+      {{/if}}
+    {{/if}}
+    {{#if (not (eq @job.status "dead"))}}
+      <Ui::ConfirmButton
+        @label="Stop job"
+        @icon="player-stop"
+        @message="Stop all allocations of the job?"
+        @confirmLabel="Yes, stop job"
+        @isRunning={{this.stopJob.isRunning}}
+        @onConfirm={{perform this.stopJob}}
+        data-test-stop
+        {{keyboard-shortcut
+          label="Stop"
+          pattern=(array "s" "t" "o" "p")
+          action=(perform this.stopJob true)
+        }}
+      />
+    {{else}}
+      <Ui::ConfirmButton
+        @label="Start job"
+        @icon="player-play"
+        @variant="primary"
+        @message="Start the job again from its latest version?"
+        @confirmLabel="Yes, start job"
+        @isRunning={{this.startJob.isRunning}}
+        @onConfirm={{perform this.startJob}}
+        data-test-start
+        {{keyboard-shortcut
+          label="Start"
+          pattern=(array "s" "t" "a" "r" "t")
+          action=(perform this.startJob true)
+        }}
+      />
+      <Ui::ConfirmButton
+        @label="Purge job"
+        @icon="trash"
+        @message="Purge the job and its history? This cannot be undone."
+        @confirmLabel="Yes, purge job"
+        @isRunning={{this.purgeJob.isRunning}}
+        @onConfirm={{perform this.purgeJob}}
+        data-test-purge
+        {{keyboard-shortcut
+          label="Purge"
+          pattern=(array "p" "u" "r" "g" "e")
+          action=(perform this.purgeJob)
+        }}
+      />
+    {{/if}}
+  </:actions>
+</Ui::PageHeader>
+
+{{#if this.errorMessage}}
+  <Ui::PageBody class="pb-0">
+    <Ui::Alert @tone="danger" @onDismiss={{this.clearError}} data-test-job-error>
+      <strong class="d-block" data-test-job-error-title>{{this.errorMessage.title}}</strong>
+      <span data-test-job-error-body>{{this.errorMessage.description}}</span>
+    </Ui::Alert>
+  </Ui::PageBody>
+{{/if}}

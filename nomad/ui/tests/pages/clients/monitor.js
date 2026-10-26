@@ -10,11 +10,8 @@ import {
   text,
   visitable,
 } from 'ember-cli-page-object';
-import { run } from '@ember/runloop';
-import {
-  selectOpen,
-  selectOpenChoose,
-} from '../../utils/ember-power-select-extensions';
+import { _cancelTimers as cancelTimers, later } from '@ember/runloop';
+import { select } from '@ember/test-helpers';
 
 export default create({
   visit: visitable('/clients/:id/monitor'),
@@ -29,8 +26,7 @@ export default create({
   },
 
   async selectLogLevel(level) {
-    const contentId = await selectOpen('[data-test-level-switcher-parent]');
-    run.later(run, run.cancelTimers, 500);
-    await selectOpenChoose(contentId, level);
+    later(cancelTimers, 500);
+    await select('[data-test-level-switcher]', level.toLowerCase());
   },
 });

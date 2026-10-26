@@ -47,6 +47,11 @@ func normalizeJob(jc *jobConfig) {
 
 			normalizeTemplates(t.Templates)
 
+			// normalize the change scripts of secret blocks (Norca)
+			for _, s := range t.Secrets {
+				normalizeChangeScript(s.ChangeScript)
+			}
+
 			// normalize Vault
 			normalizeVault(t.Vault)
 

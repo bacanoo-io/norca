@@ -368,6 +368,10 @@ type ClientConfig struct {
 	// ConsulCompat configures the Consul-compatible read API (Norca).
 	ConsulCompat *config.ConsulCompatConfig `hcl:"consul_compat"`
 
+	// Secrets configures the secret delivery of the client: the routes of
+	// secret paths to providers (Norca).
+	Secrets *ClientSecretsConfig `hcl:"secrets"`
+
 	// Artifact contains the configuration for artifacts.
 	Artifact *config.ArtifactConfig `hcl:"artifact"`
 
@@ -399,6 +403,7 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.Topology = c.Topology.Copy()
 	nc.DNS = c.DNS.Copy()
 	nc.ConsulCompat = c.ConsulCompat.Copy()
+	nc.Secrets = c.Secrets.Copy()
 	nc.Artifact = c.Artifact.Copy()
 	nc.Drain = c.Drain.Copy()
 	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
@@ -700,11 +705,17 @@ type ServerConfig struct {
 	// Backup configures the scheduled backups to S3-compatible stores.
 	Backup *BackupConfig `hcl:"backup"`
 
+	// Secrets configures the server side of the built-in secret store.
+	Secrets *SecretsConfig `hcl:"secrets"`
+
 	// Admission configures the dynamic admission control webhooks.
 	Admission *config.AdmissionConfig `hcl:"admission"`
 
 	// MTLS configures the native mTLS certificate authority.
 	MTLS *config.MTLSConfig `hcl:"mtls"`
+
+	// Keyring configures the keyring seal (Norca).
+	Keyring *config.KeyringConfig `hcl:"keyring"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -735,8 +746,10 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobTrackedVersions = pointer.Copy(s.JobTrackedVersions)
 	ns.Autoscaler = s.Autoscaler.Copy()
 	ns.Backup = s.Backup.Copy()
+	ns.Secrets = s.Secrets.Copy()
 	ns.Admission = s.Admission.Copy()
 	ns.MTLS = s.MTLS.Copy()
+	ns.Keyring = s.Keyring.Copy()
 	return &ns
 }
 
@@ -2050,6 +2063,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 		result.Backup = result.Backup.Merge(b.Backup)
 	}
 
+	if b.Secrets != nil {
+		result.Secrets = result.Secrets.Merge(b.Secrets)
+	}
+
 	if b.DefaultSchedulerConfig != nil {
 		c := *b.DefaultSchedulerConfig
 		result.DefaultSchedulerConfig = &c
@@ -2100,6 +2117,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.MTLS != nil {
 		result.MTLS = result.MTLS.Merge(b.MTLS)
+	}
+
+	if b.Keyring != nil {
+		result.Keyring = result.Keyring.Merge(b.Keyring)
 	}
 
 	// Add the schedulers
@@ -2288,6 +2309,7 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	result.Topology = a.Topology.Merge(b.Topology)
 	result.DNS = a.DNS.Merge(b.DNS)
 	result.ConsulCompat = a.ConsulCompat.Merge(b.ConsulCompat)
+	result.Secrets = a.Secrets.Merge(b.Secrets)
 
 	result.Artifact = a.Artifact.Merge(b.Artifact)
 	result.Drain = a.Drain.Merge(b.Drain)

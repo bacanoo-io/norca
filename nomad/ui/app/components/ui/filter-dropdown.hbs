@@ -1,0 +1,57 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A multi-select filter of the unified lists. @options are strings or
+  { key, label, count } objects, @selection the selected keys; @onSelect
+  receives the new selection.
+
+    <Ui::FilterDropdown @label="Status" @options={{this.statusOptions}}
+      @selection={{this.selectionStatus}} @onSelect={{this.setStatus}} />
+--}}
+{{! template-lint-disable no-down-event-binding }}
+<Ui::Dropdown
+  @placement="bottom-start"
+  @focusFirst={{true}}
+  data-test-filter-dropdown
+  ...attributes
+>
+  <:trigger as |t|>
+    <button
+      type="button"
+      class="btn {{if this.selectedCount 'btn-outline-primary'}}"
+      aria-haspopup="true"
+      aria-expanded={{if t.isOpen "true" "false"}}
+      aria-controls={{t.id}}
+      disabled={{this.isEmpty}}
+      data-test-dropdown-trigger
+      {{did-insert t.register}}
+      {{on "click" t.toggle}}
+      {{on "keydown" t.keydown}}
+    >
+      {{@label}}
+      {{#if this.selectedCount}}
+        <span class="badge bg-primary text-primary-fg ms-2" data-test-dropdown-count>{{this.selectedCount}}</span>
+        <span class="visually-hidden">selected</span>
+      {{/if}}
+      <Ui::Icon @name="chevron-down" @size="sm" class="ms-1" />
+    </button>
+  </:trigger>
+  <:default as |dd|>
+    <dd.Header>{{@label}}</dd.Header>
+    <div class="norca-filter-options">
+      {{#each this.options as |option|}}
+        <dd.CheckItem
+          @checked={{option.isSelected}}
+          @count={{option.count}}
+          @onChange={{fn this.toggle option.key}}
+          data-test-dropdown-option={{option.key}}
+        >{{option.label}}</dd.CheckItem>
+      {{/each}}
+    </div>
+    {{#if this.selectedCount}}
+      <dd.Divider />
+      <dd.Item @icon="x" data-test-dropdown-clear {{on "click" this.clear}}>Clear filter</dd.Item>
+    {{/if}}
+  </:default>
+</Ui::Dropdown>

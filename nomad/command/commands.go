@@ -566,6 +566,33 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		"network-policy status": func() (cli.Command, error) {
 			return &NetworkPolicyStatusCommand{Meta: meta}, nil
 		},
+		"secret": func() (cli.Command, error) {
+			return &SecretCommand{Meta: meta}, nil
+		},
+		"secret list": func() (cli.Command, error) {
+			return &SecretListCommand{Meta: meta}, nil
+		},
+		"secret info": func() (cli.Command, error) {
+			return &SecretInfoCommand{Meta: meta}, nil
+		},
+		"secret get": func() (cli.Command, error) {
+			return &SecretGetCommand{Meta: meta}, nil
+		},
+		"secret put": func() (cli.Command, error) {
+			return &SecretPutCommand{Meta: meta}, nil
+		},
+		"secret delete": func() (cli.Command, error) {
+			return &SecretDeleteCommand{Meta: meta}, nil
+		},
+		"secret undelete": func() (cli.Command, error) {
+			return &SecretUndeleteCommand{Meta: meta}, nil
+		},
+		"secret destroy": func() (cli.Command, error) {
+			return &SecretDestroyCommand{Meta: meta}, nil
+		},
+		"secret import": func() (cli.Command, error) {
+			return &SecretImportCommand{Meta: meta}, nil
+		},
 		"namespace": func() (cli.Command, error) {
 			return &NamespaceCommand{
 				Meta: meta,
@@ -879,6 +906,19 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 			return &OperatorRootKeyringRotateCommand{
 				Meta: meta,
 			}, nil
+		},
+		// Norca keyring seal
+		"operator seal-status": func() (cli.Command, error) {
+			return &OperatorSealStatusCommand{Meta: meta}, nil
+		},
+		"operator unseal": func() (cli.Command, error) {
+			return &OperatorUnsealCommand{Meta: meta}, nil
+		},
+		"operator keyring rewrap": func() (cli.Command, error) {
+			return &OperatorKeyringRewrapCommand{Meta: meta}, nil
+		},
+		"operator root keyring rewrap": func() (cli.Command, error) {
+			return &OperatorKeyringRewrapCommand{Meta: meta}, nil
 		},
 		"operator backup": func() (cli.Command, error) {
 			return &OperatorBackupCommand{

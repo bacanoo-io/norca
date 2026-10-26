@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Ember from 'ember';
-import Response from 'ember-cli-mirage/response';
+import { isTesting } from '@ember/debug';
+import { createServer, Response } from 'miragejs';
+import { discoverEmberDataModels } from 'ember-cli-mirage';
 import { HOSTS } from './common';
 import { logFrames, logEncode } from './data/logs';
 import { generateDiff } from './factories/job-version';
@@ -12,6 +13,7 @@ import { generateTaskGroupFailures } from './factories/evaluation';
 import { copy } from 'ember-copy';
 import formatHost from 'nomad-ui/utils/format-host';
 import faker from 'nomad-ui/mirage/faker';
+import { registerNorcaAreas } from './norca';
 
 export function findLeader(schema) {
   const agent = schema.agents.first();
@@ -27,13 +29,25 @@ export function filesForPath(allocFiles, filterPath) {
   );
 }
 
-export default function () {
+export default function makeServer(config) {
+  return createServer({
+    ...config,
+    // Mirage models default to the Ember Data models; mirage/models adds
+    // the ones that need more.
+    models: { ...discoverEmberDataModels(config.store), ...config.models },
+    // Tests inspect server.pretender.handledRequests.
+    trackRequests: isTesting(),
+    routes,
+  });
+}
+
+function routes() {
   this.timing = 0; // delay for each request, automatically set to 0 during testing
 
   this.logging = window.location.search.includes('mirage-logging=true');
 
   this.namespace = 'v1';
-  this.trackRequests = Ember.testing;
+  this.trackRequests = isTesting();
 
   const nomadIndices = {}; // used for tracking blocking queries
   const server = this;
@@ -272,6 +286,19 @@ export default function () {
     return new Response(204, {}, '');
   });
 
+  this.get('/deployments', function ({ deployments, jobs }, { queryParams }) {
+    const namespace = queryParams.namespace || 'default';
+    return this.serialize(deployments.all())
+      .map((deployment) => ({
+        ...deployment,
+        Namespace:
+          deployment.Namespace ||
+          jobs.find(deployment.JobID)?.namespaceId ||
+          'default',
+      }))
+      .filter((deployment) => namespace === '*' || deployment.Namespace === namespace);
+  });
+
   this.get('/deployment/:id');
 
   this.post('/deployment/fail/:id', function () {
@@ -477,6 +504,25 @@ export default function () {
 
   this.get('/status/leader', function (schema) {
     return JSON.stringify(findLeader(schema));
+  });
+
+  // The Raft peers of the region: every server agent, the first one leads.
+  this.get('/operator/raft/configuration', function (schema) {
+    const leader = findLeader(schema);
+    return {
+      Index: 1,
+      Servers: schema.agents.all().models.map((agent) => {
+        const address = formatHost(agent.member.Address, agent.member.Tags.port);
+        return {
+          ID: agent.id,
+          Node: agent.name,
+          Address: address,
+          Leader: address === leader,
+          Voter: true,
+          RaftProtocol: '3',
+        };
+      }),
+    };
   });
 
   this.get('/acl/tokens', function ({ tokens }, req) {
@@ -735,19 +781,6 @@ export default function () {
     return this.serialize(regions.all());
   });
 
-  this.get('/operator/license', function ({ features }) {
-    const records = features.all();
-
-    if (records.length) {
-      return {
-        License: {
-          Features: records.models.mapBy('name'),
-        },
-      };
-    }
-
-    return new Response(501, {}, null);
-  });
 
   const clientAllocationStatsHandler = function (
     { clientAllocationStats },
@@ -1007,61 +1040,6 @@ export default function () {
     }
   );
 
-  this.get(
-    '/recommendations',
-    function (
-      { jobs, namespaces, recommendations },
-      { queryParams: { job: id, namespace } }
-    ) {
-      if (id) {
-        if (!namespaces.all().length) {
-          namespace = null;
-        }
-
-        const job = jobs.findBy({ id, namespace });
-
-        if (!job) {
-          return [];
-        }
-
-        const taskGroups = job.taskGroups.models;
-
-        const tasks = taskGroups.reduce((tasks, taskGroup) => {
-          return tasks.concat(taskGroup.tasks.models);
-        }, []);
-
-        const recommendationIds = tasks.reduce((recommendationIds, task) => {
-          return recommendationIds.concat(
-            task.recommendations.models.mapBy('id')
-          );
-        }, []);
-
-        return recommendations.find(recommendationIds);
-      } else {
-        return recommendations.all();
-      }
-    }
-  );
-
-  this.post(
-    '/recommendations/apply',
-    function ({ recommendations }, { requestBody }) {
-      const { Apply, Dismiss } = JSON.parse(requestBody);
-
-      Apply.concat(Dismiss).forEach((id) => {
-        const recommendation = recommendations.find(id);
-        const task = recommendation.task;
-
-        if (Apply.includes(id)) {
-          task.resources[recommendation.resource] = recommendation.value;
-        }
-        recommendation.destroy();
-        task.save();
-      });
-
-      return {};
-    }
-  );
 
   //#region Variables
 
@@ -1199,6 +1177,8 @@ export default function () {
   );
 
   //#endregion SSO
+
+  registerNorcaAreas(this);
 }
 
 function filterKeys(object, ...keys) {

@@ -1,0 +1,120 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-intentions {{this.setup this.region this.namespace}}>
+  {{#if this.isLoading}}
+    <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the intentions" /></Ui::Card>
+  {{else if this.error}}
+    <Ui::Alert @tone="danger" @title="The intentions could not be loaded" data-test-intentions-error>{{this.error}}</Ui::Alert>
+  {{else}}
+    <div class="row row-cards">
+      <div class="col-lg-6">
+        <Ui::Card @title="Who can talk to whom" @subtitle="By mTLS identity; dashed: denied" data-test-intention-graph>
+          {{#if this.rows.length}}
+            <Ui::Chart @label="Intentions between services" @option={{this.graph}} @height={{320}}>{{this.graphSummary}}</Ui::Chart>
+          {{else}}
+            <Ui::EmptyState @compact={{true}} @icon="shield-lock" @title="No intentions" @message="Without intentions, the default decision of the region applies to every connection between mTLS services." />
+          {{/if}}
+        </Ui::Card>
+      </div>
+      <div class="col-lg-6">
+        <Ui::Card @title="Intentions" @flush={{true}} data-test-intention-list>
+          <:actions>
+            {{#if this.canWrite}}
+              <Ui::Button @size="sm" @variant="primary" @icon="plus" data-test-add-intention {{on "click" this.add}}>New intention</Ui::Button>
+            {{/if}}
+          </:actions>
+          <:default>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Intentions"
+              @columns={{array
+                (hash key="source" label="Source")
+                (hash key="destination" label="Destination")
+                (hash key="action" label="Decision")
+                (hash key="actions" label="Actions")
+              }}
+              @rows={{this.rows}}
+              @emptyMessage="No intention in this namespace. Add one to allow or deny connections between services."
+              as |row|
+            >
+              <td class="font-monospace" data-test-intention-source>{{row.source}}</td>
+              <td class="font-monospace">
+                {{row.destination}}
+                {{#if row.Description}}<div class="small text-secondary">{{row.Description}}</div>{{/if}}
+              </td>
+              <td><Ui::Badge @color={{if (eq row.Action "allow") "green" "red"}} data-test-intention-action>{{row.Action}}</Ui::Badge></td>
+              <td class="text-nowrap">
+                {{#if row.canWrite}}
+                  <Ui::Button @size="sm" @variant="ghost" @icon="settings" @iconOnly={{true}} @label={{concat "Change " row.source " to " row.destination}} data-test-edit-intention={{row.key}} {{on "click" (fn this.edit row)}} />
+                  <Ui::Button @size="sm" @variant="ghost" @icon="trash" @iconOnly={{true}} @label={{concat "Delete " row.source " to " row.destination}} data-test-delete-intention={{row.key}} {{on "click" (fn this.askDelete row)}} />
+                {{/if}}
+              </td>
+            </Ui::Table>
+          </:default>
+        </Ui::Card>
+      </div>
+    </div>
+  {{/if}}
+
+  {{#if this.editing}}
+    <Ui::Modal @title={{if this.editing.isNew "New intention" "Change intention"}} @onClose={{this.closeEditor}} data-test-intention-editor>
+      <:default>
+        <form id="norca-intention-form" {{on "submit" this.save}}>
+          <div class="row">
+            <div class="col-6">
+              <Ui::Field @label="Source namespace" as |f|>
+                <Ui::Input @id={{f.id}} @value={{this.editing.SourceNamespace}} @onInput={{fn this.setField "SourceNamespace"}} @readonly={{not this.editing.isNew}} data-test-intention-source-ns />
+              </Ui::Field>
+            </div>
+            <div class="col-6">
+              <Ui::Field @label="Source service" @help="A service name or * for any." as |f|>
+                <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @value={{this.editing.Source}} @onInput={{fn this.setField "Source"}} @readonly={{not this.editing.isNew}} @monospace={{true}} data-test-intention-source-input />
+              </Ui::Field>
+            </div>
+            <div class="col-6">
+              <Ui::Field @label="Destination namespace" as |f|>
+                <Ui::Input @id={{f.id}} @value={{this.editing.Namespace}} @onInput={{fn this.setField "Namespace"}} @readonly={{not this.editing.isNew}} data-test-intention-destination-ns />
+              </Ui::Field>
+            </div>
+            <div class="col-6">
+              <Ui::Field @label="Destination service" as |f|>
+                <Ui::Input @id={{f.id}} @value={{this.editing.Destination}} @onInput={{fn this.setField "Destination"}} @readonly={{not this.editing.isNew}} @monospace={{true}} data-test-intention-destination-input />
+              </Ui::Field>
+            </div>
+          </div>
+          <Ui::Field @label="Decision" as |f|>
+            <Ui::Select @id={{f.id}} @options={{array (hash value="allow" label="Allow") (hash value="deny" label="Deny")}} @value={{this.editing.Action}} @onChange={{fn this.setField "Action"}} data-test-intention-decision />
+          </Ui::Field>
+          <Ui::Field @label="Description" as |f|>
+            <Ui::Input @id={{f.id}} @value={{this.editing.Description}} @onInput={{fn this.setField "Description"}} />
+          </Ui::Field>
+          <p class="text-secondary small mb-0">The most specific intention wins; between equally specific ones, deny wins.</p>
+          {{#if this.saveError}}
+            <Ui::Alert @tone="danger" class="mt-3 mb-0" data-test-intention-save-error>{{this.saveError}}</Ui::Alert>
+          {{/if}}
+        </form>
+      </:default>
+      <:footer>
+        <Ui::Button @disabled={{this.isSaving}} {{on "click" this.closeEditor}}>Cancel</Ui::Button>
+        <Ui::Button @variant="primary" @type="submit" @isLoading={{this.isSaving}} form="norca-intention-form" data-test-intention-save>Save</Ui::Button>
+      </:footer>
+    </Ui::Modal>
+  {{/if}}
+
+  {{#if this.deleting}}
+    <Ui::Confirm
+      @title="Delete the intention?"
+      @confirmLabel="Delete"
+      @confirmIcon="trash"
+      @onConfirm={{this.confirmDelete}}
+      @onClose={{this.cancelDelete}}
+      @isRunning={{this.isDeleting}}
+      @error={{this.deleteError}}
+    >
+      Connections from <span class="font-monospace">{{this.deleting.source}}</span> to <span class="font-monospace">{{this.deleting.destination}}</span>
+      fall back to the next matching intention or to the default decision of the region.
+    </Ui::Confirm>
+  {{/if}}
+</div>

@@ -1,55 +1,34 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Server " this.model.name}}
-<ServerSubnav @server={{this.model}} />
-<section class="section">
-  <h1 data-test-title class="title">
-    Server {{this.model.name}}
-    {{#if this.model.isLeader}}
-      <span data-test-leader-badge class="bumper-left tag is-primary">Leader</span>
-    {{/if}}
-  </h1>
-  <div class="boxed-section is-small">
-    <div data-test-server-details class="boxed-section-body inline-definitions">
-      <span class="label">Server Details</span>
-      <span data-test-status class="pair"><span class="term">Status</span>
-        {{this.model.status}}
-      </span>
-      <span data-test-address class="pair"><span class="term">Address</span>
-        {{this.model.rpcAddr}}
-      </span>
-      <span data-test-datacenter class="pair"><span class="term">Datacenter</span>
-        {{this.model.datacenter}}
-      </span>
+<Servers::Header @server={{this.model}}>
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <Ui::Card @title="Server details" data-test-server-details>
+        <Ui::Datagrid as |g|>
+          <g.Item @title="Status">
+            <span data-test-status><Ui::StatusIndicator @status={{this.model.status}} /></span>
+          </g.Item>
+          <g.Item @title="Address" @monospace={{true}}><span data-test-address>{{this.model.rpcAddr}}</span></g.Item>
+          <g.Item @title="Datacenter"><span data-test-datacenter>{{this.model.datacenter}}</span></g.Item>
+          <g.Item @title="Region"><span data-test-region>{{or this.model.region "–"}}</span></g.Item>
+          <g.Item @title="Version">
+            <span data-test-version title={{if this.model.norcaVersion (concat "Nomad API " this.model.version " compatible")}}>
+              {{#if this.model.norcaVersion}}Norca {{this.model.norcaVersion}}{{else}}Nomad {{this.model.version}}{{/if}}
+            </span>
+          </g.Item>
+          <g.Item @title="Serf port" @monospace={{true}}>{{this.model.serfPort}}</g.Item>
+        </Ui::Datagrid>
+      </Ui::Card>
+    </div>
+    <div class="col-lg-7">
+      <Ui::Card @title="Server tags" @flush={{true}} data-test-server-tags>
+        <Ui::KeyValueTable @data={{this.model.tags}} @caption="Server tags" />
+      </Ui::Card>
     </div>
   </div>
-  <div class="boxed-section">
-    <div class="boxed-section-head">
-      Server Tags
-    </div>
-    <div class="boxed-section-body is-full-bleed">
-      <ListTable @source={{this.sortedTags}} @class="is-striped" as |t|>
-        <t.head>
-          <td class="is-one-quarter">Name</td>
-          <td>Value</td>
-        </t.head>
-        <t.body as |row|>
-          <tr data-test-server-tag>
-            <td>{{row.model.name}}</td>
-            <td>
-              <CopyButton
-                @inset={{true}}
-                @compact={{true}}
-                @clipboardText={{row.model.value}}
-              />
-              {{row.model.value}}
-            </td>
-          </tr>
-        </t.body>
-      </ListTable>
-    </div>
-  </div>
-</section>
+</Servers::Header>

@@ -212,6 +212,17 @@ export default class JobStatusPanelSteadyComponent extends Component {
    * A general assessment for how a job is going, in a non-deployment state
    * @returns {CurrentStatus}
    */
+  // The badge color of the current status (Tabler colors).
+  get currentStatusColor() {
+    const colors = {
+      success: 'green',
+      highlight: 'purple',
+      critical: 'red',
+      warning: 'orange',
+    };
+    return colors[this.currentStatus.state] || 'secondary';
+  }
+
   get currentStatus() {
     // If all allocs are running, the job is Healthy
     const totalAllocs = this.totalAllocs;

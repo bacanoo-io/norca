@@ -5,7 +5,13 @@
 
 /* eslint-disable qunit/require-expect */
 import { get } from '@ember/object';
-import { currentURL, typeIn, click } from '@ember/test-helpers';
+import {
+  currentURL,
+  fillIn,
+  settled,
+  triggerKeyEvent,
+  waitUntil,
+} from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -20,6 +26,16 @@ import {
 import queryString from 'query-string';
 import percySnapshot from '@percy/ember';
 import faker from 'nomad-ui/mirage/faker';
+
+function streamResponse(lines) {
+  return Promise.resolve({
+    status: 200,
+    ok: true,
+    body: null,
+    text: () =>
+      Promise.resolve(lines.map((l) => JSON.stringify(l)).join('\n') + '\n'),
+  });
+}
 
 const sumResources = (list, dimension) =>
   list.reduce((agg, val) => agg + (get(val, dimension) || 0), 0);
@@ -58,7 +74,7 @@ module('Acceptance | topology', function (hooks) {
 
     assert.equal(
       Topology.clusterInfoPanel.nodeCount,
-      `${server.schema.nodes.all().length} Clients`
+      `${server.schema.nodes.all().length}`
     );
 
     const allocs = server.schema.allocations.all().models;
@@ -67,7 +83,7 @@ module('Acceptance | topology', function (hooks) {
     );
     assert.equal(
       Topology.clusterInfoPanel.allocCount,
-      `${scheduledAllocs.length} Allocations`
+      `${scheduledAllocs.length}`
     );
 
     // Node pool count ignores 'all'.
@@ -76,7 +92,7 @@ module('Acceptance | topology', function (hooks) {
       .models.filter((p) => p.name !== 'all');
     assert.equal(
       Topology.clusterInfoPanel.nodePoolCount,
-      `${nodePools.length} Node Pools`
+      `${nodePools.length}`
     );
 
     const nodeResources = server.schema.nodes
@@ -94,11 +110,12 @@ module('Acceptance | topology', function (hooks) {
 
     assert.equal(
       Topology.clusterInfoPanel.memoryProgressValue,
-      reservedMem / totalMem
+      // the meter stops at full (overcommitted test data)
+      Math.min(reservedMem / totalMem, 1)
     );
     assert.equal(
       Topology.clusterInfoPanel.cpuProgressValue,
-      reservedCPU / totalCPU
+      Math.min(reservedCPU / totalCPU, 1)
     );
 
     assert.equal(
@@ -183,13 +200,10 @@ module('Acceptance | topology', function (hooks) {
     assert.equal(Topology.allocInfoPanel.id, alloc.id.split('-')[0]);
 
     const uniqueClients = allocs.mapBy('nodeId').uniq();
-    assert.equal(
-      Topology.allocInfoPanel.siblingAllocs,
-      `Sibling Allocations: ${allocs.length}`
-    );
+    assert.equal(Topology.allocInfoPanel.siblingAllocs, `${allocs.length}`);
     assert.equal(
       Topology.allocInfoPanel.uniquePlacements,
-      `Unique Client Placements: ${uniqueClients.length}`
+      `${uniqueClients.length}`
     );
 
     assert.equal(Topology.allocInfoPanel.job, job.name);
@@ -260,9 +274,9 @@ module('Acceptance | topology', function (hooks) {
     assert.equal(Topology.infoPanelTitle, 'Client Details');
 
     assert.equal(Topology.nodeInfoPanel.id, node.id.split('-')[0]);
-    assert.equal(Topology.nodeInfoPanel.name, `Name: ${node.name}`);
-    assert.equal(Topology.nodeInfoPanel.address, `Address: ${node.httpAddr}`);
-    assert.equal(Topology.nodeInfoPanel.status, `Status: ${node.status}`);
+    assert.equal(Topology.nodeInfoPanel.name, node.name);
+    assert.equal(Topology.nodeInfoPanel.address, node.httpAddr);
+    assert.equal(Topology.nodeInfoPanel.status, node.status);
 
     assert.equal(
       Topology.nodeInfoPanel.drainingLabel,
@@ -291,11 +305,11 @@ module('Acceptance | topology', function (hooks) {
 
     assert.equal(
       Topology.nodeInfoPanel.memoryProgressValue,
-      reservedMem / totalMem
+      Math.min(reservedMem / totalMem, 1)
     );
     assert.equal(
       Topology.nodeInfoPanel.cpuProgressValue,
-      reservedCPU / totalCPU
+      Math.min(reservedCPU / totalCPU, 1)
     );
 
     assert.equal(
@@ -366,11 +380,12 @@ module('Acceptance | topology', function (hooks) {
     assert.dom('[data-test-topo-viz-node]').exists({ count: 17 });
 
     // Test search.
-    await typeIn('input.node-search', server.schema.nodes.first().name);
+    const name = server.schema.nodes.first().name;
+    await fillIn('[data-test-topology-search]', name);
     assert.dom('[data-test-topo-viz-node]').exists({ count: 1 });
-    await typeIn('input.node-search', server.schema.nodes.first().name);
+    await fillIn('[data-test-topology-search]', name + name);
     assert.dom('[data-test-topo-viz-node]').doesNotExist();
-    await click('[title="Clear search"]');
+    await fillIn('[data-test-topology-search]', '');
     assert.dom('[data-test-topo-viz-node]').exists({ count: 17 });
 
     // Test node class filter.
@@ -414,5 +429,68 @@ module('Acceptance | topology', function (hooks) {
     await Topology.facets.nodePool.options
       .findOneBy('label', 'test-node-pool')
       .toggle();
+  });
+
+  test('a change of a client or an allocation in the event stream reloads the topology', async function (assert) {
+    server.createList('node', 2);
+    server.createList('allocation', 3);
+
+    const eventStream = this.owner.lookup('service:event-stream');
+    const urls = [];
+    eventStream.enabled = true;
+    // The first connection that asks for the clients gets one event; every
+    // other request stays open.
+    let served = false;
+    eventStream.request = (url) => {
+      urls.push(url);
+      if (served || !url.includes('topic=Node')) return new Promise(() => {});
+      served = true;
+      return streamResponse([
+        {
+          Index: 100,
+          Events: [
+            {
+              Topic: 'Node',
+              Type: 'NodeRegistration',
+              Key: server.db.nodes[0].id,
+              Index: 100,
+              Payload: { Node: { ID: server.db.nodes[0].id } },
+            },
+          ],
+        },
+      ]);
+    };
+
+    await Topology.visit();
+    const nodeRequests = () =>
+      server.pretender.handledRequests.filter((r) =>
+        r.url.startsWith('/v1/nodes')
+      ).length;
+    await waitUntil(() => urls.some((url) => url.includes('topic=Node')), {
+      timeout: 3000,
+    });
+    // The first load, then the reload after the event.
+    await waitUntil(() => nodeRequests() >= 2, { timeout: 3000 });
+    const streamURL = urls.find((url) => url.includes('topic=Node'));
+    assert.ok(streamURL, 'it subscribes to the clients');
+    assert.ok(streamURL.includes('topic=Allocation'), 'and to the allocations');
+    assert.ok(nodeRequests() >= 2, 'the topology is reloaded');
+
+    for (const { connection } of eventStream.connections.values())
+      connection.stop();
+    await settled();
+  });
+
+  test('allocations are keyboard operable', async function (assert) {
+    server.createList('node', 1);
+    server.createList('allocation', 2, { clientStatus: 'running' });
+
+    await Topology.visit();
+    const bar = document.querySelector('[data-test-memory-rect]');
+    assert.dom(bar).hasAttribute('tabindex', '0');
+    assert.dom(bar).hasAttribute('role', 'button');
+
+    await triggerKeyEvent(bar, 'keydown', 'Enter');
+    assert.equal(Topology.infoPanelTitle, 'Allocation Details');
   });
 });

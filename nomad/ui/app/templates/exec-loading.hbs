@@ -1,22 +1,15 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
 {{page-title "Exec"}}
-<nav class="navbar is-popup">
-  <div class="navbar-brand">
-    <div class="navbar-item is-logo">
-      <NomadLogo />
-    </div>
+<div class="norca-exec">
+  <header class="norca-exec-header">
+    <strong class="norca-exec-brand">Norca</strong>
+    <Ui::Icon @name="lock" @label="Exec session" class="ms-auto" />
+  </header>
+  <div class="norca-exec-body norca-exec-loading">
+    <Ui::Spinner @showLabel={{true}} @label="Loading" />
   </div>
-
-  <div class="navbar-end">
-    <a href="https://nomadproject.io/docs" target="_blank" rel="noopener noreferrer" class="navbar-item">Documentation</a>
-    {{x-icon "lock-closed"}}
-  </div>
-</nav>
-
-<div class="exec-window loading">
-  <LoadingSpinner />
 </div>

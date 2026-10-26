@@ -9,7 +9,7 @@ import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import { allScenarios } from '../../mirage/scenarios/default';
 
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import Services from 'nomad-ui/tests/pages/jobs/job/services';
 
 module('Acceptance | job services', function (hooks) {
@@ -22,9 +22,9 @@ module('Acceptance | job services', function (hooks) {
 
   test('Visiting job services', async function (assert) {
     assert.expect(3);
-    assert.dom('.tabs.is-subnav a.is-active').hasText('Services');
-    assert.dom('.service-list table').exists();
-    await a11yAudit(assert);
+    assert.dom('[data-test-tab="services"] a.active').hasText('Services');
+    assert.dom('[data-test-services-list] table').exists();
+    await a11yAudit(assert, STRICT);
   });
 
   test('it shows both consul and nomad, and both task and group services', async function (assert) {

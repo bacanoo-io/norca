@@ -21,16 +21,16 @@ export default function (selector = '[data-test-client]', propKey = 'clients') {
       createTime: {
         scope: '[data-test-create-time]',
         tooltip: {
-          scope: '.tooltip',
-          text: attribute('aria-label'),
+          scope: '.norca-tooltip',
+          text: attribute('data-norca-tooltip'),
         },
       },
 
       modifyTime: {
         scope: '[data-test-modify-time]',
         tooltip: {
-          scope: '.tooltip',
-          text: attribute('aria-label'),
+          scope: '.norca-tooltip',
+          text: attribute('data-norca-tooltip'),
         },
       },
 

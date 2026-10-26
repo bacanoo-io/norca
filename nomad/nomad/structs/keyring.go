@@ -161,7 +161,18 @@ func (rkm *RootKeyMeta) Validate() error {
 type KeyEncryptionKeyWrapper struct {
 	Meta                       *RootKeyMeta
 	EncryptedDataEncryptionKey []byte `json:"DEK"`
-	KeyEncryptionKey           []byte `json:"KEK"`
+
+	// KeyEncryptionKey is the key-encrypting key in the clear: the aead
+	// seal, Nomad's format. It is empty when the aead seal is not used.
+	KeyEncryptionKey []byte `json:"KEK"`
+
+	// SealedKEKs (Norca) is the key-encrypting key wrapped by each seal
+	// other than aead (see nomad/seal); any of them unwraps it.
+	SealedKEKs []*SealWrappedKey `json:",omitempty"`
+
+	// PublicKey (Norca) is the public key of the root key's signing key. It
+	// is not secret; a sealed server uses it to verify workload identities.
+	PublicKey []byte `json:",omitempty"`
 }
 
 // EncryptionAlgorithm chooses which algorithm is used for
@@ -219,6 +230,12 @@ type KeyringGetRootKeyRequest struct {
 
 type KeyringGetRootKeyResponse struct {
 	Key *RootKey
+
+	// WrappedKey (Norca) replaces Key in a region with a seal other than
+	// aead: the root key encrypted with a key-encrypting key that is
+	// wrapped by those seals only, as in the keystore. The receiving server
+	// unwraps it with its own unsealed seal.
+	WrappedKey *KeyEncryptionKeyWrapper
 	QueryMeta
 }
 

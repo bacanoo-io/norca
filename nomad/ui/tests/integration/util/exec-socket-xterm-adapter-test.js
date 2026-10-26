@@ -25,7 +25,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let firstMessage = true;
@@ -59,7 +59,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let firstMessage = true;
@@ -98,7 +98,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let mockSocket = new Object({
@@ -127,7 +127,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let mockSocket = new Object({
@@ -157,7 +157,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let mockSocket = new Object({
@@ -179,7 +179,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let mockSocket = new Object({

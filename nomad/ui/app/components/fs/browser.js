@@ -4,7 +4,7 @@
  */
 
 import Component from '@ember/component';
-import { computed } from '@ember/object';
+import { action, computed } from '@ember/object';
 import { filterBy } from '@ember/object/computed';
 import { tagName } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
@@ -13,6 +13,23 @@ import classic from 'ember-classic-decorator';
 @tagName('')
 export default class Browser extends Component {
   model = null;
+
+  columns = [
+    { key: 'Name', label: 'Name', sortable: true },
+    { key: 'Size', label: 'File Size', sortable: true, class: 'text-end' },
+    {
+      key: 'ModTime',
+      label: 'Last Modified',
+      sortable: true,
+      class: 'text-end',
+    },
+  ];
+
+  // The sort query parameters belong to the route's controller.
+  @action
+  sort(sortProperty, sortDescending) {
+    this.onSort?.(sortProperty, sortDescending);
+  }
 
   @computed('model.allocation')
   get allocation() {

@@ -1,0 +1,88 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A task of the allocation page's task table, with its resource use polled
+  while it runs.
+~}}
+<@r.Row data-test-task-row={{@taskState.name}}>
+  <@r.Cell @key="indicators" class="w-1" data-test-indicators>
+    {{#unless @taskState.driverStatus.healthy}}
+      <Ui::Tooltip @text="{{@taskState.driver}} is unhealthy">
+        <Ui::Icon @name="alert-triangle" class="text-warning" @label="{{@taskState.driver}} is unhealthy" data-test-icon="unhealthy-driver" />
+      </Ui::Tooltip>
+    {{/unless}}
+  </@r.Cell>
+  <@r.Cell @key="name" class="text-nowrap" data-test-name>
+    <LinkTo @route="allocations.allocation.task" @models={{array @taskState.allocation @taskState}}>
+      {{@taskState.name}}
+    </LinkTo>
+    {{#if @taskState.isConnectProxy}}
+      <Ui::Badge @color="secondary" @icon="topology-star-3" class="ms-1" data-test-proxy-tag>Proxy</Ui::Badge>
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="state" data-test-state>
+    <Ui::StatusIndicator @status={{@taskState.state}} />
+  </@r.Cell>
+  <@r.Cell @key="message" data-test-message>
+    {{#if @taskState.events.lastObject.message}}
+      {{@taskState.events.lastObject.message}}
+    {{else}}
+      <em class="text-secondary">No message</em>
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="time" class="tabular-nums text-nowrap" data-test-time>
+    {{format-ts @taskState.events.lastObject.time}}
+  </@r.Cell>
+  <@r.Cell @key="volumes" data-test-volumes>
+    <ul class="list-unstyled mb-0">
+      {{#each @taskState.task.volumeMounts as |volume|}}
+        <li data-test-volume>
+          <strong>{{volume.volume}}:</strong>
+          {{#if volume.isCSI}}
+            <LinkTo
+              @route="csi.volumes.volume"
+              @model={{concat
+                (format-volume-name
+                  source=volume.source
+                  isPerAlloc=volume.volumeDeclaration.perAlloc
+                  volumeExtension=@taskState.allocation.volumeExtension
+                )
+                "@"
+                volume.namespace.id
+              }}
+            >
+              {{format-volume-name
+                source=volume.source
+                isPerAlloc=volume.volumeDeclaration.perAlloc
+                volumeExtension=@taskState.allocation.volumeExtension
+              }}
+            </LinkTo>
+          {{else}}
+            {{volume.source}}
+          {{/if}}
+        </li>
+      {{/each}}
+    </ul>
+  </@r.Cell>
+  <@r.Cell @key="cpu" class="w-10" data-test-cpu>
+    <Allocations::Usage
+      @metric="cpu"
+      @isRunning={{@taskState.isRunning}}
+      @tracker={{this.taskStats}}
+      @reservedCPU={{this.taskStats.reservedCPU}}
+      @isLoading={{this.fetchStats.isRunning}}
+      @error={{this.statsError}}
+    />
+  </@r.Cell>
+  <@r.Cell @key="memory" class="w-10" data-test-mem>
+    <Allocations::Usage
+      @metric="memory"
+      @isRunning={{@taskState.isRunning}}
+      @tracker={{this.taskStats}}
+      @reservedMemory={{this.taskStats.reservedMemory}}
+      @isLoading={{this.fetchStats.isRunning}}
+      @error={{this.statsError}}
+    />
+  </@r.Cell>
+</@r.Row>

@@ -4,11 +4,10 @@
  */
 
 import { get } from '@ember/object';
-import { assign } from '@ember/polyfills';
 import { inject as service } from '@ember/service';
 import { AbortError } from '@ember-data/adapter/error';
 import queryString from 'query-string';
-import ApplicationAdapter from './application';
+import ApplicationAdapter, { idsInPayload } from './application';
 import removeRecord from '../utils/remove-record';
 import classic from 'ember-classic-decorator';
 
@@ -40,7 +39,7 @@ export default class Watchable extends ApplicationAdapter {
   }
 
   findAll(store, type, sinceToken, snapshotRecordArray, additionalParams = {}) {
-    const params = assign(this.buildQuery(), additionalParams);
+    const params = Object.assign(this.buildQuery(), additionalParams);
     const url = this.urlForFindAll(type.modelName);
 
     if (get(snapshotRecordArray || {}, 'adapterOptions.watch')) {
@@ -65,7 +64,7 @@ export default class Watchable extends ApplicationAdapter {
       'findRecord'
     );
     let [url, params] = originalUrl.split('?');
-    params = assign(
+    params = Object.assign(
       queryString.parse(params) || {},
       this.buildQuery(),
       additionalParams
@@ -97,7 +96,7 @@ export default class Watchable extends ApplicationAdapter {
   ) {
     const url = this.buildURL(type.modelName, null, null, 'query', query);
     let [urlPath, params] = url.split('?');
-    params = assign(
+    params = Object.assign(
       queryString.parse(params) || {},
       this.buildQuery(),
       additionalParams,
@@ -129,7 +128,9 @@ export default class Watchable extends ApplicationAdapter {
       }));
 
       // Remove existing records that match this query. This way if server-side
-      // deletes have occurred, the store won't have stale records.
+      // deletes have occurred, the store won't have stale records. Records
+      // that are still in the response are kept (see idsInPayload).
+      const stillPresent = idsInPayload(payload);
       store
         .peekAll(type.modelName)
         .filter((record) =>
@@ -137,6 +138,7 @@ export default class Watchable extends ApplicationAdapter {
             (mapping) => get(record, mapping.attr) === query[mapping.queryParam]
           )
         )
+        .filter((record) => !stillPresent.has(record.get('id')))
         .forEach((record) => {
           removeRecord(store, record);
         });

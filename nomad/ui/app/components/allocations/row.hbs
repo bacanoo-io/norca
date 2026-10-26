@@ -1,0 +1,88 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<@r.Row data-test-allocation={{@allocation.id}}>
+  <@r.Cell @key="indicators" class="w-1 text-nowrap" data-test-indicators>
+    {{#if @allocation.unhealthyDrivers.length}}
+      <Ui::Tooltip @text="Allocation depends on unhealthy drivers">
+        <Ui::Icon @name="alert-triangle" class="text-warning" @label="Allocation depends on unhealthy drivers" data-test-icon="unhealthy-driver" />
+      </Ui::Tooltip>
+    {{/if}}
+    {{#if @allocation.nextAllocation}}
+      <Ui::Tooltip @text="Allocation was rescheduled">
+        <Ui::Icon @name="history" class="text-secondary" @label="Allocation was rescheduled" data-test-icon="reschedule" />
+      </Ui::Tooltip>
+    {{/if}}
+    {{#if @allocation.wasPreempted}}
+      <Ui::Tooltip @text="Allocation was preempted">
+        <Ui::Icon @name="arrow-bar-to-down" class="text-secondary" @label="Allocation was preempted" data-test-icon="preemption" />
+      </Ui::Tooltip>
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="id" class="font-monospace" data-test-short-id>
+    <LinkTo @route="allocations.allocation" @model={{@allocation.id}}>{{@allocation.shortId}}</LinkTo>
+  </@r.Cell>
+  <@r.Cell @key="taskGroup" data-test-task-group>
+    <LinkTo @route="jobs.job.task-group" @models={{array (format-job-id @allocation.job.id) @allocation.taskGroupName}}>
+      {{@allocation.taskGroupName}}
+    </LinkTo>
+  </@r.Cell>
+  <@r.Cell @key="job">
+    {{#if (or @allocation.job.isPending @allocation.job.isReloading)}}
+      …
+    {{else}}
+      <LinkTo @route="jobs.job" @model={{format-job-id @allocation.job.id}} data-test-job>{{@allocation.job.name}}</LinkTo>
+      <span class="text-secondary" data-test-task-group>/ {{@allocation.taskGroup.name}}</span>
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="created" class="tabular-nums text-nowrap" data-test-create-time>
+    {{format-month-ts @allocation.createTime}}
+  </@r.Cell>
+  <@r.Cell @key="modified" class="text-nowrap" data-test-modify-time>
+    <Ui::Tooltip @text={{format-month-ts @allocation.modifyTime}}>
+      <span tabindex="0">{{moment-from-now @allocation.modifyTime}}</span>
+    </Ui::Tooltip>
+  </@r.Cell>
+  <@r.Cell @key="status" data-test-client-status>
+    <Ui::StatusIndicator @status={{@allocation.clientStatus}} />
+  </@r.Cell>
+  <@r.Cell @key="version" class="tabular-nums" data-test-job-version>{{@allocation.jobVersion}}</@r.Cell>
+  <@r.Cell @key="client" class="font-monospace" data-test-client>
+    <Ui::Tooltip @text={{@allocation.node.name}}>
+      <LinkTo @route="clients.client" @model={{@allocation.node}}>{{@allocation.nodeShortId}}</LinkTo>
+    </Ui::Tooltip>
+  </@r.Cell>
+  <@r.Cell @key="volume" data-test-volume>{{if @allocation.taskGroup.volumes.length "Yes"}}</@r.Cell>
+  <@r.Cell @key="cpu" class="w-10" data-test-cpu>
+    <Allocations::Usage
+      @metric="cpu"
+      @isRunning={{@allocation.isRunning}}
+      @tracker={{this.stats}}
+      @isLoading={{this.fetchStats.isRunning}}
+      @error={{this.statsError}}
+    />
+  </@r.Cell>
+  <@r.Cell @key="memory" class="w-10" data-test-mem>
+    <Allocations::Usage
+      @metric="memory"
+      @isRunning={{@allocation.isRunning}}
+      @tracker={{this.stats}}
+      @isLoading={{this.fetchStats.isRunning}}
+      @error={{this.statsError}}
+    />
+  </@r.Cell>
+</@r.Row>
+{{#if @showSubTasks}}
+  {{#each @allocation.states as |taskState|}}
+    <Allocations::TaskRow
+      @taskState={{taskState}}
+      @r={{@r}}
+      @stats={{this.stats}}
+      @statsError={{this.statsError}}
+      @isLoading={{this.fetchStats.isRunning}}
+      @active={{eq @activeTask (concat taskState.allocation.id "-" taskState.name)}}
+      @onSetActiveTask={{@onSetActiveTask}}
+    />
+  {{/each}}
+{{/if}}

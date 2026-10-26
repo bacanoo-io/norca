@@ -7,7 +7,8 @@ import Controller from '@ember/controller';
 import WithNamespaceResetting from 'nomad-ui/mixins/with-namespace-resetting';
 import Sortable from 'nomad-ui/mixins/sortable';
 import { alias } from '@ember/object/computed';
-import { computed } from '@ember/object';
+import { action, computed, setProperties } from '@ember/object';
+import { inject as service } from '@ember/service';
 import { union } from '@ember/object/computed';
 
 export default class JobsJobServicesIndexController extends Controller.extend(
@@ -28,6 +29,40 @@ export default class JobsJobServicesIndexController extends Controller.extend(
 
   sortProperty = 'name';
   sortDescending = false;
+
+  @service router;
+  @service system;
+
+  columns = [
+    { key: 'name', label: 'Name', sortable: true, hideable: false },
+    { key: 'level', label: 'Level', sortable: true },
+    { key: 'tags', label: 'Tags' },
+    { key: 'health', label: 'Health' },
+    { key: 'numAllocs', label: 'Number of allocations', sortable: true },
+  ];
+
+  serviceKey = (service) => `${service.level}:${service.name}`;
+
+  get consulBaseURL() {
+    return this.system.agent?.get?.('config.UI.Consul.BaseUIURL');
+  }
+
+  @action
+  sort(property, descending) {
+    setProperties(this, {
+      sortProperty: property,
+      sortDescending: descending,
+    });
+  }
+
+  @action
+  gotoServiceRow(service) {
+    if (service.provider === 'nomad') {
+      this.router.transitionTo('jobs.job.services.service', service.name, {
+        queryParams: { level: service.level },
+      });
+    }
+  }
 
   @alias('services') listToSort;
   @alias('listSorted') sortedServices;

@@ -47,15 +47,27 @@ func (k *Keyring) Restore(args *structs.KeyringRestoreRequest, reply *structs.Ke
 	} else if aclObj != nil && !aclObj.IsManagement() {
 		return structs.ErrPermissionDenied
 	}
-	if len(args.Keys) == 0 {
+	if len(args.Keys) == 0 && len(args.WrappedKeys) == 0 {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "no root keys to restore")
 	}
-	if len(args.Keys) > maxRestoreKeys {
+	if len(args.Keys)+len(args.WrappedKeys) > maxRestoreKeys {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "at most %d root keys can be restored at once", maxRestoreKeys)
+	}
+	if !args.LocalOnly && len(args.WrappedKeys) > 0 {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "wrapped root keys are only sent between servers")
 	}
 
 	if args.LocalOnly {
-		added, err := k.encrypter.restoreKeys(args.Keys)
+		keys := args.Keys
+		for _, w := range args.WrappedKeys {
+			// Norca: unwrapped with this server's own seal
+			key, err := k.encrypter.unwrapTransferredKey("", w)
+			if err != nil {
+				return fmt.Errorf("failed to unwrap a restored root key: %w", err)
+			}
+			keys = append(keys, key)
+		}
+		added, err := k.encrypter.restoreKeys(keys)
 		reply.Added = added
 		if err != nil {
 			return err
@@ -100,10 +112,26 @@ func (s *Server) restoreKeyring(keys []*structs.RootKey, authToken string) (*str
 	}
 	s.peerLock.RUnlock()
 
+	// Norca: with a seal other than aead the keys are sent to the other
+	// servers wrapped by that seal only.
+	var wrapped []*structs.KeyEncryptionKeyWrapper
+	sendKeys := keys
+	if s.seal != nil && s.seal.realSeal() && len(peers) > 0 {
+		sendKeys = nil
+		for _, key := range keys {
+			w, err := s.encrypter.wrapKeyForTransfer(key.Meta.KeyID)
+			if err != nil {
+				return reply, fmt.Errorf("failed to wrap root key %s for the other servers: %w", key.Meta.KeyID, err)
+			}
+			wrapped = append(wrapped, w)
+		}
+	}
+
 	for _, peer := range peers {
 		req := &structs.KeyringRestoreRequest{
-			Keys:      keys,
-			LocalOnly: true,
+			Keys:        sendKeys,
+			WrappedKeys: wrapped,
+			LocalOnly:   true,
 			WriteRequest: structs.WriteRequest{
 				Region:    s.config.Region,
 				AuthToken: authToken,

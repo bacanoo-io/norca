@@ -85,25 +85,25 @@ module('Acceptance | task detail', function (hooks) {
       'Jobs is the first breadcrumb'
     );
 
-    await waitFor('[data-test-job-breadcrumb]');
+    await waitFor('[data-test-breadcrumb="jobs.job.index"]');
     assert.equal(
       Layout.breadcrumbFor('jobs.job.index').text,
-      `Job ${job.name}`,
+      job.name,
       'Job is the second breadcrumb'
     );
     assert.equal(
       Layout.breadcrumbFor('jobs.job.task-group').text,
-      `Task Group ${taskGroup}`,
+      taskGroup,
       'Task Group is the third breadcrumb'
     );
     assert.equal(
       Layout.breadcrumbFor('allocations.allocation').text,
-      `Allocation ${shortId}`,
+      shortId,
       'Allocation short id is the fourth breadcrumb'
     );
     assert.equal(
       Layout.breadcrumbFor('allocations.allocation.task').text,
-      `Task ${task.name}`,
+      task.name,
       'Task name is the fifth breadcrumb'
     );
 
@@ -122,7 +122,7 @@ module('Acceptance | task detail', function (hooks) {
     await Layout.breadcrumbFor('jobs.job.task-group').visit();
     assert.equal(
       currentURL(),
-      `/jobs/${job.id}@default/${taskGroup}`,
+      `/jobs/${job.id}@default/groups/${taskGroup}`,
       'Task Group breadcrumb links correctly'
     );
 
@@ -395,7 +395,7 @@ module('Acceptance | task detail (different namespace)', function (hooks) {
     await Layout.breadcrumbFor('jobs.job.task-group').visit();
     assert.equal(
       currentURL(),
-      `/jobs/${job.id}@other-namespace/${taskGroup}`,
+      `/jobs/${job.id}@other-namespace/groups/${taskGroup}`,
       'Task Group breadcrumb links correctly'
     );
 

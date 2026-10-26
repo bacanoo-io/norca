@@ -1,17 +1,15 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Variables: " this.model.path}}
-{{#each this.breadcrumbs as |crumb|}}
-  <Breadcrumb @crumb={{crumb}} />
-{{/each}}
-<section class="section single-variable">
-  {{#if this.isForbidden}}
+{{#if this.isForbidden}}
+  <Ui::PageHeader @title="Variables" @breadcrumbs={{this.breadcrumbItems}} />
+  <Ui::PageBody>
     <ForbiddenMessage />
-  {{else}}
-    {{outlet}}
-  {{/if}}
-</section>
- 
+  </Ui::PageBody>
+{{else}}
+  {{outlet}}
+{{/if}}

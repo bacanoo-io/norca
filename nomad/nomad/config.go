@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/scheduler"
+	"github.com/hashicorp/nomad/secretstore"
 	"github.com/hashicorp/nomad/version"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
@@ -417,6 +418,16 @@ type Config struct {
 	// Backup configures the scheduled backups to S3-compatible stores.
 	Backup *backup.Config
 
+	// SecretsAudit configures the append-only audit file of the built-in
+	// secret store on this server; nil disables the file (the SecretAccess
+	// event topic is always published).
+	SecretsAudit *secretstore.AuditFileConfig
+
+	// SecretsVaultFallback accepts jobs with vault blocks when Vault is not
+	// enabled: clients without Vault serve their Vault-style lookups from
+	// the built-in store (Norca). The agent enables it by default.
+	SecretsVaultFallback bool
+
 	// JobDefaultPriority is the default Job priority if not specified.
 	JobDefaultPriority int
 
@@ -432,6 +443,10 @@ type Config struct {
 	// MTLSConfig configures the native mTLS certificate authority. Nil means
 	// the defaults.
 	MTLSConfig *config.MTLSConfig
+
+	// KeyringConfig configures the keyring seal (Norca). Nil means the aead
+	// seal.
+	KeyringConfig *config.KeyringConfig
 }
 
 func (c *Config) Copy() *Config {
@@ -460,6 +475,7 @@ func (c *Config) Copy() *Config {
 	nc.SearchConfig = c.SearchConfig.Copy()
 	nc.AdmissionConfig = c.AdmissionConfig.Copy()
 	nc.MTLSConfig = c.MTLSConfig.Copy()
+	nc.KeyringConfig = c.KeyringConfig.Copy()
 
 	return &nc
 }

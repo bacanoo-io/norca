@@ -12,28 +12,28 @@ import {
 } from 'ember-cli-page-object';
 
 import allocations from 'nomad-ui/tests/pages/components/allocations';
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
-import pageSizeSelect from 'nomad-ui/tests/pages/components/page-size-select';
+import { filterFacet } from 'nomad-ui/tests/pages/components/facet';
+import { nativePageSizeSelect } from 'nomad-ui/tests/pages/components/page-size-select';
 
 export default create({
   pageSize: 25,
 
   visit: visitable('/csi/plugins/:id/allocations'),
 
-  nextPage: clickable('[data-test-pager="next"]'),
-  prevPage: clickable('[data-test-pager="prev"]'),
+  nextPage: clickable('[data-test-pagination-next]'),
+  prevPage: clickable('[data-test-pagination-prev]'),
 
-  isEmpty: isPresent('[data-test-empty-jobs-list]'),
+  isEmpty: isPresent('[data-test-empty-list]'),
   emptyState: {
-    headline: text('[data-test-empty-jobs-list-headline]'),
+    headline: text('[data-test-empty-list] [data-test-empty-state-title]'),
   },
 
   ...allocations('[data-test-allocation]', 'allocations'),
 
-  pageSizeSelect: pageSizeSelect(),
+  pageSizeSelect: nativePageSizeSelect(),
 
   facets: {
-    health: multiFacet('[data-test-health-facet]'),
-    type: multiFacet('[data-test-type-facet]'),
+    health: filterFacet('[data-test-health-facet]'),
+    type: filterFacet('[data-test-type-facet]'),
   },
 });

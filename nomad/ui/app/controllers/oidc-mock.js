@@ -6,7 +6,7 @@
 import Controller from '@ember/controller';
 import { action } from '@ember/object';
 import { inject as service } from '@ember/service';
-import Ember from 'ember';
+import { isTesting } from '@ember/debug';
 
 export default class OidcMockController extends Controller {
   @service router;
@@ -18,7 +18,7 @@ export default class OidcMockController extends Controller {
     const url = `${this.redirect_uri.split('?')[0]}?code=${
       fakeAccount.accessor
     }&state=success`;
-    if (Ember.testing) {
+    if (isTesting()) {
       this.router.transitionTo(url);
     } else {
       window.location = url;
@@ -28,7 +28,7 @@ export default class OidcMockController extends Controller {
   @action
   failToSignIn() {
     const url = `${this.redirect_uri.split('?')[0]}?state=failure`;
-    if (Ember.testing) {
+    if (isTesting()) {
       this.router.transitionTo(url);
     } else {
       window.location = url;

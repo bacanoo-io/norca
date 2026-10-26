@@ -112,6 +112,7 @@ module('Unit | Serializer | Node', function (hooks) {
           type: 'node',
           attributes: {
             isDraining: false,
+            norcaVersion: '',
             httpAddr: '867.53.0.9:4646',
             drivers: [
               {
@@ -159,6 +160,7 @@ module('Unit | Serializer | Node', function (hooks) {
           type: 'node',
           attributes: {
             isDraining: false,
+            norcaVersion: '',
             httpAddr: '867.53.0.9:4646',
             drivers: [
               {
@@ -199,6 +201,7 @@ module('Unit | Serializer | Node', function (hooks) {
           attributes: {
             hostVolumes: [],
             drivers: [],
+            norcaVersion: '',
           },
           relationships: {
             allocations: {

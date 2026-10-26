@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { Factory, trait } from 'ember-cli-mirage';
+import { Factory, trait } from 'miragejs';
+import { assert } from '@ember/debug';
 import faker from 'nomad-ui/mirage/faker';
 import { provide, pickOne } from '../utils';
 import { DATACENTERS, HOSTS, generateResources } from '../common';
@@ -114,6 +115,7 @@ export default Factory.extend({
       'kernel.version': '16.6.0',
       'unique.network.ip-address': '127.0.0.1',
       'nomad.version': '0.5.5dev',
+      'norca.version': '0.1.0',
       'unique.hostname': 'bacon-mac',
       'cpu.arch': 'amd64',
       'os.name': 'darwin',
@@ -139,7 +141,7 @@ export default Factory.extend({
   }),
 
   afterCreate(node, server) {
-    Ember.assert(
+    assert(
       '[Mirage] No node pools! make sure node pools are created before nodes',
       server.db.nodePools.length
     );

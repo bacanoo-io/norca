@@ -1,0 +1,18 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The health of the controllers or nodes of a CSI plugin or volume:
+  healthy when at least one is healthy, with the healthy/expected count.
+  @nodeOnly marks plugins that have no controllers.
+
+    <Storage::Health @healthy={{2}} @expected={{3}} />
+--}}
+{{#if @nodeOnly}}
+  <span class="text-secondary">Node Only</span>
+{{else}}
+  <Ui::StatusIndicator
+    @tone={{if (gt @healthy 0) "success" "danger"}}
+    @label="{{if (gt @healthy 0) 'Healthy' 'Unhealthy'}} ({{@healthy}}/{{@expected}})"
+  />
+{{/if}}

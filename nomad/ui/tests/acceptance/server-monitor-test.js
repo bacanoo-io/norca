@@ -4,7 +4,7 @@
  */
 
 import { currentURL } from '@ember/test-helpers';
-import { run } from '@ember/runloop';
+import { _cancelTimers as cancelTimers, later } from '@ember/runloop';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -28,7 +28,7 @@ module('Acceptance | server monitor', function (hooks) {
 
     window.localStorage.nomadTokenSecret = managementToken.secretId;
 
-    run.later(run, run.cancelTimers, 500);
+    later(cancelTimers, 500);
   });
 
   test('it passes an accessibility audit', async function (assert) {
@@ -45,10 +45,7 @@ module('Acceptance | server monitor', function (hooks) {
       'Servers',
       'The page should read the breadcrumb Servers'
     );
-    assert.equal(
-      Layout.breadcrumbFor('servers.server').text,
-      `Server ${agent.name}`
-    );
+    assert.equal(Layout.breadcrumbFor('servers.server').text, agent.name);
 
     await Layout.breadcrumbFor('servers.index').visit();
     assert.equal(currentURL(), '/servers');

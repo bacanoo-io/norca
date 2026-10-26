@@ -27,6 +27,42 @@ const formatter = new Intl.NumberFormat(window.navigator.locale || 'en', {
 @classic
 export default class TopologyControllers extends Controller.extend(Searchable) {
   @service userSettings;
+  @service system;
+  @service router;
+
+  @computed('system.{shouldShowRegions,activeRegion}')
+  get scopeLabel() {
+    return this.system.shouldShowRegions && this.system.activeRegion
+      ? `Region ${this.system.activeRegion}`
+      : '';
+  }
+
+  @computed('activeNode', 'activeAllocation')
+  get infoPanelTitle() {
+    if (this.activeNode) return 'Client Details';
+    if (this.activeAllocation) return 'Allocation Details';
+    return 'Cluster Details';
+  }
+
+  @action
+  search(term) {
+    this.searchTerm = term;
+  }
+
+  @action
+  refresh() {
+    return this.router.refresh('topology');
+  }
+
+  @action
+  dismissFilteredNodes() {
+    this.pre09Nodes = null;
+  }
+
+  @action
+  dismissPollingNotice() {
+    this.set('showPollingNotice', false);
+  }
 
   queryParams = [
     {
@@ -56,6 +92,7 @@ export default class TopologyControllers extends Controller.extend(Searchable) {
   qpDatacenter = '';
   qpNodePool = '';
 
+  @action
   setFacetQueryParam(queryParam, selection) {
     this.set(queryParam, serialize(selection));
   }

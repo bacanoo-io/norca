@@ -1,11 +1,12 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<div class="allocation-status-row">
+<div class="norca-alloc-status-row">
   {{#if this.showSummaries}}
-    <div class="alloc-status-summaries"
+    <div class="norca-alloc-summaries"
       {{did-insert this.captureElement}}
       {{window-resize this.reflow}}
     >
@@ -27,7 +28,7 @@
       {{/each-in}}
     </div>
   {{else}}
-    <div class="ungrouped-allocs"
+    <div class="norca-alloc-blocks"
       {{did-insert this.captureElement}}
       {{window-resize this.reflow}}
     >
@@ -51,4 +52,3 @@
     </div>
   {{/if}}
 </div>
-       

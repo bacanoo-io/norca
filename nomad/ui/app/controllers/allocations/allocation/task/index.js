@@ -11,6 +11,19 @@ import messageForError from 'nomad-ui/utils/message-from-adapter-error';
 
 @classic
 export default class IndexController extends Controller {
+  volumeColumns = [
+    { key: 'name', label: 'Name' },
+    { key: 'destination', label: 'Destination' },
+    { key: 'permissions', label: 'Permissions' },
+    { key: 'source', label: 'Client Source' },
+  ];
+
+  eventColumns = [
+    { key: 'time', label: 'Time' },
+    { key: 'type', label: 'Type' },
+    { key: 'description', label: 'Description' },
+  ];
+
   @overridable(() => {
     // { title, description }
     return null;

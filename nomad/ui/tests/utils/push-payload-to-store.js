@@ -12,6 +12,7 @@ import { run } from '@ember/runloop';
 export default function pushPayloadToStore(store, payload, modelName) {
   run(() => {
     store._push(payload);
-    store._didUpdateAll(modelName);
+    // Ember Data 4.12 updates live record arrays itself.
+    store._didUpdateAll?.(modelName);
   });
 }

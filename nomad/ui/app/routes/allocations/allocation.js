@@ -43,11 +43,11 @@ export default class AllocationRoute extends Route.extend(WithWatchers) {
     }
   }
 
-  async model() {
+  async model(params) {
     // Preload the job for the allocation since it's required for the breadcrumb trail
     try {
       const [allocation] = await Promise.all([
-        super.model(...arguments),
+        this.store.findRecord('allocation', params.allocation_id),
         this.store.findAll('namespace'),
       ]);
       if (allocation.isPartial) {

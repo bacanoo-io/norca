@@ -42,8 +42,8 @@ module('Acceptance | keyboard', function (hooks) {
       await visit('/');
       await triggerEvent('.page-layout', 'keydown', { key: '?' });
       assert.ok(Layout.keyboard.modalShown);
-      assert.dom('button.dismiss').isFocused();
-      await click('button.dismiss');
+      assert.dom('[data-test-modal-close]').isFocused();
+      await click('[data-test-modal-close]');
       assert.notOk(Layout.keyboard.modalShown);
     });
 
@@ -74,11 +74,9 @@ module('Acceptance | keyboard', function (hooks) {
       assert.notOk(Layout.keyboard.modalShown);
       await triggerEvent('.page-layout', 'keydown', { key: '?' });
       assert.ok(Layout.keyboard.modalShown);
-      assert.dom('[data-test-enable-shortcuts-toggle]').hasClass('is-active');
-      await click('[data-test-enable-shortcuts-toggle]');
-      assert
-        .dom('[data-test-enable-shortcuts-toggle]')
-        .doesNotHaveClass('is-active');
+      assert.dom('[data-test-enable-shortcuts-toggle] input').isChecked();
+      await click('[data-test-enable-shortcuts-toggle] input');
+      assert.dom('[data-test-enable-shortcuts-toggle] input').isNotChecked();
       await triggerEvent('.page-layout', 'keydown', { key: 'Escape' });
       assert.notOk(Layout.keyboard.modalShown);
       triggerEvent('.page-layout', 'keydown', { key: 'g' });
@@ -89,8 +87,8 @@ module('Acceptance | keyboard', function (hooks) {
         'typing g j did not bring you back to the jobs page, since shortcuts are disabled'
       );
       await triggerEvent('.page-layout', 'keydown', { key: '?' });
-      await click('[data-test-enable-shortcuts-toggle]');
-      assert.dom('[data-test-enable-shortcuts-toggle]').hasClass('is-active');
+      await click('[data-test-enable-shortcuts-toggle] input');
+      assert.dom('[data-test-enable-shortcuts-toggle] input').isChecked();
       await triggerEvent('.page-layout', 'keydown', { key: 'Escape' });
       triggerEvent('.page-layout', 'keydown', { key: 'g' });
       await triggerEvent('.page-layout', 'keydown', { key: 'j' });
@@ -181,7 +179,7 @@ module('Acceptance | keyboard', function (hooks) {
         );
 
       await click(
-        '[data-test-command-label="Go to Clients"] button.reset-to-default'
+        '[data-test-command-label="Go to Clients"] [data-test-reset-to-default]'
       );
       assert
         .dom(
@@ -201,7 +199,7 @@ module('Acceptance | keyboard', function (hooks) {
       await triggerEvent('.page-layout', 'keydown', { key: 'c' });
       assert.equal(
         currentURL(),
-        `/jobs`,
+        `/`,
         'After a refresh with a localStorage-found binding, a default key binding doesnt do anything'
       );
 
@@ -233,8 +231,8 @@ module('Acceptance | keyboard', function (hooks) {
       await triggerEvent('.page-layout', 'keydown', { key: 'Shift' });
       assert.equal(
         document.querySelectorAll('[data-test-keyboard-hint]').length,
-        7,
-        'Shows 7 hints by default'
+        15,
+        'Shows a hint for every menu item and Sign in'
       );
       await triggerEvent('.page-layout', 'keyup', { key: 'Shift' });
 
@@ -253,7 +251,7 @@ module('Acceptance | keyboard', function (hooks) {
     });
     test('Dynamic Table Nav', async function (assert) {
       assert.expect(4);
-      server.createList('job', 3, { createRecommendations: true });
+      server.createList('job', 3);
       await visit('/jobs');
 
       await triggerEvent('.page-layout', 'keydown', { key: 'Shift' });
@@ -285,18 +283,20 @@ module('Acceptance | keyboard', function (hooks) {
       );
     });
     test('Multi-Table Nav', async function (assert) {
-      server.createList('job', 3, { createRecommendations: true });
+      server.createList('job', 3);
       await visit(
         `/jobs/${server.db.jobs.sortBy('modifyIndex').reverse()[0].id}@default`
       );
-      const numberOfGroups = findAll('.task-group-row').length;
-      const numberOfAllocs = findAll('.allocation-row').length;
+      const numberOfGroups = findAll('[data-test-task-group]').length;
+      const numberOfAllocs = findAll('[data-test-allocation]').length;
 
       await triggerEvent('.page-layout', 'keydown', { key: 'Shift' });
       [...Array(numberOfGroups + numberOfAllocs)].forEach((_, iter) => {
         assert.equal(
-          document.querySelectorAll(`[data-shortcut="Shift+0${iter + 1}"]`)
-            .length,
+          document.querySelectorAll(
+            // Shift+01 ... Shift+09, then Shift+10 ...
+            `[data-shortcut="Shift+${String(iter + 1).padStart(2, '0')}"]`
+          ).length,
           1,
           `Dynamic item #${iter + 1} gets a shortcut hint`
         );
@@ -312,76 +312,36 @@ module('Acceptance | keyboard', function (hooks) {
       const jobID = server.db.jobs.sortBy('modifyIndex').reverse()[0].id;
       await visit(`/jobs/${jobID}@default`);
 
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.ok(
-        currentURL().startsWith(`/jobs/${jobID}@default/definition`),
-        'Shift+ArrowRight takes you to the next tab (Definition)'
+      // The tabs of the job page, in order: Shift+ArrowRight goes through
+      // them and loops back to the first.
+      const tabs = findAll('[data-test-subnav="job"] [data-test-tab-link]').map(
+        (link) => ({
+          id: link.dataset.testTabLink,
+          url: link.getAttribute('href').replace(/^\/ui/, ''),
+        })
+      );
+      assert.ok(tabs.length > 5, 'The job page has its tabs');
+      assert.deepEqual(
+        tabs.slice(0, 2).map((tab) => tab.id),
+        ['overview', 'allocations'],
+        'Overview and Allocations are the first tabs'
+      );
+      assert.equal(
+        tabs[tabs.length - 1].id,
+        'variables',
+        'Variables is the last tab for a management token'
       );
 
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/versions`,
-        'Shift+ArrowRight takes you to the next tab (Version)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/allocations`,
-        'Shift+ArrowRight takes you to the next tab (Allocations)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/evaluations`,
-        'Shift+ArrowRight takes you to the next tab (Evaluations)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/clients`,
-        'Shift+ArrowRight takes you to the next tab (Clients)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/services`,
-        'Shift+ArrowRight takes you to the next tab (Services)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/variables`,
-        'Shift+ArrowRight takes you to the next tab (Variables)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default`,
-        'Shift+ArrowRight takes you to the first tab in the loop'
-      );
+      for (const tab of [...tabs.slice(1), tabs[0]]) {
+        await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
+          shiftKey: true,
+        });
+        assert.equal(
+          currentURL().split('?')[0],
+          tab.url,
+          `Shift+ArrowRight takes you to the next tab (${tab.id})`
+        );
+      }
       window.localStorage.nomadTokenSecret = null; // Reset Token
     });
 

@@ -85,6 +85,10 @@ export default class KeyboardShortcutsModalComponent extends Component {
     }
   }
 
+  @action hide() {
+    this.keyboard.shortcutsVisible = false;
+  }
+
   @action toggleListener() {
     this.keyboard.enabled = !this.keyboard.enabled;
   }

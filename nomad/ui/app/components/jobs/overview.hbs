@@ -1,0 +1,127 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The Overview tab of the job page, for every job type.
+~}}
+<div data-test-job-overview>
+  {{#if this.error}}
+    <Ui::Alert @tone="danger" @onDismiss={{this.clearError}} class="mb-3" data-test-job-error>
+      <strong class="d-block" data-test-job-error-title>{{this.error.title}}</strong>
+      <span data-test-job-error-body>{{this.error.description}}</span>
+    </Ui::Alert>
+  {{/if}}
+  <Ui::Card class="mb-3" data-test-job-details>
+    <Ui::Datagrid as |g|>
+      <g.Item @title="Type" data-test-job-stat="type">{{@job.type}}</g.Item>
+      <g.Item @title="Priority" data-test-job-stat="priority">{{@job.priority}}</g.Item>
+      <g.Item @title="Version" data-test-job-stat="version">{{@job.version}}</g.Item>
+      {{#if @job.parent.content}}
+        <g.Item @title="Parent" data-test-job-stat="parent">
+          <LinkTo @route="jobs.job.index" @model={{@job.parent.content.idWithNamespace}}>{{@job.parent.name}}</LinkTo>
+        </g.Item>
+      {{/if}}
+      {{#if (and @job.namespace this.system.shouldShowNamespaces)}}
+        <g.Item @title="Namespace" data-test-job-stat="namespace">{{@job.namespace.name}}</g.Item>
+      {{/if}}
+      <g.Item @title="Node Pool" data-test-job-stat="node-pool">{{or @job.nodePool "-"}}</g.Item>
+      {{#if @job.periodic}}
+        <g.Item @title={{pluralize "Cron" (or @job.periodicDetails.Specs.length 1)}} data-test-job-stat="cron">
+          {{#each @job.periodicDetails.Specs as |spec|}}
+            <code class="me-1">{{spec}}</code>
+          {{else}}
+            <code>{{@job.periodicDetails.Spec}}</code>
+          {{/each}}
+        </g.Item>
+      {{/if}}
+      {{#if @job.parameterized}}
+        <g.Item @title="Payload" data-test-job-stat="payload">{{or @job.parameterizedDetails.Payload "optional"}}</g.Item>
+      {{/if}}
+      {{#if this.multiregionRegions.length}}
+        <g.Item @title="Regions" data-test-job-stat="regions">
+          {{#each this.multiregionRegions as |region|}}
+            <span class="norca-region me-1">{{region}}</span>
+          {{/each}}
+        </g.Item>
+      {{/if}}
+      {{#if (and (can "list variables") @job.pathLinkedVariable)}}
+        <g.Item @title="Variables" data-test-job-stat="variables">
+          <LinkTo @route="variables.variable" @model={{@job.pathLinkedVariable.id}}>{{@job.pathLinkedVariable.path}}</LinkTo>
+        </g.Item>
+      {{/if}}
+    </Ui::Datagrid>
+    {{#if @job.meta.structured.pack.name}}
+      <h3 class="h4 mt-3 mb-2">Pack</h3>
+      <Ui::Datagrid as |g|>
+        <g.Item @title="Name" data-test-pack-stat="name">{{@job.meta.structured.pack.name}}</g.Item>
+        {{#if @job.meta.structured.pack.registry}}
+          <g.Item @title="Registry" data-test-pack-stat="registry">{{@job.meta.structured.pack.registry}}</g.Item>
+        {{/if}}
+        {{#if @job.meta.structured.pack.version}}
+          <g.Item @title="Version" data-test-pack-stat="version">{{@job.meta.structured.pack.version}}</g.Item>
+        {{/if}}
+        {{#if @job.meta.structured.pack.revision}}
+          <g.Item @title="Revision" data-test-pack-stat="revision">{{@job.meta.structured.pack.revision}}</g.Item>
+        {{/if}}
+      </Ui::Datagrid>
+    {{/if}}
+    {{#if this.owner}}
+      <Ui::Alert @tone="info" @title="Managed by {{if (eq this.owner.kind 'release') 'a release' (concat 'an object of kind ' this.owner.kind)}}" class="mt-3 mb-0" data-test-job-owner-note>
+        This job belongs to {{if (eq this.owner.kind "release") "the release" this.owner.kind}}
+        <strong>{{this.owner.name}}</strong>{{#if this.owner.namespace}} in namespace {{this.owner.namespace}}{{/if}}.
+        Change it through its owner: a manual change is overwritten at the next reconcile.
+      </Ui::Alert>
+    {{/if}}
+  </Ui::Card>
+
+  <Jobs::PlacementFailures @job={{@job}} />
+
+  {{#if @job.hasChildren}}
+    <Jobs::Children
+      @job={{@job}}
+      @sortBy={{@sortProperty}}
+      @sortDescending={{@sortDescending}}
+      @onSort={{@onSort}}
+      @page={{@currentPage}}
+      @onPageChange={{@onPageChange}}
+    />
+  {{else}}
+    <JobStatus::Panel
+      @job={{@job}}
+      @statusMode={{@statusMode}}
+      @setStatusMode={{@setStatusMode}}
+      @handleError={{this.handleError}}
+    />
+    <Jobs::TaskGroupsTable @job={{@job}} />
+    <Jobs::RecentAllocations
+      @job={{@job}}
+      @activeTask={{@activeTask}}
+      @setActiveTaskQueryParam={{@setActiveTaskQueryParam}}
+    />
+  {{/if}}
+
+  {{#if @job.parent.parameterized}}
+    <Ui::Card @title="Payload" class="mb-3" data-test-job-payload>
+      {{#if this.payloadJSON}}
+        <Ui::CodeBlock @code={{this.payloadJSON}} @label="Payload" @copy={{true}} />
+      {{else if this.payload}}
+        <Ui::CodeBlock @code={{this.payload}} @label="Payload" @wrap={{true}} @copy={{true}} />
+      {{else}}
+        <p class="text-secondary m-0">The dispatch had no payload.</p>
+      {{/if}}
+    </Ui::Card>
+  {{/if}}
+
+  <Ui::Card @title="Meta" @flush={{true}} class="mb-3" data-test-job-meta>
+    {{#if @job.meta.structured}}
+      <Ui::KeyValueTable @data={{@job.meta.structured}} @caption="Job meta" data-test-meta />
+    {{else}}
+      <Ui::EmptyState
+        @compact={{true}}
+        @title="No meta attributes"
+        @message="Add a meta block to the job to attach key-value data to it."
+        data-test-empty-meta-message
+      />
+    {{/if}}
+  </Ui::Card>
+</div>

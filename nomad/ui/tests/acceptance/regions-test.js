@@ -5,10 +5,9 @@
 
 /* eslint-disable qunit/require-expect */
 /* eslint-disable qunit/no-conditional-assertions */
-import { currentURL } from '@ember/test-helpers';
+import { currentURL, visit } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
-import { selectChoose } from 'ember-power-select/test-support';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
 import JobsList from 'nomad-ui/tests/pages/jobs/list';
@@ -126,7 +125,7 @@ module('Acceptance | regions (many)', function (hooks) {
 
     await JobsList.visit();
 
-    await selectChoose('[data-test-region-switcher-parent]', newRegion);
+    await Layout.navbar.regionSwitcher.select(newRegion);
 
     assert.ok(
       currentURL().includes(`region=${newRegion}`),
@@ -145,7 +144,7 @@ module('Acceptance | regions (many)', function (hooks) {
 
     await JobsList.visit({ region: startingRegion });
 
-    await selectChoose('[data-test-region-switcher-parent]', defaultRegion);
+    await Layout.navbar.regionSwitcher.select(defaultRegion);
 
     assert.notOk(
       currentURL().includes('region='),
@@ -163,7 +162,7 @@ module('Acceptance | regions (many)', function (hooks) {
 
     await Allocation.visit({ id: server.db.allocations[0].id });
 
-    await selectChoose('[data-test-region-switcher-parent]', newRegion);
+    await Layout.navbar.regionSwitcher.select(newRegion);
 
     assert.ok(currentURL().includes('/jobs?'), 'Back at the jobs page');
   });
@@ -198,22 +197,13 @@ module('Acceptance | regions (many)', function (hooks) {
     const regionsRequest = server.pretender.handledRequests.find((req) =>
       req.responseURL.includes('/v1/regions')
     );
-    const licenseRequest = server.pretender.handledRequests.find((req) =>
-      req.responseURL.includes('/v1/operator/license')
-    );
     const appRequests = server.pretender.handledRequests.filter(
-      (req) =>
-        !req.responseURL.includes('/v1/regions') &&
-        !req.responseURL.includes('/v1/operator/license')
+      (req) => !req.responseURL.includes('/v1/regions')
     );
 
     assert.notOk(
       regionsRequest.url.includes('region='),
       'The regions request is made without a region qp'
-    );
-    assert.notOk(
-      licenseRequest.url.includes('region='),
-      'The default region request is made without a region qp'
     );
 
     appRequests.forEach((req) => {
@@ -223,9 +213,27 @@ module('Acceptance | regions (many)', function (hooks) {
         req.url === '/v1/agent/members'
       ) {
         assert.notOk(req.url.includes('region='), `(no region) ${req.url}`);
+      } else if (
+        req.url.startsWith('/v1/status/leader?') ||
+        req.url.startsWith('/v1/operator/raft/configuration?')
+      ) {
+        // The regions card of the servers page queries every region.
+        assert.ok(
+          server.db.regions.some((r) => req.url.endsWith(`region=${r.id}`)),
+          `(each region) ${req.url}`
+        );
       } else {
         assert.ok(req.url.includes(`region=${region}`), req.url);
       }
     });
+  });
+
+  test('choosing All regions on the servers page stays on the servers page', async function (assert) {
+    await visit('/servers');
+    await Layout.navbar.regionSwitcher.select('*');
+
+    assert.ok(currentURL().startsWith('/servers'), 'Still on the servers page');
+    assert.strictEqual(Layout.navbar.regionSwitcher.value, '*');
+    window.localStorage.removeItem('norcaRegionScope');
   });
 });

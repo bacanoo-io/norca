@@ -1,0 +1,24 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The content of the block that stands for the remaining allocations of a
+  state (Allocation status block).
+~}}
+<span class="norca-rest-count">{{#if @plus}}+{{/if}}{{@count}}</span>
+{{#unless @steady}}
+  {{#if (eq @canary "canary")}}
+    <span class="norca-alloc-canary-indicator"></span>
+  {{/if}}
+  {{#if (eq @status "running")}}
+    <span class="norca-alloc-health-indicator">
+      {{#if (eq @health "healthy")}}
+        <Ui::Icon @name="check" @size="sm" class="text-success" />
+      {{else if (eq @health "unhealthy")}}
+        <Ui::Icon @name="x" @size="sm" class="text-danger" />
+      {{else}}
+        <Ui::Icon @name="loader-2" @size="sm" />
+      {{/if}}
+    </span>
+  {{/if}}
+{{/unless}}

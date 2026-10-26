@@ -1,6 +1,6 @@
 # Web UI and Tabler migration – plan
 
-**Status:** In progress · 2026-10-25 (phase 1, foundation, in progress) · Starting point: the Nomad v1.6.5 web UI · Visual mockup: [mockups/ui-mockup.html](mockups/ui-mockup.html) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md) and the other design documents
+**Status:** In progress · 2026-10-25 (phase 1, foundation, done; phase 2, existing areas, in progress) · Starting point: the Nomad v1.6.5 web UI · Visual mockup: [mockups/ui-mockup.html](mockups/ui-mockup.html) · Related documents: [nomad-fork-development-plan.md](nomad-fork-development-plan.md) and the other design documents
 
 The fork's UI gets a new information architecture, an overview dashboard, cross-region views, and pages for the planned features (backup, packages, objects, quotas, admission, networking, scaling, multiregion deployment). The visual base is Tabler (MIT), through our own Ember component layer. The visual mockup is the clickable realization of this plan, with real Tabler CSS.
 

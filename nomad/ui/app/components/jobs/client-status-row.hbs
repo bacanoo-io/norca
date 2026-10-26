@@ -1,0 +1,39 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+<@r.Row data-test-client={{@row.node.id}}>
+  <@r.Cell @key="node.id" class="font-monospace" data-test-short-id>
+    <LinkTo @route="clients.client" @model={{@row.node.id}}>{{@row.node.shortId}}</LinkTo>
+  </@r.Cell>
+  <@r.Cell @key="node.name" class="text-truncate" data-test-name>{{@row.node.name}}</@r.Cell>
+  <@r.Cell @key="createTime" data-test-create-time>
+    {{#if @row.createTime}}
+      <Ui::Tooltip @text={{format-month-ts @row.createTime}}><span>{{moment-from-now @row.createTime}}</span></Ui::Tooltip>
+    {{else}}
+      -
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="modifyTime" data-test-modify-time>
+    {{#if @row.modifyTime}}
+      <Ui::Tooltip @text={{format-month-ts @row.modifyTime}}><span>{{moment-from-now @row.modifyTime}}</span></Ui::Tooltip>
+    {{else}}
+      -
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="jobStatus" class="text-nowrap" data-test-job-status>
+    <span class="d-inline-flex align-items-center gap-2">
+      <span class="norca-swatch norca-swatch-{{this.jobStatusClass}}" aria-hidden="true"></span>
+      {{this.humanizedJobStatus}}
+    </span>
+  </@r.Cell>
+  <@r.Cell @key="allocations" class="w-25" data-test-job-alloc-summary>
+    {{#if this.shouldDisplayAllocationSummary}}
+      <Ui::Distribution @label="Allocations on {{@row.node.name}}" @data={{this.allocationData}} @compact={{true}} @noLegend={{true}} />
+    {{else}}
+      <span class="text-secondary">{{this.allocationSummaryPlaceholder}}</span>
+    {{/if}}
+  </@r.Cell>
+</@r.Row>

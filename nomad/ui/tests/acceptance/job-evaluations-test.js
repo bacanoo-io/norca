@@ -8,7 +8,7 @@ import { currentURL } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import Evaluations from 'nomad-ui/tests/pages/jobs/job/evaluations';
 
 let job;
@@ -30,7 +30,7 @@ module('Acceptance | job evaluations', function (hooks) {
   });
 
   test('it passes an accessibility audit', async function (assert) {
-    await a11yAudit(assert);
+    await a11yAudit(assert, STRICT);
   });
 
   test('lists all evaluations for the job', async function (assert) {
@@ -47,7 +47,7 @@ module('Acceptance | job evaluations', function (hooks) {
       assert.equal(evaluation.id, shortId, `Evaluation ${index} is ${shortId}`);
     });
 
-    assert.equal(document.title, `Job ${job.name} evaluations - Nomad`);
+    assert.equal(document.title, `Job ${job.name} evaluations - Norca`);
   });
 
   test('evaluations table is sortable', async function (assert) {

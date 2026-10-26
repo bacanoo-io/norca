@@ -1,0 +1,19 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A group of radio buttons with a legend. Each option is yielded, so it can
+  carry its own attributes.
+
+    <Ui::RadioGroup @label="Token type" @value={{this.type}} @onChange={{this.setType}} as |g|>
+      <g.Option @value="client" @label="Client" />
+      <g.Option @value="management" @label="Management" />
+    </Ui::RadioGroup>
+--}}
+<fieldset class="mb-3" data-test-radio-group ...attributes>
+  <legend class="form-label">{{@label}}</legend>
+  <div class="d-flex flex-wrap gap-3">
+    {{yield (hash Option=(component "ui/radio-group/option" name=this.name groupValue=@value disabled=@disabled onChange=@onChange))}}
+  </div>
+  {{#if @help}}<small class="form-hint">{{@help}}</small>{{/if}}
+</fieldset>

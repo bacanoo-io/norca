@@ -38,4 +38,11 @@ export default class Agent extends Model {
   get version() {
     return this.tags?.build || '';
   }
+
+  // The Norca product version (Serf tag norca_vsn); version is the Nomad
+  // API version the server is compatible with.
+  @computed('tags.norca_vsn')
+  get norcaVersion() {
+    return this.tags?.norca_vsn || '';
+  }
 }

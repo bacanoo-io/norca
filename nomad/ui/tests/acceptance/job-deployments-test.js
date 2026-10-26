@@ -8,7 +8,7 @@ import { get } from '@ember/object';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import moment from 'moment';
 import Deployments from 'nomad-ui/tests/pages/jobs/job/deployments';
 
@@ -50,7 +50,7 @@ module('Acceptance | job deployments', function (hooks) {
     assert.expect(1);
 
     await Deployments.visit({ id: job.id });
-    await a11yAudit(assert);
+    await a11yAudit(assert, STRICT);
   });
 
   test('/jobs/:id/deployments should list all job deployments', async function (assert) {
@@ -61,7 +61,7 @@ module('Acceptance | job deployments', function (hooks) {
       deployments.length,
       'Each deployment gets a row in the timeline'
     );
-    assert.equal(document.title, `Job ${job.name} deployments - Nomad`);
+    assert.equal(document.title, `Job ${job.name} deployments - Norca`);
   });
 
   test('each deployment mentions the deployment shortId, status, version, and time since it was submitted', async function (assert) {
@@ -79,9 +79,10 @@ module('Acceptance | job deployments', function (hooks) {
       'Short ID'
     );
     assert.equal(deploymentRow.status, deployment.status, 'Status');
-    assert.ok(
-      deploymentRow.statusClass.includes(classForStatus(deployment.status)),
-      'Status Class'
+    assert.equal(
+      deploymentRow.statusAttr,
+      deployment.status,
+      'Status attribute'
     );
     assert.ok(
       deploymentRow.version.includes(deployment.versionNumber),
@@ -266,12 +267,12 @@ module('Acceptance | job deployments', function (hooks) {
       'One row per allocation'
     );
 
-    const allocation = allocations[0];
+    // The rows are sorted by the table, not in the order of the store.
     const allocationRow = deploymentRow.allocations.objectAt(0);
-
-    assert.equal(
-      allocationRow.shortId,
-      allocation.id.split('-')[0],
+    assert.ok(
+      allocations
+        .map((allocation) => allocation.id.split('-')[0])
+        .includes(allocationRow.shortId),
       'Allocation is as expected'
     );
   });
@@ -298,18 +299,6 @@ module('Acceptance | job deployments', function (hooks) {
       'Error message is for 404'
     );
   });
-
-  function classForStatus(status) {
-    const classMap = {
-      running: 'is-running',
-      successful: 'is-primary',
-      paused: 'is-light',
-      failed: 'is-error',
-      cancelled: 'is-cancelled',
-    };
-
-    return classMap[status] || 'is-dark';
-  }
 
   function promotionTestForTaskGroup(taskGroup) {
     if (taskGroup.desiredCanaries > 0 && taskGroup.promoted === false) {

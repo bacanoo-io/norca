@@ -1,0 +1,23 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+<li
+  class="norca-lifecycle-row norca-lifecycle-{{this.task.lifecycleName}} {{if this.activeClass 'norca-lifecycle-active'}} {{if this.finishedClass 'norca-lifecycle-finished'}}"
+  data-test-lifecycle-task
+  data-test-lifecycle-name={{this.task.lifecycleName}}
+  data-test-lifecycle-state={{if this.activeClass "active" (if this.finishedClass "finished")}}
+>
+  <div class="norca-lifecycle-task">
+    <div class="fw-medium" data-test-name>
+      {{#if this.taskState}}
+        <LinkTo @route="allocations.allocation.task" @models={{array this.taskState.allocation this.taskState}}>{{this.task.name}}</LinkTo>
+      {{else}}
+        {{this.task.name}}
+      {{/if}}
+    </div>
+    <div class="small text-secondary" data-test-lifecycle>{{capitalize this.lifecycleLabel}} Task</div>
+  </div>
+</li>

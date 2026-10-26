@@ -5,8 +5,6 @@
 
 import Route from '@ember/routing/route';
 
-export default class IndexRoute extends Route {
-  redirect() {
-    this.transitionTo('jobs');
-  }
-}
+// The overview dashboard is the landing page; it loads its own data (see
+// components/dashboard).
+export default class IndexRoute extends Route {}

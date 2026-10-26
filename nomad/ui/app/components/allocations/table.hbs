@@ -1,0 +1,66 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::DataTable
+  @id={{or @id (concat "allocations-" this.context)}}
+  @caption={{or @caption "Allocations"}}
+  @columns={{this.columns}}
+  @rows={{this.sortedAllocations}}
+  @sortBy={{this.sortBy}}
+  @sortDescending={{this.sortDescending}}
+  @onSort={{this.sort}}
+  @pageSize={{@pageSize}}
+  @page={{@page}}
+  @onPageChange={{@onPageChange}}
+  @onPageSizeChange={{@onPageSizeChange}}
+  @onRowClick={{this.gotoAllocation}}
+  @enumerate={{true}}
+  @columnPicker={{@columnPicker}}
+  @viewState={{@viewState}}
+  @onApplyView={{@onApplyView}}
+  @noun="allocations"
+  @emptyMessage={{@emptyMessage}}
+  data-test-allocations-table
+  ...attributes
+>
+  <:filters>
+    {{yield to="filters"}}
+  </:filters>
+  <:actions>
+    <Ui::Switch
+      @switch={{true}}
+      @label="Show tasks"
+      @checked={{this.showSubTasks}}
+      @onChange={{this.toggleSubTasks}}
+      class="mb-0"
+      data-test-show-tasks
+    />
+  </:actions>
+  <:row as |allocation r|>
+    <Allocations::Row
+      @allocation={{allocation}}
+      @r={{r}}
+      @context={{this.context}}
+      @showSubTasks={{this.showSubTasks}}
+      @activeTask={{@activeTask}}
+      @onSetActiveTask={{@onSetActiveTask}}
+    />
+  </:row>
+  <:empty>
+    {{#if (has-block "empty")}}
+      {{yield to="empty"}}
+    {{else}}
+      <Ui::EmptyState
+        @icon="box"
+        @title="No allocations"
+        @message="No allocations have been placed."
+        data-test-empty-allocations-list
+      />
+    {{/if}}
+  </:empty>
+</Ui::DataTable>
+
+{{#if this.activeTaskState}}
+  <Allocations::TaskLogPanel @task={{this.activeTaskState}} @onClose={{this.closeLogs}} />
+{{/if}}

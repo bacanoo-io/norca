@@ -158,13 +158,16 @@ func (c *jobCanonicalizer) Mutate(job *structs.Job) (*structs.Job, []error, erro
 
 // jobImpliedConstraints adds constraints to a job implied by other job fields
 // and blocks.
-type jobImpliedConstraints struct{}
+type jobImpliedConstraints struct {
+	// srv is the server; nil keeps the constraints of Nomad (tests).
+	srv *Server
+}
 
 func (jobImpliedConstraints) Name() string {
 	return "constraints"
 }
 
-func (jobImpliedConstraints) Mutate(j *structs.Job) (*structs.Job, []error, error) {
+func (c jobImpliedConstraints) Mutate(j *structs.Job) (*structs.Job, []error, error) {
 	// Get the Vault blocks in the job
 	vaultBlocks := j.Vault()
 
@@ -188,9 +191,15 @@ func (jobImpliedConstraints) Mutate(j *structs.Job) (*structs.Job, []error, erro
 	// this single loop, with a new constraintMatcher if needed.
 	for _, tg := range j.TaskGroups {
 
-		// If the task group utilises Vault, run the mutator.
+		// If the task group utilises Vault, run the mutator. Without Vault,
+		// the clients that serve vault blocks from the built-in secret
+		// store (Norca).
 		if _, ok := vaultBlocks[tg.Name]; ok {
-			mutateConstraint(constraintMatcherLeft, tg, vaultConstraint)
+			if c.srv != nil && c.srv.vaultFallbackActive() {
+				mutateConstraint(constraintMatcherLeft, tg, vaultCompatConstraint)
+			} else {
+				mutateConstraint(constraintMatcherLeft, tg, vaultConstraint)
+			}
 		}
 
 		// Check whether the task group is using signals. In the case that it

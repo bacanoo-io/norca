@@ -1,0 +1,39 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{! template-lint-disable no-invalid-interactive }}
+<div
+  class="modal modal-blur show d-block"
+  tabindex="-1"
+  data-test-modal
+  {{on "click" this.backdropClick}}
+>
+  <div
+    class="modal-dialog modal-dialog-centered {{this.sizeClass}}"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby={{this.titleId}}
+    {{ui-focus-trap onEscape=this.close}}
+    ...attributes
+  >
+    <div class="modal-content">
+      {{#if @tone}}<div class="modal-status bg-{{if (eq @tone 'danger') 'danger' @tone}}"></div>{{/if}}
+      <div class="modal-header">
+        <h2 class="modal-title" id={{this.titleId}} data-test-modal-title>{{@title}}</h2>
+        <button
+          type="button"
+          class="btn-close"
+          aria-label="Close"
+          data-test-modal-close
+          {{on "click" this.close}}
+        ></button>
+      </div>
+      <div class="modal-body" data-test-modal-body>{{yield}}</div>
+      {{#if (has-block "footer")}}
+        <div class="modal-footer" data-test-modal-footer>{{yield to="footer"}}</div>
+      {{/if}}
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop show"></div>

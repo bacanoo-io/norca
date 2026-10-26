@@ -8,29 +8,34 @@ import {
   clickable,
   collection,
   create,
-  hasClass,
+  isPresent,
   text,
   visitable,
 } from 'ember-cli-page-object';
 
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
+import { filterFacet } from 'nomad-ui/tests/pages/components/facet';
 import TopoViz from 'nomad-ui/tests/pages/components/topo-viz';
-import notification from 'nomad-ui/tests/pages/components/notification';
 
 export default create({
   visit: visitable('/topology'),
 
-  infoPanelTitle: text('[data-test-info-panel-title]'),
-  filteredNodesWarning: notification('[data-test-filtered-nodes-warning]'),
+  infoPanelTitle: text('[data-test-info-panel-title] [data-test-card-title]'),
+  filteredNodesWarning: {
+    scope: '[data-test-filtered-nodes-warning]',
+    isPresent: isPresent(),
+    title: text('[data-test-alert-title]'),
+    message: text('[data-test-message]'),
+    dismiss: clickable('[data-test-alert-dismiss]'),
+  },
 
   viz: TopoViz('[data-test-topo-viz]'),
 
   facets: {
-    nodePool: multiFacet('[data-test-node-pool-facet]'),
-    datacenter: multiFacet('[data-test-datacenter-facet]'),
-    class: multiFacet('[data-test-class-facet]'),
-    state: multiFacet('[data-test-state-facet]'),
-    version: multiFacet('[data-test-version-facet]'),
+    nodePool: filterFacet('[data-test-node-pool-facet]'),
+    datacenter: filterFacet('[data-test-datacenter-facet]'),
+    class: filterFacet('[data-test-class-facet]'),
+    state: filterFacet('[data-test-state-facet]'),
+    version: filterFacet('[data-test-version-facet]'),
   },
 
   clusterInfoPanel: {
@@ -39,9 +44,15 @@ export default create({
     allocCount: text('[data-test-alloc-count]'),
     nodePoolCount: text('[data-test-node-pool-count]'),
 
-    memoryProgressValue: attribute('value', '[data-test-memory-progress-bar]'),
+    memoryProgressValue: attribute(
+      'aria-valuenow',
+      '[data-test-memory-progress-bar]'
+    ),
     memoryAbsoluteValue: text('[data-test-memory-absolute-value]'),
-    cpuProgressValue: attribute('value', '[data-test-cpu-progress-bar]'),
+    cpuProgressValue: attribute(
+      'aria-valuenow',
+      '[data-test-cpu-progress-bar]'
+    ),
     cpuAbsoluteValue: text('[data-test-cpu-absolute-value]'),
   },
 
@@ -57,14 +68,20 @@ export default create({
     status: text('[data-test-status]'),
 
     drainingLabel: text('[data-test-draining]'),
-    drainingIsAccented: hasClass('is-info', '[data-test-draining]'),
+    drainingIsAccented: isPresent('[data-test-draining][data-test-accented]'),
 
     eligibleLabel: text('[data-test-eligible]'),
-    eligibleIsAccented: hasClass('is-warning', '[data-test-eligible]'),
+    eligibleIsAccented: isPresent('[data-test-eligible][data-test-accented]'),
 
-    memoryProgressValue: attribute('value', '[data-test-memory-progress-bar]'),
+    memoryProgressValue: attribute(
+      'aria-valuenow',
+      '[data-test-memory-progress-bar]'
+    ),
     memoryAbsoluteValue: text('[data-test-memory-absolute-value]'),
-    cpuProgressValue: attribute('value', '[data-test-cpu-progress-bar]'),
+    cpuProgressValue: attribute(
+      'aria-valuenow',
+      '[data-test-cpu-progress-bar]'
+    ),
     cpuAbsoluteValue: text('[data-test-cpu-absolute-value]'),
   },
 

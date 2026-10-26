@@ -1,0 +1,23 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if @dotOnly}}
+  <span
+    class="status-dot status-{{this.color}} {{if @animated 'status-dot-animated'}}"
+    role="img"
+    aria-label={{this.label}}
+    title={{this.label}}
+    data-test-status-indicator={{this.tone}}
+    ...attributes
+  ></span>
+{{else}}
+  <span
+    class="status status-{{this.color}} {{if @lite 'status-lite'}}"
+    data-test-status-indicator={{this.tone}}
+    ...attributes
+  >
+    <span class="status-dot {{if @animated 'status-dot-animated'}}"></span>
+    {{#if (has-block)}}{{yield}}{{else}}{{this.label}}{{/if}}
+  </span>
+{{/if}}

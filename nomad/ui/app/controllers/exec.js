@@ -119,7 +119,7 @@ export default class ExecController extends Controller {
       );
       this.terminal.writeln('');
       this.terminal.write(
-        `$ nomad alloc exec -i -t -task ${escapeTaskName(taskName)} ${
+        `$ norca alloc exec -i -t -task ${escapeTaskName(taskName)} ${
           this.taskState.allocation.shortId
         } `
       );

@@ -1,0 +1,17 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+
+  The roles or policies linked to a token or a role, as badges; links when
+  the token may read them.
+~}}
+{{#each @items as |item|}}
+  {{#if (can @permission)}}
+    <LinkTo @route={{@route}} @model={{get item @idKey}} class="me-1"><Ui::Badge @color="secondary" class="mb-1">{{item.name}}</Ui::Badge></LinkTo>
+  {{else}}
+    <Ui::Badge @color="secondary" class="me-1 mb-1">{{item.name}}</Ui::Badge>
+  {{/if}}
+{{else}}
+  <span class="text-secondary">{{@empty}}</span>
+{{/each}}

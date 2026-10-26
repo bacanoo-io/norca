@@ -190,11 +190,14 @@ export default class TopoViz extends Component {
   }
 
   @action showTooltip(allocation, element) {
+    // Positioned relative to the visualization (position: relative), so
+    // the tooltip follows the page however the frame scrolls.
     const bbox = element.getBoundingClientRect();
+    const origin = this.element.getBoundingClientRect();
     this.highlightAllocation = allocation;
     this.tooltipProps = {
-      left: window.scrollX + bbox.left + bbox.width / 2,
-      top: window.scrollY + bbox.top,
+      left: bbox.left - origin.left + bbox.width / 2,
+      top: bbox.top - origin.top,
     };
   }
 
@@ -284,13 +287,17 @@ export default class TopoViz extends Component {
 
       // 2. Collect the mem and cpu pairs for all selected allocs
       const selectedMem = Array.from(
-        this.element.querySelectorAll('.memory .bar.is-selected')
+        this.element.querySelectorAll(
+          '.norca-topo-memory .norca-topo-bar.norca-topo-selected'
+        )
       );
       const selectedPairs = selectedMem.map((mem) => {
         const id = mem.closest('[data-allocation-id]').dataset.allocationId;
         const cpu = mem
-          .closest('.topo-viz-node')
-          .querySelector(`.cpu .bar[data-allocation-id="${id}"]`);
+          .closest('.norca-topo-node')
+          .querySelector(
+            `.norca-topo-cpu .norca-topo-bar[data-allocation-id="${id}"]`
+          );
         return [mem, cpu];
       });
       const selectedPoints = selectedPairs.map((pair) => {
@@ -325,7 +332,10 @@ export default class TopoViz extends Component {
       });
 
       this.activeEdges = curves.map((curve) => path(curve));
-      this.edgeOffset = { x: window.scrollX, y: window.scrollY };
+      // The points are viewport coordinates; the edges are drawn in the
+      // visualization's own coordinates.
+      const origin = this.element.getBoundingClientRect();
+      this.edgeOffset = { x: -origin.left, y: -origin.top };
     });
   }
 }

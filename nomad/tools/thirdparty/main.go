@@ -11,11 +11,13 @@
 // The notices cover the Go modules linked into the shipped binaries on every
 // release platform (see binaries and platforms below), found with
 // `go list -deps`, and the production npm dependencies of the web UI, found
-// in nomad/ui/package.json and nomad/ui/yarn.lock. The license files and
-// NOTICE files come from the Go module cache (`go list` downloads missing
-// modules) and from nomad/ui/node_modules, or, for packages missing there,
-// from the registry tarballs named in yarn.lock, verified against their
-// integrity hashes and cached in the user cache directory.
+// in nomad/ui/package.json and nomad/ui/yarn.lock. Third-party Go source
+// copied into the repository (sourceCopies) is listed like a module. The
+// license files and NOTICE files come from the Go module cache (`go list`
+// downloads missing modules), from the directory of a source copy, and from
+// nomad/ui/node_modules, or, for packages missing there, from the registry
+// tarballs named in yarn.lock, verified against their integrity hashes and
+// cached in the user cache directory.
 //
 // Every license must be on the allow-list; anything else fails the run,
 // unless overrides.go records a decision for the component. A decision
@@ -35,6 +37,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // binary describes a shipped executable.
@@ -95,6 +98,40 @@ var (
 	allowedGo  = setOf("MPL-2.0", "Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC")
 	allowedNPM = setOf("MPL-2.0", "Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD", "CC0-1.0")
 )
+
+// sourceCopy is third-party Go source copied into a Norca module (a git
+// subtree). `go list` reports its packages as Norca's own; they are listed
+// as a component of their own, with the license files of Dir.
+type sourceCopy struct {
+	// Path and Version identify the upstream module and release.
+	Path, Version string
+	// Dir is the directory of the copy, relative to the repository root.
+	Dir string
+	// ImportPath is the import path of Dir in the Norca module.
+	ImportPath string
+}
+
+// sourceCopies are the third-party source copies. Update the version
+// together with the `git subtree pull`.
+var sourceCopies = []sourceCopy{
+	{
+		Path:       "github.com/cwolsen7905/ubixvault",
+		Version:    "v1.5.0",
+		Dir:        "nomad/secretstore/ubix",
+		ImportPath: "github.com/hashicorp/nomad/secretstore/ubix",
+	},
+}
+
+// findSourceCopy returns the source copy a package belongs to, or nil.
+func findSourceCopy(importPath string) *sourceCopy {
+	for i := range sourceCopies {
+		c := &sourceCopies[i]
+		if importPath == c.ImportPath || strings.HasPrefix(importPath, c.ImportPath+"/") {
+			return c
+		}
+	}
+	return nil
+}
 
 // forbiddenNPM lists packages that must not be shipped regardless of their
 // license (docs/licensing.md, "Prohibited").

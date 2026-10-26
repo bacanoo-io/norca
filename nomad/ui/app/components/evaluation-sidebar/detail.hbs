@@ -1,176 +1,98 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{#let this.currentEvalDetail as |evaluation|}}
   {{#if this.isSideBarOpen}}
-    {{keyboard-commands this.keyCommands}}
-  {{/if}}
-  <Portal @target="eval-detail-portal">
-    <div
+    <Ui::SidePanel
+      @onClose={{this.closeSidebar}}
       data-test-eval-detail
-      data-test-eval-detail-is-open={{this.isSideBarOpen}}
-      class="sidebar {{if this.isSideBarOpen "open"}} evaluations-sidebar"
-      {{on-click-outside
-        this.closeSidebar
-        capture=true
-        exceptSelector="tr[data-eval-row]"
-      }}
+      data-test-eval-detail-is-open="true"
     >
-      {{#if this.isLoading}}
-        <div data-test-eval-loading>
-          <section class="section has-text-centered">
-            <LoadingSpinner />
-          </section>
-        </div>
-      {{/if}}
-      {{#if this.isError}}
-        <div data-test-eval-detail-header class="error-header">
-          <button
-            data-test-eval-sidebar-x
-            class="button is-borderless"
-            type="button"
-            {{on "click" this.closeSidebar}}
-          >
-            {{x-icon "cancel"}}
-          </button>
-        </div>
-        <div class="error-container">
-          <div data-test-eval-error class="error-message">
-            <h1 data-test-error-title class="title is-spaced">
-              Not Found
-            </h1>
-            <p data-test-error-message class="subtitle">
-              The requested evaluation could not be found. You may not be authorized to view this evaluation, it may have been garbage collected, or the ID is invalid.
-            </p>
+      <:title>
+        {{#if this.isSuccess}}
+          <span class="d-inline-flex align-items-center gap-2" data-test-eval-detail-header>
+            <span class="font-monospace" data-test-title>{{evaluation.shortId}}</span>
+            <Ui::StatusIndicator @status={{evaluation.status}} />
+          </span>
+        {{else if this.isError}}
+          <span data-test-eval-detail-header>Evaluation</span>
+        {{else}}
+          Evaluation
+        {{/if}}
+      </:title>
+      <:default>
+        {{#if this.isLoading}}
+          <div data-test-eval-loading class="py-4 text-center">
+            <Ui::Spinner @showLabel={{true}} @label="Loading the evaluation" />
           </div>
-        </div>
-      {{/if}}
-      {{#if this.isSuccess}}
-        {{! Evaluation Detail Header}}
-        <div data-test-eval-detail-header class="detail-header">
-          <h1 data-test-title class="title">
-            {{evaluation.shortId}}
-            <span class="bumper-left tag is-primary">
-              {{evaluation.status}}
-            </span>
-          </h1>
-          <button
-            data-test-eval-sidebar-x
-            class="button is-borderless"
-            type="button"
-            {{on "click" this.closeSidebar}}
+        {{/if}}
+        {{#if this.isError}}
+          <Ui::EmptyState
+            @icon="alert-triangle"
+            @title="Not Found"
+            data-test-eval-error
           >
-            {{x-icon "cancel"}}
-          </button>
-        </div>
-        {{! Start Evaluation Stats}}
-        <div class="boxed-section is-small">
-          <div
-            class="boxed-section-body inline-definitions"
-            style="display: flex;"
-          >
-            <span class="label" style="width: 6.125rem;">
-              Evaluation Details
-            </span>
-            <div style="display: flex; flex-direction: column">
-              <span class="pair">
-                <span class="term">
-                  Job
-                </span>
+            <p class="text-secondary" data-test-error-message>
+              The requested evaluation could not be found. You may not be authorized to view this evaluation,
+              it may have been garbage collected, or the ID is invalid.
+            </p>
+          </Ui::EmptyState>
+        {{/if}}
+        {{#if this.isSuccess}}
+          <Ui::Card @title="Evaluation details" class="mb-3" data-test-eval-details>
+            <Ui::Datagrid as |g|>
+              <g.Item @title="Job">
                 <LinkTo
                   data-test-evaluation-job
-                  @model={{concat evaluation.plainJobId "@" evaluation.namespace
-                  }}
+                  @model={{concat evaluation.plainJobId "@" evaluation.namespace}}
                   @route="jobs.job"
-                >
-                  {{evaluation.plainJobId}}
-                </LinkTo>
-              </span>
-              <span class="pair">
-                <span class="term">
-                  Triggered By
-                </span>
-                {{evaluation.triggeredBy}}
-              </span>
-            </div>
-            <div style="display: flex; flex-direction: column">
-              <span class="pair">
-                <span class="term">
-                  Priority
-                </span>
-                {{evaluation.priority}}
-              </span>
-            </div>
-            <div style="display: flex; flex-direction: column">
-              <span class="pair">
-                <span class="term">
-                  Created
-                </span>
-                {{format-month-ts evaluation.createTime}}
-              </span>
-              <span class="pair">
-                <span class="term">
-                  Placement Failure
-                </span>
-                {{evaluation.hasPlacementFailures}}
-              </span>
-            </div>
-          </div>
-        </div>
-        {{! Placement Failures}}
-        {{#if evaluation.failedTGAllocs}}
-          <div class="boxed-section is-danger">
-            <div class="boxed-section-head">
-              Placement Failures
-            </div>
-            <div class="boxed-section-body">
+                >{{evaluation.plainJobId}}</LinkTo>
+              </g.Item>
+              <g.Item @title="Triggered by">{{evaluation.triggeredBy}}</g.Item>
+              <g.Item @title="Priority">{{evaluation.priority}}</g.Item>
+              <g.Item @title="Created">{{format-month-ts evaluation.createTime}}</g.Item>
+              <g.Item @title="Placement failure">{{evaluation.hasPlacementFailures}}</g.Item>
+            </Ui::Datagrid>
+          </Ui::Card>
+
+          {{#if evaluation.failedTGAllocs}}
+            <Ui::Card @title="Placement failures" class="mb-3" data-test-eval-placement-failures>
               {{#each evaluation.failedTGAllocs as |placementFailure|}}
                 <PlacementFailure @failedTGAlloc={{placementFailure}} />
               {{/each}}
-            </div>
-          </div>
+            </Ui::Card>
+          {{/if}}
+
+          {{#if this.descendentsMap}}
+            <EvaluationSidebar::RelatedEvaluations
+              @fns={{hash
+                handleResize=this.handleResize
+                handleEvaluationClick=@fns.handleEvaluationClick
+              }}
+              @data={{hash
+                width=this.width
+                height=this.height
+                parentEvaluation=this.parentEvaluation
+                descendentsMap=this.descendentsMap
+                activeEvaluationID=this.currentEvalDetail.id
+              }}
+            />
+          {{else}}
+            <Ui::Card @title="Related evaluations" class="mb-3">
+              <p class="text-secondary mb-0" data-test-eval-error data-test-error-message>
+                The related evaluations cannot be visualized.
+              </p>
+            </Ui::Card>
+          {{/if}}
+
+          <Ui::Card @title="Evaluation response" data-test-eval-response>
+            <Ui::CodeBlock @code={{stringify-object evaluation}} @label="Evaluation response" @copy={{true}} data-test-json-viewer />
+          </Ui::Card>
         {{/if}}
-        {{! Related Evaluations}}
-        {{#if this.descendentsMap}}
-          <EvaluationSidebar::RelatedEvaluations
-            @fns={{hash
-              handleResize=this.handleResize
-              handleEvaluationClick=@fns.handleEvaluationClick
-            }}
-            @data={{hash
-              width=this.width
-              height=this.height
-              parentEvaluation=this.parentEvaluation
-              descendentsMap=this.descendentsMap
-              activeEvaluationID=this.currentEvalDetail.id
-            }}
-          />
-        {{else}}
-          <div class="boxed-section">
-            <div class="boxed-section-head">
-              Related Evaluations
-            </div>
-            <div class="boxed-section-body">
-              <div data-test-eval-error class="error-message title">
-                <p data-test-error-message class="subtitle">
-                  The related evaluations cannot be visualized.
-                </p>
-              </div>
-            </div>
-          </div>
-        {{/if}}
-        {{! Evaluation JSON Response}}
-        <div class="boxed-section evaluation-response">
-          <div class="boxed-section-head">
-            Evaluation Response
-          </div>
-          <div class="boxed-section-body is-full-bleed">
-            <JsonViewer @json={{evaluation}} />
-          </div>
-        </div>
-      {{/if}}
-    </div>
-  </Portal>
+      </:default>
+    </Ui::SidePanel>
+  {{/if}}
 {{/let}}

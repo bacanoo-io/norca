@@ -18,8 +18,8 @@ export default class JobTemplateEditor extends Component {
   }
 
   @action
-  updateDescription(event) {
-    this.args.updateKeyValue('description', event.target.value);
+  updateDescription(value) {
+    this.args.updateKeyValue('description', value);
   }
   @action
   updateTemplate(value) {

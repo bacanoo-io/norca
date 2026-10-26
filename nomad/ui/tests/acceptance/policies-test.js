@@ -53,7 +53,8 @@ module('Acceptance | policies', function (hooks) {
     assert.equal(currentURL(), `/access-control/policies/${firstPolicy.name}`);
     assert.dom('[data-test-policy-editor]').exists();
     assert.dom('[data-test-title]').includesText(firstPolicy.name);
-    await click('button[data-test-save-policy]');
+    await click('[data-test-editor-review-button]');
+    await click('[data-test-editor-submit]');
     assert.dom('.flash-message.alert-success').exists();
     assert.equal(
       currentURL(),
@@ -78,10 +79,16 @@ module('Acceptance | policies', function (hooks) {
     const newTokenRow = [
       ...findAll('[data-test-token-name="Example Token for Variable-Maker"]'),
     ][0].parentElement;
-    const newTokenDeleteButton = newTokenRow.querySelector(
-      '[data-test-delete-token-button]'
+    await click(
+      newTokenRow.querySelector(
+        '[data-test-delete-token-button] [data-test-idle-button]'
+      )
     );
-    await click(newTokenDeleteButton);
+    await click(
+      newTokenRow.querySelector(
+        '[data-test-delete-token-button] [data-test-confirm-button]'
+      )
+    );
     assert
       .dom('[data-test-token-name="Example Token for Variable-Maker"]')
       .doesNotExist('Token is deleted');
@@ -97,14 +104,16 @@ module('Acceptance | policies', function (hooks) {
     await click('[data-test-create-policy]');
     assert.equal(currentURL(), '/access-control/policies/new');
     await typeIn('[data-test-policy-name-input]', 'My Fun Policy');
-    await click('button[data-test-save-policy]');
+    await click('[data-test-editor-review-button]');
+    await click('[data-test-editor-submit]');
     assert
       .dom('.flash-message.alert-critical')
       .exists('Doesnt let you save a bad name');
     assert.equal(currentURL(), '/access-control/policies/new');
     document.querySelector('[data-test-policy-name-input]').value = ''; // clear
     await typeIn('[data-test-policy-name-input]', 'My-Fun-Policy');
-    await click('button[data-test-save-policy]');
+    await click('[data-test-editor-review-button]');
+    await click('[data-test-editor-submit]');
     assert.dom('.flash-message.alert-success').exists();
     assert.equal(
       currentURL(),
@@ -137,7 +146,8 @@ module('Acceptance | policies', function (hooks) {
     )[0];
     await click(firstPolicyLink);
     assert.equal(currentURL(), `/access-control/policies/${firstPolicyName}`);
-    await click('[data-test-delete-policy]');
+    await click('[data-test-delete-policy] [data-test-idle-button]');
+    await click('[data-test-delete-policy] [data-test-confirm-button]');
     assert.dom('.flash-message.alert-success').exists();
     assert.equal(currentURL(), '/access-control/policies');
     assert.dom(`[data-test-policy-name="${firstPolicyName}"]`).doesNotExist();
@@ -154,15 +164,21 @@ module('Acceptance | policies', function (hooks) {
       .dom('[data-test-policy-row]')
       .exists({ count: server.db.policies.length });
 
-    assert.dom('[data-test-empty-policies-list-headline]').doesNotExist();
+    assert.dom('[data-test-empty-policies-list]').doesNotExist();
 
     // Deleting all policies results in a message
     const policyRows = findAll('[data-test-policy-row]');
     for (const row of policyRows) {
-      const deleteButton = row.querySelector('[data-test-delete-policy]');
-      await click(deleteButton);
+      await click(
+        row.querySelector('[data-test-delete-policy] [data-test-idle-button]')
+      );
+      await click(
+        row.querySelector(
+          '[data-test-delete-policy] [data-test-confirm-button]'
+        )
+      );
     }
-    assert.dom('[data-test-empty-policies-list-headline]').exists();
+    assert.dom('[data-test-empty-policies-list]').exists();
     // Reset Token
     window.localStorage.nomadTokenSecret = null;
   });

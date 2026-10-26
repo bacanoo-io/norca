@@ -1,0 +1,97 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// Design tokens (UI plan, "Visual direction and design tokens").
+//
+// The visual identity is the neutral Tabler base (decision of 2026-10-24):
+// Tabler's primary color, surfaces and status colors are used as they are.
+// Norca adds only functional tokens on top:
+//
+// - region identifier colors: one per region, in a fixed order, used for
+//   the region marks and the columns of the federation strip;
+// - chart series colors, derived from the same palette;
+// - status tones (success, info, warning, danger, neutral) used for status
+//   only, mapped to Tabler's status colors;
+// - typography: Tabler's font stacks, tabular figures for numbers.
+
+:root,
+[data-bs-theme='light'] {
+  --norca-region-1: var(--tblr-azure);
+  --norca-region-2: var(--tblr-purple);
+  --norca-region-3: var(--tblr-orange);
+  --norca-region-4: var(--tblr-teal);
+  --norca-region-5: var(--tblr-pink);
+  --norca-region-6: var(--tblr-lime);
+
+  --norca-chart-1: var(--tblr-primary);
+  --norca-chart-2: var(--tblr-green);
+  --norca-chart-3: var(--tblr-orange);
+  --norca-chart-4: var(--tblr-red);
+  --norca-chart-5: var(--tblr-purple);
+  --norca-chart-6: var(--tblr-teal);
+
+  --norca-tone-success: var(--tblr-success);
+  --norca-tone-info: var(--tblr-info);
+  --norca-tone-warning: var(--tblr-warning);
+  --norca-tone-danger: var(--tblr-danger);
+  --norca-tone-neutral: var(--tblr-secondary);
+
+  --norca-font-sans: var(--tblr-font-sans-serif);
+  --norca-font-mono: var(--tblr-font-monospace);
+
+  --norca-sidebar-width: 15rem;
+  --norca-sidebar-collapsed-width: 4.25rem;
+}
+
+body {
+  font-feature-settings: 'tnum' 1;
+}
+
+// Visible focus everywhere (acceptance criteria: keyboard operable).
+:focus-visible {
+  outline: 2px solid var(--tblr-primary);
+  outline-offset: 2px;
+}
+
+// Reduced motion follows the system setting.
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.font-monospace,
+code,
+kbd,
+pre {
+  font-family: var(--norca-font-mono);
+}
+
+// Region marks: <span class="norca-region norca-region-2">eu-west</span>
+.norca-region {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+
+  &::before {
+    content: '';
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 2px;
+    background: var(--norca-region-color, var(--tblr-secondary));
+  }
+}
+
+@for $i from 1 through 6 {
+  .norca-region-#{$i} {
+    --norca-region-color: var(--norca-region-#{$i});
+  }
+}

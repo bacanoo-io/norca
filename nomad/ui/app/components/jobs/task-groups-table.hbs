@@ -1,0 +1,38 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="mb-3" data-test-task-groups>
+  <h2 class="h3 mb-2">Task groups</h2>
+  <Ui::DataTable
+    @id="job-task-groups"
+    @caption="Task groups"
+    @columns={{this.columns}}
+    @rows={{this.sortedTaskGroups}}
+    @rowKey="name"
+    @sortBy={{this.sortBy}}
+    @sortDescending={{this.sortDescending}}
+    @onSort={{this.sort}}
+    @onRowClick={{this.gotoTaskGroup}}
+    @enumerate={{true}}
+    @emptyMessage="The job has no task groups."
+  >
+    <:row as |taskGroup r|>
+      <r.Row data-test-task-group={{taskGroup.name}}>
+        <r.Cell @key="name" data-test-task-group-name>
+          <LinkTo @route="jobs.job.task-group" @models={{array @job taskGroup.name}}>{{taskGroup.name}}</LinkTo>
+        </r.Cell>
+        <r.Cell @key="count" data-test-task-group-count>
+          <Jobs::ScaleControls @taskGroup={{taskGroup}} @onError={{@onError}} />
+        </r.Cell>
+        <r.Cell @key="allocations" class="w-25" data-test-task-group-allocs>
+          <Jobs::AllocationSummary @summary={{taskGroup.summary}} @job={{@job}} @compact={{true}} @noLegend={{true}} />
+        </r.Cell>
+        <r.Cell @key="volume" data-test-task-group-volume>{{if taskGroup.volumes.length "Yes"}}</r.Cell>
+        <r.Cell @key="cpu" class="tabular-nums" data-test-task-group-cpu>{{format-scheduled-hertz taskGroup.reservedCPU}}</r.Cell>
+        <r.Cell @key="memory" class="tabular-nums" data-test-task-group-mem>{{format-scheduled-bytes taskGroup.reservedMemory start="MiB"}}</r.Cell>
+        <r.Cell @key="disk" class="tabular-nums" data-test-task-group-disk>{{format-scheduled-bytes taskGroup.reservedEphemeralDisk start="MiB"}}</r.Cell>
+      </r.Row>
+    </:row>
+  </Ui::DataTable>
+</div>

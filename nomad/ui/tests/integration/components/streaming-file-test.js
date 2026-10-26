@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { run } from '@ember/runloop';
+import { _cancelTimers as cancelTimers, later } from '@ember/runloop';
 import { find, render, triggerKeyEvent } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
@@ -46,7 +46,7 @@ module('Integration | Component | streaming file', function (hooks) {
   });
 
   const commonTemplate = hbs`
-    <StreamingFile @logger={{logger}} @mode={{mode}} @isStreaming={{isStreaming}} />
+    <StreamingFile @logger={{this.logger}} @mode={{this.mode}} @isStreaming={{this.isStreaming}} />
   `;
 
   test('when mode is `head`, the logger signals head', async function (assert) {
@@ -107,7 +107,7 @@ module('Integration | Component | streaming file', function (hooks) {
 
     assert.ok(true);
 
-    run.later(run, run.cancelTimers, 500);
+    later(cancelTimers, 500);
 
     await render(commonTemplate);
 
@@ -127,7 +127,7 @@ module('Integration | Component | streaming file', function (hooks) {
 
     await render(hbs`
       Extra text
-      <StreamingFile @logger={{logger}} @mode={{mode}} @isStreaming={{isStreaming}} />
+      <StreamingFile @logger={{this.logger}} @mode={{this.mode}} @isStreaming={{this.isStreaming}} />
       On either side
     `);
 

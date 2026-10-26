@@ -14,14 +14,14 @@ import {
 } from 'ember-cli-page-object';
 
 import error from 'nomad-ui/tests/pages/components/error';
-import pageSizeSelect from 'nomad-ui/tests/pages/components/page-size-select';
+import { nativePageSizeSelect } from 'nomad-ui/tests/pages/components/page-size-select';
 
 export default create({
   pageSize: 25,
 
   visit: visitable('/csi/plugins'),
 
-  search: fillable('[data-test-plugins-search] input'),
+  search: fillable('[data-test-plugins-search]'),
 
   plugins: collection('[data-test-plugin-row]', {
     id: text('[data-test-plugin-id]'),
@@ -33,14 +33,16 @@ export default create({
     clickName: clickable('[data-test-plugin-id] a'),
   }),
 
-  nextPage: clickable('[data-test-pager="next"]'),
-  prevPage: clickable('[data-test-pager="prev"]'),
+  nextPage: clickable('[data-test-pagination-next]'),
+  prevPage: clickable('[data-test-pagination-prev]'),
 
   isEmpty: isPresent('[data-test-empty-plugins-list]'),
   emptyState: {
-    headline: text('[data-test-empty-plugins-list-headline]'),
+    headline: text(
+      '[data-test-empty-plugins-list] [data-test-empty-state-title]'
+    ),
   },
 
   error: error(),
-  pageSizeSelect: pageSizeSelect(),
+  pageSizeSelect: nativePageSizeSelect(),
 });

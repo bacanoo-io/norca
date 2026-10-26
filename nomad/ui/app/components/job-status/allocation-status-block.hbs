@@ -1,14 +1,15 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 <div
-  class="allocation-status-block {{unless this.countToShow "rest-only"}}"
+  class="norca-alloc-status-block {{unless this.countToShow 'norca-rest-only'}}"
   style={{html-safe (concat "width: " @width "px")}}
 >
   {{#if this.countToShow}}
-    <div class="ungrouped-allocs">
+    <div class="norca-alloc-blocks">
       {{#each (range 0 this.countToShow) as |i|}}
         <JobStatus::IndividualAllocation
           @allocation={{get @allocs i}}
@@ -21,32 +22,20 @@
     </div>
   {{/if}}
   {{#if this.remaining}}
-
-    <ConditionalLinkTo
-      @condition={{not (eq @status "unplaced")}}
-      @route="jobs.job.allocations"
-      @model={{@allocs.0.job}}
-      @query={{hash status=(concat '["' @status '"]') version=(concat '[' @allocs.0.jobVersion ']')}}
-      @class="represented-allocation rest {{@status}} {{@health}} {{@canary}}"
-      @label="View all {{@status}} allocations"
-    >
-      <span class="rest-count">{{#if this.countToShow}}+{{/if}}{{this.remaining}}</span>
-      {{#unless @steady}}
-        {{#if (eq @canary "canary")}}
-          <span class="alloc-canary-indicator" />
-        {{/if}}
-        {{#if (eq @status "running")}}
-          <span class="alloc-health-indicator">
-            {{#if (eq @health "healthy")}}
-              <FlightIcon @name="check" @color="#25ba81" />
-            {{else if (eq @health "unhealthy")}}
-              <FlightIcon @name="x" @color="#c84034" />
-            {{else}}
-              <FlightIcon @name="running" @color="black" />
-            {{/if}}
-          </span>
-        {{/if}}
-      {{/unless}}
-    </ConditionalLinkTo>
+    {{#if (not (eq @status "unplaced"))}}
+      <LinkTo
+        @route="jobs.job.allocations"
+        @model={{@allocs.0.job}}
+        @query={{hash status=(concat '["' @status '"]') version=(concat "[" @allocs.0.jobVersion "]")}}
+        class="norca-alloc norca-alloc-rest norca-alloc-{{@status}} norca-alloc-{{@health}} norca-alloc-{{@canary}}"
+        aria-label="View all {{@count}} {{@status}} allocations"
+      >
+        <JobStatus::AllocationRest @count={{this.remaining}} @plus={{this.countToShow}} @status={{@status}} @health={{@health}} @canary={{@canary}} @steady={{@steady}} />
+      </LinkTo>
+    {{else}}
+      <span class="norca-alloc norca-alloc-rest norca-alloc-{{@status}} norca-alloc-{{@health}} norca-alloc-{{@canary}}">
+        <JobStatus::AllocationRest @count={{this.remaining}} @plus={{this.countToShow}} @status={{@status}} @health={{@health}} @canary={{@canary}} @steady={{@steady}} />
+      </span>
+    {{/if}}
   {{/if}}
 </div>

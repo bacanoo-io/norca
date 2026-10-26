@@ -52,6 +52,12 @@ export default class SystemService extends Service {
             if (VersionMetadata)
               agent.version = `${agent.version}+${VersionMetadata}`;
           }
+          // The Norca product version and the Nomad API version the agent
+          // is compatible with; agents that predate Norca report neither.
+          if (agent) {
+            agent.norcaVersion = agent.norca_version || '';
+            agent.nomadVersion = agent.nomad_version || agent.version || '';
+          }
           return agent;
         }),
     });
@@ -137,19 +143,6 @@ export default class SystemService extends Service {
   }
 
   @task(function* () {
-    const emptyLicense = { License: { Features: [] } };
-
-    try {
-      return yield this.token
-        .authorizedRawRequest(`/${namespace}/operator/license`)
-        .then(jsonWithDefault(emptyLicense));
-    } catch (e) {
-      return emptyLicense;
-    }
-  })
-  fetchLicense;
-
-  @task(function* () {
     try {
       const request = yield this.token.authorizedRequest('/v1/search/fuzzy', {
         method: 'POST',
@@ -166,11 +159,5 @@ export default class SystemService extends Service {
   })
   checkFuzzySearchPresence;
 
-  @alias('fetchLicense.lastSuccessful.value') license;
   @alias('checkFuzzySearchPresence.last.value') fuzzySearchEnabled;
-
-  @computed('license.License.Features.[]')
-  get features() {
-    return this.get('license.License.Features') || [];
-  }
 }

@@ -1,15 +1,20 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
 {{page-title this.pathWithLeadingSlash " -  Task " this.taskState.name " filesystem"}}
-<TaskSubnav @task={{this.taskState}} />
-<Fs::Browser
-  @model={{this.taskState}}
-  @path={{this.path}}
-  @stat={{this.stat}}
-  @isFile={{this.isFile}}
-  @directoryEntries={{this.directoryEntries}}
-  @sortProperty={{this.sortProperty}}
-  @sortDescending={{this.sortDescending}} />
+<Allocations::Header @allocation={{this.taskState.allocation}} @task={{this.taskState}} />
+<Ui::PageBody>
+  <Allocations::Tabs @allocation={{this.taskState.allocation}} @task={{this.taskState}} />
+  <Fs::Browser
+    @model={{this.taskState}}
+    @path={{this.path}}
+    @stat={{this.stat}}
+    @isFile={{this.isFile}}
+    @directoryEntries={{this.directoryEntries}}
+    @sortProperty={{this.sortProperty}}
+    @sortDescending={{this.sortDescending}}
+    @onSort={{this.sort}}
+  />
+</Ui::PageBody>

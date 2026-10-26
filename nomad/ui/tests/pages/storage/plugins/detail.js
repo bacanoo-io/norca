@@ -28,8 +28,15 @@ export default create({
   ),
   nodeAvailabilityIsPresent: isPresent('[data-test-plugin-node-availability]'),
 
-  ...allocations('[data-test-controller-allocation]', 'controllerAllocations'),
-  ...allocations('[data-test-node-allocation]', 'nodeAllocations'),
+  // The two allocation tables (Storage::PluginAllocations) of the page.
+  controllerTable: {
+    scope: '[data-test-controller-allocations]',
+    ...allocations('[data-test-allocation]', 'controllerAllocations'),
+  },
+  nodeTable: {
+    scope: '[data-test-node-allocations]',
+    ...allocations('[data-test-allocation]', 'nodeAllocations'),
+  },
 
   goToControllerAllocations: clickable(
     '[data-test-go-to-controller-allocations]'
@@ -44,11 +51,15 @@ export default create({
 
   controllerTableIsEmpty: isPresent('[data-test-empty-controller-allocations]'),
   controllerEmptyState: {
-    headline: text('[data-test-empty-controller-allocations-headline]'),
+    headline: text(
+      '[data-test-empty-controller-allocations] [data-test-empty-state-title]'
+    ),
   },
 
   nodeTableIsEmpty: isPresent('[data-test-empty-node-allocations]'),
   nodeEmptyState: {
-    headline: text('[data-test-empty-node-allocations-headline]'),
+    headline: text(
+      '[data-test-empty-node-allocations] [data-test-empty-state-title]'
+    ),
   },
 });

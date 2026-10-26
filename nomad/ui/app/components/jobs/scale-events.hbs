@@ -1,0 +1,62 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The recent scaling events of a task group: a count timeline when most
+  events changed the count, and the list with the metadata of each event.
+~}}
+{{#if @events.length}}
+  {{#if this.showTimeline}}
+    <Ui::Card @title="Scaling timeline" class="mb-3" data-test-scaling-timeline>
+      <Ui::Chart @label="Count of the task group over time" @option={{this.chart}} @height={{180}}>
+        {{this.summary}}
+      </Ui::Chart>
+      {{#each this.annotations as |annotation|}}
+        <span class="visually-hidden" data-test-annotation>{{annotation}}</span>
+      {{/each}}
+    </Ui::Card>
+  {{/if}}
+  <Ui::Card @title="Recent scaling events" @flush={{true}} class="mb-3" data-test-scale-events>
+    <ul class="list-unstyled m-0">
+      {{#each @events as |event|}}
+        <li class="norca-scale-event" data-test-scale-event>
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <span class="d-inline-flex align-items-center gap-2 text-nowrap">
+              {{#if event.error}}
+                <Ui::Icon @name="circle-x" class="text-danger" @label="Error event" data-test-error />
+              {{/if}}
+              <span class="tabular-nums" title={{format-ts event.time}} data-test-time>{{format-month-ts event.time}}</span>
+            </span>
+            {{#if event.hasCount}}
+              <span class="d-inline-flex align-items-center gap-1">
+                <Ui::Icon
+                  @name={{if event.increased "arrow-up" "arrow-down"}}
+                  @label="Count {{if event.increased 'increased' 'decreased'}} to {{event.count}}"
+                  class={{if event.increased "text-danger" "text-primary"}}
+                  data-test-count-icon
+                />
+                <span data-test-count>{{event.count}}</span>
+              </span>
+            {{/if}}
+            <span class="flex-fill" data-test-message>{{event.message}}</span>
+            {{#if event.hasMeta}}
+              <Ui::Button
+                @size="sm"
+                @variant="ghost"
+                @icon={{if (includes event.uid this.open) "chevron-up" "chevron-down"}}
+                aria-expanded={{if (includes event.uid this.open) "true" "false"}}
+                data-test-scale-event-toggle
+                {{on "click" (fn this.toggle event.uid)}}
+              >Details</Ui::Button>
+            {{/if}}
+          </div>
+          {{#if (includes event.uid this.open)}}
+            <div class="mt-2" data-test-scale-event-meta>
+              <Ui::CodeBlock @code={{this.metaText event}} @label="Metadata of the scaling event" />
+            </div>
+          {{/if}}
+        </li>
+      {{/each}}
+    </ul>
+  </Ui::Card>
+{{/if}}

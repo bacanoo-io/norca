@@ -6,15 +6,12 @@
 import Controller from '@ember/controller';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
-import { tracked } from '@glimmer/tracking';
 import { task } from 'ember-concurrency';
 
 export default class JobsRunTemplatesController extends Controller {
   @service notifications;
   @service router;
   @service system;
-
-  @tracked formModalActive = false;
 
   @action
   updateKeyValue(key, value) {
@@ -23,11 +20,6 @@ export default class JobsRunTemplatesController extends Controller {
     } else {
       this.model.keyValues.pushObject({ key, value });
     }
-  }
-
-  @action
-  toggleModal() {
-    this.formModalActive = !this.formModalActive;
   }
 
   @action

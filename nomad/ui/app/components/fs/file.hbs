@@ -1,0 +1,55 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.noConnection}}
+  <Ui::Alert @tone="danger" @title="Cannot fetch file" class="mb-3" data-test-connection-error>
+    The files for this {{if this.taskState "task" "allocation"}} are inaccessible. Check the condition of the client the allocation is on.
+  </Ui::Alert>
+{{/if}}
+<Ui::Card @flush={{true}} class="norca-task-log" data-test-file-viewer>
+  <:actions>
+    <div class="d-flex flex-wrap align-items-center gap-2 w-100" data-test-header>
+      {{yield}}
+      <span class="d-inline-flex align-items-center gap-1 ms-auto">
+        {{#unless this.fileTypeIsUnknown}}
+          <Ui::Button @size="sm" @variant="ghost" @icon="download" data-test-log-action="raw" {{on "click" (action "downloadFile")}}>View Raw File</Ui::Button>
+        {{/unless}}
+        {{#if (and this.isLarge this.isStreamable)}}
+          <Ui::Button @size="sm" @variant="ghost" data-test-log-action="head" {{on "click" (action "gotoHead")}}>Head</Ui::Button>
+          <Ui::Button @size="sm" @variant="ghost" data-test-log-action="tail" {{on "click" (action "gotoTail")}}>Tail</Ui::Button>
+        {{/if}}
+        {{#if this.isStreamable}}
+          <Ui::Button
+            @size="sm"
+            @variant="ghost"
+            @icon={{if this.logger.isStreaming "player-pause" "player-play"}}
+            @iconOnly={{true}}
+            @label="{{if this.logger.isStreaming "Pause" "Start"}} streaming"
+            data-test-log-action="toggle-stream"
+            {{on "click" (action "toggleStream")}}
+          />
+        {{/if}}
+      </span>
+    </div>
+  </:actions>
+  <:default>
+    <div data-test-file-box class={{if (eq this.fileComponent "stream") "norca-log-box" "p-3"}}>
+      {{#if (eq this.fileComponent "stream")}}
+        <StreamingFile @logger={{this.logger}} @mode={{this.mode}} @isStreaming={{this.isStreaming}} />
+      {{else if (eq this.fileComponent "image")}}
+        <ImageFile @src={{this.catUrl}} @alt={{this.stat.Name}} @size={{this.stat.Size}} />
+      {{else}}
+        <Ui::EmptyState
+          @icon="file-text"
+          @title="Unsupported File Type"
+          @message="Norca could not render this file, but you can still view the file directly."
+          data-test-unsupported-type
+        >
+          <Ui::Button @variant="secondary" @icon="download" data-test-log-action="raw" {{on "click" (action "downloadFile")}}>View Raw File</Ui::Button>
+        </Ui::EmptyState>
+      {{/if}}
+    </div>
+  </:default>
+</Ui::Card>

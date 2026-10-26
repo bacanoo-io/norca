@@ -14,7 +14,7 @@ import classic from 'ember-classic-decorator';
 
 @classic
 @tagName('figure')
-@classNames('image-file')
+@classNames('norca-image-figure')
 @attributeBindings('data-test-image-file')
 export default class ImageFile extends Component {
   'data-test-image-file' = true;

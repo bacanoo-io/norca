@@ -15,8 +15,11 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import { multiFacet, singleFacet } from 'nomad-ui/tests/pages/components/facet';
-import pageSizeSelect from 'nomad-ui/tests/pages/components/page-size-select';
+import {
+  filterFacet,
+  nativeSingleFacet,
+} from 'nomad-ui/tests/pages/components/facet';
+import { nativePageSizeSelect } from 'nomad-ui/tests/pages/components/page-size-select';
 
 export default create({
   pageSize: 25,
@@ -24,7 +27,7 @@ export default create({
   visit: visitable('/jobs'),
 
   search: {
-    scope: '[data-test-jobs-search] input',
+    scope: '[data-test-jobs-search]',
     keydown: triggerable('keydown'),
   },
 
@@ -49,12 +52,12 @@ export default create({
     clickName: clickable('[data-test-job-name] a'),
   }),
 
-  nextPage: clickable('[data-test-pager="next"]'),
-  prevPage: clickable('[data-test-pager="prev"]'),
+  nextPage: clickable('[data-test-pagination-next]'),
+  prevPage: clickable('[data-test-pagination-prev]'),
 
   isEmpty: isPresent('[data-test-empty-jobs-list]'),
   emptyState: {
-    headline: text('[data-test-empty-jobs-list-headline]'),
+    headline: text('[data-test-empty-jobs-list] [data-test-empty-state-title]'),
   },
 
   error: {
@@ -67,13 +70,13 @@ export default create({
     gotoSignin: clickable('[data-test-error-signin-link]'),
   },
 
-  pageSizeSelect: pageSizeSelect(),
+  pageSizeSelect: nativePageSizeSelect(),
 
   facets: {
-    namespace: singleFacet('[data-test-namespace-facet]'),
-    type: multiFacet('[data-test-type-facet]'),
-    status: multiFacet('[data-test-status-facet]'),
-    datacenter: multiFacet('[data-test-datacenter-facet]'),
-    prefix: multiFacet('[data-test-prefix-facet]'),
+    namespace: nativeSingleFacet('[data-test-namespace-facet]'),
+    type: filterFacet('[data-test-type-facet]'),
+    status: filterFacet('[data-test-status-facet]'),
+    datacenter: filterFacet('[data-test-datacenter-facet]'),
+    prefix: filterFacet('[data-test-prefix-facet]'),
   },
 });

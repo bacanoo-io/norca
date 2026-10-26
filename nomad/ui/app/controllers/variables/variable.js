@@ -4,8 +4,16 @@
  */
 
 import Controller from '@ember/controller';
+import breadcrumbItems from 'nomad-ui/utils/breadcrumb-items';
 
 export default class VariablesVariableController extends Controller {
+  get breadcrumbItems() {
+    return [
+      { label: 'Variables', route: 'variables.index', id: 'variables.index' },
+      ...breadcrumbItems(this.breadcrumbs),
+    ];
+  }
+
   get breadcrumbs() {
     let crumbs = [];
     let id = decodeURI(this.params.id.split('@').slice(0, -1).join('@')); // remove namespace

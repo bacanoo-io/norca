@@ -365,6 +365,10 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Auxiliary processes (e.g. background, bookkeeping, and cleanup tasks can start after)
 	s.setConsistentReadReady()
 
+	// Hand the HA lock of the built-in secret store to this server; the
+	// state store is caught up, so its core can become active.
+	s.secretStore.SetLeader(true)
+
 	// Further clean ups and follow up that don't block RPC consistency
 
 	// Create the first root key if it doesn't already exist
@@ -1446,6 +1450,10 @@ func (s *Server) revokeLeadership() error {
 	defer metrics.MeasureSince([]string{"nomad", "leader", "revoke_leadership"}, time.Now())
 
 	s.resetConsistentReadReady()
+
+	// End the HA lock of the built-in secret store first, so that its core
+	// stops acting as active before anything else is torn down.
+	s.secretStore.SetLeader(false)
 
 	// Clear the leader token since we are no longer the leader.
 	s.setLeaderAcl("")
@@ -2715,6 +2723,13 @@ func (s *Server) initializeKeyring(stopCh <-chan struct{}) {
 			break
 		}
 	}
+	// Norca: the first key can only be stored once the seal can wrap it (a
+	// new region with a shares seal waits for its first rewrap, a sealed
+	// leader for its unseal)
+	if !s.seal.waitUnsealed(stopCh) {
+		return
+	}
+
 	// we might have lost leadership during the version check
 	if !s.IsLeader() {
 		return

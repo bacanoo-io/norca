@@ -1,0 +1,37 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The logs and the recent events of a task in a side panel, opened from the
+  task rows of the allocation lists.
+~}}
+<Ui::SidePanel @onClose={{@onClose}} data-test-task-context-sidebar>
+  <:title>
+    <span class="d-inline-flex align-items-center gap-2">
+      {{@task.name}}
+      <Ui::StatusIndicator @status={{@task.state}} />
+    </span>
+  </:title>
+  <:actions>
+    <Ui::Button @size="sm" @route="allocations.allocation.task" @models={{array @task.allocation @task}} data-test-task-page-link>
+      Task page
+    </Ui::Button>
+  </:actions>
+  <:default>
+    {{#if @task.events.length}}
+      <h3 class="h4">Recent events</h3>
+      <Ui::Table
+        @caption="Recent events of {{@task.name}}"
+        @columns={{array (hash key="time" label="Time") (hash key="type" label="Type") (hash key="message" label="Description")}}
+        @rows={{reverse @task.events}}
+        class="mb-3"
+        as |event|
+      >
+        <td class="text-nowrap tabular-nums" data-test-task-event-time>{{format-ts event.time}}</td>
+        <td data-test-task-event-type>{{event.type}}</td>
+        <td data-test-task-event-message>{{or event.message "No message"}}</td>
+      </Ui::Table>
+    {{/if}}
+    <TaskLog @allocation={{@task.allocation}} @task={{@task.name}} @shouldFillHeight={{false}} />
+  </:default>
+</Ui::SidePanel>

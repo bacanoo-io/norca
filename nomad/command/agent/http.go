@@ -500,6 +500,9 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/search", s.wrap(s.SearchRequest))
 	s.mux.HandleFunc("/v1/operator/raft/", s.wrap(s.OperatorRequest))
 	s.mux.HandleFunc("/v1/operator/keyring/", s.wrap(s.KeyringRequest))
+	s.mux.HandleFunc("/v1/operator/seal", s.wrap(s.OperatorSealStatusRequest))
+	s.mux.HandleFunc("/v1/operator/unseal", s.wrap(s.OperatorUnsealRequest))
+	s.mux.HandleFunc("/v1/operator/seal/recover", s.wrap(s.OperatorSealRecoverRequest))
 	s.mux.HandleFunc("/v1/operator/autopilot/configuration", s.wrap(s.OperatorAutopilotConfiguration))
 	s.mux.HandleFunc("/v1/operator/autopilot/health", s.wrap(s.OperatorServerHealth))
 	s.mux.HandleFunc("/v1/operator/snapshot", s.wrap(s.SnapshotRequest))
@@ -524,6 +527,10 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 
 	s.mux.Handle("/v1/vars", wrapCORS(s.wrap(s.VariablesListRequest)))
 	s.mux.Handle("/v1/var/", wrapCORSWithAllowedMethods(s.wrap(s.VariableSpecificRequest), "HEAD", "GET", "PUT", "DELETE"))
+
+	// Secrets of the built-in secret store (Norca)
+	s.mux.HandleFunc("/v1/secrets", s.wrap(s.SecretsListRequest))
+	s.mux.HandleFunc("/v1/secret/", s.wrap(s.SecretSpecificRequest))
 
 	agentConfig := s.agent.GetConfig()
 	uiConfigEnabled := agentConfig.UI != nil && agentConfig.UI.Enabled
@@ -644,10 +651,26 @@ func (fs *UIAssetWrapper) Open(name string) (http.File, error) {
 	} else {
 		// serve index.html instead of 404ing
 		if err == os.ErrNotExist {
+			// The previous UI is served under /ui/legacy/ for one release;
+			// its client-side routes fall back to its own index.html.
+			if isLegacyUIPath(name) {
+				if file, err := fs.FileSystem.Open(legacyUIIndex); err == nil {
+					return file, nil
+				}
+			}
 			return fs.FileSystem.Open("index.html")
 		}
 		return nil, err
 	}
+}
+
+// legacyUIIndex is the entry point of the previous UI build, embedded under
+// ui/dist/legacy by the ember-dist-legacy make target.
+const legacyUIIndex = "legacy/index.html"
+
+func isLegacyUIPath(name string) bool {
+	name = strings.TrimPrefix(name, "/")
+	return name == "legacy" || strings.HasPrefix(name, "legacy/")
 }
 
 func CodedError(c int, s string) HTTPCodedError {
@@ -712,6 +735,8 @@ func errCodeFromHandler(err error) (int, string) {
 		} else if strings.HasSuffix(errMsg, structs.ErrJobRegistrationDisabled.Error()) {
 			errMsg = structs.ErrJobRegistrationDisabled.Error()
 			code = 403
+		} else if structs.IsErrSealed(err) {
+			code = 503
 		}
 	}
 
@@ -754,6 +779,8 @@ func (s *HTTPServer) wrap(handler func(resp http.ResponseWriter, req *http.Reque
 				} else if strings.HasSuffix(errMsg, structs.ErrIncompatibleFiltering.Error()) {
 					errMsg = structs.ErrIncompatibleFiltering.Error()
 					code = 400
+				} else if structs.IsErrSealed(err) {
+					code = 503
 				}
 			}
 

@@ -208,20 +208,16 @@ func buildSBOM(c commonFlags, binPath, name, sourceURL string) ([]byte, error) {
 		}
 	}
 	for k := range mods {
-		if k != stdlib && !linked[k] {
+		if k != stdlib && !linked[k] && mods[k].CopyDir == "" {
 			problems = append(problems, fmt.Sprintf("%s is found by go list but not linked into %s (is the binary built from this tree?)", k, binPath))
 		}
 	}
 
 	var npm []*npmPackage
 	if b.UI && !c.noUI && contains(tags, "ui") {
-		uiDir := filepath.Join(c.root, "nomad", "ui")
-		src, err := newNPMSource(uiDir, c.cacheDir, c.offline)
-		if err != nil {
-			return nil, err
-		}
 		var p []string
-		if npm, p, err = collectNPM(uiDir, src); err != nil {
+		var err error
+		if npm, p, err = collectUIs(c); err != nil {
 			return nil, err
 		}
 		problems = append(problems, p...)
@@ -295,6 +291,9 @@ func buildSBOM(c commonFlags, binPath, name, sourceURL string) ([]byte, error) {
 			}
 			if m.ReplacePath != "" {
 				comp.Properties = append(comp.Properties, cdxProperty{"norca:go:replaces", m.Path + "@" + m.Version})
+			}
+			if m.CopyDir != "" {
+				comp.Properties = append(comp.Properties, cdxProperty{"norca:source:copy", m.CopyDir})
 			}
 			if m.Sum != "" {
 				comp.Properties = append(comp.Properties, cdxProperty{"norca:go:sum", m.Sum})

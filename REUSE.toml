@@ -21,6 +21,13 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
+# Deployment examples: own files, MPL 2.0 (the files also carry SPDX headers)
+[[annotations]]
+path = ["example/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
 # Images in the documentation
 [[annotations]]
 path = "docs/**/*.png"
@@ -44,6 +51,17 @@ path = ["nomad/controller/**", "nomad/natsbridge/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
+
+# uBixVault v1.5.0 (BSD-3-Clause, https://github.com/cwolsen7905/ubixvault),
+# imported with git subtree for the built-in secret store; see
+# nomad/secretstore/ubix/LICENSE. Its files carry no headers. The files Norca
+# adds inside the subtree (the generated facades under export/, test helpers)
+# carry SPDX headers of their own (MPL-2.0), which take precedence.
+[[annotations]]
+path = ["nomad/secretstore/ubix/**"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Christopher W. Olsen"
+SPDX-License-Identifier = "BSD-3-Clause"
 
 # Test fixture copied unmodified from the Nomad Pack Community Registry (MPL 2.0),
 # see nomad/pack/fixtures/community/README.md.

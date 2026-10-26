@@ -9,8 +9,10 @@ import { alias, readOnly } from '@ember/object/computed';
 import Controller, { inject as controller } from '@ember/controller';
 import SortableFactory from 'nomad-ui/mixins/sortable-factory';
 import Searchable from 'nomad-ui/mixins/searchable';
-import { lazyClick } from 'nomad-ui/helpers/lazy-click';
 import classic from 'ember-classic-decorator';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class IndexController extends Controller.extend(
@@ -20,9 +22,28 @@ export default class IndexController extends Controller.extend(
     'nodesHealthyProportion',
     'provider',
   ]),
-  Searchable
+  Searchable,
+  WithListActions
 ) {
   @service userSettings;
+  @service router;
+
+  viewParams = ['searchTerm', 'sortProperty', 'sortDescending'];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
+  columns = [
+    { key: 'plainId', label: 'ID', sortable: true, hideable: false },
+    {
+      key: 'controllersHealthyProportion',
+      label: 'Controller Health',
+      sortable: true,
+    },
+    { key: 'nodesHealthyProportion', label: 'Node Health', sortable: true },
+    { key: 'provider', label: 'Provider', sortable: true },
+  ];
   @controller('csi/plugins') pluginsController;
 
   @alias('pluginsController.isForbidden') isForbidden;
@@ -63,10 +84,7 @@ export default class IndexController extends Controller.extend(
   @alias('listSearched') sortedPlugins;
 
   @action
-  gotoPlugin(plugin, event) {
-    lazyClick([
-      () => this.transitionToRoute('csi.plugins.plugin', plugin.plainId),
-      event,
-    ]);
+  gotoPlugin(plugin) {
+    this.router.transitionTo('csi.plugins.plugin', plugin.plainId);
   }
 }

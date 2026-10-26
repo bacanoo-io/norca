@@ -1,26 +1,22 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "New Variable"}}
-<Breadcrumb @crumb={{hash label="New" args=(array "variables.new")}} />
-
-<section class="section">
-  <h1 class="title variable-title">
-    Create a Variable
-    <Toggle
+<Ui::PageHeader @title="Create a Variable" @breadcrumbs={{array (hash label="Variables" route="variables.index" id="variables.index") (hash label="New")}}>
+  <:actions>
+    <Ui::Switch
+      @switch={{true}}
+      @label="JSON"
+      @checked={{eq this.view "json"}}
+      @onChange={{this.toggleView}}
+      class="mb-0"
       data-test-memory-toggle
-      @isActive={{eq this.view "json"}}
-      @onToggle={{action this.toggleView}}
-      title="JSON"
-    >JSON</Toggle>
-  </h1>
-
-  <VariableForm
-    @model={{this.model}}
-    @path={{this.path}}
-    @existingVariables={{this.existingVariables}}
-    @view={{this.view}}
-  />
-</section>
+    />
+  </:actions>
+</Ui::PageHeader>
+<Ui::PageBody>
+  <VariableForm @model={{this.model}} @path={{this.path}} @existingVariables={{this.existingVariables}} @view={{this.view}} />
+</Ui::PageBody>

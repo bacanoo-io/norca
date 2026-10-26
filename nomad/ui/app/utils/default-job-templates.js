@@ -59,8 +59,7 @@ export default [
       },
       {
         key: 'description',
-        value:
-          'Use Nomad Variables to configure the output of a simple HTML page',
+        value: 'Use Variables to configure the output of a simple HTML page',
       },
     ],
   },

@@ -1,0 +1,109 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-object-detail {{this.setup this.kindId @name @namespace this.region}}>
+  <Ui::PageHeader @pretitle={{concat "Objects / " this.kindId}} @title={{@name}}>
+    <:subtitle>
+      {{#if this.health}}
+        <Ui::StatusIndicator @tone={{this.health.tone}} @label={{this.health.label}} data-test-object-health />
+      {{/if}}
+      {{#if @namespace}}<span class="ms-2">namespace {{@namespace}}</span>{{/if}}
+    </:subtitle>
+    <:actions>
+      <Ui::Button @route="objects" @query={{hash kind=this.kindId}}>All {{@kind}} objects</Ui::Button>
+      {{#if (and this.object this.kind this.canWrite)}}
+        <Ui::Button @variant="primary" @icon="pencil" data-test-edit-object {{on "click" this.openEditor}}>Edit</Ui::Button>
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
+
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the object" /></Ui::Card>
+    {{else if this.loadError}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="box" @title="Object not available" @message={{this.loadError}} data-test-object-error>
+          <Ui::Button @route="objects" @query={{hash kind=this.kindId}}>All {{@kind}} objects</Ui::Button>
+        </Ui::EmptyState>
+      </Ui::Card>
+    {{else}}
+      {{#if this.health.behind}}
+        <Ui::Alert @tone="info" class="mb-3" data-test-object-behind>
+          The controller has not processed the latest change yet (generation {{this.object.Generation}}, observed {{this.object.Status.observedGeneration}}).
+          If this lasts, check that the controller of {{this.kindId}} is running.
+        </Ui::Alert>
+      {{/if}}
+      <div class="row row-cards">
+        <div class="col-lg-6">
+          <Ui::Card @title="Spec" @subtitle="Set by the user">
+            <Ui::CodeBlock @label="Spec" @code={{this.specText}} data-test-object-spec />
+            <p class="text-secondary small mt-2 mb-0">Edit checks a changed spec against the schema and the CEL rules of the kind in a dry run before it is saved.</p>
+          </Ui::Card>
+        </div>
+        <div class="col-lg-6">
+          <Ui::Card @title="Status" @subtitle="Reported by the controller">
+            <Ui::Datagrid @items={{this.statusItems}} data-test-object-status />
+            {{#if this.labels.length}}
+              <h4 class="mt-3">Labels</h4>
+              {{#each this.labels as |label|}}<Ui::Badge class="me-1">{{label}}</Ui::Badge>{{/each}}
+            {{/if}}
+            {{#if this.owners.length}}
+              <h4 class="mt-3">Owners</h4>
+              {{#each this.owners as |owner|}}
+                <div data-test-object-owner>
+                  {{#if owner.isRelease}}
+                    <LinkTo @route="packages.release" @models={{array owner.Namespace owner.Name}}>Release {{owner.Name}}</LinkTo>
+                  {{else}}
+                    {{owner.Kind}} {{owner.Name}}
+                  {{/if}}
+                </div>
+              {{/each}}
+            {{/if}}
+            {{#if this.object.Finalizers.length}}
+              <h4 class="mt-3">Finalizers</h4>
+              {{#each this.object.Finalizers as |f|}}<Ui::Badge class="me-1 font-monospace">{{f}}</Ui::Badge>{{/each}}
+            {{/if}}
+          </Ui::Card>
+        </div>
+      </div>
+      <div class="row row-cards mt-1">
+        <div class="col-lg-6">
+          <Ui::Card @title="Conditions" @flush={{true}} data-test-object-conditions>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Conditions"
+              @columns={{array (hash key="type" label="Condition") (hash key="status" label="Status") (hash key="reason" label="Reason")}}
+              @rows={{this.conditionRows}}
+              @emptyMessage="The controller reports no conditions."
+              as |c|
+            >
+              <td>{{c.type}}</td>
+              <td><Ui::StatusIndicator @tone={{c.tone}} @label={{c.status}} /></td>
+              <td>
+                {{c.reason}}
+                {{#if c.message}}<div class="small text-secondary">{{c.message}}</div>{{/if}}
+              </td>
+            </Ui::Table>
+          </Ui::Card>
+          <Ui::Card @title="Full status" class="mt-3">
+            <Ui::CodeBlock @label="Status" @code={{this.statusText}} />
+          </Ui::Card>
+        </div>
+        <div class="col-lg-6">
+          <Ui::Card @title="Event log" data-test-object-events>
+            {{#if this.eventItems.length}}
+              <Ui::Timeline @items={{this.eventItems}} @simple={{true}} />
+            {{else}}
+              <Ui::EmptyState @compact={{true}} @icon="activity" @title="No events" @message="Controllers and Norca log what they do with the object here (the newest 20 events)." />
+            {{/if}}
+          </Ui::Card>
+        </div>
+      </div>
+    {{/if}}
+  </Ui::PageBody>
+
+  {{#if this.editing}}
+    <Objects::Editor @kind={{this.kind}} @object={{this.object}} @region={{this.region}} @onSaved={{this.saved}} @onClose={{this.closeEditor}} />
+  {{/if}}
+</div>

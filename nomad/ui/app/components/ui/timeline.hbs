@@ -1,0 +1,36 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A timeline (event stream, deployments, revisions). Each item:
+  { icon, color, time, title, text, route?, model?, query? }. @simple renders
+  the compact variant without cards.
+
+    <Ui::Timeline @items={{this.events}} @simple={{true}} />
+--}}
+<ul class="timeline {{if @simple 'timeline-simple'}}" data-test-timeline ...attributes>
+  {{#each @items as |item|}}
+    <li class="timeline-event" data-test-timeline-item>
+      <div class="timeline-event-icon bg-{{or item.color 'secondary'}}-lt">
+        <Ui::Icon @name={{or item.icon "activity"}} />
+      </div>
+      <div class="card timeline-event-card">
+        <div class="card-body">
+          {{#if item.time}}<div class="text-secondary float-end" data-test-timeline-time>{{item.time}}</div>{{/if}}
+          <h4 data-test-timeline-title>
+            {{#if item.route}}
+              <LinkTo
+                @route={{item.route}}
+                @models={{if item.models item.models (if (not-eq item.model undefined) (array item.model) (array))}}
+                @query={{or item.query (hash)}}
+              >{{item.title}}</LinkTo>
+            {{else}}
+              {{item.title}}
+            {{/if}}
+          </h4>
+          {{#if item.text}}<p class="text-secondary mb-0" data-test-timeline-text>{{item.text}}</p>{{/if}}
+        </div>
+      </div>
+    </li>
+  {{/each}}
+</ul>

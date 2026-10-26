@@ -1,0 +1,22 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A progress bar or meter: @value of @max (default 100), @color a Tabler
+  color, @label the accessible name.
+
+    <Ui::Progress @value={{4}} @max={{6}} @label="Healthy allocations" @color="green" />
+--}}
+<div
+  class="progress {{if @size (concat 'progress-' @size)}}"
+  role="progressbar"
+  aria-label={{@label}}
+  aria-valuemin="0"
+  aria-valuemax={{this.max}}
+  aria-valuenow={{this.value}}
+  aria-valuetext={{this.valueText}}
+  data-test-progress
+  ...attributes
+>
+  <div class="progress-bar {{if @color (concat 'bg-' @color)}}" style={{this.style}}></div>
+</div>

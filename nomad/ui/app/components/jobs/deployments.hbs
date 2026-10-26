@@ -1,0 +1,38 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The Deployments tab: the multiregion timeline of a multiregion job and
+  the deployments of the job, newest first.
+~}}
+{{#if this.isMultiregion}}
+  <Jobs::MultiregionTimeline @job={{@job}} />
+{{/if}}
+
+{{#if this.annotatedDeployments.length}}
+  <ol class="list-unstyled m-0" data-test-deployments>
+    {{#each this.annotatedDeployments key="deployment.id" as |record|}}
+      {{#if record.showDate}}
+        <li class="text-secondary small fw-medium mt-3 mb-2" data-test-deployment-time>
+          {{#if record.deployment.version.submitTime}}
+            {{format-date record.deployment.version.submitTime}}
+          {{else}}
+            Unknown time
+          {{/if}}
+        </li>
+      {{/if}}
+      <li class="mb-2" data-test-deployment>
+        <Jobs::Deployment @deployment={{record.deployment}} />
+      </li>
+    {{/each}}
+  </ol>
+{{else}}
+  <Ui::Card>
+    <Ui::EmptyState
+      @icon="git-branch"
+      @title="No deployments"
+      @message="A deployment starts when a new version of the job is submitted with an update block."
+      data-test-empty-deployments
+    />
+  </Ui::Card>
+{{/if}}

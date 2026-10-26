@@ -69,6 +69,9 @@ func TestClientConfig(t testing.T) (*Config, func()) {
 	conf.CgroupParent = "testing.slice"
 
 	conf.VaultConfig.Enabled = pointer.Of(false)
+	// Test clients keep Nomad's behaviour without Vault; the tests of the
+	// Vault compatibility of the built-in secret store enable it (Norca).
+	conf.Secrets = &SecretsConfig{VaultCompat: &VaultCompatConfig{Enabled: pointer.Of(false)}}
 	conf.DevMode = true
 
 	// Loosen GC threshold

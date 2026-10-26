@@ -1,0 +1,11 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The header of the access pages: the position under Access control, the
+  title and the primary action (yielded).
+~}}
+<Ui::PageHeader @breadcrumbs={{this.breadcrumbs}} data-test-access-header>
+  <:title><span data-test-title>{{@title}}</span></:title>
+  <:actions>{{yield}}</:actions>
+</Ui::PageHeader>

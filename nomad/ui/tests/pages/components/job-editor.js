@@ -28,7 +28,7 @@ export default () => ({
     isPresent: isPresent('[data-test-plan-help-title]'),
     title: text('[data-test-plan-help-title]'),
     message: text('[data-test-plan-help-message]'),
-    dismiss: clickable('[data-test-plan-help-dismiss]'),
+    dismiss: clickable('[data-test-alert-dismiss]'),
   },
 
   editor: {
@@ -41,8 +41,8 @@ export default () => ({
     scope: '[data-test-dry-run-message]',
     title: text('[data-test-dry-run-title]'),
     body: text('[data-test-dry-run-body]'),
-    errored: hasClass('hds-alert--color-critical'),
-    succeeded: hasClass('hds-alert--color-success'),
+    errored: hasClass('alert-danger'),
+    succeeded: hasClass('alert-success'),
   },
 
   warningMessage: {

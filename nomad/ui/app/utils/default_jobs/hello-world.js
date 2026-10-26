@@ -49,7 +49,7 @@ export default `job "hello-world" {
 
       template {
         data        = <<EOF
-                        <h1>Hello, Nomad!</h1>
+                        <h1>Hello, Norca!</h1>
                         <ul>
                           <li>Task: {{env "NOMAD_TASK_NAME"}}</li>
                           <li>Group: {{env "NOMAD_GROUP_NAME"}}</li>

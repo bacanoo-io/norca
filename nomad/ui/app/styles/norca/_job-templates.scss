@@ -1,0 +1,42 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// Job templates: a selectable card per template (a radio button styled as
+// a card; the whole card is the label).
+.norca-choice-card {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  height: 100%;
+  padding: 1rem;
+  border: var(--tblr-border-width) solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  background: var(--tblr-bg-surface);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--tblr-primary);
+  }
+
+  &:has(.norca-choice-input:checked) {
+    border-color: var(--tblr-primary);
+    box-shadow: 0 0 0 1px var(--tblr-primary);
+  }
+
+  &:has(.norca-choice-input:focus-visible) {
+    outline: 2px solid var(--tblr-primary);
+    outline-offset: 2px;
+  }
+}
+
+.norca-choice-input {
+  flex: none;
+  margin-top: 0.2rem;
+  accent-color: var(--tblr-primary);
+}
+
+.norca-choice-body {
+  min-width: 0;
+}

@@ -51,7 +51,7 @@ module('Integration | Component | TopoViz', function (hooks) {
       @onDataError={{this.onDataError}} />
   `;
 
-  test('presents as a FlexMasonry of datacenters', async function (assert) {
+  test('presents as columns of datacenters', async function (assert) {
     assert.expect(6);
 
     this.setProperties({

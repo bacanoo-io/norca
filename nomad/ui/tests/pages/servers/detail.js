@@ -21,9 +21,9 @@ export default create({
   datacenter: text('[data-test-datacenter]'),
   hasLeaderBadge: isPresent('[data-test-leader-badge]'),
 
-  tags: collection('[data-test-server-tag]', {
-    name: text('td', { at: 0 }),
-    value: text('td', { at: 1 }),
+  tags: collection('[data-test-server-tags] [data-test-attributes-section]', {
+    name: text('[data-test-key]'),
+    value: text('[data-test-value]'),
   }),
 
   error: {

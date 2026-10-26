@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { assign } from '@ember/polyfills';
 import ApplicationSerializer from './application';
 import classic from 'ember-classic-decorator';
 
@@ -15,7 +14,7 @@ export default class JobVersionSerializer extends ApplicationSerializer {
 
   normalizeFindHasManyResponse(store, modelClass, hash, id, requestType) {
     const zippedVersions = hash.Versions.map((version, index) =>
-      assign({}, version, {
+      Object.assign({}, version, {
         Diff: hash.Diffs && hash.Diffs[index],
         ID: `${version.ID}-${version.Version}`,
         JobID: JSON.stringify([version.ID, version.Namespace || 'default']),

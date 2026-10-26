@@ -20,7 +20,17 @@ import {
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import faker from 'nomad-ui/mirage/faker';
 import percySnapshot from '@percy/ember';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
+
+// The allocation row groups allocations by the width it has. The tests set
+// that width instead of depending on the size of the page frame: the row
+// gets `width` pixels, the panel keeps its own padding around it.
+async function setAllocationRowWidth(width) {
+  const panel = find('.norca-job-status');
+  const row = find('.norca-alloc-status-row > div');
+  panel.style.width = `${panel.clientWidth - row.clientWidth + width}px`;
+  await triggerEvent(window, 'resize');
+}
 // TODO: Mirage is not type-friendly / assigns "server" as a global. Try to work around this shortcoming.
 
 module('Acceptance | job status panel', function (hooks) {
@@ -42,8 +52,8 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}`);
-    assert.dom('.job-status-panel').exists();
-    await a11yAudit(assert);
+    assert.dom('.norca-job-status').exists();
+    await a11yAudit(assert, STRICT);
     await percySnapshot(assert, {
       percyCSS: `
         .allocation-row td { display: none; }
@@ -78,7 +88,7 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}?statusMode=historical`);
-    assert.dom('.job-status-panel').exists();
+    assert.dom('.norca-job-status').exists();
 
     assert
       .dom('[data-test-status-mode="historical"]')
@@ -109,7 +119,7 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}`);
-    assert.dom('.job-status-panel').exists();
+    assert.dom('.norca-job-status').exists();
 
     let jobAllocCount = server.db.allocations.where({
       jobId: job.id,
@@ -121,7 +131,7 @@ module('Acceptance | job status panel', function (hooks) {
       'Correect number of allocs generated (metatest)'
     );
     assert
-      .dom('.ungrouped-allocs .represented-allocation.running')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-running')
       .exists(
         { count: jobAllocCount },
         `All ${jobAllocCount} allocations are represented in the status panel`
@@ -147,7 +157,7 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}`);
-    assert.dom('.job-status-panel').exists();
+    assert.dom('.norca-job-status').exists();
 
     let runningAllocCount = server.db.allocations.where({
       jobId: job.id,
@@ -165,13 +175,13 @@ module('Acceptance | job status panel', function (hooks) {
       'Correect number of allocs generated (metatest)'
     );
     assert
-      .dom('.ungrouped-allocs .represented-allocation.running')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-running')
       .exists(
         { count: runningAllocCount },
         `All ${runningAllocCount} running allocations are represented in the status panel`
       );
     assert
-      .dom('.ungrouped-allocs .represented-allocation.failed')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-failed')
       .exists(
         { count: failedAllocCount },
         `All ${failedAllocCount} failed allocations are represented in the status panel`
@@ -223,36 +233,36 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}`);
-    assert.dom('.job-status-panel').exists();
+    assert.dom('.norca-job-status').exists();
 
     // We expect to see 4 represented-allocations, since that's the number in our groupTaskCount
-    assert
-      .dom('.ungrouped-allocs .represented-allocation')
-      .exists({ count: 4 });
+    assert.dom('.norca-alloc-blocks .norca-alloc').exists({ count: 4 });
 
     // We expect 2 of them to be running, and one to be pending, since running/pending allocations superecede other clientStatuses
     assert
-      .dom('.ungrouped-allocs .represented-allocation.running')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-running')
       .exists({ count: 2 });
     assert
-      .dom('.ungrouped-allocs .represented-allocation.pending')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-pending')
       .exists({ count: 1 });
 
     // We expect the lone other allocation to be lost, since it has the highest jobVersion
     assert
-      .dom('.ungrouped-allocs .represented-allocation.lost')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-lost')
       .exists({ count: 1 });
 
     // We expect the job versions legend to show 3 at v5 (running, pending, and lost), and 1 at v3 (old running), and none at v4 (failed is not represented)
-    assert.dom('.job-status-panel .versions > ul > li').exists({ count: 2 });
     assert
-      .dom('.job-status-panel .versions > ul > li > a[data-version="5"]')
+      .dom('.norca-job-status .norca-versions > ul > li')
+      .exists({ count: 2 });
+    assert
+      .dom('.norca-job-status .norca-versions > ul > li > a[data-version="5"]')
       .exists({ count: 1 });
     assert
-      .dom('.job-status-panel .versions > ul > li > a[data-version="3"]')
+      .dom('.norca-job-status .norca-versions > ul > li > a[data-version="3"]')
       .exists({ count: 1 });
     assert
-      .dom('.job-status-panel .versions > ul > li > a[data-version="4"]')
+      .dom('.norca-job-status .norca-versions > ul > li > a[data-version="4"]')
       .doesNotExist();
     await percySnapshot(assert, {
       percyCSS: `
@@ -314,31 +324,29 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}`);
-    assert.dom('.job-status-panel').exists();
+    assert.dom('.norca-job-status').exists();
     // We expect to see 5 represented-allocations, since that's the number in our groupTaskCount
-    assert
-      .dom('.ungrouped-allocs .represented-allocation')
-      .exists({ count: 5 });
+    assert.dom('.norca-alloc-blocks .norca-alloc').exists({ count: 5 });
 
     // We expect 2 of them to be running, and one to be pending, since running/pending allocations superecede other clientStatuses
     assert
-      .dom('.ungrouped-allocs .represented-allocation.running')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-running')
       .exists({ count: 2 });
     assert
-      .dom('.ungrouped-allocs .represented-allocation.pending')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-pending')
       .exists({ count: 1 });
 
     // We expect 1 to be lost, since it has the highest jobVersion
     assert
-      .dom('.ungrouped-allocs .represented-allocation.lost')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-lost')
       .exists({ count: 1 });
 
     // We expect the remaining one to be complete, rather than failed, since it comes earlier in the jobAllocStatuses.batch constant
     assert
-      .dom('.ungrouped-allocs .represented-allocation.complete')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-complete')
       .exists({ count: 1 });
     assert
-      .dom('.ungrouped-allocs .represented-allocation.failed')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-failed')
       .doesNotExist();
 
     await percySnapshot(assert, {
@@ -372,14 +380,15 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}`);
-    assert.dom('.job-status-panel').exists();
+    assert.dom('.norca-job-status').exists();
+    await setAllocationRowWidth(920);
 
     let jobAllocCount = server.db.allocations.where({
       jobId: job.id,
     }).length;
 
     assert
-      .dom('.ungrouped-allocs .represented-allocation.running')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-running')
       .exists(
         { count: jobAllocCount },
         `All ${jobAllocCount} allocations are represented in the status panel, ungrouped`
@@ -404,26 +413,27 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}`);
-    assert.dom('.job-status-panel').exists();
+    assert.dom('.norca-job-status').exists();
+    await setAllocationRowWidth(920);
 
     jobAllocCount = server.db.allocations.where({
       jobId: job.id,
     }).length;
 
-    // At standard test resolution, 40 allocations will attempt to display 20 ungrouped, and 20 grouped.
+    // At the standard row width, 40 allocations will attempt to display 20 ungrouped, and 20 grouped.
     let desiredUngroupedAllocCount = 20;
     assert
-      .dom('.ungrouped-allocs .represented-allocation.running')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-running')
       .exists(
         { count: desiredUngroupedAllocCount },
         `${desiredUngroupedAllocCount} allocations are represented ungrouped`
       );
 
     assert
-      .dom('.represented-allocation.rest')
+      .dom('.norca-alloc.norca-alloc-rest')
       .exists('Allocations are numerous enough that a summary block exists');
     assert
-      .dom('.represented-allocation.rest')
+      .dom('.norca-alloc.norca-alloc-rest')
       .hasText(
         `+${groupTaskCount - desiredUngroupedAllocCount}`,
         'Summary block has the correct number of grouped allocs'
@@ -456,70 +466,71 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}`);
-    assert.dom('.job-status-panel').exists();
+    assert.dom('.norca-job-status').exists();
+    await setAllocationRowWidth(930);
 
     // With 50 allocs split across 4 statuses distributed as above, we can expect 25 running, 16 failed, 6 pending, and 4 remaining.
-    // At standard test resolution, each status will be ungrouped/grouped as follows:
+    // At the standard row width, each status will be ungrouped/grouped as follows:
     // 25 running: 9 ungrouped, 17 grouped
     // 15 failed: 5 ungrouped, 10 grouped
     // 5 pending: 0 ungrouped, 5 grouped
     // 5 unknown: 0 ungrouped, 5 grouped. Represented as "Unplaced"
 
     assert
-      .dom('.ungrouped-allocs .represented-allocation.running')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-running')
       .exists({ count: 9 }, '9 running allocations are represented ungrouped');
     assert
-      .dom('.represented-allocation.rest.running')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-running')
       .exists(
         'Running allocations are numerous enough that a summary block exists'
       );
     assert
-      .dom('.represented-allocation.rest.running')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-running')
       .hasText(
         '+16',
         'Summary block has the correct number of grouped running allocs'
       );
 
     assert
-      .dom('.ungrouped-allocs .represented-allocation.failed')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-failed')
       .exists({ count: 5 }, '5 failed allocations are represented ungrouped');
     assert
-      .dom('.represented-allocation.rest.failed')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-failed')
       .exists(
         'Failed allocations are numerous enough that a summary block exists'
       );
     assert
-      .dom('.represented-allocation.rest.failed')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-failed')
       .hasText(
         '+10',
         'Summary block has the correct number of grouped failed allocs'
       );
 
     assert
-      .dom('.ungrouped-allocs .represented-allocation.pending')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-pending')
       .exists({ count: 0 }, '0 pending allocations are represented ungrouped');
     assert
-      .dom('.represented-allocation.rest.pending')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-pending')
       .exists(
         'pending allocations are numerous enough that a summary block exists'
       );
     assert
-      .dom('.represented-allocation.rest.pending')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-pending')
       .hasText(
         '5',
         'Summary block has the correct number of grouped pending allocs'
       );
 
     assert
-      .dom('.ungrouped-allocs .represented-allocation.unplaced')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-unplaced')
       .exists({ count: 0 }, '0 unplaced allocations are represented ungrouped');
     assert
-      .dom('.represented-allocation.rest.unplaced')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-unplaced')
       .exists(
         'Unplaced allocations are numerous enough that a summary block exists'
       );
     assert
-      .dom('.represented-allocation.rest.unplaced')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-unplaced')
       .hasText(
         '5',
         'Summary block has the correct number of grouped unplaced allocs'
@@ -536,8 +547,8 @@ module('Acceptance | job status panel', function (hooks) {
     // Simulate a window resize event; will recompute how many of each ought to be grouped.
 
     // At 1100px, only running and failed allocations have some ungrouped allocs
-    find('.page-body').style.width = '1100px';
-    await triggerEvent(window, 'resize');
+    // (a page of 1100px left the row 776px in the inherited layout)
+    await setAllocationRowWidth(776);
 
     await percySnapshot(
       'Status Panel groups allocations when they get past a threshold, multiple statuses (1100px)',
@@ -549,38 +560,38 @@ module('Acceptance | job status panel', function (hooks) {
     );
 
     assert
-      .dom('.ungrouped-allocs .represented-allocation.running')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-running')
       .exists({ count: 7 }, '7 running allocations are represented ungrouped');
     assert
-      .dom('.represented-allocation.rest.running')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-running')
       .exists(
         'Running allocations are numerous enough that a summary block exists'
       );
     assert
-      .dom('.represented-allocation.rest.running')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-running')
       .hasText(
         '+18',
         'Summary block has the correct number of grouped running allocs'
       );
 
     assert
-      .dom('.ungrouped-allocs .represented-allocation.failed')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-failed')
       .exists({ count: 4 }, '4 failed allocations are represented ungrouped');
     assert
-      .dom('.represented-allocation.rest.failed')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-failed')
       .exists(
         'Failed allocations are numerous enough that a summary block exists'
       );
     assert
-      .dom('.represented-allocation.rest.failed')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-failed')
       .hasText(
         '+11',
         'Summary block has the correct number of grouped failed allocs'
       );
 
     // At 500px, only running allocations have some ungrouped allocs. The rest are all fully grouped.
-    find('.page-body').style.width = '800px';
-    await triggerEvent(window, 'resize');
+    // (a page of 800px left the row 500px in the inherited layout)
+    await setAllocationRowWidth(500);
 
     await percySnapshot(
       'Status Panel groups allocations when they get past a threshold, multiple statuses (500px)',
@@ -592,30 +603,30 @@ module('Acceptance | job status panel', function (hooks) {
     );
 
     assert
-      .dom('.ungrouped-allocs .represented-allocation.running')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-running')
       .exists({ count: 4 }, '4 running allocations are represented ungrouped');
     assert
-      .dom('.represented-allocation.rest.running')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-running')
       .exists(
         'Running allocations are numerous enough that a summary block exists'
       );
     assert
-      .dom('.represented-allocation.rest.running')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-running')
       .hasText(
         '+21',
         'Summary block has the correct number of grouped running allocs'
       );
 
     assert
-      .dom('.ungrouped-allocs .represented-allocation.failed')
+      .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-failed')
       .doesNotExist('no failed allocations are represented ungrouped');
     assert
-      .dom('.represented-allocation.rest.failed')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-failed')
       .exists(
         'Failed allocations are numerous enough that a summary block exists'
       );
     assert
-      .dom('.represented-allocation.rest.failed')
+      .dom('.norca-alloc.norca-alloc-rest.norca-alloc-failed')
       .hasText(
         '15',
         'Summary block has the correct number of grouped failed allocs'
@@ -653,13 +664,13 @@ module('Acceptance | job status panel', function (hooks) {
     });
 
     await visit(`/jobs/${job.id}`);
-    assert.dom('.job-status-panel').exists();
+    assert.dom('.norca-job-status').exists();
     assert
-      .dom('.failed-or-lost-links > span')
+      .dom('.norca-failed-or-lost-links > span')
       .exists({ count: 2 }, 'Restarted and Rescheduled cells are both present');
     // await this.pauseTest();
-    let rescheduledCell = [...findAll('.failed-or-lost-links > span')][0];
-    let restartedCell = [...findAll('.failed-or-lost-links > span')][1];
+    let rescheduledCell = [...findAll('.norca-failed-or-lost-links > span')][0];
+    let restartedCell = [...findAll('.norca-failed-or-lost-links > span')][1];
 
     // Check that the title in each cell has the right text
     assert.dom(rescheduledCell).hasText('0 Rescheduled');
@@ -775,12 +786,12 @@ module('Acceptance | job status panel', function (hooks) {
       });
 
       await visit(`/jobs/${job.id}`);
-      assert.dom('.job-status-panel').exists();
+      assert.dom('.norca-job-status').exists();
 
       const serverEvents = server.schema.taskEvents.where({
         taskStateId: state.id,
       });
-      const shownEvents = findAll('.timeline-object');
+      const shownEvents = findAll('.norca-history-item');
       const jobAllocations = server.db.allocations.where({ jobId: job.id });
       assert.equal(
         shownEvents.length,
@@ -789,16 +800,16 @@ module('Acceptance | job status panel', function (hooks) {
       );
 
       await fillIn(
-        '[data-test-history-search] input',
+        '[data-test-history-search]',
         serverEvents.models[0].message
       );
       assert.equal(
-        findAll('.timeline-object').length,
+        findAll('.norca-history-item').length,
         jobAllocations.length,
         'Only events matching the search are shown'
       );
 
-      await fillIn('[data-test-history-search] input', 'foo bar baz');
+      await fillIn('[data-test-history-search]', 'foo bar baz');
       assert
         .dom('[data-test-history-search-no-match]')
         .exists('No match message is shown');
@@ -849,15 +860,15 @@ module('Acceptance | job status panel', function (hooks) {
 
       // Batch job should have 5 running, 3 failed, 2 completed
       await visit(`/jobs/${batchJob.id}`);
-      assert.dom('.job-status-panel').exists();
+      assert.dom('.norca-job-status').exists();
       assert
-        .dom('.running-allocs-title')
+        .dom('.norca-running-allocs-title')
         .hasText(
           '5/8 Remaining Allocations Running',
           'Completed allocations do not count toward the Remaining denominator'
         );
       assert
-        .dom('.ungrouped-allocs .represented-allocation.complete')
+        .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-complete')
         .exists(
           { count: 2 },
           `2 complete allocations are represented in the status panel`
@@ -866,15 +877,17 @@ module('Acceptance | job status panel', function (hooks) {
       // Service job should have 5 running, 3 failed, 2 unplaced
 
       await visit(`/jobs/${serviceJob.id}`);
-      assert.dom('.job-status-panel').exists();
-      assert.dom('.running-allocs-title').hasText('5/10 Allocations Running');
+      assert.dom('.norca-job-status').exists();
       assert
-        .dom('.ungrouped-allocs .represented-allocation.complete')
+        .dom('.norca-running-allocs-title')
+        .hasText('5/10 Allocations Running');
+      assert
+        .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-complete')
         .doesNotExist(
           'For a service job, no copmlete allocations are represented in the status panel'
         );
       assert
-        .dom('.ungrouped-allocs .represented-allocation.unplaced')
+        .dom('.norca-alloc-blocks .norca-alloc.norca-alloc-unplaced')
         .exists(
           { count: 2 },
           `2 unplaced allocations are represented in the status panel`
@@ -910,11 +923,11 @@ module('Acceptance | job status panel', function (hooks) {
       });
 
       await visit(`/jobs/${job.id}`);
-      assert.dom('.job-status-panel').exists();
-      assert.dom('.failed-or-lost').exists({ count: 1 });
-      assert.dom('.failed-or-lost h4').hasText('Replaced Allocations');
+      assert.dom('.norca-job-status').exists();
+      assert.dom('.norca-failed-or-lost').exists({ count: 1 });
+      assert.dom('.norca-failed-or-lost h4').hasText('Replaced Allocations');
       assert
-        .dom('.failed-or-lost-links > span')
+        .dom('.norca-failed-or-lost-links > span')
         .hasText('0 Restarted', 'Restarted cell at zero by default');
 
       // A wild event appears! Change a recent task event to type "Restarting" in a task state:
@@ -932,7 +945,7 @@ module('Acceptance | job status panel', function (hooks) {
       await settled();
 
       assert
-        .dom('.failed-or-lost-links > span')
+        .dom('.norca-failed-or-lost-links > span')
         .hasText(
           '1 Restarted',
           'Restarted cell updates when a task event with type "Restarting" is added'
@@ -991,8 +1004,8 @@ module('Acceptance | job status panel', function (hooks) {
 
       await settled();
 
-      assert.dom('.job-status-panel').exists();
-      assert.dom('.running-allocs-title').hasText(
+      assert.dom('.norca-job-status').exists();
+      assert.dom('.norca-running-allocs-title').hasText(
         `${
           server.schema.allocations.where({
             jobId: job.id,
@@ -1029,7 +1042,9 @@ module('Acceptance | job status panel', function (hooks) {
 
       await settled();
 
-      assert.dom('.running-allocs-title').hasText('4 Allocations Running');
+      assert
+        .dom('.norca-running-allocs-title')
+        .hasText('4 Allocations Running');
     });
   });
 });

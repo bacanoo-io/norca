@@ -1,0 +1,26 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  An inline alert. @tone: info, success, warning, danger. With @onDismiss a
+  close button is shown.
+
+    <Ui::Alert @tone="warning" @title="Old backup">The last backup is 3 days old.</Ui::Alert>
+~}}
+<div
+  class="alert alert-{{or @tone 'info'}} {{if @onDismiss 'alert-dismissible'}}"
+  role={{if (eq @tone "danger") "alert" "status"}}
+  data-test-alert={{or @tone "info"}}
+  ...attributes
+>
+  <div class="alert-icon">
+    <Ui::Icon @name={{if (eq @tone "danger") "alert-circle" (if (eq @tone "warning") "alert-triangle" (if (eq @tone "success") "circle-check" "info-circle"))}} />
+  </div>
+  <div>
+    {{#if @title}}<h4 class="alert-heading" data-test-alert-title>{{@title}}</h4>{{/if}}
+    <div class="alert-description" data-test-alert-body>{{yield}}</div>
+  </div>
+  {{#if @onDismiss}}
+    <button type="button" class="btn-close" aria-label="Dismiss" data-test-alert-dismiss {{on "click" @onDismiss}}></button>
+  {{/if}}
+</div>

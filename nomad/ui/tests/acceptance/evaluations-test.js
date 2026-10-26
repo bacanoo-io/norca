@@ -8,6 +8,9 @@ import {
   click,
   currentRouteName,
   currentURL,
+  fillIn,
+  find,
+  select,
   typeIn,
   visit,
   waitFor,
@@ -16,15 +19,19 @@ import {
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import { Response } from 'ember-cli-mirage';
+import { Response } from 'miragejs';
 import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
-import {
-  selectChoose,
-  clickTrigger,
-} from 'ember-power-select/test-support/helpers';
 import { generateAcceptanceTestEvalMock } from '../../mirage/utils';
 import percySnapshot from '@percy/ember';
 import faker from 'nomad-ui/mirage/faker';
+
+// Chooses the option of a native select (Ui::Select) by its label.
+async function selectByLabel(selector, label) {
+  const option = [...find(selector).options].find(
+    (o) => o.textContent.trim() === String(label)
+  );
+  await select(selector, option.value);
+}
 
 const getStandardRes = () => [
   {
@@ -198,8 +205,7 @@ module('Acceptance | evaluations list', function (hooks) {
         return [];
       });
 
-      await clickTrigger('[data-test-evaluation-status-facet]');
-      await selectChoose('[data-test-evaluation-status-facet]', 'Pending');
+      await selectByLabel('[data-test-evaluation-status-facet]', 'Pending');
 
       assert
         .dom('[data-test-no-eval-match]')
@@ -228,8 +234,7 @@ module('Acceptance | evaluations list', function (hooks) {
         return [];
       });
 
-      await clickTrigger('[data-test-evaluation-namespace-facet]');
-      await selectChoose('[data-test-evaluation-namespace-facet]', 'default');
+      await selectByLabel('[data-test-evaluation-namespace-facet]', 'default');
 
       assert
         .dom('[data-test-empty-evaluations-list]')
@@ -258,8 +263,7 @@ module('Acceptance | evaluations list', function (hooks) {
         return [];
       });
 
-      await clickTrigger('[data-test-evaluation-triggered-by-facet]');
-      await selectChoose(
+      await selectByLabel(
         '[data-test-evaluation-triggered-by-facet]',
         'Periodic Job'
       );
@@ -291,8 +295,7 @@ module('Acceptance | evaluations list', function (hooks) {
         return [];
       });
 
-      await clickTrigger('[data-test-evaluation-type-facet]');
-      await selectChoose('[data-test-evaluation-type-facet]', 'Client');
+      await selectByLabel('[data-test-evaluation-type-facet]', 'Client');
 
       assert
         .dom('[data-test-empty-evaluations-list]')
@@ -322,7 +325,7 @@ module('Acceptance | evaluations list', function (hooks) {
         return [];
       });
 
-      await typeIn('[data-test-evaluations-search] input', searchTerm);
+      await typeIn('[data-test-evaluations-search]', searchTerm);
 
       assert
         .dom('[data-test-empty-evaluations-list]')
@@ -351,7 +354,7 @@ module('Acceptance | evaluations list', function (hooks) {
         );
         return [];
       });
-      await typeIn('[data-test-evaluations-search] input', searchTerm);
+      await typeIn('[data-test-evaluations-search]', searchTerm);
 
       server.get('/evaluations', function (_server, fakeRequest) {
         assert.deepEqual(
@@ -367,8 +370,7 @@ module('Acceptance | evaluations list', function (hooks) {
         );
         return [];
       });
-      await clickTrigger('[data-test-evaluation-type-facet]');
-      await selectChoose('[data-test-evaluation-type-facet]', 'Client');
+      await selectByLabel('[data-test-evaluation-type-facet]', 'Client');
 
       server.get('/evaluations', function (_server, fakeRequest) {
         assert.deepEqual(
@@ -384,7 +386,7 @@ module('Acceptance | evaluations list', function (hooks) {
         );
         return [];
       });
-      await click('[data-test-evaluations-search] button');
+      await fillIn('[data-test-evaluations-search]', '');
 
       server.get('/evaluations', function (_server, fakeRequest) {
         assert.deepEqual(
@@ -400,8 +402,7 @@ module('Acceptance | evaluations list', function (hooks) {
         );
         return [];
       });
-      await clickTrigger('[data-test-evaluation-status-facet]');
-      await selectChoose('[data-test-evaluation-status-facet]', 'Complete');
+      await selectByLabel('[data-test-evaluation-status-facet]', 'Complete');
 
       assert
         .dom('[data-test-empty-evaluations-list]')
@@ -438,8 +439,7 @@ module('Acceptance | evaluations list', function (hooks) {
         return getStandardRes();
       });
 
-      await clickTrigger('[data-test-per-page]');
-      await selectChoose('[data-test-per-page]', 50);
+      await selectByLabel('[data-test-per-page]', 50);
     });
   });
 
@@ -571,8 +571,7 @@ module('Acceptance | evaluations list', function (hooks) {
 
       await click('[data-test-eval-pagination-next]');
 
-      await clickTrigger('[data-test-evaluation-status-facet]');
-      await selectChoose('[data-test-evaluation-status-facet]', 'Pending');
+      await selectByLabel('[data-test-evaluation-status-facet]', 'Pending');
 
       server.get('/evaluations', function (_server, fakeRequest) {
         assert.deepEqual(
@@ -636,8 +635,7 @@ module('Acceptance | evaluations list', function (hooks) {
         );
         return getStandardRes();
       });
-      await clickTrigger('[data-test-evaluation-status-facet]');
-      await selectChoose('[data-test-evaluation-status-facet]', 'Pending');
+      await selectByLabel('[data-test-evaluation-status-facet]', 'Pending');
     });
   });
 
@@ -744,7 +742,7 @@ module('Acceptance | evaluations list', function (hooks) {
         'Clicking an evaluation in the table updates the sidebar'
       );
 
-      click('[data-test-eval-sidebar-x]');
+      click('[data-test-side-panel-close]');
 
       // We wait until the sidebar closes since it uses a transition of 300ms
       await waitUntil(
@@ -781,7 +779,7 @@ module('Acceptance | evaluations list', function (hooks) {
           'all related evaluations and the current evaluation are displayed'
         );
 
-      click('[data-test-eval-sidebar-x]');
+      click('[data-test-side-panel-close]');
 
       // We wait until the sidebar closes since it uses a transition of 300ms
       await waitUntil(

@@ -9,11 +9,11 @@ import { classNames, classNameBindings } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 
 @classic
-@classNames('job-diff')
+@classNames('norca-job-diff')
 @classNameBindings(
-  'isEdited:is-edited',
-  'isAdded:is-added',
-  'isDeleted:is-deleted'
+  'isEdited:norca-diff-edited',
+  'isAdded:norca-diff-added',
+  'isDeleted:norca-diff-deleted'
 )
 export default class JobDiff extends Component {
   diff = null;

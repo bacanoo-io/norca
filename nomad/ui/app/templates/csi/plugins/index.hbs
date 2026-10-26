@@ -1,93 +1,82 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "CSI Plugins"}}
-<StorageSubnav />
-<section class="section">
+<Ui::PageHeader @pretitle="Capacity" @title="Storage" @subtitle="CSI volumes and the plugins that provide them" />
+<Ui::PageBody>
+  <Storage::Tabs />
   {{#if this.isForbidden}}
     <ForbiddenMessage />
   {{else}}
-    <div class="toolbar">
-      <div class="toolbar-item">
+    <Ui::DataTable
+      @id="csi-plugins"
+      @caption="CSI plugins"
+      @columns={{this.columns}}
+      @rows={{this.sortedPlugins}}
+      @sortBy={{this.sortProperty}}
+      @sortDescending={{this.sortDescending}}
+      @onSort={{this.sort}}
+      @pageSize={{this.pageSize}}
+      @page={{this.currentPage}}
+      @onPageChange={{this.setPage}}
+      @onPageSizeChange={{this.setPageSize}}
+      @onRowClick={{this.gotoPlugin}}
+      @enumerate={{true}}
+      @noun="plugins"
+      @viewState={{this.viewState}}
+      @onApplyView={{this.applyView}}
+    >
+      <:filters>
         {{#if this.model.length}}
-          <SearchBox
+          <Ui::Input
+            @type="search"
+            @icon="search"
+            @placeholder="Search plugins..."
+            @value={{this.searchTerm}}
+            @onInput={{this.search}}
+            aria-label="Search plugins"
             data-test-plugins-search
-            @searchTerm={{mut this.searchTerm}}
-            @onChange={{action this.resetPagination}}
-            @placeholder="Search plugins..." />
+          />
         {{/if}}
-      </div>
-    </div>
-    {{#if this.sortedPlugins}}
-      <ListPagination
-        @source={{this.sortedPlugins}}
-        @size={{this.pageSize}}
-        @page={{this.currentPage}} as |p|>
-        <ListTable
-          @source={{p.list}}
-          @sortProperty={{this.sortProperty}}
-          @sortDescending={{this.sortDescending}}
-          @class="with-foot" as |t|>
-          <t.head>
-            <t.sort-by @prop="plainId">ID</t.sort-by>
-            <t.sort-by @prop="controllersHealthyProportion">Controller Health</t.sort-by>
-            <t.sort-by @prop="nodesHealthyProportion">Node Health</t.sort-by>
-            <t.sort-by @prop="provider">Provider</t.sort-by>
-          </t.head>
-          <t.body @key="model.id" as |row|>
-            <tr class="is-interactive" data-test-plugin-row {{on "click" (action "gotoPlugin" row.model)}}>
-              <td data-test-plugin-id>
-                <LinkTo @route="csi.plugins.plugin" @model={{row.model.plainId}} class="is-primary">{{row.model.plainId}}</LinkTo>
-              </td>
-              <td data-test-plugin-controller-health>
-                {{#if row.model.controllerRequired}}
-                  {{if (gt row.model.controllersHealthy 0) "Healthy" "Unhealthy"}}
-                  ({{row.model.controllersHealthy}}/{{row.model.controllersExpected}})
-                {{else}}
-                  {{#if (gt row.model.controllersExpected 0)}}
-                    {{if (gt row.model.controllersHealthy 0) "Healthy" "Unhealthy"}}
-                    ({{row.model.controllersHealthy}}/{{row.model.controllersExpected}})
-                  {{else}}
-                    <em class="is-faded">Node Only</em>
-                  {{/if}}
-                {{/if}}
-              </td>
-              <td data-test-plugin-node-health>
-                {{if (gt row.model.nodesHealthy 0) "Healthy" "Unhealthy"}}
-                ({{row.model.nodesHealthy}}/{{row.model.nodesExpected}})
-              </td>
-              <td data-test-plugin-provider>{{row.model.provider}}</td>
-            </tr>
-          </t.body>
-        </ListTable>
-        <div class="table-foot">
-          <PageSizeSelect @onChange={{action this.resetPagination}} />
-          <nav class="pagination">
-            <div class="pagination-numbers">
-              {{p.startsAt}}&ndash;{{p.endsAt}} of {{this.sortedPlugins.length}}
-            </div>
-            <p.prev @class="pagination-previous">{{x-icon "chevron-left"}}</p.prev>
-            <p.next @class="pagination-next">{{x-icon "chevron-right"}}</p.next>
-            <ul class="pagination-list"></ul>
-          </nav>
-        </div>
-      </ListPagination>
-    {{else}}
-      <div data-test-empty-plugins-list class="empty-message">
+      </:filters>
+      <:row as |plugin r|>
+        <r.Row data-test-plugin-row={{plugin.plainId}}>
+          <r.Cell @key="plainId" data-test-plugin-id>
+            <LinkTo @route="csi.plugins.plugin" @model={{plugin.plainId}}>{{plugin.plainId}}</LinkTo>
+          </r.Cell>
+          <r.Cell @key="controllersHealthyProportion" data-test-plugin-controller-health>
+            <Storage::Health
+              @nodeOnly={{not (or plugin.controllerRequired (gt plugin.controllersExpected 0))}}
+              @healthy={{plugin.controllersHealthy}}
+              @expected={{plugin.controllersExpected}}
+            />
+          </r.Cell>
+          <r.Cell @key="nodesHealthyProportion" data-test-plugin-node-health>
+            <Storage::Health @healthy={{plugin.nodesHealthy}} @expected={{plugin.nodesExpected}} />
+          </r.Cell>
+          <r.Cell @key="provider" data-test-plugin-provider>{{plugin.provider}}</r.Cell>
+        </r.Row>
+      </:row>
+      <:empty>
         {{#if (eq this.model.length 0)}}
-          <h3 data-test-empty-plugins-list-headline class="empty-message-headline">No Plugins</h3>
-          <p class="empty-message-body">
-            The cluster currently has no registered CSI Plugins.
-          </p>
-        {{else if this.searchTerm}}
-          <h3 data-test-empty-plugins-list-headline class="empty-message-headline">No Matches</h3>
-          <p class="empty-message-body">
-            No plugins match the term <strong>{{this.searchTerm}}</strong>
-          </p>
+          <Ui::EmptyState
+            @icon="database"
+            @title="No Plugins"
+            @message="The cluster currently has no registered CSI plugins. Run a job with a csi_plugin block to register one."
+            data-test-empty-plugins-list
+          />
+        {{else}}
+          <Ui::EmptyState
+            @icon="filter-off"
+            @title="No Matches"
+            @message="No plugins match the term {{this.searchTerm}}. Change the search to see more plugins."
+            data-test-empty-plugins-list
+          />
         {{/if}}
-      </div>
-    {{/if}}
+      </:empty>
+    </Ui::DataTable>
   {{/if}}
-</section>
+</Ui::PageBody>

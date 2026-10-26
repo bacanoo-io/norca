@@ -11,16 +11,13 @@ import {
   fillIn,
   visit,
   settled,
+  select,
 } from '@ember/test-helpers';
-import { assign } from '@ember/polyfills';
 import { module, test } from 'qunit';
-import {
-  selectChoose,
-  clickTrigger,
-} from 'ember-power-select/test-support/helpers';
+import { notifyPropertyChange } from '@ember/object';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
 import JobRun from 'nomad-ui/tests/pages/jobs/run';
 import percySnapshot from '@percy/ember';
@@ -33,7 +30,7 @@ let managementToken, clientToken;
 
 const jsonJob = (overrides) => {
   return JSON.stringify(
-    assign(
+    Object.assign(
       {},
       {
         Name: newJobName,
@@ -79,14 +76,14 @@ module('Acceptance | job run', function (hooks) {
     assert.expect(1);
 
     await JobRun.visit();
-    await a11yAudit(assert);
+    await a11yAudit(assert, STRICT);
   });
 
   test('visiting /jobs/run', async function (assert) {
     await JobRun.visit();
 
     assert.equal(currentURL(), '/jobs/run');
-    assert.equal(document.title, 'Run a job - Nomad');
+    assert.equal(document.title, 'Run a job - Norca');
   });
 
   test('when submitting a job, the site redirects to the new job overview page', async function (assert) {
@@ -375,7 +372,14 @@ module('Acceptance | job run', function (hooks) {
       server.create('namespace', { id: 'test' });
 
       this.system = this.owner.lookup('service:system');
-      this.system.shouldShowNamespaces = true;
+      // shouldShowNamespaces is a computed property without a setter; shadow
+      // it on the instance (Ember 6 no longer lets a set override it).
+      Object.defineProperty(this.system, 'shouldShowNamespaces', {
+        value: true,
+        configurable: true,
+        writable: true,
+      });
+      notifyPropertyChange(this.system, 'shouldShowNamespaces');
 
       // Assert
       assert
@@ -387,20 +391,20 @@ module('Acceptance | job run', function (hooks) {
 
       await fillIn('[data-test-template-name]', 'foo');
       assert
-        .dom('[data-test-duplicate-error]')
+        .dom('[data-test-field-error]')
         .exists('an error message alerts the user');
 
-      await clickTrigger('[data-test-namespace-facet]');
-      await selectChoose('[data-test-namespace-facet]', 'test');
+      await select('[data-test-namespace-facet]', 'test');
 
       assert
-        .dom('[data-test-duplicate-error]')
+        .dom('[data-test-field-error]')
         .doesNotExist(
           'an error disappears when name or namespace combination is unique'
         );
 
       // Clean-up
-      this.system.shouldShowNamespaces = false;
+      delete this.system.shouldShowNamespaces;
+      notifyPropertyChange(this.system, 'shouldShowNamespaces');
     });
 
     test('a user can save code from the editor as a template', async function (assert) {

@@ -4,86 +4,88 @@
 ~}}
 
 {{page-title "Policies"}}
-<section class="section">
-  <header class="acl-list-header">
-    <div>
-      <h1 class="title">Policies</h1>
-      <p class="acl-explainer">
-        Policies are sets of rules that grant capabilities. Link them to tokens directly or through roles.
-      </p>
-    </div>
-    <div class="acl-list-actions">
-      {{#if (can "write policy")}}
-        <Hds::Button
-          @text="Create Policy"
-          @icon="plus"
-          @route="access-control.policies.new"
-          data-test-create-policy
-        />
-      {{else}}
-        <Hds::Button
-          @text="Create Policy"
-          @icon="plus"
-          disabled
-          title="You don’t have sufficient permissions"
-          data-test-disabled-create-policy
-        />
-      {{/if}}
-    </div>
-  </header>
-
-  {{#if this.policies.length}}
-    <Hds::Table
-      class="acl-table"
-      @model={{this.policies}}
-      @columns={{this.columns}}
-      @sortBy="name"
-    >
-      <:body as |B|>
-        <B.Tr
-          class="is-interactive"
-          data-test-policy-row
-          {{on "click" (fn this.openPolicy B.data)}}
-        >
-          <B.Td data-test-policy-name={{B.data.name}}>
-            <LinkTo @route="access-control.policies.policy" @model={{B.data.name}}>{{B.data.name}}</LinkTo>
-          </B.Td>
-          <B.Td data-test-policy-description>{{B.data.description}}</B.Td>
-          {{#if (can "list tokens")}}
-            {{#let (get this.tokenCounts B.data.name) as |counts|}}
-              <B.Td data-test-policy-token-count>
-                <span data-test-policy-total-tokens>{{if counts counts.total 0}}</span>
-                {{#if counts.expired}}
-                  <span data-test-policy-expired-tokens class="number-expired">({{counts.expired}} expired)</span>
-                {{/if}}
-              </B.Td>
-            {{/let}}
-          {{/if}}
-          {{#if (can "destroy policy")}}
-            <B.Td>
-              <Hds::Button
-                @text="Delete"
-                @color="critical"
-                @size="small"
-                disabled={{this.deletePolicy.isRunning}}
-                data-test-delete-policy
-                {{on "click" (perform this.deletePolicy B.data)}}
-              />
-            </B.Td>
-          {{/if}}
-        </B.Tr>
-      </:body>
-    </Hds::Table>
+<Access::Header @title="Policies">
+  {{#if (can "write policy")}}
+    <Ui::Button @variant="primary" @icon="plus" @route="access-control.policies.new" data-test-create-policy>Create Policy</Ui::Button>
   {{else}}
-    <div class="empty-message">
-      <h3 data-test-empty-policies-list-headline class="empty-message-headline">
-        No Policies
-      </h3>
-      {{#if (can "write policy")}}
-        <p class="empty-message-body">
-          Get started by <LinkTo @route="access-control.policies.new">creating a new policy</LinkTo>.
-        </p>
-      {{/if}}
-    </div>
+    <Ui::Tooltip @text="You don’t have sufficient permissions">
+      <Ui::Button @variant="primary" @icon="plus" @disabled={{true}} data-test-disabled-create-policy>Create Policy</Ui::Button>
+    </Ui::Tooltip>
   {{/if}}
-</section>
+</Access::Header>
+<Ui::PageBody>
+  <Access::Tabs />
+  <p class="text-secondary">
+    Policies are sets of rules that grant capabilities. Link them to tokens directly or through roles.
+  </p>
+  <Ui::DataTable
+    @id="access-policies"
+    @caption="Policies"
+    @columns={{this.columns}}
+    @rows={{this.rows}}
+    @sortBy={{this.list.sortBy}}
+    @sortDescending={{this.list.sortDescending}}
+    @onSort={{this.list.sort}}
+    @pageSize={{this.list.pageSize}}
+    @page={{this.list.page}}
+    @onPageChange={{this.list.setPage}}
+    @onPageSizeChange={{this.list.setPageSize}}
+    @onRowClick={{this.openPolicy}}
+    @enumerate={{true}}
+    @noun="policies"
+    @viewState={{this.list.viewState}}
+    @onApplyView={{this.list.applyView}}
+  >
+    <:filters>
+      <Ui::Input
+        @type="search"
+        @icon="search"
+        @placeholder="Search policies..."
+        @value={{this.list.searchTerm}}
+        @onInput={{this.list.search}}
+        aria-label="Search policies"
+        data-test-policies-search
+      />
+    </:filters>
+    <:row as |policy r|>
+      <r.Row data-test-policy-row>
+        <r.Cell @key="name" data-test-policy-name={{policy.name}}>
+          <LinkTo @route="access-control.policies.policy" @model={{policy.name}}>{{policy.name}}</LinkTo>
+        </r.Cell>
+        <r.Cell @key="description" data-test-policy-description>{{policy.description}}</r.Cell>
+        <r.Cell @key="tokens" class="tabular-nums" data-test-policy-token-count>
+          {{#let (get this.tokenCounts policy.name) as |counts|}}
+            <span data-test-policy-total-tokens>{{if counts counts.total 0}}</span>
+            {{#if counts.expired}}
+              <span class="text-danger" data-test-policy-expired-tokens>({{counts.expired}} expired)</span>
+            {{/if}}
+          {{/let}}
+        </r.Cell>
+        <r.Cell @key="actions" class="text-end">
+          <Ui::ConfirmButton
+            @label="Delete"
+            @icon="trash"
+            @size="sm"
+            @message="Delete the policy {{policy.name}}?"
+            @confirmLabel="Yes, delete"
+            @disabled={{this.deletePolicy.isRunning}}
+            @isRunning={{this.deletePolicy.isRunning}}
+            @onConfirm={{perform this.deletePolicy policy}}
+            data-test-delete-policy
+          />
+        </r.Cell>
+      </r.Row>
+    </:row>
+    <:empty>
+      {{#if this.policies.length}}
+        <Ui::EmptyState @icon="filter-off" @title="No Matches" @message="No policies match the search." data-test-empty-policies-list />
+      {{else}}
+        <Ui::EmptyState @icon="shield" @title="No Policies" data-test-empty-policies-list>
+          {{#if (can "write policy")}}
+            <p class="text-secondary">Get started by <LinkTo @route="access-control.policies.new">creating a new policy</LinkTo>.</p>
+          {{/if}}
+        </Ui::EmptyState>
+      {{/if}}
+    </:empty>
+  </Ui::DataTable>
+</Ui::PageBody>

@@ -1,0 +1,41 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A side panel (Tabler offcanvas) next to the page, not modal: Escape, the
+  close button and a click outside close it. @wide doubles its width; the
+  :actions block goes next to the title.
+
+    {{#if this.task}}
+      <Ui::SidePanel @title={{this.task.name}} @onClose={{this.close}}>...</Ui::SidePanel>
+    {{/if}}
+--}}
+<aside
+  class="offcanvas offcanvas-end show norca-side-panel {{if this.wide 'norca-side-panel-wide'}}"
+  aria-labelledby={{this.titleId}}
+  data-test-side-panel
+  {{this.behavior}}
+  ...attributes
+>
+  <div class="offcanvas-header gap-2">
+    <h2 class="offcanvas-title text-truncate" id={{this.titleId}} data-test-side-panel-title>
+      {{#if (has-block "title")}}{{yield to="title"}}{{else}}{{@title}}{{/if}}
+    </h2>
+    <div class="d-flex align-items-center gap-1 ms-auto">
+      {{yield to="actions"}}
+      <Ui::Button
+        @size="sm"
+        @variant="ghost"
+        @icon={{if this.wide "arrow-bar-right" "arrow-bar-left"}}
+        @iconOnly={{true}}
+        @label={{if this.wide "Narrow the panel" "Widen the panel"}}
+        data-test-side-panel-widen
+        {{on "click" this.toggleWide}}
+      />
+      <button type="button" class="btn-close" aria-label="Close" data-test-side-panel-close {{on "click" this.close}}></button>
+    </div>
+  </div>
+  <div class="offcanvas-body">
+    {{yield}}
+  </div>
+</aside>

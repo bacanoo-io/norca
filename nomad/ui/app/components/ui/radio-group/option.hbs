@@ -1,0 +1,18 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<label class="form-check mb-0">
+  <input
+    class="form-check-input"
+    type="radio"
+    name={{@name}}
+    value={{@value}}
+    checked={{eq @value this.groupValue}}
+    disabled={{@disabled}}
+    data-test-radio-option={{@value}}
+    {{on "change" this.change}}
+    ...attributes
+  />
+  <span class="form-check-label">{{@label}}</span>
+</label>

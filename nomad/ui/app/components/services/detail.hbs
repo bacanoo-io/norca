@@ -1,0 +1,96 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-service-detail {{this.setup @name this.scopedRegions this.namespace}}>
+  <Ui::PageHeader @pretitle="Services" @title={{@name}} @subtitle={{concat "namespace " this.namespace}} />
+
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the service" /></Ui::Card>
+    {{else}}
+      {{#each this.regions as |r|}}
+        {{#if r.error}}
+          <Ui::Alert @tone="danger" @title="The instances in {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
+        {{/if}}
+      {{/each}}
+      {{#if (not-eq this.summary.discoverable this.summary.total)}}
+        <Ui::Alert @tone="warning" class="mb-3" data-test-left-out>
+          {{this.summary.excluded}} of {{this.summary.total}} instances are left out of discovery: they are not ready or a check is critical. Look at the failing check below and at the logs of the allocation.
+        </Ui::Alert>
+      {{/if}}
+
+      <Ui::Card @title="Instances" @subtitle="{{this.summary.passing}} passing, {{this.summary.warning}} warning, {{this.summary.critical}} critical" @flush={{true}} data-test-service-instances>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Instances"
+          @columns={{this.columns}}
+          @rows={{this.instances}}
+          @emptyMessage="No instance is registered. The service appears when an allocation of its job runs, or when an external service is registered under this name."
+          as |i|
+        >
+          <td>
+            {{#if i.AllocID}}
+              <LinkTo @route="allocations.allocation" @model={{i.AllocID}} class="font-monospace">{{i.shortAlloc}}</LinkTo>
+              <div class="small text-secondary">{{i.JobID}} on {{i.Datacenter}}</div>
+            {{else}}
+              <span class="font-monospace">{{i.ID}}</span>
+              <div class="small text-secondary">external</div>
+            {{/if}}
+          </td>
+          {{#if this.isAllRegions}}<td><span class="norca-region">{{i.region}}</span></td>{{/if}}
+          <td class="font-monospace" data-test-instance-address>{{i.hostPort}}</td>
+          {{#each i.roleChecks as |check|}}
+            <td>
+              {{#if check}}
+                <Ui::StatusIndicator @status={{check.status}} title={{check.output}} />
+              {{else}}
+                <span class="text-secondary">–</span>
+              {{/if}}
+            </td>
+          {{/each}}
+          <td><Ui::StatusIndicator @status={{or i.Health "unknown"}} data-test-instance-health /></td>
+          <td data-test-instance-discovery>{{if i.discoverable "yes" "no, left out"}}</td>
+        </Ui::Table>
+      </Ui::Card>
+
+      {{#if this.otherChecks.length}}
+        <Ui::Card @title="Other checks" @flush={{true}} class="mt-3">
+          <Ui::Table
+            @inCard={{true}}
+            @caption="Other checks"
+            @columns={{array (hash key="instance" label="Instance") (hash key="check" label="Check") (hash key="status" label="Status") (hash key="output" label="Output")}}
+            @rows={{this.otherChecks}}
+            as |c|
+          >
+            <td class="font-monospace">{{c.instance}}</td>
+            <td>{{c.Name}}</td>
+            <td><Ui::StatusIndicator @status={{c.Status}} /></td>
+            <td class="text-break">{{c.Output}}</td>
+          </Ui::Table>
+        </Ui::Card>
+      {{/if}}
+
+      <Ui::Card @title="Intentions" @flush={{true}} class="mt-3" data-test-service-intentions>
+        <:actions>
+          <Ui::Button @size="sm" @route="network" @query={{hash tab="intentions"}}>All intentions</Ui::Button>
+        </:actions>
+        <:default>
+          <Ui::Table
+            @inCard={{true}}
+            @caption="Intentions of the service"
+            @columns={{array (hash key="direction" label="Direction") (hash key="peer" label="Peer") (hash key="action" label="Decision") (hash key="description" label="Description")}}
+            @rows={{this.relatedIntentions}}
+            @emptyMessage="No intention names this service: with mTLS, the default decision of the region applies."
+            as |i|
+          >
+            <td>{{i.direction}}</td>
+            <td class="font-monospace">{{if (eq i.direction "incoming") (concat i.SourceNamespace "/" i.Source) (concat i.Namespace "/" i.Destination)}}</td>
+            <td><Ui::Badge @color={{if (eq i.Action "allow") "green" "red"}}>{{i.Action}}</Ui::Badge></td>
+            <td>{{or i.Description "–"}}</td>
+          </Ui::Table>
+        </:default>
+      </Ui::Card>
+    {{/if}}
+  </Ui::PageBody>
+</div>

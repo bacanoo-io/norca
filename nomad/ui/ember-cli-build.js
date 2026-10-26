@@ -7,39 +7,28 @@
 const EmberApp = require('ember-cli/lib/broccoli/ember-app');
 
 const environment = EmberApp.env();
-const isProd = environment === 'production';
 const isTest = environment === 'test';
 
 module.exports = function (defaults) {
   let app = new EmberApp(defaults, {
-    svg: {
-      paths: [
-        'node_modules/@hashicorp/structure-icons/dist',
-        'public/images/icons',
-      ],
-      optimize: {
-        plugins: [{ removeViewBox: false }],
-      },
-    },
-    codemirror: {
-      modes: ['javascript', 'ruby'],
-    },
     babel: {
-      include: ['proposal-optional-chaining'],
-      plugins: [
-        '@babel/plugin-proposal-object-rest-spread',
-        require.resolve('ember-auto-import/babel-plugin'),
-      ],
-    },
-    'ember-cli-babel': {
-      includePolyfill: isProd,
+      // dynamic import() of npm packages (xterm, ...)
+      plugins: [require.resolve('ember-auto-import/babel-plugin')],
     },
     hinting: isTest,
     tests: isTest,
     sassOptions: {
       precision: 4,
-      includePaths: [
-        './node_modules/@hashicorp/design-system-tokens/dist/products/css',
+      includePaths: ['./node_modules'],
+      quietDeps: true,
+      silenceDeprecations: [
+        'import',
+        'global-builtin',
+        'color-functions',
+        'if-function',
+        'slash-div',
+        'mixed-decls',
+        'function-units',
       ],
     },
   });

@@ -318,6 +318,10 @@ type Config struct {
 	// ConsulCompat configures the Consul-compatible read API (Norca).
 	ConsulCompat *structsc.ConsulCompatConfig
 
+	// Secrets configures the secret providers of the client's secret
+	// delivery: the routes of secret paths to providers (Norca).
+	Secrets *SecretsConfig
+
 	// TemplateDialer is our custom HTTP dialer for consul-template. This is
 	// used for template functions which require access to the Nomad API.
 	TemplateDialer *bufconndialer.BufConnWrapper
@@ -769,6 +773,7 @@ func (c *Config) Copy() *Config {
 	nc.Topology = c.Topology.Copy()
 	nc.DNS = c.DNS.Copy()
 	nc.ConsulCompat = c.ConsulCompat.Copy()
+	nc.Secrets = c.Secrets.Copy()
 	return &nc
 }
 

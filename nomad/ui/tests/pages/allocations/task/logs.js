@@ -10,5 +10,5 @@ export default create({
   visitParentJob: visitable('/jobs/:id/allocations'),
 
   hasTaskLog: isPresent('[data-test-task-log]'),
-  sidebarIsPresent: isPresent('.sidebar.task-context-sidebar'),
+  sidebarIsPresent: isPresent('[data-test-task-context-sidebar]'),
 });

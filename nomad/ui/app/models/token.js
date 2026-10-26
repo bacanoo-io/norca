@@ -37,9 +37,19 @@ export default class Token extends Model {
    * Combined policies directly on the token, and policies inferred from token's role[s]
    */
   get combinedPolicies() {
+    // Async hasManys: before they load there is nothing to combine.
+    const loaded = (relationship) => {
+      if (!relationship) return [];
+      if (typeof relationship.then === 'function') {
+        return relationship.content ? relationship.content.toArray() : [];
+      }
+      return relationship.toArray();
+    };
     return [
-      ...this.policies.toArray(),
-      ...this.roles.map((role) => role.policies.toArray()).flat(),
+      ...loaded(this.policies),
+      ...loaded(this.roles)
+        .map((role) => loaded(role.policies))
+        .flat(),
     ].uniq();
   }
 }

@@ -19,11 +19,11 @@ const allocationRect = {
   mouseleave: triggerable('mouseleave'),
   width: attribute('width', '> rect'),
   height: attribute('height', '> rect'),
-  isActive: hasClass('is-active'),
-  isSelected: hasClass('is-selected'),
-  running: hasClass('running'),
-  failed: hasClass('failed'),
-  pending: hasClass('pending'),
+  isActive: hasClass('norca-topo-active'),
+  isSelected: hasClass('norca-topo-selected'),
+  running: hasClass('norca-topo-running'),
+  failed: hasClass('norca-topo-failed'),
+  pending: hasClass('norca-topo-pending'),
 };
 
 export default (scope) => ({
@@ -31,12 +31,18 @@ export default (scope) => ({
 
   label: text('[data-test-label]'),
   labelIsPresent: isPresent('[data-test-label]'),
-  statusIcon: attribute('class', '[data-test-status-icon] .icon'),
+  statusIcon: attribute('data-test-icon', '[data-test-status-icon] svg'),
   statusIconLabel: attribute('aria-label', '[data-test-status-icon]'),
 
   selectNode: clickable('[data-test-node-background]'),
-  nodeIsInteractive: hasClass('is-interactive', '[data-test-node-background]'),
-  nodeIsSelected: hasClass('is-selected', '[data-test-node-background]'),
+  nodeIsInteractive: hasClass(
+    'norca-topo-interactive',
+    '[data-test-node-background]'
+  ),
+  nodeIsSelected: hasClass(
+    'norca-topo-selected',
+    '[data-test-node-background]'
+  ),
 
   memoryRects: collection('[data-test-memory-rect]', {
     ...allocationRect,
@@ -50,5 +56,5 @@ export default (scope) => ({
   mouseout: triggerable('mouseout', '[data-test-topo-node-svg]'),
 
   emptyMessage: text('[data-test-empty-message]'),
-  isEmpty: hasClass('is-empty'),
+  isEmpty: hasClass('norca-topo-node-empty'),
 });

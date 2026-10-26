@@ -5,19 +5,17 @@
 
 import Controller from '@ember/controller';
 import { inject as service } from '@ember/service';
-import { action, computed } from '@ember/object';
+import { computed } from '@ember/object';
 import { alias, readOnly } from '@ember/object/computed';
 import SortableFactory from 'nomad-ui/mixins/sortable-factory';
-import { lazyClick } from 'nomad-ui/helpers/lazy-click';
-import {
-  serialize,
-  deserializedQueryParam as selection,
-} from 'nomad-ui/utils/qp-serialize';
+import { deserializedQueryParam as selection } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
+import WithListActions from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class AllocationsController extends Controller.extend(
-  SortableFactory(['updateTime', 'healthy'])
+  SortableFactory(['updateTime', 'healthy']),
+  WithListActions
 ) {
   @service userSettings;
 
@@ -99,22 +97,4 @@ export default class AllocationsController extends Controller.extend(
 
   @alias('filteredAllocations') listToSort;
   @alias('listSorted') sortedAllocations;
-
-  resetPagination() {
-    if (this.currentPage != null) {
-      this.set('currentPage', 1);
-    }
-  }
-
-  setFacetQueryParam(queryParam, selection) {
-    this.set(queryParam, serialize(selection));
-  }
-
-  @action
-  gotoAllocation(allocation, event) {
-    lazyClick([
-      () => this.transitionToRoute('allocations.allocation', allocation.id),
-      event,
-    ]);
-  }
 }

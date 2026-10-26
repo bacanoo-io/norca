@@ -4,6 +4,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -118,5 +120,73 @@ func TestFence(t *testing.T) {
 	}
 	if got := fence("plain"); got != "```" {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestFindSourceCopy(t *testing.T) {
+	for path, want := range map[string]string{
+		"github.com/hashicorp/nomad/secretstore/ubix":                  "github.com/cwolsen7905/ubixvault",
+		"github.com/hashicorp/nomad/secretstore/ubix/internal/barrier": "github.com/cwolsen7905/ubixvault",
+		"github.com/hashicorp/nomad/secretstore/ubix/export/core":      "github.com/cwolsen7905/ubixvault",
+		"github.com/hashicorp/nomad/secretstore":                       "",
+		"github.com/hashicorp/nomad/secretstore/ubixother":             "",
+		"github.com/hashicorp/nomad/nomad":                             "",
+	} {
+		got := ""
+		if c := findSourceCopy(path); c != nil {
+			got = c.Path
+		}
+		if got != want {
+			t.Errorf("%s: got %q, want %q", path, got, want)
+		}
+	}
+}
+
+// writeUI lays out a UI directory with one installed dependency.
+func writeUI(t *testing.T, name, license string) string {
+	t.Helper()
+	dir := t.TempDir()
+	files := map[string]string{
+		"package.json": `{"dependencies": {"` + name + `": "^1.0.0"}}`,
+		"yarn.lock": "# yarn lockfile v1\n\n" + name + "@^1.0.0:\n  version \"1.0.1\"\n" +
+			"  resolved \"https://registry.yarnpkg.com/" + name + "/-/" + name + "-1.0.1.tgz#x\"\n",
+		"node_modules/" + name + "/package.json": `{"name": "` + name + `", "version": "1.0.1", "license": "` + license + `"}`,
+		"node_modules/" + name + "/LICENSE":      "This is free and unencumbered software released into the public domain.",
+	}
+	for p, content := range files {
+		full := filepath.Join(dir, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func TestLegacyOnlyOverride(t *testing.T) {
+	dir := writeUI(t, "robust-predicates", "Unlicense")
+	src, err := newNPMSource(dir, t.TempDir(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The previous UI may use the package under the recorded exception.
+	_, problems, err := collectNPM(dir, src, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(problems) != 0 {
+		t.Errorf("legacy UI: unexpected problems %v", problems)
+	}
+
+	// The web UI may not.
+	_, problems, err = collectNPM(dir, src, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(problems) != 1 || !strings.Contains(problems[0], "legacy UI only") {
+		t.Errorf("web UI: problems = %v, want the legacy-only decision", problems)
 	}
 }
