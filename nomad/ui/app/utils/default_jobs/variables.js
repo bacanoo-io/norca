@@ -4,7 +4,7 @@
  */
 
 /* eslint-disable */
-export default `// Use Nomad Variables to modify this job's output:
+export default `// Use Variables to modify this job's output:
 // run "nomad var put nomad/jobs/variables-example name=YOUR_NAME" to get started
 
 job "variables-example" {

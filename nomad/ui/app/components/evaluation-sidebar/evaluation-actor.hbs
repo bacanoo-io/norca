@@ -1,28 +1,26 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 <Providers::ActorsRelationships as |actors|>
   <div
-    class="related-evaluation
-      {{if (eq @eval.id @activeEvaluationID) "is-active"}}"
+    class="norca-related-eval {{if (eq @eval.id @activeEvaluationID) "norca-related-eval-active"}}"
     data-eval={{@eval.id}}
     ...attributes
     {{did-insert (fn actors.fns.registerActor @eval)}}
     {{will-destroy (fn actors.fns.deregisterActor @eval)}}
   >
     {{#if (eq @eval.id @activeEvaluationID)}}
-      <span data-test-rel-eval={{@eval.id}}>
+      <span class="font-monospace" aria-current="true" data-test-rel-eval={{@eval.id}}>
         {{@eval.shortId}}
       </span>
     {{else}}
-      <a data-test-rel-eval={{@eval.id}} {{on "click" @onClick}}>
+      <button type="button" class="norca-related-eval-link font-monospace" data-test-rel-eval={{@eval.id}} {{on "click" @onClick}}>
         {{@eval.shortId}}
-      </a>
+      </button>
     {{/if}}
-    <span>
-      <StatusCell @status={{@eval.status}} />
-    </span>
+    <Ui::StatusIndicator @status={{@eval.status}} class="small" />
   </div>
 </Providers::ActorsRelationships>

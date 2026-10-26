@@ -1,0 +1,33 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The availability of a CSI plugin's controllers or nodes: the share of
+  healthy instances as a meter, with the available and expected counts.
+
+    <Storage::Availability @title="Node Health" @healthy={{2}} @expected={{3}} />
+--}}
+<Ui::Card @title={{@title}} ...attributes>
+  <div class="d-flex align-items-baseline gap-2 mb-2">
+    <span class="norca-storage-percent" data-test-percentage>{{format-percentage @healthy total=@expected}}</span>
+    <span class="text-secondary">available</span>
+  </div>
+  <Ui::Progress
+    @value={{@healthy}}
+    @max={{@expected}}
+    @color={{if (eq @healthy @expected) "green" (if (gt @healthy 0) "orange" "red")}}
+    @label="{{@title}}: availability"
+    @valueText="{{@healthy}} of {{@expected}} available"
+    class="mb-3"
+  />
+  <div class="row">
+    <div class="col">
+      <div class="text-secondary small">Available</div>
+      <div class="h2 mb-0 tabular-nums" data-test-available>{{@healthy}}</div>
+    </div>
+    <div class="col">
+      <div class="text-secondary small">Expected</div>
+      <div class="h2 mb-0 tabular-nums" data-test-expected>{{@expected}}</div>
+    </div>
+  </div>
+</Ui::Card>

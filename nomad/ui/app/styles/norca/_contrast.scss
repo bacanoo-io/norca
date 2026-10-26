@@ -55,6 +55,15 @@ $norca-aa-text: (
   .text-primary {
     --tblr-primary: #{if($theme == light, #0668c4, #5ba0e1)};
   }
+
+  // The title and the icon of the alerts on their tint.
+  @each $tone, $name in (info: blue, success: green, warning: yellow, danger: red) {
+    $pair: map-get($norca-aa-text, $name);
+
+    .alert-#{$tone} {
+      --tblr-alert-color: #{if($theme == light, nth($pair, 1), nth($pair, 2))};
+    }
+  }
 }
 
 // White text on the danger buttons.

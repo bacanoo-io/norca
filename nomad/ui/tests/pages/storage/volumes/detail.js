@@ -18,17 +18,28 @@ export default create({
   hasNamespace: isPresent('[data-test-volume-namespace]'),
   namespace: text('[data-test-volume-namespace]'),
 
-  ...allocations('[data-test-read-allocation]', 'readAllocations'),
-  ...allocations('[data-test-write-allocation]', 'writeAllocations'),
+  // The two allocation tables (Allocations::Table) of the page.
+  readTable: {
+    scope: '[data-test-read-allocations]',
+    ...allocations('[data-test-allocation]', 'readAllocations'),
+  },
+  writeTable: {
+    scope: '[data-test-write-allocations]',
+    ...allocations('[data-test-allocation]', 'writeAllocations'),
+  },
 
   writeTableIsEmpty: isPresent('[data-test-empty-write-allocations]'),
   writeEmptyState: {
-    headline: text('[data-test-empty-write-allocations-headline]'),
+    headline: text(
+      '[data-test-empty-write-allocations] [data-test-empty-state-title]'
+    ),
   },
 
   readTableIsEmpty: isPresent('[data-test-empty-read-allocations]'),
   readEmptyState: {
-    headline: text('[data-test-empty-read-allocations-headline]'),
+    headline: text(
+      '[data-test-empty-read-allocations] [data-test-empty-state-title]'
+    ),
   },
 
   constraints: {

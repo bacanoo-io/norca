@@ -298,7 +298,7 @@ module('Acceptance | exec', function (hooks) {
 
     assert.equal(
       window.execTerminal.buffer.active.getLine(6).translateToString().trim(),
-      `$ nomad alloc exec -i -t -task ${task.name} ${
+      `$ norca alloc exec -i -t -task ${task.name} ${
         allocationId.split('-')[0]
       } /bin/bash`
     );
@@ -338,7 +338,7 @@ module('Acceptance | exec', function (hooks) {
 
     assert.equal(
       window.execTerminal.buffer.active.getLine(4).translateToString().trim(),
-      `$ nomad alloc exec -i -t -task spaced\\ name\\! ${
+      `$ norca alloc exec -i -t -task spaced\\ name\\! ${
         allocation.id.split('-')[0]
       } /bin/bash`
     );
@@ -528,7 +528,7 @@ module('Acceptance | exec', function (hooks) {
 
     assert.equal(
       window.execTerminal.buffer.active.getLine(6).translateToString().trim(),
-      `$ nomad alloc exec -i -t -task ${task.name} ${
+      `$ norca alloc exec -i -t -task ${task.name} ${
         allocation.id.split('-')[0]
       }`
     );
@@ -563,7 +563,7 @@ module('Acceptance | exec', function (hooks) {
 
     assert.equal(
       window.execTerminal.buffer.active.getLine(4).translateToString().trim(),
-      `$ nomad alloc exec -i -t -task ${task.name} ${
+      `$ norca alloc exec -i -t -task ${task.name} ${
         allocation.id.split('-')[0]
       } /bin/sh`
     );

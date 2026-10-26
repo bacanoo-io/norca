@@ -73,6 +73,25 @@ const MIGRATED = [
   'components/token-editor.hbs',
   'components/role-editor.hbs',
   'components/policy-editor.hbs',
+  // servers and regions, topology, storage, evaluations, keyboard shortcuts
+  // (phase 4)
+  'templates/servers.hbs',
+  'templates/servers',
+  'components/servers',
+  'templates/topology.hbs',
+  'components/topology',
+  'components/topo-viz.hbs',
+  'components/topo-viz',
+  'templates/csi.hbs',
+  'templates/csi',
+  'components/storage',
+  'templates/evaluations.hbs',
+  'templates/evaluations',
+  'components/evaluation-sidebar',
+  'components/keyboard-shortcuts-modal.hbs',
+  'templates/oidc-mock.hbs',
+  'templates/settings.hbs',
+  'templates/settings',
 ];
 
 const ALLOWED = [

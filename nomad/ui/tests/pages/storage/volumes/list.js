@@ -14,15 +14,15 @@ import {
 } from 'ember-cli-page-object';
 
 import error from 'nomad-ui/tests/pages/components/error';
-import { singleFacet } from 'nomad-ui/tests/pages/components/facet';
-import pageSizeSelect from 'nomad-ui/tests/pages/components/page-size-select';
+import { nativeSingleFacet } from 'nomad-ui/tests/pages/components/facet';
+import { nativePageSizeSelect } from 'nomad-ui/tests/pages/components/page-size-select';
 
 export default create({
   pageSize: 25,
 
   visit: visitable('/csi/volumes'),
 
-  search: fillable('[data-test-volumes-search] input'),
+  search: fillable('[data-test-volumes-search]'),
 
   volumes: collection('[data-test-volume-row]', {
     name: text('[data-test-volume-name]'),
@@ -38,18 +38,20 @@ export default create({
     clickName: clickable('[data-test-volume-name] a'),
   }),
 
-  nextPage: clickable('[data-test-pager="next"]'),
-  prevPage: clickable('[data-test-pager="prev"]'),
+  nextPage: clickable('[data-test-pagination-next]'),
+  prevPage: clickable('[data-test-pagination-prev]'),
 
   isEmpty: isPresent('[data-test-empty-volumes-list]'),
   emptyState: {
-    headline: text('[data-test-empty-volumes-list-headline]'),
+    headline: text(
+      '[data-test-empty-volumes-list] [data-test-empty-state-title]'
+    ),
   },
 
   error: error(),
-  pageSizeSelect: pageSizeSelect(),
+  pageSizeSelect: nativePageSizeSelect(),
 
   facets: {
-    namespace: singleFacet('[data-test-namespace-facet]'),
+    namespace: nativeSingleFacet('[data-test-namespace-facet]'),
   },
 });

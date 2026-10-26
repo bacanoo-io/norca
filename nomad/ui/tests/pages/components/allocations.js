@@ -61,6 +61,10 @@ export default function (
         'data-norca-tooltip',
         '[data-test-modify-time] .norca-tooltip'
       ),
+      createTip: attribute(
+        'data-norca-tooltip',
+        '[data-test-create-time] .norca-tooltip'
+      ),
       rescheduled: isPresent(
         '[data-test-indicators] [data-test-icon="reschedule"]'
       ),

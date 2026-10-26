@@ -1,0 +1,13 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<span class="small" data-test-topology-live={{this.state}}>
+  {{#if this.isLive}}
+    <Ui::StatusIndicator @tone="success" @label="Live" @animated={{true}} />
+  {{else if (eq this.state "forbidden")}}
+    <Ui::StatusIndicator @tone="neutral" @label="Reload the page for changes" />
+  {{else}}
+    <Ui::StatusIndicator @tone="neutral" @label="Not updating live" />
+  {{/if}}
+</span>

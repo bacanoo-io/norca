@@ -1,0 +1,35 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A resource of the topology's info panel: the total, a meter of the
+  reserved share and the reserved/total values.
+
+    <Topology::Utilization @kind="memory" @label="of memory" @value="12.5" @units="GiB"
+      @percent={{0.42}} @reserved="5.3 GiB" @total="12.5 GiB" />
+--}}
+<div class="norca-topo-utilization" data-test-utilization={{@kind}}>
+  <div class="d-flex align-items-baseline gap-1">
+    <span class="norca-topo-metric-value">{{@value}}</span>
+    <span>{{@units}}</span>
+    <span class="text-secondary">{{@label}}</span>
+  </div>
+  <div class="d-flex align-items-center gap-2" data-test-percentage-bar>
+    <Ui::Progress
+      @value={{@percent}}
+      @max={{1}}
+      @color={{if (eq @kind "memory") "purple" "azure"}}
+      @label="Reserved {{@kind}}"
+      @valueText={{format-percentage @percent total=1}}
+      class="flex-fill"
+      data-test-memory-progress-bar={{eq @kind "memory"}}
+      data-test-cpu-progress-bar={{eq @kind "cpu"}}
+    />
+    <span class="text-nowrap tabular-nums" data-test-percentage data-test-memory-percentage={{eq @kind "memory"}} data-test-cpu-percentage={{eq @kind "cpu"}}>
+      {{format-percentage @percent total=1}}
+    </span>
+  </div>
+  <div class="small text-secondary" data-test-memory-absolute-value={{eq @kind "memory"}} data-test-cpu-absolute-value={{eq @kind "cpu"}}>
+    <strong class="text-body">{{@reserved}}</strong> / {{@total}} reserved
+  </div>
+</div>

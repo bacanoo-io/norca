@@ -1,544 +1,271 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Breadcrumb @crumb={{hash label="Topology" args=(array "topology")}} />
 {{page-title "Cluster Topology"}}
-<PageLayout>
-  <section class="section is-full-width">
+<PageLayout @legacy={{false}}>
+  <Ui::PageHeader @pretitle="Capacity" @title="Topology" @subtitle={{this.scopeLabel}}>
+    <:actions>
+      {{#if (cannot "list all jobs")}}
+        <Ui::Badge @color="orange" title="Your ACL token may limit your ability to list all allocations" data-test-partial-view>
+          Partial view
+        </Ui::Badge>
+      {{/if}}
+      {{#unless this.isForbidden}}
+        <Topology::LiveUpdates @onChange={{this.refresh}} />
+      {{/unless}}
+    </:actions>
+  </Ui::PageHeader>
+  <Ui::PageBody>
     {{#if this.isForbidden}}
       <ForbiddenMessage />
     {{else}}
       {{#if this.pre09Nodes}}
-        <div class="notification is-warning">
-          <div data-test-filtered-nodes-warning class="columns">
-            <div class="column">
-              <h3 data-test-title class="title is-4">
-                Some Clients Were Filtered
-              </h3>
-              <p data-test-message>
-                {{this.pre09Nodes.length}}
-                {{if (eq this.pre09Nodes.length 1) "client was" "clients were"}}
-                filtered from the topology visualization. This is most likely due to the
-                {{pluralize "client" this.pre09Nodes.length}}
-                running a version of Nomad
-              </p>
-            </div>
-            <div class="column is-centered is-minimum">
-              <button
-                data-test-dismiss
-                class="button is-warning"
-                onclick={{action (mut this.pre09Nodes) null}}
-                type="button"
-              >
-                Okay
-              </button>
-            </div>
-          </div>
-        </div>
+        <Ui::Alert
+          @tone="warning"
+          @title="Some Clients Were Filtered"
+          @onDismiss={{this.dismissFilteredNodes}}
+          class="mb-3"
+          data-test-filtered-nodes-warning
+        >
+          <span data-test-message>
+            {{this.pre09Nodes.length}}
+            {{if (eq this.pre09Nodes.length 1) "client was" "clients were"}}
+            filtered from the topology visualization. This is most likely due to the
+            {{pluralize "client" this.pre09Nodes.length}}
+            running a version older than Nomad 0.9, which does not report its resources.
+            Upgrade the {{pluralize "client" this.pre09Nodes.length}} to include
+            {{if (eq this.pre09Nodes.length 1) "it" "them"}}.
+          </span>
+        </Ui::Alert>
       {{/if}}
-      <div class="columns">
-        <div class="column is-narrow is-400">
+      <div class="row g-3">
+        <div class="col-lg-4 col-xl-3">
           {{#if this.showPollingNotice}}
-            <div class="notification is-warning">
-              <div class="columns">
-                <div class="column">
-                  <h3 class="title is-4">
-                    No Live Updating
-                  </h3>
-                  <p>
-                    The topology visualization depends on too much data to continuously poll.
-                  </p>
-                </div>
-                <div class="column is-centered is-minimum">
-                  <button
-                    data-test-polling-notice-dismiss
-                    class="button is-warning"
-                    type="button"
-                    onclick={{toggle-action "showPollingNotice" this}}
-                  >
-                    Okay
-                  </button>
-                </div>
-              </div>
-            </div>
+            <Ui::Alert
+              @tone="info"
+              @title="Updates on change"
+              @onDismiss={{this.dismissPollingNotice}}
+              class="mb-3"
+              data-test-polling-notice
+            >
+              The topology depends on too much data to poll continuously. It reloads
+              when the event stream reports a change of a client or an allocation.
+            </Ui::Alert>
           {{/if}}
-          <div class="boxed-section">
-            <div class="boxed-section-head">
-              Legend
-              {{#if (cannot "list all jobs")}}
-                <span
-                  aria-label="Your ACL token may limit your ability to list all allocations"
-                  class="tag is-warning pull-right tooltip multiline"
-                >
-                  Partial View
-                </span>
-              {{/if}}
-            </div>
-            <div class="boxed-section-body">
-              <div class="legend">
-                <h3 class="legend-label">
-                  Metrics
-                </h3>
-                <dl class="legend-terms">
-                  <dt>
-                    M:
-                  </dt>
-                  <dd>
-                    Memory
-                  </dd>
-                  <dt>
-                    C:
-                  </dt>
-                  <dd>
-                    CPU
-                  </dd>
-                </dl>
+          <Ui::Card @title="Legend" class="mb-3" data-test-topology-legend>
+            <h4 class="small text-secondary mb-1">Metrics</h4>
+            <dl class="norca-topo-legend mb-3">
+              <div><dt>M</dt><dd>Memory</dd></div>
+              <div><dt>C</dt><dd>CPU</dd></div>
+            </dl>
+            <h4 class="small text-secondary mb-1">Allocation status</h4>
+            <dl class="norca-topo-legend mb-0">
+              <div>
+                <dt><span class="norca-topo-swatch norca-topo-swatch-running" aria-hidden="true"></span></dt>
+                <dd>Running</dd>
               </div>
-              <div class="legend">
-                <h3 class="legend-label">
-                  Allocation Status
-                </h3>
-                <dl class="legend-terms">
-                  <div class="legend-term">
-                    <dt>
-                      <span class="color-swatch is-wide running" title="Running"></span>
-                    </dt>
-                    <dd>
-                      Running
-                    </dd>
-                  </div>
-                  <div class="legend-term">
-                    <dt>
-                      <span class="color-swatch is-wide pending" title="Starting"></span>
-                    </dt>
-                    <dd>
-                      Starting
-                    </dd>
-                  </div>
-                </dl>
+              <div>
+                <dt><span class="norca-topo-swatch norca-topo-swatch-pending" aria-hidden="true"></span></dt>
+                <dd>Starting</dd>
               </div>
-            </div>
-          </div>
-          <div class="boxed-section">
-            <div data-test-info-panel-title class="boxed-section-head">
-              {{#if this.activeNode}}
-                Client
-              {{else if this.activeAllocation}}
-                Allocation
-              {{else}}
-                Cluster
-              {{/if}}
-              Details
-            </div>
-            <div data-test-info-panel class="boxed-section-body">
+            </dl>
+          </Ui::Card>
+          <Ui::Card data-test-info-panel-title @title={{this.infoPanelTitle}}>
+            <div data-test-info-panel>
               {{#if this.activeNode}}
                 {{#let this.activeNode.node as |node|}}
-                  <div class="dashboard-metric">
-                    <p data-test-allocations class="metric">
-                      {{this.activeNode.allocations.length}}
-                      <span class="metric-label">
-                        Allocations
-                      </span>
-                    </p>
+                  <div class="norca-topo-metric">
+                    <span class="norca-topo-metric-value" data-test-allocations>{{this.activeNode.allocations.length}}</span>
+                    <span class="text-secondary">Allocations</span>
                   </div>
-                  <div class="dashboard-metric">
-                    <h3 class="pair">
-                      <strong>
-                        Client:
-                      </strong>
-                      <LinkTo data-test-client-link @route="clients.client" @model={{node}}>
-                        {{node.shortId}}
-                      </LinkTo>
-                    </h3>
-                    <p data-test-name class="minor-pair">
-                      <strong>
-                        Name:
-                      </strong>
-                      {{node.name}}
-                    </p>
-                    <p data-test-address class="minor-pair">
-                      <strong>
-                        Address:
-                      </strong>
-                      {{node.httpAddr}}
-                    </p>
-                    <p data-test-status class="minor-pair">
-                      <strong>
-                        Status:
-                      </strong>
-                      {{node.status}}
-                    </p>
-                  </div>
-                  <div class="dashboard-metric">
-                    <h3 class="pair">
-                      <strong>
-                        Draining?
-                      </strong>
-                      <span data-test-draining class="{{if node.isDraining "status-text is-info"}}">
-                        {{if node.isDraining "Yes" "No"}}
+                  <Ui::Datagrid @compact={{true}} class="mb-3" as |g|>
+                    <g.Item @title="Client">
+                      <LinkTo data-test-client-link @route="clients.client" @model={{node}} class="font-monospace">{{node.shortId}}</LinkTo>
+                    </g.Item>
+                    <g.Item @title="Name"><span data-test-name>{{node.name}}</span></g.Item>
+                    <g.Item @title="Address" @monospace={{true}}><span data-test-address>{{node.httpAddr}}</span></g.Item>
+                    <g.Item @title="Status"><span data-test-status>{{node.status}}</span></g.Item>
+                    <g.Item @title="Draining">
+                      <span data-test-draining data-test-accented={{node.isDraining}}>
+                        <Ui::StatusIndicator @tone={{if node.isDraining "info" "neutral"}} @label={{if node.isDraining "Yes" "No"}} />
                       </span>
-                    </h3>
-                    <h3 class="pair">
-                      <strong>
-                        Eligible?
-                      </strong>
-                      <span
-                        data-test-eligible
-                        class="{{unless node.isEligible "status-text is-warning"}}"
-                      >
-                        {{if node.isEligible "Yes" "No"}}
+                    </g.Item>
+                    <g.Item @title="Eligible">
+                      <span data-test-eligible data-test-accented={{not node.isEligible}}>
+                        <Ui::StatusIndicator @tone={{if node.isEligible "neutral" "warning"}} @label={{if node.isEligible "Yes" "No"}} />
                       </span>
-                    </h3>
-                  </div>
-                  <div class="dashboard-metric with-divider">
-                    <p class="metric">
-                      {{this.nodeUtilization.totalMemoryFormatted}}
-                      <span class="metric-units">
-                        {{this.nodeUtilization.totalMemoryUnits}}
-                      </span>
-                      <span class="metric-label">
-                        of memory
-                      </span>
-                    </p>
-                    <div class="columns graphic">
-                      <div class="column">
-                        <div class="inline-chart">
-                          <progress
-                            data-test-memory-progress-bar
-                            class="progress is-danger is-small"
-                            value="{{this.nodeUtilization.reservedMemoryPercent}}"
-                            max="1"
-                          >
-                            {{this.nodeUtilization.reservedMemoryPercent}}
-                          </progress>
-                        </div>
-                      </div>
-                      <div class="column is-minimum">
-                        <span class="nowrap" data-test-percentage>
-                          {{format-percentage this.nodeUtilization.reservedMemoryPercent total=1}}
-                        </span>
-                      </div>
-                    </div>
-                    <div class="annotation" data-test-memory-absolute-value>
-                      <strong>
-                        {{format-scheduled-bytes this.nodeUtilization.totalReservedMemory}}
-                      </strong>
-                      /
-                      {{format-scheduled-bytes this.nodeUtilization.totalMemory}}
-                      reserved
-                    </div>
-                  </div>
-                  <div class="dashboard-metric">
-                    <p class="metric">
-                      {{this.nodeUtilization.totalCPU}}
-                      <span class="metric-units">
-                        MHz
-                      </span>
-                      <span class="metric-label">
-                        of CPU
-                      </span>
-                    </p>
-                    <div class="columns graphic">
-                      <div class="column">
-                        <div class="inline-chart" data-test-percentage-bar>
-                          <progress
-                            data-test-cpu-progress-bar
-                            class="progress is-info is-small"
-                            value="{{this.nodeUtilization.reservedCPUPercent}}"
-                            max="1"
-                          >
-                            {{this.nodeUtilization.reservedCPUPercent}}
-                          </progress>
-                        </div>
-                      </div>
-                      <div class="column is-minimum">
-                        <span class="nowrap" data-test-percentage>
-                          {{format-percentage this.nodeUtilization.reservedCPUPercent total=1}}
-                        </span>
-                      </div>
-                    </div>
-                    <div class="annotation" data-test-cpu-absolute-value>
-                      <strong>
-                        {{format-scheduled-hertz this.nodeUtilization.totalReservedCPU}}
-                      </strong>
-                      /
-                      {{format-scheduled-hertz this.nodeUtilization.totalCPU}}
-                      reserved
-                    </div>
-                  </div>
+                    </g.Item>
+                  </Ui::Datagrid>
+                  <Topology::Utilization
+                    @kind="memory"
+                    @label="of memory"
+                    @value={{this.nodeUtilization.totalMemoryFormatted}}
+                    @units={{this.nodeUtilization.totalMemoryUnits}}
+                    @percent={{this.nodeUtilization.reservedMemoryPercent}}
+                    @reserved={{format-scheduled-bytes this.nodeUtilization.totalReservedMemory}}
+                    @total={{format-scheduled-bytes this.nodeUtilization.totalMemory}}
+                  />
+                  <Topology::Utilization
+                    @kind="cpu"
+                    @label="of CPU"
+                    @value={{this.nodeUtilization.totalCPU}}
+                    @units="MHz"
+                    @percent={{this.nodeUtilization.reservedCPUPercent}}
+                    @reserved={{format-scheduled-hertz this.nodeUtilization.totalReservedCPU}}
+                    @total={{format-scheduled-hertz this.nodeUtilization.totalCPU}}
+                  />
                 {{/let}}
               {{else if this.activeAllocation}}
-                <div class="dashboard-metric">
-                  <h3 class="pair">
-                    <strong>
-                      Allocation:
-                    </strong>
-                    <LinkTo
-                      data-test-id
-                      @route="allocations.allocation"
-                      @model={{this.activeAllocation}}
-                      class="is-primary"
-                    >
+                <Ui::Datagrid @compact={{true}} class="mb-3" as |g|>
+                  <g.Item @title="Allocation">
+                    <LinkTo data-test-id @route="allocations.allocation" @model={{this.activeAllocation}} class="font-monospace">
                       {{this.activeAllocation.shortId}}
                     </LinkTo>
-                  </h3>
-                  <p data-test-sibling-allocs class="minor-pair">
-                    <strong>
-                      Sibling Allocations:
-                    </strong>
-                    {{this.siblingAllocations.length}}
-                  </p>
-                  <p data-test-unique-placements class="minor-pair">
-                    <strong>
-                      Unique Client Placements:
-                    </strong>
-                    {{this.uniqueActiveAllocationNodes.length}}
-                  </p>
-                </div>
-                <div class="dashboard-metric with-divider">
-                  <h3 class="pair">
-                    <strong>
-                      Job:
-                    </strong>
-                    <LinkTo
-                      data-test-job
-                      @route="jobs.job"
-                      @model={{this.activeAllocation.job}}
-                    >
-                      {{this.activeAllocation.job.name}}
-                    </LinkTo>
-                    <span class="is-faded" data-test-task-group>
-                      /
-                      {{this.activeAllocation.taskGroupName}}
-                    </span>
-                  </h3>
-                  <p class="minor-pair">
-                    <strong>
-                      Type:
-                    </strong>
-                    {{this.activeAllocation.job.type}}
-                  </p>
-                  <p class="minor-pair">
-                    <strong>
-                      Priority:
-                    </strong>
-                    {{this.activeAllocation.job.priority}}
-                  </p>
-                </div>
-                <div class="dashboard-metric with-divider">
-                  <h3 class="pair">
-                    <strong>
-                      Client:
-                    </strong>
-                    <LinkTo
-                      data-test-client
-                      @route="clients.client"
-                      @model={{this.activeAllocation.node}}
-                    >
+                  </g.Item>
+                  <g.Item @title="Sibling allocations"><span data-test-sibling-allocs>{{this.siblingAllocations.length}}</span></g.Item>
+                  <g.Item @title="Unique client placements"><span data-test-unique-placements>{{this.uniqueActiveAllocationNodes.length}}</span></g.Item>
+                  <g.Item @title="Job">
+                    <LinkTo data-test-job @route="jobs.job" @model={{this.activeAllocation.job}}>{{this.activeAllocation.job.name}}</LinkTo>
+                    <span class="text-secondary" data-test-task-group>/ {{this.activeAllocation.taskGroupName}}</span>
+                  </g.Item>
+                  <g.Item @title="Type">{{this.activeAllocation.job.type}}</g.Item>
+                  <g.Item @title="Priority">{{this.activeAllocation.job.priority}}</g.Item>
+                  <g.Item @title="Client">
+                    <LinkTo data-test-client @route="clients.client" @model={{this.activeAllocation.node}} class="font-monospace">
                       {{this.activeAllocation.node.shortId}}
                     </LinkTo>
-                  </h3>
-                  <p class="minor-pair">
-                    <strong>
-                      Name:
-                    </strong>
-                    {{this.activeAllocation.node.name}}
-                  </p>
-                  <p class="minor-pair">
-                    <strong>
-                      Address:
-                    </strong>
-                    {{this.activeAllocation.node.httpAddr}}
-                  </p>
-                </div>
-                <div class="dashboard-metric with-divider">
-                  <PrimaryMetric::Allocation
-                    @allocation={{this.activeAllocation}}
-                    @metric="memory"
-                    class="is-short"
-                  />
-                </div>
-                <div class="dashboard-metric">
-                  <PrimaryMetric::Allocation
-                    @allocation={{this.activeAllocation}}
-                    @metric="cpu"
-                    class="is-short"
-                  />
-                </div>
+                  </g.Item>
+                  <g.Item @title="Client name">{{this.activeAllocation.node.name}}</g.Item>
+                  <g.Item @title="Client address" @monospace={{true}}>{{this.activeAllocation.node.httpAddr}}</g.Item>
+                </Ui::Datagrid>
+                <PrimaryMetric::Allocation @allocation={{this.activeAllocation}} @metric="memory" class="mb-3" />
+                <PrimaryMetric::Allocation @allocation={{this.activeAllocation}} @metric="cpu" />
               {{else}}
-                <div class="columns is-flush">
-                  <div class="dashboard-metric column">
-                    <p data-test-node-count class="metric justify">
-                      {{this.model.nodes.length}}
-                      <span class="metric-label">
-                        Clients
-                      </span>
-                    </p>
+                <div class="row g-2 mb-3 text-center">
+                  <div class="col-4">
+                    <div class="norca-topo-metric-value" data-test-node-count>{{this.model.nodes.length}}</div>
+                    <div class="text-secondary small">Clients</div>
                   </div>
-                  <div class="dashboard-metric column">
-                    <p data-test-alloc-count class="metric justify">
-                      {{this.scheduledAllocations.length}}
-                      <span class="metric-label">
-                        Allocations
-                      </span>
-                    </p>
+                  <div class="col-4">
+                    <div class="norca-topo-metric-value" data-test-alloc-count>{{this.scheduledAllocations.length}}</div>
+                    <div class="text-secondary small">Allocations</div>
                   </div>
-                  <div class="dashboard-metric column">
-                    <p data-test-node-pool-count class="metric justify">
-                      {{this.model.nodePools.length}}
-                      <span class="metric-label">
-                        Node Pools
-                      </span>
-                    </p>
+                  <div class="col-4">
+                    <div class="norca-topo-metric-value" data-test-node-pool-count>{{this.model.nodePools.length}}</div>
+                    <div class="text-secondary small">Node Pools</div>
                   </div>
                 </div>
-                <div class="dashboard-metric with-divider">
-                  <p class="metric">
-                    {{this.totalMemoryFormatted}}
-                    <span class="metric-units">
-                      {{this.totalMemoryUnits}}
-                    </span>
-                    <span class="metric-label">
-                      of memory
-                    </span>
-                  </p>
-                  <div class="columns graphic">
-                    <div class="column">
-                      <div class="inline-chart" data-test-percentage-bar>
-                        <progress
-                          data-test-memory-progress-bar
-                          class="progress is-danger is-small"
-                          value="{{this.reservedMemoryPercent}}"
-                          max="1"
-                        >
-                          {{this.reservedMemoryPercent}}
-                        </progress>
-                      </div>
-                    </div>
-                    <div class="column is-minimum">
-                      <span class="nowrap" data-test-memory-percentage>
-                        {{format-percentage this.reservedMemoryPercent total=1}}
-                      </span>
-                    </div>
-                  </div>
-                  <div class="annotation" data-test-memory-absolute-value>
-                    <strong>
-                      {{format-bytes this.totalReservedMemory}}
-                    </strong>
-                    /
-                    {{format-bytes this.totalMemory}}
-                    reserved
-                  </div>
-                </div>
-                <div class="dashboard-metric">
-                  <p class="metric">
-                    {{this.totalCPUFormatted}}
-                    <span class="metric-units">
-                      {{this.totalCPUUnits}}
-                    </span>
-                    <span class="metric-label">
-                      of CPU
-                    </span>
-                  </p>
-                  <div class="columns graphic">
-                    <div class="column">
-                      <div class="inline-chart" data-test-percentage-bar>
-                        <progress
-                          data-test-cpu-progress-bar
-                          class="progress is-info is-small"
-                          value="{{this.reservedCPUPercent}}"
-                          max="1"
-                        >
-                          {{this.reservedCPUPercent}}
-                        </progress>
-                      </div>
-                    </div>
-                    <div class="column is-minimum">
-                      <span class="nowrap" data-test-cpu-percentage>
-                        {{format-percentage this.reservedCPUPercent total=1}}
-                      </span>
-                    </div>
-                  </div>
-                  <div class="annotation" data-test-cpu-absolute-value>
-                    <strong>
-                      {{format-hertz this.totalReservedCPU}}
-                    </strong>
-                    /
-                    {{format-hertz this.totalCPU}}
-                    reserved
-                  </div>
-                </div>
+                <Topology::Utilization
+                  @kind="memory"
+                  @label="of memory"
+                  @value={{this.totalMemoryFormatted}}
+                  @units={{this.totalMemoryUnits}}
+                  @percent={{this.reservedMemoryPercent}}
+                  @reserved={{format-bytes this.totalReservedMemory}}
+                  @total={{format-bytes this.totalMemory}}
+                />
+                <Topology::Utilization
+                  @kind="cpu"
+                  @label="of CPU"
+                  @value={{this.totalCPUFormatted}}
+                  @units={{this.totalCPUUnits}}
+                  @percent={{this.reservedCPUPercent}}
+                  @reserved={{format-hertz this.totalReservedCPU}}
+                  @total={{format-hertz this.totalCPU}}
+                />
               {{/if}}
             </div>
-          </div>
+          </Ui::Card>
         </div>
-        <div class="column">
-          <div class="toolbar">
-            <div class="toolbar-item">
-              {{#if this.model.nodes.length}}
-                <SearchBox
-                  @inputClass="node-search"
-                  @searchTerm={{mut this.searchTerm}}
-                  @placeholder="Search clients..."
-                />
-              {{/if}}
-            </div>
-            <div class="toolbar-item is-right-aligned is-mobile-full-width">
-              <div class="button-bar">
-                <MultiSelectDropdown
-                  data-test-node-pool-facet
-                  @label="Node Pool"
-                  @options={{this.optionsNodePool}}
-                  @selection={{this.selectionNodePool}}
-                  @onSelect={{action this.setFacetQueryParam "qpNodePool"}}
-                />
-                <MultiSelectDropdown
-                  data-test-datacenter-facet
-                  @label="Datacenter"
-                  @options={{this.optionsDatacenter}}
-                  @selection={{this.selectionDatacenter}}
-                  @onSelect={{action this.setFacetQueryParam "qpDatacenter"}}
-                />
-                <MultiSelectDropdown
-                  data-test-class-facet
-                  @label="Class"
-                  @options={{this.optionsClass}}
-                  @selection={{this.selectionClass}}
-                  @onSelect={{action this.setFacetQueryParam "qpClass"}}
-                />
-                <MultiSelectDropdown
-                  data-test-state-facet
-                  @label="State"
-                  @options={{this.optionsState}}
-                  @selection={{this.selectionState}}
-                  @onSelect={{action this.setFacetQueryParam "qpState"}}
-                />
-                <MultiSelectDropdown
-                  data-test-version-facet
-                  @label="Version"
-                  @options={{this.optionsVersion}}
-                  @selection={{this.selectionVersion}}
-                  @onSelect={{action this.setFacetQueryParam "qpVersion"}}
-                />
-              </div>
+        <div class="col-lg-8 col-xl-9">
+          <div class="d-flex flex-wrap gap-2 mb-3" data-test-topology-toolbar>
+            {{#if this.model.nodes.length}}
+              <Ui::Input
+                @type="search"
+                @icon="search"
+                @placeholder="Search clients..."
+                @value={{this.searchTerm}}
+                @onInput={{this.search}}
+                aria-label="Search clients"
+                data-test-topology-search
+              />
+            {{/if}}
+            <div class="d-flex flex-wrap gap-2 ms-auto">
+              <Ui::FilterDropdown
+                @label="Node Pool"
+                @options={{this.optionsNodePool}}
+                @selection={{this.selectionNodePool}}
+                @onSelect={{fn this.setFacetQueryParam "qpNodePool"}}
+                data-test-node-pool-facet
+              />
+              <Ui::FilterDropdown
+                @label="Datacenter"
+                @options={{this.optionsDatacenter}}
+                @selection={{this.selectionDatacenter}}
+                @onSelect={{fn this.setFacetQueryParam "qpDatacenter"}}
+                data-test-datacenter-facet
+              />
+              <Ui::FilterDropdown
+                @label="Class"
+                @options={{this.optionsClass}}
+                @selection={{this.selectionClass}}
+                @onSelect={{fn this.setFacetQueryParam "qpClass"}}
+                data-test-class-facet
+              />
+              <Ui::FilterDropdown
+                @label="State"
+                @options={{this.optionsState}}
+                @selection={{this.selectionState}}
+                @onSelect={{fn this.setFacetQueryParam "qpState"}}
+                data-test-state-facet
+              />
+              <Ui::FilterDropdown
+                @label="Version"
+                @options={{this.optionsVersion}}
+                @selection={{this.selectionVersion}}
+                @onSelect={{fn this.setFacetQueryParam "qpVersion"}}
+                data-test-version-facet
+              />
             </div>
           </div>
-          <TopoViz
-            @nodes={{this.filteredNodes}}
-            @allocations={{this.model.allocations}}
-            @onAllocationSelect={{action this.setAllocation}}
-            @onNodeSelect={{action this.setNode}}
-            @onDataError={{action this.handleTopoVizDataError}}
-            @filters={{hash
-              search=this.searchTerm
-              clientState=this.selectionState
-              clientVersion=this.selectionVersion
-            }}
-          />
+          {{#if this.model.nodes.length}}
+            <TopoViz
+              @nodes={{this.filteredNodes}}
+              @allocations={{this.model.allocations}}
+              @onAllocationSelect={{this.setAllocation}}
+              @onNodeSelect={{this.setNode}}
+              @onDataError={{this.handleTopoVizDataError}}
+              @filters={{hash
+                search=this.searchTerm
+                clientState=this.selectionState
+                clientVersion=this.selectionVersion
+              }}
+            />
+            {{#unless this.filteredNodes.length}}
+              <Ui::Card>
+                <Ui::EmptyState
+                  @icon="filter-off"
+                  @title="No Matches"
+                  @message="No clients match the search or the filters. Change them to see the topology."
+                  data-test-topology-no-matches
+                />
+              </Ui::Card>
+            {{/unless}}
+          {{else}}
+            <Ui::Card>
+              <Ui::EmptyState
+                @icon="server-2"
+                @title="No Clients"
+                @message="The cluster has no client nodes yet. Start a client agent and it appears here with its allocations."
+                data-test-topology-empty
+              />
+            </Ui::Card>
+          {{/if}}
         </div>
       </div>
     {{/if}}
-  </section>
+  </Ui::PageBody>
 </PageLayout>
