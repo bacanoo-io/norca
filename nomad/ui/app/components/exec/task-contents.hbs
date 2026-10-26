@@ -1,21 +1,15 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<div class="border-and-label">
-  <div class="border"></div>
-  <div class="task-label">{{this.task.name}}</div>
+<span class="norca-exec-task-label">
   {{#if this.active}}
-    <svg width="20" height="20" class="is-active" data-test-task-active>
-      <circle cx="10" cy="10" r="6" />
-    </svg>
+    <span class="norca-exec-task-active" role="img" aria-label="Current task" data-test-task-active></span>
   {{/if}}
-</div>
+  {{this.task.name}}
+</span>
 {{#if this.shouldOpenInNewWindow}}
-  <span class="tooltip" aria-label="Open in a new window">
-    {{x-icon "exit" class="show-on-hover"}}
-  </span>
-{{else}}
-  {{x-icon "exit"}}
+  <Ui::Icon @name="external-link" @label="Open in a new window" class="norca-exec-task-open" />
 {{/if}}

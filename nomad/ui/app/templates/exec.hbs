@@ -1,64 +1,58 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 {{page-title "Exec"}}
-{{! A full-screen page outside the frame, not migrated yet. }}
-<div class="legacy norca-legacy-fullscreen" data-bs-theme="light">
-<nav class="navbar is-popup">
-  <div class="navbar-brand">
-    <div class="navbar-item is-logo">
-      <strong class="norca-exec-brand">Norca</strong>
-    </div>
-  </div>
-    {{#if this.system.shouldShowRegions}}
-      <div class="navbar-item">
-        <span class="navbar-label">Region</span>
-        <span data-test-region>{{this.model.region}}</span>
+{{! A full-screen page outside the frame: it opens in its own window. }}
+<div class="norca-exec" data-test-exec>
+  <header class="norca-exec-header">
+    <strong class="norca-exec-brand">Norca</strong>
+    <dl class="norca-exec-context">
+      {{#if this.system.shouldShowRegions}}
+        <div>
+          <dt>Region</dt>
+          <dd data-test-region>{{this.model.region}}</dd>
+        </div>
+      {{/if}}
+      {{#if this.system.shouldShowNamespaces}}
+        <div>
+          <dt>Namespace</dt>
+          <dd data-test-namespace>{{this.model.namespace.id}}</dd>
+        </div>
+      {{/if}}
+      <div>
+        <dt>Job</dt>
+        <dd data-test-job>{{this.model.name}}</dd>
       </div>
-    {{/if}}
+    </dl>
+    <Ui::Icon @name="lock" @label="Exec session" class="ms-auto" />
+  </header>
 
-    {{#if this.system.shouldShowNamespaces}}
-      <div class="navbar-item">
-        <span class="navbar-label">Namespace</span>
-        <span data-test-namespace>{{this.model.namespace.id}}</span>
+  {{#if (eq this.model.status "dead")}}
+    <div class="norca-exec-body" data-test-exec-job-dead>
+      <div class="norca-exec-tree"></div>
+      <div class="norca-exec-message" data-test-exec-job-dead-message>
+        Job <code>{{this.model.name}}</code> is dead and cannot host an exec session.
       </div>
-    {{/if}}
-
-    <div class="navbar-item">
-      <span class="navbar-label">Job</span>
-      <span data-test-job>{{this.model.name}}</span>
     </div>
-  <div class="navbar-end">
-    {{x-icon "lock-closed"}}
-  </div>
-</nav>
-
-{{#if (eq this.model.status "dead")}}
-  <div class="exec-window" data-test-exec-job-dead>
-    <div class="task-group-tree">
+  {{else}}
+    <div class="norca-exec-body">
+      <nav class="norca-exec-tree" aria-labelledby="exec-tasks-heading">
+        <h2 class="norca-exec-tree-heading" id="exec-tasks-heading">Tasks</h2>
+        <ul class="list-unstyled mb-0">
+          {{#each this.sortedTaskGroups as |taskGroup|}}
+            <li data-test-task-group>
+              <Exec::TaskGroupParent
+                @taskGroup={{taskGroup}}
+                @shouldOpenInNewWindow={{this.socketOpen}}
+                @activeTaskName={{this.taskName}}
+                @activeTaskGroupName={{this.taskGroupName}} />
+            </li>
+          {{/each}}
+        </ul>
+      </nav>
+      <ExecTerminal @terminal={{this.terminal}} />
     </div>
-    <div class="terminal-container" data-test-exec-job-dead-message>
-      Job <code>{{this.model.name}}</code> is dead and cannot host an exec session.
-    </div>
-  </div>
-{{else}}
-  <div class="exec-window">
-    <div class="task-group-tree">
-      <h4 class="title is-6">Tasks</h4>
-      <ul>
-        {{#each this.sortedTaskGroups as |taskGroup|}}
-          <li data-test-task-group>
-            <Exec::TaskGroupParent
-              @taskGroup={{taskGroup}}
-              @shouldOpenInNewWindow={{this.socketOpen}}
-              @activeTaskName={{this.taskName}}
-              @activeTaskGroupName={{this.taskGroupName}} />
-          </li>
-        {{/each}}
-      </ul>
-    </div>
-    <ExecTerminal @terminal={{this.terminal}} />
-  </div>
-{{/if}}
+  {{/if}}
 </div>

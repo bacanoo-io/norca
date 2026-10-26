@@ -46,7 +46,6 @@ const MIGRATED = [
   'components/lifecycle-chart.hbs',
   'components/lifecycle-chart-row.hbs',
   'components/task-log.hbs',
-  'components/exec/open-button.hbs',
   'components/variable-paths.hbs',
   'components/editable-variable-link.hbs',
   // allocation and task pages (phase 2)
@@ -93,6 +92,10 @@ const MIGRATED = [
   'templates/settings.hbs',
   'templates/settings',
   'templates/jobs/run/templates',
+  'templates/exec.hbs',
+  'templates/exec-loading.hbs',
+  'components/exec',
+  'components/exec-terminal.hbs',
 ];
 
 const ALLOWED = [

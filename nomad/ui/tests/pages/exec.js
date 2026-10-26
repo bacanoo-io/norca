@@ -7,7 +7,6 @@ import {
   clickable,
   collection,
   create,
-  hasClass,
   isPresent,
   text,
   triggerable,
@@ -29,12 +28,12 @@ export default create({
     click: clickable('[data-test-task-group-name]'),
     name: text('[data-test-task-group-name]'),
 
-    isLoading: hasClass('is-loading', '[data-test-task-group-name]'),
+    isLoading: isPresent('[data-test-task-group-name] [data-test-loading]'),
 
     chevron: {
-      scope: '.toggle-button .icon',
-      isDown: hasClass('icon-is-chevron-down'),
-      isRight: hasClass('icon-is-chevron-right'),
+      scope: '[data-test-task-group-name]',
+      isDown: isPresent('[data-test-chevron="down"]'),
+      isRight: isPresent('[data-test-chevron="right"]'),
     },
 
     tasks: collection('[data-test-task]', {
