@@ -200,13 +200,13 @@ func (c *RegistryUpdateCommand) Synopsis() string {
 func (c *RegistryUpdateCommand) Help() string {
 	c.Example = `
 	# Update a previously added registry to the latest ref.
-	norca pack registry update community
+	norca pack registry update norca
 
 	# Update a specific pack from a previously added registry.
-	norca pack registry update community --target=nomad_example
+	norca pack registry update norca --target=nats
 
 	# Update a previously added registry at a specific tag/release/SHA.
-	norca pack registry update community --ref=v0.1.0
+	norca pack registry update norca --ref=v0.1.0
 	`
 	return formatHelp(`
 	Usage: norca pack registry update <name> [options]

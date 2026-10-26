@@ -166,14 +166,17 @@ func (c *RegistryAddCommand) Synopsis() string {
 
 func (c *RegistryAddCommand) Help() string {
 	c.Example = `
-	# Download latest ref of the pack registry to the global cache.
-	norca pack registry add community github.com/hashicorp/nomad-pack-community-registry
+	# Download latest ref of the Norca pack registry to the global cache.
+	norca pack registry add norca https://github.com/bacanoo-io/norca-registry
 
 	# Download latest ref of a specific pack from the registry to the global cache.
-	norca pack registry add community github.com/hashicorp/nomad-pack-community-registry --target=nomad_example
+	norca pack registry add norca https://github.com/bacanoo-io/norca-registry --target=nats
 
 	# Download packs from a registry at a specific tag/release/SHA.
-	norca pack registry add community github.com/hashicorp/nomad-pack-community-registry  --ref=v0.1.0
+	norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
+
+	# A registry named "default" is used when --registry is not given.
+	norca pack registry add default https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
 
 	# Add an internal OCI registry whose packs must be signed by a trusted key.
 	norca pack registry add internal oci://registry.example.internal/packs 	    --trust-key=/etc/norca/pack-signing.pub --require-signature

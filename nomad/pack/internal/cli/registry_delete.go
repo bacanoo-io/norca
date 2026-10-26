@@ -147,7 +147,7 @@ func (c *RegistryDeleteCommand) Help() string {
 	# Delete a pack registry, optionally at a specific tag/release/SHA.
 	If no target or tag/release/SHA defined, will delete the entire registry.
 
-	norca pack registry delete community --target=traefik --ref=v0.0.1
+	norca pack registry delete norca --target=nats --ref=v0.1.0
 	`
 	return formatHelp(`
 	Usage: norca pack registry delete <name> [options]

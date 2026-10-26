@@ -37,4 +37,4 @@ service reads from.
 - `service_tags` (list of string) - The service tags for the {{.PackName}} application
 - `service_name` (string) - The service name for the {{.PackName}} application
 
-[pack-registry]: https://github.com/hashicorp/nomad-pack-community-registry
+[pack-registry]: https://github.com/bacanoo-io/norca-registry
