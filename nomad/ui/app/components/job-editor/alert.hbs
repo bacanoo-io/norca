@@ -15,7 +15,7 @@
   {{/if}}
   {{#if (and (eq @data.stage "read") @data.hasVariables (eq @data.view "job-spec") this.shouldShowAlert)}}
     <Ui::Alert @tone="info" @title="HCL variable values may be incomplete" @onDismiss={{this.dismissAlert}} class="mb-3" data-test-variable-notification>
-      Nomad cannot ensure that all variable values provided below match those provided on job submit. Ensure the
+      Norca cannot ensure that all variable values provided below match those provided on job submit. Ensure the
       proper values are provided before re-submitting the job.
     </Ui::Alert>
   {{/if}}

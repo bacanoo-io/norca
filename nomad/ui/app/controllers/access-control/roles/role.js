@@ -44,7 +44,7 @@ export default class AccessControlRolesRoleController extends Controller {
   }
 
   get newTokenString() {
-    return `nomad acl token create -name="<TOKEN_NAME>" -role-name="${this.role.name}" -type=client -ttl=8h`;
+    return `norca acl token create -name="<TOKEN_NAME>" -role-name="${this.role.name}" -type=client -ttl=8h`;
   }
 
   @task(function* () {
