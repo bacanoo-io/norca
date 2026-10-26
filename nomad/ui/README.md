@@ -102,6 +102,17 @@ The UI is moving from the Bulma-based styles it inherited to
   ApexCharts must not be added, not even as a transitive dependency, and
   nothing from the `dist/libs` folder of Tabler may be imported.
 
+The pages of the feature areas (backups, quotas, scaling, services and
+networking, deployments, packages, objects and type definitions, admission
+policies) live in `app/components/<area>/`. They load their data with
+`utils/norca-api` (an explicit `?region=` per request, no Ember Data models),
+check permissions with `utils/norca-acl`, update from the event stream and
+use `Ui::Confirm` for dangerous operations (typed confirmation where the
+item name or region must be typed). A route whose `buildRouteInfoMetadata`
+returns `{ spansRegions: true }` keeps the "All regions" scope of the top
+bar. Their Mirage routes and seed data are in `mirage/norca/`, on plain db
+collections in the API's JSON shape.
+
 Inherited pages still use HashiCorp Design System components
 (`@hashicorp/design-system-components`, flight icons, structure icons);
 new pages must not.
