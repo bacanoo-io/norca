@@ -94,6 +94,14 @@ norca service intention create web api
 norca service intention create -deny 'batch/*' api
 ```
 
+Intentions are regional, as the design sets out: they are stored in the Raft state of one region and, unlike
+ACL policies, tokens, namespaces and quotas, are not replicated from the authoritative region. A write goes to
+the region of the request (`-region`, by default the region of the agent the CLI talks to), and the sidecars
+of a region enforce only the intentions stored in that region. For a connection across regions the
+intentions of the destination region decide: create `probe → api` in the region where `api` runs. The
+source of an intention has no region: it matches the source service in any region whose certificates the
+destination trusts (`federation`). To apply the same rules in every region, create them in each region.
+
 A change applies to new connections within about a second. The intentions are part of the inbound listener,
 so a change to the intentions of the service replaces it: connections that were established before keep
 running on the previous listener version until Envoy has drained it (`--drain-time-s`, 600 s by default), then

@@ -173,6 +173,11 @@ The probe's sidecar connects to the gateway service of eu-1 (static port
 `test-api.service.apps.eu-1.nomad` to a sidecar of test-api without
 terminating it.
 
+Intentions are regional: unlike ACL policies, namespaces and quotas they
+are not replicated from eu-1, so the intention is created with
+`-region eu-1`, where test-api runs; an intention in eu-2 has no effect on
+it. See [native-mtls.md](../../docs/native-mtls.md#authorization).
+
 ### 7. NATS supercluster
 
 ```shell
