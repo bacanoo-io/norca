@@ -1,60 +1,65 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{#if this.keyboard.shortcutsVisible}}
   {{keyboard-commands (array this.escapeCommand)}}
-  <section class="keyboard-shortcuts" aria-label="Keyboard shortcuts"
-      {{on-click-outside
-        (toggle "keyboard.shortcutsVisible" this)
-      }}
+  <Ui::Modal
+    @title="Keyboard Shortcuts"
+    @size="lg"
+    @onClose={{this.hide}}
+    aria-label="Keyboard shortcuts"
+    data-test-keyboard-shortcuts
+    {{on-click-outside this.hide}}
   >
-    <header>
-      <button
-        {{autofocus}}
-        class="button is-borderless dismiss"
-        type="button"
-        {{on "click" (toggle "keyboard.shortcutsVisible" this)}}
-        aria-label="Dismiss"
-      >
-        {{x-icon "cancel"}}
-      </button>
-      <h2>Keyboard Shortcuts</h2>
-      <p>Click a key pattern to re-bind it to a shortcut of your choosing.</p>
-    </header>
-    <ul class="commands-list">
-      {{#each this.commands as |command|}}
-        <li data-test-command-label={{command.label}}>
-          <strong>{{command.label}}</strong>
-            <span class="keys">
+    <:default>
+      <p class="text-secondary">Click a key pattern to re-bind it to a shortcut of your choosing.</p>
+      <ul class="list-unstyled mb-0 norca-shortcuts">
+        {{#each this.commands as |command|}}
+          <li class="norca-shortcut" data-test-command-label={{command.label}}>
+            <strong>{{command.label}}</strong>
+            <span class="d-flex align-items-center gap-2 ms-auto">
               {{#if command.recording}}
-                <span class="recording">Recording; ESC to cancel.</span>
-              {{else}}
-                {{#if command.custom}}
-                  <button type="button" class="reset-to-default" {{on "click" (action this.keyboard.resetCommandToDefault command)}}>reset to default</button>
-                {{/if}}
+                <span class="text-secondary small">Recording; ESC to cancel.</span>
+              {{else if command.custom}}
+                <Ui::Button
+                  @size="sm"
+                  @variant="ghost"
+                  data-test-reset-to-default
+                  {{on "click" (fn this.keyboard.resetCommandToDefault command)}}
+                >reset to default</Ui::Button>
               {{/if}}
-
-              <button data-test-rebinder disabled={{or (not command.rebindable) command.recording}} type="button" {{on "click" (action this.keyboard.rebindCommand command)}}>
+              <button
+                data-test-rebinder
+                class="norca-shortcut-keys"
+                disabled={{or (not command.rebindable) command.recording}}
+                type="button"
+                aria-label="Re-bind {{command.label}}"
+                {{on "click" (fn this.keyboard.rebindCommand command)}}
+              >
                 {{#each command.pattern as |key|}}
-                  <span>{{clean-keycommand key}}</span>
+                  <kbd>{{clean-keycommand key}}</kbd>
                 {{/each}}
               </button>
             </span>
-        </li>
-      {{/each}}
-    </ul>
-    <footer>
-      <strong>Keyboard shortcuts {{#if this.keyboard.enabled}}enabled{{else}}disabled{{/if}}</strong>
-      <Toggle
+          </li>
+        {{/each}}
+      </ul>
+    </:default>
+    <:footer>
+      <Ui::Switch
+        @switch={{true}}
+        @label="Keyboard shortcuts {{if this.keyboard.enabled 'enabled' 'disabled'}}"
+        @checked={{this.keyboard.enabled}}
+        @onChange={{this.toggleListener}}
+        class="me-auto mb-0"
         data-test-enable-shortcuts-toggle
-        @isActive={{this.keyboard.enabled}}
-        @onToggle={{this.toggleListener}}
-        title="{{if this.keyboard.enabled "enable" "disable"}} keyboard shortcuts"
+        data-test-enabled={{this.keyboard.enabled}}
       />
-    </footer>
-  </section>
+    </:footer>
+  </Ui::Modal>
 {{/if}}
 
 {{#if (and this.keyboard.enabled this.keyboard.displayHints)}}
@@ -64,7 +69,7 @@
       {{will-destroy (fn this.untetherFromElement hint)}}
       data-test-keyboard-hint
       data-shortcut={{hint.pattern}}
-      class="{{if hint.menuLevel "menu-level"}}"
+      class="norca-keyboard-hint {{if hint.menuLevel "norca-keyboard-hint-menu"}}"
       aria-hidden="true"
     >
       {{#each hint.pattern as |key|}}

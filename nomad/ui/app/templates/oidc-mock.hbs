@@ -3,21 +3,29 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 {{page-title "Mock OIDC Test Page"}}
-{{! A full-screen page outside the frame, not migrated yet. }}
-<div class="legacy norca-legacy-fullscreen" data-bs-theme="light">
-<section class="mock-sso-provider">
-  <h1>OIDC Test route: {{this.auth_method}}</h1>
-  <h2>(Mirage only)</h2>
-  <div class="providers">
-    {{#each this.model as |fakeAccount|}}
-      <button type="button" class="button" {{on "click" (fn this.signIn fakeAccount)}}>
-        Sign In as {{fakeAccount.name}}
-      </button>
-    {{/each}}
-    <button type="button" class="button error" {{on "click" this.failToSignIn}}>
-      Simulate Failure
-    </button>
-  </div>
-</section>
+{{! A full-screen stand-in for an identity provider (Mirage only). }}
+<main class="norca-error-page" data-test-oidc-mock>
+  <Ui::Card class="norca-oidc-mock">
+    <h1 class="h2">OIDC test route: {{this.auth_method}}</h1>
+    <p class="text-secondary">Mirage only</p>
+    <div class="d-grid gap-2">
+      {{#each this.model as |fakeAccount|}}
+        <Ui::Button
+          @variant="primary"
+          {{on "click" (fn this.signIn fakeAccount)}}
+          data-test-oidc-mock-account
+        >
+          Sign In as {{fakeAccount.name}}
+        </Ui::Button>
+      {{/each}}
+      <Ui::Button
+        @variant="danger"
+        {{on "click" this.failToSignIn}}
+        data-test-oidc-mock-failure
+      >
+        Simulate Failure
+      </Ui::Button>
+    </div>
+  </Ui::Card>
+</main>
 {{outlet}}
-</div>

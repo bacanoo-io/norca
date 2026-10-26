@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- The "hexagons" icon of Tabler Icons (MIT, Copyright (c) 2020-2026 Paweł Kuna) in Tabler's primary color. -->
+  <style>path { stroke: #066fd1; } @media (prefers-color-scheme: dark) { path { stroke: #4dabf7; } }</style>
+  <path d="M4 18v-5l4 -2l4 2v5l-4 2l-4 -2" />
+  <path d="M8 11v-5l4 -2l4 2v5" />
+  <path d="M12 13l4 -2l4 2v5l-4 2l-4 -2" />
+</svg>

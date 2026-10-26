@@ -418,7 +418,7 @@ module('Acceptance | tokens', function (hooks) {
     await click('button[data-test-auth-method]');
     assert.ok(currentURL().startsWith('/oidc-mock'));
 
-    let failureButton = find('.button.error');
+    let failureButton = find('[data-test-oidc-mock-failure]');
     assert.dom(failureButton).exists();
     await click(failureButton);
     assert.equal(
@@ -588,7 +588,7 @@ module('Acceptance | tokens', function (hooks) {
     assert.equal(Layout.error.title, 'Token Exchange Error');
     assert.equal(
       Layout.error.message,
-      'Failed to exchange the one-time token.'
+      'Failed to exchange the one-time token. Create a new one-time token and open its link again, or sign in with a token.'
     );
   });
 

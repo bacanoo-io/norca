@@ -13,65 +13,78 @@
 
 <Frame::Toasts />
 
+<KeyboardShortcutsModal />
+
 {{! Overlays of the pages that are not migrated yet keep the legacy styles. }}
 <div class="legacy norca-legacy-overlays" data-bs-theme="light">
-  <KeyboardShortcutsModal />
   <PortalTarget @name="log-sidebar-portal" />
   <BasicDropdownWormhole />
 </div>
 
 {{#if this.error}}
-  <div class="page page-center norca-error-page">
-    <div class="container-tight py-4">
-      <div class="empty" data-test-error>
+  {{! The error page keeps the frame, so the menu still leads anywhere. }}
+  <PageLayout @legacy={{false}}>
+    <div class="norca-error-page" data-test-error>
+      <div class="norca-error-content">
         {{#if this.isNoLeader}}
-          <p class="empty-title" data-test-error-title>No Cluster Leader</p>
-          <p class="empty-subtitle text-secondary" data-test-error-message>
+          <Ui::Icon @name="server-off" @size="lg" class="text-secondary mb-3" />
+          <h1 class="h2" data-test-error-title>No Cluster Leader</h1>
+          <p class="text-secondary" data-test-error-message>
             The cluster has no leader. Check that a quorum of servers is running
             and can reach each other, then reload the page.
           </p>
         {{else if this.isOTTExchange}}
-          <p class="empty-title" data-test-error-title>Token Exchange Error</p>
-          <p class="empty-subtitle text-secondary" data-test-error-message>
-            Failed to exchange the one-time token.
+          <Ui::Icon @name="key" @size="lg" class="text-secondary mb-3" />
+          <h1 class="h2" data-test-error-title>Token Exchange Error</h1>
+          <p class="text-secondary" data-test-error-message>
+            Failed to exchange the one-time token. Create a new one-time token
+            and open its link again, or sign in with a token.
           </p>
         {{else if this.is500}}
-          <p class="empty-title" data-test-error-title>Server Error</p>
-          <p class="empty-subtitle text-secondary" data-test-error-message>A server error prevented
-            data from being sent to the client.</p>
+          <div class="norca-error-code" aria-hidden="true">500</div>
+          <h1 class="h2" data-test-error-title>Server Error</h1>
+          <p class="text-secondary" data-test-error-message>A server error prevented
+            data from being sent to the client. Reload the page; if the error
+            persists, check the server logs.</p>
         {{else if this.is404}}
-          <p class="empty-title" data-test-error-title>Not Found</p>
-          <p class="empty-subtitle text-secondary" data-test-error-message>What you're looking for
+          <div class="norca-error-code" aria-hidden="true">404</div>
+          <h1 class="h2" data-test-error-title>Not Found</h1>
+          <p class="text-secondary" data-test-error-message>What you're looking for
             couldn't be found. It either doesn't exist or you are not authorized
-            to see it.</p>
+            to see it. Check the address, or continue from one of the pages below.</p>
         {{else if this.is403}}
-          <p class="empty-title" data-test-error-title>Not Authorized</p>
+          <div class="norca-error-code" aria-hidden="true">403</div>
+          <h1 class="h2" data-test-error-title>Not Authorized</h1>
           {{#if this.token.secret}}
-            <p class="empty-subtitle text-secondary" data-test-error-message>Your
+            <p class="text-secondary" data-test-error-message>Your
               <LinkTo @route="settings.tokens" data-test-error-acl-link>ACL token</LinkTo>
               does not provide the required permissions. Contact your
               administrator if this is an error.</p>
           {{else}}
-            <p class="empty-subtitle text-secondary" data-test-error-message>Provide an
+            <p class="text-secondary" data-test-error-message>Provide an
               <LinkTo @route="settings.tokens" data-test-error-acl-link>ACL token</LinkTo>
               with requisite permissions to view this.</p>
           {{/if}}
         {{else}}
-          <p class="empty-title" data-test-error-title>Error</p>
-          <p class="empty-subtitle text-secondary" data-test-error-message>Something went wrong.</p>
+          <Ui::Icon @name="alert-triangle" @size="lg" class="text-secondary mb-3" />
+          <h1 class="h2" data-test-error-title>Error</h1>
+          <p class="text-secondary" data-test-error-message>Something went wrong.
+            Reload the page, or continue from one of the pages below.</p>
         {{/if}}
         {{#if (eq this.config.environment "development")}}
-          <pre class="text-start error-stack-trace"><code>{{this.errorStr}}</code></pre>
+          <Ui::Card class="text-start mt-3">
+            <pre class="norca-error-stack mb-0"><code>{{this.errorStr}}</code></pre>
+          </Ui::Card>
         {{/if}}
-        <div class="empty-action btn-list justify-content-center">
+        <div class="d-flex flex-wrap gap-2 justify-content-center mt-4">
           <Ui::Button @route="index" @icon="layout-dashboard" data-test-error-dashboard-link>Go to the Dashboard</Ui::Button>
-          <Ui::Button @route="jobs" data-test-error-jobs-link>Go to Jobs</Ui::Button>
-          <Ui::Button @route="clients" data-test-error-clients-link>Go to Clients</Ui::Button>
-          <Ui::Button @route="settings.tokens" @variant="primary" data-test-error-signin-link>Go to Sign In</Ui::Button>
+          <Ui::Button @route="jobs" @icon="briefcase" data-test-error-jobs-link>Go to Jobs</Ui::Button>
+          <Ui::Button @route="clients" @icon="server-2" data-test-error-clients-link>Go to Clients</Ui::Button>
+          <Ui::Button @route="settings.tokens" @variant="primary" @icon="key" data-test-error-signin-link>Go to Sign In</Ui::Button>
         </div>
       </div>
     </div>
-  </div>
+  </PageLayout>
 {{else}}
   {{outlet}}
 {{/if}}

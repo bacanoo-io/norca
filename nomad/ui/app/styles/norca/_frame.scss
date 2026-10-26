@@ -277,6 +277,86 @@
   }
 }
 
+// Error and not-found page (Tabler's error page pattern), inside the frame.
 .norca-error-page {
-  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 8rem);
+  padding: 2rem 1rem;
+}
+
+.norca-error-content {
+  max-width: 36rem;
+  text-align: center;
+}
+
+// The mock identity provider of the Mirage OIDC flow, outside the frame.
+.norca-oidc-mock {
+  width: 100%;
+  max-width: 32rem;
+  text-align: center;
+}
+
+.norca-error-code {
+  font-size: 4rem;
+  font-weight: 300;
+  line-height: 1;
+  margin-bottom: 1rem;
+  color: var(--tblr-secondary);
+}
+
+.norca-error-stack {
+  max-height: 20rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+}
+
+// Keyboard shortcuts: the help dialog and the hints shown while the
+// shortcut key is held.
+.norca-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--tblr-border-color);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.norca-shortcut-keys {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.65;
+  }
+}
+
+.norca-keyboard-hint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1070;
+  display: block;
+  padding: 0 0.4rem;
+  border: 1px solid var(--tblr-primary);
+  border-radius: var(--tblr-border-radius-sm);
+  background: var(--tblr-primary-lt);
+  color: var(--tblr-body-color);
+  font-family: var(--norca-font-mono);
+  font-size: 0.75rem;
+  text-transform: lowercase;
+
+  &.norca-keyboard-hint-menu {
+    z-index: 1080;
+  }
 }
