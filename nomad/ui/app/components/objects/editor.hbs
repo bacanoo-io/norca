@@ -5,7 +5,7 @@
 <Ui::Modal @title={{this.title}} @size="xl" @onClose={{@onClose}} data-test-object-editor>
   <p class="text-secondary">
     The name, labels and spec of the {{this.kindId}} object in JSON. The spec is checked against the schema of the
-    type while you type; Review changes runs a dry run on the server (schema defaults, CEL rules, admission webhooks)
+    type while you type; Dry run checks it on the server (schema defaults, CEL rules, admission webhooks)
     before anything is written. The status belongs to the controller and is not edited here.
   </p>
   <Ui::Editor

@@ -5,7 +5,7 @@
 <Ui::Modal @title={{this.title}} @size="xl" @onClose={{@onClose}} data-test-kind-editor>
   <p class="text-secondary">
     The type definition in JSON; Schema is the JSON Schema of the object's {spec, status} document and its default
-    values are filled in on every write. Review changes plans the change on the server: it checks the stored objects
+    values are filled in on every write. Plan checks the change on the server: the stored objects are checked
     against the new schema and rules before anything is written.
   </p>
   <Ui::Editor
@@ -27,7 +27,7 @@
   >
     <:review as |plan|>
       {{#if plan.failures.length}}
-        <Ui::Alert @tone="danger" @title="{{plan.migration.Failed}} stored objects would be invalid" class="mb-3" data-test-kind-plan-failures>
+        <Ui::Alert @tone="danger" @title="{{plan.migration.Failed}} stored {{if (eq plan.migration.Failed 1) 'object' 'objects'}} would be invalid" class="mb-3" data-test-kind-plan-failures>
           The server rejects the change until these objects are fixed or the schema allows them.
           <ul class="mb-0 mt-2 ps-3">
             {{#each plan.failures as |f|}}
