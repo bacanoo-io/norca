@@ -293,8 +293,10 @@ module('Acceptance | keyboard', function (hooks) {
       await triggerEvent('.page-layout', 'keydown', { key: 'Shift' });
       [...Array(numberOfGroups + numberOfAllocs)].forEach((_, iter) => {
         assert.equal(
-          document.querySelectorAll(`[data-shortcut="Shift+0${iter + 1}"]`)
-            .length,
+          document.querySelectorAll(
+            // Shift+01 ... Shift+09, then Shift+10 ...
+            `[data-shortcut="Shift+${String(iter + 1).padStart(2, '0')}"]`
+          ).length,
           1,
           `Dynamic item #${iter + 1} gets a shortcut hint`
         );
