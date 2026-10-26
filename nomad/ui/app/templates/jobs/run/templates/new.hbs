@@ -1,58 +1,72 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<PageLayout>
-  {{page-title "Create a custom template"}}
-  <section class="section">
-      <header class="run-job-header">
-          <h1 class="title is-3">Create template</h1>
-          <p>Provide a job spec that you or others can re-use later. Anytime it is applied to a new job, you will have the opportunity to modify it before that job is run.</p>
-      </header>
-      <form class="new-job-template" autocomplete="off">
-          <div class={{if this.system.shouldShowNamespaces "input-dropdown-row"}}>
-              <label>
-                  <span>
-                      Template name
-                  </span>
-                  <Input
-                      @type="text"
-                      @value={{mut this.templateName}}
-                      placeholder="your-template-name-here"
-                      class="input path-input {{if this.isDuplicateTemplate "error"}}"
-                      {{autofocus}}
-                      data-test-template-name
-                  />
-                  {{#if this.isDuplicateTemplate}}
-                      <p class="help is-danger" data-test-duplicate-error>
-                          There is already a templated named {{this.templateName}}.
-                      </p>
-                  {{/if}}
-              </label>
-              {{#if this.system.shouldShowNamespaces}}
-                  <label>
-                      <span>
-                          Namespace
-                      </span>
-                      <SingleSelectDropdown
-                          data-test-namespace-facet
-                          @label="Namespace"
-                          @options={{this.namespaceOptions}}
-                          @selection={{this.templateNamespace}}
-                          @onSelect={{fn (mut this.templateNamespace)}}
-                      />
-                  </label>
-              {{/if}}
+{{page-title "Create a custom template"}}
+<PageLayout @legacy={{false}}>
+  <Ui::PageHeader
+    @breadcrumbs={{array
+      (hash label="Jobs" route="jobs.index" id="jobs.index")
+      (hash label="Run a job" route="jobs.run" id="jobs.run")
+      (hash label="Templates" route="jobs.run.templates" id="jobs.run.templates")
+      (hash label="Create" id="jobs.run.templates.new")
+    }}
+    @title="Create template"
+    @subtitle="A job specification that you or others can reuse. Whenever it is applied to a new job, you can modify it before the job runs."
+  />
+  <Ui::PageBody>
+    <form autocomplete="off" {{on "submit" this.save}}>
+      <Ui::Card>
+        <div class="row g-3">
+          <div class="col-md">
+            <Ui::Field
+              @label="Template name"
+              @required={{true}}
+              @error={{if this.isDuplicateTemplate (concat "There is already a template named " this.templateName ".")}}
+              as |f|
+            >
+              <Ui::Input
+                @id={{f.id}}
+                @describedBy={{f.describedBy}}
+                @invalid={{f.invalid}}
+                @value={{this.templateName}}
+                @onInput={{fn (mut this.templateName)}}
+                @placeholder="your-template-name-here"
+                {{autofocus}}
+                data-test-template-name
+              />
+            </Ui::Field>
           </div>
-          <VariableForm::JobTemplateEditor
-              @keyValues={{this.model.keyValues}}
-              @updateKeyValue={{this.updateKeyValue}}
-          />
-          <footer class="button-group">
-              <Hds::Button @text="Save" disabled={{is-empty this.templateName}} {{on "click" this.save}} data-test-save-template />
-              <Hds::Button @text="Cancel" @route="jobs.run" @color="secondary" data-test-cancel-template />
-          </footer>
-      </form>
-  </section>
+          {{#if this.system.shouldShowNamespaces}}
+            <div class="col-md-4">
+              <Ui::Field @label="Namespace" as |f|>
+                <Ui::Select
+                  @id={{f.id}}
+                  @options={{this.namespaceOptions}}
+                  @value={{this.templateNamespace}}
+                  @onChange={{fn (mut this.templateNamespace)}}
+                  data-test-namespace-facet
+                />
+              </Ui::Field>
+            </div>
+          {{/if}}
+        </div>
+        <VariableForm::JobTemplateEditor
+          @keyValues={{this.model.keyValues}}
+          @updateKeyValue={{this.updateKeyValue}}
+        />
+        <div class="d-flex flex-wrap gap-2">
+          <Ui::Button
+            @type="submit"
+            @variant="primary"
+            @disabled={{or (is-empty this.templateName) this.isDuplicateTemplate}}
+            data-test-save-template
+          >Save</Ui::Button>
+          <Ui::Button @route="jobs.run" data-test-cancel-template>Cancel</Ui::Button>
+        </div>
+      </Ui::Card>
+    </form>
+  </Ui::PageBody>
 </PageLayout>

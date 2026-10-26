@@ -92,6 +92,7 @@ const MIGRATED = [
   'templates/oidc-mock.hbs',
   'templates/settings.hbs',
   'templates/settings',
+  'templates/jobs/run/templates',
 ];
 
 const ALLOWED = [
