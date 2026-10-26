@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -23,13 +24,44 @@ import classic from 'ember-classic-decorator';
 import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
 import { inject as service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class ClientController extends Controller.extend(
   Sortable,
-  Searchable
+  Searchable,
+  WithListActions
 ) {
   @service notifications;
+
+  viewParams = [
+    'qpNamespace',
+    'qpJob',
+    'qpStatus',
+    'onlyPreemptions',
+    'searchTerm',
+    'sortProperty',
+    'sortDescending',
+  ];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
+  eventColumns = [
+    { key: 'time', label: 'Time' },
+    { key: 'subsystem', label: 'Subsystem' },
+    { key: 'message', label: 'Message' },
+  ];
+
+  hostVolumeColumns = [
+    { key: 'name', label: 'Name' },
+    { key: 'path', label: 'Source' },
+    { key: 'permissions', label: 'Permissions' },
+  ];
 
   queryParams = [
     {
@@ -205,7 +237,7 @@ export default class ClientController extends Controller.extend(
 
   @action
   gotoAllocation(allocation) {
-    this.transitionToRoute('allocations.allocation', allocation.id);
+    legacyTransitionTo(this, 'allocations.allocation', allocation.id);
   }
 
   @action
@@ -302,6 +334,36 @@ export default class ClientController extends Controller.extend(
     value: '',
   };
 
+  @action toggleEditingMetadata() {
+    this.editingMetadata = !this.editingMetadata;
+  }
+
+  @action startEditingMetadata() {
+    this.editingMetadata = true;
+  }
+
+  @action setNewMetaKey(key) {
+    this.newMetaData = { ...this.newMetaData, key };
+  }
+
+  @action setNewMetaValue(value) {
+    this.newMetaData = { ...this.newMetaData, value };
+  }
+
+  @action async submitNewMetaData(event) {
+    event?.preventDefault();
+    const { key, value } = this.newMetaData;
+    if (!key || !value) return;
+    await this.addDynamicMetaData({ key, value });
+    this.resetNewMetaData();
+    this.editingMetadata = false;
+  }
+
+  @action cancelNewMetaData() {
+    this.resetNewMetaData();
+    this.editingMetadata = false;
+  }
+
   @action resetNewMetaData() {
     this.newMetaData = {
       key: '',
@@ -318,7 +380,7 @@ export default class ClientController extends Controller.extend(
 
   @action async addDynamicMetaData({ key, value }, e) {
     try {
-      e.preventDefault();
+      e?.preventDefault();
       await this.model.addMeta({ [key]: value });
 
       this.notifications.add({

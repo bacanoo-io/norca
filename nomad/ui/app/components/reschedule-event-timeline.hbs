@@ -1,0 +1,39 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+<ol class="list-unstyled mb-0 norca-reschedule" data-test-reschedule-timeline>
+  {{#if @allocation.nextAllocation}}
+    <RescheduleEventRow
+      @label="Next Allocation"
+      @allocation={{@allocation.nextAllocation}}
+      @time={{@allocation.nextAllocation.modifyTime}} />
+  {{/if}}
+  {{#if @allocation.hasStoppedRescheduling}}
+    <li class="norca-reschedule-note" data-test-stop-warning>
+      <Ui::Icon @name="alert-triangle" class="text-warning me-1" />
+      Norca has stopped attempting to reschedule this allocation.
+    </li>
+  {{/if}}
+  {{#if (and @allocation.followUpEvaluation.waitUntil (not @allocation.nextAllocation))}}
+    <li class="norca-reschedule-note" data-test-attempt-notice>
+      <Ui::Icon @name="clock" class="text-info me-1" />
+      Norca will attempt to reschedule
+      <Ui::Tooltip @text={{format-ts @allocation.followUpEvaluation.waitUntil}}>
+        {{moment-from-now @allocation.followUpEvaluation.waitUntil interval=1000}}
+      </Ui::Tooltip>
+    </li>
+  {{/if}}
+  <RescheduleEventRow
+    @allocation={{@allocation}}
+    @linkToAllocation={{false}}
+    @time={{@allocation.modifyTime}} />
+
+  {{#each (reverse @allocation.rescheduleEvents) as |event|}}
+    <RescheduleEventRow
+      @allocationId={{event.previousAllocationId}}
+      @time={{event.time}} />
+  {{/each}}
+</ol>

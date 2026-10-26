@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -31,6 +32,11 @@ func (h jobVaultHook) Validate(job *structs.Job) ([]error, error) {
 
 	vconf := h.srv.config.VaultConfig
 	if !vconf.IsEnabled() {
+		// Without Vault, the vault blocks are served by the built-in
+		// secret store of the clients (Norca).
+		if h.srv.vaultFallbackEnabled() {
+			return []error{errVaultFallback}, nil
+		}
 		return nil, fmt.Errorf("Vault not enabled but used in the job")
 	}
 

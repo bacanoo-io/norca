@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -18,12 +19,12 @@ export default class JobsRunTemplatesManageController extends Controller {
 
   @tracked selectedTemplate = null;
 
-  columns = ['name', 'namespace', 'description', 'delete'].map((column) => {
-    return {
-      key: column,
-      label: `${column.charAt(0).toUpperCase()}${column.substring(1)}`,
-    };
-  });
+  columns = [
+    { key: 'name', label: 'Name' },
+    { key: 'namespace', label: 'Namespace' },
+    { key: 'description', label: 'Description' },
+    { key: 'actions', label: 'Actions', class: 'text-end' },
+  ];
 
   formatTemplateLabel(path) {
     return path.split('nomad/job-templates/')[1];

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -25,7 +26,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let firstMessage = true;
@@ -59,7 +60,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let firstMessage = true;
@@ -98,7 +99,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let mockSocket = new Object({
@@ -127,7 +128,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let mockSocket = new Object({
@@ -157,7 +158,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let mockSocket = new Object({
@@ -179,7 +180,7 @@ module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {
     this.set('terminal', terminal);
 
     await render(hbs`
-      <ExecTerminal @terminal={{terminal}} />
+      <ExecTerminal @terminal={{this.terminal}} />
     `);
 
     let mockSocket = new Object({

@@ -1,10 +1,11 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import Mixin from '@ember/object/mixin';
-import Ember from 'ember';
+import { isTesting } from '@ember/debug';
 import { computed } from '@ember/object';
 import { warn } from '@ember/debug';
 
@@ -46,7 +47,7 @@ export default function sortableFactory(properties, fromSortableMixin) {
       'sortDescending',
       'sortProperty',
       function () {
-        if (!this._sortableFactoryWarningPrinted && !Ember.testing) {
+        if (!this._sortableFactoryWarningPrinted && !isTesting()) {
           let message =
             'Using SortableFactory without property keys means the list will only sort when the members change, not when any of their properties change.';
 

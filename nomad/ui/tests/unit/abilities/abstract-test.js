@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -12,13 +13,7 @@ module('Unit | Ability | abstract', function (hooks) {
   setupTest(hooks);
   setupAbility('abstract')(hooks);
   hooks.beforeEach(function () {
-    const mockSystem = Service.extend({
-      init(...args) {
-        this._super(...args);
-
-        this.features = this.features || [];
-      },
-    });
+    const mockSystem = Service.extend({});
 
     this.owner.register('service:system', mockSystem);
   });

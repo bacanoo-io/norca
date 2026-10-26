@@ -1,0 +1,13 @@
+diff --git a/node_modules/ember-auto-import/js/webpack.js b/node_modules/ember-auto-import/js/webpack.js
+index 590bf62..3a7123a 100644
+--- a/node_modules/ember-auto-import/js/webpack.js
++++ b/node_modules/ember-auto-import/js/webpack.js
+@@ -283,7 +283,7 @@ class WebpackBundler extends broccoli_plugin_1.default {
+             let name = (0, shared_internals_1.packageName)(request);
+             if (!name) {
+                 if (!(0, path_1.isAbsolute)(request) && pkg.root === this.opts.rootPackage.root) {
+-                    let appRelativeContext = (0, path_1.relative)((0, path_1.resolve)(this.opts.rootPackage.root, 'app'), context);
++                    let appRelativeContext = (0, path_1.relative)((0, path_1.resolve)(this.opts.rootPackage.root, 'app'), context).split(path_1.sep).join('/');
+                     name = this.opts.rootPackage.name;
+                     let candidateName = path_1.posix.join(name, appRelativeContext, request);
+                     if (candidateName.startsWith(name)) {

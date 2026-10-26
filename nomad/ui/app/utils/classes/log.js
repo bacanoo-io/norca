@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -9,7 +10,6 @@ import { htmlSafe } from '@ember/template';
 import Evented from '@ember/object/evented';
 import EmberObject, { computed } from '@ember/object';
 import { computed as overridable } from 'ember-overridable-computed';
-import { assign } from '@ember/polyfills';
 import queryString from 'query-string';
 import { task } from 'ember-concurrency';
 import StreamLogger from 'nomad-ui/utils/classes/stream-logger';
@@ -93,7 +93,7 @@ class Log extends EmberObject.extend(Evented) {
   @task(function* () {
     const logFetch = this.logFetch;
     const queryParams = queryString.stringify(
-      assign(
+      Object.assign(
         {
           origin: 'start',
           offset: 0,
@@ -123,7 +123,7 @@ class Log extends EmberObject.extend(Evented) {
   @task(function* () {
     const logFetch = this.logFetch;
     const queryParams = queryString.stringify(
-      assign(
+      Object.assign(
         {
           origin: 'end',
           offset: MAX_OUTPUT_LENGTH,

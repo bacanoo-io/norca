@@ -3,36 +3,31 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Breadcrumb @crumb={{hash label=this.tokenRecord.name args=(array "access-control.tokens.token" this.tokenRecord.id)}} />
 {{page-title "Token " this.tokenRecord.name}}
-<section class="section">
-  <h1 class="title with-flex" data-test-title>
-    <div>
-      {{this.tokenRecord.name}}
-      {{#if this.isOwnToken}}
-        <Hds::Badge @text="Your token" @color="highlight" data-test-own-token-badge />
-      {{/if}}
-    </div>
-    {{#if (can "destroy token")}}
-      <div>
-        <Hds::Button
-          @text="Delete Token"
-          @color="critical"
-          disabled={{or this.isOwnToken this.deleteToken.isRunning}}
-          title={{if this.isOwnToken "You cannot delete the token you are signed in with"}}
-          data-test-delete-token
-          {{on "click" (perform this.deleteToken)}}
-        />
-      </div>
-    {{/if}}
-  </h1>
-
+<Access::Header
+  @title={{this.tokenRecord.name}}
+  @trail={{array (hash label="Tokens" route="access-control.tokens" id="access-control.tokens") (hash label=this.tokenRecord.name)}}
+>
+  {{#if this.isOwnToken}}
+    <Ui::Badge @color="azure" data-test-own-token-badge>Your token</Ui::Badge>
+  {{/if}}
+  {{#if (can "destroy token")}}
+    <Ui::ConfirmButton
+      @label="Delete Token"
+      @icon="trash"
+      @message="Delete the token {{this.tokenRecord.name}}?"
+      @confirmLabel="Yes, delete"
+      @disabled={{or this.isOwnToken this.deleteToken.isRunning}}
+      @disabledReason={{if this.isOwnToken "You cannot delete the token you are signed in with"}}
+      @isRunning={{this.deleteToken.isRunning}}
+      @onConfirm={{perform this.deleteToken}}
+      data-test-delete-token
+    />
+  {{/if}}
+</Access::Header>
+<Ui::PageBody>
   {{! Re-create the editor when the token changes so its selection state resets }}
   {{#each (array this.tokenRecord) as |token|}}
-    <TokenEditor
-      @token={{token}}
-      @policies={{this.policies}}
-      @roles={{this.roles}}
-    />
+    <TokenEditor @token={{token}} @policies={{this.policies}} @roles={{this.roles}} />
   {{/each}}
-</section>
+</Ui::PageBody>

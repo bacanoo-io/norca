@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -57,7 +58,7 @@ export default function moduleForJob(
         : `/jobs/${job.name}`;
 
       assert.equal(decodeURIComponent(currentURL()), expectedURL);
-      assert.equal(document.title, `Job ${job.name} - Nomad`);
+      assert.equal(document.title, `Job ${job.name} - Norca`);
     });
 
     test('the subnav links to overview', async function (assert) {
@@ -152,8 +153,10 @@ export default function moduleForJob(
         await tgRow.visitRow();
 
         const expectedURL = job.namespace
-          ? `/jobs/${encodeURIComponent(job.name)}@${job.namespace}/${tgName}`
-          : `/jobs/${encodeURIComponent(job.name)}/${tgName}`;
+          ? `/jobs/${encodeURIComponent(job.name)}@${
+              job.namespace
+            }/groups/${tgName}`
+          : `/jobs/${encodeURIComponent(job.name)}/groups/${tgName}`;
 
         assert.equal(currentURL(), expectedURL);
       });
@@ -167,7 +170,7 @@ export default function moduleForJob(
         // is the best way to ensure we don't end up with an unlinkable "queued" allocation status,
         // but we can be redundant for the sake of future-proofing this here.
         const legendItem = find(
-          '.legend li.is-clickable:not([data-test-legend-label="queued"]) a'
+          '[data-test-legend] li[data-test-legend-clickable]:not([data-test-legend-label="queued"]) a'
         );
 
         const status = legendItem.parentElement.getAttribute(

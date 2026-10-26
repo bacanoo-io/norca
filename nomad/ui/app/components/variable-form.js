@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -206,8 +207,15 @@ export default class VariableFormComponent extends Component {
    *
    * @param {KeyboardEvent} e
    */
-  @action setModelPath(e) {
-    set(this.args.model, 'path', e.target.value);
+  @action setPath(value) {
+    this.path = value;
+    set(this.args.model, 'path', value);
+  }
+
+  // The key is checked against the other keys before it changes.
+  @action setKey(entry, value) {
+    this.validateKey(entry, { target: { value } });
+    set(entry, 'key', value);
   }
 
   @action updateKeyValue(key, value) {
@@ -220,7 +228,7 @@ export default class VariableFormComponent extends Component {
 
   @action
   async save(e, overwrite = false) {
-    if (e.type === 'submit') {
+    if (e?.type === 'submit') {
       e.preventDefault();
     }
 
@@ -378,11 +386,15 @@ export default class VariableFormComponent extends Component {
    *
    * @param {string} value
    */
-  @action updateCode(value, codemirror) {
-    codemirror.performLint();
+  @action updateCode(value) {
     try {
-      const hasLintErrors = codemirror?.state.lint.marked?.length > 0;
-      if (hasLintErrors || !JSON.parse(value)) {
+      let parsed;
+      try {
+        parsed = JSON.parse(value);
+      } catch (e) {
+        throw new Error('Invalid JSON');
+      }
+      if (!parsed) {
         throw new Error('Invalid JSON');
       }
 

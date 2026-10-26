@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -18,10 +19,21 @@ const A_KEY = 65;
 
 @classic
 @tagName('pre')
-@classNames('cli-window')
-@attributeBindings('data-test-log-cli')
+@classNames('norca-log-window')
+@attributeBindings(
+  'data-test-log-cli',
+  'tabindex',
+  'role',
+  'ariaLabel:aria-label'
+)
 export default class StreamingFile extends Component.extend(WindowResizable) {
   'data-test-log-cli' = true;
+
+  // The log scrolls, so it can take the keyboard focus; the log role makes
+  // the label valid on the pre element.
+  tabindex = 0;
+  role = 'log';
+  ariaLabel = 'Log output';
 
   mode = 'streaming'; // head, tail, streaming
   isStreaming = true;

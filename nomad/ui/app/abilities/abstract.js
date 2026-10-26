@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -74,17 +75,8 @@ export default class Abstract extends Ability {
     });
   }
 
-  @computed('system.features.[]')
-  get features() {
-    return this.system.features;
-  }
-
-  featureIsPresent(featureName) {
-    return this.features.includes(featureName);
-  }
-
-  // Chooses the closest namespace as described at the bottom here:
-  // https://learn.hashicorp.com/tutorials/nomad/access-control-policies?in=nomad/access-control#namespace-rules
+  // Chooses the closest namespace: an exact match, else the longest
+  // matching glob, else the default namespace rule.
   _findMatchingNamespace(policyNamespaces, namespace) {
     let namespaceNames = policyNamespaces.mapBy('Name');
 

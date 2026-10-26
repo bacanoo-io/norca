@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -37,5 +38,12 @@ export default class Agent extends Model {
   @computed('tags.build')
   get version() {
     return this.tags?.build || '';
+  }
+
+  // The Norca product version (Serf tag norca_vsn); version is the Nomad
+  // API version the server is compatible with.
+  @computed('tags.norca_vsn')
+  get norcaVersion() {
+    return this.tags?.norca_vsn || '';
   }
 }

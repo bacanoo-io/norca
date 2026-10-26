@@ -1,12 +1,12 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 /* eslint-disable ember/no-controller-access-in-routes */
 import { inject as service } from '@ember/service';
 import Route from '@ember/routing/route';
-import EmberError from '@ember/error';
 
 export default class TaskRoute extends Route {
   @service store;
@@ -21,7 +21,7 @@ export default class TaskRoute extends Route {
     const task = allocation.get('states').findBy('name', name);
 
     if (!task) {
-      const err = new EmberError(
+      const err = new Error(
         `Task ${name} not found for allocation ${allocation.get('id')}`
       );
       err.code = '404';

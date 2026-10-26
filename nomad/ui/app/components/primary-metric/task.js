@@ -1,9 +1,10 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Ember from 'ember';
+import { isTesting } from '@ember/debug';
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { task, timeout } from 'ember-concurrency';
@@ -51,7 +52,7 @@ export default class TaskPrimaryMetric extends Component {
     do {
       this.tracker.poll.perform();
       yield timeout(100);
-    } while (!Ember.testing);
+    } while (!isTesting());
   })
   poller;
 

@@ -1,0 +1,37 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Modal @title="Back up now" @onClose={{@onClose}} data-test-backup-now-modal>
+  <:default>
+    <form id="norca-backup-now-form" {{on "submit" this.submit}}>
+      <p class="text-secondary">
+        A backup of the whole cluster state of the region is taken now and uploaded to every configured destination.
+        Typical use: before a major change.
+      </p>
+      {{#if this.hasRegionChoice}}
+        <Ui::Field @label="Region" as |f|>
+          <Ui::Select @id={{f.id}} @options={{this.regionOptions}} @value={{this.region}} @onChange={{this.setRegion}} data-test-backup-now-region />
+        </Ui::Field>
+      {{/if}}
+      <Ui::Field @label="Note" @help="Optional. Stored as the note label of the backup, for example: before the 2.0 upgrade." as |f|>
+        <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @value={{this.note}} @onInput={{this.setNote}} data-test-backup-now-note />
+      </Ui::Field>
+      <Ui::Switch
+        @switch={{true}}
+        @label="Pin the backup"
+        @help="Retention never deletes a pinned backup."
+        @checked={{this.pin}}
+        @onChange={{this.setPin}}
+        data-test-backup-now-pin
+      />
+      {{#if this.error}}
+        <Ui::Alert @tone="danger" class="mt-3 mb-0" data-test-backup-now-error>{{this.error}}</Ui::Alert>
+      {{/if}}
+    </form>
+  </:default>
+  <:footer>
+    <Ui::Button @disabled={{this.isRunning}} {{on "click" @onClose}}>Cancel</Ui::Button>
+    <Ui::Button @variant="primary" @type="submit" @icon="cloud-upload" @isLoading={{this.isRunning}} form="norca-backup-now-form" data-test-backup-now-submit>Start backup</Ui::Button>
+  </:footer>
+</Ui::Modal>

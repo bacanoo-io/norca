@@ -1,10 +1,11 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { assign } from '@ember/polyfills';
-import { Factory, trait } from 'ember-cli-mirage';
+import { Factory, trait } from 'miragejs';
+import { assert } from '@ember/debug';
 import faker from 'nomad-ui/mirage/faker';
 import { provide, pickOne } from '../utils';
 import { DATACENTERS } from '../common';
@@ -193,14 +194,12 @@ export default Factory.extend({
   // When true, tasks will have services
   withTaskServices: false,
 
-  // When true, dynamic application sizing recommendations will be made
-  createRecommendations: false,
 
   // When true, only task groups and allocations are made
   shallow: false,
 
   afterCreate(job, server) {
-    Ember.assert(
+    assert(
       '[Mirage] No node pools! make sure node pools are created before jobs',
       server.db.nodePools.length
     );
@@ -231,7 +230,6 @@ export default Factory.extend({
       withRescheduling: job.withRescheduling,
       withServices: job.withGroupServices,
       withTaskServices: job.withTaskServices,
-      createRecommendations: job.createRecommendations,
       shallow: job.shallow,
       allocStatusDistribution: job.allocStatusDistribution,
     };
@@ -330,7 +328,7 @@ export default Factory.extend({
         server.create(
           'evaluation',
           'withPlacementFailures',
-          assign(knownEvaluationProperties, {
+          Object.assign(knownEvaluationProperties, {
             modifyIndex: 4000,
           })
         );

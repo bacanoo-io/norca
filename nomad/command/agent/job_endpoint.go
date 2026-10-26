@@ -1052,6 +1052,8 @@ func ApiJobToStructJob(job *api.Job) *structs.Job {
 		}
 	}
 
+	j.Secrets = apiSecretsConfigToStructs(job.Secrets)
+
 	return j
 }
 
@@ -1199,6 +1201,9 @@ func ApiTgToStructsTG(job *structs.Job, taskGroup *api.TaskGroup, tg *structs.Ta
 			tg.Tasks = append(tg.Tasks, t)
 		}
 	}
+
+	tg.Secrets = apiSecretsConfigToStructs(taskGroup.Secrets)
+	tg.SecretAccess = apiSecretAccessToStructs(taskGroup.SecretAccess)
 }
 
 // ApiTaskToStructsTask is a copy and type conversion between the API
@@ -1227,6 +1232,9 @@ func ApiTaskToStructsTask(job *structs.Job, group *structs.TaskGroup,
 			File: apiTask.Identity.File,
 		}
 	}
+
+	structsTask.Secrets = apiTaskSecretsToStructs(apiTask.Secrets)
+	structsTask.SecretAccess = apiSecretAccessToStructs(apiTask.SecretAccess)
 
 	if apiTask.RestartPolicy != nil {
 		structsTask.RestartPolicy = &structs.RestartPolicy{

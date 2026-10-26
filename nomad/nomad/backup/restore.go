@@ -81,6 +81,27 @@ func ReadKeys(ctx context.Context, dest Destination, record *structs.BackupRecor
 	return keys, nil
 }
 
+// ReadSecretStoreKey decrypts the secret store key object of a backup (the
+// key of its secret store core). It returns nil and no error if the backup
+// has none: backups taken before Norca wrote it, or without the keyring.
+func ReadSecretStoreKey(ctx context.Context, dest Destination, record *structs.BackupRecord,
+	st *structs.BackupDestinationStatus, ids Identities) ([]byte, error) {
+
+	rc, err := OpenObject(ctx, dest, record, st, structs.BackupObjectSecretStoreKey, ids)
+	if errors.Is(err, ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	key, err := DecodeSecretStoreKey(rc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the secret store key of backup %s: %w", record.ID, err)
+	}
+	return key, nil
+}
+
 // CheckIdentity verifies that the identities can decrypt a backup on a
 // destination, by reading the header of its state object only.
 func CheckIdentity(ctx context.Context, dest Destination, record *structs.BackupRecord,

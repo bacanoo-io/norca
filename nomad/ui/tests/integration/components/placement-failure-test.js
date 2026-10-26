@@ -1,12 +1,12 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import { find, findAll, render } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
-import { assign } from '@ember/polyfills';
 import hbs from 'htmlbars-inline-precompile';
 import cleanWhitespace from '../../utils/clean-whitespace';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
@@ -15,7 +15,7 @@ module('Integration | Component | placement failures', function (hooks) {
   setupRenderingTest(hooks);
 
   const commonTemplate = hbs`
-      <PlacementFailure @taskGroup={{taskGroup}} />
+      <PlacementFailure @taskGroup={{this.taskGroup}} />
   `;
 
   test('should render the placement failure (basic render)', async function (assert) {
@@ -128,7 +128,7 @@ module('Integration | Component | placement failures', function (hooks) {
   function createFixture(obj = {}, name = 'Placement Failure') {
     return {
       name: name,
-      placementFailures: assign(
+      placementFailures: Object.assign(
         {
           name: name,
           coalescedFailures: 10,

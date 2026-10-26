@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -70,7 +71,7 @@ export default class CodeMirrorModifier extends Modifier {
         lineNumbers: this.args.named.lineNumbers || true,
         mode: this.args.named.mode || 'application/json',
         readOnly: this.args.named.readOnly || false,
-        theme: this.args.named.theme || 'hashi',
+        theme: this.args.named.theme || 'norca',
         value: this.args.named.content || '',
         viewportMargin: this.args.named.viewportMargin || '',
         screenReaderLabel: this.args.named.screenReaderLabel || '',

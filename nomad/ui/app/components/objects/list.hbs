@@ -1,0 +1,89 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-objects {{this.setup this.region}}>
+  <Ui::PageHeader @pretitle="Workloads" @title="Objects" @subtitle={{this.scopeLabel}}>
+    <:actions>
+      {{#if this.kinds.length}}
+        <Ui::Select @label="Type" @options={{this.kindOptions}} @value={{if this.kind (concat this.kind.Group "/" this.kind.Kind)}} @onChange={{this.selectKind}} data-test-kind-select />
+      {{/if}}
+      <Ui::Button @route="kinds" @icon="list-details">Type definitions</Ui::Button>
+      {{#if this.canCreate}}
+        <Ui::Button @variant="primary" @icon="plus" data-test-new-object {{on "click" this.openCreate}}>New {{this.kind.Kind}}</Ui::Button>
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
+
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the object kinds" /></Ui::Card>
+    {{else if this.error}}
+      <Ui::Alert @tone="warning" @title="The object kinds could not be loaded" data-test-objects-error>{{this.error}}</Ui::Alert>
+    {{else if this.kind}}
+      <div {{this.objectsLoader (concat this.kind.Group "/" this.kind.Kind) this.namespace}}>
+        {{#if this.kind.Description}}<p class="text-secondary">{{this.kind.Description}}</p>{{/if}}
+        {{#if this.objectsError}}
+          <Ui::Alert @tone="warning" data-test-objects-load-error>{{this.objectsError}}</Ui::Alert>
+        {{else}}
+          <Ui::DataTable
+            @id={{concat "objects-" this.kind.Group "/" this.kind.Kind}}
+            @caption={{concat "Objects of " this.kind.Group "/" this.kind.Kind}}
+            @columns={{this.columns}}
+            @rows={{this.tableRows}}
+            @sortBy={{this.list.sortBy}}
+            @sortDescending={{this.list.sortDescending}}
+            @onSort={{this.list.sort}}
+            @pageSize={{this.list.pageSize}}
+            @page={{this.list.page}}
+            @onPageChange={{this.list.setPage}}
+            @onPageSizeChange={{this.list.setPageSize}}
+            @noun="objects"
+            @viewState={{this.list.viewState}}
+            @onApplyView={{this.list.applyView}}
+            @emptyMessage={{if this.objectsLoading "Loading…" (if this.list.searchTerm "No object matches the search." "No object of this type in scope. Create one with New object, with the object API or CLI, or let a controller create it.")}}
+            data-test-object-list
+          >
+            <:filters>
+              <Ui::Input
+                @type="search"
+                @icon="search"
+                @placeholder="Search objects..."
+                @value={{this.list.searchTerm}}
+                @onInput={{this.list.search}}
+                aria-label="Search objects"
+                data-test-object-search
+              />
+            </:filters>
+            <:actions>
+              <Ui::Button @size="sm" @variant="ghost" @route="kinds.kind" @models={{array this.kind.Group this.kind.Kind}}>Definition</Ui::Button>
+            </:actions>
+            <:row as |o r|>
+              <r.Row data-test-object-row={{o.Name}}>
+                <r.Cell @key="name">
+                  <LinkTo @route="objects.object" @models={{array o.Group o.Kind o.Name}} @query={{hash namespace=(or o.Namespace null)}} data-test-object-link={{o.Name}}>{{o.Name}}</LinkTo>
+                </r.Cell>
+                <r.Cell @key="namespace">{{o.Namespace}}</r.Cell>
+                {{#each o.cells as |cell|}}
+                  <r.Cell @key={{cell.key}} data-test-object-cell>{{cell.value}}</r.Cell>
+                {{/each}}
+                <r.Cell @key="healthLabel"><Ui::StatusIndicator @tone={{o.health.tone}} @label={{o.health.label}} data-test-object-health /></r.Cell>
+                <r.Cell @key="generation" title="generation / observed by the controller" data-test-object-generation>{{o.generation}}</r.Cell>
+              </r.Row>
+            </:row>
+          </Ui::DataTable>
+        {{/if}}
+      </div>
+    {{else}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="box" @title="No object kinds" @message="Objects need a type definition first. Packages with operators register their kinds when they are installed; operators can also add them with the object-kind API or CLI." data-test-no-kinds>
+          <Ui::Button @route="packages">Packages</Ui::Button>
+        </Ui::EmptyState>
+      </Ui::Card>
+    {{/if}}
+  </Ui::PageBody>
+
+  {{#if this.creating}}
+    <Objects::Editor @kind={{this.kind}} @namespace={{this.targetNamespace}} @region={{this.region}} @onSaved={{this.created}} @onClose={{this.closeCreate}} />
+  {{/if}}
+</div>

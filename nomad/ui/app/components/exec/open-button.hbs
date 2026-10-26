@@ -1,0 +1,21 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+{{#let (cannot "exec allocation" namespace=this.job.namespaceName) as |cannotExec|}}
+  <Ui::Button
+    @icon="terminal-2"
+    @disabled={{cannotExec}}
+    title={{if cannotExec "You don’t have permission to exec"}}
+    aria-label={{if cannotExec "You don’t have permission to exec"}}
+    data-test-exec-button
+    {{on "click" (action "open")}}
+    {{keyboard-shortcut
+      label="Exec"
+      pattern=(array "e" "x" "e" "c")
+      action=(action "open")
+    }}
+  >Exec</Ui::Button>
+{{/let}}

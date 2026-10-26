@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -19,15 +20,48 @@ import {
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
 import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class TaskGroupController extends Controller.extend(
   Sortable,
   Searchable,
-  WithNamespaceResetting
+  WithNamespaceResetting,
+  WithListActions
 ) {
   @service userSettings;
   @service can;
+  @service system;
+
+  viewParams = [
+    'qpStatus',
+    'qpClient',
+    'searchTerm',
+    'sortProperty',
+    'sortDescending',
+  ];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
+  get breadcrumbs() {
+    const taskGroup = this.model;
+    const job = taskGroup.get('job');
+    return [
+      { label: 'Jobs', route: 'jobs.index', id: 'jobs.index' },
+      {
+        label: job.get('trimmedName') || job.get('name'),
+        route: 'jobs.job.index',
+        model: job,
+        id: 'jobs.job.index',
+      },
+      { label: taskGroup.name, id: 'jobs.job.task-group' },
+    ];
+  }
 
   queryParams = [
     {
@@ -140,7 +174,7 @@ export default class TaskGroupController extends Controller.extend(
 
   @action
   gotoAllocation(allocation) {
-    this.transitionToRoute('allocations.allocation', allocation.id);
+    legacyTransitionTo(this, 'allocations.allocation', allocation.id);
   }
 
   @action
@@ -159,7 +193,8 @@ export default class TaskGroupController extends Controller.extend(
     ];
   }
 
-  @computed('model.allocations.[]', 'selectionClient')
+  // Not cached: the client names come from the allocations' nodes, which
+  // load after the allocations (autotracking follows them).
   get optionsClients() {
     const clients = Array.from(
       new Set(this.model.allocations.mapBy('node.shortId'))

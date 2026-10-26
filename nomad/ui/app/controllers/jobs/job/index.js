@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -45,6 +46,16 @@ export default class IndexController extends Controller.extend(
    */
   @tracked
   statusMode = 'current';
+
+  @action
+  sort(property, descending) {
+    this.setProperties({ sortProperty: property, sortDescending: descending });
+  }
+
+  @action
+  setPage(page) {
+    this.set('currentPage', page);
+  }
 
   @action
   setActiveTaskQueryParam(task) {

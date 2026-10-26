@@ -1,0 +1,84 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-federated-jobs {{this.live @regions @namespace}}>
+  {{#each this.failedRegions as |failed|}}
+    <Ui::Alert @tone="warning" class="mb-3" data-test-federated-region-error={{failed.region}}>
+      <strong>{{failed.region}}:</strong> {{failed.message}}
+    </Ui::Alert>
+  {{/each}}
+
+  {{#if this.isLoading}}
+    <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the jobs of every region" /></Ui::Card>
+  {{else}}
+    <Ui::DataTable
+      @id="jobs-all-regions"
+      @caption="Jobs of all regions"
+      @columns={{this.columns}}
+      @rows={{this.sortedRows}}
+      @rowKey="key"
+      @sortBy={{this.sortBy}}
+      @sortDescending={{this.sortDescending}}
+      @onSort={{this.sort}}
+      @pageSize={{this.pageSize}}
+      @page={{this.page}}
+      @onPageChange={{this.setPage}}
+      @onPageSizeChange={{this.setPageSize}}
+      @onRowClick={{this.gotoJob}}
+      @enumerate={{true}}
+      @noun="jobs"
+      @viewState={{this.viewState}}
+      @onApplyView={{this.applyView}}
+    >
+      <:filters>
+        <Ui::Input
+          @type="search"
+          @icon="search"
+          @placeholder="Search jobs..."
+          @value={{this.searchTerm}}
+          @onInput={{this.search}}
+          aria-label="Search jobs"
+          data-test-jobs-search
+        />
+        <Ui::FilterDropdown @label="Region" @options={{this.regionOptions}} @selection={{this.selectionRegion}} @onSelect={{fn this.setFilter "selectionRegion"}} data-test-region-facet />
+        <Ui::FilterDropdown @label="Type" @options={{this.typeOptions}} @selection={{this.selectionType}} @onSelect={{fn this.setFilter "selectionType"}} data-test-type-facet />
+        <Ui::FilterDropdown @label="Status" @options={{this.statusOptions}} @selection={{this.selectionStatus}} @onSelect={{fn this.setFilter "selectionStatus"}} data-test-status-facet />
+      </:filters>
+      <:row as |row r|>
+        <r.Row data-test-job-row={{row.id}} data-test-job-region={{row.region}}>
+          <r.Cell @key="region"><span class="norca-region" data-test-job-region-name>{{row.region}}</span></r.Cell>
+          <r.Cell @key="name" data-test-job-name>
+            <LinkTo @route="jobs.job.index" @model={{row.routeId}} @query={{hash region=row.region}} class="fw-medium">{{row.name}}</LinkTo>
+            {{#if row.multiregion}}<Ui::Badge @color="purple" @icon="world" class="ms-1">multiregion</Ui::Badge>{{/if}}
+          </r.Cell>
+          <r.Cell @key="namespace" data-test-job-namespace>{{row.namespace}}</r.Cell>
+          <r.Cell @key="status" data-test-job-status><Ui::StatusIndicator @status={{row.status}} /></r.Cell>
+          <r.Cell @key="type" data-test-job-type>{{row.type}}</r.Cell>
+          <r.Cell @key="nodePool" data-test-job-node-pool>{{or row.nodePool "-"}}</r.Cell>
+          <r.Cell @key="priority" class="tabular-nums" data-test-job-priority>{{row.priority}}</r.Cell>
+          <r.Cell @key="owner" data-test-job-owner>
+            {{#if row.owner}}
+              <Ui::Badge @color="purple" @icon={{if (eq row.owner.kind "release") "package" "box"}}>
+                {{if (eq row.owner.kind "release") "release" row.owner.kind}} {{row.owner.name}}
+              </Ui::Badge>
+            {{else}}
+              <span class="text-secondary">–</span>
+            {{/if}}
+          </r.Cell>
+          <r.Cell @key="summary" class="w-25" data-test-job-allocations>
+            <Ui::Distribution @label="Allocations of {{row.name}} in {{row.region}}" @data={{row.summary}} @compact={{true}} @noLegend={{true}} />
+          </r.Cell>
+        </r.Row>
+      </:row>
+      <:empty>
+        <Ui::EmptyState
+          @icon="briefcase"
+          @title="No Jobs"
+          @message="No region in scope has jobs in this namespace. Choose another namespace or region, or run a job."
+          data-test-empty-jobs-list
+        />
+      </:empty>
+    </Ui::DataTable>
+  {{/if}}
+</div>

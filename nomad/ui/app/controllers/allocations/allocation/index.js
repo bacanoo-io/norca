@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -18,6 +19,11 @@ import messageForError from 'nomad-ui/utils/message-from-adapter-error';
 import classic from 'ember-classic-decorator';
 import { union } from '@ember/object/computed';
 import { tracked } from '@glimmer/tracking';
+import { scheduleOnce } from '@ember/runloop';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
+
+const TASK_SORT_PATHS = { time: 'events.lastObject.time' };
+const TASK_SORT_KEYS = { 'events.lastObject.time': 'time' };
 
 @classic
 export default class IndexController extends Controller.extend(Sortable) {
@@ -76,9 +82,18 @@ export default class IndexController extends Controller.extend(Sortable) {
 
   @union('taskServices', 'groupServices') services;
 
-  @computed('model.{healthChecks,id}', 'services')
+  @computed('mergeHealthChecks', 'model.{healthChecks,id}', 'services')
   get servicesWithHealthChecks() {
-    return this.services.map((service) => {
+    // The health checks are merged into the service fragments outside of
+    // rendering: changing fragments while a template reads them is an error
+    // with Ember 6.
+    scheduleOnce('actions', this, this.mergeHealthChecks);
+    return this.services;
+  }
+
+  mergeHealthChecks() {
+    if (this.isDestroying || this.isDestroyed) return;
+    (this.services || []).forEach((service) => {
       if (this.model.healthChecks) {
         const healthChecks = Object.values(this.model.healthChecks)?.filter(
           (check) => {
@@ -97,7 +112,6 @@ export default class IndexController extends Controller.extend(Sortable) {
         'Alloc',
         this.model.id
       );
-      return service;
     });
   }
 
@@ -156,9 +170,52 @@ export default class IndexController extends Controller.extend(Sortable) {
   })
   restartAll;
 
+  taskColumns = [
+    { key: 'indicators', label: 'Indicators', srOnly: true, hideable: false },
+    { key: 'name', label: 'Name', sortable: true, hideable: false },
+    { key: 'state', label: 'State', sortable: true },
+    { key: 'message', label: 'Last event' },
+    { key: 'time', label: 'Time', sortable: true },
+    { key: 'volumes', label: 'Volumes' },
+    { key: 'cpu', label: 'CPU' },
+    { key: 'memory', label: 'Memory' },
+  ];
+
+  portColumns = [
+    { key: 'name', label: 'Name' },
+    { key: 'address', label: 'Host address' },
+    { key: 'to', label: 'Mapped port' },
+  ];
+
+  serviceColumns = [
+    { key: 'provider', label: 'Provider' },
+    { key: 'name', label: 'Name' },
+    { key: 'port', label: 'Port' },
+    { key: 'tags', label: 'Tags' },
+    { key: 'health', label: 'Health check status' },
+  ];
+
+  // The sort query parameter keeps the property path of the old table.
+  get taskSortKey() {
+    return TASK_SORT_KEYS[this.sortProperty] || this.sortProperty;
+  }
+
+  @action
+  sortTasks(key, descending) {
+    this.setProperties({
+      sortProperty: TASK_SORT_PATHS[key] || key,
+      sortDescending: descending,
+    });
+  }
+
   @action
   gotoTask(allocation, task) {
-    this.transitionToRoute('allocations.allocation.task', task);
+    legacyTransitionTo(this, 'allocations.allocation.task', task);
+  }
+
+  @action
+  openTask(taskState) {
+    legacyTransitionTo(this, 'allocations.allocation.task', taskState);
   }
 
   @action

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -148,7 +149,7 @@ module('Integration | Component | TopoViz::Node', function (hooks) {
 
     await render(commonTemplate);
 
-    assert.ok(TopoVizNode.statusIcon.includes('icon-is-clock-outline'));
+    assert.equal(TopoVizNode.statusIcon, 'clock');
     assert.equal(TopoVizNode.statusIconLabel, 'Client is draining');
   });
 
@@ -165,7 +166,7 @@ module('Integration | Component | TopoViz::Node', function (hooks) {
 
     await render(commonTemplate);
 
-    assert.ok(TopoVizNode.statusIcon.includes('icon-is-lock-closed'));
+    assert.equal(TopoVizNode.statusIcon, 'lock');
     assert.equal(TopoVizNode.statusIconLabel, 'Client is ineligible');
   });
 
@@ -280,7 +281,7 @@ module('Integration | Component | TopoViz::Node', function (hooks) {
     );
 
     await render(hbs`
-      <div style="width:100px">
+      <div class="legacy" style="width:100px">
         <TopoViz::Node
           @node={{this.node}}
           @isDense={{this.isDense}}

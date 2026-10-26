@@ -1,10 +1,10 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import EmberObject from '@ember/object';
-import { assign } from '@ember/polyfills';
 import { module, test } from 'qunit';
 import sinon from 'sinon';
 import Pretender from 'pretender';
@@ -21,7 +21,7 @@ module('Unit | Util | NodeStatsTracker', function () {
   const makeDate = (ts) => new Date(ts / 1000000);
 
   const MockNode = (overrides) =>
-    assign(
+    Object.assign(
       {
         id: 'some-identifier',
         resources: {

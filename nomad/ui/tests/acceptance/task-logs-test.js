@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -10,7 +11,7 @@ import {
   findAll,
   triggerKeyEvent,
 } from '@ember/test-helpers';
-import { run } from '@ember/runloop';
+import { _cancelTimers as cancelTimers, later } from '@ember/runloop';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -40,7 +41,7 @@ module('Acceptance | task logs', function (hooks) {
     });
     task = server.db.taskStates.where({ allocationId: allocation.id })[0];
 
-    run.later(run, run.cancelTimers, 1000);
+    later(cancelTimers, 1000);
   });
 
   test('it passes an accessibility audit', async function (assert) {
@@ -77,22 +78,22 @@ module('Acceptance | task logs', function (hooks) {
   test('logs can be word-wrapped', async function (assert) {
     await TaskLogs.visit({ id: allocation.id, name: task.name });
 
-    assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
-    assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
+    assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
+    assert.dom('[data-test-output]').doesNotHaveClass('norca-wrapped');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 100);
     await click('[data-test-word-wrap-toggle]');
-    assert.dom('[data-test-word-wrap-toggle]').isChecked();
-    assert.dom('[data-test-output]').hasClass('wrapped');
+    assert.dom('[data-test-word-wrap-toggle] input').isChecked();
+    assert.dom('[data-test-output]').hasClass('norca-wrapped');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 100);
     await click('[data-test-word-wrap-toggle]');
-    assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
-    assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
+    assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
+    assert.dom('[data-test-output]').doesNotHaveClass('norca-wrapped');
 
     window.localStorage.clear();
   });
@@ -104,41 +105,41 @@ module('Acceptance | task logs', function (hooks) {
       name: task.name,
     });
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 500);
 
     const taskRow = [
-      ...findAll('.task-sub-row').filter((row) => {
+      ...findAll('[data-test-task-sub-row]').filter((row) => {
         return row.textContent.includes(task.name);
       }),
     ][0];
 
-    await click(taskRow.querySelector('button.logs-sidebar-trigger'));
+    await click(taskRow.querySelector('[data-test-logs-sidebar-trigger]'));
 
-    assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
-    assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
+    assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
+    assert.dom('[data-test-output]').doesNotHaveClass('norca-wrapped');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 500);
 
     // type "ww" to trigger word wrap
     const W_KEY = 87;
-    triggerKeyEvent('.sidebar', 'keydown', W_KEY);
-    await triggerKeyEvent('.sidebar', 'keydown', W_KEY);
+    triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
+    await triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
 
-    assert.dom('[data-test-word-wrap-toggle]').isChecked();
-    assert.dom('[data-test-output]').hasClass('wrapped');
+    assert.dom('[data-test-word-wrap-toggle] input').isChecked();
+    assert.dom('[data-test-output]').hasClass('norca-wrapped');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 100);
 
-    triggerKeyEvent('.sidebar', 'keydown', W_KEY);
-    await triggerKeyEvent('.sidebar', 'keydown', W_KEY);
-    assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
-    assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
+    triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
+    await triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
+    assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
+    assert.dom('[data-test-output]').doesNotHaveClass('norca-wrapped');
 
     window.localStorage.clear();
   });
@@ -151,24 +152,24 @@ module('Acceptance | task logs', function (hooks) {
     });
     assert.notOk(TaskLogs.sidebarIsPresent, 'Sidebar is not present');
 
-    run.later(() => {
-      run.cancelTimers();
+    later(() => {
+      cancelTimers();
     }, 500);
 
     const taskRow = [
-      ...findAll('.task-sub-row').filter((row) => {
+      ...findAll('[data-test-task-sub-row]').filter((row) => {
         return row.textContent.includes(task.name);
       }),
     ][0];
 
-    await click(taskRow.querySelector('button.logs-sidebar-trigger'));
+    await click(taskRow.querySelector('[data-test-logs-sidebar-trigger]'));
 
     assert.ok(TaskLogs.sidebarIsPresent, 'Sidebar is present');
     assert
-      .dom('.task-context-sidebar h1.title')
+      .dom('[data-test-side-panel-title]')
       .includesText(task.name, 'Sidebar title is correct');
     assert
-      .dom('.task-context-sidebar h1.title')
+      .dom('[data-test-side-panel-title]')
       .includesText(task.state, 'Task state is correctly displayed');
     await percySnapshot(assert, {
       percyCSS: `
@@ -177,7 +178,7 @@ module('Acceptance | task logs', function (hooks) {
       `,
     });
 
-    await click('.sidebar button.close');
+    await click('[data-test-side-panel-close]');
     assert.notOk(TaskLogs.sidebarIsPresent, 'Sidebar is not present');
   });
 });

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -9,7 +10,7 @@ import { currentURL } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import Versions from 'nomad-ui/tests/pages/jobs/job/versions';
 import Layout from 'nomad-ui/tests/pages/layout';
 import moment from 'moment';
@@ -40,7 +41,7 @@ module('Acceptance | job versions', function (hooks) {
   });
 
   test('it passes an accessibility audit', async function (assert) {
-    await a11yAudit(assert);
+    await a11yAudit(assert, STRICT);
   });
 
   test('/jobs/:id/versions should list all job versions', async function (assert) {
@@ -49,7 +50,7 @@ module('Acceptance | job versions', function (hooks) {
       versions.length,
       'Each version gets a row in the timeline'
     );
-    assert.equal(document.title, `Job ${job.name} versions - Nomad`);
+    assert.equal(document.title, `Job ${job.name} versions - Norca`);
   });
 
   test('each version mentions the version number, the stability, and the submitted time', async function (assert) {

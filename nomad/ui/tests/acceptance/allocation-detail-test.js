@@ -1,14 +1,14 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 /* eslint-disable qunit/require-expect */
 /* Mirage fixtures are random so we can't expect a set number of assertions */
 import AdapterError from '@ember-data/adapter/error';
-import { run } from '@ember/runloop';
+import { later } from '@ember/runloop';
 import { currentURL, click, triggerEvent, waitFor } from '@ember/test-helpers';
-import { assign } from '@ember/polyfills';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -42,7 +42,7 @@ module('Acceptance | allocation detail', function (hooks) {
 
     // Make sure the node has an unhealthy driver
     node.update({
-      driver: assign(node.drivers, {
+      driver: Object.assign(node.drivers, {
         docker: {
           detected: true,
           healthy: false,
@@ -132,7 +132,7 @@ module('Acceptance | allocation detail', function (hooks) {
     await Allocation.visit({ id: allocation.id });
 
     assert.ok(Allocation.lifecycleChart.isPresent);
-    assert.equal(Allocation.lifecycleChart.title, 'Task Lifecycle Status');
+    assert.equal(Allocation.lifecycleChart.title, 'Task lifecycle status');
     assert.equal(Allocation.lifecycleChart.phases.length, 4);
     assert.equal(Allocation.lifecycleChart.tasks.length, 6);
 
@@ -401,7 +401,7 @@ module('Acceptance | allocation detail', function (hooks) {
 
     await Allocation.stop.idle();
 
-    run.later(() => {
+    later(() => {
       assert.ok(Allocation.stop.isRunning, 'Stop is loading');
       assert.ok(Allocation.restart.isDisabled, 'Restart is disabled');
       assert.ok(Allocation.restartAll.isDisabled, 'Restart All is disabled');
@@ -439,7 +439,6 @@ module('Acceptance | allocation detail', function (hooks) {
     await click('[data-test-breadcrumb="jobs.job.index"]');
     await click('[data-test-tab="allocations"] > a');
 
-    const component = this.owner.lookup('component:allocation-row');
     const router = this.owner.lookup('service:router');
     const allocRoute = this.owner.lookup('route:allocations.allocation');
     const originalMethod = allocRoute.goBackToReferrer;
@@ -447,9 +446,6 @@ module('Acceptance | allocation detail', function (hooks) {
       assert.step('Transition dispatched.');
       router.transitionTo('jobs.job.allocations');
     };
-
-    component.onClick = () =>
-      router.transitionTo('allocations.allocation', 'aaa');
 
     server.get('/allocation/:id', function () {
       return new AdapterError([
@@ -460,7 +456,8 @@ module('Acceptance | allocation detail', function (hooks) {
       ]);
     });
 
-    component.onClick();
+    // A click on an allocation row whose allocation is gone.
+    router.transitionTo('allocations.allocation', 'aaa');
 
     await waitFor('.flash-message.alert-critical');
 
@@ -672,11 +669,10 @@ module('Acceptance | allocation detail (services)', function (hooks) {
   setupMirage(hooks);
 
   hooks.beforeEach(async function () {
-    server.create('feature', { name: 'Dynamic Application Sizing' });
     server.createList('agent', 3, 'withConsulLink', 'withVaultLink');
     server.createList('node-pool', 3);
     server.createList('node', 5);
-    server.createList('job', 1, { createRecommendations: true });
+    server.createList('job', 1);
     const job = server.create('job', {
       withGroupServices: true,
       withTaskServices: true,
@@ -745,27 +741,25 @@ module('Acceptance | allocation detail (services)', function (hooks) {
     });
     await Allocation.visit({ id: runningAlloc.id });
     assert.dom('[data-test-service]').exists();
-    assert.dom('.service-sidebar').exists();
-    assert.dom('.service-sidebar').doesNotHaveClass('open');
+    assert.dom('[data-test-service-panel]').doesNotExist();
     assert
       .dom('[data-test-service-status-bar]')
       .exists('At least one allocation has service health');
 
     await click('[data-test-service-status-bar]');
-    assert.dom('.service-sidebar').hasClass('open');
+    assert.dom('[data-test-service-panel]').exists();
     assert
-      .dom('table.health-checks tr[data-service-health="success"]')
+      .dom('[data-test-health-checks] [data-service-health="success"]')
       .exists({ count: 2 }, 'Two successful health checks');
     assert
-      .dom('table.health-checks tr[data-service-health="failure"]')
+      .dom('[data-test-health-checks] [data-service-health="failure"]')
       .exists({ count: 1 }, 'One failing health check');
     assert
-      .dom(
-        'table.health-checks tr[data-service-health="failure"] td.service-output'
-      )
-      .containsText('Oh no!');
+      .dom('[data-test-health-checks] [data-service-health="failure"]')
+      .hasText('check3');
+    assert.dom('[data-test-health-checks]').containsText('Oh no!');
 
     await triggerEvent('.page-layout', 'keydown', { key: 'Escape' });
-    assert.dom('.service-sidebar').doesNotHaveClass('open');
+    assert.dom('[data-test-service-panel]').doesNotExist();
   });
 });

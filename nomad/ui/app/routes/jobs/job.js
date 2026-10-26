@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -47,10 +48,6 @@ export default class JobRoute extends Route.extend(WithWatchers) {
           this.store.query('job', { namespace, meta: true }),
           this.store.findAll('namespace'),
         ];
-
-        if (this.can.can('accept recommendation')) {
-          relatedModelsQueries.push(job.get('recommendationSummaries'));
-        }
 
         // Optimizing future node look ups by preemptively loading everything
         if (job.get('hasClientStatus') && this.can.can('read client')) {

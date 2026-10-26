@@ -12,6 +12,7 @@ import {
   visit,
   click,
   fillIn,
+  select,
 } from '@ember/test-helpers';
 import { module, skip, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
@@ -25,12 +26,8 @@ import Layout from 'nomad-ui/tests/pages/layout';
 import percySnapshot from '@percy/ember';
 import faker from 'nomad-ui/mirage/faker';
 import moment from 'moment';
-import { run } from '@ember/runloop';
+import { _cancelTimers as cancelTimers } from '@ember/runloop';
 import { allScenarios } from '../../mirage/scenarios/default';
-import {
-  selectChoose,
-  clickTrigger,
-} from 'ember-power-select/test-support/helpers';
 
 let job;
 let node;
@@ -188,7 +185,7 @@ module('Acceptance | tokens', function (hooks) {
     const { secretId } = clientToken;
 
     await Jobs.visit();
-    assert.ok(find('.job-row'), 'Jobs found');
+    assert.ok(find('[data-test-job-row]'), 'Jobs found');
 
     await Tokens.visit();
     await Tokens.secret(secretId).submit();
@@ -221,7 +218,7 @@ module('Acceptance | tokens', function (hooks) {
     await Tokens.clear();
 
     // https://ember-concurrency.com/docs/testing-debugging/
-    setTimeout(() => run.cancelTimers(), 500);
+    setTimeout(() => cancelTimers(), 500);
 
     // Token with TTL
     await Tokens.secret(expiringToken.secretId).submit();
@@ -344,7 +341,7 @@ module('Acceptance | tokens', function (hooks) {
           .dom('.flash-message.alert-warning')
           .exists('Notification is rendered at the 10m mark');
         notificationRendered();
-        run.cancelTimers();
+        cancelTimers();
       }, 5000);
     }, 500);
     await Tokens.secret(nearlyExpiringToken.secretId).submit();
@@ -420,7 +417,7 @@ module('Acceptance | tokens', function (hooks) {
     await click('button[data-test-auth-method]');
     assert.ok(currentURL().startsWith('/oidc-mock'));
 
-    let failureButton = find('.button.error');
+    let failureButton = find('[data-test-oidc-mock-failure]');
     assert.dom(failureButton).exists();
     await click(failureButton);
     assert.equal(
@@ -572,10 +569,11 @@ module('Acceptance | tokens', function (hooks) {
       '/settings/tokens?jwtAuthMethod=JWT-Global',
       'Default JWT method is selected'
     );
-    await clickTrigger('[data-test-select-jwt]');
-    assert.dom('.dropdown-options').exists('Dropdown options are shown');
+    assert
+      .dom('[data-test-select-jwt] option')
+      .exists({ count: 3 }, 'Every JWT method is an option');
 
-    await selectChoose('[data-test-select-jwt]', 'JWT-Regional');
+    await select('[data-test-select-jwt]', 'JWT-Regional');
     assert.equal(
       currentURL(),
       '/settings/tokens?jwtAuthMethod=JWT-Regional',
@@ -590,7 +588,7 @@ module('Acceptance | tokens', function (hooks) {
     assert.equal(Layout.error.title, 'Token Exchange Error');
     assert.equal(
       Layout.error.message,
-      'Failed to exchange the one-time token.'
+      'Failed to exchange the one-time token. Create a new one-time token and open its link again, or sign in with a token.'
     );
   });
 
@@ -694,7 +692,8 @@ module('Acceptance | tokens', function (hooks) {
     );
     assert.dom(doomedTokenRow).exists();
 
-    await click(doomedTokenRow.querySelector('button'));
+    await click(doomedTokenRow.querySelector('[data-test-idle-button]'));
+    await click(doomedTokenRow.querySelector('[data-test-confirm-button]'));
     assert.dom('.flash-message.alert-success').exists();
     assert
       .dom('[data-test-policy-token-row]')
@@ -932,11 +931,11 @@ module('Acceptance | tokens', function (hooks) {
 
       // Click on the first thead tr th to reverse
       assert
-        .dom('table.acl-table thead tr th')
+        .dom('[data-test-ui-table-header="name"]')
         .hasAttribute('aria-sort', 'ascending');
-      await click('table.acl-table thead tr th button');
+      await click('[data-test-sort-by="name"]');
       assert
-        .dom('table.acl-table thead tr th')
+        .dom('[data-test-ui-table-header="name"]')
         .hasAttribute('aria-sort', 'descending');
 
       const reversedNameCells = findAll('[data-test-token-name]');
@@ -967,6 +966,7 @@ module('Acceptance | tokens', function (hooks) {
       await click(
         tokenRowToDelete.querySelector('[data-test-delete-token] button')
       );
+      await click('[data-test-delete-token] [data-test-confirm-button]');
       assert.dom('.flash-message.alert-success').exists();
       assert
         .dom('[data-test-token-row]')
@@ -1010,12 +1010,8 @@ module('Acceptance | tokens', function (hooks) {
       assert.dom(rolesCell).exists();
       assert.dom(policiesCell).exists();
 
-      const rolesCellTags = rolesCell
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
-      const policiesCellTags = policiesCell
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
+      const rolesCellTags = rolesCell.querySelectorAll('.badge');
+      const policiesCellTags = policiesCell.querySelectorAll('.badge');
       assert.equal(rolesCellTags.length, 2);
       assert.equal(policiesCellTags.length, 1);
 
@@ -1034,12 +1030,8 @@ module('Acceptance | tokens', function (hooks) {
       assert.dom(rolesCell2).exists();
       assert.dom(policiesCell2).exists();
 
-      const rolesCellTags2 = rolesCell2
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
-      const policiesCellTags2 = policiesCell2
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
+      const rolesCellTags2 = rolesCell2.querySelectorAll('.badge');
+      const policiesCellTags2 = policiesCell2.querySelectorAll('.badge');
       assert.equal(rolesCellTags2.length, 1);
       assert.equal(policiesCellTags2.length, 0);
     });
@@ -1053,7 +1045,9 @@ module('Acceptance | tokens', function (hooks) {
       assert.dom('[data-test-token-type="client"]').isChecked();
       assert.dom('[data-test-token-type="management"]').isNotChecked();
 
-      assert.dom('.expiration-time').hasText('Token expires in an hour');
+      assert
+        .dom('[data-test-token-expiration]')
+        .hasText('Token expires in an hour');
 
       assert.dom('[data-test-token-roles]').exists();
       assert.dom('[data-test-token-policies]').exists();
@@ -1200,15 +1194,14 @@ module('Acceptance | tokens', function (hooks) {
 
       // Roles cell should have 1 tag
       const rolesCell = clayTokenRow.querySelector('[data-test-token-roles]');
-      const rolesCellTags = rolesCell
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
+      const rolesCellTags = rolesCell.querySelectorAll('.badge');
       assert.equal(rolesCellTags.length, 1);
     });
     test('Token can be deleted', async function (assert) {
       const token = server.db.tokens.findBy((t) => t.id === 'cl4y-t0k3n');
       await visit(`/access-control/tokens/${token.id}`);
-      await click('[data-test-delete-token]');
+      await click('[data-test-delete-token] [data-test-idle-button]');
+      await click('[data-test-delete-token] [data-test-confirm-button]');
       assert.dom('.flash-message.alert-success').exists();
       await visit('/access-control/tokens');
       assert.dom('[data-test-token-name="cl4y-t0k3n"]').doesNotExist();
@@ -1236,7 +1229,7 @@ module('Acceptance | tokens', function (hooks) {
       assert.equal(currentURL(), '/access-control/tokens/new');
       await fillIn('[data-test-token-name-input]', 'TTL Token');
       // Select the "8 hours" radio within the .expiration-time div
-      await click('.expiration-time input[value="8h"]');
+      await click('[data-test-token-expiration] input[value="8h"]');
       await click('[data-test-token-save]');
       assert.dom('.flash-message.alert-success').exists();
       await visit('/access-control/tokens');
@@ -1254,7 +1247,7 @@ module('Acceptance | tokens', function (hooks) {
       assert.equal(currentURL(), '/access-control/tokens/new');
       await fillIn('[data-test-token-name-input]', 'Expiring Token');
       // select the Custom radio button
-      await click('.expiration-time input[value="custom"]');
+      await click('[data-test-token-expiration] input[value="custom"]');
       assert
         .dom('[data-test-token-expiration-time-input]')
         .exists('HTML datetime-local picker exists');

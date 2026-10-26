@@ -1,15 +1,15 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 /* eslint-disable ember/no-controller-access-in-routes */
 import Route from '@ember/routing/route';
-import EmberError from '@ember/error';
 
 export default class NotFoundRoute extends Route {
   model() {
-    const err = new EmberError('Page not found');
+    const err = new Error('Page not found');
     err.code = '404';
     this.controllerFor('application').set('error', err);
   }

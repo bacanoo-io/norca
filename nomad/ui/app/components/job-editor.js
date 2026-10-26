@@ -1,10 +1,12 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 // @ts-check
 import Component from '@glimmer/component';
+import { schedule } from '@ember/runloop';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
 import { task } from 'ember-concurrency';
@@ -33,16 +35,24 @@ export default class JobEditor extends Component {
   constructor() {
     super(...arguments);
 
-    if (this.definition) {
-      this.setDefinitionOnModel();
-    }
+    // The job model is updated after the first render: setting attributes
+    // of a record while it renders invalidates state that the render already
+    // read (Ember Data 4.12 / Ember 6 assert on that).
+    schedule('actions', this, () => {
+      if (this.isDestroying || this.isDestroyed) return;
+      if (this.definition) {
+        this.setDefinitionOnModel();
+      }
 
-    if (this.args.variables) {
-      this.args.job.set(
-        '_newDefinitionVariables',
-        jsonToHcl(this.args.variables.flags).concat(this.args.variables.literal)
-      );
-    }
+      if (this.args.variables) {
+        this.args.job.set(
+          '_newDefinitionVariables',
+          jsonToHcl(this.args.variables.flags).concat(
+            this.args.variables.literal
+          )
+        );
+      }
+    });
   }
 
   /**
@@ -185,6 +195,16 @@ export default class JobEditor extends Component {
   }
 
   /**
+   * Update the HCL variable values of the job specification.
+   *
+   * @param {string} value - The new variable values.
+   */
+  @action
+  updateVariables(value) {
+    this.updateCode(value, null, 'hclVariables');
+  }
+
+  /**
    * Toggle the wrapping of the job's definition or definition variables.
    */
   @action
@@ -285,6 +305,7 @@ export default class JobEditor extends Component {
       onSubmit: this.submit,
       onSelect: this.args.onSelect,
       onUpdate: this.updateCode,
+      onUpdateVariables: this.updateVariables,
       onUpload: this.uploadJobSpec,
       onToggleWrap: this.toggleWrap,
     };

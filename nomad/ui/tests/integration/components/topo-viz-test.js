@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -51,7 +52,7 @@ module('Integration | Component | TopoViz', function (hooks) {
       @onDataError={{this.onDataError}} />
   `;
 
-  test('presents as a FlexMasonry of datacenters', async function (assert) {
+  test('presents as columns of datacenters', async function (assert) {
     assert.expect(6);
 
     this.setProperties({

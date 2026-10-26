@@ -1,15 +1,13 @@
 {{!
-  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Breadcrumb @crumb={{hash label="New" args=(array "access-control.policies.new")}} />
 {{page-title "Create Policy"}}
-<section class="section">
-	<h1 class="title with-flex" data-test-title>
-		Create Policy
-	</h1>
-  <PolicyEditor
-    @policy={{this.model}}
-  />
-</section>
+<Access::Header
+  @title="Create Policy"
+  @trail={{array (hash label="Policies" route="access-control.policies" id="access-control.policies") (hash label="New")}}
+/>
+<Ui::PageBody>
+  <PolicyEditor @policy={{this.model}} />
+</Ui::PageBody>

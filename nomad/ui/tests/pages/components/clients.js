@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -21,16 +22,16 @@ export default function (selector = '[data-test-client]', propKey = 'clients') {
       createTime: {
         scope: '[data-test-create-time]',
         tooltip: {
-          scope: '.tooltip',
-          text: attribute('aria-label'),
+          scope: '.norca-tooltip',
+          text: attribute('data-norca-tooltip'),
         },
       },
 
       modifyTime: {
         scope: '[data-test-modify-time]',
         tooltip: {
-          scope: '.tooltip',
-          text: attribute('aria-label'),
+          scope: '.norca-tooltip',
+          text: attribute('data-norca-tooltip'),
         },
       },
 

@@ -1,47 +1,43 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Job " this.job.name " evaluations"}}
-<JobSubnav @job={{this.job}} />
-<section class="section">
-  {{#if this.sortedEvaluations.length}}
-    <ListTable
-      @source={{this.sortedEvaluations}}
-      @sortProperty={{this.sortProperty}}
-      @sortDescending={{this.sortDescending}} as |t|>
-      <t.head>
-        <th>ID</th>
-        <t.sort-by @prop="priority">Priority</t.sort-by>
-        <t.sort-by @prop="createTime">Created</t.sort-by>
-        <t.sort-by @prop="triggeredBy">Triggered By</t.sort-by>
-        <t.sort-by @prop="status">Status</t.sort-by>
-        <t.sort-by @prop="hasPlacementFailures">Placement Failures</t.sort-by>
-      </t.head>
-      <t.body as |row|>
-        <tr data-test-evaluation="{{row.model.shortId}}">
-          <td data-test-id>{{row.model.shortId}}</td>
-          <td data-test-priority>{{row.model.priority}}</td>
-          <td data-test-create-time>{{format-month-ts row.model.createTime}}</td>
-          <td data-test-triggered-by>{{row.model.triggeredBy}}</td>
-          <td data-test-status>{{row.model.status}}</td>
-          <td data-test-blocked>
-            {{#if (eq row.model.status "blocked")}}
-              N/A - In Progress
-            {{else if row.model.hasPlacementFailures}}
-              True
-            {{else}}
-              False
-            {{/if}}
-          </td>
-        </tr>
-      </t.body>
-    </ListTable>
-  {{else}}
-    <div data-test-empty-evaluations-list class="empty-message">
-      <h3 data-test-empty-evaluations-list-headline class="empty-message-headline">No Evaluations</h3>
-      <p class="empty-message-body">This is most likely due to garbage collection.</p>
-    </div>
-  {{/if}}
-</section>
+<Ui::DataTable
+  @id="job-evaluations"
+  @caption="Evaluations of {{this.job.name}}"
+  @columns={{this.columns}}
+  @rows={{this.sortedEvaluations}}
+  @sortBy={{this.sortProperty}}
+  @sortDescending={{this.sortDescending}}
+  @onSort={{this.sort}}
+>
+  <:row as |evaluation r|>
+    <r.Row data-test-evaluation={{evaluation.shortId}}>
+      <r.Cell @key="id" class="font-monospace" data-test-id>{{evaluation.shortId}}</r.Cell>
+      <r.Cell @key="priority" data-test-priority>{{evaluation.priority}}</r.Cell>
+      <r.Cell @key="createTime" class="tabular-nums" data-test-create-time>{{format-month-ts evaluation.createTime}}</r.Cell>
+      <r.Cell @key="triggeredBy" data-test-triggered-by>{{evaluation.triggeredBy}}</r.Cell>
+      <r.Cell @key="status" data-test-status><Ui::StatusIndicator @status={{evaluation.status}} /></r.Cell>
+      <r.Cell @key="hasPlacementFailures" data-test-blocked>
+        {{#if (eq evaluation.status "blocked")}}
+          N/A - In Progress
+        {{else if evaluation.hasPlacementFailures}}
+          True
+        {{else}}
+          False
+        {{/if}}
+      </r.Cell>
+    </r.Row>
+  </:row>
+  <:empty>
+    <Ui::EmptyState
+      @icon="clipboard-list"
+      @title="No evaluations"
+      @message="The evaluations of the job have been garbage collected. A new evaluation is created when the job changes."
+      data-test-empty-evaluations-list
+    />
+  </:empty>
+</Ui::DataTable>

@@ -1,11 +1,12 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 // @ts-check
 
-import { action } from '@ember/object';
+import { action, set } from '@ember/object';
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 
@@ -14,6 +15,11 @@ export default class InputGroup extends Component {
 
   get inputType() {
     return this.isObscured ? 'password' : 'text';
+  }
+
+  @action
+  setValue(value) {
+    set(this.args.entry, 'value', value);
   }
 
   @action

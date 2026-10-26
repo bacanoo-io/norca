@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -10,8 +11,11 @@ import {
   watchRecord,
   watchRelationship,
 } from 'nomad-ui/utils/properties/watch';
+import { inject as service } from '@ember/service';
 
 export default class JobsJobServicesRoute extends Route.extend(WithWatchers) {
+  @service store;
+
   model() {
     const job = this.modelFor('jobs.job');
     return job && job.get('services').then(() => job);

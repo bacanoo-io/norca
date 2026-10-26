@@ -1,0 +1,35 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="norca-primary-metric" data-test-primary-metric={{@metric}} ...attributes>
+  <h3 class="h4 mb-2" data-test-primary-metric-title>{{this.title}}</h3>
+  <Ui::Chart @label="{{this.title}} use over time" @option={{this.option}} @height={{160}} data-test-line-chart>
+    {{this.summary}}
+    {{#each @annotations as |annotation|}}
+      <span class="d-block" data-test-annotation>{{annotation.label}}</span>
+    {{/each}}
+    {{#if @series.length}}
+      <ul>
+        {{#each @series as |series|}}
+          <li data-test-chart-area data-test-task-name={{series.name}}>{{series.name}}</li>
+        {{/each}}
+      </ul>
+    {{/if}}
+  </Ui::Chart>
+  <div class="d-flex align-items-center gap-2 mt-2" data-test-percentage-bar>
+    <Ui::Progress
+      @value={{this.percent}}
+      @max={{1}}
+      @color={{this.color}}
+      @label="{{this.title}} use"
+      @valueText={{format-percentage this.percent total=1}}
+      class="flex-fill"
+      data-test-current-value={{this.color}}
+    />
+    <span class="text-nowrap tabular-nums" data-test-percentage>{{format-percentage this.percent total=1}}</span>
+  </div>
+  <div class="small text-secondary mt-1" data-test-absolute-value>
+    <strong class="text-body">{{this.usedText}}</strong> / {{this.reservedText}} Total
+  </div>
+</div>

@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Norca contributors
+# SPDX-License-Identifier: MPL-2.0
+#
+# systemd unit of a Norca agent: /etc/systemd/system/norca.service
+#   systemctl daemon-reload && systemctl enable --now norca
+# The agent runs as root, which the client needs for bridge networking,
+# network rules (nftables) and the exec driver.
+[Unit]
+Description=Norca agent
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+ExecStart=/usr/local/bin/norca agent -config /etc/norca.d
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+KillSignal=SIGINT
+Restart=on-failure
+RestartSec=2
+LimitNOFILE=65536
+LimitNPROC=infinity
+TasksMax=infinity
+OOMScoreAdjust=-1000
+
+[Install]
+WantedBy=multi-user.target

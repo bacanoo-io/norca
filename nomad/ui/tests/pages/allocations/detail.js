@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -42,10 +43,12 @@ export default create({
 
   resourceCharts: collection('[data-test-primary-metric]', {
     name: text('[data-test-primary-metric-title]'),
-    chartClass: attribute('class', '[data-test-percentage-chart] progress'),
+    color: attribute('data-test-current-value', '[data-test-current-value]'),
   }),
 
-  resourceEmptyMessage: text('[data-test-resource-error-headline]'),
+  resourceEmptyMessage: text(
+    '[data-test-resource-error] [data-test-empty-state-title]'
+  ),
 
   lifecycleChart: LifecycleChart,
 
@@ -56,8 +59,8 @@ export default create({
     time: text('[data-test-time]'),
     volumes: text('[data-test-volumes]'),
 
-    hasCpuMetrics: isPresent('[data-test-cpu] .inline-chart progress'),
-    hasMemoryMetrics: isPresent('[data-test-mem] .inline-chart progress'),
+    hasCpuMetrics: isPresent('[data-test-cpu] [data-test-progress]'),
+    hasMemoryMetrics: isPresent('[data-test-mem] [data-test-progress]'),
     hasUnhealthyDriver: isPresent('[data-test-icon="unhealthy-driver"]'),
     hasProxyTag: isPresent('[data-test-proxy-tag]'),
 
@@ -120,6 +123,6 @@ export default create({
     isShown: isPresent('[data-test-inline-error]'),
     title: text('[data-test-inline-error-title]'),
     message: text('[data-test-inline-error-body]'),
-    dismiss: clickable('[data-test-inline-error-close]'),
+    dismiss: clickable('[data-test-inline-error] [data-test-alert-dismiss]'),
   },
 });

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -10,8 +11,10 @@ import notifyError from 'nomad-ui/utils/notify-error';
 export default class ClientRoute extends Route {
   @service store;
 
-  model() {
-    return super.model(...arguments).catch(notifyError(this));
+  model(params) {
+    return this.store
+      .findRecord('node', params.node_id)
+      .catch(notifyError(this));
   }
 
   afterModel(model) {

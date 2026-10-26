@@ -31,6 +31,7 @@ import (
 	"github.com/hashicorp/nomad/client/lib/cgutil"
 	"github.com/hashicorp/nomad/client/pluginmanager/csimanager"
 	"github.com/hashicorp/nomad/client/pluginmanager/drivermanager"
+	"github.com/hashicorp/nomad/client/secrets"
 	"github.com/hashicorp/nomad/client/serviceregistration"
 	"github.com/hashicorp/nomad/client/serviceregistration/wrapper"
 	cstate "github.com/hashicorp/nomad/client/state"
@@ -185,6 +186,11 @@ type TaskRunner struct {
 
 	// rpcClient is used by hooks that talk to the servers
 	rpcClient config.RPCer
+
+	// secretProviders and secretAuditor are used by the secret hook and
+	// the nomadSecret template function (Norca); nil builds the defaults.
+	secretProviders *secrets.Registry
+	secretAuditor   secrets.Auditor
 
 	// consulClient is the client used by the consul service hook for
 	// registering services and checks
@@ -345,6 +351,12 @@ type Config struct {
 
 	// RPCClient is used by hooks that talk to the servers (native mTLS).
 	RPCClient config.RPCer
+
+	// SecretProviders and SecretAuditor override the secret providers and
+	// the audit recorder of the secret hook (Norca); by default they are
+	// built from the client configuration and RPCClient.
+	SecretProviders *secrets.Registry
+	SecretAuditor   secrets.Auditor
 }
 
 func NewTaskRunner(config *Config) (*TaskRunner, error) {
@@ -386,6 +398,8 @@ func NewTaskRunner(config *Config) (*TaskRunner, error) {
 		localState:             state.NewLocalState(),
 		allocHookResources:     config.AllocHookResources,
 		rpcClient:              config.RPCClient,
+		secretProviders:        config.SecretProviders,
+		secretAuditor:          config.SecretAuditor,
 		stateDB:                config.StateDB,
 		stateUpdater:           config.StateUpdater,
 		deviceStatsReporter:    config.DeviceStatsReporter,
@@ -943,7 +957,7 @@ func (tr *TaskRunner) runDriver() error {
 	}
 
 	tr.stateLock.Lock()
-	tr.localState.TaskHandle = handle
+	tr.localState.TaskHandle = redactVaultCompatToken(redactSecretEnv(handle, tr.Task()), tr.vaultClient)
 	tr.localState.DriverNetwork = net
 	if err := tr.stateDB.PutTaskRunnerLocalState(tr.allocID, tr.taskName, tr.localState); err != nil {
 		//TODO Nomad will be unable to restore this task; try to kill

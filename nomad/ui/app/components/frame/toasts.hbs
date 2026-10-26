@@ -1,0 +1,40 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  Notifications of the notifications (flash messages) service, as Tabler
+  alerts in the top right corner.
+~}}
+<section class="norca-toasts" aria-live="polite" aria-label="Notifications" data-test-toasts>
+  {{#each this.notifications.queue as |flash|}}
+    <FlashMessage
+      @flash={{flash}}
+      class="alert alert-dismissible norca-toast norca-toast-{{or flash.color 'neutral'}} shadow-sm"
+      as |component flash close|
+    >
+      <div class="d-flex">
+        <div class="alert-icon">
+          <Ui::Icon @name={{this.iconFor flash.color}} />
+        </div>
+        <div class="flex-fill">
+          {{#if flash.title}}<h4 class="alert-heading" data-test-toast-title>{{flash.title}}</h4>{{/if}}
+          {{#if flash.message}}<div class="alert-description" data-test-toast-message>{{flash.message}}</div>{{/if}}
+          {{#if flash.customAction}}
+            <div class="mt-2">
+              <Ui::Button @size="sm" data-test-toast-action {{on "click" flash.customAction.action}}>
+                {{flash.customAction.label}}
+              </Ui::Button>
+            </div>
+          {{/if}}
+        </div>
+      </div>
+      <button
+        type="button"
+        class="btn-close"
+        aria-label="Dismiss"
+        data-test-toast-dismiss
+        {{on "click" (fn this.dismiss close flash)}}
+      ></button>
+    </FlashMessage>
+  {{/each}}
+</section>

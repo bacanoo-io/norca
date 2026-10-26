@@ -1,14 +1,11 @@
 /**
- * Copyright (c) HashiCorp, Inc.
+ * SPDX-FileCopyrightText: 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Component from '@ember/component';
-import { classNames } from '@ember-decorators/component';
-import classic from 'ember-classic-decorator';
+import Component from '@glimmer/component';
+import { inject as service } from '@ember/service';
 
-@classic
-@classNames('page-layout')
 export default class PageLayout extends Component {
-  isGutterOpen = false;
+  @service frame;
 }

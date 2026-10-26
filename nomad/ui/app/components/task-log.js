@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -21,7 +22,7 @@ class MockAbortController {
 }
 
 @classic
-@classNames('boxed-section', 'task-log')
+@classNames('norca-task-log-root')
 export default class TaskLog extends Component {
   @service token;
   @service userSettings;

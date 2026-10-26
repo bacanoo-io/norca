@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -10,5 +11,5 @@ export default create({
   visitParentJob: visitable('/jobs/:id/allocations'),
 
   hasTaskLog: isPresent('[data-test-task-log]'),
-  sidebarIsPresent: isPresent('.sidebar.task-context-sidebar'),
+  sidebarIsPresent: isPresent('[data-test-task-context-sidebar]'),
 });

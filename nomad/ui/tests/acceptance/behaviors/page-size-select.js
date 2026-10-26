@@ -1,11 +1,11 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import { pluralize } from 'ember-inflector';
 import { test } from 'qunit';
-import { selectChoose } from 'ember-power-select/test-support';
 
 export default function pageSizeSelect({
   resourceName,
@@ -43,7 +43,7 @@ export default function pageSizeSelect({
     assert.equal(pageObjectList.length, pageObject.pageSize);
     assert.equal(pageObject.pageSizeSelect.selectedOption, pageObject.pageSize);
 
-    await selectChoose('[data-test-page-size-select-parent]', desiredPageSize);
+    await pageObject.pageSizeSelect.choose(desiredPageSize);
 
     assert.equal(window.localStorage.nomadPageSize, desiredPageSize);
     assert.equal(pageObjectList.length, desiredPageSize);

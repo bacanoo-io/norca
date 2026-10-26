@@ -1,10 +1,11 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import { currentURL } from '@ember/test-helpers';
-import { run } from '@ember/runloop';
+import { _cancelTimers as cancelTimers, later } from '@ember/runloop';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -30,7 +31,7 @@ module('Acceptance | client monitor', function (hooks) {
     window.localStorage.nomadTokenSecret = managementToken.secretId;
 
     server.create('agent');
-    run.later(run, run.cancelTimers, 500);
+    later(cancelTimers, 500);
   });
 
   test('it passes an accessibility audit', async function (assert) {
@@ -46,7 +47,7 @@ module('Acceptance | client monitor', function (hooks) {
     assert.equal(Layout.breadcrumbFor('clients.index').text, 'Clients');
     assert.equal(
       Layout.breadcrumbFor('clients.client').text,
-      `Client ${node.id.split('-')[0]}`
+      node.id.split('-')[0]
     );
 
     await Layout.breadcrumbFor('clients.index').visit();

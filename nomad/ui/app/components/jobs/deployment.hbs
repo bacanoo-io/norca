@@ -1,0 +1,95 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  One deployment of a job, with its details on demand.
+~}}
+<Ui::Card @size="sm">
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <span class="font-monospace">{{@deployment.shortId}}</span>
+    <span data-test-deployment-status={{@deployment.status}}>
+      <Ui::StatusIndicator @status={{@deployment.status}} />
+    </span>
+    {{#if @deployment.requiresPromotion}}
+      <Ui::Badge @color="orange" data-test-promotion-required>Requires Promotion</Ui::Badge>
+    {{/if}}
+    {{#if @deployment.isMultiregion}}
+      <Ui::Badge @color="purple" @icon="world">multiregion</Ui::Badge>
+    {{/if}}
+    <span class="ms-auto text-secondary d-inline-flex align-items-center gap-2">
+      <span>Version <span class="fw-medium text-body" data-test-deployment-version>#{{@deployment.version.number}}</span></span>
+      <span data-test-deployment-submit-time>
+        <Ui::Tooltip @text={{format-ts @deployment.version.submitTime}}>
+          <span>{{moment-from-now @deployment.version.submitTime}}</span>
+        </Ui::Tooltip>
+      </span>
+      <Ui::Button
+        @size="sm"
+        @variant="ghost"
+        @icon={{if this.isOpen "chevron-up" "chevron-down"}}
+        aria-expanded={{if this.isOpen "true" "false"}}
+        data-test-deployment-toggle-details
+        {{on "click" this.toggle}}
+      >Details</Ui::Button>
+    </span>
+  </div>
+  {{#if this.isOpen}}
+    <div class="mt-3" data-test-deployment-details>
+      <div class="row g-3 mb-3">
+        <div class="col-lg-7">
+          <Ui::Datagrid as |g|>
+            <g.Item @title="Canaries"><span data-test-deployment-metric="canaries">{{@deployment.placedCanaries}} / {{@deployment.desiredCanaries}}</span></g.Item>
+            <g.Item @title="Placed"><span data-test-deployment-metric="placed">{{@deployment.placedAllocs}}</span></g.Item>
+            <g.Item @title="Desired"><span data-test-deployment-metric="desired">{{@deployment.desiredTotal}}</span></g.Item>
+            <g.Item @title="Healthy"><span data-test-deployment-metric="healthy">{{@deployment.healthyAllocs}}</span></g.Item>
+            <g.Item @title="Unhealthy"><span data-test-deployment-metric="unhealthy">{{@deployment.unhealthyAllocs}}</span></g.Item>
+          </Ui::Datagrid>
+        </div>
+        <div class="col-lg-5">
+          <Ui::Alert @tone={{this.tone}} data-test-deployment-notification>{{@deployment.statusDescription}}</Ui::Alert>
+        </div>
+      </div>
+
+      <div class="mb-3" data-test-deployment-task-groups>
+        <h3 class="h4">Task groups</h3>
+        <Ui::DataTable
+          @id="deployment-task-groups"
+          @caption="Task groups of the deployment"
+          @columns={{this.taskGroupColumns}}
+          @rows={{@deployment.taskGroupSummaries}}
+          @columnPicker={{false}}
+        >
+          <:row as |summary r|>
+            <r.Row data-test-deployment-task-group>
+              <r.Cell @key="name" data-test-deployment-task-group-name>{{summary.name}}</r.Cell>
+              <r.Cell @key="promotion" data-test-deployment-task-group-promotion>
+                {{#if summary.requiresPromotion}}{{if summary.promoted "No" "Yes"}}{{else}}N/A{{/if}}
+              </r.Cell>
+              <r.Cell @key="autoRevert" data-test-deployment-task-group-auto-revert>{{if summary.autoRevert "Yes" "No"}}</r.Cell>
+              <r.Cell @key="canaries" data-test-deployment-task-group-canaries>{{or summary.placedCanaries 0}} / {{summary.desiredCanaries}}</r.Cell>
+              <r.Cell @key="allocs" data-test-deployment-task-group-allocs>{{summary.placedAllocs}} / {{summary.desiredTotal}}</r.Cell>
+              <r.Cell @key="healthy" data-test-deployment-task-group-healthy>{{summary.healthyAllocs}}</r.Cell>
+              <r.Cell @key="unhealthy" data-test-deployment-task-group-unhealthy>{{summary.unhealthyAllocs}}</r.Cell>
+              <r.Cell @key="deadline" class="text-nowrap" data-test-deployment-task-group-progress-deadline>{{format-ts summary.requireProgressBy}}</r.Cell>
+            </r.Row>
+          </:row>
+        </Ui::DataTable>
+      </div>
+
+      <div data-test-deployment-allocations>
+        <h3 class="h4">Allocations</h3>
+        <Allocations::Table
+          @id="deployment-allocations"
+          @caption="Allocations of the deployment"
+          @context="job"
+          @allocations={{@deployment.allocations}}
+          @columnPicker={{false}}
+        >
+          <:empty>
+            <Ui::EmptyState @compact={{true}} @title="No allocations" @message="No allocations have been placed." data-test-empty-recent-allocations />
+          </:empty>
+        </Allocations::Table>
+      </div>
+    </div>
+  {{/if}}
+</Ui::Card>

@@ -1,10 +1,11 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import { camelize, capitalize } from '@ember/string';
-import { RestSerializer } from 'ember-cli-mirage';
+import { RestSerializer } from 'miragejs';
 
 const keyCase = (str) =>
   str === 'id' ? 'ID' : capitalize(camelize(str)).replace(/Id/g, 'ID');

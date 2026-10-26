@@ -1,0 +1,36 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Card @flush={{true}} class="norca-task-log">
+  <:actions>
+    <div class="d-flex flex-wrap align-items-center gap-2 w-100" data-test-level-switcher-parent>
+      <label class="small text-secondary" for="agent-monitor-level-{{this.id}}">Level</label>
+      <Ui::Select
+        @id="agent-monitor-level-{{this.id}}"
+        @size="sm"
+        @options={{this.levelOptions}}
+        @value={{this.level}}
+        @onChange={{this.setLevel}}
+        class="w-auto"
+        data-test-level-switcher
+      />
+      <Ui::Button
+        @size="sm"
+        @variant="ghost"
+        @icon={{if this.logger.isStreaming "player-pause" "player-play"}}
+        @iconOnly={{true}}
+        @label="{{if this.logger.isStreaming "Stop" "Start"}} log streaming"
+        class="ms-auto"
+        data-test-toggle
+        {{on "click" this.toggleStream}}
+      />
+    </div>
+  </:actions>
+  <:default>
+    <div data-test-log-box class="norca-log-box">
+      <StreamingFile @logger={{this.logger}} @isStreaming={{this.isStreaming}} />
+    </div>
+  </:default>
+</Ui::Card>

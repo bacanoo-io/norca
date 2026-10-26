@@ -1,0 +1,71 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="table-responsive">
+  <table class="table table-sm table-vcenter card-table norca-kv-table" data-test-key-value-table ...attributes>
+    {{#if @caption}}<caption class="visually-hidden">{{@caption}}</caption>{{/if}}
+    <thead>
+      <tr>
+        <th scope="col" class="w-33">Name</th>
+        <th scope="col">Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each this.rows as |row|}}
+        {{#if row.isHeading}}
+          <tr data-test-attributes-section>
+            <th scope="colgroup" colspan="2" class="norca-kv-heading" data-test-heading>
+              {{#if row.prefix}}<span class="text-secondary" data-test-prefix>{{row.prefix}}.</span>{{/if}}{{row.key}}
+            </th>
+          </tr>
+        {{else}}
+          {{! The row element stays while its value is edited. }}
+          <tr data-test-attributes-section>
+            {{#if (eq this.editingPath row.path)}}
+            <td colspan="2">
+              <form class="d-flex flex-wrap align-items-end gap-2" data-test-metadata-editor {{on "submit" (fn this.save row)}}>
+                <div class="flex-fill">
+                  <label class="small text-secondary d-block" for="kv-{{row.path}}">Value of <span class="font-monospace" data-test-constant-key>{{row.path}}</span></label>
+                  <Ui::Input
+                    @id={{concat "kv-" row.path}}
+                    @value={{this.draft}}
+                    @onInput={{this.setDraft}}
+                    data-test-metadata-editor-value
+                    {{on "keyup" this.keydown}}
+                    {{autofocus}}
+                  />
+                </div>
+                <Ui::Button @variant="primary" @type="submit" @disabled={{not this.draft}} data-test-update-metadata>Update {{row.path}}</Ui::Button>
+                <Ui::Button @variant="outline-danger" data-test-delete-metadata {{on "click" (fn this.delete row)}}>Delete</Ui::Button>
+                <Ui::Button @variant="ghost" data-test-cancel-metadata {{on "click" this.cancel}}>Cancel</Ui::Button>
+              </form>
+            </td>
+            {{else}}
+            <td data-test-key class="font-monospace text-break">
+              {{#if row.prefix}}<span class="text-secondary" data-test-prefix>{{row.prefix}}.</span>{{/if}}{{row.key}}
+            </td>
+            <td title={{row.value}}>
+              <span class="d-flex align-items-center gap-1">
+                <span class="text-break" data-test-value>{{row.value}}</span>
+                <Ui::CopyButton @text={{row.value}} @label={{concat "Copy the value of " row.path}} class="ms-auto" />
+                {{#if @editable}}
+                  <Ui::Button
+                    @size="sm"
+                    @variant="ghost"
+                    @icon="pencil"
+                    @iconOnly={{true}}
+                    @label={{concat "Edit " row.path}}
+                    data-test-edit-metadata
+                    {{on "click" (fn this.edit row)}}
+                  />
+                {{/if}}
+              </span>
+            </td>
+            {{/if}}
+          </tr>
+        {{/if}}
+      {{/each}}
+    </tbody>
+  </table>
+</div>

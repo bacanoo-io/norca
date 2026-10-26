@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -42,6 +43,29 @@ export default function (
       cpuTooltip: attribute('aria-label', '[data-test-cpu] .tooltip'),
       mem: text('[data-test-mem]'),
       memTooltip: attribute('aria-label', '[data-test-mem] .tooltip'),
+      // The tooltips of the unified allocation list (Allocations::Table).
+      clientTip: attribute(
+        'data-norca-tooltip',
+        '[data-test-client] .norca-tooltip'
+      ),
+      cpuTip: attribute('data-norca-tooltip', '[data-test-cpu] .norca-tooltip'),
+      memTip: attribute('data-norca-tooltip', '[data-test-mem] .norca-tooltip'),
+      cpuPercent: attribute(
+        'data-test-percent',
+        '[data-test-cpu] [data-test-progress]'
+      ),
+      memPercent: attribute(
+        'data-test-percent',
+        '[data-test-mem] [data-test-progress]'
+      ),
+      modifyTip: attribute(
+        'data-norca-tooltip',
+        '[data-test-modify-time] .norca-tooltip'
+      ),
+      createTip: attribute(
+        'data-norca-tooltip',
+        '[data-test-create-time] .norca-tooltip'
+      ),
       rescheduled: isPresent(
         '[data-test-indicators] [data-test-icon="reschedule"]'
       ),

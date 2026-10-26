@@ -1,0 +1,51 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The result of a job plan: the diff, the scheduler dry run, warnings and
+  the allocations that would be preempted. The preview step of every job
+  change (job editor, scaling policy, restore of a version).
+~}}
+<Ui::Card @title="Job plan" class="mb-3">
+  <JobDiff data-test-plan-output @diff={{@plan.diff}} @verbose={{false}} />
+</Ui::Card>
+
+<Ui::Alert
+  @tone={{if @plan.failedTGAllocs "danger" "success"}}
+  class="mb-3"
+  data-test-dry-run-message
+>
+  <strong class="d-block" data-test-dry-run-title>Scheduler dry-run</strong>
+  <div data-test-dry-run-body>
+    {{#if @plan.failedTGAllocs}}
+      {{#each @plan.failedTGAllocs as |placementFailure|}}
+        <PlacementFailure @failedTGAlloc={{placementFailure}} />
+      {{/each}}
+    {{else}}
+      All tasks successfully allocated.
+    {{/if}}
+  </div>
+</Ui::Alert>
+
+{{#if @warnings}}
+  <Ui::Alert @tone="warning" class="mb-3" data-test-dry-run-warnings>
+    <p class="m-0" data-test-dry-run-warning-body>{{@warnings}}</p>
+  </Ui::Alert>
+{{/if}}
+
+{{#if (and @plan.preemptions.isFulfilled @plan.preemptions.length)}}
+  <div class="mb-3" data-test-preemptions>
+    <h3 class="h3" data-test-preemptions-title>
+      Preemptions (if you choose to run this job, these allocations will be stopped)
+    </h3>
+    <div data-test-preemptions-body>
+      <Allocations::Table
+        @id="job-plan-preemptions"
+        @caption="Allocations that would be preempted"
+        @context="job"
+        @allocations={{@plan.preemptions}}
+        @columnPicker={{false}}
+      />
+    </div>
+  </div>
+{{/if}}

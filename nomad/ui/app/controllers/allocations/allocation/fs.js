@@ -1,10 +1,11 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import Controller from '@ember/controller';
-import { computed } from '@ember/object';
+import { action, computed, set } from '@ember/object';
 
 export default class FsController extends Controller {
   queryParams = [
@@ -18,6 +19,12 @@ export default class FsController extends Controller {
 
   sortProperty = 'Name';
   sortDescending = false;
+
+  @action
+  sort(sortProperty, sortDescending) {
+    set(this, 'sortProperty', sortProperty);
+    set(this, 'sortDescending', sortDescending);
+  }
 
   path = null;
   allocation = null;

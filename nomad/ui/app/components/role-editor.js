@@ -54,15 +54,15 @@ export default class RoleEditorComponent extends Component {
     this.selectedPolicyIds = this.role.hasMany('policies').ids();
   }
 
-  @action updateName({ target: { value } }) {
+  @action updateName(value) {
     this.role.set('name', value);
   }
 
-  @action updateDescription({ target: { value } }) {
+  @action updateDescription(value) {
     this.role.set('description', value);
   }
 
-  @action togglePolicy(policy, { target: { checked } }) {
+  @action togglePolicy(policy, checked) {
     const without = this.selectedPolicyIds.filter((id) => id !== policy.id);
     this.selectedPolicyIds = checked ? [...without, policy.id] : without;
   }

@@ -14,7 +14,7 @@ import (
 
 var backupContentTypes = []string{
 	api.BackupContentNamespaces, api.BackupContentJobs, api.BackupContentJobVersions,
-	api.BackupContentVariables, api.BackupContentACLPolicies, api.BackupContentACLRoles,
+	api.BackupContentVariables, api.BackupContentSecrets, api.BackupContentACLPolicies, api.BackupContentACLRoles,
 	api.BackupContentDeployments, api.BackupContentAllocations,
 }
 
@@ -195,6 +195,12 @@ func formatBackupContents(c *api.BackupContents) []string {
 		for _, v := range c.Variables {
 			out = append(out, fmt.Sprintf("%s|%s|%s|%s",
 				v.Namespace, v.Path, strings.Join(v.Keys, ","), formatUnixNano(v.ModifyTime)))
+		}
+	case api.BackupContentSecrets:
+		out = append(out, "Namespace|Path|Version|Deleted|Value Hash|Modify Time")
+		for _, s := range c.Secrets {
+			out = append(out, fmt.Sprintf("%s|%s|%d|%t|%s|%s",
+				s.Namespace, s.Path, s.CurrentVersion, s.Deleted, s.ValueHash, formatUnixNano(s.ModifyTime)))
 		}
 	case api.BackupContentACLPolicies:
 		out = append(out, "Name|Description")

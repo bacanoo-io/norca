@@ -1,0 +1,257 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-restore-wizard {{this.setup}}>
+  <Ui::PageHeader @pretitle="Backups" @title="Restore from a backup">
+    <:subtitle><span class="font-monospace">{{@backupId}}</span>{{#if this.regionName}}, region {{this.regionName}}{{/if}}</:subtitle>
+    <:actions>
+      <Ui::Button @route="backups.backup" @model={{@backupId}} data-test-wizard-cancel>{{if (eq this.stepName "Result") "Back to the backup" "Cancel"}}</Ui::Button>
+    </:actions>
+  </Ui::PageHeader>
+
+  <Ui::PageBody>
+    {{#if this.loadError}}
+      <Ui::Alert @tone="danger" @title="The backup could not be loaded" data-test-wizard-load-error>{{this.loadError}}</Ui::Alert>
+    {{else if this.backup}}
+      <Ui::Card>
+        <Ui::Steps @steps={{this.steps}} @current={{this.step}} />
+
+        {{#if this.error}}
+          <Ui::Alert @tone="danger" class="mt-3" data-test-wizard-error>{{this.error}}</Ui::Alert>
+        {{/if}}
+
+        {{#if (eq this.stepName "Mode")}}
+          <div class="row g-3 mt-2" data-test-step-mode>
+            <div class="col-lg-6">
+              <Ui::Card @title="Selective restore" class="h-100">
+                <p>Chosen jobs, Variables paths, namespaces and ACL objects are written back as normal requests with your token: a job returns as a new version and goes through admission and quotas. Nothing else in the cluster changes.</p>
+                <Ui::Button @variant="primary" data-test-mode-selective {{on "click" (fn this.chooseMode "selective")}}>Choose items</Ui::Button>
+              </Ui::Card>
+            </div>
+            <div class="col-lg-6">
+              <Ui::Card @title="Full region restore" class="h-100">
+                <p>The whole region returns to the state of the backup. Every change since then is lost and allocations started after it are stopped. An automatic, pinned backup of the current state is taken first.</p>
+                {{#if this.canRestoreFull}}
+                  <p class="text-secondary">Needs the region name typed and the approval of a second management token.</p>
+                  <Ui::Button @variant="outline-danger" data-test-mode-full {{on "click" (fn this.chooseMode "full")}}>Preview a full restore</Ui::Button>
+                {{else}}
+                  <p class="text-secondary mb-0" data-test-full-not-permitted>Only a management token can request a full restore, and ACLs must be enabled so that a second management token can approve it.</p>
+                {{/if}}
+              </Ui::Card>
+            </div>
+          </div>
+
+        {{else if (eq this.mode "selective")}}
+          {{#if (eq this.stepName "Items")}}
+            <div class="mt-3" data-test-step-items>
+              <Backups::Identity @error={{this.identityError}} />
+              <h3>Items to restore</h3>
+              {{#if this.items.length}}
+                <Ui::Table
+                  @caption="Items to restore"
+                  @columns={{array (hash key="item" label="Item") (hash key="version" label="Version") (hash key="remove" label="Actions")}}
+                  @rows={{this.items}}
+                  as |item|
+                >
+                  <td data-test-restore-item={{item.label}}>{{item.label}}</td>
+                  <td>
+                    {{#if item.isJob}}
+                      <Ui::Input
+                        @type="number"
+                        @value={{or (get this.versions item.key) item.Version}}
+                        @onInput={{fn this.setVersion item}}
+                        @placeholder="the version in the backup"
+                        aria-label={{concat "Version of " item.ID}}
+                        min="0"
+                        data-test-item-version
+                      />
+                    {{else}}
+                      <span class="text-secondary">–</span>
+                    {{/if}}
+                  </td>
+                  <td class="text-end">
+                    <Ui::Button @size="sm" @variant="ghost" @icon="x" @iconOnly={{true}} @label={{concat "Remove " item.label}} {{on "click" (fn this.removeItem item)}} />
+                  </td>
+                </Ui::Table>
+              {{else}}
+                <Ui::EmptyState @compact={{true}} @icon="list-details" @title="No items chosen" @message="Browse the content of the backup and select the jobs, Variables paths, namespaces or ACL objects to restore." data-test-no-items>
+                  <Ui::Button @route="backups.backup" @model={{@backupId}} @query={{hash tab="contents"}}>Browse the backup</Ui::Button>
+                </Ui::EmptyState>
+              {{/if}}
+              <div class="d-flex justify-content-between mt-3">
+                <Ui::Button {{on "click" this.back}}>Back</Ui::Button>
+                <div>
+                  {{#if this.items.length}}
+                    <Ui::Button @route="backups.backup" @model={{@backupId}} @query={{hash tab="contents"}} class="me-2">Add more</Ui::Button>
+                  {{/if}}
+                  <Ui::Button @variant="primary" @isLoading={{this.isWorking}} @disabled={{or (not this.items.length) (not this.backups.hasIdentity)}} data-test-to-preview {{on "click" this.previewSelective}}>Preview</Ui::Button>
+                </div>
+              </div>
+            </div>
+
+          {{else if (eq this.stepName "Preview")}}
+            <div class="mt-3" data-test-step-preview>
+              <h3>What the restore would do</h3>
+              <p class="text-secondary">Computed by the server without changing anything. Jobs return as a new version; use Compare on the backup page for their field differences.</p>
+              <Ui::Table
+                @caption="Restore preview"
+                @columns={{array (hash key="item" label="Item") (hash key="action" label="Action") (hash key="description" label="Effect")}}
+                @rows={{this.resultRows}}
+                as |row|
+              >
+                <td>{{row.label}}</td>
+                <td><Ui::StatusIndicator @tone={{row.tone}} @label={{if row.Error "error" row.Action}} data-test-preview-action={{row.label}} /></td>
+                <td>
+                  {{#if row.Error}}<span class="text-danger" data-test-preview-error>{{row.Error}}</span>{{else}}{{row.Description}}{{/if}}
+                  {{#if row.needsOverwrite}}
+                    <Ui::Switch
+                      @label="Overwrite the current entry"
+                      @help={{concat "It exists now (modify index " row.CurrentIndex "). Without this, the restore of this path fails."}}
+                      @checked={{row.overwriting}}
+                      @onChange={{fn this.toggleOverwrite row}}
+                      class="mt-2"
+                      data-test-overwrite={{row.label}}
+                    />
+                  {{/if}}
+                </td>
+              </Ui::Table>
+              <div class="d-flex justify-content-between mt-3">
+                <Ui::Button {{on "click" this.back}}>Back</Ui::Button>
+                <Ui::Button @variant="primary" @disabled={{this.previewHasErrors}} data-test-to-confirm {{on "click" this.toConfirm}}>Continue</Ui::Button>
+              </div>
+              {{#if this.previewHasErrors}}
+                <p class="text-secondary small text-end mt-2">Remove the items with errors to continue.</p>
+              {{/if}}
+            </div>
+
+          {{else if (eq this.stepName "Confirm")}}
+            <div class="mt-3" data-test-step-confirm>
+              <h3>Restore {{this.items.length}} {{if (eq this.items.length 1) "item" "items"}}?</h3>
+              <ul>
+                {{#each this.resultRows as |row|}}
+                  <li>{{row.Description}}</li>
+                {{/each}}
+              </ul>
+              {{#if this.blockedVariables.length}}
+                <Ui::Alert @tone="warning">
+                  {{this.blockedVariables.length}} Variables {{if (eq this.blockedVariables.length 1) "path exists" "paths exist"}} now and will not be overwritten: the restore reports {{if (eq this.blockedVariables.length 1) "it" "them"}} as failed. Go back to allow overwriting.
+                </Ui::Alert>
+              {{/if}}
+              <p class="text-secondary">The writes run with your token: an item fails if the token cannot write it, and jobs go through admission and quotas.</p>
+              <div class="d-flex justify-content-between mt-3">
+                <Ui::Button {{on "click" this.back}}>Back</Ui::Button>
+                <Ui::Button @variant="primary" @icon="rotate-clockwise" @isLoading={{this.isWorking}} data-test-run-restore {{on "click" this.runSelective}}>Restore</Ui::Button>
+              </div>
+            </div>
+
+          {{else}}
+            <div class="mt-3" data-test-step-result>
+              {{#if this.resultSummary.failed}}
+                <Ui::Alert @tone="warning" @title="{{this.resultSummary.failed}} of {{this.resultSummary.total}} items failed" data-test-result-summary>Fix the cause shown below and restore the failed items again.</Ui::Alert>
+              {{else}}
+                <Ui::Alert @tone="success" @title="Restored" data-test-result-summary>All {{this.resultSummary.total}} items were written.</Ui::Alert>
+              {{/if}}
+              <Ui::Table
+                @caption="Restore results"
+                @columns={{array (hash key="item" label="Item") (hash key="result" label="Result") (hash key="index" label="Raft index")}}
+                @rows={{this.resultRows}}
+                as |row|
+              >
+                <td>{{row.label}}</td>
+                <td>
+                  {{#if row.Error}}<span class="text-danger">{{row.Error}}</span>{{else}}<Ui::StatusIndicator @tone="success" @label={{row.Action}} />{{/if}}
+                </td>
+                <td>{{or row.Index "–"}}</td>
+              </Ui::Table>
+              {{#if this.restore}}
+                <Ui::Button @route="backups.request" @model={{this.restore.ID}} class="mt-3">Open the restore record</Ui::Button>
+              {{/if}}
+            </div>
+          {{/if}}
+
+        {{else}}
+          {{#if (eq this.stepName "Preview")}}
+            <div class="mt-3" data-test-step-full-preview {{this.fullPreviewLoader this.backups.hasIdentity}}>
+              <Backups::Identity @error={{this.identityError}} />
+              {{#if this.preview}}
+                <Ui::Alert @tone="danger" @title="Every change since the backup is lost" data-test-full-impact>
+                  {{this.preview.AllocationsStopped}} running {{if (eq this.preview.AllocationsStopped 1) "allocation stops" "allocations stop"}}
+                  {{#if this.preview.ACLTokensRemoved}}and {{this.preview.ACLTokensRemoved}} ACL tokens are removed{{/if}}.
+                  The region returns from Raft index {{this.preview.CurrentIndex}} to {{this.preview.BackupIndex}}.
+                </Ui::Alert>
+                {{#each this.preview.Warnings as |warning|}}
+                  <Ui::Alert @tone="warning" data-test-full-warning>{{warning}}</Ui::Alert>
+                {{/each}}
+                <Ui::Table
+                  @caption="Changes by type"
+                  @columns={{array
+                    (hash key="type" label="Type")
+                    (hash key="removed" label="Removed (only now)")
+                    (hash key="restored" label="Restored (only in the backup)")
+                    (hash key="reverted" label="Reverted (changed since)")
+                  }}
+                  @rows={{this.previewRows}}
+                  @emptyMessage="The backup and the current state have the same objects."
+                  as |row|
+                >
+                  <td>{{row.label}}</td>
+                  <td data-test-count-removed={{row.type}}>{{row.removed}}</td>
+                  <td data-test-count-restored={{row.type}}>{{row.restored}}</td>
+                  <td data-test-count-reverted={{row.type}}>{{row.reverted}}</td>
+                </Ui::Table>
+                {{#if this.previewObjects.length}}
+                  <details class="mt-3">
+                    <summary>Affected objects{{if this.preview.Truncated " (first ones)"}}</summary>
+                    <Ui::Table
+                      @caption="Affected objects"
+                      @columns={{array (hash key="type" label="Type") (hash key="change" label="Change") (hash key="id" label="Name") (hash key="ns" label="Namespace")}}
+                      @rows={{this.previewObjects}}
+                      as |o|
+                    >
+                      <td>{{o.Type}}</td>
+                      <td>{{o.Change}}</td>
+                      <td class="font-monospace">{{o.ID}}</td>
+                      <td>{{or o.Namespace "–"}}</td>
+                    </Ui::Table>
+                  </details>
+                {{/if}}
+              {{else if this.isWorking}}
+                <Ui::Spinner @showLabel={{true}} @label="Comparing the backup with the current state" />
+              {{/if}}
+              <div class="d-flex justify-content-between mt-3">
+                <Ui::Button {{on "click" this.back}}>Back</Ui::Button>
+                <Ui::Button @variant="danger" @disabled={{not this.preview}} data-test-to-full-confirm {{on "click" this.toFullConfirm}}>Continue to the confirmation</Ui::Button>
+              </div>
+            </div>
+
+          {{else if (eq this.stepName "Confirm")}}
+            <form class="mt-3" data-test-step-full-confirm {{on "submit" this.requestFull}}>
+              <Ui::Alert @tone="danger" @title="Request a full restore of region {{this.regionName}}">
+                The request waits for the approval of a second management token. When approved, a pinned backup of the current state is taken and then the region is restored; the cluster is unavailable for writes meanwhile.
+              </Ui::Alert>
+              <Ui::Field @label={{concat "Type " this.regionName " to confirm"}} as |f|>
+                <Ui::Input @id={{f.id}} @value={{this.typed}} @onInput={{this.setTyped}} @monospace={{true}} autocomplete="off" data-test-full-typed />
+              </Ui::Field>
+              <div class="d-flex justify-content-between">
+                <Ui::Button {{on "click" this.back}}>Back</Ui::Button>
+                <Ui::Button @variant="danger" @type="submit" @isLoading={{this.isWorking}} @disabled={{not this.confirmMatches}} data-test-request-full>Request the full restore</Ui::Button>
+              </div>
+            </form>
+
+          {{else}}
+            <div class="mt-3" data-test-step-approval>
+              <Ui::Alert @tone="warning" @title="Waiting for approval">
+                The full restore request <span class="font-monospace">{{this.restore.ID}}</span> must be approved by a second management token
+                before {{format-ts this.restore.ExpiresAt}}. Send the link of the request to another administrator.
+              </Ui::Alert>
+              <Ui::Button @variant="primary" @route="backups.request" @model={{this.restore.ID}} data-test-open-request>Open the request</Ui::Button>
+            </div>
+          {{/if}}
+        {{/if}}
+      </Ui::Card>
+    {{else}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the backup" /></Ui::Card>
+    {{/if}}
+  </Ui::PageBody>
+</div>

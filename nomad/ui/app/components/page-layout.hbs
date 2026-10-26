@@ -1,0 +1,23 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The global frame: left menu, top bar, page content. Every page renders
+  its own Ui::PageHeader and Ui::PageBody inside.
+~}}
+<div
+  class="page page-layout norca-shell {{if this.frame.sidebarCollapsed 'norca-sidebar-collapsed'}}"
+  data-test-frame
+>
+  <a class="visually-hidden-focusable norca-skip-link" href="#main-content">Skip to content</a>
+  <Frame::Sidebar />
+  <div class="page-wrapper">
+    <Frame::Topbar />
+    <main id="main-content" class="norca-main" tabindex="-1" data-test-page-content>
+      {{yield}}
+    </main>
+  </div>
+</div>
+{{#if this.frame.paletteOpen}}
+  <Frame::CommandPalette />
+{{/if}}

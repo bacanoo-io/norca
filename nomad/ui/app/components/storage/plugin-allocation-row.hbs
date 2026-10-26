@@ -1,0 +1,83 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<@r.Row data-test-allocation={{@pluginAllocation.allocID}}>
+  {{#let this.allocation as |allocation|}}
+    <@r.Cell @key="indicators" class="w-1 text-nowrap" data-test-indicators>
+      {{#if allocation.unhealthyDrivers.length}}
+        <Ui::Icon @name="alert-triangle" class="text-warning" @label="Allocation depends on unhealthy drivers" data-test-icon="unhealthy-driver" />
+      {{/if}}
+      {{#if allocation.nextAllocation}}
+        <Ui::Icon @name="history" class="text-secondary" @label="Allocation was rescheduled" data-test-icon="reschedule" />
+      {{/if}}
+      {{#if allocation.wasPreempted}}
+        <Ui::Icon @name="arrow-bar-to-down" class="text-secondary" @label="Allocation was preempted" data-test-icon="preemption" />
+      {{/if}}
+    </@r.Cell>
+    <@r.Cell @key="id" class="font-monospace" data-test-short-id>
+      {{#if allocation}}
+        <LinkTo @route="allocations.allocation" @model={{allocation.id}}>{{allocation.shortId}}</LinkTo>
+      {{else}}
+        <span class="text-secondary">…</span>
+      {{/if}}
+    </@r.Cell>
+    <@r.Cell @key="created" class="tabular-nums text-nowrap" data-test-create-time>
+      {{#if allocation}}
+        <Ui::Tooltip @text={{format-month-ts allocation.createTime}}>
+          <span tabindex="0">{{format-month-ts allocation.createTime short=true}}</span>
+        </Ui::Tooltip>
+      {{/if}}
+    </@r.Cell>
+    <@r.Cell @key="updateTime" class="text-nowrap" data-test-modify-time>
+      {{#if allocation}}
+        <Ui::Tooltip @text={{format-month-ts allocation.modifyTime}}>
+          <span tabindex="0">{{moment-from-now allocation.modifyTime}}</span>
+        </Ui::Tooltip>
+      {{/if}}
+    </@r.Cell>
+    <@r.Cell @key="healthy" data-test-health>
+      <Ui::StatusIndicator
+        @tone={{if @pluginAllocation.healthy "success" "danger"}}
+        @label={{if @pluginAllocation.healthy "Healthy" "Unhealthy"}}
+      />
+    </@r.Cell>
+    <@r.Cell @key="client" class="font-monospace" data-test-client>
+      {{#if allocation}}
+        <Ui::Tooltip @text={{allocation.node.name}}>
+          <LinkTo @route="clients.client" @model={{allocation.node}}>{{allocation.node.shortId}}</LinkTo>
+        </Ui::Tooltip>
+      {{/if}}
+    </@r.Cell>
+    <@r.Cell @key="job">
+      {{#if allocation}}
+        {{#if (or allocation.job.isPending allocation.job.isReloading)}}
+          …
+        {{else}}
+          <LinkTo @route="jobs.job" @model={{format-job-id allocation.job.id}} data-test-job>{{allocation.job.name}}</LinkTo>
+          <span class="text-secondary" data-test-task-group>/ {{allocation.taskGroup.name}}</span>
+        {{/if}}
+      {{/if}}
+    </@r.Cell>
+    <@r.Cell @key="version" class="tabular-nums" data-test-job-version>{{allocation.jobVersion}}</@r.Cell>
+    <@r.Cell @key="volume" data-test-volume>{{if allocation.taskGroup.volumes.length "Yes"}}</@r.Cell>
+    <@r.Cell @key="cpu" class="w-10" data-test-cpu>
+      <Allocations::Usage
+        @metric="cpu"
+        @isRunning={{allocation.isRunning}}
+        @tracker={{this.stats}}
+        @isLoading={{this.fetchStats.isRunning}}
+        @error={{this.statsError}}
+      />
+    </@r.Cell>
+    <@r.Cell @key="memory" class="w-10" data-test-mem>
+      <Allocations::Usage
+        @metric="memory"
+        @isRunning={{allocation.isRunning}}
+        @tracker={{this.stats}}
+        @isLoading={{this.fetchStats.isRunning}}
+        @error={{this.statsError}}
+      />
+    </@r.Cell>
+  {{/let}}
+</@r.Row>

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -41,7 +42,7 @@ module('Acceptance | jobs list', function (hooks) {
     await JobsList.visit();
 
     assert.equal(currentURL(), '/jobs');
-    assert.equal(document.title, 'Jobs - Nomad');
+    assert.equal(document.title, 'Jobs - Norca');
   });
 
   test('/jobs should list the first page of jobs sorted by modify index', async function (assert) {

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -21,9 +22,9 @@ export default create({
   datacenter: text('[data-test-datacenter]'),
   hasLeaderBadge: isPresent('[data-test-leader-badge]'),
 
-  tags: collection('[data-test-server-tag]', {
-    name: text('td', { at: 0 }),
-    value: text('td', { at: 1 }),
+  tags: collection('[data-test-server-tags] [data-test-attributes-section]', {
+    name: text('[data-test-key]'),
+    value: text('[data-test-value]'),
   }),
 
   error: {

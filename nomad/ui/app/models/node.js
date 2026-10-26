@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -27,6 +28,7 @@ export default class Node extends Model {
   @shortUUIDProperty('id') shortId;
   @attr('number') modifyIndex;
   @attr('string') version;
+  @attr('string') norcaVersion;
   @attr('string') nodePool;
 
   // Available from single response

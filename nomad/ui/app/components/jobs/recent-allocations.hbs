@@ -1,0 +1,38 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The five latest allocations of a job, on the overview.
+~}}
+<div class="mb-3" data-test-recent-allocations>
+  <div class="d-flex align-items-center mb-2">
+    <h2 class="h3 m-0">Recent allocations</h2>
+    {{#if @job.allocations.length}}
+      <span class="ms-auto" data-test-view-all-allocations>
+        <LinkTo @route="jobs.job.allocations" @model={{@job}}>
+          View all {{@job.allocations.length}} {{pluralize "allocation" @job.allocations.length}}
+        </LinkTo>
+      </span>
+    {{/if}}
+  </div>
+  <Allocations::Table
+    @id="job-recent-allocations"
+    @caption="Recent allocations"
+    @context="job"
+    @allocations={{this.recentAllocations}}
+    @presorted={{true}}
+    @sortable={{false}}
+    @columnPicker={{false}}
+    @activeTask={{@activeTask}}
+    @onSetActiveTask={{@setActiveTaskQueryParam}}
+  >
+    <:empty>
+      <Ui::EmptyState
+        @icon="box"
+        @title="No allocations"
+        @message="No allocations have been placed. Check the placement failures and the evaluations of the job."
+        data-test-empty-recent-allocations
+       />
+    </:empty>
+  </Allocations::Table>
+</div>

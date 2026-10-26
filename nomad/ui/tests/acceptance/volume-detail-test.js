@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -55,7 +56,7 @@ module('Acceptance | volume detail', function (hooks) {
   test('/csi/volumes/:id should show the volume name in the title', async function (assert) {
     await VolumeDetail.visit({ id: `${volume.id}@default` });
 
-    assert.equal(document.title, `CSI Volume ${volume.name} - Nomad`);
+    assert.equal(document.title, `CSI Volume ${volume.name} - Norca`);
     assert.equal(VolumeDetail.title, volume.name);
   });
 
@@ -83,14 +84,17 @@ module('Acceptance | volume detail', function (hooks) {
 
     await VolumeDetail.visit({ id: `${volume.id}@default` });
 
-    assert.equal(VolumeDetail.writeAllocations.length, writeAllocations.length);
+    assert.equal(
+      VolumeDetail.writeTable.writeAllocations.length,
+      writeAllocations.length
+    );
     writeAllocations
       .sortBy('modifyIndex')
       .reverse()
       .forEach((allocation, idx) => {
         assert.equal(
           allocation.id,
-          VolumeDetail.writeAllocations.objectAt(idx).id
+          VolumeDetail.writeTable.writeAllocations.objectAt(idx).id
         );
       });
   });
@@ -103,14 +107,17 @@ module('Acceptance | volume detail', function (hooks) {
 
     await VolumeDetail.visit({ id: `${volume.id}@default` });
 
-    assert.equal(VolumeDetail.readAllocations.length, readAllocations.length);
+    assert.equal(
+      VolumeDetail.readTable.readAllocations.length,
+      readAllocations.length
+    );
     readAllocations
       .sortBy('modifyIndex')
       .reverse()
       .forEach((allocation, idx) => {
         assert.equal(
           allocation.id,
-          VolumeDetail.readAllocations.objectAt(idx).id
+          VolumeDetail.readTable.readAllocations.objectAt(idx).id
         );
       });
   });
@@ -134,7 +141,7 @@ module('Acceptance | volume detail', function (hooks) {
 
     await VolumeDetail.visit({ id: `${volume.id}@default` });
 
-    VolumeDetail.writeAllocations.objectAt(0).as((allocationRow) => {
+    VolumeDetail.writeTable.writeAllocations.objectAt(0).as((allocationRow) => {
       assert.equal(
         allocationRow.shortId,
         allocation.id.split('-')[0],
@@ -168,30 +175,44 @@ module('Acceptance | volume detail', function (hooks) {
         'Node ID'
       );
       assert.equal(
-        allocationRow.clientTooltip.substr(0, 15),
+        allocationRow.clientTip.substr(0, 15),
         server.db.nodes.find(allocation.nodeId).name.substr(0, 15),
         'Node Name'
       );
       assert.equal(
-        allocationRow.cpu,
-        Math.floor(allocStats.resourceUsage.CpuStats.TotalTicks) / cpuUsed,
+        allocationRow.cpuPercent,
+        String(
+          Math.round(
+            (Math.floor(allocStats.resourceUsage.CpuStats.TotalTicks) /
+              cpuUsed) *
+              1000
+          ) / 10
+        ),
         'CPU %'
       );
       const roundedTicks = Math.floor(
         allocStats.resourceUsage.CpuStats.TotalTicks
       );
       assert.equal(
-        allocationRow.cpuTooltip,
+        allocationRow.cpuTip,
         `${formatHertz(roundedTicks, 'MHz')} / ${formatHertz(cpuUsed, 'MHz')}`,
         'Detailed CPU information is in a tooltip'
       );
       assert.equal(
-        allocationRow.mem,
-        allocStats.resourceUsage.MemoryStats.RSS / 1024 / 1024 / memoryUsed,
+        allocationRow.memPercent,
+        String(
+          Math.round(
+            (allocStats.resourceUsage.MemoryStats.RSS /
+              1024 /
+              1024 /
+              memoryUsed) *
+              1000
+          ) / 10
+        ),
         'Memory used'
       );
       assert.equal(
-        allocationRow.memTooltip,
+        allocationRow.memTip,
         `${formatBytes(
           allocStats.resourceUsage.MemoryStats.RSS
         )} / ${formatBytes(memoryUsed, 'MiB')}`,
@@ -205,7 +226,7 @@ module('Acceptance | volume detail', function (hooks) {
     assignWriteAlloc(volume, allocation);
 
     await VolumeDetail.visit({ id: `${volume.id}@default` });
-    await VolumeDetail.writeAllocations.objectAt(0).visit();
+    await VolumeDetail.writeTable.writeAllocations.objectAt(0).visit();
 
     assert.equal(currentURL(), `/allocations/${allocation.id}`);
   });

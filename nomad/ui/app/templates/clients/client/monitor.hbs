@@ -1,17 +1,16 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Client " (or this.model.name this.model.shortId)}}
-<ClientSubnav @client={{this.model}} />
-<section class="section is-full-width">
+<Clients::Header @client={{this.model}} />
+<Ui::PageBody>
+  <Clients::Tabs @client={{this.model}} />
   {{#if (can "read agent")}}
-    <AgentMonitor
-      @level={{this.level}}
-      @client={{this.model}}
-      @onLevelChange={{action (mut this.level)}} />
+    <AgentMonitor @level={{this.level}} @client={{this.model}} @onLevelChange={{fn (mut this.level)}} />
   {{else}}
     <ForbiddenMessage @permission="agent:read" />
   {{/if}}
-</section>
+</Ui::PageBody>

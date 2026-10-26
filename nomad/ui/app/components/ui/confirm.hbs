@@ -1,0 +1,60 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The unified confirmation of dangerous operations: a modal that says what
+  happens (the block), optionally asks to type a word (@typedValue, for
+  example the name of the item) and runs @onConfirm. @error shows the
+  failure of the last attempt; the dialog stays open until @onClose.
+    {{#if this.confirming}}
+      <Ui::Confirm @title="Roll back the release?" @confirmLabel="Roll back"
+        @typedValue={{this.release.Name}} @onConfirm={{this.rollback}}
+        @onClose={{this.cancel}} @isRunning={{this.rollingBack}} @error={{this.error}}>
+        Revision 4 is applied again as revision 6.
+      </Ui::Confirm>
+    {{/if}}
+--}}
+<Ui::Modal
+  @title={{@title}}
+  @tone={{or @tone "danger"}}
+  @size={{@size}}
+  @onClose={{@onClose}}
+  data-test-confirm
+  ...attributes
+>
+  <:default>
+    <div data-test-confirm-body>{{yield}}</div>
+    {{#if @typedValue}}
+      <Ui::Field
+        @label={{concat "Type " @typedValue " to confirm"}}
+        @help={{@typedHelp}}
+        class="mt-3 mb-0"
+        as |f|
+      >
+        <Ui::Input
+          @id={{f.id}}
+          @describedBy={{f.describedBy}}
+          @value={{this.typed}}
+          @onInput={{this.setTyped}}
+          @monospace={{true}}
+          @autocomplete="off"
+          data-test-confirm-typed
+        />
+      </Ui::Field>
+    {{/if}}
+    {{#if @error}}
+      <Ui::Alert @tone="danger" class="mt-3 mb-0" data-test-confirm-error>{{@error}}</Ui::Alert>
+    {{/if}}
+  </:default>
+  <:footer>
+    <Ui::Button @disabled={{@isRunning}} data-test-confirm-cancel {{on "click" this.cancel}}>Cancel</Ui::Button>
+    <Ui::Button
+      @variant={{if (eq (or @tone "danger") "danger") "danger" "primary"}}
+      @icon={{@confirmIcon}}
+      @isLoading={{@isRunning}}
+      @disabled={{not this.canConfirm}}
+      data-test-confirm-submit
+      {{on "click" this.confirm}}
+    >{{or @confirmLabel "Confirm"}}</Ui::Button>
+  </:footer>
+</Ui::Modal>

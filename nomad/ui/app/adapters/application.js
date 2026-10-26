@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -11,6 +12,7 @@ import codesForError from '../utils/codes-for-error';
 import removeRecord from '../utils/remove-record';
 import { default as NoLeaderError, NO_LEADER } from '../utils/no-leader-error';
 import classic from 'ember-classic-decorator';
+import { waitForPromise } from '@ember/test-waiters';
 
 export const namespace = 'v1';
 
@@ -31,6 +33,12 @@ export default class ApplicationAdapter extends RESTAdapter {
     }
 
     return undefined;
+  }
+
+  // Ember Data's fetch is not registered with the test waiters (jQuery ajax
+  // was); register it so that settled() waits for adapter requests.
+  ajax() {
+    return waitForPromise(super.ajax(...arguments));
   }
 
   handleResponse(status, headers, payload) {
@@ -78,9 +86,14 @@ export default class ApplicationAdapter extends RESTAdapter {
       const relationshipType = relationship.type;
       const inverse = snapshot.record.inverseFor(relationship.key);
       if (inverse) {
+        // Records that are still in the response stay: unloading and
+        // re-creating them leaves unloaded entries in other relationships
+        // (Ember Data 4 asserts when those are read).
+        const stillPresent = idsInPayload(payload);
         store
           .peekAll(relationshipType)
           .filter((record) => record.get(`${inverse.name}.id`) === snapshot.id)
+          .filter((record) => !stillPresent.has(record.get('id')))
           .forEach((record) => {
             removeRecord(store, record);
           });
@@ -135,4 +148,11 @@ function associateRegion(url, region) {
   return url.indexOf('?') !== -1
     ? `${url}&region=${region}`
     : `${url}?region=${region}`;
+}
+
+// The IDs of the records in a list response (Nomad lists are JSON arrays of
+// objects with an ID).
+export function idsInPayload(payload) {
+  const list = Array.isArray(payload) ? payload : [];
+  return new Set(list.map((item) => item && item.ID).filter(Boolean));
 }

@@ -1,11 +1,12 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Ember from 'ember';
+import { assert } from '@ember/debug';
 import moment from 'moment';
-import { Factory, trait } from 'ember-cli-mirage';
+import { Factory, trait } from 'miragejs';
 import faker from 'nomad-ui/mirage/faker';
 import { provide, pickOne } from '../utils';
 import { generateResources } from '../common';
@@ -177,11 +178,11 @@ export default Factory.extend({
   }),
 
   afterCreate(allocation, server) {
-    Ember.assert(
+    assert(
       '[Mirage] No jobs! make sure jobs are created before allocations',
       server.db.jobs.length
     );
-    Ember.assert(
+    assert(
       '[Mirage] No nodes! make sure nodes are created before allocations',
       server.db.nodes.length
     );

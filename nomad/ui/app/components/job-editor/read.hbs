@@ -1,0 +1,56 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+<Ui::Card @title="Job definition" class="mb-3">
+  <:actions>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <Ui::Switch
+        @switch={{true}}
+        @label="Word wrap"
+        @checked={{@data.shouldWrap}}
+        @onChange={{@fns.onToggleWrap}}
+        class="mb-0"
+        {{keyboard-shortcut label="Toggle word wrap" action=(action @fns.onToggleWrap) pattern=(array "w" "w") menuLevel=true}}
+      />
+      <JobEditor::ViewSelect @data={{@data}} @fns={{@fns}} />
+      <Ui::Button @size="sm" @variant="primary" @icon="pencil" data-test-edit-job {{on "click" @fns.onEdit}}>Edit</Ui::Button>
+    </div>
+  </:actions>
+  <:default>
+    {{#if (eq @data.view "job-spec")}}
+      <Ui::CodeEditor
+        @label="Job specification"
+        @language={{if (eq @data.format "json") "json" "hcl"}}
+        @value={{@data.definition}}
+        @readOnly={{true}}
+        @wrap={{@data.shouldWrap}}
+        data-test-job-spec-view
+      />
+    {{else}}
+      <Ui::CodeEditor
+        @label="Full job definition"
+        @language="json"
+        @value={{@data.definition}}
+        @readOnly={{true}}
+        @wrap={{@data.shouldWrap}}
+        data-test-json-viewer
+      />
+    {{/if}}
+  </:default>
+</Ui::Card>
+{{#if (and (eq @data.view "job-spec") @data.hasVariables)}}
+  <Ui::Card @title="HCL variable values" class="mb-3">
+    <Ui::CodeEditor
+      @label="HCL variables of the job spec"
+      @language="hcl"
+      @value={{@data.job._newDefinitionVariables}}
+      @readOnly={{true}}
+      @wrap={{@data.shouldWrap}}
+      @minHeight="6rem"
+      data-test-variable-editor
+    />
+  </Ui::Card>
+{{/if}}

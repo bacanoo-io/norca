@@ -1,73 +1,45 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<ListTable class="path-tree" @source={{@branch}} as |t|>
-  <t.head>
-    <th>
-      Path
-    </th>
-    <th>
-      Namespace
-    </th>
-    <th>
-      Last Modified
-    </th>
-  </t.head>
-  <tbody>
-    {{#each this.folders as |folder|}}
-      <tr data-test-folder-row {{on "click" (fn this.handleFolderClick folder.data.absolutePath)}}>
-        <td colspan="3"
-          {{keyboard-shortcut 
-            enumerated=true
-            action=(fn this.handleFolderClick folder.data.absolutePath)
-          }}
-        >
-          <span>
-            <FlightIcon @name="folder" />
-            <LinkTo @route="variables.path" @model={{folder.data.absolutePath}} @query={{hash namespace="*"}}>
-              {{trim-path folder.name}}
+<Ui::Card @flush={{true}} data-test-variable-paths>
+    <Ui::Table
+      @inCard={{true}}
+      @caption="Variables"
+      @columns={{array (hash key="path" label="Path") (hash key="namespace" label="Namespace") (hash key="modified" label="Last modified")}}
+      @rows={{this.rows}}
+      @emptyMessage="No variables here."
+      @onRowClick={{this.handleRowClick}}
+      as |row|
+    >
+      {{#if row.folder}}
+        <td colspan="3" data-test-folder-row {{keyboard-shortcut enumerated=true action=(fn this.handleFolderClick row.folder.data.absolutePath)}}>
+          <span class="d-inline-flex align-items-center gap-2">
+            <Ui::Icon @name="folder" class="text-secondary" />
+            <LinkTo @route="variables.path" @model={{row.folder.data.absolutePath}} @query={{hash namespace="*"}}>
+              {{trim-path row.folder.name}}
             </LinkTo>
           </span>
         </td>
-      </tr>
-    {{/each}}
-
-    {{#each this.files as |file|}}
-      <tr
-        data-test-file-row="{{file.name}}"
-        {{on "click" (fn this.handleFileClick file)}}
-        class={{if (can "read variable" path=file.absoluteFilePath namespace=file.variable.namespace) "" "inaccessible"}}
-        {{keyboard-shortcut 
-          enumerated=true
-          action=(fn this.handleFileClick file)
-        }}
-      >
-        <td>
-          <FlightIcon @name="file-text" />
-          {{#if (can "read variable" path=file.absoluteFilePath namespace=file.variable.namespace)}}
-          <LinkTo
-            @route="variables.variable"
-            @model={{file.variable.id}}
-            @query={{hash namespace="*"}}
-          >
-            {{file.name}}
-          </LinkTo>
-          {{else}}
-            <span title="Your access policy does not allow you to view the contents of {{file.name}}">{{file.name}}</span>
-          {{/if}}
-        </td>
-        <td>
-          {{file.variable.namespace}}
-        </td>
-        <td>
-          <span class="tooltip" aria-label="{{format-ts file.variable.modifyTime}}">
-            {{moment-from-now file.variable.modifyTime}}
+      {{else}}
+        <td data-test-file-row={{row.file.name}} {{keyboard-shortcut enumerated=true action=(fn this.handleFileClick row.file)}}>
+          <span class="d-inline-flex align-items-center gap-2">
+            <Ui::Icon @name="file-text" class="text-secondary" />
+            {{#if (can "read variable" path=row.file.absoluteFilePath namespace=row.file.variable.namespace)}}
+              <LinkTo @route="variables.variable" @model={{row.file.variable.id}} @query={{hash namespace="*"}}>{{row.file.name}}</LinkTo>
+            {{else}}
+              <span class="text-secondary" title="Your access policy does not allow you to view the contents of {{row.file.name}}" data-test-inaccessible>{{row.file.name}}</span>
+            {{/if}}
           </span>
         </td>
-      </tr>
-    {{/each}}
-
-  </tbody>
-      </ListTable>
+        <td>{{row.file.variable.namespace}}</td>
+        <td>
+          <Ui::Tooltip @text={{format-ts row.file.variable.modifyTime}}>
+            <span>{{moment-from-now row.file.variable.modifyTime}}</span>
+          </Ui::Tooltip>
+        </td>
+      {{/if}}
+    </Ui::Table>
+</Ui::Card>

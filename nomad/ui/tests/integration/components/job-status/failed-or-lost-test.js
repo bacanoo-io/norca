@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -39,7 +40,7 @@ module('Integration | Component | job-status/failed-or-lost', function (hooks) {
     />`);
 
     assert.dom('h4').hasText('Replaced Allocations');
-    assert.dom('.failed-or-lost-links').hasText('2 Restarted');
+    assert.dom('.norca-failed-or-lost-links').hasText('2 Restarted');
     await componentA11yAudit(this.element, assert);
   });
 
@@ -68,10 +69,12 @@ module('Integration | Component | job-status/failed-or-lost', function (hooks) {
     />`);
 
     // Ensure it's of type a
-    assert.dom('.failed-or-lost-links > span > *:last-child').hasTagName('a');
+    assert
+      .dom('.norca-failed-or-lost-links > span > *:last-child')
+      .hasTagName('a');
     this.set('allocs', []);
     assert
-      .dom('.failed-or-lost-links > span > *:last-child')
+      .dom('.norca-failed-or-lost-links > span > *:last-child')
       .doesNotHaveTagName('a');
   });
 
@@ -118,9 +121,9 @@ module('Integration | Component | job-status/failed-or-lost', function (hooks) {
       @supportsRescheduling={{this.supportsRescheduling}}
     />`);
 
-    assert.dom('.failed-or-lost-links').containsText('2 Restarted');
-    assert.dom('.failed-or-lost-links').containsText('3 Rescheduled');
+    assert.dom('.norca-failed-or-lost-links').containsText('2 Restarted');
+    assert.dom('.norca-failed-or-lost-links').containsText('3 Rescheduled');
     this.set('supportsRescheduling', false);
-    assert.dom('.failed-or-lost-links').doesNotContainText('Rescheduled');
+    assert.dom('.norca-failed-or-lost-links').doesNotContainText('Rescheduled');
   });
 });

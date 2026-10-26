@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -75,6 +76,7 @@ export default class KeyboardService extends Service {
   @localStorageProperty('keyboardNavEnabled', true) enabled;
 
   defaultPatterns = {
+    'Go to Dashboard': ['g', 'd'],
     'Go to Jobs': ['g', 'j'],
     'Go to Storage': ['g', 'r'],
     'Go to Variables': ['g', 'v'],
@@ -82,6 +84,7 @@ export default class KeyboardService extends Service {
     'Go to Clients': ['g', 'c'],
     'Go to Topology': ['g', 't'],
     'Go to Evaluations': ['g', 'e'],
+    'Go to Access Control': ['g', 'a'],
     'Go to Profile': ['g', 'p'],
     'Next Subnav': ['Shift+ArrowRight'],
     'Previous Subnav': ['Shift+ArrowLeft'],
@@ -96,6 +99,11 @@ export default class KeyboardService extends Service {
   @tracked
   keyCommands = A(
     [
+      {
+        label: 'Go to Dashboard',
+        action: () => this.router.transitionTo('index'),
+        rebindable: true,
+      },
       {
         label: 'Go to Jobs',
         action: () => this.router.transitionTo('jobs'),
@@ -128,6 +136,11 @@ export default class KeyboardService extends Service {
       {
         label: 'Go to Evaluations',
         action: () => this.router.transitionTo('evaluations'),
+        rebindable: true,
+      },
+      {
+        label: 'Go to Access Control',
+        action: () => this.router.transitionTo('access-control'),
         rebindable: true,
       },
       {
@@ -325,15 +338,12 @@ export default class KeyboardService extends Service {
    */
   recordKeypress(type, event) {
     const inputElements = ['input', 'textarea', 'code'];
-    const disallowedClassNames = [
-      'ember-basic-dropdown-trigger',
-      'dropdown-option',
-    ];
-    const targetElementName = event.target.nodeName.toLowerCase();
+    const disallowedClassNames = ['dropdown-option'];
+    const targetElementName = (event.target.nodeName || '').toLowerCase();
     const inputDisallowed =
       inputElements.includes(targetElementName) ||
       disallowedClassNames.any((className) =>
-        event.target.classList.contains(className)
+        event.target.classList?.contains(className)
       );
 
     // Don't fire keypress events from within an input field

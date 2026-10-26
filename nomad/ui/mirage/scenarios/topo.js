@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -105,7 +106,6 @@ export function topoMedium(server) {
       datacenters: ['dc1'],
       type: 'service',
       createAllocations: false,
-      createRecommendations: true,
       resourceSpec: spec,
     });
   });

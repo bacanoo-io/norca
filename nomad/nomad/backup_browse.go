@@ -96,6 +96,12 @@ func (f *backupContentsFilter) variable(ns, path string) bool {
 		(f.aclObj == nil || f.aclObj.AllowVariableOperation(ns, path, acl.VariablesCapabilityList, nil))
 }
 
+func (f *backupContentsFilter) secret(ns, path string) bool {
+	return backupNamespaceMatches(f.namespace, ns) &&
+		strings.HasPrefix(path, f.prefix) &&
+		f.aclObj.AllowSecretOperation(ns, path, acl.NamespaceCapabilityListSecrets)
+}
+
 func (f *backupContentsFilter) name(name string) bool {
 	return strings.HasPrefix(name, f.prefix)
 }
@@ -198,6 +204,20 @@ func backupContents(loaded *backup.Loaded, contentType string, f *backupContents
 				}
 			}
 			out.Variables = append(out.Variables, stub)
+		}
+
+	case structs.BackupContentSecrets:
+		// Only the metadata rows: the values are in the barrier's
+		// ciphertext blobs, which are never decrypted for browsing.
+		iter, err := store.Secrets(ws)
+		if err != nil {
+			return nil, err
+		}
+		for raw := iter.Next(); raw != nil; raw = iter.Next() {
+			secret := raw.(*structs.Secret)
+			if f.secret(secret.Namespace, secret.Path) {
+				out.Secrets = append(out.Secrets, secret.Stub())
+			}
 		}
 
 	case structs.BackupContentACLPolicies:
@@ -333,6 +353,19 @@ func backupDiffEntries(store *state.StateStore, contentType string, f *backupCon
 			v := raw.(*structs.VariableEncrypted)
 			if f.variable(v.Namespace, v.Path) {
 				add(&backupDiffEntry{namespace: v.Namespace, id: v.Path, modifyIndex: v.ModifyIndex})
+			}
+		}
+	case structs.BackupContentSecrets:
+		iter, err := store.Secrets(ws)
+		if err != nil {
+			return nil, err
+		}
+		for raw := iter.Next(); raw != nil; raw = iter.Next() {
+			secret := raw.(*structs.Secret)
+			if f.secret(secret.Namespace, secret.Path) {
+				v := secret.CurrentVersion
+				add(&backupDiffEntry{namespace: secret.Namespace, id: secret.Path, version: &v,
+					modifyIndex: secret.ModifyIndex})
 			}
 		}
 	case structs.BackupContentACLPolicies:

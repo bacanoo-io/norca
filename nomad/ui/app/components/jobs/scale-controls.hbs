@@ -1,0 +1,36 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<span class="d-inline-flex align-items-center gap-1 text-nowrap" data-test-scale-count-wrapper>
+  <span class="tabular-nums" data-test-scale-count>{{this.count}}</span>
+  {{#if this.scaling}}
+    <span
+      class="d-inline-flex gap-1 ms-1"
+      role="group"
+      aria-label="Scale {{@taskGroup.name}}"
+      title={{this.disabledReason}}
+      data-test-scale-controls
+    >
+      <Ui::Button
+        @size="sm"
+        @icon="minus"
+        @iconOnly={{true}}
+        @label="Decrease the count of {{@taskGroup.name}}"
+        @disabled={{or this.isMinimum this.runningDeployment this.cannotScale}}
+        data-test-scale="decrement"
+        {{on "click" this.countDown}}
+      />
+      <Ui::Button
+        @size="sm"
+        @icon="plus"
+        @iconOnly={{true}}
+        @label="Increase the count of {{@taskGroup.name}}"
+        @disabled={{or this.isMaximum this.runningDeployment this.cannotScale}}
+        data-test-scale="increment"
+        data-test-scale-controls-increment
+        {{on "click" this.countUp}}
+      />
+    </span>
+  {{/if}}
+</span>

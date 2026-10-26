@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -8,7 +9,7 @@ import { currentURL, click, find } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import Allocations from 'nomad-ui/tests/pages/jobs/job/allocations';
 
 let job;
@@ -46,7 +47,7 @@ module('Acceptance | job allocations', function (hooks) {
     allocations = server.schema.allocations.where({ jobId: job.id }).models;
 
     await Allocations.visit({ id: job.id });
-    await a11yAudit(assert);
+    await a11yAudit(assert, STRICT);
   });
 
   test('lists all allocations for the job', async function (assert) {
@@ -74,7 +75,7 @@ module('Acceptance | job allocations', function (hooks) {
       );
     });
 
-    assert.equal(document.title, `Job ${job.name} allocations - Nomad`);
+    assert.equal(document.title, `Job ${job.name} allocations - Norca`);
   });
 
   test('clicking an allocation results in the correct endpoint being hit', async function (assert) {
@@ -109,7 +110,7 @@ module('Acceptance | job allocations', function (hooks) {
     allocations = server.schema.allocations.where({ jobId: job.id }).models;
 
     await Allocations.visit({ id: job.id });
-    await Allocations.sortBy('taskGroupName');
+    await Allocations.sortBy('taskGroup');
 
     assert.equal(
       currentURL(),
@@ -152,7 +153,7 @@ module('Acceptance | job allocations', function (hooks) {
 
     assert.equal(
       Allocations.emptyState.headline,
-      'No Matches',
+      'No matches',
       'List is empty and the empty state is about search'
     );
 

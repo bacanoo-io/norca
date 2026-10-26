@@ -1,9 +1,10 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { Factory, trait } from 'ember-cli-mirage';
+import { Factory, trait } from 'miragejs';
 import faker from 'nomad-ui/mirage/faker';
 import { provide } from '../utils';
 import { generateResources } from '../common';
@@ -43,9 +44,6 @@ export default Factory.extend({
   // Whether the tasks themselves should have services.
   withTaskServices: false,
 
-  // Directive used to control whether dynamic application sizing recommendations
-  // should be created.
-  createRecommendations: false,
 
   // When true, only creates allocations
   shallow: false,
@@ -105,7 +103,6 @@ export default Factory.extend({
             PropagationMode: '',
             ReadOnly: faker.random.boolean(),
           })),
-          createRecommendations: group.createRecommendations,
         });
       });
       taskIds = tasks.mapBy('id');

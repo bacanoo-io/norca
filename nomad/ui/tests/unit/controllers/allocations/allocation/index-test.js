@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -41,58 +42,61 @@ module('Unit | Controller | allocations/allocation/index', function (hooks) {
         },
       };
 
+      // The health checks are merged into the services outside of rendering.
+      controller.mergeHealthChecks();
+
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', groupFakePy.refID)
           .healthChecks.filter((check) => check.Status === 'success').length,
         groupFakePy.statuses['success']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', groupFakePy.refID)
           .healthChecks.filter((check) => check.Status === 'failure').length,
         groupFakePy.statuses['failure']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', groupFakePy.refID)
           .healthChecks.filter((check) => check.Status === 'pending').length,
         groupFakePy.statuses['pending']
       );
 
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', taskFakePy.refID)
           .healthChecks.filter((check) => check.Status === 'success').length,
         taskFakePy.statuses['success']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', taskFakePy.refID)
           .healthChecks.filter((check) => check.Status === 'failure').length,
         taskFakePy.statuses['failure']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', taskFakePy.refID)
           .healthChecks.filter((check) => check.Status === 'pending').length,
         taskFakePy.statuses['pending']
       );
 
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', pender.refID)
           .healthChecks.filter((check) => check.Status === 'success').length,
         pender.statuses['success']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', pender.refID)
           .healthChecks.filter((check) => check.Status === 'failure').length,
         pender.statuses['failure']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', pender.refID)
           .healthChecks.filter((check) => check.Status === 'pending').length,
         pender.statuses['pending']
@@ -122,39 +126,41 @@ module('Unit | Controller | allocations/allocation/index', function (hooks) {
         },
       };
 
+      controller.mergeHealthChecks();
+
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', groupDupe.refID)
           .healthChecks.filter((check) => check.Status === 'success').length,
         groupDupe.statuses['success']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', groupDupe.refID)
           .healthChecks.filter((check) => check.Status === 'failure').length,
         groupDupe.statuses['failure']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', groupDupe.refID)
           .healthChecks.filter((check) => check.Status === 'pending').length,
         groupDupe.statuses['pending']
       );
 
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', taskDupe.refID)
           .healthChecks.filter((check) => check.Status === 'success').length,
         taskDupe.statuses['success']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', taskDupe.refID)
           .healthChecks.filter((check) => check.Status === 'failure').length,
         taskDupe.statuses['failure']
       );
       assert.equal(
-        controller.servicesWithHealthChecks
+        controller.services
           .findBy('refID', taskDupe.refID)
           .healthChecks.filter((check) => check.Status === 'pending').length,
         taskDupe.statuses['pending']

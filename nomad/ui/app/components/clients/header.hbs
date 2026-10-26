@@ -1,0 +1,26 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The header of the client pages: the position, the name and status, the
+  eligibility, the ID and the drain actions (yielded by the page).
+~}}
+<Ui::PageHeader @breadcrumbs={{this.breadcrumbs}} data-test-client-header>
+  <:title>
+    <span class="d-inline-flex flex-wrap align-items-center gap-2">
+      <span data-test-title>{{or @client.name @client.shortId}}</span>
+      <span data-test-node-status={{@client.compositeStatus}}>
+        <Ui::StatusIndicator @status={{@client.compositeStatus}} />
+      </span>
+    </span>
+  </:title>
+  <:subtitle>
+    <span class="d-inline-flex flex-wrap align-items-center gap-2">
+      <span class="font-monospace" data-test-node-id>{{@client.id}}</span>
+      <Ui::CopyButton @text={{@client.id}} @label="Copy the client ID" />
+    </span>
+  </:subtitle>
+  <:actions>
+    {{yield}}
+  </:actions>
+</Ui::PageHeader>

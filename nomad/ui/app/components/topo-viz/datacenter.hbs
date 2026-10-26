@@ -1,0 +1,31 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+<Ui::Card data-test-topo-viz-datacenter class="norca-topo-datacenter">
+  <div data-test-topo-viz-datacenter-label class="d-flex flex-wrap align-items-baseline gap-2 mb-3">
+    <h3 class="h3 mb-0" title="Datacenter">{{@datacenter.name}}</h3>
+    <span title="Number of allocations">{{this.scheduledAllocations.length}} Allocs</span>
+    <span title="Number of nodes">{{@datacenter.nodes.length}} Nodes</span>
+    <span class="text-secondary">
+      <span title="Memory allocated">{{format-bytes this.aggregatedAllocationResources.memory start="MiB"}}</span> /
+      <span title="Total memory">{{format-bytes this.aggregatedNodeResources.memory start="MiB"}},</span>
+      <span title="CPU allocated">{{format-hertz this.aggregatedAllocationResources.cpu}}</span> /
+      <span title="Total CPU">{{format-hertz this.aggregatedNodeResources.cpu}}</span>
+    </span>
+  </div>
+  <div class="norca-topo-columns {{if @isSingleColumn "norca-topo-columns-1" "norca-topo-columns-2"}}" data-test-topo-viz-nodes>
+    {{#each @datacenter.nodes as |node|}}
+      <TopoViz::Node
+        @node={{node}}
+        @isDense={{@isDense}}
+        @heightScale={{@heightScale}}
+        @onAllocationSelect={{@onAllocationSelect}}
+        @onAllocationFocus={{@onAllocationFocus}}
+        @onAllocationBlur={{@onAllocationBlur}}
+        @onNodeSelect={{@onNodeSelect}} />
+    {{/each}}
+  </div>
+</Ui::Card>

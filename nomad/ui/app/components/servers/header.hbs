@@ -1,0 +1,24 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::PageHeader @breadcrumbs={{this.breadcrumbs}} data-test-server-header>
+  <:title>
+    <span class="d-inline-flex flex-wrap align-items-center gap-2">
+      <span data-test-title>Server {{@server.name}}</span>
+      {{#if @server.isLeader}}
+        <Ui::Badge @color="green" @icon="crown" data-test-leader-badge>Leader</Ui::Badge>
+      {{/if}}
+    </span>
+  </:title>
+  <:subtitle>
+    <span class="d-inline-flex flex-wrap align-items-center gap-2">
+      {{#if @server.region}}<span>Region {{@server.region}}</span>{{/if}}
+      <span>Datacenter {{@server.datacenter}}</span>
+    </span>
+  </:subtitle>
+</Ui::PageHeader>
+<Ui::PageBody>
+  <Ui::Tabs @tabs={{this.tabs}} @label="Server sections" class="mb-3" data-test-subnav="server" />
+  {{yield}}
+</Ui::PageBody>

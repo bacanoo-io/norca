@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -22,6 +23,15 @@ export default class Service extends Model {
   @attr('string') serviceName;
   @attr() tags;
   @attr() canary_tags;
+
+  // The health of the instance in the native catalog: whether it receives
+  // traffic, the aggregate of its startup, readiness and role-less checks,
+  // and the state of each check (with its role).
+  @attr('boolean') ready;
+  @attr('string') health;
+  @attr() checks;
+  @attr('number') healthUpdatedAt;
+  @attr('string') zone;
 
   @alias('serviceName') name;
 

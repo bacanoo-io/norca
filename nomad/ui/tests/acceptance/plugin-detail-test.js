@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -42,7 +43,7 @@ module('Acceptance | plugin detail', function (hooks) {
   test('/csi/plugins/:id should show the plugin name in the title', async function (assert) {
     await PluginDetail.visit({ id: plugin.id });
 
-    assert.equal(document.title, `CSI Plugin ${plugin.id} - Nomad`);
+    assert.equal(document.title, `CSI Plugin ${plugin.id} - Norca`);
     assert.equal(PluginDetail.title, plugin.id);
   });
 
@@ -78,7 +79,7 @@ module('Acceptance | plugin detail', function (hooks) {
     await PluginDetail.visit({ id: plugin.id });
 
     assert.equal(
-      PluginDetail.controllerAllocations.length,
+      PluginDetail.controllerTable.controllerAllocations.length,
       plugin.controllers.length
     );
     plugin.controllers.models
@@ -86,7 +87,7 @@ module('Acceptance | plugin detail', function (hooks) {
       .reverse()
       .forEach((allocation, idx) => {
         assert.equal(
-          PluginDetail.controllerAllocations.objectAt(idx).id,
+          PluginDetail.controllerTable.controllerAllocations.objectAt(idx).id,
           allocation.allocID
         );
       });
@@ -95,13 +96,16 @@ module('Acceptance | plugin detail', function (hooks) {
   test('/csi/plugins/:id should list all the node plugin allocations for the plugin', async function (assert) {
     await PluginDetail.visit({ id: plugin.id });
 
-    assert.equal(PluginDetail.nodeAllocations.length, plugin.nodes.length);
+    assert.equal(
+      PluginDetail.nodeTable.nodeAllocations.length,
+      plugin.nodes.length
+    );
     plugin.nodes.models
       .sortBy('updateTime')
       .reverse()
       .forEach((allocation, idx) => {
         assert.equal(
-          PluginDetail.nodeAllocations.objectAt(idx).id,
+          PluginDetail.nodeTable.nodeAllocations.objectAt(idx).id,
           allocation.allocID
         );
       });
@@ -127,71 +131,90 @@ module('Acceptance | plugin detail', function (hooks) {
 
     await PluginDetail.visit({ id: plugin.id });
 
-    PluginDetail.controllerAllocations.objectAt(0).as((allocationRow) => {
-      assert.equal(
-        allocationRow.shortId,
-        allocation.id.split('-')[0],
-        'Allocation short ID'
-      );
-      assert.equal(
-        allocationRow.createTime,
-        moment(allocation.createTime / 1000000).format('MMM D')
-      );
-      assert.equal(
-        allocationRow.createTooltip,
-        moment(allocation.createTime / 1000000).format('MMM DD HH:mm:ss ZZ')
-      );
-      assert.equal(
-        allocationRow.modifyTime,
-        moment(allocation.modifyTime / 1000000).fromNow()
-      );
-      assert.equal(
-        allocationRow.health,
-        controller.healthy ? 'Healthy' : 'Unhealthy'
-      );
-      assert.equal(
-        allocationRow.client,
-        server.db.nodes.find(allocation.nodeId).id.split('-')[0],
-        'Node ID'
-      );
-      assert.equal(
-        allocationRow.clientTooltip.substr(0, 15),
-        server.db.nodes.find(allocation.nodeId).name.substr(0, 15),
-        'Node Name'
-      );
-      assert.equal(
-        allocationRow.job,
-        server.db.jobs.find(allocation.jobId).name,
-        'Job name'
-      );
-      assert.ok(allocationRow.taskGroup, 'Task group name');
-      assert.ok(allocationRow.jobVersion, 'Job Version');
-      assert.equal(
-        allocationRow.cpu,
-        Math.floor(allocStats.resourceUsage.CpuStats.TotalTicks) / cpuUsed,
-        'CPU %'
-      );
-      const roundedTicks = Math.floor(
-        allocStats.resourceUsage.CpuStats.TotalTicks
-      );
-      assert.equal(
-        allocationRow.cpuTooltip,
-        `${formatHertz(roundedTicks, 'MHz')} / ${formatHertz(cpuUsed, 'MHz')}`,
-        'Detailed CPU information is in a tooltip'
-      );
-      assert.equal(
-        allocationRow.mem,
-        allocStats.resourceUsage.MemoryStats.RSS / 1024 / 1024 / memoryUsed,
-        'Memory used'
-      );
-      assert.equal(
-        allocationRow.memTooltip,
-        `${formatBytes(
-          allocStats.resourceUsage.MemoryStats.RSS
-        )} / ${formatBytes(memoryUsed, 'MiB')}`,
-        'Detailed memory information is in a tooltip'
-      );
-    });
+    PluginDetail.controllerTable.controllerAllocations
+      .objectAt(0)
+      .as((allocationRow) => {
+        assert.equal(
+          allocationRow.shortId,
+          allocation.id.split('-')[0],
+          'Allocation short ID'
+        );
+        assert.equal(
+          allocationRow.createTime,
+          moment(allocation.createTime / 1000000).format('MMM D')
+        );
+        assert.equal(
+          allocationRow.createTip,
+          moment(allocation.createTime / 1000000).format('MMM DD HH:mm:ss ZZ')
+        );
+        assert.equal(
+          allocationRow.modifyTime,
+          moment(allocation.modifyTime / 1000000).fromNow()
+        );
+        assert.equal(
+          allocationRow.health,
+          controller.healthy ? 'Healthy' : 'Unhealthy'
+        );
+        assert.equal(
+          allocationRow.client,
+          server.db.nodes.find(allocation.nodeId).id.split('-')[0],
+          'Node ID'
+        );
+        assert.equal(
+          allocationRow.clientTip.substr(0, 15),
+          server.db.nodes.find(allocation.nodeId).name.substr(0, 15),
+          'Node Name'
+        );
+        assert.equal(
+          allocationRow.job,
+          server.db.jobs.find(allocation.jobId).name,
+          'Job name'
+        );
+        assert.ok(allocationRow.taskGroup, 'Task group name');
+        assert.ok(allocationRow.jobVersion, 'Job Version');
+        assert.equal(
+          allocationRow.cpuPercent,
+          String(
+            Math.round(
+              (Math.floor(allocStats.resourceUsage.CpuStats.TotalTicks) /
+                cpuUsed) *
+                1000
+            ) / 10
+          ),
+          'CPU %'
+        );
+        const roundedTicks = Math.floor(
+          allocStats.resourceUsage.CpuStats.TotalTicks
+        );
+        assert.equal(
+          allocationRow.cpuTip,
+          `${formatHertz(roundedTicks, 'MHz')} / ${formatHertz(
+            cpuUsed,
+            'MHz'
+          )}`,
+          'Detailed CPU information is in a tooltip'
+        );
+        assert.equal(
+          allocationRow.memPercent,
+          String(
+            Math.round(
+              (allocStats.resourceUsage.MemoryStats.RSS /
+                1024 /
+                1024 /
+                memoryUsed) *
+                1000
+            ) / 10
+          ),
+          'Memory used'
+        );
+        assert.equal(
+          allocationRow.memTip,
+          `${formatBytes(
+            allocStats.resourceUsage.MemoryStats.RSS
+          )} / ${formatBytes(memoryUsed, 'MiB')}`,
+          'Detailed memory information is in a tooltip'
+        );
+      });
   });
 
   test('each allocation should link to the allocation detail page', async function (assert) {
@@ -200,7 +223,9 @@ module('Acceptance | plugin detail', function (hooks) {
       .reverse()[0];
 
     await PluginDetail.visit({ id: plugin.id });
-    await PluginDetail.controllerAllocations.objectAt(0).visit();
+    await PluginDetail.controllerTable.controllerAllocations
+      .objectAt(0)
+      .visit();
 
     assert.equal(currentURL(), `/allocations/${controller.allocID}`);
   });
@@ -252,7 +277,7 @@ module('Acceptance | plugin detail', function (hooks) {
 
     await PluginDetail.visit({ id: manyAllocationsPlugin.id });
 
-    assert.equal(PluginDetail.nodeAllocations.length, 10);
+    assert.equal(PluginDetail.nodeTable.nodeAllocations.length, 10);
   });
 
   test('the View All links under each allocation table link to a filtered view of the plugins allocation list', async function (assert) {

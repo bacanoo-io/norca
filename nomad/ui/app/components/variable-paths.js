@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -23,6 +24,20 @@ export default class VariablePathsComponent extends Component {
 
   get files() {
     return this.args.branch.files;
+  }
+
+  // The folders first, then the variables, as the rows of one table.
+  get rows() {
+    return [
+      ...this.folders.map((folder) => ({ folder })),
+      ...(this.files || []).map((file) => ({ file })),
+    ];
+  }
+
+  @action
+  handleRowClick(row) {
+    if (row.folder) this.handleFolderClick(row.folder.data.absolutePath);
+    else this.handleFileClick(row.file);
   }
 
   @action

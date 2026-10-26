@@ -3,13 +3,11 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Breadcrumb @crumb={{hash label="New" args=(array "access-control.tokens.new")}} />
 {{page-title "Create Token"}}
-<section class="section">
-  <h1 class="title" data-test-title>Create Token</h1>
-  <TokenEditor
-    @token={{this.model.token}}
-    @policies={{this.model.policies}}
-    @roles={{this.model.roles}}
-  />
-</section>
+<Access::Header
+  @title="Create Token"
+  @trail={{array (hash label="Tokens" route="access-control.tokens" id="access-control.tokens") (hash label="New")}}
+/>
+<Ui::PageBody>
+  <TokenEditor @token={{this.model.token}} @policies={{this.model.policies}} @roles={{this.model.roles}} />
+</Ui::PageBody>

@@ -1,0 +1,57 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A task of an allocation, shown under its row in Allocations::Table.
+~}}
+<tr
+  class="norca-sub-row {{if @active 'norca-row-active'}}"
+  data-test-task-sub-row={{@taskState.name}}
+  {{keyboard-shortcut enumerated=true action=this.gotoTask}}
+>
+  <td colspan={{this.nameSpan}}>
+    <span class="d-inline-flex align-items-center gap-2 ps-4">
+      <Ui::Icon @name="corner-down-right" @size="sm" class="text-secondary" />
+      <LinkTo
+        @route="allocations.allocation.task"
+        @models={{array @taskState.allocation @taskState}}
+        title={{@taskState.name}}
+        data-test-task-name
+      >{{@taskState.name}}</LinkTo>
+      <Ui::StatusIndicator @status={{@taskState.state}} @lite={{true}} />
+      <Ui::Button
+        @size="sm"
+        @variant="ghost"
+        @icon="file-text"
+        aria-pressed={{if @active "true" "false"}}
+        data-side-panel-trigger
+        data-test-logs-sidebar-trigger
+        {{on "click" this.openLogs}}
+      >View logs</Ui::Button>
+    </span>
+  </td>
+  {{#if (get @r.shown "cpu")}}
+    <td data-test-cpu>
+      <Allocations::Usage
+        @metric="cpu"
+        @isRunning={{@taskState.isRunning}}
+        @tracker={{this.taskStats}}
+        @reservedCPU={{this.taskStats.reservedCPU}}
+        @isLoading={{@isLoading}}
+        @error={{@statsError}}
+      />
+    </td>
+  {{/if}}
+  {{#if (get @r.shown "memory")}}
+    <td data-test-mem>
+      <Allocations::Usage
+        @metric="memory"
+        @isRunning={{@taskState.isRunning}}
+        @tracker={{this.taskStats}}
+        @reservedMemory={{this.taskStats.reservedMemory}}
+        @isLoading={{@isLoading}}
+        @error={{@statsError}}
+      />
+    </td>
+  {{/if}}
+</tr>

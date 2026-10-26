@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -17,6 +18,13 @@ export default class NodeSerializer extends ApplicationSerializer {
   };
 
   mapToArray = ['Drivers', 'HostVolumes'];
+
+  normalize(typeHash, hash) {
+    // The Norca product version (the list stubs carry this one attribute);
+    // Version is the Nomad API version the client is compatible with.
+    hash.NorcaVersion = hash.Attributes?.['norca.version'] || '';
+    return super.normalize(typeHash, hash);
+  }
 
   extractRelationships(modelClass, hash) {
     const { modelName } = modelClass;

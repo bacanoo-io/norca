@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -45,7 +46,7 @@ module('Integration | Component | variable-paths', function (hooks) {
 
     this.set('emptyRoot', { children: {}, files: [] });
     await render(hbs`<VariablePaths @branch={{this.emptyRoot}} />`);
-    assert.dom('tbody tr').exists({ count: 0 });
+    assert.dom('[data-test-file-row], [data-test-folder-row]').doesNotExist();
 
     await componentA11yAudit(this.element, assert);
   });
@@ -55,7 +56,9 @@ module('Integration | Component | variable-paths', function (hooks) {
 
     this.set('tree', tree);
     await render(hbs`<VariablePaths @branch={{this.tree.paths.root}} />`);
-    assert.dom('tbody tr').exists({ count: 2 }, 'There are two rows');
+    assert
+      .dom('tbody tr[data-test-ui-table-row]')
+      .exists({ count: 2 }, 'There are two rows');
 
     await componentA11yAudit(this.element, assert);
   });

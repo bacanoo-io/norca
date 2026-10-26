@@ -1,9 +1,10 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Controller from '@ember/controller';
+import Controller, { inject as controller } from '@ember/controller';
 import { set, action } from '@ember/object';
 import { task } from 'ember-concurrency';
 import { inject as service } from '@ember/service';
@@ -23,6 +24,19 @@ export default class VariablesVariableIndexController extends Controller {
   get sortedKeyValues() {
     const sorted = this.model.keyValues.sortBy(this.sortProperty);
     return this.sortDescending ? sorted : sorted.reverse();
+  }
+
+  @controller('variables.variable') variableController;
+
+  itemColumns = [
+    { key: 'key', label: 'Key', sortable: true },
+    { key: 'value', label: 'Value', sortable: true },
+  ];
+
+  @action
+  sort(sortProperty, sortDescending) {
+    this.sortProperty = sortProperty;
+    this.sortDescending = sortDescending;
   }
 
   @tracked isDeleting = false;
@@ -69,6 +83,7 @@ export default class VariablesVariableIndexController extends Controller {
   @tracked
   view = 'table';
 
+  @action
   toggleView() {
     if (this.view === 'table') {
       this.view = 'json';
@@ -87,6 +102,7 @@ export default class VariablesVariableIndexController extends Controller {
     );
   }
 
+  @action
   toggleRowVisibility(kv) {
     set(kv, 'isVisible', !kv.isVisible);
   }

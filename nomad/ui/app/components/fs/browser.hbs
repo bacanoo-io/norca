@@ -1,0 +1,40 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.isFile}}
+  <Fs::File @allocation={{this.allocation}} @taskState={{this.taskState}} @file={{this.path}} @stat={{this.stat}}>
+    <Fs::Breadcrumbs @allocation={{this.allocation}} @taskState={{this.taskState}} @path={{this.path}} />
+  </Fs::File>
+{{else}}
+  <Ui::Card @flush={{true}} class="norca-fs-explorer">
+    <:actions>
+      <Fs::Breadcrumbs @allocation={{this.allocation}} @taskState={{this.taskState}} @path={{this.path}} />
+    </:actions>
+    <:default>
+      {{#if this.directoryEntries}}
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Files"
+          @columns={{this.columns}}
+          @rows={{this.sortedDirectoryEntries}}
+          @sortBy={{this.sortProperty}}
+          @sortDescending={{this.sortDescending}}
+          @onSort={{this.sort}}
+          data-test-fs-entries
+          as |entry|
+        >
+          <Fs::DirectoryEntry @path={{this.path}} @allocation={{this.allocation}} @taskState={{this.taskState}} @entry={{entry}} />
+        </Ui::Table>
+      {{else}}
+        <Ui::EmptyState
+          @icon="folder"
+          @title="No Files"
+          @message="Directory is currently empty."
+          data-test-empty-directory
+        />
+      {{/if}}
+    </:default>
+  </Ui::Card>
+{{/if}}

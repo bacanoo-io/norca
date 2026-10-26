@@ -1,31 +1,29 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * SPDX-FileCopyrightText: 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import { attribute, clickable, collection } from 'ember-cli-page-object';
 
+// A distribution (Ui::Distribution): the segments of the bar and the
+// legend.
 export default (scope) => ({
   scope,
 
-  slices: collection('svg .bars g', {
-    label: attribute('data-test-slice-label'),
+  slices: collection('[data-test-summary-slice]', {
+    label: attribute('data-test-summary-slice'),
     click: clickable(),
   }),
 
-  expand: {
-    scope: '[data-test-accordion-toggle]',
-    click: clickable(),
-  },
-
   legend: {
-    scope: '.legend',
+    scope: '[data-test-legend]',
 
     items: collection('li', {
       label: attribute('data-test-legend-label'),
     }),
 
-    clickableItems: collection('li.is-clickable', {
+    clickableItems: collection('li[data-test-legend-clickable]', {
       label: attribute('data-test-legend-label'),
       click: clickable('a'),
     }),

@@ -1,20 +1,31 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import Controller, { inject as controller } from '@ember/controller';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
+import breadcrumbItems from 'nomad-ui/utils/breadcrumb-items';
 
 const ALL_NAMESPACE_WILDCARD = '*';
 
 export default class VariablesPathController extends Controller {
+  @service store;
+
   @service router;
 
   get absolutePath() {
     return this.model?.absolutePath || '';
   }
+  get breadcrumbItems() {
+    return [
+      { label: 'Variables', route: 'variables.index', id: 'variables.index' },
+      ...breadcrumbItems(this.breadcrumbs),
+    ];
+  }
+
   get breadcrumbs() {
     if (this.absolutePath) {
       let crumbs = [];

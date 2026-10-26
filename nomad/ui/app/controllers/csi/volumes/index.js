@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -10,9 +11,10 @@ import { scheduleOnce } from '@ember/runloop';
 import Controller, { inject as controller } from '@ember/controller';
 import SortableFactory from 'nomad-ui/mixins/sortable-factory';
 import Searchable from 'nomad-ui/mixins/searchable';
-import { lazyClick } from 'nomad-ui/helpers/lazy-click';
-import { serialize } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class IndexController extends Controller.extend(
@@ -23,9 +25,11 @@ export default class IndexController extends Controller.extend(
     'nodesHealthyProportion',
     'provider',
   ]),
-  Searchable
+  Searchable,
+  WithListActions
 ) {
   @service system;
+  @service router;
   @service userSettings;
   @service keyboard;
   @controller('csi/volumes') volumesController;
@@ -50,6 +54,31 @@ export default class IndexController extends Controller.extend(
       qpNamespace: 'namespace',
     },
   ];
+
+  viewParams = ['searchTerm', 'sortProperty', 'sortDescending'];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
+  @computed('system.shouldShowNamespaces')
+  get columns() {
+    return [
+      { key: 'name', label: 'Name', sortable: true, hideable: false },
+      ...(this.system.shouldShowNamespaces
+        ? [{ key: 'namespace', label: 'Namespace', sortable: true }]
+        : []),
+      { key: 'schedulable', label: 'Volume Health', sortable: true },
+      {
+        key: 'controllersHealthyProportion',
+        label: 'Controller Health',
+        sortable: true,
+      },
+      { key: 'nodesHealthyProportion', label: 'Node Health', sortable: true },
+      { key: 'provider', label: 'Provider', sortable: true },
+      { key: 'allocations', label: '# Allocs' },
+    ];
+  }
 
   currentPage = 1;
   @readOnly('userSettings.pageSize') pageSize;
@@ -106,19 +135,23 @@ export default class IndexController extends Controller.extend(
   @alias('listSorted') listToSearch;
   @alias('listSearched') sortedVolumes;
 
-  setFacetQueryParam(queryParam, selection) {
-    this.set(queryParam, serialize(selection));
+  get namespaceSelectOptions() {
+    return (this.optionsNamespaces || []).map((o) => ({
+      value: o.key,
+      label: o.label,
+    }));
   }
 
   @action
-  gotoVolume(volume, event) {
-    lazyClick([
-      () =>
-        this.transitionToRoute(
-          'csi.volumes.volume',
-          volume.get('idWithNamespace')
-        ),
-      event,
-    ]);
+  setNamespace(namespace) {
+    this.setProperties({ qpNamespace: namespace, currentPage: 1 });
+  }
+
+  @action
+  gotoVolume(volume) {
+    this.router.transitionTo(
+      'csi.volumes.volume',
+      volume.get('idWithNamespace')
+    );
   }
 }

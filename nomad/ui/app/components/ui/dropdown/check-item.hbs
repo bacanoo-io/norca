@@ -1,0 +1,22 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A check item of Ui::Dropdown (a toggle button, aria-pressed): toggling it
+  keeps the menu open. @onChange receives the new checked state.
+~}}
+<button
+  type="button"
+  class="dropdown-item"
+  aria-pressed={{if @checked "true" "false"}}
+  disabled={{@disabled}}
+  data-keep-open
+  {{on "click" (fn (optional @onChange) (not @checked))}}
+  ...attributes
+>
+  <Ui::Icon @name={{if @checked "square-check" "square"}} class="dropdown-item-icon {{if @checked 'text-primary'}}" />
+  <span class="text-truncate">{{yield}}</span>
+  {{#if (not-eq @count undefined)}}
+    <span class="ms-auto ps-3 text-secondary small" data-test-check-item-count>{{@count}}</span>
+  {{/if}}
+</button>

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -9,11 +10,11 @@ import { classNames, classNameBindings } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 
 @classic
-@classNames('job-diff')
+@classNames('norca-job-diff')
 @classNameBindings(
-  'isEdited:is-edited',
-  'isAdded:is-added',
-  'isDeleted:is-deleted'
+  'isEdited:norca-diff-edited',
+  'isAdded:norca-diff-added',
+  'isDeleted:norca-diff-deleted'
 )
 export default class JobDiff extends Component {
   diff = null;

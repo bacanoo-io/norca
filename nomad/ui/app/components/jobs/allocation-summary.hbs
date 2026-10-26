@@ -1,0 +1,13 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Distribution
+  @label="Allocations"
+  @data={{this.data}}
+  @compact={{@compact}}
+  @noLegend={{@noLegend}}
+  @onSelect={{if @job this.select}}
+  data-test-allocation-status-bar
+  ...attributes
+/>

@@ -1,10 +1,11 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import Controller from '@ember/controller';
-import { action, computed } from '@ember/object';
+import { computed } from '@ember/object';
 
 export default class IndexController extends Controller {
   @computed('model.controllers.@each.updateTime')
@@ -15,10 +16,5 @@ export default class IndexController extends Controller {
   @computed('model.nodes.@each.updateTime')
   get sortedNodes() {
     return this.model.nodes.sortBy('updateTime').reverse();
-  }
-
-  @action
-  gotoAllocation(allocation) {
-    this.transitionToRoute('allocations.allocation', allocation.id);
   }
 }

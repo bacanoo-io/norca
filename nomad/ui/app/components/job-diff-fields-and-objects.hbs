@@ -1,0 +1,64 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+<div class="norca-diff-table">
+  {{#each this.fields as |field|}}
+    <div
+      data-test-diff-section-label="field"
+      data-test-diff-field="{{lowercase field.Type}}"
+      class="norca-diff-row {{concat
+        "norca-diff-label norca-diff-"
+        (lowercase field.Type)
+      }}">
+      <span class="norca-diff-cell">
+        <span class="norca-diff-marker {{concat "norca-diff-" (lowercase field.Type)}}">
+          {{#if (eq (lowercase field.Type) "added")}}
+            +
+          {{else if (eq (lowercase field.Type) "deleted")}}
+            -
+          {{else if (eq (lowercase field.Type) "edited")}}
+            +/-
+          {{/if}}
+        </span>
+        {{field.Name}}:
+      </span>
+      {{#if (eq (lowercase field.Type) "added")}}
+        <span class="norca-diff-cell norca-diff-change">"{{field.New}}"</span>
+      {{else if (eq (lowercase field.Type) "deleted")}}
+        <span class="norca-diff-cell norca-diff-change">"{{field.Old}}"</span>
+      {{else if (eq (lowercase field.Type) "edited")}}
+        <span class="norca-diff-cell norca-diff-change">"{{field.Old}}" => "{{field.New}}"</span>
+      {{else}}
+        <span class="norca-diff-cell">"{{field.New}}"</span>
+      {{/if}}
+    </div>
+  {{/each}}
+</div>
+
+{{#each this.objects as |object|}}
+  <div
+    data-test-diff-section-label="object"
+    data-test-diff-field="{{lowercase object.Type}}"
+    class="{{concat
+      "norca-diff-label norca-diff-"
+      (lowercase object.Type)
+    }}">
+    <span class="norca-diff-marker {{concat "norca-diff-" (lowercase object.Type)}}">
+      {{#if (eq (lowercase object.Type) "added")}}
+        +
+      {{else if (eq (lowercase object.Type) "deleted")}}
+        -
+      {{else if (eq (lowercase object.Type) "edited")}}
+        +/-
+      {{/if}}
+    </span>
+    {{object.Name}} {
+      <div data-test-diff-section-label="nested-object" class="norca-diff-label">
+        <JobDiffFieldsAndObjects @fields={{object.Fields}} @objects={{object.Objects}} />
+      </div>
+    }
+  </div>
+{{/each}}

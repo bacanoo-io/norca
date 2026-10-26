@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -7,7 +8,6 @@ import Service, { inject as service } from '@ember/service';
 import { computed } from '@ember/object';
 import { alias, reads } from '@ember/object/computed';
 import { getOwner } from '@ember/application';
-import { assign } from '@ember/polyfills';
 import { task, timeout } from 'ember-concurrency';
 import queryString from 'query-string';
 import fetch from 'nomad-ui/utils/fetch';
@@ -124,7 +124,7 @@ export default class TokenService extends Service {
       headers['X-Nomad-Token'] = token;
     }
 
-    return fetch(url, assign(options, { headers, credentials }));
+    return fetch(url, Object.assign(options, { headers, credentials }));
   }
 
   authorizedRequest(url, options) {

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -44,6 +45,12 @@ export default class Job extends Model {
 
   @attr() periodicDetails;
   @attr() parameterizedDetails;
+
+  // The name of the namespace without loading the namespace record (for
+  // permission checks in every tab of the job page).
+  get namespaceName() {
+    return this.belongsTo('namespace').id() ?? 'default';
+  }
 
   @computed('plainId')
   get idWithNamespace() {
@@ -114,6 +121,14 @@ export default class Job extends Model {
   }
 
   @attr() datacenters;
+
+  // The multiregion block: the regions of a multiregion job, in rollout
+  // order, and the strategy.
+  @attr() multiregion;
+
+  get multiregionRegions() {
+    return (this.multiregion?.Regions || []).map((r) => r.Name);
+  }
   @fragmentArray('task-group', { defaultValue: () => [] }) taskGroups;
   @belongsTo('job-summary') summary;
 
@@ -152,8 +167,6 @@ export default class Job extends Model {
   @belongsTo('namespace') namespace;
   @belongsTo('job-scale') scaleState;
   @hasMany('services') services;
-
-  @hasMany('recommendation-summary') recommendationSummaries;
 
   @computed('taskGroups.@each.drivers')
   get drivers() {
@@ -295,7 +308,7 @@ export default class Job extends Model {
 
   scale(group, count, message) {
     if (message == null)
-      message = `Manually scaled to ${count} from the Nomad UI`;
+      message = `Manually scaled to ${count} from the Norca UI`;
     return this.store.adapterFor('job').scale(this, group, count, message);
   }
 
@@ -355,7 +368,7 @@ export default class Job extends Model {
   // that will be submitted to the create job endpoint, another prop is necessary.
   @attr('string') _newDefinitionJSON;
 
-  @computed('variables.[]', 'parent', 'plainId')
+  // Not cached: autotracking follows the async variables relationship.
   get pathLinkedVariable() {
     if (this.parent.get('id')) {
       return this.variables?.findBy(

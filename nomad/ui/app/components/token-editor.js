@@ -95,7 +95,7 @@ export default class TokenEditorComponent extends Component {
     this.selectedRoleIds = this.tokenRecord.hasMany('roles').ids();
   }
 
-  @action updateName({ target: { value } }) {
+  @action updateName(value) {
     this.tokenRecord.set('name', value);
   }
 
@@ -103,7 +103,7 @@ export default class TokenEditorComponent extends Component {
     this.tokenRecord.set('type', type);
   }
 
-  @action toggleGlobal({ target: { checked } }) {
+  @action toggleGlobal(checked) {
     this.tokenRecord.set('global', checked);
   }
 
@@ -111,15 +111,17 @@ export default class TokenEditorComponent extends Component {
     this.expiration = value;
   }
 
-  @action updateCustomExpiration({ target: { value } }) {
+  // Ui::Input passes the value, a native input the event.
+  @action updateCustomExpiration(input) {
+    const value = typeof input === 'string' ? input : input?.target?.value;
     this.customExpiration = value;
   }
 
-  @action togglePolicy(policy, { target: { checked } }) {
+  @action togglePolicy(policy, checked) {
     this.selectedPolicyIds = toggle(this.selectedPolicyIds, policy.id, checked);
   }
 
-  @action toggleRole(role, { target: { checked } }) {
+  @action toggleRole(role, checked) {
     this.selectedRoleIds = toggle(this.selectedRoleIds, role.id, checked);
   }
 

@@ -1,0 +1,18 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The health of the instances of a native service: how many are ready to
+  receive traffic and passing, warning or critical.
+~}}
+<span class="d-inline-flex flex-wrap align-items-center gap-2" data-test-service-health>
+  {{#if this.counts.total}}
+    <span data-test-service-ready>{{this.counts.ready}}/{{this.counts.total}} ready</span>
+    {{#if this.counts.passing}}<Ui::StatusIndicator @tone="success" @label="{{this.counts.passing}} passing" @lite={{true}} />{{/if}}
+    {{#if this.counts.warning}}<Ui::StatusIndicator @tone="warning" @label="{{this.counts.warning}} warning" @lite={{true}} />{{/if}}
+    {{#if this.counts.critical}}<Ui::StatusIndicator @tone="danger" @label="{{this.counts.critical}} critical" @lite={{true}} />{{/if}}
+    {{#if this.counts.unknown}}<Ui::StatusIndicator @tone="neutral" @label="{{this.counts.unknown}} without health" @lite={{true}} />{{/if}}
+  {{else}}
+    <span class="text-secondary">no instances</span>
+  {{/if}}
+</span>

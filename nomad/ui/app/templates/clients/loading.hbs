@@ -1,6 +1,9 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<section class="section has-text-centered"><LoadingSpinner /></section>
+<Ui::PageBody>
+  <Ui::Spinner @showLabel={{true}} @label="Loading" />
+</Ui::PageBody>

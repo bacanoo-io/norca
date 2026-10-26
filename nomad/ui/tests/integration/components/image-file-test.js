@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -16,7 +17,7 @@ module('Integration | Component | image file', function (hooks) {
   setupRenderingTest(hooks);
 
   const commonTemplate = hbs`
-    <ImageFile @src={{src}} @alt={{alt}} @size={{size}} />
+    <ImageFile @src={{this.src}} @alt={{this.alt}} @size={{this.size}} />
   `;
 
   const commonProperties = {
@@ -73,7 +74,7 @@ module('Integration | Component | image file', function (hooks) {
     this.set('spy', wrapper);
 
     render(hbs`
-      <ImageFile @src={{src}} @alt={{alt}} @size={{size}} @updateImageMeta={{spy}} />
+      <ImageFile @src={{this.src}} @alt={{this.alt}} @size={{this.size}} @updateImageMeta={{this.spy}} />
     `);
 
     await notifier;

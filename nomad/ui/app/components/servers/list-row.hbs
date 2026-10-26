@@ -1,0 +1,47 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A row of the servers list (Ui::DataTable). @isLeader: whether the server
+  leads its region; @raftPeer: its entry in the region's Raft
+  configuration, if known.
+~}}
+<@r.Row data-test-server-agent-row={{@agent.id}}>
+  <@r.Cell @key="name" data-test-server-name>
+    <LinkTo @route="servers.server" @model={{@agent.id}}>{{@agent.name}}</LinkTo>
+  </@r.Cell>
+  <@r.Cell @key="status" data-test-server-status>
+    <Ui::StatusIndicator @status={{@agent.status}} @label={{capitalize @agent.status}} />
+  </@r.Cell>
+  <@r.Cell @key="isLeader" data-test-server-is-leader>
+    {{#if @isLeader}}
+      <Ui::Badge @color="green" @icon="crown">Leader</Ui::Badge>
+    {{else}}
+      <span class="text-secondary">Follower</span>
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="region" data-test-server-region>
+    {{#if @region}}
+      <span class="norca-region norca-region-{{@colorIndex}}">{{@region}}</span>
+    {{else}}
+      <span class="text-secondary">–</span>
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="address" class="font-monospace text-truncate" title={{@agent.address}} data-test-server-address>{{@agent.address}}</@r.Cell>
+  <@r.Cell @key="serfPort" class="tabular-nums" data-test-server-port>{{@agent.serfPort}}</@r.Cell>
+  <@r.Cell @key="datacenter" data-test-server-datacenter>{{@agent.datacenter}}</@r.Cell>
+  <@r.Cell @key="raft" data-test-server-raft>
+    {{#if @raftPeer}}
+      {{if @raftPeer.Voter "Voter" "Non-voter"}}
+    {{else}}
+      <span class="text-secondary">–</span>
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell
+    @key="version"
+    title={{if @agent.norcaVersion (concat "Nomad API " @agent.version " compatible") "Nomad version (the server predates Norca)"}}
+    data-test-server-version
+  >
+    {{#if @agent.norcaVersion}}{{@agent.norcaVersion}}{{else}}Nomad {{@agent.version}}{{/if}}
+  </@r.Cell>
+</@r.Row>

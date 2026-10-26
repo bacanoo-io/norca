@@ -74,6 +74,11 @@ type ACL struct {
 	objects         *iradix.Tree[capabilitySet]
 	wildcardObjects *iradix.Tree[capabilitySet]
 
+	// secrets and wildcardSecrets hold the secret path rules (Norca),
+	// keyed by namespace and secret path.
+	secrets         *iradix.Tree[capabilitySet]
+	wildcardSecrets *iradix.Tree[capabilitySet]
+
 	// The attributes below store the policy value for policies that don't have
 	// fine-grained capabilities.
 	agent    string
@@ -130,6 +135,9 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 	objTxn := iradix.New[capabilitySet]().Txn()
 	wobjTxn := iradix.New[capabilitySet]().Txn()
 
+	secTxn := iradix.New[capabilitySet]().Txn()
+	wsecTxn := iradix.New[capabilitySet]().Txn()
+
 	for _, policy := range policies {
 	NAMESPACES:
 		for _, ns := range policy.Namespaces {
@@ -172,6 +180,8 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 					objCapabilities.Set(cap)
 				}
 			}
+
+			addSecretRules(ns, secTxn, wsecTxn)
 
 			if ns.Variables != nil {
 				for _, pathPolicy := range ns.Variables.Paths {
@@ -335,6 +345,9 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 
 	acl.objects = objTxn.Commit()
 	acl.wildcardObjects = wobjTxn.Commit()
+
+	acl.secrets = secTxn.Commit()
+	acl.wildcardSecrets = wsecTxn.Commit()
 
 	return acl, nil
 }

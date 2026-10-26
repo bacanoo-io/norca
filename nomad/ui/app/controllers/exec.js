@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -119,7 +120,7 @@ export default class ExecController extends Controller {
       );
       this.terminal.writeln('');
       this.terminal.write(
-        `$ nomad alloc exec -i -t -task ${escapeTaskName(taskName)} ${
+        `$ norca alloc exec -i -t -task ${escapeTaskName(taskName)} ${
           this.taskState.allocation.shortId
         } `
       );

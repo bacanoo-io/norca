@@ -1,0 +1,71 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// Evaluations: the related evaluations graph of the detail panel.
+
+.norca-related-evals {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.norca-related-evals-content {
+  position: relative;
+  display: inline-flex;
+}
+
+.norca-related-evals-links {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.norca-related-evals-link {
+  fill: none;
+  stroke: var(--tblr-secondary);
+  stroke-width: 1;
+}
+
+.norca-related-evals-end {
+  fill: var(--tblr-bg-surface);
+  stroke: var(--tblr-body-color);
+}
+
+.norca-related-evals-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  flex-basis: 100%;
+}
+
+.norca-related-eval {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 7.5rem;
+  margin: 1.5rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  background: var(--tblr-bg-surface);
+
+  &.norca-related-eval-active {
+    background: var(--tblr-primary-lt);
+    border-color: var(--tblr-primary);
+  }
+}
+
+.norca-related-eval-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tblr-link-color);
+  text-align: start;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

@@ -1,0 +1,18 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+<Jobs::PlanOutput @plan={{@data.planOutput}} @warnings={{this.warnings}} />
+
+<div class="d-flex flex-wrap gap-2">
+  <Ui::Button
+    @variant="primary"
+    @icon="player-play"
+    @isLoading={{@fns.onSubmit.isRunning}}
+    data-test-run
+    {{on "click" (perform @fns.onSubmit)}}
+  >Run</Ui::Button>
+  <Ui::Button @disabled={{@fns.onSubmit.isRunning}} data-test-cancel {{on "click" @fns.onReset}}>Cancel</Ui::Button>
+</div>

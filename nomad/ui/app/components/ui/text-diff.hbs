@@ -1,0 +1,37 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A line diff of two texts, unchanged runs collapsed.
+
+    <Ui::TextDiff @old={{this.saved}} @new={{this.edited}} @label="Policy rules" />
+--}}
+<div class="norca-text-diff" data-test-text-diff ...attributes>
+  <p class="small text-secondary mb-2" data-test-text-diff-stats>
+    {{#if this.isUnchanged}}
+      No changes.
+    {{else}}
+      <span class="text-success">{{this.stats.added}} {{pluralize "line" this.stats.added}} added</span>,
+      <span class="text-danger">{{this.stats.removed}} {{pluralize "line" this.stats.removed}} removed</span>
+    {{/if}}
+  </p>
+  {{#unless this.isUnchanged}}
+    <table class="norca-diff-table" aria-label={{concat "Changes of " (or @label "the text")}}>
+      <tbody>
+        {{#each this.lines as |line|}}
+          {{#if (eq line.type "skip")}}
+            <tr class="norca-diff-skip"><td colspan="3">{{line.count}} unchanged {{pluralize "line" line.count}}</td></tr>
+          {{else}}
+            <tr class="norca-diff-{{line.type}}" data-test-diff-line={{line.type}}>
+              <td class="norca-diff-no" aria-hidden="true">{{line.oldNo}}</td>
+              <td class="norca-diff-no" aria-hidden="true">{{line.newNo}}</td>
+              <td class="norca-diff-text">
+                {{#if (eq line.type "add")}}<span class="visually-hidden">Added: </span>+{{else if (eq line.type "del")}}<span class="visually-hidden">Removed: </span>-{{else}} {{/if}}{{line.text}}
+              </td>
+            </tr>
+          {{/if}}
+        {{/each}}
+      </tbody>
+    </table>
+  {{/unless}}
+</div>

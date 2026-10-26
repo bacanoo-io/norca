@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -60,7 +61,7 @@ module('Integration | Component | TopoViz::Datacenter', function (hooks) {
       @onNodeSelect={{this.onNodeSelect}} />
   `;
 
-  test('presents as a div with a label and a FlexMasonry with a collection of nodes', async function (assert) {
+  test('presents as a card with a label and the columns of nodes', async function (assert) {
     assert.expect(3);
 
     this.setProperties(
@@ -132,7 +133,7 @@ module('Integration | Component | TopoViz::Datacenter', function (hooks) {
     );
   });
 
-  test('when @isSingleColumn is true, the FlexMasonry layout gets one column, otherwise it gets two', async function (assert) {
+  test('when @isSingleColumn is true, the nodes get one column, otherwise two', async function (assert) {
     this.setProperties(
       commonProps({
         isSingleColumn: true,
@@ -148,10 +149,10 @@ module('Integration | Component | TopoViz::Datacenter', function (hooks) {
 
     await render(commonTemplate);
 
-    assert.ok(find('[data-test-flex-masonry].flex-masonry-columns-1'));
+    assert.ok(find('[data-test-topo-viz-nodes].norca-topo-columns-1'));
 
     this.set('isSingleColumn', false);
-    assert.ok(find('[data-test-flex-masonry].flex-masonry-columns-2'));
+    assert.ok(find('[data-test-topo-viz-nodes].norca-topo-columns-2'));
   });
 
   test('args get passed down to the TopViz::Node children', async function (assert) {

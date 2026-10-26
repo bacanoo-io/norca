@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -45,6 +46,7 @@ export default class Deployment extends Model {
 
   @attr('string') status;
   @attr('string') statusDescription;
+  @attr('boolean') isMultiregion;
 
   @equal('status', 'running') isRunning;
 

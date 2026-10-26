@@ -1,0 +1,16 @@
+{
+  "name": "norca-styles",
+  "private": true,
+  "keywords": [
+    "ember-addon"
+  ],
+  "engines": {
+    "node": ">= 20"
+  },
+  "dependencies": {
+    "@tabler/core": "*",
+    "broccoli-funnel": "*",
+    "broccoli-plugin": "*",
+    "postcss": "*"
+  }
+}

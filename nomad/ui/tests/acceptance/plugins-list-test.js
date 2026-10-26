@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -31,7 +32,7 @@ module('Acceptance | plugins list', function (hooks) {
     await PluginsList.visit();
 
     assert.equal(currentURL(), '/csi/plugins');
-    assert.equal(document.title, 'CSI Plugins - Nomad');
+    assert.equal(document.title, 'CSI Plugins - Norca');
   });
 
   test('/csi/plugins should list the first page of plugins sorted by id', async function (assert) {

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -8,7 +9,6 @@ import {
   create,
   collection,
   clickable,
-  hasClass,
   isPresent,
   property,
   text,
@@ -18,7 +18,6 @@ import {
 import allocations from 'nomad-ui/tests/pages/components/allocations';
 import taskGroups from 'nomad-ui/tests/pages/components/task-groups';
 import twoStepButton from 'nomad-ui/tests/pages/components/two-step-button';
-import recommendationAccordion from 'nomad-ui/tests/pages/components/recommendation-accordion';
 import jobClientStatusBar from 'nomad-ui/tests/pages/components/job-client-status-bar';
 
 export default create({
@@ -35,11 +34,6 @@ export default create({
     return this.tabs.toArray().findBy('id', id);
   },
 
-  recommendations: collection(
-    '[data-test-recommendation-accordion]',
-    recommendationAccordion
-  ),
-
   stop: twoStepButton('[data-test-stop]'),
   start: twoStepButton('[data-test-start]'),
   purge: twoStepButton('[data-test-purge]'),
@@ -50,8 +44,8 @@ export default create({
   execButton: {
     scope: '[data-test-exec-button]',
     isDisabled: property('disabled'),
-    hasTooltip: hasClass('tooltip'),
-    tooltipText: attribute('aria-label'),
+    hasTooltip: attribute('title'),
+    tooltipText: attribute('title'),
   },
 
   incrementButton: {
@@ -94,10 +88,10 @@ export default create({
   },
 
   childrenSummary: jobClientStatusBar(
-    '[data-test-children-status-bar]:not(.is-narrow)'
+    '[data-test-job-summary] [data-test-children-status-bar]'
   ),
   allocationsSummary: jobClientStatusBar(
-    '[data-test-allocation-status-bar]:not(.is-narrow)'
+    '[data-test-job-status-panel] [data-test-allocation-status-bar]'
   ),
   ...taskGroups(),
   ...allocations(),
@@ -105,12 +99,12 @@ export default create({
   viewAllAllocations: text('[data-test-view-all-allocations]'),
 
   jobsHeader: {
-    scope: '[data-test-jobs-header]',
-    hasSubmitTime: isPresent('[data-test-jobs-submit-time-header]'),
-    hasNamespace: isPresent('[data-test-jobs-namespace-header]'),
-    hasNodePool: isPresent('[data-test-jobs-node-pool-header]'),
-    hasType: isPresent('[data-test-jobs-type-header]'),
-    hasPriority: isPresent('[data-test-jobs-priority-header]'),
+    scope: '[data-test-ui-table] thead',
+    hasSubmitTime: isPresent('[data-test-ui-table-header="submitTime"]'),
+    hasNamespace: isPresent('[data-test-ui-table-header="namespace"]'),
+    hasNodePool: isPresent('[data-test-ui-table-header="nodePool"]'),
+    hasType: isPresent('[data-test-ui-table-header="type"]'),
+    hasPriority: isPresent('[data-test-ui-table-header="priority"]'),
   },
 
   jobs: collection('[data-test-job-row]', {
@@ -137,6 +131,8 @@ export default create({
   },
 
   recentAllocationsEmptyState: {
-    headline: text('[data-test-empty-recent-allocations-headline]'),
+    headline: text(
+      '[data-test-empty-recent-allocations] [data-test-empty-state-title]'
+    ),
   },
 });

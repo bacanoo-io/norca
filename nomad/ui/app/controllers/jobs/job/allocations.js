@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -17,13 +18,33 @@ import {
   deserializedQueryParam as selection,
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class AllocationsController extends Controller.extend(
   Sortable,
   Searchable,
-  WithNamespaceResetting
+  WithNamespaceResetting,
+  WithListActions
 ) {
+  viewParams = [
+    'qpStatus',
+    'qpClient',
+    'qpTaskGroup',
+    'qpVersion',
+    'qpScheduling',
+    'searchTerm',
+    'sortProperty',
+    'sortDescending',
+  ];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
   queryParams = [
     {
       currentPage: 'page',
@@ -166,7 +187,7 @@ export default class AllocationsController extends Controller.extend(
 
   @action
   gotoAllocation(allocation) {
-    this.transitionToRoute('allocations.allocation', allocation.id);
+    legacyTransitionTo(this, 'allocations.allocation', allocation.id);
   }
 
   get optionsAllocationStatus() {
@@ -180,7 +201,8 @@ export default class AllocationsController extends Controller.extend(
     ];
   }
 
-  @computed('model.allocations.[]', 'selectionClient')
+  // Not cached: the client names come from the allocations' nodes, which
+  // load after the allocations (autotracking follows them).
   get optionsClients() {
     const clients = Array.from(
       new Set(this.model.allocations.mapBy('node.shortId'))

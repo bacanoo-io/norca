@@ -1,10 +1,12 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
+import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 export default class DispatchRoute extends Route {
   @service can;
@@ -13,13 +15,13 @@ export default class DispatchRoute extends Route {
     const job = this.modelFor('jobs.job');
     const namespace = job.namespace.get('name');
     if (this.can.cannot('dispatch job', null, { namespace })) {
-      this.transitionTo('jobs.job');
+      legacyTransitionTo(this, 'jobs.job');
     }
   }
 
   model() {
     const job = this.modelFor('jobs.job');
-    if (!job) return this.transitionTo('jobs.job');
+    if (!job) return legacyTransitionTo(this, 'jobs.job');
     return job;
   }
 }

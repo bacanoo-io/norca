@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -124,6 +125,24 @@ export default class TopoVizNode extends Component {
   @action
   selectAllocation(allocation) {
     if (this.args.onAllocationSelect) this.args.onAllocationSelect(allocation);
+  }
+
+  // Keyboard access: Enter or Space selects the focused allocation (or the
+  // client in the dense view), like a click.
+  @action
+  allocationKeydown(allocation, event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.selectAllocation(allocation);
+    }
+  }
+
+  @action
+  nodeKeydown(event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.selectNode();
+    }
   }
 
   containsActiveTaskGroup() {

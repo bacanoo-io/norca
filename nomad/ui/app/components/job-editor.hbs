@@ -1,0 +1,29 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+<div class="norca-job-editor" data-test-job-editor-stage={{this.stage}}>
+  <JobEditor::Alert
+    @data={{merge (hash error=this.error stage=this.stage) this.data}}
+    @fns={{this.fns}}
+  />
+
+  {{#if (eq @context "new")}}
+    <Ui::Card class="mb-3" data-test-run-job-intro>
+      <p class="text-secondary">
+        Paste or author HCL or JSON to submit to your cluster, or select from a list of templates. A plan will be
+        requested before the job is submitted. You can also attach a job spec by uploading a job file.
+      </p>
+      {{#if (can "write variable" path="*" namespace="*")}}
+        <div class="d-flex flex-wrap gap-2">
+          <Ui::FileButton @label="Upload file" @icon="upload" @accept=".hcl,.json,.nomad" @onChange={{this.uploadJobSpec}} data-test-upload-job-spec />
+          <Ui::Button @route="jobs.run.templates" @icon="template" data-test-choose-template>Choose from template</Ui::Button>
+        </div>
+      {{/if}}
+    </Ui::Card>
+  {{/if}}
+  {{did-update this.setDefinitionOnModel this.definition}}
+  {{component (concat "job-editor/" this.stage) data=this.data fns=this.fns}}
+</div>

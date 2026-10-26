@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -29,6 +30,12 @@ export default class Allocation extends Model {
   @service store;
 
   @shortUUIDProperty('id') shortId;
+
+  // The short ID of the client, known before the client record loads.
+  get nodeShortId() {
+    const id = this.belongsTo('node').id();
+    return id ? id.split('-')[0] : '';
+  }
   @belongsTo('job') job;
   @belongsTo('node') node;
   @attr('string') namespace;
@@ -81,7 +88,7 @@ export default class Allocation extends Model {
 
   get hasBeenRestarted() {
     return this.states
-      .map((s) => s.events.content)
+      .map((s) => s.events.toArray())
       .flat()
       .find((e) => e.type === 'Restarting');
   }

@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -7,20 +8,26 @@ import { getOwner } from '@ember/application';
 import Controller from '@ember/controller';
 import { action } from '@ember/object';
 import { tracked } from '@glimmer/tracking';
-import { schedule } from '@ember/runloop';
+import { debounce, schedule } from '@ember/runloop';
 import { inject as service } from '@ember/service';
-import { useMachine } from 'ember-statecharts';
-import { use } from 'ember-usable';
+import { useMachine } from 'nomad-ui/utils/statechart';
 import evaluationsMachine from '../../machines/evaluations';
 
 const ALL_NAMESPACE_WILDCARD = '*';
+const PAGE_SIZES = [10, 25, 50];
+const SEARCH_DEBOUNCE_MS = 150;
+
+// The options of a filter as native select options: the "All" choice
+// (key null) becomes the empty value.
+function selectOptions(options) {
+  return options.map((o) => ({ value: o.key ?? '', label: o.label }));
+}
 
 export default class EvaluationsController extends Controller {
   @service store;
   @service userSettings;
 
   // We use statecharts here to manage complex user flows for the sidebar logic
-  @use
   statechart = useMachine(evaluationsMachine).withConfig({
     services: {
       loadEvaluation: this.loadEvaluation,
@@ -45,6 +52,62 @@ export default class EvaluationsController extends Controller {
     'searchTerm',
   ];
   @tracked currentEval = null;
+
+  columns = [
+    { key: 'id', label: 'Evaluation ID', hideable: false },
+    { key: 'resource', label: 'Resource' },
+    { key: 'priority', label: 'Priority' },
+    { key: 'created', label: 'Created' },
+    { key: 'triggeredBy', label: 'Triggered By' },
+    { key: 'status', label: 'Status' },
+    { key: 'placementFailures', label: 'Placement Failures' },
+  ];
+
+  get namespaceSelectOptions() {
+    return selectOptions(this.optionsNamespaces);
+  }
+
+  get statusSelectOptions() {
+    return selectOptions(this.optionsEvaluationsStatus);
+  }
+
+  get triggeredBySelectOptions() {
+    return selectOptions(this.optionsTriggeredBy);
+  }
+
+  get typeSelectOptions() {
+    return selectOptions(this.optionsType);
+  }
+
+  get pageSizeOptions() {
+    const sizes = new Set([...PAGE_SIZES, Number(this.pageSize)]);
+    return [...sizes]
+      .filter(Boolean)
+      .sort((a, b) => a - b)
+      .map((size) => ({ value: String(size), label: String(size) }));
+  }
+
+  @action
+  openEvaluation(evaluation) {
+    this.statechart.send('LOAD_EVALUATION', { evaluation });
+  }
+
+  @action
+  search(term) {
+    debounce(this, this.applySearch, term, SEARCH_DEBOUNCE_MS);
+  }
+
+  applySearch(term) {
+    this._resetTokens();
+    this.searchTerm = term || null;
+  }
+
+  @action
+  changePageSize(size) {
+    this._resetTokens();
+    this.userSettings.set('pageSize', Number(size));
+    this.pageSize = Number(size);
+  }
 
   @action
   _sidebarIsOpen() {
@@ -256,7 +319,8 @@ export default class EvaluationsController extends Controller {
   @action
   setQueryParam(qp, selection) {
     this._resetTokens();
-    this[qp] = selection;
+    // The "All" choice of a native select is the empty value.
+    this[qp] = selection === '' ? null : selection;
   }
 
   @action

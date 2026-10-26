@@ -396,6 +396,18 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyAdminNetworkPolicyUpsert(msgType, buf[1:], log.Index)
 	case structs.AdminNetworkPolicyDeleteRequestType:
 		return n.applyAdminNetworkPolicyDelete(msgType, buf[1:], log.Index)
+	case structs.SecretStoreBlobsUpsertRequestType:
+		return n.applySecretStoreBlobsUpsert(msgType, buf[1:], log.Index)
+	case structs.SecretStoreBlobsDeleteRequestType:
+		return n.applySecretStoreBlobsDelete(msgType, buf[1:], log.Index)
+	case structs.SealConfigUpsertRequestType:
+		return n.applySealConfigUpsert(msgType, buf[1:], log.Index)
+	case structs.SealRewrapDoneRequestType:
+		return n.applySealRewrapDone(msgType, buf[1:], log.Index)
+	case structs.SecretApplyRequestType:
+		return n.applySecretApply(msgType, buf[1:], log.Index)
+	case structs.SecretPurgeRequestType:
+		return n.applySecretPurge(msgType, buf[1:], log.Index)
 	}
 
 	// Check enterprise only message types.
@@ -1956,6 +1968,21 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case SecretStoreBlobSnapshot:
+			if err := restoreSecretStoreBlobSnapshot(restore, dec); err != nil {
+				return err
+			}
+
+		case SealConfigSnapshot:
+			if err := restoreSealConfigSnapshot(restore, dec); err != nil {
+				return err
+			}
+
+		case SecretSnapshot:
+			if err := restoreSecretSnapshot(restore, dec); err != nil {
+				return err
+			}
+
 		case AdmissionPolicySnapshot:
 			policy := new(structs.AdmissionPolicy)
 			if err := dec.Decode(policy); err != nil {
@@ -2552,6 +2579,18 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistNetworkPolicies(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistSecretStoreBlobs(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistSealConfig(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistSecrets(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}

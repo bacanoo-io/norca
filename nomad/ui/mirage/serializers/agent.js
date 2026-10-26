@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -7,7 +8,7 @@ import ApplicationSerializer from './application';
 
 export default ApplicationSerializer.extend({
   keyForAttribute(str) {
-    if (str === 'config' || str === 'member') {
+    if (['config', 'member', 'norca_version', 'nomad_version'].includes(str)) {
       return str;
     }
     return ApplicationSerializer.prototype.keyForAttribute.apply(this, arguments);

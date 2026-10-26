@@ -393,6 +393,7 @@ func (j *Job) enforceAdmission(op string, job *structs.Job, token *structs.ACLTo
 			"operation": op,
 			"namespace": job.Namespace,
 			"user":      admissionUserValue(user),
+			"secrets":   admissionSecretRefsValue(job, j.srv.config.VaultConfig.IsEnabled()),
 		}
 
 		var denials *multierror.Error

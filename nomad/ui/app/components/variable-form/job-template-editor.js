@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -18,8 +19,8 @@ export default class JobTemplateEditor extends Component {
   }
 
   @action
-  updateDescription(event) {
-    this.args.updateKeyValue('description', event.target.value);
+  updateDescription(value) {
+    this.args.updateKeyValue('description', value);
   }
   @action
   updateTemplate(value) {

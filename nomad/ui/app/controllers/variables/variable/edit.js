@@ -1,16 +1,19 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
 // @ts-check
 
-import Controller from '@ember/controller';
+import Controller, { inject as controller } from '@ember/controller';
+import { action } from '@ember/object';
 import { inject as service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
 
 export default class VariablesVariableEditController extends Controller {
   @service store;
+  @controller('variables.variable') variableController;
   queryParams = ['path', 'view'];
   get existingVariables() {
     return this.store.peekAll('variable');
@@ -23,6 +26,7 @@ export default class VariablesVariableEditController extends Controller {
   @tracked
   view = 'table';
 
+  @action
   toggleView() {
     if (this.view === 'table') {
       this.view = 'json';

@@ -232,6 +232,9 @@ func (b *Backup) fullRestorePreview(loaded *backup.Loaded) (*structs.BackupResto
 		preview.Warnings = append(preview.Warnings, fmt.Sprintf(
 			"%d ACL tokens were created after the backup and are deleted", preview.ACLTokensRemoved))
 	}
+	if w := secretStoreSealWarning(storedCoreEnvelope(loaded.State), backup.SealsOf(current), loaded.SecretStoreKey != nil); w != "" {
+		preview.Warnings = append(preview.Warnings, w)
+	}
 	if loaded.Keys == nil {
 		preview.Warnings = append(preview.Warnings,
 			"the backup has no keyring: Variables encrypted with keys missing from the current keyring are unreadable")
@@ -466,6 +469,11 @@ func (b *Backup) runFullRestore(ctx context.Context, record *structs.BackupResto
 	if err != nil {
 		return fail(err)
 	}
+	coreKey, err := backup.ReadSecretStoreKey(ctx, dest, backupRecord, st, ids)
+	if err != nil {
+		return fail(err)
+	}
+	defer clear(coreKey)
 
 	// 3. The keys of the backup into the keystore of every server, so the
 	// restored Variables and workload identities stay readable.
@@ -493,6 +501,9 @@ func (b *Backup) runFullRestore(ctx context.Context, record *structs.BackupResto
 	if err != nil {
 		return fail(err)
 	}
+	// Norca: the keystores of the servers are not restored, so the seals
+	// that wrap them are kept too.
+	sealConfig := b.srv.seal.keptSealConfig()
 
 	// 4. The Raft state.
 	if _, err := archive.Seek(0, io.SeekStart); err != nil {
@@ -504,6 +515,25 @@ func (b *Backup) runFullRestore(ctx context.Context, record *structs.BackupResto
 
 	if err := b.reapplyBackupRecords(backups, restores, record.ID); err != nil {
 		notes = append(notes, "failed to keep the current backup records: "+err.Error())
+	}
+	if err := b.srv.reapplySealConfig(sealConfig); err != nil {
+		notes = append(notes, "failed to keep the current keyring seal configuration: "+err.Error())
+	}
+	// Norca: a secret store wrapped by seals the region does not use is
+	// re-wrapped with the key of the backup, or stays sealed until it is
+	// recovered with the old shares.
+	if b.srv.secretCoreNeedsRecovery() {
+		switch {
+		case coreKey != nil:
+			if err := b.srv.recoverSecretCoreWithKey(ctx, coreKey); err != nil {
+				notes = append(notes, "failed to re-wrap the key of the restored secret store: "+err.Error())
+			} else {
+				notes = append(notes, "the key of the restored secret store was re-wrapped with the seals of the region")
+			}
+		default:
+			notes = append(notes, "the restored secret store is wrapped by seals this region does not use and stays sealed: "+
+				"recover it with the old shares ('norca operator unseal -recover')")
+		}
 	}
 
 	record.Status = structs.BackupRestoreStatusComplete

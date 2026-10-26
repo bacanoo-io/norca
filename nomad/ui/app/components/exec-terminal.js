@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -10,7 +11,7 @@ import { classNames } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 
 @classic
-@classNames('terminal-container')
+@classNames('norca-exec-terminal')
 export default class ExecTerminal extends Component.extend(WindowResizable) {
   didInsertElement() {
     super.didInsertElement(...arguments);
@@ -18,7 +19,7 @@ export default class ExecTerminal extends Component.extend(WindowResizable) {
     this.fitAddon = fitAddon;
     this.terminal.loadAddon(fitAddon);
 
-    this.terminal.open(this.element.querySelector('.terminal'));
+    this.terminal.open(this.element.querySelector('.norca-exec-xterm'));
 
     fitAddon.fit();
   }

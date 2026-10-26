@@ -33,6 +33,8 @@ norca version             # Norca v0.1.0 (Nomad API 1.6.5 compatible)
 
 The version line shows the Norca version and the Nomad version whose HTTP API and protocols Norca is compatible with; existing Nomad API clients, agents of the cluster and tools keep working against it.
 
+Step-by-step deployment examples with the new features (development agent, single node, three nodes, multi region): [example/](example/README.md).
+
 ### Compatibility alias `nomad`
 
 A copy of the binary, or a symlink to it, named `nomad` (`nomad.exe` on Windows) behaves exactly like `norca`: the same commands, the same output, and no extra text, so existing scripts keep working. The alias is not shipped or installed by default; create it yourself if you need it, e.g. `ln -s "$(command -v norca)" /usr/local/bin/nomad`. Help and usage texts always say `norca`.
@@ -79,7 +81,7 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | NATS pack (`packs/nats`: supercluster with JetStream and gateways, optional bridge) | Available | [packs/nats](packs/nats/README.md) |
 | Backup and restore: scheduled, age-encrypted backups to S3/MinIO, browsing and selective restore (`norca operator backup`) | Available (phases 1–2) | [plan](docs/design/backup-restore-plan.md) |
 | Backup and restore: full region restore with preview and two-person approval, keyring restore, `restore-bootstrap` for an empty cluster | Available (phase 4) | [plan](docs/design/backup-restore-plan.md) |
-| Backup and restore: web UI | Planned | [plan](docs/design/backup-restore-plan.md) |
+| Backup and restore: web UI (backup list, browse, compare and restore with an age identity, schedules) | Available (backup phase 3, in the new web UI) | [plan](docs/design/backup-restore-plan.md) |
 | Service discovery without Consul: health-based catalog, built-in DNS, Consul-compatible read layer for Traefik, Prometheus and consul-template (DNS and the compat layer are off by default) | Available (phases 1–3) | [plan](docs/design/consul-independence-plan.md) |
 | Service discovery without Consul: external services (address or DNS alias, TTL/HTTP/TCP checks, `norca service register`), Consul agent write endpoints in the compat layer | Available (phase 4) | [plan](docs/design/consul-independence-plan.md) |
 | Full Consul as an option: `packs/consul` installs and manages the official Consul release (not distributed by this project; BSL 1.1, accepted by the user at install) with gossip, TLS and ACL bootstrap through Norca Variables | Available (phase 6) | [plan](docs/design/consul-independence-plan.md), [packs/consul](packs/consul/README.md) |
@@ -89,7 +91,8 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Package management, client-side supply chain: OCI registries, cosign-compatible signing and trust policies, offline bundles (air-gapped), `pack.lock` | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/supply-chain.md) |
 | Package management: server-side releases (`packs.norca.io/Release` objects with revision history, atomic install/upgrade, hooks and tests, rollback, drift detection, uninstall), signature enforcement in admission (`trusted_keys`) | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
 | Package management: JSON Schema for pack variables (`variables_schema`, checked by the CLI and the servers), multi-region installs (`--regions`, global resources from the authoritative region, per-region status) | Available | [plan](docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
-| New web UI | In progress (phase 1) | [plan](docs/design/ui-plan.md) |
+| Embedded secret storage (sealed keyring with cloud KMS, transit or unseal shares; versioned, audited secrets; `secret` block delivering files and env); the existing Vault integration stays, further external providers (OpenBao, AWS, GCP and Scaleway secret managers, plugins) can be added, and lookups fall back to the built-in store when no external store is defined | In progress (phases 0–4: uBixVault core on Norca's Raft; `shares` seal with `norca operator unseal`, seal status and online rewrap; versioned `Secret` objects with `norca secret`, ACL capabilities, `SecretAccess` audit topic and audit file; `secret` block delivering files and env with `norca` and `vault` providers and fallback, `nomadSecret` template function, `secret_access` grants; Vault compatibility without a Vault: Vault-style `secret` template reads and task `vault` blocks served by the built-in store through a client Vault-compatible KV endpoint, `norca secret import -from-vault` / `-from-variable`) | [plan](docs/design/secrets-plan.md) |
+| New web UI: Ember 6.12 LTS with a Tabler base and ECharts, live updates over the event stream, dashboard as the landing page; every page on the Norca component layer (jobs, allocations, clients, servers and regions, topology, storage, evaluations, Variables, access, backups, quotas, scaling, services, intentions, network rules, multiregion deployments, packages, objects, type definitions, admission policies, with unified lists and HCL/JSON editors); WCAG 2.1 AA in light and dark mode; the previous UI stays at `/ui/legacy` for one release | Available (phases 1–4) | [plan](docs/design/ui-plan.md) |
 
 Only features marked "Available" can be used; the others are being built or are in the design phase.
 

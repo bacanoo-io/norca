@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -62,8 +63,6 @@ export default class ApplicationRoute extends Route {
         .perform()
         .catch();
 
-      const fetchLicense = this.get('system.fetchLicense').perform().catch();
-
       const checkFuzzySearchPresence = this.get(
         'system.checkFuzzySearchPresence'
       )
@@ -73,7 +72,6 @@ export default class ApplicationRoute extends Route {
       promises = await RSVP.all([
         this.get('system.regions'),
         this.get('system.defaultRegion'),
-        fetchLicense,
         fetchSelfTokenAndPolicies,
         checkFuzzySearchPresence,
       ]);
