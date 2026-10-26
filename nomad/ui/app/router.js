@@ -176,6 +176,10 @@ Router.map(function () {
     this.route('kind', { path: '/:group/:kind' });
   });
 
+  this.route('secrets', function () {
+    this.route('secret', { path: '/s/*path' });
+  });
+
   this.route('admission', function () {
     this.route('policy', { path: '/:name' });
   });

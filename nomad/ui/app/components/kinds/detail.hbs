@@ -2,11 +2,12 @@
   SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-<div data-test-kind-detail {{this.setup this.region}}>
+<div data-test-kind-detail {{this.setup this.region this.id}}>
   <Ui::PageHeader @pretitle="Type definitions" @title={{this.id}} @subtitle={{this.kind.Description}}>
     <:actions>
       <Ui::Button @route="objects" @query={{hash kind=this.id}} @icon="box" data-test-kind-objects-link>Objects</Ui::Button>
       {{#if (and this.kind this.canWrite)}}
+        <Ui::Button @variant="outline-danger" @icon="trash" data-test-delete-kind {{on "click" this.openDelete}}>Delete</Ui::Button>
         <Ui::Button @variant="primary" @icon="pencil" data-test-edit-kind {{on "click" this.openEditor}}>Edit</Ui::Button>
       {{/if}}
     </:actions>
@@ -22,10 +23,36 @@
         </Ui::EmptyState>
       </Ui::Card>
     {{else}}
+      {{#if this.pendingWebhooks}}
+        <Ui::Alert @tone="warning" @title="{{this.pendingWebhooks}} {{if (eq this.pendingWebhooks 1) 'webhook waits' 'webhooks wait'}} for approval" class="mb-3" data-test-kind-pending-webhooks>
+          A webhook is called only after a management token approved its configuration. Until then the writes it reviews
+          fail (or only warn with the failure policy ignore).
+          {{#unless this.canApprove}}Ask an administrator with a management token to approve it.{{/unless}}
+        </Ui::Alert>
+      {{/if}}
       <div class="row row-cards">
         <div class="col-lg-5">
           <Ui::Card @title="Definition">
-            <Ui::Datagrid @items={{this.details}} data-test-kind-details />
+            <Ui::Datagrid @items={{this.details}} data-test-kind-details as |g|>
+              <g.Item @title="Installed by" data-test-kind-owner>
+                {{#if this.owner}}
+                  <LinkTo @route="packages.release" @models={{array this.owner.namespace this.owner.name}}>Release {{this.owner.name}}</LinkTo>
+                  <div class="small text-secondary">namespace {{this.owner.namespace}}</div>
+                {{else if this.builtIn}}
+                  built-in
+                {{else}}
+                  <span class="text-secondary">no release (applied directly)</span>
+                {{/if}}
+              </g.Item>
+            </Ui::Datagrid>
+          </Ui::Card>
+          <Ui::Card @title="Limits" @subtitle="Load management of the objects of the kind" class="mt-3" data-test-kind-limits>
+            {{#if this.limits.length}}
+              <Ui::Datagrid @items={{this.limits}} />
+              <p class="text-secondary small mt-2 mb-0">Writes over a limit fail with 429 Too Many Requests; controllers back off and retry.</p>
+            {{else}}
+              <p class="text-secondary mb-0">No limits: the kind has no limits block.</p>
+            {{/if}}
           </Ui::Card>
           <Ui::Card @title="Columns" @flush={{true}} class="mt-3" data-test-kind-columns>
             <Ui::Table
@@ -42,7 +69,7 @@
           </Ui::Card>
         </div>
         <div class="col-lg-7">
-          <Ui::Card @title="Schema" @subtitle="JSON Schema of spec and status">
+          <Ui::Card @title="Schema" @subtitle="JSON Schema of spec and status, version {{or this.kind.Version 1}}">
             {{#if this.schema}}
               <Ui::CodeBlock @label="Schema" @code={{this.schema}} data-test-kind-schema />
             {{else}}
@@ -64,7 +91,7 @@
           <td>{{or r.Message "–"}}</td>
         </Ui::Table>
       </Ui::Card>
-      <Ui::Card @title="Webhooks" @flush={{true}} class="mt-3" data-test-kind-webhooks>
+      <Ui::Card @title="Webhooks" @subtitle="Type-bound admission webhooks, called over https" @flush={{true}} class="mt-3" data-test-kind-webhooks>
         <Ui::Table
           @inCard={{true}}
           @caption="Webhooks"
@@ -74,36 +101,97 @@
             (hash key="url" label="URL")
             (hash key="ops" label="Operations")
             (hash key="failure" label="On failure")
-            (hash key="approved" label="Approved")
+            (hash key="approved" label="Approval")
           }}
           @rows={{this.webhooks}}
           @emptyMessage="No webhooks validate or default the objects of this kind."
           as |w|
         >
-          <td>{{w.Name}}</td>
-          <td>{{w.Mode}}</td>
-          <td class="font-monospace text-break">{{w.URL}}</td>
+          <td data-test-webhook={{w.Name}}>{{w.Name}}</td>
+          <td>{{w.mode}}</td>
+          <td class="font-monospace text-break">
+            {{w.URL}}
+            <div class="small text-secondary">
+              timeout {{w.timeout}}{{#if w.TLSServerName}}, server name {{w.TLSServerName}}{{/if}}, {{if w.hasCA "CA from the package" "system CAs"}}
+            </div>
+          </td>
           <td>{{w.operations}}</td>
-          <td>{{w.FailurePolicy}}</td>
+          <td>{{w.failure}}</td>
           <td data-test-webhook-approved>
             {{#if w.approved}}
-              <Ui::StatusIndicator @tone="success" @label="yes" />
+              <Ui::StatusIndicator @tone="success" @label="approved" />
+              {{#if (or w.approvedBy w.approvedAt)}}
+                <div class="small text-secondary">{{#if w.approvedBy}}by {{w.approvedBy}} {{/if}}{{w.approvedAt}}</div>
+              {{/if}}
+              {{#if this.canApprove}}
+                <Ui::Button @size="sm" @variant="ghost" class="mt-1" data-test-revoke-webhook={{w.Name}} {{on "click" (fn this.openApproval w true)}}>Revoke</Ui::Button>
+              {{/if}}
             {{else}}
               <Ui::StatusIndicator @tone="warning" @label="waiting" />
-              <div class="small text-secondary">A management token must approve it before it is called.</div>
+              {{#if this.canApprove}}
+                <div>
+                  <Ui::Button @size="sm" @variant="primary" class="mt-1" data-test-approve-webhook={{w.Name}} {{on "click" (fn this.openApproval w false)}}>Approve</Ui::Button>
+                </div>
+              {{else}}
+                <div class="small text-secondary">A management token must approve it before it is called.</div>
+              {{/if}}
             {{/if}}
           </td>
         </Ui::Table>
       </Ui::Card>
-      {{#if this.migration}}
-        <Ui::Card @title="Migration" @subtitle="CEL that converts stored objects to this version" class="mt-3">
+      <Ui::Card @title="Migration" @subtitle="CEL that converts stored objects to schema version {{or this.kind.Version 1}}" class="mt-3" data-test-kind-migration>
+        {{#if this.migration}}
           <Ui::CodeBlock @label="Migration" @code={{this.migration}} @wrap={{true}} />
-        </Ui::Card>
-      {{/if}}
+          <p class="text-secondary small mt-2 mb-0">The leader migrates objects stored at an older version in the background; an object that fails gets a MigrationFailed event.</p>
+        {{else}}
+          <p class="text-secondary mb-0">No migration: stored objects keep their spec and status when the version changes.</p>
+        {{/if}}
+      </Ui::Card>
     {{/if}}
   </Ui::PageBody>
 
   {{#if this.editing}}
     <Kinds::Editor @kind={{this.kind}} @region={{this.region}} @onSaved={{this.saved}} @onClose={{this.closeEditor}} />
+  {{/if}}
+
+  {{#if this.approval}}
+    <Ui::Confirm
+      @title={{concat (if this.approval.revoke "Revoke" "Approve") " webhook " this.approval.webhook.Name "?"}}
+      @tone={{if this.approval.revoke "danger" "primary"}}
+      @confirmLabel={{if this.approval.revoke "Revoke approval" "Approve webhook"}}
+      @onConfirm={{this.confirmApproval}}
+      @onClose={{this.closeApproval}}
+      @isRunning={{this.isApproving}}
+      @error={{this.approvalError}}
+      data-test-webhook-confirm
+    >
+      {{#if this.approval.revoke}}
+        <p class="mb-0">The servers stop calling <span class="font-monospace text-break">{{this.approval.webhook.URL}}</span>. Writes of {{this.id}} objects it reviews then fail, unless its failure policy is ignore.</p>
+      {{else}}
+        <p>The servers will send the {{this.approval.webhook.operations}} writes of {{this.id}} objects, with the whole object, to</p>
+        <p class="font-monospace text-break">{{this.approval.webhook.URL}}</p>
+        <p class="mb-0">The approval holds for this configuration only: a change of the webhook in the kind needs a new approval.</p>
+      {{/if}}
+    </Ui::Confirm>
+  {{/if}}
+
+  {{#if this.deleting}}
+    <Ui::Confirm
+      @title={{concat "Delete the type definition " this.id "?"}}
+      @confirmLabel="Delete type definition"
+      @confirmIcon="trash"
+      @typedValue={{this.id}}
+      @onConfirm={{this.confirmDelete}}
+      @onClose={{this.closeDelete}}
+      @isRunning={{this.isDeleting}}
+      @error={{this.deleteError}}
+      data-test-kind-delete-confirm
+    >
+      <p class="mb-0">
+        Objects of the kind can no longer be written.
+        {{#if this.objectCount}}The kind still has {{this.objectCount}} {{if (eq this.objectCount 1) "object" "objects"}}; the server refuses the deletion while objects exist.{{/if}}
+        {{#if this.owner}}The kind belongs to release {{this.owner.name}}: uninstall or upgrade the release instead.{{/if}}
+      </p>
+    </Ui::Confirm>
   {{/if}}
 </div>

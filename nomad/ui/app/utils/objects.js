@@ -74,6 +74,124 @@ export function applyObject(
   );
 }
 
+// Deletes an object with a deletion mode (background, foreground or
+// orphan). With finalizers (or foreground) the object is only marked for
+// deletion; the answer is the object as it is after the request.
+export function deleteObject(
+  token,
+  region,
+  { group, kind, name, namespace },
+  { propagation, cas, dryRun = false } = {}
+) {
+  return apiRequest(
+    token,
+    `/v1/object/${enc(group)}/${enc(kind)}/${enc(name)}`,
+    {
+      method: 'DELETE',
+      params: {
+        region,
+        namespace,
+        propagation: propagation || undefined,
+        dry_run: dryRun ? 'true' : undefined,
+        cas: cas === undefined ? undefined : String(cas),
+      },
+    }
+  );
+}
+
+// The scale subresource of an object: Replicas (desired, at the spec path
+// of the kind) and StatusReplicas (observed, at the status path).
+export function getScale(token, region, { group, kind, name, namespace }) {
+  return apiRequest(
+    token,
+    `/v1/object/${enc(group)}/${enc(kind)}/${enc(name)}/scale`,
+    { params: { region, namespace } }
+  );
+}
+
+// Approves (or revokes) a type-bound webhook of a kind; management only.
+export function approveWebhook(token, region, group, kind, webhook, revoke) {
+  return apiRequest(
+    token,
+    `/v1/object-kind/${enc(group)}/${enc(kind)}/webhook/${enc(webhook)}/${
+      revoke ? 'revoke' : 'approve'
+    }`,
+    { method: 'PUT', params: { region } }
+  );
+}
+
+export function deleteKind(token, region, group, kind) {
+  return apiRequest(token, `/v1/object-kind/${enc(group)}/${enc(kind)}`, {
+    method: 'DELETE',
+    params: { region },
+  });
+}
+
+// The job meta of jobs owned by an object (the reserved owner key, see
+// structs.ObjectOwnerMetaValue): "<namespace>/crd/<group with dashes>/<Kind>/<name>".
+export const JOB_META_OWNER = 'norca.owner';
+export const JOB_META_OWNER_KIND = 'norca.owner.kind';
+
+export function ownerMetaValue({ group, kind, namespace, name }) {
+  return `${namespace || ''}/crd/${String(group).replace(
+    /\./g,
+    '-'
+  )}/${kind}/${name}`;
+}
+
+// The jobs an object owns, by the owner reference in their meta.
+export function listOwnedJobs(token, region, ref) {
+  return apiRequest(token, '/v1/jobs', {
+    params: {
+      region,
+      namespace: '*',
+      meta: 'true',
+      filter: `Meta["${JOB_META_OWNER}"] == "${ownerMetaValue(ref)}"`,
+    },
+  });
+}
+
+// Whether an owner reference of an object points at the given object. An
+// owner without a namespace is in the namespace of the owned object.
+export function ownsObject(owner, child, parent) {
+  if (!owner || owner.Kind !== `${parent.Group}/${parent.Kind}`) return false;
+  if (owner.Name !== parent.Name) return false;
+  if (owner.ID && parent.ID && owner.ID !== parent.ID) return false;
+  const ns = owner.Namespace || child.Namespace || '';
+  return ns === (parent.Namespace || '');
+}
+
+// The link of an owner reference of an object: another custom object, a
+// release of the package manager, a job, or nothing (a Variable).
+export function ownerLink(owner, object) {
+  const namespace = owner.Namespace || object?.Namespace || '';
+  if (owner.Kind === 'Job')
+    return {
+      label: `Job ${owner.Name}`,
+      route: 'jobs.job.index',
+      models: [`${owner.Name}@${namespace || 'default'}`],
+    };
+  if (owner.Kind === 'packs.norca.io/Release')
+    return {
+      label: `Release ${owner.Name}`,
+      route: 'packages.release',
+      models: [namespace || 'default', owner.Name],
+    };
+  const slash = owner.Kind.lastIndexOf('/');
+  if (slash > 0)
+    return {
+      label: `${owner.Kind.slice(slash + 1)} ${owner.Name}`,
+      route: 'objects.object',
+      models: [
+        owner.Kind.slice(0, slash),
+        owner.Kind.slice(slash + 1),
+        owner.Name,
+      ],
+      query: { namespace: namespace || null },
+    };
+  return { label: `${owner.Kind} ${owner.Name}` };
+}
+
 // The dry run of a kind write: the kind as it would be stored and the
 // migration report of the stored objects.
 export function planKind(token, region, group, kind, objectKind) {
@@ -300,6 +418,8 @@ export function objectHealth(object) {
   const observed = object?.Status?.observedGeneration;
   const behind =
     observed !== undefined && observed !== null && observed < object.Generation;
+  if (object?.DeletionTime)
+    return { tone: 'warning', label: 'deleting', behind };
   if (status(get('Degraded')) === 'True')
     return { tone: 'danger', label: 'degraded', behind };
   if (status(get('Ready')) === 'False')
@@ -309,6 +429,40 @@ export function objectHealth(object) {
     return { tone: 'success', label: 'ready', behind };
   return { tone: 'neutral', label: 'unknown', behind };
 }
+
+// The deletion state of an object marked for deletion: what it waits for.
+export function deletionState(object) {
+  if (!object?.DeletionTime) return null;
+  const finalizers = object.Finalizers || [];
+  const mode = object.DeletionPropagation || 'background';
+  let waiting;
+  if (finalizers.length)
+    waiting = `its controllers to remove the finalizers ${finalizers.join(
+      ', '
+    )}`;
+  else if (mode === 'foreground')
+    waiting = 'the objects and jobs it owns to be deleted first';
+  else waiting = 'the garbage collector';
+  return { mode, waiting, since: new Date(object.DeletionTime / 1e6) };
+}
+
+export const DELETION_MODES = [
+  {
+    value: 'background',
+    label: 'Background',
+    help: 'The object is deleted now; the objects and jobs it owns are deleted afterwards.',
+  },
+  {
+    value: 'foreground',
+    label: 'Foreground',
+    help: 'The objects and jobs it owns are deleted first, then the object.',
+  },
+  {
+    value: 'orphan',
+    label: 'Orphan',
+    help: 'Only the object is deleted; the objects and jobs it owns keep running.',
+  },
+];
 
 export function prettySchema(schema) {
   if (!schema) return '';

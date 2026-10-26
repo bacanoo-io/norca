@@ -68,7 +68,12 @@
     {{#if this.owner}}
       <Ui::Alert @tone="info" @title="Managed by {{if (eq this.owner.kind 'release') 'a release' (concat 'an object of kind ' this.owner.kind)}}" class="mt-3 mb-0" data-test-job-owner-note>
         This job belongs to {{if (eq this.owner.kind "release") "the release" this.owner.kind}}
-        <strong>{{this.owner.name}}</strong>{{#if this.owner.namespace}} in namespace {{this.owner.namespace}}{{/if}}.
+        {{#if this.owner.route}}
+          <LinkTo @route={{this.owner.route}} @models={{this.owner.models}} @query={{or this.owner.query (hash)}} class="fw-bold" data-test-job-owner-note-link>{{this.owner.name}}</LinkTo>
+        {{~else~}}
+          <strong>{{this.owner.name}}</strong>
+        {{~/if~}}
+        {{#if this.owner.namespace}} in namespace {{this.owner.namespace}}{{/if}}.
         Change it through its owner: a manual change is overwritten at the next reconcile.
       </Ui::Alert>
     {{/if}}

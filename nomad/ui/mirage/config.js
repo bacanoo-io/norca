@@ -77,7 +77,15 @@ function routes() {
     withBlockingSupport(function ({ jobs }, { queryParams }) {
       const json = this.serialize(jobs.all());
       const namespace = queryParams.namespace || 'default';
+      // Meta["key"] == "value" filters (the owner references of objects)
+      const metaFilter = /^Meta\["([^"]+)"\] == "([^"]*)"$/.exec(
+        queryParams.filter || ''
+      );
       return json
+        .filter(
+          (job) =>
+            !metaFilter || (job.Meta || {})[metaFilter[1]] === metaFilter[2]
+        )
         .filter((job) => {
           if (namespace === '*') return true;
           return namespace === 'default'
@@ -296,7 +304,9 @@ function routes() {
           jobs.find(deployment.JobID)?.namespaceId ||
           'default',
       }))
-      .filter((deployment) => namespace === '*' || deployment.Namespace === namespace);
+      .filter(
+        (deployment) => namespace === '*' || deployment.Namespace === namespace
+      );
   });
 
   this.get('/deployment/:id');
@@ -512,7 +522,10 @@ function routes() {
     return {
       Index: 1,
       Servers: schema.agents.all().models.map((agent) => {
-        const address = formatHost(agent.member.Address, agent.member.Tags.port);
+        const address = formatHost(
+          agent.member.Address,
+          agent.member.Tags.port
+        );
         return {
           ID: agent.id,
           Node: agent.name,
@@ -781,7 +794,6 @@ function routes() {
     return this.serialize(regions.all());
   });
 
-
   const clientAllocationStatsHandler = function (
     { clientAllocationStats },
     { params }
@@ -1039,7 +1051,6 @@ function routes() {
       };
     }
   );
-
 
   //#region Variables
 

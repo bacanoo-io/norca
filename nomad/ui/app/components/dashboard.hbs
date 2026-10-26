@@ -66,6 +66,19 @@
                         {{/if}}
                       </dd>
                     </div>
+                    {{#if column.seal}}
+                      <div class="norca-federation-row">
+                        <dt>Seal</dt>
+                        <dd data-test-region-seal>
+                          {{column.seal.types}}
+                          {{#if column.seal.sealed}}
+                            <span class="text-danger">({{column.seal.sealed}} sealed)</span>
+                          {{else if column.seal.total}}
+                            <span class="text-secondary">(unsealed)</span>
+                          {{/if}}
+                        </dd>
+                      </div>
+                    {{/if}}
                     {{#if column.backup}}
                       <div class="norca-federation-row">
                         <dt>Last backup</dt>

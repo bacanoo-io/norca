@@ -110,6 +110,8 @@ export default class ObjectsList extends Component {
     (k.Columns || []).forEach((c, i) =>
       columns.push({ key: `col-${i}`, label: c.Name, sortable: true })
     );
+    if (k.Scale)
+      columns.push({ key: 'scale', label: 'Scale (desired / current)' });
     columns.push(
       { key: 'healthLabel', label: 'Health', sortable: true },
       { key: 'generation', label: 'Generation' }
@@ -143,6 +145,13 @@ export default class ObjectsList extends Component {
           cells,
           health,
           healthLabel: health.label,
+          scale: k?.Scale
+            ? `${display(evaluatePath(o, k.Scale.SpecPath))} / ${display(
+                k.Scale.StatusPath
+                  ? evaluatePath(o, k.Scale.StatusPath)
+                  : undefined
+              )}`
+            : '',
           generation: `${o.Generation} / ${
             o.Status?.observedGeneration ?? '–'
           }`,

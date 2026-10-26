@@ -29,7 +29,11 @@
       {{#if this.owner}}
         <span data-test-job-owner>
           Managed by
-          {{#if (eq this.owner.kind "release")}}
+          {{#if this.owner.route}}
+            <LinkTo @route={{this.owner.route}} @models={{this.owner.models}} @query={{or this.owner.query (hash)}} data-test-job-owner-link>
+              <Ui::Badge @icon={{if (eq this.owner.kind "release") "package" "box"}} @color="purple">{{if (eq this.owner.kind "release") "release" this.owner.kind}} {{this.owner.name}}</Ui::Badge>
+            </LinkTo>
+          {{else if (eq this.owner.kind "release")}}
             <Ui::Badge @icon="package" @color="purple">release {{this.owner.name}}</Ui::Badge>
           {{else}}
             <Ui::Badge @icon="box" @color="purple">{{this.owner.kind}} {{this.owner.name}}</Ui::Badge>
