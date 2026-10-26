@@ -18,7 +18,7 @@
 # official release archive referenced below. Nomad does not need Consul to
 # run this job, so there is no circular dependency.
 job [[ $job | quote ]] {
-[[- template "consul.location" . ]]
+  [[- template "consul.location" . ]]
   type = "service"
 
   group "servers" {
@@ -33,22 +33,22 @@ job [[ $job | quote ]] {
       operator = "distinct_hosts"
       value    = "true"
     }
-[[- if ne $v.server_node_meta "" ]]
+    [[- if ne $v.server_node_meta "" ]]
 
     # Only on the nodes reserved for Consul servers.
     constraint {
       attribute = "${meta.[[ $v.server_node_meta ]]}"
       value     = "true"
     }
-[[- end ]]
-[[- if ne $v.zone_attribute "" ]]
+    [[- end ]]
+    [[- if ne $v.zone_attribute "" ]]
 
     # Spread the servers over the zones: losing a zone keeps the quorum.
     spread {
       attribute = [[ $v.zone_attribute | quote ]]
       weight    = 100
     }
-[[- if $v.zone_separate_required ]]
+    [[- if $v.zone_separate_required ]]
 
     # At most one server per zone (fork feature).
     separate {
@@ -58,8 +58,8 @@ job [[ $job | quote ]] {
       scope    = [[ $v.zone_attribute | quote ]]
       required = true
     }
-[[- end ]]
-[[- end ]]
+    [[- end ]]
+    [[- end ]]
 
     # Drains and evictions take down one server at a time, so the Raft
     # quorum survives (fork feature).
@@ -86,7 +86,7 @@ job [[ $job | quote ]] {
       min_healthy_time = [[ $v.min_healthy_time | quote ]]
       healthy_deadline = [[ $v.healthy_deadline | quote ]]
     }
-[[- if ne $v.driver "raw_exec" ]]
+    [[- if ne $v.driver "raw_exec" ]]
 
     # Raft log and snapshots. The scheduler only places servers on nodes that
     # have this host volume.
@@ -95,19 +95,19 @@ job [[ $job | quote ]] {
       source    = [[ $v.server_host_volume | quote ]]
       read_only = false
     }
-[[- end ]]
+    [[- end ]]
 
     network {
-[[ template "consul.port" (dict "label" "server" "number" $v.port_server "host_network" $hn) ]]
-[[ template "consul.port" (dict "label" "serf_lan" "number" $v.port_serf_lan "host_network" $hn) ]]
-[[ template "consul.port" (dict "label" "serf_wan" "number" $v.port_serf_wan "host_network" $hn) ]]
-[[ template "consul.port" (dict "label" "http" "number" $v.port_http "host_network" $hn) ]]
-[[ template "consul.port" (dict "label" "grpc" "number" $v.port_grpc "host_network" $hn) ]]
-[[- if $tls ]]
-[[ template "consul.port" (dict "label" "https" "number" $v.port_https "host_network" $hn) ]]
-[[ template "consul.port" (dict "label" "grpc_tls" "number" $v.port_grpc_tls "host_network" $hn) ]]
-[[- end ]]
-[[ template "consul.port" (dict "label" "dns" "number" $v.port_dns "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "server" "number" $v.port_server "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "serf_lan" "number" $v.port_serf_lan "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "serf_wan" "number" $v.port_serf_wan "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "http" "number" $v.port_http "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "grpc" "number" $v.port_grpc "host_network" $hn) ]]
+      [[- if $tls ]]
+      [[ template "consul.port" (dict "label" "https" "number" $v.port_https "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "grpc_tls" "number" $v.port_grpc_tls "host_network" $hn) ]]
+      [[- end ]]
+      [[ template "consul.port" (dict "label" "dns" "number" $v.port_dns "host_network" $hn) ]]
     }
 
     # Server discovery: the retry_join lists of the servers and the clients
@@ -241,13 +241,13 @@ job [[ $job | quote ]] {
 
     task "server" {
       [[ template "consul.runtime" (dict "ctx" . "script" "" "args" (list "agent" "-config-dir=${NOMAD_SECRETS_DIR}/consul.d")) ]]
-[[- if ne $v.driver "raw_exec" ]]
+      [[- if ne $v.driver "raw_exec" ]]
 
       volume_mount {
         volume      = "data"
         destination = "/consul/data"
       }
-[[- end ]]
+      [[- end ]]
 
       kill_timeout = "30s"
 
@@ -371,8 +371,8 @@ job [[ $job | quote ]] {
           {"retry_join": [{{ range $i, $s := nomadService "[[ $job ]]-serf" }}{{ if $i }}, {{ end }}"{{ $s.Address }}:{{ $s.Port }}"{{ end }}]}
         EOT
       }
-[[- if $tls ]]
-[[- range $item := list "ca_cert" "server_cert" "server_key" ]]
+      [[- if $tls ]]
+      [[- range $item := list "ca_cert" "server_cert" "server_key" ]]
 
       template {
         destination   = "secrets/tls/[[ $item ]].pem"
@@ -381,8 +381,8 @@ job [[ $job | quote ]] {
         change_signal = "SIGHUP"
         data          = "{{ with nomadVar \"[[ $serverVar ]]\" }}{{ .[[ $item ]].Value }}{{ end }}"
       }
-[[- end ]]
-[[- end ]]
+      [[- end ]]
+      [[- end ]]
 
       # The API service with the health check roles (fork feature): startup
       # until the RPC port is up, readiness while it answers (rolling updates
@@ -453,14 +453,14 @@ job [[ $job | quote ]] {
         delay    = "15s"
         mode     = "delay"
       }
-[[- range $item := list "management_token" "agent_token" "snapshot_token" ]]
+      [[- range $item := list "management_token" "agent_token" "snapshot_token" ]]
 
       template {
         destination = "secrets/[[ $item ]]"
         perms       = "0600"
         data        = "{{ with nomadVar \"[[ $serverVar ]]\" }}{{ .[[ $item ]].Value | trimSpace }}{{ end }}"
       }
-[[- end ]]
+      [[- end ]]
 
       template {
         destination = "secrets/accessors.env"
@@ -484,7 +484,7 @@ job [[ $job | quote ]] {
           }
         EOT
       }
-[[- if $v.snapshot_enabled ]]
+      [[- if $v.snapshot_enabled ]]
 
       template {
         destination = "local/snapshot-policy.hcl"
@@ -492,7 +492,7 @@ job [[ $job | quote ]] {
           acl = "write"
         EOT
       }
-[[- end ]]
+      [[- end ]]
 
       template {
         destination = "local/acl-setup.sh"

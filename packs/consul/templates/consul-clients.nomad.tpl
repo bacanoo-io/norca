@@ -13,18 +13,18 @@
 # the consul pack. Consul is the official HashiCorp release (BSL 1.1), not
 # distributed by Norca. Workloads reach their local agent on 127.0.0.1.
 job "[[ $job ]]-clients" {
-[[- template "consul.location" . ]]
+  [[- template "consul.location" . ]]
   type = "system"
 
   group "client" {
-[[- if ne $v.server_node_meta "" ]]
+    [[- if ne $v.server_node_meta "" ]]
     # Not on the server nodes: a server is the local agent of its node.
     constraint {
       attribute = "${meta.[[ $v.server_node_meta ]]}"
       operator  = "!="
       value     = "true"
     }
-[[- end ]]
+    [[- end ]]
 
     update {
       max_parallel     = 1
@@ -38,14 +38,14 @@ job "[[ $job ]]-clients" {
     }
 
     network {
-[[ template "consul.port" (dict "label" "serf_lan" "number" $v.port_serf_lan "host_network" $hn) ]]
-[[ template "consul.port" (dict "label" "http" "number" $v.port_http "host_network" $hn) ]]
-[[ template "consul.port" (dict "label" "grpc" "number" $v.port_grpc "host_network" $hn) ]]
-[[- if $tls ]]
-[[ template "consul.port" (dict "label" "https" "number" $v.port_https "host_network" $hn) ]]
-[[ template "consul.port" (dict "label" "grpc_tls" "number" $v.port_grpc_tls "host_network" $hn) ]]
-[[- end ]]
-[[ template "consul.port" (dict "label" "dns" "number" $v.port_dns "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "serf_lan" "number" $v.port_serf_lan "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "http" "number" $v.port_http "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "grpc" "number" $v.port_grpc "host_network" $hn) ]]
+      [[- if $tls ]]
+      [[ template "consul.port" (dict "label" "https" "number" $v.port_https "host_network" $hn) ]]
+      [[ template "consul.port" (dict "label" "grpc_tls" "number" $v.port_grpc_tls "host_network" $hn) ]]
+      [[- end ]]
+      [[ template "consul.port" (dict "label" "dns" "number" $v.port_dns "host_network" $hn) ]]
     }
 
     task "client" {
@@ -144,7 +144,7 @@ job "[[ $job ]]-clients" {
           {"retry_join": [{{ range $i, $s := nomadService "[[ $job ]]-serf" }}{{ if $i }}, {{ end }}"{{ $s.Address }}:{{ $s.Port }}"{{ end }}]}
         EOT
       }
-[[- if $tls ]]
+      [[- if $tls ]]
 
       template {
         destination   = "secrets/tls/ca_cert.pem"
@@ -153,7 +153,7 @@ job "[[ $job ]]-clients" {
         change_signal = "SIGHUP"
         data          = "{{ with nomadVar \"[[ $clientVar ]]\" }}{{ .ca_cert.Value }}{{ end }}"
       }
-[[- end ]]
+      [[- end ]]
 
       service {
         name     = "[[ $job ]]-client"

@@ -9,10 +9,10 @@ description = "Services marked for the LoadBalancer operator must name a valid f
 action      = [[ $v.admission_policy_action | quote ]]
 
 match {
-  resources  = ["job"]
-[[- if ne $v.namespace "*" ]]
+  resources = ["job"]
+  [[- if ne $v.namespace "*" ]]
   namespaces = [[ list $v.namespace | toStringList ]]
-[[- end ]]
+  [[- end ]]
 }
 
 rule {
