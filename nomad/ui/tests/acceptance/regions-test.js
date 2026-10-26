@@ -5,7 +5,7 @@
 
 /* eslint-disable qunit/require-expect */
 /* eslint-disable qunit/no-conditional-assertions */
-import { currentURL } from '@ember/test-helpers';
+import { currentURL, visit } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -226,5 +226,14 @@ module('Acceptance | regions (many)', function (hooks) {
         assert.ok(req.url.includes(`region=${region}`), req.url);
       }
     });
+  });
+
+  test('choosing All regions on the servers page stays on the servers page', async function (assert) {
+    await visit('/servers');
+    await Layout.navbar.regionSwitcher.select('*');
+
+    assert.ok(currentURL().startsWith('/servers'), 'Still on the servers page');
+    assert.strictEqual(Layout.navbar.regionSwitcher.value, '*');
+    window.localStorage.removeItem('norcaRegionScope');
   });
 });
