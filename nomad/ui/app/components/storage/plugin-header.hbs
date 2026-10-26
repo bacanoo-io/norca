@@ -1,0 +1,30 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The header of the CSI plugin pages: the position, the plugin ID and the
+  overview/allocations tabs; the page content goes in the block.
+~}}
+<Ui::PageHeader
+  @breadcrumbs={{array
+    (hash label="Storage" route="csi.volumes.index" id="csi.index")
+    (hash label="Plugins" route="csi.plugins.index" id="csi.plugins")
+    (hash label=@plugin.plainId id="csi.plugins.plugin")
+  }}
+  data-test-plugin-header
+>
+  <:title><span data-test-title>{{or @title @plugin.plainId}}</span></:title>
+  <:subtitle>{{@plugin.provider}}</:subtitle>
+</Ui::PageHeader>
+<Ui::PageBody>
+  <Ui::Tabs
+    @tabs={{array
+      (hash id="overview" label="Overview" route="csi.plugins.plugin.index" model=@plugin.plainId)
+      (hash id="allocations" label="Allocations" route="csi.plugins.plugin.allocations" model=@plugin.plainId)
+    }}
+    @label="Plugin sections"
+    class="mb-3"
+    data-test-subnav="plugins"
+  />
+  {{yield}}
+</Ui::PageBody>

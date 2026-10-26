@@ -1,0 +1,15 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The sections of the storage pages: CSI volumes and plugins.
+~}}
+<Ui::Tabs
+  @tabs={{array
+    (hash id="volumes" label="Volumes" route="csi.volumes.index")
+    (hash id="plugins" label="Plugins" route="csi.plugins.index")
+  }}
+  @label="Storage sections"
+  class="mb-3"
+  data-test-subnav="storage"
+/>

@@ -1,0 +1,34 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The controller or node allocations of a CSI plugin on the unified list:
+  the plugin allocation's health next to the allocation's details.
+  Sorting and paging are the caller's (optional).
+~}}
+<Ui::DataTable
+  @id={{@id}}
+  @caption={{@caption}}
+  @columns={{this.columns}}
+  @rows={{@pluginAllocations}}
+  @rowKey="allocID"
+  @sortBy={{@sortBy}}
+  @sortDescending={{@sortDescending}}
+  @onSort={{@onSort}}
+  @pageSize={{@pageSize}}
+  @page={{@page}}
+  @onPageChange={{@onPageChange}}
+  @onPageSizeChange={{@onPageSizeChange}}
+  @onRowClick={{this.gotoAllocation}}
+  @enumerate={{true}}
+  @columnPicker={{false}}
+  @noun="allocations"
+  data-test-plugin-allocations-table
+  ...attributes
+>
+  <:filters>{{yield to="filters"}}</:filters>
+  <:row as |pluginAllocation r|>
+    <Storage::PluginAllocationRow @pluginAllocation={{pluginAllocation}} @r={{r}} />
+  </:row>
+  <:empty>{{yield to="empty"}}</:empty>
+</Ui::DataTable>

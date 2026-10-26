@@ -89,7 +89,7 @@ module('Acceptance | volumes list', function (hooks) {
       const isHealthy = healthy > 0;
       controllerHealthStr = `${
         isHealthy ? 'Healthy' : 'Unhealthy'
-      } ( ${healthy} / ${expected} )`;
+      } (${healthy}/${expected})`;
     }
 
     const nodeHealthStr = volume.nodesHealthy > 0 ? 'Healthy' : 'Unhealthy';
@@ -103,7 +103,7 @@ module('Acceptance | volumes list', function (hooks) {
     assert.equal(volumeRow.controllerHealth, controllerHealthStr);
     assert.equal(
       volumeRow.nodeHealth,
-      `${nodeHealthStr} ( ${volume.nodesHealthy} / ${volume.nodesExpected} )`
+      `${nodeHealthStr} (${volume.nodesHealthy}/${volume.nodesExpected})`
     );
     assert.equal(volumeRow.provider, volume.provider);
     assert.equal(volumeRow.allocations, readAllocs.length + writeAllocs.length);
