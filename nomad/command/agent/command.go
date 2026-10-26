@@ -442,6 +442,14 @@ func (c *Command) IsValidConfig(config, cmdConfig *Config) bool {
 		return false
 	}
 
+	// The values of the Norca blocks (keyring, backup, autoscaler, mtls,
+	// admission, secrets, dns, consul_compat), checked as the agent checks
+	// them when it starts.
+	if err := validateNorcaBlocks(config); err != nil {
+		c.Ui.Error(err.Error())
+		return false
+	}
+
 	if !config.DevMode {
 		// Ensure that we have the directories we need to run.
 		if config.Server.Enabled && config.DataDir == "" {

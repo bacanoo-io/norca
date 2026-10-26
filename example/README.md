@@ -114,9 +114,11 @@ norca pack render ./example/packs/test-app -f <vars.hcl>  # the variables schema
 norca job validate <job file>                             # without an agent: structural checks only
 ```
 
-`norca config validate` checks the syntax and the known keys; the values of
-the `keyring`, `backup` and `autoscaler` blocks are checked when the agent
-starts. Without a reachable agent `norca job validate` skips the server-side
+`norca config validate` checks the syntax, the known keys and the values,
+including those of the Norca blocks (`keyring`, `backup`, `autoscaler`,
+`mtls`, `admission`, `secrets`, `dns`, `consul_compat`) as the agent checks
+them when it starts; the placeholders (`CHANGE_ME`) must be replaced first.
+Without a reachable agent `norca job validate` skips the server-side
 checks (admission, mTLS injection, typed scaling policies), so a job with
 only a gateway service (no task, like `04-multi-region/mtls-gateway.nomad.hcl`)
 fails there although the servers accept it.
