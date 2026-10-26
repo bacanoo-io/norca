@@ -126,6 +126,24 @@ export default class TopoVizNode extends Component {
     if (this.args.onAllocationSelect) this.args.onAllocationSelect(allocation);
   }
 
+  // Keyboard access: Enter or Space selects the focused allocation (or the
+  // client in the dense view), like a click.
+  @action
+  allocationKeydown(allocation, event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.selectAllocation(allocation);
+    }
+  }
+
+  @action
+  nodeKeydown(event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.selectNode();
+    }
+  }
+
   containsActiveTaskGroup() {
     return this.args.node.allocations.some(
       (allocation) =>

@@ -1,22 +1,23 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<div data-test-topo-viz-datacenter class="boxed-section topo-viz-datacenter">
-  <div data-test-topo-viz-datacenter-label class="boxed-section-head is-hollow">
-    <span class="tooltip" aria-label="Datacenter"><strong>{{@datacenter.name}}</strong></span>
-    <span class="bumper-left tooltip" aria-label="Number of Allocations">{{this.scheduledAllocations.length}} Allocs</span>
-    <span class="bumper-left tooltip" aria-label="Number of Nodes">{{@datacenter.nodes.length}} Nodes</span>
-    <span class="bumper-left is-faded">
-      <span class="tooltip" aria-label="Memory Allocated">{{format-bytes this.aggregatedAllocationResources.memory start="MiB"}}</span> /
-      <span class="tooltip" aria-label="Total Memory">{{format-bytes this.aggregatedNodeResources.memory start="MiB"}},</span>
-      <span class="tooltip" aria-label="CPU Allocated">{{format-hertz this.aggregatedAllocationResources.cpu}}</span> /
-      <span class="tooltip" aria-label="Total CPU">{{format-hertz this.aggregatedNodeResources.cpu}}</span>
+<Ui::Card data-test-topo-viz-datacenter class="norca-topo-datacenter">
+  <div data-test-topo-viz-datacenter-label class="d-flex flex-wrap align-items-baseline gap-2 mb-3">
+    <h3 class="h3 mb-0" title="Datacenter">{{@datacenter.name}}</h3>
+    <span title="Number of allocations">{{this.scheduledAllocations.length}} Allocs</span>
+    <span title="Number of nodes">{{@datacenter.nodes.length}} Nodes</span>
+    <span class="text-secondary">
+      <span title="Memory allocated">{{format-bytes this.aggregatedAllocationResources.memory start="MiB"}}</span> /
+      <span title="Total memory">{{format-bytes this.aggregatedNodeResources.memory start="MiB"}},</span>
+      <span title="CPU allocated">{{format-hertz this.aggregatedAllocationResources.cpu}}</span> /
+      <span title="Total CPU">{{format-hertz this.aggregatedNodeResources.cpu}}</span>
     </span>
   </div>
-  <div class="boxed-section-body">
-    <FlexMasonry @columns={{if @isSingleColumn 1 2}} @items={{@datacenter.nodes}} as |node|>
+  <div class="norca-topo-columns {{if @isSingleColumn "norca-topo-columns-1" "norca-topo-columns-2"}}" data-test-topo-viz-nodes>
+    {{#each @datacenter.nodes as |node|}}
       <TopoViz::Node
         @node={{node}}
         @isDense={{@isDense}}
@@ -25,6 +26,6 @@
         @onAllocationFocus={{@onAllocationFocus}}
         @onAllocationBlur={{@onAllocationBlur}}
         @onNodeSelect={{@onNodeSelect}} />
-    </FlexMasonry>
+    {{/each}}
   </div>
-</div>
+</Ui::Card>
