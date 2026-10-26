@@ -337,10 +337,7 @@ export default class KeyboardService extends Service {
    */
   recordKeypress(type, event) {
     const inputElements = ['input', 'textarea', 'code'];
-    const disallowedClassNames = [
-      'ember-basic-dropdown-trigger',
-      'dropdown-option',
-    ];
+    const disallowedClassNames = ['dropdown-option'];
     const targetElementName = (event.target.nodeName || '').toLowerCase();
     const inputDisallowed =
       inputElements.includes(targetElementName) ||

@@ -5,7 +5,7 @@
 ~}}
 
 {{page-title "Jobs"}}
-<PageLayout @legacy={{false}}>
+<PageLayout>
   <Ui::PageHeader @pretitle="Workloads" @title="Jobs" @subtitle={{this.scopeLabel}}>
     <:actions>
       {{#if (can "run job" namespace=this.qpNamespace)}}

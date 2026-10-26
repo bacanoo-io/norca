@@ -1,17 +1,9 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * SPDX-FileCopyrightText: 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
-@import './core';
-
-@import 'ember-power-select/ember-power-select';
-
-@import './components';
-@import '@hashicorp/design-system-components';
-@import './charts';
-
-// The styles of the new UI. lib/norca-styles scopes everything above this
-// marker to .legacy and leaves the rest global.
-/*! norca-styles: unscoped below */
+// The styles of the UI: design tokens and the component layer on top of
+// Tabler, which lib/norca-styles loads as a cascade layer.
 @import './norca';
