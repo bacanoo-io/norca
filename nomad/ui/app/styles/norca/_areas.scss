@@ -21,3 +21,14 @@
   border-radius: var(--tblr-border-radius);
   padding: 0.75rem 0.9rem;
 }
+
+// The key column of the items of a secret form.
+.norca-secret-key {
+  flex: 0 0 12rem;
+  max-width: 100%;
+}
+
+// A revealed secret value: kept on one line, breaks anywhere.
+.norca-secret-value {
+  word-break: break-all;
+}

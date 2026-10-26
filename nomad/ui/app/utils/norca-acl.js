@@ -88,6 +88,44 @@ export function allowsNamespace(token, namespace, capabilities) {
   });
 }
 
+// A secret capability (list-secrets, read-secret, write-secret,
+// destroy-secret) on a secret path in the namespace, like the server
+// (acl.AllowSecretOperation): the namespace capabilities or the most
+// specific secret path rule grant it, a deny in either refuses it, and
+// read-secret implies list-secrets. With path "*" any rule granting the
+// capability on some path counts (the page lists what is visible).
+export function allowsSecret(token, namespace, path, capability) {
+  if (isUnrestricted(token)) return true;
+  const grants = (caps) =>
+    caps.includes(capability) ||
+    (capability === 'list-secrets' && caps.includes('read-secret'));
+  return namespaceRules(token, namespace || 'default').some((rule) => {
+    const nsCaps = rule.Capabilities || [];
+    if (nsCaps.includes('deny')) return false;
+    const rules = (rule.Secrets || []).filter((s) => s.PathSpec);
+    if (path === '*') {
+      return (
+        grants(nsCaps) ||
+        rules.some((s) => {
+          const caps = s.Capabilities || [];
+          return !caps.includes('deny') && grants(caps);
+        })
+      );
+    }
+    const exact = rules.find((s) => s.PathSpec === path);
+    const match =
+      exact ||
+      rules
+        .filter(
+          (s) => s.PathSpec.includes('*') && globMatches(s.PathSpec, path)
+        )
+        .sort((a, b) => b.PathSpec.length - a.PathSpec.length)[0];
+    const pathCaps = match?.Capabilities || [];
+    if (pathCaps.includes('deny')) return false;
+    return grants(nsCaps) || grants(pathCaps);
+  });
+}
+
 // An object capability (read, write, ...) on a kind ("group/Kind") in the
 // namespace. Object rules accept a policy shorthand (write = read + write).
 export function allowsObject(token, namespace, kind, capability = 'read') {
