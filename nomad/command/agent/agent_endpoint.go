@@ -109,6 +109,8 @@ func (s *HTTPServer) AgentSelfRequest(resp http.ResponseWriter, req *http.Reques
 		self.Config.Server.Backup.Redact()
 	}
 
+	redactNorcaConfig(self.Config)
+
 	return self, nil
 }
 
