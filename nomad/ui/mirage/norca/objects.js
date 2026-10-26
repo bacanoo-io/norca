@@ -249,6 +249,114 @@ export default function registerObjectRoutes(server) {
     return json(object, index);
   });
 
+  // Deletion: objects with finalizers (or in the foreground mode) are only
+  // marked; others are removed at once.
+  server.delete('/object/:group/:kind/:name', function ({ db }, request) {
+    const { params, queryParams } = request;
+    const stored = objectOf(db, params, queryParams);
+    if (!stored)
+      return error(
+        404,
+        `${params.group}/${params.kind} "${params.name}" not found`
+      );
+    if (
+      queryParams.cas !== undefined &&
+      Number(queryParams.cas) !== stored.ModifyIndex
+    )
+      return error(409, 'object modified concurrently');
+    const propagation = queryParams.propagation || 'background';
+    if (!['background', 'foreground', 'orphan'].includes(propagation))
+      return error(400, `invalid propagation "${propagation}"`);
+    const c = collection(db, 'norcaObjects');
+    if ((stored.Finalizers || []).length || propagation === 'foreground') {
+      const index = nextIndex(db);
+      const marked = {
+        DeletionTime: Date.now() * 1e6,
+        DeletionPropagation: propagation,
+        ModifyIndex: index,
+      };
+      c.update(stored.id, marked);
+      return json(view({ ...stored, ...marked }), index);
+    }
+    c.remove(stored.id);
+    return json(view(stored));
+  });
+
+  server.get(
+    '/object/:group/:kind/:name/scale',
+    function ({ db }, { params, queryParams }) {
+      const kind = kindOf(db, params);
+      const o = objectOf(db, params, queryParams);
+      if (!o) return error(404, 'object not found');
+      if (!kind?.Scale)
+        return error(400, 'the object kind has no scale subresource');
+      const at = (root, path) =>
+        String(path)
+          .split('.')
+          .reduce((v, k) => (v === undefined || v === null ? v : v[k]), root);
+      const status = kind.Scale.StatusPath
+        ? at({ spec: o.Spec, status: o.Status }, kind.Scale.StatusPath)
+        : undefined;
+      return json({
+        Group: o.Group,
+        Kind: o.Kind,
+        Namespace: o.Namespace,
+        Name: o.Name,
+        Replicas: at({ spec: o.Spec, status: o.Status }, kind.Scale.SpecPath),
+        StatusReplicas: status === undefined ? null : status,
+        SpecPath: kind.Scale.SpecPath,
+        StatusPath: kind.Scale.StatusPath,
+        Generation: o.Generation,
+        ModifyIndex: o.ModifyIndex,
+      });
+    }
+  );
+
+  // Webhook approval: the digest stands for the webhook's configuration.
+  server.put(
+    '/object-kind/:group/:kind/webhook/:webhook/:op',
+    function ({ db }, { params }) {
+      const kind = kindOf(db, params);
+      if (!kind) return error(404, 'object kind not found');
+      const webhooks = (kind.Webhooks || []).map((w) => ({ ...w }));
+      const w = webhooks.find((x) => x.Name === params.webhook);
+      if (!w)
+        return error(
+          404,
+          `object kind "${params.group}/${params.kind}" has no webhook "${params.webhook}"`
+        );
+      w.Approval =
+        params.op === 'revoke'
+          ? null
+          : {
+              Digest: 'sha256:mirage',
+              ApprovedBy: 'token:mirage',
+              ApproveTime: Date.now() * 1e6,
+            };
+      const index = nextIndex(db);
+      collection(db, 'norcaObjectKinds').update(kind.id, {
+        Webhooks: webhooks,
+        ModifyIndex: index,
+      });
+      return json(plain(kindOf(db, params)), index);
+    }
+  );
+
+  server.delete('/object-kind/:group/:kind', function ({ db }, { params }) {
+    const kind = kindOf(db, params);
+    if (!kind) return error(404, 'object kind not found');
+    const objects = collection(db, 'norcaObjects').where(
+      (o) => o.Group === params.group && o.Kind === params.kind
+    );
+    if (objects.length)
+      return error(
+        409,
+        `object kind "${params.group}/${params.kind}" still has objects; delete them first`
+      );
+    collection(db, 'norcaObjectKinds').remove(kind.id);
+    return json(null);
+  });
+
   server.post('/object-kind/:group/:kind/plan', function ({ db }, request) {
     return json(planKind(db, request.params, body(request)));
   });

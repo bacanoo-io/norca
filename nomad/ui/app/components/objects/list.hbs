@@ -67,6 +67,7 @@
                 {{#each o.cells as |cell|}}
                   <r.Cell @key={{cell.key}} data-test-object-cell>{{cell.value}}</r.Cell>
                 {{/each}}
+                <r.Cell @key="scale" class="tabular-nums" data-test-object-scale>{{o.scale}}</r.Cell>
                 <r.Cell @key="healthLabel"><Ui::StatusIndicator @tone={{o.health.tone}} @label={{o.health.label}} data-test-object-health /></r.Cell>
                 <r.Cell @key="generation" title="generation / observed by the controller" data-test-object-generation>{{o.generation}}</r.Cell>
               </r.Row>
