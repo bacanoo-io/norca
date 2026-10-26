@@ -9,6 +9,7 @@ import { inject as service } from '@ember/service';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import { errorMessage } from 'nomad-ui/utils/norca-api';
+import formatHost from 'nomad-ui/utils/format-host';
 import {
   serviceInstances,
   listIntentions,
@@ -64,6 +65,7 @@ export default class ServicesDetail extends Component {
           ...i,
           region: r.region,
           shortAlloc: i.AllocID ? i.AllocID.split('-')[0] : '',
+          hostPort: formatHost(i.Address, i.Port) || i.Address || '–',
           roleChecks: ROLES.map((role) => {
             const c = checks.filter((x) => x.Role === role);
             if (!c.length) return null;

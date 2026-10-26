@@ -5,6 +5,8 @@
 
 // Helpers of the acceptance tests of the new feature areas.
 
+import { waitUntil } from '@ember/test-helpers';
+
 // Signs in with a new token. With rulesJSON the token gets one policy with
 // those parsed rules (as the agent returns them); type "management" passes
 // every check.
@@ -33,4 +35,15 @@ export function lastRequest(method, fragment) {
 export function lastBody(method, fragment) {
   const request = lastRequest(method, fragment);
   return request ? JSON.parse(request.requestBody) : undefined;
+}
+
+// The texts an ECharts chart drew (SVG renderer). ECharts loads lazily
+// outside the test waiters, so this waits until the chart has drawn text.
+export async function chartTexts(selector) {
+  const texts = () =>
+    [...document.querySelectorAll(`${selector} svg text`)].map((t) =>
+      t.textContent.trim()
+    );
+  await waitUntil(() => texts().length > 0, { timeout: 5000 });
+  return texts();
 }

@@ -40,7 +40,7 @@
               {{/if}}
             </td>
             {{#if this.isAllRegions}}<td><span class="norca-region">{{i.region}}</span></td>{{/if}}
-            <td class="font-monospace">{{i.Address}}:{{i.Port}}</td>
+            <td class="font-monospace" data-test-instance-address>{{i.hostPort}}</td>
             {{#each i.roleChecks as |check|}}
               <td>
                 {{#if check}}

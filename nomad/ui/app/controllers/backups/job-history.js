@@ -8,14 +8,14 @@ import { tracked } from '@glimmer/tracking';
 import { action } from '@ember/object';
 
 export default class BackupsJobHistoryController extends Controller {
-  queryParams = ['job', 'namespace'];
+  queryParams = ['job', { qpNamespace: 'namespace' }];
 
   @tracked job = null;
-  @tracked namespace = null;
+  @tracked qpNamespace = null;
 
   @action
   search({ job, namespace }) {
     this.job = job;
-    this.namespace = namespace;
+    this.qpNamespace = namespace;
   }
 }

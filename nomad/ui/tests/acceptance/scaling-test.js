@@ -10,7 +10,7 @@ import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import { seedScaling } from 'nomad-ui/mirage/norca/scaling';
-import { useToken } from 'nomad-ui/tests/helpers/norca';
+import { useToken, chartTexts } from 'nomad-ui/tests/helpers/norca';
 
 module('Acceptance | scaling', function (hooks) {
   setupApplicationTest(hooks);
@@ -103,6 +103,9 @@ module('Acceptance | scaling', function (hooks) {
       .dom('[data-test-policy-checks]')
       .includesText('target-value: target=70');
     assert.dom('[data-test-policy-chart] [data-test-chart]').exists();
+    const texts = await chartTexts('[data-test-policy-chart]');
+    assert.ok(texts.includes('min'), 'the chart marks the minimum count');
+    assert.ok(texts.includes('max'), 'the chart marks the maximum count');
     assert
       .dom('[data-test-policy-events] [data-test-ui-table-row]')
       .exists({ count: 3 });

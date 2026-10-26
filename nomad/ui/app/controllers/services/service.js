@@ -7,7 +7,7 @@ import Controller from '@ember/controller';
 import { tracked } from '@glimmer/tracking';
 
 export default class ServicesServiceController extends Controller {
-  queryParams = ['namespace'];
+  queryParams = [{ qpNamespace: 'namespace' }];
 
-  @tracked namespace = null;
+  @tracked qpNamespace = null;
 }

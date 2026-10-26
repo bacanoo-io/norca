@@ -14,6 +14,21 @@
   color: inherit;
 }
 
+// The caption of Ui::Table, for screen readers only. The Bootstrap
+// .visually-hidden class keeps a caption in the table layout with a -1px
+// margin, so the table overflows its .table-responsive wrapper by 1px and
+// the wrapper shows a vertical scrollbar.
+.norca-table-caption {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .cursor-pointer {
   cursor: pointer;
 }

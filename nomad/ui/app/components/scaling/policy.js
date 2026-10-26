@@ -128,7 +128,13 @@ export default class ScalingPolicy extends Component {
       tooltip: { trigger: 'axis' },
       grid: { left: 40, right: 20, top: 20, bottom: 30 },
       xAxis: { type: 'time' },
-      yAxis: { type: 'value', minInterval: 1, min: 0 },
+      // The axis reaches the maximum of the policy, so its line shows.
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+        min: 0,
+        max: (extent) => Math.max(extent.max, p.Max || 0),
+      },
       series: [
         {
           name: 'Count',

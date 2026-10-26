@@ -10,7 +10,12 @@ import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import { seedNetwork } from 'nomad-ui/mirage/norca/network';
-import { useToken, lastBody, lastRequest } from 'nomad-ui/tests/helpers/norca';
+import {
+  useToken,
+  lastBody,
+  lastRequest,
+  chartTexts,
+} from 'nomad-ui/tests/helpers/norca';
 
 module('Acceptance | services and network', function (hooks) {
   setupApplicationTest(hooks);
@@ -80,6 +85,21 @@ module('Acceptance | services and network', function (hooks) {
     await a11yAudit(assert, STRICT);
   });
 
+  test('a detail page opened without a namespace uses the default namespace', async function (assert) {
+    useToken(null, 'management');
+    seedNetwork(server);
+    await visit('/services/api');
+
+    assert.dom('[data-test-page-subtitle]').hasText('namespace default');
+    assert.ok(
+      lastRequest('GET', '/v1/service/api').url.includes('namespace=default'),
+      'the instances are read from the default namespace'
+    );
+    assert
+      .dom('[data-test-service-instances] [data-test-ui-table-row]')
+      .exists({ count: 3 });
+  });
+
   test('without services the catalog says how they appear', async function (assert) {
     useToken(null, 'management');
     await visit('/services');
@@ -98,6 +118,10 @@ module('Acceptance | services and network', function (hooks) {
       .dom('[data-test-page-title]')
       .hasText('Intentions and network rules');
     assert.dom('[data-test-intention-graph] [data-test-chart]').exists();
+    assert.ok(
+      (await chartTexts('[data-test-intention-graph]')).includes('postgres'),
+      'the graph draws the services'
+    );
     assert
       .dom('[data-test-intention-list] [data-test-ui-table-row]')
       .exists({ count: 3 });

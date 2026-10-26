@@ -17,8 +17,10 @@ import {
   deleteIntention,
 } from 'nomad-ui/utils/networking';
 
-const ALLOW = '#2fb344';
-const DENY = '#d63939';
+// Edge colors with at least 3:1 contrast on the light and the dark card
+// surface (WCAG 1.4.11); denied edges are dashed as well.
+const ALLOW = '#2f9e44';
+const DENY = '#e03131';
 
 function endpoint(namespace, name, base) {
   const ns = namespace || 'default';
@@ -88,10 +90,10 @@ export default class NetworkIntentions extends Component {
           circular: { rotateLabel: false },
           roam: false,
           symbolSize: 18,
-          label: { show: true, position: 'right' },
+          label: { show: true, position: 'right', textBorderWidth: 0 },
           edgeSymbol: ['none', 'arrow'],
           edgeSymbolSize: 9,
-          lineStyle: { width: 2, curveness: 0.15 },
+          lineStyle: { width: 2, curveness: 0.15, opacity: 1 },
           data: [...names].map((name) => ({ name })),
           links: this.rows.map((r) => ({
             source: r.source,
