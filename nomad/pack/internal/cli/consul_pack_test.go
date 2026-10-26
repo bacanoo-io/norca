@@ -19,19 +19,19 @@ import (
 	ct "github.com/hashicorp/nomad/pack/internal/cli/testhelper"
 )
 
-// The tests in this file render the consul pack of the repository's pack
-// registry (packs/consul) with several variable sets, parse and validate the
-// rendered jobs, and plan them against a Norca agent. Nothing pulls or runs
-// the Consul image: the test agent has no docker driver.
+// The tests in this file render the consul pack of the Norca pack registry
+// (a copy in testdata/packs/consul) with several variable sets, parse and
+// validate the rendered jobs, and plan them against a Norca agent. Nothing
+// pulls or runs the Consul image: the test agent has no docker driver.
 
-// repoPack copies packs/<name> of the repository into a temporary directory
-// (rendering may write a lock file) and returns the copy.
+// repoPack copies testdata/packs/<name>, a copy of a pack of the Norca pack
+// registry (see testdata/README.md), into a temporary directory (rendering
+// may write a lock file) and returns the copy.
 func repoPack(t *testing.T, name string) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	must.True(t, ok)
-	// nomad/pack/internal/cli -> repository root
-	src := filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "packs", name)
+	src := filepath.Join(filepath.Dir(file), "testdata", "packs", name)
 	dst := filepath.Join(t.TempDir(), name)
 	must.NoError(t, os.CopyFS(dst, os.DirFS(src)))
 	return dst

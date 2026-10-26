@@ -14,13 +14,6 @@ precedence = "override"
 SPDX-FileCopyrightText = ["2026 Norca contributors", "codecalm.net Paweł Kuna (Tabler)"]
 SPDX-License-Identifier = "MPL-2.0 AND MIT"
 
-# Pack registry: own packs, MPL 2.0 (the files also carry SPDX headers)
-[[annotations]]
-path = ["packs/**"]
-precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 Norca contributors"
-SPDX-License-Identifier = "MPL-2.0"
-
 # Deployment examples: own files, MPL 2.0 (the files also carry SPDX headers)
 [[annotations]]
 path = ["example/**"]

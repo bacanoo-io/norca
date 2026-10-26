@@ -21,22 +21,24 @@ import (
 	"github.com/shoenig/test/wait"
 )
 
-// TestE2E_OperatorPack installs the LoadBalancer operator pack of the
-// repository (packs/loadbalancer-operator) on a dev agent with the norca
-// CLI, runs the controller against it (in process; the pack's controller
-// job runs with the mock driver), and reconciles a load balancer for a
-// service of a mock driver job: the proxy job is created and owned by the
-// object, the status gets ready, and deleting the object removes the proxy
-// job through the finalizer. Uninstalling the release removes the kind,
-// the policy and the job. It needs the norca binary (NORCA_BINARY or norca
-// on the PATH) and is skipped with -short.
+// TestE2E_OperatorPack installs the LoadBalancer operator pack of the Norca
+// pack registry (its copy in nomad/pack/internal/cli/testdata/packs, see the
+// README there) on a dev agent with the norca CLI, runs the controller
+// against it (in process; the pack's controller job runs with the mock
+// driver), and reconciles a load balancer for a service of a mock driver
+// job: the proxy job is created and owned by the object, the status gets
+// ready, and deleting the object removes the proxy job through the
+// finalizer. Uninstalling the release removes the kind, the policy and the
+// job. It needs the norca binary (NORCA_BINARY or norca on the PATH) and is
+// skipped with -short.
 func TestE2E_OperatorPack(t *testing.T) {
 	agent := envtest.StartT(t, envtest.Options{ACL: true})
 	client := agent.Client
 
 	_, file, _, ok := runtime.Caller(0)
 	must.True(t, ok)
-	packDir := filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "packs", "loadbalancer-operator")
+	// nomad/controller/examples/loadbalancer -> nomad/pack/internal/cli/testdata
+	packDir := filepath.Join(filepath.Dir(file), "..", "..", "..", "pack", "internal", "cli", "testdata", "packs", "loadbalancer-operator")
 	// Rendering may write a lock file: use a copy.
 	pack := filepath.Join(t.TempDir(), "loadbalancer-operator")
 	must.NoError(t, os.CopyFS(pack, os.DirFS(packDir)))

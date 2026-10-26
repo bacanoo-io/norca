@@ -20,12 +20,12 @@ import (
 	ct "github.com/hashicorp/nomad/pack/internal/cli/testhelper"
 )
 
-// The tests in this file install the LoadBalancer operator pack of the
-// repository (packs/loadbalancer-operator) as a release on a test agent
-// with the mock driver: the kind with its limits and webhooks, the ACL
-// policy bound to the controller job, the admission policy and the
-// controller job. The controller itself runs in the end-to-end test of the
-// controller module (examples/loadbalancer).
+// The tests in this file install the LoadBalancer operator pack of the Norca
+// pack registry (a copy in testdata/packs/loadbalancer-operator) as a release
+// on a test agent with the mock driver: the kind with its limits and
+// webhooks, the ACL policy bound to the controller job, the admission policy
+// and the controller job. The controller itself runs in the end-to-end test
+// of the controller module (examples/loadbalancer).
 
 var lbPackVars = []string{"--var=driver=mock_driver", "--var=proxy_driver=mock_driver", "--name=lb", "--detach"}
 
