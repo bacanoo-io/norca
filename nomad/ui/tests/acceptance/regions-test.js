@@ -213,6 +213,15 @@ module('Acceptance | regions (many)', function (hooks) {
         req.url === '/v1/agent/members'
       ) {
         assert.notOk(req.url.includes('region='), `(no region) ${req.url}`);
+      } else if (
+        req.url.startsWith('/v1/status/leader?') ||
+        req.url.startsWith('/v1/operator/raft/configuration?')
+      ) {
+        // The regions card of the servers page queries every region.
+        assert.ok(
+          server.db.regions.some((r) => req.url.endsWith(`region=${r.id}`)),
+          `(each region) ${req.url}`
+        );
       } else {
         assert.ok(req.url.includes(`region=${region}`), req.url);
       }

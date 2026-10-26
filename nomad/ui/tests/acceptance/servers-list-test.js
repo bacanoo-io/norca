@@ -85,7 +85,7 @@ module('Acceptance | servers list', function (hooks) {
       agent.member.Status[0].toUpperCase() + agent.member.Status.substring(1),
       'Status'
     );
-    assert.equal(agentRow.leader, 'True', 'Leader?');
+    assert.equal(agentRow.leader, 'Leader', 'Leader?');
     assert.equal(agentRow.address, agent.member.Address, 'Address');
     assert.equal(agentRow.serfPort, agent.member.Port, 'Serf Port');
     assert.equal(agentRow.datacenter, agent.member.Tags.dc, 'Datacenter');
@@ -115,5 +115,39 @@ module('Acceptance | servers list', function (hooks) {
 
     await ServersList.error.seekHelp();
     assert.equal(currentURL(), '/settings/tokens');
+  });
+
+  test('the regions card shows the leader, the servers and the Raft peers of each region', async function (assert) {
+    faker.seed(1);
+    server.createList('node-pool', 1);
+    server.createList('node', 1);
+    server.createList('agent', 3);
+    const alive = server.db.agents.filter(
+      (a) => a.member.Status === 'alive'
+    ).length;
+
+    await ServersList.visit();
+
+    assert.equal(ServersList.regions.length, 1, 'One region');
+    const region = ServersList.regions.objectAt(0);
+    assert.equal(region.connection, 'Reachable');
+    assert.equal(region.leader, server.db.agents[0].name);
+    assert.equal(region.servers, alive + '/3 alive');
+    assert.equal(region.raft, '3 of 3 voting');
+    assert.equal(ServersList.servers.objectAt(0).raft, 'Voter');
+  });
+
+  test('without operator:read the Raft peers are marked as not permitted', async function (assert) {
+    minimumSetup();
+    server.pretender.get('/v1/operator/raft/configuration', () => [
+      403,
+      {},
+      null,
+    ]);
+
+    await ServersList.visit();
+
+    assert.equal(ServersList.regions.objectAt(0).raft, 'not permitted');
+    assert.equal(ServersList.servers.objectAt(0).leader, 'Leader');
   });
 });

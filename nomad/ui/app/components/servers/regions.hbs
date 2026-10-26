@@ -1,0 +1,57 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The regions of the federation: per region the leader, the servers, the
+  Raft peers and whether the region answers (see utils/servers-data).
+~}}
+<Ui::Card @title="Regions" @flush={{true}} data-test-regions ...attributes>
+  <:actions>
+    {{#if @isLoading}}<Ui::Spinner @small={{true}} @label="Loading the regions" />{{/if}}
+  </:actions>
+  <:default>
+    <Ui::Table
+      @caption="Regions"
+      @inCard={{true}}
+      @columns={{this.columns}}
+      @rows={{@summaries}}
+      @emptyMessage={{if @isLoading "Loading the regions…" "No region information."}}
+    as |summary|>
+      <th scope="row" class="fw-normal" data-test-region-name={{summary.region}}>
+        {{#if summary.region}}
+          <span class="norca-region norca-region-{{summary.colorIndex}}">{{summary.region}}</span>
+        {{else}}
+          <span class="text-secondary">This agent's region</span>
+        {{/if}}
+      </th>
+      <td data-test-region-connection>
+        {{#if summary.reachable}}
+          <Ui::StatusIndicator @tone="success" @label="Reachable" />
+        {{else}}
+          <span title={{summary.error}}><Ui::StatusIndicator @tone="danger" @label="Unreachable" /></span>
+        {{/if}}
+      </td>
+      <td class="font-monospace" data-test-region-leader>
+        {{#if summary.leaderName}}
+          {{summary.leaderName}}
+        {{else if summary.reachable}}
+          <Ui::StatusIndicator @tone="danger" @label="No leader" />
+        {{else}}
+          <span class="text-secondary">–</span>
+        {{/if}}
+      </td>
+      <td class="tabular-nums" data-test-region-servers>
+        {{summary.servers.alive}}/{{summary.servers.total}} alive
+      </td>
+      <td class="tabular-nums" data-test-region-raft>
+        {{#if summary.raft}}
+          {{summary.raft.voters}} of {{summary.raft.peers}} voting
+        {{else if summary.raftForbidden}}
+          <span class="text-secondary" title="Reading the Raft configuration needs the operator:read capability">not permitted</span>
+        {{else}}
+          <span class="text-secondary">–</span>
+        {{/if}}
+      </td>
+    </Ui::Table>
+  </:default>
+</Ui::Card>

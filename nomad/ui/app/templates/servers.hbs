@@ -1,9 +1,9 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Breadcrumb @crumb={{hash label="Servers" args=(array "servers.index")}} />
-<PageLayout>
+<PageLayout @legacy={{false}}>
   {{outlet}}
 </PageLayout>

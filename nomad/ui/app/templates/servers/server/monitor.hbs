@@ -1,17 +1,17 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Server " this.model.name}}
-<ServerSubnav @server={{this.model}} />
-<section class="section is-full-width">
+<Servers::Header @server={{this.model}}>
   {{#if (can "read agent")}}
     <AgentMonitor
       @level={{this.level}}
       @server={{this.model}}
-      @onLevelChange={{action (mut this.level)}} />
+      @onLevelChange={{fn (mut this.level)}} />
   {{else}}
     <ForbiddenMessage @permission="agent:read" />
   {{/if}}
-</section>
+</Servers::Header>
