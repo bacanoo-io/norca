@@ -1,64 +1,82 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
+{{page-title "Manage templates"}}
 <PageLayout>
-  {{page-title "Manage templates"}}
-  <section class="section">
-      <header class="run-job-header">
-          <h1 class="title is-3">Manage Job Templates</h1>
-          <p>Modify or Delete a job template from the list below. Default job templates cannot be removed.</p>
-      </header>
-      {{#if (eq this.model.length 0)}}
-          <h3 data-test-empty-templates-list-headline class="empty-message-headline">
-            You have no templates to choose from. Would you like to <Hds::Link::Inline @route="jobs.run.templates.new" data-test-create-inline>create</Hds::Link::Inline> one?
-          </h3>
-          <Hds::Button class="button-group" @text="Back to editor" @route="jobs.run" @icon="arrow-left" data-test-cancel />
-      {{else}}
-      <main class="radio-group" data-test-template-list>
-          <Hds::Table @model={{this.templates}} @columns={{this.columns}} @isFixedLayout={{true}}>
-              <:body as |B|>
-                  <B.Tr>
-                      <B.Td>
-                          {{#if B.data.isDefaultJobTemplate}}
-                              {{format-template-label B.data.path}}
-                          {{else}}
-  													<LinkTo @route="jobs.run.templates.template" @model={{concat B.data.path "@" B.data.namespace}} data-test-edit-template={{B.data.path}}>
-  														{{format-template-label B.data.path}}
-  													</LinkTo>
-                          {{/if}}
-                      </B.Td>
-                      <B.Td>{{B.data.namespace}}</B.Td>
-                      <B.Td>
-  											{{B.data.items.description}}
-  										</B.Td>
-                      <B.Td>
-                          {{#if B.data.isDefaultJobTemplate}}
-  													<em>(Default Job — cannot be deleted)</em>
-                          {{else}}
-  													<TwoStepButton
-  														data-test-delete
-  														@idleText="Delete"
-  														@cancelText="Cancel"
-  														@confirmText="Yes"
-  														@inlineText={{true}}
-  														@confirmationMessage="Are you sure?"
-  														@awaitingConfirmation={{this.deleteTemplate.isRunning}}
-  														@disabled={{cannot "destroy variable" namespace="*"}}
-  														@onConfirm={{perform this.deleteTemplate B.data}}
-  													/>
-                          {{/if}}
-                      </B.Td>
-                  </B.Tr>
-              </:body>
-          </Hds::Table>
-      </main>
-      <footer class="buttonset">
-          <Hds::ButtonSet class="button-group">
-              <Hds::Button @text="Cancel" @color="secondary" @route="jobs.run.templates" data-test-done />
-          </Hds::ButtonSet>
-      </footer>
-      {{/if}}
-  </section>
+  <Ui::PageHeader
+    @breadcrumbs={{array
+      (hash label="Jobs" route="jobs.index" id="jobs.index")
+      (hash label="Run a job" route="jobs.run" id="jobs.run")
+      (hash label="Templates" route="jobs.run.templates" id="jobs.run.templates")
+      (hash label="Manage" id="jobs.run.templates.manage")
+    }}
+    @title="Manage job templates"
+    @subtitle="Edit or delete a job template. Default job templates cannot be removed."
+  >
+    <:actions>
+      <Ui::Button @icon="plus" @route="jobs.run.templates.new">Create New Template</Ui::Button>
+    </:actions>
+  </Ui::PageHeader>
+  <Ui::PageBody>
+    {{#if (eq this.templates.length 0)}}
+      <Ui::EmptyState
+        @icon="file-text"
+        @title="No templates"
+        @message="You have no templates. Create one, or go back to the editor."
+        data-test-empty-templates-list-headline
+      >
+        <div class="d-flex flex-wrap gap-2 justify-content-center">
+          <Ui::Button @variant="primary" @icon="plus" @route="jobs.run.templates.new" data-test-create-inline>Create a template</Ui::Button>
+          <Ui::Button @icon="arrow-left" @route="jobs.run" data-test-cancel>Back to editor</Ui::Button>
+        </div>
+      </Ui::EmptyState>
+    {{else}}
+      <Ui::Card @flush={{true}} data-test-template-list>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Job templates"
+          @columns={{this.columns}}
+          @rows={{this.templates}}
+          as |row|
+        >
+          <td>
+            {{#if row.isDefaultJobTemplate}}
+              {{format-template-label row.path}}
+            {{else}}
+              <LinkTo
+                @route="jobs.run.templates.template"
+                @model={{concat row.path "@" row.namespace}}
+                data-test-edit-template={{row.path}}
+              >{{format-template-label row.path}}</LinkTo>
+            {{/if}}
+          </td>
+          <td>{{row.namespace}}</td>
+          <td class="text-secondary">{{row.items.description}}</td>
+          <td class="text-end">
+            {{#if row.isDefaultJobTemplate}}
+              <span class="text-secondary small">Default template</span>
+            {{else}}
+              <Ui::ConfirmButton
+                @label="Delete"
+                @size="sm"
+                @message="Delete the template?"
+                @confirmLabel="Yes, delete"
+                @isRunning={{this.deleteTemplate.isRunning}}
+                @disabled={{cannot "destroy variable" namespace="*"}}
+                @disabledReason="Deleting a template needs the destroy variable capability"
+                @onConfirm={{perform this.deleteTemplate row}}
+                data-test-delete
+              />
+            {{/if}}
+          </td>
+        </Ui::Table>
+      </Ui::Card>
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <Ui::Button @route="jobs.run.templates" data-test-done>Done</Ui::Button>
+      </div>
+    {{/if}}
+  </Ui::PageBody>
 </PageLayout>

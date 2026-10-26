@@ -11,15 +11,6 @@ const isTest = environment === 'test';
 
 module.exports = function (defaults) {
   let app = new EmberApp(defaults, {
-    svg: {
-      paths: [
-        'node_modules/@hashicorp/structure-icons/dist',
-        'public/images/icons',
-      ],
-      optimize: {
-        plugins: [{ removeViewBox: false }],
-      },
-    },
     babel: {
       // dynamic import() of npm packages (xterm, ...)
       plugins: [require.resolve('ember-auto-import/babel-plugin')],
@@ -28,10 +19,7 @@ module.exports = function (defaults) {
     tests: isTest,
     sassOptions: {
       precision: 4,
-      includePaths: [
-        './node_modules/@hashicorp/design-system-tokens/dist/products/css',
-        './node_modules',
-      ],
+      includePaths: ['./node_modules'],
       quietDeps: true,
       silenceDeprecations: [
         'import',

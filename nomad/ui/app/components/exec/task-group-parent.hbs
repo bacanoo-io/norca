@@ -1,30 +1,43 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<button {{action "toggleOpen"}} class="toggle-button {{if this.hasPendingAllocations "is-loading"}}" data-test-task-group-name type="button">
-  {{x-icon (if this.isOpen "chevron-down" "chevron-right")}}
-  {{this.taskGroup.name}}
+<button
+  {{action "toggleOpen"}}
+  class="norca-exec-toggle"
+  aria-expanded={{if this.isOpen "true" "false"}}
+  aria-busy={{if this.hasPendingAllocations "true"}}
+  data-test-task-group-name
+  type="button"
+>
+  <Ui::Icon @name={{if this.isOpen "chevron-down" "chevron-right"}} data-test-chevron={{if this.isOpen "down" "right"}} />
+  <span class="norca-exec-toggle-label">{{this.taskGroup.name}}</span>
+  {{#if this.hasPendingAllocations}}
+    <Ui::Spinner @small={{true}} @label="Allocations are starting" class="ms-auto" data-test-loading />
+  {{/if}}
 </button>
 {{#if this.isOpen}}
-  <ul class="task-list">
+  <ul class="list-unstyled norca-exec-tasks">
     {{#each this.sortedTasks as |task|}}
-      {{#if this.shouldOpenInNewWindow}}
-        <a {{on "click" (action "openInNewWindow" this.taskGroup.job this.taskGroup task)}} href="#" class="task-item" data-test-task>
-          <Exec::TaskContents
-            @task={{task}}
-            @active={{and this.currentRouteIsThisTaskGroup (eq task.name this.activeTaskName)}}
-            @shouldOpenInNewWindow={{this.shouldOpenInNewWindow}} />
-        </a>
-      {{else}}
-        <LinkTo @route="exec.task-group.task" @models={{array this.taskGroup.job.plainId this.taskGroup.name task.name}} class="task-item" data-test-task={{true}}>
-          <Exec::TaskContents
-            @task={{task}}
-            @active={{and this.currentRouteIsThisTaskGroup (eq task.name this.activeTaskName)}}
-            @shouldOpenInNewWindow={{this.shouldOpenInNewWindow}} />
-        </LinkTo>
-      {{/if}}
+      <li>
+        {{#if this.shouldOpenInNewWindow}}
+          <a {{on "click" (action "openInNewWindow" this.taskGroup.job this.taskGroup task)}} href="#" class="norca-exec-task" data-test-task>
+            <Exec::TaskContents
+              @task={{task}}
+              @active={{and this.currentRouteIsThisTaskGroup (eq task.name this.activeTaskName)}}
+              @shouldOpenInNewWindow={{this.shouldOpenInNewWindow}} />
+          </a>
+        {{else}}
+          <LinkTo @route="exec.task-group.task" @models={{array this.taskGroup.job.plainId this.taskGroup.name task.name}} class="norca-exec-task" data-test-task={{true}}>
+            <Exec::TaskContents
+              @task={{task}}
+              @active={{and this.currentRouteIsThisTaskGroup (eq task.name this.activeTaskName)}}
+              @shouldOpenInNewWindow={{this.shouldOpenInNewWindow}} />
+          </LinkTo>
+        {{/if}}
+      </li>
     {{/each}}
   </ul>
 {{/if}}

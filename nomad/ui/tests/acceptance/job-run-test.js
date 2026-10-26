@@ -11,11 +11,10 @@ import {
   fillIn,
   visit,
   settled,
+  select,
 } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { notifyPropertyChange } from '@ember/object';
-import { selectChoose } from 'ember-power-select/test-support';
-import { clickTrigger } from 'ember-power-select/test-support/helpers';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
@@ -392,14 +391,13 @@ module('Acceptance | job run', function (hooks) {
 
       await fillIn('[data-test-template-name]', 'foo');
       assert
-        .dom('[data-test-duplicate-error]')
+        .dom('[data-test-field-error]')
         .exists('an error message alerts the user');
 
-      await clickTrigger('[data-test-namespace-facet]');
-      await selectChoose('[data-test-namespace-facet]', 'test');
+      await select('[data-test-namespace-facet]', 'test');
 
       assert
-        .dom('[data-test-duplicate-error]')
+        .dom('[data-test-field-error]')
         .doesNotExist(
           'an error disappears when name or namespace combination is unique'
         );

@@ -3,6 +3,6 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 {{page-title "Restore " @model.backupId " - Backups"}}
-<PageLayout @legacy={{false}}>
+<PageLayout>
   <Backups::RestoreWizard @backupId={{@model.backupId}} @mode={{this.mode}} />
 </PageLayout>

@@ -1,23 +1,15 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 {{page-title "Exec"}}
-{{! A full-screen page outside the frame, not migrated yet. }}
-<div class="legacy norca-legacy-fullscreen" data-bs-theme="light">
-<nav class="navbar is-popup">
-  <div class="navbar-brand">
-    <div class="navbar-item is-logo">
-      <strong class="norca-exec-brand">Norca</strong>
-    </div>
+<div class="norca-exec">
+  <header class="norca-exec-header">
+    <strong class="norca-exec-brand">Norca</strong>
+    <Ui::Icon @name="lock" @label="Exec session" class="ms-auto" />
+  </header>
+  <div class="norca-exec-body norca-exec-loading">
+    <Ui::Spinner @showLabel={{true}} @label="Loading" />
   </div>
-
-  <div class="navbar-end">
-    {{x-icon "lock-closed"}}
-  </div>
-</nav>
-
-<div class="exec-window loading">
-  <Ui::Spinner @showLabel={{true}} @label="Loading" />
-</div>
 </div>

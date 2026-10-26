@@ -438,7 +438,6 @@ module('Acceptance | allocation detail', function (hooks) {
     await click('[data-test-breadcrumb="jobs.job.index"]');
     await click('[data-test-tab="allocations"] > a');
 
-    const component = this.owner.lookup('component:allocation-row');
     const router = this.owner.lookup('service:router');
     const allocRoute = this.owner.lookup('route:allocations.allocation');
     const originalMethod = allocRoute.goBackToReferrer;
@@ -446,9 +445,6 @@ module('Acceptance | allocation detail', function (hooks) {
       assert.step('Transition dispatched.');
       router.transitionTo('jobs.job.allocations');
     };
-
-    component.onClick = () =>
-      router.transitionTo('allocations.allocation', 'aaa');
 
     server.get('/allocation/:id', function () {
       return new AdapterError([
@@ -459,7 +455,8 @@ module('Acceptance | allocation detail', function (hooks) {
       ]);
     });
 
-    component.onClick();
+    // A click on an allocation row whose allocation is gone.
+    router.transitionTo('allocations.allocation', 'aaa');
 
     await waitFor('.flash-message.alert-critical');
 

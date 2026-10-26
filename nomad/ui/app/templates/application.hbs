@@ -15,15 +15,9 @@
 
 <KeyboardShortcutsModal />
 
-{{! Overlays of the pages that are not migrated yet keep the legacy styles. }}
-<div class="legacy norca-legacy-overlays" data-bs-theme="light">
-  <PortalTarget @name="log-sidebar-portal" />
-  <BasicDropdownWormhole />
-</div>
-
 {{#if this.error}}
   {{! The error page keeps the frame, so the menu still leads anywhere. }}
-  <PageLayout @legacy={{false}}>
+  <PageLayout>
     <div class="norca-error-page" data-test-error>
       <div class="norca-error-content">
         {{#if this.isNoLeader}}

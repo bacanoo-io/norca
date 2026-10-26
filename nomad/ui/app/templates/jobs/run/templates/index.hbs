@@ -1,41 +1,74 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
+{{page-title "Choose a template"}}
 <PageLayout>
-  <section class="section">
-      <header class="run-job-header">
-          <h1 class="title is-3">Choose a template</h1>
-          <p>Select a custom or default job template below. You will have an opportunity to modify and plan your job before it is submitted.</p>
-      </header>
-      {{#if (eq this.templates.length 0)}}
-          <h3 data-test-empty-templates-list-headline class="empty-message-headline">
-            You have no templates to choose from. Would you like to <Hds::Link::Inline @route="jobs.run.templates.new" data-test-create-inline>create</Hds::Link::Inline> one?
-          </h3>
-          <Hds::Button class="button-group" @text="Back to editor" @route="jobs.run" @icon="arrow-left" data-test-cancel />
-      {{else}}
-      <main class="radio-group" data-test-template-list>
-          <Hds::Form::RadioCard::Group as |G|>
-              <G.Legend>Select a Template</G.Legend>
-              {{#each this.templates as |card|}}
-                  <G.RadioCard class="form-container" @layout="fixed" @maxWidth="30%" @checked={{eq card.id this.selectedTemplate}} id={{card.id}} data-test-template-card={{format-template-label card.path}} {{on "change" this.onChange}} as |R|>
-                      <R.Label data-test-template-label>{{format-template-label card.path}}</R.Label>
-                      <R.Description data-test-template-description>{{card.items.description}}</R.Description>
-                  </G.RadioCard>
-              {{/each}}
-          </Hds::Form::RadioCard::Group>
-      </main>
-      <footer class="buttonset">
-          <Hds::ButtonSet class="button-group">
-              <Hds::Button @text="Apply" @route="jobs.run" @query={{hash template=this.selectedTemplate}} disabled={{is-equal this.selectedTemplate null}} data-test-apply />
-              <Hds::Button @text="Cancel" @route="jobs.run" @color="secondary" data-test-cancel />
-          </Hds::ButtonSet>
-          <Hds::ButtonSet class="button-group align-right">
-              <Hds::Button @text="Manage" @color="tertiary" @icon="edit" @route="jobs.run.templates.manage" data-test-manage-button />
-              <Hds::Button @text="Create New Template" @color="tertiary" @icon="file-plus" @route="jobs.run.templates.new" data-test-create-new-button />
-          </Hds::ButtonSet>
-      </footer>
+  <Ui::PageHeader
+    @breadcrumbs={{array
+      (hash label="Jobs" route="jobs.index" id="jobs.index")
+      (hash label="Run a job" route="jobs.run" id="jobs.run")
+      (hash label="Templates" id="jobs.run.templates")
+    }}
+    @title="Choose a template"
+    @subtitle="Select a custom or default job template. You can modify and plan the job before it is submitted."
+  >
+    <:actions>
+      {{#if this.templates.length}}
+        <Ui::Button @icon="list-details" @route="jobs.run.templates.manage" data-test-manage-button>Manage</Ui::Button>
+        <Ui::Button @icon="plus" @route="jobs.run.templates.new" data-test-create-new-button>Create New Template</Ui::Button>
       {{/if}}
-  </section>
+    </:actions>
+  </Ui::PageHeader>
+  <Ui::PageBody>
+    {{#if (eq this.templates.length 0)}}
+      <Ui::EmptyState
+        @icon="file-text"
+        @title="No templates"
+        @message="You have no templates to choose from. Create one, or go back to the editor."
+        data-test-empty-templates-list-headline
+      >
+        <div class="d-flex flex-wrap gap-2 justify-content-center">
+          <Ui::Button @variant="primary" @icon="plus" @route="jobs.run.templates.new" data-test-create-inline>Create a template</Ui::Button>
+          <Ui::Button @icon="arrow-left" @route="jobs.run" data-test-cancel>Back to editor</Ui::Button>
+        </div>
+      </Ui::EmptyState>
+    {{else}}
+      <fieldset data-test-template-list>
+        <legend class="visually-hidden">Select a template</legend>
+        <div class="row row-cards">
+          {{#each this.templates as |card|}}
+            <div class="col-md-6 col-xl-4">
+              <label class="norca-choice-card" data-test-template-card={{format-template-label card.path}}>
+                <input
+                  type="radio"
+                  name="job-template"
+                  class="norca-choice-input"
+                  id={{card.id}}
+                  checked={{eq card.id this.selectedTemplate}}
+                  {{on "change" this.onChange}}
+                />
+                <span class="norca-choice-body">
+                  <span class="fw-medium d-block" data-test-template-label>{{format-template-label card.path}}</span>
+                  <span class="text-secondary small d-block" data-test-template-description>{{card.items.description}}</span>
+                </span>
+              </label>
+            </div>
+          {{/each}}
+        </div>
+      </fieldset>
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <Ui::Button
+          @variant="primary"
+          @route="jobs.run"
+          @query={{hash template=this.selectedTemplate}}
+          @disabled={{is-equal this.selectedTemplate null}}
+          data-test-apply
+        >Apply</Ui::Button>
+        <Ui::Button @route="jobs.run" data-test-cancel>Cancel</Ui::Button>
+      </div>
+    {{/if}}
+  </Ui::PageBody>
 </PageLayout>

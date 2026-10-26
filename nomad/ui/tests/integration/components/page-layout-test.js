@@ -12,7 +12,7 @@ import startMirage from 'ember-cli-mirage/start-mirage';
 import { componentA11yAudit, STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 
 // The global frame: left menu with the groups of the information
-// architecture, top bar, and the .legacy scope for pages not migrated yet.
+// architecture and the top bar.
 module('Integration | Component | page layout', function (hooks) {
   setupRenderingTest(hooks);
 
@@ -55,21 +55,10 @@ module('Integration | Component | page layout', function (hooks) {
     await componentA11yAudit(this.element, assert, STRICT);
   });
 
-  test('pages that are not migrated render inside the legacy scope', async function (assert) {
-    await render(
-      hbs`<PageLayout><p data-test-inner>legacy page</p></PageLayout>`
-    );
-    assert.dom('[data-test-legacy-scope] [data-test-inner]').exists();
-    assert
-      .dom('[data-test-legacy-scope]')
-      .hasClass('legacy')
-      .hasAttribute('data-bs-theme', 'light');
-
-    await render(
-      hbs`<PageLayout @legacy={{false}}><p data-test-inner>new page</p></PageLayout>`
-    );
-    assert.dom('[data-test-legacy-scope]').doesNotExist();
+  test('pages render in the content area of the frame', async function (assert) {
+    await render(hbs`<PageLayout><p data-test-inner>page</p></PageLayout>`);
     assert.dom('[data-test-page-content] [data-test-inner]').exists();
+    assert.dom('.legacy').doesNotExist('no legacy scope');
   });
 
   test('the menu collapses to icons and remembers it', async function (assert) {

@@ -101,10 +101,7 @@ module('Integration | Component | task log', function (hooks) {
       'Body is full-bleed and dark'
     );
 
-    assert.ok(
-      find('pre.cli-window'),
-      'Cli is preformatted and using the cli-window component class'
-    );
+    assert.ok(find('pre.norca-log-window'), 'The log is preformatted');
 
     await componentA11yAudit(this.element, assert);
   });

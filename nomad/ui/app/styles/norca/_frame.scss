@@ -174,37 +174,6 @@
   }
 }
 
-// Not yet migrated pages keep their own spacing and light background.
-.norca-legacy-page {
-  background: transparent;
-  min-height: 0;
-}
-
-// The inherited subnav tabs were fixed below the old header; in the new
-// frame they stick to the top of the content instead.
-.legacy.norca-legacy-page .tabs.is-subnav {
-  position: sticky;
-  top: 0;
-  left: auto;
-  right: auto;
-
-  + *,
-  + *.is-closer {
-    margin-top: 0;
-  }
-}
-
-// The inherited side panels (logs, variables, evaluations) were placed
-// below the old header; in the new frame they span the full height.
-.legacy .sidebar,
-.legacy .sidebar.has-subnav {
-  top: 0;
-}
-
-.norca-legacy-overlays {
-  display: contents;
-}
-
 .norca-notifications {
   width: 22rem;
   max-width: calc(100vw - 2rem);
@@ -359,4 +328,11 @@
   &.norca-keyboard-hint-menu {
     z-index: 1080;
   }
+}
+
+// SVG patterns (fills referenced by charts) are kept out of sight.
+.norca-svg-patterns {
+  overflow: hidden;
+  position: absolute;
+  left: -100%;
 }

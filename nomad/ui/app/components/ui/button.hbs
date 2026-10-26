@@ -2,12 +2,12 @@
   SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-{{#if @route}}
+{{#if (and @route (not this.isDisabled))}}
   <LinkTo
     @route={{@route}}
     @models={{this.models}}
     @query={{this.query}}
-    @disabled={{this.isDisabled}}
+    @activeClass="norca-btn-route-active"
     class={{this.classes}}
     aria-label={{if @iconOnly @label}}
     title={{if @iconOnly @label}}

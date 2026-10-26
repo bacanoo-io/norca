@@ -267,12 +267,12 @@ module('Acceptance | job deployments', function (hooks) {
       'One row per allocation'
     );
 
-    const allocation = allocations[0];
+    // The rows are sorted by the table, not in the order of the store.
     const allocationRow = deploymentRow.allocations.objectAt(0);
-
-    assert.equal(
-      allocationRow.shortId,
-      allocation.id.split('-')[0],
+    assert.ok(
+      allocations
+        .map((allocation) => allocation.id.split('-')[0])
+        .includes(allocationRow.shortId),
       'Allocation is as expected'
     );
   });

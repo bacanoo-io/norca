@@ -78,21 +78,21 @@ module('Acceptance | task logs', function (hooks) {
     await TaskLogs.visit({ id: allocation.id, name: task.name });
 
     assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
-    assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
+    assert.dom('[data-test-output]').doesNotHaveClass('norca-wrapped');
 
     later(() => {
       cancelTimers();
     }, 100);
     await click('[data-test-word-wrap-toggle]');
     assert.dom('[data-test-word-wrap-toggle] input').isChecked();
-    assert.dom('[data-test-output]').hasClass('wrapped');
+    assert.dom('[data-test-output]').hasClass('norca-wrapped');
 
     later(() => {
       cancelTimers();
     }, 100);
     await click('[data-test-word-wrap-toggle]');
     assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
-    assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
+    assert.dom('[data-test-output]').doesNotHaveClass('norca-wrapped');
 
     window.localStorage.clear();
   });
@@ -117,7 +117,7 @@ module('Acceptance | task logs', function (hooks) {
     await click(taskRow.querySelector('[data-test-logs-sidebar-trigger]'));
 
     assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
-    assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
+    assert.dom('[data-test-output]').doesNotHaveClass('norca-wrapped');
 
     later(() => {
       cancelTimers();
@@ -129,7 +129,7 @@ module('Acceptance | task logs', function (hooks) {
     await triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
 
     assert.dom('[data-test-word-wrap-toggle] input').isChecked();
-    assert.dom('[data-test-output]').hasClass('wrapped');
+    assert.dom('[data-test-output]').hasClass('norca-wrapped');
 
     later(() => {
       cancelTimers();
@@ -138,7 +138,7 @@ module('Acceptance | task logs', function (hooks) {
     triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
     await triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
     assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
-    assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
+    assert.dom('[data-test-output]').doesNotHaveClass('norca-wrapped');
 
     window.localStorage.clear();
   });

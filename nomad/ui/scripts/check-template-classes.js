@@ -16,103 +16,20 @@
 // class needs a component in app/components/ui.
 //
 // Run with `node scripts/check-template-classes.js` (part of `yarn lint`).
-// Add the templates of a page to MIGRATED when it is migrated.
 
 const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
 
-// Files or directories (relative to app/) of the migrated pages. The
-// global frame (components/frame) is built on Tabler's layout directly,
-// like the component layer.
-const MIGRATED = [
-  'templates/index.hbs',
-  'components/dashboard.hbs',
-  // job page (phase 2)
-  'templates/jobs/job.hbs',
-  'templates/jobs/job',
-  'templates/jobs/loading.hbs',
-  'templates/jobs/run/index.hbs',
-  'components/jobs',
-  'components/allocations',
-  'components/job-status',
-  'components/job-editor',
-  'components/job-editor.hbs',
-  'components/job-diff.hbs',
-  'components/job-diff-fields-and-objects.hbs',
-  'components/job-dispatch.hbs',
-  'components/placement-failure.hbs',
-  'components/lifecycle-chart.hbs',
-  'components/lifecycle-chart-row.hbs',
-  'components/task-log.hbs',
-  'components/exec/open-button.hbs',
-  'components/variable-paths.hbs',
-  'components/editable-variable-link.hbs',
-  // allocation and task pages (phase 2)
-  'templates/allocations.hbs',
-  'templates/allocations',
-  'components/fs',
-  'components/primary-metric',
-  'components/image-file.hbs',
-  // jobs list, clients, Variables and access (phase 2)
-  'templates/jobs/index.hbs',
-  'templates/loading.hbs',
-  'templates/clients.hbs',
-  'templates/clients',
-  'components/clients',
-  'components/agent-monitor.hbs',
-  'components/forbidden-message.hbs',
-  'templates/variables.hbs',
-  'templates/variables',
-  'components/variable-form.hbs',
-  'components/variable-form',
-  'templates/access-control.hbs',
-  'templates/access-control',
-  'components/access',
-  'components/token-editor.hbs',
-  'components/role-editor.hbs',
-  'components/policy-editor.hbs',
-  // feature areas (phase 3)
-  'templates/backups',
-  'components/backups',
-  'templates/quotas',
-  'components/quotas',
-  'templates/scaling',
-  'components/scaling',
-  'templates/services',
-  'components/services',
-  'templates/network',
-  'components/network',
-  'templates/deployments',
-  'components/deployments',
-  'templates/packages',
-  'components/packages',
-  'templates/objects',
-  'components/objects',
-  'templates/kinds',
-  'components/kinds',
-  'templates/admission',
-  'components/admission',
-  // servers and regions, topology, storage, evaluations, keyboard shortcuts
-  // (phase 4)
-  'templates/servers.hbs',
-  'templates/servers',
-  'components/servers',
-  'templates/topology.hbs',
-  'components/topology',
-  'components/topo-viz.hbs',
-  'components/topo-viz',
-  'templates/csi.hbs',
-  'templates/csi',
-  'components/storage',
-  'templates/evaluations.hbs',
-  'templates/evaluations',
-  'components/evaluation-sidebar',
-  'components/keyboard-shortcuts-modal.hbs',
-  'templates/oidc-mock.hbs',
-  'templates/settings.hbs',
-  'templates/settings',
+// Every template of the app is checked (relative to app/).
+const MIGRATED = ['templates', 'components'];
+
+// The component layer and the global frame are built on Tabler directly.
+const FRAMEWORK = [
+  'components/ui/',
+  'components/frame/',
+  'components/page-layout.hbs',
 ];
 
 const ALLOWED = [
@@ -271,7 +188,8 @@ function check() {
   const problems = [];
   const files = MIGRATED.flatMap((entry) => walk(entry));
   for (const file of files) {
-    if (file.startsWith(path.join('components', 'ui'))) continue;
+    if (FRAMEWORK.some((dir) => file.startsWith(path.join(...dir.split('/')))))
+      continue;
     const source = fs.readFileSync(path.join(root, 'app', file), 'utf8');
     const display = `app/${file.split(path.sep).join('/')}`;
     // Comments do not count.
