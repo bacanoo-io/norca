@@ -67,7 +67,7 @@ export function primaryMetric({ template, findResource, preload }) {
     assert.ok(find('[data-test-absolute-value]'), 'Absolute usage figure');
   });
 
-  test('The CPU metric maps to is-info', async function (assert) {
+  test('The CPU metric is blue', async function (assert) {
     const metric = 'cpu';
 
     await preload(this.store);
@@ -78,12 +78,12 @@ export function primaryMetric({ template, findResource, preload }) {
     await render(template);
 
     assert.ok(
-      find('[data-test-current-value]').classList.contains('is-info'),
-      'Info class for CPU metric'
+      find('[data-test-current-value="blue"]'),
+      'Blue meter for the CPU metric'
     );
   });
 
-  test('The Memory metric maps to is-danger', async function (assert) {
+  test('The memory metric is purple', async function (assert) {
     const metric = 'memory';
 
     await preload(this.store);
@@ -94,8 +94,8 @@ export function primaryMetric({ template, findResource, preload }) {
     await render(template);
 
     assert.ok(
-      find('[data-test-current-value]').classList.contains('is-danger'),
-      'Danger class for Memory metric'
+      find('[data-test-current-value="purple"]'),
+      'Purple meter for the memory metric'
     );
   });
 

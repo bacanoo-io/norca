@@ -3,16 +3,21 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 {{#if this.isRouteBased}}
-  <nav aria-label={{or @label "Sections"}} ...attributes>
-    <ul class="nav nav-tabs {{if @inCard 'card-header-tabs'}}">
+  <nav aria-label={{or @label "Sections"}} class="norca-tabs-nav" ...attributes>
+    <ul
+      class="nav nav-tabs {{if @inCard 'card-header-tabs'}}"
+      {{did-insert this.registerNav}}
+      {{will-destroy this.unregisterNav}}
+    >
       {{#each this.tabs as |tab|}}
-        <li class="nav-item">
+        <li class="nav-item" data-test-tab={{tab.id}}>
           <LinkTo
             @route={{tab.route}}
             @models={{tab.models}}
             @query={{tab.query}}
+            @current-when={{tab.currentWhen}}
             class="nav-link"
-            data-test-tab={{tab.id}}
+            data-test-tab-link={{tab.id}}
           >
             {{#if tab.icon}}<Ui::Icon @name={{tab.icon}} class="me-2" />{{/if}}
             {{tab.label}}

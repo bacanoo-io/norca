@@ -9,12 +9,22 @@ import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
 import { task } from 'ember-concurrency';
 import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
+import LocalList from 'nomad-ui/utils/local-list';
 
 export default class AccessControlRolesIndexController extends Controller {
   @service can;
   @service notifications;
   @service router;
   @service store;
+
+  list = new LocalList({
+    sortBy: 'name',
+    searchProps: ['name', 'description'],
+  });
+
+  get rows() {
+    return this.list.rows(this.roles);
+  }
 
   /**
    * Saved roles; the draft from the "new role" page is left out.
@@ -44,7 +54,7 @@ export default class AccessControlRolesIndexController extends Controller {
 
   get columns() {
     const columns = [
-      { key: 'name', label: 'Role Name', isSortable: true },
+      { key: 'name', label: 'Role Name', sortable: true, hideable: false },
       { key: 'description', label: 'Description' },
       { key: 'policies', label: 'Policies' },
     ];
@@ -52,7 +62,12 @@ export default class AccessControlRolesIndexController extends Controller {
       columns.push({ key: 'tokens', label: 'Tokens' });
     }
     if (this.can.can('destroy role')) {
-      columns.push({ key: 'delete', label: 'Delete' });
+      columns.push({
+        key: 'actions',
+        label: 'Actions',
+        srOnly: true,
+        hideable: false,
+      });
     }
     return columns;
   }

@@ -6,6 +6,7 @@
 import Controller, { inject as controller } from '@ember/controller';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
+import breadcrumbItems from 'nomad-ui/utils/breadcrumb-items';
 
 const ALL_NAMESPACE_WILDCARD = '*';
 
@@ -17,6 +18,13 @@ export default class VariablesPathController extends Controller {
   get absolutePath() {
     return this.model?.absolutePath || '';
   }
+  get breadcrumbItems() {
+    return [
+      { label: 'Variables', route: 'variables.index', id: 'variables.index' },
+      ...breadcrumbItems(this.breadcrumbs),
+    ];
+  }
+
   get breadcrumbs() {
     if (this.absolutePath) {
       let crumbs = [];

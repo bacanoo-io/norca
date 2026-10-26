@@ -27,8 +27,14 @@ Router.map(function () {
       });
     });
     this.route('job', { path: '/:job_name' }, function () {
-      this.route('task-group', { path: '/:name' });
+      // Task groups live under /groups so that their names cannot collide
+      // with the tabs of the job page; the previous /:name URLs redirect.
+      this.route('task-group', { path: '/groups/:name' });
+      this.route('task-group-redirect', { path: '/:name' });
       this.route('definition');
+      this.route('scaling');
+      this.route('placement');
+      this.route('events');
       this.route('versions');
       this.route('deployments');
       this.route('dispatch');
@@ -126,6 +132,7 @@ Router.map(function () {
         path: '/:id',
       });
     });
+    this.route('auth-methods');
   });
   // Mirage-only route for testing OIDC flow
   if (config['ember-cli-mirage']) {

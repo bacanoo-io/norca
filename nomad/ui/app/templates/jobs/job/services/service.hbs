@@ -1,51 +1,60 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<section class="section service-list">
-  <h1 class="title">
-    <LinkTo class="back-link" @route="jobs.job.services">
-      <FlightIcon @name="chevron-left" @title="Back to services" @size="24" />
-    </LinkTo>
-    {{this.model.name}}
-  </h1>
+<div class="d-flex align-items-center gap-2 mb-3">
+  <Ui::Button @route="jobs.job.services" @icon="chevron-left" @iconOnly={{true}} @label="Back to services" @variant="ghost" data-test-back-to-services />
+  <h2 class="h2 m-0" data-test-service-title>{{this.model.name}}</h2>
+  <span class="ms-auto"><Jobs::ServiceHealth @instances={{this.model.instances}} /></span>
+</div>
 
-  <ListTable @source={{this.model.instances}} as |t|>
-    <t.head>
-      <th>Allocation</th>
-      <th>Client</th>
-      <th>IP Address &amp; Port</th>
-    </t.head>
-    <t.body as |row|>
-      <tr data-test-service-row>
-        {{#let (format-id row.model "allocation") as |allocation|}}
-          <td
-            {{keyboard-shortcut
-              enumerated=true
-              action=(action "gotoAllocation" row.model.allocation)
-            }}
-          >
-            <LinkTo
-              @route="allocations.allocation"
-              @model={{allocation.id}}
-            >{{allocation.shortId}}</LinkTo>
-          </td>
-        {{/let}}
-		{{#let (async-escape-hatch row.model "node") as |node|}}
-          <td>
-            <Tooltip @text={{node.name}}>
-              <LinkTo
-                @route="clients.client"
-                @model={{node.id}}
-              >{{node.shortId}}</LinkTo>
-            </Tooltip>
-          </td>
-        {{/let}}
-        <td>
-          {{row.model.address}}:{{row.model.port}}
-        </td>
-      </tr>
-    </t.body>
-  </ListTable>
-</section>
+<Ui::DataTable
+  @id="job-service-instances"
+  @caption="Instances of {{this.model.name}}"
+  @columns={{this.columns}}
+  @rows={{this.model.instances}}
+  @emptyMessage="The service has no registered instances."
+>
+  <:row as |instance r|>
+    <r.Row data-test-service-row>
+      {{#let (format-id instance "allocation") as |allocation|}}
+        <r.Cell @key="allocation" class="font-monospace" {{keyboard-shortcut enumerated=true action=(fn this.gotoAllocation instance.allocation)}}>
+          <LinkTo @route="allocations.allocation" @model={{allocation.id}}>{{allocation.shortId}}</LinkTo>
+        </r.Cell>
+      {{/let}}
+      {{#let (async-escape-hatch instance "node") as |node|}}
+        <r.Cell @key="client" class="font-monospace">
+          <Ui::Tooltip @text={{node.name}}>
+            <LinkTo @route="clients.client" @model={{node.id}}>{{node.shortId}}</LinkTo>
+          </Ui::Tooltip>
+        </r.Cell>
+      {{/let}}
+      <r.Cell @key="address" class="font-monospace">{{instance.address}}:{{instance.port}}</r.Cell>
+      <r.Cell @key="ready" data-test-service-ready>
+        {{#if instance.health}}
+          <Ui::StatusIndicator @tone={{if instance.ready "success" "warning"}} @label={{if instance.ready "ready" "not ready, filtered"}} />
+        {{else}}
+          <span class="text-secondary">unknown</span>
+        {{/if}}
+      </r.Cell>
+      <r.Cell @key="health" data-test-service-instance-health>
+        {{#if instance.health}}<Ui::StatusIndicator @status={{instance.health}} />{{else}}<span class="text-secondary">–</span>{{/if}}
+      </r.Cell>
+      <r.Cell @key="checks" data-test-service-checks>
+        {{#each instance.checks as |check|}}
+          <Ui::Tooltip @text={{or check.Output check.Name}} @wide={{true}}>
+            <span class="d-inline-flex align-items-center gap-1 me-2" tabindex="0">
+              <Ui::StatusIndicator @status={{check.Status}} @dotOnly={{true}} @label="{{check.Name}}: {{check.Status}}" />
+              {{check.Name}}{{#if check.Role}} <span class="text-secondary">({{check.Role}})</span>{{/if}}
+            </span>
+          </Ui::Tooltip>
+        {{else}}
+          <span class="text-secondary">no checks</span>
+        {{/each}}
+      </r.Cell>
+      <r.Cell @key="zone">{{or instance.zone "–"}}</r.Cell>
+    </r.Row>
+  </:row>
+</Ui::DataTable>

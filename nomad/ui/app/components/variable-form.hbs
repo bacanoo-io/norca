@@ -1,19 +1,21 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{did-update this.onViewChange @view}}
 {{did-insert this.establishKeyValues}}
-<form class="new-variables" autocomplete="off" {{on "submit" this.save}}>
+<form class="norca-variable-form" autocomplete="off" data-test-variable-form {{on "submit" this.save}}>
 
   {{#if @model.isNew}}
     {{#unless this.isJobTemplateVariable}}
-      <div class="related-entities related-entities-hint">
-        <p>Prefix your path with <code>nomad/jobs</code> to automatically make your variable accessible to all jobs. <br />
-        Adding job name, group name, or task name will make your variable available to that specific job, group, or task. <br />
-        Format: <code>nomad/jobs/&lt;jobname&gt;</code>, <code>nomad/jobs/&lt;jobname&gt;/&lt;groupname&gt;</code>, <code>nomad/jobs/&lt;jobname&gt;/&lt;groupname&gt;/&lt;taskname&gt;</code></p>
-      </div>
+      <Ui::Alert @tone="info" class="mb-3" data-test-related-entities-hint>
+        Prefix your path with <code>nomad/jobs</code> to automatically make your variable accessible to all jobs.
+        Adding job name, group name, or task name will make your variable available to that specific job, group, or task.
+        Format: <code>nomad/jobs/&lt;jobname&gt;</code>, <code>nomad/jobs/&lt;jobname&gt;/&lt;groupname&gt;</code>,
+        <code>nomad/jobs/&lt;jobname&gt;/&lt;groupname&gt;/&lt;taskname&gt;</code>
+      </Ui::Alert>
     {{/unless}}
 
     {{#if this.shouldShowLinkedEntities}}
@@ -25,74 +27,62 @@
         @namespace={{or this.variableNamespace "default"}}
       />
     {{/if}}
-
   {{/if}}
 
   {{#if this.hasConflict}}
-    <div class="notification conflict is-danger">
-      <h3 class="title is-4">Heads up! Your variable has a conflict.</h3>
+    <Ui::Alert @tone="danger" @title="Heads up! Your variable has a conflict." class="mb-3" data-test-variable-conflict>
       <p>This might be because someone else tried saving in the time since you've had it open.</p>
       {{#if this.conflictingVariable.modifyTime}}
-        <span class="tooltip" aria-label="{{format-ts this.conflictingVariable.modifyTime}}">
-          {{moment-from-now this.conflictingVariable.modifyTime}}
-        </span>
+        <Ui::Tooltip @text={{format-ts this.conflictingVariable.modifyTime}}>
+          <span tabindex="0">{{moment-from-now this.conflictingVariable.modifyTime}}</span>
+        </Ui::Tooltip>
       {{/if}}
       {{#if this.conflictingVariable.items}}
-        <pre><code>{{stringify-object this.conflictingVariable.items whitespace=2}}</code></pre>
+        <Ui::CodeBlock @code={{stringify-object this.conflictingVariable.items whitespace=2}} @label="The conflicting variable" class="my-2" />
       {{else}}
         <p>Your ACL token limits your ability to see further details about the conflicting variable.</p>
       {{/if}}
-      <div class="options">
-        <button data-test-refresh-button type="button" class="button" {{on "click" this.refresh}}>Refresh your browser</button>
-        <button data-test-overwrite-button type="button" class="button is-danger" {{on "click" this.saveWithOverwrite}}>Overwrite anyway</button>
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        <Ui::Button data-test-refresh-button {{on "click" this.refresh}}>Refresh your browser</Ui::Button>
+        <Ui::Button @variant="danger" data-test-overwrite-button {{on "click" this.saveWithOverwrite}}>Overwrite anyway</Ui::Button>
       </div>
-    </div>
+    </Ui::Alert>
   {{/if}}
 
-  <div class={{if this.namespaceOptions "path-namespace"}}>
-    <label>
-      <span>
-        Path
-      </span>
-      <Input
-        @type="text"
-        @value={{this.path}}
-        placeholder="nomad/jobs/my-job/my-group/my-task"
-        class="input path-input {{if this.duplicatePathWarning "error"}}"
-        {{on "input" this.setModelPath}}
-        disabled={{not @model.isNew}}
-        {{autofocus}}
-        data-test-path-input
-      />
+  <div class="row g-3 mb-3">
+    <div class="col">
+      <Ui::Field @label="Path" class="mb-0" as |f|>
+        <Ui::Input
+          @id={{f.id}}
+          @value={{this.path}}
+          @placeholder="nomad/jobs/my-job/my-group/my-task"
+          @invalid={{if this.duplicatePathWarning true false}}
+          @disabled={{not @model.isNew}}
+          @onInput={{this.setPath}}
+          data-test-path-input
+          {{autofocus}}
+        />
+      </Ui::Field>
       {{#if this.duplicatePathWarning}}
-        <p class="duplicate-path-error help is-danger">
-          There is already a variable located at
-          {{this.path}}
-          .
-          <br />
+        <p class="text-danger small mt-1 mb-0" data-test-duplicate-path-error>
+          There is already a variable located at {{this.path}}.
           Please choose a different path, or
           <LinkTo
             @route="variables.variable.edit"
             @model={{concat this.duplicatePathWarning.path "@" (or this.variableNamespace "default")}}
-          >
-            edit the existing variable
-          </LinkTo>
-          .
+          >edit the existing variable</LinkTo>.
         </p>
       {{/if}}
       {{#if this.isJobTemplateVariable}}
-        <p class="help job-template-hint">
+        <p class="small text-secondary d-flex flex-wrap align-items-center gap-1 mt-1 mb-0" data-test-job-template-hint>
           Use this variable to generate job templates with
-          <code>nomad job init -template={{this.jobTemplateName}}
-            <CopyButton
-              @clipboardText="nomad job init -template={{this.jobTemplateName}}"
-            />
-          </code>
+          <code>nomad job init -template={{this.jobTemplateName}}</code>
+          <Ui::CopyButton @text="nomad job init -template={{this.jobTemplateName}}" @label="Copy the command" />
         </p>
       {{/if}}
-    </label>
-    <VariableForm::NamespaceFilter 
-      @data={{hash 
+    </div>
+    <VariableForm::NamespaceFilter
+      @data={{hash
         disabled=(not @model.isNew)
         selection=this.variableNamespace
         namespaceOptions=this.namespaceOptions
@@ -103,88 +93,76 @@
       }}
     />
   </div>
+
   {{#if this.isJobTemplateVariable}}
     <VariableForm::JobTemplateEditor
       @keyValues={{this.keyValues}}
       @updateKeyValue={{this.updateKeyValue}}
     />
+  {{else if (eq this.view "json")}}
+    <div class="mb-3" data-test-json-editor-wrapper>
+      <Ui::CodeEditor
+        @label="Items as JSON"
+        @language="json"
+        @value={{this.JSONItems}}
+        @onChange={{this.updateCode}}
+        @invalid={{if this.JSONError true false}}
+        @onSubmit={{this.save}}
+        data-test-json-editor
+      />
+      {{#if this.JSONError}}
+        <p class="text-danger small mt-1 mb-0" data-test-json-error>{{this.JSONError}}</p>
+      {{/if}}
+    </div>
   {{else}}
-    {{#if (eq this.view "json")}}
-      <div
-        class="editor-wrapper boxed-section-body is-full-bleed
-          {{if this.JSONError 'error'}}"
-      >
-        <div
-          data-test-json-editor
-          {{code-mirror
-            content=this.JSONItems
-            onUpdate=this.updateCode
-            extraKeys=(hash Cmd-Enter=(action "save"))
-          }}
-        ></div>
-        {{#if this.JSONError}}
-          <p class="help is-danger">
-            {{this.JSONError}}
-          </p>
-        {{/if}}
-      </div>
-    {{else}}
+    <div class="mb-3" data-test-kv-rows>
       {{#each this.keyValues as |entry iter|}}
-        <div class="key-value">
-          <label>
-            <span>
-              Key
-            </span>
-            <Input
-              data-test-var-key
-              @type="text"
-              @value={{entry.key}}
-              class="input"
-              {{autofocus ignore=(eq iter 0)}}
-              {{on "input" (fn this.validateKey entry)}}
-            />
-          </label>
-          <VariableForm::InputGroup @entry={{entry}} />
-          <button
-            class="delete-row button is-danger is-inverted"
-            type="button"
-            {{on "click" (action this.deleteRow entry)}}
-            disabled={{eq this.keyValues.length 1}}
-          >
-            Delete
-          </button>
+        <div class="row g-2 align-items-end mb-2" data-test-kv-row>
+          <div class="col-md-4">
+            <Ui::Field @label="Key" class="mb-0" as |f|>
+              <Ui::Input
+                @id={{f.id}}
+                @value={{entry.key}}
+                @onInput={{fn this.setKey entry}}
+                data-test-var-key
+                {{autofocus ignore=(eq iter 0)}}
+              />
+            </Ui::Field>
+          </div>
+          <VariableForm::InputGroup @entry={{entry}} @index={{iter}} />
+          <div class="col-auto">
+            <Ui::Button
+              @variant="ghost"
+              @icon="trash"
+              @disabled={{eq this.keyValues.length 1}}
+              data-test-delete-row
+              {{on "click" (fn this.deleteRow entry)}}
+            >Delete</Ui::Button>
+          </div>
           {{#each-in entry.warnings as |k v|}}
-            <span class="key-value-error help is-danger">
-              {{v}}
-            </span>
+            <div class="col-12 text-warning small" data-test-key-value-error={{k}}>{{v}}</div>
           {{/each-in}}
         </div>
       {{/each}}
-    {{/if}}
+    </div>
   {{/if}}
 
-  <footer>
+  <div class="d-flex flex-wrap gap-2">
     {{#unless this.isJSONView}}
       {{#unless this.isJobTemplateVariable}}
-        <button
-          class="add-more button is-info is-inverted"
-          type="button"
-          disabled={{not (and this.keyValues.lastObject.key this.keyValues.lastObject.value)}}
-          {{on "click" this.appendRow}}
+        <Ui::Button
+          @icon="plus"
+          @disabled={{not (and this.keyValues.lastObject.key this.keyValues.lastObject.value)}}
           data-test-add-kv
-        >
-          Add More
-        </button>
+          {{on "click" this.appendRow}}
+        >Add More</Ui::Button>
       {{/unless}}
     {{/unless}}
-    <button
-      disabled={{this.shouldDisableSave}}
-      class="button is-primary save"
-      type="submit"
+    <Ui::Button
+      @variant="primary"
+      @type="submit"
+      @disabled={{this.shouldDisableSave}}
       data-test-submit-var
-    >
-      Save
-      {{pluralize "Variable" @this.keyValues.length}}
-    </button>
-  </footer>
+    >Save {{pluralize "Variable" this.keyValues.length}}</Ui::Button>
+  </div>
 </form>

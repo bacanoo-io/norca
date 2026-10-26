@@ -9,7 +9,7 @@ import { currentURL, settled } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import {
   formatBytes,
   formatHertz,
@@ -84,7 +84,7 @@ module('Acceptance | task group detail', function (hooks) {
 
   test('it passes an accessibility audit', async function (assert) {
     await TaskGroup.visit({ id: job.id, name: taskGroup.name });
-    await a11yAudit(assert);
+    await a11yAudit(assert, STRICT);
   });
 
   test('/jobs/:id/:task-group should list high-level metrics for the allocation', async function (assert) {
@@ -97,7 +97,7 @@ module('Acceptance | task group detail', function (hooks) {
 
     await TaskGroup.visit({ id: job.id, name: taskGroup.name });
 
-    assert.equal(TaskGroup.tasksCount, `# Tasks ${tasks.length}`, '# Tasks');
+    assert.equal(TaskGroup.tasksCount, `Tasks ${tasks.length}`, '# Tasks');
     assert.equal(
       TaskGroup.cpu,
       `Reserved CPU ${formatScheduledHertz(totalCPU, 'MHz')}`,
@@ -115,7 +115,7 @@ module('Acceptance | task group detail', function (hooks) {
 
     assert.equal(
       TaskGroup.mem,
-      `Reserved Memory ${formatScheduledBytes(
+      `Reserved memory ${formatScheduledBytes(
         totalMemory,
         'MiB'
       )}${totalMemoryMaxAddendum}`,
@@ -123,7 +123,7 @@ module('Acceptance | task group detail', function (hooks) {
     );
     assert.equal(
       TaskGroup.disk,
-      `Reserved Disk ${formatScheduledBytes(totalDisk, 'MiB')}`,
+      `Reserved disk ${formatScheduledBytes(totalDisk, 'MiB')}`,
       'Aggregated Disk reservation for all tasks'
     );
 
@@ -142,12 +142,12 @@ module('Acceptance | task group detail', function (hooks) {
     );
     assert.equal(
       Layout.breadcrumbFor('jobs.job.index').text,
-      `Job ${job.name}`,
+      job.name,
       'Second breadcrumb says the job name'
     );
     assert.equal(
       Layout.breadcrumbFor('jobs.job.task-group').text,
-      `Task Group ${taskGroup.name}`,
+      taskGroup.name,
       'Third breadcrumb says the job name'
     );
   });
@@ -243,7 +243,7 @@ module('Acceptance | task group detail', function (hooks) {
 
     assert.equal(
       decodeURIComponent(currentURL()),
-      `/jobs/${job.id}@${SCALE_AND_WRITE_NAMESPACE}/scaling`
+      `/jobs/${job.id}@${SCALE_AND_WRITE_NAMESPACE}/groups/scaling`
     );
     assert.notOk(TaskGroup.countStepper.increment.isDisabled);
 
@@ -253,7 +253,7 @@ module('Acceptance | task group detail', function (hooks) {
     });
     assert.equal(
       decodeURIComponent(currentURL()),
-      `/jobs/${job2.id}@${READ_ONLY_NAMESPACE}/scaling`
+      `/jobs/${job2.id}@${READ_ONLY_NAMESPACE}/groups/scaling`
     );
     assert.ok(TaskGroup.countStepper.increment.isDisabled);
   });
@@ -347,8 +347,13 @@ module('Acceptance | task group detail', function (hooks) {
     );
 
     assert.equal(
-      allocationRow.cpu,
-      Math.floor(allocStats.resourceUsage.CpuStats.TotalTicks) / cpuUsed,
+      allocationRow.cpuPercent,
+      String(
+        Math.round(
+          (Math.floor(allocStats.resourceUsage.CpuStats.TotalTicks) / cpuUsed) *
+            1000
+        ) / 10
+      ),
       'CPU %'
     );
 
@@ -356,19 +361,27 @@ module('Acceptance | task group detail', function (hooks) {
       allocStats.resourceUsage.CpuStats.TotalTicks
     );
     assert.equal(
-      allocationRow.cpuTooltip,
+      allocationRow.cpuTip,
       `${formatHertz(roundedTicks, 'MHz')} / ${formatHertz(cpuUsed, 'MHz')}`,
       'Detailed CPU information is in a tooltip'
     );
 
     assert.equal(
-      allocationRow.mem,
-      allocStats.resourceUsage.MemoryStats.RSS / 1024 / 1024 / memoryUsed,
+      allocationRow.memPercent,
+      String(
+        Math.round(
+          (allocStats.resourceUsage.MemoryStats.RSS /
+            1024 /
+            1024 /
+            memoryUsed) *
+            1000
+        ) / 10
+      ),
       'Memory used'
     );
 
     assert.equal(
-      allocationRow.memTooltip,
+      allocationRow.memTip,
       `${formatBytes(allocStats.resourceUsage.MemoryStats.RSS)} / ${formatBytes(
         memoryUsed,
         'MiB'
@@ -385,7 +398,7 @@ module('Acceptance | task group detail', function (hooks) {
     assert.ok(TaskGroup.isEmpty, 'Empty state is shown');
     assert.equal(
       TaskGroup.emptyState.headline,
-      'No Matches',
+      'No matches',
       'Empty state has an appropriate message'
     );
   });
@@ -417,7 +430,7 @@ module('Acceptance | task group detail', function (hooks) {
     assert.ok(TaskGroup.lifecycleChart.isPresent);
     assert.equal(
       TaskGroup.lifecycleChart.title,
-      'Task Lifecycle Configuration'
+      'Task lifecycle configuration'
     );
 
     tasks = taskGroup.taskIds.map((id) => server.db.tasks.find(id));
@@ -538,7 +551,7 @@ module('Acceptance | task group detail', function (hooks) {
     );
     assert.equal(
       currentURL(),
-      '/jobs/not-a-real-job/not-a-real-task-group',
+      '/jobs/not-a-real-job/groups/not-a-real-task-group',
       'The URL persists'
     );
     assert.ok(TaskGroup.error.isPresent, 'Error message is shown');
@@ -561,7 +574,7 @@ module('Acceptance | task group detail', function (hooks) {
     );
     assert.equal(
       currentURL(),
-      `/jobs/${job.id}/not-a-real-task-group`,
+      `/jobs/${job.id}/groups/not-a-real-task-group`,
       'The URL persists'
     );
     assert.ok(TaskGroup.error.isPresent, 'Error message is shown');
@@ -818,9 +831,9 @@ function testFacet(
 
     assert.equal(
       currentURL(),
-      `/jobs/${job.id}/${taskGroup.name}?${paramName}=${encodeURIComponent(
-        JSON.stringify(selection)
-      )}`,
+      `/jobs/${job.id}/groups/${
+        taskGroup.name
+      }?${paramName}=${encodeURIComponent(JSON.stringify(selection))}`,
       'URL has the correct query param key and value'
     );
   });

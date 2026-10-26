@@ -11,6 +11,7 @@ import { task } from 'ember-concurrency';
 import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
 
 export default class AccessControlRolesRoleController extends Controller {
+  @service can;
   @service notifications;
   @service router;
   @service store;
@@ -28,6 +29,18 @@ export default class AccessControlRolesRoleController extends Controller {
         !token.isDeleted &&
         token.hasMany('roles').ids().includes(this.role.id)
     );
+  }
+
+  get tokenColumns() {
+    const columns = [
+      { key: 'name', label: 'Name' },
+      { key: 'created', label: 'Created' },
+      { key: 'expires', label: 'Expires' },
+    ];
+    if (this.can.can('destroy token')) {
+      columns.push({ key: 'actions', label: 'Actions', srOnly: true });
+    }
+    return columns;
   }
 
   get newTokenString() {

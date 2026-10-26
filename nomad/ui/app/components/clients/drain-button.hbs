@@ -1,0 +1,79 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  Drains a client (or updates its drain): the options open in a dialog.
+~}}
+<span data-test-drain-popover>
+  <Ui::Tooltip @text={{if @isDisabled "Not allowed to drain clients"}}>
+    <Ui::Button
+      @icon="arrow-bar-to-down"
+      @variant="secondary"
+      @isLoading={{this.drain.isRunning}}
+      aria-disabled={{if @isDisabled "true"}}
+      data-test-popover-trigger
+      {{on "click" this.open}}
+    >{{if @client.isDraining "Update Drain" "Drain"}}</Ui::Button>
+  </Ui::Tooltip>
+  {{#if this.isOpen}}
+    <Ui::Modal @title={{if @client.isDraining "Update the drain" "Drain the client"}} @onClose={{this.close}}>
+      <:default>
+      <form id={{this.formId}} data-test-drain-popover-form {{on "submit" this.submit}}>
+        <Ui::Switch
+          @switch={{true}}
+          @label="Deadline"
+          @help="The amount of time a drain must complete within."
+          @checked={{this.deadlineEnabled}}
+          @onChange={{this.setDeadlineEnabled}}
+          data-test-drain-deadline-toggle
+        />
+        {{#if this.deadlineEnabled}}
+          <div class="ms-5 mb-3">
+            <Ui::Select
+              @label="Deadline"
+              @options={{this.durationQuickOptions}}
+              @value={{this.selectedDuration}}
+              @onChange={{this.setDuration}}
+              data-test-drain-deadline-option-select
+            />
+            {{#if this.durationIsCustom}}
+              <Ui::Field @label="Custom deadline" @error={{this.parseError}} @help="For example 1h30m." class="mt-2 mb-0" as |f|>
+                <Ui::Input
+                  @id={{f.id}}
+                  @value={{this.customDuration}}
+                  @placeholder="1h30m"
+                  @invalid={{f.invalid}}
+                  @onInput={{this.setCustomDuration}}
+                  aria-describedby={{f.describedBy}}
+                  data-test-drain-custom-deadline
+                />
+              </Ui::Field>
+            {{/if}}
+          </div>
+        {{/if}}
+        <Ui::Switch
+          @switch={{true}}
+          @label="Force Drain"
+          @help="Immediately remove allocations from the client."
+          @checked={{this.forceDrain}}
+          @onChange={{this.setForceDrain}}
+          data-test-force-drain-toggle
+        />
+        <Ui::Switch
+          @switch={{true}}
+          @label="Drain System Jobs"
+          @help="Stop allocations for system jobs."
+          @checked={{this.drainSystemJobs}}
+          @onChange={{this.setDrainSystemJobs}}
+          data-test-system-jobs-toggle
+        />
+      </form>
+      </:default>
+      <:footer>
+        <Ui::Button @variant="ghost" data-test-drain-cancel {{on "click" this.close}}>Cancel</Ui::Button>
+        <Ui::Button @variant="primary" @type="submit" form={{this.formId}} data-test-drain-submit>Drain</Ui::Button>
+      </:footer>
+    </Ui::Modal>
+  {{/if}}
+</span>

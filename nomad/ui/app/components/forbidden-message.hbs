@@ -1,44 +1,44 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<div data-test-error class="empty-message">
-  <h3 data-test-error-title class="empty-message-headline">Not Authorized</h3>
-  <p data-test-error-message class="empty-message-body">
-    {{#if this.token.secret}}
-      You currently lack the
-      {{#if this.permission}}
-        <code>{{this.permission}}</code>
+<Ui::Card data-test-error>
+  <div class="text-center py-4">
+    <Ui::Icon @name="lock" @size="lg" class="text-secondary mb-2" />
+    <h3 class="h3" data-test-error-title>Not Authorized</h3>
+    <p class="text-secondary" data-test-error-message>
+      {{#if this.token.secret}}
+        You currently lack the
+        {{#if this.permission}}
+          <code>{{this.permission}}</code>
+        {{else}}
+          required
+        {{/if}}
+        <LinkTo @route="settings.tokens">permission</LinkTo> for this resource.<br /> Contact your administrator if this is an error.
       {{else}}
-        required
-      {{/if}}
-      <LinkTo @route="settings.tokens">permission</LinkTo> for this resource.<br /> Contact your administrator if this is an error.
-    {{else}}
-      {{#if this.authMethods}}
-        Sign in with
-        {{#each this.authMethods as |authMethod|}}
-          <LinkTo @route="settings.tokens">{{authMethod.name}}</LinkTo>, 
-        {{/each}}
-        or
-      {{/if}}
+        {{#if this.authMethods}}
+          Sign in with
+          {{#each this.authMethods as |authMethod|}}
+            <LinkTo @route="settings.tokens">{{authMethod.name}}</LinkTo>,
+          {{/each}}
+          or
+        {{/if}}
 
-      {{conditionally-capitalize "provide" (not this.authMethods.length)}} a <LinkTo @route="settings.tokens">token</LinkTo> with the
-      {{#if this.permission}}
-        <code>{{this.permission}}</code>
-      {{else}}
-        requisite
+        {{conditionally-capitalize "provide" (not this.authMethods.length)}} a <LinkTo @route="settings.tokens">token</LinkTo> with the
+        {{#if this.permission}}
+          <code>{{this.permission}}</code>
+        {{else}}
+          requisite
+        {{/if}}
+        permission to view this.
       {{/if}}
-      permission to view this.
-    {{/if}}
-  </p>
-
-  {{#unless this.token.secret}}
-    <p class="empty-message-body">
-      If you have signed in via the Nomad CLI, authenticate with:
-      <div class='terminal-container'>
-        <pre class='terminal'><span class='prompt'>$</span> nomad ui -authenticate</pre>
-      </div>
     </p>
-  {{/unless}}
-</div>
+
+    {{#unless this.token.secret}}
+      <p class="text-secondary mb-2">If you have signed in via the Nomad CLI, authenticate with:</p>
+      <Ui::CodeBlock @code="$ nomad ui -authenticate" @label="The command" class="d-inline-block text-start" />
+    {{/unless}}
+  </div>
+</Ui::Card>

@@ -3,12 +3,11 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Breadcrumb @crumb={{hash label="New" args=(array "access-control.roles.new")}} />
 {{page-title "Create Role"}}
-<section class="section">
-  <h1 class="title" data-test-title>Create Role</h1>
-  <RoleEditor
-    @role={{this.model.role}}
-    @policies={{this.model.policies}}
-  />
-</section>
+<Access::Header
+  @title="Create Role"
+  @trail={{array (hash label="Roles" route="access-control.roles" id="access-control.roles") (hash label="New")}}
+/>
+<Ui::PageBody>
+  <RoleEditor @role={{this.model.role}} @policies={{this.model.policies}} />
+</Ui::PageBody>

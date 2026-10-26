@@ -46,7 +46,7 @@ module('Acceptance | client monitor', function (hooks) {
     assert.equal(Layout.breadcrumbFor('clients.index').text, 'Clients');
     assert.equal(
       Layout.breadcrumbFor('clients.client').text,
-      `Client ${node.id.split('-')[0]}`
+      node.id.split('-')[0]
     );
 
     await Layout.breadcrumbFor('clients.index').visit();

@@ -19,10 +19,12 @@ export default class UiSelect extends Component {
     return (this.args.options || []).map((option) => {
       const o =
         typeof option === 'object' ? option : { value: option, label: option };
+      // Options may use key (as the filters do) instead of value.
+      const value = String(o.value ?? o.key);
       return {
         ...o,
-        value: String(o.value),
-        isSelected: String(o.value) === String(this.args.value),
+        value,
+        isSelected: value === String(this.args.value),
       };
     });
   }

@@ -1,0 +1,77 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  Saved views of a unified list: named states (filters, sort, columns)
+  kept in this browser (services/list-preferences).
+~}}
+<Ui::Dropdown @label="Views" @icon="bookmark" @placement="bottom-end" data-test-saved-views as |dd|>
+  <dd.Header>Saved views</dd.Header>
+  {{#each this.views as |savedView|}}
+    <dd.Item data-test-saved-view={{savedView.name}} {{on "click" (fn this.apply savedView)}}>{{savedView.name}}</dd.Item>
+  {{else}}
+    <span class="dropdown-item disabled text-secondary" data-test-saved-views-empty>No saved views yet</span>
+  {{/each}}
+  <dd.Divider />
+  <dd.Item @icon="device-floppy" data-test-save-view {{on "click" this.openSave}}>Save current view…</dd.Item>
+  {{#if this.views.length}}
+    <dd.Item @icon="trash" data-test-manage-views {{on "click" this.openManage}}>Delete views…</dd.Item>
+  {{/if}}
+</Ui::Dropdown>
+
+{{#if this.isSaving}}
+  <Ui::Modal @title="Save the current view" @onClose={{this.closeSave}} data-test-save-view-modal>
+    <:default>
+      <form id={{this.formId}} {{on "submit" this.save}}>
+        <Ui::Field
+          @label="Name"
+          @help="Filters, sort and columns of the list are saved in this browser."
+          @error={{this.nameError}}
+          as |f|
+        >
+          <Ui::Input
+            @id={{f.id}}
+            @describedBy={{f.describedBy}}
+            @invalid={{f.invalid}}
+            @value={{this.name}}
+            @onInput={{this.setName}}
+            data-test-save-view-name
+            {{autofocus}}
+          />
+        </Ui::Field>
+      </form>
+    </:default>
+    <:footer>
+      <Ui::Button {{on "click" this.closeSave}}>Cancel</Ui::Button>
+      <Ui::Button @variant="primary" @type="submit" form={{this.formId}} data-test-save-view-submit>Save view</Ui::Button>
+    </:footer>
+  </Ui::Modal>
+{{/if}}
+
+{{#if this.isManaging}}
+  <Ui::Modal @title="Saved views" @onClose={{this.closeManage}} data-test-manage-views-modal>
+    <:default>
+      <ul class="list-unstyled m-0">
+        {{#each this.views as |savedView|}}
+          <li class="d-flex align-items-center gap-2 py-1" data-test-managed-view={{savedView.name}}>
+            <span class="flex-fill text-truncate">{{savedView.name}}</span>
+            <Ui::Button
+              @size="sm"
+              @variant="outline-danger"
+              @icon="trash"
+              @iconOnly={{true}}
+              @label="Delete the view {{savedView.name}}"
+              data-test-delete-view
+              {{on "click" (fn this.delete savedView)}}
+            />
+          </li>
+        {{else}}
+          <li class="text-secondary">No saved views.</li>
+        {{/each}}
+      </ul>
+    </:default>
+    <:footer>
+      <Ui::Button {{on "click" this.closeManage}}>Done</Ui::Button>
+    </:footer>
+  </Ui::Modal>
+{{/if}}

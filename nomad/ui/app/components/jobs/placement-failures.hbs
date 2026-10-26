@@ -1,0 +1,13 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The placement failures of the latest evaluations of a job.
+~}}
+{{#if @job.hasPlacementFailures}}
+  <Ui::Alert @tone="danger" @title="Placement failures" class="mb-3" data-test-placement-failures>
+    {{#each @job.taskGroups as |taskGroup|}}
+      <PlacementFailure @taskGroup={{taskGroup}} />
+    {{/each}}
+  </Ui::Alert>
+{{/if}}

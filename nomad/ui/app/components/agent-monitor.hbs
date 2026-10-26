@@ -1,25 +1,36 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
-<div class="boxed-section">
-  <div class="boxed-section-head" data-test-level-switcher-parent>
-    <PowerSelect
-      data-test-level-switcher
-      @tagName="div"
-      @triggerClass="is-compact pull-left"
-      @options={{this.levels}}
-      @selected={{this.level}}
-      @searchEnabled={{false}}
-      @onChange={{action this.setLevel}} as |level|>
-      <span class="ember-power-select-prefix">Level: </span>{{capitalize level}}
-    </PowerSelect>
-    <button data-test-toggle class="button is-white is-compact pull-right" {{action this.toggleStream}} type="button" title="{{if this.logger.isStreaming "Stop" "Start"}} log streaming">
-      {{x-icon (if this.logger.isStreaming "media-pause" "media-play") class="is-text"}}
-    </button>
-  </div>
-  <div data-test-log-box class="boxed-section-body is-dark is-full-bleed">
-    <StreamingFile @logger={{this.logger}} @isStreaming={{this.isStreaming}} />
-  </div>
-</div>
+<Ui::Card @flush={{true}} class="norca-task-log">
+  <:actions>
+    <div class="d-flex flex-wrap align-items-center gap-2 w-100" data-test-level-switcher-parent>
+      <label class="small text-secondary" for="agent-monitor-level-{{this.id}}">Level</label>
+      <Ui::Select
+        @id="agent-monitor-level-{{this.id}}"
+        @size="sm"
+        @options={{this.levelOptions}}
+        @value={{this.level}}
+        @onChange={{this.setLevel}}
+        class="w-auto"
+        data-test-level-switcher
+      />
+      <Ui::Button
+        @size="sm"
+        @variant="ghost"
+        @icon={{if this.logger.isStreaming "player-pause" "player-play"}}
+        @iconOnly={{true}}
+        @label="{{if this.logger.isStreaming "Stop" "Start"}} log streaming"
+        class="ms-auto"
+        data-test-toggle
+        {{on "click" this.toggleStream}}
+      />
+    </div>
+  </:actions>
+  <:default>
+    <div data-test-log-box class="norca-log-box">
+      <StreamingFile @logger={{this.logger}} @isStreaming={{this.isStreaming}} />
+    </div>
+  </:default>
+</Ui::Card>

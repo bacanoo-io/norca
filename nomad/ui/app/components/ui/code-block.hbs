@@ -1,0 +1,17 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A block of code or preformatted text (IBM Plex Mono), with an optional
+  copy button.
+
+    <Ui::CodeBlock @code={{this.hcl}} @copy={{true}} @label="Placement rules" />
+--}}
+<div class="norca-code-block" data-test-code-block ...attributes>
+  {{#if @copy}}
+    <div class="norca-code-block-actions">
+      <Ui::CopyButton @text={{@code}} @label={{concat "Copy " (or @label "the code")}} />
+    </div>
+  {{/if}}
+  <pre class="norca-code {{if @wrap 'norca-code-wrap'}}" tabindex="0" aria-label={{@label}}><code>{{#if (has-block)}}{{yield}}{{else}}{{@code}}{{/if}}</code></pre>
+</div>

@@ -1,0 +1,14 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A cell of Ui::DataTable (yielded as `r.Cell`): rendered only when the
+  column @key is one of the visible columns. @header renders a row header (th scope=row).
+~}}
+{{#if (includes @key @shown)}}
+  {{#if @header}}
+    <th scope="row" class="fw-normal" ...attributes>{{yield}}</th>
+  {{else}}
+    <td ...attributes>{{yield}}</td>
+  {{/if}}
+{{/if}}

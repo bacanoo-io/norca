@@ -1,0 +1,31 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Card @title="Events of the job" data-test-job-events {{this.live}}>
+  <:actions>
+    <span class="d-inline-flex align-items-center gap-2">
+      {{#if (eq this.streamState "open")}}
+        <Ui::StatusIndicator @tone="success" @label="Live" @animated={{true}} data-test-job-events-live />
+      {{else if (eq this.streamState "forbidden")}}
+        <Ui::StatusIndicator @tone="warning" @label="Your token cannot read the event stream" />
+      {{else if this.isEnabled}}
+        <Ui::StatusIndicator @tone="neutral" @label="Connecting" />
+      {{/if}}
+      <Ui::Select @label="Event type" @options={{this.filterOptions}} @value={{this.filter}} @onChange={{this.setFilter}} @size="sm" class="w-auto" data-test-job-events-filter />
+    </span>
+  </:actions>
+  <:default>
+    {{#if this.items.length}}
+      <Ui::Timeline @items={{this.items}} @simple={{true}} />
+    {{else}}
+      <Ui::EmptyState
+        @compact={{true}}
+        @icon="activity"
+        @title="No events yet"
+        @message="Registrations, deployments, evaluations, allocations and scaling decisions of the job appear here as they happen, starting with those the servers still buffer."
+        data-test-job-events-empty
+      />
+    {{/if}}
+  </:default>
+</Ui::Card>

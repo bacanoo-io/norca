@@ -9,8 +9,18 @@ import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
 import { task } from 'ember-concurrency';
 import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
+import LocalList from 'nomad-ui/utils/local-list';
 
 export default class AccessControlPoliciesIndexController extends Controller {
+  list = new LocalList({
+    sortBy: 'name',
+    searchProps: ['name', 'description'],
+  });
+
+  get rows() {
+    return this.list.rows(this.policies);
+  }
+
   @service can;
   @service notifications;
   @service router;
@@ -49,14 +59,19 @@ export default class AccessControlPoliciesIndexController extends Controller {
 
   get columns() {
     const columns = [
-      { key: 'name', label: 'Policy Name', isSortable: true },
+      { key: 'name', label: 'Policy Name', sortable: true, hideable: false },
       { key: 'description', label: 'Description' },
     ];
     if (this.can.can('list tokens')) {
       columns.push({ key: 'tokens', label: 'Tokens' });
     }
     if (this.can.can('destroy policy')) {
-      columns.push({ key: 'delete', label: 'Delete' });
+      columns.push({
+        key: 'actions',
+        label: 'Actions',
+        srOnly: true,
+        hideable: false,
+      });
     }
     return columns;
   }

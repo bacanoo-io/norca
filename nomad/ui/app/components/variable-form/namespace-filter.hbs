@@ -1,29 +1,23 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
 <Trigger @do={{this.fetchNamespaces}} @onSuccess={{this.formatAndSetNamespaces}} as |trigger|>
   {{did-insert trigger.fns.do}}
-  {{! No-op on Error}}
-  {{! No Loading Behavior }}
-  {{#if trigger.data.isSuccess}}
-    {{#if trigger.data.result}}
-      {{#if @data.namespaceOptions}}
-        <label>
-          <span>
-            Namespace
-          </span>
-          <SingleSelectDropdown
-            data-test-variable-namespace-filter
-            @label="Namespace"
-            @disabled={{@data.disabled}}
-            @options={{@data.namespaceOptions}}
-            @selection={{@data.selection}}
-            @onSelect={{@fns.onSelect}}
-          />
-        </label>
-      {{/if}}
-    {{/if}}
+  {{! No-op on Error, no loading behavior }}
+  {{#if (and trigger.data.isSuccess trigger.data.result @data.namespaceOptions)}}
+    <div class="col-md-3">
+      <Ui::Field @label="Namespace" class="mb-0" as |f|>
+        <Ui::Select
+          @id={{f.id}}
+          @disabled={{@data.disabled}}
+          @options={{@data.namespaceOptions}}
+          @value={{@data.selection}}
+          @onChange={{@fns.onSelect}}
+          data-test-variable-namespace-filter
+        />
+      </Ui::Field>
+    </div>
   {{/if}}
 </Trigger>

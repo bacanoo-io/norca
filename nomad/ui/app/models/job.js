@@ -45,6 +45,12 @@ export default class Job extends Model {
   @attr() periodicDetails;
   @attr() parameterizedDetails;
 
+  // The name of the namespace without loading the namespace record (for
+  // permission checks in every tab of the job page).
+  get namespaceName() {
+    return this.belongsTo('namespace').id() ?? 'default';
+  }
+
   @computed('plainId')
   get idWithNamespace() {
     return `${this.plainId}@${this.belongsTo('namespace').id() ?? 'default'}`;
@@ -114,6 +120,14 @@ export default class Job extends Model {
   }
 
   @attr() datacenters;
+
+  // The multiregion block: the regions of a multiregion job, in rollout
+  // order, and the strategy.
+  @attr() multiregion;
+
+  get multiregionRegions() {
+    return (this.multiregion?.Regions || []).map((r) => r.Name);
+  }
   @fragmentArray('task-group', { defaultValue: () => [] }) taskGroups;
   @belongsTo('job-summary') summary;
 

@@ -8,7 +8,7 @@ import percySnapshot from '@percy/ember';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
 import Definition from 'nomad-ui/tests/pages/jobs/job/definition';
 import { JOB_JSON } from 'nomad-ui/tests/utils/generate-raw-json-job';
@@ -31,7 +31,7 @@ module('Acceptance | job definition', function (hooks) {
   test('it passes an accessibility audit', async function (assert) {
     assert.expect(1);
 
-    await a11yAudit(assert, 'scrollable-region-focusable');
+    await a11yAudit(assert, STRICT, 'scrollable-region-focusable');
   });
 
   test('visiting /jobs/:job_id/definition', async function (assert) {

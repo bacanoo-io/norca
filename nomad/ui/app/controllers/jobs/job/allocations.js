@@ -18,13 +18,32 @@ import {
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
 import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class AllocationsController extends Controller.extend(
   Sortable,
   Searchable,
-  WithNamespaceResetting
+  WithNamespaceResetting,
+  WithListActions
 ) {
+  viewParams = [
+    'qpStatus',
+    'qpClient',
+    'qpTaskGroup',
+    'qpVersion',
+    'qpScheduling',
+    'searchTerm',
+    'sortProperty',
+    'sortDescending',
+  ];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
   queryParams = [
     {
       currentPage: 'page',

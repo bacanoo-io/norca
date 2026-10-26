@@ -1,0 +1,67 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A distribution: a stacked bar with a legend (allocation states, child
+  jobs). Each datum: { key, label, value, help?, route?, model?, query? }.
+  The key selects the status color (norca-swatch-<key>). With @onSelect
+  the segments are buttons; data with a route are links in the legend.
+
+    <Ui::Distribution @label="Allocations" @data={{this.data}} @onSelect={{this.gotoAllocations}} />
+--}}
+<div class="norca-distribution {{if @compact 'norca-distribution-compact'}}" data-test-distribution ...attributes>
+  <div class="norca-distribution-bar" role={{unless @onSelect "img"}} aria-label={{unless @onSelect this.description}} data-test-distribution-bar>
+    {{#each this.segments as |segment|}}
+      {{#if @onSelect}}
+        <button
+          type="button"
+          class="norca-distribution-segment norca-swatch-{{segment.key}}"
+          style={{segment.style}}
+          aria-label="{{segment.label}}: {{segment.value}}"
+          title="{{segment.label}}: {{segment.value}}"
+          data-test-summary-slice={{segment.key}}
+          {{on "click" (fn @onSelect segment)}}
+        ></button>
+      {{else}}
+        <span
+          class="norca-distribution-segment norca-swatch-{{segment.key}}"
+          style={{segment.style}}
+          title="{{segment.label}}: {{segment.value}}"
+          data-test-summary-slice={{segment.key}}
+        ></span>
+      {{/if}}
+    {{else}}
+      <span class="norca-distribution-empty" data-test-distribution-empty></span>
+    {{/each}}
+  </div>
+  {{#unless @noLegend}}
+    <ul class="norca-distribution-legend" data-test-legend>
+      {{#each this.legend as |datum|}}
+        <li
+          class={{if (eq datum.value 0) "norca-distribution-zero"}}
+          data-test-legend-label={{datum.key}}
+          data-test-legend-clickable={{if datum.isLink "true"}}
+        >
+          {{#if datum.isLink}}
+            <LinkTo @route={{datum.route}} @models={{datum.models}} @query={{or datum.query (hash)}} class="norca-distribution-item">
+              <span class="norca-swatch norca-swatch-{{datum.key}}" aria-hidden="true"></span>
+              <span class="fw-medium" data-test-legend-value={{datum.key}}>{{datum.value}}</span>
+              {{datum.label}}
+            </LinkTo>
+          {{else}}
+            <span class="norca-distribution-item">
+              <span class="norca-swatch norca-swatch-{{datum.key}}" aria-hidden="true"></span>
+              <span class="fw-medium" data-test-legend-value={{datum.key}}>{{datum.value}}</span>
+              {{datum.label}}
+            </span>
+          {{/if}}
+          {{#if datum.help}}
+            <Ui::Tooltip @text={{datum.help}} @wide={{true}}>
+              <Ui::Icon @name="info-circle" @size="sm" @label={{datum.help}} class="text-secondary" tabindex="0" />
+            </Ui::Tooltip>
+          {{/if}}
+        </li>
+      {{/each}}
+    </ul>
+  {{/unless}}
+</div>

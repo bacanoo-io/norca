@@ -1,0 +1,25 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The column selection of Ui::DataTable: a menu of check items, one per
+  column that can be hidden.
+~}}
+<Ui::Dropdown
+  @label="Columns"
+  @icon="adjustments-horizontal"
+  @placement="bottom-end"
+  data-test-column-picker
+  as |dd|
+>
+  <dd.Header>Show columns</dd.Header>
+  {{#each @columns as |column|}}
+    <dd.CheckItem
+      @checked={{column.isVisible}}
+      @onChange={{fn this.toggle column}}
+      data-test-column-option={{column.key}}
+    >{{column.label}}</dd.CheckItem>
+  {{/each}}
+  <dd.Divider />
+  <dd.Item @icon="refresh" data-test-column-reset {{on "click" @onReset}}>Reset columns</dd.Item>
+</Ui::Dropdown>

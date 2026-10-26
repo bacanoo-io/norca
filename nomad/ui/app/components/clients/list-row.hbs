@@ -1,0 +1,45 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A row of the clients list.
+~}}
+<@r.Row data-test-client-node-row={{@node.id}}>
+  <@r.Cell @key="indicators" class="w-1" data-test-icon>
+    {{#if @node.unhealthyDrivers.length}}
+      <Ui::Tooltip @text="Client has unhealthy drivers">
+        <Ui::Icon @name="alert-triangle" class="text-warning" @label="Client has unhealthy drivers" />
+      </Ui::Tooltip>
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="id" class="font-monospace" data-test-client-id>
+    <LinkTo @route="clients.client" @model={{@node.id}}>{{@node.shortId}}</LinkTo>
+  </@r.Cell>
+  <@r.Cell @key="name" class="text-truncate norca-cell-name" title={{@node.name}} data-test-client-name>{{@node.name}}</@r.Cell>
+  <@r.Cell @key="compositeStatus" data-test-client-composite-status>
+    <Ui::Tooltip @text="{{@node.status}} / {{if @node.isDraining 'draining' 'not draining'}} / {{if @node.isEligible 'eligible' 'not eligible'}}">
+      <span tabindex="0" data-test-composite-status={{@node.compositeStatus}}>
+        <Ui::StatusIndicator @status={{@node.compositeStatus}} @label={{capitalize @node.compositeStatus}} />
+      </span>
+    </Ui::Tooltip>
+  </@r.Cell>
+  <@r.Cell @key="address" class="font-monospace text-truncate" data-test-client-address>{{@node.httpAddr}}</@r.Cell>
+  <@r.Cell @key="nodePool" title={{@node.nodePool}} data-test-client-node-pool>{{or @node.nodePool "-"}}</@r.Cell>
+  <@r.Cell @key="datacenter" data-test-client-datacenter>{{@node.datacenter}}</@r.Cell>
+  <@r.Cell
+    @key="version"
+    title={{if @node.norcaVersion (concat "Nomad API " @node.version " compatible") "Nomad version (the client predates Norca)"}}
+    data-test-client-version
+  >
+    {{#if @node.norcaVersion}}{{@node.norcaVersion}}{{else}}Nomad {{@node.version}}{{/if}}
+  </@r.Cell>
+  <@r.Cell @key="volumes" class="tabular-nums" data-test-client-volumes>{{if @node.hostVolumes.length @node.hostVolumes.length}}</@r.Cell>
+  <@r.Cell @key="allocations" class="tabular-nums" data-test-client-allocations>
+    {{#if @node.allocations.isPending}}
+      …
+    {{else}}
+      {{@node.runningAllocations.length}}
+    {{/if}}
+  </@r.Cell>
+</@r.Row>

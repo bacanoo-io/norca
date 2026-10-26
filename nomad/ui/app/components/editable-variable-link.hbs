@@ -1,5 +1,6 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
@@ -7,9 +8,9 @@
 {{#if (can "write variable")}}
   {{#let (editable-variable-link @path existingPaths=@existingPaths namespace=@namespace) as |link|}}
     {{#if link.model}}
-      <Hds::Link::Inline @route={{link.route}} @model={{link.model}} @query={{link.query}}>{{@path}}</Hds::Link::Inline>
+      <LinkTo @route={{link.route}} @model={{link.model}} @query={{link.query}}>{{@path}}</LinkTo>
     {{else}}
-      <Hds::Link::Inline @route={{link.route}} @query={{link.query}}>{{@path}}</Hds::Link::Inline>
+      <LinkTo @route={{link.route}} @query={{link.query}}>{{@path}}</LinkTo>
     {{/if}}
   {{/let}}
 {{else}}

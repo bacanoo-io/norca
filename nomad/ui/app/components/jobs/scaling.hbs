@@ -1,0 +1,126 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-job-scaling {{this.live}}>
+  {{#if this.policiesError}}
+    <Ui::Alert @tone="warning" class="mb-3" data-test-scaling-policies-error>{{this.policiesError}}</Ui::Alert>
+  {{/if}}
+
+  {{#each this.groups as |group|}}
+    <Ui::Card @title="Task group {{group.name}}" class="mb-3" data-test-scaling-group={{group.name}}>
+      <:actions>
+        <span class="d-inline-flex align-items-center gap-2">
+          <span class="text-secondary">Count</span>
+          <Jobs::ScaleControls @taskGroup={{group.taskGroup}} />
+          {{#if (can "run job" namespace=@job.namespaceName)}}
+            <Ui::Button @size="sm" @icon="pencil" data-test-scaling-edit {{on "click" (fn this.editPolicy group)}}>
+              {{if group.scaling "Edit policy" "Add policy"}}
+            </Ui::Button>
+          {{/if}}
+        </span>
+      </:actions>
+      <:default>
+        {{#if group.scaling}}
+          <div class="row g-3">
+            <div class="col-lg-4">
+              <Ui::Datagrid as |g|>
+                <g.Item @title="Engine" data-test-scaling-engine>{{or group.policy.Engine "default"}}</g.Item>
+                <g.Item @title="Min / max" data-test-scaling-range>{{group.scaling.min}} / {{group.scaling.max}}</g.Item>
+                <g.Item @title="Enabled" data-test-scaling-enabled>{{if group.scaling.enabled "yes" "no"}}</g.Item>
+                {{#if group.interval}}<g.Item @title="Evaluation interval">{{group.interval}}</g.Item>{{/if}}
+                {{#if group.cooldown}}<g.Item @title="Cooldown">{{group.cooldown}}</g.Item>{{/if}}
+                {{#if group.policy.ScaleDuringDeployment}}<g.Item @title="During deployments">{{group.policy.ScaleDuringDeployment}}</g.Item>{{/if}}
+              </Ui::Datagrid>
+              {{#if group.checks.length}}
+                <h3 class="h4 mt-3">Checks</h3>
+                <ul class="list-unstyled m-0">
+                  {{#each group.checks as |check|}}
+                    <li class="mb-2" data-test-scaling-check={{check.name}}>
+                      <span class="fw-medium">{{check.name}}</span>
+                      <span class="text-secondary small d-block">{{check.source}}{{#if check.strategy}}, {{check.strategy}}{{/if}}{{#if check.target}} ({{check.target}}){{/if}}</span>
+                      {{#if check.query}}<code class="small text-break">{{check.query}}</code>{{/if}}
+                    </li>
+                  {{/each}}
+                </ul>
+              {{else if (not group.policy.Policy)}}
+                <p class="text-secondary small mt-3 mb-0">
+                  No policy: the count range bounds manual scaling only.
+                </p>
+              {{/if}}
+            </div>
+            <div class="col-lg-8">
+              {{#if group.chart}}
+                <Ui::Chart @label="Count of {{group.name}} over time" @option={{group.chart}} @height={{200}}>
+                  {{this.chartSummary group}}
+                </Ui::Chart>
+              {{else}}
+                <Ui::EmptyState @compact={{true}} @icon="chart-line" @title="No scaling events yet" @message="The count over time appears after the first scaling of the group." />
+              {{/if}}
+              <p class="small text-secondary mt-2 mb-0">
+                The metric values of the checks are not recorded by the servers; the chart shows the count.
+              </p>
+            </div>
+          </div>
+        {{else}}
+          <Ui::EmptyState
+            @compact={{true}}
+            @icon="arrows-maximize"
+            @title="No scaling block"
+            @message="Add a scaling block to the task group to scale it manually within a range, or automatically with the built-in autoscaler."
+            data-test-scaling-none
+          />
+        {{/if}}
+
+        {{#if group.decisions.length}}
+          <h3 class="h4 mt-3">Live decisions</h3>
+          <ul class="list-unstyled m-0" data-test-scaling-decisions>
+            {{#each group.decisions as |decision|}}
+              <li class="d-flex flex-wrap gap-2 py-1" data-test-scaling-decision>
+                <Ui::Badge @color={{if (eq decision.Type "ScalingQuotaCapped") "orange" (if decision.DryRun "secondary" "blue")}}>
+                  {{if (eq decision.Type "ScalingQuotaCapped") "quota capped" (if decision.DryRun "dry run" decision.Direction)}}
+                </Ui::Badge>
+                <span>{{decision.PreviousCount}} → {{decision.Count}}</span>
+                {{#if decision.Check}}<span class="text-secondary">check {{decision.Check}}</span>{{/if}}
+                <span class="text-secondary">{{decision.Reason}}</span>
+                <span class="ms-auto text-secondary small tabular-nums">{{format-ts (this.decisionTime decision)}}</span>
+              </li>
+            {{/each}}
+          </ul>
+        {{/if}}
+
+        {{#if group.events.length}}
+          <h3 class="h4 mt-3">Scaling events</h3>
+          <Ui::Table
+            @caption="Scaling events of {{group.name}}"
+            @columns={{array (hash key="time" label="Time") (hash key="change" label="Change") (hash key="message" label="Message")}}
+            @rows={{group.events}}
+            data-test-scaling-events
+            as |event|
+          >
+            <td class="text-nowrap tabular-nums">{{format-ts event.time}}</td>
+            <td class="text-nowrap">
+              {{#if event.error}}
+                <Ui::StatusIndicator @tone="danger" @label="error" />
+              {{else if event.hasCount}}
+                {{event.previousCount}} → {{event.count}}
+              {{else}}
+                –
+              {{/if}}
+            </td>
+            <td>{{event.message}}</td>
+          </Ui::Table>
+        {{/if}}
+      </:default>
+    </Ui::Card>
+  {{/each}}
+</div>
+
+{{#if this.editing}}
+  <Jobs::ScalingPolicyEditor
+    @job={{@job}}
+    @group={{this.editing}}
+    @onClose={{this.closeEditor}}
+    @onSaved={{this.policySaved}}
+  />
+{{/if}}

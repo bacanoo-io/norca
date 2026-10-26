@@ -1,0 +1,30 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The CPU or memory use of a running allocation (or task) against its
+  reservation: a small meter with the values in its tooltip.
+~}}
+{{#if @isRunning}}
+  {{#if (and (not this.stat) @isLoading)}}
+    <span class="text-secondary" aria-label="Loading">…</span>
+  {{else if @error}}
+    <Ui::Tooltip @text="Couldn't collect stats">
+      <Ui::Icon @name="alert-triangle" class="text-warning" @label="Couldn't collect stats" />
+    </Ui::Tooltip>
+  {{else if this.stat}}
+    <Ui::Tooltip @text={{this.text}} class="w-100">
+      <Ui::Progress
+        @value={{this.percent}}
+        @max={{100}}
+        @size="sm"
+        @color={{if (eq @metric "cpu") "blue" "purple"}}
+        @label={{if (eq @metric "cpu") "CPU" "Memory"}}
+        @valueText={{this.text}}
+        class="w-100"
+        tabindex="0"
+        data-test-percent={{this.percent}}
+      />
+    </Ui::Tooltip>
+  {{/if}}
+{{/if}}

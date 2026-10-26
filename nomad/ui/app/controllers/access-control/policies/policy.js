@@ -10,12 +10,25 @@ import { alias } from '@ember/object/computed';
 import { task } from 'ember-concurrency';
 
 export default class AccessControlPoliciesPolicyController extends Controller {
+  @service can;
   @service notifications;
   @service router;
   @service store;
 
   @alias('model.policy') policy;
   @alias('model.tokens') tokens;
+
+  get tokenColumns() {
+    const columns = [
+      { key: 'name', label: 'Name' },
+      { key: 'created', label: 'Created' },
+      { key: 'expires', label: 'Expires' },
+    ];
+    if (this.can.can('destroy token')) {
+      columns.push({ key: 'actions', label: 'Actions', srOnly: true });
+    }
+    return columns;
+  }
 
   get newTokenString() {
     return `nomad acl token create -name="<TOKEN_NAME>" -policy="${this.policy.name}" -type=client -ttl=8h`;

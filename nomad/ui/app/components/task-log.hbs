@@ -1,44 +1,72 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{#if this.noConnection}}
-  <div data-test-connection-error class="notification is-error">
-    <div class="columns">
-      <div class="column">
-        <h3 class="title is-4">Cannot fetch logs</h3>
-        <p>The logs for this task are inaccessible. Check the condition of the node the allocation is on.</p>
-      </div>
-      <div class="column is-centered is-minimum">
-        <button data-test-connection-error-dismiss class="button is-danger" onclick={{action (mut this.noConnection) false}} type="button">Okay</button>
-      </div>
-    </div>
-  </div>
+  <Ui::Alert
+    @tone="danger"
+    @title="Cannot fetch logs"
+    @onDismiss={{action (mut this.noConnection) false}}
+    class="mb-3"
+    data-test-connection-error
+  >
+    The logs for this task are inaccessible. Check the condition of the node the allocation is on.
+  </Ui::Alert>
 {{/if}}
-<div class="boxed-section-head task-log-head">
-  <span>
-    <button data-test-log-action="stdout" class="button {{if (eq this.mode "stdout") "is-info"}}" {{action "setMode" "stdout"}} type="button">stdout</button>
-    <button data-test-log-action="stderr" class="button {{if (eq this.mode "stderr") "is-danger"}}" {{action "setMode" "stderr"}} type="button">stderr</button>
-  </span>
-  <span class="pull-right">
-    <span class="header-toggle">
-      <Hds::Form::Toggle::Field
-        {{keyboard-shortcut label="Toggle word wrap" action=(action "toggleWrap") pattern=(array "w" "w") menuLevel=true }}
-        checked={{this.wrapped}}
-        {{on "change" this.toggleWrap}}
-        data-test-word-wrap-toggle
-      as |F|>
-        <F.Label>Word Wrap</F.Label>
-      </Hds::Form::Toggle::Field>
-    </span>
-    <button data-test-log-action="head" class="button is-white" onclick={{action "gotoHead"}} type="button">Head</button>
-    <button data-test-log-action="tail" class="button is-white" onclick={{action "gotoTail"}} type="button">Tail</button>
-    <button data-test-log-action="toggle-stream" class="button is-white" onclick={{action "toggleStream"}} type="button" title="{{if this.logger.isStreaming "Stop" "Start"}} log streaming">
-      {{x-icon (if this.logger.isStreaming "media-pause" "media-play") class="is-text"}}
-    </button>
-  </span>
-</div>
-<div data-test-log-box class="boxed-section-body is-dark is-full-bleed">
-  <StreamingFile @logger={{this.logger}} @mode={{this.streamMode}} @isStreaming={{this.isStreaming}} @shouldFillHeight={{this.shouldFillHeight}} @wrapped={{this.wrapped}} />
-</div>
+<Ui::Card @flush={{true}} class="norca-task-log">
+  <:actions>
+    <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+      <span class="d-inline-flex gap-1" role="group" aria-label="Stream">
+        <Ui::Button
+          @size="sm"
+          @variant={{if (eq this.mode "stdout") "primary" "secondary"}}
+          aria-pressed={{if (eq this.mode "stdout") "true" "false"}}
+          data-test-log-action="stdout"
+          {{on "click" (action "setMode" "stdout")}}
+        >stdout</Ui::Button>
+        <Ui::Button
+          @size="sm"
+          @variant={{if (eq this.mode "stderr") "danger" "secondary"}}
+          aria-pressed={{if (eq this.mode "stderr") "true" "false"}}
+          data-test-log-action="stderr"
+          {{on "click" (action "setMode" "stderr")}}
+        >stderr</Ui::Button>
+      </span>
+      <span class="d-inline-flex align-items-center gap-1 ms-auto">
+        <Ui::Switch
+          @switch={{true}}
+          @label="Word wrap"
+          @checked={{this.wrapped}}
+          @onChange={{action "toggleWrap"}}
+          class="me-2 mb-0"
+          data-test-word-wrap-toggle
+          {{keyboard-shortcut label="Toggle word wrap" action=(action "toggleWrap") pattern=(array "w" "w") menuLevel=true}}
+        />
+        <Ui::Button @size="sm" @variant="ghost" data-test-log-action="head" {{on "click" (action "gotoHead")}}>Head</Ui::Button>
+        <Ui::Button @size="sm" @variant="ghost" data-test-log-action="tail" {{on "click" (action "gotoTail")}}>Tail</Ui::Button>
+        <Ui::Button
+          @size="sm"
+          @variant="ghost"
+          @icon={{if this.logger.isStreaming "player-pause" "player-play"}}
+          @iconOnly={{true}}
+          @label={{if this.logger.isStreaming "Stop log streaming" "Start log streaming"}}
+          data-test-log-action="toggle-stream"
+          {{on "click" (action "toggleStream")}}
+        />
+      </span>
+    </div>
+  </:actions>
+  <:default>
+    <div data-test-log-box class="norca-log-box">
+      <StreamingFile
+        @logger={{this.logger}}
+        @mode={{this.streamMode}}
+        @isStreaming={{this.isStreaming}}
+        @shouldFillHeight={{this.shouldFillHeight}}
+        @wrapped={{this.wrapped}}
+      />
+    </div>
+  </:default>
+</Ui::Card>
