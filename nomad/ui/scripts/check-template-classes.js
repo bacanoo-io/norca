@@ -90,6 +90,8 @@ const MIGRATED = [
   'components/evaluation-sidebar',
   'components/keyboard-shortcuts-modal.hbs',
   'templates/oidc-mock.hbs',
+  'templates/settings.hbs',
+  'templates/settings',
 ];
 
 const ALLOWED = [

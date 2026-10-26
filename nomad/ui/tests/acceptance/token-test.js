@@ -11,6 +11,7 @@ import {
   visit,
   click,
   fillIn,
+  select,
 } from '@ember/test-helpers';
 import { module, skip, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
@@ -27,8 +28,6 @@ import faker from 'nomad-ui/mirage/faker';
 import moment from 'moment';
 import { _cancelTimers as cancelTimers } from '@ember/runloop';
 import { allScenarios } from '../../mirage/scenarios/default';
-import { selectChoose } from 'ember-power-select/test-support';
-import { clickTrigger } from 'ember-power-select/test-support/helpers';
 
 let job;
 let node;
@@ -570,10 +569,11 @@ module('Acceptance | tokens', function (hooks) {
       '/settings/tokens?jwtAuthMethod=JWT-Global',
       'Default JWT method is selected'
     );
-    await clickTrigger('[data-test-select-jwt]');
-    assert.dom('.dropdown-options').exists('Dropdown options are shown');
+    assert
+      .dom('[data-test-select-jwt] option')
+      .exists({ count: 3 }, 'Every JWT method is an option');
 
-    await selectChoose('[data-test-select-jwt]', 'JWT-Regional');
+    await select('[data-test-select-jwt]', 'JWT-Regional');
     assert.equal(
       currentURL(),
       '/settings/tokens?jwtAuthMethod=JWT-Regional',
