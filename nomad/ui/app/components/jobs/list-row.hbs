@@ -1,0 +1,51 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A job of the jobs list (Ui::DataTable row).
+~}}
+<@r.Row data-test-job-row={{@job.plainId}}>
+  <@r.Cell @key="name" data-test-job-name>
+    <span class="d-inline-flex flex-wrap align-items-center gap-2">
+      <LinkTo @route="jobs.job.index" @model={{@job.idWithNamespace}} class="fw-medium">{{@job.name}}</LinkTo>
+      {{#if @job.meta.structured.pack}}
+        <Ui::Badge @icon="package" @color="purple" data-test-pack-tag>Pack</Ui::Badge>
+      {{/if}}
+    </span>
+  </@r.Cell>
+  <@r.Cell @key="namespace.name" data-test-job-namespace>{{@job.namespace.name}}</@r.Cell>
+  <@r.Cell @key="status" data-test-job-status>
+    <Ui::StatusIndicator @status={{@job.status}} />
+  </@r.Cell>
+  <@r.Cell @key="type" data-test-job-type>{{@job.displayType.type}}</@r.Cell>
+  <@r.Cell @key="nodePool" data-test-job-node-pool>{{or @job.nodePool "-"}}</@r.Cell>
+  <@r.Cell @key="priority" class="tabular-nums" data-test-job-priority>{{@job.priority}}</@r.Cell>
+  <@r.Cell @key="regions" data-test-job-regions>
+    {{#each @job.multiregionRegions as |region|}}
+      <span class="norca-region me-1">{{region}}</span>
+    {{else}}
+      <span class="text-secondary">–</span>
+    {{/each}}
+  </@r.Cell>
+  <@r.Cell @key="owner" data-test-job-owner>
+    {{#if this.owner}}
+      <Ui::Badge @color="purple" @icon={{if (eq this.owner.kind "release") "package" "box"}}>
+        {{if (eq this.owner.kind "release") "release" this.owner.kind}} {{this.owner.name}}
+      </Ui::Badge>
+    {{else}}
+      <span class="text-secondary">–</span>
+    {{/if}}
+  </@r.Cell>
+  <@r.Cell @key="groups" class="tabular-nums" data-test-job-task-groups>{{or @job.taskGroupCount "--"}}</@r.Cell>
+  <@r.Cell @key="summary" class="w-25" data-test-job-allocations>
+    {{#if @job.hasChildren}}
+      {{#if (gt @job.totalChildren 0)}}
+        <Ui::Distribution @label="Child jobs of {{@job.name}}" @data={{this.childrenData}} @compact={{true}} @noLegend={{true}} />
+      {{else}}
+        <span class="text-secondary">No children</span>
+      {{/if}}
+    {{else}}
+      <Jobs::AllocationSummary @summary={{@job}} @compact={{true}} @noLegend={{true}} />
+    {{/if}}
+  </@r.Cell>
+</@r.Row>

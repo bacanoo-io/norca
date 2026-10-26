@@ -1,10 +1,20 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 <Breadcrumb @crumb={{hash label="Run" args=(array "jobs.run")}} />
 {{page-title "Run a job"}}
-<section class="section">
-  <JobEditor @job={{this.model}} @context="new" @onSubmit={{action this.onSubmit}} @handleSaveAsTemplate={{this.handleSaveAsTemplate}} data-test-job-editor />
-</section>
+<PageLayout @legacy={{false}}>
+  <Ui::PageHeader @breadcrumbs={{array (hash label="Jobs" route="jobs.index" id="jobs.index") (hash label="Run a job" id="jobs.run")}} @title="Run a job" />
+  <Ui::PageBody>
+    <JobEditor
+      @job={{this.model}}
+      @context="new"
+      @onSubmit={{action this.onSubmit}}
+      @handleSaveAsTemplate={{this.handleSaveAsTemplate}}
+      data-test-job-editor
+    />
+  </Ui::PageBody>
+</PageLayout>

@@ -61,8 +61,15 @@
         >
           <Ui::Icon @name={{if this.frame.sidebarCollapsed "layout-sidebar-left-expand" "layout-sidebar-left-collapse"}} />
         </button>
-        {{#if this.system.agent.version}}
-          <span class="norca-version text-secondary small" data-test-agent-version>v{{this.system.agent.version}}</span>
+        {{#if this.system.agent.norcaVersion}}
+          <span
+            class="norca-version text-secondary small"
+            title="Nomad API {{this.system.agent.nomadVersion}} compatible"
+            data-test-agent-version
+          >Norca {{this.system.agent.norcaVersion}}<span class="visually-hidden"> (Nomad API {{this.system.agent.nomadVersion}} compatible)</span></span>
+        {{else if this.system.agent.nomadVersion}}
+          {{! an agent that predates Norca reports only the Nomad version }}
+          <span class="norca-version text-secondary small" title="Nomad version of the agent" data-test-agent-version>Nomad {{this.system.agent.nomadVersion}}</span>
         {{/if}}
       </div>
     </div>

@@ -186,7 +186,7 @@ module('Acceptance | tokens', function (hooks) {
     const { secretId } = clientToken;
 
     await Jobs.visit();
-    assert.ok(find('.job-row'), 'Jobs found');
+    assert.ok(find('[data-test-job-row]'), 'Jobs found');
 
     await Tokens.visit();
     await Tokens.secret(secretId).submit();
@@ -692,7 +692,8 @@ module('Acceptance | tokens', function (hooks) {
     );
     assert.dom(doomedTokenRow).exists();
 
-    await click(doomedTokenRow.querySelector('button'));
+    await click(doomedTokenRow.querySelector('[data-test-idle-button]'));
+    await click(doomedTokenRow.querySelector('[data-test-confirm-button]'));
     assert.dom('.flash-message.alert-success').exists();
     assert
       .dom('[data-test-policy-token-row]')
@@ -930,11 +931,11 @@ module('Acceptance | tokens', function (hooks) {
 
       // Click on the first thead tr th to reverse
       assert
-        .dom('table.acl-table thead tr th')
+        .dom('[data-test-ui-table-header="name"]')
         .hasAttribute('aria-sort', 'ascending');
-      await click('table.acl-table thead tr th button');
+      await click('[data-test-sort-by="name"]');
       assert
-        .dom('table.acl-table thead tr th')
+        .dom('[data-test-ui-table-header="name"]')
         .hasAttribute('aria-sort', 'descending');
 
       const reversedNameCells = findAll('[data-test-token-name]');
@@ -965,6 +966,7 @@ module('Acceptance | tokens', function (hooks) {
       await click(
         tokenRowToDelete.querySelector('[data-test-delete-token] button')
       );
+      await click('[data-test-delete-token] [data-test-confirm-button]');
       assert.dom('.flash-message.alert-success').exists();
       assert
         .dom('[data-test-token-row]')
@@ -1008,12 +1010,8 @@ module('Acceptance | tokens', function (hooks) {
       assert.dom(rolesCell).exists();
       assert.dom(policiesCell).exists();
 
-      const rolesCellTags = rolesCell
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
-      const policiesCellTags = policiesCell
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
+      const rolesCellTags = rolesCell.querySelectorAll('.badge');
+      const policiesCellTags = policiesCell.querySelectorAll('.badge');
       assert.equal(rolesCellTags.length, 2);
       assert.equal(policiesCellTags.length, 1);
 
@@ -1032,12 +1030,8 @@ module('Acceptance | tokens', function (hooks) {
       assert.dom(rolesCell2).exists();
       assert.dom(policiesCell2).exists();
 
-      const rolesCellTags2 = rolesCell2
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
-      const policiesCellTags2 = policiesCell2
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
+      const rolesCellTags2 = rolesCell2.querySelectorAll('.badge');
+      const policiesCellTags2 = policiesCell2.querySelectorAll('.badge');
       assert.equal(rolesCellTags2.length, 1);
       assert.equal(policiesCellTags2.length, 0);
     });
@@ -1051,7 +1045,9 @@ module('Acceptance | tokens', function (hooks) {
       assert.dom('[data-test-token-type="client"]').isChecked();
       assert.dom('[data-test-token-type="management"]').isNotChecked();
 
-      assert.dom('.expiration-time').hasText('Token expires in an hour');
+      assert
+        .dom('[data-test-token-expiration]')
+        .hasText('Token expires in an hour');
 
       assert.dom('[data-test-token-roles]').exists();
       assert.dom('[data-test-token-policies]').exists();
@@ -1198,15 +1194,14 @@ module('Acceptance | tokens', function (hooks) {
 
       // Roles cell should have 1 tag
       const rolesCell = clayTokenRow.querySelector('[data-test-token-roles]');
-      const rolesCellTags = rolesCell
-        .querySelector('.tag-group')
-        .querySelectorAll('span');
+      const rolesCellTags = rolesCell.querySelectorAll('.badge');
       assert.equal(rolesCellTags.length, 1);
     });
     test('Token can be deleted', async function (assert) {
       const token = server.db.tokens.findBy((t) => t.id === 'cl4y-t0k3n');
       await visit(`/access-control/tokens/${token.id}`);
-      await click('[data-test-delete-token]');
+      await click('[data-test-delete-token] [data-test-idle-button]');
+      await click('[data-test-delete-token] [data-test-confirm-button]');
       assert.dom('.flash-message.alert-success').exists();
       await AccessControl.visitTokens();
       assert.dom('[data-test-token-name="cl4y-t0k3n"]').doesNotExist();
@@ -1234,7 +1229,7 @@ module('Acceptance | tokens', function (hooks) {
       assert.equal(currentURL(), '/access-control/tokens/new');
       await fillIn('[data-test-token-name-input]', 'TTL Token');
       // Select the "8 hours" radio within the .expiration-time div
-      await click('.expiration-time input[value="8h"]');
+      await click('[data-test-token-expiration] input[value="8h"]');
       await click('[data-test-token-save]');
       assert.dom('.flash-message.alert-success').exists();
       await AccessControl.visitTokens();
@@ -1252,7 +1247,7 @@ module('Acceptance | tokens', function (hooks) {
       assert.equal(currentURL(), '/access-control/tokens/new');
       await fillIn('[data-test-token-name-input]', 'Expiring Token');
       // select the Custom radio button
-      await click('.expiration-time input[value="custom"]');
+      await click('[data-test-token-expiration] input[value="custom"]');
       assert
         .dom('[data-test-token-expiration-time-input]')
         .exists('HTML datetime-local picker exists');

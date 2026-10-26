@@ -109,7 +109,29 @@ function jobItem(event) {
   };
 }
 
+// A decision of the built-in autoscaler (ScalingDecision) or a scale up
+// capped by the quota of the namespace (ScalingQuotaCapped).
+function scalingItem(event) {
+  const d = event.Payload || {};
+  const capped = event.Type === 'ScalingQuotaCapped';
+  return {
+    icon: 'arrows-maximize',
+    tone: capped ? 'warning' : 'info',
+    title: capped
+      ? `Scaling of ${d.JobID}/${d.Group} capped by quota ${
+          d.Quota || ''
+        }`.trim()
+      : `${d.JobID}/${d.Group} scaled from ${d.PreviousCount} to ${d.Count}${
+          d.DryRun ? ' (dry run)' : ''
+        }`,
+    text: d.Reason || (d.Check ? `check ${d.Check}` : ''),
+    notable: capped,
+    ...jobLink(d.Namespace || event.Namespace, d.JobID),
+  };
+}
+
 const BUILDERS = {
+  Scaling: scalingItem,
   Deployment: deploymentItem,
   Allocation: allocationItem,
   Evaluation: evaluationItem,

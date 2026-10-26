@@ -1,0 +1,17 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div
+  class="norca-code-editor {{if @invalid 'is-invalid'}} {{if @readOnly 'is-read-only'}}"
+  style={{this.style}}
+  data-test-code-editor
+  {{this.setup
+    value=@value
+    language=@language
+    readOnly=@readOnly
+    wrap=@wrap
+    errorLines=@errorLines
+  }}
+  ...attributes
+></div>

@@ -1,0 +1,12 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A button that opens the file chooser; @onChange receives the change
+  event of the file input.
+~}}
+<label class="btn norca-file-button {{if @variant (concat 'btn-' @variant)}} mb-0" data-test-file-button ...attributes>
+  {{#if @icon}}<Ui::Icon @name={{@icon}} class="me-2" />{{/if}}
+  {{@label}}
+  <input type="file" class="visually-hidden" accept={{@accept}} {{on "change" (optional @onChange)}} />
+</label>

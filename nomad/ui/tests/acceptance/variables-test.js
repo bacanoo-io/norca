@@ -9,12 +9,11 @@ import {
   click,
   find,
   findAll,
+  select,
   typeIn,
   visit,
 } from '@ember/test-helpers';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import { selectChoose } from 'ember-power-select/test-support';
-import { clickTrigger } from 'ember-power-select/test-support/helpers';
 import { setupApplicationTest } from 'ember-qunit';
 import { module, test } from 'qunit';
 import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
@@ -181,7 +180,7 @@ module('Acceptance | variables', function (hooks) {
       currentURL().includes('/variables/var/just some arbitrary file'),
       'correctly traverses to a non-job file'
     );
-    let relatedEntitiesBox = find('.related-entities');
+    let relatedEntitiesBox = find('[data-test-related-entities]');
     assert
       .dom(relatedEntitiesBox)
       .doesNotExist('Related Entities box is not present');
@@ -208,7 +207,7 @@ module('Acceptance | variables', function (hooks) {
       currentURL().startsWith('/variables/var/nomad/jobs/'),
       'correctly traverses to a job file'
     );
-    relatedEntitiesBox = find('.related-entities');
+    relatedEntitiesBox = find('[data-test-related-entities]');
     assert.dom(relatedEntitiesBox).exists('Related Entities box is present');
     assert.ok(
       cleanWhitespace(relatedEntitiesBox.textContent).includes(
@@ -219,7 +218,7 @@ module('Acceptance | variables', function (hooks) {
 
     await percySnapshot('related entities box for job variable');
 
-    let relatedJobLink = find('.related-entities a');
+    let relatedJobLink = find('[data-test-related-entities] a');
     await click(relatedJobLink);
     assert
       .dom('[data-test-job-stat="variables"]')
@@ -244,7 +243,7 @@ module('Acceptance | variables', function (hooks) {
     let groupFileLink = find('[data-test-file-row]');
     assert.ok(groupFileLink, 'A group file is present');
     await click(groupFileLink);
-    relatedEntitiesBox = find('.related-entities');
+    relatedEntitiesBox = find('[data-test-related-entities]');
     assert.dom(relatedEntitiesBox).exists('Related Entities box is present');
     assert.ok(
       cleanWhitespace(relatedEntitiesBox.textContent).includes(
@@ -255,7 +254,7 @@ module('Acceptance | variables', function (hooks) {
 
     await percySnapshot('related entities box for group variable');
 
-    let relatedGroupLink = find('.related-entities a');
+    let relatedGroupLink = find('[data-test-related-entities] a');
     await click(relatedGroupLink);
     assert
       .dom('[data-test-task-group-stat="variables"]')
@@ -282,7 +281,7 @@ module('Acceptance | variables', function (hooks) {
     let taskFileLink = find('[data-test-file-row]');
     assert.ok(taskFileLink, 'A task file is present');
     await click(taskFileLink);
-    relatedEntitiesBox = find('.related-entities');
+    relatedEntitiesBox = find('[data-test-related-entities]');
     assert.dom(relatedEntitiesBox).exists('Related Entities box is present');
     assert.ok(
       cleanWhitespace(relatedEntitiesBox.textContent).includes(
@@ -293,7 +292,7 @@ module('Acceptance | variables', function (hooks) {
 
     await percySnapshot('related entities box for task variable');
 
-    let relatedTaskLink = find('.related-entities a');
+    let relatedTaskLink = find('[data-test-related-entities] a');
     await click(relatedTaskLink);
     // Gotta go the long way and click into the alloc/then task from here; but we know this one by virtue of stable test env.
     await visit(
@@ -320,37 +319,37 @@ module('Acceptance | variables', function (hooks) {
     // Related Entities during the Variable creation process
     await Variables.visitNew();
     assert
-      .dom('.related-entities.notification')
+      .dom('[data-test-related-entities]')
       .doesNotExist('Related Entities notification is not present by default');
     await typeIn('[data-test-path-input]', 'foo/bar');
     assert
-      .dom('.related-entities.notification')
+      .dom('[data-test-related-entities]')
       .doesNotExist(
         'Related Entities notification is not present when path is generic'
       );
     document.querySelector('[data-test-path-input]').value = ''; // clear path input
     await typeIn('[data-test-path-input]', 'nomad/jobs/abc');
     assert
-      .dom('.related-entities.notification')
+      .dom('[data-test-related-entities]')
       .exists(
         'Related Entities notification is present when path is job-oriented'
       );
     assert
-      .dom('.related-entities.notification')
+      .dom('[data-test-related-entities]')
       .containsText(
         'This variable will be accessible by job',
         'Related Entities notification is job-oriented'
       );
     await typeIn('[data-test-path-input]', '/def');
     assert
-      .dom('.related-entities.notification')
+      .dom('[data-test-related-entities]')
       .containsText(
         'This variable will be accessible by group',
         'Related Entities notification is group-oriented'
       );
     await typeIn('[data-test-path-input]', '/ghi');
     assert
-      .dom('.related-entities.notification')
+      .dom('[data-test-related-entities]')
       .containsText(
         'This variable will be accessible by task',
         'Related Entities notification is task-oriented'
@@ -363,14 +362,14 @@ module('Acceptance | variables', function (hooks) {
     window.localStorage.nomadTokenSecret = server.db.tokens[0].secretId;
     await Variables.visitNew();
     assert.equal(currentURL(), '/variables/new');
-    await typeIn('.path-input', 'foo/bar');
+    await typeIn('[data-test-path-input]', 'foo/bar');
     await click('button[type="submit"]');
     assert.dom('.flash-message.alert-critical').exists();
     await click('.flash-message.alert-critical [data-test-toast-dismiss]');
     assert.dom('.flash-message.alert-critical').doesNotExist();
 
-    await typeIn('.key-value label:nth-child(1) input', 'myKey');
-    await typeIn('.key-value label:nth-child(2) input', 'superSecret');
+    await typeIn('[data-test-kv-row] [data-test-var-key]', 'myKey');
+    await typeIn('[data-test-kv-row] [data-test-var-value]', 'superSecret');
 
     await percySnapshot(assert);
 
@@ -410,20 +409,17 @@ module('Acceptance | variables', function (hooks) {
       assert.equal(currentRouteName(), 'variables.new');
 
       await typeIn('[data-test-path-input]', 'foo/bar');
-      await clickTrigger('[data-test-variable-namespace-filter]');
-
-      assert.dom('.dropdown-options').exists('Namespace can be edited.');
       assert
         .dom('[data-test-variable-namespace-filter]')
-        .containsText(
+        .isNotDisabled('Namespace can be edited.');
+      assert
+        .dom('[data-test-variable-namespace-filter]')
+        .hasValue(
           'default',
           'The first alphabetically sorted namespace should be selected as the default option.'
         );
 
-      await selectChoose(
-        '[data-test-variable-namespace-filter]',
-        'namespace-1'
-      );
+      await select('[data-test-variable-namespace-filter]', 'namespace-1');
       await typeIn('[data-test-var-key]', 'kiki');
       await typeIn('[data-test-var-value]', 'do you love me');
       await click('[data-test-submit-var]');
@@ -545,15 +541,15 @@ module('Acceptance | variables', function (hooks) {
       // End Test Set-up
 
       assert
-        .dom('.related-entities-hint')
+        .dom('[data-test-related-entities-hint]')
         .exists('Shows a hint about related entities by default');
       assert.dom('.CodeMirror').doesNotExist();
       await typeIn('[data-test-path-input]', 'nomad/job-templates/hello-world');
       assert
-        .dom('.related-entities-hint')
+        .dom('[data-test-related-entities-hint]')
         .doesNotExist('Hides the hint when editing a job template variable');
       assert
-        .dom('.job-template-hint')
+        .dom('[data-test-job-template-hint]')
         .exists('Shows a hint about job templates');
       assert
         .dom('.CodeMirror')
@@ -562,7 +558,7 @@ module('Acceptance | variables', function (hooks) {
       document.querySelector('[data-test-path-input]').value = ''; // clear current input
       await typeIn('[data-test-path-input]', 'hello-world-non-template');
       assert
-        .dom('.related-entities-hint')
+        .dom('[data-test-related-entities-hint]')
         .exists('Shows a hint about related entities by default');
       assert.dom('.CodeMirror').doesNotExist();
       // Reset Token
@@ -601,10 +597,9 @@ module('Acceptance | variables', function (hooks) {
       await percySnapshot(assert);
 
       assert.dom('[data-test-path-input]').isDisabled('Path cannot be edited');
-      await clickTrigger('[data-test-variable-namespace-filter]');
       assert
-        .dom('.dropdown-options')
-        .doesNotExist('Namespace cannot be edited.');
+        .dom('[data-test-variable-namespace-filter]')
+        .isDisabled('Namespace cannot be edited.');
 
       document.querySelector('[data-test-var-key]').value = ''; // clear current input
       await typeIn('[data-test-var-key]', 'kiki');
@@ -659,7 +654,7 @@ module('Acceptance | variables', function (hooks) {
       await click('button[type="submit"]');
 
       assert
-        .dom('.notification.conflict')
+        .dom('[data-test-variable-conflict]')
         .exists('Notification alerting user of conflict is present');
 
       document.querySelector('[data-test-var-key]').value = ''; // clear current input
@@ -823,7 +818,7 @@ module('Acceptance | variables', function (hooks) {
       await Variables.visit();
 
       assert
-        .dom('[data-test-file-row]:not(.inaccessible)')
+        .dom('[data-test-file-row] a')
         .exists(
           { count: 4 },
           'Shows 4 variable files, none of which are inaccessible'
@@ -843,7 +838,7 @@ module('Acceptance | variables', function (hooks) {
       await Variables.visit();
 
       assert
-        .dom('[data-test-file-row].inaccessible')
+        .dom('[data-test-file-row] [data-test-inaccessible]')
         .exists(
           { count: 4 },
           'Shows 4 variable files, all of which are inaccessible'
@@ -882,11 +877,10 @@ module('Acceptance | variables', function (hooks) {
       });
 
       // Act
-      await clickTrigger('[data-test-variable-namespace-filter]');
-      await selectChoose('[data-test-variable-namespace-filter]', 'default');
+      await select('[data-test-variable-namespace-filter]', 'default');
 
       assert
-        .dom('[data-test-no-matching-variables-list-headline]')
+        .dom('[data-test-no-matching-variables-list]')
         .exists('Renders an empty list.');
     });
 
@@ -944,11 +938,10 @@ module('Acceptance | variables', function (hooks) {
         });
 
         // Act
-        await clickTrigger('[data-test-variable-namespace-filter]');
-        await selectChoose('[data-test-variable-namespace-filter]', 'default');
+        await select('[data-test-variable-namespace-filter]', 'default');
 
         assert
-          .dom('[data-test-no-matching-variables-list-headline]')
+          .dom('[data-test-no-matching-variables-list]')
           .exists('Renders an empty list.');
       });
 
@@ -1181,7 +1174,7 @@ module('Acceptance | variables', function (hooks) {
       await click('[data-test-tab="variables"] a');
       assert.equal(currentURL(), `/jobs/${job.id}@${job.namespace}/variables`);
 
-      assert.dom('.job-variables-intro').exists();
+      assert.dom('[data-test-job-variables-intro]').exists();
 
       // All-jobs reminder is there, link is to create a new variable
       assert.dom('[data-test-variables-intro-all-jobs]').exists();

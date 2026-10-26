@@ -1,0 +1,14 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The health checks of a native service instance: pending, failing and
+  passing checks.
+~}}
+<Ui::Distribution
+  @label="Health checks"
+  @data={{this.data}}
+  @compact={{true}}
+  @noLegend={{true}}
+  data-test-service-status-bar
+/>

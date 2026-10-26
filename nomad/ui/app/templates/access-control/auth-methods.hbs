@@ -1,0 +1,80 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+
+{{page-title "Auth methods"}}
+<Access::Header @title="Auth methods" />
+<Ui::PageBody>
+  <Access::Tabs />
+  <p class="text-secondary">
+    Auth methods let people sign in with an identity provider (OIDC) or a signed token (JWT) and get a Nomad token
+    with the policies and roles chosen by the binding rules. They are managed with
+    <code>nomad acl auth-method</code> and <code>nomad acl binding-rule</code>.
+  </p>
+  <Ui::DataTable
+    @id="access-auth-methods"
+    @caption="Auth methods"
+    @columns={{this.columns}}
+    @rows={{this.rows}}
+    @sortBy={{this.list.sortBy}}
+    @sortDescending={{this.list.sortDescending}}
+    @onSort={{this.list.sort}}
+    @pageSize={{this.list.pageSize}}
+    @page={{this.list.page}}
+    @onPageChange={{this.list.setPage}}
+    @onPageSizeChange={{this.list.setPageSize}}
+    @noun="auth methods"
+    @viewState={{this.list.viewState}}
+    @onApplyView={{this.list.applyView}}
+  >
+    <:filters>
+      <Ui::Input
+        @type="search"
+        @icon="search"
+        @placeholder="Search auth methods..."
+        @value={{this.list.searchTerm}}
+        @onInput={{this.list.search}}
+        aria-label="Search auth methods"
+        data-test-auth-methods-search
+      />
+      <Ui::FilterDropdown
+        @label="Type"
+        @options={{this.typeOptions}}
+        @selection={{or this.list.selections.type (array)}}
+        @onSelect={{fn this.list.setFilter "type"}}
+        data-test-auth-method-type-facet
+      />
+    </:filters>
+    <:row as |method r|>
+      <r.Row data-test-auth-method-row={{method.name}}>
+        <r.Cell @key="name" class="fw-medium" data-test-auth-method-name>{{method.name}}</r.Cell>
+        <r.Cell @key="type" data-test-auth-method-type><Ui::Badge @color="secondary">{{method.type}}</Ui::Badge></r.Cell>
+        <r.Cell @key="default" data-test-auth-method-default>
+          {{#if method.default}}<Ui::Badge @color="green">default</Ui::Badge>{{else}}<span class="text-secondary">–</span>{{/if}}
+        </r.Cell>
+        <r.Cell @key="tokenLocality" data-test-auth-method-locality>{{method.tokenLocality}}</r.Cell>
+        <r.Cell @key="maxTokenTTL" class="font-monospace" data-test-auth-method-ttl>{{method.maxTokenTTL}}</r.Cell>
+        <r.Cell @key="createTime" class="text-nowrap" data-test-auth-method-created>
+          {{#if method.createTime}}
+            <Ui::Tooltip @text={{format-ts method.createTime}}>
+              <span tabindex="0">{{moment-from-now method.createTime}}</span>
+            </Ui::Tooltip>
+          {{/if}}
+        </r.Cell>
+      </r.Row>
+    </:row>
+    <:empty>
+      {{#if this.methods.length}}
+        <Ui::EmptyState @icon="filter-off" @title="No Matches" @message="No auth methods match the search and the filters." data-test-empty-auth-methods />
+      {{else}}
+        <Ui::EmptyState
+          @icon="key"
+          @title="No auth methods"
+          @message="Single sign-on is not set up. Create an auth method with nomad acl auth-method create, then binding rules with nomad acl binding-rule create."
+          data-test-empty-auth-methods
+        />
+      {{/if}}
+    </:empty>
+  </Ui::DataTable>
+</Ui::PageBody>

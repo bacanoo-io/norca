@@ -447,6 +447,12 @@ type AgentSelf struct {
 	Config map[string]interface{}       `json:"config"`
 	Member AgentMember                  `json:"member"`
 	Stats  map[string]map[string]string `json:"stats"`
+
+	// NorcaVersion is the Norca product version of the agent and
+	// NomadVersion the Nomad API version it is compatible with. Agents that
+	// predate Norca leave them empty.
+	NorcaVersion string `json:"norca_version"`
+	NomadVersion string `json:"nomad_version"`
 }
 
 // AgentMember represents a cluster member known to the agent

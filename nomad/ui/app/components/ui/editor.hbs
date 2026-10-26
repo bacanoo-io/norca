@@ -1,0 +1,105 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="norca-editor" data-test-unified-editor data-test-editor-stage={{this.stage}} ...attributes>
+  {{#if (eq this.stage "review")}}
+    <div data-test-editor-review>
+      {{#if (has-block "review")}}
+        {{yield this.preview to="review"}}
+      {{else}}
+        <Ui::TextDiff @old={{or @original ""}} @new={{this.text}} @label={{@label}} />
+      {{/if}}
+      {{#if this.submitError}}
+        <Ui::Alert @tone="danger" @title="The change was not applied" class="mt-3" data-test-editor-submit-error>
+          {{this.submitError}}
+        </Ui::Alert>
+      {{/if}}
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <Ui::Button
+          @variant={{or @submitVariant "primary"}}
+          @icon={{or @submitIcon "check"}}
+          @isLoading={{this.submit.isRunning}}
+          data-test-editor-submit
+          {{on "click" (perform this.submit)}}
+        >{{or @submitLabel "Apply"}}</Ui::Button>
+        <Ui::Button @icon="arrow-left" @disabled={{this.submit.isRunning}} data-test-editor-back {{on "click" this.backToEdit}}>
+          Back to editing
+        </Ui::Button>
+      </div>
+    </div>
+  {{else}}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2" data-test-editor-toolbar>
+      {{#if (gt this.languageOptions.length 1)}}
+        <Ui::Select
+          @label="Format"
+          @options={{this.languageOptions}}
+          @value={{this.language}}
+          @onChange={{this.setLanguage}}
+          @size="sm"
+          class="w-auto"
+          data-test-editor-language
+        />
+      {{else}}
+        <Ui::Badge @color="secondary" data-test-editor-language-badge>{{this.languageLabel}}</Ui::Badge>
+      {{/if}}
+      {{yield to="toolbar"}}
+      <Ui::Switch
+        @switch={{true}}
+        @label="Wrap lines"
+        @checked={{this.wrap}}
+        @onChange={{this.toggleWrap}}
+        class="ms-auto mb-0"
+        data-test-editor-wrap
+        {{keyboard-shortcut label="Toggle word wrap" action=this.toggleWrap pattern=(array "w" "w") menuLevel=true}}
+      />
+    </div>
+    <Ui::CodeEditor
+      @label={{@label}}
+      @language={{this.language}}
+      @value={{this.text}}
+      @onChange={{this.change}}
+      @readOnly={{@readOnly}}
+      @wrap={{this.wrap}}
+      @autofocus={{@autofocus}}
+      @minHeight={{@minHeight}}
+      @invalid={{gt this.problems.length 0}}
+      @errorLines={{this.errorLines}}
+    />
+    {{#if this.problems.length}}
+      <Ui::Alert @tone="danger" @title="Fix these problems first" class="mt-3" data-test-editor-problems>
+        <ul class="m-0 ps-3">
+          {{#each this.problems as |problem|}}
+            <li data-test-editor-problem>
+              {{#if problem.line}}<span class="fw-medium">Line {{problem.line}}:</span> {{/if}}{{problem.message}}
+            </li>
+          {{/each}}
+        </ul>
+      </Ui::Alert>
+    {{/if}}
+    {{#if this.submitError}}
+      <Ui::Alert @tone="danger" @title="The change was not applied" class="mt-3" data-test-editor-submit-error>
+        {{this.submitError}}
+      </Ui::Alert>
+    {{/if}}
+    {{#unless @readOnly}}
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <Ui::Button
+          @variant="primary"
+          @icon={{if @noReview (or @submitIcon "check") "file-diff"}}
+          @disabled={{not this.canReview}}
+          @isLoading={{or this.review.isRunning this.submit.isRunning}}
+          data-test-editor-review-button
+          {{on "click" (perform this.review)}}
+        >{{if @noReview (or @submitLabel "Apply") (or @reviewLabel "Review changes")}}</Ui::Button>
+        {{yield to="actions"}}
+        {{#if @onCancel}}
+          <Ui::Button @variant="ghost" data-test-editor-cancel {{on "click" @onCancel}}>Cancel</Ui::Button>
+        {{/if}}
+        {{#if this.isUnchanged}}
+          <span class="text-secondary small align-self-center" data-test-editor-unchanged>No changes yet.</span>
+        {{/if}}
+      </div>
+    {{/unless}}
+  {{/if}}
+</div>

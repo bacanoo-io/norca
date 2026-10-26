@@ -1,42 +1,77 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<section class="section service-list">
-	{{#if this.sortedServices.length}}
-		<ListTable
-			@source={{this.sortedServices}}
-			@sortProperty={{this.sortProperty}}
-			@sortDescending={{this.sortDescending}}
-			as |t|
-		>
-			<t.head>
-				<t.sort-by @prop="name">Name</t.sort-by>
-				<t.sort-by @prop="level">Level</t.sort-by>
-				<th>Tags</th>
-				<t.sort-by @prop="numAllocs">Number of Alocations</t.sort-by>
-			</t.head>
-			<t.body as |row|>
-				<JobServiceRow
-					{{keyboard-shortcut 
-						enumerated=true
-						action=(action "gotoService" row.model)
-					}}
-					@service={{row.model}}
-				/>
-			</t.body>
-		</ListTable>
-	{{else}}
-		<div class="boxed-section-body">
-			<div class="empty-message" data-test-empty-services-list>
-				<h3 class="empty-message-headline" data-test-empty-services-list-headline>
-					No Services
-				</h3>
-				<p class="empty-message-body">
-					No services running on {{this.job.name}}.
-				</p>
-			</div>
-		</div>
-	{{/if}}
-</section>
+<Ui::DataTable
+  @id="job-services"
+  @caption="Services of the job"
+  @columns={{this.columns}}
+  @rows={{this.sortedServices}}
+  @rowKey={{this.serviceKey}}
+  @sortBy={{this.sortProperty}}
+  @sortDescending={{this.sortDescending}}
+  @onSort={{this.sort}}
+  @onRowClick={{this.gotoServiceRow}}
+  @enumerate={{true}}
+  data-test-services-list
+>
+  <:row as |service r|>
+    <r.Row
+      data-test-service-row
+      data-test-service-name={{service.name}}
+      data-test-num-allocs={{service.instances.length}}
+      data-test-service-provider={{service.provider}}
+      data-test-service-level={{service.level}}
+    >
+      <r.Cell @key="name">
+        <span class="d-inline-flex align-items-center gap-2">
+          {{#if (eq service.provider "nomad")}}
+            <Ui::Badge @color="green">native</Ui::Badge>
+            <LinkTo @route="jobs.job.services.service" @model={{service}} @query={{hash level=service.level}}>{{service.name}}</LinkTo>
+          {{else}}
+            <Ui::Badge @color="purple">consul</Ui::Badge>
+            {{#if (and (eq service.provider "consul") this.consulBaseURL)}}
+              <a href="{{this.consulBaseURL}}/services/{{service.name}}" target="_blank" rel="noopener noreferrer">{{service.name}}</a>
+            {{else}}
+              {{service.name}}
+            {{/if}}
+            {{#if service.connect}}<Ui::Badge @color="secondary" @icon="topology-star-3">connect</Ui::Badge>{{/if}}
+          {{/if}}
+        </span>
+      </r.Cell>
+      <r.Cell @key="level">{{service.level}}</r.Cell>
+      <r.Cell @key="tags">
+        {{#each service.tags as |tag|}}
+          <Ui::Badge @color="secondary" class="me-1">{{tag}}</Ui::Badge>
+        {{/each}}
+        {{#each service.canary_tags as |tag|}}
+          <Ui::Badge @color="orange" class="me-1">{{tag}}</Ui::Badge>
+        {{/each}}
+      </r.Cell>
+      <r.Cell @key="health">
+        {{#if (eq service.provider "nomad")}}
+          <Jobs::ServiceHealth @instances={{service.instances}} />
+        {{else}}
+          <span class="text-secondary">in Consul</span>
+        {{/if}}
+      </r.Cell>
+      <r.Cell @key="numAllocs">
+        {{#if (eq service.provider "nomad")}}
+          {{service.instances.length}} {{pluralize "allocation" service.instances.length}}
+        {{else}}
+          --
+        {{/if}}
+      </r.Cell>
+    </r.Row>
+  </:row>
+  <:empty>
+    <Ui::EmptyState
+      @icon="topology-star-3"
+      @title="No services"
+      @message="No services running on {{this.job.name}}. Add a service block to a task group or a task to register it in the catalog."
+      data-test-empty-services-list
+     />
+  </:empty>
+</Ui::DataTable>

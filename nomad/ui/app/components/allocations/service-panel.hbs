@@ -1,0 +1,111 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The details and the health checks of a service of an allocation, in a
+  side panel.
+
+    {{#if this.activeService}}
+      <Allocations::ServicePanel @service={{this.activeService}} @allocation={{this.model}} @onClose={{this.closeSidebar}} />
+    {{/if}}
+--}}
+<Ui::SidePanel @onClose={{@onClose}} data-test-service-panel>
+  <:title>
+    <span class="d-inline-flex align-items-center gap-2">
+      <span data-test-service-panel-name>{{@service.name}}</span>
+      {{#if (not-eq @service.provider "consul")}}
+        <span data-test-aggregate-status>
+          {{#if (eq this.aggregateStatus "Unhealthy")}}
+            <Ui::StatusIndicator @status="failed" @label="Unhealthy" />
+          {{else if (eq this.aggregateStatus "Unknown")}}
+            <Ui::Tooltip @text="The parent allocation for this service is not running">
+              <span tabindex="0"><Ui::StatusIndicator @status="unknown" @label="Health Unknown" /></span>
+            </Ui::Tooltip>
+          {{else}}
+            <Ui::StatusIndicator @status="healthy" @label="Healthy" />
+          {{/if}}
+        </span>
+      {{/if}}
+    </span>
+  </:title>
+  <:default>
+    <Ui::Datagrid class="mb-3" data-test-service-details as |g|>
+      {{#if @service.connect}}
+        <g.Item @title="Connect">True</g.Item>
+      {{/if}}
+      <g.Item @title="Allocation">
+        <LinkTo @route="allocations.allocation" @model={{@allocation}} @query={{hash service=""}} class="font-monospace">
+          {{@allocation.shortId}}
+        </LinkTo>
+      </g.Item>
+      <g.Item @title="IP address &amp; port">
+        {{#if this.address}}
+          <a href="http://{{this.address}}" target="_blank" rel="noopener noreferrer" class="font-monospace">{{this.address}}</a>
+        {{else}}
+          <span class="text-secondary">None</span>
+        {{/if}}
+      </g.Item>
+      <g.Item @title="Client">
+        <Ui::Tooltip @text={{@allocation.node.name}}>
+          <LinkTo @route="clients.client" @model={{@allocation.node}} class="font-monospace">{{@allocation.nodeShortId}}</LinkTo>
+        </Ui::Tooltip>
+      </g.Item>
+      {{#if (or @service.tags.length @service.canary_tags.length)}}
+        <g.Item @title="Tags">
+          {{#each @service.tags as |tag|}}<Ui::Badge @color="secondary" class="me-1">{{tag}}</Ui::Badge>{{/each}}
+          {{#each @service.canary_tags as |tag|}}<Ui::Badge @color="orange" class="me-1">{{tag}}</Ui::Badge>{{/each}}
+        </g.Item>
+      {{/if}}
+      {{#if (and (eq @service.provider "consul") @service.onUpdate)}}
+        <g.Item @title="On update">{{@service.onUpdate}}</g.Item>
+      {{/if}}
+      {{#if (and (eq @service.provider "consul") @service.connect.sidecarService.proxy.upstreams)}}
+        <g.Item @title="Upstreams">
+          {{#each @service.connect.sidecarService.proxy.upstreams as |upstream|}}
+            <Ui::Badge @color="secondary" class="me-1">{{upstream.destinationName}}:{{upstream.localBindPort}}</Ui::Badge>
+          {{/each}}
+        </g.Item>
+      {{/if}}
+    </Ui::Datagrid>
+
+    {{#if this.checks.length}}
+      <Ui::Table @caption="Health checks" @columns={{this.checkColumns}} @rows={{this.checks}} data-test-health-checks as |check|>
+        <td class="text-break" data-service-health={{check.Status}} data-test-health-check={{check.Check}}>
+          <span title={{check.Check}}>{{check.Check}}</span>
+        </td>
+        <td class="text-nowrap">
+          {{#if (eq check.Status "success")}}
+            <Ui::StatusIndicator @status="healthy" @label="Healthy" />
+          {{else if (eq check.Status "failure")}}
+            <Ui::StatusIndicator @status="failed" @label="Unhealthy" />
+          {{else if (eq check.Status "pending")}}
+            <Ui::StatusIndicator @status="pending" @label="Pending" />
+          {{/if}}
+        </td>
+        <td>
+          <code class="d-block text-break mb-1">{{check.Output}}</code>
+          <span class="d-flex flex-wrap gap-1" data-test-check-history>
+            {{#each (dedupe-by-property (filter-by "Check" check.Check @service.healthChecks) prop="Timestamp") as |item|}}
+              <Ui::Tooltip @text="{{item.Status}} at {{format-ts item.Timestamp}}">
+                <span
+                  class="norca-check-tick norca-check-{{item.Status}}"
+                  role="img"
+                  tabindex="0"
+                  aria-label="{{item.Status}} at {{format-ts item.Timestamp}}"
+                  data-test-check-tick={{item.Status}}
+                ></span>
+              </Ui::Tooltip>
+            {{/each}}
+          </span>
+        </td>
+      </Ui::Table>
+    {{/if}}
+
+    {{#if (and (eq @service.provider "consul") this.consulRedirectLink)}}
+      <Ui::Alert @tone="info" class="mt-3" data-test-consul-link-notice>
+        Norca cannot read health check information from Consul services, but you can
+        <a href={{this.consulRedirectLink}} target="_blank" rel="noopener noreferrer">view this information in your Consul UI</a>.
+      </Ui::Alert>
+    {{/if}}
+  </:default>
+</Ui::SidePanel>

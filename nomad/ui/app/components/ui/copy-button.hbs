@@ -1,0 +1,19 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  Copies @text to the clipboard; the icon confirms for two seconds.
+
+    <Ui::CopyButton @text={{@allocation.id}} @label="Copy the allocation ID" />
+--}}
+<Ui::Button
+  @variant="ghost"
+  @size="sm"
+  @icon={{if this.copied "check" (if this.failed "alert-triangle" "copy")}}
+  @iconOnly={{not (has-block)}}
+  @label={{if this.copied "Copied" (or @label "Copy")}}
+  data-test-copy-button
+  {{on "click" this.copy}}
+  ...attributes
+>{{yield}}</Ui::Button>
+<span class="visually-hidden" role="status">{{if this.copied "Copied to the clipboard"}}{{if this.failed "Could not copy"}}</span>

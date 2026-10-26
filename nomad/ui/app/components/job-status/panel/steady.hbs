@@ -1,45 +1,55 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<div class="job-status-panel boxed-section steady-state {{if (eq @statusMode "historical") "historical-state" "current-state"}}" data-test-job-status-panel data-test-status-mode={{@statusMode}}>
-  <div class="boxed-section-head">
-    <h2>Status: <Hds::Badge @text={{this.currentStatus.label}} @color={{this.currentStatus.state}} @type="filled" /></h2>
-    
-    <div class="select-mode">
-      <button type="button"
-        data-test-status-mode-current
-        class="button is-small is-borderless {{if (eq @statusMode "current") "is-active"}}"
-        {{on "click" (action (optional @setStatusMode) "current")}}
-      >
-        Current
-      </button>
-      <button type="button"
-        data-test-status-mode-historical
-        class="button is-small is-borderless {{if (eq @statusMode "historical") "is-active"}}"
-        {{on "click" (action (optional @setStatusMode) "historical")}}>
-        Historical
-      </button>
+<Ui::Card
+  class="mb-3 norca-job-status norca-job-status-steady {{if (eq @statusMode 'historical') 'norca-job-status-historical' 'norca-job-status-current'}}"
+  data-test-job-status-panel
+  data-test-status-mode={{@statusMode}}
+>
+  <:actions>
+    <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+      <h2 class="h3 m-0 d-inline-flex align-items-center gap-2">
+        Status
+        <Ui::Badge @color={{this.currentStatusColor}} @solid={{true}} data-test-job-status-badge>{{this.currentStatus.label}}</Ui::Badge>
+      </h2>
+      <span class="ms-auto d-inline-flex gap-1" role="group" aria-label="Status view">
+        <Ui::Button
+          @size="sm"
+          @variant={{if (eq @statusMode "current") "primary" "secondary"}}
+          aria-pressed={{if (eq @statusMode "current") "true" "false"}}
+          data-test-status-mode-current
+          {{on "click" (fn (optional @setStatusMode) "current")}}
+        >Current</Ui::Button>
+        <Ui::Button
+          @size="sm"
+          @variant={{if (eq @statusMode "historical") "primary" "secondary"}}
+          aria-pressed={{if (eq @statusMode "historical") "true" "false"}}
+          data-test-status-mode-historical
+          {{on "click" (fn (optional @setStatusMode) "historical")}}
+        >Historical</Ui::Button>
+      </span>
     </div>
-  </div>
-  <div class="boxed-section-body">
+  </:actions>
+  <:default>
     {{#if (eq @statusMode "historical")}}
-      <JobPage::Parts::SummaryChart @job={{@job}} />
+      <Jobs::AllocationSummary @summary={{@job.summary}} @job={{@job}} />
     {{else}}
-      <h3 class="title is-4 running-allocs-title">
+      <h3 class="h2 mb-3 norca-running-allocs-title">
         {{#if this.allAllocsComplete}}
           All allocations have completed successfully
         {{else}}
           <strong>
-              {{@job.runningAllocs ~}}
-              {{#unless this.atMostOneAllocPerNode ~}}
-                {{#if (eq @job.type "batch") ~}}
-                  /{{this.totalNonCompletedAllocs}}
-                {{else ~}}
-                  /{{this.totalAllocs}}
-                {{/if}}
-              {{/unless}}
+            {{@job.runningAllocs ~}}
+            {{#unless this.atMostOneAllocPerNode ~}}
+              {{#if (eq @job.type "batch") ~}}
+                /{{this.totalNonCompletedAllocs}}
+              {{else ~}}
+                /{{this.totalAllocs}}
+              {{/if}}
+            {{/unless}}
           </strong>
           {{#if (eq @job.type "batch") ~}}Remaining{{/if}}
           {{pluralize "Allocation" @job.runningAllocs}} Running
@@ -47,23 +57,31 @@
       </h3>
       <JobStatus::AllocationStatusRow @allocBlocks={{this.allocBlocks}} @steady={{true}} />
 
-      <div class="legend-and-summary {{if @job.latestDeployment "has-latest-deployment"}}">
-        <legend>
+      <div class="norca-legend-and-summary {{if @job.latestDeployment 'norca-has-latest-deployment'}}">
+        <ul class="norca-alloc-legend" aria-label="Allocation states">
           {{#each this.allocTypes as |type|}}
-            <ConditionalLinkTo
-              @condition={{and (not (eq type.label "unplaced")) (get (get (get (get this.allocBlocks type.label) 'healthy') 'nonCanary') "length")}}
-              @route="jobs.job.allocations"
-              @model={{@job}}
-              @query={{hash status=(concat '["' type.label '"]') version=(concat '[' (map-by "version" this.versions) ']')}}
-              @class="legend-item {{if (eq (get (get (get (get this.allocBlocks type.label) 'healthy') 'nonCanary') "length") 0) "faded"}}"
-              @label="View {{type.label}} allocations"
-            >
-              <span class="represented-allocation {{type.label}}"></span>
-              <span class="count">{{get (get (get (get this.allocBlocks type.label) 'healthy') 'nonCanary') "length"}} {{capitalize type.label}}</span>
-            </ConditionalLinkTo>
+            {{#let (get (get (get (get this.allocBlocks type.label) "healthy") "nonCanary") "length") as |count|}}
+              <li class="norca-legend-item {{if (eq count 0) 'norca-legend-faded'}}">
+                {{#if (and (not (eq type.label "unplaced")) count)}}
+                  <LinkTo
+                    @route="jobs.job.allocations"
+                    @model={{@job}}
+                    @query={{hash status=(concat '["' type.label '"]') version=(concat "[" (map-by "version" this.versions) "]")}}
+                    class="norca-legend-link"
+                  >
+                    <span class="norca-alloc norca-alloc-{{type.label}}" aria-hidden="true"></span>
+                    <span class="norca-legend-count">{{count}} {{capitalize type.label}}</span>
+                  </LinkTo>
+                {{else}}
+                  <span class="norca-legend-link">
+                    <span class="norca-alloc norca-alloc-{{type.label}}" aria-hidden="true"></span>
+                    <span class="norca-legend-count">{{count}} {{capitalize type.label}}</span>
+                  </span>
+                {{/if}}
+              </li>
+            {{/let}}
           {{/each}}
-        </legend>
-
+        </ul>
 
         <JobStatus::FailedOrLost
           @rescheduledAllocs={{this.rescheduledAllocs}}
@@ -72,18 +90,20 @@
           @supportsRescheduling={{this.supportsRescheduling}}
         />
 
-        <section class="versions">
-          <h4>Versions</h4>
+        <section class="norca-versions">
+          <h4 class="h4">Versions</h4>
           <ul>
             {{#each this.versions as |versionObj|}}
               <li>
-                <LinkTo data-version={{versionObj.version}} @route="jobs.job.allocations" @model={{@job}} @query={{hash version=(concat '[' versionObj.version ']')    status=(concat '["running", "pending", "failed"]')         }}>
-                  {{#if (eq versionObj.version "unknown")}}
-                    <Hds::Badge @text="unknown" @type="inverted" class="version-label" />
-                  {{else}}
-                    <Hds::Badge @text={{concat "v" versionObj.version}} @type="inverted" class="version-label" />
-                  {{/if}}
-                  <Hds::Badge @text={{versionObj.allocations.length}} @type="filled" class="version-count" />
+                <LinkTo
+                  data-version={{versionObj.version}}
+                  @route="jobs.job.allocations"
+                  @model={{@job}}
+                  @query={{hash version=(concat "[" versionObj.version "]") status=(concat '["running", "pending", "failed"]')}}
+                >
+                  <Ui::Badge @color="secondary">{{if (eq versionObj.version "unknown") "unknown" (concat "v" versionObj.version)}}</Ui::Badge>
+                  <Ui::Badge @color="blue" @solid={{true}}>{{versionObj.allocations.length}}</Ui::Badge>
+                  <span class="visually-hidden">{{pluralize "allocation" versionObj.allocations.length}}</span>
                 </LinkTo>
               </li>
             {{/each}}
@@ -93,19 +113,17 @@
         {{#if @job.latestDeployment}}
           <JobStatus::LatestDeployment @job={{@job}} />
         {{/if}}
-
       </div>
 
-      <div class="history-and-params">
-        {{#if this.latestVersionAllocations.length}}
+      {{#if this.latestVersionAllocations.length}}
+        <div class="mt-4">
           <JobStatus::DeploymentHistory
             @title="Allocation History"
             @allocations={{this.latestVersionAllocations}}
             @isHidden={{true}}
           />
-        {{/if}}
-      </div>
-
+        </div>
+      {{/if}}
     {{/if}}
-  </div>
-</div>
+  </:default>
+</Ui::Card>

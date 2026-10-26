@@ -69,6 +69,15 @@ const (
 	// Args: SecretVersionsRequest
 	// Reply: SecretWriteResponse
 	SecretDestroyRPCMethod = "Secret.Destroy"
+
+	// SecretRecordAccessRPCMethod records the audit record of a secret
+	// fetch a client made from an external provider for a task. It is
+	// authenticated with the task's workload identity, which becomes the
+	// accessor of the record.
+	//
+	// Args: SecretRecordAccessRequest
+	// Reply: GenericResponse
+	SecretRecordAccessRPCMethod = "Secret.RecordAccess"
 )
 
 const (
@@ -462,6 +471,22 @@ type SecretAccessEvent struct {
 
 	// Server is the name of the server that executed the access.
 	Server string
+
+	// Provider is the external provider a client fetched the secret from
+	// for a task; empty for accesses of the built-in store.
+	Provider string `json:",omitempty"`
+
+	// ProviderVersion is the version the external provider reported.
+	ProviderVersion string `json:",omitempty"`
+}
+
+// SecretRecordAccessRequest is the audit record of a fetch from an external
+// provider, sent by the client of the task. Only Path, Provider,
+// ProviderVersion, Result and Error of the record are taken from the client;
+// the accessor is the request's workload identity.
+type SecretRecordAccessRequest struct {
+	Record *SecretAccessEvent
+	WriteRequest
 }
 
 // ---------------------------------------

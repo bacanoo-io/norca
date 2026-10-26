@@ -423,6 +423,11 @@ type Config struct {
 	// event topic is always published).
 	SecretsAudit *secretstore.AuditFileConfig
 
+	// SecretsVaultFallback accepts jobs with vault blocks when Vault is not
+	// enabled: clients without Vault serve their Vault-style lookups from
+	// the built-in store (Norca). The agent enables it by default.
+	SecretsVaultFallback bool
+
 	// JobDefaultPriority is the default Job priority if not specified.
 	JobDefaultPriority int
 

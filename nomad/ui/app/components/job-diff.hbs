@@ -1,5 +1,6 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
@@ -10,10 +11,10 @@
   data-test-diff-field="{{lowercase this.diff.Type}}"
   class="{{if
       this.diff.Type
-      (concat 'diff-section-label is-' (lowercase this.diff.Type))
+      (concat 'norca-diff-label norca-diff-' (lowercase this.diff.Type))
     }}"
 >
-  <span class="marker {{concat 'is-' (lowercase this.diff.Type)}}">
+  <span class="norca-diff-marker {{concat 'norca-diff-' (lowercase this.diff.Type)}}">
     {{#if (eq (lowercase this.diff.Type) "added")}}
       +
     {{else if (eq (lowercase this.diff.Type) "deleted")}}
@@ -22,12 +23,12 @@
       +/-
     {{/if}}
   </span>
-  <span class="diff-section-bold">Job: "{{this.diff.ID}}"</span>
+  <span class="norca-diff-bold">Job: "{{this.diff.ID}}"</span>
 </div>
 
 {{! Show job field and object diffs if the job is edited }}
 {{#if (or this.verbose (eq (lowercase this.diff.Type) "edited"))}}
-  <div data-test-diff-section-label="job-diff" class="diff-section-label">
+  <div data-test-diff-section-label="job-diff" class="norca-diff-label">
     <JobDiffFieldsAndObjects
       @fields={{this.diff.Fields}}
       @objects={{this.diff.Objects}}
@@ -41,10 +42,10 @@
     data-test-diff-section-label="task-group"
     class="{{if
         group.Type
-        (concat 'diff-section-label is-' (lowercase group.Type))
+        (concat 'norca-diff-label norca-diff-' (lowercase group.Type))
       }}"
   >
-    <span class="marker {{concat 'is-' (lowercase group.Type)}}">
+    <span class="norca-diff-marker {{concat 'norca-diff-' (lowercase group.Type)}}">
       {{#if (eq (lowercase group.Type) "added")}}
         +
       {{else if (eq (lowercase group.Type) "deleted")}}
@@ -53,10 +54,10 @@
         +/-
       {{/if}}
     </span>
-    <span class="diff-section-bold">Task Group: "{{group.Name}}"</span>
+    <span class="norca-diff-bold">Task Group: "{{group.Name}}"</span>
     {{#if group.Updates}}
       ({{#each-in group.Updates as |updateType count|}}
-        <span class="job-diff-update-count {{css-class updateType}}">{{count}}
+        <span class="norca-diff-update-count">{{count}}
           {{updateType}}</span>
       {{/each-in}})
     {{/if}}
@@ -65,7 +66,7 @@
     {{#if (or (eq (lowercase group.Type) "edited") this.verbose)}}
       <div
         data-test-diff-section-label="task-group-diff"
-        class="diff-section-label"
+        class="norca-diff-label"
       >
         <JobDiffFieldsAndObjects
           @fields={{group.Fields}}
@@ -81,10 +82,10 @@
         data-test-diff-field="{{lowercase task.Type}}"
         class="{{if
             task.Type
-            (concat 'diff-section-label is-' (lowercase task.Type))
+            (concat 'norca-diff-label norca-diff-' (lowercase task.Type))
           }}"
       >
-        <span class="marker {{concat 'is-' (lowercase task.Type)}}">
+        <span class="norca-diff-marker {{concat 'norca-diff-' (lowercase task.Type)}}">
           {{#if (eq (lowercase task.Type) "added")}}
             +
           {{else if (eq (lowercase task.Type) "deleted")}}
@@ -96,7 +97,7 @@
         Task: "{{task.Name}}"
         {{#if task.Annotations}}
           ({{~#each task.Annotations as |annotation index|}}
-            <span class="{{css-class annotation}}">{{annotation}}</span>
+            <span class="norca-diff-annotation">{{annotation}}</span>
             {{#unless (eq index (dec task.Annotations.length))}},{{/unless}}
           {{/each~}})
         {{/if}}

@@ -15,6 +15,10 @@ const STORAGE = {
 };
 
 export const ALL_REGIONS = '*';
+
+// The pages that show every region in the "All regions" scope; the other
+// pages show the active region.
+export const SPANNING_ROUTES = ['index', 'jobs.index'];
 export const ALL_NAMESPACES = '*';
 
 function read(key, fallback) {
@@ -101,10 +105,12 @@ export default class FrameService extends Service {
     this.mobileMenuOpen = false;
   }
 
-  // The region scope of the views that support it (the dashboard):
-  // ALL_REGIONS or the active region.
+  // The region scope of the views that support it (the dashboard, the
+  // jobs list): ALL_REGIONS or the active region. Elsewhere the scope is the
+  // active region, whatever the choice.
   get regionScope() {
-    return this.allRegions && this.system.shouldShowRegions
+    const spans = SPANNING_ROUTES.includes(this.router.currentRouteName);
+    return this.allRegions && this.system.shouldShowRegions && spans
       ? ALL_REGIONS
       : this.system.activeRegion ||
           this.system.get('defaultRegion.region') ||
@@ -126,14 +132,21 @@ export default class FrameService extends Service {
     if (value === ALL_REGIONS) {
       this.allRegions = true;
       write(STORAGE.scope, ALL_REGIONS);
-      // Only the dashboard spans regions so far.
-      if (this.router.currentRouteName !== 'index')
-        this.router.transitionTo('index');
+      // Pages that do not span regions lead to the jobs list (from the
+      // jobs pages) or to the dashboard.
+      const current = this.router.currentRouteName || '';
+      if (!SPANNING_ROUTES.includes(current)) {
+        this.router.transitionTo(
+          current.startsWith('jobs.') ? 'jobs.index' : 'index'
+        );
+      }
       return;
     }
     this.allRegions = false;
     write(STORAGE.scope, null);
     const target = this.router.currentRouteName === 'index' ? 'index' : 'jobs';
+    // The application controller switches the active region from the query
+    // parameter.
     this.router.transitionTo(target, { queryParams: { region: value } });
   }
 

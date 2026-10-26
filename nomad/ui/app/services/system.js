@@ -52,6 +52,12 @@ export default class SystemService extends Service {
             if (VersionMetadata)
               agent.version = `${agent.version}+${VersionMetadata}`;
           }
+          // The Norca product version and the Nomad API version the agent
+          // is compatible with; agents that predate Norca report neither.
+          if (agent) {
+            agent.norcaVersion = agent.norca_version || '';
+            agent.nomadVersion = agent.nomad_version || agent.version || '';
+          }
           return agent;
         }),
     });

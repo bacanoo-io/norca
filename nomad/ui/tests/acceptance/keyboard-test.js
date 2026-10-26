@@ -287,8 +287,8 @@ module('Acceptance | keyboard', function (hooks) {
       await visit(
         `/jobs/${server.db.jobs.sortBy('modifyIndex').reverse()[0].id}@default`
       );
-      const numberOfGroups = findAll('.task-group-row').length;
-      const numberOfAllocs = findAll('.allocation-row').length;
+      const numberOfGroups = findAll('[data-test-task-group]').length;
+      const numberOfAllocs = findAll('[data-test-allocation]').length;
 
       await triggerEvent('.page-layout', 'keydown', { key: 'Shift' });
       [...Array(numberOfGroups + numberOfAllocs)].forEach((_, iter) => {
@@ -310,76 +310,36 @@ module('Acceptance | keyboard', function (hooks) {
       const jobID = server.db.jobs.sortBy('modifyIndex').reverse()[0].id;
       await visit(`/jobs/${jobID}@default`);
 
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.ok(
-        currentURL().startsWith(`/jobs/${jobID}@default/definition`),
-        'Shift+ArrowRight takes you to the next tab (Definition)'
+      // The tabs of the job page, in order: Shift+ArrowRight goes through
+      // them and loops back to the first.
+      const tabs = findAll('[data-test-subnav="job"] [data-test-tab-link]').map(
+        (link) => ({
+          id: link.dataset.testTabLink,
+          url: link.getAttribute('href').replace(/^\/ui/, ''),
+        })
+      );
+      assert.ok(tabs.length > 5, 'The job page has its tabs');
+      assert.deepEqual(
+        tabs.slice(0, 2).map((tab) => tab.id),
+        ['overview', 'allocations'],
+        'Overview and Allocations are the first tabs'
+      );
+      assert.equal(
+        tabs[tabs.length - 1].id,
+        'variables',
+        'Variables is the last tab for a management token'
       );
 
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/versions`,
-        'Shift+ArrowRight takes you to the next tab (Version)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/allocations`,
-        'Shift+ArrowRight takes you to the next tab (Allocations)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/evaluations`,
-        'Shift+ArrowRight takes you to the next tab (Evaluations)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/clients`,
-        'Shift+ArrowRight takes you to the next tab (Clients)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/services`,
-        'Shift+ArrowRight takes you to the next tab (Services)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default/variables`,
-        'Shift+ArrowRight takes you to the next tab (Variables)'
-      );
-
-      await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
-        shiftKey: true,
-      });
-      assert.equal(
-        currentURL(),
-        `/jobs/${jobID}@default`,
-        'Shift+ArrowRight takes you to the first tab in the loop'
-      );
+      for (const tab of [...tabs.slice(1), tabs[0]]) {
+        await triggerKeyEvent('.page-layout', 'keydown', 'ArrowRight', {
+          shiftKey: true,
+        });
+        assert.equal(
+          currentURL().split('?')[0],
+          tab.url,
+          `Shift+ArrowRight takes you to the next tab (${tab.id})`
+        );
+      }
       window.localStorage.nomadTokenSecret = null; // Reset Token
     });
 

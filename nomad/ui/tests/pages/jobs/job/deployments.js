@@ -22,7 +22,10 @@ export default create({
   deployments: collection('[data-test-deployment]', {
     text: text(),
     status: text('[data-test-deployment-status]'),
-    statusClass: attribute('class', '[data-test-deployment-status]'),
+    statusAttr: attribute(
+      'data-test-deployment-status',
+      '[data-test-deployment-status]'
+    ),
     version: text('[data-test-deployment-version]'),
     submitTime: text('[data-test-deployment-submit-time]'),
     promotionIsRequired: isPresent('[data-test-promotion-required]'),
@@ -54,7 +57,7 @@ export default create({
       progress: text('[data-test-deployment-task-group-progress-deadline]'),
     }),
 
-    ...allocations('[data-test-deployment-allocation]'),
+    ...allocations('[data-test-allocation]'),
     hasAllocations: isPresent('[data-test-deployment-allocations]'),
   }),
 

@@ -1,31 +1,23 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Edit Variable"}}
-
-<h1 class="title variable-title">
-  <LinkTo class="back-link" @route="variables.variable.index">
-    <FlightIcon
-      @name="chevron-left"
-      @title="Back to {{this.model.path}}"
-      @size="24"
-      />
-  </LinkTo>
-  Edit
-  {{this.model.path}}
-  <Toggle
-    data-test-json-toggle
-    @isActive={{eq this.view "json"}}
-    @onToggle={{action this.toggleView}}
-    title="JSON"
-  >JSON</Toggle>
-
-</h1>
-
-<VariableForm
-  @model={{this.model}}
-  @existingVariables={{this.existingVariables}}
-  @view={{this.view}}
-/>
+<Ui::PageHeader @title="Edit {{this.model.path}}" @breadcrumbs={{this.variableController.breadcrumbItems}}>
+  <:actions>
+    <Ui::Button @variant="ghost" @icon="arrow-left" @route="variables.variable.index" data-test-back-link>Back to {{this.model.path}}</Ui::Button>
+    <Ui::Switch
+      @switch={{true}}
+      @label="JSON"
+      @checked={{eq this.view "json"}}
+      @onChange={{this.toggleView}}
+      class="mb-0"
+      data-test-json-toggle
+    />
+  </:actions>
+</Ui::PageHeader>
+<Ui::PageBody>
+  <VariableForm @model={{this.model}} @existingVariables={{this.existingVariables}} @view={{this.view}} />
+</Ui::PageBody>

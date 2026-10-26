@@ -45,6 +45,7 @@ import (
 	"github.com/hashicorp/nomad/client/stats"
 	cstructs "github.com/hashicorp/nomad/client/structs"
 	"github.com/hashicorp/nomad/client/vaultclient"
+	"github.com/hashicorp/nomad/client/vaultcompat"
 	"github.com/hashicorp/nomad/command/agent/consul"
 	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/envoy"
@@ -231,6 +232,10 @@ type Client struct {
 
 	// discovery holds the service discovery servers of the client (Norca).
 	discovery discoveryServers
+
+	// vaultCompat is the Vault-compatible endpoint of the built-in secret
+	// store, when the agent has no Vault integration (Norca).
+	vaultCompat *vaultcompat.Server
 
 	// checkStore is used to store group and task checks and their current pass/fail
 	// status.
@@ -560,6 +565,12 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 		return nil, fmt.Errorf("failed to setup vault client: %v", err)
 	}
 
+	// Without Vault, serve the vault blocks of tasks from the built-in
+	// secret store (Norca).
+	if err := c.setupVaultCompat(); err != nil {
+		return nil, fmt.Errorf("failed to setup the vault-compatible endpoint: %v", err)
+	}
+
 	// wait until drivers are healthy before restoring or registering with servers
 	select {
 	case <-c.fpInitialized:
@@ -883,6 +894,11 @@ func (c *Client) Shutdown() error {
 
 	// Stop the built-in DNS server (Norca).
 	c.shutdownDiscovery()
+
+	// Stop the Vault-compatible endpoint (Norca).
+	if c.vaultCompat != nil {
+		c.vaultCompat.Shutdown()
+	}
 
 	// Shutdown the plugin managers
 	c.pluginManagers.Shutdown()

@@ -17,9 +17,12 @@ import (
 
 	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
 	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
+	"github.com/hashicorp/nomad/client/secrets"
+	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/client/vaultclient"
 	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/hashicorp/nomad/plugins/drivers"
 )
 
 const (
@@ -101,6 +104,11 @@ type vaultHook struct {
 
 	// future is used to wait on retrieving a Vault token
 	future *tokenFuture
+
+	// compat is set for a task served by the client's Vault-compatible
+	// endpoint (Norca), compatEnv is its environment: VAULT_ADDR.
+	compat    bool
+	compatEnv map[string]string
 }
 
 func newVaultHook(config *vaultHookConfig) *vaultHook {
@@ -132,6 +140,8 @@ func (h *vaultHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartRe
 	first := h.firstRun
 	h.firstRun = false
 	if !first {
+		// Keep the VAULT_ADDR of the Vault-compatible endpoint (Norca).
+		resp.Env = h.compatEnv
 		return nil
 	}
 
@@ -158,6 +168,16 @@ func (h *vaultHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartRe
 		}
 	}
 
+	// Without a Vault integration, the token is one of the client's
+	// Vault-compatible endpoint of the built-in secret store (Norca).
+	compat, isCompat := h.client.(vaultCompatClient)
+	h.compat = isCompat
+	if isCompat {
+		if msg := secrets.VaultPolicyWarning(h.alloc.Job, h.alloc.TaskGroup, h.taskName, h.vaultBlock.Policies); msg != "" {
+			h.eventEmitter.EmitEvent(structs.NewTaskEvent(vaultCompatTaskEventType).SetDisplayMessage(msg))
+		}
+	}
+
 	// Launch the token manager
 	go h.run(recoveredToken)
 
@@ -169,8 +189,46 @@ func (h *vaultHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartRe
 	}
 
 	h.updater.updatedVaultToken(h.future.Get())
+	if isCompat {
+		h.compatEnv = map[string]string{vaultAddrEnv: compat.VaultAddr(h.alloc)}
+		resp.Env = h.compatEnv
+	}
 	return nil
 }
+
+// vaultCompatClient is the Vault client of the client's Vault-compatible
+// endpoint (client/vaultcompat), used when the agent has no Vault
+// integration (Norca, docs/design/secrets-plan.md, "Vault compatibility").
+type vaultCompatClient interface {
+	// VaultAddr returns the endpoint's address for a task of the
+	// allocation, which the task gets as VAULT_ADDR.
+	VaultAddr(alloc *structs.Allocation) string
+}
+
+// redactVaultCompatToken returns the driver handle to persist in the client's
+// state without the token of the Vault-compatible endpoint (Norca): the
+// token is never kept in the client's state, the client derives it again
+// after a restart.
+func redactVaultCompatToken(handle *drivers.TaskHandle, client vaultclient.VaultClient) *drivers.TaskHandle {
+	if _, ok := client.(vaultCompatClient); !ok || handle == nil || handle.Config == nil {
+		return handle
+	}
+	if _, ok := handle.Config.Env[taskenv.VaultToken]; !ok {
+		return handle
+	}
+	out := handle.Copy()
+	delete(out.Config.Env, taskenv.VaultToken)
+	return out
+}
+
+const (
+	// vaultAddrEnv is the environment variable of the Vault address.
+	vaultAddrEnv = "VAULT_ADDR"
+
+	// vaultCompatTaskEventType is the type of the warning event of a vault
+	// block served by the built-in secret store.
+	vaultCompatTaskEventType = "Vault"
+)
 
 func (h *vaultHook) Stop(ctx context.Context, req *interfaces.TaskStopRequest, resp *interfaces.TaskStopResponse) error {
 	// Shutdown any created manager
@@ -357,6 +415,19 @@ func (h *vaultHook) deriveVaultToken() (token string, exit bool) {
 
 // writeToken writes the given token to disk
 func (h *vaultHook) writeToken(token string) error {
+	// The token of the Vault-compatible endpoint (Norca) is not kept in the
+	// private directory: the client derives the same token again after a
+	// restart, so only the task's own copy is written.
+	if h.compat {
+		if h.vaultBlock.DisableFile {
+			return nil
+		}
+		if err := os.WriteFile(h.secretsDirTokenPath, []byte(token), 0666); err != nil {
+			return fmt.Errorf("failed to write vault token to secrets dir: %v", err)
+		}
+		return nil
+	}
+
 	// Handle upgrade path by first checking if the tasks private directory
 	// exists. If it doesn't, this allocation probably existed before the
 	// private directory was introduced, so keep using the secret directory to

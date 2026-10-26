@@ -1,0 +1,558 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// The unified lists (Ui::DataTable and its toolbar) and the unified editor
+// (Ui::Editor, Ui::CodeEditor, Ui::TextDiff), plus the smaller pieces of
+// the component layer added in phase 2.
+
+.norca-data-table {
+  .table-sort {
+    white-space: nowrap;
+  }
+
+  .norca-data-table-filters .input-icon {
+    min-width: 14rem;
+  }
+}
+
+.norca-bulk-bar {
+  background: var(--tblr-primary-lt);
+}
+
+.norca-row-active > * {
+  background-color: var(--tblr-active-bg);
+}
+
+.norca-filter-options {
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+// Sub-rows of a table row (tasks of an allocation).
+.norca-sub-row > td {
+  border-top: 0;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  background: var(--tblr-bg-surface-secondary);
+}
+
+// Code: blocks, the editor and diffs.
+
+.norca-code-block {
+  position: relative;
+
+  .norca-code-block-actions {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+  }
+}
+
+.norca-code {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  max-height: 32rem;
+  overflow: auto;
+  font-family: var(--norca-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--tblr-body-color);
+  background: var(--tblr-bg-surface-secondary);
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+
+  &.norca-code-wrap {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+.norca-code-editor {
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  overflow: hidden;
+
+  &:focus-within {
+    border-color: var(--tblr-primary);
+    box-shadow: 0 0 0 0.25rem rgba(var(--tblr-primary-rgb), 0.25);
+  }
+
+  &.is-invalid {
+    border-color: var(--tblr-danger);
+  }
+
+  .CodeMirror {
+    height: auto;
+    font-family: var(--norca-font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+
+  .CodeMirror-scroll {
+    min-height: var(--norca-editor-min-height, 20rem);
+    max-height: 70vh;
+  }
+}
+
+// The CodeMirror theme of the editor: Tabler surfaces and text colors, so
+// it follows the light and the dark mode. Token colors keep a contrast of
+// at least 4.5:1 on both surfaces.
+.cm-s-norca {
+  &.CodeMirror {
+    background: var(--tblr-bg-surface);
+    color: var(--tblr-body-color);
+  }
+
+  .CodeMirror-gutters {
+    background: var(--tblr-bg-surface-secondary);
+    border-right: 1px solid var(--tblr-border-color);
+  }
+
+  .CodeMirror-linenumber {
+    color: var(--tblr-secondary);
+  }
+
+  .CodeMirror-cursor {
+    border-left: 2px solid var(--tblr-body-color);
+  }
+
+  .CodeMirror-activeline-background {
+    background: var(--tblr-active-bg);
+  }
+
+  .CodeMirror-selected,
+  &.CodeMirror-focused .CodeMirror-selected {
+    background: rgba(var(--tblr-primary-rgb), 0.18);
+  }
+
+  .CodeMirror-matchingbracket {
+    color: var(--tblr-success) !important;
+    text-decoration: underline;
+  }
+
+  .cm-comment {
+    color: var(--tblr-secondary);
+    font-style: italic;
+  }
+
+  .cm-string,
+  .cm-string-2 {
+    color: var(--norca-code-string);
+  }
+
+  .cm-number,
+  .cm-atom {
+    color: var(--norca-code-number);
+  }
+
+  .cm-keyword,
+  .cm-property,
+  .cm-variable-2 {
+    color: var(--norca-code-keyword);
+  }
+
+  .norca-cm-error-line {
+    background: rgba(var(--tblr-danger-rgb), 0.12);
+  }
+}
+
+:root,
+[data-bs-theme='light'] {
+  --norca-code-string: #2b7a0b;
+  --norca-code-number: #9a4f00;
+  --norca-code-keyword: #1a5f9e;
+  --norca-diff-add-bg: #e6f4ea;
+  --norca-diff-add-fg: #1e5e2c;
+  --norca-diff-del-bg: #fce8e6;
+  --norca-diff-del-fg: #8c1d18;
+}
+
+[data-bs-theme='dark'] {
+  --norca-code-string: #9ad57a;
+  --norca-code-number: #f2b36f;
+  --norca-code-keyword: #8cc4ff;
+  --norca-diff-add-bg: #16351f;
+  --norca-diff-add-fg: #a8e6b5;
+  --norca-diff-del-bg: #3d1a1a;
+  --norca-diff-del-fg: #ffb4ab;
+}
+
+.norca-text-diff {
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  padding: 0.5rem;
+  background: var(--tblr-bg-surface);
+  max-height: 32rem;
+  overflow: auto;
+}
+
+.norca-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--norca-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+
+  td {
+    padding: 0 0.5rem;
+    vertical-align: top;
+  }
+
+  .norca-diff-no {
+    width: 1%;
+    color: var(--tblr-secondary);
+    text-align: right;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .norca-diff-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .norca-diff-add {
+    background: var(--norca-diff-add-bg);
+    color: var(--norca-diff-add-fg);
+  }
+
+  .norca-diff-del {
+    background: var(--norca-diff-del-bg);
+    color: var(--norca-diff-del-fg);
+  }
+
+  .norca-diff-skip td {
+    color: var(--tblr-secondary);
+    text-align: center;
+    font-family: var(--norca-font-sans);
+    padding: 0.25rem;
+  }
+}
+
+// Datagrid: tighter variant for side panels.
+.norca-datagrid-compact {
+  --tblr-datagrid-padding: 0.75rem;
+  --tblr-datagrid-item-width: 10rem;
+}
+
+// Tooltips (Ui::Tooltip): shown on hover and keyboard focus, from the
+// data-norca-tooltip attribute.
+.norca-tooltip {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+
+  &::after {
+    content: attr(data-norca-tooltip);
+    position: absolute;
+    z-index: 1080;
+    bottom: calc(100% + 0.375rem);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--tblr-border-radius);
+    background: var(--tblr-gray-900);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: normal;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.1s ease-in-out;
+  }
+
+  &.norca-tooltip-wide::after {
+    white-space: normal;
+    width: max-content;
+    max-width: 22rem;
+  }
+
+  &.norca-tooltip-below::after {
+    bottom: auto;
+    top: calc(100% + 0.375rem);
+  }
+
+  &:hover::after,
+  &:focus-within::after {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+// Tabs of a page (route tabs): scroll horizontally on small screens.
+.norca-tabs-nav .nav-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  .nav-link {
+    white-space: nowrap;
+  }
+}
+
+.breadcrumb .breadcrumb-item a {
+  color: var(--tblr-secondary);
+}
+
+// Distributions (Ui::Distribution): status colors of allocations, child
+// jobs and clients. Used for status only.
+.norca-swatch-queued,
+.norca-swatch-pending {
+  background: var(--tblr-azure);
+}
+.norca-swatch-starting {
+  background: var(--tblr-cyan);
+}
+.norca-swatch-running {
+  background: var(--tblr-green);
+}
+.norca-swatch-complete,
+.norca-swatch-dead {
+  background: var(--tblr-blue);
+}
+.norca-swatch-unknown {
+  background: var(--tblr-yellow);
+}
+.norca-swatch-failed {
+  background: var(--tblr-red);
+}
+.norca-swatch-lost {
+  background: var(--tblr-purple);
+}
+.norca-swatch-notScheduled,
+.norca-swatch-unplaced {
+  background: var(--tblr-gray-400);
+}
+
+.norca-distribution-bar {
+  display: flex;
+  gap: 2px;
+  height: 0.75rem;
+  border-radius: var(--tblr-border-radius);
+  overflow: hidden;
+  background: var(--tblr-bg-surface-secondary);
+}
+
+.norca-distribution-compact .norca-distribution-bar {
+  height: 0.5rem;
+}
+
+.norca-distribution-segment {
+  display: block;
+  border: 0;
+  padding: 0;
+  height: 100%;
+
+  &:is(button) {
+    cursor: pointer;
+
+    &:hover {
+      filter: brightness(0.9);
+    }
+  }
+}
+
+.norca-distribution-empty {
+  flex: 1;
+}
+
+.norca-distribution-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+
+  .norca-distribution-zero {
+    color: var(--tblr-secondary);
+  }
+}
+
+.norca-distribution-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: inherit;
+}
+
+.norca-swatch {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 2px;
+}
+
+// Job diffs (JobDiff): the plan of a job and the differences between
+// versions.
+.norca-job-diff {
+  font-family: var(--norca-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  padding: 0.75rem 1rem;
+  background: var(--tblr-bg-surface-secondary);
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  overflow-x: auto;
+}
+
+.norca-diff-label .norca-diff-label {
+  padding-left: 1.25rem;
+}
+
+.norca-diff-bold {
+  font-weight: 600;
+}
+
+.norca-diff-marker {
+  display: inline-block;
+  min-width: 1.5rem;
+  font-weight: 700;
+}
+
+.norca-diff-added > .norca-diff-marker,
+.norca-diff-marker.norca-diff-added,
+.norca-diff-row.norca-diff-added {
+  color: var(--norca-diff-add-fg);
+}
+
+.norca-diff-deleted > .norca-diff-marker,
+.norca-diff-marker.norca-diff-deleted,
+.norca-diff-row.norca-diff-deleted {
+  color: var(--norca-diff-del-fg);
+}
+
+.norca-diff-marker.norca-diff-edited,
+.norca-diff-row.norca-diff-edited .norca-diff-change {
+  color: var(--norca-code-number);
+}
+
+.norca-diff-table {
+  display: table;
+  padding-left: 1.25rem;
+}
+
+.norca-diff-row {
+  display: table-row;
+}
+
+.norca-diff-cell {
+  display: table-cell;
+  padding-right: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.norca-diff-update-count,
+.norca-diff-annotation {
+  color: var(--tblr-secondary);
+}
+
+// A file chooser styled as a button (Ui::FileButton): the focus ring of
+// the hidden input shows on the label.
+.norca-file-button:focus-within {
+  outline: 2px solid var(--tblr-primary);
+  outline-offset: 2px;
+}
+
+// Logs and file contents (StreamingFile).
+.norca-log-window {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  min-height: 12rem;
+  max-height: 65vh;
+  overflow: auto;
+  background: #111827;
+  color: #e5e7eb;
+  font-family: var(--norca-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  border-radius: 0 0 var(--tblr-card-border-radius) var(--tblr-card-border-radius);
+
+  code {
+    color: inherit;
+    background: transparent;
+    padding: 0;
+    white-space: pre;
+
+    &.wrapped {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  }
+}
+
+// The multiregion deployment timeline: one step per region.
+.norca-mr-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.norca-mr-step {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--tblr-border-color);
+  border-top-width: 3px;
+  border-radius: var(--tblr-border-radius);
+}
+
+@for $i from 1 through 6 {
+  .norca-mr-step.norca-region-#{$i} {
+    border-top-color: var(--norca-region-#{$i});
+  }
+}
+
+.norca-scale-event {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--tblr-border-color);
+
+  &:first-child {
+    border-top: 0;
+  }
+}
+
+.norca-swatch-not-scheduled {
+  background: var(--tblr-gray-400);
+}
+
+.norca-swatch-degraded {
+  background: var(--tblr-orange);
+}
+
+.norca-kv-table .norca-kv-heading {
+  background: var(--tblr-bg-surface-secondary);
+  font-weight: 600;
+}
+
+// Actions that stay in view under a long editor.
+.norca-sticky-actions {
+  position: sticky;
+  bottom: 0;
+  padding: 0.75rem 0;
+  background: var(--tblr-body-bg);
+  z-index: 2;
+}
+
+.norca-side-panel {
+  width: min(36rem, 100vw);
+
+  &.norca-side-panel-wide {
+    width: min(72rem, 100vw);
+  }
+}
+
+.norca-stepper {
+  width: 9rem;
+}
+
+// A name column that truncates long names (clients list).
+.norca-cell-name {
+  max-width: 14rem;
+}

@@ -65,12 +65,12 @@ module('Acceptance | access control', function (hooks) {
 
     assert.deepEqual(
       AccessControl.subnav.tabs.map((tab) => tab.name),
-      ['Overview', 'Tokens', 'Roles', 'Policies']
+      ['Overview', 'Tokens', 'Roles', 'Policies', 'Auth methods']
     );
 
     await a11yAudit(assert);
 
-    await click('[data-test-roles-card] h2 a');
+    await click('[data-test-roles-card] a[href$="/access-control/roles"]');
     assert.equal(currentURL(), '/access-control/roles');
 
     await AccessControl.subnav.tabs.objectAt(1).click();
@@ -115,7 +115,7 @@ module('Acceptance | access control', function (hooks) {
     const self = signInAs(server, (t) => t.type === 'management');
     await AccessControl.visitToken({ id: self.id });
     assert.dom('[data-test-own-token-badge]').exists();
-    assert.dom('[data-test-delete-token]').isDisabled();
+    assert.dom('[data-test-delete-token] [data-test-idle-button]').isDisabled();
   });
 
   test('creating a client token sends the selected roles, policies, TTL and global flag', async function (assert) {
@@ -126,8 +126,8 @@ module('Acceptance | access control', function (hooks) {
     await a11yAudit(assert);
 
     await fillIn('[data-test-token-name-input]', 'CI Token');
-    await click('[data-test-token-global]');
-    await click('.expiration-time input[value="10m"]');
+    await click('[data-test-token-global] input');
+    await click('[data-test-token-expiration] input[value="10m"]');
 
     const roleRow = rowByName(
       '[data-test-token-roles]',
@@ -190,7 +190,7 @@ module('Acceptance | access control', function (hooks) {
     signInAs(server, (t) => t.type === 'management');
     await AccessControl.visitNewToken();
     await fillIn('[data-test-token-name-input]', 'Too Late');
-    await click('.expiration-time input[value="custom"]');
+    await click('[data-test-token-expiration] input[value="custom"]');
     await fillIn('[data-test-token-expiration-time-input]', '2001-01-01T00:00');
     await click('[data-test-token-save]');
     assert.dom('.flash-message.alert-critical').exists();
@@ -211,11 +211,11 @@ module('Acceptance | access control', function (hooks) {
   test('existing tokens show their expiration and cannot change the global flag', async function (assert) {
     signInAs(server, (t) => t.type === 'management');
     await AccessControl.visitToken({ id: 'cl4y-t0k3n' });
-    assert.dom('[data-test-token-global]').isDisabled();
-    assert.dom('.expiration-time input').doesNotExist();
+    assert.dom('[data-test-token-global] input').isDisabled();
+    assert.dom('[data-test-token-expiration] input').doesNotExist();
 
     const neverExpiring = server.db.tokens.findBy({ name: 'Multi Role Token' });
     await AccessControl.visitToken({ id: neverExpiring.id });
-    assert.dom('.expiration-time').hasText('Token does not expire');
+    assert.dom('[data-test-token-expiration]').hasText('Token does not expire');
   });
 });

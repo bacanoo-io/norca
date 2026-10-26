@@ -25,27 +25,48 @@ export default class UiChart extends Component {
     return htmlSafe(`height: ${this.args.height || 240}px`);
   }
 
-  chart = modifier((element, [option]) => {
-    let instance = null;
-    let observer = null;
-    let disposed = false;
+  instance = null;
+  element = null;
+  observer = null;
 
+  // The chart is created once and updated in place when @option changes
+  // (live series), so it does not flicker.
+  chart = modifier((element, [option]) => {
+    if (this.element === element) {
+      // While ECharts loads, the latest @option is used when it is ready.
+      this.instance?.setOption({ ...themeFor(element), ...option }, true);
+      return;
+    }
+    this.dispose();
+    this.element = element;
     loadECharts()
       .then((echarts) => {
-        if (disposed) return;
-        instance = echarts.init(element, null, { renderer: 'svg' });
-        instance.setOption({ ...themeFor(element), ...option }, true);
-        observer = new ResizeObserver(() => instance && instance.resize());
-        observer.observe(element);
+        if (this.isDestroying || this.element !== element) return;
+        this.instance = echarts.init(element, null, { renderer: 'svg' });
+        this.instance.setOption(
+          { ...themeFor(element), ...this.args.option },
+          true
+        );
+        this.observer = new ResizeObserver(
+          () => this.instance && this.instance.resize()
+        );
+        this.observer.observe(element);
       })
       .catch(() => {
-        if (!disposed) this.failed = true;
+        if (!this.isDestroying) this.failed = true;
       });
-
-    return () => {
-      disposed = true;
-      observer?.disconnect();
-      instance?.dispose();
-    };
   });
+
+  dispose() {
+    this.observer?.disconnect();
+    this.instance?.dispose();
+    this.observer = null;
+    this.instance = null;
+    this.element = null;
+  }
+
+  willDestroy() {
+    super.willDestroy(...arguments);
+    this.dispose();
+  }
 }

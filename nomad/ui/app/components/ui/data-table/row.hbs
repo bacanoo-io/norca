@@ -1,0 +1,77 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A row of Ui::DataTable (yielded as `r.Row`). With @onClick the row is
+  clickable and focusable (Enter opens it); with @enumerate it also gets an
+  enumerated keyboard shortcut.
+~}}
+{{! template-lint-disable no-invalid-interactive no-down-event-binding }}
+{{#if this.isClickable}}
+  {{#if @enumerate}}
+    <tr
+      class="cursor-pointer {{if @isSelected 'table-active'}} {{if @active 'norca-row-active'}}"
+      tabindex="0"
+      data-test-ui-table-row
+      {{on "click" this.click}}
+      {{on "keydown" this.keydown}}
+      {{keyboard-shortcut enumerated=true action=this.open}}
+      ...attributes
+    >
+      {{#if @selectable}}
+        <td class="w-1">
+          <input
+            type="checkbox"
+            class="form-check-input m-0 align-middle"
+            aria-label="Select row"
+            checked={{@isSelected}}
+            data-test-select-row
+            {{on "click" this.stop}}
+            {{on "change" this.toggle}}
+          />
+        </td>
+      {{/if}}
+      {{yield}}
+    </tr>
+  {{else}}
+    <tr
+      class="cursor-pointer {{if @isSelected 'table-active'}} {{if @active 'norca-row-active'}}"
+      tabindex="0"
+      data-test-ui-table-row
+      {{on "click" this.click}}
+      {{on "keydown" this.keydown}}
+      ...attributes
+    >
+      {{#if @selectable}}
+        <td class="w-1">
+          <input
+            type="checkbox"
+            class="form-check-input m-0 align-middle"
+            aria-label="Select row"
+            checked={{@isSelected}}
+            data-test-select-row
+            {{on "click" this.stop}}
+            {{on "change" this.toggle}}
+          />
+        </td>
+      {{/if}}
+      {{yield}}
+    </tr>
+  {{/if}}
+{{else}}
+  <tr class="{{if @isSelected 'table-active'}} {{if @active 'norca-row-active'}}" data-test-ui-table-row ...attributes>
+    {{#if @selectable}}
+      <td class="w-1">
+        <input
+          type="checkbox"
+          class="form-check-input m-0 align-middle"
+          aria-label="Select row"
+          checked={{@isSelected}}
+          data-test-select-row
+          {{on "change" this.toggle}}
+        />
+      </td>
+    {{/if}}
+    {{yield}}
+  </tr>
+{{/if}}

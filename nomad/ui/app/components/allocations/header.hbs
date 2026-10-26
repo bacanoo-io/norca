@@ -1,0 +1,32 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The header of the allocation pages (and, with @task, of the task pages):
+  the position, the name and status, and the tabs.
+~}}
+<Ui::PageHeader @breadcrumbs={{this.breadcrumbs}} data-test-allocation-header>
+  <:title>
+    <span class="d-inline-flex flex-wrap align-items-center gap-2" data-test-title>
+      {{#if @task}}
+        <span data-test-task-name>{{@task.name}}</span>
+        {{#if @task.isConnectProxy}}
+          <Ui::Badge @color="secondary" @icon="topology-star-3" data-test-proxy-tag>Proxy</Ui::Badge>
+        {{/if}}
+        <Ui::StatusIndicator @status={{@task.state}} data-test-state />
+      {{else}}
+        Allocation {{@allocation.name}}
+        <Ui::StatusIndicator @status={{@allocation.clientStatus}} data-test-allocation-status />
+      {{/if}}
+    </span>
+  </:title>
+  <:subtitle>
+    <span class="d-inline-flex flex-wrap align-items-center gap-2">
+      <span class="font-monospace" data-test-allocation-id>{{@allocation.id}}</span>
+      <Ui::CopyButton @text={{@allocation.id}} @label="Copy the allocation ID" />
+    </span>
+  </:subtitle>
+  <:actions>
+    {{yield}}
+  </:actions>
+</Ui::PageHeader>

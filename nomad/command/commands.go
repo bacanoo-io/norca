@@ -590,6 +590,9 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		"secret destroy": func() (cli.Command, error) {
 			return &SecretDestroyCommand{Meta: meta}, nil
 		},
+		"secret import": func() (cli.Command, error) {
+			return &SecretImportCommand{Meta: meta}, nil
+		},
 		"namespace": func() (cli.Command, error) {
 			return &NamespaceCommand{
 				Meta: meta,

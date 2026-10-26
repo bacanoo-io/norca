@@ -604,6 +604,7 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		return nil, err
 	}
 	conf.SecretsAudit = secretsAudit
+	conf.SecretsVaultFallback = agentConfig.Server.Secrets.vaultFallback()
 
 	// Add the search configuration
 	if search := agentConfig.Server.Search; search != nil {
@@ -900,6 +901,17 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 		return nil, fmt.Errorf("invalid consul_compat config: %v", err)
 	}
 	conf.ConsulCompat = agentConfig.Client.ConsulCompat.Copy()
+	secretsConf, err := agentConfig.Client.Secrets.toClientConfig()
+	if err != nil {
+		return nil, fmt.Errorf("invalid client secrets config: %v", err)
+	}
+	conf.Secrets = secretsConf
+	if err := conf.Secrets.Validate(func(name string) bool {
+		return name == structs.SecretProviderNorca ||
+			(name == structs.SecretProviderVault && conf.VaultConfig != nil && conf.VaultConfig.IsEnabled())
+	}); err != nil {
+		return nil, fmt.Errorf("invalid client secrets config: %v", err)
+	}
 
 	artifactConfig, err := clientconfig.ArtifactConfigFromAgent(agentConfig.Client.Artifact)
 	if err != nil {

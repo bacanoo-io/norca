@@ -23,6 +23,7 @@
               <button
                 type="button"
                 class="table-sort {{if column.isSorted (if @sortDescending 'desc' 'asc')}}"
+                data-test-sort-by={{column.key}}
                 {{on "click" (fn this.sort column)}}
               >{{column.label}}</button>
             {{else}}
@@ -39,11 +40,12 @@
             class="cursor-pointer"
             tabindex="0"
             data-test-ui-table-row
-            {{on "click" (fn @onRowClick row)}}
+            {{this.rowMarker row}}
+            {{on "click" (fn this.rowClick row)}}
             {{on "keydown" (fn this.rowKeydown row)}}
           >{{yield row index}}</tr>
         {{else}}
-          <tr data-test-ui-table-row>{{yield row index}}</tr>
+          <tr data-test-ui-table-row {{this.rowMarker row}}>{{yield row index}}</tr>
         {{/if}}
       {{else}}
         <tr>

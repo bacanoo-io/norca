@@ -1,179 +1,191 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<div class="job-status-panel boxed-section active-deployment" data-test-job-status-panel>
-  <div class="boxed-section-head hds-foreground-primary">
-    <div class="boxed-section-row"
-      {{did-insert (action this.establishOldAllocBlockIDs)}}
-      >
-        <h2>Status:
-          <Hds::Badge @text="Deploying {{@job.latestDeployment.shortId}}" @color="highlight" @type="filled" />
-        </h2>
-        <div class="pull-right">
-          {{#if @job.latestDeployment.isRunning}}
-            <Hds::Button
-              data-test-fail
-              {{on "click" (perform this.fail)}}
-              disabled={{this.fail.isRunning}}
-              @color="critical"
-              @text="Fail Deployment"
-              {{keyboard-shortcut
-                label="Fail Deployment"
-                pattern=(array "f" "a" "i" "l")
-                action=(perform this.fail)
-              }}
-            />
-          {{/if}}
-        </div>
-      </div>
+<Ui::Card class="mb-3 norca-job-status norca-job-status-deploying" data-test-job-status-panel>
+  <:actions>
+    <div class="d-flex flex-wrap align-items-center gap-2 w-100" {{did-insert (action this.establishOldAllocBlockIDs)}}>
+      <h2 class="h3 m-0 d-inline-flex align-items-center gap-2">
+        Status
+        <Ui::Badge @color="purple" @solid={{true}} data-test-job-status-badge>Deploying {{@job.latestDeployment.shortId}}</Ui::Badge>
+      </h2>
+      {{#if @job.latestDeployment.isRunning}}
+        <Ui::Button
+          @variant="danger"
+          @size="sm"
+          @icon="circle-x"
+          @disabled={{this.fail.isRunning}}
+          class="ms-auto"
+          data-test-fail
+          {{on "click" (perform this.fail)}}
+          {{keyboard-shortcut
+            label="Fail Deployment"
+            pattern=(array "f" "a" "i" "l")
+            action=(perform this.fail)
+          }}
+        >Fail Deployment</Ui::Button>
+      {{/if}}
     </div>
-    <div class="boxed-section-body {{if @job.latestDeployment.requiresPromotion "requires-promotion"}}">
-      {{#if @job.latestDeployment.requiresPromotion}}
-        <div class="canary-promotion-alert">
-          {{#if this.canariesHealthy}}
-            <Hds::Alert @type="inline" @color="warning" as |A|>
-              <A.Title>Deployment requires promotion</A.Title>
-              <A.Description>Your deployment requires manual promotion — all canary allocations have passed their health checks.</A.Description>
-              <A.Button
+  </:actions>
+  <:default>
+    {{#if @job.latestDeployment.requiresPromotion}}
+      <div class="mb-3 norca-promotion-alert">
+        {{#if this.canariesHealthy}}
+          <Ui::Alert @tone="warning" @title="Deployment requires promotion">
+            Your deployment requires manual promotion — all canary allocations have passed their health checks.
+            <div class="mt-2">
+              <Ui::Button
+                @variant="primary"
+                @size="sm"
+                @isLoading={{this.promote.isRunning}}
+                data-test-promote-canary
+                {{on "click" (perform this.promote)}}
                 {{keyboard-shortcut
                   pattern=(array "p" "r" "o" "m" "o" "t" "e")
                   action=(action (perform this.promote))
                 }}
-                data-test-promote-canary @text="Promote Canary" @color="primary" {{on "click" (perform this.promote)}} />
-            </Hds::Alert>
-          {{else}}
-            {{#if this.someCanariesHaveFailed}}
-              <Hds::Alert @type="inline" @color="critical" as |A|>
-                <A.Title>Some Canaries have failed</A.Title>
-                <A.Description>Your canary allocations have failed their health checks. Please have a look at the error logs and task events for the allocations in question.</A.Description>
-              </Hds::Alert>
+              >Promote Canary</Ui::Button>
+            </div>
+          </Ui::Alert>
+        {{else if this.someCanariesHaveFailed}}
+          <Ui::Alert @tone="danger" @title="Some Canaries have failed">
+            Your canary allocations have failed their health checks. Please have a look at the error logs and task events for the allocations in question.
+          </Ui::Alert>
+        {{else}}
+          <Ui::Alert @tone="info" @title="Checking Canary health">
+            {{#if this.deploymentIsAutoPromoted}}
+              Your canary allocations are being placed and health-checked. If they pass, they will be automatically promoted and your deployment will continue.
             {{else}}
-              <Hds::Alert @type="inline" @color="neutral" as |A|>
-                <A.Title>Checking Canary health</A.Title>
-                {{#if this.deploymentIsAutoPromoted}}
-                  <A.Description>Your canary allocations are being placed and health-checked. If they pass, they will be automatically promoted and your deployment will continue.</A.Description>
-                {{else}}
-                  <A.Description>Your job requires manual promotion, and your canary allocations are being placed and health-checked.</A.Description>
-                {{/if}}
-              </Hds::Alert>
+              Your job requires manual promotion, and your canary allocations are being placed and health-checked.
             {{/if}}
-          {{/if}}
+          </Ui::Alert>
+        {{/if}}
+      </div>
+    {{/if}}
+
+    <div class="norca-deployment-allocations">
+      {{#if this.oldVersionAllocBlockIDs.length}}
+        <h4 class="h3 d-flex flex-wrap align-items-center gap-2" data-test-old-allocation-tally>
+          <span>
+            Previous allocations: {{#if this.oldVersionAllocBlocks.running}}{{this.oldRunningHealthyAllocBlocks.length}} running{{/if}}
+          </span>
+          <span class="norca-versions">
+            <ul>
+              {{#each this.oldVersions as |versionObj|}}
+                <li>
+                  <LinkTo
+                    data-version={{versionObj.version}}
+                    @route="jobs.job.allocations"
+                    @model={{@job}}
+                    @query={{hash version=(concat "[" versionObj.version "]") status=(concat '["running", "pending", "failed"]')}}
+                  >
+                    <Ui::Badge @color="secondary">{{if (eq versionObj.version "unknown") "unknown" (concat "v" versionObj.version)}}</Ui::Badge>
+                    <Ui::Badge @color="blue" @solid={{true}}>{{versionObj.allocations.length}}</Ui::Badge>
+                  </LinkTo>
+                </li>
+              {{/each}}
+            </ul>
+          </span>
+        </h4>
+        <div class="mb-3 norca-previous-allocations">
+          <JobStatus::AllocationStatusRow @allocBlocks={{this.oldVersionAllocBlocks}} @steady={{true}} />
+        </div>
+        <div class="norca-legend-and-summary mb-3" data-test-previous-allocations-legend>
+          <ul class="norca-alloc-legend" aria-label="Previous allocation states">
+            <li class="norca-legend-item {{if (eq (get this.oldRunningHealthyAllocBlocks 'length') 0) 'norca-legend-faded'}}">
+              <span class="norca-legend-link">
+                <span class="norca-alloc norca-alloc-running" aria-hidden="true"></span>
+                <span class="norca-legend-count">{{get this.oldRunningHealthyAllocBlocks "length"}} Running</span>
+              </span>
+            </li>
+            <li class="norca-legend-item {{if (eq (get this.oldCompleteHealthyAllocBlocks 'length') 0) 'norca-legend-faded'}}">
+              <span class="norca-legend-link">
+                <span class="norca-alloc norca-alloc-complete" aria-hidden="true"></span>
+                <span class="norca-legend-count">{{get this.oldCompleteHealthyAllocBlocks "length"}} Complete</span>
+              </span>
+            </li>
+          </ul>
         </div>
       {{/if}}
 
-      <div class="deployment-allocations">
-        {{#if this.oldVersionAllocBlockIDs.length}}
-          <h4 class="title is-5 previous-allocations-heading" data-test-old-allocation-tally>
-            <span>
-              Previous allocations: {{#if this.oldVersionAllocBlocks.running}}{{this.oldRunningHealthyAllocBlocks.length}} running{{/if}}
-            </span>
-
-            <section class="versions">
-              <ul>
-                {{#each this.oldVersions as |versionObj|}}
-                  <li>
-                    <LinkTo data-version={{versionObj.version}} @route="jobs.job.allocations" @model={{@job}} @query={{hash version=(concat '[' versionObj.version ']')    status=(concat '["running", "pending", "failed"]')         }}>
-                      {{#if (eq versionObj.version "unknown")}}
-                        <Hds::Badge @text="unknown" class="version-label" @type="inverted" />
-                      {{else}}
-                        <Hds::Badge @text={{concat "v" versionObj.version}} class="version-label" @type="inverted" />
-                      {{/if}}
-                      <Hds::Badge @text={{versionObj.allocations.length}} class="version-count" />
-                    </LinkTo>
-                  </li>
-                {{/each}}
-              </ul>
-            </section>
-          </h4>
-          <div class="previous-allocations">
-            <JobStatus::AllocationStatusRow @allocBlocks={{this.oldVersionAllocBlocks}} @steady={{true}} />
-          </div>
-          <div class="legend-and-summary" data-test-previous-allocations-legend>
-            <legend>
-              <span class="legend-item {{if (eq (get this.oldRunningHealthyAllocBlocks "length") 0) "faded"}}">
-                <span class="represented-allocation running"></span>
-                <span class="count">{{get this.oldRunningHealthyAllocBlocks "length"}} Running</span>
-              </span>
-              <span class="legend-item {{if (eq (get this.oldCompleteHealthyAllocBlocks "length") 0) "faded"}}">
-                <span class="represented-allocation complete"></span>
-                <span class="count">{{get this.oldCompleteHealthyAllocBlocks "length"}} Complete</span>
-              </span>
-            </legend>
-          </div>
-
-        {{/if}}
-
-        <h4 class="title is-5" data-test-new-allocation-tally><span>New allocations: {{this.newRunningHealthyAllocBlocks.length}}/{{this.totalAllocs}} running and healthy</span>
-          <span class="versions">
-          <LinkTo data-version={{@job.version}} @route="jobs.job.allocations" @model={{@job}} @query={{hash version=(concat '[' @job.version ']')}}>
-            <Hds::Badge @text={{concat "v" @job.version}} @type="inverted" class="version-label" />
+      <h4 class="h3 d-flex flex-wrap align-items-center gap-2" data-test-new-allocation-tally>
+        <span>New allocations: {{this.newRunningHealthyAllocBlocks.length}}/{{this.totalAllocs}} running and healthy</span>
+        <span class="norca-versions">
+          <LinkTo data-version={{@job.version}} @route="jobs.job.allocations" @model={{@job}} @query={{hash version=(concat "[" @job.version "]")}}>
+            <Ui::Badge @color="secondary">v{{@job.version}}</Ui::Badge>
           </LinkTo>
-          </span>
-        </h4>
-        <div class="new-allocations">
-          <JobStatus::AllocationStatusRow @allocBlocks={{this.newVersionAllocBlocks}} />
-        </div>
+        </span>
+      </h4>
+      <div class="mb-3 norca-new-allocations">
+        <JobStatus::AllocationStatusRow @allocBlocks={{this.newVersionAllocBlocks}} />
       </div>
+    </div>
 
-      <div class="legend-and-summary" data-test-new-allocations-legend>
+    <div class="norca-legend-and-summary" data-test-new-allocations-legend>
+      <ul class="norca-alloc-legend" aria-label="New allocation states">
+        {{#each-in this.newAllocsByStatus as |status count|}}
+          <li class="norca-legend-item {{if (eq count 0) 'norca-legend-faded'}}">
+            {{#if (and (not (eq status "unplaced")) (gt count 0))}}
+              <LinkTo
+                @route="jobs.job.allocations"
+                @model={{@job}}
+                @query={{hash status=(concat '["' status '"]') version=(concat "[" this.job.latestDeployment.versionNumber "]")}}
+                class="norca-legend-link"
+              >
+                <span class="norca-alloc norca-alloc-{{status}}" aria-hidden="true"></span>
+                <span class="norca-legend-count">{{count}} {{capitalize status}}</span>
+              </LinkTo>
+            {{else}}
+              <span class="norca-legend-link">
+                <span class="norca-alloc norca-alloc-{{status}}" aria-hidden="true"></span>
+                <span class="norca-legend-count">{{count}} {{capitalize status}}</span>
+              </span>
+            {{/if}}
+          </li>
+        {{/each-in}}
 
-        {{!-- Legend by Status, then by Health, then by Canary --}}
-        <legend>
-          {{#each-in this.newAllocsByStatus as |status count|}}
-            <ConditionalLinkTo
-              @condition={{and (not (eq status "unplaced")) (gt count 0)}}
-              @route="jobs.job.allocations"
-              @model={{@job}}
-              @query={{hash status=(concat '["' status '"]') version=(concat '[' this.job.latestDeployment.versionNumber ']')}}
-              @class="legend-item {{if (eq count 0) "faded"}}"
-              @label="View {{status}} allocations"
-            >
-              <span class="represented-allocation {{status}}"></span>
-              <span class="count">{{count}} {{capitalize status}}</span>
-            </ConditionalLinkTo>
-          {{/each-in}}
-
-          {{#each-in this.newAllocsByHealth as |health count|}}
-            <span class="legend-item {{if (eq count 0) "faded"}}">
-              <span class="represented-allocation legend-example {{health}}">
-                <span class="alloc-health-indicator">
+        {{#each-in this.newAllocsByHealth as |health count|}}
+          <li class="norca-legend-item {{if (eq count 0) 'norca-legend-faded'}}">
+            <span class="norca-legend-link">
+              <span class="norca-alloc norca-alloc-legend-example norca-alloc-{{health}}" aria-hidden="true">
+                <span class="norca-alloc-health-indicator">
                   {{#if (eq health "healthy")}}
-                    <FlightIcon @name="check" @color="#25ba81" />
+                    <Ui::Icon @name="check" @size="sm" class="text-success" />
                   {{else if (eq health "unhealthy")}}
-                    <FlightIcon @name="x" @color="#c84034" />
+                    <Ui::Icon @name="x" @size="sm" class="text-danger" />
                   {{else}}
-                    <FlightIcon @name="running" @color="black" class="not-animated" />
+                    <Ui::Icon @name="loader-2" @size="sm" />
                   {{/if}}
                 </span>
               </span>
-              <span class="count">{{count}} {{humanize health}}</span>
+              <span class="norca-legend-count">{{count}} {{humanize health}}</span>
             </span>
-          {{/each-in}}
+          </li>
+        {{/each-in}}
 
-          <span class="legend-item {{if (eq this.newAllocsByCanary.canary 0) "faded"}}">
-            <span class="represented-allocation legend-example canary">
-              <span class="alloc-canary-indicator" />
+        <li class="norca-legend-item {{if (eq this.newAllocsByCanary.canary 0) 'norca-legend-faded'}}">
+          <span class="norca-legend-link">
+            <span class="norca-alloc norca-alloc-legend-example norca-alloc-canary" aria-hidden="true">
+              <span class="norca-alloc-canary-indicator"></span>
             </span>
-            <span class="count">{{this.newAllocsByCanary.canary}} Canary</span>
+            <span class="norca-legend-count">{{this.newAllocsByCanary.canary}} Canary</span>
           </span>
+        </li>
+      </ul>
 
-        </legend>
-
-        <JobStatus::FailedOrLost
-          @rescheduledAllocs={{this.rescheduledAllocs}}
-          @restartedAllocs={{this.restartedAllocs}}
-          @job={{@job}}
-          @supportsRescheduling={{true}}
-        />
-
-      </div>
-
-      <div class="history-and-params">
-        <JobStatus::DeploymentHistory @deployment={{@job.latestDeployment}} />
-        <JobStatus::UpdateParams @job={{@job}} />
-      </div>
-
+      <JobStatus::FailedOrLost
+        @rescheduledAllocs={{this.rescheduledAllocs}}
+        @restartedAllocs={{this.restartedAllocs}}
+        @job={{@job}}
+        @supportsRescheduling={{true}}
+      />
     </div>
-</div>
+
+    <div class="norca-history-and-params mt-4">
+      <JobStatus::DeploymentHistory @deployment={{@job.latestDeployment}} />
+      <JobStatus::UpdateParams @job={{@job}} />
+    </div>
+  </:default>
+</Ui::Card>

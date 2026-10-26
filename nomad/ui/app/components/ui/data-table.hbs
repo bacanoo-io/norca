@@ -1,0 +1,133 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="card norca-data-table" data-test-data-table={{@id}} ...attributes>
+  {{#if (or (has-block "filters") (has-block "actions") this.showColumnPicker this.showSavedViews)}}
+    <div class="card-body border-bottom py-3" data-test-data-table-toolbar>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        {{#if (has-block "filters")}}
+          <div class="d-flex flex-wrap gap-2 align-items-center norca-data-table-filters" role="group" aria-label="Filters">
+            {{yield to="filters"}}
+          </div>
+        {{/if}}
+        <div class="d-flex flex-wrap gap-2 align-items-center ms-auto">
+          {{yield to="actions"}}
+          {{#if this.showColumnPicker}}
+            <Ui::ColumnPicker
+              @columns={{this.hideableColumns}}
+              @onToggle={{this.setColumnVisible}}
+              @onReset={{this.resetColumns}}
+            />
+          {{/if}}
+          {{#if this.showSavedViews}}
+            <Ui::SavedViews @listId={{@id}} @state={{this.viewState}} @onApply={{this.applyView}} />
+          {{/if}}
+        </div>
+      </div>
+    </div>
+  {{/if}}
+
+  {{#if (and @selectable this.selectedCount)}}
+    <div class="card-body border-bottom py-2 norca-bulk-bar" role="region" aria-label="Bulk actions" data-test-bulk-bar>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="fw-medium" data-test-bulk-count>{{this.selectedCount}} selected</span>
+        {{yield this.selectedRows this.clearSelection to="bulk"}}
+        <Ui::Button @size="sm" @variant="ghost" @icon="x" class="ms-auto" data-test-bulk-clear {{on "click" this.clearSelection}}>Clear selection</Ui::Button>
+      </div>
+    </div>
+  {{/if}}
+
+  {{#if (and (not this.allRows.length) (has-block "empty"))}}
+    <div data-test-data-table-empty>{{yield to="empty"}}</div>
+  {{else}}
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table {{if @compact 'table-sm'}}" data-test-ui-table>
+        {{#if @caption}}<caption class="visually-hidden">{{@caption}}</caption>{{/if}}
+        <thead>
+          <tr>
+            {{#if @selectable}}
+              <th scope="col" class="w-1">
+                <input
+                  type="checkbox"
+                  class="form-check-input m-0 align-middle"
+                  aria-label="Select all rows on this page"
+                  checked={{this.allPageSelected}}
+                  indeterminate={{this.somePageSelected}}
+                  data-test-select-all
+                  {{on "change" this.togglePageEvent}}
+                />
+              </th>
+            {{/if}}
+            {{#each this.visibleColumns as |column|}}
+              <th
+                scope="col"
+                class={{column.class}}
+                aria-sort={{column.ariaSort}}
+                data-test-ui-table-header={{column.key}}
+              >
+                {{#if column.sortable}}
+                  <button
+                    type="button"
+                    class="table-sort {{if column.isSorted (if @sortDescending 'desc' 'asc')}}"
+                    data-test-sort-by={{column.key}}
+                    {{on "click" (fn this.sort column)}}
+                  >{{#if column.srOnly}}<span class="visually-hidden">{{column.label}}</span>{{else}}{{column.label}}{{/if}}</button>
+                {{else if column.srOnly}}
+                  <span class="visually-hidden">{{column.label}}</span>
+                {{else}}
+                  {{column.label}}
+                {{/if}}
+              </th>
+            {{/each}}
+          </tr>
+        </thead>
+        <tbody>
+          {{#each this.pageRows as |row index|}}
+            {{yield
+              row
+              (hash
+                Row=(component
+                  "ui/data-table/row"
+                  row=row
+                  selectable=@selectable
+                  isSelected=(this.isSelected row)
+                  onToggle=this.toggleRow
+                  onClick=@onRowClick
+                  enumerate=@enumerate
+                )
+                Cell=(component "ui/data-table/cell" shown=this.visibleKeys)
+                index=index
+                colspan=this.colspan
+                visibleColumns=this.visibleColumns
+                shown=this.shownMap
+              )
+              to="row"
+            }}
+          {{else}}
+            <tr>
+              <td colspan={{this.colspan}} class="text-center text-secondary py-4" data-test-ui-table-empty>
+                {{or @emptyMessage "Nothing to show."}}
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  {{/if}}
+
+  {{#if (and this.isPaginated this.allRows.length)}}
+    <div class="card-footer" data-test-data-table-footer>
+      <Ui::Pagination
+        @page={{this.currentPage}}
+        @pageSize={{@pageSize}}
+        @total={{this.allRows.length}}
+        @onPageChange={{this.changePage}}
+        @onPageSizeChange={{@onPageSizeChange}}
+        @noun={{@noun}}
+      >{{yield to="footer"}}</Ui::Pagination>
+    </div>
+  {{else if (has-block "footer")}}
+    <div class="card-footer">{{yield to="footer"}}</div>
+  {{/if}}
+</div>
