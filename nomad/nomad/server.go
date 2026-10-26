@@ -169,6 +169,11 @@ type Server struct {
 	// config.TLSConfig, which only holds the initial configuration.
 	tlsConfig atomic.Pointer[config.TLSConfig]
 
+	// discoveryOverflowFraction holds the bits of the default overflow
+	// fraction of service discovery blocks (see discoveryDefaultOverflowFraction).
+	// It is replaced when the configuration is reloaded.
+	discoveryOverflowFraction atomic.Uint64
+
 	// streamingRpcs is the registry holding our streaming RPC handlers.
 	streamingRpcs *structs.StreamingRpcRegistry
 
@@ -419,6 +424,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 
 	s.tlsConfig.Store(config.TLSConfig)
 	s.rpcTLS.Store(incomingTLS)
+	s.setDiscoveryDefaultOverflowFraction(config.DiscoveryDefaultOverflowFraction)
 
 	s.shutdownCtx, s.shutdownCancel = context.WithCancel(context.Background())
 	s.shutdownCh = s.shutdownCtx.Done()
@@ -986,6 +992,10 @@ func (s *Server) Reload(newConfig *Config) error {
 			_ = multierror.Append(&mErr, err)
 		}
 	}
+
+	// Apply the default overflow fraction of service discovery blocks to the
+	// jobs registered from now on.
+	s.setDiscoveryDefaultOverflowFraction(newConfig.DiscoveryDefaultOverflowFraction)
 
 	// Because this is a new configuration, we extract the worker pool arguments without acquiring a lock
 	workerPoolArgs := getSchedulerWorkerPoolArgsFromConfigLocked(newConfig)

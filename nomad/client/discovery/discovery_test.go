@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/helper/testlog"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
@@ -84,7 +85,7 @@ func reg(id, dc, zone string, healthy bool) *structs.ServiceRegistration {
 	r := &structs.ServiceRegistration{
 		ID: id, ServiceName: "api", Namespace: "default", Datacenter: dc, Zone: zone,
 		Address: "10.0.0.1", Port: 80, Ready: true, Health: structs.ServiceHealthPassing,
-		Discovery: &structs.ServiceDiscovery{Prefer: "zone", MinLocal: 2, OverflowFraction: 0.2, Failover: []string{"us", "ap"}},
+		Discovery: &structs.ServiceDiscovery{Prefer: "zone", MinLocal: 2, OverflowFraction: pointer.Of(0.2), Failover: []string{"us", "ap"}},
 	}
 	if !healthy {
 		r.Health = structs.ServiceHealthCritical

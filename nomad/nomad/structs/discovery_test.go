@@ -4,11 +4,14 @@
 package structs
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/shoenig/test/must"
 )
 
@@ -18,10 +21,10 @@ func TestServiceDiscovery_Validate(t *testing.T) {
 	var nilDiscovery *ServiceDiscovery
 	must.NoError(t, nilDiscovery.Validate())
 
-	valid := &ServiceDiscovery{Prefer: DiscoveryPreferZone, MinLocal: 2, OverflowFraction: 0.2, Failover: []string{"eu", "us"}}
+	valid := &ServiceDiscovery{Prefer: DiscoveryPreferZone, MinLocal: 2, OverflowFraction: pointer.Of(0.2), Failover: []string{"eu", "us"}}
 	must.NoError(t, valid.Validate())
 
-	err := (&ServiceDiscovery{Prefer: "rack", MinLocal: -1, OverflowFraction: 2, Failover: []string{"eu", "eu", ""}}).Validate()
+	err := (&ServiceDiscovery{Prefer: "rack", MinLocal: -1, OverflowFraction: pointer.Of(2.0), Failover: []string{"eu", "eu", ""}}).Validate()
 	must.ErrorContains(t, err, "prefer must be")
 	must.ErrorContains(t, err, "min_local must be non-negative")
 	must.ErrorContains(t, err, "overflow_fraction must be between 0 and 1")
@@ -37,6 +40,60 @@ func TestServiceDiscovery_Validate(t *testing.T) {
 	c.Failover[0] = "ap"
 	must.False(t, c.Equal(valid))
 	must.Eq(t, "eu", valid.Failover[0])
+	// the overflow fraction: unset is valid and differs from an explicit
+	// value; the copy is deep
+	unset := &ServiceDiscovery{Prefer: DiscoveryPreferZone}
+	must.NoError(t, unset.Validate())
+	must.Eq(t, DefaultDiscoveryOverflowFraction, unset.EffectiveOverflowFraction())
+	explicit := &ServiceDiscovery{Prefer: DiscoveryPreferZone, OverflowFraction: pointer.Of(DefaultDiscoveryOverflowFraction)}
+	must.False(t, unset.Equal(explicit))
+	must.True(t, explicit.Equal(explicit.Copy()))
+	cp := explicit.Copy()
+	*cp.OverflowFraction = 0.7
+	must.Eq(t, DefaultDiscoveryOverflowFraction, *explicit.OverflowFraction)
+	must.ErrorContains(t, (&ServiceDiscovery{OverflowFraction: pointer.Of(-0.1)}).Validate(), "overflow_fraction")
+	must.Eq(t, 0.0, (&ServiceDiscovery{OverflowFraction: pointer.Of(0.0)}).EffectiveOverflowFraction())
+
+	// SetDefaultOverflowFraction fills in only an unset value
+	unset.SetDefaultOverflowFraction(0.3)
+	must.Eq(t, pointer.Of(0.3), unset.OverflowFraction)
+	unset.SetDefaultOverflowFraction(0.4)
+	must.Eq(t, pointer.Of(0.3), unset.OverflowFraction)
+	off := &ServiceDiscovery{OverflowFraction: pointer.Of(0.0)}
+	off.SetDefaultOverflowFraction(0.3)
+	must.Eq(t, pointer.Of(0.0), off.OverflowFraction)
+	var nilDisc *ServiceDiscovery
+	nilDisc.SetDefaultOverflowFraction(0.3)
+}
+
+// Jobs and registrations stored while OverflowFraction was a float64 decode
+// with the value they were stored with, including an explicit 0; a nil
+// fraction round-trips as nil.
+func TestServiceDiscovery_MsgpackCompat(t *testing.T) {
+	ci.Parallel(t)
+
+	type oldServiceDiscovery struct {
+		Prefer           string
+		MinLocal         int
+		OverflowFraction float64
+		Failover         []string
+		IncludeNotReady  bool
+	}
+	for _, f := range []float64{0.2, 0} {
+		var buf bytes.Buffer
+		must.NoError(t, codec.NewEncoder(&buf, MsgpackHandle).Encode(&oldServiceDiscovery{Prefer: "zone", OverflowFraction: f}))
+		var d ServiceDiscovery
+		must.NoError(t, codec.NewDecoder(&buf, MsgpackHandle).Decode(&d))
+		must.Eq(t, &ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(f)}, &d)
+	}
+
+	for _, in := range []*ServiceDiscovery{{Prefer: "zone"}, {Prefer: "zone", OverflowFraction: pointer.Of(0.0)}} {
+		var buf bytes.Buffer
+		must.NoError(t, codec.NewEncoder(&buf, MsgpackHandle).Encode(in))
+		var out ServiceDiscovery
+		must.NoError(t, codec.NewDecoder(&buf, MsgpackHandle).Decode(&out))
+		must.Eq(t, in, &out)
+	}
 }
 
 func TestService_ValidateDiscovery(t *testing.T) {
@@ -94,6 +151,29 @@ func TestServiceDiscoveryDiff(t *testing.T) {
 	must.Eq(t, DiffTypeEdited, edited.Type)
 	must.Len(t, 1, edited.Fields)
 	must.Eq(t, "Failover", edited.Fields[0].Name)
+
+	// the overflow fraction is a pointer, which primitiveObjectDiff skips
+	fraction := serviceDiscoveryDiff(
+		&ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(0.2)},
+		&ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(0.35)}, false)
+	must.Eq(t, DiffTypeEdited, fraction.Type)
+	must.Eq(t, []*FieldDiff{{Type: DiffTypeEdited, Name: "OverflowFraction", Old: "0.2", New: "0.35"}}, fraction.Fields)
+
+	fraction = serviceDiscoveryDiff(
+		&ServiceDiscovery{Prefer: "zone"},
+		&ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(0.0)}, true)
+	must.Eq(t, DiffTypeEdited, fraction.Type)
+	var names []string
+	for _, f := range fraction.Fields {
+		names = append(names, f.Name)
+		if f.Name == "OverflowFraction" {
+			must.Eq(t, DiffTypeAdded, f.Type)
+			must.Eq(t, "0", f.New)
+		} else {
+			must.Eq(t, DiffTypeNone, f.Type, must.Sprint(f.Name))
+		}
+	}
+	must.Eq(t, []string{"Failover", "OverflowFraction"}, names)
 
 	sDiff := serviceDiff(
 		&Service{Name: "api", Discovery: &ServiceDiscovery{Prefer: "none"}},

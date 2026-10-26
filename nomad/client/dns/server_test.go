@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/client/discovery"
+	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/helper/testlog"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/miekg/dns"
@@ -313,7 +314,7 @@ func TestDNS_TopologyAcceptance(t *testing.T) {
 	ci.Parallel(t)
 
 	s := newTestServer(t, Config{}, structs.Topology{Region: "eu", Datacenter: "dc1", Zone: "fsn1"})
-	settings := &structs.ServiceDiscovery{Prefer: "zone", MinLocal: 2, OverflowFraction: 0.2, Failover: []string{"us"}}
+	settings := &structs.ServiceDiscovery{Prefer: "zone", MinLocal: 2, OverflowFraction: pointer.Of(0.2), Failover: []string{"us"}}
 
 	inst := func(id, zone, ip string, healthy bool) *structs.ServiceRegistration {
 		r := instance(id, "default", "api", ip, 80)

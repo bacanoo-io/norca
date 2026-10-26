@@ -27,4 +27,12 @@ server {
   mtls {
     federation = true
   }
+
+  # The default overflow fraction of discovery blocks is a setting of each
+  # region: the servers of a region fill it in when they register a job
+  # (also the copy of a multiregion job) that doesn't set overflow_fraction.
+  # Keep it equal in all regions unless a region should differ.
+  native_service_discovery {
+    default_overflow_fraction = 0.2
+  }
 }

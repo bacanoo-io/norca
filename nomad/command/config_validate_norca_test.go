@@ -109,6 +109,16 @@ client {
 			config:  `secrets { audit_file = "/var/log/audit.log" audit_rotate_duration = "daily" }`,
 			wantErr: "secrets.audit_rotate_duration",
 		},
+		{
+			name:    "discovery default overflow fraction",
+			config:  `native_service_discovery { default_overflow_fraction = 1.5 }`,
+			wantErr: "default_overflow_fraction must be between 0 and 1",
+		},
+		{
+			name:    "discovery unknown key",
+			config:  `native_service_discovery { overflow_fraction = 0.3 }`,
+			wantErr: "overflow_fraction",
+		},
 	}
 	for _, tc := range cases {
 		t.Run("server "+tc.name, func(t *testing.T) {
@@ -156,6 +166,7 @@ client {
 	code, errOut := runConfigValidate(t, fmt.Sprintf(server, `keyring { seal "shares" { shares = 5 threshold = 3 } }
   autoscaler { enabled = true default_engine = "builtin" }
   mtls { leaf_cert_ttl = "24h" }
+  native_service_discovery { default_overflow_fraction = 0 }
   backup {
     enabled = true
     destination "s3" { bucket = "b" }

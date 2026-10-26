@@ -77992,11 +77992,27 @@ func (x *ServiceDiscovery) CodecEncodeSelf(e *codec1978.Encoder) {
 					r.EncodeInt(int64(x.MinLocal))
 				}
 			}
+			var yyn9 bool
+			if x.OverflowFraction == nil {
+				yyn9 = true
+				goto LABEL9
+			}
+		LABEL9:
 			if yyr2 || yy2arr2 {
-				r.WriteArrayElem()
-				if false {
+				if yyn9 {
+					r.WriteArrayElem()
+					r.EncodeNil()
 				} else {
-					r.EncodeFloat64(float64(x.OverflowFraction))
+					r.WriteArrayElem()
+					if x.OverflowFraction == nil {
+						r.EncodeNil()
+					} else {
+						yy10 := *x.OverflowFraction
+						if false {
+						} else {
+							r.EncodeFloat64(float64(yy10))
+						}
+					}
 				}
 			} else {
 				r.WriteMapElemKey()
@@ -78006,9 +78022,18 @@ func (x *ServiceDiscovery) CodecEncodeSelf(e *codec1978.Encoder) {
 					r.EncodeStringEnc(codecSelferCcUTF8100, `OverflowFraction`)
 				}
 				r.WriteMapElemValue()
-				if false {
+				if yyn9 {
+					r.EncodeNil()
 				} else {
-					r.EncodeFloat64(float64(x.OverflowFraction))
+					if x.OverflowFraction == nil {
+						r.EncodeNil()
+					} else {
+						yy12 := *x.OverflowFraction
+						if false {
+						} else {
+							r.EncodeFloat64(float64(yy12))
+						}
+					}
 				}
 			}
 			if yyr2 || yy2arr2 {
@@ -78128,9 +78153,18 @@ func (x *ServiceDiscovery) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 			}
 		case "OverflowFraction":
 			if r.TryDecodeAsNil() {
-				x.OverflowFraction = 0
+				if true && x.OverflowFraction != nil {
+					x.OverflowFraction = nil
+				}
 			} else {
-				x.OverflowFraction = (float64)(r.DecodeFloat64())
+				if x.OverflowFraction == nil {
+					x.OverflowFraction = new(float64)
+				}
+
+				if false {
+				} else {
+					*x.OverflowFraction = (float64)(r.DecodeFloat64())
+				}
 			}
 		case "Failover":
 			if r.TryDecodeAsNil() {
@@ -78158,16 +78192,16 @@ func (x *ServiceDiscovery) codecDecodeSelfFromArray(l int, d *codec1978.Decoder)
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj10 int
-	var yyb10 bool
-	var yyhl10 bool = l >= 0
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	var yyj11 int
+	var yyb11 bool
+	var yyhl11 bool = l >= 0
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -78177,13 +78211,13 @@ func (x *ServiceDiscovery) codecDecodeSelfFromArray(l int, d *codec1978.Decoder)
 	} else {
 		x.Prefer = (string)(r.DecodeString())
 	}
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -78193,29 +78227,38 @@ func (x *ServiceDiscovery) codecDecodeSelfFromArray(l int, d *codec1978.Decoder)
 	} else {
 		x.MinLocal = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 	}
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
 	r.ReadArrayElem()
 	if r.TryDecodeAsNil() {
-		x.OverflowFraction = 0
+		if true && x.OverflowFraction != nil {
+			x.OverflowFraction = nil
+		}
 	} else {
-		x.OverflowFraction = (float64)(r.DecodeFloat64())
+		if x.OverflowFraction == nil {
+			x.OverflowFraction = new(float64)
+		}
+
+		if false {
+		} else {
+			*x.OverflowFraction = (float64)(r.DecodeFloat64())
+		}
 	}
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -78228,13 +78271,13 @@ func (x *ServiceDiscovery) codecDecodeSelfFromArray(l int, d *codec1978.Decoder)
 			z.F.DecSliceStringX(&x.Failover, d)
 		}
 	}
-	yyj10++
-	if yyhl10 {
-		yyb10 = yyj10 > l
+	yyj11++
+	if yyhl11 {
+		yyb11 = yyj11 > l
 	} else {
-		yyb10 = r.CheckBreak()
+		yyb11 = r.CheckBreak()
 	}
-	if yyb10 {
+	if yyb11 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -78245,17 +78288,17 @@ func (x *ServiceDiscovery) codecDecodeSelfFromArray(l int, d *codec1978.Decoder)
 		x.IncludeNotReady = (bool)(r.DecodeBool())
 	}
 	for {
-		yyj10++
-		if yyhl10 {
-			yyb10 = yyj10 > l
+		yyj11++
+		if yyhl11 {
+			yyb11 = yyj11 > l
 		} else {
-			yyb10 = r.CheckBreak()
+			yyb11 = r.CheckBreak()
 		}
-		if yyb10 {
+		if yyb11 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj10-1, "")
+		z.DecStructFieldNotFound(yyj11-1, "")
 	}
 	r.ReadArrayEnd()
 }

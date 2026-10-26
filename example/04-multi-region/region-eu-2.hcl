@@ -32,6 +32,11 @@ server {
   mtls {
     federation = true
   }
+
+  # Applied by the eu-2 servers to the jobs they register (see region-eu-1.hcl).
+  native_service_discovery {
+    default_overflow_fraction = 0.2
+  }
 }
 
 client {

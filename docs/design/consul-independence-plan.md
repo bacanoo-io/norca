@@ -199,6 +199,24 @@ service {
 
 **Overflow protection:** the next tier is also included in the response if the current tier has fewer healthy instances than the `min_local` value, or fewer than a configurable fraction (default 20%) of all healthy instances. This way a small zone does not receive the entire traffic of a large region.
 
+**Default overflow fraction (built 2026-10-26):** the fraction is set per service with `discovery { overflow_fraction = 0.3 }` (0..1, 0 disables the rule). When a service leaves it unset, the servers fill in their own default at job registration, set in the server configuration:
+
+```hcl
+server {
+  native_service_discovery {
+    default_overflow_fraction = 0.3   # 0..1, default 0.2; 0 disables the rule for services that do not set it
+  }
+}
+```
+
+- **Representation:** `overflow_fraction` is a pointer in `api.ServiceDiscovery` and in `structs.ServiceDiscovery`; nil means "unset". `api` `Canonicalize` and the HTTP conversion no longer fill in 0.2, so an unset value reaches the server as nil (msgpack nil, JSON `null` or an absent field).
+- **Resolution:** the `discovery-defaults` job mutator (`nomad/job_endpoint_hook_discovery.go`, after the admission webhooks, which may add services) replaces nil with the server default for group and task services. Explicit values, including 0, are kept. Admission runs on the leader before the Raft apply, so the stored job, `job inspect`, the plan diff, the copies made by dispatch, periodic launches, scaling and rollbacks, and the service registrations the clients make from the job always carry a concrete value. Consumers (`SelectByTopology`, the client resolver, DNS, the Consul-compatible layer, `near=self`) still fall back to 0.2 for a nil value as a guard.
+- **Compatibility:** jobs and registrations stored before the change carry a float, which decodes into the pointer unchanged (0.2 stays 0.2, an explicit 0 stays 0). Clients built before the change always send a concrete value (they filled in 0.2 themselves), so their jobs keep 0.2 whatever the server default is. A job JSON without the field gets the server default.
+- **Version gate:** none. The unset form never enters the Raft log or the state store, so followers, snapshots and clients of any version only see concrete values. The only mixed-cluster case is an agent with this change submitting to a leader without it: that leader decodes nil as 0 and stores the job with the overflow rule disabled. `ServersMeetMinimumNorcaVersion` cannot detect this, as both builds report Norca 0.1.0, and Norca has not been released with the old behaviour; re-submitting the job after the servers are upgraded resolves it.
+- **Per region:** each region's servers apply their own setting. A multiregion job is registered by every region itself (the submitting region sends the uninterpolated job to the others), so the same job can resolve to different fractions in different regions; set `overflow_fraction` in the job for a uniform value.
+- **Changing the default:** the setting is reloaded on SIGHUP and applies to registrations from then on; stored jobs keep their resolved value. A job that leaves the fraction unset then shows `OverflowFraction: "0.2" => "0.3"` in `job plan` and gets a new version when it is submitted again. Submitting a job to the servers of a region with a different default shows the same diff.
+- **Validation:** the agent and `norca config validate` reject values outside 0..1 (`command/agent/config_norca_blocks.go`).
+
 **Where it applies:**
 
 | Consumer | Topology-aware? |

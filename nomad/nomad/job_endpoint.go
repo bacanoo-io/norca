@@ -79,6 +79,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobNodePoolMutatingHook{srv: s},
 			jobSecretsHook{srv: s},
 			admissionWebhookMutator{srv: s},
+			jobDiscoveryDefaultsHook{srv: s}, // after the webhooks, which may add services
 			jobQuotaMutatingHook{srv: s},
 		},
 		validators: []jobValidator{

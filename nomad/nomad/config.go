@@ -447,6 +447,11 @@ type Config struct {
 	// KeyringConfig configures the keyring seal (Norca). Nil means the aead
 	// seal.
 	KeyringConfig *config.KeyringConfig
+
+	// DiscoveryDefaultOverflowFraction is the overflow fraction filled in at
+	// job registration for service discovery blocks that leave it unset
+	// (Norca). It is reloadable.
+	DiscoveryDefaultOverflowFraction float64
 }
 
 func (c *Config) Copy() *Config {
@@ -569,6 +574,8 @@ func DefaultConfig() *Config {
 		JobDefaultPriority:       structs.JobDefaultPriority,
 		JobMaxPriority:           structs.JobDefaultMaxPriority,
 		JobTrackedVersions:       structs.JobDefaultTrackedVersions,
+
+		DiscoveryDefaultOverflowFraction: structs.DefaultDiscoveryOverflowFraction,
 	}
 
 	// Enable all known schedulers by default
