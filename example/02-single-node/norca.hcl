@@ -73,18 +73,19 @@ server {
   }
 
   # Scheduled backups of the Raft state and the keyring, encrypted with age
-  # before they leave the server, into the MinIO job of this example
-  # (minio.nomad.hcl). Keep the age identity (private key) offline: it is
-  # only needed to browse and restore backups.
+  # before they leave the server, into the RustFS store of this example (the
+  # rustfs pack of the Norca pack registry, rustfs.hcl). Keep the age identity
+  # (private key) offline: it is only needed to browse and restore backups.
   backup {
     enabled  = true
     schedule = "0 * * * *" # hourly, cron syntax, UTC
 
-    destination "minio" {
+    destination "rustfs" {
       type             = "s3"
-      endpoint         = "http://10.0.0.10:9000" # CHANGE_ME: the MinIO job on this machine
-      bucket           = "norca-backup"
+      endpoint         = "http://10.0.0.10:9000" # CHANGE_ME: the RustFS job on this machine
+      bucket           = "norca-backup"          # created by the pack (buckets in rustfs.hcl)
       prefix           = "norca/${region}"
+      region           = "us-east-1" # s3_region of the rustfs pack
       force_path_style = true
 
       # AWS shared credentials file ([default] aws_access_key_id,
@@ -114,9 +115,9 @@ client {
     zone = "zone-a"
   }
 
-  # Data directory of the MinIO job.
-  host_volume "minio" {
-    path      = "/srv/minio"
+  # Data directory of the RustFS job (owned by its container user 10001).
+  host_volume "rustfs" {
+    path      = "/srv/rustfs"
     read_only = false
   }
 

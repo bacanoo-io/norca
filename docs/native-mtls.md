@@ -167,6 +167,10 @@ job "mtls-gateway" {
 }
 ```
 
+The `mtls-gateway` pack of the [Norca pack registry](https://github.com/bacanoo-io/norca-registry/blob/main/packs/mtls-gateway/README.md)
+renders this job with its options (system or service job, port, host network, placement, an Envoy task of its own):
+`norca pack run mtls-gateway --registry=norca --region=<region>`.
+
 Run it in the `default` namespace. The servers inject the Envoy task `mtls-gateway-<service>` (host networking
 is supported as well). The gateway listens on the service port, reads the SNI name of each TLS connection and
 forwards the connection, without terminating it, to a healthy instance of the mtls service

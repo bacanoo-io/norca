@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
-# packs/nats in eu-2 (see nats-eu-1.hcl).
-#   norca pack run ../../packs/nats --name=nats --region=eu-2 -f nats-eu-2.hcl
+# The nats pack (Norca pack registry) in eu-2 (see nats-eu-1.hcl).
+#   norca pack run nats --registry=norca --name=nats --region=eu-2 -f nats-eu-2.hcl
 region            = "eu-2"
 count             = 3
 separate_scope    = "$${meta.zone}"

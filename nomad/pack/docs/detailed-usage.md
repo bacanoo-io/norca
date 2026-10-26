@@ -13,7 +13,9 @@ in the repository or in the [HashiCorp Learn Guides](https://learn.hashicorp.com
 
 When first using Nomad Pack, a directory at `./.nomad/packs` will be created to store information about available packs and packs in use.
 
-During initializing, Nomad Pack downloads a default registry of packs from [https://github.com/hashicorp/nomad-pack-community- registry](https://github.com/hashicorp/nomad-pack-community-registry).
+No registry is downloaded automatically. Add one with `registry add` (see below), for example the
+[Norca pack registry](https://github.com/bacanoo-io/norca-registry). Commands without `--registry` use the registry named
+`default`, so a registry added under that name can be used without the flag.
 
 The directory structure is as follows:
 
@@ -48,30 +50,33 @@ Custom registries can be added using the `registry add` command. Any `git` based
 registry supported by [`go-getter`](https://github.com/hashicorp/go-getter) should
 work.
 
-For instance, if you wanted to add the entire [Nomad Pack Community Registry](https://github.com/hashicorp/nomad-pack-community-registry),
+For instance, if you wanted to add the entire [Norca pack registry](https://github.com/bacanoo-io/norca-registry),
 you would run the following command to download the registry.
 
 ```
-norca pack registry add community github.com/hashicorp/nomad-pack-community-registry
+norca pack registry add norca https://github.com/bacanoo-io/norca-registry
 ```
 
 To add a single pack from the registry, use the `--target` flag.
 
 ```
-norca pack registry add community github.com/hashicorp/nomad-pack-community-registry --target=nginx
+norca pack registry add norca https://github.com/bacanoo-io/norca-registry --target=nats
 ```
 
 To download single pack or an entire registry at a specific version/SHA, use the `--ref` flag.
 
 ```
-norca pack registry add community github.com/hashicorp/nomad-pack-community-registry --ref=v0.0.1
+norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
 ```
+
+The [Nomad Pack Community Registry](https://github.com/hashicorp/nomad-pack-community-registry)
+is added the same way (`norca pack registry add community github.com/hashicorp/nomad-pack-community-registry`).
 
 To remove a registry or pack from your local cache. Use the `registry delete` command.
 This command also supports the `--target` and `--ref` flags.
 
 ```
-norca pack registry delete community
+norca pack registry delete norca
 ```
 
 ## Render

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 app {
-  url = "https://github.com/hashicorp/nomad/tree/main/nomad/controller/examples/loadbalancer"
+  url = "https://github.com/bacanoo-io/norca/tree/main/nomad/controller/examples/loadbalancer"
 }
 
 pack {

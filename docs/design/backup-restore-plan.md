@@ -377,7 +377,7 @@ The phases build on each other, but after phase 1 there is already an automatic,
 ## Open questions
 
 - [x] What is the largest expected snapshot size per region? Decided 2026-10-24: about 2 GB; defaults (timeout, multipart part size) are tuned for that and stay configurable.
-- [x] Which S3-compatible store is available in which cloud, and is a native Azure Blob destination needed? Decided 2026-10-24: MinIO or AWS S3-compatible stores through the S3 API only; no native Azure Blob destination.
+- [x] Which S3-compatible store is available in which cloud, and is a native Azure Blob destination needed? Decided 2026-10-24: MinIO or AWS S3-compatible stores through the S3 API only; no native Azure Blob destination. Since 2026-10-26 the examples use RustFS (Apache-2.0, the `rustfs` pack of the [Norca pack registry](https://github.com/bacanoo-io/norca-registry)) instead of MinIO.
 - [x] Where should the `age` private key be stored, and who can access it in a disaster? Decided 2026-10-24: the administrators keep it outside the cluster; the cluster only knows the public recipient, and an administrator provides the private key at restore time.
 - [x] Should two-person approval be mandatory for every full restore, or only for the authoritative region? Decided 2026-10-24: for every full restore.
 - [x] Besides jobs, is browsing the history of deployments and allocations also needed in the UI, or are jobs, Variables, namespaces and ACL enough? Decided 2026-10-24: deployments and allocations are needed too.

@@ -48,9 +48,10 @@
 //	loadbalancer proxy -listen :8080 -targets local/targets
 //	loadbalancer webhook -tls-cert cert.pem -tls-key key.pem [-classes nomad,aws-nlb]
 //
-// The operator is installed as a pack (packs/loadbalancer-operator in the
-// repository): the kind, the ACL policy bound to the controller job, an
-// admission policy and the controller job as one release. See
+// The operator is installed as a pack (loadbalancer-operator of the Norca
+// pack registry, https://github.com/bacanoo-io/norca-registry): the kind,
+// the ACL policy bound to the controller job, an admission policy and the
+// controller job as one release. See
 // loadbalancer.nomad.hcl and loadbalancer-policy.hcl for running the
 // controller by hand.
 package main

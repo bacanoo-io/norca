@@ -340,7 +340,7 @@ func (c *PlanCommand) Help() string {
 	norca pack plan example --ref=v0.0.1
 
 	# Plan a pack from a registry other than the default registry
-	norca pack plan traefik --registry=community --ref=v0.0.1
+	norca pack plan nats --registry=norca --ref=v0.1.0
 
 	# Plan an example pack without showing the diff
 	norca pack plan example --diff=false

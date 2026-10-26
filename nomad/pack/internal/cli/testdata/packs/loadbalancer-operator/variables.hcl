@@ -42,7 +42,7 @@ variable "driver" {
 }
 
 variable "binary" {
-  description = "Path of the norca-loadbalancer binary on the nodes (raw_exec, exec). Build it with: cd nomad/controller && go build -o norca-loadbalancer ./examples/loadbalancer"
+  description = "Path of the norca-loadbalancer binary on the nodes (raw_exec, exec). Build it in a Norca checkout with: cd nomad/controller && go build -o norca-loadbalancer ./examples/loadbalancer"
   type        = string
   default     = "/usr/local/bin/norca-loadbalancer"
 }

@@ -2,7 +2,7 @@
 
 Contributions to Nomad Pack are welcome.
 
-To add packs, please contribute to the [Nomad Pack Community Registry](https://github.com/hashicorp/nomad-pack-community-registry).
+To add packs, please contribute to the [Norca pack registry](https://github.com/bacanoo-io/norca-registry).
 
 ## Development dependencies
 

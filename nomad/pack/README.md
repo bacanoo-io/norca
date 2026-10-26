@@ -41,14 +41,21 @@ First, run the `list` command to see which packs are available to deploy.
 norca pack list
 ```
 
-If you don't see the default registry (`norca pack registry list`), it can be added with the `registry add` command.
+`norca pack` has no built-in registry: add one with the `registry add` command, for example the
+[Norca pack registry](https://github.com/bacanoo-io/norca-registry) (NATS, the cross-region mTLS gateway, RustFS as the
+backup store, Consul, the LoadBalancer operator). Packs of the registry named `default` can be used
+without `--registry`:
 
 ```shell
-norca pack registry add default github.com/hashicorp/nomad-pack-community-registry
+norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
+norca pack run nats --registry=norca
+
+norca pack registry add default https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
+norca pack run nats
 ```
 
 To deploy one of these packs, use the `run` command. This deploys each jobs defined in the pack to Nomad.
-To deploy the `hello_world` pack, you would run the following command:
+To deploy the `hello_world` pack (from a registry named `default`), you would run the following command:
 
 ```shell
 norca pack run hello_world
@@ -87,11 +94,9 @@ norca pack destroy hello_world
 
 ### Adding Non-Default Pack Registries
 
-When using Nomad Pack, the default registry for packs is
-[the Nomad Pack Community Registry](https://github.com/hashicorp/nomad-pack-community-registry).
-Packs from this registry will be made automatically available.
+No registry is added automatically; `--registry` defaults to the registry named `default`.
 
-You can add additional registries by using the `registry add` command. For instance, if you wanted
+You can add further registries by using the `registry add` command. For instance, if you wanted
 to add [an example Gitlab registry](https://gitlab.com/mikenomitch/pack-registry),
 you would run the following command to download the registry.
 
@@ -138,9 +143,12 @@ see the [Writing Packs documentation](/docs/writing-packs.md) for more details.
 
 Packs are organized into "registries" which contain multiple packs and shared templates.
 
-The [Nomad Pack Community Registry](https://github.com/hashicorp/nomad-pack-community-registry) is
-a public registry for community-maintained packs. Nomad community members are encouraged to share
-their packs and collaborate with one another in this repo.
+The [Norca pack registry](https://github.com/bacanoo-io/norca-registry) is the public registry of the Norca operations packs;
+contributions are welcome there. The
+[Nomad Pack Community Registry](https://github.com/hashicorp/nomad-pack-community-registry) of the
+Nomad community works as well (`norca pack registry add community
+github.com/hashicorp/nomad-pack-community-registry`); its packs target Nomad and don't use Norca's
+extensions.
 
 Pull Requests and feedback on both repositories are welcome!
 
