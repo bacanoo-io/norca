@@ -86,7 +86,21 @@ func TestHTTP_AgentSelf_RedactsNorcaSecrets(t *testing.T) {
 		s.Config.Server.Admission = &config.AdmissionConfig{Webhooks: []*config.AdmissionWebhookConfig{
 			{Name: "basic", URL: "https://hook:" + secret + "@hooks.example.com/admit"},
 			{Name: "plain", URL: "https://hooks.example.com/admit"},
+			{Name: "query", URL: "https://hooks.example.com/admit?token=" + secret + "&api_key=" + secret + "&" + secret + "&empty="},
+			{Name: "user", URL: "https://" + secret + "@hooks.example.com/admit#" + secret},
 		}}
+		s.Config.Server.Autoscaler = &AutoscalerConfig{
+			APMs: []*AutoscalerPluginConfig{{
+				Name:   "prom",
+				Driver: "prometheus",
+				Args:   []string{"-token=" + secret, secret},
+				Config: map[string]interface{}{"address": "https://prom.example.com", "api_key": secret},
+			}},
+			Strategies: []*AutoscalerPluginConfig{{
+				Name:   "custom",
+				Config: map[string]interface{}{"password": secret, "auth": []map[string]interface{}{{"token": secret}}},
+			}},
+		}
 
 		req, err := http.NewRequest(http.MethodGet, "/v1/agent/self", nil)
 		must.NoError(t, err)
@@ -101,6 +115,17 @@ func TestHTTP_AgentSelf_RedactsNorcaSecrets(t *testing.T) {
 		must.Eq(t, "AKIAEXAMPLE", self.Config.Server.Backup.Destinations[0].AccessKey)
 		must.Eq(t, "https://hook:xxxxx@hooks.example.com/admit", self.Config.Server.Admission.Webhooks[0].URL)
 		must.Eq(t, "https://hooks.example.com/admit", self.Config.Server.Admission.Webhooks[1].URL)
+		must.Eq(t, "https://hooks.example.com/admit?token=<redacted>&api_key=<redacted>&<redacted>&empty=",
+			self.Config.Server.Admission.Webhooks[2].URL)
+		must.Eq(t, "https://xxxxx@hooks.example.com/admit#<redacted>", self.Config.Server.Admission.Webhooks[3].URL)
+
+		apm := self.Config.Server.Autoscaler.APMs[0]
+		must.Eq(t, "prom", apm.Name)
+		must.Eq(t, "prometheus", apm.Driver)
+		must.Eq(t, []string{"<redacted>", "<redacted>"}, apm.Args)
+		must.Eq(t, map[string]interface{}{"address": "<redacted>", "api_key": "<redacted>"}, apm.Config)
+		must.Eq(t, map[string]interface{}{"password": "<redacted>", "auth": "<redacted>"},
+			self.Config.Server.Autoscaler.Strategies[0].Config)
 
 		raw, err := json.Marshal(self)
 		must.NoError(t, err)
@@ -109,6 +134,33 @@ func TestHTTP_AgentSelf_RedactsNorcaSecrets(t *testing.T) {
 		must.Eq(t, secret, s.Config.Client.ConsulCompat.AnonymousToken)
 		must.Eq(t, secret, s.Config.Client.DNS.Token)
 		must.Eq(t, secret, s.Config.Server.Backup.Destinations[0].SecretKey)
-		must.StrContains(t, s.Config.Server.Admission.Webhooks[0].URL, secret)
+		for _, w := range []int{0, 2, 3} {
+			must.StrContains(t, s.Config.Server.Admission.Webhooks[w].URL, secret)
+		}
+		must.Eq(t, []string{"-token=" + secret, secret}, s.Config.Server.Autoscaler.APMs[0].Args)
+		must.Eq(t, secret, s.Config.Server.Autoscaler.APMs[0].Config["api_key"])
+		must.Eq(t, "https://prom.example.com", s.Config.Server.Autoscaler.APMs[0].Config["address"])
+		must.Eq(t, secret, s.Config.Server.Autoscaler.Strategies[0].Config["password"])
 	})
+}
+
+// redactURL keeps the scheme, host and path of webhook URLs and hides
+// everything that can carry a credential.
+func TestRedactURL(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := map[string]string{
+		"https://hooks.example.com/admit":                   "https://hooks.example.com/admit",
+		"http://10.0.0.1:8080/v1/admit":                     "http://10.0.0.1:8080/v1/admit",
+		"https://u:p@hooks.example.com/admit":               "https://u:xxxxx@hooks.example.com/admit",
+		"https://tok@hooks.example.com/admit":               "https://xxxxx@hooks.example.com/admit",
+		"https://hooks.example.com/admit?a=1&b=%2F&c=":      "https://hooks.example.com/admit?a=<redacted>&b=<redacted>&c=",
+		"https://hooks.example.com/admit?abc":               "https://hooks.example.com/admit?<redacted>",
+		"https://hooks.example.com/admit#frag":              "https://hooks.example.com/admit#<redacted>",
+		"https://u:p@hooks.example.com:8443/a?token=t#frag": "https://u:xxxxx@hooks.example.com:8443/a?token=<redacted>#<redacted>",
+		"://bad\x7f": "<redacted>",
+	}
+	for in, want := range cases {
+		must.Eq(t, want, redactURL(in), must.Sprint(in))
+	}
 }
