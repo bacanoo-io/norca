@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/secretstore"
 )
 
@@ -18,6 +19,7 @@ import (
 //	  audit_rotate_bytes     = 104857600
 //	  audit_rotate_duration  = "24h"
 //	  audit_rotate_max_files = 30
+//	  vault_fallback         = true
 //	}
 //
 // The seal of the store is configured in the keyring block.
@@ -40,6 +42,13 @@ type SecretsConfig struct {
 	// all of them.
 	AuditRotateMaxFiles int `hcl:"audit_rotate_max_files"`
 
+	// VaultFallback lets jobs with vault blocks register when the server
+	// has no Vault integration: their Vault-style lookups are served by the
+	// built-in store on clients without Vault (docs/design/secrets-plan.md,
+	// "Vault compatibility"). Defaults to true; false keeps the Nomad
+	// behaviour of rejecting such jobs.
+	VaultFallback *bool `hcl:"vault_fallback"`
+
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -50,6 +59,7 @@ func (c *SecretsConfig) Copy() *SecretsConfig {
 		return nil
 	}
 	out := *c
+	out.VaultFallback = pointer.Copy(c.VaultFallback)
 	out.ExtraKeysHCL = nil
 	return &out
 }
@@ -75,7 +85,16 @@ func (c *SecretsConfig) Merge(b *SecretsConfig) *SecretsConfig {
 	if b.AuditRotateMaxFiles != 0 {
 		result.AuditRotateMaxFiles = b.AuditRotateMaxFiles
 	}
+	if b.VaultFallback != nil {
+		result.VaultFallback = pointer.Copy(b.VaultFallback)
+	}
 	return result
+}
+
+// vaultFallback returns whether the Vault fallback is enabled (default
+// true).
+func (c *SecretsConfig) vaultFallback() bool {
+	return c == nil || c.VaultFallback == nil || *c.VaultFallback
 }
 
 // toAuditFileConfig converts the block to the audit file configuration of

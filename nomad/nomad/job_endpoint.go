@@ -75,7 +75,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 			jobConnectHook{},
 			jobMTLSHook{srv: s},
 			jobExposeCheckHook{},
-			jobImpliedConstraints{},
+			jobImpliedConstraints{srv: s},
 			jobNodePoolMutatingHook{srv: s},
 			jobSecretsHook{srv: s},
 			admissionWebhookMutator{srv: s},

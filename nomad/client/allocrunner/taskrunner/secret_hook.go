@@ -247,7 +247,27 @@ func (tr *TaskRunner) secretTemplateSource(logger log.Logger) *secrets.TemplateS
 		Interpolate: func(p string) string {
 			return structs.InterpolateSecretPath(p, jobID, alloc.TaskGroup, task.Name)
 		},
+		Vault: tr.secretVaultReader(),
 	})
+}
+
+// secretVaultReader returns the reader of the task's Vault-style lookups
+// served by the secret providers (phase 4, "Vault compatibility"): nil when
+// the agent has a Vault integration, which keeps serving them as in Nomad,
+// or when the Vault compatibility is disabled (vault_compat enabled = false).
+func (tr *TaskRunner) secretVaultReader() *secrets.VaultReader {
+	if !tr.clientConfig.VaultCompatEnabled() {
+		return nil
+	}
+	var rules []*config.VaultKVRule
+	if tr.clientConfig.Secrets != nil {
+		rules = tr.clientConfig.Secrets.VaultKV
+	}
+	return &secrets.VaultReader{
+		Registry: tr.secretRegistry(),
+		Mapper:   secrets.NewVaultMapper(rules),
+		Auditor:  tr.secretAuditRecorder(),
+	}
 }
 
 func (h *secretHook) event(format string, args ...any) {

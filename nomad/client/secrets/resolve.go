@@ -169,8 +169,8 @@ func (r *Registry) Resolve(l *Lookup) (*Resolution, error) {
 	if l.VaultStyle && r.vault != nil {
 		return &Resolution{Provider: r.vault, Source: SourceVaultIntegration}, nil
 	}
-	// Phase 4 hook point: Vault-style lookups without a Vault integration
-	// reach this fallback and are served by the built-in store through the
-	// Vault path mapping.
+	// Vault-style lookups without a Vault integration reach this fallback
+	// too: VaultReader serves them from the built-in store through the Vault
+	// path mapping (vault_kv rules).
 	return named(structs.SecretProviderNorca, SourceFallback)
 }

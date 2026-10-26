@@ -24,9 +24,19 @@ import (
 // templates again, and the usual change modes apply to the templates whose
 // output changed.
 
+// Without a Vault integration, the Vault "secret" and "secrets" functions of
+// consul-template are replaced by the source's Vault-style functions (phase
+// 4, "Vault compatibility"); their changes re-render the templates through
+// the same trigger.
+
 const (
 	// secretTemplateFunc is the name of the template function.
 	secretTemplateFunc = "nomadSecret"
+
+	// vaultSecretTemplateFunc and vaultSecretsTemplateFunc are the Vault
+	// template functions of consul-template.
+	vaultSecretTemplateFunc  = "secret"
+	vaultSecretsTemplateFunc = "secrets"
 
 	secretTriggerFile   = ".nomad-secrets-trigger"
 	secretTriggerOut    = ".nomad-secrets-trigger.rendered"
@@ -38,17 +48,23 @@ func secretTriggerPath(taskDir string) string {
 	return filepath.Join(taskDir, secretTriggerSubdir, secretTriggerFile)
 }
 
-// usesNomadSecret reports whether a template calls nomadSecret, from its
-// embedded data or its source file.
+// usesNomadSecret reports whether a template calls nomadSecret, or the Vault
+// secret function when the source serves it, from its embedded data or its
+// source file. A false positive only adds the trigger template.
 func usesNomadSecret(config *TaskTemplateManagerConfig) bool {
+	name := secretTemplateFunc
+	if config.Secrets.ServesVault() {
+		// "secret" is part of "nomadSecret" too.
+		name = vaultSecretTemplateFunc
+	}
 	taskEnv := config.EnvBuilder.Build()
 	for _, tmpl := range config.Templates {
-		if strings.Contains(tmpl.EmbeddedTmpl, secretTemplateFunc) {
+		if strings.Contains(strings.ToLower(tmpl.EmbeddedTmpl), strings.ToLower(name)) {
 			return true
 		}
 		if tmpl.SourcePath != "" {
 			src, _ := taskEnv.ClientPath(tmpl.SourcePath, false)
-			if b, err := os.ReadFile(src); err == nil && strings.Contains(string(b), secretTemplateFunc) {
+			if b, err := os.ReadFile(src); err == nil && strings.Contains(strings.ToLower(string(b)), strings.ToLower(name)) {
 				return true
 			}
 		}

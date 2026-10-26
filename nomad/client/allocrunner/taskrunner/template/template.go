@@ -743,6 +743,12 @@ func parseTemplateConfigs(config *TaskTemplateManagerConfig) (map[*ctconf.Templa
 		ct.FunctionDenylist = config.ClientConfig.TemplateConfig.FunctionDenylist
 		if config.Secrets != nil {
 			ct.ExtFuncMap[secretTemplateFunc] = config.Secrets.Func
+			// Without a Vault integration, the Vault functions are served
+			// by the built-in store (Norca, "Vault compatibility").
+			if config.Secrets.ServesVault() {
+				ct.ExtFuncMap[vaultSecretTemplateFunc] = config.Secrets.VaultFunc
+				ct.ExtFuncMap[vaultSecretsTemplateFunc] = config.Secrets.VaultListFunc
+			}
 		}
 		if sandboxEnabled {
 			ct.SandboxPath = &config.TaskDir

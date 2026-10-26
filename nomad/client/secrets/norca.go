@@ -84,9 +84,75 @@ func (p *NorcaProvider) Fetch(ctx context.Context, req *Request) (*Secret, error
 		return nil, NewError(p.Name(), KindNotFound, fmt.Errorf("secret %q not found", req.Path))
 	}
 	return &Secret{
-		Items:   map[string]string(reply.Items.Copy()),
-		Version: strconv.FormatUint(reply.Version, 10),
+		Items:    map[string]string(reply.Items.Copy()),
+		Version:  strconv.FormatUint(reply.Version, 10),
+		Metadata: norcaMetadata(reply.Secret, reply.Version),
 	}, nil
+}
+
+// ReadMetadata reads the metadata of the secret, without its value.
+func (p *NorcaProvider) ReadMetadata(ctx context.Context, req *Request) (*Metadata, error) {
+	if err := p.check(req); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	args := &structs.SecretReadMetadataRequest{Path: req.Path, QueryOptions: p.query(req.Identity)}
+	var reply structs.SecretMetadataResponse
+	if err := p.rpc.RPC(structs.SecretReadMetadataRPCMethod, args, &reply); err != nil {
+		return nil, p.classify(err)
+	}
+	if reply.Secret == nil {
+		return nil, NewError(p.Name(), KindNotFound, fmt.Errorf("secret %q not found", req.Path))
+	}
+	return norcaMetadata(reply.Secret, reply.Secret.CurrentVersion), nil
+}
+
+// norcaMetadata returns the metadata of a secret of the built-in store and
+// of its version.
+func norcaMetadata(s *structs.Secret, version uint64) *Metadata {
+	if s == nil {
+		return nil
+	}
+	nanos := func(n int64) time.Time {
+		if n == 0 {
+			return time.Time{}
+		}
+		return time.Unix(0, n).UTC()
+	}
+	md := &Metadata{
+		Version:        version,
+		CurrentVersion: s.CurrentVersion,
+		MaxVersions:    s.MaxVersions,
+		CreateTime:     nanos(s.CreateTime),
+		UpdateTime:     nanos(s.ModifyTime),
+		Deleted:        s.Deleted || s.Destroyed,
+	}
+	if len(s.Labels) > 0 {
+		md.Labels = make(map[string]string, len(s.Labels))
+		for k, v := range s.Labels {
+			md.Labels[k] = v
+		}
+	}
+	for _, v := range s.Versions {
+		if v == nil {
+			continue
+		}
+		if md.OldestVersion == 0 || v.Version < md.OldestVersion {
+			md.OldestVersion = v.Version
+		}
+		md.Versions = append(md.Versions, &VersionMetadata{
+			Version:     v.Version,
+			CreatedTime: nanos(v.CreateTime),
+			Deleted:     v.Deleted,
+			Destroyed:   v.Destroyed,
+		})
+		if v.Version == version {
+			md.CreatedTime = nanos(v.CreateTime)
+		}
+	}
+	return md
 }
 
 // Watch blocks on the secret's metadata until its current version differs

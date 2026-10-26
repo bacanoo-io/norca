@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	log "github.com/hashicorp/go-hclog"
+
+	"github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/version"
 )
 
@@ -30,6 +32,12 @@ func (f *NomadFingerprint) Fingerprint(req *FingerprintRequest, resp *Fingerprin
 	resp.AddAttribute("norca.version", version.NorcaVersion)
 	resp.AddAttribute("nomad.revision", req.Config.Version.Revision)
 	resp.AddAttribute("nomad.service_discovery", strconv.FormatBool(req.Config.NomadServiceDiscovery))
+	// Without Vault, the vault blocks of tasks are served by the built-in
+	// secret store; jobs with vault blocks are constrained to such clients
+	// when the servers have no Vault either (Norca).
+	if req.Config.VaultCompatEnabled() {
+		resp.AddAttribute(config.AttrVaultCompat, "true")
+	}
 	resp.Detected = true
 	return nil
 }

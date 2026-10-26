@@ -9,23 +9,30 @@ import "github.com/hashicorp/nomad/nomad/structs"
 // variable of job admission (Norca, docs/design/secrets-plan.md, "Delivery
 // to tasks"): every secret the job references, from its secret blocks and
 // the nomadSecret calls of its embedded templates, with the placeholders of
-// the paths replaced. Each entry has:
+// the paths replaced, and its Vault-style lookups (phase 4): the task vault
+// blocks and the Vault secret calls of embedded templates. Each entry has:
 //
-//   - group, task, source ("secret" or "template"), name
+//   - group, task, source ("secret", "template", "vault" for a vault block,
+//     "vault_template" for a Vault secret call), name ("vault" for vault
+//     blocks)
 //   - provider: the explicit provider, "" if the client resolves it
 //   - default_provider: the group, job or namespace default
-//   - effective_provider: provider, else default_provider ("" if the
-//     client routes or the fallback decide)
+//   - effective_provider: provider, else default_provider; for Vault-style
+//     lookups then "vault" when the servers have a Vault integration ("" if
+//     the client routes or the fallback decide)
 //   - path, version, file_format ("" without a file), env (the variable
 //     names), optional
 //
 // Example rules: request.secrets.all(s, s.path.startsWith("prod/")),
 // request.secrets.all(s, s.effective_provider == "bao"),
-// request.secrets.all(s, size(s.env) == 0).
-func admissionSecretRefsValue(job *structs.Job) []any {
+// request.secrets.all(s, size(s.env) == 0). A namespace can require a
+// provider for the Vault-style lookups served by the fallback as well:
+// request.secrets.all(s, s.effective_provider != "").
+func admissionSecretRefsValue(job *structs.Job, vaultEnabled bool) []any {
 	refs := job.SecretRefs()
-	out := make([]any, 0, len(refs))
-	for _, r := range refs {
+	vaultRefs := job.VaultSecretRefs()
+	out := make([]any, 0, len(refs)+len(vaultRefs))
+	for _, r := range append(refs, vaultRefs...) {
 		env := make([]any, 0, len(r.Env))
 		for _, e := range r.Env {
 			env = append(env, e)
@@ -33,6 +40,10 @@ func admissionSecretRefsValue(job *structs.Job) []any {
 		effective := r.Provider
 		if effective == "" {
 			effective = r.DefaultProvider
+		}
+		vaultStyle := r.Source == structs.SecretRefSourceVault || r.Source == structs.SecretRefSourceVaultTemplate
+		if effective == "" && vaultStyle && vaultEnabled {
+			effective = structs.SecretProviderVault
 		}
 		out = append(out, map[string]any{
 			"group":              r.Group,

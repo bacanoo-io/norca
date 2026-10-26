@@ -61,3 +61,92 @@ client {
 		{Prefix: "kv/", Provider: "vault"}, {Prefix: "app/", Provider: "norca"},
 	}}, cc.Secrets)
 }
+
+func TestConfig_ClientSecretsVaultCompat(t *testing.T) {
+	ci.Parallel(t)
+
+	path := filepath.Join(t.TempDir(), "client.hcl")
+	must.NoError(t, os.WriteFile(path, []byte(`
+client {
+  enabled = true
+  secrets {
+    vault_kv "kv/data/" {
+      path = "apps/"
+    }
+    vault_kv "legacy/" {
+      kv_version = 1
+    }
+    vault_compat {
+      port       = 8300
+      bridge     = false
+      token_ttl  = "30m"
+      rate_limit = 5
+      rate_burst = 10
+    }
+  }
+}
+server {
+  secrets {
+    vault_fallback = false
+  }
+}
+`), 0o600))
+	c, err := ParseConfigFile(path)
+	must.NoError(t, err)
+	must.Eq(t, []*ClientSecretsVaultKV{
+		{Prefix: "kv/data/", Path: "apps/"}, {Prefix: "legacy/", KVVersion: 1},
+	}, c.Client.Secrets.Copy().VaultKV)
+	must.False(t, c.Server.Secrets.vaultFallback())
+
+	conf := DevConfig(nil)
+	conf.Client.Secrets = c.Client.Secrets
+	conf.Vault.Enabled = pointer.Of(false)
+	cc, err := convertClientConfig(conf)
+	must.NoError(t, err)
+	must.Eq(t, []*clientconfig.VaultKVRule{
+		{Prefix: "kv/data/", Path: "apps/"}, {Prefix: "legacy/", KVVersion: 1},
+	}, cc.Secrets.VaultKV)
+	compat := cc.Secrets.VaultCompat
+	must.True(t, compat.IsEnabled())
+	must.False(t, compat.BridgeEnabled())
+	must.Eq(t, 8300, compat.PortOrDefault())
+	must.Eq(t, "30m0s", compat.TokenTTLOrDefault().String())
+	limit, burst := compat.Rate()
+	must.Eq(t, 5.0, limit)
+	must.Eq(t, 10, burst)
+	must.True(t, cc.VaultCompatEnabled())
+
+	// With a Vault integration the endpoint is not used.
+	conf.Vault.Enabled = pointer.Of(true)
+	cc, err = convertClientConfig(conf)
+	must.NoError(t, err)
+	must.False(t, cc.VaultCompatEnabled())
+
+	// Merging: a later block replaces a rule of the same prefix and sets
+	// the fields it has.
+	merged := c.Client.Secrets.Merge(&ClientSecretsConfig{
+		VaultKV:     []*ClientSecretsVaultKV{{Prefix: "legacy/", KVVersion: 2}},
+		VaultCompat: &ClientVaultCompatConfig{Enabled: pointer.Of(false)},
+	})
+	must.Eq(t, 2, merged.VaultKV[1].KVVersion)
+	must.False(t, *merged.VaultCompat.Enabled)
+	must.Eq(t, 8300, merged.VaultCompat.Port)
+
+	// Invalid rules and settings fail at agent start.
+	for _, bad := range []string{
+		`vault_kv "kv/data" {}`,
+		`vault_kv "kv/" { kv_version = 3 }`,
+		`vault_compat { token_ttl = "10s" }`,
+		`vault_compat { token_ttl = "soon" }`,
+		`vault_compat { port = 70000 }`,
+	} {
+		path := filepath.Join(t.TempDir(), "bad.hcl")
+		must.NoError(t, os.WriteFile(path, []byte(`client { secrets { `+bad+` } }`), 0o600))
+		c, err := ParseConfigFile(path)
+		must.NoError(t, err, must.Sprint(bad))
+		conf := DevConfig(nil)
+		conf.Client.Secrets = c.Client.Secrets
+		_, err = convertClientConfig(conf)
+		must.Error(t, err, must.Sprint(bad))
+	}
+}

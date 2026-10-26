@@ -251,6 +251,10 @@ func extraKeys(c *Config) error {
 			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, r.Prefix)
 			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, "route")
 		}
+		for _, r := range c.Client.Secrets.VaultKV {
+			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, r.Prefix)
+			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, "vault_kv")
+		}
 	}
 
 	// Remove AuditConfig extra keys
