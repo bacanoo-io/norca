@@ -24,30 +24,30 @@ EOT
     column "Addresses" { path = "status.addresses" }
     column "Ready" { path = "status.conditions[?type=='Ready'].status" }
   }
-[[- if $v.webhook_enabled ]]
+  [[- if $v.webhook_enabled ]]
 
   webhook "default" {
-    mode           = "default"
-    url            = [[ printf "%s/default" (trimSuffix "/" $v.webhook_url) | quote ]]
-[[- if ne $v.webhook_ca_cert "" ]]
-    ca_cert        = <<EOT
+    mode = "default"
+    url  = [[ printf "%s/default" (trimSuffix "/" $v.webhook_url) | quote ]]
+    [[- if ne $v.webhook_ca_cert "" ]]
+    ca_cert = <<EOT
 [[ $v.webhook_ca_cert | trim ]]
 EOT
-[[- end ]]
+    [[- end ]]
     failure_policy = [[ $v.webhook_failure_policy | quote ]]
   }
 
   webhook "validate" {
-    mode           = "validate"
-    url            = [[ printf "%s/validate" (trimSuffix "/" $v.webhook_url) | quote ]]
-[[- if ne $v.webhook_ca_cert "" ]]
-    ca_cert        = <<EOT
+    mode = "validate"
+    url  = [[ printf "%s/validate" (trimSuffix "/" $v.webhook_url) | quote ]]
+    [[- if ne $v.webhook_ca_cert "" ]]
+    ca_cert = <<EOT
 [[ $v.webhook_ca_cert | trim ]]
 EOT
-[[- end ]]
+    [[- end ]]
     failure_policy = [[ $v.webhook_failure_policy | quote ]]
   }
-[[- end ]]
+  [[- end ]]
 
   limits {
     write_rate                = [[ $v.write_rate ]]

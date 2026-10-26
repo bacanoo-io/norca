@@ -10,7 +10,7 @@
 # pack: consul snapshot save on a server node (against its local agent), then
 # an upload to the S3-compatible store of the Norca backups.
 job [[ $snap | quote ]] {
-[[- template "consul.location" . ]]
+  [[- template "consul.location" . ]]
   type = "batch"
 
   periodic {
@@ -87,9 +87,9 @@ job [[ $snap | quote ]] {
 
       env {
         AWS_CONFIG_FILE = "${NOMAD_SECRETS_DIR}/aws/config"
-[[- if $v.snapshot_s3_credentials ]]
+        [[- if $v.snapshot_s3_credentials ]]
         AWS_SHARED_CREDENTIALS_FILE = "${NOMAD_SECRETS_DIR}/aws/credentials"
-[[- end ]]
+        [[- end ]]
       }
 
       template {
@@ -104,7 +104,7 @@ job [[ $snap | quote ]] {
 [[- end ]]
         EOT
       }
-[[- if $v.snapshot_s3_credentials ]]
+      [[- if $v.snapshot_s3_credentials ]]
 
       # The S3 credentials, from the Variable nomad/jobs/[[ $snap ]].
       template {
@@ -118,7 +118,7 @@ job [[ $snap | quote ]] {
           {{- end }}
         EOT
       }
-[[- end ]]
+      [[- end ]]
 
       template {
         destination = "local/upload.sh"

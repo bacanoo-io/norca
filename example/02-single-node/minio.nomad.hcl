@@ -3,8 +3,9 @@
 
 # A single MinIO server as the S3 store of the scheduled backups, for this
 # example only: in production keep the backups outside the cluster they
-# protect. MinIO is AGPL-3.0 software by MinIO, Inc.; Norca only references
-# the image, the node pulls it. Any S3-compatible store works the same way.
+# protect. MinIO is AGPL-3.0 software by MinIO, Inc. (the image below is a
+# community build of it); Norca only references the image, the node pulls
+# it. Any S3-compatible store works the same way.
 #
 #   norca secret put minio/root user=norca-backup password=-
 #   norca job run minio.nomad.hcl
@@ -83,10 +84,14 @@ job "minio" {
       driver = "docker"
 
       config {
-        # TODO: verify the tag; pin a release (and its digest) you have
-        # validated. MinIO publishes images under minio/minio and
-        # quay.io/minio/minio.
-        image = "minio/minio:RELEASE.2025-04-22T22-12-26Z"
+        # MinIO, Inc. no longer publishes images (minio/minio and
+        # quay.io/minio/minio are gone; the community edition is
+        # source-only and its repository is archived). This is the
+        # drop-in community fork published by Pigsty (Silo, AGPL-3.0),
+        # pinned to a release; its multi-arch index digest is
+        # sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372.
+        # An image you build from the MinIO source works the same way.
+        image = "pgsty/minio:RELEASE.2026-08-04T00-00-00Z"
         args  = ["server", "/data", "--console-address", ":9001"]
         ports = ["s3", "console"]
       }

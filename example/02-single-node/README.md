@@ -65,9 +65,12 @@ sudo cp norca.service /etc/systemd/system/norca.service
 sudo systemctl daemon-reload && sudo systemctl enable --now norca
 ```
 
-`config validate` checks the syntax and the keys of the files; the values of
-the `keyring`, `backup` and `autoscaler` blocks are checked when the agent
-starts (`journalctl -u norca`).
+`config validate` checks the syntax, the keys and the values of the files,
+including the `keyring`, `backup`, `autoscaler`, `secrets` and `dns` blocks
+as the agent checks them when it starts, so a placeholder left in place (the
+age recipient `age1CHANGE_ME`, the gossip key) fails here. Files, addresses
+and the backup destination are only used when the agent runs
+(`journalctl -u norca`).
 
 CLI environment for the following steps:
 

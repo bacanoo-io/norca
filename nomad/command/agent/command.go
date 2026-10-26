@@ -442,6 +442,14 @@ func (c *Command) IsValidConfig(config, cmdConfig *Config) bool {
 		return false
 	}
 
+	// The values of the Norca blocks (keyring, backup, autoscaler, mtls,
+	// admission, secrets, dns, consul_compat), checked as the agent checks
+	// them when it starts.
+	if err := validateNorcaBlocks(config); err != nil {
+		c.Ui.Error(err.Error())
+		return false
+	}
+
 	if !config.DevMode {
 		// Ensure that we have the directories we need to run.
 		if config.Server.Enabled && config.DataDir == "" {
@@ -470,6 +478,10 @@ func (c *Command) IsValidConfig(config, cmdConfig *Config) bool {
 		if config.Server.Enabled && config.Server.BootstrapExpect%2 == 0 {
 			c.Ui.Error("WARNING: Number of bootstrap servers should ideally be set to an odd number.")
 		}
+	}
+
+	if msg := consulCompatLoopWarning(config); msg != "" {
+		c.Ui.Warn("WARNING: " + msg)
 	}
 
 	// ProtocolVersion has never been used. Warn if it is set as someone

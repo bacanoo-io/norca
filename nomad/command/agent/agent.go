@@ -142,6 +142,10 @@ func NewAgent(config *Config, logger log.InterceptLogger, logOutput io.Writer, i
 	// Global logger should match internal logger as much as possible
 	golog.SetFlags(golog.LstdFlags | golog.Lmicroseconds)
 
+	// Keep the Consul integration from talking to the agent's own
+	// Consul-compatible API (Norca).
+	avoidConsulCompatLoop(config, a.logger)
+
 	if err := a.setupConsul(config.Consul); err != nil {
 		return nil, fmt.Errorf("Failed to initialize Consul client: %v", err)
 	}
@@ -347,31 +351,20 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		conf.JobTrackedVersions = *agentConfig.Server.JobTrackedVersions
 	}
 
-	if admissionConf := agentConfig.Server.Admission.Copy(); admissionConf != nil {
-		admissionConf.Canonicalize()
-		if err := admissionConf.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid server admission configuration: %w", err)
-		}
-		conf.AdmissionConfig = admissionConf
+	// The Norca blocks: admission, keyring, mtls, autoscaler, backup and
+	// secrets (also checked by config validate).
+	norcaBlocks, err := convertNorcaServerBlocks(agentConfig.Server)
+	if err != nil {
+		return nil, err
 	}
-
-	if keyringConf := agentConfig.Server.Keyring.Copy(); keyringConf != nil {
-		if err := keyringConf.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid server keyring configuration: %w", err)
-		}
-		conf.KeyringConfig = keyringConf
+	if norcaBlocks.admission != nil {
+		conf.AdmissionConfig = norcaBlocks.admission
 	}
-
-	if mtlsConf := agentConfig.Server.MTLS.Copy(); mtlsConf != nil {
-		if err := mtlsConf.Finalize(); err != nil {
-			return nil, fmt.Errorf("invalid server mtls configuration: %w", err)
-		}
-		if mtlsConf.TrustDomain != "" {
-			if err := structs.ValidateSPIFFETrustDomain(mtlsConf.TrustDomain); err != nil {
-				return nil, fmt.Errorf("invalid server mtls configuration: %w", err)
-			}
-		}
-		conf.MTLSConfig = mtlsConf
+	if norcaBlocks.keyring != nil {
+		conf.KeyringConfig = norcaBlocks.keyring
+	}
+	if norcaBlocks.mtls != nil {
+		conf.MTLSConfig = norcaBlocks.mtls
 	}
 
 	// Set up the bind addresses
@@ -584,26 +577,11 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		}
 	}
 
-	// Set the built-in autoscaler configuration.
-	autoscalerConf, err := agentConfig.Server.Autoscaler.toServerConfig()
-	if err != nil {
-		return nil, err
-	}
-	conf.Autoscaler = autoscalerConf
-
-	// Set the backup configuration.
-	backupConf, err := agentConfig.Server.Backup.toServerConfig()
-	if err != nil {
-		return nil, err
-	}
-	conf.Backup = backupConf
-
-	// Set the audit file of the built-in secret store.
-	secretsAudit, err := agentConfig.Server.Secrets.toAuditFileConfig()
-	if err != nil {
-		return nil, err
-	}
-	conf.SecretsAudit = secretsAudit
+	// Set the built-in autoscaler, backup and secret store audit file
+	// configurations, converted with the other Norca blocks above.
+	conf.Autoscaler = norcaBlocks.autoscaler
+	conf.Backup = norcaBlocks.backup
+	conf.SecretsAudit = norcaBlocks.secretsAudit
 	conf.SecretsVaultFallback = agentConfig.Server.Secrets.vaultFallback()
 
 	// Add the search configuration
@@ -893,25 +871,15 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	}
 	conf.NativeServiceDiscovery = agentConfig.Client.NativeServiceDiscovery.Copy()
 	conf.Topology = agentConfig.Client.Topology.Copy()
-	if err := agentConfig.Client.DNS.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid dns config: %v", err)
+	// The Norca blocks: dns, consul_compat and secrets (also checked by
+	// config validate).
+	secretsConf, err := convertNorcaClientBlocks(agentConfig.Client, conf.VaultConfig)
+	if err != nil {
+		return nil, err
 	}
 	conf.DNS = agentConfig.Client.DNS.Copy()
-	if err := agentConfig.Client.ConsulCompat.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid consul_compat config: %v", err)
-	}
 	conf.ConsulCompat = agentConfig.Client.ConsulCompat.Copy()
-	secretsConf, err := agentConfig.Client.Secrets.toClientConfig()
-	if err != nil {
-		return nil, fmt.Errorf("invalid client secrets config: %v", err)
-	}
 	conf.Secrets = secretsConf
-	if err := conf.Secrets.Validate(func(name string) bool {
-		return name == structs.SecretProviderNorca ||
-			(name == structs.SecretProviderVault && conf.VaultConfig != nil && conf.VaultConfig.IsEnabled())
-	}); err != nil {
-		return nil, fmt.Errorf("invalid client secrets config: %v", err)
-	}
 
 	artifactConfig, err := clientconfig.ArtifactConfigFromAgent(agentConfig.Client.Artifact)
 	if err != nil {

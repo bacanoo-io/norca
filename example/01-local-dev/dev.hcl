@@ -39,19 +39,15 @@ client {
   # Read-only Consul-compatible HTTP API for tools that only know Consul
   # (Traefik consulcatalog, Prometheus consul_sd_configs, consul-template):
   #   curl http://127.0.0.1:8500/v1/catalog/services
+  # It listens on Consul's default address, which is also the default of the
+  # agent's own consul block. The agent notices this and keeps its Consul
+  # integration from talking to itself: no auto_advertise, no auto-join, no
+  # consul fingerprint (a warning at start says so); templates of tasks read
+  # services through this API.
   consul_compat {
     enabled         = true
     bind            = "127.0.0.1:8500"
     datacenter_from = "region"
     namespaces      = ["default"]
   }
-}
-
-# Norca does not need Consul. The consul_compat API listens on Consul's
-# default address 127.0.0.1:8500, so keep the agent's own Consul integration
-# from registering the agent there.
-consul {
-  auto_advertise   = false
-  server_auto_join = false
-  client_auto_join = false
 }
