@@ -46,7 +46,7 @@ with the LoadBalancer operator, and the NATS pack.
 | [test-api.hcl](test-api.hcl) | test-app pack as `test-api`, behind an mTLS sidecar |
 | [probe.nomad.hcl](probe.nomad.hcl) | A client of `test-api` through an mTLS upstream, colocated with test-app |
 | [lb-test-app.hcl](lb-test-app.hcl) | A `norca.io/LoadBalancer` object for test-app |
-| [nats.hcl](nats.hcl) | Variables of [packs/nats](../../packs/nats/README.md) |
+| [nats.hcl](nats.hcl) | Variables of the [nats pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/nats/README.md) |
 | [../02-single-node/norca.service](../02-single-node/norca.service) | systemd unit |
 
 ## Steps
@@ -206,13 +206,14 @@ instances, within the quota of the namespace.
 
 ```shell
 # Build the operator binary (it is also the TCP proxy of the "nomad" class)
-# and install it on every node.
+# and install it on every node. The pack is loadbalancer-operator of the
+# Norca pack registry (see ../README.md#the-pack-registry).
 (cd ../../nomad/controller && go build -o norca-loadbalancer ./examples/loadbalancer)
 sudo install ../../nomad/controller/norca-loadbalancer /usr/local/bin/   # on every node
 
 # One release: object kind, ACL policy bound to the controller job,
 # admission policy and the controller job (two instances, leader election).
-norca pack run ../../packs/loadbalancer-operator --name=lb --namespace=apps --var namespace=apps
+norca pack run loadbalancer-operator --registry=norca --name=lb --namespace=apps --var namespace=apps
 norca pack history lb --namespace=apps
 
 norca object-kind list
@@ -225,13 +226,13 @@ curl http://<address from the object status>:8080/   # through the proxy job of 
 ### 10. NATS (optional)
 
 ```shell
-norca pack run ../../packs/nats --name=nats -f nats.hcl
+norca pack run nats --registry=norca --name=nats -f nats.hcl
 norca service info nats-monitor
 ```
 
 Three NATS servers, one per zone, with JetStream and the disruption budget
 of the pack. Full Consul is available the same way with
-[packs/consul](../../packs/consul/README.md) (Consul is BSL 1.1 and is
+the [consul pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/consul/README.md) (Consul is BSL 1.1 and is
 installed from HashiCorp's releases after you accept its license); service
 discovery, DNS and mTLS above don't need it.
 

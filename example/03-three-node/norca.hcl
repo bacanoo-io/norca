@@ -108,7 +108,7 @@ client {
   }
 }
 
-# raw_exec runs the LoadBalancer operator (packs/loadbalancer-operator) and
+# raw_exec runs the LoadBalancer operator (the loadbalancer-operator pack) and
 # its proxies from a binary installed on the nodes.
 plugin "raw_exec" {
   config {

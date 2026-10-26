@@ -25,6 +25,8 @@ A third region is added the same way as `eu-2`.
   between the servers, 8443 (mTLS gateway) and 7222 (NATS gateways)
   between the clients.
 - One CA for both regions (the servers verify `server.<region>.nomad`).
+- The [Norca pack registry](../README.md#the-pack-registry) added as `norca`
+  (the `mtls-gateway` and `nats` packs).
 
 ## Files
 
@@ -34,9 +36,9 @@ A third region is added the same way as `eu-2`.
 | [region-eu-2.hcl](region-eu-2.hcl) | Same for eu-2, with the replication token, the join address in eu-1 and the catalog token of the clients |
 | [quota-apps.hcl](quota-apps.hcl) | The quota of `apps` with a limit per region |
 | [test-app-multiregion.hcl](test-app-multiregion.hcl) | test-app pack as a multiregion job |
-| [mtls-gateway.nomad.hcl](mtls-gateway.nomad.hcl) | The mTLS gateway of a region |
+| [mtls-gateway.nomad.hcl](mtls-gateway.nomad.hcl) | The mTLS gateway of a region as a plain job (what the [mtls-gateway pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/mtls-gateway/README.md) renders with its defaults) |
 | [probe-eu-2.nomad.hcl](probe-eu-2.nomad.hcl) | The probe in eu-2, reading test-api of eu-1 |
-| [nats-eu-1.hcl](nats-eu-1.hcl), [nats-eu-2.hcl](nats-eu-2.hcl) | packs/nats per region, joined into a supercluster |
+| [nats-eu-1.hcl](nats-eu-1.hcl), [nats-eu-2.hcl](nats-eu-2.hcl) | Variables of the nats pack per region, joined into a supercluster |
 
 ## Steps
 
@@ -174,9 +176,10 @@ and `norca job run -namespace apps <rendered file>` from any region.
 ### 6. mTLS across regions
 
 ```shell
-# A gateway in every region that offers services to the others.
-norca job run -var region=eu-1 mtls-gateway.nomad.hcl
-norca job run -var region=eu-2 mtls-gateway.nomad.hcl
+# A gateway in every region that offers services to the others: one release
+# of the mtls-gateway pack in both regions (a system job on every node).
+norca pack run mtls-gateway --registry=norca --name=mtls-gateway --regions=eu-1,eu-2
+# without the registry: norca job run -var region=eu-1 mtls-gateway.nomad.hcl (and eu-2)
 
 # test-api in eu-1 (behind its sidecar, variables of 03), the probe in eu-2:
 norca pack run ../packs/test-app --region=eu-1 --name=test-api --namespace=apps -f ../03-three-node/test-api.hcl
@@ -200,14 +203,14 @@ it. See [native-mtls.md](../../docs/native-mtls.md#authorization).
 ### 7. NATS supercluster
 
 ```shell
-norca pack run ../../packs/nats --name=nats --region=eu-1 -f nats-eu-1.hcl
-norca pack run ../../packs/nats --name=nats --region=eu-2 -f nats-eu-2.hcl
+norca pack run nats --registry=norca --name=nats --region=eu-1 -f nats-eu-1.hcl
+norca pack run nats --registry=norca --name=nats --region=eu-2 -f nats-eu-2.hcl
 norca service info -region eu-1 nats-gateway
 ```
 
 The gateways join the two clusters into one supercluster (cluster names =
 region names). Turn on TLS and authentication across clouds
-(`tls_enabled`, `auth_mode`, see [packs/nats](../../packs/nats/README.md#secrets-tls-and-client-authentication));
+(`tls_enabled`, `auth_mode`, see the [nats pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/nats/README.md#secrets-tls-and-client-authentication));
 `bridge_enabled = true` adds the event stream → NATS bridge per region.
 
 ### 8. Backups per region
@@ -228,8 +231,7 @@ norca operator backup save -region eu-2 -label note=after-federation
 norca job stop -region eu-2 -namespace apps -purge probe
 norca pack uninstall test-api --region=eu-1 --namespace=apps
 norca pack uninstall test-app --namespace=apps --all-regions
-norca job stop -region eu-1 -purge mtls-gateway
-norca job stop -region eu-2 -purge mtls-gateway
+norca pack uninstall mtls-gateway --all-regions
 norca pack uninstall nats --region=eu-1
 norca pack uninstall nats --region=eu-2
 ```
@@ -244,7 +246,7 @@ Either region's UI shows the whole federation:
   region switcher.
 - **Deployments**: the multiregion deployment of test-app with the state of
   each region (pending, blocked, running, successful).
-- **Packages**: the `test-app` release with one entry per region.
+- **Packages**: the `test-app` and `mtls-gateway` releases with one entry per region.
 - **Network**: the intention `probe → test-api` in eu-1.
 - **Services** (per region): `mtls-gateway`, `test-api` in eu-1, `probe` in eu-2.
 - **Backups** (per region).

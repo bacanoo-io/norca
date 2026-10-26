@@ -7,7 +7,7 @@ SPDX-License-Identifier: MPL-2.0
 
 One Linux machine running the server and the client in one agent, set up the
 way a small production node would be: persistent data, TLS, ACLs, gossip
-encryption, the `shares` seal, scheduled age-encrypted backups to MinIO,
+encryption, the `shares` seal, scheduled age-encrypted backups to RustFS,
 a namespace with a quota and an admission policy, and the test application
 with secrets and health check roles.
 
@@ -21,6 +21,9 @@ available version.
   in `/opt/cni/bin` (bridge networking), `curl` 7.75 or newer and
   [age](https://github.com/FiloSottile/age) (`age-keygen`).
 - The `norca` binary in `/usr/local/bin` (see [../README.md](../README.md#getting-the-norca-binary)).
+- The [Norca pack registry](https://github.com/bacanoo-io/norca-registry) for the RustFS store (step 7):
+  git and access to GitHub, or a checkout of the registry (see
+  [../README.md](../README.md#the-pack-registry)).
 - This directory and [../policies](../policies) on the machine.
 - Below, `10.0.0.10` is the address of the machine: replace it everywhere.
 
@@ -31,7 +34,7 @@ available version.
 | [norca.hcl](norca.hcl) | Agent configuration (server and client) |
 | [norca.service](norca.service) | systemd unit |
 | [backup-credentials.example](backup-credentials.example) | S3 credentials of the backup destination |
-| [minio.nomad.hcl](minio.nomad.hcl) | MinIO as the backup store, with its root credentials from the secret store |
+| [rustfs.hcl](rustfs.hcl) | Variables of the [rustfs pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/rustfs/README.md): RustFS as the backup store, the backup bucket |
 | [test-app.hcl](test-app.hcl) | Variables of the [test-app pack](../packs/test-app/README.md) |
 
 ## Steps
@@ -39,7 +42,8 @@ available version.
 ### 1. Directories, TLS, keys
 
 ```shell
-sudo mkdir -p /etc/norca.d/tls /opt/norca/data /srv/minio /var/log/norca
+sudo mkdir -p /etc/norca.d/tls /opt/norca/data /var/log/norca
+sudo install -d -o 10001 -g 10001 -m 750 /srv/rustfs   # the RustFS data, owned by its container user
 
 # CA and server certificate (valid for server.global.nomad, localhost and the
 # machine address). Keep nomad-agent-ca-key.pem offline.
@@ -59,7 +63,7 @@ age-keygen -o ~/backup-identity.txt
 
 ```shell
 sudo cp norca.hcl /etc/norca.d/norca.hcl          # then replace every CHANGE_ME
-sudo install -m 600 backup-credentials.example /etc/norca.d/backup-credentials   # CHANGE_ME: the MinIO root user and password of step 7
+sudo install -m 600 backup-credentials.example /etc/norca.d/backup-credentials   # CHANGE_ME: the RustFS root credentials of step 7
 norca config validate /etc/norca.d/
 sudo cp norca.service /etc/systemd/system/norca.service
 sudo systemctl daemon-reload && sudo systemctl enable --now norca
@@ -132,18 +136,33 @@ norca secret info -namespace apps test-app/db  # metadata and versions, never va
 
 ### 7. Backup store
 
-```shell
-norca secret put minio/root user=norca-backup password=-    # at least 8 characters; the same values as in /etc/norca.d/backup-credentials
-norca job run minio.nomad.hcl
-norca service info -verbose minio
+RustFS (Apache-2.0), an S3-compatible store, from the `rustfs` pack of the
+Norca pack registry. Its root credentials live in the secret store: the
+access key and the secret key are the values of
+`/etc/norca.d/backup-credentials`.
 
-# The backup bucket (S3 CreateBucket, signed by curl):
-curl --aws-sigv4 "aws:amz:us-east-1:s3" --user "norca-backup:<password>" \
+```shell
+norca secret put rustfs/root access_key=norca-backup secret_key=-   # type the secret key, then Ctrl-D
+
+norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
+norca pack run rustfs --registry=norca --name=rustfs -f rustfs.hcl
+norca service info -verbose rustfs
+norca alloc logs -task create-buckets <alloc ID>     # "bucket norca-backup created"
+```
+
+`buckets` in `rustfs.hcl` makes the pack create the backup bucket once the
+store is ready (Norca never creates it). Without it, create the bucket with
+an S3 CreateBucket signed by curl:
+
+```shell
+curl --aws-sigv4 "aws:amz:us-east-1:s3" --user "norca-backup:<secret key>" \
   -X PUT http://10.0.0.10:9000/norca-backup
 ```
 
-The `backup` block of `norca.hcl` points to this store; the first scheduled
-backup runs at the next full hour.
+The `backup` block of `norca.hcl` points to this store (`endpoint`,
+`bucket`, `region` = the pack's `s3_region`, `force_path_style`); the first
+scheduled backup runs at the next full hour. The console is at
+`http://10.0.0.10:9001/rustfs/console/` with the same credentials.
 
 ### 8. Deploy the test application
 
@@ -204,9 +223,9 @@ administrator with another management token (`norca operator backup approve`);
 
 ```shell
 norca pack uninstall test-app --namespace=apps
-norca job stop -purge minio
+norca pack uninstall rustfs
 sudo systemctl disable --now norca
-sudo rm -rf /opt/norca/data /srv/minio /etc/norca.d /var/log/norca
+sudo rm -rf /opt/norca/data /srv/rustfs /etc/norca.d /var/log/norca
 ```
 
 ## What to look at in the web UI
@@ -217,13 +236,13 @@ token, or the `dev` token for the developer's view).
 - **Dashboard**: cluster health, allocations, live updates.
 - **Jobs → test-app**: allocations, services with the check roles, the
   scaling page of the typed policy, versions.
-- **Services**: `test-app` and `minio` with the health of every instance.
+- **Services**: `test-app` and `rustfs` with the health of every instance.
 - **Quotas**: usage of `apps` against its limits.
 - **Admission**: the `apps-baseline` policy and its rules.
 - **Scaling**: the policy, its checks and the scaling events.
 - **Backups**: the list, contents (with the age identity), comparison and
   restore.
-- **Packages**: the `test-app` release with its revisions.
+- **Packages**: the `test-app` and `rustfs` releases with their revisions.
 
 There is no page for the built-in secret store yet: use `norca secret ...`;
 the task events of an allocation show which provider delivered each secret
