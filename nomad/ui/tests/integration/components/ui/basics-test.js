@@ -60,6 +60,16 @@ module('Integration | Component | ui basics', function (hooks) {
     await componentA11yAudit(this.element, assert, STRICT);
   });
 
+  test('a disabled route button is a disabled button', async function (assert) {
+    this.owner.setupRouter();
+    await render(hbs`
+      <Ui::Button @route="jobs" data-test-a>Jobs</Ui::Button>
+      <Ui::Button @route="jobs" @disabled={{true}} data-test-b>Jobs</Ui::Button>
+    `);
+    assert.dom('[data-test-a]').hasTagName('a').hasClass('btn');
+    assert.dom('[data-test-b]').hasTagName('button').isDisabled();
+  });
+
   test('Ui::Badge and Ui::StatusIndicator map statuses to the status tones', async function (assert) {
     await render(hbs`
       <Ui::Badge @color="green" data-test-badge>running</Ui::Badge>

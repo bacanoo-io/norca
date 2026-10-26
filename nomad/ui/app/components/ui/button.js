@@ -29,6 +29,9 @@ const SIZES = { sm: 'btn-sm', md: '', lg: 'btn-lg' };
  * Arguments: @variant (primary, secondary, danger, success, warning, ghost,
  * link, outline-danger), @size (sm, md, lg), @icon, @iconOnly with @label,
  * @isLoading, @disabled, @type (button), @route/@model/@models/@query, @href.
+ *
+ * A route button does not look pressed while its route is active, and a
+ * disabled route button is a disabled button (a link cannot be disabled).
  */
 export default class UiButton extends Component {
   get classes() {
