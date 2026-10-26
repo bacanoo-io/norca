@@ -70,7 +70,7 @@ module('Acceptance | roles', function (hooks) {
 
     const editor = server.db.roles.find('editor');
     const row = rowFor('[data-test-role-row]', 'editor');
-    const tags = row.querySelectorAll('[data-test-role-policies] .tag');
+    const tags = row.querySelectorAll('[data-test-role-policies] .badge');
     assert.equal(tags.length, editor.policyIds.length);
     assert
       .dom(row.querySelector('[data-test-role-description]'))
@@ -210,7 +210,8 @@ module('Acceptance | roles', function (hooks) {
 
   test('a role can be deleted from its page', async function (assert) {
     await visit('/access-control/roles/denier');
-    await click('[data-test-delete-role]');
+    await click('[data-test-delete-role] [data-test-idle-button]');
+    await click('[data-test-delete-role] [data-test-confirm-button]');
     assert.dom('.flash-message.alert-success').exists();
     assert.equal(currentURL(), '/access-control/roles');
     assert.notOk(rowFor('[data-test-role-row]', 'denier'));
@@ -227,10 +228,15 @@ module('Acceptance | roles', function (hooks) {
   test('deleting every role shows an empty state', async function (assert) {
     await AccessControl.visitRoles();
     for (const row of findAll('[data-test-role-row]')) {
-      await click(row.querySelector('[data-test-delete-role]'));
+      await click(
+        row.querySelector('[data-test-delete-role] [data-test-idle-button]')
+      );
+      await click(
+        row.querySelector('[data-test-delete-role] [data-test-confirm-button]')
+      );
     }
     assert.dom('[data-test-role-row]').doesNotExist();
-    assert.dom('[data-test-empty-roles-list-headline]').exists();
+    assert.dom('[data-test-empty-roles-list]').exists();
     assert.equal(
       currentURL(),
       '/access-control/roles',

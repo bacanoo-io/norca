@@ -10,7 +10,7 @@ import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import moment from 'moment';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import moduleForJob, {
   moduleForJobWithClientStatus,
 } from 'nomad-ui/tests/helpers/module-for-job';
@@ -341,7 +341,7 @@ module('Acceptance | job detail (with namespaces)', function (hooks) {
   test('it passes an accessibility audit', async function (assert) {
     const namespace = server.db.namespaces.find(job.namespaceId);
     await JobDetail.visit({ id: `${job.id}@${namespace.name}` });
-    await a11yAudit(assert);
+    await a11yAudit(assert, STRICT);
   });
 
   test('when there are namespaces, the job detail page states the namespace for the job', async function (assert) {

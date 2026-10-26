@@ -8,6 +8,7 @@ import WithNamespaceResetting from 'nomad-ui/mixins/with-namespace-resetting';
 import { alias } from '@ember/object/computed';
 import { action, computed } from '@ember/object';
 import classic from 'ember-classic-decorator';
+import moment from 'moment';
 
 const alertClassFallback = 'is-info';
 
@@ -29,6 +30,24 @@ export default class VersionsController extends Controller.extend(
     return (
       errorLevelToAlertClass[this.get('error.level')] || alertClassFallback
     );
+  }
+
+  // Newest first, with the date shown when the day changes.
+  @computed('model.versions.@each.submitTime')
+  get annotatedVersions() {
+    const versions = (this.get('model.versions') || [])
+      .toArray()
+      .sortBy('submitTime')
+      .reverse();
+    return versions.map((version, index) => {
+      let showDate = index === 0;
+      if (!showDate) {
+        const previous = moment(versions[index - 1].submitTime).startOf('day');
+        const current = moment(version.submitTime).startOf('day');
+        showDate = previous.diff(current, 'days') > 0;
+      }
+      return { version, showDate };
+    });
   }
 
   onDismiss() {

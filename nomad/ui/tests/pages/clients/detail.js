@@ -11,15 +11,16 @@ import {
   fillable,
   text,
   isPresent,
+  selectable,
   value,
   visitable,
 } from 'ember-cli-page-object';
 
 import allocations from 'nomad-ui/tests/pages/components/allocations';
 import twoStepButton from 'nomad-ui/tests/pages/components/two-step-button';
-import notification from 'nomad-ui/tests/pages/components/notification';
-import toggle from 'nomad-ui/tests/pages/components/toggle';
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
+import alert from 'nomad-ui/tests/pages/components/alert';
+import switchToggle from 'nomad-ui/tests/pages/components/switch';
+import { filterFacet } from 'nomad-ui/tests/pages/components/facet';
 
 export default create({
   visit: visitable('/clients/:id'),
@@ -33,24 +34,24 @@ export default create({
   }),
 
   statusDefinition: text('[data-test-status-definition]'),
-  statusDecorationClass: attribute(
-    'class',
-    '[data-test-status-definition] .status-text'
+  statusTone: attribute(
+    'data-test-status-indicator',
+    '[data-test-status-definition] [data-test-status-indicator]'
   ),
   addressDefinition: text('[data-test-address-definition]'),
   datacenterDefinition: text('[data-test-datacenter-definition]'),
 
   resourceCharts: collection('[data-test-primary-metric]', {
     name: text('[data-test-primary-metric-title]'),
-    chartClass: attribute('class', '[data-test-percentage-chart] progress'),
+    color: attribute('data-test-current-value', '[data-test-current-value]'),
   }),
 
   ...allocations(),
 
   emptyAllocations: {
     scope: '[data-test-empty-allocations-list]',
-    headline: text('[data-test-empty-allocations-list-headline]'),
-    body: text('[data-test-empty-allocations-list-body]'),
+    headline: text('[data-test-empty-state-title]'),
+    body: text('[data-test-empty-state-message]'),
   },
 
   allocationFilter: {
@@ -61,9 +62,9 @@ export default create({
   },
 
   facets: {
-    namespace: multiFacet('[data-test-allocation-namespace-facet]'),
-    job: multiFacet('[data-test-allocation-job-facet]'),
-    status: multiFacet('[data-test-allocation-status-facet]'),
+    namespace: filterFacet('[data-test-allocation-namespace-facet]'),
+    job: filterFacet('[data-test-allocation-job-facet]'),
+    status: filterFacet('[data-test-allocation-status-facet]'),
   },
 
   attributesTable: isPresent('[data-test-attributes]'),
@@ -86,18 +87,21 @@ export default create({
   },
 
   hasEvents: isPresent('[data-test-client-events]'),
-  events: collection('[data-test-client-event]', {
+  events: collection('[data-test-client-events] [data-test-ui-table-row]', {
     time: text('[data-test-client-event-time]'),
     subsystem: text('[data-test-client-event-subsystem]'),
     message: text('[data-test-client-event-message]'),
   }),
 
   hasHostVolumes: isPresent('[data-test-client-host-volumes]'),
-  hostVolumes: collection('[data-test-client-host-volume]', {
-    name: text('[data-test-name]'),
-    path: text('[data-test-path]'),
-    permissions: text('[data-test-permissions]'),
-  }),
+  hostVolumes: collection(
+    '[data-test-client-host-volumes] [data-test-ui-table-row]',
+    {
+      name: text('[data-test-name]'),
+      path: text('[data-test-path]'),
+      permissions: text('[data-test-permissions]'),
+    }
+  ),
 
   driverHeads: collection(
     '[data-test-driver-status] [data-test-accordion-head]',
@@ -107,7 +111,7 @@ export default create({
       lastUpdated: text('[data-test-last-updated]'),
       healthIsShown: isPresent('[data-test-health]'),
       health: text('[data-test-health]'),
-      healthClass: attribute('class', '[data-test-health] .color-swatch'),
+      healthClass: attribute('data-test-health', '[data-test-health]'),
 
       toggle: clickable('[data-test-accordion-toggle]'),
     }
@@ -134,9 +138,9 @@ export default create({
     forceDrainText: text('[data-test-force-drain-text]'),
     drainSystemJobsText: text('[data-test-drain-system-jobs-text]'),
 
-    completeCount: text('[data-test-complete-count]'),
-    migratingCount: text('[data-test-migrating-count]'),
-    remainingCount: text('[data-test-remaining-count]'),
+    completeCount: text('[data-test-complete-count] [data-test-stat-value]'),
+    migratingCount: text('[data-test-migrating-count] [data-test-stat-value]'),
+    remainingCount: text('[data-test-remaining-count] [data-test-stat-value]'),
     status: text('[data-test-status]'),
     force: twoStepButton('[data-test-force]'),
   },
@@ -147,46 +151,34 @@ export default create({
     toggle: clickable('[data-test-drain-popover] [data-test-popover-trigger]'),
     isDisabled: attribute('aria-disabled', '[data-test-popover-trigger]'),
 
-    deadlineToggle: toggle('[data-test-drain-deadline-toggle]'),
-    deadlineOptions: {
-      open: clickable(
-        '[data-test-drain-deadline-option-select-parent] .ember-power-select-trigger'
-      ),
-      options: collection('.ember-power-select-option', {
+    deadlineToggle: switchToggle('[data-test-drain-deadline-toggle]'),
+    selectDeadline: selectable('[data-test-drain-deadline-option-select]'),
+    deadlineOptions: collection(
+      '[data-test-drain-deadline-option-select] option',
+      {
         label: text(),
-        choose: clickable(),
-      }),
-    },
+        value: attribute('value'),
+      }
+    ),
 
     setCustomDeadline: fillable('[data-test-drain-custom-deadline]'),
     customDeadline: value('[data-test-drain-custom-deadline]'),
-    forceDrainToggle: toggle('[data-test-force-drain-toggle]'),
-    systemJobsToggle: toggle('[data-test-system-jobs-toggle]'),
+    forceDrainToggle: switchToggle('[data-test-force-drain-toggle]'),
+    systemJobsToggle: switchToggle('[data-test-system-jobs-toggle]'),
 
     submit: clickable('[data-test-drain-submit]'),
     cancel: clickable('[data-test-drain-cancel]'),
-
-    setDeadline(label) {
-      this.deadlineOptions.open();
-      this.deadlineOptions.options.toArray().findBy('label', label).choose();
-    },
   },
 
   stopDrain: twoStepButton('[data-test-drain-stop]'),
   stopDrainIsPresent: isPresent('[data-test-drain-stop]'),
 
-  eligibilityToggle: toggle('[data-test-eligibility-toggle]'),
+  eligibilityToggle: switchToggle('[data-test-eligibility-toggle]'),
 
-  eligibilityError: notification('[data-test-eligibility-error]'),
-  stopDrainError: notification('[data-test-stop-drain-error]'),
-  drainError: notification('[data-test-drain-error]'),
-  drainStoppedNotification: notification(
-    '[data-test-drain-stopped-notification]'
-  ),
-  drainUpdatedNotification: notification(
-    '[data-test-drain-updated-notification]'
-  ),
-  drainCompleteNotification: notification(
-    '[data-test-drain-complete-notification]'
-  ),
+  eligibilityError: alert('[data-test-eligibility-error]'),
+  stopDrainError: alert('[data-test-stop-drain-error]'),
+  drainError: alert('[data-test-drain-error]'),
+  drainStoppedNotification: alert('[data-test-drain-stopped-notification]'),
+  drainUpdatedNotification: alert('[data-test-drain-updated-notification]'),
+  drainCompleteNotification: alert('[data-test-drain-complete-notification]'),
 });

@@ -15,6 +15,10 @@ const STORAGE = {
 };
 
 export const ALL_REGIONS = '*';
+
+// The pages that show every region in the "All regions" scope; the other
+// pages show the active region.
+export const SPANNING_ROUTES = ['index', 'jobs.index'];
 export const ALL_NAMESPACES = '*';
 
 function read(key, fallback) {
@@ -101,10 +105,12 @@ export default class FrameService extends Service {
     this.mobileMenuOpen = false;
   }
 
-  // The region scope of the views that support it (the dashboard):
-  // ALL_REGIONS or the active region.
+  // The region scope of the views that support it (the dashboard, the
+  // jobs list, the spansRegions pages): ALL_REGIONS or the active region.
+  // Elsewhere the scope is the active region, whatever the choice.
   get regionScope() {
-    return this.allRegions && this.system.shouldShowRegions
+    const spans = this.currentRouteSpansRegions;
+    return this.allRegions && this.system.shouldShowRegions && spans
       ? ALL_REGIONS
       : this.system.activeRegion ||
           this.system.get('defaultRegion.region') ||
@@ -121,9 +127,11 @@ export default class FrameService extends Service {
     return region ? [region] : regions.slice(0, 1);
   }
 
+  // The dashboard, the jobs list and the pages whose route metadata says
+  // spansRegions (buildRouteInfoMetadata) show all regions.
   get currentRouteSpansRegions() {
     return (
-      this.router.currentRouteName === 'index' ||
+      SPANNING_ROUTES.includes(this.router.currentRouteName) ||
       !!this.router.currentRoute?.metadata?.spansRegions
     );
   }
@@ -133,13 +141,21 @@ export default class FrameService extends Service {
     if (value === ALL_REGIONS) {
       this.allRegions = true;
       write(STORAGE.scope, ALL_REGIONS);
-      // The dashboard and the pages whose route metadata says spansRegions
-      // show all regions; other pages go to the dashboard.
-      if (!this.currentRouteSpansRegions) this.router.transitionTo('index');
+      // Pages that do not span regions lead to the jobs list (from the
+      // jobs pages) or to the dashboard.
+      if (!this.currentRouteSpansRegions) {
+        const current = this.router.currentRouteName || '';
+        this.router.transitionTo(
+          current.startsWith('jobs.') ? 'jobs.index' : 'index'
+        );
+      }
       return;
     }
     this.allRegions = false;
     write(STORAGE.scope, null);
+    // The application controller switches the active region from the query
+    // parameter. The dashboard and the pages whose route metadata says
+    // spansRegions stay; other pages lead to the jobs list.
     const target = this.currentRouteSpansRegions
       ? this.router.currentRouteName
       : 'jobs';

@@ -1,0 +1,42 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="d-inline-flex align-items-center gap-2" title={{@disabledReason}} data-test-stepper ...attributes>
+  <label class="form-label m-0" for={{this.id}} data-test-stepper-label>{{or @label "Count"}}</label>
+  <div class="input-group input-group-flat norca-stepper">
+    <button
+      type="button"
+      class="btn btn-icon"
+      aria-label="Decrease"
+      disabled={{or this.isDisabled (lte this.value this.min)}}
+      data-test-stepper-decrement
+      {{on "click" this.decrement}}
+    ><Ui::Icon @name="minus" /></button>
+    <input
+      id={{this.id}}
+      type="number"
+      class="form-control text-center tabular-nums"
+      min={{this.min}}
+      max={{this.max}}
+      value={{this.value}}
+      disabled={{this.isDisabled}}
+      aria-describedby={{if @disabledReason (concat this.id "-reason")}}
+      data-test-stepper-input
+      {{on "focus" this.select}}
+      {{on "keyup" this.keyup}}
+      {{on "change" this.change}}
+    />
+    <button
+      type="button"
+      class="btn btn-icon"
+      aria-label="Increase"
+      disabled={{or this.isDisabled (gte this.value this.max)}}
+      data-test-stepper-increment
+      {{on "click" this.increment}}
+    ><Ui::Icon @name="plus" /></button>
+  </div>
+  {{#if @disabledReason}}
+    <span class="visually-hidden" id={{concat this.id "-reason"}}>{{@disabledReason}}</span>
+  {{/if}}
+</div>

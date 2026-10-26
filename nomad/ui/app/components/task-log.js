@@ -21,7 +21,7 @@ class MockAbortController {
 }
 
 @classic
-@classNames('boxed-section', 'task-log')
+@classNames('norca-task-log-root')
 export default class TaskLog extends Component {
   @service token;
   @service userSettings;

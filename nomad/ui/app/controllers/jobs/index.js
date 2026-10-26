@@ -19,6 +19,10 @@ import {
   deserializedQueryParam as selection,
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
+import { ALL_REGIONS } from 'nomad-ui/services/frame';
 
 const DEFAULT_SORT_PROPERTY = 'modifyIndex';
 const DEFAULT_SORT_DESCENDING = true;
@@ -26,11 +30,88 @@ const DEFAULT_SORT_DESCENDING = true;
 @classic
 export default class IndexController extends Controller.extend(
   Sortable,
-  Searchable
+  Searchable,
+  WithListActions
 ) {
   @service system;
   @service userSettings;
   @service router;
+  @service frame;
+
+  viewParams = [
+    'qpType',
+    'qpStatus',
+    'qpDatacenter',
+    'qpPrefix',
+    'qpNodePool',
+    'searchTerm',
+    'sortProperty',
+    'sortDescending',
+  ];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
+  // The jobs of every region in the "All regions" scope of the top bar.
+  get isAllRegions() {
+    return this.frame.regionScope === ALL_REGIONS;
+  }
+
+  get scopeLabel() {
+    const region = this.isAllRegions
+      ? 'All regions'
+      : this.system.shouldShowRegions
+      ? `Region ${this.system.activeRegion}`
+      : null;
+    const namespace = this.system.shouldShowNamespaces
+      ? this.qpNamespace === '*'
+        ? 'all namespaces'
+        : `namespace ${this.qpNamespace || 'default'}`
+      : null;
+    return [region, namespace].filter(Boolean).join(', ');
+  }
+
+  get columns() {
+    const columns = [
+      { key: 'name', label: 'Name', sortable: true, hideable: false },
+    ];
+    if (this.system.shouldShowNamespaces) {
+      columns.push({
+        key: 'namespace.name',
+        label: 'Namespace',
+        sortable: true,
+      });
+    }
+    columns.push(
+      { key: 'status', label: 'Status', sortable: true },
+      { key: 'type', label: 'Type', sortable: true },
+      { key: 'nodePool', label: 'Node pool', sortable: true },
+      { key: 'priority', label: 'Priority', sortable: true },
+      { key: 'regions', label: 'Regions', hidden: true },
+      { key: 'owner', label: 'Managed by' },
+      { key: 'groups', label: 'Groups' },
+      { key: 'summary', label: 'Summary' }
+    );
+    return columns;
+  }
+
+  get namespaceSelectOptions() {
+    return (this.optionsNamespaces || []).map((o) => ({
+      value: o.key,
+      label: o.label,
+    }));
+  }
+
+  @action
+  setNamespace(namespace) {
+    this.setProperties({ qpNamespace: namespace, currentPage: 1 });
+  }
+
+  @action
+  gotoJob(job) {
+    this.router.transitionTo('jobs.job.index', job.get('idWithNamespace'));
+  }
 
   isForbidden = false;
 
@@ -314,19 +395,13 @@ export default class IndexController extends Controller.extend(
     'sortProperty'
   )
   get prioritizeSearchOrder() {
-    let shouldPrioritizeSearchOrder =
+    // The search order wins until the sort changes after the last search.
+    // (The sort is not reset here: the table reads it while rendering.)
+    return (
       !!this.searchTerm &&
       this.sortAtLastSearch.sortProperty === this.sortProperty &&
-      this.sortAtLastSearch.sortDescending === this.sortDescending;
-    if (shouldPrioritizeSearchOrder) {
-      /* eslint-disable ember/no-side-effects */
-      this.set('sortDescending', DEFAULT_SORT_DESCENDING);
-      this.set('sortProperty', DEFAULT_SORT_PROPERTY);
-      this.set('sortAtLastSearch.sortProperty', DEFAULT_SORT_PROPERTY);
-      this.set('sortAtLastSearch.sortDescending', DEFAULT_SORT_DESCENDING);
-    }
-    /* eslint-enable ember/no-side-effects */
-    return shouldPrioritizeSearchOrder;
+      this.sortAtLastSearch.sortDescending === this.sortDescending
+    );
   }
 
   @alias('filteredJobs') listToSearch;

@@ -5,6 +5,7 @@
 
 import Component from '@glimmer/component';
 import { action } from '@ember/object';
+import { inject as service } from '@ember/service';
 
 /**
  * Tabs, either route-based or local.
@@ -16,11 +17,24 @@ import { action } from '@ember/object';
  * Local tabs (a tablist; the caller renders the panel of @selected):
  *   <Ui::Tabs @tabs={{this.tabs}} @selected={{this.tab}} @onSelect={{this.selectTab}} />
  *
- * Each tab: { id, label, route?, model?, query?, count?, icon? }. Local tabs
- * follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between
- * the tabs.
+ * Each tab: { id, label, route?, model?, query?, count?, icon?,
+ * currentWhen? }. Local tabs follow the WAI-ARIA tabs pattern: arrow keys,
+ * Home and End move between the tabs. Route tabs are the page's subnav for
+ * the keyboard shortcuts (next and previous subnav item).
  */
 export default class UiTabs extends Component {
+  @service keyboard;
+
+  @action
+  registerNav(element) {
+    this.keyboard.registerNav(element, null, { type: 'subnav' });
+  }
+
+  @action
+  unregisterNav(element) {
+    this.keyboard.unregisterSubnav(element);
+  }
+
   get isRouteBased() {
     return (this.args.tabs || []).some((tab) => tab.route);
   }

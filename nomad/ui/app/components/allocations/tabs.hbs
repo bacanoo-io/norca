@@ -1,0 +1,10 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Tabs
+  @tabs={{this.tabs}}
+  @label={{if @task "Task sections" "Allocation sections"}}
+  class="mb-3"
+  data-test-subnav={{if @task "task" "allocation"}}
+/>

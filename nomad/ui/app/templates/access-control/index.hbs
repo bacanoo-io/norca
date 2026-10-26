@@ -4,74 +4,74 @@
 ~}}
 
 {{page-title "Access Control"}}
-<section class="section access-control-overview">
-  <h1 class="title" data-test-title>Access Control</h1>
-  <p class="acl-explainer">
+<Ui::PageHeader @breadcrumbs={{array (hash label="Access control")}}>
+  <:title><span data-test-title>Access Control</span></:title>
+</Ui::PageHeader>
+<Ui::PageBody>
+  <Access::Tabs />
+  <p class="text-secondary">
     Nomad's access control lists (ACLs) decide what each request may do. A <strong>token</strong> authenticates
     a request; a <strong>policy</strong> is a set of rules granting capabilities; a <strong>role</strong> bundles
     policies so they can be linked to many tokens at once. Client tokens get the permissions of their policies and
     roles, management tokens can do everything.
   </p>
 
-  <div class="access-control-cards">
+  <div class="row row-cards">
     {{#if (can "list tokens")}}
-      <article class="boxed-section access-control-card" data-test-tokens-card>
-        <div class="boxed-section-head">
-          <h2>
-            <LinkTo @route="access-control.tokens">Tokens</LinkTo>
-          </h2>
-          <span class="access-control-count" data-test-tokens-count>{{this.model.tokens.length}}</span>
-        </div>
-        <div class="boxed-section-body">
-          <p>Credentials for users and automation. Each token links to policies and roles, and may expire.</p>
-          <Hds::ButtonSet>
-            <Hds::Button @text="View Tokens" @color="secondary" @size="small" @route="access-control.tokens" />
-            {{#if (can "write token")}}
-              <Hds::Button @text="Create Token" @icon="plus" @size="small" @route="access-control.tokens.new" data-test-overview-create-token />
-            {{/if}}
-          </Hds::ButtonSet>
-        </div>
-      </article>
+      <div class="col-md-4">
+        <Ui::Card @title="Tokens" class="h-100" data-test-tokens-card>
+          <:actions>
+            <Ui::Badge @color="secondary" data-test-tokens-count>{{this.model.tokens.length}}</Ui::Badge>
+          </:actions>
+          <:default>
+            <p class="text-secondary">Credentials for users and automation. Each token links to policies and roles, and may expire.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <Ui::Button @size="sm" @route="access-control.tokens">View Tokens</Ui::Button>
+              {{#if (can "write token")}}
+                <Ui::Button @size="sm" @variant="primary" @icon="plus" @route="access-control.tokens.new" data-test-overview-create-token>Create Token</Ui::Button>
+              {{/if}}
+            </div>
+          </:default>
+        </Ui::Card>
+      </div>
     {{/if}}
 
     {{#if (can "list roles")}}
-      <article class="boxed-section access-control-card" data-test-roles-card>
-        <div class="boxed-section-head">
-          <h2>
-            <LinkTo @route="access-control.roles">Roles</LinkTo>
-          </h2>
-          <span class="access-control-count" data-test-roles-count>{{this.model.roles.length}}</span>
-        </div>
-        <div class="boxed-section-body">
-          <p>Named groups of policies. Linking a role to a token grants all of the role's policies.</p>
-          <Hds::ButtonSet>
-            <Hds::Button @text="View Roles" @color="secondary" @size="small" @route="access-control.roles" />
-            {{#if (can "write role")}}
-              <Hds::Button @text="Create Role" @icon="plus" @size="small" @route="access-control.roles.new" data-test-overview-create-role />
-            {{/if}}
-          </Hds::ButtonSet>
-        </div>
-      </article>
+      <div class="col-md-4">
+        <Ui::Card @title="Roles" class="h-100" data-test-roles-card>
+          <:actions>
+            <Ui::Badge @color="secondary" data-test-roles-count>{{this.model.roles.length}}</Ui::Badge>
+          </:actions>
+          <:default>
+            <p class="text-secondary">Named groups of policies. Linking a role to a token grants all of the role's policies.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <Ui::Button @size="sm" @route="access-control.roles">View Roles</Ui::Button>
+              {{#if (can "write role")}}
+                <Ui::Button @size="sm" @variant="primary" @icon="plus" @route="access-control.roles.new" data-test-overview-create-role>Create Role</Ui::Button>
+              {{/if}}
+            </div>
+          </:default>
+        </Ui::Card>
+      </div>
     {{/if}}
 
     {{#if (can "list policies")}}
-      <article class="boxed-section access-control-card" data-test-policies-card>
-        <div class="boxed-section-head">
-          <h2>
-            <LinkTo @route="access-control.policies">Policies</LinkTo>
-          </h2>
-          <span class="access-control-count" data-test-policies-count>{{this.model.policies.length}}</span>
-        </div>
-        <div class="boxed-section-body">
-          <p>Rules that grant capabilities on namespaces, nodes, variables, the agent and the operator API.</p>
-          <Hds::ButtonSet>
-            <Hds::Button @text="View Policies" @color="secondary" @size="small" @route="access-control.policies" />
-            {{#if (can "write policy")}}
-              <Hds::Button @text="Create Policy" @icon="plus" @size="small" @route="access-control.policies.new" data-test-overview-create-policy />
-            {{/if}}
-          </Hds::ButtonSet>
-        </div>
-      </article>
+      <div class="col-md-4">
+        <Ui::Card @title="Policies" class="h-100" data-test-policies-card>
+          <:actions>
+            <Ui::Badge @color="secondary" data-test-policies-count>{{this.model.policies.length}}</Ui::Badge>
+          </:actions>
+          <:default>
+            <p class="text-secondary">Rules that grant capabilities on namespaces, nodes, variables, the agent and the operator API.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <Ui::Button @size="sm" @route="access-control.policies">View Policies</Ui::Button>
+              {{#if (can "write policy")}}
+                <Ui::Button @size="sm" @variant="primary" @icon="plus" @route="access-control.policies.new" data-test-overview-create-policy>Create Policy</Ui::Button>
+              {{/if}}
+            </div>
+          </:default>
+        </Ui::Card>
+      </div>
     {{/if}}
   </div>
-</section>
+</Ui::PageBody>

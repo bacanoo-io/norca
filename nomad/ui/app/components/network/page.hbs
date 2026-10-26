@@ -4,21 +4,19 @@
 ~}}
 <div data-test-network>
   <Ui::PageHeader @pretitle="Services and networking" @title="Intentions and network rules" @subtitle={{this.scopeLabel}} />
-  <div class="page-body">
-    <div class="container-xl">
-      <Ui::Tabs @label="Rules" @tabs={{this.tabs}} @selected={{this.tab}} @onSelect={{@onTabChange}} @panelId="network-panel" class="mb-3" />
-      <div id="network-panel" role="tabpanel" data-test-network-panel={{this.tab}}>
-        {{#if (eq this.tab "policies")}}
-          <Network::Policies @region={{this.region}} />
-        {{else if (eq this.tab "admin")}}
-          <Network::Policies @region={{this.region}} @admin={{true}} />
-        {{else}}
-          <Network::Intentions @region={{this.region}} />
-        {{/if}}
-      </div>
-      <p class="text-secondary small mt-3">
-        Counters of dropped connections are kept by each client agent (metric nomad.client.allocs.network_policy.dropped) and are not collected by the servers.
-      </p>
+  <Ui::PageBody>
+    <Ui::Tabs @label="Rules" @tabs={{this.tabs}} @selected={{this.tab}} @onSelect={{@onTabChange}} @panelId="network-panel" class="mb-3" />
+    <div id="network-panel" role="tabpanel" data-test-network-panel={{this.tab}}>
+      {{#if (eq this.tab "policies")}}
+        <Network::Policies @region={{this.region}} />
+      {{else if (eq this.tab "admin")}}
+        <Network::Policies @region={{this.region}} @admin={{true}} />
+      {{else}}
+        <Network::Intentions @region={{this.region}} />
+      {{/if}}
     </div>
-  </div>
+    <p class="text-secondary small mt-3">
+      Counters of dropped connections are kept by each client agent (metric nomad.client.allocs.network_policy.dropped) and are not collected by the servers.
+    </p>
+  </Ui::PageBody>
 </div>

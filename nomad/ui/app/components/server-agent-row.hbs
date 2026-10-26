@@ -28,4 +28,6 @@
 <td data-test-server-address class="is-200px is-truncatable">{{this.agent.address}}</td>
 <td data-test-server-port>{{this.agent.serfPort}}</td>
 <td data-test-server-datacenter>{{this.agent.datacenter}}</td>
-<td data-test-server-version>{{this.agent.version}}</td>
+<td data-test-server-version title={{if this.agent.norcaVersion (concat "Nomad API " this.agent.version " compatible") "Nomad version (the server predates Norca)"}}>
+  {{#if this.agent.norcaVersion}}{{this.agent.norcaVersion}}{{else}}Nomad {{this.agent.version}}{{/if}}
+</td>

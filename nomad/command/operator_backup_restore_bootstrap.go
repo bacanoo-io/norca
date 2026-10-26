@@ -45,7 +45,10 @@ Usage: norca operator backup restore-bootstrap [options] -from <s3 url>
   configuration and bootstrap_expect = 1, and bootstrap its ACLs if they are
   enabled. Then run this command against it with that management token. The
   command writes the keys of the backup into the server's keystore, then
-  restores the Raft state of the backup. Afterwards the ACL tokens of the
+  restores the Raft state of the backup, and re-wraps the key of its secret
+  store with the seal of the new server (backups taken before Norca wrote
+  that key: enter the old shares with 'norca operator unseal -recover').
+  Afterwards the ACL tokens of the
   backup are in effect, and the other new servers can join; they replicate
   the state and the keys from the first one.
 
@@ -270,6 +273,12 @@ func (c *OperatorBackupRestoreBootstrapCommand) Run(args []string) int {
 		c.Ui.Error(err.Error())
 		return 1
 	}
+	coreKey, err := backup.ReadSecretStoreKey(ctx, dest, record, st, ids)
+	if err != nil {
+		c.Ui.Error(err.Error())
+		return 1
+	}
+	defer clear(coreKey)
 	c.Ui.Output(fmt.Sprintf("Downloaded and verified backup %s (Raft index %d, %d bytes)", record.ID, record.RaftIndex, size))
 
 	// 1. The keystore.
@@ -298,8 +307,41 @@ func (c *OperatorBackupRestoreBootstrapCommand) Run(args []string) int {
 		return 1
 	}
 	c.Ui.Output(fmt.Sprintf("Restored the state of backup %s into region %q.", record.ID, region))
+
+	// 3. The key of the secret store, wrapped again with the seal of this
+	// region (Norca).
+	c.recoverSecretStore(client, coreKey)
 	c.Ui.Output("The ACL tokens of the backup are in effect now. Join the other new servers to this one.")
 	return 0
+}
+
+// recoverSecretStore re-wraps the key of the restored secret store with
+// the seals of the region, from the secret store key object of the backup.
+// Without one (backups taken before Norca wrote it), a store wrapped by
+// another seal is recovered with its old shares.
+func (c *OperatorBackupRestoreBootstrapCommand) recoverSecretStore(client *api.Client, coreKey []byte) {
+	if len(coreKey) > 0 {
+		resp, _, err := client.Operator().SealRecover(&api.SealRecoverRequest{CoreKey: coreKey}, nil)
+		switch {
+		case err != nil && strings.Contains(err.Error(), "not initialized"):
+		case err != nil:
+			c.Ui.Warn(fmt.Sprintf("The secret store of the backup could not be re-wrapped: %s", err))
+		case resp.Recovered:
+			c.Ui.Output(fmt.Sprintf("The secret store key is wrapped by %s", strings.Join(resp.Seals, ", ")))
+		}
+		return
+	}
+	status, _, err := client.Operator().SealStatus("", nil)
+	if err != nil {
+		return
+	}
+	for _, s := range status.Servers {
+		if s.SecretCoreRecovery {
+			c.Ui.Warn("The secret store of the backup is wrapped by a seal this region does not use, and the backup " +
+				"has no copy of its key: enter its old unseal shares with 'norca operator unseal -recover'.")
+			return
+		}
+	}
 }
 
 // checkNewCluster returns an error unless the cluster has a single server

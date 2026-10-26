@@ -84,7 +84,7 @@ module('Acceptance | client detail', function (hooks) {
     );
     assert.equal(
       Layout.breadcrumbFor('clients.client').text,
-      `Client ${node.id.split('-')[0]}`,
+      node.id.split('-')[0],
       'Second breadcrumb is a titled breadcrumb saying the node short id'
     );
     await Layout.breadcrumbFor('clients.index').visit();
@@ -120,8 +120,8 @@ module('Acceptance | client detail', function (hooks) {
       'Status is in additional details'
     );
     assert.ok(
-      ClientDetail.statusDecorationClass.includes(`node-${node.status}`),
-      'Status is decorated with a status class'
+      ClientDetail.statusTone,
+      'Status is shown with a status indicator'
     );
     assert.ok(
       ClientDetail.addressDefinition.includes(node.httpAddr),
@@ -231,25 +231,38 @@ module('Acceptance | client detail', function (hooks) {
     assert.ok(allocationRow.jobVersion, 'Job Version');
     assert.equal(allocationRow.volume, 'Yes', 'Volume');
     assert.equal(
-      allocationRow.cpu,
-      Math.floor(allocStats.resourceUsage.CpuStats.TotalTicks) / cpuUsed,
+      allocationRow.cpuPercent,
+      String(
+        Math.round(
+          (Math.floor(allocStats.resourceUsage.CpuStats.TotalTicks) / cpuUsed) *
+            1000
+        ) / 10
+      ),
       'CPU %'
     );
     const roundedTicks = Math.floor(
       allocStats.resourceUsage.CpuStats.TotalTicks
     );
     assert.equal(
-      allocationRow.cpuTooltip,
+      allocationRow.cpuTip,
       `${formatHertz(roundedTicks, 'MHz')} / ${formatHertz(cpuUsed, 'MHz')}`,
       'Detailed CPU information is in a tooltip'
     );
     assert.equal(
-      allocationRow.mem,
-      allocStats.resourceUsage.MemoryStats.RSS / 1024 / 1024 / memoryUsed,
+      allocationRow.memPercent,
+      String(
+        Math.round(
+          (allocStats.resourceUsage.MemoryStats.RSS /
+            1024 /
+            1024 /
+            memoryUsed) *
+            1000
+        ) / 10
+      ),
       'Memory used'
     );
     assert.equal(
-      allocationRow.memTooltip,
+      allocationRow.memTip,
       `${formatBytes(allocStats.resourceUsage.MemoryStats.RSS)} / ${formatBytes(
         memoryUsed,
         'MiB'
@@ -423,8 +436,8 @@ module('Acceptance | client detail', function (hooks) {
     node = server.create('node', 'forceIPv4', 'withMeta');
     await ClientDetail.visit({ id: node.id });
 
-    assert.dom('.edit-existing-metadata-button').exists({ count: 0 });
-    assert.dom('.add-dynamic-metadata').doesNotExist();
+    assert.dom('[data-test-edit-metadata]').exists({ count: 0 });
+    assert.dom('[data-test-add-dynamic-metadata]').doesNotExist();
   });
 
   test('node metadata is editable by managers', async function (assert) {
@@ -434,9 +447,9 @@ module('Acceptance | client detail', function (hooks) {
 
     const numberOfExistingMetaKeys = Object.keys(node.meta).length;
     assert
-      .dom('.edit-existing-metadata-button')
+      .dom('[data-test-edit-metadata]')
       .exists({ count: numberOfExistingMetaKeys });
-    assert.dom('.add-dynamic-metadata').exists();
+    assert.dom('[data-test-add-dynamic-metadata]').exists();
   });
 
   test('metadata can be added and removed', async function (assert) {
@@ -446,34 +459,36 @@ module('Acceptance | client detail', function (hooks) {
 
     const numberOfExistingMetaKeys = Object.keys(node.meta).length;
     assert
-      .dom('.edit-existing-metadata-button')
+      .dom('[data-test-edit-metadata]')
       .exists({ count: numberOfExistingMetaKeys });
-    assert.dom('.add-dynamic-metadata').exists();
-    await click('.add-dynamic-metadata button');
+    assert.dom('[data-test-add-dynamic-metadata]').exists();
+    await click('[data-test-add-metadata-toggle]');
     assert.dom('[data-test-new-metadata-button]').isDisabled();
     await fillIn('#new-meta-key', 'newKey');
     await fillIn('[data-test-metadata-editor-value]', 'newValue');
     assert.dom('[data-test-new-metadata-button]').isNotDisabled();
     await click('[data-test-new-metadata-button]');
     assert
-      .dom('.edit-existing-metadata-button')
+      .dom('[data-test-edit-metadata]')
       .exists(
         { count: numberOfExistingMetaKeys + 1 },
         'newly added item appears'
       );
 
     // find the newly added one and edit it
-    assert.dom('.metadata-editor').doesNotExist();
+    assert.dom('[data-test-metadata-editor]').doesNotExist();
     const newMetaRow = [...findAll('[data-test-attributes-section]')].filter(
       (a) => a.textContent.includes('newKey')
     )[0];
 
-    await click(newMetaRow.querySelector('.edit-existing-metadata-button'));
-    assert.dom('.metadata-editor').exists();
-    assert.dom('.constant-key').exists('existing key shown but uneditable');
+    await click(newMetaRow.querySelector('[data-test-edit-metadata]'));
+    assert.dom('[data-test-metadata-editor]').exists();
+    assert
+      .dom('[data-test-constant-key]')
+      .exists('existing key shown but uneditable');
     await click('[data-test-delete-metadata]');
     assert
-      .dom('.edit-existing-metadata-button')
+      .dom('[data-test-edit-metadata]')
       .exists({ count: numberOfExistingMetaKeys }, 'newly added item is gone');
   });
 
@@ -495,40 +510,40 @@ module('Acceptance | client detail', function (hooks) {
 
     const numberOfExistingMetaKeys = Object.keys(node.meta).length;
     assert
-      .dom('.edit-existing-metadata-button')
+      .dom('[data-test-edit-metadata]')
       .exists({ count: numberOfExistingMetaKeys });
 
     const topLevelMetaRow = [
       ...findAll('[data-test-attributes-section]'),
     ].filter((a) => a.textContent.includes('existingKey'))[0];
 
-    await click(
-      topLevelMetaRow.querySelector('.edit-existing-metadata-button')
-    );
-    assert.dom('.metadata-editor').exists();
-    assert.dom('.constant-key').exists('existing key shown but uneditable');
+    await click(topLevelMetaRow.querySelector('[data-test-edit-metadata]'));
+    assert.dom('[data-test-metadata-editor]').exists();
+    assert
+      .dom('[data-test-constant-key]')
+      .exists('existing key shown but uneditable');
     assert.dom('[data-test-metadata-editor-value]').hasValue('existingValue');
     await fillIn('[data-test-metadata-editor-value]', 'newValue');
     await click('[data-test-update-metadata]');
-    assert.dom('.metadata-editor').doesNotExist();
+    assert.dom('[data-test-metadata-editor]').doesNotExist();
     const editedRow = [...findAll('[data-test-attributes-section]')].filter(
       (a) => a.textContent.includes('existingKey')
     )[0];
     assert.dom(editedRow).containsText('newValue', 'value updated');
 
     // Cancellable by click
-    await click(editedRow.querySelector('.edit-existing-metadata-button'));
-    assert.dom('.metadata-editor').exists();
+    await click(editedRow.querySelector('[data-test-edit-metadata]'));
+    assert.dom('[data-test-metadata-editor]').exists();
     await click('[data-test-cancel-metadata]');
-    assert.dom('.metadata-editor').doesNotExist();
+    assert.dom('[data-test-metadata-editor]').doesNotExist();
 
     // Cancellable by typing escape
-    await click(editedRow.querySelector('.edit-existing-metadata-button'));
-    assert.dom('.metadata-editor').exists();
+    await click(editedRow.querySelector('[data-test-edit-metadata]'));
+    assert.dom('[data-test-metadata-editor]').exists();
     await triggerEvent('[data-test-metadata-editor-value]', 'keyup', {
       key: 'Escape',
     });
-    assert.dom('.metadata-editor').doesNotExist();
+    assert.dom('[data-test-metadata-editor]').doesNotExist();
   });
 
   test('/clients/:id shows an empty message when there is no meta data', async function (assert) {
@@ -894,8 +909,9 @@ module('Acceptance | client detail', function (hooks) {
     );
 
     await ClientDetail.drainPopover.toggle();
-    await ClientDetail.drainPopover.deadlineOptions.open();
-    await ClientDetail.drainPopover.deadlineOptions.options[1].choose();
+    await ClientDetail.drainPopover.selectDeadline(
+      ClientDetail.drainPopover.deadlineOptions[1].value
+    );
     await ClientDetail.drainPopover.submit();
 
     request = nonSearchPOSTS().pop();
@@ -913,12 +929,10 @@ module('Acceptance | client detail', function (hooks) {
     );
 
     await ClientDetail.drainPopover.toggle();
-    await ClientDetail.drainPopover.deadlineOptions.open();
-    const optionsCount =
-      ClientDetail.drainPopover.deadlineOptions.options.length;
-    await ClientDetail.drainPopover.deadlineOptions.options
-      .objectAt(optionsCount - 1)
-      .choose();
+    const optionsCount = ClientDetail.drainPopover.deadlineOptions.length;
+    await ClientDetail.drainPopover.selectDeadline(
+      ClientDetail.drainPopover.deadlineOptions.objectAt(optionsCount - 1).value
+    );
     await ClientDetail.drainPopover.setCustomDeadline('1h40m20s');
     await ClientDetail.drainPopover.submit();
 
@@ -985,12 +999,10 @@ module('Acceptance | client detail', function (hooks) {
 
     // Change all options to non-default values.
     await ClientDetail.drainPopover.deadlineToggle.toggle();
-    await ClientDetail.drainPopover.deadlineOptions.open();
-    const optionsCount =
-      ClientDetail.drainPopover.deadlineOptions.options.length;
-    await ClientDetail.drainPopover.deadlineOptions.options
-      .objectAt(optionsCount - 1)
-      .choose();
+    const optionsCount = ClientDetail.drainPopover.deadlineOptions.length;
+    await ClientDetail.drainPopover.selectDeadline(
+      ClientDetail.drainPopover.deadlineOptions.objectAt(optionsCount - 1).value
+    );
     await ClientDetail.drainPopover.setCustomDeadline('1h40m20s');
     await ClientDetail.drainPopover.forceDrainToggle.toggle();
     await ClientDetail.drainPopover.systemJobsToggle.toggle();

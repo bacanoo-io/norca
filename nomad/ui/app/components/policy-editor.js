@@ -7,6 +7,7 @@ import Component from '@glimmer/component';
 import { action } from '@ember/object';
 import { inject as service } from '@ember/service';
 import { alias } from '@ember/object/computed';
+import { tracked } from '@glimmer/tracking';
 
 export default class PolicyEditorComponent extends Component {
   @service notifications;
@@ -15,11 +16,20 @@ export default class PolicyEditorComponent extends Component {
 
   @alias('args.policy') policy;
 
+  // The saved rules, for the diff of the review step.
+  @tracked originalRules = this.args.policy?.isNew
+    ? ''
+    : this.args.policy?.rules || '';
+
   @action updatePolicyRules(value) {
     this.policy.set('rules', value);
   }
 
-  @action updatePolicyName({ target: { value } }) {
+  @action updateDescription(value) {
+    this.policy.set('description', value);
+  }
+
+  @action updatePolicyName(value) {
     this.policy.set('name', value);
   }
 
@@ -53,6 +63,7 @@ export default class PolicyEditorComponent extends Component {
         this.policy.set('id', this.policy.name);
       }
       await this.policy.save();
+      this.originalRules = this.policy.rules || '';
 
       this.notifications.add({
         title: 'Policy Saved',

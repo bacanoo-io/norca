@@ -82,8 +82,28 @@ module('Acceptance | clients list', function (hooks) {
     );
     assert.equal(nodeRow.address, node.httpAddr);
     assert.equal(nodeRow.datacenter, node.datacenter, 'Datacenter');
-    assert.equal(nodeRow.version, node.version, 'Version');
+    assert.equal(
+      nodeRow.version,
+      node.attributes['norca.version'],
+      'Norca version'
+    );
     assert.equal(nodeRow.allocations, allocations.length, '# Allocations');
+  });
+
+  test('a client that predates Norca shows its Nomad version', async function (assert) {
+    const node = server.create('node', { status: 'ready' });
+    const attributes = { ...node.attributes };
+    delete attributes['norca.version'];
+    node.update({ attributes });
+    server.createList('agent', 1);
+
+    await ClientsList.visit();
+
+    assert.equal(
+      ClientsList.nodes.objectAt(0).version,
+      `Nomad ${node.version}`,
+      'labelled as the Nomad version'
+    );
   });
 
   test('each client record should show running allocations', async function (assert) {

@@ -12,86 +12,84 @@
     </:actions>
   </Ui::PageHeader>
 
-  <div class="page-body">
-    <div class="container-xl">
-      {{#if this.isLoading}}
-        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the scaling policy" /></Ui::Card>
-      {{else if this.loadError}}
-        <Ui::Card>
-          <Ui::EmptyState @icon="arrows-maximize" @title="Scaling policy not available" @message={{this.loadError}} data-test-policy-error>
-            <Ui::Button @route="scaling">All scaling policies</Ui::Button>
-          </Ui::EmptyState>
-        </Ui::Card>
-      {{else}}
-        <div class="row row-cards">
-          <div class="col-lg-4">
-            <Ui::Card @title="Policy">
-              <Ui::Datagrid @items={{this.details}} data-test-policy-details />
-            </Ui::Card>
-          </div>
-          <div class="col-lg-8">
-            <Ui::Card @title="Count" @subtitle="Of the group, from its scaling events" data-test-policy-chart>
-              {{#if this.countSeries.length}}
-                <Ui::Chart @label={{concat "Count of " this.target.Group " over time"}} @option={{this.chartOption}} @height={{220}}>
-                  {{this.chartSummary}}
-                </Ui::Chart>
-              {{else}}
-                <Ui::EmptyState @compact={{true}} @icon="arrows-maximize" @title="No count changes yet" @message="The chart fills as the autoscaler changes the count of the group." />
-              {{/if}}
-              <p class="text-secondary small mt-2 mb-0">The metric readings of the checks stay in the autoscaler and are not available through the API.</p>
-            </Ui::Card>
-          </div>
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the scaling policy" /></Ui::Card>
+    {{else if this.loadError}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="arrows-maximize" @title="Scaling policy not available" @message={{this.loadError}} data-test-policy-error>
+          <Ui::Button @route="scaling">All scaling policies</Ui::Button>
+        </Ui::EmptyState>
+      </Ui::Card>
+    {{else}}
+      <div class="row row-cards">
+        <div class="col-lg-4">
+          <Ui::Card @title="Policy">
+            <Ui::Datagrid @items={{this.details}} data-test-policy-details />
+          </Ui::Card>
         </div>
-
-        <Ui::Card @title="Checks" @flush={{true}} class="mt-3" data-test-policy-checks>
-          <Ui::Table
-            @inCard={{true}}
-            @caption="Checks"
-            @columns={{array
-              (hash key="name" label="Check")
-              (hash key="source" label="Source")
-              (hash key="metric" label="Query")
-              (hash key="strategy" label="Strategy")
-            }}
-            @rows={{this.checks}}
-            @emptyMessage="The policy has no parsed checks; see the policy document below."
-            as |c|
-          >
-            <td>{{c.Name}}</td>
-            <td>{{c.Source}}</td>
-            <td class="font-monospace">{{c.metric}}</td>
-            <td>{{c.strategy}}</td>
-          </Ui::Table>
-        </Ui::Card>
-
-        <div class="row row-cards mt-1">
-          <div class="col-lg-7">
-            <Ui::Card @title="Decisions" @flush={{true}} data-test-policy-events>
-              <Ui::Table
-                @inCard={{true}}
-                @caption="Scaling decisions"
-                @columns={{array (hash key="time" label="When") (hash key="change" label="Change") (hash key="message" label="Reason")}}
-                @rows={{this.events}}
-                @emptyMessage="No scaling event for this group yet."
-                as |e|
-              >
-                <td class="text-nowrap">{{e.time}}</td>
-                <td>
-                  <Ui::Badge @color={{e.color}} data-test-event-change>{{if (not-eq e.count null) (concat e.previous " → " e.count) (if e.error "error" "no change")}}</Ui::Badge>
-                  {{#if e.capped}}<Ui::Badge @color="orange" class="ms-1">quota cap</Ui::Badge>{{/if}}
-                </td>
-                <td>{{e.text}}</td>
-              </Ui::Table>
-            </Ui::Card>
-          </div>
-          <div class="col-lg-5">
-            <Ui::Card @title="Policy document">
-              <Ui::CodeBlock @label="Scaling policy document" @code={{this.policyText}} data-test-policy-document />
-              <p class="text-secondary small mt-2 mb-0">Change the policy in the scaling block of the job's task group.</p>
-            </Ui::Card>
-          </div>
+        <div class="col-lg-8">
+          <Ui::Card @title="Count" @subtitle="Of the group, from its scaling events" data-test-policy-chart>
+            {{#if this.countSeries.length}}
+              <Ui::Chart @label={{concat "Count of " this.target.Group " over time"}} @option={{this.chartOption}} @height={{220}}>
+                {{this.chartSummary}}
+              </Ui::Chart>
+            {{else}}
+              <Ui::EmptyState @compact={{true}} @icon="arrows-maximize" @title="No count changes yet" @message="The chart fills as the autoscaler changes the count of the group." />
+            {{/if}}
+            <p class="text-secondary small mt-2 mb-0">The metric readings of the checks stay in the autoscaler and are not available through the API.</p>
+          </Ui::Card>
         </div>
-      {{/if}}
-    </div>
-  </div>
+      </div>
+
+      <Ui::Card @title="Checks" @flush={{true}} class="mt-3" data-test-policy-checks>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Checks"
+          @columns={{array
+            (hash key="name" label="Check")
+            (hash key="source" label="Source")
+            (hash key="metric" label="Query")
+            (hash key="strategy" label="Strategy")
+          }}
+          @rows={{this.checks}}
+          @emptyMessage="The policy has no parsed checks; see the policy document below."
+          as |c|
+        >
+          <td>{{c.Name}}</td>
+          <td>{{c.Source}}</td>
+          <td class="font-monospace">{{c.metric}}</td>
+          <td>{{c.strategy}}</td>
+        </Ui::Table>
+      </Ui::Card>
+
+      <div class="row row-cards mt-1">
+        <div class="col-lg-7">
+          <Ui::Card @title="Decisions" @flush={{true}} data-test-policy-events>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Scaling decisions"
+              @columns={{array (hash key="time" label="When") (hash key="change" label="Change") (hash key="message" label="Reason")}}
+              @rows={{this.events}}
+              @emptyMessage="No scaling event for this group yet."
+              as |e|
+            >
+              <td class="text-nowrap">{{e.time}}</td>
+              <td>
+                <Ui::Badge @color={{e.color}} data-test-event-change>{{if (not-eq e.count null) (concat e.previous " → " e.count) (if e.error "error" "no change")}}</Ui::Badge>
+                {{#if e.capped}}<Ui::Badge @color="orange" class="ms-1">quota cap</Ui::Badge>{{/if}}
+              </td>
+              <td>{{e.text}}</td>
+            </Ui::Table>
+          </Ui::Card>
+        </div>
+        <div class="col-lg-5">
+          <Ui::Card @title="Policy document">
+            <Ui::CodeBlock @label="Scaling policy document" @code={{this.policyText}} data-test-policy-document />
+            <p class="text-secondary small mt-2 mb-0">Change the policy in the scaling block of the job's task group.</p>
+          </Ui::Card>
+        </div>
+      </div>
+    {{/if}}
+  </Ui::PageBody>
 </div>

@@ -5,52 +5,50 @@
 <div data-test-packages {{this.setup this.scopedRegions this.namespace}}>
   <Ui::PageHeader @pretitle="Workloads" @title="Packages" @subtitle={{this.scopeLabel}} />
 
-  <div class="page-body">
-    <div class="container-xl">
-      {{#if this.isLoading}}
-        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the releases" /></Ui::Card>
-      {{else}}
-        {{#each this.errors as |r|}}
-          <Ui::Alert @tone="danger" @title="The releases of {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
-        {{/each}}
-        {{#if this.driftCount}}
-          <Ui::Alert @tone="warning" @title="{{this.driftCount}} {{if (eq this.driftCount 1) 'release differs' 'releases differ'}} from their revision" class="mb-3" data-test-drift-alert>
-            Their resources were changed outside the release. Roll back, or take the change into the pack variables and upgrade.
-          </Ui::Alert>
-        {{/if}}
-        <Ui::Card @flush={{true}} @title="Releases" data-test-release-list>
-          <:actions>
-            <Ui::Input @icon="search" @value={{this.filter}} @onInput={{this.setFilter}} @placeholder="Filter by release or pack" aria-label="Filter releases" data-test-release-filter />
-          </:actions>
-          <:default>
-            <Ui::Table
-              @inCard={{true}}
-              @caption="Releases"
-              @columns={{this.columns}}
-              @rows={{this.rows}}
-              @emptyMessage={{if this.filter "No release matches the filter." "No package is installed. Install one with norca pack run; it appears here as a release with its revisions."}}
-              as |row|
-            >
-              <td>
-                <LinkTo @route="packages.release" @models={{array row.Namespace row.Name}} @query={{hash region=(or row.region null)}} data-test-release-link={{row.Name}}>{{row.Name}}</LinkTo>
-                <div class="small text-secondary">{{row.Namespace}}</div>
-              </td>
-              <td>{{row.pack}}</td>
-              <td>{{row.Status.Revision}}</td>
-              <td><Ui::StatusIndicator @tone={{row.phaseTone}} @label={{row.phase}} data-test-release-phase /></td>
-              <td data-test-release-drift>
-                {{#if row.drifted}}<Ui::Badge @color="orange">drifted</Ui::Badge>{{else}}<span class="text-secondary">in sync</span>{{/if}}
-              </td>
-              <td>
-                {{#each row.regionList as |region|}}<span class="norca-region me-2">{{region}}</span>{{/each}}
-              </td>
-              <td title={{row.signature.title}} data-test-release-signature>
-                <Ui::StatusIndicator @tone={{row.signature.tone}} @label={{row.signature.label}} />
-              </td>
-            </Ui::Table>
-          </:default>
-        </Ui::Card>
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the releases" /></Ui::Card>
+    {{else}}
+      {{#each this.errors as |r|}}
+        <Ui::Alert @tone="danger" @title="The releases of {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
+      {{/each}}
+      {{#if this.driftCount}}
+        <Ui::Alert @tone="warning" @title="{{this.driftCount}} {{if (eq this.driftCount 1) 'release differs' 'releases differ'}} from their revision" class="mb-3" data-test-drift-alert>
+          Their resources were changed outside the release. Roll back, or take the change into the pack variables and upgrade.
+        </Ui::Alert>
       {{/if}}
-    </div>
-  </div>
+      <Ui::Card @flush={{true}} @title="Releases" data-test-release-list>
+        <:actions>
+          <Ui::Input @icon="search" @value={{this.filter}} @onInput={{this.setFilter}} @placeholder="Filter by release or pack" aria-label="Filter releases" data-test-release-filter />
+        </:actions>
+        <:default>
+          <Ui::Table
+            @inCard={{true}}
+            @caption="Releases"
+            @columns={{this.columns}}
+            @rows={{this.rows}}
+            @emptyMessage={{if this.filter "No release matches the filter." "No package is installed. Install one with norca pack run; it appears here as a release with its revisions."}}
+            as |row|
+          >
+            <td>
+              <LinkTo @route="packages.release" @models={{array row.Namespace row.Name}} @query={{hash region=(or row.region null)}} data-test-release-link={{row.Name}}>{{row.Name}}</LinkTo>
+              <div class="small text-secondary">{{row.Namespace}}</div>
+            </td>
+            <td>{{row.pack}}</td>
+            <td>{{row.Status.Revision}}</td>
+            <td><Ui::StatusIndicator @tone={{row.phaseTone}} @label={{row.phase}} data-test-release-phase /></td>
+            <td data-test-release-drift>
+              {{#if row.drifted}}<Ui::Badge @color="orange">drifted</Ui::Badge>{{else}}<span class="text-secondary">in sync</span>{{/if}}
+            </td>
+            <td>
+              {{#each row.regionList as |region|}}<span class="norca-region me-2">{{region}}</span>{{/each}}
+            </td>
+            <td title={{row.signature.title}} data-test-release-signature>
+              <Ui::StatusIndicator @tone={{row.signature.tone}} @label={{row.signature.label}} />
+            </td>
+          </Ui::Table>
+        </:default>
+      </Ui::Card>
+    {{/if}}
+  </Ui::PageBody>
 </div>

@@ -19,7 +19,7 @@
               <Ui::Select @id={{f.id}} @options={{this.typeOptions}} @value={{this.type}} @onChange={{this.setType}} data-test-compare-type />
             </Ui::Field>
           </div>
-          <div class="col-md-3 text-md-end" data-test-compare-counts>
+          <div class="col-md-3 text-end" data-test-compare-counts>
             <Ui::Badge @color="green" class="me-1">{{this.counts.added}} added</Ui::Badge>
             <Ui::Badge @color="red" class="me-1">{{this.counts.deleted}} deleted</Ui::Badge>
             <Ui::Badge @color="orange">{{this.counts.modified}} modified</Ui::Badge>

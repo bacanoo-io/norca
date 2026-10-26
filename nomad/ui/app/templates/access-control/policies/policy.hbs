@@ -1,126 +1,83 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Breadcrumb @crumb={{hash label=this.policy.name args=(array "access-control.policies.policy" this.policy.name)}} />
 {{page-title "Policy"}}
-<section class="section">
-	<h1 class="title with-flex" data-test-title>
-		<div>
-			{{this.policy.name}}
-		</div>
-		{{#if (can "destroy policy")}}
-			<div>
-        <Hds::Button @text="Delete Policy" @color="critical"
-          data-test-delete-policy
-          {{on "click" (perform this.deletePolicy)}}
-        />
-			</div>
-		{{/if}}
-	</h1>
-	<PolicyEditor
-		@policy={{this.policy}}
-	/>
+<Access::Header
+  @title={{this.policy.name}}
+  @trail={{array (hash label="Policies" route="access-control.policies" id="access-control.policies") (hash label=this.policy.name)}}
+>
+  {{#if (can "destroy policy")}}
+    <Ui::ConfirmButton
+      @label="Delete Policy"
+      @icon="trash"
+      @message="Delete the policy {{this.policy.name}}?"
+      @confirmLabel="Yes, delete"
+      @isRunning={{this.deletePolicy.isRunning}}
+      @onConfirm={{perform this.deletePolicy}}
+      data-test-delete-policy
+    />
+  {{/if}}
+</Access::Header>
+<Ui::PageBody>
+  <PolicyEditor @policy={{this.policy}} />
 
   {{#if (can "list token")}}
-    <hr />
-
-    <h2 class="title">
-      Tokens
-    </h2>
+    <h2 class="h3 mt-4 mb-2">Tokens</h2>
 
     {{#if (can "write token")}}
-      <div class="token-operations">
-        <div class="boxed-section">
-          <div class="boxed-section-head">
-            <h3>Create a Test Token</h3>
-          </div>
-          <div class="boxed-section-body">
-            <p class="is-info">Create a test token that expires in 10 minutes for testing purposes.</p>
-            <label>
-              <button
-                type="button"
-                class="button is-info is-outlined create-test-token"
-                data-test-create-test-token
-                {{on "click" (perform this.createTestToken)}}
-                >Create Test Token</button>
-            </label>
-          </div>
+      <div class="row row-cards mb-3">
+        <div class="col-md-6">
+          <Ui::Card @title="Create a test token" class="h-100">
+            <p class="text-secondary">Create a test token that expires in 10 minutes for testing purposes.</p>
+            <Ui::Button @icon="key" data-test-create-test-token {{on "click" (perform this.createTestToken)}}>Create Test Token</Ui::Button>
+          </Ui::Card>
         </div>
-        <div class="boxed-section">
-          <div class="boxed-section-head">
-            <h3>Create Tokens from the Nomad CLI</h3>
-          </div>
-          <div class="boxed-section-body">
-            <p>When you're ready to create more tokens, you can do so via the CLI with the following:
-              <pre>
-                <code>{{this.newTokenString}}</code>
-                <CopyButton
-                  data-test-copy-button
-                  @clipboardText={{this.newTokenString}}
-                  @compact={{true}}
-                >
-                </CopyButton>
-              </pre>
-            </p>
-          </div>
+        <div class="col-md-6">
+          <Ui::Card @title="Create tokens from the Nomad CLI" class="h-100">
+            <p class="text-secondary">When you're ready to create more tokens, you can do so via the CLI with the following:</p>
+            <Ui::CodeBlock @code={{this.newTokenString}} @copy={{true}} @label="The command" data-test-copy-button />
+          </Ui::Card>
         </div>
       </div>
     {{/if}}
 
     {{#if this.tokens.length}}
-      <ListTable
-        @source={{this.tokens}}
-        @class="no-mobile-condense" as |t|>
-        <t.head>
-          <th>Name</th>
-          <th>Created</th>
-          <th>Expires</th>
-          {{#if (can "destroy token")}}
-            <th>Delete</th>
+      <Ui::Table @caption="Tokens using {{this.policy.name}}" @columns={{this.tokenColumns}} @rows={{this.tokens}} @rowTestId="policy-token-row" as |token|>
+        <td data-test-token-name={{token.name}}>
+          <Ui::Tooltip @text={{token.id}}>
+            <span tabindex="0">{{token.name}}</span>
+          </Ui::Tooltip>
+        </td>
+        <td class="text-nowrap">{{moment-from-now token.createTime interval=1000}}</td>
+        <td class="text-nowrap">
+          {{#if token.expirationTime}}
+            <Ui::Tooltip @text={{token.expirationTime}}>
+              <span tabindex="0" class={{if token.isExpired "text-danger"}} data-test-token-expiration-time>{{moment-from-now token.expirationTime interval=1000}}</span>
+            </Ui::Tooltip>
+          {{else}}
+            <span>Never</span>
           {{/if}}
-        </t.head>
-        <t.body as |row|>
-          <tr data-test-policy-token-row>
-            <td data-test-token-name={{row.model.name}}>
-              <Tooltip @text={{row.model.id}}>
-                {{row.model.name}}
-              </Tooltip>
-            </td>
-            <td>
-              {{moment-from-now row.model.createTime interval=1000}}
-            </td>
-            <td>
-              {{#if row.model.expirationTime}}
-                <Tooltip @text={{row.model.expirationTime}}>
-                  <span data-test-token-expiration-time class="{{if row.model.isExpired "has-text-danger"}}">{{moment-from-now row.model.expirationTime interval=1000}}</span>
-                </Tooltip>
-              {{else}}
-                <span>Never</span>
-              {{/if}}
-            </td>
-            {{#if (can "destroy token")}}
-              <td class="is-200px">
-                <Hds::Button @text="Delete Token" @color="critical"
-                  data-test-delete-token-button
-                  {{on "click" (perform this.deleteToken row.model)}}
-                />
-              </td>
-            {{/if}}
-          </tr>
-        </t.body>
-      </ListTable>
+        </td>
+        {{#if (can "destroy token")}}
+          <td class="text-end">
+            <Ui::ConfirmButton
+              @label="Delete Token"
+              @icon="trash"
+              @size="sm"
+              @message="Delete the token {{token.name}}?"
+              @confirmLabel="Yes, delete"
+              @isRunning={{this.deleteToken.isRunning}}
+              @onConfirm={{perform this.deleteToken token}}
+              data-test-delete-token-button
+            />
+          </td>
+        {{/if}}
+      </Ui::Table>
     {{else}}
-      <div class="empty-message">
-        <h3 data-test-empty-policies-list-headline class="empty-message-headline">
-          No Tokens
-        </h3>
-        <p class="empty-message-body">
-          No tokens are using this policy.
-        </p>
-      </div>
+      <Ui::EmptyState @compact={{true}} @icon="key" @title="No Tokens" @message="No tokens are using this policy." data-test-empty-policy-tokens />
     {{/if}}
   {{/if}}
-
-</section>
+</Ui::PageBody>

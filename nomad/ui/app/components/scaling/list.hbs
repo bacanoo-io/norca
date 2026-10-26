@@ -5,80 +5,78 @@
 <div data-test-scaling {{this.setup this.scopedRegions this.namespace}}>
   <Ui::PageHeader @pretitle="Capacity" @title="Scaling" @subtitle={{this.scopeLabel}} />
 
-  <div class="page-body">
-    <div class="container-xl">
-      {{#if this.isLoading}}
-        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the scaling policies" /></Ui::Card>
-      {{else if this.forbidden}}
-        <Ui::Card>
-          <Ui::EmptyState @icon="lock" @title="Not permitted" @message="Your token cannot list scaling policies in this namespace. Ask for the list-scaling-policies capability, or list-jobs and read-job." data-test-scaling-forbidden />
-        </Ui::Card>
-      {{else}}
-        {{#each this.errors as |r|}}
-          <Ui::Alert @tone="danger" @title="The scaling policies of {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
-        {{/each}}
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the scaling policies" /></Ui::Card>
+    {{else if this.forbidden}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="lock" @title="Not permitted" @message="Your token cannot list scaling policies in this namespace. Ask for the list-scaling-policies capability, or list-jobs and read-job." data-test-scaling-forbidden />
+      </Ui::Card>
+    {{else}}
+      {{#each this.errors as |r|}}
+        <Ui::Alert @tone="danger" @title="The scaling policies of {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
+      {{/each}}
 
-        <div class="row row-cards mb-3">
-          <div class="col-sm-4">
-            <Ui::Stat @id="builtin" @label="Built-in engine" @value={{this.counts.builtin}} @hint="decided on the leader" @color="blue" />
-          </div>
-          <div class="col-sm-4">
-            <Ui::Stat @id="external" @label="External autoscaler" @value={{this.counts.external}} @hint="decided by an autoscaler agent" @color="purple" />
-          </div>
-          <div class="col-sm-4">
-            <Ui::Stat @id="disabled" @label="Disabled policies" @value={{this.counts.disabled}} @hint="not evaluated" @color={{if this.counts.disabled "orange" "secondary"}} />
-          </div>
+      <div class="row row-cards mb-3">
+        <div class="col-sm-4">
+          <Ui::Stat @id="builtin" @label="Built-in engine" @value={{this.counts.builtin}} @hint="decided on the leader" @color="blue" />
         </div>
+        <div class="col-sm-4">
+          <Ui::Stat @id="external" @label="External autoscaler" @value={{this.counts.external}} @hint="decided by an autoscaler agent" @color="purple" />
+        </div>
+        <div class="col-sm-4">
+          <Ui::Stat @id="disabled" @label="Disabled policies" @value={{this.counts.disabled}} @hint="not evaluated" @color={{if this.counts.disabled "orange" "secondary"}} />
+        </div>
+      </div>
 
-        <div class="row row-cards">
-          <div class="col-xl-8">
-            <Ui::Card @title="Scaling policies" @flush={{true}} data-test-scaling-policies>
-              <:actions>
-                <Ui::Select @label="Engine" @options={{this.engineOptions}} @value={{this.engineFilter}} @onChange={{this.setEngine}} @size="sm" data-test-engine-filter />
-              </:actions>
-              <:default>
-                <Ui::Table
-                  @inCard={{true}}
-                  @caption="Scaling policies"
-                  @columns={{this.columns}}
-                  @rows={{this.rows}}
-                  @emptyMessage="No scaling policy. Add a scaling block to a task group of a job, with engine = &quot;builtin&quot; for the built-in autoscaler."
-                  as |row|
-                >
-                  <td>
-                    <LinkTo @route="jobs.job.index" @model={{row.jobRouteId}} data-test-policy-target={{row.ID}}>{{row.Target.Job}} / {{row.Target.Group}}</LinkTo>
-                    {{#unless row.Enabled}}<Ui::Badge @color="orange" class="ms-1">disabled</Ui::Badge>{{/unless}}
-                    {{#if (not-eq this.namespace row.namespace)}}<div class="small text-secondary">{{row.namespace}}</div>{{/if}}
-                  </td>
-                  {{#if this.isAllRegions}}<td><span class="norca-region">{{row.region}}</span></td>{{/if}}
-                  <td data-test-policy-engine>{{if (eq row.engine "builtin") "built-in" "external"}}</td>
-                  <td data-test-policy-bounds>{{row.bounds}}</td>
-                  <td data-test-policy-current>{{row.current}}</td>
-                  <td data-test-policy-last>
-                    {{#if row.last}}
-                      {{#if (not-eq row.last.count null)}}{{row.last.previous}} → {{row.last.count}}, {{/if}}{{row.last.time}}
-                    {{else}}
-                      <span class="text-secondary">none yet</span>
-                    {{/if}}
-                  </td>
-                  <td>
-                    <Ui::Button @size="sm" @variant="ghost" @route="scaling.policy" @model={{row.ID}} @query={{hash namespace=row.namespace}} data-test-policy-link={{row.ID}}>Details</Ui::Button>
-                  </td>
-                </Ui::Table>
-              </:default>
-            </Ui::Card>
-          </div>
-          <div class="col-xl-4">
-            <Ui::Card @title="Decisions" @subtitle="Latest scaling events, live decisions of the built-in engine" data-test-scaling-timeline>
-              {{#if this.timeline.length}}
-                <Ui::Timeline @items={{this.timeline}} @simple={{true}} />
-              {{else}}
-                <Ui::EmptyState @compact={{true}} @icon="arrows-maximize" @title="No decisions yet" @message="Scaling events of the groups appear here, and the decisions of the built-in engine as they happen." />
-              {{/if}}
-            </Ui::Card>
-          </div>
+      <div class="row row-cards">
+        <div class="col-xl-8">
+          <Ui::Card @title="Scaling policies" @flush={{true}} data-test-scaling-policies>
+            <:actions>
+              <Ui::Select @label="Engine" @options={{this.engineOptions}} @value={{this.engineFilter}} @onChange={{this.setEngine}} @size="sm" data-test-engine-filter />
+            </:actions>
+            <:default>
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Scaling policies"
+                @columns={{this.columns}}
+                @rows={{this.rows}}
+                @emptyMessage="No scaling policy. Add a scaling block to a task group of a job, with engine = &quot;builtin&quot; for the built-in autoscaler."
+                as |row|
+              >
+                <td>
+                  <LinkTo @route="jobs.job.index" @model={{row.jobRouteId}} data-test-policy-target={{row.ID}}>{{row.Target.Job}} / {{row.Target.Group}}</LinkTo>
+                  {{#unless row.Enabled}}<Ui::Badge @color="orange" class="ms-1">disabled</Ui::Badge>{{/unless}}
+                  {{#if (not-eq this.namespace row.namespace)}}<div class="small text-secondary">{{row.namespace}}</div>{{/if}}
+                </td>
+                {{#if this.isAllRegions}}<td><span class="norca-region">{{row.region}}</span></td>{{/if}}
+                <td data-test-policy-engine>{{if (eq row.engine "builtin") "built-in" "external"}}</td>
+                <td data-test-policy-bounds>{{row.bounds}}</td>
+                <td data-test-policy-current>{{row.current}}</td>
+                <td data-test-policy-last>
+                  {{#if row.last}}
+                    {{#if (not-eq row.last.count null)}}{{row.last.previous}} → {{row.last.count}}, {{/if}}{{row.last.time}}
+                  {{else}}
+                    <span class="text-secondary">none yet</span>
+                  {{/if}}
+                </td>
+                <td>
+                  <Ui::Button @size="sm" @variant="ghost" @route="scaling.policy" @model={{row.ID}} @query={{hash namespace=row.namespace}} data-test-policy-link={{row.ID}}>Details</Ui::Button>
+                </td>
+              </Ui::Table>
+            </:default>
+          </Ui::Card>
         </div>
-      {{/if}}
-    </div>
-  </div>
+        <div class="col-xl-4">
+          <Ui::Card @title="Decisions" @subtitle="Latest scaling events, live decisions of the built-in engine" data-test-scaling-timeline>
+            {{#if this.timeline.length}}
+              <Ui::Timeline @items={{this.timeline}} @simple={{true}} />
+            {{else}}
+              <Ui::EmptyState @compact={{true}} @icon="arrows-maximize" @title="No decisions yet" @message="Scaling events of the groups appear here, and the decisions of the built-in engine as they happen." />
+            {{/if}}
+          </Ui::Card>
+        </div>
+      </div>
+    {{/if}}
+  </Ui::PageBody>
 </div>

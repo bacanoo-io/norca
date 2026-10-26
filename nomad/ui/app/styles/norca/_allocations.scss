@@ -1,0 +1,54 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// The allocation and task pages: primary metrics, the file browser, image
+// files and the history of service checks.
+
+.norca-primary-metric {
+  min-width: 0;
+}
+
+.norca-fs-explorer .card-actions {
+  flex: 1 1 auto;
+  margin-left: 0;
+}
+
+.norca-image-figure {
+  margin: 0;
+}
+
+.norca-image-file {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+}
+
+// One tick per recorded check result, newest last.
+.norca-check-tick {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  background: var(--tblr-secondary);
+
+  &.norca-check-success {
+    background: var(--tblr-green);
+  }
+
+  &.norca-check-failure {
+    background: var(--tblr-red);
+  }
+
+  &.norca-check-pending {
+    background: var(--tblr-azure);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--tblr-primary);
+    outline-offset: 2px;
+  }
+}

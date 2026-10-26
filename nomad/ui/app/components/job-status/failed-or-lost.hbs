@@ -1,41 +1,49 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<section class="failed-or-lost">
-  <h4>Replaced Allocations</h4>
-  <div class="failed-or-lost-links">
+<section class="norca-failed-or-lost">
+  <h4 class="h4">Replaced Allocations</h4>
+  <div class="norca-failed-or-lost-links">
     {{#if @supportsRescheduling}}
       <span>
-        <Hds::TooltipButton @text="Allocations that have been rescheduled, on another node if possible, due to failure or manual restart" aria-label="Info">
-          <FlightIcon @name="info" />
-        </Hds::TooltipButton>
-        <ConditionalLinkTo
-          @condition={{@rescheduledAllocs.length}}
-          @route="jobs.job.allocations"
-          @model={{@job}}
-          @query={{hash scheduling='["has-been-rescheduled"]' version=(concat '[' @job.latestDeployment.versionNumber ']')}}
-          @label="View Allocations"
-        >
+        <Ui::Icon
+          @name="info-circle"
+          @size="sm"
+          @label="Allocations that have been rescheduled, on another node if possible, due to failure or manual restart"
+          title="Allocations that have been rescheduled, on another node if possible, due to failure or manual restart"
+          class="text-secondary"
+        />
+        {{#if @rescheduledAllocs.length}}
+          <LinkTo
+            @route="jobs.job.allocations"
+            @model={{@job}}
+            @query={{hash scheduling='["has-been-rescheduled"]' version=(concat "[" @job.latestDeployment.versionNumber "]")}}
+          >{{@rescheduledAllocs.length}} Rescheduled</LinkTo>
+        {{else}}
           {{@rescheduledAllocs.length}} Rescheduled
-        </ConditionalLinkTo>
+        {{/if}}
       </span>
     {{/if}}
-
     <span>
-      <Hds::TooltipButton @text="Allocations that have been restarted in-place due to a task failure or manual restart" aria-label="Info">
-        <FlightIcon @name="info" />
-      </Hds::TooltipButton>
-      <ConditionalLinkTo
-        @condition={{@restartedAllocs.length}}
-        @route="jobs.job.allocations"
-        @model={{@job}}
-        @query={{hash scheduling='["has-been-restarted"]' version=(concat '[' @job.latestDeployment.versionNumber ']')}}
-        @label="View Allocations"
-      >
+      <Ui::Icon
+        @name="info-circle"
+        @size="sm"
+        @label="Allocations that have been restarted in-place due to a task failure or manual restart"
+        title="Allocations that have been restarted in-place due to a task failure or manual restart"
+        class="text-secondary"
+      />
+      {{#if @restartedAllocs.length}}
+        <LinkTo
+          @route="jobs.job.allocations"
+          @model={{@job}}
+          @query={{hash scheduling='["has-been-restarted"]' version=(concat "[" @job.latestDeployment.versionNumber "]")}}
+        >{{@restartedAllocs.length}} Restarted</LinkTo>
+      {{else}}
         {{@restartedAllocs.length}} Restarted
-      </ConditionalLinkTo>
+      {{/if}}
     </span>
   </div>
 </section>

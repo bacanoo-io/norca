@@ -1,0 +1,70 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  Pagination of the unified lists: the range shown, the page links and the
+  page size. The block is rendered on the left (e.g. a note on filtered
+  rows).
+~}}
+<div class="d-flex flex-wrap align-items-center gap-3" data-test-pagination ...attributes>
+  <p class="m-0 text-secondary" data-test-pagination-info>
+    {{this.startsAt}}–{{this.endsAt}} of {{@total}}{{#if @noun}} {{@noun}}{{/if}}
+  </p>
+  {{yield}}
+  {{#if @onPageSizeChange}}
+    <div class="d-flex align-items-center gap-2 ms-auto">
+      <span class="text-secondary" aria-hidden="true">Per page</span>
+      <Ui::Select
+        @label="Rows per page"
+        @options={{this.pageSizes}}
+        @value={{@pageSize}}
+        @onChange={{this.setPageSize}}
+        @size="sm"
+        class="w-auto"
+        data-test-page-size-select
+      />
+    </div>
+  {{/if}}
+  {{#if (gt this.pageCount 1)}}
+    <nav aria-label="Pages" class={{unless @onPageSizeChange "ms-auto"}}>
+      <ul class="pagination m-0">
+        <li class="page-item {{unless this.hasPrevious 'disabled'}}">
+          <button
+            type="button"
+            class="page-link"
+            disabled={{not this.hasPrevious}}
+            aria-label="Previous page"
+            data-test-pagination-prev
+            {{on "click" (fn this.goTo (dec @page))}}
+          ><Ui::Icon @name="chevron-left" /></button>
+        </li>
+        {{#each this.pageLinks as |link|}}
+          {{#if link.gap}}
+            <li class="page-item disabled"><span class="page-link" aria-hidden="true">…</span></li>
+          {{else}}
+            <li class="page-item {{if link.isCurrent 'active'}}">
+              <button
+                type="button"
+                class="page-link"
+                aria-current={{if link.isCurrent "page"}}
+                aria-label="Page {{link.page}}"
+                data-test-pagination-page={{link.page}}
+                {{on "click" (fn this.goTo link.page)}}
+              >{{link.page}}</button>
+            </li>
+          {{/if}}
+        {{/each}}
+        <li class="page-item {{unless this.hasNext 'disabled'}}">
+          <button
+            type="button"
+            class="page-link"
+            disabled={{not this.hasNext}}
+            aria-label="Next page"
+            data-test-pagination-next
+            {{on "click" (fn this.goTo (inc @page))}}
+          ><Ui::Icon @name="chevron-right" /></button>
+        </li>
+      </ul>
+    </nav>
+  {{/if}}
+</div>

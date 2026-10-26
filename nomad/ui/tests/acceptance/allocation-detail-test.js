@@ -131,7 +131,7 @@ module('Acceptance | allocation detail', function (hooks) {
     await Allocation.visit({ id: allocation.id });
 
     assert.ok(Allocation.lifecycleChart.isPresent);
-    assert.equal(Allocation.lifecycleChart.title, 'Task Lifecycle Status');
+    assert.equal(Allocation.lifecycleChart.title, 'Task lifecycle status');
     assert.equal(Allocation.lifecycleChart.phases.length, 4);
     assert.equal(Allocation.lifecycleChart.tasks.length, 6);
 
@@ -743,27 +743,25 @@ module('Acceptance | allocation detail (services)', function (hooks) {
     });
     await Allocation.visit({ id: runningAlloc.id });
     assert.dom('[data-test-service]').exists();
-    assert.dom('.service-sidebar').exists();
-    assert.dom('.service-sidebar').doesNotHaveClass('open');
+    assert.dom('[data-test-service-panel]').doesNotExist();
     assert
       .dom('[data-test-service-status-bar]')
       .exists('At least one allocation has service health');
 
     await click('[data-test-service-status-bar]');
-    assert.dom('.service-sidebar').hasClass('open');
+    assert.dom('[data-test-service-panel]').exists();
     assert
-      .dom('table.health-checks tr[data-service-health="success"]')
+      .dom('[data-test-health-checks] [data-service-health="success"]')
       .exists({ count: 2 }, 'Two successful health checks');
     assert
-      .dom('table.health-checks tr[data-service-health="failure"]')
+      .dom('[data-test-health-checks] [data-service-health="failure"]')
       .exists({ count: 1 }, 'One failing health check');
     assert
-      .dom(
-        'table.health-checks tr[data-service-health="failure"] td.service-output'
-      )
-      .containsText('Oh no!');
+      .dom('[data-test-health-checks] [data-service-health="failure"]')
+      .hasText('check3');
+    assert.dom('[data-test-health-checks]').containsText('Oh no!');
 
     await triggerEvent('.page-layout', 'keydown', { key: 'Escape' });
-    assert.dom('.service-sidebar').doesNotHaveClass('open');
+    assert.dom('[data-test-service-panel]').doesNotExist();
   });
 });

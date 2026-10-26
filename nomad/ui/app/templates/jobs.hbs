@@ -4,6 +4,5 @@
 ~}}
 
 <Breadcrumb @crumb={{hash label="Jobs" args=(array "jobs.index")}} />
-<PageLayout>
-  {{outlet}}
-</PageLayout>
+{{! The pages of the jobs area render their own PageLayout (new or legacy). }}
+{{outlet}}

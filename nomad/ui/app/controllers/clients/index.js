@@ -18,12 +18,45 @@ import {
 } from 'nomad-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
 import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class IndexController extends Controller.extend(
   SortableFactory(['id', 'name', 'compositeStatus', 'datacenter', 'version']),
-  Searchable
+  Searchable,
+  WithListActions
 ) {
+  viewParams = [
+    'qpClass',
+    'qpState',
+    'qpDatacenter',
+    'qpVersion',
+    'qpVolume',
+    'qpNodePool',
+    'searchTerm',
+    'sortProperty',
+    'sortDescending',
+  ];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
+  columns = [
+    { key: 'indicators', label: 'Indicators', srOnly: true, hideable: false },
+    { key: 'id', label: 'ID', sortable: true, hideable: false },
+    { key: 'name', label: 'Name', sortable: true },
+    { key: 'compositeStatus', label: 'State', sortable: true },
+    { key: 'address', label: 'Address' },
+    { key: 'nodePool', label: 'Node Pool', sortable: true },
+    { key: 'datacenter', label: 'Datacenter', sortable: true },
+    { key: 'version', label: 'Version', sortable: true },
+    { key: 'volumes', label: '# Volumes' },
+    { key: 'allocations', label: '# Allocs' },
+  ];
+
   @service userSettings;
   @controller('clients') clientsController;
 

@@ -41,6 +41,10 @@ export default Factory.extend({
     },
   },
 
+  // The Norca product version and the Nomad API version (agent self).
+  norca_version: '0.1.0',
+  nomad_version: '1.1.0-dev+ent',
+
   member() {
     const serfPort = faker.random.number({ min: 4000, max: 4999 });
     return {
@@ -90,5 +94,6 @@ function generateTags(serfPort) {
       rpcPortCandidate === serfPort ? rpcPortCandidate + 1 : rpcPortCandidate,
     dc: faker.helpers.randomize(DATACENTERS),
     build: faker.helpers.randomize(AGENT_BUILDS),
+    norca_vsn: '0.1.0',
   };
 }

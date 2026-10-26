@@ -1,10 +1,8 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Job " this.job.name " deployments"}}
-<JobSubnav @job={{this.job}} />
-<section class="section">
-  <JobDeploymentsStream @deployments={{this.model.deployments}} />
-</section>
+<Jobs::Deployments @job={{this.job}} @deployments={{this.model.deployments}} />

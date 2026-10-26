@@ -6,7 +6,7 @@
 {{page-title (if this.tokenRecord "Profile" "Sign In")}}
 <section class="section authorization-page">
   {{#if this.isValidatingToken}}
-    <LoadingSpinner />
+    <Ui::Spinner @showLabel={{true}} @label="Checking the token" />
   {{else}}
     <h1 class="title">
       {{#if this.tokenRecord}}

@@ -150,6 +150,11 @@ func (j *Job) Diff(other *Job, contextual bool) (*JobDiff, error) {
 		diff.Objects = append(diff.Objects, mrDiff)
 	}
 
+	// Secrets diff (Norca)
+	if sDiff := secretsConfigDiff(j.Secrets, other.Secrets, contextual); sDiff != nil {
+		diff.Objects = append(diff.Objects, sDiff)
+	}
+
 	// Check to see if there is a diff. We don't use reflect because we are
 	// filtering quite a few fields that will change on each diff.
 	if diff.Type == DiffTypeNone {
@@ -369,6 +374,14 @@ func (tg *TaskGroup) Diff(other *TaskGroup, contextual bool) (*TaskGroupDiff, er
 		diff.Objects = append(diff.Objects, vDiffs...)
 	}
 
+	// Secrets and secret_access diffs (Norca)
+	if sDiff := secretsConfigDiff(tg.Secrets, other.Secrets, contextual); sDiff != nil {
+		diff.Objects = append(diff.Objects, sDiff)
+	}
+	if aDiffs := secretAccessDiffs(tg.SecretAccess, other.SecretAccess, contextual); aDiffs != nil {
+		diff.Objects = append(diff.Objects, aDiffs...)
+	}
+
 	// Tasks diff
 	tasks, err := taskDiffs(tg.Tasks, other.Tasks, contextual)
 	if err != nil {
@@ -569,6 +582,14 @@ func (t *Task) Diff(other *Task, contextual bool) (*TaskDiff, error) {
 	idDiffs := idDiff(t.Identity, other.Identity, contextual)
 	if idDiffs != nil {
 		diff.Objects = append(diff.Objects, idDiffs)
+	}
+
+	// Secret and secret_access diffs (Norca)
+	if sDiffs := taskSecretDiffs(t.Secrets, other.Secrets, contextual); sDiffs != nil {
+		diff.Objects = append(diff.Objects, sDiffs...)
+	}
+	if aDiffs := secretAccessDiffs(t.SecretAccess, other.SecretAccess, contextual); aDiffs != nil {
+		diff.Objects = append(diff.Objects, aDiffs...)
 	}
 
 	return diff, nil

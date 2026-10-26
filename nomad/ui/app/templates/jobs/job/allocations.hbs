@@ -1,124 +1,89 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Job " this.job.name " allocations"}}
-<JobSubnav @job={{this.job}} />
-<section class="section">
-  {{#if this.allocations.length}}
-    <div class="toolbar">
-      <div class="toolbar-item">
-        <SearchBox
-          data-test-allocations-search
-          @searchTerm={{mut this.searchTerm}}
-          @onChange={{action this.resetPagination}}
-          @placeholder="Search allocations..." />
-      </div>
-      <div class="toolbar-item is-right-aligned">
-        <div class="button-bar">
-          <MultiSelectDropdown
-            data-test-allocation-status-facet
-            @label="Status"
-            @options={{this.optionsAllocationStatus}}
-            @selection={{this.selectionStatus}}
-            @onSelect={{action this.setFacetQueryParam "qpStatus"}}
-          />
-          <MultiSelectDropdown
-            data-test-allocation-client-facet
-            @label="Client"
-            @options={{this.optionsClients}}
-            @selection={{this.selectionClient}}
-            @onSelect={{action this.setFacetQueryParam "qpClient"}}
-          />
-          <MultiSelectDropdown
-            data-test-allocation-task-group-facet
-            @label="Task Group"
-            @options={{this.optionsTaskGroups}}
-            @selection={{this.selectionTaskGroup}}
-            @onSelect={{action this.setFacetQueryParam "qpTaskGroup"}}
-          />
-          <MultiSelectDropdown
-            data-test-allocation-version-facet
-            @label="Job Version"
-            @options={{this.optionsVersions}}
-            @selection={{this.selectionVersion}}
-            @onSelect={{action this.setFacetQueryParam "qpVersion"}}
-          />
-          <MultiSelectDropdown
-            @label="Scheduling"
-            @options={{this.optionsScheduling}}
-            @selection={{this.selectionScheduling}}
-            @onSelect={{action this.setFacetQueryParam "qpScheduling"}}
-          />
-        </div>
-      </div>
-    </div>
-    {{#if this.sortedAllocations}}
-      <ListPagination
-        @source={{this.sortedAllocations}}
-        @size={{this.pageSize}}
-        @page={{this.currentPage}}
-        @class="allocations" as |p|>
-        <ListTable
-          @source={{p.list}}
-          @sortProperty={{this.sortProperty}}
-          @sortDescending={{this.sortDescending}}
-          @class="with-foot with-collapsed-borders" as |t|>
-          <t.head>
-            <th class="is-narrow"></th>
-            <t.sort-by @prop="shortId">ID</t.sort-by>
-            <t.sort-by @prop="taskGroupName">Task Group</t.sort-by>
-            <t.sort-by @prop="createIndex" @title="Create Index">Created</t.sort-by>
-            <t.sort-by @prop="modifyIndex" @title="Modify Index">Modified</t.sort-by>
-            <t.sort-by @prop="statusIndex">Status</t.sort-by>
-            <t.sort-by @prop="jobVersion">Version</t.sort-by>
-            <t.sort-by @prop="node.shortId">Client</t.sort-by>
-            <th>Volume</th>
-            <th>CPU</th>
-            <th>Memory</th>
-          </t.head>
-          <t.body as |row|>
-            <AllocationRow
-              {{keyboard-shortcut 
-                enumerated=true
-                action=(action "gotoAllocation" row.model)
-              }}
-              @data-test-allocation={{row.model.id}}
-              @allocation={{row.model}}
-              @context="job"
-              @onClick={{action "gotoAllocation" row.model}} />
-              {{#each row.model.states as |task|}}
-                <TaskSubRow @active={{eq this.activeTask (concat task.allocation.id "-" task.name)}} @onSetActiveTask={{action 'setActiveTaskQueryParam'}} @namespan="9" @taskState={{task}} />
-              {{/each}}
-
-          </t.body>
-        </ListTable>
-        <div class="table-foot">
-          <nav class="pagination">
-            <div class="pagination-numbers">
-              {{p.startsAt}}&ndash;{{p.endsAt}} of {{this.sortedAllocations.length}}
-            </div>
-            <p.prev @class="pagination-previous"> &lt; </p.prev>
-            <p.next @class="pagination-next"> &gt; </p.next>
-            <ul class="pagination-list"></ul>
-          </nav>
-        </div>
-      </ListPagination>
+<Allocations::Table
+  @id="job-allocations"
+  @caption="Allocations of {{this.job.name}}"
+  @context="job"
+  @allocations={{this.sortedAllocations}}
+  @presorted={{true}}
+  @sortBy={{this.sortProperty}}
+  @sortDescending={{this.sortDescending}}
+  @onSort={{this.sort}}
+  @pageSize={{this.pageSize}}
+  @page={{this.currentPage}}
+  @onPageChange={{this.setPage}}
+  @onPageSizeChange={{this.setPageSize}}
+  @activeTask={{this.activeTask}}
+  @onSetActiveTask={{this.setActiveTaskQueryParam}}
+  @viewState={{this.viewState}}
+  @onApplyView={{this.applyView}}
+>
+  <:filters>
+    <Ui::Input
+      @type="search"
+      @icon="search"
+      @placeholder="Search allocations..."
+      @value={{this.searchTerm}}
+      @onInput={{this.search}}
+      aria-label="Search allocations"
+      data-test-allocations-search
+    />
+    <Ui::FilterDropdown
+      @label="Status"
+      @options={{this.optionsAllocationStatus}}
+      @selection={{this.selectionStatus}}
+      @onSelect={{fn this.setFilter "qpStatus"}}
+      data-test-allocation-status-facet
+    />
+    <Ui::FilterDropdown
+      @label="Client"
+      @options={{this.optionsClients}}
+      @selection={{this.selectionClient}}
+      @onSelect={{fn this.setFilter "qpClient"}}
+      data-test-allocation-client-facet
+    />
+    <Ui::FilterDropdown
+      @label="Task Group"
+      @options={{this.optionsTaskGroups}}
+      @selection={{this.selectionTaskGroup}}
+      @onSelect={{fn this.setFilter "qpTaskGroup"}}
+      data-test-allocation-task-group-facet
+    />
+    <Ui::FilterDropdown
+      @label="Job Version"
+      @options={{this.optionsVersions}}
+      @selection={{this.selectionVersion}}
+      @onSelect={{fn this.setFilter "qpVersion"}}
+      data-test-allocation-version-facet
+    />
+    <Ui::FilterDropdown
+      @label="Scheduling"
+      @options={{this.optionsScheduling}}
+      @selection={{this.selectionScheduling}}
+      @onSelect={{fn this.setFilter "qpScheduling"}}
+      data-test-allocation-scheduling-facet
+    />
+  </:filters>
+  <:empty>
+    {{#if this.allocations.length}}
+      <Ui::EmptyState
+        @icon="filter-off"
+        @title="No matches"
+        @message="No allocations match the search and the filters. Clear them to see every allocation of the job."
+        data-test-empty-allocations-list
+       />
     {{else}}
-      <div class="boxed-section-body">
-        <div class="empty-message" data-test-empty-allocations-list>
-          <h3 class="empty-message-headline" data-test-empty-allocations-list-headline>No Matches</h3>
-          <p class="empty-message-body">No allocations match the term <strong>{{this.searchTerm}}</strong></p>
-        </div>
-      </div>
+      <Ui::EmptyState
+        @icon="box"
+        @title="No allocations"
+        @message="No allocations have been placed. Check the placement failures on the overview and the evaluations of the job."
+        data-test-empty-allocations-list
+       />
     {{/if}}
-  {{else}}
-    <div class="boxed-section-body">
-      <div class="empty-message" data-test-empty-allocations-list>
-        <h3 class="empty-message-headline" data-test-empty-allocations-list-headline>No Allocations</h3>
-        <p class="empty-message-body">No allocations have been placed.</p>
-      </div>
-    </div>
-  {{/if}}
-</section>
+  </:empty>
+</Allocations::Table>

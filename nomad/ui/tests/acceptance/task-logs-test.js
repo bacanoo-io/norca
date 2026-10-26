@@ -77,21 +77,21 @@ module('Acceptance | task logs', function (hooks) {
   test('logs can be word-wrapped', async function (assert) {
     await TaskLogs.visit({ id: allocation.id, name: task.name });
 
-    assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
+    assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
     assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
 
     later(() => {
       cancelTimers();
     }, 100);
     await click('[data-test-word-wrap-toggle]');
-    assert.dom('[data-test-word-wrap-toggle]').isChecked();
+    assert.dom('[data-test-word-wrap-toggle] input').isChecked();
     assert.dom('[data-test-output]').hasClass('wrapped');
 
     later(() => {
       cancelTimers();
     }, 100);
     await click('[data-test-word-wrap-toggle]');
-    assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
+    assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
     assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
 
     window.localStorage.clear();
@@ -109,14 +109,14 @@ module('Acceptance | task logs', function (hooks) {
     }, 500);
 
     const taskRow = [
-      ...findAll('.task-sub-row').filter((row) => {
+      ...findAll('[data-test-task-sub-row]').filter((row) => {
         return row.textContent.includes(task.name);
       }),
     ][0];
 
-    await click(taskRow.querySelector('button.logs-sidebar-trigger'));
+    await click(taskRow.querySelector('[data-test-logs-sidebar-trigger]'));
 
-    assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
+    assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
     assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
 
     later(() => {
@@ -125,19 +125,19 @@ module('Acceptance | task logs', function (hooks) {
 
     // type "ww" to trigger word wrap
     const W_KEY = 87;
-    triggerKeyEvent('.sidebar', 'keydown', W_KEY);
-    await triggerKeyEvent('.sidebar', 'keydown', W_KEY);
+    triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
+    await triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
 
-    assert.dom('[data-test-word-wrap-toggle]').isChecked();
+    assert.dom('[data-test-word-wrap-toggle] input').isChecked();
     assert.dom('[data-test-output]').hasClass('wrapped');
 
     later(() => {
       cancelTimers();
     }, 100);
 
-    triggerKeyEvent('.sidebar', 'keydown', W_KEY);
-    await triggerKeyEvent('.sidebar', 'keydown', W_KEY);
-    assert.dom('[data-test-word-wrap-toggle]').isNotChecked();
+    triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
+    await triggerKeyEvent('[data-test-task-context-sidebar]', 'keydown', W_KEY);
+    assert.dom('[data-test-word-wrap-toggle] input').isNotChecked();
     assert.dom('[data-test-output]').doesNotHaveClass('wrapped');
 
     window.localStorage.clear();
@@ -156,19 +156,19 @@ module('Acceptance | task logs', function (hooks) {
     }, 500);
 
     const taskRow = [
-      ...findAll('.task-sub-row').filter((row) => {
+      ...findAll('[data-test-task-sub-row]').filter((row) => {
         return row.textContent.includes(task.name);
       }),
     ][0];
 
-    await click(taskRow.querySelector('button.logs-sidebar-trigger'));
+    await click(taskRow.querySelector('[data-test-logs-sidebar-trigger]'));
 
     assert.ok(TaskLogs.sidebarIsPresent, 'Sidebar is present');
     assert
-      .dom('.task-context-sidebar h1.title')
+      .dom('[data-test-side-panel-title]')
       .includesText(task.name, 'Sidebar title is correct');
     assert
-      .dom('.task-context-sidebar h1.title')
+      .dom('[data-test-side-panel-title]')
       .includesText(task.state, 'Task state is correctly displayed');
     await percySnapshot(assert, {
       percyCSS: `
@@ -177,7 +177,7 @@ module('Acceptance | task logs', function (hooks) {
       `,
     });
 
-    await click('.sidebar button.close');
+    await click('[data-test-side-panel-close]');
     assert.notOk(TaskLogs.sidebarIsPresent, 'Sidebar is not present');
   });
 });

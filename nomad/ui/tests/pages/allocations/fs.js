@@ -30,7 +30,7 @@ export default create({
   breadcrumbs: collection('[data-test-fs-breadcrumbs] li', {
     visit: clickable('a'),
     path: attribute('href', 'a'),
-    isActive: hasClass('is-active'),
+    isActive: hasClass('active'),
   }),
 
   sortOptions: collection('[data-test-sort-by]', {
@@ -42,18 +42,21 @@ export default create({
     return this.sortOptions.toArray().findBy('id', id).sort();
   },
 
-  directoryEntries: collection('[data-test-entry]', {
-    name: text('[data-test-name]'),
+  directoryEntries: collection(
+    '[data-test-fs-entries] [data-test-ui-table-row]',
+    {
+      name: text('[data-test-name]'),
 
-    isFile: isPresent('.icon-is-file-outline'),
-    isDirectory: isPresent('.icon-is-folder-outline'),
+      isFile: isPresent('[data-test-icon="file"]'),
+      isDirectory: isPresent('[data-test-icon="folder"]'),
 
-    size: text('[data-test-size]'),
-    lastModified: text('[data-test-last-modified]'),
+      size: text('[data-test-size]'),
+      lastModified: text('[data-test-last-modified]'),
 
-    visit: clickable('a'),
-    path: attribute('href', 'a'),
-  }),
+      visit: clickable('a'),
+      path: attribute('href', 'a'),
+    }
+  ),
 
   isEmptyDirectory: isPresent('[data-test-empty-directory]'),
 

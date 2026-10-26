@@ -265,8 +265,10 @@ module('Integration | Component | fs/file', function (hooks) {
     await render(commonTemplate);
 
     const classes = Array.from(find('[data-test-file-box]').classList);
-    assert.ok(classes.includes('is-dark'), 'Body is dark');
-    assert.ok(classes.includes('is-full-bleed'), 'Body is full-bleed');
+    assert.ok(
+      classes.includes('norca-log-box'),
+      'Body is a full-bleed dark log box'
+    );
   });
 
   test('The body has padding and a light background when the file is not streaming', async function (assert) {
@@ -276,18 +278,18 @@ module('Integration | Component | fs/file', function (hooks) {
     await render(commonTemplate);
 
     let classes = Array.from(find('[data-test-file-box]').classList);
-    assert.notOk(classes.includes('is-dark'), 'Body is not dark');
-    assert.notOk(classes.includes('is-full-bleed'), 'Body is not full-bleed');
+    assert.notOk(classes.includes('norca-log-box'), 'Body is not a log box');
+    assert.ok(classes.includes('p-3'), 'Body is padded');
 
     this.set('stat.ContentType', 'something/unknown');
 
     await settled();
 
     classes = Array.from(find('[data-test-file-box]').classList);
-    assert.notOk(classes.includes('is-dark'), 'Body is still not dark');
     assert.notOk(
-      classes.includes('is-full-bleed'),
-      'Body is still not full-bleed'
+      classes.includes('norca-log-box'),
+      'Body is still not a log box'
     );
+    assert.ok(classes.includes('p-3'), 'Body is still padded');
   });
 });

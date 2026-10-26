@@ -47,6 +47,16 @@ export default class IndexController extends Controller.extend(
   statusMode = 'current';
 
   @action
+  sort(property, descending) {
+    this.setProperties({ sortProperty: property, sortDescending: descending });
+  }
+
+  @action
+  setPage(page) {
+    this.set('currentPage', page);
+  }
+
+  @action
   setActiveTaskQueryParam(task) {
     if (task) {
       this.activeTask = `${task.allocation.id}-${task.name}`;

@@ -5,109 +5,107 @@
 <div data-test-job-history {{this.loader @job @namespace this.backups.hasIdentity}}>
   <Ui::PageHeader @pretitle="Backups" @title="Job history from backups" @subtitle="Versions, deployments and allocations of a job kept in the backups" />
 
-  <div class="page-body">
-    <div class="container-xl">
-      <Backups::Identity @error={{this.identityError}} />
-      <Ui::Card class="mb-3">
-        <form class="row g-3 align-items-end" {{on "submit" this.submit}}>
-          <div class="col-md-4">
-            <Ui::Field @label="Job ID" class="mb-0" as |f|>
-              <Ui::Input @id={{f.id}} @value={{this.jobInput}} @onInput={{this.setJob}} @monospace={{true}} data-test-history-job />
-            </Ui::Field>
-          </div>
-          <div class="col-md-3">
-            <Ui::Field @label="Namespace" class="mb-0" as |f|>
-              <Ui::Input @id={{f.id}} @value={{this.namespaceInput}} @onInput={{this.setNamespace}} data-test-history-namespace />
-            </Ui::Field>
-          </div>
-          <div class="col-md-3">
-            <Ui::Field @label="Search in" class="mb-0" as |f|>
-              <Ui::Select @id={{f.id}} @options={{this.depths}} @value={{this.depth}} @onChange={{this.setDepth}} data-test-history-depth />
-            </Ui::Field>
-          </div>
-          <div class="col-md-2">
-            <Ui::Button @variant="primary" @type="submit" @icon="search" @block={{true}} @isLoading={{this.isLoading}} @disabled={{not this.backups.hasIdentity}} data-test-history-search>Search</Ui::Button>
-          </div>
-        </form>
-      </Ui::Card>
+  <Ui::PageBody>
+    <Backups::Identity @error={{this.identityError}} />
+    <Ui::Card class="mb-3">
+      <form class="row g-3 align-items-end" {{on "submit" this.submit}}>
+        <div class="col-md-4">
+          <Ui::Field @label="Job ID" class="mb-0" as |f|>
+            <Ui::Input @id={{f.id}} @value={{this.jobInput}} @onInput={{this.setJob}} @monospace={{true}} data-test-history-job />
+          </Ui::Field>
+        </div>
+        <div class="col-md-3">
+          <Ui::Field @label="Namespace" class="mb-0" as |f|>
+            <Ui::Input @id={{f.id}} @value={{this.namespaceInput}} @onInput={{this.setNamespace}} data-test-history-namespace />
+          </Ui::Field>
+        </div>
+        <div class="col-md-3">
+          <Ui::Field @label="Search in" class="mb-0" as |f|>
+            <Ui::Select @id={{f.id}} @options={{this.depths}} @value={{this.depth}} @onChange={{this.setDepth}} data-test-history-depth />
+          </Ui::Field>
+        </div>
+        <div class="col-md-2">
+          <Ui::Button @variant="primary" @type="submit" @icon="search" @block={{true}} @isLoading={{this.isLoading}} @disabled={{not this.backups.hasIdentity}} data-test-history-search>Search</Ui::Button>
+        </div>
+      </form>
+    </Ui::Card>
 
-      {{#if this.error}}
-        <Ui::Alert @tone="danger" @title="The search failed" data-test-history-error>{{this.error}}</Ui::Alert>
-      {{else if this.isLoading}}
-        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Decrypting the backups" /></Ui::Card>
-      {{else if (and @job this.searched)}}
-        <Ui::Card @flush={{true}} @title={{concat "Job " @job}} @subtitle={{concat "Found in " this.searched " backups"}} data-test-history-results>
-          <:default>
-            <div class="px-3 pt-3">
-              <Ui::Tabs @label="History" @tabs={{this.tabs}} @selected={{this.tab}} @onSelect={{this.selectTab}} @panelId="job-history-panel" />
-            </div>
-            <div id="job-history-panel" role="tabpanel">
-              {{#if (eq this.tab "versions")}}
-                <Ui::Table
-                  @inCard={{true}}
-                  @caption="Versions in the backups"
-                  @columns={{array
-                    (hash key="version" label="Version")
-                    (hash key="submitted" label="Submitted")
-                    (hash key="status" label="Status")
-                    (hash key="kept" label="Kept by Norca now")
-                    (hash key="backup" label="Newest backup with it")
-                    (hash key="actions" label="Actions")
-                  }}
-                  @rows={{this.versionRows}}
-                  @emptyMessage="The searched backups have no version of this job. Search more backups, or check the job ID and the namespace."
-                  as |row|
-                >
-                  <td data-test-history-version={{row.version}}>v{{row.version}}</td>
-                  <td>{{row.submitted}}</td>
-                  <td><Ui::StatusIndicator @status={{row.status}} /></td>
-                  <td>{{if row.keptNow "yes" "only in backups"}}</td>
-                  <td><LinkTo @route="backups.backup" @model={{row.backupId}} class="font-monospace">{{row.backupId}}</LinkTo></td>
-                  <td class="text-end text-nowrap">
-                    <Ui::Button @size="sm" @variant="ghost" @route="backups.backup" @model={{row.backupId}} @query={{hash tab="compare" type="jobs"}}>Compare</Ui::Button>
-                    <Ui::Button @size="sm" @icon="history" data-test-restore-version={{row.version}} {{on "click" (fn this.restoreVersion row)}}>Restore from this version</Ui::Button>
-                  </td>
-                </Ui::Table>
-              {{else if (eq this.tab "deployments")}}
-                <Ui::Table
-                  @inCard={{true}}
-                  @caption="Deployments in the backups"
-                  @columns={{array (hash key="id" label="Deployment") (hash key="version" label="Version") (hash key="status" label="Status") (hash key="description" label="Description") (hash key="backup" label="Backup")}}
-                  @rows={{this.deployments}}
-                  @emptyMessage="No deployment of this job in the searched backups."
-                  as |d|
-                >
-                  <td class="font-monospace">{{d.shortId}}</td>
-                  <td>v{{d.JobVersion}}</td>
-                  <td><Ui::StatusIndicator @status={{d.Status}} /></td>
-                  <td>{{d.StatusDescription}}</td>
-                  <td class="font-monospace">{{d.backupId}}</td>
-                </Ui::Table>
-              {{else}}
-                <Ui::Table
-                  @inCard={{true}}
-                  @caption="Allocations in the backups"
-                  @columns={{array (hash key="id" label="Allocation") (hash key="name" label="Name") (hash key="version" label="Version") (hash key="client" label="Client") (hash key="status" label="Status") (hash key="backup" label="Backup")}}
-                  @rows={{this.allocations}}
-                  @emptyMessage="No allocation of this job in the searched backups."
-                  as |a|
-                >
-                  <td class="font-monospace">{{a.shortId}}</td>
-                  <td>{{a.Name}}</td>
-                  <td>v{{a.JobVersion}}</td>
-                  <td>{{a.NodeName}}</td>
-                  <td><Ui::StatusIndicator @status={{a.ClientStatus}} /></td>
-                  <td class="font-monospace">{{a.backupId}}</td>
-                </Ui::Table>
-              {{/if}}
-            </div>
-          </:default>
-        </Ui::Card>
-      {{else}}
-        <Ui::Card>
-          <Ui::EmptyState @icon="history" @title="Find a job in the backups" @message="Norca keeps only the latest versions of a job. Enter a job ID to find its older versions, deployments and allocations in the backups of the region." />
-        </Ui::Card>
-      {{/if}}
-    </div>
-  </div>
+    {{#if this.error}}
+      <Ui::Alert @tone="danger" @title="The search failed" data-test-history-error>{{this.error}}</Ui::Alert>
+    {{else if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Decrypting the backups" /></Ui::Card>
+    {{else if (and @job this.searched)}}
+      <Ui::Card @flush={{true}} @title={{concat "Job " @job}} @subtitle={{concat "Found in " this.searched " backups"}} data-test-history-results>
+        <:default>
+          <div class="px-3 pt-3">
+            <Ui::Tabs @label="History" @tabs={{this.tabs}} @selected={{this.tab}} @onSelect={{this.selectTab}} @panelId="job-history-panel" />
+          </div>
+          <div id="job-history-panel" role="tabpanel">
+            {{#if (eq this.tab "versions")}}
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Versions in the backups"
+                @columns={{array
+                  (hash key="version" label="Version")
+                  (hash key="submitted" label="Submitted")
+                  (hash key="status" label="Status")
+                  (hash key="kept" label="Kept by Norca now")
+                  (hash key="backup" label="Newest backup with it")
+                  (hash key="actions" label="Actions")
+                }}
+                @rows={{this.versionRows}}
+                @emptyMessage="The searched backups have no version of this job. Search more backups, or check the job ID and the namespace."
+                as |row|
+              >
+                <td data-test-history-version={{row.version}}>v{{row.version}}</td>
+                <td>{{row.submitted}}</td>
+                <td><Ui::StatusIndicator @status={{row.status}} /></td>
+                <td>{{if row.keptNow "yes" "only in backups"}}</td>
+                <td><LinkTo @route="backups.backup" @model={{row.backupId}} class="font-monospace">{{row.backupId}}</LinkTo></td>
+                <td class="text-end text-nowrap">
+                  <Ui::Button @size="sm" @variant="ghost" @route="backups.backup" @model={{row.backupId}} @query={{hash tab="compare" type="jobs"}}>Compare</Ui::Button>
+                  <Ui::Button @size="sm" @icon="history" data-test-restore-version={{row.version}} {{on "click" (fn this.restoreVersion row)}}>Restore from this version</Ui::Button>
+                </td>
+              </Ui::Table>
+            {{else if (eq this.tab "deployments")}}
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Deployments in the backups"
+                @columns={{array (hash key="id" label="Deployment") (hash key="version" label="Version") (hash key="status" label="Status") (hash key="description" label="Description") (hash key="backup" label="Backup")}}
+                @rows={{this.deployments}}
+                @emptyMessage="No deployment of this job in the searched backups."
+                as |d|
+              >
+                <td class="font-monospace">{{d.shortId}}</td>
+                <td>v{{d.JobVersion}}</td>
+                <td><Ui::StatusIndicator @status={{d.Status}} /></td>
+                <td>{{d.StatusDescription}}</td>
+                <td class="font-monospace">{{d.backupId}}</td>
+              </Ui::Table>
+            {{else}}
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Allocations in the backups"
+                @columns={{array (hash key="id" label="Allocation") (hash key="name" label="Name") (hash key="version" label="Version") (hash key="client" label="Client") (hash key="status" label="Status") (hash key="backup" label="Backup")}}
+                @rows={{this.allocations}}
+                @emptyMessage="No allocation of this job in the searched backups."
+                as |a|
+              >
+                <td class="font-monospace">{{a.shortId}}</td>
+                <td>{{a.Name}}</td>
+                <td>v{{a.JobVersion}}</td>
+                <td>{{a.NodeName}}</td>
+                <td><Ui::StatusIndicator @status={{a.ClientStatus}} /></td>
+                <td class="font-monospace">{{a.backupId}}</td>
+              </Ui::Table>
+            {{/if}}
+          </div>
+        </:default>
+      </Ui::Card>
+    {{else}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="history" @title="Find a job in the backups" @message="Norca keeps only the latest versions of a job. Enter a job ID to find its older versions, deployments and allocations in the backups of the region." />
+      </Ui::Card>
+    {{/if}}
+  </Ui::PageBody>
 </div>

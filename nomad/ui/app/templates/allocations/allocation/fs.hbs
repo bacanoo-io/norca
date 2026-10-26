@@ -1,15 +1,20 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
 {{page-title this.pathWithLeadingSlash " -  Allocation " this.allocation.shortId " filesystem"}}
-<AllocationSubnav @allocation={{this.allocation}} />
-<Fs::Browser
-  @model={{this.allocation}}
-  @path={{this.path}}
-  @stat={{this.stat}}
-  @isFile={{this.isFile}}
-  @directoryEntries={{this.directoryEntries}}
-  @sortProperty={{this.sortProperty}}
-  @sortDescending={{this.sortDescending}} />
+<Allocations::Header @allocation={{this.allocation}} />
+<Ui::PageBody>
+  <Allocations::Tabs @allocation={{this.allocation}} />
+  <Fs::Browser
+    @model={{this.allocation}}
+    @path={{this.path}}
+    @stat={{this.stat}}
+    @isFile={{this.isFile}}
+    @directoryEntries={{this.directoryEntries}}
+    @sortProperty={{this.sortProperty}}
+    @sortDescending={{this.sortDescending}}
+    @onSort={{this.sort}}
+  />
+</Ui::PageBody>

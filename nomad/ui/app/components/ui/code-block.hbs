@@ -2,16 +2,17 @@
   SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 
-  Read-only code (HCL, JSON, CEL), in the monospace face, scrollable and
-  focusable so that keyboard users can scroll it. @code is a string or an
-  object (rendered as indented JSON); @label is the accessible name.
-    <Ui::CodeBlock @label="Rule expression" @code={{this.rule.Expression}} />
+  A block of code or preformatted text (IBM Plex Mono), with an optional
+  copy button. @code is a string or an object (rendered as indented JSON);
+  the block is focusable so that keyboard users can scroll it.
+
+    <Ui::CodeBlock @code={{this.hcl}} @copy={{true}} @label="Placement rules" />
 --}}
-<pre
-  class="norca-code-block {{if @wrap 'norca-code-block-wrap'}}"
-  tabindex="0"
-  role="region"
-  aria-label={{or @label "Code"}}
-  data-test-code-block
-  ...attributes
->{{this.text}}</pre>
+<div class="norca-code-block" data-test-code-block ...attributes>
+  {{#if @copy}}
+    <div class="norca-code-block-actions">
+      <Ui::CopyButton @text={{this.text}} @label={{concat "Copy " (or @label "the code")}} />
+    </div>
+  {{/if}}
+  <pre class="norca-code {{if @wrap 'norca-code-wrap'}}" tabindex="0" role="region" aria-label={{or @label "Code"}}><code>{{#if (has-block)}}{{yield}}{{else}}{{this.text}}{{/if}}</code></pre>
+</div>

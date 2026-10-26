@@ -1,0 +1,23 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if @route}}
+  <LinkTo
+    @route={{@route}}
+    @models={{if @models @models (if (not-eq @model undefined) (array @model) (array))}}
+    @query={{or @query (hash)}}
+    class="list-group-item list-group-item-action {{if @active 'active'}}"
+    aria-current={{if @active "true"}}
+    ...attributes
+  >{{yield}}</LinkTo>
+{{else if @action}}
+  <button
+    type="button"
+    class="list-group-item list-group-item-action {{if @active 'active'}}"
+    aria-pressed={{if @pressable (if @active "true" "false")}}
+    ...attributes
+  >{{yield}}</button>
+{{else}}
+  <div class="list-group-item {{if @active 'active'}}" ...attributes>{{yield}}</div>
+{{/if}}

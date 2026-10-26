@@ -1,63 +1,38 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<form class="acl-form" autocomplete="off" {{on "submit" this.save}}>
-	{{#if @policy.isNew }}
-		<Hds::Form::TextInput::Field
-			@isRequired={{true}}
-			data-test-policy-name-input
-			@value={{@policy.name}}
-			{{on "input" this.updatePolicyName}}
-			{{autofocus}}
-		as |F|>
-			<F.Label>Policy Name</F.Label>
-		</Hds::Form::TextInput::Field>
-	{{/if}}
+<div class="norca-acl-form" data-test-policy-form>
+  <Ui::Card class="mb-3">
+    {{#if @policy.isNew}}
+      <Ui::Field @label="Policy Name" @required={{true}} @help="Letters, numbers and dashes, up to 128 characters." as |f|>
+        <Ui::Input
+          @id={{f.id}}
+          @value={{@policy.name}}
+          @required={{true}}
+          @describedBy={{f.describedBy}}
+          @onInput={{this.updatePolicyName}}
+          data-test-policy-name-input
+          {{autofocus}}
+        />
+      </Ui::Field>
+    {{/if}}
+    <Ui::Field @label="Description (optional)" class="mb-0" as |f|>
+      <Ui::Input @id={{f.id}} @value={{@policy.description}} @onInput={{this.updateDescription}} data-test-policy-description />
+    </Ui::Field>
+  </Ui::Card>
 
-	<div class="boxed-section">
-		<div class="boxed-section-head">
-			Policy Definition
-		</div>
-		<div class="boxed-section-body is-full-bleed">
-
-			<div
-				class="policy-editor"
-				data-test-policy-editor
-				{{code-mirror
-          screenReaderLabel="Policy definition"
-          theme="hashi"
-          mode="ruby"
-          content=@policy.rules
-          onUpdate=this.updatePolicyRules
-          autofocus=false
-					extraKeys=(hash Cmd-Enter=this.save)
-				}} />
-		</div>
-	</div>
-
-	<div>
-		<label>
-			<span>
-				Description (optional)
-			</span>
-			<Input
-				data-test-policy-description
-				@value={{@policy.description}}
-				class="input"
-			/>
-		</label>
-	</div>
-
-	<footer>
-		{{#if (can "update policy")}}
-		<Hds::Button
-			@text="Save Policy"
-			@type="submit"
-			data-test-save-policy
-			{{on "click" this.save}}
-		/>
-		{{/if}}
-	</footer>
-</form>
+  <Ui::Editor
+    @label="Policy definition"
+    @language="hcl"
+    @value={{@policy.rules}}
+    @onChange={{this.updatePolicyRules}}
+    @original={{this.originalRules}}
+    @onSubmit={{this.save}}
+    @submitLabel="Save Policy"
+    @readOnly={{not (can "update policy")}}
+    data-test-policy-editor
+  />
+</div>

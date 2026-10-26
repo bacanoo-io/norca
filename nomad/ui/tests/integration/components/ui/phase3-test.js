@@ -87,10 +87,10 @@ module('Integration | Component | ui phase 3 additions', function (hooks) {
     this.code = { spec: { replicas: 3 } };
     await render(hbs`<Ui::CodeBlock @label="Spec" @code={{this.code}} />`);
 
-    assert.dom('[data-test-code-block]').hasAttribute('tabindex', '0');
-    assert.dom('[data-test-code-block]').hasAttribute('aria-label', 'Spec');
+    assert.dom('[data-test-code-block] pre').hasAttribute('tabindex', '0');
+    assert.dom('[data-test-code-block] pre').hasAttribute('aria-label', 'Spec');
     assert.strictEqual(
-      this.element.querySelector('[data-test-code-block]').textContent,
+      this.element.querySelector('[data-test-code-block] pre').textContent,
       JSON.stringify(this.code, null, 2)
     );
     this.set('code', 'job.Type == "service"');

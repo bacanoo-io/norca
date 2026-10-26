@@ -1,20 +1,18 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
-<p class="related-entities notification">
-<FlightIcon @name="info-fill" @color="var(--blue)" />
-<span>
-    This variable {{#if @new}}will be{{else}}is{{/if}} accessible by 
-    {{#if @task}}
-    task <strong>{{@task}}</strong> in group <LinkTo @route="jobs.job.task-group" @models={{array (concat @job "@" @namespace) @group}}>{{@group}} <FlightIcon @name="external-link" /></LinkTo>
-    {{else if @group}}
-    group <LinkTo @route="jobs.job.task-group" @models={{array (concat @job "@" @namespace) @group}}>{{@group}} <FlightIcon @name="external-link" /></LinkTo>
-    {{else if @job}}
-    job <LinkTo @route="jobs.job" @model={{concat @job "@" @namespace}}>{{@job}} <FlightIcon @name="external-link" /></LinkTo>
-    {{else}}
+<Ui::Alert @tone="info" class="mb-3" data-test-related-entities>
+  This variable {{#if @new}}will be{{else}}is{{/if}} accessible by
+  {{#if @task}}
+    task <strong>{{@task}}</strong> in group
+    <LinkTo @route="jobs.job.task-group" @models={{array (concat @job "@" @namespace) @group}}>{{@group}}</LinkTo>
+  {{else if @group}}
+    group <LinkTo @route="jobs.job.task-group" @models={{array (concat @job "@" @namespace) @group}}>{{@group}}</LinkTo>
+  {{else if @job}}
+    job <LinkTo @route="jobs.job" @model={{concat @job "@" @namespace}}>{{@job}}</LinkTo>
+  {{else}}
     all nomad jobs in this namespace
-    {{/if}}
-</span>
-</p>
+  {{/if}}
+</Ui::Alert>

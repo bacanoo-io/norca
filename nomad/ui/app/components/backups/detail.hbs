@@ -27,135 +27,133 @@
     </:actions>
   </Ui::PageHeader>
 
-  <div class="page-body">
-    <div class="container-xl">
-      {{#if this.isLoading}}
-        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the backup" /></Ui::Card>
-      {{else if this.notFound}}
-        <Ui::Card>
-          <Ui::EmptyState @icon="cloud-upload" @title="Backup not found" @message="It may have been deleted by retention or by hand, or it belongs to another region. Pick the region in the top bar or go back to the list." data-test-backup-not-found>
-            <Ui::Button @route="backups.index">All backups</Ui::Button>
-          </Ui::EmptyState>
-        </Ui::Card>
-      {{else if this.loadError}}
-        <Ui::Alert @tone="danger" @title="The backup could not be loaded" data-test-backup-load-error>{{this.loadError}}</Ui::Alert>
-      {{else}}
-        {{#if this.actionError}}
-          <Ui::Alert @tone="danger" @onDismiss={{this.dismissError}} class="mb-3" data-test-backup-action-error>{{this.actionError}}</Ui::Alert>
-        {{/if}}
-        {{#if this.download}}
-          <Ui::Alert @tone="info" @title="Download link" @onDismiss={{this.closeDownload}} class="mb-3" data-test-download>
-            The link downloads the encrypted state object and expires at {{format-ts this.download.ExpiresAt}}. Anyone with the link can download it until then.
-            <Ui::Input @value={{this.download.URL}} @readonly={{true}} @monospace={{true}} aria-label="Download link" class="mt-2" data-test-download-url />
-          </Ui::Alert>
-        {{/if}}
-
-        <Ui::Tabs @label="Backup sections" @tabs={{this.tabs}} @selected={{this.tab}} @onSelect={{this.selectTab}} @panelId="backup-panel" class="mb-3" />
-
-        <div id="backup-panel" role="tabpanel" data-test-backup-panel={{this.tab}}>
-          {{#if (eq this.tab "overview")}}
-            <div class="row row-cards">
-              <div class="col-lg-7">
-                <Ui::Card @title="Manifest">
-                  <Ui::Datagrid @items={{this.details}} data-test-backup-manifest />
-                  {{#if this.labels.length}}
-                    <h4 class="mt-4">Labels</h4>
-                    {{#each this.labels as |label|}}
-                      <Ui::Badge class="me-1" data-test-backup-label={{label.key}}>{{label.key}}={{label.value}}</Ui::Badge>
-                    {{/each}}
-                  {{/if}}
-                </Ui::Card>
-                <Ui::Card @title="Destinations" @flush={{true}} class="mt-3">
-                  <Ui::Table
-                    @inCard={{true}}
-                    @caption="Destinations"
-                    @columns={{array
-                      (hash key="name" label="Destination")
-                      (hash key="status" label="Status")
-                      (hash key="encryption" label="Encryption")
-                      (hash key="size" label="Size")
-                      (hash key="duration" label="Upload")
-                    }}
-                    @rows={{this.destinations}}
-                    @emptyMessage="No destination recorded."
-                    as |d|
-                  >
-                    <td>
-                      <div>{{d.Name}}</div>
-                      <div class="small text-secondary font-monospace">{{d.Location}}</div>
-                    </td>
-                    <td>
-                      <Ui::StatusIndicator @tone={{d.tone}} @label={{d.Status}} data-test-destination-status={{d.Name}} />
-                      {{#if d.Error}}<div class="small text-danger">{{d.Error}}</div>{{/if}}
-                    </td>
-                    <td>{{d.EncryptionMode}}</td>
-                    <td>{{d.size}}</td>
-                    <td>{{d.duration}}</td>
-                  </Ui::Table>
-                </Ui::Card>
-              </div>
-              <div class="col-lg-5">
-                <Ui::Card @title="Content" @subtitle="Counts from the manifest" @flush={{true}} data-test-backup-summary>
-                  <:default>
-                  <Ui::Table
-                    @inCard={{true}}
-                    @caption="Content of the backup"
-                    @columns={{array (hash key="type" label="Type") (hash key="count" label="Count")}}
-                    @rows={{this.summary}}
-                    as |row|
-                  >
-                    <td>{{row.label}}</td>
-                    <td data-test-summary-count={{row.id}}>{{row.count}}</td>
-                  </Ui::Table>
-                  </:default>
-                  <:footer>
-                    {{#if this.isUsable}}
-                      <Ui::Button @size="sm" @icon="search" data-test-browse {{on "click" (fn this.selectTab "contents")}}>Browse the content</Ui::Button>
-                    {{/if}}
-                  </:footer>
-                </Ui::Card>
-              </div>
-            </div>
-          {{else if (eq this.tab "contents")}}
-            {{#if this.isUsable}}
-              <Backups::Contents @backup={{this.backup}} @region={{this.region}} @type={{@type}} @job={{@job}} @onParamsChange={{@onParamsChange}} />
-            {{else}}
-              <Ui::Card><Ui::EmptyState @icon="alert-triangle" @title="This backup failed" @message="A failed backup has no content to browse. Pick a complete backup from the list." /></Ui::Card>
-            {{/if}}
-          {{else if (eq this.tab "compare")}}
-            {{#if this.isUsable}}
-              <Backups::Compare @backup={{this.backup}} @region={{this.region}} @against={{@against}} @type={{@type}} @job={{@job}} @onParamsChange={{@onParamsChange}} />
-            {{else}}
-              <Ui::Card><Ui::EmptyState @icon="alert-triangle" @title="This backup failed" @message="A failed backup cannot be compared. Pick a complete backup from the list." /></Ui::Card>
-            {{/if}}
-          {{else}}
-            <Ui::Card @flush={{true}} @title="Restores from this backup" data-test-backup-restores>
-              <Ui::Table
-                @inCard={{true}}
-                @caption="Restores from this backup"
-                @columns={{array
-                  (hash key="restore" label="Restore")
-                  (hash key="mode" label="Mode")
-                  (hash key="status" label="Status")
-                  (hash key="items" label="Items")
-                  (hash key="time" label="Requested")
-                }}
-                @rows={{this.restoreRows}}
-                @emptyMessage="Nothing was restored from this backup yet."
-                as |r|
-              >
-                <td><LinkTo @route="backups.request" @model={{r.ID}} class="font-monospace">{{r.shortId}}</LinkTo></td>
-                <td>{{r.Mode}}</td>
-                <td><Ui::StatusIndicator @tone={{r.tone}} @label={{r.Status}} /></td>
-                <td>{{if (eq r.Mode "full") "whole region" r.Items.length}}</td>
-                <td>{{moment-from-now r.CreateTime}}</td>
-              </Ui::Table>
-            </Ui::Card>
-          {{/if}}
-        </div>
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the backup" /></Ui::Card>
+    {{else if this.notFound}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="cloud-upload" @title="Backup not found" @message="It may have been deleted by retention or by hand, or it belongs to another region. Pick the region in the top bar or go back to the list." data-test-backup-not-found>
+          <Ui::Button @route="backups.index">All backups</Ui::Button>
+        </Ui::EmptyState>
+      </Ui::Card>
+    {{else if this.loadError}}
+      <Ui::Alert @tone="danger" @title="The backup could not be loaded" data-test-backup-load-error>{{this.loadError}}</Ui::Alert>
+    {{else}}
+      {{#if this.actionError}}
+        <Ui::Alert @tone="danger" @onDismiss={{this.dismissError}} class="mb-3" data-test-backup-action-error>{{this.actionError}}</Ui::Alert>
       {{/if}}
-    </div>
-  </div>
+      {{#if this.download}}
+        <Ui::Alert @tone="info" @title="Download link" @onDismiss={{this.closeDownload}} class="mb-3" data-test-download>
+          The link downloads the encrypted state object and expires at {{format-ts this.download.ExpiresAt}}. Anyone with the link can download it until then.
+          <Ui::Input @value={{this.download.URL}} @readonly={{true}} @monospace={{true}} aria-label="Download link" class="mt-2" data-test-download-url />
+        </Ui::Alert>
+      {{/if}}
+
+      <Ui::Tabs @label="Backup sections" @tabs={{this.tabs}} @selected={{this.tab}} @onSelect={{this.selectTab}} @panelId="backup-panel" class="mb-3" />
+
+      <div id="backup-panel" role="tabpanel" data-test-backup-panel={{this.tab}}>
+        {{#if (eq this.tab "overview")}}
+          <div class="row row-cards">
+            <div class="col-lg-7">
+              <Ui::Card @title="Manifest">
+                <Ui::Datagrid @items={{this.details}} data-test-backup-manifest />
+                {{#if this.labels.length}}
+                  <h4 class="mt-4">Labels</h4>
+                  {{#each this.labels as |label|}}
+                    <Ui::Badge class="me-1" data-test-backup-label={{label.key}}>{{label.key}}={{label.value}}</Ui::Badge>
+                  {{/each}}
+                {{/if}}
+              </Ui::Card>
+              <Ui::Card @title="Destinations" @flush={{true}} class="mt-3">
+                <Ui::Table
+                  @inCard={{true}}
+                  @caption="Destinations"
+                  @columns={{array
+                    (hash key="name" label="Destination")
+                    (hash key="status" label="Status")
+                    (hash key="encryption" label="Encryption")
+                    (hash key="size" label="Size")
+                    (hash key="duration" label="Upload")
+                  }}
+                  @rows={{this.destinations}}
+                  @emptyMessage="No destination recorded."
+                  as |d|
+                >
+                  <td>
+                    <div>{{d.Name}}</div>
+                    <div class="small text-secondary font-monospace">{{d.Location}}</div>
+                  </td>
+                  <td>
+                    <Ui::StatusIndicator @tone={{d.tone}} @label={{d.Status}} data-test-destination-status={{d.Name}} />
+                    {{#if d.Error}}<div class="small text-danger">{{d.Error}}</div>{{/if}}
+                  </td>
+                  <td>{{d.EncryptionMode}}</td>
+                  <td>{{d.size}}</td>
+                  <td>{{d.duration}}</td>
+                </Ui::Table>
+              </Ui::Card>
+            </div>
+            <div class="col-lg-5">
+              <Ui::Card @title="Content" @subtitle="Counts from the manifest" @flush={{true}} data-test-backup-summary>
+                <:default>
+                <Ui::Table
+                  @inCard={{true}}
+                  @caption="Content of the backup"
+                  @columns={{array (hash key="type" label="Type") (hash key="count" label="Count")}}
+                  @rows={{this.summary}}
+                  as |row|
+                >
+                  <td>{{row.label}}</td>
+                  <td data-test-summary-count={{row.id}}>{{row.count}}</td>
+                </Ui::Table>
+                </:default>
+                <:footer>
+                  {{#if this.isUsable}}
+                    <Ui::Button @size="sm" @icon="search" data-test-browse {{on "click" (fn this.selectTab "contents")}}>Browse the content</Ui::Button>
+                  {{/if}}
+                </:footer>
+              </Ui::Card>
+            </div>
+          </div>
+        {{else if (eq this.tab "contents")}}
+          {{#if this.isUsable}}
+            <Backups::Contents @backup={{this.backup}} @region={{this.region}} @type={{@type}} @job={{@job}} @onParamsChange={{@onParamsChange}} />
+          {{else}}
+            <Ui::Card><Ui::EmptyState @icon="alert-triangle" @title="This backup failed" @message="A failed backup has no content to browse. Pick a complete backup from the list." /></Ui::Card>
+          {{/if}}
+        {{else if (eq this.tab "compare")}}
+          {{#if this.isUsable}}
+            <Backups::Compare @backup={{this.backup}} @region={{this.region}} @against={{@against}} @type={{@type}} @job={{@job}} @onParamsChange={{@onParamsChange}} />
+          {{else}}
+            <Ui::Card><Ui::EmptyState @icon="alert-triangle" @title="This backup failed" @message="A failed backup cannot be compared. Pick a complete backup from the list." /></Ui::Card>
+          {{/if}}
+        {{else}}
+          <Ui::Card @flush={{true}} @title="Restores from this backup" data-test-backup-restores>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Restores from this backup"
+              @columns={{array
+                (hash key="restore" label="Restore")
+                (hash key="mode" label="Mode")
+                (hash key="status" label="Status")
+                (hash key="items" label="Items")
+                (hash key="time" label="Requested")
+              }}
+              @rows={{this.restoreRows}}
+              @emptyMessage="Nothing was restored from this backup yet."
+              as |r|
+            >
+              <td><LinkTo @route="backups.request" @model={{r.ID}} class="font-monospace">{{r.shortId}}</LinkTo></td>
+              <td>{{r.Mode}}</td>
+              <td><Ui::StatusIndicator @tone={{r.tone}} @label={{r.Status}} /></td>
+              <td>{{if (eq r.Mode "full") "whole region" r.Items.length}}</td>
+              <td>{{moment-from-now r.CreateTime}}</td>
+            </Ui::Table>
+          </Ui::Card>
+        {{/if}}
+      </div>
+    {{/if}}
+  </Ui::PageBody>
 
   {{#if this.confirmingDelete}}
     <Ui::Confirm

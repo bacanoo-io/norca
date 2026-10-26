@@ -18,15 +18,14 @@
     </:actions>
   </Ui::PageHeader>
 
-  <div class="page-body">
-    <div class="container-xl">
+  <Ui::PageBody>
       {{#if this.isLoading}}
         <Ui::Card>
           <Ui::Spinner @showLabel={{true}} @label="Loading the cluster overview" />
         </Ui::Card>
       {{else}}
         {{! Federation strip: the dashboard's one emphasized element. }}
-        <div class="card mb-3" data-test-federation>
+        <Ui::Card @flush={{true}} class="mb-3" data-test-federation>
           <div class="norca-federation" style={{this.federationStyle}}>
             {{#each this.columns as |column|}}
               <section
@@ -97,7 +96,7 @@
               </section>
             {{/each}}
           </div>
-        </div>
+        </Ui::Card>
 
         <div class="row row-cards mb-3">
           <div class="col-sm-6 col-lg-3">
@@ -146,25 +145,25 @@
           <div class="col-lg-7">
             <Ui::Card @title="Warnings" @flush={{true}} data-test-warnings>
               {{#if this.warnings.length}}
-                <div class="list-group list-group-flush">
+                <Ui::ListGroup @flush={{true}} as |list|>
                   {{#each this.warnings as |warning|}}
                     {{#if (or warning.model warning.models)}}
-                      <LinkTo @route={{warning.route}} @models={{or warning.models (array warning.model)}} class="list-group-item list-group-item-action" data-test-warning={{warning.tone}}>
+                      <list.Item @route={{warning.route}} @models={{or warning.models (array warning.model)}} data-test-warning={{warning.tone}}>
                         <div class="d-flex">
                           <Ui::StatusIndicator @dotOnly={{true}} @tone={{warning.tone}} @label={{warning.tone}} class="me-2 mt-2" />
                           <div><strong>{{warning.title}}</strong><div class="text-secondary">{{warning.text}}</div></div>
                         </div>
-                      </LinkTo>
+                      </list.Item>
                     {{else}}
-                      <LinkTo @route={{warning.route}} class="list-group-item list-group-item-action" data-test-warning={{warning.tone}}>
+                      <list.Item @route={{warning.route}} data-test-warning={{warning.tone}}>
                         <div class="d-flex">
                           <Ui::StatusIndicator @dotOnly={{true}} @tone={{warning.tone}} @label={{warning.tone}} class="me-2 mt-2" />
                           <div><strong>{{warning.title}}</strong><div class="text-secondary">{{warning.text}}</div></div>
                         </div>
-                      </LinkTo>
+                      </list.Item>
                     {{/if}}
                   {{/each}}
-                </div>
+                </Ui::ListGroup>
               {{else}}
                 <Ui::EmptyState
                   @compact={{true}}
@@ -242,6 +241,5 @@
           </div>
         </div>
       {{/if}}
-    </div>
-  </div>
+  </Ui::PageBody>
 </div>

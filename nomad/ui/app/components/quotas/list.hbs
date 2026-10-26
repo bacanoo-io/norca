@@ -11,75 +11,73 @@
     </:actions>
   </Ui::PageHeader>
 
-  <div class="page-body">
-    <div class="container-xl">
-      {{#if this.isLoading}}
-        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the quotas" /></Ui::Card>
-      {{else if this.forbidden}}
-        <Ui::Card>
-          <Ui::EmptyState @icon="lock" @title="Not permitted" @message="Your token cannot read quotas. Ask for a policy with quota { policy = &quot;read&quot; }." data-test-quotas-forbidden />
-        </Ui::Card>
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the quotas" /></Ui::Card>
+    {{else if this.forbidden}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="lock" @title="Not permitted" @message="Your token cannot read quotas. Ask for a policy with quota { policy = &quot;read&quot; }." data-test-quotas-forbidden />
+      </Ui::Card>
+    {{else}}
+      {{#each this.errors as |r|}}
+        <Ui::Alert @tone="danger" @title="The quotas of {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
+      {{/each}}
+
+      {{#if this.cards.length}}
+        <div class="row row-cards mb-3">
+          {{#each this.cards as |card|}}
+            <div class="col-lg-6">
+              <Ui::Card @title={{card.title}} @subtitle={{card.description}} data-test-quota-card={{card.name}}>
+                <:actions>
+                  {{#if card.nearlyFull}}<Ui::Badge @color="orange" data-test-nearly-full>nearly full</Ui::Badge>{{/if}}
+                  <Ui::Button @size="sm" @route="quotas.quota" @model={{card.name}} data-test-quota-link={{card.name}}>Details</Ui::Button>
+                </:actions>
+                <:default>
+                  <Quotas::Usage @rows={{card.rows}} @label={{card.title}} />
+                  <div class="small text-secondary" data-test-quota-namespaces>
+                    Namespaces: {{if card.namespaces.length (join ", " card.namespaces) "none yet"}}
+                    · Enforced at {{if (eq card.enforce "submit") "job submission" "scheduling"}}
+                  </div>
+                </:default>
+              </Ui::Card>
+            </div>
+          {{/each}}
+        </div>
       {{else}}
-        {{#each this.errors as |r|}}
-          <Ui::Alert @tone="danger" @title="The quotas of {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
-        {{/each}}
-
-        {{#if this.cards.length}}
-          <div class="row row-cards mb-3">
-            {{#each this.cards as |card|}}
-              <div class="col-lg-6">
-                <Ui::Card @title={{card.title}} @subtitle={{card.description}} data-test-quota-card={{card.name}}>
-                  <:actions>
-                    {{#if card.nearlyFull}}<Ui::Badge @color="orange" data-test-nearly-full>nearly full</Ui::Badge>{{/if}}
-                    <Ui::Button @size="sm" @route="quotas.quota" @model={{card.name}} data-test-quota-link={{card.name}}>Details</Ui::Button>
-                  </:actions>
-                  <:default>
-                    <Quotas::Usage @rows={{card.rows}} @label={{card.title}} />
-                    <div class="small text-secondary" data-test-quota-namespaces>
-                      Namespaces: {{if card.namespaces.length (join ", " card.namespaces) "none yet"}}
-                      · Enforced at {{if (eq card.enforce "submit") "job submission" "scheduling"}}
-                    </div>
-                  </:default>
-                </Ui::Card>
-              </div>
-            {{/each}}
-          </div>
-        {{else}}
-          <Ui::Card class="mb-3">
-            <Ui::EmptyState
-              @icon="chart-pie"
-              @title="No quotas in {{this.scopeLabel}}"
-              @message="A quota limits CPU, memory, allocations and Variables per region. Create one, then set it as the quota of a namespace."
-              data-test-quotas-empty
-            >
-              {{#if this.canWrite}}<Ui::Button @variant="primary" @icon="plus" @route="quotas.new">New quota</Ui::Button>{{/if}}
-            </Ui::EmptyState>
-          </Ui::Card>
-        {{/if}}
-
-        {{#if this.specsWithoutLimit.length}}
-          <p class="text-secondary small" data-test-quotas-without-limit>
-            Without a limit in {{if this.isAllRegions "these regions" "this region"}}: {{join ", " this.specsWithoutLimit}}.
-          </p>
-        {{/if}}
-
-        <Ui::Card @title="Evaluations blocked by a quota" @flush={{true}} data-test-quota-blocked>
-          <Ui::Table
-            @inCard={{true}}
-            @caption="Evaluations blocked by a quota"
-            @columns={{this.blockedColumns}}
-            @rows={{this.blocked}}
-            @emptyMessage="No evaluation waits for quota. Blocked evaluations run again automatically when the quota frees up."
-            as |e|
+        <Ui::Card class="mb-3">
+          <Ui::EmptyState
+            @icon="chart-pie"
+            @title="No quotas in {{this.scopeLabel}}"
+            @message="A quota limits CPU, memory, allocations and Variables per region. Create one, then set it as the quota of a namespace."
+            data-test-quotas-empty
           >
-            <td><LinkTo @route="jobs.job.index" @model={{e.jobRouteId}}>{{e.JobID}}</LinkTo></td>
-            {{#if this.isAllRegions}}<td><span class="norca-region">{{e.region}}</span></td>{{/if}}
-            <td><LinkTo @route="quotas.quota" @model={{e.QuotaLimitReached}}>{{e.QuotaLimitReached}}</LinkTo></td>
-            <td data-test-blocked-dimensions>{{e.dimensionText}}</td>
-            <td>{{if e.since (moment-from-now e.since) "–"}}</td>
-          </Ui::Table>
+            {{#if this.canWrite}}<Ui::Button @variant="primary" @icon="plus" @route="quotas.new">New quota</Ui::Button>{{/if}}
+          </Ui::EmptyState>
         </Ui::Card>
       {{/if}}
-    </div>
-  </div>
+
+      {{#if this.specsWithoutLimit.length}}
+        <p class="text-secondary small" data-test-quotas-without-limit>
+          Without a limit in {{if this.isAllRegions "these regions" "this region"}}: {{join ", " this.specsWithoutLimit}}.
+        </p>
+      {{/if}}
+
+      <Ui::Card @title="Evaluations blocked by a quota" @flush={{true}} data-test-quota-blocked>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Evaluations blocked by a quota"
+          @columns={{this.blockedColumns}}
+          @rows={{this.blocked}}
+          @emptyMessage="No evaluation waits for quota. Blocked evaluations run again automatically when the quota frees up."
+          as |e|
+        >
+          <td><LinkTo @route="jobs.job.index" @model={{e.jobRouteId}}>{{e.JobID}}</LinkTo></td>
+          {{#if this.isAllRegions}}<td><span class="norca-region">{{e.region}}</span></td>{{/if}}
+          <td><LinkTo @route="quotas.quota" @model={{e.QuotaLimitReached}}>{{e.QuotaLimitReached}}</LinkTo></td>
+          <td data-test-blocked-dimensions>{{e.dimensionText}}</td>
+          <td>{{if e.since (moment-from-now e.since) "–"}}</td>
+        </Ui::Table>
+      </Ui::Card>
+    {{/if}}
+  </Ui::PageBody>
 </div>

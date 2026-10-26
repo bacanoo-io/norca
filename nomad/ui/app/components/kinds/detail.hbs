@@ -9,96 +9,94 @@
     </:actions>
   </Ui::PageHeader>
 
-  <div class="page-body">
-    <div class="container-xl">
-      {{#if this.isLoading}}
-        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the type definition" /></Ui::Card>
-      {{else if this.loadError}}
-        <Ui::Card>
-          <Ui::EmptyState @icon="list-details" @title="Type definition not available" @message={{this.loadError}} data-test-kind-error>
-            <Ui::Button @route="kinds">All type definitions</Ui::Button>
-          </Ui::EmptyState>
-        </Ui::Card>
-      {{else}}
-        <div class="row row-cards">
-          <div class="col-lg-5">
-            <Ui::Card @title="Definition">
-              <Ui::Datagrid @items={{this.details}} data-test-kind-details />
-            </Ui::Card>
-            <Ui::Card @title="Columns" @flush={{true}} class="mt-3" data-test-kind-columns>
-              <Ui::Table
-                @inCard={{true}}
-                @caption="List columns"
-                @columns={{array (hash key="name" label="Column") (hash key="path" label="Path")}}
-                @rows={{this.kind.Columns}}
-                @emptyMessage="No list columns: the object list shows names and health only."
-                as |c|
-              >
-                <td>{{c.Name}}</td>
-                <td class="font-monospace">{{c.Path}}</td>
-              </Ui::Table>
-            </Ui::Card>
-          </div>
-          <div class="col-lg-7">
-            <Ui::Card @title="Schema" @subtitle="JSON Schema of spec and status">
-              {{#if this.schema}}
-                <Ui::CodeBlock @label="Schema" @code={{this.schema}} data-test-kind-schema />
-              {{else}}
-                <p class="text-secondary mb-0">The kind has no schema: any spec is accepted.</p>
-              {{/if}}
-            </Ui::Card>
-          </div>
-        </div>
-        <Ui::Card @title="Rules" @subtitle="CEL; oldSelf is the stored object on updates" @flush={{true}} class="mt-3" data-test-kind-rules>
-          <Ui::Table
-            @inCard={{true}}
-            @caption="Rules"
-            @columns={{array (hash key="expression" label="Expression") (hash key="message" label="Message")}}
-            @rows={{this.kind.Rules}}
-            @emptyMessage="No CEL rules."
-            as |r|
-          >
-            <td class="w-50"><Ui::CodeBlock @label="Rule expression" @code={{r.Expression}} @wrap={{true}} /></td>
-            <td>{{or r.Message "–"}}</td>
-          </Ui::Table>
-        </Ui::Card>
-        <Ui::Card @title="Webhooks" @flush={{true}} class="mt-3" data-test-kind-webhooks>
-          <Ui::Table
-            @inCard={{true}}
-            @caption="Webhooks"
-            @columns={{array
-              (hash key="name" label="Webhook")
-              (hash key="mode" label="Mode")
-              (hash key="url" label="URL")
-              (hash key="ops" label="Operations")
-              (hash key="failure" label="On failure")
-              (hash key="approved" label="Approved")
-            }}
-            @rows={{this.webhooks}}
-            @emptyMessage="No webhooks validate or default the objects of this kind."
-            as |w|
-          >
-            <td>{{w.Name}}</td>
-            <td>{{w.Mode}}</td>
-            <td class="font-monospace text-break">{{w.URL}}</td>
-            <td>{{w.operations}}</td>
-            <td>{{w.FailurePolicy}}</td>
-            <td data-test-webhook-approved>
-              {{#if w.approved}}
-                <Ui::StatusIndicator @tone="success" @label="yes" />
-              {{else}}
-                <Ui::StatusIndicator @tone="warning" @label="waiting" />
-                <div class="small text-secondary">A management token must approve it before it is called.</div>
-              {{/if}}
-            </td>
-          </Ui::Table>
-        </Ui::Card>
-        {{#if this.migration}}
-          <Ui::Card @title="Migration" @subtitle="CEL that converts stored objects to this version" class="mt-3">
-            <Ui::CodeBlock @label="Migration" @code={{this.migration}} @wrap={{true}} />
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the type definition" /></Ui::Card>
+    {{else if this.loadError}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="list-details" @title="Type definition not available" @message={{this.loadError}} data-test-kind-error>
+          <Ui::Button @route="kinds">All type definitions</Ui::Button>
+        </Ui::EmptyState>
+      </Ui::Card>
+    {{else}}
+      <div class="row row-cards">
+        <div class="col-lg-5">
+          <Ui::Card @title="Definition">
+            <Ui::Datagrid @items={{this.details}} data-test-kind-details />
           </Ui::Card>
-        {{/if}}
+          <Ui::Card @title="Columns" @flush={{true}} class="mt-3" data-test-kind-columns>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="List columns"
+              @columns={{array (hash key="name" label="Column") (hash key="path" label="Path")}}
+              @rows={{this.kind.Columns}}
+              @emptyMessage="No list columns: the object list shows names and health only."
+              as |c|
+            >
+              <td>{{c.Name}}</td>
+              <td class="font-monospace">{{c.Path}}</td>
+            </Ui::Table>
+          </Ui::Card>
+        </div>
+        <div class="col-lg-7">
+          <Ui::Card @title="Schema" @subtitle="JSON Schema of spec and status">
+            {{#if this.schema}}
+              <Ui::CodeBlock @label="Schema" @code={{this.schema}} data-test-kind-schema />
+            {{else}}
+              <p class="text-secondary mb-0">The kind has no schema: any spec is accepted.</p>
+            {{/if}}
+          </Ui::Card>
+        </div>
+      </div>
+      <Ui::Card @title="Rules" @subtitle="CEL; oldSelf is the stored object on updates" @flush={{true}} class="mt-3" data-test-kind-rules>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Rules"
+          @columns={{array (hash key="expression" label="Expression") (hash key="message" label="Message")}}
+          @rows={{this.kind.Rules}}
+          @emptyMessage="No CEL rules."
+          as |r|
+        >
+          <td class="w-50"><Ui::CodeBlock @label="Rule expression" @code={{r.Expression}} @wrap={{true}} /></td>
+          <td>{{or r.Message "–"}}</td>
+        </Ui::Table>
+      </Ui::Card>
+      <Ui::Card @title="Webhooks" @flush={{true}} class="mt-3" data-test-kind-webhooks>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Webhooks"
+          @columns={{array
+            (hash key="name" label="Webhook")
+            (hash key="mode" label="Mode")
+            (hash key="url" label="URL")
+            (hash key="ops" label="Operations")
+            (hash key="failure" label="On failure")
+            (hash key="approved" label="Approved")
+          }}
+          @rows={{this.webhooks}}
+          @emptyMessage="No webhooks validate or default the objects of this kind."
+          as |w|
+        >
+          <td>{{w.Name}}</td>
+          <td>{{w.Mode}}</td>
+          <td class="font-monospace text-break">{{w.URL}}</td>
+          <td>{{w.operations}}</td>
+          <td>{{w.FailurePolicy}}</td>
+          <td data-test-webhook-approved>
+            {{#if w.approved}}
+              <Ui::StatusIndicator @tone="success" @label="yes" />
+            {{else}}
+              <Ui::StatusIndicator @tone="warning" @label="waiting" />
+              <div class="small text-secondary">A management token must approve it before it is called.</div>
+            {{/if}}
+          </td>
+        </Ui::Table>
+      </Ui::Card>
+      {{#if this.migration}}
+        <Ui::Card @title="Migration" @subtitle="CEL that converts stored objects to this version" class="mt-3">
+          <Ui::CodeBlock @label="Migration" @code={{this.migration}} @wrap={{true}} />
+        </Ui::Card>
       {{/if}}
-    </div>
-  </div>
+    {{/if}}
+  </Ui::PageBody>
 </div>

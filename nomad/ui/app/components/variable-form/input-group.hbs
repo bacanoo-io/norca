@@ -1,29 +1,27 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
-<label class="value-label">
-  <span>
-    Value
-  </span>
-  <Input
-    @type={{this.inputType}}
-    @value={{@entry.value}}
-    class="input value-input"
-    {{! prevent auto-fill }}
-    autocomplete="new-password"
-    data-test-var-value
-  />
-  <button
-    class="show-hide-values button is-light"
-    type="button"
-    tabindex="-1"
-    {{on "click" this.toggleInputType}}
-  >
-    <FlightIcon
-      @name={{if this.isObscured "eye-off" "eye"}}
-      @title={{if this.isObscured "Show Value" "Hide Value"}}
-    />
-  </button>
-</label>
+<div class="col">
+  <Ui::Field @label="Value" class="mb-0" as |f|>
+    <div class="d-flex align-items-center gap-1">
+      <Ui::Input
+        @id={{f.id}}
+        @type={{this.inputType}}
+        @value={{@entry.value}}
+        @onInput={{this.setValue}}
+        @autocomplete="new-password"
+        data-test-var-value
+      />
+      <Ui::Button
+        @icon={{if this.isObscured "eye" "eye-off"}}
+        @iconOnly={{true}}
+        @label={{if this.isObscured "Show Value" "Hide Value"}}
+        aria-pressed={{if this.isObscured "false" "true"}}
+        data-test-toggle-value
+        {{on "click" this.toggleInputType}}
+      />
+    </div>
+  </Ui::Field>
+</div>

@@ -1,0 +1,130 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Card @title="Versions in backups" data-test-backup-versions>
+  {{#if this.isOpen}}
+    {{#if this.loadBackups.isRunning}}
+      <Ui::Spinner @showLabel={{true}} @label="Loading the backups" />
+    {{else if this.listError}}
+      <Ui::Alert @tone="warning" data-test-backup-versions-error>{{this.listError}}</Ui::Alert>
+    {{else if this.backups.length}}
+      <Ui::Field
+        @label="Age identity (encrypted backups)"
+        @help="Needed only to read encrypted backups. It is sent with the request and not stored."
+        as |f|
+      >
+        <Ui::Input
+          @id={{f.id}}
+          @describedBy={{f.describedBy}}
+          @type="password"
+          @value={{this.identity}}
+          @onInput={{this.setIdentity}}
+          @autocomplete="off"
+          @monospace={{true}}
+          data-test-backup-identity
+        />
+      </Ui::Field>
+      <Ui::ListGroup class="mb-2" data-test-backup-list as |l|>
+        {{#each this.visibleBackups as |backup|}}
+          <l.Item
+            @action={{true}}
+            @pressable={{true}}
+            @active={{eq this.selected.ID backup.ID}}
+            data-test-backup={{backup.ID}}
+            {{on "click" (perform this.loadVersions backup)}}
+          >
+            <div class="d-flex align-items-center gap-2">
+              <span class="font-monospace small text-truncate">{{backup.ID}}</span>
+              <span class="ms-auto small">{{moment-from-now backup.StartedAt}}</span>
+            </div>
+            <div class="small text-secondary">{{backup.Trigger}}, {{backup.Status}}{{#if backup.Pinned}}, pinned{{/if}}</div>
+          </l.Item>
+        {{/each}}
+      </Ui::ListGroup>
+      {{#if this.hasMore}}
+        <Ui::Button @size="sm" @variant="ghost" {{on "click" this.showMore}}>Show older backups</Ui::Button>
+      {{/if}}
+
+      {{#if this.selected}}
+        <h3 class="h4 mt-3" data-test-backup-selected>Versions in {{this.selected.ID}}</h3>
+        {{#if this.loadVersions.isRunning}}
+          <Ui::Spinner @showLabel={{true}} @label="Reading the backup" />
+        {{else if this.contentsError}}
+          <Ui::Alert @tone="danger" data-test-backup-contents-error>{{this.contentsError}}</Ui::Alert>
+        {{else if this.versions.length}}
+          <ul class="list-unstyled m-0">
+            {{#each this.versions as |version|}}
+              <li class="d-flex flex-wrap align-items-center gap-2 py-1" data-test-backup-version={{version.Version}}>
+                <span class="fw-medium">v{{version.Version}}</span>
+                <span class="text-secondary small">{{format-ts version.SubmitTime}}</span>
+                <span class="ms-auto d-inline-flex gap-1">
+                  <Ui::Button @size="sm" @icon="file-diff" data-test-backup-compare {{on "click" (perform this.compare version)}}>Compare</Ui::Button>
+                  {{#if (can "run job" namespace=@job.namespaceName)}}
+                    <Ui::Button @size="sm" @icon="history" data-test-backup-restore {{on "click" (perform this.previewRestore version)}}>Restore</Ui::Button>
+                  {{/if}}
+                </span>
+              </li>
+            {{/each}}
+          </ul>
+        {{else}}
+          <p class="text-secondary m-0" data-test-backup-no-versions>The backup holds no version of this job.</p>
+        {{/if}}
+      {{/if}}
+    {{else}}
+      <Ui::EmptyState
+        @compact={{true}}
+        @icon="cloud-upload"
+        @title="No backups yet"
+        @message="Configure the backup schedule of the servers, or start a backup with norca operator backup save."
+        data-test-backup-none
+      />
+    {{/if}}
+  {{else}}
+    <p class="text-secondary">
+      Nomad keeps the latest versions of a job only. The backups of the cluster hold older ones, which can be
+      compared and restored as a new version.
+    </p>
+    <Ui::Button @icon="search" data-test-backup-versions-open {{on "click" this.open}}>Search the backups</Ui::Button>
+  {{/if}}
+</Ui::Card>
+
+{{#if this.compared}}
+  <Ui::Modal @title="Version {{this.compared.version.Version}} from the backup, compared with the current job" @size="xl" @onClose={{this.closeCompare}} data-test-backup-compare-modal>
+    <Ui::TextDiff @old={{this.currentText}} @new={{this.compared.text}} @label="the job definition" />
+  </Ui::Modal>
+{{/if}}
+
+{{#if this.isPreviewing}}
+  <Ui::Modal @title="Restore version {{this.previewVersion.Version}} as a new version?" @onClose={{this.closePreview}} data-test-backup-restore-modal>
+    <:default>
+      {{#if this.restoreError}}
+        <Ui::Alert @tone="danger" class="mb-3" data-test-backup-restore-error>{{this.restoreError}}</Ui::Alert>
+      {{/if}}
+      {{#if this.previewRestore.isRunning}}
+        <Ui::Spinner @showLabel={{true}} @label="Previewing the restore" />
+      {{/if}}
+      {{#each this.preview as |result|}}
+        <p class="mb-2" data-test-backup-restore-result>
+          <Ui::Badge @color={{if result.Error "red" "blue"}}>{{or result.Action "error"}}</Ui::Badge>
+          {{or result.Description result.Error}}
+        </p>
+      {{/each}}
+      <p class="text-secondary small m-0">
+        The version is submitted as a new version of the job, through the admission policies and the quota of
+        the namespace, like any submission.
+      </p>
+    </:default>
+    <:footer>
+      <Ui::Button {{on "click" this.closePreview}}>Cancel</Ui::Button>
+      <Ui::Button
+        @variant="primary"
+        @icon="history"
+        @disabled={{not this.canRestore}}
+        @isLoading={{this.restore.isRunning}}
+        data-test-backup-restore-confirm
+        {{on "click" (perform this.restore)}}
+      >Restore</Ui::Button>
+    </:footer>
+  </Ui::Modal>
+{{/if}}

@@ -15,88 +15,86 @@
     </:actions>
   </Ui::PageHeader>
 
-  <div class="page-body">
-    <div class="container-xl">
-      {{#if this.isLoading}}
-        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the policy" /></Ui::Card>
-      {{else if this.loadError}}
-        <Ui::Card>
-          <Ui::EmptyState @icon="shield-lock" @title="Policy not available" @message={{this.loadError}} data-test-policy-error>
-            <Ui::Button @route="network" @query={{hash tab=(if @admin "admin" "policies")}}>All policies</Ui::Button>
-          </Ui::EmptyState>
-        </Ui::Card>
-      {{else}}
-        {{#if this.policy.Description}}<p class="text-secondary">{{this.policy.Description}}</p>{{/if}}
-        <div class="row row-cards">
-          <div class="col-lg-4">
-            <Ui::Card @title="Policy">
-              <Ui::Datagrid @items={{this.details}} data-test-policy-details />
-            </Ui::Card>
-          </div>
-          <div class="col-lg-8">
-            <Ui::Card @title="Rules" @flush={{true}} data-test-policy-rules-table>
-              <Ui::Table
-                @inCard={{true}}
-                @caption="Rules"
-                @columns={{array
-                  (hash key="direction" label="Direction")
-                  (hash key="name" label="Rule")
-                  (hash key="action" label="Decision")
-                  (hash key="peers" label="Peers")
-                  (hash key="ports" label="Ports")
-                }}
-                @rows={{this.rules}}
-                @emptyMessage="No rules: only the default deny of the policy applies."
-                as |r|
-              >
-                <td>{{r.direction}}</td>
-                <td>{{r.name}}</td>
-                <td><Ui::Badge @color={{if (eq r.action "deny") "red" (if (eq r.action "pass") "secondary" "green")}}>{{r.action}}</Ui::Badge></td>
-                <td>{{r.peers}}</td>
-                <td class="font-monospace">{{r.ports}}</td>
-              </Ui::Table>
-            </Ui::Card>
-          </div>
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the policy" /></Ui::Card>
+    {{else if this.loadError}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="shield-lock" @title="Policy not available" @message={{this.loadError}} data-test-policy-error>
+          <Ui::Button @route="network" @query={{hash tab=(if @admin "admin" "policies")}}>All policies</Ui::Button>
+        </Ui::EmptyState>
+      </Ui::Card>
+    {{else}}
+      {{#if this.policy.Description}}<p class="text-secondary">{{this.policy.Description}}</p>{{/if}}
+      <div class="row row-cards">
+        <div class="col-lg-4">
+          <Ui::Card @title="Policy">
+            <Ui::Datagrid @items={{this.details}} data-test-policy-details />
+          </Ui::Card>
         </div>
-        <Ui::Card @title="Allocations" @subtitle="Running allocations the policy selects" @flush={{true}} class="mt-3" data-test-policy-status>
-          <:default>
-            {{#if this.notEnforced}}
-              <div class="p-3 pb-0">
-                <Ui::Alert @tone="warning" class="mb-0">{{this.notEnforced}} selected {{if (eq this.notEnforced 1) "allocation is" "allocations are"}} not filtered. Use the bridge network mode for them.</Ui::Alert>
-              </div>
-            {{/if}}
+        <div class="col-lg-8">
+          <Ui::Card @title="Rules" @flush={{true}} data-test-policy-rules-table>
             <Ui::Table
               @inCard={{true}}
-              @caption="Allocations of the policy"
+              @caption="Rules"
               @columns={{array
-                (hash key="alloc" label="Allocation")
-                (hash key="job" label="Job / group")
-                (hash key="node" label="Client")
-                (hash key="mode" label="Network mode")
-                (hash key="enforced" label="Enforced")
+                (hash key="direction" label="Direction")
+                (hash key="name" label="Rule")
+                (hash key="action" label="Decision")
+                (hash key="peers" label="Peers")
+                (hash key="ports" label="Ports")
               }}
-              @rows={{this.statusRows}}
-              @emptyMessage="No running allocation is selected by the policy."
-              as |s|
+              @rows={{this.rules}}
+              @emptyMessage="No rules: only the default deny of the policy applies."
+              as |r|
             >
-              <td><LinkTo @route="allocations.allocation" @model={{s.ID}} class="font-monospace">{{s.shortId}}</LinkTo></td>
-              <td>{{s.JobID}} / {{s.TaskGroup}}</td>
-              <td>{{s.NodeName}}</td>
-              <td>{{s.NetworkMode}}</td>
-              <td data-test-enforced>
-                {{#if s.Enforceable}}
-                  <Ui::StatusIndicator @tone="success" @label="yes" />
-                {{else}}
-                  <Ui::StatusIndicator @tone="warning" @label="no" />
-                  <div class="small text-secondary">{{s.Reason}}</div>
-                {{/if}}
-              </td>
+              <td>{{r.direction}}</td>
+              <td>{{r.name}}</td>
+              <td><Ui::Badge @color={{if (eq r.action "deny") "red" (if (eq r.action "pass") "secondary" "green")}}>{{r.action}}</Ui::Badge></td>
+              <td>{{r.peers}}</td>
+              <td class="font-monospace">{{r.ports}}</td>
             </Ui::Table>
-          </:default>
-        </Ui::Card>
-      {{/if}}
-    </div>
-  </div>
+          </Ui::Card>
+        </div>
+      </div>
+      <Ui::Card @title="Allocations" @subtitle="Running allocations the policy selects" @flush={{true}} class="mt-3" data-test-policy-status>
+        <:default>
+          {{#if this.notEnforced}}
+            <div class="p-3 pb-0">
+              <Ui::Alert @tone="warning" class="mb-0">{{this.notEnforced}} selected {{if (eq this.notEnforced 1) "allocation is" "allocations are"}} not filtered. Use the bridge network mode for them.</Ui::Alert>
+            </div>
+          {{/if}}
+          <Ui::Table
+            @inCard={{true}}
+            @caption="Allocations of the policy"
+            @columns={{array
+              (hash key="alloc" label="Allocation")
+              (hash key="job" label="Job / group")
+              (hash key="node" label="Client")
+              (hash key="mode" label="Network mode")
+              (hash key="enforced" label="Enforced")
+            }}
+            @rows={{this.statusRows}}
+            @emptyMessage="No running allocation is selected by the policy."
+            as |s|
+          >
+            <td><LinkTo @route="allocations.allocation" @model={{s.ID}} class="font-monospace">{{s.shortId}}</LinkTo></td>
+            <td>{{s.JobID}} / {{s.TaskGroup}}</td>
+            <td>{{s.NodeName}}</td>
+            <td>{{s.NetworkMode}}</td>
+            <td data-test-enforced>
+              {{#if s.Enforceable}}
+                <Ui::StatusIndicator @tone="success" @label="yes" />
+              {{else}}
+                <Ui::StatusIndicator @tone="warning" @label="no" />
+                <div class="small text-secondary">{{s.Reason}}</div>
+              {{/if}}
+            </td>
+          </Ui::Table>
+        </:default>
+      </Ui::Card>
+    {{/if}}
+  </Ui::PageBody>
 
   {{#if this.confirming}}
     <Ui::Confirm

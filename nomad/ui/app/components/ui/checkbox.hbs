@@ -1,0 +1,18 @@
+{{!--
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A bare checkbox (for example to pick rows); give it an aria-label.
+  @onChange receives the new checked state.
+
+    <Ui::Checkbox @checked={{this.isSelected}} @onChange={{this.select}} aria-label="Select web" />
+--}}
+<input
+  class="form-check-input m-0"
+  type="checkbox"
+  checked={{@checked}}
+  disabled={{@disabled}}
+  data-test-checkbox
+  {{on "change" this.change}}
+  ...attributes
+/>

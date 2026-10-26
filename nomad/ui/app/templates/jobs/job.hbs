@@ -1,7 +1,18 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{did-update this.notFoundJobHandler this.watchers.job.isError}}
-<Breadcrumb @crumb={{hash type="job" job=this.job}} />{{outlet}}
+<PageLayout @legacy={{false}}>
+  {{#if this.isTaskGroupPage}}
+    {{outlet}}
+  {{else}}
+    <Jobs::Header @job={{this.job}} />
+    <Ui::PageBody>
+      <Jobs::Tabs @job={{this.job}} />
+      {{outlet}}
+    </Ui::PageBody>
+  {{/if}}
+</PageLayout>

@@ -20,14 +20,45 @@ import {
 import classic from 'ember-classic-decorator';
 import { inject as service } from '@ember/service';
 import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
+import WithListActions, {
+  viewStateOf,
+} from 'nomad-ui/mixins/with-list-actions';
 
 @classic
 export default class ClientsController extends Controller.extend(
   SortableFactory(['id', 'name', 'jobStatus']),
   Searchable,
-  WithNamespaceResetting
+  WithNamespaceResetting,
+  WithListActions
 ) {
   @service store;
+
+  viewParams = [
+    'qpStatus',
+    'qpDatacenter',
+    'qpClientClass',
+    'searchTerm',
+    'sortProperty',
+    'sortDescending',
+  ];
+
+  columns = [
+    { key: 'node.id', label: 'Client ID', sortable: true, hideable: false },
+    { key: 'node.name', label: 'Client name', sortable: true },
+    { key: 'createTime', label: 'Created' },
+    { key: 'modifyTime', label: 'Modified' },
+    { key: 'jobStatus', label: 'Job status', sortable: true },
+    { key: 'allocations', label: 'Allocation summary' },
+  ];
+
+  get viewState() {
+    return viewStateOf(this);
+  }
+
+  @action
+  gotoClientRow(row) {
+    this.gotoClient(row.node);
+  }
 
   queryParams = [
     {

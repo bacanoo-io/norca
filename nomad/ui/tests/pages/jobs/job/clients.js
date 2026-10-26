@@ -13,7 +13,7 @@ import {
   text,
   visitable,
 } from 'ember-cli-page-object';
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
+import { filterFacet } from 'nomad-ui/tests/pages/components/facet';
 
 import clients from 'nomad-ui/tests/pages/components/clients';
 import error from 'nomad-ui/tests/pages/components/error';
@@ -23,13 +23,15 @@ export default create({
   pageSize: 25,
 
   hasSearchBox: isPresent('[data-test-clients-search]'),
-  search: fillable('[data-test-clients-search] input'),
+  search: fillable('[data-test-clients-search]'),
 
   ...clients(),
 
   isEmpty: isPresent('[data-test-empty-clients-list]'),
   emptyState: {
-    headline: text('[data-test-empty-clients-list-headline]'),
+    headline: text(
+      '[data-test-empty-clients-list] [data-test-empty-state-title]'
+    ),
   },
 
   sortOptions: collection('[data-test-sort-by]', {
@@ -42,9 +44,9 @@ export default create({
   },
 
   facets: {
-    jobStatus: multiFacet('[data-test-job-status-facet]'),
-    datacenter: multiFacet('[data-test-datacenter-facet]'),
-    clientClass: multiFacet('[data-test-class-facet]'),
+    jobStatus: filterFacet('[data-test-job-status-facet]'),
+    datacenter: filterFacet('[data-test-datacenter-facet]'),
+    clientClass: filterFacet('[data-test-client-class-facet]'),
   },
 
   error: error(),

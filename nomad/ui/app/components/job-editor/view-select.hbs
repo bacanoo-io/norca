@@ -1,0 +1,30 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  Switches the job editor between the submitted job spec and the full
+  definition (JSON).
+~}}
+<span
+  class="d-inline-flex gap-1"
+  role="group"
+  aria-label="Definition view"
+  title={{unless @data.hasSpecification "A jobspec file was not submitted when this job was run. You can still view and edit the expanded JSON format."}}
+  data-test-select={{@data.view}}
+>
+  <Ui::Button
+    @size="sm"
+    @variant={{if (eq @data.view "job-spec") "primary" "secondary"}}
+    @disabled={{not @data.hasSpecification}}
+    aria-pressed={{if (eq @data.view "job-spec") "true" "false"}}
+    data-test-select-spec
+    {{on "click" (fn @fns.onSelect "job-spec")}}
+  >Job Spec</Ui::Button>
+  <Ui::Button
+    @size="sm"
+    @variant={{if (eq @data.view "full-definition") "primary" "secondary"}}
+    aria-pressed={{if (eq @data.view "full-definition") "true" "false"}}
+    data-test-select-full
+    {{on "click" (fn @fns.onSelect "full-definition")}}
+  >Full Definition</Ui::Button>
+</span>

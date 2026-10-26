@@ -1,24 +1,41 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Job " this.job.name " versions"}}
-<JobSubnav @job={{this.job}} />
-<section class="section">
-  {{#if this.error}}
-    <div data-test-inline-error class="notification {{this.errorLevelClass}}">
-      <div class="columns">
-        <div class="column">
-          <h3 data-test-inline-error-title class="title is-4">{{this.error.title}}</h3>
-          <p data-test-inline-error-body>{{this.error.description}}</p>
-        </div>
-        <div class="column is-centered is-minimum">
-          <button data-test-inline-error-close class="button {{this.errorLevelClass}}" onclick={{action this.onDismiss}} type="button">Okay</button>
-        </div>
-      </div>
-    </div>
-  {{/if}}
+{{#if this.error}}
+  <Ui::Alert
+    @tone={{if (eq this.error.level "danger") "danger" (if (eq this.error.level "warn") "warning" "info")}}
+    @onDismiss={{action this.onDismiss}}
+    class="mb-3"
+    data-test-inline-error
+  >
+    <strong class="d-block" data-test-inline-error-title>{{this.error.title}}</strong>
+    <span data-test-inline-error-body>{{this.error.description}}</span>
+  </Ui::Alert>
+{{/if}}
 
-  <JobVersionsStream @versions={{this.model.versions}} @verbose={{true}} @handleError={{action this.handleError}} />
-</section>
+<div class="row g-3">
+  <div class="col-xl-8">
+    <h2 class="h3 mb-2">Versions kept by Nomad</h2>
+    <ol class="list-unstyled m-0" data-test-versions>
+      {{#each this.annotatedVersions key="version.id" as |record|}}
+        {{#if record.showDate}}
+          <li class="text-secondary small fw-medium mt-3 mb-2" data-test-version-time>{{format-date record.version.submitTime}}</li>
+        {{/if}}
+        <li class="mb-2" data-test-version>
+          <Jobs::Version @version={{record.version}} @verbose={{true}} @handleError={{action this.handleError}} />
+        </li>
+      {{else}}
+        <li>
+          <Ui::EmptyState @icon="history" @title="No versions" @message="Nomad keeps the latest versions of a job; older ones can be restored from backups." />
+        </li>
+      {{/each}}
+    </ol>
+  </div>
+  <div class="col-xl-4">
+    <Jobs::BackupVersions @job={{this.job}} />
+  </div>
+</div>

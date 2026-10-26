@@ -1,0 +1,62 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-job-placement>
+  {{#if this.load.isRunning}}
+    <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the placement rules" /></Ui::Card>
+  {{else if this.loadError}}
+    <Ui::Alert @tone="danger">{{this.loadError}}</Ui::Alert>
+  {{else}}
+    {{#if this.jobRules.length}}
+      <Ui::Card @title="Rules of the job" class="mb-3" data-test-placement-job-rules>
+        <Ui::CodeBlock @code={{this.jobRulesText}} @label="Placement rules of the job" />
+      </Ui::Card>
+    {{/if}}
+    {{#each this.groups as |group|}}
+      <Ui::Card @title="Task group {{group.name}}" class="mb-3" data-test-placement-group={{group.name}}>
+        <div class="row g-3">
+          <div class="col-lg-7">
+            <h3 class="h4">Placement rules</h3>
+            {{#if group.rules}}
+              <Ui::CodeBlock @code={{group.rules}} @label="Placement rules of {{group.name}}" data-test-placement-rules />
+              <p class="small text-secondary mt-2 mb-0">
+                Separate keeps the allocations apart from those matching the selector, even of other jobs; colocate
+                brings them together. Required rules filter nodes, the others only score them.
+              </p>
+            {{else}}
+              <p class="text-secondary m-0" data-test-placement-no-rules>
+                No placement rules: the scheduler places the allocations on any eligible node of the node pool.
+              </p>
+            {{/if}}
+          </div>
+          <div class="col-lg-5">
+            <h3 class="h4">Disruption budget</h3>
+            {{#if group.budget}}
+              <Ui::Datagrid as |g|>
+                <g.Item @title="Rule" @monospace={{true}} data-test-disruption-rule>{{group.budgetText}}</g.Item>
+                {{#if group.status}}
+                  <g.Item @title="Healthy now" data-test-disruption-healthy>{{group.status.Healthy}} / {{group.status.DesiredCount}}</g.Item>
+                  <g.Item @title="Required healthy">{{group.status.RequiredHealthy}}</g.Item>
+                  <g.Item @title="Can be disrupted now" data-test-disruption-allowed>
+                    <span class={{if group.status.DisruptionsAllowed "text-success" "text-danger"}}>
+                      {{group.status.DisruptionsAllowed}} {{pluralize "allocation" group.status.DisruptionsAllowed}}
+                    </span>
+                  </g.Item>
+                {{/if}}
+              </Ui::Datagrid>
+              <p class="small text-secondary mt-2 mb-0">
+                Drains, node pool scale-downs and evictions respect the budget; lowering the count does not.
+              </p>
+            {{else}}
+              <p class="text-secondary m-0" data-test-disruption-none>
+                No disruption budget: a drain may stop every allocation of the group at once. Add a disruption block
+                to keep some of them running.
+              </p>
+            {{/if}}
+          </div>
+        </div>
+      </Ui::Card>
+    {{/each}}
+  {{/if}}
+</div>

@@ -178,6 +178,17 @@ const (
 	// blobs by storage path. They are sent with the IgnoreUnknownTypeFlag set.
 	SecretStoreBlobsUpsertRequestType MessageType = 105
 	SecretStoreBlobsDeleteRequestType MessageType = 106
+	// Norca keyring seal (107-108 assigned to the seal): the seal
+	// configuration of the region and the progress of a rewrap. They are
+	// sent with the IgnoreUnknownTypeFlag set.
+	SealConfigUpsertRequestType MessageType = 107
+	SealRewrapDoneRequestType   MessageType = 108
+	// Norca built-in secret store (109-111 assigned to the store): a
+	// secret's metadata row together with the barrier blobs of its versions,
+	// applied in one transaction. They are sent with the
+	// IgnoreUnknownTypeFlag set. 111 is reserved for the store.
+	SecretApplyRequestType MessageType = 109
+	SecretPurgeRequestType MessageType = 110
 )
 
 const (
@@ -2498,6 +2509,16 @@ func (n *Node) Stub(fields *NodeStubFields) *NodeListStub {
 		}
 	}
 
+	// The Norca product version of the client: Version above is the Nomad
+	// API version it is compatible with. Clients that predate Norca do not
+	// have the attribute.
+	if v, ok := n.Attributes["norca.version"]; ok {
+		if s.Attributes == nil {
+			s.Attributes = make(map[string]string, 1)
+		}
+		s.Attributes["norca.version"] = v
+	}
+
 	return s
 }
 
@@ -4554,6 +4575,10 @@ type Job struct {
 	// job. This is opaque to Nomad.
 	Meta map[string]string
 
+	// Secrets is the job's secrets block: the default secret provider of
+	// its tasks, and the namespace default captured at registration (Norca).
+	Secrets *SecretsConfig
+
 	// ConsulToken is the Consul token that proves the submitter of the job has
 	// access to the Service Identity policies associated with the job's
 	// Consul Connect enabled services. This field is only used to transfer the
@@ -4701,6 +4726,7 @@ func (j *Job) Copy() *Job {
 	nj.Periodic = nj.Periodic.Copy()
 	nj.Meta = maps.Clone(nj.Meta)
 	nj.ParameterizedJob = nj.ParameterizedJob.Copy()
+	nj.Secrets = nj.Secrets.Copy()
 	return nj
 }
 
@@ -4849,6 +4875,11 @@ func (j *Job) Validate() error {
 	}
 
 	if err := j.validateConsulNamespaces(); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
+	}
+
+	// Validate the secrets block (Norca)
+	if err := j.Secrets.Validate(); err != nil {
 		mErr.Errors = append(mErr.Errors, err)
 	}
 
@@ -6772,6 +6803,14 @@ type TaskGroup struct {
 	// MaxClientDisconnect, if set, configures the client to allow placed
 	// allocations for tasks in this group to attempt to resume running without a restart.
 	MaxClientDisconnect *time.Duration
+
+	// Secrets is the group's secrets block: the default secret provider of
+	// its tasks (Norca).
+	Secrets *SecretsConfig
+
+	// SecretAccess are the secret_access bindings of the group: read-secret
+	// on secret paths for the workload identities of all its tasks (Norca).
+	SecretAccess []*SecretAccess
 }
 
 func (tg *TaskGroup) Copy() *TaskGroup {
@@ -6834,6 +6873,9 @@ func (tg *TaskGroup) Copy() *TaskGroup {
 	if tg.MaxClientDisconnect != nil {
 		ntg.MaxClientDisconnect = tg.MaxClientDisconnect
 	}
+
+	ntg.Secrets = tg.Secrets.Copy()
+	ntg.SecretAccess = copySecretAccess(tg.SecretAccess)
 
 	return ntg
 }
@@ -7109,6 +7151,14 @@ func (tg *TaskGroup) Validate(j *Job) error {
 			outer := fmt.Errorf("Task %s validation failed: %v", task.Name, err)
 			mErr.Errors = append(mErr.Errors, outer)
 		}
+	}
+
+	// Validate the secrets block and bindings (Norca)
+	if err := tg.Secrets.Validate(); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
+	}
+	if err := validateSecretAccess(tg.SecretAccess, false); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
 	}
 
 	return mErr.ErrorOrNil()
@@ -7690,6 +7740,14 @@ type Task struct {
 	// Identity controls if and how the workload identity is exposed to
 	// tasks similar to the Vault block.
 	Identity *WorkloadIdentity
+
+	// Secrets are the secret blocks of the task: secrets delivered into its
+	// secrets directory and environment (Norca).
+	Secrets []*TaskSecret
+
+	// SecretAccess are the secret_access bindings of the task: read-secret
+	// on secret paths for the task's workload identity (Norca).
+	SecretAccess []*SecretAccess
 }
 
 // UsesConnect is for conveniently detecting if the Task is able to make use
@@ -7751,6 +7809,8 @@ func (t *Task) Copy() *Task {
 	nt.DispatchPayload = nt.DispatchPayload.Copy()
 	nt.Lifecycle = nt.Lifecycle.Copy()
 	nt.Identity = nt.Identity.Copy()
+	nt.Secrets = copyTaskSecrets(nt.Secrets)
+	nt.SecretAccess = copySecretAccess(nt.SecretAccess)
 
 	if t.Artifacts != nil {
 		artifacts := make([]*TaskArtifact, 0, len(t.Artifacts))
@@ -7817,6 +7877,10 @@ func (t *Task) Canonicalize(job *Job, tg *TaskGroup) {
 
 	for _, template := range t.Templates {
 		template.Canonicalize()
+	}
+
+	for _, s := range t.Secrets {
+		s.Canonicalize()
 	}
 }
 
@@ -8000,6 +8064,11 @@ func (t *Task) Validate(jobType string, tg *TaskGroup) error {
 		}
 
 		// TODO: Investigate validation of the PluginMountDir. Not much we can do apart from check IsAbs until after we understand its execution environment though :(
+	}
+
+	// Validate the secret blocks and bindings (Norca)
+	if err := validateTaskSecrets(t); err != nil {
+		mErr.Errors = append(mErr.Errors, err)
 	}
 
 	return mErr.ErrorOrNil()

@@ -1,0 +1,57 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  A version of a job kept by Nomad: stability, submit time, the changes
+  against the previous version and the revert operation.
+~}}
+<Ui::Card @size="sm">
+  <div class="d-flex flex-wrap align-items-center gap-3">
+    <span class="fw-medium">Version #{{@version.number}}</span>
+    <span class="text-secondary">Stable <Ui::Badge @color={{if @version.stable "green" "secondary"}} data-test-version-stability>{{@version.stable}}</Ui::Badge></span>
+    <span class="text-secondary">Submitted <span class="tabular-nums text-body" data-test-version-submit-time>{{format-ts @version.submitTime}}</span></span>
+    <span class="ms-auto d-inline-flex flex-wrap align-items-center gap-2">
+      {{#unless this.isCurrent}}
+        {{#if (can "run job" namespace=@version.job.namespace)}}
+          <Ui::ConfirmButton
+            @size="sm"
+            @variant="warning"
+            @idleVariant="secondary"
+            @icon="history"
+            @label="Revert Version"
+            @message="Are you sure you want to revert to this version?"
+            @confirmLabel="Yes, Revert Version"
+            @isRunning={{this.revertTo.isRunning}}
+            @onConfirm={{perform this.revertTo}}
+            data-test-revert-to
+          />
+        {{else}}
+          <Ui::Button
+            @size="sm"
+            @icon="history"
+            @disabled={{true}}
+            title="You don’t have permission to revert"
+            data-test-revert-to
+          >Revert</Ui::Button>
+        {{/if}}
+      {{/unless}}
+      {{#if @version.diff}}
+        <Ui::Button
+          @size="sm"
+          @variant="ghost"
+          @icon={{if this.isOpen "chevron-up" "chevron-down"}}
+          aria-expanded={{if this.isOpen "true" "false"}}
+          data-test-version-toggle-diff
+          {{on "click" this.toggleDiff}}
+        >{{this.changeCount}} {{pluralize "Change" this.changeCount}}</Ui::Button>
+      {{else}}
+        <span class="text-secondary small">No Changes</span>
+      {{/if}}
+    </span>
+  </div>
+  {{#if this.isOpen}}
+    <div class="mt-3">
+      <JobDiff @diff={{@version.diff}} @verbose={{@verbose}} />
+    </div>
+  {{/if}}
+</Ui::Card>

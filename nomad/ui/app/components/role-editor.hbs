@@ -3,83 +3,36 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<form class="acl-form role-editor" autocomplete="off" novalidate {{on "submit" (perform this.save)}} data-test-role-editor>
-  <div class="acl-form-row">
-    <Hds::Form::TextInput::Field
-      @isRequired={{true}}
-      @value={{this.role.name}}
-      {{on "input" this.updateName}}
-      data-test-role-name-input
-      as |F|
-    >
-      <F.Label>Role name</F.Label>
-      <F.HelperText>Letters, numbers and dashes, up to 128 characters.</F.HelperText>
-    </Hds::Form::TextInput::Field>
-  </div>
+<form class="norca-acl-form" autocomplete="off" novalidate {{on "submit" (perform this.save)}} data-test-role-editor>
+  <Ui::Card class="mb-3">
+    <Ui::Field @label="Role name" @required={{true}} @help="Letters, numbers and dashes, up to 128 characters." as |f|>
+      <Ui::Input @id={{f.id}} @value={{this.role.name}} @required={{true}} @describedBy={{f.describedBy}} @onInput={{this.updateName}} data-test-role-name-input />
+    </Ui::Field>
+    <Ui::Field @label="Description (optional)" class="mb-0" as |f|>
+      <Ui::Input @id={{f.id}} @value={{this.role.description}} @onInput={{this.updateDescription}} data-test-role-description-input />
+    </Ui::Field>
+  </Ui::Card>
 
-  <div class="acl-form-row">
-    <Hds::Form::TextInput::Field
-      @isOptional={{true}}
-      @value={{this.role.description}}
-      {{on "input" this.updateDescription}}
-      data-test-role-description-input
-      as |F|
-    >
-      <F.Label>Description</F.Label>
-    </Hds::Form::TextInput::Field>
-  </div>
+  <h2 class="h3 mb-1">Policies</h2>
+  <p class="text-secondary">Tokens linked to this role get the permissions of every policy selected here.</p>
+  {{#if this.availablePolicies.length}}
+    <Ui::Table @caption="Policies of the role" @columns={{this.policyColumns}} @rows={{this.availablePolicies}} class="mb-3" data-test-role-policies as |policy|>
+      <td class="w-1">
+        <Ui::Checkbox @checked={{includes policy.id this.selectedPolicyIds}} @onChange={{fn this.togglePolicy policy}} aria-label="Link policy {{policy.name}}" />
+      </td>
+      <td data-test-policy-name>{{policy.name}}</td>
+      <td>{{policy.description}}</td>
+    </Ui::Table>
+  {{else}}
+    <p class="text-secondary" data-test-role-no-policies>No policies exist yet. A role needs at least one policy.</p>
+  {{/if}}
 
-  <div class="acl-form-row">
-    <h3 class="title is-5">Policies</h3>
-    <p class="acl-explainer">Tokens linked to this role get the permissions of every policy selected here.</p>
-    {{#if this.availablePolicies.length}}
-      <Hds::Table
-        class="acl-table"
-        @model={{this.availablePolicies}}
-        @columns={{this.policyColumns}}
-        @sortBy="name"
-        @density="short"
-        data-test-role-policies
-      >
-        <:body as |B|>
-          <B.Tr>
-            <B.Td>
-              <input
-                type="checkbox"
-                class="hds-form-checkbox"
-                aria-label="Link policy {{B.data.name}}"
-                checked={{includes B.data.id this.selectedPolicyIds}}
-                {{on "change" (fn this.togglePolicy B.data)}}
-              />
-            </B.Td>
-            <B.Td data-test-policy-name>{{B.data.name}}</B.Td>
-            <B.Td>{{B.data.description}}</B.Td>
-          </B.Tr>
-        </:body>
-      </Hds::Table>
-    {{else}}
-      <p class="empty-message-body" data-test-role-no-policies>
-        No policies exist yet. A role needs at least one policy.
-      </p>
+  <div class="d-flex flex-wrap gap-2">
+    {{#if (can "write role")}}
+      <Ui::Button @variant="primary" @type="submit" @disabled={{this.save.isRunning}} @isLoading={{this.save.isRunning}} data-test-save-role>
+        {{if this.role.isNew "Create Role" "Save Role"}}
+      </Ui::Button>
     {{/if}}
+    <Ui::Button @variant="ghost" @route="access-control.roles" data-test-role-cancel>Cancel</Ui::Button>
   </div>
-
-  <footer class="acl-form-footer">
-    <Hds::ButtonSet>
-      {{#if (can "write role")}}
-        <Hds::Button
-          @text={{if this.role.isNew "Create Role" "Save Role"}}
-          type="submit"
-          disabled={{this.save.isRunning}}
-          data-test-save-role
-        />
-      {{/if}}
-      <Hds::Button
-        @text="Cancel"
-        @color="secondary"
-        @route="access-control.roles"
-        data-test-role-cancel
-      />
-    </Hds::ButtonSet>
-  </footer>
 </form>

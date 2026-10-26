@@ -1,31 +1,39 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<Hds::TooltipButton @text="{{get @allocation "shortId"}}" aria-label="Allocation" @extraTippyOptions={{hash trigger=(if (eq @status "unplaced") "manual")}}>
-  <ConditionalLinkTo
-    @condition={{not (eq @status "unplaced")}}
-    @route="allocations.allocation"
-    @model={{@allocation.id}}
-    @class="represented-allocation {{@status}} {{@health}} {{@canary}}"
-    @label="View allocation"
-  >
-    {{#unless @steady}}
-      {{#if (eq @canary "canary")}}
-        <span class="alloc-canary-indicator" />
-      {{/if}}
-      {{#if (eq @status "running")}}
-        <span class="alloc-health-indicator">
-          {{#if (eq @health "healthy")}}
-            <FlightIcon @name="check" @color="white" />
-          {{else if (eq @health "unhealthy")}}
-            <FlightIcon @name="x" @color="white" />
-          {{else}}
-            <FlightIcon @name="running" @color="white" />
-          {{/if}}
-        </span>
-      {{/if}}
-    {{/unless}}
-  </ConditionalLinkTo>
-</Hds::TooltipButton>
+{{#if (eq @status "unplaced")}}
+  <span
+    class="norca-alloc norca-alloc-{{@status}} norca-alloc-{{@health}} norca-alloc-{{@canary}}"
+    role="img"
+    aria-label="Unplaced allocation"
+  ></span>
+{{else}}
+  <Ui::Tooltip @text={{get @allocation "shortId"}} @below={{true}}>
+    <LinkTo
+      @route="allocations.allocation"
+      @model={{@allocation.id}}
+      class="norca-alloc norca-alloc-{{@status}} norca-alloc-{{@health}} norca-alloc-{{@canary}}"
+      aria-label="Allocation {{get @allocation 'shortId'}}, {{@status}}"
+    >
+      {{#unless @steady}}
+        {{#if (eq @canary "canary")}}
+          <span class="norca-alloc-canary-indicator"></span>
+        {{/if}}
+        {{#if (eq @status "running")}}
+          <span class="norca-alloc-health-indicator">
+            {{#if (eq @health "healthy")}}
+              <Ui::Icon @name="check" @size="sm" />
+            {{else if (eq @health "unhealthy")}}
+              <Ui::Icon @name="x" @size="sm" />
+            {{else}}
+              <Ui::Icon @name="loader-2" @size="sm" />
+            {{/if}}
+          </span>
+        {{/if}}
+      {{/unless}}
+    </LinkTo>
+  </Ui::Tooltip>
+{{/if}}

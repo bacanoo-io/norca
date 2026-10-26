@@ -1,37 +1,20 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
 {{did-insert this.establishKeyValues}}
-<div>
-  <label>
-    <span>
-      Description
-    </span>
-    <Input
-      @type="text"
-      @value={{this.description}}
-      {{on "input" this.updateDescription}}
-      class="input value-input"
-      data-test-template-description
-    />
-  </label>
-</div>
-<div>
-  <label>
-    <span>
-      Job Template
-    </span>
-    <div
-      data-test-template-json
-      {{code-mirror
-        theme="hashi"
-        mode="ruby"
-        autofocus=false
-        content=this.template
-        onUpdate=(action this.updateTemplate)
-      }}
-    ></div>
-  </label>
+<Ui::Field @label="Description" as |f|>
+  <Ui::Input @id={{f.id}} @value={{this.description}} @onInput={{this.updateDescription}} data-test-template-description />
+</Ui::Field>
+<div class="mb-3">
+  <span class="d-block fw-medium mb-2" id="job-template-label">Job Template</span>
+  <Ui::CodeEditor
+    @label="Job Template"
+    @language="hcl"
+    @value={{this.template}}
+    @onChange={{this.updateTemplate}}
+    aria-labelledby="job-template-label"
+    data-test-template-json
+  />
 </div>

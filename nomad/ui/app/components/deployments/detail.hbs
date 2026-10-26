@@ -17,81 +17,79 @@
     </:actions>
   </Ui::PageHeader>
 
-  <div class="page-body">
-    <div class="container-xl">
-      {{#if this.isLoading}}
-        <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the deployment" /></Ui::Card>
-      {{else if this.loadError}}
-        <Ui::Card>
-          <Ui::EmptyState @icon="git-branch" @title="Deployment not available" @message={{this.loadError}} data-test-deployment-error>
-            <Ui::Button @route="deployments">All deployments</Ui::Button>
-          </Ui::EmptyState>
-        </Ui::Card>
-      {{else}}
-        {{#if this.deployment.StatusDescription}}
-          <p class="text-secondary" data-test-deployment-description>{{this.deployment.StatusDescription}}</p>
-        {{/if}}
-        {{#if this.deployment.IsMultiregion}}
-          <Ui::Card @title="Regions" @subtitle="Rollout order of the multiregion job" class="mb-3" data-test-deployment-rollout>
-            <Deployments::Rollout
-              @job={{this.deployment.JobID}}
-              @namespace={{or this.deployment.Namespace "default"}}
-              @version={{this.deployment.JobVersion}}
-              @homeRegion={{this.region}}
-              @onChange={{this.refresh}}
-            />
-          </Ui::Card>
-        {{/if}}
-
-        <Ui::Card @title="Task groups" @subtitle="{{this.progress.healthy}} of {{this.progress.desired}} healthy" @flush={{true}} data-test-deployment-groups>
-          <Ui::Table
-            @inCard={{true}}
-            @caption="Task groups"
-            @columns={{array
-              (hash key="group" label="Group")
-              (hash key="desired" label="Desired")
-              (hash key="placed" label="Placed")
-              (hash key="healthy" label="Healthy")
-              (hash key="unhealthy" label="Unhealthy")
-              (hash key="canaries" label="Canaries")
-              (hash key="deadline" label="Progress deadline")
-            }}
-            @rows={{this.groups}}
-            as |g|
-          >
-            <td>{{g.name}}</td>
-            <td>{{g.DesiredTotal}}</td>
-            <td>{{g.PlacedAllocs}}</td>
-            <td>{{g.HealthyAllocs}}</td>
-            <td>{{g.UnhealthyAllocs}}</td>
-            <td data-test-group-canaries>{{g.canaries}}</td>
-            <td>{{g.deadline}}</td>
-          </Ui::Table>
-        </Ui::Card>
-
-        <Ui::Card @title="Allocations" @flush={{true}} class="mt-3" data-test-deployment-allocations>
-          <Ui::Table
-            @inCard={{true}}
-            @caption="Allocations of the deployment"
-            @columns={{array
-              (hash key="alloc" label="Allocation")
-              (hash key="name" label="Name")
-              (hash key="client" label="Client")
-              (hash key="status" label="Status")
-              (hash key="health" label="Deployment health")
-            }}
-            @rows={{this.allocationRows}}
-            @emptyMessage="No allocation is placed for this deployment yet."
-            as |a|
-          >
-            <td><LinkTo @route="allocations.allocation" @model={{a.ID}} class="font-monospace">{{a.shortId}}</LinkTo></td>
-            <td>{{a.Name}}{{#if a.canary}} <Ui::Badge @color="azure">canary</Ui::Badge>{{/if}}</td>
-            <td>{{a.NodeName}}</td>
-            <td><Ui::StatusIndicator @status={{a.ClientStatus}} /></td>
-            <td><Ui::StatusIndicator @label={{a.health}} @tone={{if (eq a.health "healthy") "success" (if (eq a.health "unhealthy") "danger" "info")}} /></td>
-          </Ui::Table>
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the deployment" /></Ui::Card>
+    {{else if this.loadError}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="git-branch" @title="Deployment not available" @message={{this.loadError}} data-test-deployment-error>
+          <Ui::Button @route="deployments">All deployments</Ui::Button>
+        </Ui::EmptyState>
+      </Ui::Card>
+    {{else}}
+      {{#if this.deployment.StatusDescription}}
+        <p class="text-secondary" data-test-deployment-description>{{this.deployment.StatusDescription}}</p>
+      {{/if}}
+      {{#if this.deployment.IsMultiregion}}
+        <Ui::Card @title="Regions" @subtitle="Rollout order of the multiregion job" class="mb-3" data-test-deployment-rollout>
+          <Deployments::Rollout
+            @job={{this.deployment.JobID}}
+            @namespace={{or this.deployment.Namespace "default"}}
+            @version={{this.deployment.JobVersion}}
+            @homeRegion={{this.region}}
+            @onChange={{this.refresh}}
+          />
         </Ui::Card>
       {{/if}}
-    </div>
-  </div>
+
+      <Ui::Card @title="Task groups" @subtitle="{{this.progress.healthy}} of {{this.progress.desired}} healthy" @flush={{true}} data-test-deployment-groups>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Task groups"
+          @columns={{array
+            (hash key="group" label="Group")
+            (hash key="desired" label="Desired")
+            (hash key="placed" label="Placed")
+            (hash key="healthy" label="Healthy")
+            (hash key="unhealthy" label="Unhealthy")
+            (hash key="canaries" label="Canaries")
+            (hash key="deadline" label="Progress deadline")
+          }}
+          @rows={{this.groups}}
+          as |g|
+        >
+          <td>{{g.name}}</td>
+          <td>{{g.DesiredTotal}}</td>
+          <td>{{g.PlacedAllocs}}</td>
+          <td>{{g.HealthyAllocs}}</td>
+          <td>{{g.UnhealthyAllocs}}</td>
+          <td data-test-group-canaries>{{g.canaries}}</td>
+          <td>{{g.deadline}}</td>
+        </Ui::Table>
+      </Ui::Card>
+
+      <Ui::Card @title="Allocations" @flush={{true}} class="mt-3" data-test-deployment-allocations>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Allocations of the deployment"
+          @columns={{array
+            (hash key="alloc" label="Allocation")
+            (hash key="name" label="Name")
+            (hash key="client" label="Client")
+            (hash key="status" label="Status")
+            (hash key="health" label="Deployment health")
+          }}
+          @rows={{this.allocationRows}}
+          @emptyMessage="No allocation is placed for this deployment yet."
+          as |a|
+        >
+          <td><LinkTo @route="allocations.allocation" @model={{a.ID}} class="font-monospace">{{a.shortId}}</LinkTo></td>
+          <td>{{a.Name}}{{#if a.canary}} <Ui::Badge @color="azure">canary</Ui::Badge>{{/if}}</td>
+          <td>{{a.NodeName}}</td>
+          <td><Ui::StatusIndicator @status={{a.ClientStatus}} /></td>
+          <td><Ui::StatusIndicator @label={{a.health}} @tone={{if (eq a.health "healthy") "success" (if (eq a.health "unhealthy") "danger" "info")}} /></td>
+        </Ui::Table>
+      </Ui::Card>
+    {{/if}}
+  </Ui::PageBody>
 </div>

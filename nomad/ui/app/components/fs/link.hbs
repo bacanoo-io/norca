@@ -1,26 +1,18 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-
 {{#if this.taskState}}
   {{#if this.path}}
-    <LinkTo @route="allocations.allocation.task.fs" @models={{array this.allocation this.taskState this.path}} @activeClass="is-active">
-      {{yield}}
-    </LinkTo>
+    <LinkTo @route="allocations.allocation.task.fs" @models={{array this.allocation this.taskState this.path}}>{{yield}}</LinkTo>
   {{else}}
-    <LinkTo @route="allocations.allocation.task.fs-root" @models={{array this.allocation this.taskState}} @activeClass="is-active">
-      {{yield}}
-    </LinkTo>
+    <LinkTo @route="allocations.allocation.task.fs-root" @models={{array this.allocation this.taskState}}>{{yield}}</LinkTo>
   {{/if}}
 {{else}}
   {{#if this.path}}
-    <LinkTo @route="allocations.allocation.fs" @models={{array this.allocation this.path}} @activeClass="is-active">
-      {{yield}}
-    </LinkTo>
+    <LinkTo @route="allocations.allocation.fs" @models={{array this.allocation this.path}}>{{yield}}</LinkTo>
   {{else}}
-    <LinkTo @route="allocations.allocation.fs-root" @model={{this.allocation}} @activeClass="is-active">
-      {{yield}}
-    </LinkTo>
+    <LinkTo @route="allocations.allocation.fs-root" @model={{this.allocation}}>{{yield}}</LinkTo>
   {{/if}}
 {{/if}}

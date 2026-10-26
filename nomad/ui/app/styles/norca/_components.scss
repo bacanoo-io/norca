@@ -41,32 +41,10 @@
   margin-right: 0.5rem;
 }
 
-.norca-code-block {
-  font-family: var(--norca-font-mono);
-  font-size: 0.8rem;
-  line-height: 1.55;
-  background: var(--tblr-bg-surface-secondary);
-  color: var(--tblr-body-color);
-  border: 1px solid var(--tblr-border-color);
-  border-radius: var(--tblr-border-radius);
-  padding: 0.75rem 1rem;
-  margin: 0;
-  max-height: 32rem;
-  overflow: auto;
-  white-space: pre;
-
-  &.norca-code-block-wrap {
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-}
-
-// WCAG 2.1 AA contrast (acceptance criteria). The status colors of Tabler
-// are too light as text on light surfaces and too dark on dark ones: the
-// text of status labels, light badges and outline buttons uses a darker
-// (light theme) or lighter (dark theme) mix of the same color. Tabler sets
-// these colors through custom properties, which the unlayered rules below
-// override.
+// WCAG 2.1 AA contrast (acceptance criteria), in addition to
+// _contrast.scss (status labels, light badges, outline danger buttons, tabs):
+// the text of warning/danger/success text and alerts uses a darker (light
+// theme) or lighter (dark theme) mix of the same color.
 $norca-status-colors: green, red, orange, yellow, blue, azure, cyan, teal, purple, pink, lime, indigo, secondary, success, warning, danger, info;
 
 :root,
@@ -79,16 +57,6 @@ $norca-status-colors: green, red, orange, yellow, blue, azure, cyan, teal, purpl
 [data-bs-theme='dark'] {
   @each $c in $norca-status-colors {
     --norca-text-#{$c}: color-mix(in oklab, var(--tblr-#{$c}) 62%, white);
-  }
-}
-
-@each $c in $norca-status-colors {
-  .status-#{$c} {
-    --tblr-status-color: var(--norca-text-#{$c});
-  }
-
-  .badge.bg-#{$c}-lt {
-    --tblr-#{$c}: var(--norca-text-#{$c});
   }
 }
 
@@ -108,10 +76,6 @@ $norca-status-colors: green, red, orange, yellow, blue, azure, cyan, teal, purpl
 
 .text-success {
   --tblr-success: var(--norca-text-green);
-}
-
-.btn-outline-danger {
-  --tblr-btn-color: var(--norca-text-red);
 }
 
 // A button that links to a parent route is not "pressed" when that route
