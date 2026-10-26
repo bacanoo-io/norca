@@ -35,7 +35,12 @@ module('Integration | Component | page layout', function (hooks) {
     const groups = [
       ...this.element.querySelectorAll('[data-test-nav-group]'),
     ].map((el) => el.textContent.trim());
-    assert.deepEqual(groups.slice(0, 3), ['Overview', 'Workloads', 'Capacity']);
+    assert.deepEqual(groups.slice(0, 4), [
+      'Overview',
+      'Workloads',
+      'Services and networking',
+      'Capacity',
+    ]);
     assert.ok(groups.includes('Operations'));
     assert.dom('[data-test-gutter-link="dashboard"]').hasText('Dashboard');
     assert.dom('[data-test-gutter-link="jobs"]').hasText('Jobs');

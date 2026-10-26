@@ -1,0 +1,72 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-packages {{this.setup this.scopedRegions this.namespace}}>
+  <Ui::PageHeader @pretitle="Workloads" @title="Packages" @subtitle={{this.scopeLabel}} />
+
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the releases" /></Ui::Card>
+    {{else}}
+      {{#each this.errors as |r|}}
+        <Ui::Alert @tone="danger" @title="The releases of {{or r.region 'the local region'}} could not be loaded" class="mb-3">{{r.error}}</Ui::Alert>
+      {{/each}}
+      {{#if this.driftCount}}
+        <Ui::Alert @tone="warning" @title="{{this.driftCount}} {{if (eq this.driftCount 1) 'release differs' 'releases differ'}} from their revision" class="mb-3" data-test-drift-alert>
+          Their resources were changed outside the release. Roll back, or take the change into the pack variables and upgrade.
+        </Ui::Alert>
+      {{/if}}
+      <Ui::DataTable
+        @id="releases"
+        @caption="Releases"
+        @columns={{this.columns}}
+        @rows={{this.tableRows}}
+        @sortBy={{this.list.sortBy}}
+        @sortDescending={{this.list.sortDescending}}
+        @onSort={{this.list.sort}}
+        @pageSize={{this.list.pageSize}}
+        @page={{this.list.page}}
+        @onPageChange={{this.list.setPage}}
+        @onPageSizeChange={{this.list.setPageSize}}
+        @noun="releases"
+        @viewState={{this.list.viewState}}
+        @onApplyView={{this.list.applyView}}
+        @emptyMessage={{if this.list.searchTerm "No release matches the search." "No package is installed. Install one with norca pack run; it appears here as a release with its revisions."}}
+        data-test-release-list
+      >
+        <:filters>
+          <Ui::Input
+            @type="search"
+            @icon="search"
+            @placeholder="Search releases or packs..."
+            @value={{this.list.searchTerm}}
+            @onInput={{this.list.search}}
+            aria-label="Search releases"
+            data-test-release-filter
+          />
+        </:filters>
+        <:row as |row r|>
+          <r.Row data-test-release-row={{row.Name}}>
+            <r.Cell @key="name">
+              <LinkTo @route="packages.release" @models={{array row.Namespace row.Name}} @query={{hash region=(or row.region null)}} data-test-release-link={{row.Name}}>{{row.Name}}</LinkTo>
+              <div class="small text-secondary">{{row.Namespace}}</div>
+            </r.Cell>
+            <r.Cell @key="pack">{{row.pack}}</r.Cell>
+            <r.Cell @key="revision">{{row.revision}}</r.Cell>
+            <r.Cell @key="phase"><Ui::StatusIndicator @tone={{row.phaseTone}} @label={{row.phase}} data-test-release-phase /></r.Cell>
+            <r.Cell @key="driftLabel" data-test-release-drift>
+              {{#if row.drifted}}<Ui::Badge @color="orange">drifted</Ui::Badge>{{else}}<span class="text-secondary">in sync</span>{{/if}}
+            </r.Cell>
+            <r.Cell @key="regions">
+              {{#each row.regionList as |region|}}<span class="norca-region me-2">{{region}}</span>{{/each}}
+            </r.Cell>
+            <r.Cell @key="signatureLabel" title={{row.signature.title}} data-test-release-signature>
+              <Ui::StatusIndicator @tone={{row.signature.tone}} @label={{row.signature.label}} />
+            </r.Cell>
+          </r.Row>
+        </:row>
+      </Ui::DataTable>
+    {{/if}}
+  </Ui::PageBody>
+</div>

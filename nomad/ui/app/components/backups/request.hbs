@@ -1,0 +1,144 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-restore-request {{this.live @restoreId this.region}}>
+  <Ui::PageHeader @pretitle="Backups" @title={{if (eq this.restore.Mode "full") "Full restore request" "Restore"}}>
+    <:subtitle>
+      <span class="font-monospace">{{@restoreId}}</span>
+      {{#if this.restore}}
+        <Ui::StatusIndicator @tone={{this.tone}} @label={{this.restore.Status}} @animated={{this.isInProgress}} class="ms-2" data-test-restore-status />
+      {{/if}}
+    </:subtitle>
+    <:actions>
+      {{#if (and this.isPending this.canDecide)}}
+        <Ui::Button @variant="outline-danger" @icon="circle-x" data-test-reject {{on "click" this.askReject}}>{{if this.isRequester "Withdraw" "Reject"}}</Ui::Button>
+        {{#unless this.isRequester}}
+          <Ui::Button @variant="danger" @icon="circle-check" data-test-approve {{on "click" this.askApprove}}>Approve and restore</Ui::Button>
+        {{/unless}}
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
+
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the restore" /></Ui::Card>
+    {{else if this.loadError}}
+      <Ui::Card>
+        <Ui::EmptyState @icon="history" @title="Restore not found" @message={{this.loadError}} data-test-request-error>
+          <Ui::Button @route="backups.index">All backups</Ui::Button>
+        </Ui::EmptyState>
+      </Ui::Card>
+    {{else}}
+      {{#if this.actionError}}
+        <Ui::Alert @tone="danger" class="mb-3" data-test-request-action-error>{{this.actionError}}</Ui::Alert>
+      {{/if}}
+      {{#if this.isPending}}
+        {{#if this.isRequester}}
+          <Ui::Alert @tone="warning" @title="Waiting for a second administrator" class="mb-3" data-test-requester-note>
+            You requested this restore, so you cannot approve it. Send the link of this page to another administrator with a management token. You can withdraw the request.
+          </Ui::Alert>
+        {{else if this.canDecide}}
+          <Ui::Alert @tone="warning" @title="Your approval is requested" class="mb-3">
+            Review the preview below. Approving starts the restore right away: a pinned backup of the current state is taken, then region {{this.regionName}} returns to the backup.
+          </Ui::Alert>
+        {{else}}
+          <Ui::Alert @tone="info" class="mb-3">Only a management token can approve or reject a full restore.</Ui::Alert>
+        {{/if}}
+      {{else if this.isInProgress}}
+        <Ui::Alert @tone="info" @title="Restoring" class="mb-3">The restore is running on the leader of the region. This page follows its progress.</Ui::Alert>
+      {{else if this.restore.StatusDescription}}
+        <Ui::Alert @tone={{if (eq this.restore.Status "complete") "success" (if (eq this.restore.Status "failed") "danger" "info")}} class="mb-3" data-test-restore-description>{{this.restore.StatusDescription}}</Ui::Alert>
+      {{/if}}
+
+      <div class="row row-cards">
+        <div class="col-lg-5">
+          <Ui::Card @title="Request">
+            <Ui::Datagrid @items={{this.details}} data-test-request-details />
+            <div class="mt-3">
+              <Ui::Button @size="sm" @route="backups.backup" @model={{this.restore.BackupID}}>Open the backup</Ui::Button>
+            </div>
+          </Ui::Card>
+        </div>
+        <div class="col-lg-7">
+          {{#if this.restore.Preview}}
+            <Ui::Card @title="Preview" @subtitle="What the full restore changes" @flush={{true}} data-test-request-preview>
+              <:default>
+                <div class="p-3 pb-0">
+                  {{#each this.restore.Preview.Warnings as |warning|}}
+                    <Ui::Alert @tone="warning">{{warning}}</Ui::Alert>
+                  {{/each}}
+                  <p>
+                    <strong>{{this.restore.Preview.AllocationsStopped}}</strong> running allocations stop,
+                    <strong>{{this.restore.Preview.ACLTokensRemoved}}</strong> ACL tokens are removed.
+                  </p>
+                </div>
+                <Ui::Table
+                  @inCard={{true}}
+                  @caption="Changes by type"
+                  @columns={{array (hash key="type" label="Type") (hash key="removed" label="Removed") (hash key="restored" label="Restored") (hash key="reverted" label="Reverted")}}
+                  @rows={{this.previewRows}}
+                  @emptyMessage="No object changes."
+                  as |row|
+                >
+                  <td>{{row.label}}</td>
+                  <td>{{row.removed}}</td>
+                  <td>{{row.restored}}</td>
+                  <td>{{row.reverted}}</td>
+                </Ui::Table>
+              </:default>
+            </Ui::Card>
+          {{/if}}
+          {{#if this.resultRows.length}}
+            <Ui::Card @title="Items" @flush={{true}} data-test-request-results>
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Restored items"
+                @columns={{array (hash key="item" label="Item") (hash key="result" label="Result")}}
+                @rows={{this.resultRows}}
+                as |row|
+              >
+                <td>{{row.label}}</td>
+                <td>{{#if row.Error}}<span class="text-danger">{{row.Error}}</span>{{else}}{{or row.Description row.Action}}{{/if}}</td>
+              </Ui::Table>
+            </Ui::Card>
+          {{/if}}
+        </div>
+      </div>
+    {{/if}}
+  </Ui::PageBody>
+
+  {{#if this.approving}}
+    <Ui::Confirm
+      @title="Approve the full restore of {{this.regionName}}?"
+      @confirmLabel="Approve and restore"
+      @typedValue={{this.regionName}}
+      @onConfirm={{this.approve}}
+      @onClose={{this.closeDialogs}}
+      @isRunning={{this.isWorking}}
+      @error={{this.actionError}}
+      @disabled={{not this.backups.hasIdentity}}
+      @size="lg"
+    >
+      <p>Every change made in region <strong>{{this.regionName}}</strong> since backup <span class="font-monospace">{{this.restore.BackupID}}</span> is lost. The restore starts immediately and this dialog waits until it ends.</p>
+      <Backups::Identity />
+    </Ui::Confirm>
+  {{/if}}
+
+  {{#if this.rejecting}}
+    <Ui::Confirm
+      @title={{if this.isRequester "Withdraw the request?" "Reject the request?"}}
+      @confirmLabel={{if this.isRequester "Withdraw" "Reject"}}
+      @tone="primary"
+      @onConfirm={{this.reject}}
+      @onClose={{this.closeDialogs}}
+      @isRunning={{this.isWorking}}
+      @error={{this.actionError}}
+    >
+      <p>The full restore does not run. A new request can be made later.</p>
+      <Ui::Field @label="Reason" @help="Optional; recorded with the request." as |f|>
+        <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @value={{this.reason}} @onInput={{this.setReason}} data-test-reject-reason />
+      </Ui::Field>
+    </Ui::Confirm>
+  {{/if}}
+</div>

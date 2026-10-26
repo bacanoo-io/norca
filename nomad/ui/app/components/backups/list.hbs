@@ -1,0 +1,183 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-backups {{this.live this.scopedRegions}}>
+  <Ui::PageHeader @pretitle="Operations" @title="Backups" @subtitle={{this.scopeLabel}}>
+    <:actions>
+      <Ui::Button @route="backups.job-history" @icon="history" data-test-job-history-link>Job history</Ui::Button>
+      {{#if this.canWrite}}
+        <Ui::Button @variant="primary" @icon="cloud-upload" data-test-backup-now {{on "click" this.openBackupNow}}>Back up now</Ui::Button>
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
+
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the backups" /></Ui::Card>
+    {{else}}
+      {{#if this.actionError}}
+        <Ui::Alert @tone="danger" @onDismiss={{this.dismissError}} class="mb-3" data-test-backups-error>{{this.actionError}}</Ui::Alert>
+      {{/if}}
+
+      {{#each this.pendingRestores as |restore|}}
+        <Ui::Alert @tone="warning" @title="A full restore waits for approval" class="mb-3" data-test-pending-restore={{restore.ID}}>
+          {{restore.RequestedByName}} requested to restore {{if restore.region (concat "region " restore.region) "the region"}} from backup
+          <span class="font-monospace">{{restore.BackupID}}</span>. A second management token must approve it before
+          {{format-ts restore.ExpiresAt}}, or anyone with a management token can reject it.
+          <div class="mt-2">
+            <Ui::Button @size="sm" @route="backups.request" @model={{restore.ID}} @query={{hash region=(or restore.region null)}} data-test-review-restore>Review the request</Ui::Button>
+          </div>
+        </Ui::Alert>
+      {{/each}}
+
+      {{#each this.warnings as |s|}}
+        <Ui::Alert @tone="warning" @title={{if s.overdue (concat "The last successful backup of " s.label " is overdue") (concat "The last backup attempt in " s.label " failed")}} class="mb-3" data-test-schedule-warning={{s.region}}>
+          {{#if s.lastError}}{{s.lastError}}.{{/if}}
+          Check the destinations in the backup block of the server configuration and the server logs{{if this.canWrite ", then start a backup manually"}}.
+        </Ui::Alert>
+      {{/each}}
+
+      <div class="row row-cards mb-3">
+        {{#each this.schedules as |s|}}
+          <div class="col-md-6 col-xl-4">
+            <Ui::Card @title={{if this.isAllRegions s.label "Schedule"}} @subtitle={{if this.isAllRegions "Schedule"}} data-test-schedule={{s.region}}>
+              {{#if s.forbidden}}
+                <p class="text-secondary mb-0">Your token cannot read the backups of this region. Ask for a policy with <code>backup &#123; policy = "read" &#125;</code>.</p>
+              {{else if s.error}}
+                <p class="text-danger mb-0" data-test-schedule-error>{{s.error}}</p>
+              {{else}}
+                <Ui::Datagrid as |grid|>
+                  <grid.Item @title="Schedule"><span data-test-schedule-label>{{s.schedule}}</span></grid.Item>
+                  <grid.Item @title="Next backup">{{if s.nextDue (format-ts s.nextDue) "–"}}</grid.Item>
+                  <grid.Item @title="Last success">
+                    {{#if s.lastSuccess}}
+                      <Ui::StatusIndicator @tone={{if s.overdue "warning" "success"}} @label={{moment-from-now s.lastSuccess}} data-test-last-success />
+                    {{else}}
+                      <span class="text-secondary">none yet</span>
+                    {{/if}}
+                  </grid.Item>
+                  <grid.Item @title="Destinations">{{or s.destinations "–"}}</grid.Item>
+                </Ui::Datagrid>
+              {{/if}}
+            </Ui::Card>
+          </div>
+        {{/each}}
+        <div class="col-md-6 col-xl-4">
+          <Ui::Card @title="Recent restores" @flush={{true}} data-test-recent-restores>
+            {{#if this.recentRestores.length}}
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Recent restores"
+                @columns={{array (hash key="restore" label="Restore") (hash key="status" label="Status")}}
+                @rows={{this.recentRestores}}
+                as |restore|
+              >
+                <td>
+                  <LinkTo @route="backups.request" @model={{restore.ID}} @query={{hash region=(or restore.region null)}}>
+                    {{if (eq restore.Mode "full") "Full" "Selective"}} restore
+                  </LinkTo>
+                  <div class="small text-secondary">{{moment-from-now restore.CreateTime}}</div>
+                </td>
+                <td><Ui::StatusIndicator @tone={{restore.tone}} @label={{restore.Status}} /></td>
+              </Ui::Table>
+            {{else}}
+              <Ui::EmptyState @compact={{true}} @icon="history" @title="No restores yet" @message="Open a backup to browse it and restore jobs, Variables, namespaces or ACL objects from it." />
+            {{/if}}
+          </Ui::Card>
+        </div>
+      </div>
+
+      <Ui::DataTable
+        @id="backups"
+        @caption="Backups"
+        @columns={{this.columns}}
+        @rows={{this.tableRows}}
+        @sortBy={{this.list.sortBy}}
+        @sortDescending={{this.list.sortDescending}}
+        @onSort={{this.list.sort}}
+        @pageSize={{this.list.pageSize}}
+        @page={{this.list.page}}
+        @onPageChange={{this.list.setPage}}
+        @onPageSizeChange={{this.list.setPageSize}}
+        @noun="backups"
+        @viewState={{this.list.viewState}}
+        @onApplyView={{this.list.applyView}}
+        @emptyMessage="No backup matches the search."
+        data-test-backup-list
+      >
+        <:filters>
+          <Ui::Input
+            @type="search"
+            @icon="search"
+            @placeholder="Search by ID, label or trigger..."
+            @value={{this.list.searchTerm}}
+            @onInput={{this.list.search}}
+            aria-label="Search backups"
+            data-test-backup-filter
+          />
+        </:filters>
+        <:empty>
+          {{#if this.hasBackups}}
+            <Ui::EmptyState @icon="filter-off" @title="No matches" @message="No backup matches the search." data-test-backups-no-match />
+          {{else}}
+            <Ui::EmptyState @icon="cloud-upload" @title="No backups" @message={{this.emptyMessage}} data-test-backups-empty>
+              {{#if this.canWrite}}
+                <Ui::Button @variant="primary" @icon="cloud-upload" {{on "click" this.openBackupNow}}>Back up now</Ui::Button>
+              {{/if}}
+            </Ui::EmptyState>
+          {{/if}}
+        </:empty>
+        <:row as |row r|>
+          <r.Row data-test-backup-row={{row.ID}}>
+            <r.Cell @key="ID">
+              <LinkTo @route="backups.backup" @model={{row.ID}} @query={{hash region=(or row.region null)}} class="font-monospace" data-test-backup-link={{row.ID}}>{{row.ID}}</LinkTo>
+            </r.Cell>
+            <r.Cell @key="time">{{if row.time (format-ts row.time) "–"}}</r.Cell>
+            <r.Cell @key="region"><span class="norca-region">{{row.region}}</span></r.Cell>
+            <r.Cell @key="triggerLabel" data-test-backup-trigger>{{row.triggerLabel}}</r.Cell>
+            <r.Cell @key="Status">
+              <Ui::StatusIndicator @tone={{row.tone}} @label={{row.Status}} data-test-backup-status />
+            </r.Cell>
+            <r.Cell @key="size">{{row.sizeLabel}}</r.Cell>
+            <r.Cell @key="destinations">
+              {{#each row.destinationList as |d|}}
+                <Ui::StatusIndicator @tone={{d.tone}} @label={{d.name}} title={{or d.error d.status}} class="me-2" />
+              {{/each}}
+            </r.Cell>
+            <r.Cell @key="labels">
+              {{#each row.labelList as |label|}}
+                <Ui::Badge class="me-1">{{label}}</Ui::Badge>
+              {{else}}
+                <span class="text-secondary">–</span>
+              {{/each}}
+            </r.Cell>
+            <r.Cell @key="pinned">
+              {{#if this.canWrite}}
+                <Ui::Button
+                  @size="sm"
+                  @variant="ghost"
+                  @icon={{if row.Pinned "lock" "lock-open"}}
+                  @isLoading={{eq this.pinning row.ID}}
+                  aria-pressed={{if row.Pinned "true" "false"}}
+                  aria-label={{if row.Pinned (concat "Unpin " row.ID) (concat "Pin " row.ID)}}
+                  title={{if row.Pinned "Pinned: retention never deletes it. Select to unpin." "Pin: keep it regardless of retention."}}
+                  data-test-pin={{row.ID}}
+                  {{on "click" (fn this.togglePin row)}}
+                >{{if row.Pinned "Pinned" "Pin"}}</Ui::Button>
+              {{else if row.Pinned}}
+                <Ui::Badge @icon="lock">Pinned</Ui::Badge>
+              {{else}}
+                <span class="text-secondary">–</span>
+              {{/if}}
+            </r.Cell>
+          </r.Row>
+        </:row>
+      </Ui::DataTable>
+    {{/if}}
+  </Ui::PageBody>
+
+  {{#if this.backupNowOpen}}
+    <Backups::BackupNow @regions={{this.scopedRegions}} @onClose={{this.closeBackupNow}} @onStarted={{this.backupStarted}} />
+  {{/if}}
+</div>

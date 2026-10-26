@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
+import { usageRows, limitFor, usedFor } from 'nomad-ui/utils/quotas';
+import { normalize as normalizeRelease } from 'nomad-ui/utils/releases';
+
 // Data of the dashboard: one summary per region, built from the list APIs
 // (status/leader, agent/members, nodes, jobs with summaries, deployments,
 // evaluations). The fetches go through the token service's raw request so
@@ -141,7 +144,17 @@ export async function fetchRegionSummary(
   { region, namespace, members }
 ) {
   const params = { region, namespace: namespace || '*' };
-  const [leader, nodes, jobs, deployments, evaluations] = await Promise.all([
+  const [
+    leader,
+    nodes,
+    jobs,
+    deployments,
+    evaluations,
+    backups,
+    quotas,
+    usages,
+    releases,
+  ] = await Promise.all([
     getJSON(request, '/v1/status/leader', { region }).catch(() => ({
       body: null,
       index: 0,
@@ -156,6 +169,25 @@ export async function fetchRegionSummary(
       }),
       []
     ),
+    // the backup schedule: any failure (no permission) leaves it out
+    getJSON(request, '/v1/operator/backups', { region }).catch(() => ({
+      body: null,
+      index: 0,
+    })),
+    // quotas and their usage in the region: left out without permission
+    getJSON(request, '/v1/quotas', { region }).catch(() => ({
+      body: null,
+      index: 0,
+    })),
+    getJSON(request, '/v1/quota-usages', { region }).catch(() => ({
+      body: null,
+      index: 0,
+    })),
+    // releases with drift or failed hooks
+    getJSON(request, '/v1/releases', params).catch(() => ({
+      body: null,
+      index: 0,
+    })),
   ]);
 
   const servers = summarizeServers(members, region);
@@ -183,6 +215,9 @@ export async function fetchRegionSummary(
     blockedEvaluations: (evaluations.body || []).filter(
       (e) => e.Status === 'blocked'
     ),
+    backup: summarizeBackups(backups.body),
+    quotas: nearlyFullQuotas(quotas.body, usages.body, region),
+    releases: releaseProblems(releases.body),
     // the newest index of the fetched state, to resume the event stream after
     index: Math.max(
       nodes.index,
@@ -192,6 +227,55 @@ export async function fetchRegionSummary(
     ),
     error: null,
   };
+}
+
+// The backup schedule of a region: last success, overdue (older than two
+// intervals), the last error. Null when the token cannot read backups.
+export function summarizeBackups(body) {
+  const schedule = body?.Schedule;
+  if (!schedule) return null;
+  const set = (t) => t && !String(t).startsWith('0001-');
+  return {
+    enabled: !!schedule.Enabled,
+    lastSuccess: set(schedule.LastSuccess) ? schedule.LastSuccess : null,
+    overdue: !!schedule.Overdue,
+    lastError: schedule.LastError || '',
+  };
+}
+
+// The quota dimensions of the region at 90 % or more of their limit.
+export function nearlyFullQuotas(specs, usages, region) {
+  const result = [];
+  for (const spec of specs || []) {
+    const limit = limitFor(spec, region);
+    if (!limit) continue;
+    const usage = (usages || []).find((u) => u.Name === spec.Name);
+    for (const row of usageRows(limit, usedFor(usage, limit))) {
+      if (row.state === 'nearly' || row.state === 'full')
+        result.push({
+          name: spec.Name,
+          dimension: row.label,
+          percent: row.percent,
+        });
+    }
+  }
+  return result;
+}
+
+// Releases that drifted from their revision or whose hooks failed.
+export function releaseProblems(body) {
+  const problems = [];
+  for (const raw of body || []) {
+    const r = normalizeRelease(raw);
+    const conditions = r.Status?.Conditions || [];
+    const has = (type, status) =>
+      conditions.some((c) => c.Type === type && c.Status === status);
+    if (has('Drifted', 'True'))
+      problems.push({ kind: 'drift', name: r.Name, namespace: r.Namespace });
+    if (has('HooksSucceeded', 'False'))
+      problems.push({ kind: 'hook', name: r.Name, namespace: r.Namespace });
+  }
+  return problems;
 }
 
 export function unreachableRegion(region, error) {
@@ -206,6 +290,9 @@ export function unreachableRegion(region, error) {
     runningDeployments: [],
     failedDeployments: [],
     blockedEvaluations: [],
+    backup: null,
+    quotas: [],
+    releases: [],
     index: 0,
     error: error?.message || String(error),
   };
@@ -265,8 +352,52 @@ export function buildWarnings(summaries) {
         route: 'clients',
       });
     }
-    if (s.blockedEvaluations.length) {
-      const n = s.blockedEvaluations.length;
+    const quotaBlocked = s.blockedEvaluations.filter(
+      (e) => e.QuotaLimitReached
+    );
+    for (const name of [
+      ...new Set(quotaBlocked.map((e) => e.QuotaLimitReached)),
+    ]) {
+      const n = quotaBlocked.filter((e) => e.QuotaLimitReached === name).length;
+      warnings.push({
+        tone: 'warning',
+        title: `${n} ${
+          n === 1 ? 'evaluation is' : 'evaluations are'
+        } blocked by quota ${name} in ${where}.`,
+        text: 'They run when the quota frees up: stop other work of the namespaces or raise the limit.',
+        route: 'quotas.quota',
+        model: name,
+      });
+    }
+    for (const q of s.quotas || []) {
+      warnings.push({
+        tone: q.percent >= 100 ? 'danger' : 'warning',
+        title: `Quota ${q.name} is ${
+          q.percent >= 100 ? 'full' : 'nearly full'
+        } in ${where}: ${q.dimension} at ${q.percent}%.`,
+        text: 'New work of its namespaces will wait or be rejected. Raise the limit or free resources.',
+        route: 'quotas.quota',
+        model: q.name,
+      });
+    }
+    for (const r of s.releases || []) {
+      warnings.push({
+        tone: 'warning',
+        title:
+          r.kind === 'drift'
+            ? `Release ${r.name} differs from its revision in ${where}.`
+            : `A hook of release ${r.name} failed in ${where}.`,
+        text:
+          r.kind === 'drift'
+            ? 'Its resources were changed outside the release. Roll back, or take the change into the pack variables and upgrade.'
+            : 'Look at the hook job and its allocations, fix the cause and upgrade or roll back the release.',
+        route: 'packages.release',
+        models: [r.namespace || 'default', r.name],
+      });
+    }
+    const otherBlocked = s.blockedEvaluations.length - quotaBlocked.length;
+    if (otherBlocked) {
+      const n = otherBlocked;
       warnings.push({
         tone: 'warning',
         title: `${n} ${
@@ -274,6 +405,16 @@ export function buildWarnings(summaries) {
         } blocked in ${where}.`,
         text: 'They wait for capacity: add clients, free resources or relax the placement constraints.',
         route: 'evaluations',
+      });
+    }
+    if (s.backup?.overdue) {
+      warnings.push({
+        tone: 'warning',
+        title: `The last successful backup of ${where} is overdue.`,
+        text: `${
+          s.backup.lastError ? `${s.backup.lastError}. ` : ''
+        }Check the backup destinations and the server logs, then start a backup.`,
+        route: 'backups',
       });
     }
     for (const d of s.failedDeployments) {
