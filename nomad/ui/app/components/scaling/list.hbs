@@ -59,7 +59,7 @@
                 aria-label="Search scaling policies"
                 data-test-scaling-search
               />
-              <Ui::Select @label="Engine" @options={{this.engineOptions}} @value={{this.engineFilter}} @onChange={{this.setEngine}} @size="sm" data-test-engine-filter />
+              <Ui::Select @label="Engine" @options={{this.engineOptions}} @value={{this.engineFilter}} @onChange={{this.setEngine}} @size="sm" class="w-auto" data-test-engine-filter />
             </:filters>
             <:row as |row r|>
               <r.Row data-test-policy-row={{row.ID}}>

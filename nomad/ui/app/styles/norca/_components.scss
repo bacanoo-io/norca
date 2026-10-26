@@ -41,11 +41,10 @@
   margin-right: 0.5rem;
 }
 
-// WCAG 2.1 AA contrast (acceptance criteria), in addition to
-// _contrast.scss (status labels, light badges, alerts, outline danger buttons,
-// tabs):
-// the text of warning/danger/success text and alerts uses a darker (light
-// theme) or lighter (dark theme) mix of the same color.
+// WCAG 2.1 AA contrast (acceptance criteria), in addition to _contrast.scss
+// (status labels, light badges, alerts, outline danger buttons, tabs): the
+// warning, danger and success text classes use a darker (light theme) or
+// lighter (dark theme) mix of the same color.
 $norca-status-colors: green, red, orange, yellow, blue, azure, cyan, teal, purple, pink, lime, indigo, secondary, success, warning, danger, info;
 
 :root,
