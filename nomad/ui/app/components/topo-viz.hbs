@@ -1,20 +1,19 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 <div
   data-test-topo-viz
-  class="topo-viz {{if this.isSingleColumn "is-single-column"}}"
+  class="norca-topo {{if this.isSingleColumn "norca-topo-single"}}"
   {{did-insert this.buildTopology}}
   {{did-update this.buildTopology @nodes}}
   {{did-insert this.captureElement}}
   {{window-resize this.determineViewportColumns}}>
-  <FlexMasonry
-    @columns={{if this.isSingleColumn 1 2}}
-    @items={{this.topology.datacenters}}
-    @withSpacing={{true}} as |dc|>
-    <TopoViz::Datacenter
+  <div class="norca-topo-columns {{if this.isSingleColumn "norca-topo-columns-1" "norca-topo-columns-2"}}" data-test-topo-viz-datacenters>
+    {{#each this.topology.datacenters as |dc|}}
+      <TopoViz::Datacenter
         @datacenter={{dc}}
         @isSingleColumn={{this.datacenterIsSingleColumn}}
         @isDense={{this.isDense}}
@@ -23,38 +22,45 @@
         @onAllocationFocus={{this.showTooltip}}
         @onAllocationBlur={{this.hideTooltip}}
         @onNodeSelect={{this.showNodeDetails}} />
-  </FlexMasonry>
+    {{/each}}
+  </div>
 
-  <div class="chart-tooltip is-absolute {{if this.highlightAllocation "active" "inactive"}}" style={{this.tooltipStyle}}>
+  <div
+    class="norca-topo-tooltip {{if this.highlightAllocation "norca-topo-tooltip-active"}}"
+    style={{this.tooltipStyle}}
+    role="tooltip"
+    aria-hidden={{if this.highlightAllocation "false" "true"}}
+    data-test-topo-viz-tooltip
+  >
     {{#let this.highlightAllocation as |allocation|}}
-      <ol class="is-static">
-        <li>
-          <span class="label">Job</span>
-          <span class="value">{{allocation.allocation.job.name}}/{{allocation.allocation.taskGroupName}}</span>
-        </li>
+      <dl class="mb-0">
+        <div>
+          <dt>Job</dt>
+          <dd>{{allocation.allocation.job.name}}/{{allocation.allocation.taskGroupName}}</dd>
+        </div>
         {{#if this.system.shouldShowNamespaces}}
-          <li>
-            <span class="label">Namespace</span>
-            <span class="value">{{allocation.allocation.job.namespace.name}}</span>
-          </li>
+          <div>
+            <dt>Namespace</dt>
+            <dd>{{allocation.allocation.job.namespace.name}}</dd>
+          </div>
         {{/if}}
-        <li>
-          <span class="label">Memory</span>
-          <span class="value">{{format-scheduled-bytes allocation.memory start="MiB"}}</span>
-        </li>
-        <li>
-          <span class="label">CPU</span>
-          <span class="value">{{format-scheduled-hertz allocation.cpu}}</span>
-        </li>
-      </ol>
+        <div>
+          <dt>Memory</dt>
+          <dd>{{format-scheduled-bytes allocation.memory start="MiB"}}</dd>
+        </div>
+        <div>
+          <dt>CPU</dt>
+          <dd>{{format-scheduled-hertz allocation.cpu}}</dd>
+        </div>
+      </dl>
     {{/let}}
   </div>
 
   {{#if this.activeAllocation}}
-    <svg data-test-allocation-associations class="chart topo-viz-edges" {{window-resize this.resizeEdges}}>
+    <svg data-test-allocation-associations class="norca-topo-edges" aria-hidden="true" {{window-resize this.resizeEdges}}>
       <g transform="translate({{this.edgeOffset.x}},{{this.edgeOffset.y}})">
         {{#each this.activeEdges as |edge|}}
-          <path data-test-allocation-association class="edge" d={{edge}} />
+          <path data-test-allocation-association class="norca-topo-edge" d={{edge}} />
         {{/each}}
       </g>
     </svg>

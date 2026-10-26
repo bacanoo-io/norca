@@ -1,0 +1,270 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// Topology: the d3-computed client and allocation bars, on the design
+// tokens. Allocation states use the status colors (status only).
+
+.norca-topo {
+  --norca-topo-running: var(--tblr-green);
+  --norca-topo-pending: var(--tblr-gray-400);
+  --norca-topo-failed: var(--tblr-red);
+  --norca-topo-lost: var(--tblr-dark);
+  --norca-topo-complete: var(--tblr-green-lt);
+  --norca-topo-selected: var(--tblr-primary);
+  --norca-topo-node-bg: var(--tblr-bg-surface-secondary);
+  --norca-topo-free: var(--tblr-bg-surface-tertiary);
+
+  position: relative;
+}
+
+[data-bs-theme='dark'] .norca-topo,
+[data-bs-theme='dark'] .norca-topo-legend {
+  --norca-topo-pending: var(--tblr-gray-600);
+  --norca-topo-lost: var(--tblr-gray-300);
+}
+
+// Masonry-like columns: datacenters and the clients inside them flow top
+// to bottom, then into the next column.
+.norca-topo-columns-2 {
+  columns: 2;
+  column-gap: 1rem;
+}
+
+.norca-topo-columns > * {
+  break-inside: avoid;
+  margin-bottom: 1rem;
+}
+
+.norca-topo-datacenter .norca-topo-columns > *:last-child {
+  margin-bottom: 0;
+}
+
+.norca-topo-node-label {
+  line-height: 1.6;
+}
+
+.norca-topo-chart {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.norca-topo-node-background {
+  fill: var(--norca-topo-node-bg);
+  stroke: var(--tblr-border-color);
+  stroke-width: 1;
+
+  &.norca-topo-interactive {
+    cursor: pointer;
+
+    &:hover {
+      fill: var(--tblr-bg-surface);
+      stroke: var(--tblr-border-color-dark, var(--tblr-secondary));
+    }
+  }
+
+  &.norca-topo-selected,
+  &.norca-topo-selected:hover {
+    fill: var(--tblr-bg-surface);
+    stroke: var(--norca-topo-selected);
+    stroke-width: 2;
+  }
+}
+
+.norca-topo-free {
+  fill: var(--norca-topo-free);
+}
+
+.norca-topo-axis-label {
+  text-anchor: middle;
+  dominant-baseline: central;
+  fill: var(--tblr-secondary);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+.norca-topo-bar {
+  cursor: pointer;
+  outline: none;
+
+  &.norca-topo-running {
+    fill: var(--norca-topo-running);
+  }
+
+  &.norca-topo-pending,
+  &.norca-topo-starting {
+    .norca-topo-layer-0 {
+      fill: var(--norca-topo-pending);
+    }
+
+    .norca-topo-layer-1 {
+      fill: url(#diagonal-stripe-3);
+      fill-opacity: 0.25;
+    }
+  }
+
+  &.norca-topo-failed {
+    fill: var(--norca-topo-failed);
+  }
+
+  &.norca-topo-lost {
+    fill: var(--norca-topo-lost);
+  }
+
+  &.norca-topo-complete {
+    fill: var(--norca-topo-complete);
+  }
+
+  &.norca-topo-selected,
+  &.norca-topo-selected .norca-topo-layer-0 {
+    fill: var(--tblr-primary-lt);
+    stroke: var(--norca-topo-selected);
+    stroke-width: 1px;
+  }
+
+  // Keyboard focus: an outline around the allocation's bar.
+  &:focus-visible .norca-topo-layer-0 {
+    stroke: var(--tblr-body-color);
+    stroke-width: 2px;
+  }
+}
+
+.norca-topo-dimensions-active .norca-topo-bar {
+  opacity: 0.25;
+
+  &.norca-topo-active {
+    opacity: 1;
+  }
+}
+
+.norca-topo-node-empty .norca-topo-node-background {
+  fill: var(--tblr-bg-surface);
+  stroke: var(--tblr-danger);
+  stroke-width: 2;
+}
+
+.norca-topo-empty-text {
+  transform: translate(50%, 50%);
+
+  text {
+    fill: var(--tblr-danger);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-size: 0.875rem;
+  }
+}
+
+.norca-topo-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.norca-topo-edge {
+  fill: none;
+  stroke: var(--norca-topo-selected);
+  stroke-width: 2;
+}
+
+.norca-topo-tooltip {
+  position: absolute;
+  z-index: 10;
+  transform: translate(-50%, calc(-100% - 0.5rem));
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--tblr-border-radius);
+  background: var(--tblr-gray-900);
+  color: var(--tblr-gray-50);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.1s;
+
+  &.norca-topo-tooltip-active {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  dl > div {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+  }
+
+  dt {
+    font-weight: normal;
+    color: var(--tblr-gray-400);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 500;
+  }
+}
+
+// The info panel.
+.norca-topo-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.norca-topo-metric-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.norca-topo-utilization + .norca-topo-utilization {
+  margin-top: 1rem;
+}
+
+.norca-topo-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+
+  > div {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  dt {
+    font-family: var(--norca-font-mono);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.norca-topo-swatch {
+  display: inline-block;
+  width: 1.5rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  vertical-align: middle;
+
+  &.norca-topo-swatch-running {
+    background: var(--tblr-green);
+  }
+
+  &.norca-topo-swatch-pending {
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--tblr-gray-400),
+      var(--tblr-gray-400) 3px,
+      var(--tblr-gray-300) 3px,
+      var(--tblr-gray-300) 6px
+    );
+  }
+}

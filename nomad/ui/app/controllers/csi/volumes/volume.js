@@ -5,9 +5,6 @@
 
 import Controller from '@ember/controller';
 import { inject as service } from '@ember/service';
-import { action, computed } from '@ember/object';
-import { qpBuilder } from 'nomad-ui/utils/classes/query-params';
-import legacyTransitionTo from 'nomad-ui/utils/legacy-transition';
 
 export default class VolumeController extends Controller {
   // Used in the template
@@ -24,43 +21,19 @@ export default class VolumeController extends Controller {
     return this.model;
   }
 
+  // The position in the page header (Ui::Breadcrumb items).
   get breadcrumbs() {
     const volume = this.volume;
+    const namespace = volume.get('namespace.name') || 'default';
     return [
+      { label: 'Storage', route: 'csi.volumes.index', id: 'csi.index' },
       {
         label: 'Volumes',
-        args: [
-          'csi.volumes',
-          qpBuilder({
-            volumeNamespace: volume.get('namespace.name') || 'default',
-          }),
-        ],
+        route: 'csi.volumes.index',
+        query: { namespace },
+        id: 'csi.volumes',
       },
-      {
-        label: volume.name,
-        args: [
-          'csi.volumes.volume',
-          volume.plainId,
-          qpBuilder({
-            volumeNamespace: volume.get('namespace.name') || 'default',
-          }),
-        ],
-      },
+      { label: volume.name, id: 'csi.volumes.volume' },
     ];
-  }
-
-  @computed('model.readAllocations.@each.modifyIndex')
-  get sortedReadAllocations() {
-    return this.model.readAllocations.sortBy('modifyIndex').reverse();
-  }
-
-  @computed('model.writeAllocations.@each.modifyIndex')
-  get sortedWriteAllocations() {
-    return this.model.writeAllocations.sortBy('modifyIndex').reverse();
-  }
-
-  @action
-  gotoAllocation(allocation) {
-    legacyTransitionTo(this, 'allocations.allocation', allocation.id);
   }
 }

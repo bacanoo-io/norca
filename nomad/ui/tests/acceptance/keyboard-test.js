@@ -42,8 +42,8 @@ module('Acceptance | keyboard', function (hooks) {
       await visit('/');
       await triggerEvent('.page-layout', 'keydown', { key: '?' });
       assert.ok(Layout.keyboard.modalShown);
-      assert.dom('button.dismiss').isFocused();
-      await click('button.dismiss');
+      assert.dom('[data-test-modal-close]').isFocused();
+      await click('[data-test-modal-close]');
       assert.notOk(Layout.keyboard.modalShown);
     });
 
@@ -74,11 +74,9 @@ module('Acceptance | keyboard', function (hooks) {
       assert.notOk(Layout.keyboard.modalShown);
       await triggerEvent('.page-layout', 'keydown', { key: '?' });
       assert.ok(Layout.keyboard.modalShown);
-      assert.dom('[data-test-enable-shortcuts-toggle]').hasClass('is-active');
-      await click('[data-test-enable-shortcuts-toggle]');
-      assert
-        .dom('[data-test-enable-shortcuts-toggle]')
-        .doesNotHaveClass('is-active');
+      assert.dom('[data-test-enable-shortcuts-toggle] input').isChecked();
+      await click('[data-test-enable-shortcuts-toggle] input');
+      assert.dom('[data-test-enable-shortcuts-toggle] input').isNotChecked();
       await triggerEvent('.page-layout', 'keydown', { key: 'Escape' });
       assert.notOk(Layout.keyboard.modalShown);
       triggerEvent('.page-layout', 'keydown', { key: 'g' });
@@ -89,8 +87,8 @@ module('Acceptance | keyboard', function (hooks) {
         'typing g j did not bring you back to the jobs page, since shortcuts are disabled'
       );
       await triggerEvent('.page-layout', 'keydown', { key: '?' });
-      await click('[data-test-enable-shortcuts-toggle]');
-      assert.dom('[data-test-enable-shortcuts-toggle]').hasClass('is-active');
+      await click('[data-test-enable-shortcuts-toggle] input');
+      assert.dom('[data-test-enable-shortcuts-toggle] input').isChecked();
       await triggerEvent('.page-layout', 'keydown', { key: 'Escape' });
       triggerEvent('.page-layout', 'keydown', { key: 'g' });
       await triggerEvent('.page-layout', 'keydown', { key: 'j' });
@@ -181,7 +179,7 @@ module('Acceptance | keyboard', function (hooks) {
         );
 
       await click(
-        '[data-test-command-label="Go to Clients"] button.reset-to-default'
+        '[data-test-command-label="Go to Clients"] [data-test-reset-to-default]'
       );
       assert
         .dom(

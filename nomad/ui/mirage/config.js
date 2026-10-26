@@ -506,6 +506,25 @@ function routes() {
     return JSON.stringify(findLeader(schema));
   });
 
+  // The Raft peers of the region: every server agent, the first one leads.
+  this.get('/operator/raft/configuration', function (schema) {
+    const leader = findLeader(schema);
+    return {
+      Index: 1,
+      Servers: schema.agents.all().models.map((agent) => {
+        const address = formatHost(agent.member.Address, agent.member.Tags.port);
+        return {
+          ID: agent.id,
+          Node: agent.name,
+          Address: address,
+          Leader: address === leader,
+          Voter: true,
+          RaftProtocol: '3',
+        };
+      }),
+    };
+  });
+
   this.get('/acl/tokens', function ({ tokens }, req) {
     return this.serialize(tokens.all());
   });

@@ -31,7 +31,7 @@
     <h2 class="h3 mt-4 mb-2">Tokens</h2>
 
     {{#if (can "write token")}}
-      <Ui::Card @title="Create tokens from the Nomad CLI" class="mb-3">
+      <Ui::Card @title="Create tokens from the Norca CLI" class="mb-3">
         <p class="text-secondary">Create a token linked to this role with:</p>
         <Ui::CodeBlock @code={{this.newTokenString}} @copy={{true}} @label="The command" />
         <p class="mt-2 mb-0">

@@ -76,8 +76,8 @@
       {{#if this.isJobTemplateVariable}}
         <p class="small text-secondary d-flex flex-wrap align-items-center gap-1 mt-1 mb-0" data-test-job-template-hint>
           Use this variable to generate job templates with
-          <code>nomad job init -template={{this.jobTemplateName}}</code>
-          <Ui::CopyButton @text="nomad job init -template={{this.jobTemplateName}}" @label="Copy the command" />
+          <code>norca job init -template={{this.jobTemplateName}}</code>
+          <Ui::CopyButton @text="norca job init -template={{this.jobTemplateName}}" @label="Copy the command" />
         </p>
       {{/if}}
     </div>

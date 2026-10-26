@@ -51,7 +51,7 @@ export default class Tokens extends Controller {
     // Clear out all data to ensure only data the anonymous token is privileged to see is shown
     this.resetStore();
     this.token.reset();
-    this.store.findAll('auth-method');
+    this.store.findAll('auth-method').catch(() => {});
   }
 
   /**
@@ -95,6 +95,18 @@ export default class Tokens extends Controller {
         this.jwtAuthMethod = this.defaultJWTAuthMethod?.name;
       }
     });
+  }
+
+  // The sign-in form: Enter in the secret field or the submit button.
+  @action
+  submitSecret(event) {
+    event?.preventDefault();
+    if (this.secret) this.verifyToken();
+  }
+
+  @action
+  clearSSOFailure() {
+    this.state = null;
   }
 
   /**

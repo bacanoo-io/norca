@@ -31,7 +31,7 @@ export default class AccessControlPoliciesPolicyController extends Controller {
   }
 
   get newTokenString() {
-    return `nomad acl token create -name="<TOKEN_NAME>" -policy="${this.policy.name}" -type=client -ttl=8h`;
+    return `norca acl token create -name="<TOKEN_NAME>" -policy="${this.policy.name}" -type=client -ttl=8h`;
   }
   @task(function* () {
     try {

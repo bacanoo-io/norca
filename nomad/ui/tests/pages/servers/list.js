@@ -23,9 +23,19 @@ export default create({
     serfPort: text('[data-test-server-port]'),
     datacenter: text('[data-test-server-datacenter]'),
     version: text('[data-test-server-version]'),
+    region: text('[data-test-server-region]'),
+    raft: text('[data-test-server-raft]'),
 
     clickRow: clickable(),
     clickName: clickable('[data-test-server-name] a'),
+  }),
+
+  regions: collection('[data-test-regions] [data-test-ui-table-row]', {
+    name: text('[data-test-region-name]'),
+    connection: text('[data-test-region-connection]'),
+    leader: text('[data-test-region-leader]'),
+    servers: text('[data-test-region-servers]'),
+    raft: text('[data-test-region-raft]'),
   }),
 
   error: {

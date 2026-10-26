@@ -13,6 +13,6 @@
   {{else if @job}}
     job <LinkTo @route="jobs.job" @model={{concat @job "@" @namespace}}>{{@job}}</LinkTo>
   {{else}}
-    all nomad jobs in this namespace
+    all jobs in this namespace
   {{/if}}
 </Ui::Alert>

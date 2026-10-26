@@ -8,9 +8,9 @@
 <Ui::PageBody>
   <Access::Tabs />
   <p class="text-secondary">
-    Auth methods let people sign in with an identity provider (OIDC) or a signed token (JWT) and get a Nomad token
+    Auth methods let people sign in with an identity provider (OIDC) or a signed token (JWT) and get a Norca token
     with the policies and roles chosen by the binding rules. They are managed with
-    <code>nomad acl auth-method</code> and <code>nomad acl binding-rule</code>.
+    <code>norca acl auth-method</code> and <code>norca acl binding-rule</code>.
   </p>
   <Ui::DataTable
     @id="access-auth-methods"
@@ -71,7 +71,7 @@
         <Ui::EmptyState
           @icon="key"
           @title="No auth methods"
-          @message="Single sign-on is not set up. Create an auth method with nomad acl auth-method create, then binding rules with nomad acl binding-rule create."
+          @message="Single sign-on is not set up. Create an auth method with norca acl auth-method create, then binding rules with norca acl binding-rule create."
           data-test-empty-auth-methods
         />
       {{/if}}

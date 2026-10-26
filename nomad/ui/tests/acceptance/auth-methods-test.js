@@ -81,6 +81,6 @@ module('Acceptance | auth methods', function (hooks) {
     assert.dom('[data-test-empty-auth-methods]').exists();
     assert
       .dom('[data-test-empty-auth-methods]')
-      .containsText('nomad acl auth-method create');
+      .containsText('norca acl auth-method create');
   });
 });

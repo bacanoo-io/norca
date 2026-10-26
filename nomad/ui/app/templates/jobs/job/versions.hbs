@@ -19,7 +19,7 @@
 
 <div class="row g-3">
   <div class="col-xl-8">
-    <h2 class="h3 mb-2">Versions kept by Nomad</h2>
+    <h2 class="h3 mb-2">Versions kept by Norca</h2>
     <ol class="list-unstyled m-0" data-test-versions>
       {{#each this.annotatedVersions key="version.id" as |record|}}
         {{#if record.showDate}}
@@ -30,7 +30,7 @@
         </li>
       {{else}}
         <li>
-          <Ui::EmptyState @icon="history" @title="No versions" @message="Nomad keeps the latest versions of a job; older ones can be restored from backups." />
+          <Ui::EmptyState @icon="history" @title="No versions" @message="Norca keeps the latest versions of a job; older ones can be restored from backups." />
         </li>
       {{/each}}
     </ol>

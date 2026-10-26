@@ -1,7 +1,7 @@
 {
   "name": "nomad-ui",
   "version": "0.0.0",
-  "description": "The web ui for Nomad, by HashiCorp.",
+  "description": "The Norca web UI.",
   "repository": "",
   "directories": {
     "doc": "doc",
