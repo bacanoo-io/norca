@@ -1,203 +1,175 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
 {{page-title "Evaluations"}}
 {{did-update this.notifyEvalChange this.currentEval}}
-<section class="section">
-    <div class="toolbar">
-      <div class="toolbar-item">
-        <SearchBox
-          data-test-evaluations-search
-          @searchTerm={{mut this.searchTerm}}
-          @onChange={{action this._resetTokens}}
-          @placeholder="Search evaluations..."
-        />
-      </div>
-      <div class="toolbar-item is-right-aligned">
-        <div class="button-bar">
-          <SingleSelectDropdown
-            data-test-evaluation-namespace-facet
-            @label="Namespace"
-            @options={{this.optionsNamespaces}}
-            @selection={{this.qpNamespace}}
-            @onSelect={{action this.setQueryParam "qpNamespace"}}
-          />
-          <SingleSelectDropdown
-            data-test-evaluation-status-facet
-            @label="Status"
-            @options={{this.optionsEvaluationsStatus}}
-            @selection={{this.status}}
-            @onSelect={{action this.setQueryParam "status"}}
-          />
-          <SingleSelectDropdown
-            data-test-evaluation-triggered-by-facet
-            @label="Triggered By"
-            @options={{this.optionsTriggeredBy}}
-            @selection={{this.triggeredBy}}
-            @onSelect={{action this.setQueryParam "triggeredBy"}}
-          />
-          <SingleSelectDropdown
-            data-test-evaluation-type-facet
-            @label="Type"
-            @options={{this.optionsType}}
-            @selection={{this.type}}
-            @onSelect={{action this.setQueryParam "type"}}
-          />
-        </div>
-      </div>
-    </div>
-  <div class="table-container">
-    {{#if @model.length}}
-      <ListTable data-test-eval-table @source={{@model}} as |t|>
-        <t.head>
-          <th>
-            Evaluation ID
-          </th>
-          <th>
-            Resource
-          </th>
-          <th>
-            Priority
-          </th>
-          <th>
-            Created
-          </th>
-          <th>
-            Triggered By
-          </th>
-          <th>
-            Status
-          </th>
-          <th>
-            Placement Failures
-          </th>
-        </t.head>
-        <t.body as |row|>
-          <tr
-            data-test-evaluation="{{row.model.shortId}}"
-            style="cursor: pointer;"
-            class="{{if (eq this.currentEval row.model.id) "is-active"}}"
-            tabindex="0"
-            {{on "click" (fn this.handleEvaluationClick row.model)}}
-            {{on "keyup" (fn this.handleEvaluationClick row.model)}}
-          >
-            <td data-test-id
-                {{keyboard-shortcut 
-                  enumerated=true
-                  action=(fn this.handleEvaluationClick row.model)
-                }}
-            >
-              {{row.model.shortId}}
-            </td>
-            <td data-test-id>
-              {{#if row.model.hasJob}}
-                <LinkTo
-                  data-test-evaluation-resource
-                  @model={{concat row.model.plainJobId "@" row.model.namespace}}
-                  @route="jobs.job"
-                >
-                  {{row.model.plainJobId}}
-                </LinkTo>
-              {{else}}
-                <LinkTo
-                  data-test-evaluation-resource
-                  @model={{row.model.nodeId}}
-                  @route="clients.client"
-                >
-                  {{row.model.shortNodeId}}
-                </LinkTo>
-              {{/if}}
-            </td>
-            <td data-test-priority>
-              {{row.model.priority}}
-            </td>
-            <td data-test-create-time>
-              {{format-month-ts row.model.createTime}}
-            </td>
-            <td data-test-triggered-by>
-              {{row.model.triggeredBy}}
-            </td>
-            <td data-test-status class="is-one-line">
-              <StatusCell @status={{row.model.status}} />
-            </td>
-            <td data-test-blocked>
-              {{#if (eq row.model.status "blocked")}}
-                N/A - In Progress
-              {{else if row.model.hasPlacementFailures}}
-                True
-              {{else}}
-                False
-              {{/if}}
-            </td>
-          </tr>
-        </t.body>
-      </ListTable>
-      <div class="table-foot with-padding">
-        <PageSizeSelect data-test-per-page @onChange={{this.onChange}} />
-        <div>
-          <button
-            class="button"
-            data-test-eval-refresh
-            type="button"
-            {{on "click" this.refresh}}
-          >
-            {{x-icon "refresh-default" class="is-text"}}
-            Refresh
-          </button>
-          <button
-            data-test-eval-pagination-prev
-            type="button"
-            class="button is-text is-borderless"
-            disabled={{this.shouldDisablePrev}}
-            {{on "click" (fn this.onPrev this.lastToken)}}
-          >
-            {{x-icon "chevron-left" class="is-large"}}
-          </button>
-          <button
-            data-test-eval-pagination-next
-            type="button"
-            class="button is-text is-borderless"
-            disabled={{this.shouldDisableNext}}
-            {{on "click" (fn this.onNext @model.meta.nextToken)}}
-          >
-            {{x-icon "chevron-right" class="is-large"}}
-          </button>
-        </div>
-      </div>
-    {{else}}
-      <div class="boxed-section-body">
-        <div class="empty-message" data-test-empty-evaluations-list>
-          <h3
-            class="empty-message-headline"
-            data-test-empty-evalations-list-headline
-          >
-            No Matches
-          </h3>
-          <p class="empty-message-body">
-            {{#if this.hasFiltersApplied}}
-              <span data-test-no-eval-match>
-                No evaluations that match:
-                <strong>
-                  {{this.noMatchText}}
-                </strong>
-              </span>
-            {{else}}
-              <span data-test-no-eval>
-                There are no evaluations
-              </span>
-            {{/if}}
+<Ui::PageHeader @pretitle="Operations" @title="Evaluations" @subtitle="The scheduler's decisions: what triggered them and how they ended">
+  <:actions>
+    <Ui::Button @icon="refresh" data-test-eval-refresh {{on "click" this.refresh}}>Refresh</Ui::Button>
+  </:actions>
+</Ui::PageHeader>
+<Ui::PageBody>
+  <Ui::DataTable
+    @id="evaluations"
+    @caption="Evaluations"
+    @columns={{this.columns}}
+    @rows={{@model}}
+    @onRowClick={{this.openEvaluation}}
+    @enumerate={{true}}
+    data-test-eval-table
+  >
+    <:filters>
+      <Ui::Input
+        @type="search"
+        @icon="search"
+        @placeholder="Search evaluations..."
+        @value={{this.searchTerm}}
+        @onInput={{this.search}}
+        aria-label="Search evaluations"
+        data-test-evaluations-search
+      />
+      <Ui::Select
+        @label="Namespace"
+        @options={{this.namespaceSelectOptions}}
+        @value={{this.qpNamespace}}
+        @onChange={{fn this.setQueryParam "qpNamespace"}}
+        class="w-auto"
+        data-test-evaluation-namespace-facet
+      />
+      <Ui::Select
+        @label="Status"
+        @options={{this.statusSelectOptions}}
+        @value={{or this.status ""}}
+        @onChange={{fn this.setQueryParam "status"}}
+        class="w-auto"
+        data-test-evaluation-status-facet
+      />
+      <Ui::Select
+        @label="Triggered by"
+        @options={{this.triggeredBySelectOptions}}
+        @value={{or this.triggeredBy ""}}
+        @onChange={{fn this.setQueryParam "triggeredBy"}}
+        class="w-auto"
+        data-test-evaluation-triggered-by-facet
+      />
+      <Ui::Select
+        @label="Type"
+        @options={{this.typeSelectOptions}}
+        @value={{or this.type ""}}
+        @onChange={{fn this.setQueryParam "type"}}
+        class="w-auto"
+        data-test-evaluation-type-facet
+      />
+    </:filters>
+    <:row as |evaluation r|>
+      <r.Row
+        @active={{eq this.currentEval evaluation.id}}
+        data-test-evaluation={{evaluation.shortId}}
+        data-eval-row
+        data-side-panel-trigger
+      >
+        <r.Cell @key="id" class="font-monospace" data-test-id>{{evaluation.shortId}}</r.Cell>
+        <r.Cell @key="resource" data-test-id>
+          {{#if evaluation.hasJob}}
+            <LinkTo
+              data-test-evaluation-resource
+              @model={{concat evaluation.plainJobId "@" evaluation.namespace}}
+              @route="jobs.job"
+            >{{evaluation.plainJobId}}</LinkTo>
+          {{else}}
+            <LinkTo
+              data-test-evaluation-resource
+              @model={{evaluation.nodeId}}
+              @route="clients.client"
+              class="font-monospace"
+            >{{evaluation.shortNodeId}}</LinkTo>
+          {{/if}}
+        </r.Cell>
+        <r.Cell @key="priority" class="tabular-nums" data-test-priority>{{evaluation.priority}}</r.Cell>
+        <r.Cell @key="created" class="tabular-nums text-nowrap" data-test-create-time>{{format-month-ts evaluation.createTime}}</r.Cell>
+        <r.Cell @key="triggeredBy" data-test-triggered-by>{{evaluation.triggeredBy}}</r.Cell>
+        <r.Cell @key="status" class="text-nowrap" data-test-status>
+          <Ui::StatusIndicator @status={{evaluation.status}} />
+        </r.Cell>
+        <r.Cell @key="placementFailures" data-test-blocked>
+          {{#if (eq evaluation.status "blocked")}}
+            N/A - In Progress
+          {{else if evaluation.hasPlacementFailures}}
+            True
+          {{else}}
+            False
+          {{/if}}
+        </r.Cell>
+      </r.Row>
+    </:row>
+    <:empty>
+      {{#if this.hasFiltersApplied}}
+        <Ui::EmptyState
+          @icon="filter-off"
+          @title="No Matches"
+          data-test-empty-evaluations-list
+        >
+          <p class="text-secondary" data-test-no-eval-match>
+            No evaluations that match: <strong>{{this.noMatchText}}</strong>
+            Change the filters to see more evaluations.
           </p>
+        </Ui::EmptyState>
+      {{else}}
+        <Ui::EmptyState
+          @icon="list-details"
+          @title="No Evaluations"
+          data-test-empty-evaluations-list
+        >
+          <p class="text-secondary" data-test-no-eval>
+            There are no evaluations. The scheduler creates one whenever a job,
+            a client or a deployment changes.
+          </p>
+        </Ui::EmptyState>
+      {{/if}}
+    </:empty>
+    <:footer>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <label class="small text-secondary" for="evaluations-page-size">Per page</label>
+        <Ui::Select
+          @id="evaluations-page-size"
+          @size="sm"
+          @options={{this.pageSizeOptions}}
+          @value={{this.pageSize}}
+          @onChange={{this.changePageSize}}
+          class="w-auto"
+          data-test-per-page
+        />
+        <div class="d-flex gap-1 ms-auto">
+          <Ui::Button
+            @size="sm"
+            @icon="chevron-left"
+            @iconOnly={{true}}
+            @label="Previous page"
+            @disabled={{this.shouldDisablePrev}}
+            data-test-eval-pagination-prev
+            {{on "click" (fn this.onPrev this.lastToken)}}
+          />
+          <Ui::Button
+            @size="sm"
+            @icon="chevron-right"
+            @iconOnly={{true}}
+            @label="Next page"
+            @disabled={{this.shouldDisableNext}}
+            data-test-eval-pagination-next
+            {{on "click" (fn this.onNext @model.meta.nextToken)}}
+          />
         </div>
       </div>
-    {{/if}}
-  </div>
-  <EvaluationSidebar::Detail
-    @statechart={{this.statechart}}
-    @fns={{hash
-      closeSidebar=this.closeSidebar
-      handleEvaluationClick=this.handleEvaluationClick
-    }}
-  />
-</section>
+    </:footer>
+  </Ui::DataTable>
+</Ui::PageBody>
+<EvaluationSidebar::Detail
+  @statechart={{this.statechart}}
+  @fns={{hash
+    closeSidebar=this.closeSidebar
+    handleEvaluationClick=this.handleEvaluationClick
+  }}
+/>
