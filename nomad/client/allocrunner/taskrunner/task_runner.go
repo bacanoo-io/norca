@@ -956,7 +956,7 @@ func (tr *TaskRunner) runDriver() error {
 	}
 
 	tr.stateLock.Lock()
-	tr.localState.TaskHandle = redactSecretEnv(handle, tr.Task())
+	tr.localState.TaskHandle = redactVaultCompatToken(redactSecretEnv(handle, tr.Task()), tr.vaultClient)
 	tr.localState.DriverNetwork = net
 	if err := tr.stateDB.PutTaskRunnerLocalState(tr.allocID, tr.taskName, tr.localState); err != nil {
 		//TODO Nomad will be unable to restore this task; try to kill

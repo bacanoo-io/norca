@@ -12,6 +12,7 @@ import (
 	log "github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/nomad/helper"
+	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -23,12 +24,15 @@ import (
 // afterwards the secret is watched and Changes signals new values, upon
 // which the template manager makes the templates render again.
 //
-// The existing Vault "secret" template function is not served here: it
-// keeps going to Vault through consul-template. Its fallback to the
-// built-in store (phase 4) resolves with a Vault-style Lookup and maps the
-// Vault KV paths onto the built-in store.
+// When the agent has no Vault integration (phase 4, "Vault compatibility"),
+// the source also serves the Vault "secret" template function in place of
+// consul-template's: {{ with secret "kv/data/app/db" }}{{ .Data.data.password
+// }}{{ end }} resolves as a Vault-style lookup and, from the built-in store,
+// returns the Vault KV response shape (VaultReader). With a Vault integration
+// the Vault function stays consul-template's and goes to Vault.
 type TemplateSource struct {
 	registry *Registry
+	vault    *VaultReader
 	auditor  Auditor
 	logger   log.Logger
 	timeout  time.Duration
@@ -53,7 +57,7 @@ type templateEntry struct {
 	err   error
 
 	lock        sync.Mutex
-	items       map[string]string
+	value       any // map[string]string (nomadSecret) or *VaultKV (secret)
 	fingerprint string
 }
 
@@ -65,6 +69,10 @@ type TemplateSourceConfig struct {
 	Lookup      func(explicit, path string) *Lookup
 	Identity    func() *Identity
 	Interpolate func(string) string
+
+	// Vault serves the Vault "secret" template function; nil leaves it to
+	// consul-template (the agent has a Vault integration).
+	Vault *VaultReader
 
 	// Timeout bounds the wait for the first fetch of a path; 0 is
 	// structs.DefaultSecretTimeout.
@@ -88,6 +96,7 @@ func NewTemplateSource(c *TemplateSourceConfig) *TemplateSource {
 	}
 	return &TemplateSource{
 		registry:    c.Registry,
+		vault:       c.Vault,
 		auditor:     c.Auditor,
 		logger:      logger,
 		timeout:     timeout,
@@ -107,37 +116,104 @@ func (s *TemplateSource) Changes() <-chan struct{} { return s.changes }
 // Stop stops the watches.
 func (s *TemplateSource) Stop() { s.cancel() }
 
-// Func is the nomadSecret template function: it returns the items of the
-// secret. Errors never contain values.
-func (s *TemplateSource) Func(ref string) (map[string]string, error) {
+// ServesVault reports whether the source serves the Vault "secret" template
+// function.
+func (s *TemplateSource) ServesVault() bool { return s != nil && s.vault != nil }
+
+// entry returns the entry of a key, starting its fetch on the first call,
+// and waits for the first fetch.
+func (s *TemplateSource) entry(key string, start func(*templateEntry)) (*templateEntry, error) {
 	s.lock.Lock()
-	e, ok := s.entries[ref]
+	e, ok := s.entries[key]
 	if !ok {
 		e = &templateEntry{ready: make(chan struct{})}
-		s.entries[ref] = e
-		go s.run(ref, e)
+		s.entries[key] = e
+		go start(e)
 	}
 	s.lock.Unlock()
 
 	select {
 	case <-e.ready:
 	case <-s.ctx.Done():
-		return nil, fmt.Errorf("nomadSecret %q: stopped", ref)
+		return nil, fmt.Errorf("stopped")
 	}
 	if e.err != nil {
-		return nil, fmt.Errorf("nomadSecret %q: %v", ref, e.err)
+		return nil, e.err
+	}
+	return e, nil
+}
+
+// Func is the nomadSecret template function: it returns the items of the
+// secret. Errors never contain values.
+func (s *TemplateSource) Func(ref string) (map[string]string, error) {
+	e, err := s.entry(ref, func(e *templateEntry) { s.runNomadSecret(ref, e) })
+	if err != nil {
+		return nil, fmt.Errorf("nomadSecret %q: %v", ref, err)
 	}
 	e.lock.Lock()
 	defer e.lock.Unlock()
-	out := make(map[string]string, len(e.items))
-	for k, v := range e.items {
+	items := e.value.(map[string]string)
+	out := make(map[string]string, len(items))
+	for k, v := range items {
 		out[k] = v
 	}
 	return out, nil
 }
 
-// run fetches a path for the first time and then watches it.
-func (s *TemplateSource) run(ref string, e *templateEntry) {
+// VaultFunc is the Vault "secret" template function served by the source:
+// it returns the Vault response of the path. Additional arguments would
+// write to Vault, which the built-in store doesn't support. Errors never
+// contain values.
+func (s *TemplateSource) VaultFunc(args ...string) (interface{}, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("secret: missing path")
+	}
+	ref := args[0]
+	if len(args) > 1 {
+		return nil, fmt.Errorf("secret %q: writes (secret with data arguments) are not supported by the "+
+			"built-in secret store; they require a Vault/OpenBao provider", ref)
+	}
+	e, err := s.entry(vaultRefKey(ref), func(e *templateEntry) { s.runVault(ref, e) })
+	if err != nil {
+		return nil, fmt.Errorf("secret %q: %v", ref, err)
+	}
+	e.lock.Lock()
+	kv := e.value.(*VaultKV).Copy()
+	e.lock.Unlock()
+	return &VaultTemplateSecret{
+		RequestID:     uuid.Generate(),
+		LeaseDuration: kv.LeaseDuration,
+		Data:          kv.Data,
+	}, nil
+}
+
+// VaultListFunc is the Vault "secrets" template function served by the
+// source: listing is not supported by the built-in store.
+func (s *TemplateSource) VaultListFunc(args ...string) ([]string, error) {
+	ref := ""
+	if len(args) > 0 {
+		ref = args[0]
+	}
+	return nil, fmt.Errorf("secrets %q: listing Vault paths is not supported by the built-in secret store; "+
+		"it requires a Vault/OpenBao provider", ref)
+}
+
+// templateFetch is one way of fetching the value of an entry.
+type templateFetch struct {
+	res *Resolution
+
+	// request is the provider request of the watch.
+	request func() *Request
+
+	// fetch fetches the value with its fingerprint and version.
+	fetch func() (value any, fingerprint, version string, err error)
+
+	// pinned values never change.
+	pinned bool
+}
+
+// runNomadSecret fetches and watches the secret of a nomadSecret call.
+func (s *TemplateSource) runNomadSecret(ref string, e *templateEntry) {
 	explicit, path := structs.ParseSecretRef(ref)
 	path = s.interpolate(path)
 	res, err := s.registry.Resolve(s.lookup(explicit, path))
@@ -148,25 +224,65 @@ func (s *TemplateSource) run(ref string, e *templateEntry) {
 	}
 	p := res.Provider
 	s.logger.Debug("nomadSecret provider resolved", "path", path, "provider", p.Name(), "source", res.Source)
+	s.run(e, &templateFetch{
+		res:     res,
+		request: func() *Request { return &Request{Path: path, Identity: s.identity()} },
+		fetch: func() (any, string, string, error) {
+			sec, err, aerr := FetchAudited(s.ctx, p, &Request{Path: path, Identity: s.identity()}, s.auditor)
+			if aerr != nil {
+				s.logger.Warn("failed to record the audit record of a secret fetch", "provider", p.Name(), "error", aerr)
+			}
+			if err != nil {
+				return nil, "", "", err
+			}
+			return sec.Items, Fingerprint(sec.Items), sec.Version, nil
+		},
+	})
+}
 
-	fetch := func() (*Secret, error) {
-		sec, err, aerr := FetchAudited(s.ctx, p, &Request{Path: path, Identity: s.identity()}, s.auditor)
-		if aerr != nil {
-			s.logger.Warn("failed to record the audit record of a secret fetch", "provider", p.Name(), "error", aerr)
+// runVault fetches and watches the path of a Vault "secret" call.
+func (s *TemplateSource) runVault(ref string, e *templateEntry) {
+	path, version, err := ParseVaultRef(s.interpolate(ref))
+	if err == nil {
+		var vl *VaultLookup
+		vl, err = s.vault.Resolve(s.lookup("", path), version)
+		if err == nil {
+			s.logger.Debug("Vault secret provider resolved", "path", path,
+				"provider", vl.Resolution.Provider.Name(), "source", vl.Resolution.Source)
+			s.run(e, &templateFetch{
+				res:     vl.Resolution,
+				request: func() *Request { return vl.Request(s.identity()) },
+				fetch: func() (any, string, string, error) {
+					kv, err := s.vault.Read(s.ctx, vl, s.identity())
+					if err != nil {
+						return nil, "", "", err
+					}
+					return kv, kv.Fingerprint(), kv.Version, nil
+				},
+				pinned: version != 0,
+			})
+			return
 		}
-		return sec, err
 	}
+	e.err = err
+	close(e.ready)
+}
 
+// run fetches an entry for the first time and then watches it.
+func (s *TemplateSource) run(e *templateEntry, f *templateFetch) {
+	p := f.res.Provider
 	deadline := time.Now().Add(s.timeout)
 	var attempts uint64
-	var sec *Secret
+	var value any
+	var fingerprint, version string
+	var err error
 	for {
-		sec, err = fetch()
+		value, fingerprint, version, err = f.fetch()
 		if err == nil {
 			break
 		}
 		if s.ctx.Err() != nil || !IsRecoverable(err) || time.Now().After(deadline) {
-			e.err = fmt.Errorf("%s: %v", res, err)
+			e.err = fmt.Errorf("%s: %v", f.res, err)
 			close(e.ready)
 			return
 		}
@@ -180,9 +296,11 @@ func (s *TemplateSource) run(ref string, e *templateEntry) {
 		case <-time.After(backoff):
 		}
 	}
-	e.items, e.fingerprint = sec.Items, Fingerprint(sec.Items)
-	version := sec.Version
+	e.value, e.fingerprint = value, fingerprint
 	close(e.ready)
+	if f.pinned {
+		return
+	}
 
 	watcher, canWatch := p.(Watcher)
 	canWatch = canWatch && p.Capabilities().Watch
@@ -203,7 +321,7 @@ func (s *TemplateSource) run(ref string, e *templateEntry) {
 	}
 	for s.ctx.Err() == nil {
 		if canWatch {
-			v, err := watcher.Watch(s.ctx, &Request{Path: path, Identity: s.identity()}, version)
+			v, err := watcher.Watch(s.ctx, f.request(), version)
 			if err != nil {
 				s.logger.Warn("failed to watch secret of a template", "provider", p.Name(), "error", err)
 				if !wait() {
@@ -221,7 +339,7 @@ func (s *TemplateSource) run(ref string, e *templateEntry) {
 			case <-time.After(interval):
 			}
 		}
-		sec, err := fetch()
+		value, fp, v, err := f.fetch()
 		if err != nil {
 			s.logger.Warn("failed to fetch secret of a template, keeping the rendered value", "provider", p.Name(), "error", err)
 			if !wait() {
@@ -230,11 +348,10 @@ func (s *TemplateSource) run(ref string, e *templateEntry) {
 			continue
 		}
 		attempts = 0
-		version = sec.Version
-		fp := Fingerprint(sec.Items)
+		version = v
 		e.lock.Lock()
 		changed := fp != e.fingerprint
-		e.items, e.fingerprint = sec.Items, fp
+		e.value, e.fingerprint = value, fp
 		e.lock.Unlock()
 		if changed {
 			select {

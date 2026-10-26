@@ -17,6 +17,15 @@ type SecretsConfig struct {
 	// Routes map secret path prefixes to providers. The longest matching
 	// prefix wins.
 	Routes []*SecretsRoute
+
+	// VaultKV are the rules that map the paths of Vault-style lookups to
+	// the built-in store when no Vault is configured; nil applies
+	// DefaultVaultKVRules.
+	VaultKV []*VaultKVRule
+
+	// VaultCompat configures the Vault-compatible read endpoint of the
+	// client for tasks with a vault block when no Vault is configured.
+	VaultCompat *VaultCompatConfig
 }
 
 // SecretsRoute routes the lookups of the paths starting with Prefix to the
@@ -40,6 +49,13 @@ func (c *SecretsConfig) Copy() *SecretsConfig {
 			out.Routes = append(out.Routes, &rr)
 		}
 	}
+	for _, r := range c.VaultKV {
+		if r != nil {
+			rr := *r
+			out.VaultKV = append(out.VaultKV, &rr)
+		}
+	}
+	out.VaultCompat = c.VaultCompat.Copy()
 	return out
 }
 
@@ -68,5 +84,8 @@ func (c *SecretsConfig) Validate(known func(string) bool) error {
 			return fmt.Errorf("secrets route %q: provider %q is not configured on this client", r.Prefix, r.Provider)
 		}
 	}
-	return nil
+	if err := ValidateVaultKVRules(c.VaultKV); err != nil {
+		return err
+	}
+	return c.VaultCompat.Validate()
 }

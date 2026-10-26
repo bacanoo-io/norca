@@ -72,6 +72,54 @@ type Secret struct {
 	// Lease is set for dynamic secrets, which must be renewed and are
 	// revoked when the task stops.
 	Lease *Lease
+
+	// Metadata is the metadata of the secret, if the provider has it. It
+	// is not secret; responses in the shapes of other stores (the Vault KV
+	// v2 metadata) are built from it.
+	Metadata *Metadata
+}
+
+// Metadata is the metadata of a secret and of its fetched version. It never
+// contains values.
+type Metadata struct {
+	// Version is the fetched version, CreatedTime the time it was written.
+	Version     uint64
+	CreatedTime time.Time
+
+	// CurrentVersion is the latest version of the secret, OldestVersion
+	// the oldest retained one.
+	CurrentVersion uint64
+	OldestVersion  uint64
+	MaxVersions    int
+
+	// CreateTime and UpdateTime are the times the secret was created and
+	// last changed.
+	CreateTime time.Time
+	UpdateTime time.Time
+
+	// Deleted is set when the current version is soft deleted or the
+	// secret destroyed.
+	Deleted bool
+
+	// Labels are the free labels of the secret.
+	Labels map[string]string
+
+	// Versions are the retained versions, oldest first.
+	Versions []*VersionMetadata
+}
+
+// VersionMetadata is the metadata of one version of a secret.
+type VersionMetadata struct {
+	Version     uint64
+	CreatedTime time.Time
+	Deleted     bool
+	Destroyed   bool
+}
+
+// MetadataReader is implemented by providers that can read the metadata of
+// a secret without its value.
+type MetadataReader interface {
+	ReadMetadata(ctx context.Context, req *Request) (*Metadata, error)
 }
 
 // Lease is the lease of a dynamic secret.
