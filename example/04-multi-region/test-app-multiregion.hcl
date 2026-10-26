@@ -18,5 +18,11 @@ scaling_enabled = false
 
 separate_scope = "$${meta.zone}"
 
-# Discovery prefers the instances in the zone of the caller.
-discovery_prefer = "zone"
+# Discovery prefers the instances in the zone of the caller and needs at
+# least two healthy ones before it leaves out the rest of the datacenter.
+# When a region has no healthy instance at all, lookups fail over to the
+# other region. Both regions run the same job, so the list names both: the
+# caller's own region is skipped.
+discovery_prefer    = "zone"
+discovery_min_local = 2
+discovery_failover  = ["eu-1", "eu-2"]

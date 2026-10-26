@@ -14,8 +14,13 @@ separate_required = false
 # At most one instance down during drains and evictions.
 disruption_max_unavailable = "1"
 
-# Discovery prefers instances in the zone of the caller.
-discovery_prefer = "zone"
+# Discovery prefers instances in the zone of the caller. With one node per
+# zone a zone usually holds one or two instances: min_local = 2 adds the
+# instances of the rest of the datacenter whenever the caller's zone has
+# fewer than two healthy ones, so one failing instance never takes all of
+# the zone's traffic.
+discovery_prefer    = "zone"
+discovery_min_local = 2
 
 scaling_enabled    = true
 scaling_min        = 3

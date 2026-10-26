@@ -113,6 +113,12 @@ variable "discovery_prefer" {
   default     = ""
 }
 
+variable "discovery_min_local" {
+  description = "min_local of the discovery block: a topology tier (zone, then datacenter) is enough on its own only when it holds at least this many healthy instances (and at least overflow_fraction, default 20%, of all). 0 renders no min_local (the default of 1 applies)."
+  type        = number
+  default     = 0
+}
+
 variable "discovery_failover" {
   description = "Regions queried, in order, when the local region has no healthy instance."
   type        = list(string)

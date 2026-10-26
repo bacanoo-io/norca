@@ -137,6 +137,20 @@ norca service info -namespace apps -verbose test-app  # zones and health of the 
 norca network-policy status -namespace apps test-app  # selected allocations, enforced on their nodes
 ```
 
+Topology-aware discovery (`discovery { prefer = "zone", min_local = 2 }`): on
+a node, the built-in DNS answers with the instances of the node's own zone
+first, and adds the rest of the datacenter while the zone has fewer than two
+healthy instances (or fewer than 20% of all, `overflow_fraction`). With three
+instances (one per zone) every answer holds all three; scale to six to see
+the zone filter:
+
+```shell
+norca job scale -namespace apps test-app 6
+dig @127.0.0.1 -p 8600 test-app.service.apps.nomad SRV   # on node-1: the two zone-a instances
+norca alloc stop -namespace apps <one zone-a alloc ID>   # while it is replaced: zone-a + rest of dc1
+norca job scale -namespace apps test-app 3
+```
+
 ### 6. Native mTLS: test-api, probe and intentions
 
 ```shell

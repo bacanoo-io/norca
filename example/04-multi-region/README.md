@@ -149,6 +149,21 @@ norca deployment status -region eu-2 -namespace apps <deployment ID>
 norca deployment run -region eu-2 -namespace apps <deployment ID>
 ```
 
+Discovery across regions (`discovery { prefer = "zone", min_local = 2,
+failover = ["eu-1", "eu-2"] }`): lookups stay in the caller's region (own zone
+first, then the rest of the datacenter while the zone has fewer than two
+healthy instances). Only when the caller's region has no healthy instance at
+all, e.g. while every eu-2 instance fails its readiness check, the answer comes
+from the next region of the list (the caller's own region is skipped):
+
+```shell
+dig @127.0.0.1 -p 8600 test-app.service.apps.nomad SRV   # on an eu-2 node: eu-2 instances
+# no healthy instance in eu-2 -> the same query answers with the eu-1 instances
+```
+
+The answer carries the addresses of the other region; reaching them needs
+routing between the regions or the mTLS gateway of step 6.
+
 The same job without the pack: `norca pack render ../packs/test-app -f test-app-multiregion.hcl`
 and `norca job run -namespace apps <rendered file>` from any region.
 
