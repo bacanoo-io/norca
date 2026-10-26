@@ -18,7 +18,7 @@ const A_KEY = 65;
 
 @classic
 @tagName('pre')
-@classNames('cli-window', 'norca-log-window')
+@classNames('norca-log-window')
 @attributeBindings(
   'data-test-log-cli',
   'tabindex',

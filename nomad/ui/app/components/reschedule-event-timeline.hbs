@@ -1,9 +1,10 @@
 {{!
   Copyright (c) HashiCorp, Inc.
+  SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
 
-<ol class="timeline">
+<ol class="list-unstyled mb-0 norca-reschedule" data-test-reschedule-timeline>
   {{#if @allocation.nextAllocation}}
     <RescheduleEventRow
       @label="Next Allocation"
@@ -11,16 +12,18 @@
       @time={{@allocation.nextAllocation.modifyTime}} />
   {{/if}}
   {{#if @allocation.hasStoppedRescheduling}}
-    <li class="timeline-note" data-test-stop-warning>
-      {{x-icon "alert-triangle" class="is-warning is-text"}} Norca has stopped attempting to reschedule this allocation.
+    <li class="norca-reschedule-note" data-test-stop-warning>
+      <Ui::Icon @name="alert-triangle" class="text-warning me-1" />
+      Norca has stopped attempting to reschedule this allocation.
     </li>
   {{/if}}
   {{#if (and @allocation.followUpEvaluation.waitUntil (not @allocation.nextAllocation))}}
-    <li class="timeline-note" data-test-attempt-notice>
-      {{x-icon "clock" class="is-info is-text"}} Norca will attempt to reschedule
-      <span class="tooltip" aria-label="{{format-ts @allocation.followUpEvaluation.waitUntil}}">
+    <li class="norca-reschedule-note" data-test-attempt-notice>
+      <Ui::Icon @name="clock" class="text-info me-1" />
+      Norca will attempt to reschedule
+      <Ui::Tooltip @text={{format-ts @allocation.followUpEvaluation.waitUntil}}>
         {{moment-from-now @allocation.followUpEvaluation.waitUntil interval=1000}}
-      </span>
+      </Ui::Tooltip>
     </li>
   {{/if}}
   <RescheduleEventRow

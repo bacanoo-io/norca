@@ -1,0 +1,47 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Norca contributors
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+// Reschedule events and the JSON viewer (formerly Bulma-era styles).
+
+// The reschedule events of an allocation: a vertical line with notes
+// (time, label, warnings) and the allocations between them.
+.norca-reschedule {
+  position: relative;
+  padding-left: 1.25rem;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0.25rem;
+    bottom: 0.25rem;
+    left: 0.375rem;
+    border-left: 2px solid var(--tblr-border-color);
+  }
+}
+
+.norca-reschedule-note {
+  padding: 0.25rem 0;
+}
+
+.norca-reschedule-item {
+  margin: 0.25rem 0 0.75rem;
+  padding: 0.75rem 1rem;
+  border: var(--tblr-border-width) solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  background: var(--tblr-bg-surface);
+}
+
+// A read-only JSON document (JsonViewer) in the code editor theme.
+.norca-json-viewer .CodeMirror {
+  height: auto;
+  min-height: 4rem;
+  max-height: 32rem;
+  border: var(--tblr-border-width) solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+}
+
+.norca-json-viewer .CodeMirror-scroll {
+  max-height: 32rem;
+}
