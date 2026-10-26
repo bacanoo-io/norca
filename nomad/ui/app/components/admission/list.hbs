@@ -1,0 +1,99 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-admission {{this.setup this.region}}>
+  <Ui::PageHeader @pretitle="Configuration" @title="Admission policies" @subtitle={{or this.region "Local region"}}>
+    <:actions>
+      {{#if this.canWrite}}
+        <Ui::Button @variant="primary" @icon="plus" data-test-new-admission {{on "click" this.openEditor}}>New policy</Ui::Button>
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
+
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the admission policies" /></Ui::Card>
+    {{else if this.error}}
+      <Ui::Alert @tone="warning" @title="The admission policies could not be loaded" data-test-admission-error>{{this.error}}</Ui::Alert>
+    {{else}}
+      <div class="row row-cards">
+        <div class="col-lg-8">
+          <Ui::DataTable
+            @id="admission-policies"
+            @caption="Admission policies"
+            @columns={{this.columns}}
+            @rows={{this.tableRows}}
+            @sortBy={{this.list.sortBy}}
+            @sortDescending={{this.list.sortDescending}}
+            @onSort={{this.list.sort}}
+            @pageSize={{this.list.pageSize}}
+            @page={{this.list.page}}
+            @onPageChange={{this.list.setPage}}
+            @onPageSizeChange={{this.list.setPageSize}}
+            @noun="policies"
+            @viewState={{this.list.viewState}}
+            @onApplyView={{this.list.applyView}}
+            @emptyMessage={{if this.list.searchTerm "No policy matches the search." "No admission policy. Add one with New policy, or with the admission-policy API or CLI, to deny or warn about job, Variables and release writes."}}
+            data-test-admission-policies
+          >
+            <:filters>
+              <Ui::Input
+                @type="search"
+                @icon="search"
+                @placeholder="Search policies..."
+                @value={{this.list.searchTerm}}
+                @onInput={{this.list.search}}
+                aria-label="Search admission policies"
+                data-test-admission-search
+              />
+            </:filters>
+            <:row as |p r|>
+              <r.Row data-test-admission-row={{p.Name}}>
+                <r.Cell @key="name">
+                  <LinkTo @route="admission.policy" @model={{p.Name}} data-test-admission-link={{p.Name}}>{{p.Name}}</LinkTo>
+                  {{#if p.Description}}<div class="small text-secondary">{{p.Description}}</div>{{/if}}
+                </r.Cell>
+                <r.Cell @key="action"><Ui::Badge @color={{if (eq p.action "warn") "orange" "red"}} data-test-admission-action>{{p.action}}</Ui::Badge></r.Cell>
+                <r.Cell @key="match">{{p.match}}</r.Cell>
+                <r.Cell @key="rules">{{p.rules}}{{#if p.keys}}, {{p.keys}} trusted keys{{/if}}{{#if p.SchemaFrom}}, schema{{/if}}</r.Cell>
+              </r.Row>
+            </:row>
+          </Ui::DataTable>
+          <Ui::Card @flush={{true}} @title="Webhooks" @subtitle="From the server configuration" class="mt-3" data-test-admission-webhooks>
+            {{#if this.webhooks}}
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Admission webhooks"
+                @columns={{array (hash key="name" label="Webhook") (hash key="mode" label="Mode") (hash key="url" label="URL") (hash key="failure" label="On failure")}}
+                @rows={{this.webhooks}}
+                @emptyMessage="No admission webhook is configured on this server."
+                as |w|
+              >
+                <td>{{w.Name}}</td>
+                <td>{{w.Mode}}</td>
+                <td class="font-monospace text-break">{{w.URL}}</td>
+                <td>{{w.FailurePolicy}}</td>
+              </Ui::Table>
+            {{else}}
+              <p class="text-secondary p-3 mb-0">The webhooks are part of the admission block of the server configuration; reading them needs agent read.</p>
+            {{/if}}
+          </Ui::Card>
+        </div>
+        <div class="col-lg-4">
+          <Ui::Card @title="Denials" @subtitle="Seen while this page is open" data-test-admission-denials>
+            {{#if this.denials.length}}
+              <Ui::Timeline @items={{this.denials}} @simple={{true}} />
+            {{else}}
+              <Ui::EmptyState @compact={{true}} @icon="shield-check" @title="No denials yet" @message="Denied job and Variables writes appear here as they happen. Warnings of warn-mode policies are returned to the submitter only." />
+            {{/if}}
+          </Ui::Card>
+        </div>
+      </div>
+    {{/if}}
+  </Ui::PageBody>
+
+  {{#if this.editing}}
+    <Admission::Editor @region={{this.region}} @onSaved={{this.created}} @onClose={{this.closeEditor}} />
+  {{/if}}
+</div>

@@ -1,0 +1,8 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{page-title "Job history - Backups"}}
+<PageLayout @legacy={{false}}>
+  <Backups::JobHistory @job={{this.job}} @namespace={{this.qpNamespace}} @onSearch={{this.search}} />
+</PageLayout>

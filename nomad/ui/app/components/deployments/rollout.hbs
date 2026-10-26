@@ -1,0 +1,64 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-rollout={{@job}} {{this.setup @job @namespace @version}}>
+  {{#if this.isLoading}}
+    <Ui::Spinner @showLabel={{true}} @label="Loading the regions of the rollout" />
+  {{else if this.error}}
+    <Ui::Alert @tone="danger" @title="The rollout could not be loaded" class="mb-0">{{this.error}}</Ui::Alert>
+  {{else if this.rollout}}
+    {{#if this.actionError}}
+      <Ui::Alert @tone="danger" class="mb-3" data-test-rollout-error>{{this.actionError}}</Ui::Alert>
+    {{/if}}
+    <ol class="norca-rollout" aria-label="Regions in rollout order">
+      {{#each this.steps as |step|}}
+        <li class="norca-rollout-step {{step.colorClass}}" data-test-rollout-step={{step.region}}>
+          <div class="d-flex justify-content-between align-items-center gap-2">
+            <span class="norca-region fw-medium">{{step.region}}</span>
+            <Ui::StatusIndicator @status={{step.status}} data-test-step-status />
+          </div>
+          {{#if step.progress}}
+            <Ui::StackedBar @label={{concat step.region " progress"}} @segments={{step.progress.segments}} class="mt-2" />
+            <div class="small text-secondary mt-1">{{step.progress.healthy}} of {{step.progress.desired}} healthy</div>
+          {{/if}}
+          <div class="small text-secondary mt-1" data-test-step-description>{{step.description}}</div>
+          {{#if step.actions.length}}
+            <div class="d-flex flex-wrap gap-1 mt-2">
+              {{#each step.actions as |act|}}
+                <Ui::Button
+                  @size="sm"
+                  @variant={{act.variant}}
+                  @isLoading={{eq this.working (concat step.region ":" act.id)}}
+                  data-test-step-action={{concat step.region ":" act.id}}
+                  {{on "click" (fn this.ask step act)}}
+                >{{act.label}}</Ui::Button>
+              {{/each}}
+            </div>
+          {{/if}}
+        </li>
+      {{/each}}
+    </ol>
+    <p class="small text-secondary mt-2 mb-0" data-test-rollout-strategy>Strategy: {{this.strategyText}}.</p>
+  {{else}}
+    <p class="text-secondary mb-0">The job has no multiregion block any more.</p>
+  {{/if}}
+
+  {{#if this.confirming}}
+    <Ui::Confirm
+      @title={{concat this.confirming.act.label " in " this.confirming.step.region "?"}}
+      @confirmLabel={{this.confirming.act.label}}
+      @tone={{if (eq this.confirming.act.id "fail") "danger" "primary"}}
+      @onConfirm={{this.confirm}}
+      @onClose={{this.cancel}}
+      @isRunning={{not-eq this.working null}}
+      @error={{this.actionError}}
+    >
+      {{#if (eq this.confirming.act.id "fail")}}
+        The deployment of {{@job}} v{{@version}} in {{this.confirming.step.region}} fails; with the strategy of the job, {{this.strategyText}}. Auto-revert groups return to the last stable version.
+      {{else}}
+        The deployment in {{this.confirming.step.region}} is marked successful and the rollout continues in the remaining regions without waiting for their peers.
+      {{/if}}
+    </Ui::Confirm>
+  {{/if}}
+</div>

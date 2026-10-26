@@ -1,0 +1,48 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Modal @title={{this.title}} @size="xl" @onClose={{@onClose}} data-test-admission-editor>
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <p class="text-secondary">
+        The policy in the JSON form of the API. A rule is violated when its CEL expression does not evaluate to true;
+        with the warn action the write goes through with a warning. The server compiles the expressions when the
+        policy is saved and reports the errors here.
+      </p>
+      <Ui::Editor
+        @label="Admission policy"
+        @language="json"
+        @schema={{this.schema}}
+        @value={{this.text}}
+        @onChange={{this.setText}}
+        @original={{this.original}}
+        @validate={{this.validate}}
+        @onSubmit={{this.submit}}
+        @submitLabel={{if this.isNew "Create policy" "Save policy"}}
+        @permission="write admission policies"
+        @onCancel={{@onClose}}
+        @minHeight="20rem"
+        @autofocus={{true}}
+      />
+    </div>
+    <div class="col-lg-4">
+      <Ui::Card @title="CEL reference" @size="sm" data-test-cel-reference>
+        <dl class="mb-3">
+          {{#each this.reference as |entry|}}
+            <dt class="font-monospace">{{entry.name}}</dt>
+            <dd class="small text-secondary">{{entry.text}}</dd>
+          {{/each}}
+        </dl>
+        <div class="small fw-medium mb-1">Examples</div>
+        {{#each this.examples as |example|}}
+          <Ui::CodeBlock @label={{example.label}} @code={{example.code}} @wrap={{true}} @copy={{true}} class="mb-2" />
+        {{/each}}
+        <p class="small text-secondary mb-0">
+          Use has() before optional fields: a rule that fails to evaluate counts as violated.
+          Trying a policy on the existing jobs needs a dry-run endpoint the server does not have; start with warn.
+        </p>
+      </Ui::Card>
+    </div>
+  </div>
+</Ui::Modal>

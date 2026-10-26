@@ -19,10 +19,12 @@ export function loadECharts() {
         charts.BarChart,
         charts.LineChart,
         charts.PieChart,
+        charts.GraphChart,
         components.GridComponent,
         components.TooltipComponent,
         components.LegendComponent,
         components.DatasetComponent,
+        components.MarkLineComponent,
         renderers.SVGRenderer,
       ]);
       return core;

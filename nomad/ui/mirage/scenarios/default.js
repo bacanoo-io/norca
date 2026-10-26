@@ -8,6 +8,7 @@ import * as topoScenarios from './topo';
 import * as sysbatchScenarios from './sysbatch';
 import { pickOne } from '../utils';
 import faker from 'nomad-ui/mirage/faker';
+import { seedNorcaAreas } from '../norca';
 
 const withNamespaces = getConfigValue('mirageWithNamespaces', false);
 const withTokens = getConfigValue('mirageWithTokens', true);
@@ -57,6 +58,7 @@ export default function (server) {
 
 function smallCluster(server) {
   faker.seed(1);
+  seedNorcaAreas(server);
   server.createList('agent', 3, 'withConsulLink', 'withVaultLink');
   server.createList('node-pool', 2);
   server.createList('node', 5);

@@ -1,0 +1,83 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-backup-compare {{this.loader @backup.ID this.against this.type this.backups.hasIdentity}}>
+  <Backups::Identity @error={{this.identityError}} />
+
+  {{#if this.backups.hasIdentity}}
+    <Ui::Card @flush={{true}}>
+      <:default>
+        <div class="row g-3 px-3 pt-3 align-items-end">
+          <div class="col-md-5">
+            <Ui::Field @label="Compare with" class="mb-0" as |f|>
+              <Ui::Select @id={{f.id}} @options={{this.againstOptions}} @value={{this.against}} @onChange={{this.setAgainst}} data-test-compare-against />
+            </Ui::Field>
+          </div>
+          <div class="col-md-4">
+            <Ui::Field @label="Type" class="mb-0" as |f|>
+              <Ui::Select @id={{f.id}} @options={{this.typeOptions}} @value={{this.type}} @onChange={{this.setType}} data-test-compare-type />
+            </Ui::Field>
+          </div>
+          <div class="col-md-3 text-end" data-test-compare-counts>
+            <Ui::Badge @color="green" class="me-1">{{this.counts.added}} added</Ui::Badge>
+            <Ui::Badge @color="red" class="me-1">{{this.counts.deleted}} deleted</Ui::Badge>
+            <Ui::Badge @color="orange">{{this.counts.modified}} modified</Ui::Badge>
+          </div>
+        </div>
+        <p class="text-secondary small px-3 pt-2 mb-2">
+          Added: only in {{this.againstLabel}}. Deleted: only in this backup. Modified: in both, changed.
+        </p>
+        {{#if this.isLoading}}
+          <div class="p-4"><Ui::Spinner @showLabel={{true}} @label="Comparing" /></div>
+        {{else if this.error}}
+          <div class="p-3"><Ui::Alert @tone="danger" @title="The comparison failed" class="mb-0" data-test-compare-error>{{this.error}}</Ui::Alert></div>
+        {{else}}
+          <Ui::Table
+            @inCard={{true}}
+            @caption="Differences"
+            @columns={{array
+              (hash key="type" label="Type")
+              (hash key="change" label="Change")
+              (hash key="id" label="Name")
+              (hash key="namespace" label="Namespace")
+              (hash key="from" label="In this backup")
+              (hash key="to" label=(if (eq this.against "current") "Now" "In the other backup"))
+              (hash key="diff" label="Details")
+            }}
+            @rows={{this.rows}}
+            @emptyMessage={{concat "No differences between this backup and " this.againstLabel "."}}
+            as |row|
+          >
+            <td>{{row.typeLabel}}</td>
+            <td><Ui::Badge @color={{row.change.color}} data-test-change={{row.Change}}>{{row.change.label}}</Ui::Badge></td>
+            <td class="font-monospace" data-test-diff-id>{{row.ID}}</td>
+            <td>{{or row.Namespace "–"}}</td>
+            <td>{{row.from}}</td>
+            <td>{{row.to}}</td>
+            <td>
+              {{#if row.canDiff}}
+                <Ui::Button @size="sm" @variant="ghost" data-test-job-diff={{row.ID}} {{on "click" (fn this.showJobDiff row)}}>Job diff</Ui::Button>
+              {{/if}}
+            </td>
+          </Ui::Table>
+        {{/if}}
+      </:default>
+    </Ui::Card>
+
+    {{#if this.jobDiffFor}}
+      <Ui::Card @title={{concat "Job " this.jobDiffFor.ID}} @subtitle={{concat "This backup compared with " this.againstLabel}} @flush={{true}} class="mt-3" data-test-job-diff-card>
+        <:actions>
+          <Ui::Button @size="sm" @variant="ghost" @icon="x" @iconOnly={{true}} @label="Close the job diff" {{on "click" this.closeJobDiff}} />
+        </:actions>
+        <:default>
+          {{#if this.jobDiffLoading}}
+            <div class="p-4"><Ui::Spinner @showLabel={{true}} @label="Loading the job diff" /></div>
+          {{else}}
+            <Backups::JobDiff @rows={{this.jobDiffRows}} />
+          {{/if}}
+        </:default>
+      </Ui::Card>
+    {{/if}}
+  {{/if}}
+</div>

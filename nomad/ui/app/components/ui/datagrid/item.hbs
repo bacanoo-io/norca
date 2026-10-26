@@ -2,7 +2,7 @@
   SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-<div class="datagrid-item" ...attributes>
+<div class="datagrid-item" data-test-datagrid-item={{@title}} ...attributes>
   <div class="datagrid-title" data-test-datagrid-title>{{@title}}</div>
-  <div class="datagrid-content {{if @monospace 'font-monospace'}}" data-test-datagrid-content>{{yield}}</div>
+  <div class="datagrid-content {{if (or @monospace @mono) 'font-monospace'}}" data-test-datagrid-content data-test-datagrid-value>{{yield}}</div>
 </div>
