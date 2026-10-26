@@ -265,6 +265,8 @@ client {
 }
 ```
 
+The default bind is also the default address of the agent's own `consul` block. When the `consul` block points at the layer of the same agent (same port; the same host, `localhost` for a loopback bind, or any local address for a wildcard bind), the agent would otherwise talk to itself: register itself into its own catalog through the agent endpoints (and retry forever on `/v1/agent/check/register`, which the layer does not serve), join its servers through its own catalog and fingerprint itself as a Consul agent. The agent therefore runs with `auto_advertise`, `server_auto_join` and `client_auto_join` off and adds `consul` to the client's `fingerprint.denylist`; it logs what it turned off, and `norca config validate` prints a warning. Task templates keep using the `consul` block's address, so consul-template's service functions read the native catalog through the layer. Pointing `consul.address` or `consul_compat.bind` elsewhere restores the full integration (`command/agent/consul_compat_loop.go`).
+
 ### Conformance testing
 
 - The layer's tests run with the official `hashicorp/consul/api` Go client (MPL), in parallel against a real Consul and the layer, with the same expected results.

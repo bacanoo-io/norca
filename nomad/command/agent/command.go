@@ -472,6 +472,10 @@ func (c *Command) IsValidConfig(config, cmdConfig *Config) bool {
 		}
 	}
 
+	if msg := consulCompatLoopWarning(config); msg != "" {
+		c.Ui.Warn("WARNING: " + msg)
+	}
+
 	// ProtocolVersion has never been used. Warn if it is set as someone
 	// has probably made a mistake.
 	if config.Server.ProtocolVersion != 0 {

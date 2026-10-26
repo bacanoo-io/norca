@@ -142,6 +142,10 @@ func NewAgent(config *Config, logger log.InterceptLogger, logOutput io.Writer, i
 	// Global logger should match internal logger as much as possible
 	golog.SetFlags(golog.LstdFlags | golog.Lmicroseconds)
 
+	// Keep the Consul integration from talking to the agent's own
+	// Consul-compatible API (Norca).
+	avoidConsulCompatLoop(config, a.logger)
+
 	if err := a.setupConsul(config.Consul); err != nil {
 		return nil, fmt.Errorf("Failed to initialize Consul client: %v", err)
 	}
