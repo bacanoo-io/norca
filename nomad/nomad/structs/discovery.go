@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/nomad/helper/pointer"
 )
 
 // Topology preferences of the discovery block of a service. They select which
@@ -34,7 +37,10 @@ const (
 
 	// DefaultDiscoveryOverflowFraction is the default fraction of all eligible
 	// instances a topology tier must hold before the next tier is left out of
-	// the response, so a small zone does not receive the entire traffic.
+	// the response, so a small zone does not receive the entire traffic. It is
+	// the default of the default_overflow_fraction server setting, which the
+	// servers fill in at job registration for discovery blocks that leave the
+	// fraction unset.
 	DefaultDiscoveryOverflowFraction = 0.2
 )
 
@@ -60,7 +66,13 @@ type ServiceDiscovery struct {
 
 	// OverflowFraction is the fraction of all eligible instances a topology
 	// tier must hold before the next tier is left out. Zero disables the rule.
-	OverflowFraction float64
+	//
+	// Nil means unset: the servers replace it with their default overflow
+	// fraction (the default_overflow_fraction server setting) when the job
+	// is registered, so stored jobs and service registrations carry a
+	// concrete value. Jobs stored before the field became a pointer decode
+	// with the value they were stored with.
+	OverflowFraction *float64
 
 	// Failover is the ordered list of regions queried when the local region
 	// has no eligible instance.
@@ -78,6 +90,7 @@ func (d *ServiceDiscovery) Copy() *ServiceDiscovery {
 		return nil
 	}
 	nd := *d
+	nd.OverflowFraction = pointer.Copy(d.OverflowFraction)
 	nd.Failover = slices.Clone(d.Failover)
 	return &nd
 }
@@ -89,7 +102,7 @@ func (d *ServiceDiscovery) Equal(o *ServiceDiscovery) bool {
 	}
 	return d.Prefer == o.Prefer &&
 		d.MinLocal == o.MinLocal &&
-		d.OverflowFraction == o.OverflowFraction &&
+		pointer.Eq(d.OverflowFraction, o.OverflowFraction) &&
 		d.IncludeNotReady == o.IncludeNotReady &&
 		slices.Equal(d.Failover, o.Failover)
 }
@@ -123,7 +136,7 @@ func (d *ServiceDiscovery) Validate() error {
 	if d.MinLocal < 0 {
 		mErr.Errors = append(mErr.Errors, errors.New("discovery min_local must be non-negative"))
 	}
-	if d.OverflowFraction < 0 || d.OverflowFraction > 1 {
+	if f := d.OverflowFraction; f != nil && (*f < 0 || *f > 1) {
 		mErr.Errors = append(mErr.Errors, errors.New("discovery overflow_fraction must be between 0 and 1"))
 	}
 	seen := make(map[string]struct{}, len(d.Failover))
@@ -188,7 +201,7 @@ func SelectByTopology(instances []*ServiceRegistration, near Topology, d *Servic
 	if minLocal < 1 {
 		minLocal = 1
 	}
-	minFraction := d.OverflowFraction * float64(len(instances))
+	minFraction := d.EffectiveOverflowFraction() * float64(len(instances))
 
 	out := make([]*ServiceRegistration, 0, len(instances))
 	for i, tier := range tiers {
@@ -198,6 +211,33 @@ func SelectByTopology(instances []*ServiceRegistration, near Topology, d *Servic
 		out = append(out, tier...)
 	}
 	return out
+}
+
+// EffectiveOverflowFraction returns the overflow fraction of d. An unset
+// fraction, which the servers resolve at job registration, falls back to
+// DefaultDiscoveryOverflowFraction.
+func (d *ServiceDiscovery) EffectiveOverflowFraction() float64 {
+	if d == nil || d.OverflowFraction == nil {
+		return DefaultDiscoveryOverflowFraction
+	}
+	return *d.OverflowFraction
+}
+
+// SetDefaultOverflowFraction sets the overflow fraction of d to fraction if
+// it is unset. An explicit value, including zero, is kept.
+func (d *ServiceDiscovery) SetDefaultOverflowFraction(fraction float64) {
+	if d != nil && d.OverflowFraction == nil {
+		d.OverflowFraction = pointer.Of(fraction)
+	}
+}
+
+// formatOverflowFraction formats an overflow fraction for job diffs; an
+// unset fraction is empty.
+func formatOverflowFraction(f *float64) string {
+	if f == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*f, 'g', -1, 64)
 }
 
 // serviceDiscoveryDiff diffs the discovery blocks of a service.
@@ -216,12 +256,20 @@ func serviceDiscoveryDiff(old, new *ServiceDiscovery, contextual bool) *ObjectDi
 	if diff == nil {
 		diff = &ObjectDiff{Type: DiffTypeNone, Name: "Discovery"}
 	}
-	if f := fieldDiff(strings.Join(o.Failover, ","), strings.Join(n.Failover, ","), "Failover", contextual); f != nil {
+	// primitiveObjectDiff skips pointer and slice fields
+	for _, f := range []*FieldDiff{
+		fieldDiff(strings.Join(o.Failover, ","), strings.Join(n.Failover, ","), "Failover", contextual),
+		fieldDiff(formatOverflowFraction(o.OverflowFraction), formatOverflowFraction(n.OverflowFraction), "OverflowFraction", contextual),
+	} {
+		if f == nil {
+			continue
+		}
 		diff.Fields = append(diff.Fields, f)
-		if diff.Type == DiffTypeNone {
+		if f.Type != DiffTypeNone && diff.Type == DiffTypeNone {
 			diff.Type = DiffTypeEdited
 		}
 	}
+	sort.Sort(FieldDiffs(diff.Fields))
 	switch {
 	case old == nil:
 		diff.Type = DiffTypeAdded

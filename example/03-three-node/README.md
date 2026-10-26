@@ -140,7 +140,12 @@ norca network-policy status -namespace apps test-app  # selected allocations, en
 Topology-aware discovery (`discovery { prefer = "zone", min_local = 2 }`): on
 a node, the built-in DNS answers with the instances of the node's own zone
 first, and adds the rest of the datacenter while the zone has fewer than two
-healthy instances (or fewer than 20% of all, `overflow_fraction`). With three
+healthy instances (or fewer than 20% of all, `overflow_fraction`). The job
+doesn't set `overflow_fraction`, so the servers fill in their
+`native_service_discovery { default_overflow_fraction }` (0.2, `norca.hcl`) at
+registration; `norca job inspect` shows the resolved value, and after changing
+the setting (reloaded on SIGHUP) `norca job plan` shows the job's value
+changing at its next submission. With three
 instances (one per zone) every answer holds all three; scale to six to see
 the zone filter:
 

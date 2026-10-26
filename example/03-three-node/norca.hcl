@@ -59,6 +59,14 @@ server {
     leaf_cert_ttl = "24h"
   }
 
+  # Topology-aware discovery: the overflow fraction the servers fill in when
+  # a service's discovery block doesn't set overflow_fraction (0..1, default
+  # 0.2; 0 turns the overflow rule off). Reloaded on SIGHUP; jobs keep the
+  # value they were registered with until they are submitted again.
+  native_service_discovery {
+    default_overflow_fraction = 0.2
+  }
+
   secrets {
     audit_file             = "/var/log/norca/secrets-audit.log"
     audit_rotate_duration  = "24h"

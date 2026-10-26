@@ -154,7 +154,11 @@ failover = ["eu-1", "eu-2"] }`): lookups stay in the caller's region (own zone
 first, then the rest of the datacenter while the zone has fewer than two
 healthy instances). Only when the caller's region has no healthy instance at
 all, e.g. while every eu-2 instance fails its readiness check, the answer comes
-from the next region of the list (the caller's own region is skipped):
+from the next region of the list (the caller's own region is skipped). The
+overflow fraction left unset in the job is filled in by each region's servers
+from their own `native_service_discovery { default_overflow_fraction }`
+(`region-eu-*.hcl`), so the copies of the job in the two regions can differ
+if the settings do:
 
 ```shell
 dig @127.0.0.1 -p 8600 test-app.service.apps.nomad SRV   # on an eu-2 node: eu-2 instances

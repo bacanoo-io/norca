@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/shoenig/test/must"
 )
 
@@ -37,7 +38,7 @@ func TestSelectByTopology(t *testing.T) {
 	must.Eq(t, topologyIDs(all), topologyIDs(SelectByTopology(all, near, &ServiceDiscovery{Prefer: "none", MinLocal: 5})))
 	must.Eq(t, topologyIDs(all), topologyIDs(SelectByTopology(all, near, &ServiceDiscovery{Prefer: "region"})))
 
-	zone := &ServiceDiscovery{Prefer: DiscoveryPreferZone, MinLocal: 2, OverflowFraction: 0.2}
+	zone := &ServiceDiscovery{Prefer: DiscoveryPreferZone, MinLocal: 2, OverflowFraction: pointer.Of(0.2)}
 
 	// two healthy instances in the zone of the consumer: only those
 	must.Eq(t, []string{"a1", "a2"}, topologyIDs(SelectByTopology(all, near, zone)))
@@ -52,10 +53,10 @@ func TestSelectByTopology(t *testing.T) {
 
 	// the overflow fraction pulls in the next tier when the zone holds too
 	// small a share of all instances
-	big := &ServiceDiscovery{Prefer: DiscoveryPreferZone, MinLocal: 2, OverflowFraction: 0.5}
+	big := &ServiceDiscovery{Prefer: DiscoveryPreferZone, MinLocal: 2, OverflowFraction: pointer.Of(0.5)}
 	must.Eq(t, []string{"a1", "a2", "b1", "b2", "c1", "c2", "c3", "c4", "c5", "c6"},
 		topologyIDs(SelectByTopology(all, near, big)))
-	big.OverflowFraction = 0.4
+	big.OverflowFraction = pointer.Of(0.4)
 	must.Eq(t, []string{"a1", "a2", "b1", "b2"}, topologyIDs(SelectByTopology(all, near, big)))
 
 	// a consumer without a zone starts at its datacenter

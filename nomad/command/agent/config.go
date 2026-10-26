@@ -716,6 +716,11 @@ type ServerConfig struct {
 
 	// Keyring configures the keyring seal (Norca).
 	Keyring *config.KeyringConfig `hcl:"keyring"`
+
+	// NativeServiceDiscovery holds the server-side settings of native service
+	// discovery: the default overflow fraction filled in at job registration
+	// (Norca).
+	NativeServiceDiscovery *config.ServerNativeServiceDiscoveryConfig `hcl:"native_service_discovery"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -750,6 +755,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.Admission = s.Admission.Copy()
 	ns.MTLS = s.MTLS.Copy()
 	ns.Keyring = s.Keyring.Copy()
+	ns.NativeServiceDiscovery = s.NativeServiceDiscovery.Copy()
 	return &ns
 }
 
@@ -2122,6 +2128,8 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 	if b.Keyring != nil {
 		result.Keyring = result.Keyring.Merge(b.Keyring)
 	}
+
+	result.NativeServiceDiscovery = result.NativeServiceDiscovery.Merge(b.NativeServiceDiscovery)
 
 	// Add the schedulers
 	result.EnabledSchedulers = append(result.EnabledSchedulers, b.EnabledSchedulers...)

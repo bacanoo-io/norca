@@ -351,8 +351,8 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		conf.JobTrackedVersions = *agentConfig.Server.JobTrackedVersions
 	}
 
-	// The Norca blocks: admission, keyring, mtls, autoscaler, backup and
-	// secrets (also checked by config validate).
+	// The Norca blocks: admission, keyring, mtls, autoscaler, backup, secrets
+	// and native_service_discovery (also checked by config validate).
 	norcaBlocks, err := convertNorcaServerBlocks(agentConfig.Server)
 	if err != nil {
 		return nil, err
@@ -365,6 +365,9 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	}
 	if norcaBlocks.mtls != nil {
 		conf.MTLSConfig = norcaBlocks.mtls
+	}
+	if norcaBlocks.discoveryOverflowFraction != nil {
+		conf.DiscoveryDefaultOverflowFraction = *norcaBlocks.discoveryOverflowFraction
 	}
 
 	// Set up the bind addresses

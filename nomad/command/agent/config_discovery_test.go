@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/shoenig/test/must"
 )
@@ -50,6 +52,62 @@ client {
 }
 `)
 	must.ErrorContains(t, err, "default_healthy")
+
+	// the server's default overflow fraction
+	c, err = parseTestConfig(t, `
+server {
+  native_service_discovery {
+    default_overflow_fraction = 0.3
+  }
+}
+`)
+	must.NoError(t, err)
+	must.Eq(t, pointer.Of(0.3), c.Server.NativeServiceDiscovery.DefaultOverflowFraction)
+
+	// merging keeps the set value, a later file overrides it, an unset one
+	// does not
+	merged = DefaultConfig().Merge(c)
+	must.Eq(t, pointer.Of(0.3), merged.Server.NativeServiceDiscovery.DefaultOverflowFraction)
+	zero, err := parseTestConfig(t, `server { native_service_discovery { default_overflow_fraction = 0 } }`)
+	must.NoError(t, err)
+	must.Eq(t, pointer.Of(0.0), merged.Merge(zero).Server.NativeServiceDiscovery.DefaultOverflowFraction)
+	empty, err := parseTestConfig(t, `server { native_service_discovery {} }`)
+	must.NoError(t, err)
+	must.Eq(t, pointer.Of(0.3), merged.Merge(empty).Server.NativeServiceDiscovery.DefaultOverflowFraction)
+
+	// the server configuration carries it; without the block it is 0.2
+	serverConf := func(c *Config) float64 {
+		conf := DevConfig(nil)
+		if c != nil {
+			conf = conf.Merge(c)
+		}
+		must.NoError(t, conf.normalizeAddrs())
+		sconf, err := convertServerConfig(conf)
+		must.NoError(t, err)
+		return sconf.DiscoveryDefaultOverflowFraction
+	}
+	must.Eq(t, 0.3, serverConf(c))
+	must.Eq(t, 0.0, serverConf(zero))
+	must.Eq(t, structs.DefaultDiscoveryOverflowFraction, serverConf(nil))
+
+	// out of range values are rejected by the agent and config validate
+	for _, bad := range []float64{-0.1, 1.01} {
+		badConf := merged.Copy()
+		badConf.Server.NativeServiceDiscovery.DefaultOverflowFraction = pointer.Of(bad)
+		_, err = convertServerConfig(badConf)
+		must.ErrorContains(t, err, "default_overflow_fraction must be between 0 and 1")
+		badConf.Server.Enabled = true
+		must.ErrorContains(t, validateNorcaBlocks(badConf), "default_overflow_fraction")
+	}
+
+	_, err = parseTestConfig(t, `
+server {
+  native_service_discovery {
+    default_overflow = 0.3
+  }
+}
+`)
+	must.ErrorContains(t, err, "default_overflow")
 
 	c, err = parseTestConfig(t, `
 client {

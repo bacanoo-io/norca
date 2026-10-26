@@ -23,12 +23,16 @@ type norcaServerBlocks struct {
 	autoscaler   *autoscaler.Config
 	backup       *backup.Config
 	secretsAudit *secretstore.AuditFileConfig
+
+	// discoveryOverflowFraction is the default overflow fraction of the
+	// native_service_discovery block; nil keeps the server default.
+	discoveryOverflowFraction *float64
 }
 
 // convertNorcaServerBlocks converts and validates the Norca blocks of the
-// server configuration: admission, keyring, mtls, autoscaler, backup and
-// secrets. The agent runs it when it starts the server and config validate
-// runs it on the files, so both report the same errors.
+// server configuration: admission, keyring, mtls, autoscaler, backup, secrets
+// and native_service_discovery. The agent runs it when it starts the server
+// and config validate runs it on the files, so both report the same errors.
 func convertNorcaServerBlocks(s *ServerConfig) (*norcaServerBlocks, error) {
 	out := &norcaServerBlocks{}
 	if s == nil {
@@ -60,6 +64,13 @@ func convertNorcaServerBlocks(s *ServerConfig) (*norcaServerBlocks, error) {
 			}
 		}
 		out.mtls = mtlsConf
+	}
+
+	if err := s.NativeServiceDiscovery.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid server native_service_discovery configuration: %w", err)
+	}
+	if s.NativeServiceDiscovery != nil {
+		out.discoveryOverflowFraction = s.NativeServiceDiscovery.DefaultOverflowFraction
 	}
 
 	var err error
