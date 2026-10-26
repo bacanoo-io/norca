@@ -34,7 +34,7 @@ const SORT_PATHS = {
  *     <:filters>...</:filters>
  *   </Allocations::Table>
  *
- * @context: job (with the task group column), taskGroup or node (with the
+ * @context: job (with the task group column), taskGroup, node or volume (with the
  * job column). The tasks of each allocation are shown under it when "Show
  * tasks" is on (remembered); a task's logs open in a side panel.
  * Sorting is the caller's when @onSort is given, otherwise local; with
@@ -62,7 +62,8 @@ export default class AllocationsTable extends Component {
     if (context === 'job') {
       columns.push({ key: 'taskGroup', label: 'Task group', sortable: true });
     }
-    if (context === 'node') {
+    // The allocations of a client or a CSI volume belong to many jobs.
+    if (context === 'node' || context === 'volume') {
       columns.push({ key: 'job', label: 'Job', sortable: true });
     }
     columns.push(
@@ -74,8 +75,10 @@ export default class AllocationsTable extends Component {
     if (context !== 'node') {
       columns.push({ key: 'client', label: 'Client', sortable: true });
     }
+    if (context !== 'volume') {
+      columns.push({ key: 'volume', label: 'Volume' });
+    }
     columns.push(
-      { key: 'volume', label: 'Volume' },
       { key: 'cpu', label: 'CPU' },
       { key: 'memory', label: 'Memory' }
     );
