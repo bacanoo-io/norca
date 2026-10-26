@@ -21,6 +21,13 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
+# Deployment examples: own files, MPL 2.0 (the files also carry SPDX headers)
+[[annotations]]
+path = ["example/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
 # Images in the documentation
 [[annotations]]
 path = "docs/**/*.png"

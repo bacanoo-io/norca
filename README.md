@@ -33,6 +33,8 @@ norca version             # Norca v0.1.0 (Nomad API 1.6.5 compatible)
 
 The version line shows the Norca version and the Nomad version whose HTTP API and protocols Norca is compatible with; existing Nomad API clients, agents of the cluster and tools keep working against it.
 
+Step-by-step deployment examples with the new features (development agent, single node, three nodes, multi region): [example/](example/README.md).
+
 ### Compatibility alias `nomad`
 
 A copy of the binary, or a symlink to it, named `nomad` (`nomad.exe` on Windows) behaves exactly like `norca`: the same commands, the same output, and no extra text, so existing scripts keep working. The alias is not shipped or installed by default; create it yourself if you need it, e.g. `ln -s "$(command -v norca)" /usr/local/bin/nomad`. Help and usage texts always say `norca`.
