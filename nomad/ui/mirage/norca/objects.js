@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { collection, plain, error, json, inNamespace } from './util';
+import { collection, plain, error, json, inNamespace, body } from './util';
+import { validate } from 'nomad-ui/utils/json-schema';
 
 // Mirage routes of object kinds (norcaObjectKinds: ObjectKind JSON),
 // custom objects (norcaObjects: CustomObject JSON plus Events) and
@@ -26,6 +27,90 @@ function objectOf(db, params, queryParams) {
       o.Name === params.name &&
       (o.Namespace || '') === namespace
   )[0];
+}
+
+function balanced(text) {
+  let depth = 0;
+  for (const ch of text) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (depth < 0) return false;
+  }
+  return depth === 0;
+}
+
+function nextIndex(db) {
+  const meta = collection(db, 'norcaObjectIndex');
+  const row = meta.find(1) || meta.insert({ id: 1, index: 1000 });
+  meta.update(1, { index: row.index + 1 });
+  return row.index + 1;
+}
+
+function kindSchema(kind) {
+  try {
+    return kind?.Schema ? JSON.parse(kind.Schema) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Fills in the "default" values of the schema's properties, as the server
+// does on every write.
+function withDefaults(schema, value) {
+  if (!schema || typeof value !== 'object' || value === null) return value;
+  const out = { ...value };
+  Object.entries(schema.properties || {}).forEach(([key, s]) => {
+    if (out[key] === undefined && s.default !== undefined) out[key] = s.default;
+  });
+  return out;
+}
+
+// The dry run of a kind write: the stored objects checked against the new
+// schema.
+function planKind(db, params, doc) {
+  const kind = {
+    Version: 1,
+    ...doc,
+    Group: params.group,
+    Kind: params.kind,
+  };
+  const stored = kindOf(db, params);
+  const schema = kindSchema(kind);
+  const objects = collection(db, 'norcaObjects').where(
+    (o) => o.Group === params.group && o.Kind === params.kind
+  );
+  const failures = objects
+    .map((o) => ({
+      Namespace: o.Namespace,
+      Name: o.Name,
+      problems: validate(schema?.properties?.spec || {}, o.Spec || {}, [
+        'spec',
+      ]),
+    }))
+    .filter((f) => f.problems.length)
+    .map((f) => ({
+      Namespace: f.Namespace,
+      Name: f.Name,
+      Error: f.problems.map((p) => `${p.path}: ${p.message}`).join('; '),
+    }));
+  const warnings = [];
+  if (stored && (kind.Version || 1) < (stored.Version || 1))
+    warnings.push('the schema version cannot decrease');
+  return {
+    ObjectKind: kind,
+    Migration: {
+      FromVersion: stored?.Version || 0,
+      ToVersion: kind.Version || 1,
+      Objects: objects.length,
+      Pending:
+        (kind.Version || 1) > (stored?.Version || 1) ? objects.length : 0,
+      Changed: 0,
+      Failed: failures.length,
+      Failures: failures,
+      Samples: [],
+    },
+    Warnings: warnings,
+  };
 }
 
 function view(o) {
@@ -88,6 +173,101 @@ export default function registerObjectRoutes(server) {
       Name: params.name,
     });
     return p ? json(plain(p)) : error(404, 'admission policy not found');
+  });
+
+  // Writes. The server compiles CEL and validates JSON Schema; here
+  // unbalanced parentheses stand for a CEL compile error, and the schema
+  // check uses the UI's validator.
+
+  server.put('/admission-policy/:name', function ({ db }, request) {
+    const doc = body(request);
+    if (doc.Name !== request.params.name)
+      return error(400, 'Policy name does not match request path');
+    const bad = (doc.Rules || []).findIndex(
+      (r) => !balanced(r.Expression || '')
+    );
+    if (bad >= 0)
+      return error(
+        400,
+        `invalid admission policy: rule ${bad + 1}: ERROR: <input>:1:${
+          (doc.Rules[bad].Expression || '').length
+        }: Syntax error: missing ')'`
+      );
+    const c = collection(db, 'norcaAdmissionPolicies');
+    const existing = c.findBy({ Name: doc.Name });
+    const record = { Action: 'deny', ...doc, ModifyIndex: nextIndex(db) };
+    if (existing) c.update(existing.id, record);
+    else c.insert({ ...record, CreateIndex: record.ModifyIndex });
+    return json(null, record.ModifyIndex);
+  });
+
+  server.put('/object/:group/:kind/:name', function ({ db }, request) {
+    const { params, queryParams } = request;
+    const kind = kindOf(db, params);
+    if (!kind) return error(404, 'object kind not found');
+    const doc = body(request);
+    if (doc.Name && doc.Name !== params.name)
+      return error(400, 'Object does not match request path');
+    const stored = objectOf(db, params, queryParams);
+    if (
+      queryParams.cas !== undefined &&
+      Number(queryParams.cas) !== (stored?.ModifyIndex || 0)
+    )
+      return error(409, 'cas error: the object changed since it was read');
+    const schema = kindSchema(kind);
+    const spec = withDefaults(schema?.properties?.spec, doc.Spec || {});
+    const problems = validate(schema?.properties?.spec || {}, spec, ['spec']);
+    if (problems.length)
+      return error(
+        422,
+        `object is invalid: ${problems
+          .map((p) => `${p.path}: ${p.message}`)
+          .join('; ')}`
+      );
+    const changed =
+      !stored || JSON.stringify(stored.Spec) !== JSON.stringify(spec);
+    const index = nextIndex(db);
+    const object = {
+      ...(stored ? view(stored) : {}),
+      Group: params.group,
+      Kind: params.kind,
+      Name: params.name,
+      Namespace: kind.Namespaced ? queryParams.namespace || 'default' : '',
+      Labels: doc.Labels || {},
+      Spec: spec,
+      Generation: (stored?.Generation || 0) + (changed ? 1 : 0),
+      Status: stored?.Status || {},
+      CreateTime: stored?.CreateTime || Date.now() * 1e6,
+      ModifyTime: Date.now() * 1e6,
+      CreateIndex: stored?.CreateIndex || index,
+      ModifyIndex: index,
+    };
+    if (queryParams.dry_run === 'true') return json(object);
+    const c = collection(db, 'norcaObjects');
+    if (stored) c.update(stored.id, object);
+    else c.insert({ ...object, Events: [] });
+    return json(object, index);
+  });
+
+  server.post('/object-kind/:group/:kind/plan', function ({ db }, request) {
+    return json(planKind(db, request.params, body(request)));
+  });
+
+  server.put('/object-kind/:group/:kind', function ({ db }, request) {
+    const { params } = request;
+    const doc = body(request);
+    const plan = planKind(db, params, doc);
+    if (plan.Migration.Failed)
+      return error(
+        400,
+        `object kind change would make ${plan.Migration.Failed} stored objects invalid`
+      );
+    const c = collection(db, 'norcaObjectKinds');
+    const stored = kindOf(db, params);
+    const record = { ...plan.ObjectKind, ModifyIndex: nextIndex(db) };
+    if (stored) c.update(stored.id, record);
+    else c.insert({ ...record, CreateIndex: record.ModifyIndex });
+    return json(record, record.ModifyIndex);
   });
 
   server.delete('/admission-policy/:name', function ({ db }, { params }) {

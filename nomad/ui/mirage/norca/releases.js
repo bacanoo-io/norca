@@ -239,6 +239,19 @@ function revision(ns, name, n, version, extra = {}) {
         image: `registry.example.com/${name}:${version}`,
       },
       valuesHash: `h${n}`,
+      variablesSchemas: [
+        {
+          pack: name,
+          schema: JSON.stringify({
+            type: 'object',
+            required: ['image'],
+            properties: {
+              replicas: { type: 'integer', minimum: 1, maximum: 5 },
+              image: { type: 'string', minLength: 1 },
+            },
+          }),
+        },
+      ],
       resources: [
         { type: 'namespace', namespace: '', name: 'db-operator', hash: 'n1' },
         { type: 'job', namespace: ns, name, hash: `j${n}` },

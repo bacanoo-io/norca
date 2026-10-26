@@ -6,6 +6,8 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { inject as service } from '@ember/service';
+import { action } from '@ember/object';
+import { allowsBlock } from 'nomad-ui/utils/norca-acl';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import { errorMessage } from 'nomad-ui/utils/norca-api';
@@ -24,6 +26,30 @@ export default class KindsDetail extends Component {
   @tracked kind = null;
   @tracked isLoading = true;
   @tracked loadError = null;
+  @tracked editing = false;
+
+  // Kinds are written with operator write; the built-in kinds of the
+  // packs.norca.io group are read-only.
+  get canWrite() {
+    return (
+      this.args.group !== 'packs.norca.io' &&
+      allowsBlock(this.token, 'Operator', 'write')
+    );
+  }
+
+  @action openEditor() {
+    this.editing = true;
+  }
+
+  @action closeEditor() {
+    this.editing = false;
+  }
+
+  @action
+  async saved() {
+    this.editing = false;
+    await this.load(this.region);
+  }
 
   get region() {
     return this.system.activeRegion || '';

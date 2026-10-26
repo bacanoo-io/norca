@@ -31,41 +31,60 @@
 
       <div class="row row-cards">
         <div class="col-xl-8">
-          <Ui::Card @title="Scaling policies" @flush={{true}} data-test-scaling-policies>
-            <:actions>
+          <Ui::DataTable
+            @id="scaling-policies"
+            @caption="Scaling policies"
+            @columns={{this.columns}}
+            @rows={{this.tableRows}}
+            @sortBy={{this.list.sortBy}}
+            @sortDescending={{this.list.sortDescending}}
+            @onSort={{this.list.sort}}
+            @pageSize={{this.list.pageSize}}
+            @page={{this.list.page}}
+            @onPageChange={{this.list.setPage}}
+            @onPageSizeChange={{this.list.setPageSize}}
+            @noun="policies"
+            @viewState={{this.list.viewState}}
+            @onApplyView={{this.list.applyView}}
+            @emptyMessage={{if (or this.list.searchTerm this.engineFilter) "No scaling policy matches the filters." "No scaling policy. Add a scaling block to a task group of a job, with engine = &quot;builtin&quot; for the built-in autoscaler."}}
+            data-test-scaling-policies
+          >
+            <:filters>
+              <Ui::Input
+                @type="search"
+                @icon="search"
+                @placeholder="Search jobs and groups..."
+                @value={{this.list.searchTerm}}
+                @onInput={{this.list.search}}
+                aria-label="Search scaling policies"
+                data-test-scaling-search
+              />
               <Ui::Select @label="Engine" @options={{this.engineOptions}} @value={{this.engineFilter}} @onChange={{this.setEngine}} @size="sm" data-test-engine-filter />
-            </:actions>
-            <:default>
-              <Ui::Table
-                @inCard={{true}}
-                @caption="Scaling policies"
-                @columns={{this.columns}}
-                @rows={{this.rows}}
-                @emptyMessage="No scaling policy. Add a scaling block to a task group of a job, with engine = &quot;builtin&quot; for the built-in autoscaler."
-                as |row|
-              >
-                <td>
+            </:filters>
+            <:row as |row r|>
+              <r.Row data-test-policy-row={{row.ID}}>
+                <r.Cell @key="target">
                   <LinkTo @route="jobs.job.index" @model={{row.jobRouteId}} data-test-policy-target={{row.ID}}>{{row.Target.Job}} / {{row.Target.Group}}</LinkTo>
                   {{#unless row.Enabled}}<Ui::Badge @color="orange" class="ms-1">disabled</Ui::Badge>{{/unless}}
                   {{#if (not-eq this.namespace row.namespace)}}<div class="small text-secondary">{{row.namespace}}</div>{{/if}}
-                </td>
-                {{#if this.isAllRegions}}<td><span class="norca-region">{{row.region}}</span></td>{{/if}}
-                <td data-test-policy-engine>{{if (eq row.engine "builtin") "built-in" "external"}}</td>
-                <td data-test-policy-bounds>{{row.bounds}}</td>
-                <td data-test-policy-current>{{row.current}}</td>
-                <td data-test-policy-last>
+                </r.Cell>
+                <r.Cell @key="region"><span class="norca-region">{{row.region}}</span></r.Cell>
+                <r.Cell @key="engine" data-test-policy-engine>{{if (eq row.engine "builtin") "built-in" "external"}}</r.Cell>
+                <r.Cell @key="Min" data-test-policy-bounds>{{row.bounds}}</r.Cell>
+                <r.Cell @key="current" data-test-policy-current>{{row.current}}</r.Cell>
+                <r.Cell @key="lastTime" data-test-policy-last>
                   {{#if row.last}}
                     {{#if (not-eq row.last.count null)}}{{row.last.previous}} → {{row.last.count}}, {{/if}}{{row.last.time}}
                   {{else}}
                     <span class="text-secondary">none yet</span>
                   {{/if}}
-                </td>
-                <td>
+                </r.Cell>
+                <r.Cell @key="details">
                   <Ui::Button @size="sm" @variant="ghost" @route="scaling.policy" @model={{row.ID}} @query={{hash namespace=row.namespace}} data-test-policy-link={{row.ID}}>Details</Ui::Button>
-                </td>
-              </Ui::Table>
-            </:default>
-          </Ui::Card>
+                </r.Cell>
+              </r.Row>
+            </:row>
+          </Ui::DataTable>
         </div>
         <div class="col-xl-4">
           <Ui::Card @title="Decisions" @subtitle="Latest scaling events, live decisions of the built-in engine" data-test-scaling-timeline>

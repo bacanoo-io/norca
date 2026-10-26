@@ -17,6 +17,7 @@ import {
   eventItem,
   decisionItem,
 } from 'nomad-ui/utils/scaling';
+import LocalList from 'nomad-ui/utils/local-list';
 
 const POLL_MS = 30000;
 const LIVE_LIMIT = 30;
@@ -67,16 +68,28 @@ export default class ScalingList extends Component {
   }
 
   get columns() {
-    const columns = [{ key: 'target', label: 'Job / group' }];
-    if (this.isAllRegions) columns.push({ key: 'region', label: 'Region' });
+    const columns = [
+      { key: 'target', label: 'Job / group', sortable: true, hideable: false },
+    ];
+    if (this.isAllRegions)
+      columns.push({ key: 'region', label: 'Region', sortable: true });
     columns.push(
-      { key: 'engine', label: 'Engine' },
-      { key: 'bounds', label: 'Min–max' },
+      { key: 'engine', label: 'Engine', sortable: true },
+      { key: 'Min', label: 'Min–max', sortable: true },
       { key: 'current', label: 'Current' },
-      { key: 'last', label: 'Last decision' },
-      { key: 'details', label: 'Policy' }
+      { key: 'lastTime', label: 'Last decision', sortable: true },
+      { key: 'details', label: 'Policy', srOnly: true, hideable: false }
     );
     return columns;
+  }
+
+  list = new LocalList({
+    sortBy: 'target',
+    searchProps: ['target', 'namespace', 'region'],
+  });
+
+  get tableRows() {
+    return this.list.rows(this.rows);
   }
 
   get rows() {
@@ -185,6 +198,8 @@ export default class ScalingList extends Component {
         bounds: p.Min !== undefined ? `${p.Min}–${p.Max}` : '–',
         current: group ? `${group.Running} of ${group.Desired}` : '–',
         last,
+        target: `${t.Job} / ${t.Group}`,
+        lastTime: last?.timestamp,
       };
     });
     return result;

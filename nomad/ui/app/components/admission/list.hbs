@@ -3,7 +3,13 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 <div data-test-admission {{this.setup this.region}}>
-  <Ui::PageHeader @pretitle="Configuration" @title="Admission policies" @subtitle={{or this.region "Local region"}} />
+  <Ui::PageHeader @pretitle="Configuration" @title="Admission policies" @subtitle={{or this.region "Local region"}}>
+    <:actions>
+      {{#if this.canWrite}}
+        <Ui::Button @variant="primary" @icon="plus" data-test-new-admission {{on "click" this.openEditor}}>New policy</Ui::Button>
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
 
   <Ui::PageBody>
     {{#if this.isLoading}}
@@ -13,29 +19,47 @@
     {{else}}
       <div class="row row-cards">
         <div class="col-lg-8">
-          <Ui::Card @flush={{true}} @title="Policies" data-test-admission-policies>
-            <Ui::Table
-              @inCard={{true}}
-              @caption="Admission policies"
-              @columns={{array
-                (hash key="name" label="Policy")
-                (hash key="action" label="Action")
-                (hash key="match" label="Applies to")
-                (hash key="rules" label="Rules")
-              }}
-              @rows={{this.rows}}
-              @emptyMessage="No admission policy. Add one with the admission-policy API or CLI to deny or warn about job, Variables and release writes."
-              as |p|
-            >
-              <td>
-                <LinkTo @route="admission.policy" @model={{p.Name}} data-test-admission-link={{p.Name}}>{{p.Name}}</LinkTo>
-                {{#if p.Description}}<div class="small text-secondary">{{p.Description}}</div>{{/if}}
-              </td>
-              <td><Ui::Badge @color={{if (eq p.Action "warn") "orange" "red"}} data-test-admission-action>{{or p.Action "deny"}}</Ui::Badge></td>
-              <td>{{p.match}}</td>
-              <td>{{p.rules}}{{#if p.keys}}, {{p.keys}} trusted keys{{/if}}{{#if p.SchemaFrom}}, schema{{/if}}</td>
-            </Ui::Table>
-          </Ui::Card>
+          <Ui::DataTable
+            @id="admission-policies"
+            @caption="Admission policies"
+            @columns={{this.columns}}
+            @rows={{this.tableRows}}
+            @sortBy={{this.list.sortBy}}
+            @sortDescending={{this.list.sortDescending}}
+            @onSort={{this.list.sort}}
+            @pageSize={{this.list.pageSize}}
+            @page={{this.list.page}}
+            @onPageChange={{this.list.setPage}}
+            @onPageSizeChange={{this.list.setPageSize}}
+            @noun="policies"
+            @viewState={{this.list.viewState}}
+            @onApplyView={{this.list.applyView}}
+            @emptyMessage={{if this.list.searchTerm "No policy matches the search." "No admission policy. Add one with New policy, or with the admission-policy API or CLI, to deny or warn about job, Variables and release writes."}}
+            data-test-admission-policies
+          >
+            <:filters>
+              <Ui::Input
+                @type="search"
+                @icon="search"
+                @placeholder="Search policies..."
+                @value={{this.list.searchTerm}}
+                @onInput={{this.list.search}}
+                aria-label="Search admission policies"
+                data-test-admission-search
+              />
+            </:filters>
+            <:row as |p r|>
+              <r.Row data-test-admission-row={{p.Name}}>
+                <r.Cell @key="name">
+                  <LinkTo @route="admission.policy" @model={{p.Name}} data-test-admission-link={{p.Name}}>{{p.Name}}</LinkTo>
+                  {{#if p.Description}}<div class="small text-secondary">{{p.Description}}</div>{{/if}}
+                </r.Cell>
+                <r.Cell @key="action"><Ui::Badge @color={{if (eq p.action "warn") "orange" "red"}} data-test-admission-action>{{p.action}}</Ui::Badge></r.Cell>
+                <r.Cell @key="match">{{p.match}}</r.Cell>
+                <r.Cell @key="rules">{{p.rules}}{{#if p.keys}}, {{p.keys}} trusted keys{{/if}}{{#if p.SchemaFrom}}, schema{{/if}}</r.Cell>
+              </r.Row>
+            </:row>
+          </Ui::DataTable>
           <Ui::Card @flush={{true}} @title="Webhooks" @subtitle="From the server configuration" class="mt-3" data-test-admission-webhooks>
             {{#if this.webhooks}}
               <Ui::Table
@@ -68,4 +92,8 @@
       </div>
     {{/if}}
   </Ui::PageBody>
+
+  {{#if this.editing}}
+    <Admission::Editor @region={{this.region}} @onSaved={{this.created}} @onClose={{this.closeEditor}} />
+  {{/if}}
 </div>

@@ -88,67 +88,38 @@
         </div>
       </div>
 
-      <Ui::Card @flush={{true}} @title="Backups" data-test-backup-list>
-        <:actions>
-          <Ui::Input @icon="search" @value={{this.filter}} @onInput={{this.setFilter}} @placeholder="Filter by ID, label or trigger" aria-label="Filter backups" data-test-backup-filter />
-        </:actions>
-        <:default>
+      <Ui::DataTable
+        @id="backups"
+        @caption="Backups"
+        @columns={{this.columns}}
+        @rows={{this.tableRows}}
+        @sortBy={{this.list.sortBy}}
+        @sortDescending={{this.list.sortDescending}}
+        @onSort={{this.list.sort}}
+        @pageSize={{this.list.pageSize}}
+        @page={{this.list.page}}
+        @onPageChange={{this.list.setPage}}
+        @onPageSizeChange={{this.list.setPageSize}}
+        @noun="backups"
+        @viewState={{this.list.viewState}}
+        @onApplyView={{this.list.applyView}}
+        @emptyMessage="No backup matches the search."
+        data-test-backup-list
+      >
+        <:filters>
+          <Ui::Input
+            @type="search"
+            @icon="search"
+            @placeholder="Search by ID, label or trigger..."
+            @value={{this.list.searchTerm}}
+            @onInput={{this.list.search}}
+            aria-label="Search backups"
+            data-test-backup-filter
+          />
+        </:filters>
+        <:empty>
           {{#if this.hasBackups}}
-            <Ui::Table
-              @inCard={{true}}
-              @caption="Backups"
-              @columns={{this.columns}}
-              @rows={{this.rows}}
-              @sortBy={{this.sortBy}}
-              @sortDescending={{this.sortDescending}}
-              @onSort={{this.sort}}
-              @emptyMessage="No backup matches the filter."
-              as |row|
-            >
-              <td>
-                <LinkTo @route="backups.backup" @model={{row.ID}} @query={{hash region=(or row.region null)}} class="font-monospace" data-test-backup-link={{row.ID}}>{{row.ID}}</LinkTo>
-              </td>
-              <td>{{if row.time (format-ts row.time) "–"}}</td>
-              {{#if this.isAllRegions}}
-                <td><span class="norca-region">{{row.region}}</span></td>
-              {{/if}}
-              <td data-test-backup-trigger>{{row.triggerLabel}}</td>
-              <td>
-                <Ui::StatusIndicator @tone={{row.tone}} @label={{row.Status}} data-test-backup-status />
-              </td>
-              <td>{{row.sizeLabel}}</td>
-              <td>
-                {{#each row.destinationList as |d|}}
-                  <Ui::StatusIndicator @tone={{d.tone}} @label={{d.name}} title={{or d.error d.status}} class="me-2" />
-                {{/each}}
-              </td>
-              <td>
-                {{#each row.labelList as |label|}}
-                  <Ui::Badge class="me-1">{{label}}</Ui::Badge>
-                {{else}}
-                  <span class="text-secondary">–</span>
-                {{/each}}
-              </td>
-              <td>
-                {{#if this.canWrite}}
-                  <Ui::Button
-                    @size="sm"
-                    @variant="ghost"
-                    @icon={{if row.Pinned "lock" "lock-open"}}
-                    @isLoading={{eq this.pinning row.ID}}
-                    aria-pressed={{if row.Pinned "true" "false"}}
-                    aria-label={{if row.Pinned (concat "Unpin " row.ID) (concat "Pin " row.ID)}}
-                    title={{if row.Pinned "Pinned: retention never deletes it. Select to unpin." "Pin: keep it regardless of retention."}}
-                    data-test-pin={{row.ID}}
-                    {{on "click" (fn this.togglePin row)}}
-                  >{{if row.Pinned "Pinned" "Pin"}}</Ui::Button>
-                {{else if row.Pinned}}
-                  <Ui::Badge @icon="lock">Pinned</Ui::Badge>
-                {{else}}
-                  <span class="text-secondary">–</span>
-                {{/if}}
-              </td>
-            </Ui::Table>
+            <Ui::EmptyState @icon="filter-off" @title="No matches" @message="No backup matches the search." data-test-backups-no-match />
           {{else}}
             <Ui::EmptyState @icon="cloud-upload" @title="No backups" @message={{this.emptyMessage}} data-test-backups-empty>
               {{#if this.canWrite}}
@@ -156,8 +127,53 @@
               {{/if}}
             </Ui::EmptyState>
           {{/if}}
-        </:default>
-      </Ui::Card>
+        </:empty>
+        <:row as |row r|>
+          <r.Row data-test-backup-row={{row.ID}}>
+            <r.Cell @key="ID">
+              <LinkTo @route="backups.backup" @model={{row.ID}} @query={{hash region=(or row.region null)}} class="font-monospace" data-test-backup-link={{row.ID}}>{{row.ID}}</LinkTo>
+            </r.Cell>
+            <r.Cell @key="time">{{if row.time (format-ts row.time) "–"}}</r.Cell>
+            <r.Cell @key="region"><span class="norca-region">{{row.region}}</span></r.Cell>
+            <r.Cell @key="triggerLabel" data-test-backup-trigger>{{row.triggerLabel}}</r.Cell>
+            <r.Cell @key="Status">
+              <Ui::StatusIndicator @tone={{row.tone}} @label={{row.Status}} data-test-backup-status />
+            </r.Cell>
+            <r.Cell @key="size">{{row.sizeLabel}}</r.Cell>
+            <r.Cell @key="destinations">
+              {{#each row.destinationList as |d|}}
+                <Ui::StatusIndicator @tone={{d.tone}} @label={{d.name}} title={{or d.error d.status}} class="me-2" />
+              {{/each}}
+            </r.Cell>
+            <r.Cell @key="labels">
+              {{#each row.labelList as |label|}}
+                <Ui::Badge class="me-1">{{label}}</Ui::Badge>
+              {{else}}
+                <span class="text-secondary">–</span>
+              {{/each}}
+            </r.Cell>
+            <r.Cell @key="pinned">
+              {{#if this.canWrite}}
+                <Ui::Button
+                  @size="sm"
+                  @variant="ghost"
+                  @icon={{if row.Pinned "lock" "lock-open"}}
+                  @isLoading={{eq this.pinning row.ID}}
+                  aria-pressed={{if row.Pinned "true" "false"}}
+                  aria-label={{if row.Pinned (concat "Unpin " row.ID) (concat "Pin " row.ID)}}
+                  title={{if row.Pinned "Pinned: retention never deletes it. Select to unpin." "Pin: keep it regardless of retention."}}
+                  data-test-pin={{row.ID}}
+                  {{on "click" (fn this.togglePin row)}}
+                >{{if row.Pinned "Pinned" "Pin"}}</Ui::Button>
+              {{else if row.Pinned}}
+                <Ui::Badge @icon="lock">Pinned</Ui::Badge>
+              {{else}}
+                <span class="text-secondary">–</span>
+              {{/if}}
+            </r.Cell>
+          </r.Row>
+        </:row>
+      </Ui::DataTable>
     {{/if}}
   </Ui::PageBody>
 

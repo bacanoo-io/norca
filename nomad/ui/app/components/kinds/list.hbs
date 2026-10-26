@@ -3,7 +3,13 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 <div data-test-kinds {{this.setup this.region}}>
-  <Ui::PageHeader @pretitle="Configuration" @title="Type definitions" @subtitle={{or this.region "Local region"}} />
+  <Ui::PageHeader @pretitle="Configuration" @title="Type definitions" @subtitle={{or this.region "Local region"}}>
+    <:actions>
+      {{#if this.canWrite}}
+        <Ui::Button @variant="primary" @icon="plus" data-test-new-kind {{on "click" this.openEditor}}>New type definition</Ui::Button>
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
 
   <Ui::PageBody>
     {{#if this.isLoading}}
@@ -11,52 +17,70 @@
     {{else if this.error}}
       <Ui::Alert @tone="warning" @title="The type definitions could not be loaded" data-test-kinds-error>{{this.error}}</Ui::Alert>
     {{else}}
-      <Ui::Card @flush={{true}} @title="Object kinds" data-test-kind-list>
-        <Ui::Table
-          @inCard={{true}}
-          @caption="Object kinds"
-          @columns={{array
-            (hash key="kind" label="Type")
-            (hash key="scope" label="Scope")
-            (hash key="version" label="Version")
-            (hash key="objects" label="Objects")
-            (hash key="rules" label="Rules")
-            (hash key="scalable" label="Scalable")
-            (hash key="webhooks" label="Webhooks")
-            (hash key="package" label="Package")
-          }}
-          @rows={{this.rows}}
-          @emptyMessage="No type definitions. Install a package with an operator, or register a kind with the object-kind API or CLI (operator write is needed)."
-          as |k|
-        >
-          <td>
-            <LinkTo @route="kinds.kind" @models={{array k.Group k.Kind}} class="font-monospace" data-test-kind-link={{k.id}}>{{k.id}}</LinkTo>
-            {{#if k.Description}}<div class="small text-secondary">{{k.Description}}</div>{{/if}}
-          </td>
-          <td>{{k.scope}}</td>
-          <td>v{{k.Version}}</td>
-          <td data-test-kind-objects>
-            {{#if (not-eq k.objects undefined)}}
-              <LinkTo @route="objects" @query={{hash kind=k.id}}>{{k.objects}}</LinkTo>
-            {{else}}
-              <span class="text-secondary">–</span>
-            {{/if}}
-          </td>
-          <td>{{if k.builtIn "built-in" k.rules}}</td>
-          <td>{{k.scalable}}</td>
-          <td>
-            {{k.webhooks}}
-            {{#if k.pendingWebhooks}}<Ui::Badge @color="orange" class="ms-1">{{k.pendingWebhooks}} not approved</Ui::Badge>{{/if}}
-          </td>
-          <td data-test-kind-package>
-            {{#if k.owner}}
-              <LinkTo @route="packages.release" @models={{array k.owner.namespace k.owner.name}}>{{k.owner.name}}</LinkTo>
-            {{else}}
-              <span class="text-secondary">{{if k.builtIn "built-in" "–"}}</span>
-            {{/if}}
-          </td>
-        </Ui::Table>
-      </Ui::Card>
+      <Ui::DataTable
+        @id="object-kinds"
+        @caption="Object kinds"
+        @columns={{this.columns}}
+        @rows={{this.tableRows}}
+        @sortBy={{this.list.sortBy}}
+        @sortDescending={{this.list.sortDescending}}
+        @onSort={{this.list.sort}}
+        @pageSize={{this.list.pageSize}}
+        @page={{this.list.page}}
+        @onPageChange={{this.list.setPage}}
+        @onPageSizeChange={{this.list.setPageSize}}
+        @noun="kinds"
+        @viewState={{this.list.viewState}}
+        @onApplyView={{this.list.applyView}}
+        @emptyMessage={{if this.list.searchTerm "No type definition matches the search." "No type definitions. Install a package with an operator, or add one with New type definition (operator write is needed)."}}
+        data-test-kind-list
+      >
+        <:filters>
+          <Ui::Input
+            @type="search"
+            @icon="search"
+            @placeholder="Search type definitions..."
+            @value={{this.list.searchTerm}}
+            @onInput={{this.list.search}}
+            aria-label="Search type definitions"
+            data-test-kind-search
+          />
+        </:filters>
+        <:row as |k r|>
+          <r.Row data-test-kind-row={{k.id}}>
+            <r.Cell @key="id">
+              <LinkTo @route="kinds.kind" @models={{array k.Group k.Kind}} class="font-monospace" data-test-kind-link={{k.id}}>{{k.id}}</LinkTo>
+              {{#if k.Description}}<div class="small text-secondary">{{k.Description}}</div>{{/if}}
+            </r.Cell>
+            <r.Cell @key="scope">{{k.scope}}</r.Cell>
+            <r.Cell @key="version">v{{k.Version}}</r.Cell>
+            <r.Cell @key="objects" data-test-kind-objects>
+              {{#if (not-eq k.objects undefined)}}
+                <LinkTo @route="objects" @query={{hash kind=k.id}}>{{k.objects}}</LinkTo>
+              {{else}}
+                <span class="text-secondary">–</span>
+              {{/if}}
+            </r.Cell>
+            <r.Cell @key="rules">{{if k.builtIn "built-in" k.rules}}</r.Cell>
+            <r.Cell @key="scalable">{{k.scalable}}</r.Cell>
+            <r.Cell @key="webhooks">
+              {{k.webhooks}}
+              {{#if k.pendingWebhooks}}<Ui::Badge @color="orange" class="ms-1">{{k.pendingWebhooks}} not approved</Ui::Badge>{{/if}}
+            </r.Cell>
+            <r.Cell @key="packageName" data-test-kind-package>
+              {{#if k.owner}}
+                <LinkTo @route="packages.release" @models={{array k.owner.namespace k.owner.name}}>{{k.owner.name}}</LinkTo>
+              {{else}}
+                <span class="text-secondary">{{if k.builtIn "built-in" "–"}}</span>
+              {{/if}}
+            </r.Cell>
+          </r.Row>
+        </:row>
+      </Ui::DataTable>
     {{/if}}
   </Ui::PageBody>
+
+  {{#if this.editing}}
+    <Kinds::Editor @region={{this.region}} @onSaved={{this.created}} @onClose={{this.closeEditor}} />
+  {{/if}}
 </div>

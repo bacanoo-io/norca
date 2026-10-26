@@ -5,7 +5,7 @@
 
 // Helpers of the acceptance tests of the new feature areas.
 
-import { waitUntil } from '@ember/test-helpers';
+import { settled, waitUntil } from '@ember/test-helpers';
 
 // Signs in with a new token. With rulesJSON the token gets one policy with
 // those parsed rules (as the agent returns them); type "management" passes
@@ -46,4 +46,24 @@ export async function chartTexts(selector) {
     );
   await waitUntil(() => texts().length > 0, { timeout: 5000 });
   return texts();
+}
+
+// Replaces the text of the unified editor (Ui::Editor) and lets the change
+// propagate.
+export async function setEditorText(text) {
+  const element = document.querySelector(
+    '[data-test-unified-editor] .CodeMirror'
+  );
+  element.CodeMirror.setValue(
+    typeof text === 'string' ? text : JSON.stringify(text, null, 2)
+  );
+  await settled();
+}
+
+// The parsed text of the unified editor.
+export function editorJSON() {
+  const element = document.querySelector(
+    '[data-test-unified-editor] .CodeMirror'
+  );
+  return JSON.parse(element.CodeMirror.getValue());
 }

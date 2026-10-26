@@ -32,6 +32,7 @@ export default class AdmissionPolicy extends Component {
   @tracked confirming = false;
   @tracked isDeleting = false;
   @tracked deleteError = null;
+  @tracked editing = false;
 
   get region() {
     return this.system.activeRegion || '';
@@ -106,6 +107,20 @@ export default class AdmissionPolicy extends Component {
     });
     return () => unsubscribe();
   });
+
+  @action openEditor() {
+    this.editing = true;
+  }
+
+  @action closeEditor() {
+    this.editing = false;
+  }
+
+  @action
+  async saved() {
+    this.editing = false;
+    await this.load(this.region);
+  }
 
   @action ask() {
     this.deleteError = null;

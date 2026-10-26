@@ -48,6 +48,201 @@ export function objectEvents(token, region, { group, kind, name, namespace }) {
   );
 }
 
+// Writes an object (PUT); dryRun asks the server to validate it (schema,
+// defaults, CEL rules, admission webhooks) and return it as it would be
+// stored, without storing it. cas is the ModifyIndex the change is based on.
+export function applyObject(
+  token,
+  region,
+  { group, kind, name, namespace },
+  object,
+  { dryRun = false, cas } = {}
+) {
+  return apiRequest(
+    token,
+    `/v1/object/${enc(group)}/${enc(kind)}/${enc(name)}`,
+    {
+      method: 'PUT',
+      params: {
+        region,
+        namespace,
+        dry_run: dryRun ? 'true' : undefined,
+        cas: cas === undefined ? undefined : String(cas),
+      },
+      data: object,
+    }
+  );
+}
+
+// The dry run of a kind write: the kind as it would be stored and the
+// migration report of the stored objects.
+export function planKind(token, region, group, kind, objectKind) {
+  return apiRequest(token, `/v1/object-kind/${enc(group)}/${enc(kind)}/plan`, {
+    method: 'POST',
+    params: { region },
+    data: objectKind,
+  });
+}
+
+export function saveKind(token, region, group, kind, objectKind) {
+  return apiRequest(token, `/v1/object-kind/${enc(group)}/${enc(kind)}`, {
+    method: 'PUT',
+    params: { region },
+    data: objectKind,
+  });
+}
+
+// The JSON Schema of the spec of a kind (the kind schema describes
+// {spec, status}), or null.
+export function specSchema(kind) {
+  try {
+    const schema = kind?.Schema ? JSON.parse(kind.Schema) : null;
+    return schema?.properties?.spec || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// The editable document of an object: what its owner writes.
+export function objectDocument(object, kind) {
+  const doc = {
+    Name: object?.Name || '',
+  };
+  if (kind?.Namespaced) doc.Namespace = object?.Namespace || 'default';
+  doc.Labels = object?.Labels || {};
+  doc.Spec = object?.Spec || {};
+  return doc;
+}
+
+// The schema of the editable document, with the spec schema of the kind.
+export function objectDocumentSchema(kind) {
+  const properties = {
+    Name: {
+      type: 'string',
+      pattern: '^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,126}[a-zA-Z0-9])?$',
+      patternMessage:
+        'must be up to 128 letters, digits, ., _ and -, starting and ending with a letter or digit',
+    },
+    Labels: {
+      type: ['object', 'null'],
+      additionalProperties: { type: 'string' },
+    },
+    Spec: specSchema(kind) || { type: 'object' },
+  };
+  if (kind?.Namespaced) properties.Namespace = { type: 'string', minLength: 1 };
+  return {
+    type: 'object',
+    required: ['Name', 'Spec'],
+    additionalProperties: false,
+    properties,
+  };
+}
+
+const objectOrNull = { type: ['object', 'null'] };
+
+// The editable document of an object kind: the kind with its Schema as
+// JSON (the API carries it as a string) and without the Raft indexes.
+export function kindDocument(kind) {
+  if (!kind)
+    return {
+      Group: 'example.com',
+      Kind: 'Database',
+      Description: '',
+      Namespaced: true,
+      Version: 1,
+      Schema: {
+        type: 'object',
+        properties: {
+          spec: {
+            type: 'object',
+            required: ['size'],
+            properties: {
+              size: { type: 'integer', minimum: 1, default: 1 },
+              engine: { type: 'string', enum: ['postgres', 'mysql'] },
+            },
+          },
+          status: { type: 'object' },
+        },
+      },
+      Rules: [],
+      Columns: [{ Name: 'Size', Path: 'spec.size' }],
+    };
+  // eslint-disable-next-line no-unused-vars
+  const { CreateIndex, ModifyIndex, Schema, ...rest } = kind;
+  let schema = null;
+  try {
+    schema = Schema ? JSON.parse(Schema) : null;
+  } catch (e) {
+    schema = Schema;
+  }
+  const doc = { ...rest };
+  if (schema !== null) doc.Schema = schema;
+  return doc;
+}
+
+// The API body of an edited kind document.
+export function kindBody(doc) {
+  const body = { ...doc };
+  if (body.Schema && typeof body.Schema !== 'string')
+    body.Schema = JSON.stringify(body.Schema);
+  return body;
+}
+
+export const KIND_SCHEMA = {
+  type: 'object',
+  required: ['Group', 'Kind'],
+  additionalProperties: false,
+  properties: {
+    Group: {
+      type: 'string',
+      pattern:
+        '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$',
+      patternMessage: 'must be a lower case DNS subdomain',
+    },
+    Kind: {
+      type: 'string',
+      pattern: '^[A-Za-z][A-Za-z0-9]{0,62}$',
+      patternMessage: 'must be a CamelCase name of letters and digits',
+    },
+    Description: { type: 'string' },
+    Namespaced: { type: 'boolean' },
+    Schema: { type: ['object', 'string', 'null'] },
+    Rules: {
+      type: ['array', 'null'],
+      items: {
+        type: 'object',
+        required: ['Expression'],
+        additionalProperties: false,
+        properties: {
+          Expression: { type: 'string', minLength: 1 },
+          Message: { type: 'string' },
+        },
+      },
+    },
+    Columns: {
+      type: ['array', 'null'],
+      items: {
+        type: 'object',
+        required: ['Name', 'Path'],
+        additionalProperties: false,
+        properties: {
+          Name: {
+            type: 'string',
+            pattern: '^[a-zA-Z0-9][a-zA-Z0-9 ._-]{0,63}$',
+          },
+          Path: { type: 'string', minLength: 1 },
+        },
+      },
+    },
+    Scale: objectOrNull,
+    Replicated: { type: 'boolean', const: false },
+    Version: { type: 'integer', minimum: 1 },
+    Migration: objectOrNull,
+    Webhooks: { type: ['array', 'null'], items: { type: 'object' } },
+    Limits: objectOrNull,
+  },
+};
+
 // Evaluates a column path of a kind on an object: dotted keys from the
 // object root (spec, status, metadata fields), [n] indexes and
 // [?key=='value'] filters that pick the first matching list element, e.g.

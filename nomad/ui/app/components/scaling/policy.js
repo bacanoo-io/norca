@@ -6,6 +6,8 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { inject as service } from '@ember/service';
+import { action } from '@ember/object';
+import { allowsNamespace } from 'nomad-ui/utils/norca-acl';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import { errorMessage } from 'nomad-ui/utils/norca-api';
@@ -33,6 +35,52 @@ export default class ScalingPolicy extends Component {
   @tracked live = [];
   @tracked isLoading = true;
   @tracked loadError = null;
+  @tracked editJob = null;
+  @tracked editError = null;
+  @tracked isOpeningEditor = false;
+
+  @service store;
+
+  // The policy is the scaling block of a task group: it changes with a
+  // new version of the job (submit-job).
+  get canWrite() {
+    return allowsNamespace(
+      this.token,
+      this.target.Namespace || this.namespace,
+      'submit-job'
+    );
+  }
+
+  get editGroup() {
+    return { name: this.target.Group };
+  }
+
+  @action
+  async openEditor() {
+    this.editError = null;
+    this.isOpeningEditor = true;
+    try {
+      this.editJob = await this.store.findRecord(
+        'job',
+        JSON.stringify([this.target.Job, this.target.Namespace || 'default']),
+        { reload: true }
+      );
+    } catch (e) {
+      this.editError = `The job ${this.target.Job} could not be loaded.`;
+    } finally {
+      this.isOpeningEditor = false;
+    }
+  }
+
+  @action closeEditor() {
+    this.editJob = null;
+  }
+
+  @action
+  async saved() {
+    this.editJob = null;
+    await this.load();
+  }
 
   get region() {
     return this.system.activeRegion || '';

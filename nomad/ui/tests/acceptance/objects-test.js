@@ -11,7 +11,13 @@ import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import { seedObjects } from 'nomad-ui/mirage/norca/objects';
 import { seedReleases } from 'nomad-ui/mirage/norca/releases';
-import { useToken, lastRequest } from 'nomad-ui/tests/helpers/norca';
+import {
+  useToken,
+  lastRequest,
+  lastBody,
+  setEditorText,
+  editorJSON,
+} from 'nomad-ui/tests/helpers/norca';
 
 module('Acceptance | objects and type definitions', function (hooks) {
   setupApplicationTest(hooks);
@@ -167,6 +173,177 @@ module('Acceptance | objects and type definitions', function (hooks) {
     assert
       .dom('[data-test-admission-policies] [data-test-ui-table-row]')
       .exists({ count: 1 });
+  });
+
+  test('admission policies: create with the CEL editor, compile errors are shown', async function (assert) {
+    await visit('/admission');
+    await click('[data-test-new-admission]');
+    assert.dom('[data-test-admission-editor]').exists();
+    assert.dom('[data-test-cel-reference]').includesText('request');
+    assert.strictEqual(editorJSON().Action, 'warn', 'starts from a template');
+    await a11yAudit(assert, STRICT);
+
+    const policy = {
+      Name: 'max-count',
+      Action: 'deny',
+      Match: { Resources: ['job'] },
+      Rules: [
+        {
+          Expression: 'job.TaskGroups.all(tg, tg.Count <= 10',
+          Message: 'At most 10 instances per group.',
+        },
+      ],
+    };
+    await setEditorText({ ...policy, Action: 'block' });
+    assert
+      .dom('[data-test-editor-problem]')
+      .includesText('Action: must be one of', 'the schema is checked locally');
+    assert.dom('[data-test-editor-review-button]').isDisabled();
+
+    await setEditorText(policy);
+    await click('[data-test-editor-review-button]');
+    assert.dom('[data-test-editor-review] [data-test-text-diff]').exists();
+    await click('[data-test-editor-submit]');
+    assert
+      .dom('[data-test-editor-submit-error]')
+      .includesText('Syntax error', 'the CEL compile error is shown');
+
+    await click('[data-test-editor-back]');
+    policy.Rules[0].Expression = 'job.TaskGroups.all(tg, tg.Count <= 10)';
+    await setEditorText(policy);
+    await click('[data-test-editor-review-button]');
+    await click('[data-test-editor-submit]');
+    assert.strictEqual(currentURL(), '/admission/max-count');
+    assert.deepEqual(lastBody('PUT', '/v1/admission-policy/max-count'), policy);
+    assert.dom('[data-test-admission-rules]').includesText('tg.Count <= 10');
+  });
+
+  test('admission policies: edit keeps the name', async function (assert) {
+    await visit('/admission/team-label');
+    await click('[data-test-edit-admission]');
+    const doc = editorJSON();
+    assert.strictEqual(doc.Name, 'team-label');
+    assert.notOk('ModifyIndex' in doc, 'the indexes are left out');
+
+    await setEditorText({ ...doc, Name: 'renamed' });
+    await click('[data-test-editor-review-button]');
+    assert.dom('[data-test-editor-problem]').includesText('cannot be renamed');
+
+    await setEditorText({ ...doc, Action: 'deny' });
+    await click('[data-test-editor-review-button]');
+    await click('[data-test-editor-submit]');
+    assert.dom('[data-test-admission-editor]').doesNotExist();
+    assert
+      .dom('[data-test-admission-details]')
+      .includesText('deny: the write is rejected');
+  });
+
+  test('objects: edit with schema validation and a dry run', async function (assert) {
+    await visit(
+      '/objects/db.example.com/PostgresCluster/billing?namespace=default'
+    );
+    await click('[data-test-edit-object]');
+    assert.dom('[data-test-object-editor]').exists();
+    const doc = editorJSON();
+    assert.deepEqual(Object.keys(doc), ['Name', 'Namespace', 'Labels', 'Spec']);
+    await a11yAudit(assert, STRICT);
+
+    await setEditorText({ ...doc, Spec: { ...doc.Spec, replicas: 9 } });
+    assert
+      .dom('[data-test-editor-problem]')
+      .includesText('Spec.replicas: must be at most 5');
+    assert.dom('[data-test-editor-review-button]').isDisabled();
+
+    await setEditorText({ ...doc, Spec: { ...doc.Spec, replicas: 4 } });
+    await click('[data-test-editor-review-button]');
+    assert.dom('[data-test-object-dry-run]').includesText('generation 8');
+    const dryRun = lastRequest(
+      'PUT',
+      '/v1/object/db.example.com/PostgresCluster/billing'
+    );
+    assert.ok(dryRun.url.includes('dry_run=true'), 'the review is a dry run');
+    assert.dom('[data-test-object-dry-run-diff]').exists();
+
+    await click('[data-test-editor-submit]');
+    const write = lastRequest(
+      'PUT',
+      '/v1/object/db.example.com/PostgresCluster/billing'
+    );
+    assert.notOk(write.url.includes('dry_run'), 'then the write');
+    assert.ok(write.url.includes('cas='), 'conditional on the edited version');
+    assert.dom('[data-test-object-editor]').doesNotExist();
+    assert.dom('[data-test-object-spec]').includesText('"replicas": 4');
+  });
+
+  test('objects: a new object gets the schema defaults in the dry run', async function (assert) {
+    await visit('/objects');
+    await click('[data-test-new-object]');
+    await setEditorText({
+      Name: 'orders',
+      Namespace: 'default',
+      Labels: {},
+      Spec: { version: '16', replicas: 2 },
+    });
+    await click('[data-test-editor-review-button]');
+    assert
+      .dom('[data-test-object-dry-run]')
+      .includesText('schema defaults filled in');
+    assert.dom('[data-test-object-dry-run-diff]').includesText('10GiB');
+    await click('[data-test-editor-submit]');
+    assert.strictEqual(
+      currentURL(),
+      '/objects/db.example.com/PostgresCluster/orders?namespace=default'
+    );
+  });
+
+  test('type definitions: the plan reports stored objects a schema change breaks', async function (assert) {
+    await visit('/kinds/db.example.com/PostgresCluster');
+    await click('[data-test-edit-kind]');
+    assert.dom('[data-test-kind-editor]').exists();
+    const doc = editorJSON();
+    assert.strictEqual(
+      typeof doc.Schema,
+      'object',
+      'the schema is edited as JSON'
+    );
+    // CodeMirror scrolls a long document; the keyboard reaches it through
+    // the editor's text area.
+    await a11yAudit(assert, STRICT, 'scrollable-region-focusable');
+
+    const narrow = JSON.parse(JSON.stringify(doc));
+    narrow.Schema.properties.spec.properties.replicas.maximum = 2;
+    await setEditorText(narrow);
+    await click('[data-test-editor-review-button]');
+    assert
+      .dom('[data-test-kind-plan-failures]')
+      .includesText('billing', 'billing has 3 replicas');
+    await click('[data-test-editor-submit]');
+    assert.dom('[data-test-editor-submit-error]').includesText('invalid');
+
+    await click('[data-test-editor-back]');
+    const wide = JSON.parse(JSON.stringify(doc));
+    wide.Schema.properties.spec.properties.replicas.maximum = 9;
+    await setEditorText(wide);
+    await click('[data-test-editor-review-button]');
+    assert.dom('[data-test-kind-plan-ok]').includesText('3 stored objects');
+    await click('[data-test-editor-submit]');
+    const body = lastBody(
+      'PUT',
+      '/v1/object-kind/db.example.com/PostgresCluster'
+    );
+    assert.strictEqual(typeof body.Schema, 'string', 'sent as a string');
+    assert.dom('[data-test-kind-schema]').includesText('"maximum": 9');
+  });
+
+  test('a token without operator write cannot edit type definitions', async function (assert) {
+    useToken({
+      Operator: { Policy: 'read' },
+      Namespaces: [{ Name: 'default', Capabilities: ['list-jobs'] }],
+    });
+    await visit('/kinds/db.example.com/PostgresCluster');
+    assert.dom('[data-test-edit-kind]').doesNotExist();
+    await visit('/kinds');
+    assert.dom('[data-test-new-kind]').doesNotExist();
   });
 
   test('a token without admission rights does not see the menu item', async function (assert) {

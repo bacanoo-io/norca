@@ -8,6 +8,9 @@
     <:actions>
       {{#if this.policy}}
         <Ui::Button @route="jobs.job.index" @model={{this.jobRouteId}} @icon="briefcase">Open the job</Ui::Button>
+        {{#if this.canWrite}}
+          <Ui::Button @variant="primary" @icon="pencil" @isLoading={{this.isOpeningEditor}} data-test-edit-scaling-policy {{on "click" this.openEditor}}>Edit policy</Ui::Button>
+        {{/if}}
       {{/if}}
     </:actions>
   </Ui::PageHeader>
@@ -22,6 +25,9 @@
         </Ui::EmptyState>
       </Ui::Card>
     {{else}}
+      {{#if this.editError}}
+        <Ui::Alert @tone="danger" class="mb-3" data-test-scaling-edit-error>{{this.editError}}</Ui::Alert>
+      {{/if}}
       <div class="row row-cards">
         <div class="col-lg-4">
           <Ui::Card @title="Policy">
@@ -92,4 +98,8 @@
       </div>
     {{/if}}
   </Ui::PageBody>
+
+  {{#if this.editJob}}
+    <Jobs::ScalingPolicyEditor @job={{this.editJob}} @group={{this.editGroup}} @onClose={{this.closeEditor}} @onSaved={{this.saved}} />
+  {{/if}}
 </div>

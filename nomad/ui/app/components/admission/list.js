@@ -6,10 +6,13 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { inject as service } from '@ember/service';
+import { action } from '@ember/object';
+import { allowsBlock } from 'nomad-ui/utils/norca-acl';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import { apiRequest, errorMessage } from 'nomad-ui/utils/norca-api';
 import { matchText, denialItem } from 'nomad-ui/utils/admission';
+import LocalList from 'nomad-ui/utils/local-list';
 
 /**
  * Admission policies (K8s item 2): CEL rules that deny or warn about job,
@@ -27,15 +30,53 @@ export default class AdmissionList extends Component {
   @tracked denials = [];
   @tracked isLoading = true;
   @tracked error = null;
+  @tracked editing = false;
+
+  @service router;
+
+  get canWrite() {
+    return allowsBlock(this.token, 'Admission', 'write');
+  }
+
+  @action openEditor() {
+    this.editing = true;
+  }
+
+  @action closeEditor() {
+    this.editing = false;
+  }
+
+  @action created(name) {
+    this.editing = false;
+    this.router.transitionTo('admission.policy', name);
+  }
 
   get region() {
     return this.system.activeRegion || '';
+  }
+
+  list = new LocalList({
+    sortBy: 'name',
+    searchProps: ['name', 'Description', 'match'],
+  });
+
+  columns = [
+    { key: 'name', label: 'Policy', sortable: true, hideable: false },
+    { key: 'action', label: 'Action', sortable: true },
+    { key: 'match', label: 'Applies to', sortable: true },
+    { key: 'rules', label: 'Rules', sortable: true },
+  ];
+
+  get tableRows() {
+    return this.list.rows(this.rows);
   }
 
   get rows() {
     return this.policies
       .map((p) => ({
         ...p,
+        name: p.Name,
+        action: p.Action || 'deny',
         match: matchText(p.Match),
         rules: (p.Rules || []).length,
         keys: (p.TrustedKeys || []).length,

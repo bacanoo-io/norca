@@ -16,6 +16,7 @@ import {
   progressSegments,
   ACTIVE,
 } from 'nomad-ui/utils/deployments';
+import LocalList from 'nomad-ui/utils/local-list';
 
 const POLL_MS = 30000;
 
@@ -101,16 +102,28 @@ export default class DeploymentsList extends Component {
 
   get columns() {
     const columns = [
-      { key: 'job', label: 'Job' },
-      { key: 'version', label: 'Version' },
+      { key: 'JobID', label: 'Job', sortable: true, hideable: false },
+      { key: 'JobVersion', label: 'Version', sortable: true },
     ];
-    if (this.isAllRegions) columns.push({ key: 'region', label: 'Region' });
+    if (this.isAllRegions)
+      columns.push({ key: 'region', label: 'Region', sortable: true });
     columns.push(
-      { key: 'status', label: 'Status' },
-      { key: 'progress', label: 'Healthy' },
-      { key: 'description', label: 'Description' }
+      { key: 'Status', label: 'Status', sortable: true },
+      { key: 'progress.healthy', label: 'Healthy', sortable: true },
+      { key: 'StatusDescription', label: 'Description' }
     );
     return columns;
+  }
+
+  // Newest first until the user sorts by a column.
+  list = new LocalList({
+    sortBy: 'CreateIndex',
+    sortDescending: true,
+    searchProps: ['JobID', 'Namespace', 'Status', 'region'],
+  });
+
+  get tableRows() {
+    return this.list.rows(this.rows);
   }
 
   get errors() {

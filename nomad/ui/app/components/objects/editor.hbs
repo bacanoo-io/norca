@@ -1,0 +1,36 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Modal @title={{this.title}} @size="xl" @onClose={{@onClose}} data-test-object-editor>
+  <p class="text-secondary">
+    The name, labels and spec of the {{this.kindId}} object in JSON. The spec is checked against the schema of the
+    type while you type; Review changes runs a dry run on the server (schema defaults, CEL rules, admission webhooks)
+    before anything is written. The status belongs to the controller and is not edited here.
+  </p>
+  <Ui::Editor
+    @label={{concat this.kindId " object"}}
+    @language="json"
+    @schema={{this.schema}}
+    @value={{this.text}}
+    @onChange={{this.setText}}
+    @original={{this.original}}
+    @validate={{this.validate}}
+    @onReview={{this.review}}
+    @onSubmit={{this.submit}}
+    @reviewLabel="Dry run"
+    @submitLabel={{if this.isNew "Create object" "Save object"}}
+    @permission="write objects of this kind"
+    @onCancel={{@onClose}}
+    @minHeight="18rem"
+    @autofocus={{true}}
+  >
+    <:review as |plan|>
+      <Ui::Alert @tone="success" @title="The dry run passed" class="mb-3" data-test-object-dry-run>
+        The server accepted the object{{if plan.defaulted ", with the schema defaults filled in"}}.
+        {{#if plan.object.Generation}}It will be generation {{plan.object.Generation}}.{{/if}}
+      </Ui::Alert>
+      <Ui::TextDiff @old={{plan.stored}} @new={{plan.proposed}} @label="Labels and spec, stored and after the change" data-test-object-dry-run-diff />
+    </:review>
+  </Ui::Editor>
+</Ui::Modal>

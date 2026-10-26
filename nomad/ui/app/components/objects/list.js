@@ -18,6 +18,8 @@ import {
   display,
   objectHealth,
 } from 'nomad-ui/utils/objects';
+import LocalList from 'nomad-ui/utils/local-list';
+import { allowsObject } from 'nomad-ui/utils/norca-acl';
 
 /**
  * The objects of one kind, in a table with the columns of its type
@@ -29,6 +31,44 @@ export default class ObjectsList extends Component {
   @service system;
   @service frame;
   @service eventStream;
+  @service router;
+
+  @tracked creating = false;
+
+  // New objects go to the namespace in scope, or default for all.
+  get targetNamespace() {
+    return this.namespace === '*' ? 'default' : this.namespace;
+  }
+
+  get canCreate() {
+    const k = this.kind;
+    if (!k || k.Group === 'packs.norca.io') return false;
+    return allowsObject(
+      this.token,
+      this.targetNamespace,
+      `${k.Group}/${k.Kind}`,
+      'write'
+    );
+  }
+
+  @action openCreate() {
+    this.creating = true;
+  }
+
+  @action closeCreate() {
+    this.creating = false;
+  }
+
+  @action created(object) {
+    this.creating = false;
+    this.router.transitionTo(
+      'objects.object',
+      object.Group,
+      object.Kind,
+      object.Name,
+      { queryParams: { namespace: object.Namespace || null } }
+    );
+  }
 
   @tracked kinds = [];
   @tracked objects = [];
@@ -62,27 +102,52 @@ export default class ObjectsList extends Component {
   get columns() {
     const k = this.kind;
     if (!k) return [];
-    const columns = [{ key: 'name', label: 'Name' }];
-    if (k.Namespaced) columns.push({ key: 'namespace', label: 'Namespace' });
+    const columns = [
+      { key: 'name', label: 'Name', sortable: true, hideable: false },
+    ];
+    if (k.Namespaced)
+      columns.push({ key: 'namespace', label: 'Namespace', sortable: true });
     (k.Columns || []).forEach((c, i) =>
-      columns.push({ key: `col-${i}`, label: c.Name })
+      columns.push({ key: `col-${i}`, label: c.Name, sortable: true })
     );
     columns.push(
-      { key: 'health', label: 'Health' },
+      { key: 'healthLabel', label: 'Health', sortable: true },
       { key: 'generation', label: 'Generation' }
     );
     return columns;
   }
 
+  list = new LocalList({
+    sortBy: 'name',
+    searchProps: ['name', 'namespace', 'healthLabel'],
+  });
+
+  get tableRows() {
+    return this.list.rows(this.rows);
+  }
+
   get rows() {
     const k = this.kind;
     return this.objects
-      .map((o) => ({
-        ...o,
-        cells: (k?.Columns || []).map((c) => display(evaluatePath(o, c.Path))),
-        health: objectHealth(o),
-        generation: `${o.Generation} / ${o.Status?.observedGeneration ?? '–'}`,
-      }))
+      .map((o) => {
+        const cells = (k?.Columns || []).map((c, i) => ({
+          key: `col-${i}`,
+          value: display(evaluatePath(o, c.Path)),
+        }));
+        const health = objectHealth(o);
+        return {
+          ...o,
+          ...Object.fromEntries(cells.map((c) => [c.key, c.value])),
+          name: o.Name,
+          namespace: o.Namespace,
+          cells,
+          health,
+          healthLabel: health.label,
+          generation: `${o.Generation} / ${
+            o.Status?.observedGeneration ?? '–'
+          }`,
+        };
+      })
       .sort((a, b) => a.Name.localeCompare(b.Name));
   }
 

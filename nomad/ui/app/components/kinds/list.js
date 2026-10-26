@@ -6,11 +6,14 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { inject as service } from '@ember/service';
+import { action } from '@ember/object';
+import { allowsBlock } from 'nomad-ui/utils/norca-acl';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import { errorMessage } from 'nomad-ui/utils/norca-api';
 import { listKinds, listObjects, kindId } from 'nomad-ui/utils/objects';
 import { listReleases } from 'nomad-ui/utils/releases';
+import LocalList from 'nomad-ui/utils/local-list';
 
 // The release that registered each kind, from the resources of the
 // releases ("object-kind" resources named group/Kind).
@@ -40,8 +43,49 @@ export default class KindsList extends Component {
   @tracked isLoading = true;
   @tracked error = null;
 
+  @service router;
+
+  @tracked editing = false;
+
+  get canWrite() {
+    return allowsBlock(this.token, 'Operator', 'write');
+  }
+
+  @action openEditor() {
+    this.editing = true;
+  }
+
+  @action closeEditor() {
+    this.editing = false;
+  }
+
+  @action created(doc) {
+    this.editing = false;
+    this.router.transitionTo('kinds.kind', doc.Group, doc.Kind);
+  }
+
   get region() {
     return this.system.activeRegion || '';
+  }
+
+  list = new LocalList({
+    sortBy: 'id',
+    searchProps: ['id', 'Description', 'packageName'],
+  });
+
+  columns = [
+    { key: 'id', label: 'Type', sortable: true, hideable: false },
+    { key: 'scope', label: 'Scope', sortable: true },
+    { key: 'version', label: 'Version', sortable: true },
+    { key: 'objects', label: 'Objects', sortable: true },
+    { key: 'rules', label: 'Rules', sortable: true },
+    { key: 'scalable', label: 'Scalable', sortable: true },
+    { key: 'webhooks', label: 'Webhooks', sortable: true },
+    { key: 'packageName', label: 'Package', sortable: true },
+  ];
+
+  get tableRows() {
+    return this.list.rows(this.rows);
   }
 
   get rows() {
@@ -61,6 +105,8 @@ export default class KindsList extends Component {
         pendingWebhooks: webhooks.filter((w) => !w.Approval).length,
         objects: this.counts[id],
         owner,
+        version: k.Version,
+        packageName: owner?.name,
       };
     });
   }

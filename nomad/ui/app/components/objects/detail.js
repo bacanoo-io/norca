@@ -6,6 +6,8 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { inject as service } from '@ember/service';
+import { action } from '@ember/object';
+import { allowsObject } from 'nomad-ui/utils/norca-acl';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import moment from 'moment';
@@ -37,6 +39,30 @@ export default class ObjectsDetail extends Component {
   @tracked events = [];
   @tracked isLoading = true;
   @tracked loadError = null;
+  @tracked editing = false;
+
+  get canWrite() {
+    return allowsObject(
+      this.token,
+      this.object?.Namespace || this.args.namespace,
+      this.kindId,
+      'write'
+    );
+  }
+
+  @action openEditor() {
+    this.editing = true;
+  }
+
+  @action closeEditor() {
+    this.editing = false;
+  }
+
+  @action
+  async saved() {
+    this.editing = false;
+    await this.load();
+  }
 
   get region() {
     return this.system.activeRegion || '';

@@ -7,6 +7,7 @@
     <:actions>
       {{#if (and this.policy this.canWrite)}}
         <Ui::Button @variant="outline-danger" @icon="trash" data-test-delete-admission {{on "click" this.ask}}>Delete</Ui::Button>
+        <Ui::Button @variant="primary" @icon="pencil" data-test-edit-admission {{on "click" this.openEditor}}>Edit</Ui::Button>
       {{/if}}
     </:actions>
   </Ui::PageHeader>
@@ -40,7 +41,7 @@
             </Ui::Table>
           </Ui::Card>
           <p class="text-secondary small mt-3">
-            Editing rules waits for the unified editor. Testing a policy on the existing jobs needs a dry-run endpoint the server does not have yet;
+            Testing a policy on the existing jobs needs a dry-run endpoint the server does not have yet;
             until then, set the action to warn and watch the warnings of the submissions.
           </p>
         </div>
@@ -56,6 +57,10 @@
       </div>
     {{/if}}
   </Ui::PageBody>
+
+  {{#if this.editing}}
+    <Admission::Editor @policy={{this.policy}} @region={{this.region}} @onSaved={{this.saved}} @onClose={{this.closeEditor}} />
+  {{/if}}
 
   {{#if this.confirming}}
     <Ui::Confirm

@@ -22,6 +22,7 @@ import {
   statusTone,
   TRIGGER_LABELS,
 } from 'nomad-ui/utils/backups';
+import LocalList from 'nomad-ui/utils/local-list';
 
 const POLL_MS = 30000;
 
@@ -41,9 +42,6 @@ export default class BackupsList extends Component {
   @tracked regions = [];
   @tracked isLoading = true;
   @tracked backupNowOpen = false;
-  @tracked filter = '';
-  @tracked sortBy = 'time';
-  @tracked sortDescending = true;
   @tracked pinning = null;
   @tracked actionError = null;
 
@@ -67,19 +65,31 @@ export default class BackupsList extends Component {
 
   get columns() {
     const columns = [
-      { key: 'id', label: 'Backup' },
+      { key: 'ID', label: 'Backup', sortable: true, hideable: false },
       { key: 'time', label: 'Completed', sortable: true },
     ];
-    if (this.isAllRegions) columns.push({ key: 'region', label: 'Region' });
+    if (this.isAllRegions)
+      columns.push({ key: 'region', label: 'Region', sortable: true });
     columns.push(
-      { key: 'trigger', label: 'Trigger' },
-      { key: 'status', label: 'Status' },
+      { key: 'triggerLabel', label: 'Trigger', sortable: true },
+      { key: 'Status', label: 'Status', sortable: true },
       { key: 'size', label: 'Size', sortable: true },
       { key: 'destinations', label: 'Destinations' },
       { key: 'labels', label: 'Labels' },
-      { key: 'pinned', label: 'Pinned' }
+      { key: 'pinned', label: 'Pinned', sortable: true }
     );
     return columns;
+  }
+
+  // Newest first until the user sorts by another column.
+  list = new LocalList({
+    sortBy: 'time',
+    sortDescending: true,
+    searchProps: ['ID', 'labelText', 'triggerLabel'],
+  });
+
+  get tableRows() {
+    return this.list.rows(this.rows);
   }
 
   get schedules() {
@@ -125,38 +135,28 @@ export default class BackupsList extends Component {
   }
 
   get rows() {
-    const q = this.filter.trim().toLowerCase();
-    const rows = this.regions
-      .flatMap((r) =>
-        (r.backups || []).map((b) => ({
-          ...b,
-          region: r.region,
-          size: backupSize(b),
-          sizeLabel: formatSize(backupSize(b)),
-          triggerLabel: TRIGGER_LABELS[b.Trigger] || b.Trigger,
-          tone: statusTone(b.Status),
-          time: isSet(b.CompletedAt) ? b.CompletedAt : b.StartedAt,
-          labelList: Object.entries(b.Labels || {}).map(
-            ([k, v]) => `${k}=${v}`
-          ),
-          destinationList: (b.Destinations || []).map((d) => ({
-            name: d.Name,
-            status: d.Status,
-            tone: statusTone(d.Status),
-            error: d.Error,
-          })),
-        }))
-      )
-      .filter(
-        (b) =>
-          !q ||
-          b.ID.toLowerCase().includes(q) ||
-          b.labelList.some((l) => l.toLowerCase().includes(q)) ||
-          b.triggerLabel.toLowerCase().includes(q)
-      );
-    const dir = this.sortDescending ? -1 : 1;
-    const key = this.sortBy === 'size' ? 'size' : 'time';
-    return rows.sort((a, b) => (a[key] < b[key] ? -1 : 1) * dir);
+    return this.regions.flatMap((r) =>
+      (r.backups || []).map((b) => ({
+        ...b,
+        region: r.region,
+        size: backupSize(b),
+        sizeLabel: formatSize(backupSize(b)),
+        triggerLabel: TRIGGER_LABELS[b.Trigger] || b.Trigger,
+        tone: statusTone(b.Status),
+        time: isSet(b.CompletedAt) ? b.CompletedAt : b.StartedAt,
+        labelList: Object.entries(b.Labels || {}).map(([k, v]) => `${k}=${v}`),
+        labelText: Object.entries(b.Labels || {})
+          .map(([k, v]) => `${k}=${v}`)
+          .join(' '),
+        pinned: b.Pinned ? 1 : 0,
+        destinationList: (b.Destinations || []).map((d) => ({
+          name: d.Name,
+          status: d.Status,
+          tone: statusTone(d.Status),
+          error: d.Error,
+        })),
+      }))
+    );
   }
 
   get hasBackups() {
@@ -235,17 +235,6 @@ export default class BackupsList extends Component {
       clearInterval(timer);
     };
   });
-
-  @action
-  setFilter(value) {
-    this.filter = value;
-  }
-
-  @action
-  sort(key, descending) {
-    this.sortBy = key;
-    this.sortDescending = descending;
-  }
 
   @action
   openBackupNow() {

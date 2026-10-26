@@ -39,41 +39,59 @@
         </div>
       </div>
 
-      <Ui::Card @flush={{true}} @title="Catalog" data-test-service-catalog>
-        <:actions>
-          <Ui::Input @icon="search" @value={{this.filter}} @onInput={{this.setFilter}} @placeholder="Filter by name or tag" aria-label="Filter services" data-test-service-filter />
-        </:actions>
-        <:default>
-          <Ui::Table
-            @inCard={{true}}
-            @caption="Services"
-            @columns={{this.columns}}
-            @rows={{this.rows}}
-            @emptyMessage={{if this.filter "No service matches the filter." "No service is registered. Services of jobs whose service provider is nomad appear here with the health of their instances."}}
-            as |row|
-          >
-            <td>
+      <Ui::DataTable
+        @id="service-catalog"
+        @caption="Services"
+        @columns={{this.columns}}
+        @rows={{this.tableRows}}
+        @sortBy={{this.list.sortBy}}
+        @sortDescending={{this.list.sortDescending}}
+        @onSort={{this.list.sort}}
+        @pageSize={{this.list.pageSize}}
+        @page={{this.list.page}}
+        @onPageChange={{this.list.setPage}}
+        @onPageSizeChange={{this.list.setPageSize}}
+        @noun="services"
+        @viewState={{this.list.viewState}}
+        @onApplyView={{this.list.applyView}}
+        @emptyMessage={{if this.list.searchTerm "No service matches the search." "No service is registered. Services of jobs whose service provider is nomad appear here with the health of their instances."}}
+        data-test-service-catalog
+      >
+        <:filters>
+          <Ui::Input
+            @type="search"
+            @icon="search"
+            @placeholder="Search by name or tag..."
+            @value={{this.list.searchTerm}}
+            @onInput={{this.list.search}}
+            aria-label="Search services"
+            data-test-service-filter
+          />
+        </:filters>
+        <:row as |row r|>
+          <r.Row data-test-service-row={{row.key}}>
+            <r.Cell @key="name">
               <LinkTo @route="services.service" @model={{row.name}} @query={{hash namespace=row.namespace}} data-test-service-link={{row.name}}>{{row.name}}</LinkTo>
               {{#if row.external}}<Ui::Badge class="ms-1">external</Ui::Badge>{{/if}}
-            </td>
-            <td>{{row.namespace}}</td>
-            {{#each row.cells as |h|}}
-              <td data-test-service-health>
-                {{#if h}}
-                  <Ui::StatusIndicator @tone={{h.tone}} @label={{concat h.passing "/" h.total}} />
-                  {{#if (not-eq h.discoverable h.total)}}<div class="small text-warning">{{h.excluded}} left out</div>{{/if}}
+            </r.Cell>
+            <r.Cell @key="namespace">{{row.namespace}}</r.Cell>
+            {{#each row.cells as |cell|}}
+              <r.Cell @key={{cell.key}} data-test-service-health>
+                {{#if cell.health}}
+                  <Ui::StatusIndicator @tone={{cell.health.tone}} @label={{concat cell.health.passing "/" cell.health.total}} />
+                  {{#if (not-eq cell.health.discoverable cell.health.total)}}<div class="small text-warning">{{cell.health.excluded}} left out</div>{{/if}}
                 {{else}}
                   <span class="text-secondary">–</span>
                 {{/if}}
-              </td>
+              </r.Cell>
             {{/each}}
-            <td>
+            <r.Cell @key="tags">
               {{#each row.tags as |tag|}}<Ui::Badge class="me-1">{{tag}}</Ui::Badge>{{/each}}
-            </td>
-            <td>{{or row.mtls "–"}}</td>
-          </Ui::Table>
-        </:default>
-      </Ui::Card>
+            </r.Cell>
+            <r.Cell @key="mtls">{{or row.mtls "–"}}</r.Cell>
+          </r.Row>
+        </:row>
+      </Ui::DataTable>
       <p class="text-secondary small mt-3">
         The DNS interface and the Consul-compatible API run on each client agent; their state is not reported to the servers.
       </p>

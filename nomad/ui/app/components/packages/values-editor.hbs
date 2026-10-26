@@ -1,0 +1,34 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Modal @title="Values of {{@release.Name}}" @size="xl" @onClose={{@onClose}} data-test-values-editor>
+  <p class="text-secondary">
+    The variable values of revision {{@revision.Revision}} (secret values are kept as Variables references and are
+    not shown). {{if this.hasSchema "They are checked against the variables schema of the pack."}}
+    The client renders a pack, so the change becomes a CLI command: run it to plan and apply revision
+    {{this.nextRevision}} on the servers.
+  </p>
+  {{#if this.command}}
+    <Ui::Alert @tone="success" @title="Upgrade prepared" class="mb-3" data-test-values-command-ready>
+      Run this command where the pack is available; add <span class="font-monospace">--parser-v1</span> for packs of the
+      first template syntax. <span class="font-monospace">norca pack plan</span> with the same arguments shows the
+      change first.
+    </Ui::Alert>
+    <Ui::CodeBlock @label="Upgrade command" @code={{this.command}} @copy={{true}} class="mb-3" data-test-values-command />
+  {{/if}}
+  <Ui::Editor
+    @label="Variable values"
+    @language="json"
+    @schema={{this.schema}}
+    @value={{this.text}}
+    @onChange={{this.setText}}
+    @original={{this.original}}
+    @onSubmit={{this.prepare}}
+    @submitLabel="Prepare the upgrade"
+    @submitIcon="terminal-2"
+    @onCancel={{@onClose}}
+    @minHeight="14rem"
+    @autofocus={{true}}
+  />
+</Ui::Modal>

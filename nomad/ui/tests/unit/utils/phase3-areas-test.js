@@ -8,7 +8,16 @@ import {
   normalize,
   compareRevisions,
   signature,
+  valuesSchema,
+  upgradeCommand,
 } from 'nomad-ui/utils/releases';
+import {
+  kindDocument,
+  kindBody,
+  objectDocument,
+  objectDocumentSchema,
+} from 'nomad-ui/utils/objects';
+import { validate } from 'nomad-ui/utils/json-schema';
 import { usageRows } from 'nomad-ui/utils/quotas';
 import {
   flattenJobDiff,
@@ -209,5 +218,88 @@ module('Unit | Utility | phase 3 areas', function () {
       peers: '10.0.0.0/8 namespace a app=x',
       ports: '80/tcp',
     });
+  });
+
+  test('release values: the root schema and the prepared upgrade command', function (assert) {
+    const revision = {
+      Revision: 3,
+      Spec: {
+        Pack: { Name: 'app', Version: '1.2.0', Registry: 'acme' },
+        VariablesSchemas: [
+          { Pack: 'app.redis', Schema: '{"type":"object"}' },
+          { Pack: 'app', Schema: '{"type":"object","required":["image"]}' },
+        ],
+      },
+    };
+    assert.deepEqual(valuesSchema(revision), {
+      type: 'object',
+      required: ['image'],
+    });
+    assert.strictEqual(valuesSchema({ Spec: {} }), null);
+
+    const command = upgradeCommand(
+      { Name: 'web', Namespace: 'team-a' },
+      revision,
+      { replicas: 2, image: "it's", ports: [80] }
+    );
+    assert.strictEqual(
+      command,
+      [
+        'norca pack run app',
+        "  --registry='acme'",
+        "  --ref='1.2.0'",
+        "  --name='web'",
+        "  --namespace='team-a'",
+        "  --var 'image=it'\\''s'",
+        "  --var 'ports=[80]'",
+        "  --var 'replicas=2'",
+      ].join(' \\\n')
+    );
+  });
+
+  test('object and kind documents for the editors', function (assert) {
+    const kind = {
+      Group: 'db.example.com',
+      Kind: 'Db',
+      Namespaced: true,
+      Schema: JSON.stringify({
+        type: 'object',
+        properties: {
+          spec: {
+            type: 'object',
+            required: ['size'],
+            properties: { size: { type: 'integer', maximum: 3 } },
+          },
+        },
+      }),
+      CreateIndex: 1,
+      ModifyIndex: 2,
+    };
+    const doc = kindDocument(kind);
+    assert.strictEqual(typeof doc.Schema, 'object');
+    assert.notOk('ModifyIndex' in doc);
+    assert.strictEqual(typeof kindBody(doc).Schema, 'string');
+
+    const object = { Name: 'a', Namespace: 'x', Spec: { size: 1 }, Status: {} };
+    assert.deepEqual(objectDocument(object, kind), {
+      Name: 'a',
+      Namespace: 'x',
+      Labels: {},
+      Spec: { size: 1 },
+    });
+    const schema = objectDocumentSchema(kind);
+    assert.deepEqual(
+      validate(schema, { Name: 'a', Namespace: 'x', Spec: { size: 5 } }).map(
+        (e) => e.path
+      ),
+      ['Spec.size']
+    );
+    assert.deepEqual(
+      validate(schema, { Name: 'a', Namespace: 'x', Spec: {}, Status: {} }).map(
+        (e) => e.path
+      ).length,
+      2,
+      'a missing required spec field and the status are reported'
+    );
   });
 });

@@ -1,0 +1,53 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Modal @title={{this.title}} @size="xl" @onClose={{@onClose}} data-test-kind-editor>
+  <p class="text-secondary">
+    The type definition in JSON; Schema is the JSON Schema of the object's {spec, status} document and its default
+    values are filled in on every write. Review changes plans the change on the server: it checks the stored objects
+    against the new schema and rules before anything is written.
+  </p>
+  <Ui::Editor
+    @label="Type definition"
+    @language="json"
+    @schema={{this.schema}}
+    @value={{this.text}}
+    @onChange={{this.setText}}
+    @original={{this.original}}
+    @validate={{this.validate}}
+    @onReview={{this.review}}
+    @onSubmit={{this.submit}}
+    @reviewLabel="Plan"
+    @submitLabel={{if this.isNew "Create type definition" "Save type definition"}}
+    @permission="write object kinds"
+    @onCancel={{@onClose}}
+    @minHeight="20rem"
+    @autofocus={{true}}
+  >
+    <:review as |plan|>
+      {{#if plan.failures.length}}
+        <Ui::Alert @tone="danger" @title="{{plan.migration.Failed}} stored objects would be invalid" class="mb-3" data-test-kind-plan-failures>
+          The server rejects the change until these objects are fixed or the schema allows them.
+          <ul class="mb-0 mt-2 ps-3">
+            {{#each plan.failures as |f|}}
+              <li><span class="font-monospace">{{if f.Namespace (concat f.Namespace "/")}}{{f.Name}}</span>: {{f.Error}}</li>
+            {{/each}}
+          </ul>
+        </Ui::Alert>
+      {{else}}
+        <Ui::Alert @tone="success" @title="The plan passed" class="mb-3" data-test-kind-plan-ok>
+          {{plan.migration.Objects}} stored {{if (eq plan.migration.Objects 1) "object" "objects"}} checked;
+          {{plan.migration.Pending}} converted to schema version {{plan.migration.ToVersion}}, {{plan.migration.Changed}} changed.
+        </Ui::Alert>
+      {{/if}}
+      {{#each plan.warnings as |w|}}
+        <Ui::Alert @tone="warning" class="mb-3" data-test-kind-plan-warning>{{w}}</Ui::Alert>
+      {{/each}}
+      {{#each plan.samples as |s|}}
+        <Ui::TextDiff @old={{s.before}} @new={{s.after}} @label={{concat "Spec of " s.Name " after the migration"}} class="mb-3" />
+      {{/each}}
+      <Ui::TextDiff @old={{plan.original}} @new={{plan.proposed}} @label="Type definition" data-test-kind-plan-diff />
+    </:review>
+  </Ui::Editor>
+</Ui::Modal>

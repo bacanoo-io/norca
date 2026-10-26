@@ -6,7 +6,6 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { inject as service } from '@ember/service';
-import { action } from '@ember/object';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import config from 'nomad-ui/config/environment';
@@ -18,6 +17,7 @@ import {
   phaseTone,
   RELEASE_KIND,
 } from 'nomad-ui/utils/releases';
+import LocalList from 'nomad-ui/utils/local-list';
 
 const POLL_MS = 30000;
 
@@ -34,7 +34,6 @@ export default class PackagesList extends Component {
 
   @tracked regions = [];
   @tracked isLoading = true;
-  @tracked filter = '';
 
   get scopedRegions() {
     return this.frame.scopedRegions;
@@ -57,43 +56,48 @@ export default class PackagesList extends Component {
     return `${region}, ${ns}`;
   }
 
-  get columns() {
-    const columns = [
-      { key: 'release', label: 'Release' },
-      { key: 'pack', label: 'Pack' },
-      { key: 'revision', label: 'Revision' },
-      { key: 'phase', label: 'Status' },
-      { key: 'drift', label: 'Drift' },
-      { key: 'regions', label: 'Regions' },
-      { key: 'signature', label: 'Signature' },
-    ];
-    return columns;
+  list = new LocalList({
+    sortBy: 'name',
+    searchProps: ['name', 'pack', 'Namespace'],
+  });
+
+  columns = [
+    { key: 'name', label: 'Release', sortable: true, hideable: false },
+    { key: 'pack', label: 'Pack', sortable: true },
+    { key: 'revision', label: 'Revision', sortable: true },
+    { key: 'phase', label: 'Status', sortable: true },
+    { key: 'driftLabel', label: 'Drift', sortable: true },
+    { key: 'regions', label: 'Regions' },
+    { key: 'signatureLabel', label: 'Signature', sortable: true },
+  ];
+
+  get tableRows() {
+    return this.list.rows(this.rows);
   }
 
   get rows() {
-    const q = this.filter.trim().toLowerCase();
     return this.regions
       .flatMap((r) =>
         (r.releases || []).map((rel) => {
           const pack = rel.Spec?.Pack || {};
           const multi = rel.Spec?.Multiregion?.Regions || [];
+          const drifted = isDrifted(rel);
+          const sig = signature(rel);
           return {
             ...rel,
+            name: rel.Name,
             region: r.region,
             pack: `${pack.Name || '?'} ${pack.Version || ''}`.trim(),
+            revision: rel.Status?.Revision,
             phase: rel.Status?.Phase || 'pending',
             phaseTone: phaseTone(rel.Status?.Phase),
-            drifted: isDrifted(rel),
-            signature: signature(rel),
+            drifted,
+            driftLabel: drifted ? 'drifted' : 'in sync',
+            signature: sig,
+            signatureLabel: sig.label,
             regionList: multi.length ? multi : [r.region || 'local'],
           };
         })
-      )
-      .filter(
-        (row) =>
-          !q ||
-          row.Name.toLowerCase().includes(q) ||
-          row.pack.toLowerCase().includes(q)
       )
       .sort((a, b) => a.Name.localeCompare(b.Name));
   }
@@ -169,9 +173,4 @@ export default class PackagesList extends Component {
       clearInterval(poll);
     };
   });
-
-  @action
-  setFilter(value) {
-    this.filter = value;
-  }
 }

@@ -55,6 +55,20 @@ export default class PackagesRelease extends Component {
   @tracked rollback = null;
   @tracked uninstalling = false;
   @tracked skipHooks = false;
+  @tracked editingValues = false;
+
+  get deployedRevision() {
+    const n = this.release?.Status?.Revision;
+    return this.history.find((r) => r.Revision === n) || null;
+  }
+
+  @action openValues() {
+    this.editingValues = true;
+  }
+
+  @action closeValues() {
+    this.editingValues = false;
+  }
 
   get region() {
     return this.system.activeRegion || '';

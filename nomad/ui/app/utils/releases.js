@@ -192,3 +192,54 @@ export function compareRevisions(a, b) {
     resources,
   };
 }
+
+// The JSON Schema of the variables of the root pack of a revision
+// (spec.variablesSchemas), or null.
+export function valuesSchema(revision) {
+  const packName = revision?.Spec?.Pack?.Name;
+  const schemas = revision?.Spec?.VariablesSchemas || [];
+  const root =
+    schemas.find((s) => s.Pack === packName) ||
+    schemas.find((s) => !String(s.Pack || '').includes('.')) ||
+    null;
+  if (!root?.Schema) return null;
+  try {
+    return JSON.parse(root.Schema);
+  } catch (e) {
+    return null;
+  }
+}
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * The CLI command that upgrades a release with new variable values. Packs
+ * are rendered by the client (pack/docs/releases.md), so the UI prepares
+ * the command instead of applying the values itself. Values that are not
+ * strings are passed as JSON (HCL accepts it for lists, maps and numbers).
+ */
+export function upgradeCommand(release, revision, values) {
+  const pack = revision?.Spec?.Pack || release?.Spec?.Pack || {};
+  const local = !pack.Registry || pack.Registry === '<<local folder>>';
+  const source = local
+    ? shellQuote(pack.Path || pack.Name || '<pack path>')
+    : pack.Name;
+  const parts = [`norca pack run ${source}`];
+  if (!local) {
+    parts.push(`--registry=${shellQuote(pack.Registry)}`);
+    if (pack.Version) parts.push(`--ref=${shellQuote(pack.Version)}`);
+  }
+  parts.push(`--name=${shellQuote(release.Name)}`);
+  if (release.Namespace && release.Namespace !== 'default')
+    parts.push(`--namespace=${shellQuote(release.Namespace)}`);
+  Object.keys(values || {})
+    .sort()
+    .forEach((key) => {
+      const v = values[key];
+      const text = typeof v === 'string' ? v : JSON.stringify(v);
+      parts.push(`--var ${shellQuote(`${key}=${text}`)}`);
+    });
+  return parts.join(' \\\n  ');
+}

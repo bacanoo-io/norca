@@ -12,6 +12,9 @@
     </:subtitle>
     <:actions>
       <Ui::Button @route="objects" @query={{hash kind=this.kindId}}>All {{@kind}} objects</Ui::Button>
+      {{#if (and this.object this.kind this.canWrite)}}
+        <Ui::Button @variant="primary" @icon="pencil" data-test-edit-object {{on "click" this.openEditor}}>Edit</Ui::Button>
+      {{/if}}
     </:actions>
   </Ui::PageHeader>
 
@@ -35,7 +38,7 @@
         <div class="col-lg-6">
           <Ui::Card @title="Spec" @subtitle="Set by the user">
             <Ui::CodeBlock @label="Spec" @code={{this.specText}} data-test-object-spec />
-            <p class="text-secondary small mt-2 mb-0">Change the spec with the object API or CLI; it is checked against the schema and the CEL rules of the kind.</p>
+            <p class="text-secondary small mt-2 mb-0">Edit checks a changed spec against the schema and the CEL rules of the kind in a dry run before it is saved.</p>
           </Ui::Card>
         </div>
         <div class="col-lg-6">
@@ -99,4 +102,8 @@
       </div>
     {{/if}}
   </Ui::PageBody>
+
+  {{#if this.editing}}
+    <Objects::Editor @kind={{this.kind}} @object={{this.object}} @region={{this.region}} @onSaved={{this.saved}} @onClose={{this.closeEditor}} />
+  {{/if}}
 </div>

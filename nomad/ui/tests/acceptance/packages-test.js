@@ -10,7 +10,13 @@ import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import { seedReleases } from 'nomad-ui/mirage/norca/releases';
-import { useToken, lastBody, lastRequest } from 'nomad-ui/tests/helpers/norca';
+import {
+  useToken,
+  lastBody,
+  lastRequest,
+  setEditorText,
+  editorJSON,
+} from 'nomad-ui/tests/helpers/norca';
 
 const RELEASE = '/packages/platform/postgres-operator';
 
@@ -154,6 +160,41 @@ module('Acceptance | packages', function (hooks) {
       .exists({ count: 1 });
   });
 
+  test('values are edited against the variables schema and become an upgrade command', async function (assert) {
+    useToken(null, 'management');
+    await visit(RELEASE);
+    await click('[data-test-edit-values]');
+    assert.dom('[data-test-values-editor]').exists();
+    const values = editorJSON();
+    assert.strictEqual(values.replicas, 3, 'the deployed revision 3');
+    await a11yAudit(assert, STRICT);
+
+    await setEditorText({ ...values, replicas: 8 });
+    assert
+      .dom('[data-test-editor-problem]')
+      .includesText('replicas: must be at most 5');
+
+    await setEditorText({ ...values, replicas: 4 });
+    await click('[data-test-editor-review-button]');
+    assert.dom('[data-test-editor-review] [data-test-text-diff]').exists();
+    await click('[data-test-editor-submit]');
+    assert.dom('[data-test-values-command-ready]').exists();
+    const command = document
+      .querySelector('[data-test-values-command] pre')
+      .textContent.trim();
+    assert.ok(
+      command.startsWith('norca pack run postgres-operator'),
+      'renders the same pack'
+    );
+    assert.ok(command.includes("--name='postgres-operator'"));
+    assert.ok(command.includes("--namespace='platform'"));
+    assert.ok(command.includes("--var 'replicas=4'"));
+    assert.notOk(
+      lastRequest('PUT', '/v1/release/postgres-operator'),
+      'nothing is written by the UI'
+    );
+  });
+
   test('a token with read only sees the release without actions', async function (assert) {
     useToken({
       Namespaces: [
@@ -175,6 +216,7 @@ module('Acceptance | packages', function (hooks) {
     assert.dom('[data-test-rollback]').doesNotExist();
     assert.dom('[data-test-uninstall]').doesNotExist();
     assert.dom('[data-test-run-tests]').doesNotExist();
+    assert.dom('[data-test-edit-values]').doesNotExist();
   });
 
   test('without releases the list says how to install a package', async function (assert) {

@@ -116,6 +116,46 @@ module('Acceptance | scaling', function (hooks) {
     await a11yAudit(assert, STRICT);
   });
 
+  test('the policy is edited in the scaling block editor of its job', async function (assert) {
+    seedScaling(server);
+    server.create('namespace', { id: 'default' });
+    const job = server.create('job', {
+      id: 'api',
+      name: 'api',
+      groupCount: 0,
+      createAllocations: false,
+      shallow: true,
+      noActiveDeployment: true,
+      namespaceId: 'default',
+    });
+    const group = server.create('task-group', {
+      job,
+      name: 'web',
+      count: 3,
+      shallow: true,
+      withScaling: true,
+    });
+    job.update({ taskGroupIds: [group.id] });
+
+    await visit('/scaling/policy-api-web?namespace=default');
+    await click('[data-test-edit-scaling-policy]');
+    assert.dom('[data-test-scaling-policy-editor]').exists();
+    assert.dom('[data-test-unified-editor]').exists();
+    await a11yAudit(assert, STRICT);
+  });
+
+  test('a token without submit-job cannot edit a policy', async function (assert) {
+    seedScaling(server);
+    useToken({
+      Namespaces: [
+        { Name: 'default', Capabilities: ['list-jobs', 'read-job'] },
+      ],
+    });
+    await visit('/scaling/policy-api-web?namespace=default');
+    assert.dom('[data-test-page-title]').hasText('api / web');
+    assert.dom('[data-test-edit-scaling-policy]').doesNotExist();
+  });
+
   test('an unknown policy says what to do', async function (assert) {
     await visit('/scaling/nope?namespace=default');
     assert

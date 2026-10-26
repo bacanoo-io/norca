@@ -6,6 +6,9 @@
   <Ui::PageHeader @pretitle="Type definitions" @title={{this.id}} @subtitle={{this.kind.Description}}>
     <:actions>
       <Ui::Button @route="objects" @query={{hash kind=this.id}} @icon="box" data-test-kind-objects-link>Objects</Ui::Button>
+      {{#if (and this.kind this.canWrite)}}
+        <Ui::Button @variant="primary" @icon="pencil" data-test-edit-kind {{on "click" this.openEditor}}>Edit</Ui::Button>
+      {{/if}}
     </:actions>
   </Ui::PageHeader>
 
@@ -99,4 +102,8 @@
       {{/if}}
     {{/if}}
   </Ui::PageBody>
+
+  {{#if this.editing}}
+    <Kinds::Editor @kind={{this.kind}} @region={{this.region}} @onSaved={{this.saved}} @onClose={{this.closeEditor}} />
+  {{/if}}
 </div>

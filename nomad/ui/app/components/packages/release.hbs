@@ -16,6 +16,9 @@
         {{#if this.canWrite}}
           <Ui::Button @icon="player-play" @isLoading={{eq this.busy "test"}} data-test-run-tests {{on "click" this.runTests}}>Run tests</Ui::Button>
           <Ui::Button @icon="history" @disabled={{not this.rollbackTargets.length}} data-test-rollback {{on "click" (fn this.openRollback null)}}>Roll back</Ui::Button>
+          {{#if this.deployedRevision}}
+            <Ui::Button @icon="pencil" data-test-edit-values {{on "click" this.openValues}}>Edit values</Ui::Button>
+          {{/if}}
           <Ui::Button @variant="outline-danger" @icon="trash" data-test-uninstall {{on "click" this.askUninstall}}>Uninstall</Ui::Button>
         {{/if}}
       {{/if}}
@@ -238,5 +241,9 @@
       <p>The {{this.resources.length}} resources of the release are deleted in reverse apply order, then the release and its revisions. This cannot be undone.</p>
       <Ui::Switch @label="Skip the pre-delete and post-delete hooks" @checked={{this.skipHooks}} @onChange={{this.setSkipHooks}} data-test-skip-hooks />
     </Ui::Confirm>
+  {{/if}}
+
+  {{#if this.editingValues}}
+    <Packages::ValuesEditor @release={{this.release}} @revision={{this.deployedRevision}} @onClose={{this.closeValues}} />
   {{/if}}
 </div>

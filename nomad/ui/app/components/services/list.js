@@ -6,7 +6,6 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { inject as service } from '@ember/service';
-import { action } from '@ember/object';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import config from 'nomad-ui/config/environment';
@@ -17,6 +16,7 @@ import {
   healthSummary,
   mtlsMode,
 } from 'nomad-ui/utils/networking';
+import LocalList from 'nomad-ui/utils/local-list';
 
 const POLL_MS = 30000;
 
@@ -34,7 +34,6 @@ export default class ServicesList extends Component {
   @tracked regions = [];
   @tracked roots = null;
   @tracked isLoading = true;
-  @tracked filter = '';
 
   get scopedRegions() {
     return this.frame.scopedRegions;
@@ -59,19 +58,29 @@ export default class ServicesList extends Component {
 
   get columns() {
     const columns = [
-      { key: 'name', label: 'Service' },
-      { key: 'namespace', label: 'Namespace' },
+      { key: 'name', label: 'Service', sortable: true, hideable: false },
+      { key: 'namespace', label: 'Namespace', sortable: true },
     ];
     for (const r of this.regions)
       columns.push({
         key: `region-${r.region}`,
         label: this.isAllRegions ? r.region : 'Healthy',
+        sortable: true,
       });
     columns.push(
       { key: 'tags', label: 'Tags' },
-      { key: 'mtls', label: 'mTLS' }
+      { key: 'mtls', label: 'mTLS', sortable: true }
     );
     return columns;
+  }
+
+  list = new LocalList({
+    sortBy: 'name',
+    searchProps: ['name', 'namespace', 'tagText'],
+  });
+
+  get tableRows() {
+    return this.list.rows(this.rows);
   }
 
   get rows() {
@@ -96,20 +105,23 @@ export default class ServicesList extends Component {
         row.byRegion[r.region] = s.health;
       }
     }
-    const q = this.filter.trim().toLowerCase();
     return [...rows.values()]
-      .map((row) => ({
-        ...row,
-        tags: [...row.tags],
-        mtls: [...row.mtls].join(', '),
-        cells: this.regions.map((r) => row.byRegion[r.region] || null),
-      }))
-      .filter(
-        (row) =>
-          !q ||
-          row.name.toLowerCase().includes(q) ||
-          row.tags.some((t) => t.toLowerCase().includes(q))
-      )
+      .map((row) => {
+        const cells = this.regions.map((r) => ({
+          key: `region-${r.region}`,
+          health: row.byRegion[r.region] || null,
+        }));
+        return {
+          ...row,
+          ...Object.fromEntries(
+            cells.map((c) => [c.key, c.health ? c.health.passing : null])
+          ),
+          tags: [...row.tags],
+          tagText: [...row.tags].join(' '),
+          mtls: [...row.mtls].join(', '),
+          cells,
+        };
+      })
       .sort((a, b) =>
         a.name === b.name
           ? a.namespace.localeCompare(b.namespace)
@@ -241,9 +253,4 @@ export default class ServicesList extends Component {
       clearInterval(poll);
     };
   });
-
-  @action
-  setFilter(value) {
-    this.filter = value;
-  }
 }
