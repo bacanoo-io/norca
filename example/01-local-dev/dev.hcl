@@ -21,8 +21,10 @@ client {
     zone = "dev"
   }
 
-  # Discovery (nomadService, the API without ?healthy, DNS) returns only
-  # healthy instances by default.
+  # Service lookups of the workloads on this client (nomadService in
+  # templates, the Task API) return only healthy instances unless they ask
+  # with ?healthy=false. Other API calls return every instance unless they
+  # ask with ?healthy=true; the DNS server always answers with healthy ones.
   native_service_discovery {
     default_healthy_only = true
   }

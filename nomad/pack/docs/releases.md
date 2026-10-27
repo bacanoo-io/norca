@@ -41,9 +41,9 @@ norca pack uninstall cache                                            # delete e
 ```
 
 The release name is the deployment name with characters other than letters, digits, `.`, `_` and
-`-` replaced by `-`: `pack@ref` gives `pack-ref`, a local pack directory gives the pack name, and
-`--name` sets it. Use `--name` for a release whose pack version changes over time, as the default
-deployment name contains the version.
+`-` replaced by `-`. Without `--name` the deployment name is the pack name, so a release keeps its
+name when the registry is updated to a new version; with an explicit `--ref` it is `pack@ref`,
+which gives `pack-ref`. `--name` sets it.
 
 ## Releases and revisions
 

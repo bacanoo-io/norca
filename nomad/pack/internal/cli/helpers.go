@@ -248,12 +248,24 @@ func parseJob(cmd *baseCommand, hcl string, errCtx *errors.UIErrorContext) (*api
 	return parsedJob, nil
 }
 
-// Generates a deployment name if not specified. Default is pack@version.
+// Generates a deployment name if not specified. Default is the pack name, or
+// pack@ref if a ref was given with --ref.
 func getDeploymentName(c *baseCommand, cfg *caching.PackConfig) string {
 	if c.deploymentName == "" {
-		return caching.AppendRef(cfg.Name, cfg.Ref)
+		return defaultDeploymentName(cfg)
 	}
 	return c.deploymentName
+}
+
+// defaultDeploymentName returns the deployment name of a pack without
+// --name: the pack name, so that the deployment keeps its name when the
+// default ref of the registry changes, or pack@ref if a ref was given with
+// --ref.
+func defaultDeploymentName(cfg *caching.PackConfig) string {
+	if cfg.RefDefaulted {
+		return cfg.Name
+	}
+	return caching.AppendRef(cfg.Name, cfg.Ref)
 }
 
 // TODO: Move to a domain specific package.

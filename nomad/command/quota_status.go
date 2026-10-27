@@ -25,19 +25,21 @@ Usage: norca quota status [options] <quota>
   Status is used to view the status of a particular quota specification.
 
   If ACLs are enabled, this command requires a token with the 'quota:read'
-  capability and access to any namespaces that the quota is applied to.
+  capability.
 
 General Options:
 
   ` + generalOptionsUsage(usageOptsDefault) + `
 
 Status Specific Options:
-	
+
   -json
-    Output the latest quota status information in a JSON format.
-	
+    Output the quota specification in a JSON format. The usage is not
+    included; 'norca quota inspect -json' outputs the specification with the
+    usage of every region.
+
   -t
-    Format and display quota status information using a Go template.
+    Format and display the quota specification using a Go template.
 `
 
 	return strings.TrimSpace(helpText)

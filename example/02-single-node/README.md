@@ -160,8 +160,13 @@ curl --aws-sigv4 "aws:amz:us-east-1:s3" --user "norca-backup:<secret key>" \
 ```
 
 The `backup` block of `norca.hcl` points to this store (`endpoint`,
-`bucket`, `region` = the pack's `s3_region`, `force_path_style`); the first
-scheduled backup runs at the next full hour. The console is at
+`bucket`, `region` = the pack's `s3_region`, `force_path_style`). The first
+scheduled backup is due as soon as the agent is the leader; while the bucket
+does not exist the attempts fail and are retried every `retry_interval` (10
+minutes by default), so the first scheduled backup is taken at most about 10
+minutes after the bucket was created, and then one every full hour
+(`schedule`). `norca operator backup list` shows the last error and when the
+next one is due. The console is at
 `http://10.0.0.10:9001/rustfs/console/` with the same credentials.
 
 ### 8. Deploy the test application
@@ -277,6 +282,9 @@ token, or the `dev` token for the developer's view).
   restore.
 - **Packages**: the `test-app` and `rustfs` releases with their revisions.
 
-There is no page for the built-in secret store yet: use `norca secret ...`;
-the task events of an allocation show which provider delivered each secret
+- **Configuration → Secrets**: the secrets of the built-in secret store
+  (`test-app/db`, `rustfs/root`) with their versions and metadata
+  (`norca secret ...` on the command line).
+
+The task events of an allocation show which provider delivered each secret
 (`secret db: provider norca (fallback)`), never values.
