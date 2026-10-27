@@ -196,14 +196,24 @@ func (s *ServiceRegistration) DeleteByID(
 			minNomadServiceRegistrationVersion)
 	}
 
-	// Perform the ACL token resolution.
-	aclObj, err := s.srv.ResolveACL(args)
+	// Perform the ACL token resolution. Client nodes remove the
+	// registrations of the allocations they run with their secret ID.
+	aclObj, err := s.srv.ResolveClientOrACL(args)
 
 	switch err {
 	case nil:
-		// If ACLs are enabled, ensure the caller has the submit-job namespace
-		// capability.
-		if aclObj != nil {
+		if clientID := clientIdentity(args); clientID != "" {
+			// A client node may only remove registrations of its own node.
+			reg, err := s.srv.fsm.State().GetServiceRegistrationByID(nil, args.RequestNamespace(), args.ID)
+			if err != nil {
+				return err
+			}
+			if reg != nil && reg.NodeID != clientID {
+				return structs.ErrPermissionDenied
+			}
+		} else if aclObj != nil {
+			// If ACLs are enabled, ensure the caller has the submit-job
+			// namespace capability.
 			hasSubmitJob := aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob)
 			if !hasSubmitJob {
 				return structs.ErrPermissionDenied
