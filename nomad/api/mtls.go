@@ -23,6 +23,18 @@ const (
 	// TLS connections by SNI to the mTLS services of its region.
 	MTLSModeGateway = "gateway"
 
+	// MTLSChangeMode* are the change modes of an app mode mtls block: what
+	// happens to the running tasks after a certificate renewal or a new CA
+	// in the trust bundle.
+	MTLSChangeModeNoop    = "noop"
+	MTLSChangeModeSignal  = "signal"
+	MTLSChangeModeRestart = "restart"
+
+	// MTLSChangeOn* select the changes that trigger the change mode.
+	MTLSChangeOnAny         = "any"
+	MTLSChangeOnCertificate = "certificate"
+	MTLSChangeOnBundle      = "bundle"
+
 	// TopicServiceIntention is the event stream topic of service intention
 	// changes.
 	TopicServiceIntention Topic = "ServiceIntention"
@@ -47,6 +59,20 @@ type ServiceMTLS struct {
 	// Upstreams are the services a sidecar proxy exposes locally (sidecar
 	// mode only).
 	Upstreams []*ServiceMTLSUpstream `mapstructure:"upstream" hcl:"upstream,block"`
+
+	// ChangeMode is what happens to the running tasks using the certificate
+	// of an app mode service when the client writes a renewed certificate or
+	// a trust bundle with a new CA: "noop" (default), "signal" or
+	// "restart". A group service applies it to every task of the group, a
+	// task service to its task.
+	ChangeMode string `mapstructure:"change_mode" hcl:"change_mode,optional"`
+
+	// ChangeSignal is the signal sent with change mode "signal".
+	ChangeSignal string `mapstructure:"change_signal" hcl:"change_signal,optional"`
+
+	// ChangeOn selects the changes that trigger the change mode: "any"
+	// (default), "certificate" or "bundle".
+	ChangeOn string `mapstructure:"change_on" hcl:"change_on,optional"`
 }
 
 // ServiceMTLSUpstream is an upstream block of a service mtls block.

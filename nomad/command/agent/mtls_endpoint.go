@@ -15,7 +15,12 @@ func apiServiceMTLSToStructs(in *api.ServiceMTLS) *structs.ServiceMTLS {
 	if in == nil {
 		return nil
 	}
-	out := &structs.ServiceMTLS{Mode: in.Mode}
+	out := &structs.ServiceMTLS{
+		Mode:         in.Mode,
+		ChangeMode:   in.ChangeMode,
+		ChangeSignal: in.ChangeSignal,
+		ChangeOn:     in.ChangeOn,
+	}
 	for _, u := range in.Upstreams {
 		if u == nil {
 			continue

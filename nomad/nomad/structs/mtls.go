@@ -35,6 +35,21 @@ const (
 	// mTLS services of its region, without terminating them.
 	MTLSModeGateway = "gateway"
 
+	// MTLSChangeMode* say what happens to the running tasks that use the
+	// certificate of an app mode service when the client writes a renewed
+	// certificate or a trust bundle with a new CA: nothing (the default, the
+	// application reloads the files itself), a signal, or a restart.
+	MTLSChangeModeNoop    = "noop"
+	MTLSChangeModeSignal  = "signal"
+	MTLSChangeModeRestart = "restart"
+
+	// MTLSChangeOn* select the changes that trigger the change mode: any
+	// (the default), a new workload certificate only, or a new CA in the
+	// trust bundle only.
+	MTLSChangeOnAny         = "any"
+	MTLSChangeOnCertificate = "certificate"
+	MTLSChangeOnBundle      = "bundle"
+
 	// DefaultMTLSDNSDomain is the DNS domain of the service names written into
 	// workload certificates; it matches the default domain of the built-in
 	// DNS server.
@@ -82,6 +97,21 @@ type ServiceMTLS struct {
 	// Upstreams are the services the sidecar proxy exposes locally. They are
 	// only meaningful in sidecar mode.
 	Upstreams []*ServiceMTLSUpstream
+
+	// ChangeMode is what happens to the running tasks using the certificate
+	// of an app mode service when it is renewed or the trust bundle gains a
+	// CA: MTLSChangeModeNoop (empty means noop), MTLSChangeModeSignal or
+	// MTLSChangeModeRestart. A group service applies it to every task of
+	// the group except injected proxy tasks, a task service to its task.
+	// Sidecar and gateway modes don't use it: Envoy reloads the files.
+	ChangeMode string
+
+	// ChangeSignal is the signal sent with MTLSChangeModeSignal.
+	ChangeSignal string
+
+	// ChangeOn is MTLSChangeOnAny (empty means any), MTLSChangeOnCertificate
+	// or MTLSChangeOnBundle.
+	ChangeOn string
 }
 
 // ServiceMTLSUpstream is an upstream block of a service mtls block.
@@ -172,7 +202,7 @@ func (m *ServiceMTLS) Equal(o *ServiceMTLS) bool {
 	if m == nil || o == nil {
 		return m == o
 	}
-	if m.Mode != o.Mode {
+	if m.Mode != o.Mode || m.ChangeMode != o.ChangeMode || m.ChangeSignal != o.ChangeSignal || m.ChangeOn != o.ChangeOn {
 		return false
 	}
 	return slices.EqualFunc(m.Upstreams, o.Upstreams, func(a, b *ServiceMTLSUpstream) bool {
@@ -194,6 +224,7 @@ func (m *ServiceMTLS) Canonicalize() {
 	if len(m.Upstreams) == 0 {
 		m.Upstreams = nil
 	}
+	m.ChangeSignal = strings.ToUpper(m.ChangeSignal)
 }
 
 // Validate checks the mtls block.
@@ -253,7 +284,110 @@ func (m *ServiceMTLS) Validate() error {
 		mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls mode must be %q, %q or %q, not %q",
 			MTLSModeApp, MTLSModeSidecar, MTLSModeGateway, m.Mode))
 	}
+
+	switch m.ChangeMode {
+	case "", MTLSChangeModeNoop:
+	case MTLSChangeModeSignal, MTLSChangeModeRestart:
+		if m.NeedsProxy() {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf(
+				"mtls change_mode is only used in mode %q: in mode %q Envoy reloads the certificate itself", MTLSModeApp, m.Mode))
+		}
+	default:
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls change_mode must be %q, %q or %q, not %q",
+			MTLSChangeModeNoop, MTLSChangeModeSignal, MTLSChangeModeRestart, m.ChangeMode))
+	}
+	if m.ChangeMode == MTLSChangeModeSignal && m.ChangeSignal == "" {
+		mErr.Errors = append(mErr.Errors, errors.New("mtls change_mode signal requires a change_signal"))
+	}
+	if m.ChangeSignal != "" && m.ChangeMode != MTLSChangeModeSignal {
+		mErr.Errors = append(mErr.Errors, errors.New("mtls change_signal requires change_mode signal"))
+	}
+	switch m.ChangeOn {
+	case "":
+	case MTLSChangeOnAny, MTLSChangeOnCertificate, MTLSChangeOnBundle:
+		if m.ChangeMode != MTLSChangeModeSignal && m.ChangeMode != MTLSChangeModeRestart {
+			mErr.Errors = append(mErr.Errors, errors.New("mtls change_on requires change_mode signal or restart"))
+		}
+	default:
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("mtls change_on must be %q, %q or %q, not %q",
+			MTLSChangeOnAny, MTLSChangeOnCertificate, MTLSChangeOnBundle, m.ChangeOn))
+	}
 	return mErr.ErrorOrNil()
+}
+
+// MTLSChangeAction is what the client does to a running task after writing
+// new mTLS files: restart it, or send it signals. The zero value does
+// nothing.
+type MTLSChangeAction struct {
+	Restart bool
+
+	// Signals are sorted and unique; they are not sent with Restart.
+	Signals []string
+}
+
+// IsNoop returns whether the action does nothing.
+func (a MTLSChangeAction) IsNoop() bool {
+	return !a.Restart && len(a.Signals) == 0
+}
+
+// Merge combines two actions: a restart wins over signals, signals add up.
+func (a MTLSChangeAction) Merge(b MTLSChangeAction) MTLSChangeAction {
+	if a.Restart || b.Restart {
+		return MTLSChangeAction{Restart: true}
+	}
+	if len(a.Signals)+len(b.Signals) == 0 {
+		return MTLSChangeAction{}
+	}
+	signals := slices.Concat(a.Signals, b.Signals)
+	slices.Sort(signals)
+	return MTLSChangeAction{Signals: slices.Compact(signals)}
+}
+
+// changeActions returns the actions of an app mode mtls block for a renewed
+// certificate and for a trust bundle with a new CA.
+func (m *ServiceMTLS) changeActions() (cert, bundle MTLSChangeAction) {
+	if m == nil || m.NeedsProxy() {
+		return
+	}
+	var action MTLSChangeAction
+	switch m.ChangeMode {
+	case MTLSChangeModeRestart:
+		action.Restart = true
+	case MTLSChangeModeSignal:
+		if m.ChangeSignal == "" {
+			return
+		}
+		action.Signals = []string{m.ChangeSignal}
+	default:
+		return
+	}
+	switch m.ChangeOn {
+	case MTLSChangeOnCertificate:
+		return action, MTLSChangeAction{}
+	case MTLSChangeOnBundle:
+		return MTLSChangeAction{}, action
+	}
+	return action, action
+}
+
+// MTLSChangeActions returns what the client does to the running task after
+// writing a renewed workload certificate (cert) and a trust bundle with a new
+// CA (bundle): the combined change modes of the app mode mtls services of the
+// group and of the task. Injected Envoy tasks and Connect proxy and gateway
+// tasks are never restarted or signaled.
+func (tg *TaskGroup) MTLSChangeActions(task *Task) (cert, bundle MTLSChangeAction) {
+	if tg == nil || task == nil || task.Kind.IsMTLSProxy() || task.Kind.IsMTLSGateway() ||
+		task.Kind.IsConnectProxy() || task.Kind.IsAnyConnectGateway() {
+		return
+	}
+	for _, s := range slices.Concat(tg.Services, task.Services) {
+		if s == nil {
+			continue
+		}
+		c, b := s.MTLS.changeActions()
+		cert, bundle = cert.Merge(c), bundle.Merge(b)
+	}
+	return
 }
 
 var (

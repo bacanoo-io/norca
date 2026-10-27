@@ -4,10 +4,12 @@
 package taskrunner
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -19,11 +21,14 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/hashicorp/consul-template/signals"
 	log "github.com/hashicorp/go-hclog"
 
 	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
+	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
 	"github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/helper/users"
@@ -54,28 +59,85 @@ var (
 	// mtlsRootsWait is the maximum duration of a blocking query on the
 	// trust bundle.
 	mtlsRootsWait = 5 * time.Minute
+
+	// mtlsChangeCoalesce and mtlsChangeSplay delay the change mode after new
+	// files were written: changes within the delay (a renewal and a new CA
+	// at once) lead to one restart or signal, and the random splay spreads
+	// the tasks of a node that learn about a new CA at the same moment.
+	mtlsChangeCoalesce = time.Second
+	mtlsChangeSplay    = 5 * time.Second
+
+	// mtlsChangeMaxWait bounds how long the change mode waits for the
+	// re-issued certificate after a CA rotation, and mtlsChangePoll how often
+	// it checks.
+	mtlsChangeMaxWait = 2 * time.Minute
+	mtlsChangePoll    = 250 * time.Millisecond
 )
+
+// mtlsChange is a set of changed mTLS files.
+type mtlsChange uint8
+
+const (
+	// mtlsChangeCert: a new workload certificate and key.
+	mtlsChangeCert mtlsChange = 1 << iota
+
+	// mtlsChangeBundle: a trust bundle with a CA the previous one didn't
+	// have. Removing a retired CA is not a change the task must react to.
+	mtlsChangeBundle
+)
+
+// String returns the task event message of the changes.
+func (c mtlsChange) String() string {
+	switch c {
+	case mtlsChangeCert:
+		return "mTLS certificate renewed"
+	case mtlsChangeBundle:
+		return "mTLS trust bundle rotated"
+	default:
+		return "mTLS certificate renewed and trust bundle rotated"
+	}
+}
 
 // mtlsHook gets a short-lived workload certificate for tasks of task groups
 // with an mtls service, writes it with its key and the trust bundle into the
 // secrets directory, renews it after two thirds of its lifetime, and
 // re-issues it when the CA of the region rotates. The key pair is generated
-// here; only the CSR is sent to the servers.
+// here; only the CSR is sent to the servers. After writing a new certificate
+// or a bundle with a new CA, it applies the change mode of the app mode mtls
+// services of the task (noop, signal or restart) to the running task.
 type mtlsHook struct {
-	alloc    *structs.Allocation
-	taskName string
-	taskUser string
-	rpc      config.RPCer
-	region   string
-	nodeKey  string
-	events   eventEmitter
-	logger   log.Logger
+	alloc     *structs.Allocation
+	taskName  string
+	taskUser  string
+	rpc       config.RPCer
+	region    string
+	nodeKey   string
+	events    eventEmitter
+	lifecycle ti.TaskLifecycle
+	logger    log.Logger
 
-	lock    sync.Mutex
-	dir     string
-	cancel  context.CancelFunc
-	cert    *mtlsIssued
-	rootIdx uint64
+	lock       sync.Mutex
+	dir        string
+	cancel     context.CancelFunc
+	cert       *mtlsIssued
+	rootIdx    uint64
+	activeRoot string
+
+	// changeLock guards the change mode state: the actions for a new
+	// certificate and a new CA (updated with the allocation), and the
+	// changes not applied yet. changeCh wakes up applyChanges.
+	changeLock     sync.Mutex
+	onCert         structs.MTLSChangeAction
+	onBundle       structs.MTLSChangeAction
+	pendingChanges mtlsChange
+	changeCh       chan struct{}
+	changeCoalesce time.Duration
+	changeSplay    time.Duration
+
+	// reissuing is set while the certificate is re-issued after a CA
+	// rotation: the change mode waits for it, so the task is restarted or
+	// signaled once, with both new files.
+	reissuing atomic.Bool
 }
 
 // eventEmitter is the part of the task runner the hook uses.
@@ -92,27 +154,48 @@ type mtlsIssued struct {
 }
 
 type mtlsHookConfig struct {
-	alloc   *structs.Allocation
-	task    *structs.Task
-	rpc     config.RPCer
-	region  string
-	nodeKey string
-	events  eventEmitter
-	logger  log.Logger
+	alloc     *structs.Allocation
+	task      *structs.Task
+	rpc       config.RPCer
+	region    string
+	nodeKey   string
+	events    eventEmitter
+	lifecycle ti.TaskLifecycle
+	logger    log.Logger
 }
 
 func newMTLSHook(c *mtlsHookConfig) *mtlsHook {
 	h := &mtlsHook{
-		alloc:    c.alloc,
-		taskName: c.task.Name,
-		taskUser: c.task.User,
-		rpc:      c.rpc,
-		region:   c.region,
-		nodeKey:  c.nodeKey,
-		events:   c.events,
+		alloc:     c.alloc,
+		taskName:  c.task.Name,
+		taskUser:  c.task.User,
+		rpc:       c.rpc,
+		region:    c.region,
+		nodeKey:   c.nodeKey,
+		events:    c.events,
+		lifecycle: c.lifecycle,
+		changeCh:  make(chan struct{}, 1),
+
+		changeCoalesce: mtlsChangeCoalesce,
+		changeSplay:    mtlsChangeSplay,
 	}
 	h.logger = c.logger.Named(h.Name())
+	h.setChangeActions(c.alloc)
 	return h
+}
+
+// setChangeActions reads the change modes of the task from the job of the
+// allocation.
+func (h *mtlsHook) setChangeActions(alloc *structs.Allocation) {
+	var cert, bundle structs.MTLSChangeAction
+	if alloc != nil && alloc.Job != nil {
+		if tg := alloc.Job.LookupTaskGroup(alloc.TaskGroup); tg != nil {
+			cert, bundle = tg.MTLSChangeActions(tg.LookupTask(h.taskName))
+		}
+	}
+	h.changeLock.Lock()
+	defer h.changeLock.Unlock()
+	h.onCert, h.onBundle = cert, bundle
 }
 
 func (*mtlsHook) Name() string {
@@ -128,6 +211,12 @@ func (h *mtlsHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartReq
 		return fmt.Errorf("failed to create the mtls directory: %w", err)
 	}
 
+	// A task restored after a client restart is still running with the
+	// files it read when it started, so new files are a change for it.
+	// Otherwise the task is about to start and reads the current files.
+	restored := h.lifecycle != nil && h.lifecycle.IsRunning()
+	var changes mtlsChange
+
 	// A restarted task keeps a certificate that is still valid; the renewal
 	// loop is already running.
 	if h.cert == nil || !time.Now().Before(h.renewAt(h.cert)) {
@@ -135,19 +224,44 @@ func (h *mtlsHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartReq
 		if err != nil {
 			return err
 		}
-		if err := h.writeBundle(roots); err != nil {
+		added, err := h.writeBundle(roots)
+		if err != nil {
 			return err
+		}
+		if added {
+			changes |= mtlsChangeBundle
 		}
 		h.rootIdx = roots.Index
-		if err := h.issueWithRetry(ctx); err != nil {
-			return err
+		h.activeRoot = roots.ActiveRootID
+
+		// After a client restart, keep the certificate the task uses
+		// while it is valid and signed by the active CA.
+		if h.cert == nil {
+			h.cert = h.loadCert(roots)
 		}
+		if h.cert == nil || !time.Now().Before(h.renewAt(h.cert)) || h.cert.rootID != roots.ActiveRootID {
+			if err := h.issueWithRetry(ctx); err != nil {
+				return err
+			}
+			changes |= mtlsChangeCert
+		}
+	}
+
+	if restored {
+		if changes != 0 {
+			h.changed(changes)
+		}
+	} else {
+		h.changeLock.Lock()
+		h.pendingChanges = 0
+		h.changeLock.Unlock()
 	}
 
 	if h.cancel == nil {
 		loopCtx, cancel := context.WithCancel(context.Background())
 		h.cancel = cancel
 		go h.run(loopCtx)
+		go h.applyChanges(loopCtx)
 	}
 
 	inTask := filepath.Join(req.TaskEnv.EnvMap[taskenv.SecretsDir], mtlsDir)
@@ -169,6 +283,12 @@ func (h *mtlsHook) Stop(context.Context, *interfaces.TaskStopRequest, *interface
 // Shutdown ends the renewal loop when the client shuts down.
 func (h *mtlsHook) Shutdown() {
 	h.stop()
+}
+
+// Update picks up changed change modes of an in-place job update.
+func (h *mtlsHook) Update(_ context.Context, req *interfaces.TaskUpdateRequest, _ *interfaces.TaskUpdateResponse) error {
+	h.setChangeActions(req.Alloc)
+	return nil
 }
 
 func (h *mtlsHook) stop() {
@@ -224,11 +344,23 @@ func (h *mtlsHook) run(ctx context.Context) {
 				return
 			case <-time.After(delay):
 			}
+			// A renewal in the meantime may have used the new CA.
+			h.lock.Lock()
+			current := h.cert != nil && h.cert.rootID == h.activeRoot
+			h.lock.Unlock()
+			if current {
+				h.reissuing.Store(false)
+				continue
+			}
 		}
 
 		h.lock.Lock()
 		err := h.issueWithRetry(ctx)
 		h.lock.Unlock()
+		if err == nil {
+			h.changed(mtlsChangeCert)
+		}
+		h.reissuing.Store(false)
 		if err != nil && ctx.Err() == nil {
 			h.logger.Error("failed to renew the mTLS certificate", "error", err)
 			h.events.EmitEvent(structs.NewTaskEvent(structs.TaskHookFailed).
@@ -276,15 +408,23 @@ func (h *mtlsHook) watchRoots(ctx context.Context, rotated chan<- struct{}) {
 		h.lock.Lock()
 		changed := roots.Index != h.rootIdx
 		h.rootIdx = roots.Index
-		var stale bool
+		var stale, added bool
 		if changed {
-			if err := h.writeBundle(roots); err != nil {
+			var err error
+			if added, err = h.writeBundle(roots); err != nil {
 				h.logger.Error("failed to write the mTLS trust bundle", "error", err)
 			}
+			h.activeRoot = roots.ActiveRootID
 			stale = h.cert != nil && roots.ActiveRootID != "" && roots.ActiveRootID != h.cert.rootID
+			if stale {
+				h.reissuing.Store(true)
+			}
 		}
 		h.lock.Unlock()
 
+		if added {
+			h.changed(mtlsChangeBundle)
+		}
 		if stale {
 			h.logger.Info("certificate authority rotated, re-issuing the mTLS certificate", "root_id", roots.ActiveRootID)
 			select {
@@ -427,8 +567,10 @@ func (h *mtlsHook) issue() error {
 	return nil
 }
 
-// writeBundle writes the trust bundle file. The caller holds the lock.
-func (h *mtlsHook) writeBundle(roots *structs.MTLSRootsResponse) error {
+// writeBundle writes the trust bundle file when its contents changed, and
+// returns whether the new bundle has a CA the previous file didn't have. The
+// caller holds the lock.
+func (h *mtlsHook) writeBundle(roots *structs.MTLSRootsResponse) (bool, error) {
 	var b strings.Builder
 	for _, root := range roots.Roots {
 		if root == nil || root.RootCert == "" {
@@ -438,9 +580,189 @@ func (h *mtlsHook) writeBundle(roots *structs.MTLSRootsResponse) error {
 		b.WriteString("\n")
 	}
 	if b.Len() == 0 {
-		return errors.New("the trust bundle is empty")
+		return false, errors.New("the trust bundle is empty")
 	}
-	return h.writeFile(mtlsCAFile, []byte(b.String()))
+	bundle := []byte(b.String())
+	old, _ := os.ReadFile(filepath.Join(h.dir, mtlsCAFile))
+	if bytes.Equal(old, bundle) {
+		return false, nil
+	}
+	if err := h.writeFile(mtlsCAFile, bundle); err != nil {
+		return false, err
+	}
+	return mtlsBundleAdded(old, bundle), nil
+}
+
+// mtlsBundleAdded returns whether the PEM bundle next has a certificate prev
+// doesn't have.
+func mtlsBundleAdded(prev, next []byte) bool {
+	have := make(map[string]struct{})
+	for rest := prev; ; {
+		var block *pem.Block
+		if block, rest = pem.Decode(rest); block == nil {
+			break
+		}
+		have[string(block.Bytes)] = struct{}{}
+	}
+	for rest := next; ; {
+		var block *pem.Block
+		if block, rest = pem.Decode(rest); block == nil {
+			return false
+		}
+		if _, ok := have[string(block.Bytes)]; !ok {
+			return true
+		}
+	}
+}
+
+// loadCert returns the certificate a task restored after a client restart
+// uses: the files of the mtls directory, if the key matches the certificate
+// and a CA of the trust bundle signed it. The caller holds the lock.
+func (h *mtlsHook) loadCert(roots *structs.MTLSRootsResponse) *mtlsIssued {
+	certPEM, err := os.ReadFile(filepath.Join(h.dir, mtlsCertFile))
+	if err != nil {
+		return nil
+	}
+	keyPEM, err := os.ReadFile(filepath.Join(h.dir, mtlsKeyFile))
+	if err != nil {
+		return nil
+	}
+	pair, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil
+	}
+	leaf, err := x509.ParseCertificate(pair.Certificate[0])
+	if err != nil || len(leaf.URIs) != 1 || !time.Now().Before(leaf.NotAfter) {
+		return nil
+	}
+	for _, root := range roots.Roots {
+		if root == nil {
+			continue
+		}
+		block, _ := pem.Decode([]byte(root.RootCert))
+		if block == nil {
+			continue
+		}
+		ca, err := x509.ParseCertificate(block.Bytes)
+		if err != nil || leaf.CheckSignatureFrom(ca) != nil {
+			continue
+		}
+		cert := &mtlsIssued{
+			rootID:    root.ID,
+			spiffeID:  leaf.URIs[0].String(),
+			notBefore: leaf.NotBefore,
+			notAfter:  leaf.NotAfter,
+		}
+		h.logger.Debug("using the existing mTLS certificate", "spiffe_id", cert.spiffeID, "not_after", cert.notAfter)
+		return cert
+	}
+	return nil
+}
+
+// changed records new files for the change mode.
+func (h *mtlsHook) changed(c mtlsChange) {
+	h.changeLock.Lock()
+	h.pendingChanges |= c
+	h.changeLock.Unlock()
+	select {
+	case h.changeCh <- struct{}{}:
+	default:
+	}
+}
+
+// applyChanges applies the change mode after new files were written, until
+// the context ends. Changes during a short delay with a random splay are
+// coalesced; after a CA rotation, it also waits for the re-issued
+// certificate, so the new CA in the bundle and the new certificate lead to a
+// single restart or signal.
+func (h *mtlsHook) applyChanges(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-h.changeCh:
+		}
+
+		deadline := time.Now().Add(mtlsChangeMaxWait)
+		delay := h.changeCoalesce
+		if h.changeSplay > 0 {
+			delay += time.Duration(mrand.Int63n(int64(h.changeSplay)))
+		}
+		timer := time.NewTimer(delay)
+	wait:
+		for {
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+				if h.reissuing.Load() && time.Now().Before(deadline) {
+					timer.Reset(mtlsChangePoll)
+					continue
+				}
+				break wait
+			}
+		}
+
+		// Changes recorded until now are applied by this round.
+		select {
+		case <-h.changeCh:
+		default:
+		}
+		h.changeLock.Lock()
+		changes := h.pendingChanges
+		h.pendingChanges = 0
+		onCert, onBundle := h.onCert, h.onBundle
+		h.changeLock.Unlock()
+		h.apply(ctx, changes, onCert, onBundle)
+	}
+}
+
+// apply restarts or signals the running task for changed files.
+func (h *mtlsHook) apply(ctx context.Context, changes mtlsChange, onCert, onBundle structs.MTLSChangeAction) {
+	var action structs.MTLSChangeAction
+	if changes&mtlsChangeCert != 0 {
+		action = action.Merge(onCert)
+	}
+	if changes&mtlsChangeBundle != 0 {
+		action = action.Merge(onBundle)
+	}
+	if action.IsNoop() || h.lifecycle == nil {
+		return
+	}
+	// A task that isn't running reads the current files when it starts.
+	if !h.lifecycle.IsRunning() {
+		return
+	}
+
+	msg := changes.String()
+	if action.Restart {
+		h.logger.Info("restarting the task", "reason", msg)
+		err := h.lifecycle.Restart(ctx, structs.NewTaskEvent(structs.TaskRestartSignal).SetDisplayMessage(msg), false)
+		if err != nil && !errors.Is(err, ErrTaskNotRunning) && ctx.Err() == nil {
+			h.logger.Error("failed to restart the task", "reason", msg, "error", err)
+		}
+		return
+	}
+	for _, name := range action.Signals {
+		sig, err := signals.Parse(name)
+		if err != nil {
+			h.events.EmitEvent(structs.NewTaskEvent(structs.TaskHookFailed).
+				SetDisplayMessage(fmt.Sprintf("mtls: invalid change_signal %q", name)))
+			continue
+		}
+		h.logger.Debug("signaling the task", "signal", name, "reason", msg)
+		event := structs.NewTaskEvent(structs.TaskSignaling).SetTaskSignal(sig).SetDisplayMessage(msg)
+		err = h.lifecycle.Signal(event, name)
+		if err == nil || errors.Is(err, ErrTaskNotRunning) {
+			continue
+		}
+		// Like templates: a task that can't be told about its new
+		// certificate is killed, and its restart policy applies.
+		_ = h.lifecycle.Kill(ctx, structs.NewTaskEvent(structs.TaskKilling).SetFailsTask().
+			SetDisplayMessage(fmt.Sprintf("mtls: failed to send signal %s: %v", name, err)))
+		return
+	}
 }
 
 // writeFile atomically replaces a file of the mtls directory, owned by the

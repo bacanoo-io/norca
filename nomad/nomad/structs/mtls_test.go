@@ -68,6 +68,19 @@ func TestServiceMTLS_Validate(t *testing.T) {
 			err:  "requires a service",
 		},
 		{name: "bad mode", mtls: &ServiceMTLS{Mode: "magic"}, err: "mtls mode must be"},
+		{name: "change mode restart", mtls: &ServiceMTLS{ChangeMode: MTLSChangeModeRestart}},
+		{name: "change mode noop", mtls: &ServiceMTLS{ChangeMode: MTLSChangeModeNoop}},
+		{name: "change mode signal", mtls: &ServiceMTLS{ChangeMode: MTLSChangeModeSignal, ChangeSignal: "sighup", ChangeOn: MTLSChangeOnBundle}},
+		{name: "change on certificate", mtls: &ServiceMTLS{ChangeMode: MTLSChangeModeRestart, ChangeOn: MTLSChangeOnCertificate}},
+		{name: "change on any", mtls: &ServiceMTLS{ChangeMode: MTLSChangeModeRestart, ChangeOn: MTLSChangeOnAny}},
+		{name: "bad change mode", mtls: &ServiceMTLS{ChangeMode: "script"}, err: "mtls change_mode must be"},
+		{name: "signal without signal", mtls: &ServiceMTLS{ChangeMode: MTLSChangeModeSignal}, err: "requires a change_signal"},
+		{name: "signal with restart", mtls: &ServiceMTLS{ChangeMode: MTLSChangeModeRestart, ChangeSignal: "SIGHUP"}, err: "change_signal requires change_mode signal"},
+		{name: "change on without mode", mtls: &ServiceMTLS{ChangeOn: MTLSChangeOnBundle}, err: "change_on requires change_mode"},
+		{name: "bad change on", mtls: &ServiceMTLS{ChangeMode: MTLSChangeModeRestart, ChangeOn: "key"}, err: "mtls change_on must be"},
+		{name: "change mode in sidecar mode", mtls: &ServiceMTLS{Mode: MTLSModeSidecar, ChangeMode: MTLSChangeModeRestart}, err: "Envoy reloads"},
+		{name: "change mode in gateway mode", mtls: &ServiceMTLS{Mode: MTLSModeGateway, ChangeMode: MTLSChangeModeSignal, ChangeSignal: "SIGHUP"}, err: "only used in mode"},
+		{name: "noop in sidecar mode", mtls: &ServiceMTLS{Mode: MTLSModeSidecar, ChangeMode: MTLSChangeModeNoop}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -203,6 +216,119 @@ func TestServiceDiff_MTLS(t *testing.T) {
 	must.Len(t, 1, d.Objects[0].Fields)
 	must.Eq(t, "Region", d.Objects[0].Fields[0].Name)
 	must.Eq(t, "eu", d.Objects[0].Fields[0].New)
+}
+
+func TestServiceMTLS_ChangeMode(t *testing.T) {
+	ci.Parallel(t)
+
+	m := &ServiceMTLS{ChangeMode: MTLSChangeModeSignal, ChangeSignal: "sighup", ChangeOn: MTLSChangeOnBundle}
+	m.Canonicalize()
+	must.Eq(t, "SIGHUP", m.ChangeSignal)
+	must.Eq(t, MTLSModeApp, m.Mode)
+
+	// Copy and Equal
+	c := m.Copy()
+	must.Eq(t, m, c)
+	must.True(t, c.Equal(m))
+	for _, edit := range []func(*ServiceMTLS){
+		func(m *ServiceMTLS) { m.ChangeMode = MTLSChangeModeRestart },
+		func(m *ServiceMTLS) { m.ChangeSignal = "SIGUSR1" },
+		func(m *ServiceMTLS) { m.ChangeOn = MTLSChangeOnAny },
+	} {
+		e := m.Copy()
+		edit(e)
+		must.False(t, e.Equal(m))
+		must.True(t, c.Equal(m))
+	}
+
+	// Diff
+	edited := m.Copy()
+	edited.ChangeMode, edited.ChangeSignal, edited.ChangeOn = MTLSChangeModeRestart, "", ""
+	d := serviceMTLSDiff(m, edited, false)
+	must.NotNil(t, d)
+	must.Eq(t, DiffTypeEdited, d.Type)
+	fields := map[string][2]string{}
+	for _, f := range d.Fields {
+		fields[f.Name] = [2]string{f.Old, f.New}
+	}
+	must.Eq(t, map[string][2]string{
+		"ChangeMode":   {"signal", "restart"},
+		"ChangeSignal": {"SIGHUP", ""},
+		"ChangeOn":     {"bundle", ""},
+	}, fields)
+
+	// Not a destructive change of a sidecar.
+	a := &TaskGroup{Services: []*Service{{Name: "api", MTLS: &ServiceMTLS{Mode: MTLSModeApp}}}}
+	b := a.Copy()
+	b.Services[0].MTLS.ChangeMode = MTLSChangeModeRestart
+	must.False(t, MTLSProxiesChanged(a, b))
+}
+
+func TestTaskGroup_MTLSChangeActions(t *testing.T) {
+	ci.Parallel(t)
+
+	restart := MTLSChangeAction{Restart: true}
+	signals := func(s ...string) MTLSChangeAction { return MTLSChangeAction{Signals: s} }
+	app := func(name, mode, signal, on string) *Service {
+		return &Service{Name: name, Provider: ServiceProviderNomad,
+			MTLS: &ServiceMTLS{Mode: MTLSModeApp, ChangeMode: mode, ChangeSignal: signal, ChangeOn: on}}
+	}
+
+	tg := &TaskGroup{
+		Name: "g",
+		Services: []*Service{
+			app("api", MTLSChangeModeSignal, "SIGHUP", ""),
+			{Name: "plain", Provider: ServiceProviderNomad},
+			{Name: "proxied", PortLabel: "8080", Provider: ServiceProviderNomad, MTLS: &ServiceMTLS{Mode: MTLSModeSidecar}},
+		},
+		Tasks: []*Task{
+			{Name: "app"},
+			{Name: "restarting", Services: []*Service{app("admin", MTLSChangeModeRestart, "", MTLSChangeOnBundle)}},
+			{Name: "signals", Services: []*Service{
+				app("a", MTLSChangeModeSignal, "SIGUSR1", MTLSChangeOnCertificate),
+				app("b", MTLSChangeModeSignal, "SIGHUP", ""),
+			}},
+			{Name: "noop", Services: []*Service{app("n", "", "", "")}},
+			{Name: "mtls-proxy-proxied", Kind: NewTaskKind(MTLSProxyPrefix, "proxied")},
+			{Name: "connect-proxy-x", Kind: NewTaskKind(ConnectProxyPrefix, "x")},
+		},
+	}
+
+	check := func(task string, cert, bundle MTLSChangeAction) {
+		t.Helper()
+		c, b := tg.MTLSChangeActions(tg.LookupTask(task))
+		must.Eq(t, cert, c, must.Sprintf("task %s cert", task))
+		must.Eq(t, bundle, b, must.Sprintf("task %s bundle", task))
+	}
+	// The group service applies to every task.
+	check("app", signals("SIGHUP"), signals("SIGHUP"))
+	// Restart wins over signals.
+	check("restarting", signals("SIGHUP"), restart)
+	// Signals add up, per trigger.
+	check("signals", signals("SIGHUP", "SIGUSR1"), signals("SIGHUP"))
+	check("noop", signals("SIGHUP"), signals("SIGHUP"))
+	// Proxy tasks are left alone.
+	check("mtls-proxy-proxied", MTLSChangeAction{}, MTLSChangeAction{})
+	check("connect-proxy-x", MTLSChangeAction{}, MTLSChangeAction{})
+	c, b := (*TaskGroup)(nil).MTLSChangeActions(nil)
+	must.True(t, c.IsNoop())
+	must.True(t, b.IsNoop())
+
+	// The signals are required signals of the tasks.
+	tg.Tasks[0].KillSignal = "SIGINT"
+	required := (&Job{TaskGroups: []*TaskGroup{tg}}).RequiredSignals()
+	must.Eq(t, map[string][]string{
+		"app":        {"SIGHUP", "SIGINT"},
+		"restarting": {"SIGHUP"},
+		"signals":    {"SIGHUP", "SIGUSR1"},
+		"noop":       {"SIGHUP"},
+	}, required["g"])
+
+	// Without a group service, the restart of a task service needs no signal.
+	tg.Services = nil
+	tg.Tasks[0].KillSignal = ""
+	required = (&Job{TaskGroups: []*TaskGroup{tg}}).RequiredSignals()
+	must.Eq(t, map[string][]string{"signals": {"SIGHUP", "SIGUSR1"}}, required["g"])
 }
 
 func TestTaskGroup_ValidateMTLSProxies(t *testing.T) {
