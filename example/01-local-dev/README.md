@@ -126,6 +126,8 @@ Then stop the agent with Ctrl-C: the dev agent keeps nothing.
 - **Packages**: the `test-app` release and its revisions.
 - **Topology** and **Clients**: the node with its zone `dev`.
 
-The built-in secret store has no page in the UI yet: use `norca secret ...`.
+- **Configuration → Secrets**: the secrets of the built-in secret store with
+  their versions and metadata (`norca secret ...` on the command line).
+
 The task events of the allocation show which provider delivered each secret,
 never the value.
