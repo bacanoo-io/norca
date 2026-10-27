@@ -29,7 +29,7 @@ Each scenario builds on the previous one; read 02 before 03 and 03 before 04.
 | The Docker driver (every scenario) | Linux with Docker (01 also works on macOS with Docker) |
 | Bridge networking (`network { mode = "bridge" }`, the default of the test app outside 01) | A root client and the [CNI reference plugins](https://github.com/containernetworking/plugins/releases) in `/opt/cni/bin` |
 | Network rules (03) | Bridge networking and a kernel with nftables (`nf_tables`); the client sets the node attribute `norca.network_policy.nftables` |
-| Native mTLS sidecars and gateways (03, 04) | Docker; the clients pull the Envoy image (`envoyproxy/envoy:v1.40.1` by default, configurable by node meta, see [docs/native-mtls.md](../docs/native-mtls.md#envoy-image)) |
+| Native mTLS sidecars and gateways (03, 04) | Docker; the clients pull the Envoy image (`envoyproxy/envoy:v1.40.1` by default, configurable by node meta, see [native mTLS: sidecar and gateway](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md#envoy-image)) |
 | Backups (02–04) | An S3-compatible store (RustFS with the `rustfs` pack, AWS S3, ...); [age](https://github.com/FiloSottile/age) for the backup key pair |
 | The packs of the registry (02–04) | git and access to GitHub, or a checkout of the [Norca pack registry](https://github.com/bacanoo-io/norca-registry) |
 | The LoadBalancer operator (03) | Go, to build `norca-loadbalancer`, and the `raw_exec` driver |
@@ -112,12 +112,12 @@ Not shown, with pointers:
 
 - Admission **webhooks** (`server { admission { webhook ... } }`) and the
   webhooks of object kinds: they need a webhook service with a
-  certificate; see [kubernetes-features-spec.md, item 2](../docs/design/kubernetes-features-spec.md#2-dynamic-admission-control)
+  certificate; see [kubernetes-features-spec.md, item 2](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/kubernetes-features-spec.md#2-dynamic-admission-control)
   and the [loadbalancer-operator pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/loadbalancer-operator/README.md#webhooks).
 - Native mTLS **app mode** (`mtls { mode = "app" }`): the application must
   load the workload certificate itself (Go library `api/mtls`).
 - Full region restore with two-person approval and `restore-bootstrap`
-  (mentioned in 02), keyring restore: [backup plan](../docs/design/backup-restore-plan.md).
+  (mentioned in 02), keyring restore: [backup plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/backup-restore-plan.md).
 - The `consul` pack (mentioned in 03): Consul is BSL 1.1 and is installed from
   HashiCorp's release after you accept its license.
 - The event stream → NATS bridge (`bridge_enabled` of the `nats` pack, mentioned

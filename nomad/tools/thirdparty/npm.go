@@ -641,7 +641,7 @@ func collectNPM(uiDir string, src *npmSource, legacy bool) ([]*npmPackage, []str
 		pkgs = append(pkgs, p)
 
 		if forbiddenNPM[name] {
-			problems = append(problems, fmt.Sprintf("npm %s: the package is forbidden (docs/licensing.md); via %s", k, p.Via))
+			problems = append(problems, fmt.Sprintf("npm %s: the package is forbidden (norca-doc content/docs/introduction/license.md); via %s", k, p.Via))
 			continue
 		}
 		if o := findOverride("npm", name, e.Version); o != nil {

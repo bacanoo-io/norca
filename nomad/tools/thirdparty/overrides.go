@@ -33,7 +33,7 @@ type override struct {
 	// generated with it, but `-strict` (used by the release workflow) fails.
 	Pending bool
 	// Exception marks a decided exception to the allow-list, documented in
-	// docs/licensing.md: License may be a license that is not allowed.
+	// norca-doc content/docs/introduction/license.md: License may be a license that is not allowed.
 	Exception bool
 	// LegacyOnly limits the override to the previous UI (nomad/ui-legacy):
 	// a package of the web UI that matches it fails the check.

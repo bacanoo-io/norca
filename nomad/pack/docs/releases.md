@@ -9,7 +9,7 @@ When the Norca servers support it, `norca pack run` does not deploy jobs from th
 it renders the pack and sends the rendered resources to the servers, which apply them in a fixed
 order, record an immutable revision of the **release**, and can roll it back, test it, detect drift
 and uninstall it. Rendering stays on the client. See the
-[package management plan](../../../docs/design/package-management-plan.md) for the design.
+[package management plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md) for the design.
 
 - [Quick start](#quick-start)
 - [Releases and revisions](#releases-and-revisions)

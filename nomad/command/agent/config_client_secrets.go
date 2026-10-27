@@ -13,7 +13,7 @@ import (
 
 // ClientSecretsConfig is the client's secrets block: the routes that pick
 // the provider of a secret lookup by its path when neither the secret block
-// nor the template call names one (docs/design/secrets-plan.md, "Provider
+// nor the template call names one (norca-doc content/docs/design/secrets-plan.md, "Provider
 // resolution and fallback", step 2). The longest matching prefix wins.
 //
 //	client {
@@ -32,7 +32,7 @@ import (
 //
 // Without a Vault integration, Vault-style lookups (the Vault "secret"
 // template function and tasks with a vault block) are served by the built-in
-// store (docs/design/secrets-plan.md, "Vault compatibility"). The vault_kv
+// store (norca-doc content/docs/design/secrets-plan.md, "Vault compatibility"). The vault_kv
 // rules map their Vault paths onto the store, the vault_compat block
 // configures the Vault-compatible read endpoint of tasks with a vault block:
 //

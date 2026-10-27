@@ -198,7 +198,7 @@ terminating it.
 Intentions are regional: unlike ACL policies, namespaces and quotas they
 are not replicated from eu-1, so the intention is created with
 `-region eu-1`, where test-api runs; an intention in eu-2 has no effect on
-it. See [native-mtls.md](../../docs/native-mtls.md#authorization).
+it. See [native-mtls.md](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md#authorization).
 
 ### 7. NATS supercluster
 

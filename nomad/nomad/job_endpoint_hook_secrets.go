@@ -13,7 +13,7 @@ import (
 )
 
 // jobSecretsHook handles the secret delivery blocks of jobs (Norca,
-// docs/design/secrets-plan.md, "Provider resolution and fallback" and
+// norca-doc content/docs/design/secrets-plan.md, "Provider resolution and fallback" and
 // "Permissions"):
 //
 //   - as a mutator it captures the namespace's default secret provider

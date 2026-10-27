@@ -24,7 +24,7 @@ LABEL version=${PRODUCT_VERSION}
 LABEL revision=${PRODUCT_REVISION}
 
 # The license, the notice and the third-party notices accompany the binary
-# (docs/licensing.md, "Distribution"). The release workflow stages them in
+# (norca-doc content/docs/introduction/license.md, "Distribution"). The release workflow stages them in
 # dist/doc/ from the repository root.
 COPY dist/doc/LICENSE dist/doc/NOTICE dist/doc/THIRD_PARTY_NOTICES.md /usr/share/doc/norca/
 COPY dist/$TARGETOS/$TARGETARCH/norca /bin/

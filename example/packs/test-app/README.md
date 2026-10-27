@@ -74,4 +74,4 @@ the job unchanged.
 
 Docker; for `network_mode = "bridge"` and `mtls_sidecar` a root client with
 the CNI plugins; for `mtls_sidecar` also the Envoy image
-([docs/native-mtls.md](../../../docs/native-mtls.md#envoy-image)).
+([native mTLS: sidecar and gateway](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md#envoy-image)).

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package vaultcompat is the Vault-compatible read endpoint of the client
-// (docs/design/secrets-plan.md, "Vault compatibility"). When the agent has
+// (norca-doc content/docs/design/secrets-plan.md, "Vault compatibility"). When the agent has
 // no Vault integration, tasks with a vault block get a token of this
 // endpoint instead of a Vault token (VAULT_TOKEN, secrets/vault_token) and
 // VAULT_ADDR points to it, so that applications using a Vault SDK read their

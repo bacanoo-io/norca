@@ -11,7 +11,7 @@ import (
 // SecretsConfig is the client's secrets configuration (the agent's
 // client { secrets { } } block): which provider answers a secret lookup when
 // neither the secret block nor a template call names one
-// (docs/design/secrets-plan.md, "Provider resolution and fallback", step 2).
+// (norca-doc content/docs/design/secrets-plan.md, "Provider resolution and fallback", step 2).
 // External provider blocks are added by a later phase.
 type SecretsConfig struct {
 	// Routes map secret path prefixes to providers. The longest matching
