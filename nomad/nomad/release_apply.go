@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-version"
+	"github.com/hashicorp/nomad/acl"
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -48,6 +49,9 @@ type releaseOp struct {
 	user      string
 	namespace string
 	name      string
+
+	// args is the authenticated request of the operation.
+	args structs.RequestWithIdentity
 
 	ctx    context.Context
 	wait   bool
@@ -123,6 +127,7 @@ func (m *releaseManager) newOp(args structs.RequestWithIdentity, token, namespac
 		user:      who,
 		namespace: namespace,
 		name:      name,
+		args:      args,
 		ctx:       ctx,
 	}, cancel
 }
@@ -391,6 +396,9 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	if len(conflicts) > 0 && !in.takeOwnership {
 		return structs.NewReleaseConflictError("resources of the pack belong to other releases (use -take-ownership to take them over): %s",
 			strings.Join(conflicts, "; "))
+	}
+	if err := m.authorizeAdoption(op, in, resources, taken); err != nil {
+		return err
 	}
 
 	// Resources of the deployed revision that are no longer in the pack are
@@ -807,6 +815,85 @@ func (m *releaseManager) pruneRevisions(op *releaseOp, rel *structs.Release) {
 		}
 		excess--
 	}
+}
+
+// authorizeAdoption checks the resources an operation takes without applying
+// them through the endpoints of their types, which would check the caller's
+// ACL (PK-2): with record_only every resource is adopted as it is, and a
+// region of a multi-region install adopts the multiregion jobs another region
+// registers. The caller needs the capabilities a real apply of each of them
+// needs. Taking resources over from other releases changes those releases,
+// so it needs the release write capability in their namespaces too.
+func (m *releaseManager) authorizeAdoption(op *releaseOp, in *applyInput, resources []*structs.ReleaseResource, taken map[string]string) error {
+	if !m.srv.config.ACLEnabled {
+		return nil
+	}
+	if op.args == nil {
+		return structs.ErrPermissionDenied
+	}
+	aclObj, err := m.srv.ResolveACL(op.args)
+	if err != nil {
+		return err
+	}
+	for _, res := range resources {
+		if res.IsHook() {
+			// Hooks are never owned or adopted; record_only skips them.
+			continue
+		}
+		ref := res.Ref()
+		if _, adopted := in.adopted[ref.Key()]; !in.recordOnly && !adopted {
+			continue
+		}
+		if !allowReleaseResourceWrite(aclObj, res) {
+			return structs.NewErrRPCCodedf(http.StatusForbidden,
+				"Permission denied: the token may not write %s, so the release can't adopt it", ref)
+		}
+	}
+	checked := map[string]bool{}
+	for _, owner := range taken {
+		ns, _, _ := strings.Cut(owner, "/")
+		if checked[ns] {
+			continue
+		}
+		checked[ns] = true
+		if !aclObj.AllowObjectOperation(ns, structs.ReleaseKindRef, acl.ObjectCapabilityWrite) {
+			return structs.NewErrRPCCodedf(http.StatusForbidden,
+				"Permission denied: the token may not write releases in namespace %q, so it can't take over resources of release %q", ns, owner)
+		}
+	}
+	return nil
+}
+
+// allowReleaseResourceWrite reports whether the ACL object has the
+// capabilities the endpoint of the resource's type requires to write it.
+func allowReleaseResourceWrite(aclObj *acl.ACL, res *structs.ReleaseResource) bool {
+	if aclObj == nil {
+		return true
+	}
+	switch res.Type {
+	case structs.ReleaseResourceNamespace, structs.ReleaseResourceACLPolicy:
+		return aclObj.IsManagement()
+	case structs.ReleaseResourceQuota:
+		return aclObj.AllowQuotaWrite()
+	case structs.ReleaseResourceVariable:
+		// Adopting records the hash of the items, so reading is needed too.
+		v := res.Variable
+		return aclObj.AllowVariableOperation(v.Namespace, v.Path, acl.VariablesCapabilityWrite, nil) &&
+			aclObj.AllowVariableOperation(v.Namespace, v.Path, acl.VariablesCapabilityRead, nil)
+	case structs.ReleaseResourceObjectKind:
+		return aclObj.AllowObjectKindWrite()
+	case structs.ReleaseResourceAdmissionPolicy:
+		return aclObj.AllowAdmissionWrite()
+	case structs.ReleaseResourceObject:
+		ns := res.Object.Namespace
+		if ns == "" {
+			ns = acl.ObjectClusterNamespace
+		}
+		return aclObj.AllowObjectOperation(ns, res.Object.KindRef(), acl.ObjectCapabilityWrite)
+	case structs.ReleaseResourceJob:
+		return aclObj.AllowNsOp(res.Job.Namespace, acl.NamespaceCapabilitySubmitJob)
+	}
+	return false
 }
 
 // releaseTakenResources removes resources taken over by this release from
