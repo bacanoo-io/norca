@@ -219,6 +219,16 @@ type FetchOptions struct {
 // signatures and content and installs it into the cache. It returns the cache
 // directory of the pack and the verification result.
 func Fetch(ctx context.Context, src Source, packName, tag string, opts FetchOptions) (string, *Result, error) {
+	// The names become cache paths: check them before anything else.
+	if err := ValidatePathName("cache registry name", opts.Registry); err != nil {
+		return "", nil, err
+	}
+	if err := ValidatePathName("pack name", packName); err != nil {
+		return "", nil, err
+	}
+	if err := ValidateTag(tag); err != nil {
+		return "", nil, err
+	}
 	a, err := oci.Fetch(ctx, src, tag)
 	if err != nil {
 		return "", nil, err
@@ -260,6 +270,13 @@ func PackDir(cacheRoot, registryName, packName, tag string) string {
 func install(a *oci.Artifact, origin *Origin, opts FetchOptions) (string, error) {
 	dest := PackDir(opts.CacheRoot, opts.Registry, a.Config.Name, origin.Tag)
 	refDir := path.Dir(dest)
+	// Fetch validated the names; never remove or write outside of the
+	// cache registry's directory whatever they are.
+	registryDir := filepath.Join(opts.CacheRoot, opts.Registry)
+	if !within(registryDir, dest) || filepath.Clean(refDir) == filepath.Clean(registryDir) ||
+		filepath.Clean(registryDir) == filepath.Clean(opts.CacheRoot) {
+		return "", fmt.Errorf("pack %s:%s would be installed outside of the pack cache", a.Config.Name, origin.Tag)
+	}
 	if err := os.MkdirAll(refDir, caching.DefaultDirPerms); err != nil {
 		return "", err
 	}

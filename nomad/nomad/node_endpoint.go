@@ -755,9 +755,14 @@ func (n *Node) UpdateDrain(args *structs.NodeUpdateDrainRequest,
 	}
 	defer metrics.MeasureSince([]string{"nomad", "client", "update_drain"}, time.Now())
 
-	// Check node write permissions
-	if aclObj, err := n.srv.ResolveACL(args); err != nil {
+	// Check node write permissions. A client node may only drain itself
+	// (drain_on_shutdown).
+	if aclObj, err := n.srv.ResolveClientOrACL(args); err != nil {
 		return err
+	} else if clientID := clientIdentity(args); clientID != "" {
+		if clientID != args.NodeID {
+			return structs.ErrPermissionDenied
+		}
 	} else if aclObj != nil && !aclObj.AllowNodeWrite() {
 		return structs.ErrPermissionDenied
 	}

@@ -153,6 +153,11 @@ func (c *baseCommand) fetchFromRegistry(conf *packconfig.Config, reg *packconfig
 			tag = cached
 		}
 	}
+	// The tag comes from --ref or the registry's tag list and becomes a cache
+	// path.
+	if err := supplychain.ValidateTag(tag); err != nil {
+		return fmt.Errorf("%s: %w", loc, err)
+	}
 	cfg.Ref = tag
 	cfg.Path = supplychain.PackDir(cacheRoot, reg.Name, cfg.Name, tag)
 

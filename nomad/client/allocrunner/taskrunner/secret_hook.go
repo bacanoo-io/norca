@@ -5,11 +5,15 @@ package taskrunner
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +27,7 @@ import (
 	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/users"
+	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/plugins/drivers"
 )
@@ -453,8 +458,7 @@ func (h *secretHook) deliver(st *secretState, sec *secrets.Secret) error {
 		if err != nil {
 			return fmt.Errorf("secret %s: %v", spec.Name, err)
 		}
-		dest := filepath.Join(h.taskDir, filepath.FromSlash(spec.File.Destination))
-		if err := writeSecretFile(dest, data, h.config.task); err != nil {
+		if err := writeSecretFile(h.taskDir, spec.File.Destination, data, h.config.task); err != nil {
 			return fmt.Errorf("secret %s: failed to write %s: %v", spec.Name, spec.File.Destination, err)
 		}
 	}
@@ -530,18 +534,57 @@ func (h *secretHook) changed(st *secretState) {
 
 // writeSecretFile writes a secret file atomically (a temporary file in the
 // same directory renamed over the destination) with mode 0400, owned by the
-// task's user where the agent may change the owner.
-func writeSecretFile(dest string, data []byte, task *structs.Task) error {
-	dir := filepath.Dir(dest)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
+// task's user where the agent may change the owner. destination is the
+// validated slash-separated path below secrets/, relative to taskDir.
+//
+// The task can write to its secrets directory, so it can plant symlinks
+// there. Every access goes through an os.Root opened on the task directory,
+// which never resolves a path outside of it, and the directories on the way
+// to the file must be real directories: a symlink (or junction) among them is
+// refused rather than followed. A symlink at the destination itself is
+// replaced by the rename, not followed.
+func writeSecretFile(taskDir, destination string, data []byte, task *structs.Task) error {
+	parts := strings.Split(destination, "/")
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid secret file destination %q", destination)
 	}
-	f, err := os.CreateTemp(dir, "."+filepath.Base(dest)+".tmp-")
+	for _, p := range parts {
+		if p == "" || p == "." || p == ".." || strings.ContainsAny(p, `\:`) {
+			return fmt.Errorf("invalid secret file destination %q", destination)
+		}
+	}
+
+	root, err := os.OpenRoot(taskDir)
 	if err != nil {
 		return err
 	}
-	tmp := f.Name()
-	defer os.Remove(tmp)
+	defer root.Close()
+
+	dir := ""
+	for _, p := range parts[:len(parts)-1] {
+		dir = filepath.Join(dir, p)
+		fi, err := root.Lstat(dir)
+		if errors.Is(err, fs.ErrNotExist) {
+			if err := root.Mkdir(dir, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				return err
+			}
+			fi, err = root.Lstat(dir)
+		}
+		if err != nil {
+			return err
+		}
+		if fi.Mode().Type() != fs.ModeDir {
+			return fmt.Errorf("%s is not a directory (symlinks are not followed)", filepath.ToSlash(dir))
+		}
+	}
+
+	dest := filepath.Join(dir, parts[len(parts)-1])
+	tmp := filepath.Join(dir, "."+parts[len(parts)-1]+".tmp-"+uuid.Generate()[:8])
+	f, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	defer root.Remove(tmp)
 	if _, err := f.Write(data); err != nil {
 		f.Close()
 		return err
@@ -550,18 +593,26 @@ func writeSecretFile(dest string, data []byte, task *structs.Task) error {
 		f.Close()
 		return err
 	}
-	if err := f.Close(); err != nil {
-		return err
-	}
 	if uid, gid, ok := secretFileOwner(task); ok {
 		// Changing the owner needs privileges; an unprivileged agent runs
 		// its tasks as its own user, which owns the file already.
-		_ = os.Chown(tmp, uid, gid)
+		_ = f.Chown(uid, gid)
 	}
-	if err := os.Chmod(tmp, 0o400); err != nil {
+	if err := f.Chmod(0o400); err != nil {
+		f.Close()
 		return err
 	}
-	return os.Rename(tmp, dest)
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if runtime.GOOS == "windows" {
+		// Windows refuses to replace a read-only file: make the previous
+		// version writable first (a regular file only, never a link).
+		if fi, err := root.Lstat(dest); err == nil && fi.Mode().IsRegular() {
+			_ = root.Chmod(dest, 0o600)
+		}
+	}
+	return root.Rename(tmp, dest)
 }
 
 // secretFileOwner returns the user the task runs as: its user, or nobody
