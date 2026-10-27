@@ -68,6 +68,9 @@ norca pack registry list
 norca pack run nats --registry=norca --name=nats -f 03-three-node/nats.hcl
 ```
 
+Pack commands without `--ref` use the packs at the ref the registry was added
+with (here `v0.1.0`); without `--name` the release is named after the pack.
+
 Without network access to GitHub, use a checkout of the registry by path
 (`norca pack run <checkout>/packs/nats --name=nats -f ...`), or move the packs
 into an internal OCI registry or an offline bundle

@@ -177,7 +177,7 @@ func TestCLI_JobPlan_ConflictingDeployment(t *testing.T) {
 
 		result := runTestPackCmd(t, s, []string{"run", testPack, testRegFlag, testRefFlag})
 		must.Eq(t, "", result.cmdErr.String(), must.Sprintf("cmdErr should be empty, but was %q", result.cmdErr.String()))
-		must.StrContains(t, result.cmdOut.String(), job.ErrExistsInDeployment{JobID: testPack, Deployment: testPack + "@latest"}.Error())
+		must.StrContains(t, result.cmdOut.String(), job.ErrExistsInDeployment{JobID: testPack, Deployment: testPack}.Error())
 		must.Eq(t, 1, result.exitCode)
 	})
 }

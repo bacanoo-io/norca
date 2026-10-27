@@ -139,17 +139,16 @@ func releasesSupported(client *api.Client) bool {
 }
 
 // releaseName returns the release name of the deployment: the deployment
-// name ("pack@ref" unless --name is given) with the characters that are not
-// allowed in release names replaced, so that a release is the instance the
-// deployment name identifies. Use --name for a release whose pack version
-// changes.
+// name (the pack name, or "pack@ref" with --ref, unless --name is given)
+// with the characters that are not allowed in release names replaced, so
+// that a release is the instance the deployment name identifies.
 func (c *baseCommand) releaseName(cfg *caching.PackConfig) (string, error) {
 	return releaseNameFor(cfg, c.deploymentName)
 }
 
 func releaseNameFor(cfg *caching.PackConfig, deploymentName string) (string, error) {
 	if deploymentName == "" {
-		deploymentName = caching.AppendRef(cfg.Name, cfg.Ref)
+		deploymentName = defaultDeploymentName(cfg)
 	}
 	return release.Name(deploymentName)
 }

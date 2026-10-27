@@ -138,8 +138,10 @@ func (c *baseCommand) fetchFromRegistry(conf *packconfig.Config, reg *packconfig
 		return err
 	}
 
+	// Without --ref the newest version is used, not the default ref of the
+	// pack in the cache.
 	tag := cfg.Ref
-	if tag == "" || tag == caching.DefaultRef {
+	if tag == "" || tag == caching.DefaultRef || cfg.RefDefaulted {
 		tag, err = supplychain.ResolveTag(ctx, repo, "")
 		if err != nil {
 			// Offline: fall back to the newest cached version.

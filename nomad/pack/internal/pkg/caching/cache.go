@@ -24,6 +24,10 @@ const (
 	DevRef              = "<<none>>"
 	DefaultDirPerms     = 0700
 
+	// DefaultRefFile is the file in the cache directory of a registry that
+	// records the ref the registry was last added or updated with (Norca).
+	DefaultRefFile = "default-ref"
+
 	// EnvCacheDir overrides the location of the pack cache.
 	EnvCacheDir = "NORCA_PACK_CACHE_DIR"
 )
@@ -188,6 +192,10 @@ func (c *Cache) Load() (err error) {
 			return
 		}
 		for _, registryRef := range registryRefs {
+			// Skip files such as the default ref record of the registry.
+			if !registryRef.IsDir() {
+				continue
+			}
 			opts.RegistryName = registryEntry.Name()
 			// Unescape the directory name to recover the original ref that may
 			// contain slashes (e.g. "pack-name/v1.0.0" stored as "pack-name!_v1.0.0").

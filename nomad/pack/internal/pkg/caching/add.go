@@ -136,6 +136,13 @@ func (c *Cache) addFromURI(opts *AddOpts) (cachedRegistry *Registry, err error) 
 		return
 	}
 
+	// Record the ref, so that commands without --ref use the packs at it.
+	refPath := filepath.Join(c.cfg.Path, opts.RegistryName, DefaultRefFile)
+	if err = os.WriteFile(refPath, []byte(opts.Ref+"\n"), 0644); err != nil {
+		logger.ErrorWithContext(err, "error recording the ref of the registry", c.ErrorContext.GetAll()...)
+		return
+	}
+
 	return
 }
 

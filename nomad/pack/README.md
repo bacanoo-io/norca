@@ -54,6 +54,10 @@ norca pack registry add default https://github.com/bacanoo-io/norca-registry --r
 norca pack run nats
 ```
 
+Pack commands without `--ref` use the packs at the ref the registry was last added or updated
+with (here `v0.1.0`), and without `--name` the deployment (and the release) is named after the
+pack; `--ref` selects another cached ref, and the deployment name is then `pack@ref`.
+
 To deploy one of these packs, use the `run` command. This deploys each jobs defined in the pack to Nomad.
 To deploy the `hello_world` pack (from a registry named `default`), you would run the following command:
 

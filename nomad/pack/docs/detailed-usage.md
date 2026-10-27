@@ -69,6 +69,10 @@ To download single pack or an entire registry at a specific version/SHA, use the
 norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
 ```
 
+Pack commands without `--ref` use the ref the registry was last added or updated with (if the
+pack is cached at it), so after this command `norca pack run nats --registry=norca` runs the pack
+at `v0.1.0`. `--ref` selects another cached ref.
+
 The [Nomad Pack Community Registry](https://github.com/hashicorp/nomad-pack-community-registry)
 is added the same way (`norca pack registry add community github.com/hashicorp/nomad-pack-community-registry`).
 
