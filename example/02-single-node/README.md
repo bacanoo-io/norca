@@ -224,8 +224,8 @@ administrator with another management token (`norca operator backup approve`);
 OpenObserve (single mode: SQLite and the data on the host volume
 `openobserve` of `norca.hcl`) and an OpenTelemetry Collector on the node,
 both from the registry ([openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/packs/openobserve/README.md),
-[otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md);
-newer than the registry tag `v0.1.0`: use `--ref=main` or a later tag). The
+[otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md),
+both in the registry tag `v0.1.0`). The
 agent serves its Prometheus metrics already (`telemetry` in `norca.hcl`).
 Native mTLS is not enabled here, so both run without TLS:
 

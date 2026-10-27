@@ -255,7 +255,7 @@ on every node (host, agent and NATS metrics, OTLP of the
 applications), from the registry's
 [openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/packs/openobserve/README.md)
 and [otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md)
-packs (newer than `v0.1.0`: `--ref=main` or a later tag):
+packs (both in the registry tag `v0.1.0`):
 
 ```shell
 sudo install -d -m 700 /srv/openobserve                                 # on node-1
