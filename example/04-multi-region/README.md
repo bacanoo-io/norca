@@ -225,7 +225,17 @@ norca operator backup list -region eu-2
 norca operator backup save -region eu-2 -label note=after-federation
 ```
 
-### 9. Teardown
+### 9. Observability per region
+
+Secrets, catalogs and workload certificates are regional: run step 12 of
+[03](../03-three-node/README.md#12-observability) in every region (`-region`
+with the CLI, `--region` with the packs), so each region has its own
+OpenObserve and the collectors of a region export to it. The agent
+configuration of 03 already has the `telemetry` block (`prometheus_metrics`)
+the collectors scrape; the mTLS gateways have metrics with
+`envoy_task_enabled` and `metrics_enabled` of the mtls-gateway pack.
+
+### 10. Teardown
 
 ```shell
 norca job stop -region eu-2 -namespace apps -purge probe

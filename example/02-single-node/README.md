@@ -219,13 +219,46 @@ A full restore of the region (`restore -full -confirm global`) needs a second
 administrator with another management token (`norca operator backup approve`);
 `norca operator backup restore-bootstrap` builds a new cluster from a backup.
 
-### 11. Teardown
+### 11. Observability
+
+OpenObserve (single mode: SQLite and the data on the host volume
+`openobserve` of `norca.hcl`) and an OpenTelemetry Collector on the node,
+both from the registry ([openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/packs/openobserve/README.md),
+[otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md);
+newer than the registry tag `v0.1.0`: use `--ref=main` or a later tag). The
+agent serves its Prometheus metrics already (`telemetry` in `norca.hcl`).
+Native mTLS is not enabled here, so both run without TLS:
 
 ```shell
+sudo install -d -m 700 /srv/openobserve
+norca namespace apply -description "Observability" observability
+norca secret put -namespace observability openobserve/root password=-   # 8+ chars: upper, lower, digit, special
+norca pack run openobserve --registry=norca --namespace=observability \
+  --var namespace=observability --var tls_mode=none
+norca alloc logs -namespace observability -task bootstrap <alloc ID>     # "ingest credentials ... stored"
+
+norca secret put -namespace observability norca/agent-ca ca=@/etc/norca.d/tls/nomad-agent-ca.pem
+norca pack run otel-collector --registry=norca --namespace=observability \
+  --var namespace=observability --var openobserve_tls=none \
+  --var nomad_address=https://127.0.0.1:4646 --var nomad_ca_secret_path=norca/agent-ca \
+  --var 'discovery_namespaces=["default","apps"]'
+```
+
+Open `http://10.0.0.10:5080/` and log in as `root@openobserve.internal`: the
+host and agent metrics arrive in the organization `default` within a minute.
+RustFS pushes its metrics to the collector with
+`norca pack upgrade rustfs --registry=norca --name=rustfs -f rustfs.hcl --var metrics_enabled=true`; the
+applications of the node send OTLP to `http://10.0.0.10:4318`.
+
+### 12. Teardown
+
+```shell
+norca pack uninstall otel-collector --namespace=observability
+norca pack uninstall openobserve --namespace=observability
 norca pack uninstall test-app --namespace=apps
 norca pack uninstall rustfs
 sudo systemctl disable --now norca
-sudo rm -rf /opt/norca/data /srv/rustfs /etc/norca.d /var/log/norca
+sudo rm -rf /opt/norca/data /srv/rustfs /srv/openobserve /etc/norca.d /var/log/norca
 ```
 
 ## What to look at in the web UI
