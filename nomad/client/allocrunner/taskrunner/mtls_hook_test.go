@@ -61,6 +61,12 @@ func newFakeMTLSServer(t *testing.T, lifetime time.Duration) *fakeMTLSServer {
 }
 
 func (f *fakeMTLSServer) rotate(id string) {
+	f.addCA(id, true)
+}
+
+// addCA adds a CA to the trust bundle, the new active one with activate (a
+// rotation), or else like the CA of a federated region.
+func (f *fakeMTLSServer) addCA(id string, activate bool) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	must.NoError(f.t, err)
 	tmpl := &x509.Certificate{
@@ -75,7 +81,9 @@ func (f *fakeMTLSServer) rotate(id string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cas[id] = &fakeCA{cert: cert, key: key, pem: string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))}
-	f.active = id
+	if activate {
+		f.active = id
+	}
 	f.index++
 	close(f.changed)
 	f.changed = make(chan struct{})
@@ -153,17 +161,34 @@ func (f *fakeMTLSServer) RPC(method string, args, reply any) error {
 }
 
 func newTestMTLSHook(t *testing.T, rpc *fakeMTLSServer) (*mtlsHook, *interfaces.TaskPrestartRequest) {
+	return newTestMTLSHookWith(t, rpc, nil, nil)
+}
+
+// newTestMTLSHookWith creates a hook for the web task of a mock allocation
+// whose group service "web" has the mtls block m (app mode if nil).
+func newTestMTLSHookWith(t *testing.T, rpc *fakeMTLSServer, m *structs.ServiceMTLS, lifecycle *testMTLSLifecycle) (*mtlsHook, *interfaces.TaskPrestartRequest) {
 	alloc := mock.Alloc()
 	alloc.SignedIdentities = map[string]string{"web": "jwt"}
-	h := newMTLSHook(&mtlsHookConfig{
+	if m == nil {
+		m = &structs.ServiceMTLS{Mode: structs.MTLSModeApp}
+	}
+	tg := alloc.Job.TaskGroups[0]
+	tg.Services = []*structs.Service{{Name: "web", Provider: structs.ServiceProviderNomad, MTLS: m}}
+	cfg := &mtlsHookConfig{
 		alloc:   alloc,
-		task:    alloc.Job.TaskGroups[0].Tasks[0],
+		task:    tg.Tasks[0],
 		rpc:     rpc,
 		region:  "global",
 		nodeKey: "node-secret",
 		events:  &mockEmitter{},
 		logger:  testlog.HCLogger(t),
-	})
+	}
+	if lifecycle != nil {
+		cfg.lifecycle = lifecycle
+	}
+	h := newMTLSHook(cfg)
+	h.changeCoalesce = 50 * time.Millisecond
+	h.changeSplay = 50 * time.Millisecond
 	secrets := t.TempDir()
 	req := &interfaces.TaskPrestartRequest{
 		TaskDir: &allocdir.TaskDir{SecretsDir: secrets},
