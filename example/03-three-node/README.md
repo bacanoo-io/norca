@@ -247,9 +247,44 @@ norca operator backup contents -age-identity ~/backup-identity.txt -type secrets
 Scheduled backups run on the leader every 6 hours (`schedule`); after a
 leader change the new leader continues the schedule.
 
-### 12. Teardown
+### 12. Observability
+
+OpenObserve (single mode on node-1, which has the host volume `openobserve`)
+with TLS from Norca's workload certificates, and an OpenTelemetry Collector
+on every node (host, agent and NATS metrics, OTLP of the
+applications), from the registry's
+[openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/packs/openobserve/README.md)
+and [otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md)
+packs (newer than `v0.1.0`: `--ref=main` or a later tag):
 
 ```shell
+sudo install -d -m 700 /srv/openobserve                                 # on node-1
+norca namespace apply -description "Observability" observability
+norca secret put -namespace observability openobserve/root password=-   # 8+ chars: upper, lower, digit, special
+norca pack run openobserve --registry=norca --namespace=observability --var namespace=observability
+norca alloc logs -namespace observability -task bootstrap <alloc ID>     # "ingest credentials ... stored"
+
+norca secret put -namespace observability norca/agent-ca ca=@nomad-agent-ca.pem
+norca pack run otel-collector --registry=norca --namespace=observability \
+  --var namespace=observability \
+  --var nomad_address=https://127.0.0.1:4646 --var nomad_ca_secret_path=norca/agent-ca \
+  --var 'discovery_namespaces=["default","apps"]'
+norca pack upgrade nats --registry=norca --name=nats -f nats.hcl --var metrics_enabled=true
+```
+
+The UI is `https://openobserve.service.observability.nomad:5080/` (the
+certificate's name; resolve it to node-1, e.g. in `/etc/hosts`, or through the
+built-in DNS) once the CA of the region is trusted by the browser:
+`norca operator api /v1/mtls/roots | jq -r '.Roots[].RootCert' > norca-mtls-ca.pem`.
+For OpenObserve in cluster mode (routers, ingesters, queriers, compactor,
+alertmanager) add the `postgres` pack (database `openobserve`), RustFS and
+NATS with JetStream: see the openobserve pack's README.
+
+### 13. Teardown
+
+```shell
+norca pack uninstall otel-collector --namespace=observability
+norca pack uninstall openobserve --namespace=observability
 norca object delete norca.io/LoadBalancer test-app -namespace apps
 norca pack uninstall lb --namespace=apps
 norca pack uninstall nats

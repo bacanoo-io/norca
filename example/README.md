@@ -58,7 +58,8 @@ Without `-tags ui` the binary works the same but serves no web UI.
 
 The operations packs are in the [Norca pack registry](https://github.com/bacanoo-io/norca-registry),
 a separate repository: `rustfs` (the backup store of 02), `loadbalancer-operator`
-and `nats` (03), `mtls-gateway` and `nats` (04), and `consul`. Add it once on
+and `nats` (03), `mtls-gateway` and `nats` (04), `openobserve` and `otel-collector`
+(02–04; `postgres` for OpenObserve in cluster mode), and `consul`. Add it once on
 the machine you run the CLI on, pinned to a release tag:
 
 ```shell
@@ -102,9 +103,10 @@ built-in store) are merged and used here.
 | Native mTLS: cross-region gateway (`mtls-gateway` pack) | | | | ✓ |
 | Network rules: `NetworkPolicy`, `AdminNetworkPolicy` | | | ✓ | |
 | Operator framework: object kind, objects, LoadBalancer operator pack | | | ✓ | |
-| Packs of the [registry](#the-pack-registry): `rustfs`, `loadbalancer-operator`, `nats`, `mtls-gateway` | | ✓ | ✓ | ✓ (supercluster, gateway) |
+| Packs of the [registry](#the-pack-registry): `rustfs`, `loadbalancer-operator`, `nats`, `mtls-gateway`, `openobserve`, `otel-collector` | | ✓ | ✓ | ✓ (supercluster, gateway) |
 | Federation, ACL replication, multiregion deployment, `norca deployment run` | | | | ✓ |
 | Pack releases (`pack run/status/history/uninstall`), `variables_schema` | ✓ | ✓ | ✓ | ✓ (`--regions`) |
+| Observability: `openobserve`, `otel-collector` packs (metrics of the nodes and the platform, OTLP), agent `telemetry` | | ✓ (no TLS) | ✓ (Norca's certificates) | ✓ (per region) |
 
 Not shown, with pointers:
 

@@ -121,6 +121,18 @@ client {
     read_only = false
   }
 
+  # Observability (step 11): the data of OpenObserve, and the host's root
+  # directory, read-only, for the host metrics of the OpenTelemetry Collector.
+  host_volume "openobserve" {
+    path      = "/srv/openobserve"
+    read_only = false
+  }
+
+  host_volume "hostfs" {
+    path      = "/"
+    read_only = true
+  }
+
   native_service_discovery {
     default_healthy_only = true
   }
