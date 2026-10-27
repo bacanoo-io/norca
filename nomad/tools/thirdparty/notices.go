@@ -98,7 +98,7 @@ func legacyUINote(inv *inventory) string {
 
 func licenseError(problems []string) error {
 	return errors.New("license check failed:\n  " + strings.Join(problems, "\n  ") +
-		"\nOnly the licenses allowed by docs/licensing.md may be shipped; record a reviewed decision in " +
+		"\nOnly the licenses allowed by norca-doc content/docs/introduction/license.md may be shipped; record a reviewed decision in " +
 		"nomad/tools/thirdparty/overrides.go only if the component is offered under an allowed license.")
 }
 

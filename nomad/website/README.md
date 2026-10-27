@@ -14,4 +14,6 @@ and navigation data) was removed; it is not part of Norca. Image links in the te
 
 The text describes Nomad v1.6.5. It does not cover every Norca extension, and
 product names, URLs and commands in it refer to upstream Nomad. Norca's own
-documentation is in the `docs/` directory at the root of the repository.
+documentation, which adapts this text (with attribution) and covers the Norca
+features, is in the separate repository
+[bacanoo-io/norca-doc](https://github.com/bacanoo-io/norca-doc).

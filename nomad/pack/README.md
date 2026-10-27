@@ -75,7 +75,7 @@ norca pack run hello_world --var message=hola
 ```
 
 Values can also be provided by passing in a variables file. See the variables section of the
-[Detailed usage guide](/docs/detailed-usage.md) for details.
+[Detailed usage guide](docs/detailed-usage.md) for details.
 
 ```shell
 tee -a ./my-variables.hcl << END
@@ -137,7 +137,7 @@ Nomad Pack is valuable when used with official and community packs, but many use
 use their own.
 
 Converting your existing Nomad job specifications into reusable packs is achievable in a few steps,
-see the [Writing Packs documentation](/docs/writing-packs.md) for more details.
+see the [Writing Packs documentation](docs/writing-packs.md) for more details.
 
 ## Pack Registries
 
@@ -162,10 +162,10 @@ Pull Requests and feedback on both repositories are welcome!
 
 ## Additional Resources
 
-- [Detailed Usage Guide](/docs/detailed-usage.md)
-- [OCI Registries, Signing, Offline Bundles and pack.lock](/docs/supply-chain.md)
-- [How to Write Your Own Pack](/docs/writing-packs.md)
-- [Contributing](/docs/contributing.md)
+- [Detailed Usage Guide](docs/detailed-usage.md)
+- [OCI Registries, Signing, Offline Bundles and pack.lock](docs/supply-chain.md)
+- [How to Write Your Own Pack](docs/writing-packs.md)
+- [Contributing](docs/contributing.md)
 
 ## Tutorials
 

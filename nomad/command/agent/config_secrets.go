@@ -44,7 +44,7 @@ type SecretsConfig struct {
 
 	// VaultFallback lets jobs with vault blocks register when the server
 	// has no Vault integration: their Vault-style lookups are served by the
-	// built-in store on clients without Vault (docs/design/secrets-plan.md,
+	// built-in store on clients without Vault (norca-doc content/docs/design/secrets-plan.md,
 	// "Vault compatibility"). Defaults to true; false keeps the Nomad
 	// behaviour of rejecting such jobs.
 	VaultFallback *bool `hcl:"vault_fallback"`

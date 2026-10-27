@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package seal protects the key material of a Norca server at rest
-// (docs/design/secrets-plan.md, "Key protection (seal)").
+// (norca-doc content/docs/design/secrets-plan.md, "Key protection (seal)").
 //
 // # What the seal protects
 //

@@ -28,7 +28,7 @@ import (
 )
 
 // The secret hook delivers the task's secret blocks (Norca,
-// docs/design/secrets-plan.md, "Delivery to tasks"): for each secret it
+// norca-doc content/docs/design/secrets-plan.md, "Delivery to tasks"): for each secret it
 // resolves the provider, fetches the value with the task's workload
 // identity, writes the file into the task's secrets directory and/or puts
 // the items into the task's environment, and watches for changes, which are

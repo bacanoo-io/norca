@@ -29,7 +29,7 @@ with the LoadBalancer operator, and the NATS pack.
   netlink, the `nft` tool is optional). Nodes that can enforce network rules
   get the node attribute `norca.network_policy.nftables = true`.
 - The Envoy image (`envoyproxy/envoy:v1.40.1` by default, see
-  [docs/native-mtls.md](../../docs/native-mtls.md#envoy-image)) is pulled by
+  [native mTLS: sidecar and gateway](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md#envoy-image)) is pulled by
   the clients for the sidecars.
 - An S3-compatible store outside the cluster for the backups, and
   `age-keygen`.
@@ -177,7 +177,7 @@ norca operator api /v1/mtls/roots
 
 `test-api` is registered with the address of its sidecar: whoever reaches it
 through the catalog or DNS needs a workload certificate and an intention.
-See [docs/native-mtls.md](../../docs/native-mtls.md) for the sidecar, the
+See [native mTLS: sidecar and gateway](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md) for the sidecar, the
 upstreams and the limits (TCP only).
 
 ### 7. Disruption budget and drains

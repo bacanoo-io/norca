@@ -10,7 +10,7 @@ GitHub Container Registry, Zot, `distribution`, ...), signs them with cosign com
 moves them into air-gapped environments as offline bundles, and pins the content of packs and of
 their vendored dependencies in a `pack.lock` file. Everything happens on the client; the server
 side enforcement (admission policy, release object) follows in a later phase of the
-[package management plan](../../../docs/design/package-management-plan.md).
+[package management plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md).
 
 - [Quick start](#quick-start)
 - [OCI registries](#oci-registries)

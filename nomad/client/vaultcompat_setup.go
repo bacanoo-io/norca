@@ -11,7 +11,7 @@ import (
 )
 
 // setupVaultCompat sets up the Vault-compatible endpoint of the built-in
-// secret store (docs/design/secrets-plan.md, "Vault compatibility") when the
+// secret store (norca-doc content/docs/design/secrets-plan.md, "Vault compatibility") when the
 // agent has no Vault integration, and makes its client the Vault client of
 // the task runners: tasks with a vault block get a token of the endpoint.
 func (c *Client) setupVaultCompat() error {

@@ -2,28 +2,14 @@ version = 1
 
 # Documentation: MPL 2.0
 [[annotations]]
-path = ["docs/**", "*.md", "NOTICE", ".github/**"]
+path = ["*.md", "NOTICE", ".github/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
-
-# UI mockup: own part MPL 2.0, embedded Tabler CSS and Tabler icons MIT
-[[annotations]]
-path = "docs/design/mockups/**"
-precedence = "override"
-SPDX-FileCopyrightText = ["2026 Norca contributors", "codecalm.net Paweł Kuna (Tabler)"]
-SPDX-License-Identifier = "MPL-2.0 AND MIT"
 
 # Deployment examples: own files, MPL 2.0 (the files also carry SPDX headers)
 [[annotations]]
 path = ["example/**"]
-precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 Norca contributors"
-SPDX-License-Identifier = "MPL-2.0"
-
-# Images in the documentation
-[[annotations]]
-path = "docs/**/*.png"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"

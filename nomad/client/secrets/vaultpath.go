@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
-// Vault-style lookups served by the built-in store (docs/design/secrets-plan.md,
+// Vault-style lookups served by the built-in store (norca-doc content/docs/design/secrets-plan.md,
 // "Vault compatibility"): the Vault "secret" template function and the reads
 // through the client's Vault-compatible endpoint name Vault paths such as
 // "kv/data/app/db". When they resolve to the built-in store, the client's

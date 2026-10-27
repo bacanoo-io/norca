@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package secretstore is the storage layer of Norca's built-in secret store
-// (docs/design/secrets-plan.md). The store's core comes from uBixVault
+// (norca-doc content/docs/design/secrets-plan.md). The store's core comes from uBixVault
 // (BSD-3-Clause), imported as source with git subtree:
 //
 //	nomad/secretstore/ubix/           the subtree, adapted by nomad/tools/ubixsync

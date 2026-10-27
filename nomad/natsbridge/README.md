@@ -7,8 +7,8 @@ SPDX-License-Identifier: MPL-2.0
 
 `norca-natsbridge` forwards the event stream (`/v1/event/stream`) of one Norca
 region to NATS. It is the first stage of the events and audit layer of the
-multi-cloud setup (event stream → NATS bridge → history and audit service, see
-`docs/design/nomad-fork-development-plan.md`, "Multi-cloud connectivity").
+multi-cloud setup (event stream → NATS bridge → history and audit service, see the
+[development plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/nomad-fork-development-plan/index.md#multi-cloud-connectivity)).
 
 NATS is used **only as an event and notification bridge**. Nothing in the
 cluster reads from NATS; a NATS outage delays the events but affects neither

@@ -21,7 +21,7 @@ import (
 	"github.com/hashicorp/nomad/secretstore/ubix/export/shamir"
 )
 
-// Recovery of a restored secret store (docs/design/secrets-plan.md, "Backup
+// Recovery of a restored secret store (norca-doc content/docs/design/secrets-plan.md, "Backup
 // and restore"). A full restore brings back the Raft state of a backup, with
 // the key of the secret store core wrapped by the seals of the region at the
 // time of the backup. If the region has other seals now (other shares), the

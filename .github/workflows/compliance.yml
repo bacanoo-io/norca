@@ -103,7 +103,7 @@ jobs:
           # the devDependencies, which license-checker's --production flag
           # does not filter out reliably in a hoisted yarn tree.
           yarn install --production --ignore-optional --frozen-lockfile --ignore-scripts --ignore-engines
-          # --excludePackagesStartingWith: recorded exceptions (docs/licensing.md):
+          # --excludePackagesStartingWith: recorded exceptions (norca-doc content/docs/introduction/license.md):
           # robust-predicates is legacy UI only (removed with /ui/legacy);
           # caniuse-lite and jsonify are build-time exceptions for both UIs.
           # --excludePackages: non-SPDX license fields whose license files are
@@ -130,7 +130,7 @@ jobs:
       - name: No ApexCharts in any lock or package file
         run: |
           # ApexCharts is dual-licensed; its community license forbids embedding
-          # it in a product used by others (docs/licensing.md)
+          # it in a product used by others (norca-doc content/docs/introduction/license.md)
           files=$(git ls-files '*package.json' '*yarn.lock' '*package-lock.json' '*pnpm-lock.yaml')
           if [ -n "$files" ] && grep -il 'apexcharts' $files; then
             echo "ApexCharts is forbidden (found in the files above)" >&2; exit 1
