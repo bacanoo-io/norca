@@ -286,8 +286,9 @@ func (c *PlanCommand) Flags() *flag.Sets {
 			Name:    "policy-override",
 			Target:  &c.jobConfig.PlanConfig.PolicyOverride,
 			Default: false,
-			Usage: `Sets the flag to force override any soft mandatory
-					Sentinel policies.`,
+			Usage: `Has no effect: Norca has no Sentinel policies, and
+					admission policies cannot be overridden. The flag is
+					accepted for compatibility.`,
 		})
 
 		f.BoolVarP(&flag.BoolVarP{
