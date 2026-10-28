@@ -62,7 +62,7 @@ See [variables.hcl](variables.hcl); the most important:
 | `network_mode` | `bridge` | `host` for dev agents without the CNI plugins |
 | `secrets_enabled` | `true` | |
 | `disruption_max_unavailable` | `"1"` | empty removes the block |
-| `separate_scope` | `""` | e.g. `"$${meta.zone}"` in variable files |
+| `separate_scope` | `""` | e.g. `"$${node.datacenter}"` in variable files |
 | `scaling_enabled` | `true` | needs `server { autoscaler { enabled = true } }`; `false` with `multiregion` |
 | `mtls_sidecar` | `false` | needs `network_mode = "bridge"` |
 | `multiregion` | `[]` | `[{ name = "eu-1", count = 2 }, ...]` |

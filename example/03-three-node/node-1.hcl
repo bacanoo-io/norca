@@ -4,6 +4,11 @@
 # Settings of node 1: /etc/norca.d/node.hcl next to norca.hcl.
 name = "norca-1"
 
+# The datacenter of the node: one datacenter per availability zone. It is the
+# scope of the separate blocks (${node.datacenter}) and the first tier of
+# topology-aware discovery.
+datacenter = "dc-a"
+
 advertise {
   http = "10.0.0.11" # CHANGE_ME: the address of this node
   rpc  = "10.0.0.11" # CHANGE_ME
@@ -11,12 +16,6 @@ advertise {
 }
 
 client {
-  # Topology zone of the node: the scope of separate blocks
-  # (${meta.zone}) and the zone of its service registrations.
-  meta {
-    zone = "zone-a"
-  }
-
   # The data of OpenObserve (step 12): only this node has the volume, so the
   # single instance always runs here.
   host_volume "openobserve" {

@@ -17,7 +17,7 @@
     "disruption_max_unavailable": {"type": "string", "pattern": "^([0-9]+%?)?$"},
     "separate_scope": {"type": "string"},
     "separate_required": {"type": "boolean"},
-    "discovery_prefer": {"enum": ["", "none", "zone", "datacenter", "region"]},
+    "discovery_prefer": {"enum": ["", "none", "datacenter", "region"]},
     "discovery_min_local": {"type": "integer", "minimum": 0},
     "discovery_failover": {"type": "array", "items": {"type": "string", "minLength": 1}},
     "scaling_enabled": {"type": "boolean"},

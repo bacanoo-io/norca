@@ -3,13 +3,14 @@
 
 # Shared configuration of the three nodes: every node runs a server and a
 # client. Install as /etc/norca.d/norca.hcl on every node, next to its own
-# node-<n>.hcl (name, addresses, zone). Replace every CHANGE_ME first.
+# node-<n>.hcl (name, addresses, datacenter). Replace every CHANGE_ME first.
 #   norca config validate /etc/norca.d/
 
-region     = "global"
-datacenter = "dc1"
-data_dir   = "/opt/norca/data"
-bind_addr  = "0.0.0.0"
+# Each node sets its own datacenter (one per availability zone) in
+# node-<n>.hcl.
+region    = "global"
+data_dir  = "/opt/norca/data"
+bind_addr = "0.0.0.0"
 
 acl {
   enabled = true

@@ -8,16 +8,19 @@ SPDX-License-Identifier: MPL-2.0
 A highly available region on three Linux machines. Each machine runs a
 **server and a client** in one agent: three servers are the smallest Raft
 quorum that survives the loss of one, and three clients are needed for the
-placement rules (one instance per zone), drains under a disruption budget
+placement rules (one instance per datacenter), drains under a disruption budget
 and native mTLS between nodes. Combining both roles keeps the example at
 three machines; in production run the servers on their own machines and the
 workloads on separate clients (same configuration, split into a `server`
-and a `client` part).
+and a `client` part). Each node is its own datacenter (`dc-a`, `dc-b`,
+`dc-c`), the way one availability zone maps to one datacenter: the
+datacenter is the failure domain of the placement rules and the first tier
+of topology-aware discovery.
 
 On top of [02-single-node](../02-single-node/README.md) this shows: joining
 servers, unsealing every server, native mTLS with an Envoy sidecar and
 service intentions, network rules, cross-job affinity and anti-affinity
-over zones, the disruption budget during a drain, the operator framework
+over datacenters, the disruption budget during a drain, the operator framework
 with the LoadBalancer operator, and the NATS pack.
 
 ## Prerequisites
@@ -41,8 +44,8 @@ with the LoadBalancer operator, and the NATS pack.
 | File | |
 | --- | --- |
 | [norca.hcl](norca.hcl) | Shared agent configuration (server and client) of the three nodes |
-| [node-1.hcl](node-1.hcl), [node-2.hcl](node-2.hcl), [node-3.hcl](node-3.hcl) | Name, addresses and zone of each node, installed as `/etc/norca.d/node.hcl` |
-| [test-app.hcl](test-app.hcl) | test-app pack: 3 instances spread over the zones, autoscaled up to 6 |
+| [node-1.hcl](node-1.hcl), [node-2.hcl](node-2.hcl), [node-3.hcl](node-3.hcl) | Name, addresses and datacenter of each node, installed as `/etc/norca.d/node.hcl` |
+| [test-app.hcl](test-app.hcl) | test-app pack: 3 instances spread over the datacenters, autoscaled up to 6 |
 | [test-api.hcl](test-api.hcl) | test-app pack as `test-api`, behind an mTLS sidecar |
 | [probe.nomad.hcl](probe.nomad.hcl) | A client of `test-api` through an mTLS upstream, colocated with test-app |
 | [lb-test-app.hcl](lb-test-app.hcl) | A `norca.io/LoadBalancer` object for test-app |
@@ -132,27 +135,27 @@ norca network-policy apply ../policies/netpol-test-app.hcl
 norca secret put -namespace apps test-app/db username=app password=-
 norca pack run ../packs/test-app --name=test-app --namespace=apps -f test-app.hcl
 
-norca job status -namespace apps test-app             # one instance per zone, disruption budget
-norca service info -namespace apps -verbose test-app  # zones and health of the instances
+norca job status -namespace apps test-app             # one instance per datacenter, disruption budget
+norca service info -namespace apps -verbose test-app  # datacenters and health of the instances
 norca network-policy status -namespace apps test-app  # selected allocations, enforced on their nodes
 ```
 
-Topology-aware discovery (`discovery { prefer = "zone", min_local = 2 }`): on
-a node, the built-in DNS answers with the instances of the node's own zone
-first, and adds the rest of the datacenter while the zone has fewer than two
-healthy instances (or fewer than 20% of all, `overflow_fraction`). The job
+Topology-aware discovery (`discovery { prefer = "datacenter", min_local = 2 }`):
+on a node, the built-in DNS answers with the instances of the node's own
+datacenter first, and adds the rest of the region while the datacenter has
+fewer than two healthy instances (or fewer than 20% of all, `overflow_fraction`). The job
 doesn't set `overflow_fraction`, so the servers fill in their
 `native_service_discovery { default_overflow_fraction }` (0.2, `norca.hcl`) at
 registration; `norca job inspect` shows the resolved value, and after changing
 the setting (reloaded on SIGHUP) `norca job plan` shows the job's value
 changing at its next submission. With three
-instances (one per zone) every answer holds all three; scale to six to see
-the zone filter:
+instances (one per datacenter) every answer holds all three; scale to six
+to see the datacenter filter:
 
 ```shell
 norca job scale -namespace apps test-app 6
-dig @127.0.0.1 -p 8600 test-app.service.apps.nomad SRV   # on node-1: the two zone-a instances
-norca alloc stop -namespace apps <one zone-a alloc ID>   # while it is replaced: zone-a + rest of dc1
+dig @127.0.0.1 -p 8600 test-app.service.apps.nomad SRV   # on node-1: the two dc-a instances
+norca alloc stop -namespace apps <one dc-a alloc ID>     # while it is replaced: dc-a + rest of the region
 norca job scale -namespace apps test-app 3
 ```
 
@@ -230,7 +233,7 @@ norca pack run nats --registry=norca --name=nats -f nats.hcl
 norca service info nats-monitor
 ```
 
-Three NATS servers, one per zone, with JetStream and the disruption budget
+Three NATS servers, one per datacenter, with JetStream and the disruption budget
 of the pack. Full Consul is available the same way with
 the [consul pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/consul/README.md) (Consul is BSL 1.1 and is
 installed from HashiCorp's releases after you accept its license); service
@@ -300,11 +303,11 @@ sudo systemctl disable --now norca && sudo rm -rf /opt/norca/data /etc/norca.d
 `https://10.0.0.11:4646/ui/`, signed in with the bootstrap token:
 
 - **Servers and regions**: the three servers, the leader, Raft state.
-- **Topology**: the nodes by zone with their allocations; test-app spread
-  over the three zones, the probe next to a test-app instance.
+- **Topology**: the nodes by datacenter with their allocations; test-app
+  spread over the three datacenters, the probe next to a test-app instance.
 - **Jobs → test-app → Placement** (and probe): the `separate` and
   `colocate` rules and the live state of the disruption budget.
-- **Services**: `test-app` (zones, health), `test-api` and `probe` behind
+- **Services**: `test-app` (datacenters, health), `test-api` and `probe` behind
   their sidecars.
 - **Network**: the intentions of `apps`, the network policy of test-app with
   its selected allocations, the admin policy.
