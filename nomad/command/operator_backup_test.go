@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/command/agent"
 	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/backup/s3fake"
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/mitchellh/cli"
@@ -43,27 +45,50 @@ func TestOperatorBackupCommands_Implement(t *testing.T) {
 func TestOperatorBackup_ParseBackupURL(t *testing.T) {
 	ci.Parallel(t)
 
-	bucket, prefix, id, err := parseBackupURL("s3://dr/norca/eu/2026/10/24/20261024T140000Z-1834567/")
+	dcfg, id, err := parseBackupURL("s3://dr/norca/eu/2026/10/24/20261024T140000Z-1834567/")
 	must.NoError(t, err)
-	must.Eq(t, "dr", bucket)
-	must.Eq(t, "norca/eu", prefix)
+	must.Eq(t, backup.DestinationTypeS3, dcfg.Type)
+	must.Eq(t, "dr", dcfg.Bucket)
+	must.Eq(t, "norca/eu", dcfg.Prefix)
 	must.Eq(t, "20261024T140000Z-1834567", id)
 
 	// A backup at the root of the bucket.
-	_, prefix, id, err = parseBackupURL("s3://dr/2026/10/24/20261024T140000Z-1834567")
+	dcfg, id, err = parseBackupURL("s3://dr/2026/10/24/20261024T140000Z-1834567")
 	must.NoError(t, err)
-	must.Eq(t, "", prefix)
+	must.Eq(t, "/", dcfg.Prefix)
 	must.Eq(t, "20261024T140000Z-1834567", id)
 
 	// A destination prefix: the latest backup.
-	_, prefix, id, err = parseBackupURL("s3://dr/norca/eu/")
+	dcfg, id, err = parseBackupURL("s3://dr/norca/eu/")
 	must.NoError(t, err)
-	must.Eq(t, "norca/eu", prefix)
+	must.Eq(t, "norca/eu", dcfg.Prefix)
 	must.Eq(t, "", id)
 
-	_, _, _, err = parseBackupURL("s3://dr/norca/2026/10/25/20261024T140000Z-1834567/")
+	// A folder of a directory: the directory holds the dated folders.
+	dcfg, id, err = parseBackupURL("file:///srv/copy/norca/eu/2026/10/24/20261024T140000Z-1834567/")
+	must.NoError(t, err)
+	must.Eq(t, backup.DestinationTypeDirectory, dcfg.Type)
+	must.Eq(t, filepath.FromSlash("/srv/copy/norca/eu"), dcfg.Path)
+	must.Eq(t, "/", dcfg.Prefix)
+	must.Eq(t, "20261024T140000Z-1834567", id)
+	dcfg, id, err = parseBackupURL("file:///srv/copy/norca/eu")
+	must.NoError(t, err)
+	must.Eq(t, filepath.FromSlash("/srv/copy/norca/eu"), dcfg.Path)
+	must.Eq(t, "", id)
+	dcfg, _, err = parseBackupURL("file:///C:/backups/norca/eu/")
+	must.NoError(t, err)
+	must.Eq(t, filepath.FromSlash("C:/backups/norca/eu"), dcfg.Path)
+	dcfg, _, err = parseBackupURL("file://server/share/norca/eu/")
+	must.NoError(t, err)
+	must.Eq(t, filepath.FromSlash("//server/share/norca/eu"), dcfg.Path)
+
+	_, _, err = parseBackupURL("s3://dr/norca/2026/10/25/20261024T140000Z-1834567/")
 	must.ErrorContains(t, err, "must end with")
-	_, _, _, err = parseBackupURL("https://dr/norca/eu/")
+	_, _, err = parseBackupURL("file:///srv/2026/10/25/20261024T140000Z-1834567/")
+	must.ErrorContains(t, err, "must end with")
+	_, _, err = parseBackupURL("https://dr/norca/eu/")
+	must.ErrorContains(t, err, "file:///")
+	_, _, err = parseBackupURL("/srv/copy/norca/eu/")
 	must.ErrorContains(t, err, "s3://")
 }
 
@@ -161,6 +186,109 @@ func TestOperatorBackup_RestoreBootstrap(t *testing.T) {
 	variable, _, err := newClient.Variables().Read("app/config", nil)
 	must.NoError(t, err)
 	must.Eq(t, "s3cr3t", variable.Items["password"])
+}
+
+// TestOperatorBackup_DirectoryRestoreBootstrap takes a backup into a
+// directory destination, shows its location and the missing download URL,
+// then builds a new cluster from a copy of its folder.
+func TestOperatorBackup_DirectoryRestoreBootstrap(t *testing.T) {
+	ci.Parallel(t)
+
+	identity, err := age.GenerateX25519Identity()
+	must.NoError(t, err)
+	tmpDir := t.TempDir()
+	identityFile := filepath.Join(tmpDir, "key.txt")
+	must.NoError(t, os.WriteFile(identityFile, []byte(identity.String()+"\n"), 0o600))
+	backupDir := filepath.Join(tmpDir, "backups")
+
+	serverConfig := func(dir string, withBackup bool) func(c *agent.Config) {
+		return func(c *agent.Config) {
+			c.DevMode = false
+			c.DataDir = filepath.Join(tmpDir, dir)
+			c.AdvertiseAddrs.HTTP = "127.0.0.1"
+			c.AdvertiseAddrs.RPC = "127.0.0.1"
+			c.AdvertiseAddrs.Serf = "127.0.0.1"
+			if withBackup {
+				c.Server.Backup = &agent.BackupConfig{
+					Destinations: []*agent.BackupDestinationConfig{{
+						Name: "local", Type: "directory", Path: backupDir,
+					}},
+					Encryption: &agent.BackupEncryptionConfig{Recipients: []string{identity.Recipient().String()}},
+				}
+			}
+		}
+	}
+
+	oldSrv, oldClient, oldURL := testServer(t, false, serverConfig("old", true))
+	defer oldSrv.Shutdown()
+	testutil.WaitForLeader(t, oldSrv.Agent.RPC)
+	job := testJob("from-folder")
+	_, _, err = oldClient.Jobs().Register(job, nil)
+	must.NoError(t, err)
+	var saved *api.BackupSaveResponse
+	must.Wait(t, wait.InitialSuccess(
+		wait.ErrorFunc(func() error {
+			saved, _, err = oldClient.Backups().Save(nil, nil)
+			return err
+		}),
+		wait.Timeout(10*time.Second),
+		wait.Gap(200*time.Millisecond),
+	))
+	folder := filepath.Join(backupDir, "norca", "global", filepath.FromSlash(saved.Backup.Path))
+	_, err = os.Stat(filepath.Join(folder, "state.snap.age"))
+	must.NoError(t, err)
+
+	// inspect shows the location as a file:// URL.
+	ui := cli.NewMockUi()
+	code := (&OperatorBackupInspectCommand{Meta: Meta{Ui: ui}}).Run([]string{"-address=" + oldURL, saved.ID})
+	must.Zero(t, code, must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "file://")
+	must.StrContains(t, ui.OutputWriter.String(), filepath.ToSlash(saved.Backup.Path))
+
+	// There is no download URL; the error names the file.
+	ui = cli.NewMockUi()
+	code = (&OperatorBackupDownloadCommand{Meta: Meta{Ui: ui}}).Run([]string{"-address=" + oldURL, saved.ID})
+	must.One(t, code)
+	must.StrContains(t, ui.ErrorWriter.String(), "not available for directory destinations")
+	must.StrContains(t, ui.ErrorWriter.String(), "state.snap.age")
+
+	// Copy the backup folder off the server, as an administrator would.
+	copyDir := filepath.Join(tmpDir, "copy")
+	copied := filepath.Join(copyDir, "eu-1", filepath.FromSlash(saved.Backup.Path))
+	must.NoError(t, os.MkdirAll(copied, 0o700))
+	entries, err := os.ReadDir(folder)
+	must.NoError(t, err)
+	for _, e := range entries {
+		buf, err := os.ReadFile(filepath.Join(folder, e.Name()))
+		must.NoError(t, err)
+		must.NoError(t, os.WriteFile(filepath.Join(copied, e.Name()), buf, 0o600))
+	}
+
+	newSrv, newClient, newURL := testServer(t, false, serverConfig("new", false))
+	defer newSrv.Shutdown()
+	testutil.WaitForLeader(t, newSrv.Agent.RPC)
+
+	from := "file://" + filepath.ToSlash(copied) + "/"
+	if !strings.HasPrefix(filepath.ToSlash(copied), "/") {
+		from = "file:///" + filepath.ToSlash(copied) + "/"
+	}
+	ui = cli.NewMockUi()
+	cmd := &OperatorBackupRestoreBootstrapCommand{Meta: Meta{Ui: ui}}
+	code = cmd.Run([]string{"-address=" + newURL, "-age-identity", identityFile, "-from", from})
+	must.Zero(t, code, must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), saved.ID)
+
+	restored, _, err := newClient.Jobs().Info(*job.ID, nil)
+	must.NoError(t, err)
+	must.Eq(t, *job.ID, *restored.ID)
+
+	// The S3 options don't apply to a folder.
+	ui = cli.NewMockUi()
+	cmd = &OperatorBackupRestoreBootstrapCommand{Meta: Meta{Ui: ui}}
+	code = cmd.Run([]string{"-address=" + newURL, "-age-identity", identityFile, "-from", from,
+		"-endpoint", "https://s3.example.com", "-force"})
+	must.One(t, code)
+	must.StrContains(t, ui.ErrorWriter.String(), `endpoint is not supported by type "directory"`)
 }
 
 func TestOperatorBackup_FullRestoreFlags(t *testing.T) {

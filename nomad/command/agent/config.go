@@ -698,7 +698,8 @@ type ServerConfig struct {
 	// Autoscaler configures the built-in autoscaler.
 	Autoscaler *AutoscalerConfig `hcl:"autoscaler"`
 
-	// Backup configures the scheduled backups to S3-compatible stores.
+	// Backup configures the scheduled backups to S3-compatible stores and
+	// directories.
 	Backup *BackupConfig `hcl:"backup"`
 
 	// Secrets configures the server side of the built-in secret store.

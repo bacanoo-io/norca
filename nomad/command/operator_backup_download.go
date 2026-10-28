@@ -27,6 +27,11 @@ Usage: norca operator backup download [options] <id>
   Print a short-lived (15 minutes) pre-signed URL of an encrypted backup
   object. The object stays encrypted; decrypt it with the age CLI.
 
+  Only S3 destinations sign URLs. Without -destination the first S3
+  destination the backup was verified on is used; a backup stored only on
+  directory destinations has no download URL, and the error names its file
+  on the servers instead.
+
   If ACLs are enabled, this command requires a token with the 'write'
   capability of the 'backup' policy.
 
@@ -37,8 +42,8 @@ General Options:
 Download Options:
 
   -destination <name>
-    The destination to download from. Defaults to the first one the backup
-    was verified on.
+    The destination to download from. Defaults to the first S3 destination
+    the backup was verified on.
 
   -object <name>
     The object: "state" (default), "keyring" or "manifest".

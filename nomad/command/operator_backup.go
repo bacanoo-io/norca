@@ -31,7 +31,8 @@ func (c *OperatorBackupCommand) Help() string {
 Usage: norca operator backup <subcommand> [options] [args]
 
   This command groups subcommands for the backups that the leader of a region
-  takes into S3-compatible stores, as configured in the server's backup block.
+  takes into S3-compatible stores and directories, as configured in the
+  server's backup block.
   Backups are encrypted with age; browsing, comparing and restoring them needs
   an age identity (private key) given with -age-identity. The identity is sent
   to the server for the request only and is never stored.
@@ -69,6 +70,11 @@ Usage: norca operator backup <subcommand> [options] [args]
 
       $ norca operator backup restore-bootstrap -age-identity key.txt \
           -from s3://<bucket>/<prefix>/<yyyy>/<mm>/<dd>/<id>/
+
+  or from a copy of the folder of a directory destination:
+
+      $ norca operator backup restore-bootstrap -age-identity key.txt \
+          -from file:///<path>/<prefix>/<yyyy>/<mm>/<dd>/<id>/
 
   Please see the individual subcommand help for detailed usage information.
 `

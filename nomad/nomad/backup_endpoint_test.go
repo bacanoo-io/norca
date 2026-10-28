@@ -5,6 +5,8 @@ package nomad
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -414,4 +416,79 @@ func TestBackupEndpoint_ACL(t *testing.T) {
 		Items:        []*structs.BackupRestoreItem{{Type: structs.BackupRestoreItemJob, ID: job.ID}},
 		WriteRequest: structs.WriteRequest{Region: "global", AuthToken: reader.SecretID}}, &restoreResp))
 	must.StrContains(t, restoreResp.Results[0].Error, structs.ErrPermissionDenied.Error())
+}
+
+// TestBackupEndpoint_Directory backs up into a directory destination,
+// browses and restores from it, and checks the missing download URL and the
+// error after a leader change to a server that does not share the directory.
+func TestBackupEndpoint_Directory(t *testing.T) {
+	ci.Parallel(t)
+
+	identity, err := age.GenerateX25519Identity()
+	must.NoError(t, err)
+	backupDir := t.TempDir()
+
+	srv, cleanup := TestServer(t, func(c *Config) {
+		c.DevMode = false
+		c.DataDir = t.TempDir()
+		c.NumSchedulers = 0
+		c.Backup = backup.DefaultConfig()
+		c.Backup.Encryption.Recipients = []string{identity.Recipient().String()}
+		c.Backup.BrowseCacheTTL = 0
+		c.Backup.Destinations = []*backup.DestinationConfig{{
+			Name: "local", Type: backup.DestinationTypeDirectory, Path: backupDir, Prune: true,
+		}}
+	})
+	defer cleanup()
+	codec := rpcClient(t, srv)
+	testutil.WaitForLeader(t, srv.RPC)
+	waitForKeyring(t, srv)
+
+	job := mock.Job()
+	var regResp structs.JobRegisterResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Job.Register", &structs.JobRegisterRequest{Job: job,
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace}}, &regResp))
+
+	var saveResp structs.BackupSaveResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Save", &structs.BackupSaveRequest{
+		WriteRequest: structs.WriteRequest{Region: "global"}}, &saveResp))
+	must.Eq(t, structs.BackupStatusComplete, saveResp.Backup.Status)
+	must.StrHasPrefix(t, "file://", saveResp.Backup.Destinations[0].Location)
+	folder := filepath.Join(backupDir, "norca", "global", filepath.FromSlash(saveResp.Backup.Path))
+	_, err = os.Stat(filepath.Join(folder, backup.ManifestKey))
+	must.NoError(t, err)
+
+	// Browse it.
+	contentsReq := &structs.BackupContentsRequest{ID: saveResp.ID, AgeIdentity: identity.String(),
+		QueryOptions: structs.QueryOptions{Region: "global", Namespace: "*"}}
+	var contents structs.BackupContentsResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Contents", contentsReq, &contents))
+	must.Len(t, 1, contents.Contents.Jobs)
+
+	// Restore the purged job from it.
+	var deregResp structs.JobDeregisterResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Job.Deregister", &structs.JobDeregisterRequest{JobID: job.ID, Purge: true,
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace}}, &deregResp))
+	var restoreResp structs.BackupRestoreResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Restore", &structs.BackupRestoreRequest{
+		ID: saveResp.ID, AgeIdentity: identity.String(),
+		Items:        []*structs.BackupRestoreItem{{Type: structs.BackupRestoreItemJob, Namespace: job.Namespace, ID: job.ID}},
+		WriteRequest: structs.WriteRequest{Region: "global"}}, &restoreResp))
+	must.Eq(t, structs.BackupRestoreStatusComplete, restoreResp.Restore.Status)
+	got, err := srv.fsm.State().JobByID(nil, job.Namespace, job.ID)
+	must.NoError(t, err)
+	must.NotNil(t, got)
+
+	// No pre-signed URL: a bad request naming the file.
+	err = msgpackrpc.CallWithCodec(codec, "Backup.DownloadURL", &structs.BackupDownloadURLRequest{
+		ID: saveResp.ID, QueryOptions: structs.QueryOptions{Region: "global"},
+	}, &structs.BackupDownloadURLResponse{})
+	must.ErrorContains(t, err, "not available for directory destinations")
+	must.ErrorContains(t, err, backup.StateKey)
+
+	// After a leader change to a server with its own directory the backup is
+	// missing; the error names the shared storage requirement.
+	must.NoError(t, os.RemoveAll(filepath.Join(backupDir, "norca")))
+	err = msgpackrpc.CallWithCodec(codec, "Backup.Contents", contentsReq, &structs.BackupContentsResponse{})
+	must.ErrorContains(t, err, "shared storage")
 }
