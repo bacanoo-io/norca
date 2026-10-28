@@ -150,10 +150,10 @@ func TestConfig_Validate(t *testing.T) {
 	cfg.Enabled = true
 	must.ErrorContains(t, cfg.Validate(), "at least one destination")
 
-	cfg.Destinations = []*DestinationConfig{{Name: "a", Type: "azure", Prefix: "x/${node}"}}
+	cfg.Destinations = []*DestinationConfig{{Name: "a", Type: "azure", Prefix: "x/${node}"}, {Name: "b", Type: "s3"}}
 	err := cfg.Validate()
 	must.ErrorContains(t, err, `unsupported type "azure"`)
-	must.ErrorContains(t, err, "missing bucket")
+	must.ErrorContains(t, err, `destination "b": 1 error occurred:`+"\n\t* missing bucket")
 	must.ErrorContains(t, err, "at least one age recipient")
 	must.ErrorContains(t, err, "only interpolate ${region}")
 

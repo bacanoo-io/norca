@@ -220,6 +220,26 @@ module('Acceptance | backups', function (hooks) {
     assert.dom('[data-test-download-url]').hasValue(/X-Amz-Signature/);
   });
 
+  test('a backup kept only in directories has no download link', async function (assert) {
+    useToken(null, 'management');
+    seedBackups(server);
+    const backup = server.db.norcaBackups[0];
+    const location = `file:///var/backups/norca/norca/eu/${
+      backup.Path || backup.ID
+    }/`;
+    server.db.norcaBackups.update(backup.id, {
+      Destinations: backup.Destinations.slice(0, 1).map((d) => ({
+        ...d,
+        Name: 'local',
+        Location: location,
+      })),
+    });
+    await Backups.visitBackup({ id: backup.ID });
+    assert.dom('[data-test-download-link]').doesNotExist();
+    assert.dom('[data-test-toggle-pin]').exists();
+    assert.dom('[data-test-backup-panel]').includesText(location);
+  });
+
   test('browsing asks for the age identity, then lists the content by type', async function (assert) {
     useToken(null, 'management');
     seedBackups(server);

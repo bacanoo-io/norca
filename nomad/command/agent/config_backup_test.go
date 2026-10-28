@@ -23,6 +23,7 @@ func TestConfig_Backup_Parse(t *testing.T) {
 	must.NoError(t, err)
 	id2, err := age.GenerateX25519Identity()
 	must.NoError(t, err)
+	backupDir := filepath.ToSlash(t.TempDir())
 
 	hcl := `
 server {
@@ -48,6 +49,12 @@ server {
       region  = "eu-central-1"
       sse     = "aws:kms"
       kms_key = "arn:aws:kms:eu-central-1:111111111111:key/abcd"
+    }
+
+    destination "local" {
+      type   = "directory"
+      path   = "` + backupDir + `"
+      prefix = "norca/${region}"
     }
 
     destination "secondary" {
@@ -97,7 +104,7 @@ server {
 	must.Eq(t, time.Minute, cfg.BrowseCacheTTL)
 	must.True(t, cfg.RequireApproval)
 	must.Eq(t, 30*time.Minute, cfg.ApprovalTTL)
-	must.Len(t, 2, cfg.Destinations)
+	must.Len(t, 3, cfg.Destinations)
 
 	// Two-person approval of full restores can't be turned off.
 	noApproval := c.Server.Backup.Copy()
@@ -114,6 +121,11 @@ server {
 	must.True(t, primary.Prune)
 	must.Nil(t, primary.Encryption)
 
+	local := cfg.Destination("local")
+	must.Eq(t, backup.DestinationTypeDirectory, local.Type)
+	must.Eq(t, backupDir, local.Path)
+	must.True(t, local.Prune)
+
 	secondary := cfg.Destination("secondary")
 	must.True(t, secondary.ForcePathStyle)
 	must.False(t, secondary.Prune)
@@ -128,8 +140,8 @@ server {
 	// Secrets are redacted for the agent self endpoint.
 	redacted := c.Server.Backup.Copy()
 	redacted.Redact()
-	must.Eq(t, "<redacted>", redacted.Destinations[1].SecretKey)
-	must.Eq(t, "secret", c.Server.Backup.Destinations[1].SecretKey)
+	must.Eq(t, "<redacted>", redacted.Destinations[2].SecretKey)
+	must.Eq(t, "secret", c.Server.Backup.Destinations[2].SecretKey)
 }
 
 func TestConfig_Backup_ParseErrors(t *testing.T) {
@@ -162,6 +174,25 @@ func TestConfig_Backup_ParseErrors(t *testing.T) {
 	} {
 		_, err := b.toServerConfig()
 		must.Error(t, err, must.Sprint(name))
+	}
+
+	// A directory destination needs an absolute path and takes no S3 keys.
+	recipients := &BackupEncryptionConfig{Recipients: []string{"age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p"}}
+	for name, tc := range map[string]struct {
+		dest *BackupDestinationConfig
+		err  string
+	}{
+		"relative path": {&BackupDestinationConfig{Name: "a", Type: "directory", Path: "backups"},
+			`path "backups" must be absolute`},
+		"no path": {&BackupDestinationConfig{Name: "a", Type: "directory"}, "missing path"},
+		"bucket": {&BackupDestinationConfig{Name: "a", Type: "directory", Path: filepath.ToSlash(t.TempDir()), Bucket: "b"},
+			`bucket is not supported by type "directory"`},
+		"path on s3": {&BackupDestinationConfig{Name: "a", Bucket: "b", Path: "/x"},
+			`path is only supported by type "directory"`},
+	} {
+		b := &BackupConfig{Destinations: []*BackupDestinationConfig{tc.dest}, Encryption: recipients}
+		_, err := b.toServerConfig()
+		must.ErrorContains(t, err, tc.err, must.Sprint(name))
 	}
 }
 

@@ -415,7 +415,8 @@ type Config struct {
 	// Autoscaler configures the built-in autoscaler.
 	Autoscaler *autoscaler.Config
 
-	// Backup configures the scheduled backups to S3-compatible stores.
+	// Backup configures the scheduled backups to S3-compatible stores and
+	// directories.
 	Backup *backup.Config
 
 	// SecretsAudit configures the append-only audit file of the built-in

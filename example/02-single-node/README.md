@@ -169,6 +169,19 @@ minutes after the bucket was created, and then one every full hour
 next one is due. The console is at
 `http://10.0.0.10:9001/rustfs/console/` with the same credentials.
 
+Without a store, a single server can keep its backups in a local directory
+instead: replace the `rustfs` destination with a
+[directory destination](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/configuration/backup.md#type--directory) and skip this
+step. The backups are then on the same disk as the server, so copy them off
+the machine regularly (or add a second destination elsewhere).
+
+```hcl
+destination "local" {
+  type = "directory"
+  path = "/var/backups/norca"
+}
+```
+
 ### 8. Deploy the test application
 
 ```shell

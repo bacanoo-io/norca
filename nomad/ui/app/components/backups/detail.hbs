@@ -17,7 +17,9 @@
           <Ui::Button @icon={{if this.backup.Pinned "lock-open" "lock"}} @isLoading={{this.isPinning}} data-test-toggle-pin {{on "click" this.togglePin}}>
             {{if this.backup.Pinned "Unpin" "Pin"}}
           </Ui::Button>
-          <Ui::Button @icon="download" @isLoading={{this.isLinking}} @disabled={{not this.isUsable}} data-test-download-link {{on "click" this.createDownloadLink}}>Download link</Ui::Button>
+          {{#if this.canDownload}}
+            <Ui::Button @icon="download" @isLoading={{this.isLinking}} @disabled={{not this.isUsable}} data-test-download-link {{on "click" this.createDownloadLink}}>Download link</Ui::Button>
+          {{/if}}
           <Ui::Button @variant="outline-danger" @icon="trash" data-test-delete-backup {{on "click" this.askDelete}}>Delete</Ui::Button>
         {{/if}}
         {{#if this.isUsable}}
