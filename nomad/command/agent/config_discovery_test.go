@@ -31,18 +31,13 @@ client {
   native_service_discovery {
     default_healthy_only = true
   }
-  topology {
-    zone = "${attr.platform.aws.placement.availability-zone}"
-  }
 }
 `)
 	must.NoError(t, err)
 	must.True(t, c.Client.NativeServiceDiscovery.HealthyOnly())
-	must.Eq(t, "${attr.platform.aws.placement.availability-zone}", c.Client.Topology.ZoneSource())
 
 	merged := DefaultConfig().Merge(c)
 	must.True(t, merged.Client.NativeServiceDiscovery.HealthyOnly())
-	must.Eq(t, "${attr.platform.aws.placement.availability-zone}", merged.Client.Topology.ZoneSource())
 
 	_, err = parseTestConfig(t, `
 client {
@@ -165,7 +160,7 @@ client {
 	must.Eq(t, "anon", clientConf.ConsulCompat.AnonymousToken)
 
 	bad = DefaultConfig().Merge(c)
-	bad.Client.ConsulCompat.DatacenterFrom = "zone"
+	bad.Client.ConsulCompat.DatacenterFrom = "rack"
 	_, err = convertClientConfig(bad)
 	must.ErrorContains(t, err, "datacenter_from")
 
@@ -182,5 +177,4 @@ client {
 	must.Eq(t, []string{"default"}, none.NamespaceList())
 	must.Eq(t, config.DefaultDNSTTL, none.TTLDuration())
 	must.False(t, DefaultConfig().Client.NativeServiceDiscovery.HealthyOnly())
-	must.Eq(t, config.DefaultTopologyZone, DefaultConfig().Client.Topology.ZoneSource())
 }

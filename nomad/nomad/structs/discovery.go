@@ -23,12 +23,9 @@ const (
 	// instance of the region is returned. It is the default.
 	DiscoveryPreferNone = "none"
 
-	// DiscoveryPreferZone prefers the instances in the zone of the consumer,
-	// then those in its datacenter, then the rest of the region.
-	DiscoveryPreferZone = "zone"
-
 	// DiscoveryPreferDatacenter prefers the instances in the datacenter of the
-	// consumer, then the rest of the region.
+	// consumer, then the rest of the region. It is the topology-aware mode:
+	// one datacenter is one failure domain (e.g. one availability zone).
 	DiscoveryPreferDatacenter = "datacenter"
 
 	// DiscoveryPreferRegion returns every instance of the region, as "none"
@@ -37,10 +34,10 @@ const (
 
 	// DefaultDiscoveryOverflowFraction is the default fraction of all eligible
 	// instances a topology tier must hold before the next tier is left out of
-	// the response, so a small zone does not receive the entire traffic. It is
-	// the default of the default_overflow_fraction server setting, which the
-	// servers fill in at job registration for discovery blocks that leave the
-	// fraction unset.
+	// the response, so a small datacenter does not receive the entire
+	// traffic. It is the default of the default_overflow_fraction server
+	// setting, which the servers fill in at job registration for discovery
+	// blocks that leave the fraction unset.
 	DefaultDiscoveryOverflowFraction = 0.2
 )
 
@@ -48,7 +45,6 @@ const (
 type Topology struct {
 	Region     string
 	Datacenter string
-	Zone       string
 }
 
 // ServiceDiscovery is the discovery block of a service using the Nomad
@@ -56,8 +52,8 @@ type Topology struct {
 // instances of the service. The settings are copied into every registration of
 // the service.
 type ServiceDiscovery struct {
-	// Prefer is the topology preference: "none" (default), "zone",
-	// "datacenter" or "region".
+	// Prefer is the topology preference: "none" (default), "datacenter" or
+	// "region".
 	Prefer string
 
 	// MinLocal is the number of eligible instances a topology tier must hold
@@ -128,10 +124,10 @@ func (d *ServiceDiscovery) Validate() error {
 	var mErr multierror.Error
 
 	switch d.Prefer {
-	case "", DiscoveryPreferNone, DiscoveryPreferZone, DiscoveryPreferDatacenter, DiscoveryPreferRegion:
+	case "", DiscoveryPreferNone, DiscoveryPreferDatacenter, DiscoveryPreferRegion:
 	default:
-		mErr.Errors = append(mErr.Errors, fmt.Errorf("discovery prefer must be %q, %q, %q or %q; got %q",
-			DiscoveryPreferNone, DiscoveryPreferZone, DiscoveryPreferDatacenter, DiscoveryPreferRegion, d.Prefer))
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("discovery prefer must be %q, %q or %q; got %q",
+			DiscoveryPreferNone, DiscoveryPreferDatacenter, DiscoveryPreferRegion, d.Prefer))
 	}
 	if d.MinLocal < 0 {
 		mErr.Errors = append(mErr.Errors, errors.New("discovery min_local must be non-negative"))
@@ -155,11 +151,11 @@ func (d *ServiceDiscovery) Validate() error {
 
 // SelectByTopology orders the instances of one service by their topology
 // relative to near, following the discovery settings d, and leaves out the
-// tiers that are not needed. The tiers are (1) the zone of near, (2) its
-// datacenter and (3) the rest of the region, depending on d.Prefer. The first
-// tier is always returned; each next tier is added while the instances
-// returned so far are fewer than d.MinLocal (at least one), or fewer than
-// d.OverflowFraction of all instances. The order within a tier is kept.
+// tiers that are not needed. With a preference of "datacenter" the tiers are
+// (1) the datacenter of near and (2) the rest of the region. The first tier is
+// always returned; the next tier is added while the instances returned so far
+// are fewer than d.MinLocal (at least one), or fewer than d.OverflowFraction
+// of all instances. The order within a tier is kept.
 //
 // Instances must all belong to the region of near. With no settings, or with
 // a preference of "none" or "region", instances are returned as they are.
@@ -170,19 +166,6 @@ func SelectByTopology(instances []*ServiceRegistration, near Topology, d *Servic
 
 	var tiers [][]*ServiceRegistration
 	switch d.Prefer {
-	case DiscoveryPreferZone:
-		var zone, dc, rest []*ServiceRegistration
-		for _, inst := range instances {
-			switch {
-			case near.Zone != "" && inst.Zone == near.Zone && inst.Datacenter == near.Datacenter:
-				zone = append(zone, inst)
-			case inst.Datacenter == near.Datacenter:
-				dc = append(dc, inst)
-			default:
-				rest = append(rest, inst)
-			}
-		}
-		tiers = [][]*ServiceRegistration{zone, dc, rest}
 	case DiscoveryPreferDatacenter:
 		var dc, rest []*ServiceRegistration
 		for _, inst := range instances {

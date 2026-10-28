@@ -21,7 +21,7 @@ func TestServiceDiscovery_Validate(t *testing.T) {
 	var nilDiscovery *ServiceDiscovery
 	must.NoError(t, nilDiscovery.Validate())
 
-	valid := &ServiceDiscovery{Prefer: DiscoveryPreferZone, MinLocal: 2, OverflowFraction: pointer.Of(0.2), Failover: []string{"eu", "us"}}
+	valid := &ServiceDiscovery{Prefer: DiscoveryPreferDatacenter, MinLocal: 2, OverflowFraction: pointer.Of(0.2), Failover: []string{"eu", "us"}}
 	must.NoError(t, valid.Validate())
 
 	err := (&ServiceDiscovery{Prefer: "rack", MinLocal: -1, OverflowFraction: pointer.Of(2.0), Failover: []string{"eu", "eu", ""}}).Validate()
@@ -42,10 +42,10 @@ func TestServiceDiscovery_Validate(t *testing.T) {
 	must.Eq(t, "eu", valid.Failover[0])
 	// the overflow fraction: unset is valid and differs from an explicit
 	// value; the copy is deep
-	unset := &ServiceDiscovery{Prefer: DiscoveryPreferZone}
+	unset := &ServiceDiscovery{Prefer: DiscoveryPreferDatacenter}
 	must.NoError(t, unset.Validate())
 	must.Eq(t, DefaultDiscoveryOverflowFraction, unset.EffectiveOverflowFraction())
-	explicit := &ServiceDiscovery{Prefer: DiscoveryPreferZone, OverflowFraction: pointer.Of(DefaultDiscoveryOverflowFraction)}
+	explicit := &ServiceDiscovery{Prefer: DiscoveryPreferDatacenter, OverflowFraction: pointer.Of(DefaultDiscoveryOverflowFraction)}
 	must.False(t, unset.Equal(explicit))
 	must.True(t, explicit.Equal(explicit.Copy()))
 	cp := explicit.Copy()
@@ -81,13 +81,13 @@ func TestServiceDiscovery_MsgpackCompat(t *testing.T) {
 	}
 	for _, f := range []float64{0.2, 0} {
 		var buf bytes.Buffer
-		must.NoError(t, codec.NewEncoder(&buf, MsgpackHandle).Encode(&oldServiceDiscovery{Prefer: "zone", OverflowFraction: f}))
+		must.NoError(t, codec.NewEncoder(&buf, MsgpackHandle).Encode(&oldServiceDiscovery{Prefer: "datacenter", OverflowFraction: f}))
 		var d ServiceDiscovery
 		must.NoError(t, codec.NewDecoder(&buf, MsgpackHandle).Decode(&d))
-		must.Eq(t, &ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(f)}, &d)
+		must.Eq(t, &ServiceDiscovery{Prefer: "datacenter", OverflowFraction: pointer.Of(f)}, &d)
 	}
 
-	for _, in := range []*ServiceDiscovery{{Prefer: "zone"}, {Prefer: "zone", OverflowFraction: pointer.Of(0.0)}} {
+	for _, in := range []*ServiceDiscovery{{Prefer: "datacenter"}, {Prefer: "datacenter", OverflowFraction: pointer.Of(0.0)}} {
 		var buf bytes.Buffer
 		must.NoError(t, codec.NewEncoder(&buf, MsgpackHandle).Encode(in))
 		var out ServiceDiscovery
@@ -103,7 +103,7 @@ func TestService_ValidateDiscovery(t *testing.T) {
 		Name:      "api",
 		PortLabel: "http",
 		Provider:  ServiceProviderNomad,
-		Discovery: &ServiceDiscovery{Prefer: DiscoveryPreferZone, MinLocal: 2},
+		Discovery: &ServiceDiscovery{Prefer: DiscoveryPreferDatacenter, MinLocal: 2},
 		Checks: []*ServiceCheck{{
 			Name:                   "alive",
 			Type:                   ServiceCheckHTTP,
@@ -142,26 +142,26 @@ func TestServiceDiscoveryDiff(t *testing.T) {
 
 	must.Nil(t, serviceDiscoveryDiff(nil, nil, false))
 
-	added := serviceDiscoveryDiff(nil, &ServiceDiscovery{Prefer: "zone", Failover: []string{"eu"}}, false)
+	added := serviceDiscoveryDiff(nil, &ServiceDiscovery{Prefer: "datacenter", Failover: []string{"eu"}}, false)
 	must.Eq(t, DiffTypeAdded, added.Type)
 
 	edited := serviceDiscoveryDiff(
-		&ServiceDiscovery{Prefer: "zone", Failover: []string{"eu"}},
-		&ServiceDiscovery{Prefer: "zone", Failover: []string{"eu", "us"}}, false)
+		&ServiceDiscovery{Prefer: "datacenter", Failover: []string{"eu"}},
+		&ServiceDiscovery{Prefer: "datacenter", Failover: []string{"eu", "us"}}, false)
 	must.Eq(t, DiffTypeEdited, edited.Type)
 	must.Len(t, 1, edited.Fields)
 	must.Eq(t, "Failover", edited.Fields[0].Name)
 
 	// the overflow fraction is a pointer, which primitiveObjectDiff skips
 	fraction := serviceDiscoveryDiff(
-		&ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(0.2)},
-		&ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(0.35)}, false)
+		&ServiceDiscovery{Prefer: "datacenter", OverflowFraction: pointer.Of(0.2)},
+		&ServiceDiscovery{Prefer: "datacenter", OverflowFraction: pointer.Of(0.35)}, false)
 	must.Eq(t, DiffTypeEdited, fraction.Type)
 	must.Eq(t, []*FieldDiff{{Type: DiffTypeEdited, Name: "OverflowFraction", Old: "0.2", New: "0.35"}}, fraction.Fields)
 
 	fraction = serviceDiscoveryDiff(
-		&ServiceDiscovery{Prefer: "zone"},
-		&ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(0.0)}, true)
+		&ServiceDiscovery{Prefer: "datacenter"},
+		&ServiceDiscovery{Prefer: "datacenter", OverflowFraction: pointer.Of(0.0)}, true)
 	must.Eq(t, DiffTypeEdited, fraction.Type)
 	var names []string
 	for _, f := range fraction.Fields {
@@ -177,7 +177,7 @@ func TestServiceDiscoveryDiff(t *testing.T) {
 
 	sDiff := serviceDiff(
 		&Service{Name: "api", Discovery: &ServiceDiscovery{Prefer: "none"}},
-		&Service{Name: "api", Discovery: &ServiceDiscovery{Prefer: "zone"}}, false)
+		&Service{Name: "api", Discovery: &ServiceDiscovery{Prefer: "datacenter"}}, false)
 	must.NotNil(t, sDiff)
 	must.Eq(t, "Discovery", sDiff.Objects[len(sDiff.Objects)-1].Name)
 }
@@ -213,9 +213,9 @@ func TestServiceRegistration_HealthEqual(t *testing.T) {
 
 	a := &ServiceRegistration{
 		ID: "a", ServiceName: "api", Ready: true, Health: ServiceHealthPassing,
-		Checks: []*ServiceRegistrationCheck{{Name: "c", Status: ServiceHealthPassing, Output: "ok"}},
-		Zone:   "z1", Meta: map[string]string{"k": "v"},
-		Discovery: &ServiceDiscovery{Prefer: "zone"},
+		Checks:    []*ServiceRegistrationCheck{{Name: "c", Status: ServiceHealthPassing, Output: "ok"}},
+		Meta:      map[string]string{"k": "v"},
+		Discovery: &ServiceDiscovery{Prefer: "datacenter"},
 	}
 	b := a.Copy()
 	b.Checks[0].Output = "still ok"
@@ -226,20 +226,19 @@ func TestServiceRegistration_HealthEqual(t *testing.T) {
 	must.False(t, a.HealthEqual(b))
 	must.True(t, a.EqualExceptHealth(b))
 
-	b.Zone = "z2"
+	b.Datacenter = "dc2"
 	must.False(t, a.EqualExceptHealth(b))
 
 	// the copy is deep
 	b.Meta["k"] = "w"
 	b.Discovery.Prefer = "none"
 	must.Eq(t, "v", a.Meta["k"])
-	must.Eq(t, "zone", a.Discovery.Prefer)
+	must.Eq(t, "datacenter", a.Discovery.Prefer)
 
 	a.StripNorcaFields()
 	must.Eq(t, "", a.Health)
 	must.Nil(t, a.Checks)
 	must.Nil(t, a.Discovery)
-	must.Eq(t, "", a.Zone)
 }
 
 func TestTruncateCheckOutput(t *testing.T) {
@@ -256,7 +255,7 @@ func TestEffectiveDiscovery(t *testing.T) {
 
 	must.Nil(t, EffectiveDiscovery(nil))
 	regs := []*ServiceRegistration{
-		{ModifyIndex: 5, Discovery: &ServiceDiscovery{Prefer: "zone"}},
+		{ModifyIndex: 5, Discovery: &ServiceDiscovery{Prefer: "datacenter"}},
 		{ModifyIndex: 9, Discovery: &ServiceDiscovery{Prefer: "datacenter"}},
 		{ModifyIndex: 12},
 	}

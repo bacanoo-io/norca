@@ -25,7 +25,7 @@ func TestApiServicesToStructs_Discovery(t *testing.T) {
 	ci.Parallel(t)
 
 	out := ApiServicesToStructs([]*api.Service{
-		{Name: "a", Provider: "nomad", Discovery: &api.ServiceDiscovery{Prefer: "zone", MinLocal: 2, Failover: []string{"eu"}}},
+		{Name: "a", Provider: "nomad", Discovery: &api.ServiceDiscovery{Prefer: "datacenter", MinLocal: 2, Failover: []string{"eu"}}},
 		{Name: "b", Provider: "nomad", Discovery: &api.ServiceDiscovery{OverflowFraction: pointer.Of(0.0)}},
 		{Name: "c", Provider: "nomad"},
 		{Name: "d", Provider: "nomad", Discovery: &api.ServiceDiscovery{OverflowFraction: pointer.Of(0.35)}},
@@ -34,7 +34,7 @@ func TestApiServicesToStructs_Discovery(t *testing.T) {
 	// an unset overflow fraction stays unset: the servers fill in their
 	// default at registration
 	must.Eq(t, &structs.ServiceDiscovery{
-		Prefer: "zone", MinLocal: 2, Failover: []string{"eu"},
+		Prefer: "datacenter", MinLocal: 2, Failover: []string{"eu"},
 	}, out[0].Discovery)
 	must.Nil(t, out[0].Discovery.OverflowFraction)
 	must.Eq(t, pointer.Of(0.0), out[1].Discovery.OverflowFraction)
@@ -70,9 +70,9 @@ func TestHTTP_JobRegister_DiscoveryDefaultOverflowFraction(t *testing.T) {
 				Count:    pointer.Of(1),
 				Networks: []*api.NetworkResource{{DynamicPorts: []api.Port{{Label: "http"}}}},
 				Services: []*api.Service{
-					service("unset", &api.ServiceDiscovery{Prefer: "zone"}),
-					service("explicit", &api.ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(0.5)}),
-					service("off", &api.ServiceDiscovery{Prefer: "zone", OverflowFraction: pointer.Of(0.0)}),
+					service("unset", &api.ServiceDiscovery{Prefer: "datacenter"}),
+					service("explicit", &api.ServiceDiscovery{Prefer: "datacenter", OverflowFraction: pointer.Of(0.5)}),
+					service("off", &api.ServiceDiscovery{Prefer: "datacenter", OverflowFraction: pointer.Of(0.0)}),
 				},
 				Tasks: []*api.Task{{
 					Name:   "app",

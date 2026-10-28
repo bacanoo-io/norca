@@ -38,7 +38,7 @@ namespace "[[ $ns ]]" {
   }
 }
 
-Mark the server nodes ([[ $v.server_count ]], one per zone[[ if ne $v.server_node_meta "" ]], meta [[ $v.server_node_meta ]] = "true"[[ end ]])
+Mark the server nodes ([[ $v.server_count ]], one per datacenter[[ if ne $v.server_node_meta "" ]], meta [[ $v.server_node_meta ]] = "true"[[ end ]])
 [[- if ne $v.driver "raw_exec" ]] and give them the host volume "[[ $v.server_host_volume ]]"[[ end ]].
 
 The management token (keep it safe; the CA key is in the same Variable):

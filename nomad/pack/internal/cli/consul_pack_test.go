@@ -126,7 +126,7 @@ func TestConsulPack_RenderDefaults(t *testing.T) {
 	tg := servers.TaskGroups[0]
 	must.Eq(t, "servers", *tg.Name)
 	must.Eq(t, 3, *tg.Count)
-	must.Eq(t, "${meta.zone}", tg.Spreads[0].Attribute)
+	must.Eq(t, "${node.datacenter}", tg.Spreads[0].Attribute)
 	must.Eq(t, "${meta.consul_server}", tg.Constraints[1].LTarget)
 	must.Eq(t, "consul-server", tg.Volumes["data"].Source)
 	must.Eq(t, 1, *tg.Update.MaxParallel)
@@ -191,7 +191,7 @@ func TestConsulPack_RenderVariants(t *testing.T) {
 		"--var=driver=exec",
 		"--var=server_count=5",
 		"--var=tls_enabled=false",
-		"--var=zone_separate_required=true",
+		"--var=datacenter_separate_required=true",
 		"--var=host_network=wg",
 		"--var=datacenter=eu-aws",
 		"--var=download_base_url=https://mirror.internal/consul/",

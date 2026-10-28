@@ -81,11 +81,11 @@ func (f *FakeCatalog) RPC(method string, args, reply any) error {
 	return nil
 }
 
-func reg(id, dc, zone string, healthy bool) *structs.ServiceRegistration {
+func reg(id, dc string, healthy bool) *structs.ServiceRegistration {
 	r := &structs.ServiceRegistration{
-		ID: id, ServiceName: "api", Namespace: "default", Datacenter: dc, Zone: zone,
+		ID: id, ServiceName: "api", Namespace: "default", Datacenter: dc,
 		Address: "10.0.0.1", Port: 80, Ready: true, Health: structs.ServiceHealthPassing,
-		Discovery: &structs.ServiceDiscovery{Prefer: "zone", MinLocal: 2, OverflowFraction: pointer.Of(0.2), Failover: []string{"us", "ap"}},
+		Discovery: &structs.ServiceDiscovery{Prefer: "datacenter", MinLocal: 2, OverflowFraction: pointer.Of(0.2), Failover: []string{"us", "ap"}},
 	}
 	if !healthy {
 		r.Health = structs.ServiceHealthCritical
@@ -109,17 +109,17 @@ func TestResolver_TopologyAndFailover(t *testing.T) {
 	cache.waitTime = 100 * time.Millisecond
 	defer cache.Stop()
 
-	local := structs.Topology{Region: "eu", Datacenter: "dc1", Zone: "a"}
+	local := structs.Topology{Region: "eu", Datacenter: "dc-a"}
 	r := NewResolver(cache, func() structs.Topology { return local })
 	ctx := context.Background()
 	q := Query{Namespace: "default", Name: "api"}
 
 	catalog.Set("eu",
-		reg("a1", "dc1", "a", true), reg("a2", "dc1", "a", true), reg("b1", "dc1", "b", true),
-		reg("c1", "dc2", "c", true), reg("c2", "dc2", "c", true), reg("c3", "dc2", "c", true),
-		reg("c4", "dc2", "c", true), reg("c5", "dc2", "c", true))
-	catalog.Set("us", reg("us1", "us-dc", "x", true))
-	catalog.Set("ap", reg("ap1", "ap-dc", "y", true))
+		reg("a1", "dc-a", true), reg("a2", "dc-a", true), reg("b1", "dc-b", true),
+		reg("c1", "dc-c", true), reg("c2", "dc-c", true), reg("c3", "dc-c", true),
+		reg("c4", "dc-c", true), reg("c5", "dc-c", true))
+	catalog.Set("us", reg("us1", "us-dc", true))
+	catalog.Set("ap", reg("ap1", "ap-dc", true))
 
 	res, err := r.Resolve(ctx, q)
 	must.NoError(t, err)
@@ -141,21 +141,21 @@ func TestResolver_TopologyAndFailover(t *testing.T) {
 		), must.Sprint(exp))
 	}
 
-	// one instance left in the zone: the datacenter joins
+	// one instance left in the datacenter: the rest of the region joins
 	catalog.Set("eu",
-		reg("a1", "dc1", "a", true), reg("a2", "dc1", "a", false), reg("b1", "dc1", "b", true),
-		reg("c1", "dc2", "c", true))
-	waitFor([]string{"a1", "b1"})
+		reg("a1", "dc-a", true), reg("a2", "dc-a", false), reg("b1", "dc-b", true),
+		reg("c1", "dc-c", true))
+	waitFor([]string{"a1", "b1", "c1"})
 
 	// no healthy instance in the region: the first failover region with
 	// healthy instances
-	catalog.Set("eu", reg("a1", "dc1", "a", false))
+	catalog.Set("eu", reg("a1", "dc-a", false))
 	waitFor([]string{"us1"})
 	res, _ = r.Resolve(ctx, q)
 	must.Eq(t, "us", res.Region)
 	must.True(t, res.Known)
 
-	catalog.Set("us", reg("us1", "us-dc", "x", false))
+	catalog.Set("us", reg("us1", "us-dc", false))
 	waitFor([]string{"ap1"})
 
 	// all registrations gone: the remembered settings still fail over
@@ -163,9 +163,9 @@ func TestResolver_TopologyAndFailover(t *testing.T) {
 	waitFor([]string{"ap1"})
 
 	// tags are filtered before the topology selection
-	tagged := reg("t1", "dc1", "a", true)
+	tagged := reg("t1", "dc-a", true)
 	tagged.Tags = []string{"blue"}
-	catalog.Set("eu", tagged, reg("a2", "dc1", "a", true))
+	catalog.Set("eu", tagged, reg("a2", "dc-a", true))
 	waitFor([]string{"t1", "a2"})
 	res, _ = r.Resolve(ctx, Query{Namespace: "default", Name: "api", Tag: "blue"})
 	must.Eq(t, []string{"t1"}, ids(res.Instances))
@@ -190,7 +190,7 @@ func TestCache_IdleEntriesAreDropped(t *testing.T) {
 	ci.Parallel(t)
 
 	catalog := NewFakeCatalog()
-	catalog.Set("eu", reg("a1", "dc1", "a", true))
+	catalog.Set("eu", reg("a1", "dc-a", true))
 	cache := NewCache(testlog.HCLogger(t), catalog.RPC, func() string { return "" })
 	cache.waitTime = 50 * time.Millisecond
 	cache.idleTimeout = 100 * time.Millisecond

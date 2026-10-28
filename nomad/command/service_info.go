@@ -271,7 +271,6 @@ func (s *ServiceInfoCommand) formatVerboseOutput(jobIDs []string, jobServices ma
 				fmt.Sprintf("Node ID|%s", service.NodeID),
 				fmt.Sprintf("Datacenter|%s", service.Datacenter),
 				fmt.Sprintf("Address|%v", fmt.Sprintf("%s:%v", service.Address, service.Port)),
-				fmt.Sprintf("Zone|%s", service.Zone),
 				fmt.Sprintf("Ready|%v", service.Ready),
 				fmt.Sprintf("Health|%s", formatServiceHealth(service)),
 			}

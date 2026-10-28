@@ -140,7 +140,7 @@ client {
 		},
 		{
 			name:    "consul_compat datacenter_from",
-			config:  `consul_compat { enabled = true datacenter_from = "zone" }`,
+			config:  `consul_compat { enabled = true datacenter_from = "rack" }`,
 			wantErr: "consul_compat datacenter_from must be",
 		},
 		{

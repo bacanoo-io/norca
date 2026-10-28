@@ -873,7 +873,6 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 		conf.NomadServiceDiscovery = *agentConfig.Client.NomadServiceDiscovery
 	}
 	conf.NativeServiceDiscovery = agentConfig.Client.NativeServiceDiscovery.Copy()
-	conf.Topology = agentConfig.Client.Topology.Copy()
 	// The Norca blocks: dns, consul_compat and secrets (also checked by
 	// config validate).
 	secretsConf, err := convertNorcaClientBlocks(agentConfig.Client, conf.VaultConfig)

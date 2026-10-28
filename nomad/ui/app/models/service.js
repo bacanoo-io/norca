@@ -30,7 +30,6 @@ export default class Service extends Model {
   @attr('string') health;
   @attr() checks;
   @attr('number') healthUpdatedAt;
-  @attr('string') zone;
 
   @alias('serviceName') name;
 

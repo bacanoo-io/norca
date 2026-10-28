@@ -77,9 +77,6 @@ type ServiceRegistration struct {
 	// last recorded a change of the health of the instance.
 	HealthUpdatedAt int64
 
-	// Zone is the topology zone of the node running the instance.
-	Zone string
-
 	// Meta is the meta of the service.
 	Meta map[string]string
 
@@ -114,7 +111,7 @@ type ServiceRegistrationCheck struct {
 // provider: the topology preference, regional failover and whether instances
 // that are not ready are discoverable.
 type ServiceDiscovery struct {
-	// Prefer is "none" (default), "zone", "datacenter" or "region".
+	// Prefer is "none" (default), "datacenter" or "region".
 	Prefer string `mapstructure:"prefer" hcl:"prefer,optional"`
 
 	// MinLocal is the number of instances a topology tier must hold before
