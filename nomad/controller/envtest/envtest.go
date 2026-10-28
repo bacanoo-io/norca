@@ -52,7 +52,7 @@ type Options struct {
 	// carry the management token (Agent.Token).
 	ACL bool
 
-	// StartTimeout bounds the wait for a leader (default 90s).
+	// StartTimeout bounds the wait for an established leader (default 90s).
 	StartTimeout time.Duration
 
 	// MaxLifetime kills the agent after this time (default 30m).
@@ -162,7 +162,7 @@ func StartT(t testing.TB, opts Options) *Agent {
 	return agent
 }
 
-// Start starts a dev agent and waits until it has a leader.
+// Start starts a dev agent and waits until it has an established leader.
 func Start(ctx context.Context, opts Options) (*Agent, error) {
 	if opts.Binary == "" {
 		bin, err := FindBinary()
@@ -250,18 +250,8 @@ ports {
 
 	deadline := time.Now().Add(opts.StartTimeout)
 	for {
-		leader, err := a.Client.Status().Leader()
-		if err == nil && leader != "" {
-			if !opts.ACL {
-				return a, nil
-			}
-			token, _, err := a.Client.ACLTokens().Bootstrap(nil)
-			if err == nil {
-				a.Token = token.SecretID
-				a.Client.SetSecretID(token.SecretID)
-				return a, nil
-			}
-			// The ACL subsystem may not be ready yet; retry.
+		if a.ready(opts.ACL) {
+			return a, nil
 		}
 		select {
 		case <-a.exited:
@@ -275,9 +265,46 @@ ports {
 		}
 		if time.Now().After(deadline) {
 			a.Stop()
-			return nil, fmt.Errorf("no leader within %s", opts.StartTimeout)
+			return nil, fmt.Errorf("no established leader within %s", opts.StartTimeout)
 		}
 	}
+}
+
+// ready reports whether the agent has a leader that has established its
+// leadership, bootstrapping ACLs first with acl. A leader is reported as
+// soon as it is elected, but it writes the scheduler configuration (job
+// registrations are refused without one) and the first root key (variables
+// can't be encrypted without one) only afterwards.
+func (a *Agent) ready(acl bool) bool {
+	if a.Token == "" {
+		leader, err := a.Client.Status().Leader()
+		if err != nil || leader == "" {
+			return false
+		}
+		if acl {
+			// The ACL subsystem may not be ready yet; retry.
+			token, _, err := a.Client.ACLTokens().Bootstrap(nil)
+			if err != nil {
+				return false
+			}
+			a.Token = token.SecretID
+			a.Client.SetSecretID(token.SecretID)
+		}
+	}
+	sched, _, err := a.Client.Operator().SchedulerGetConfiguration(nil)
+	if err != nil || sched.SchedulerConfig == nil {
+		return false
+	}
+	keys, _, err := a.Client.Keyring().List(nil)
+	if err != nil {
+		return false
+	}
+	for _, key := range keys {
+		if key.State == api.RootKeyStateActive {
+			return true
+		}
+	}
+	return false
 }
 
 // Stop kills the agent and removes its directory (unless KeepLog is set).

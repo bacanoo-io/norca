@@ -5,6 +5,10 @@
 
 set -e
 
+# The order of the input files decides the order of the generated code: sort
+# them by byte value whatever the locale, as CI does.
+export LC_ALL=C
+
 # Go 1.25+ rejects base64 alphabets with duplicate symbols, and the codecgen
 # generator in go-msgpack v1.1.5 uses one ("...0123456789__") to build type
 # names. That code is only compiled into the generator (codecgen.exec tag),
