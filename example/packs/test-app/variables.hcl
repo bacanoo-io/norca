@@ -96,7 +96,7 @@ variable "disruption_max_unavailable" {
 }
 
 variable "separate_scope" {
-  description = "Scope of a separate block that keeps the instances of the job apart, e.g. \"$${node.unique.id}\" or \"$${meta.zone}\". Empty renders no separate block."
+  description = "Scope of a separate block that keeps the instances of the job apart, e.g. \"$${node.unique.id}\" or \"$${node.datacenter}\". Empty renders no separate block."
   type        = string
   default     = ""
 }
@@ -108,13 +108,13 @@ variable "separate_required" {
 }
 
 variable "discovery_prefer" {
-  description = "prefer of the discovery block of the service: \"zone\", \"datacenter\", \"region\" or \"none\". Empty renders no discovery block."
+  description = "prefer of the discovery block of the service: \"datacenter\", \"region\" or \"none\". Empty renders no discovery block."
   type        = string
   default     = ""
 }
 
 variable "discovery_min_local" {
-  description = "min_local of the discovery block: a topology tier (zone, then datacenter) is enough on its own only when it holds at least this many healthy instances (and at least overflow_fraction, default 20%, of all). 0 renders no min_local (the default of 1 applies)."
+  description = "min_local of the discovery block: a topology tier (the datacenter, then the rest of the region) is enough on its own only when it holds at least this many healthy instances (and at least overflow_fraction, default 20%, of all). 0 renders no min_local (the default of 1 applies)."
   type        = number
   default     = 0
 }

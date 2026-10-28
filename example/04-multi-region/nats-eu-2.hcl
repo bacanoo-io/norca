@@ -5,7 +5,7 @@
 #   norca pack run nats --registry=norca --name=nats --region=eu-2 -f nats-eu-2.hcl
 region            = "eu-2"
 count             = 3
-separate_scope    = "$${meta.zone}"
+separate_scope    = "$${node.datacenter}"
 separate_required = true
 gateway_enabled   = true
 remote_gateways = [

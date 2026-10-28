@@ -22,7 +22,7 @@ func Test_setDiscoveryDefaults(t *testing.T) {
 		TaskGroups: []*structs.TaskGroup{
 			{
 				Services: []*structs.Service{
-					{Name: "unset", Discovery: &structs.ServiceDiscovery{Prefer: "zone"}},
+					{Name: "unset", Discovery: &structs.ServiceDiscovery{Prefer: "datacenter"}},
 					{Name: "explicit", Discovery: &structs.ServiceDiscovery{OverflowFraction: pointer.Of(0.5)}},
 					{Name: "off", Discovery: &structs.ServiceDiscovery{OverflowFraction: pointer.Of(0.0)}},
 					{Name: "none"},
@@ -62,19 +62,19 @@ func discoveryJob() *structs.Job {
 			Name:      "unset",
 			PortLabel: "http",
 			Provider:  structs.ServiceProviderNomad,
-			Discovery: &structs.ServiceDiscovery{Prefer: structs.DiscoveryPreferZone},
+			Discovery: &structs.ServiceDiscovery{Prefer: structs.DiscoveryPreferDatacenter},
 		},
 		{
 			Name:      "explicit",
 			PortLabel: "http",
 			Provider:  structs.ServiceProviderNomad,
-			Discovery: &structs.ServiceDiscovery{Prefer: structs.DiscoveryPreferZone, OverflowFraction: pointer.Of(0.5)},
+			Discovery: &structs.ServiceDiscovery{Prefer: structs.DiscoveryPreferDatacenter, OverflowFraction: pointer.Of(0.5)},
 		},
 		{
 			Name:      "off",
 			PortLabel: "http",
 			Provider:  structs.ServiceProviderNomad,
-			Discovery: &structs.ServiceDiscovery{Prefer: structs.DiscoveryPreferZone, OverflowFraction: pointer.Of(0.0)},
+			Discovery: &structs.ServiceDiscovery{Prefer: structs.DiscoveryPreferDatacenter, OverflowFraction: pointer.Of(0.0)},
 		},
 	}
 	return job

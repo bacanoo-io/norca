@@ -97,7 +97,7 @@ func (s *ServiceRegistration) Upsert(
 		}
 	}
 
-	// The health-based catalog (health, checks, zone, meta and discovery
+	// The health-based catalog (health, checks, meta and discovery
 	// settings, with flapping protection) is enabled once every server of the
 	// region runs Norca; until then registrations keep the fields known to
 	// every server.

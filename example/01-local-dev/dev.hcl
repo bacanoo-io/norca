@@ -16,11 +16,6 @@ server {
 }
 
 client {
-  # The topology zone of the node (the default source is ${meta.zone}).
-  meta {
-    zone = "dev"
-  }
-
   # Service lookups of the workloads on this client (nomadService in
   # templates, the Task API) return only healthy instances unless they ask
   # with ?healthy=false. Other API calls return every instance unless they

@@ -67,7 +67,7 @@ func (f *fakeCatalog) rpc(_ string, args, reply any) error {
 
 func instance(id, ns, name, address string, port int) *structs.ServiceRegistration {
 	return &structs.ServiceRegistration{
-		ID: id, ServiceName: name, Namespace: ns, Datacenter: "dc1", Zone: "a",
+		ID: id, ServiceName: name, Namespace: ns, Datacenter: "dc1",
 		Address: address, Port: port, Ready: true, Health: structs.ServiceHealthPassing,
 	}
 }
@@ -140,7 +140,7 @@ func answers(m *dns.Msg) []string {
 func TestDNS_AliasRecords(t *testing.T) {
 	ci.Parallel(t)
 
-	s := newTestServer(t, Config{}, structs.Topology{Region: "eu", Datacenter: "dc1", Zone: "a"})
+	s := newTestServer(t, Config{}, structs.Topology{Region: "eu", Datacenter: "dc1"})
 
 	alias := func(id, name, target string) *structs.ServiceRegistration {
 		reg := instance(id, "default", name, target, 0)
@@ -176,7 +176,7 @@ func TestDNS_ServiceRecords(t *testing.T) {
 	ci.Parallel(t)
 
 	s := newTestServer(t, Config{Namespaces: []string{"default", "prod"}, TTL: 7 * time.Second},
-		structs.Topology{Region: "eu", Datacenter: "dc1", Zone: "a"})
+		structs.Topology{Region: "eu", Datacenter: "dc1"})
 
 	web1 := instance("w1", "default", "web", "10.0.0.1", 8080)
 	web1.Tags = []string{"blue"}
@@ -306,19 +306,19 @@ func TestDNS_Recursion(t *testing.T) {
 }
 
 // TestDNS_TopologyAcceptance is the acceptance scenario of the plan: with
-// prefer = "zone" and min_local = 2, a client in a zone gets the instances of
-// its zone while at least two are healthy there, the rest of its datacenter
-// when only one is left, and the first failover region when the region has
-// none.
+// prefer = "datacenter" and min_local = 2, a client in a datacenter gets the
+// instances of its datacenter while at least two are healthy there, the rest
+// of its region when only one is left, and the first failover region when the
+// region has none.
 func TestDNS_TopologyAcceptance(t *testing.T) {
 	ci.Parallel(t)
 
-	s := newTestServer(t, Config{}, structs.Topology{Region: "eu", Datacenter: "dc1", Zone: "fsn1"})
-	settings := &structs.ServiceDiscovery{Prefer: "zone", MinLocal: 2, OverflowFraction: pointer.Of(0.2), Failover: []string{"us"}}
+	s := newTestServer(t, Config{}, structs.Topology{Region: "eu", Datacenter: "fsn1"})
+	settings := &structs.ServiceDiscovery{Prefer: "datacenter", MinLocal: 2, OverflowFraction: pointer.Of(0.2), Failover: []string{"us"}}
 
-	inst := func(id, zone, ip string, healthy bool) *structs.ServiceRegistration {
+	inst := func(id, dc, ip string, healthy bool) *structs.ServiceRegistration {
 		r := instance(id, "default", "api", ip, 80)
-		r.Zone = zone
+		r.Datacenter = dc
 		r.Discovery = settings
 		if !healthy {
 			r.Health = structs.ServiceHealthCritical

@@ -8,8 +8,10 @@ SPDX-License-Identifier: MPL-2.0
 Two federated regions, for example one per cloud, each a three-node
 cluster built like [03-three-node](../03-three-node/README.md): `eu-1`
 (authoritative, nodes `10.0.0.11`–`13`) and `eu-2` (nodes `10.0.1.11`–`13`),
-connected by a VPN between the clouds. Every region has its own Raft, seal,
-secret store and backups; the outage of one region does not stop the other.
+connected by a VPN between the clouds. As in 03, each node of a region is
+its own datacenter (`dc-a`, `dc-b`, `dc-c`, one per availability zone).
+Every region has its own Raft, seal, secret store and backups; the outage of
+one region does not stop the other.
 
 This shows: federation with ACL replication, a multiregion deployment of
 the test application (one version, rolled out region by region), native
@@ -151,10 +153,10 @@ norca deployment status -region eu-2 -namespace apps <deployment ID>
 norca deployment run -region eu-2 -namespace apps <deployment ID>
 ```
 
-Discovery across regions (`discovery { prefer = "zone", min_local = 2,
-failover = ["eu-1", "eu-2"] }`): lookups stay in the caller's region (own zone
-first, then the rest of the datacenter while the zone has fewer than two
-healthy instances). Only when the caller's region has no healthy instance at
+Discovery across regions (`discovery { prefer = "datacenter", min_local = 2,
+failover = ["eu-1", "eu-2"] }`): lookups stay in the caller's region (own
+datacenter first, then the rest of the region while the datacenter has fewer
+than two healthy instances). Only when the caller's region has no healthy instance at
 all, e.g. while every eu-2 instance fails its readiness check, the answer comes
 from the next region of the list (the caller's own region is skipped). The
 overflow fraction left unset in the job is filled in by each region's servers

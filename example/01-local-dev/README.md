@@ -23,7 +23,7 @@ features; everything is gone when the agent stops.
 
 | File | |
 | --- | --- |
-| [dev.hcl](dev.hcl) | Additions to the dev agent: autoscaler, DNS, Consul-compatible API, zone |
+| [dev.hcl](dev.hcl) | Additions to the dev agent: autoscaler, DNS, Consul-compatible API |
 | [test-app.hcl](test-app.hcl) | Variables of the [test-app pack](../packs/test-app/README.md) for a dev agent |
 
 ## Steps
@@ -124,7 +124,7 @@ Then stop the agent with Ctrl-C: the dev agent keeps nothing.
 - **Services**: the catalog with the health of every instance.
 - **Scaling**: the policies of the built-in autoscaler and their events.
 - **Packages**: the `test-app` release and its revisions.
-- **Topology** and **Clients**: the node with its zone `dev`.
+- **Topology** and **Clients**: the node in its datacenter `dc1`.
 
 - **Configuration → Secrets**: the secrets of the built-in secret store with
   their versions and metadata (`norca secret ...` on the command line).

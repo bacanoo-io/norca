@@ -110,11 +110,6 @@ server {
 client {
   enabled = true
 
-  # The topology zone of the node (the default source is ${meta.zone}).
-  meta {
-    zone = "zone-a"
-  }
-
   # Data directory of the RustFS job (owned by its container user 10001).
   host_volume "rustfs" {
     path      = "/srv/rustfs"

@@ -57,14 +57,14 @@ variable "server_node_meta" {
   default     = "consul_server"
 }
 
-variable "zone_attribute" {
-  description = "Topology attribute the servers are spread over (spread block), by default the node meta zone filled in by the installer. Empty renders no spread."
+variable "datacenter_attribute" {
+  description = "Topology attribute the servers are spread over (spread block), by default the Norca datacenter of the node (one datacenter per availability zone; not the Consul datacenter). Empty renders no spread."
   type        = string
-  default     = "$${meta.zone}"
+  default     = "$${node.datacenter}"
 }
 
-variable "zone_separate_required" {
-  description = "Also make one server per zone mandatory with the fork's separate block on zone_attribute. With fewer zones than servers the placement then blocks."
+variable "datacenter_separate_required" {
+  description = "Also make one server per datacenter mandatory with the fork's separate block on datacenter_attribute. With fewer datacenters than servers the placement then blocks."
   type        = bool
   default     = false
 }

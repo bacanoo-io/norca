@@ -359,9 +359,6 @@ type ClientConfig struct {
 	// the workloads of the client (Norca).
 	NativeServiceDiscovery *config.NativeServiceDiscoveryConfig `hcl:"native_service_discovery"`
 
-	// Topology holds the topology zone of the node (Norca).
-	Topology *config.TopologyConfig `hcl:"topology"`
-
 	// DNS configures the built-in DNS server (Norca).
 	DNS *config.DNSConfig `hcl:"dns"`
 
@@ -400,7 +397,6 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.HostNetworks = helper.CopySlice(c.HostNetworks)
 	nc.NomadServiceDiscovery = pointer.Copy(c.NomadServiceDiscovery)
 	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
-	nc.Topology = c.Topology.Copy()
 	nc.DNS = c.DNS.Copy()
 	nc.ConsulCompat = c.ConsulCompat.Copy()
 	nc.Secrets = c.Secrets.Copy()
@@ -2314,7 +2310,6 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	}
 
 	result.NativeServiceDiscovery = a.NativeServiceDiscovery.Merge(b.NativeServiceDiscovery)
-	result.Topology = a.Topology.Merge(b.Topology)
 	result.DNS = a.DNS.Merge(b.DNS)
 	result.ConsulCompat = a.ConsulCompat.Merge(b.ConsulCompat)
 	result.Secrets = a.Secrets.Merge(b.Secrets)

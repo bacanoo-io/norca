@@ -41,21 +41,22 @@ job [[ $job | quote ]] {
       value     = "true"
     }
     [[- end ]]
-    [[- if ne $v.zone_attribute "" ]]
+    [[- if ne $v.datacenter_attribute "" ]]
 
-    # Spread the servers over the zones: losing a zone keeps the quorum.
+    # Spread the servers over the datacenters (one per availability zone):
+    # losing a datacenter keeps the quorum.
     spread {
-      attribute = [[ $v.zone_attribute | quote ]]
+      attribute = [[ $v.datacenter_attribute | quote ]]
       weight    = 100
     }
-    [[- if $v.zone_separate_required ]]
+    [[- if $v.datacenter_separate_required ]]
 
-    # At most one server per zone (fork feature).
+    # At most one server per datacenter (fork feature).
     separate {
       selector {
         consul_job = [[ $job | quote ]]
       }
-      scope    = [[ $v.zone_attribute | quote ]]
+      scope    = [[ $v.datacenter_attribute | quote ]]
       required = true
     }
     [[- end ]]
