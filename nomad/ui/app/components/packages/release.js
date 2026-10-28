@@ -62,12 +62,42 @@ export default class PackagesRelease extends Component {
     return this.history.find((r) => r.Revision === n) || null;
   }
 
+  @tracked upgrading = false;
+
   @action openValues() {
     this.editingValues = true;
   }
 
   @action closeValues() {
     this.editingValues = false;
+  }
+
+  // The pack of the deployed revision, when it came from a cluster
+  // registry: the servers can render an upgrade from the catalog.
+  get catalogPack() {
+    const pack = this.deployedRevision?.Spec?.Pack || this.release?.Spec?.Pack;
+    // Cluster registries are named like releases; CLI installs record
+    // the source (a URL or <<local folder>>) or a local registry name.
+    if (
+      !pack?.Name ||
+      !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(pack.Registry || '')
+    ) {
+      return null;
+    }
+    return pack;
+  }
+
+  @action openUpgrade() {
+    this.upgrading = true;
+  }
+
+  @action closeUpgrade() {
+    this.upgrading = false;
+  }
+
+  @action upgraded() {
+    this.upgrading = false;
+    this.load();
   }
 
   get region() {

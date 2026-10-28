@@ -12,7 +12,9 @@ multi-cloud setup (event stream → NATS bridge → history and audit service, s
 
 NATS is used **only as an event and notification bridge**. Nothing in the
 cluster reads from NATS; a NATS outage delays the events but affects neither
-scheduling nor deployments.
+scheduling nor deployments. The optional inbound mode (below) only makes
+the bridge call the Norca API sooner: the pack registries sync on their own
+interval without it.
 
 The bridge runs as a separate job in every region (one region per cloud). A
 built-in output in the agent may follow later.
@@ -166,10 +168,51 @@ Flags, with environment variables as defaults:
 | `-leader-elect` | `NATSBRIDGE_LEADER_ELECT` | `true` | |
 | `-lease-duration` | | `20s` | |
 | `-metrics-addr` | `NATSBRIDGE_METRICS_ADDR` | `127.0.0.1:9464` | `/metrics` and `/healthz`; empty disables |
+| `-sync-pushes` | `NATSBRIDGE_SYNC_PUSHES` | `false` | sync pack registries on push notices (below) |
+| `-sync-regions` | `NATSBRIDGE_SYNC_REGIONS` | `false` | publish pack registry events, sync on those of other regions (below) |
+| `-sync-cooldown` | `NATSBRIDGE_SYNC_COOLDOWN` | `1m` | minimum time between two syncs of a registry triggered from NATS |
 
 The default topics are those a workload identity with `read-job` and node read
 may subscribe to; `ACLToken`, `ACLPolicy`, `NodePool` and `*` need a management
 token.
+
+
+## Inbound: pack registry syncs
+
+The cluster pack registries (`packs.norca.io/Registry`) sync when they are
+saved, on request and on their `syncInterval`; the leader fetches them. With
+the inbound mode, NATS messages make the bridge sync them sooner through
+the API (`POST /v1/pack-registry/:name/sync`). The bridge instances of a
+region subscribe in the queue group `norca-natsbridge-sync.<region>`, so one
+of them handles each message.
+
+**Push notices** (`-sync-pushes`): whoever pushes packs, typically the
+release workflow of a pack registry, publishes a notice on
+`<prefix>.packs.pushed` (the region token `packs` is reserved). The bridge
+syncs the cluster registries of that source (compared without the scheme
+case, a trailing `/` or `.git`), or the one named:
+
+```sh
+norca-natsbridge notify-push -nats-url "$NATS_URL" -nats-creds ci.creds \
+  -source oci://ghcr.io/org/packs -pack redis -version 1.2.0
+```
+
+```json
+{"Source":"oci://ghcr.io/org/packs","Registry":"","Pack":"redis","Version":"1.2.0","Digest":"sha256:..."}
+```
+
+**Regions** (`-sync-regions`): the bridge also forwards the events of the
+registries (topic filter `CustomObject:packs.norca.io/Registry`, added to
+`-topics`) and subscribes to `<prefix>.*.CustomObject`. When the registry of
+another region found other packs (versions and digests) than the local
+registry of the same name, type and source, the bridge syncs the local one,
+so a new pack version appears in every region at about the same time.
+Registries of the same name with another source are left alone, and the
+cooldown limits the syncs a registry gets from NATS.
+
+The ACL policy (`examples/natsbridge-policy.hcl`) needs
+`object "packs.norca.io/Registry" { capabilities = ["read", "write"] }` in the
+`namespace "*"` block for the inbound mode.
 
 ## Metrics
 

@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -78,7 +79,17 @@ type Config struct {
 
 	MetricsAddr string
 	LogLevel    string
+
+	// Inbound mode: NATS messages trigger syncs of the cluster pack
+	// registries (sync.go).
+	SyncPushes   bool
+	SyncRegions  bool
+	SyncCooldown time.Duration
 }
+
+// registryTopic is the topic filter of the pack registry events that
+// -sync-regions forwards to the other regions.
+var registryTopic = TopicFilter{Topic: "CustomObject", Keys: []string{RegistryKindRef}}
 
 // ParseConfig parses the command line arguments; getenv supplies the
 // defaults from the environment.
@@ -166,6 +177,10 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 	fs.StringVar(&cfg.MetricsAddr, "metrics-addr", envOr("127.0.0.1:9464", "NATSBRIDGE_METRICS_ADDR"), "listen address of /metrics and /healthz; empty disables (env NATSBRIDGE_METRICS_ADDR)")
 	fs.StringVar(&cfg.LogLevel, "log-level", envOr("info", "NATSBRIDGE_LOG_LEVEL"), "log level: debug, info, warn or error")
 
+	fs.BoolVar(&cfg.SyncPushes, "sync-pushes", envBool(false, "NATSBRIDGE_SYNC_PUSHES"), "sync the pack registries of the sources named by push notices on <prefix>.packs.pushed (env NATSBRIDGE_SYNC_PUSHES)")
+	fs.BoolVar(&cfg.SyncRegions, "sync-regions", envBool(false, "NATSBRIDGE_SYNC_REGIONS"), "publish the pack registry events and sync a registry when the one of the same name and source in another region found other packs (env NATSBRIDGE_SYNC_REGIONS)")
+	fs.DurationVar(&cfg.SyncCooldown, "sync-cooldown", envDuration(time.Minute, "NATSBRIDGE_SYNC_COOLDOWN"), "minimum time between two syncs of a registry triggered from NATS (env NATSBRIDGE_SYNC_COOLDOWN)")
+
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
@@ -180,6 +195,9 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 	if cfg.Topics, err = ParseTopics(topics); err != nil {
 		return nil, err
 	}
+	if cfg.SyncRegions {
+		cfg.Topics = withTopic(cfg.Topics, registryTopic)
+	}
 	for _, t := range strings.Split(eventTypes, ",") {
 		if t = strings.TrimSpace(t); t != "" {
 			cfg.EventTypes = append(cfg.EventTypes, t)
@@ -191,6 +209,28 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 		}
 	}
 	return cfg, cfg.validate()
+}
+
+// withTopic adds the keys of t to its topic in filters, unless the topic is
+// forwarded without keys (all of its events).
+func withTopic(filters []TopicFilter, t TopicFilter) []TopicFilter {
+	for i, f := range filters {
+		if f.Topic != t.Topic && f.Topic != "*" {
+			continue
+		}
+		if len(f.Keys) == 0 {
+			return filters
+		}
+		if f.Topic == t.Topic {
+			for _, k := range t.Keys {
+				if !slices.Contains(f.Keys, k) {
+					filters[i].Keys = append(filters[i].Keys, k)
+				}
+			}
+			return filters
+		}
+	}
+	return append(filters, t)
 }
 
 func (cfg *Config) validate() error {
@@ -222,6 +262,9 @@ func (cfg *Config) validate() error {
 	}
 	if cfg.LeaseDuration < 2*time.Second {
 		return errors.New("-lease-duration must be at least 2s")
+	}
+	if cfg.SyncCooldown < 0 {
+		return errors.New("-sync-cooldown can't be negative")
 	}
 	return nil
 }

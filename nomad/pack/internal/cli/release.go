@@ -5,6 +5,7 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"sort"
@@ -220,14 +221,21 @@ func (c *baseCommand) buildRelease(
 		c.ui.ErrorWithContext(err, ErrParsingArgsOrFlags, errorContext.GetAll()...)
 		return nil, false
 	}
+	// Variables with a secret block go to their Variable item.
+	req.Secrets = manager.MergeSecrets(req.Secrets, packManager.Secrets())
+	vars := maps.Clone(c.vars)
+	for _, name := range packManager.SecretVariables() {
+		delete(vars, name)
+	}
 	varFiles := map[string][]byte{}
 	for _, f := range c.varFiles {
 		if b, err := os.ReadFile(f); err == nil {
 			varFiles[f] = b
 		}
 	}
-	req.Values, req.ValuesHash = release.Values(c.vars, varFiles)
-	req.VariablesSchemas, req.VariableValues = packManager.VariablesSchemas()
+	req.Values, req.ValuesHash = release.Values(vars, varFiles)
+	_, req.VariableValues = packManager.VariablesSchemas()
+	req.VariablesSchemas = packManager.SynthesizedVariablesSchemas()
 	req.Regions = opts.regionList(packManager.Metadata())
 
 	for _, name := range others {

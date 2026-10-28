@@ -86,7 +86,36 @@ const releaseRevisionKindSchema = `{
   }
 }`
 
-// builtinReleaseKinds returns the built-in object kinds of releases.
+// packRegistryKindSchema is the JSON Schema of cluster pack registry objects.
+const packRegistryKindSchema = `{
+  "type": "object",
+  "properties": {
+    "spec": {
+      "type": "object",
+      "required": ["type", "source"],
+      "properties": {
+        "type": {"type": "string", "enum": ["dir", "git", "oci", "bundle"]},
+        "source": {"type": "string"},
+        "defaultRef": {"type": "string"},
+        "syncInterval": {"type": "string"},
+        "authSecret": {"type": "string"},
+        "trustedKeys": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "status": {
+      "type": "object",
+      "properties": {
+        "phase": {"type": "string"},
+        "message": {"type": "string"},
+        "lastSyncedAt": {"type": "string"},
+        "packCount": {"type": "integer", "minimum": 0},
+        "packs": {"type": "array", "items": {"type": "object"}}
+      }
+    }
+  }
+}`
+
+// builtinReleaseKinds returns the built-in object kinds of releases and pack registries.
 func builtinReleaseKinds() []*structs.ObjectKind {
 	return []*structs.ObjectKind{
 		{
@@ -121,6 +150,20 @@ func builtinReleaseKinds() []*structs.ObjectKind {
 				{Name: "Phase", Path: "status.phase"},
 			},
 		},
+		{
+			Group:       structs.ReleaseObjectGroup,
+			Kind:        structs.PackRegistryKind,
+			Description: "Cluster pack registry and catalog source (built in, managed by the pack registry API)",
+			Namespaced:  false,
+			Schema:      packRegistryKindSchema,
+			Columns: []*structs.ObjectKindColumn{
+				{Name: "Type", Path: "spec.type"},
+				{Name: "Source", Path: "spec.source"},
+				{Name: "Phase", Path: "status.phase"},
+				{Name: "Packs", Path: "status.packCount"},
+				{Name: "LastSynced", Path: "status.lastSyncedAt"},
+			},
+		},
 	}
 }
 
@@ -135,11 +178,16 @@ type releaseManager struct {
 	srv    *Server
 	logger hclog.Logger
 
-	// lock guards busy, the releases with a running operation, and
-	// kindsReady.
-	lock       sync.Mutex
-	busy       map[string]struct{}
-	kindsReady bool
+	// lock guards busy, the releases with a running operation, kindsReady,
+	// and packCacheDir.
+	lock         sync.Mutex
+	busy         map[string]struct{}
+	kindsReady   bool
+	packCacheDir string
+
+	// syncLock serializes the syncs of pack registries, which replace
+	// directories of the pack cache.
+	syncLock sync.Mutex
 }
 
 func newReleaseManager(srv *Server, logger hclog.Logger) *releaseManager {

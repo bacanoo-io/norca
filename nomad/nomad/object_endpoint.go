@@ -476,10 +476,13 @@ func (c *CustomObject) List(args *structs.CustomObjectListRequest, reply *struct
 				namespace = ""
 			}
 			allNamespaces := namespace == structs.AllNamespacesSentinel
+			isRevision := kindRef == structs.ReleaseRevisionKindRef
 			switch {
 			case allNamespaces && !aclObj.AllowObjectOperationInAnyNamespace(kindRef, acl.ObjectCapabilityRead):
 				return structs.ErrPermissionDenied
 			case !allNamespaces && !aclObj.AllowObjectOperation(objectACLNamespace(kind, namespace), kindRef, acl.ObjectCapabilityRead):
+				return structs.ErrPermissionDenied
+			case !allNamespaces && isRevision && !aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityReadJob):
 				return structs.ErrPermissionDenied
 			}
 
@@ -513,6 +516,9 @@ func (c *CustomObject) List(args *structs.CustomObjectListRequest, reply *struct
 					}
 				}
 				if allNamespaces && !aclObj.AllowObjectOperation(objectACLNamespace(kind, obj.Namespace), kindRef, acl.ObjectCapabilityRead) {
+					return false, nil
+				}
+				if isRevision && !aclObj.AllowNsOp(obj.Namespace, acl.NamespaceCapabilityReadJob) {
 					return false, nil
 				}
 				return true, nil
@@ -585,9 +591,15 @@ func (c *CustomObject) GetCustomObject(args *structs.CustomObjectSpecificRequest
 				if !aclObj.AllowObjectOperation(args.RequestNamespace(), kindRef, acl.ObjectCapabilityRead) {
 					return structs.ErrPermissionDenied
 				}
+				if kindRef == structs.ReleaseRevisionKindRef && !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityReadJob) {
+					return structs.ErrPermissionDenied
+				}
 			} else {
 				namespace := objectNamespace(kind, args.RequestNamespace())
 				if !aclObj.AllowObjectOperation(objectACLNamespace(kind, namespace), kindRef, acl.ObjectCapabilityRead) {
+					return structs.ErrPermissionDenied
+				}
+				if kindRef == structs.ReleaseRevisionKindRef && !aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityReadJob) {
 					return structs.ErrPermissionDenied
 				}
 				obj, err = store.CustomObjectByName(ws, args.Group, args.Kind, namespace, args.Name)

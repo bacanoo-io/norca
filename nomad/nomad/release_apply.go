@@ -35,6 +35,8 @@ var releaseFeatures = []string{
 	"multiregion-deployments",
 	"native-service-catalog",
 	"backups",
+	"secret-store",
+	"mtls",
 	// Operator framework phase 4: type-bound webhooks, schema migrations
 	// and object limits of kinds.
 	"object-webhooks",
@@ -106,6 +108,10 @@ type applyInput struct {
 	// global region applies. Both are set by runApply.
 	adopted map[string]string
 	global  []*structs.ReleaseResource
+
+	// serverRendered reports whether the server rendered the pack templates
+	// from its verified pack catalog, binding pack.Digest to resources (PK-6).
+	serverRendered bool
 }
 
 func (m *releaseManager) newOp(args structs.RequestWithIdentity, token, namespace, name string, timeout time.Duration) (*releaseOp, context.CancelFunc) {
@@ -896,6 +902,38 @@ func allowReleaseResourceWrite(aclObj *acl.ACL, res *structs.ReleaseResource) bo
 	return false
 }
 
+// allowReleaseResourceRead reports whether the ACL object has the
+// capabilities required to read the live state of a resource.
+func allowReleaseResourceRead(aclObj *acl.ACL, res *structs.ReleaseResource) bool {
+	if aclObj == nil {
+		return true
+	}
+	switch res.Type {
+	case structs.ReleaseResourceNamespace:
+		return aclObj.IsManagement() || aclObj.AllowNamespace(res.Namespace.Name)
+	case structs.ReleaseResourceACLPolicy:
+		return aclObj.IsManagement()
+	case structs.ReleaseResourceQuota:
+		return aclObj.AllowQuotaRead()
+	case structs.ReleaseResourceVariable:
+		v := res.Variable
+		return aclObj.AllowVariableOperation(v.Namespace, v.Path, acl.VariablesCapabilityRead, nil)
+	case structs.ReleaseResourceObjectKind:
+		return aclObj.AllowObjectKindRead(res.ObjectKind.KindRef())
+	case structs.ReleaseResourceAdmissionPolicy:
+		return aclObj.AllowAdmissionRead()
+	case structs.ReleaseResourceObject:
+		ns := res.Object.Namespace
+		if ns == "" {
+			ns = acl.ObjectClusterNamespace
+		}
+		return aclObj.AllowObjectOperation(ns, res.Object.KindRef(), acl.ObjectCapabilityRead)
+	case structs.ReleaseResourceJob:
+		return aclObj.AllowNsOp(res.Job.Namespace, acl.NamespaceCapabilityReadJob)
+	}
+	return false
+}
+
 // releaseTakenResources removes resources taken over by this release from
 // the releases that owned them.
 func (m *releaseManager) releaseTakenResources(op *releaseOp, taken map[string]string) {
@@ -947,6 +985,17 @@ func sortRefsForDeletion(refs []*structs.ReleaseResourceRef) {
 func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.ReleaseResource,
 	removed []*structs.ReleaseResourceRef, taken, adopted map[string]string) ([]*structs.ReleaseResourceChange, error) {
 
+	var aclObj *acl.ACL
+	if op.m.srv.config.ACLEnabled {
+		if op.args == nil {
+			return nil, structs.ErrPermissionDenied
+		}
+		var err error
+		if aclObj, err = op.m.srv.ResolveACL(op.args); err != nil {
+			return nil, err
+		}
+	}
+
 	var changes []*structs.ReleaseResourceChange
 	for _, res := range resources {
 		ref := res.Ref()
@@ -960,6 +1009,15 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 		}
 		if submitter, ok := adopted[ref.Key()]; ok {
 			change.Action, change.Region = structs.ReleaseChangeAdopt, submitter
+			continue
+		}
+		// Never read or compare the live state of a resource the caller may
+		// not read or write (PK-3): otherwise a dry run leaks whether a
+		// Variable, ACL policy, quota, namespace or object exists and
+		// whether its content matches the submitted resource.
+		if !allowReleaseResourceWrite(aclObj, res) || !allowReleaseResourceRead(aclObj, res) {
+			change.Action = structs.ReleaseChangeUpdate
+			change.Error = structs.ErrPermissionDenied.Error()
 			continue
 		}
 		live, err := op.m.readLive(snap, ref)

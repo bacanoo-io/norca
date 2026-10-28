@@ -217,7 +217,7 @@ export default function registerReleaseRoutes(server) {
   );
 }
 
-function revision(ns, name, n, version, extra = {}) {
+export function revision(ns, name, n, version, extra = {}) {
   return {
     Namespace: ns,
     Release: name,

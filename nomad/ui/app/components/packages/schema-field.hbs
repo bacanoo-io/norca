@@ -1,0 +1,89 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-pack-field={{this.field.id}} data-test-pack-widget={{this.field.widget}}>
+  {{#if (eq this.field.widget "object")}}
+    <fieldset class="border rounded p-3 mb-3">
+      <legend class="float-none w-auto px-2 fs-5 mb-0">{{this.field.title}}</legend>
+      {{#if this.field.description}}<p class="text-secondary small">{{this.field.description}}</p>{{/if}}
+      <div class="row g-3">
+        {{#each this.field.children as |child|}}
+          <div class="col-12 col-md-6">
+            <Packages::SchemaField
+              @field={{child}}
+              @value={{get @value child.key}}
+              @errors={{@errors}}
+              @drafts={{@drafts}}
+              @isUpgrade={{@isUpgrade}}
+              @namespaces={{@namespaces}}
+              @regions={{@regions}}
+              @onChange={{@onChange}}
+              @onDraft={{@onDraft}}
+            />
+          </div>
+        {{/each}}
+      </div>
+    </fieldset>
+  {{else if (eq this.field.widget "switch")}}
+    <div class="mb-3">
+      <Ui::Switch @switch={{true}} @label={{this.label}} @help={{this.field.description}} @checked={{@value}} @onChange={{this.change}} />
+    </div>
+  {{else if (eq this.field.widget "segmented")}}
+    <Ui::Field @error={{this.error}}>
+      <Ui::RadioGroup @label={{this.label}} @help={{this.field.description}} @value={{this.value}} @onChange={{this.change}} as |g|>
+        {{#each this.segments as |opt|}}
+          <g.Option @value={{opt.value}} @label={{opt.label}} />
+        {{/each}}
+      </Ui::RadioGroup>
+    </Ui::Field>
+  {{else}}
+    <Ui::Field @label={{this.label}} @required={{this.field.required}} @help={{this.help}} @error={{this.error}} as |f|>
+      {{#if (or (eq this.field.widget "select") (eq this.field.widget "namespace-select") (eq this.field.widget "region-select"))}}
+        <Ui::Select @id={{f.id}} @describedBy={{f.describedBy}} @invalid={{f.invalid}} @value={{this.value}} @options={{this.options}} @onChange={{this.change}} />
+      {{else if (eq this.field.widget "number")}}
+        <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @invalid={{f.invalid}} @type="number" @value={{this.value}} @onInput={{this.changeNumber}} />
+        {{#if this.field.presets}}
+          <div class="d-flex flex-wrap gap-1 mt-1">
+            {{#each this.field.presets as |p|}}
+              <Ui::Button @size="sm" @variant={{if (eq p @value) "primary" "outline-secondary"}} data-test-pack-preset={{p}} {{on "click" (fn this.change p)}}>{{p}}</Ui::Button>
+            {{/each}}
+          </div>
+        {{/if}}
+      {{else if (eq this.field.widget "secret")}}
+        <div class="d-flex gap-2">
+          <Ui::Input
+            @id={{f.id}}
+            @describedBy={{f.describedBy}}
+            @invalid={{f.invalid}}
+            @type={{if this.revealed "text" "password"}}
+            @autocomplete="new-password"
+            @value={{this.value}}
+            @onInput={{this.change}}
+            class="flex-fill"
+          />
+          <Ui::Button
+            @variant="outline-secondary"
+            @icon={{if this.revealed "eye-off" "eye"}}
+            @iconOnly={{true}}
+            @label={{if this.revealed "Hide" "Show"}}
+            {{on "click" this.toggleReveal}}
+          />
+        </div>
+      {{else if (or this.isText (eq this.field.widget "code"))}}
+        <Ui::Input
+          @id={{f.id}}
+          @describedBy={{f.describedBy}}
+          @invalid={{f.invalid}}
+          @multiline={{true}}
+          @monospace={{true}}
+          @rows={{if (eq this.field.widget "tags") 2 5}}
+          @value={{if this.isText this.text this.value}}
+          @onInput={{if this.isText this.changeText this.change}}
+        />
+      {{else}}
+        <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @invalid={{f.invalid}} @value={{this.value}} @onInput={{this.change}} />
+      {{/if}}
+    </Ui::Field>
+  {{/if}}
+</div>

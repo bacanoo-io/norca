@@ -1,0 +1,111 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div {{this.setup}} data-test-pack-catalog>
+  {{#if this.loadError}}
+    <Ui::Alert @tone="danger" @title="The catalog could not be loaded" class="mb-3" data-test-catalog-error>{{this.loadError}}</Ui::Alert>
+  {{/if}}
+
+  <div class="row g-2 mb-3">
+    <div class="col-md-6">
+      <Ui::Input @icon="search" @placeholder="Search packs..." @value={{this.searchTerm}} @onInput={{this.setSearch}} aria-label="Search packs" data-test-catalog-search />
+    </div>
+    <div class="col-6 col-md-3">
+      <Ui::Select @label="Category" @value={{this.category}} @options={{this.categoryOptions}} @onChange={{this.setCategory}} data-test-catalog-category />
+    </div>
+    <div class="col-6 col-md-3">
+      <Ui::Select @label="Registry" @value={{this.registry}} @options={{this.registryOptions}} @onChange={{this.setRegistry}} data-test-catalog-registry />
+    </div>
+  </div>
+
+  {{#if this.isLoading}}
+    <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the catalog" /></Ui::Card>
+  {{else if (not this.filteredPacks.length)}}
+    <Ui::Card>
+      <Ui::EmptyState
+        @icon="package"
+        @title={{if this.packs.length "No pack matches" "The catalog is empty"}}
+        @message={{if this.packs.length "Change the search or the filters." "Add a pack registry on the Registries tab; its packs appear here once it is synced."}}
+        data-test-catalog-empty
+      />
+    </Ui::Card>
+  {{else}}
+    <div class="row row-cards" data-test-catalog-grid>
+      {{#each this.filteredPacks as |pack|}}
+        <div class="col-md-6 col-xl-4">
+          <Ui::Card class="h-100" data-test-pack-card={{pack.key}}>
+            <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
+              <h3 class="mb-0 d-flex align-items-center gap-2"><Ui::Icon @name="package" class="text-primary" />{{pack.Name}}</h3>
+              <Ui::Badge @color="blue" title={{if (gt pack.versionCount 1) (concat pack.versionCount " versions")}}>{{pack.Version}}</Ui::Badge>
+            </div>
+            <div class="small text-secondary mb-2">
+              <span class="font-monospace">{{pack.Registry}}</span>{{#if pack.Category}} · {{pack.Category}}{{/if}}
+            </div>
+            <p class="text-secondary small mb-3">{{or pack.Description "No description."}}</p>
+
+            <div class="d-flex flex-wrap gap-3 small mb-3">
+              {{#if pack.Compatible}}
+                <Ui::StatusIndicator @tone="success" @label="Compatible" />
+              {{else}}
+                <Ui::StatusIndicator @tone="warning" @label="Incompatible" title={{join ", " pack.MissingFeatures}} data-test-pack-incompatible />
+              {{/if}}
+              {{#if pack.Signed}}
+                <Ui::StatusIndicator @tone="success" @label="Signed" title={{pack.Signer}} />
+              {{else}}
+                <Ui::StatusIndicator @tone="neutral" @label="Unsigned" />
+              {{/if}}
+            </div>
+
+            <div class="d-flex gap-2 mt-auto pt-2 border-top">
+              <Ui::Button @size="sm" @icon="book" class="flex-fill" {{on "click" (fn this.open pack "readme")}} data-test-btn-readme={{pack.key}}>README</Ui::Button>
+              <Ui::Button @size="sm" @variant="primary" @icon="rocket" class="flex-fill" {{on "click" (fn this.open pack "install")}} data-test-btn-install={{pack.key}}>Install</Ui::Button>
+            </div>
+          </Ui::Card>
+        </div>
+      {{/each}}
+    </div>
+  {{/if}}
+
+  {{#if this.selected}}
+    <Ui::SidePanel @title="{{this.selected.Name}} · {{this.selected.Registry}}" @wide={{true}} @onClose={{this.close}} data-test-pack-panel>
+      <Ui::Tabs
+        @label="Pack"
+        @tabs={{array (hash id="install" label="Install" icon="rocket") (hash id="readme" label="README" icon="book")}}
+        @selected={{this.panelTab}}
+        @onSelect={{this.setPanelTab}}
+        @panelId="pack-panel"
+        class="mb-3"
+      />
+      <div id="pack-panel" role="tabpanel">
+        {{#if this.detailError}}
+          <Ui::Alert @tone="danger" @title="The pack could not be loaded" data-test-pack-detail-error>{{this.detailError}}</Ui::Alert>
+        {{else if (not this.detail)}}
+          <Ui::Spinner @showLabel={{true}} @label="Loading the pack" />
+        {{else if (eq this.panelTab "readme")}}
+          <div data-test-pack-readme>
+            {{#if this.detail.Readme}}
+              <pre class="norca-code norca-code-wrap">{{this.detail.Readme}}</pre>
+            {{else}}
+              <p class="text-secondary">The pack has no README.</p>
+            {{/if}}
+          </div>
+        {{/if}}
+        {{! The form stays rendered on the README tab so the values are kept. }}
+        {{#if this.detail}}
+          <div class={{if (eq this.panelTab "readme") "d-none"}} data-test-pack-install>
+            <Packages::SchemaForm
+              @registry={{this.selected.Registry}}
+              @pack={{this.selected.Name}}
+              @version={{this.detail.Pack.Version}}
+              @detail={{this.detail}}
+              @region={{this.region}}
+              @onDeployed={{this.deployed}}
+              @onClose={{this.close}}
+            />
+          </div>
+        {{/if}}
+      </div>
+    </Ui::SidePanel>
+  {{/if}}
+</div>

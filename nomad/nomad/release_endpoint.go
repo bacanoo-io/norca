@@ -72,9 +72,15 @@ func validateTimeout(d time.Duration) error {
 
 // Apply installs or upgrades a release, or plans it with DryRun.
 func (r *Release) Apply(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse) error {
+	return r.applyInternal(args, reply, false)
+}
+
+func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse, serverRendered bool) error {
 	authErr := r.srv.Authenticate(r.ctx, args)
-	if done, err := r.srv.forward("Release.Apply", args, args, reply); done {
-		return err
+	if !serverRendered {
+		if done, err := r.srv.forward("Release.Apply", args, args, reply); done {
+			return err
+		}
 	}
 	r.srv.MeasureRPCRate("release", structs.RateMetricWrite, args)
 	if authErr != nil {
@@ -124,19 +130,20 @@ func (r *Release) Apply(args *structs.ReleaseApplyRequest, reply *structs.Releas
 	op, cancel := r.srv.releases.newOp(args, args.AuthToken, namespace, args.Name, args.Timeout)
 	defer cancel()
 	in := &applyInput{
-		pack:          args.Pack,
-		description:   args.Description,
-		values:        args.Values,
-		valuesHash:    args.ValuesHash,
-		resources:     args.Resources,
-		secrets:       secrets,
-		atomic:        args.Atomic,
-		wait:          args.Wait,
-		timeout:       args.Timeout,
-		takeOwnership: args.TakeOwnership,
-		maxHistory:    args.MaxHistory,
-		dryRun:        args.DryRun,
-		recordOnly:    args.RecordOnly,
+		pack:           args.Pack,
+		description:    args.Description,
+		values:         args.Values,
+		valuesHash:     args.ValuesHash,
+		resources:      args.Resources,
+		secrets:        secrets,
+		atomic:         args.Atomic,
+		wait:           args.Wait,
+		timeout:        args.Timeout,
+		takeOwnership:  args.TakeOwnership,
+		maxHistory:     args.MaxHistory,
+		dryRun:         args.DryRun,
+		recordOnly:     args.RecordOnly,
+		serverRendered: serverRendered,
 
 		variablesSchemas: args.VariablesSchemas,
 		multiregion:      args.Multiregion,

@@ -1,0 +1,130 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="norca-pack-schema-form" data-test-pack-schema-form>
+  {{#if this.loadError}}
+    <Ui::Alert @tone="danger" @title="The pack could not be loaded" class="mb-3" data-test-pack-load-error>{{this.loadError}}</Ui::Alert>
+  {{/if}}
+  {{#if this.versionNotice}}
+    <Ui::Alert @tone="warning" class="mb-3" data-test-pack-version-notice>
+      {{this.versionNotice}} The upgrade uses the version selected below.
+    </Ui::Alert>
+  {{/if}}
+  {{#if this.compatibilityProblem}}
+    <Ui::Alert @tone="warning" @title="The cluster cannot run this pack version" class="mb-3" data-test-pack-incompatible>
+      {{this.compatibilityProblem}}
+    </Ui::Alert>
+  {{/if}}
+
+  <div class="row g-3 mb-1">
+    <div class="col-md-5">
+      <Ui::Field @label="Release name" @required={{true}} @error={{get this.errors "__name"}} @help={{if this.isUpgrade "" "Lowercase letters, digits and dashes."}} as |f|>
+        <Ui::Input @id={{f.id}} @invalid={{f.invalid}} @value={{this.releaseName}} @onInput={{this.setReleaseName}} @disabled={{this.isUpgrade}} data-test-form-release-name />
+      </Ui::Field>
+    </div>
+    <div class="col-md-4">
+      <Ui::Field @label="Namespace" as |f|>
+        <Ui::Select @id={{f.id}} @value={{this.namespace}} @options={{this.namespaceOptions}} @onChange={{this.setNamespace}} @disabled={{this.isUpgrade}} data-test-form-namespace />
+      </Ui::Field>
+    </div>
+    <div class="col-md-3">
+      <Ui::Field @label="Version" as |f|>
+        <Ui::Select @id={{f.id}} @value={{this.version}} @options={{this.versions}} @onChange={{this.setVersion}} @disabled={{or this.isLoading (not this.versions.length)}} data-test-form-version />
+      </Ui::Field>
+    </div>
+  </div>
+
+  {{#if this.isLoading}}
+    <Ui::Spinner @showLabel={{true}} @label="Loading the variables of the pack" />
+  {{else if this.detail}}
+    <Ui::Tabs
+      @label="Variables"
+      @tabs={{this.tabs}}
+      @selected={{this.selectedTab}}
+      @onSelect={{this.selectTab}}
+      @panelId="pack-form-panel"
+      class="mb-3"
+      data-test-form-tabs
+    />
+
+    <div id="pack-form-panel" role="tabpanel">
+      {{#if (eq this.selectedTab "cli")}}
+        <div data-test-form-cli>
+          <p class="text-secondary">
+            The same install with the CLI. It needs a local registry of the same source
+            (<span class="font-monospace">norca pack registry add</span>); secret values are left as
+            <span class="font-monospace">&lt;secret&gt;</span>.
+          </p>
+          <Ui::CodeBlock @label="CLI command" @code={{this.cliCommand}} @copy={{true}} @wrap={{true}} data-test-form-cli-command />
+        </div>
+      {{else if this.visibleGroups.length}}
+        {{#each this.visibleGroups as |group|}}
+          {{#if group.name}}<h4 class="text-secondary mt-2 mb-2">{{group.name}}</h4>{{/if}}
+          <div class="row g-3">
+            {{#each group.fields as |field|}}
+              <div class={{if (eq field.widget "object") "col-12" "col-12 col-md-6"}}>
+                <Packages::SchemaField
+                  @field={{field}}
+                  @value={{get this.values field.key}}
+                  @errors={{this.errors}}
+                  @drafts={{this.drafts}}
+                  @isUpgrade={{this.isUpgrade}}
+                  @namespaces={{this.namespaces}}
+                  @regions={{this.regions}}
+                  @onChange={{this.setValue}}
+                  @onDraft={{this.setDraft}}
+                />
+              </div>
+            {{/each}}
+          </div>
+        {{/each}}
+      {{else}}
+        <p class="text-secondary" data-test-form-no-variables>
+          {{if this.form.tabs.length "No variable applies with the current settings." "The pack has no variables."}}
+        </p>
+      {{/if}}
+    </div>
+
+    <Ui::Field @label="Change description" @help="Kept with the revision in the release history." class="mt-3" as |f|>
+      <Ui::Input @id={{f.id}} @value={{this.description}} @onInput={{this.setDescription}} @placeholder={{if this.isUpgrade "Why this upgrade" "Initial install"}} data-test-form-description />
+    </Ui::Field>
+  {{/if}}
+
+  {{#if this.actionError}}
+    <Ui::Alert @tone="danger" @title="The servers rejected the release" class="mt-3" data-test-form-error>{{this.actionError}}</Ui::Alert>
+  {{/if}}
+
+  {{#if this.plan}}
+    <Ui::Card @title="Plan" class="mt-3" data-test-plan-result>
+      {{#each this.plan.warnings as |w|}}
+        <Ui::Alert @tone="warning" class="mb-2">{{w}}</Ui::Alert>
+      {{/each}}
+      <Ui::Table
+        @caption="Changes"
+        @columns={{array (hash key="action" label="Change") (hash key="type" label="Type") (hash key="name" label="Resource")}}
+        @rows={{this.plan.changes}}
+        @emptyMessage="No change."
+        as |c|
+      >
+        <td data-test-plan-action={{c.Action}}>
+          <Ui::Badge @color={{if (eq c.Action "create") "green" (if (eq c.Action "delete") "red" (if (eq c.Action "unchanged") "secondary" "blue"))}}>{{c.Action}}</Ui::Badge>
+        </td>
+        <td>{{c.Type}}{{#if c.Hook}} <span class="text-secondary">({{c.Hook}} hook)</span>{{/if}}</td>
+        <td class="font-monospace">{{if c.Namespace (concat c.Namespace "/")}}{{c.Name}}</td>
+      </Ui::Table>
+    </Ui::Card>
+  {{/if}}
+
+  <div class="d-flex align-items-center justify-content-between pt-3 mt-3 border-top">
+    <Ui::Button @icon="list-check" @isLoading={{this.isPlanning}} @disabled={{not this.canSubmit}} {{on "click" this.runPlan}} data-test-btn-plan>Plan</Ui::Button>
+    <div class="d-flex gap-2">
+      {{#if @onClose}}
+        <Ui::Button @variant="ghost" {{on "click" @onClose}} data-test-btn-cancel>Cancel</Ui::Button>
+      {{/if}}
+      <Ui::Button @variant="primary" @icon="rocket" @isLoading={{this.isDeploying}} @disabled={{not this.canSubmit}} {{on "click" this.deploy}} data-test-btn-deploy>
+        {{if this.isUpgrade "Upgrade" "Install"}}
+      </Ui::Button>
+    </div>
+  </div>
+</div>

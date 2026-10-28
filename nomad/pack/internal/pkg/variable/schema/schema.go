@@ -9,6 +9,11 @@ const (
 	VariableAttributeType        = "type"
 	VariableAttributeDefault     = "default"
 	VariableAttributeDescription = "description"
+
+	// The install form blocks of a variable (Norca extension).
+	VariableBlockUI         = "ui"
+	VariableBlockSecret     = "secret"
+	VariableBlockValidation = "validation"
 )
 
 // VariableFileSchema defines the hcl.BlockHeaderSchema for each root variable
@@ -17,6 +22,12 @@ var VariableFileSchema = &hcl.BodySchema{
 	Blocks: []hcl.BlockHeaderSchema{
 		{
 			Type:       "variable",
+			LabelNames: []string{"name"},
+		},
+		// Rules on the variables of the pack (Norca extension), read by the
+		// rules package.
+		{
+			Type:       "rule",
 			LabelNames: []string{"name"},
 		},
 	},
@@ -29,5 +40,54 @@ var VariableBlockSchema = &hcl.BodySchema{
 		{Name: VariableAttributeDescription},
 		{Name: VariableAttributeDefault},
 		{Name: VariableAttributeType},
+	},
+	Blocks: []hcl.BlockHeaderSchema{
+		{Type: VariableBlockUI},
+		{Type: VariableBlockSecret},
+		{Type: VariableBlockValidation},
+	},
+}
+
+// VariableUIBlockSchema is the schema of the ui block of a variable: how
+// the install form shows it.
+var VariableUIBlockSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "tab"},
+		{Name: "group"},
+		{Name: "order"},
+		{Name: "label"},
+		{Name: "widget"},
+		{Name: "unit"},
+		{Name: "presets"},
+		{Name: "options"},
+		{Name: "option_labels"},
+		{Name: "show_if"},
+	},
+}
+
+// VariableValidationBlockSchema is the schema of the validation block of a
+// variable: constraints on its value, checked by the CLI and the servers.
+var VariableValidationBlockSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "min"},
+		{Name: "max"},
+		{Name: "pattern"},
+		{Name: "min_length"},
+		{Name: "max_length"},
+		{Name: "min_items"},
+		{Name: "max_items"},
+		{Name: "integer"},
+		{Name: "unique"},
+		{Name: "item_pattern"},
+		{Name: "item_min_length"},
+	},
+}
+
+// VariableSecretBlockSchema is the schema of the secret block of a
+// variable: the item of a Variable of the pack that receives the value.
+var VariableSecretBlockSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "path", Required: true},
+		{Name: "item"},
 	},
 }

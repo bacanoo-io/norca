@@ -60,10 +60,17 @@ type Variable struct {
 	// DeclRange is the position marker of the variable within the file it was
 	// read from. This is used for diagnostics.
 	DeclRange hcl.Range
+
+	// UI holds the install form directives of the ui and secret blocks as
+	// JSON Schema property keys (title, enum, minimum, x-ui-tab, ...), which
+	// SynthesizeUIFormSchema lays over the inferred ones (Norca extension).
+	UI map[string]any
 }
 
 func (v *Variable) SetDescription(d string) { v.Description = d; v.hasDescription = true }
 func (v *Variable) SetDefault(d cty.Value)  { v.Default = d; v.hasDefault = true }
+func (v *Variable) HasDefault() bool        { return v.hasDefault }
+func (v *Variable) HasType() bool           { return v.hasType }
 func (v *Variable) SetType(t cty.Type) {
 	v.Type = t.WithoutOptionalAttributesDeep()
 	v.ConstraintType = t
@@ -131,6 +138,10 @@ func (v *Variable) Merge(in *Variable) hcl.Diagnostics {
 
 	if in.Value != cty.NilVal {
 		v.Value = in.Value
+	}
+
+	if in.UI != nil {
+		v.UI = in.UI
 	}
 
 	if in.Type != cty.NilType {

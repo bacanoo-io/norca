@@ -11,7 +11,13 @@ import { apiRequest } from 'nomad-ui/utils/norca-api';
 // pages normalize them to PascalCase. User data (values, meta) keeps its
 // keys.
 
-const KEEP_KEYS = new Set(['Values', 'VariableValues', 'Meta', 'Labels']);
+const KEEP_KEYS = new Set([
+  'Values',
+  'VariableValues',
+  'Meta',
+  'Labels',
+  'UIFormSchema',
+]);
 
 export function normalize(value) {
   if (Array.isArray(value)) return value.map(normalize);
@@ -95,6 +101,79 @@ export function uninstallRelease(token, region, namespace, name, noHooks) {
       no_hooks: noHooks ? 'true' : undefined,
     },
   });
+}
+
+// Cluster pack registries (packs.norca.io/Registry objects) and the
+// catalog of their packs; the servers sync and render them
+// (nomad/nomad/pack_registry.go).
+export async function listPackRegistries(token, region) {
+  const r = await apiRequest(token, '/v1/pack-registries', {
+    params: { region },
+  });
+  return { ...r, body: normalize(r.body || []) };
+}
+
+// spec: { type, source, defaultRef, trustedKeys }
+export async function upsertPackRegistry(token, region, name, spec) {
+  const r = await apiRequest(token, '/v1/pack-registry', {
+    method: 'POST',
+    params: { region },
+    data: { Name: name, Spec: spec },
+  });
+  return { ...r, body: normalize(r.body) };
+}
+
+export async function syncPackRegistry(token, region, name) {
+  const r = await apiRequest(
+    token,
+    `/v1/pack-registry/${encodeURIComponent(name)}/sync`,
+    { method: 'POST', params: { region } }
+  );
+  return { ...r, body: normalize(r.body) };
+}
+
+export function deletePackRegistry(token, region, name) {
+  return apiRequest(token, `/v1/pack-registry/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    params: { region },
+  });
+}
+
+export async function listCatalogPacks(token, region, registry) {
+  const r = await apiRequest(token, '/v1/packs', {
+    params: { region, registry: registry || undefined },
+  });
+  return { ...r, body: normalize(r.body || []) };
+}
+
+// { Pack, Versions, Readme, UIFormSchema }; the schema keeps its keys.
+export async function getCatalogPack(token, region, registry, pack, version) {
+  const r = await apiRequest(
+    token,
+    `/v1/pack/${encodeURIComponent(registry)}/${encodeURIComponent(pack)}`,
+    { params: { region, version: version || undefined } }
+  );
+  return { ...r, body: normalize(r.body) };
+}
+
+// data: { Registry, Pack, Version, Values, Description }; the response is
+// that of an apply (Release, Revision, Changes, Warnings).
+export async function planPackRelease(token, region, namespace, name, data) {
+  const r = await apiRequest(token, path(name, '/plan-pack'), {
+    method: 'POST',
+    params: { region, namespace },
+    data,
+  });
+  return { ...r, body: normalize(r.body) };
+}
+
+export async function deployPackRelease(token, region, namespace, name, data) {
+  const r = await apiRequest(token, path(name, '/deploy-pack'), {
+    method: 'POST',
+    params: { region, namespace },
+    data,
+  });
+  return { ...r, body: normalize(r.body) };
 }
 
 export function condition(release, type) {

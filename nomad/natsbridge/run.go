@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -95,6 +96,18 @@ func Run(ctx context.Context, cfg *Config, logger *slog.Logger) error {
 		return err
 	}
 	defer nc.Close()
+
+	if cfg.SyncPushes || cfg.SyncRegions {
+		syncer := &Syncer{API: &apiRegistries{client: client, region: region}, Region: region, Cooldown: cfg.SyncCooldown, Logger: logger}
+		subs, err := syncer.Subscribe(ctx, nc, cfg.SubjectPrefix, cfg.SyncPushes, cfg.SyncRegions)
+		for _, sub := range subs {
+			defer sub.Unsubscribe() //nolint:errcheck
+		}
+		if err != nil {
+			return err
+		}
+		logger.Info("syncing pack registries from NATS", "pushes", cfg.SyncPushes, "regions", cfg.SyncRegions)
+	}
 
 	var pub Publisher = &CorePublisher{Conn: nc, Timeout: cfg.PublishTimeout}
 	if cfg.JetStream {
@@ -222,9 +235,22 @@ func connectNATS(cfg *Config, region string, logger *slog.Logger) (*nats.Conn, e
 	if nc.IsConnected() {
 		logger.Info("connected to NATS", "url", nc.ConnectedUrlRedacted())
 	} else {
-		logger.Warn("NATS is not reachable yet, retrying in the background", "url", cfg.NATSURL)
+		logger.Warn("NATS is not reachable yet, retrying in the background", "url", redactNATSURL(cfg.NATSURL))
 	}
 	return nc, nil
+}
+
+// redactNATSURL redacts userinfo credentials in a (potentially comma-separated)
+// NATS URL string before logging.
+func redactNATSURL(raw string) string {
+	parts := strings.Split(raw, ",")
+	for i, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if u, err := url.Parse(trimmed); err == nil && u.User != nil {
+			parts[i] = u.Redacted()
+		}
+	}
+	return strings.Join(parts, ",")
 }
 
 // newAPIClient returns an API client configured like api.DefaultConfig,
