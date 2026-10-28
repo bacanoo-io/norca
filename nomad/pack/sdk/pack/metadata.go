@@ -24,6 +24,50 @@ type Metadata struct {
 	// Regions installs the pack in these regions in one operation unless
 	// the command line names the regions (Norca extension).
 	Regions []string `hcl:"regions,optional"`
+
+	// UI lays out the install form of the pack (Norca extension).
+	UI *MetadataUI `hcl:"ui,block"`
+}
+
+// MetadataUI lays out the install form: its tabs, in the order declared.
+// Variables name their tab in their ui block (Norca extension).
+//
+//	ui {
+//	  tab "general"  { label = "General" }
+//	  tab "security" { label = "Security & Secrets", icon = "lock" }
+//	}
+type MetadataUI struct {
+	Tabs []*MetadataUITab `hcl:"tab,block"`
+}
+
+// MetadataUITab is a tab of the install form.
+type MetadataUITab struct {
+	ID    string `hcl:"id,label"`
+	Label string `hcl:"label,optional"`
+	Icon  string `hcl:"icon,optional"`
+}
+
+// FormTabs returns the tabs as the x-ui-tabs of a form schema, shaped as
+// decoded JSON.
+func (u *MetadataUI) FormTabs() []any {
+	if u == nil {
+		return nil
+	}
+	tabs := make([]any, 0, len(u.Tabs))
+	for i, t := range u.Tabs {
+		if t == nil {
+			continue
+		}
+		tab := map[string]any{"id": t.ID, "label": t.Label, "order": (i + 1) * 10}
+		if t.Label == "" {
+			tab["label"] = t.ID
+		}
+		if t.Icon != "" {
+			tab["icon"] = t.Icon
+		}
+		tabs = append(tabs, tab)
+	}
+	return tabs
 }
 
 // MetadataApp contains information regarding the application that the pack is

@@ -234,9 +234,11 @@ func (p *ParserV2) parseRootBodyContent(body *hcl.BodyContent) (map[variables.ID
 
 	var diags hcl.Diagnostics
 
-	// Due to the parsing that uses variableFileSchema, it is safe to assume
-	// every block has a type "variable".
+	// The rule blocks are read by the rules package.
 	for _, block := range body.Blocks {
+		if block.Type != "variable" {
+			continue
+		}
 		cfg, cfgDiags := decoder.DecodeVariableBlock(block)
 		diags = packdiags.SafeDiagnosticsExtend(diags, cfgDiags)
 		if cfg != nil {
@@ -303,7 +305,12 @@ func (p *ParserV2) parseVariableImpl(name, rawVal string, tgt variables.PackIDKe
 		return hcl.Diagnostics{packdiags.DiagMissingRootVar(name, &fakeRange)}
 	}
 
-	expr, diags := hclhelp.ExpressionFromVariableDefinition(fakeRange.Filename, rawVal, existing.Type)
+	varType := existing.Type
+	if varType == cty.NilType && existing.Default != cty.NilVal && !existing.Default.IsNull() {
+		varType = existing.Default.Type()
+	}
+
+	expr, diags := hclhelp.ExpressionFromVariableDefinition(fakeRange.Filename, rawVal, varType)
 	if diags.HasErrors() {
 		return diags
 	}
@@ -315,9 +322,9 @@ func (p *ParserV2) parseVariableImpl(name, rawVal string, tgt variables.PackIDKe
 
 	// If our stored type isn't cty.NilType then attempt to covert the override
 	// variable, so we know they are compatible.
-	if existing.Type != cty.NilType {
+	if varType != cty.NilType {
 		var err *hcl.Diagnostic
-		val, err = hclhelp.ConvertValUsingType(val, existing.Type, expr.Range().Ptr())
+		val, err = hclhelp.ConvertValUsingType(val, varType, expr.Range().Ptr())
 		if err != nil {
 			return hcl.Diagnostics{err}
 		}

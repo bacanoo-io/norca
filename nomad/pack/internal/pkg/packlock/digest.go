@@ -47,16 +47,18 @@ type File struct {
 type Filter func(rel string, isDir bool) bool
 
 // ContentFilter selects the full content of a pack as it is published: every
-// file except version control data and the client's origin record.
+// file except the root version control directory and the client's origin
+// record. Nested .git directories are included in the digest so they cannot
+// hide unverified templates inside a signed or locked pack (PK-5).
 func ContentFilter(rel string, isDir bool) bool {
+	if isDir {
+		return rel != ".git"
+	}
 	base := rel
 	if i := strings.LastIndex(rel, "/"); i >= 0 {
 		base = rel[i+1:]
 	}
-	if isDir {
-		return base != ".git"
-	}
-	return rel != OriginFileName
+	return base != OriginFileName
 }
 
 // OwnContentFilter selects the content that belongs to the pack itself: the

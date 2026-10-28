@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -102,6 +103,14 @@ func (s *HTTPServer) ReleaseSpecificRequest(resp http.ResponseWriter, req *http.
 		if req.Method == http.MethodPut || req.Method == http.MethodPost {
 			return s.releaseApply(resp, req, name, true)
 		}
+	case len(parts) == 2 && parts[1] == "plan-pack":
+		if req.Method == http.MethodPut || req.Method == http.MethodPost {
+			return s.releasePackApply(resp, req, name, true)
+		}
+	case len(parts) == 2 && parts[1] == "deploy-pack":
+		if req.Method == http.MethodPut || req.Method == http.MethodPost {
+			return s.releasePackApply(resp, req, name, false)
+		}
 	case len(parts) == 2 && parts[1] == "history":
 		if req.Method == http.MethodGet {
 			return s.releaseHistory(resp, req, name)
@@ -153,7 +162,46 @@ func (s *HTTPServer) releaseApply(resp http.ResponseWriter, req *http.Request, n
 	if err := decodeBody(req, &body); err != nil {
 		return nil, CodedError(http.StatusBadRequest, err.Error())
 	}
-	args := structs.ReleaseApplyRequest{
+	return s.applyReleaseBody(resp, req, name, &body, dryRun)
+}
+
+func (s *HTTPServer) applyReleaseBody(resp http.ResponseWriter, req *http.Request, name string, body *releaseApplyBody, dryRun bool) (any, error) {
+	var wr structs.WriteRequest
+	s.parseWriteRequest(req, &wr)
+	args, err := releaseRequestFromBody(name, body, wr.Namespace)
+	if err != nil {
+		return nil, err
+	}
+	args.DryRun = dryRun
+	args.WriteRequest = wr
+
+	var out structs.ReleaseApplyResponse
+	if err := s.agent.RPC("Release.Apply", args, &out); err != nil {
+		return nil, err
+	}
+	setIndex(resp, out.Index)
+	return out, nil
+}
+
+// releaseRequestFromRendered converts a release request rendered by the
+// pack tooling (api types) into the request of the servers. The servers
+// use it for the packs they render (nomad.Config.ReleaseFromRendered).
+func releaseRequestFromRendered(name string, rendered *api.ReleaseApplyRequest, namespace string) (*structs.ReleaseApplyRequest, error) {
+	raw, err := json.Marshal(rendered)
+	if err != nil {
+		return nil, err
+	}
+	var body releaseApplyBody
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return nil, err
+	}
+	return releaseRequestFromBody(name, &body, namespace)
+}
+
+// releaseRequestFromBody converts a release request body; jobs without a
+// namespace belong to the namespace of the release.
+func releaseRequestFromBody(name string, body *releaseApplyBody, namespace string) (*structs.ReleaseApplyRequest, error) {
+	args := &structs.ReleaseApplyRequest{
 		Name:          name,
 		Pack:          body.Pack,
 		Description:   body.Description,
@@ -165,15 +213,12 @@ func (s *HTTPServer) releaseApply(resp http.ResponseWriter, req *http.Request, n
 		Timeout:       body.Timeout,
 		TakeOwnership: body.TakeOwnership,
 		MaxHistory:    body.MaxHistory,
-		DryRun:        dryRun,
 		RecordOnly:    body.RecordOnly,
 
 		VariablesSchemas: body.VariablesSchemas,
 		VariableValues:   body.VariableValues,
 		Regions:          body.Regions,
 	}
-	s.parseWriteRequest(req, &args.WriteRequest)
-	namespace := args.Namespace
 	if namespace == "" {
 		namespace = structs.DefaultNamespace
 	}
@@ -205,13 +250,7 @@ func (s *HTTPServer) releaseApply(resp http.ResponseWriter, req *http.Request, n
 		}
 		args.Resources = append(args.Resources, res)
 	}
-
-	var out structs.ReleaseApplyResponse
-	if err := s.agent.RPC("Release.Apply", &args, &out); err != nil {
-		return nil, err
-	}
-	setIndex(resp, out.Index)
-	return out, nil
+	return args, nil
 }
 
 func (s *HTTPServer) releaseDelete(resp http.ResponseWriter, req *http.Request, name string) (any, error) {

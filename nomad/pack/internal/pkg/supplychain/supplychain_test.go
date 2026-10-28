@@ -175,7 +175,12 @@ func TestFetch_Policy(t *testing.T) {
 	_, err = VerifyCached(dir, opts.Policy)
 	must.ErrorContains(t, err, "was modified after download")
 
-	// Packs without an origin record have no result.
+	// Removing .norca-origin.json from an OCI/bundle cached pack is rejected (PK-5).
+	must.NoError(t, os.Remove(filepath.Join(dir, packlock.OriginFileName)))
+	_, err = VerifyCached(dir, opts.Policy)
+	must.ErrorContains(t, err, "has no origin record")
+
+	// Packs without an origin record in a plain directory have no result.
 	res, err = VerifyCached(t.TempDir(), opts.Policy)
 	must.NoError(t, err)
 	must.Nil(t, res)

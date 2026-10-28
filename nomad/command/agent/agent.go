@@ -177,6 +177,7 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	}
 	conf.DevMode = agentConfig.DevMode
 	conf.EnableDebug = agentConfig.EnableDebug
+	conf.ReleaseFromRendered = releaseRequestFromRendered
 
 	conf.Build = agentConfig.Version.VersionNumber()
 	conf.Revision = agentConfig.Version.Revision

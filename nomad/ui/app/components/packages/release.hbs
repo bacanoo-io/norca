@@ -18,6 +18,9 @@
           <Ui::Button @icon="history" @disabled={{not this.rollbackTargets.length}} data-test-rollback {{on "click" (fn this.openRollback null)}}>Roll back</Ui::Button>
           {{#if this.deployedRevision}}
             <Ui::Button @icon="pencil" data-test-edit-values {{on "click" this.openValues}}>Edit values</Ui::Button>
+            {{#if this.catalogPack}}
+              <Ui::Button @variant="primary" @icon="rocket" data-test-upgrade-release {{on "click" this.openUpgrade}}>Upgrade</Ui::Button>
+            {{/if}}
           {{/if}}
           <Ui::Button @variant="outline-danger" @icon="trash" data-test-uninstall {{on "click" this.askUninstall}}>Uninstall</Ui::Button>
         {{/if}}
@@ -245,5 +248,26 @@
 
   {{#if this.editingValues}}
     <Packages::ValuesEditor @release={{this.release}} @revision={{this.deployedRevision}} @onClose={{this.closeValues}} />
+  {{/if}}
+
+  {{#if this.upgrading}}
+    <Ui::Modal @title="Upgrade {{this.release.Name}}" @size="xl" @onClose={{this.closeUpgrade}} data-test-upgrade-modal>
+      <p class="text-secondary">
+        The servers render {{this.catalogPack.Name}} of the {{this.catalogPack.Registry}} registry with these values and
+        apply it as the next revision. Pick another version to upgrade the pack itself.
+      </p>
+      <Packages::SchemaForm
+        @isUpgrade={{true}}
+        @registry={{this.catalogPack.Registry}}
+        @pack={{this.catalogPack.Name}}
+        @version={{this.catalogPack.Version}}
+        @releaseName={{this.release.Name}}
+        @namespace={{this.release.Namespace}}
+        @region={{this.region}}
+        @initialValues={{this.deployedRevision.Spec.Values}}
+        @onDeployed={{this.upgraded}}
+        @onClose={{this.closeUpgrade}}
+      />
+    </Ui::Modal>
   {{/if}}
 </div>

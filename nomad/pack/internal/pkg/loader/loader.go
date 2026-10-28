@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -56,6 +57,17 @@ func loadDir(dir string) (*pack.Pack, error) {
 
 		// Normalize to / since it will also work on Windows
 		n = filepath.ToSlash(n)
+
+		// Skip the root .git directory and the cache's origin record; reject
+		// nested .git directories so templates cannot hide inside them.
+		if n == ".git" || strings.HasPrefix(n, ".git/") || path.Base(n) == ".norca-origin.json" {
+			return nil
+		}
+		for _, seg := range strings.Split(n, "/") {
+			if seg == ".git" {
+				return fmt.Errorf("pack contains a nested .git directory at %q", n)
+			}
+		}
 
 		if !fi.Mode().IsRegular() {
 			return fmt.Errorf("cannot load irregular file %q", name)

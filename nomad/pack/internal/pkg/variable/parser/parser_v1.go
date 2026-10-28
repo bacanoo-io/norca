@@ -426,9 +426,11 @@ func (p *ParserV1) parseRootBodyContent(body *hcl.BodyContent) (map[string]*vari
 
 	var diags hcl.Diagnostics
 
-	// Due to the parsing that uses variableFileSchema, it is safe to assume
-	// every block has a type "variable".
+	// The rule blocks are read by the rules package.
 	for _, block := range body.Blocks {
+		if block.Type != "variable" {
+			continue
+		}
 		cfg, cfgDiags := decoder.DecodeVariableBlock(block)
 		diags = packdiags.SafeDiagnosticsExtend(diags, cfgDiags)
 		if cfg != nil {
