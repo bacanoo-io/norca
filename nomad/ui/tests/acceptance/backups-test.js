@@ -51,6 +51,24 @@ module('Acceptance | backups', function (hooks) {
     await a11yAudit(assert, STRICT);
   });
 
+  test('the schedule and the recent restores cards of a row have the same height', async function (assert) {
+    useToken(null, 'management');
+    seedBackups(server);
+    await Backups.visit();
+
+    const schedule = document.querySelector('[data-test-schedule]');
+    const restores = document.querySelector('[data-test-recent-restores]');
+    const a = schedule.getBoundingClientRect();
+    const b = restores.getBoundingClientRect();
+    // Side by side on wide screens (then of the same height), stacked on
+    // narrow ones.
+    const sameRow = Math.round(a.top) === Math.round(b.top);
+    assert.ok(
+      sameRow ? Math.round(a.height) === Math.round(b.height) : b.top > a.top,
+      `schedule ${a.top}/${a.height}, restores ${b.top}/${b.height}`
+    );
+  });
+
   test('an overdue schedule becomes a warning that says what to do', async function (assert) {
     useToken(null, 'management');
     seedBackups(server, { overdue: true });

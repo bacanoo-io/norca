@@ -38,7 +38,7 @@
         </Ui::Alert>
       {{/each}}
 
-      <div class="row row-cards mb-3">
+      <div class="row row-cards row-deck mb-3">
         {{#each this.schedules as |s|}}
           <div class="col-md-6 col-xl-4">
             <Ui::Card @title={{if this.isAllRegions s.label "Schedule"}} @subtitle={{if this.isAllRegions "Schedule"}} data-test-schedule={{s.region}}>
