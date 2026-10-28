@@ -17,6 +17,7 @@ package testutil
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -314,6 +315,82 @@ func (s *TestServer) waitForLeader() {
 		defer s.Stop()
 		s.t.Fatalf("err: %s", err)
 	})
+
+	s.WaitForLeaderEstablished("")
+}
+
+// WaitForLeaderEstablished waits until the leader has established its
+// leadership as far as the tests depend on it. A leader is reported as soon
+// as it is elected, but it writes the scheduler configuration (job
+// registrations are refused without one) and the first root key (variables
+// can't be encrypted without one) only afterwards.
+//
+// Both are read with the operator API, which needs a management token when
+// ACLs are enabled. Without a token the wait then ends at the first
+// permission denied; tests of an ACL-enabled server can wait again with the
+// bootstrap token.
+func (s *TestServer) WaitForLeaderEstablished(token string) {
+	// at least 30s (10ms between the retries)
+	WaitForResultRetries(3000*TestMultiplier(), func() (bool, error) {
+		var sched struct {
+			SchedulerConfig *struct{}
+		}
+		switch err := s.getJSON("/v1/operator/scheduler/configuration", token, &sched); {
+		case errors.Is(err, errPermissionDenied):
+			return true, nil
+		case err != nil:
+			return false, fmt.Errorf("failed to get the scheduler configuration: %w", err)
+		case sched.SchedulerConfig == nil:
+			return false, errors.New("no scheduler configuration yet")
+		}
+
+		var keys []struct {
+			KeyID string
+			State string
+		}
+		switch err := s.getJSON("/v1/operator/keyring/keys", token, &keys); {
+		case errors.Is(err, errPermissionDenied):
+			return true, nil
+		case err != nil:
+			return false, fmt.Errorf("failed to list the root keys: %w", err)
+		}
+		for _, key := range keys {
+			if key.State == "active" {
+				return true, nil
+			}
+		}
+		return false, errors.New("no active root key yet")
+	}, func(err error) {
+		defer s.Stop()
+		s.t.Fatalf("leader not established: %s", err)
+	})
+}
+
+// errPermissionDenied is returned by getJSON for a 403 response.
+var errPermissionDenied = errors.New("permission denied")
+
+// getJSON performs an HTTP GET request with the token (if not empty) and
+// decodes the JSON response into out.
+func (s *TestServer) getJSON(path, token string, out any) error {
+	req, err := http.NewRequest(http.MethodGet, s.url(path), nil)
+	if err != nil {
+		return err
+	}
+	if token != "" {
+		req.Header.Set("X-Nomad-Token", token)
+	}
+	resp, err := s.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusForbidden {
+		return errPermissionDenied
+	}
+	if err := s.requireOK(resp); err != nil {
+		return err
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
 }
 
 // waitForClient waits for the Nomad client to be ready. The function returns
