@@ -4,7 +4,15 @@
  */
 
 /* eslint-disable qunit/require-expect */
-import { click, currentURL, fillIn, select, visit } from '@ember/test-helpers';
+import {
+  click,
+  currentURL,
+  fillIn,
+  select,
+  settled,
+  triggerEvent,
+  visit,
+} from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
@@ -280,7 +288,21 @@ module('Acceptance | packages', function (hooks) {
     await fillIn('[data-test-pack-field="datacenters"] textarea', 'dc1, dc2');
     await fillIn('[data-test-pack-field="extra_env"] textarea', 'not a pair');
     await click('[data-test-tab="resources"]');
-    await fillIn('[data-test-pack-field="replicas"] input', '3');
+    // The slider and its number field are one value.
+    assert
+      .dom('[data-test-pack-field="replicas"]')
+      .hasAttribute('data-test-pack-widget', 'slider');
+    assert.dom('[data-test-pack-slider-min]').hasText('1');
+    assert.dom('[data-test-pack-slider-max]').hasText('9');
+    await fillIn(
+      '[data-test-pack-field="replicas"] [data-test-pack-slider]',
+      '6'
+    );
+    assert
+      .dom('[data-test-pack-field="replicas"] input[type="number"]')
+      .hasValue('6');
+    await fillIn('[data-test-pack-field="replicas"] input[type="number"]', '3');
+    assert.dom('[data-test-pack-slider]').hasValue('3');
 
     await click('[data-test-tab="security"]');
     assert.dom('[data-test-pack-field="redis_password"]').doesNotExist();
@@ -339,6 +361,45 @@ module('Acceptance | packages', function (hooks) {
       { Path: 'nomad/jobs/redis', Items: { password: 's3cret' } },
     ]);
     assert.strictEqual(currentURL(), '/packages/default/redis');
+  });
+
+  test('the values are edited as JSON too', async function (assert) {
+    useToken(null, 'management');
+    await visit('/packages');
+    await click('[data-test-tab="catalog"]');
+    await click('[data-test-btn-install="builtin/redis"]');
+    await click('[data-test-tab="general"]');
+    await click('[data-test-radio-option="replica"]');
+
+    await click('[data-test-tab="json"]');
+    const editor = () =>
+      document.querySelector('[data-test-form-json] .CodeMirror').CodeMirror;
+    assert.deepEqual(JSON.parse(editor().getValue()), { mode: 'replica' });
+
+    editor().setValue('{"mode": "replica", "replicas": 4');
+    await settled();
+    assert.dom('[data-test-form-json-error]').includesText('Not valid JSON');
+    await click('[data-test-btn-deploy]');
+    assert.notOk(lastRequest('POST', '/deploy-pack'), 'blocked by the JSON');
+    assert.dom('[data-test-tab="json"] .badge').hasText('1');
+
+    editor().setValue('{"mode": "replica", "replicas": 4, "nope": 1}');
+    await settled();
+    assert.dom('[data-test-form-json-error]').includesText('nope');
+
+    editor().setValue('{"mode": "replica", "replicas": 4}');
+    await settled();
+    assert.dom('[data-test-form-json-error]').doesNotExist();
+    await click('[data-test-tab="resources"]');
+    assert
+      .dom('[data-test-pack-field="replicas"] input[type="number"]')
+      .hasValue('4');
+
+    await click('[data-test-btn-deploy]');
+    assert.deepEqual(lastBody('POST', '/v1/release/redis/deploy-pack').Values, {
+      mode: 'replica',
+      replicas: 4,
+    });
   });
 
   test('required variables and versions', async function (assert) {
@@ -466,6 +527,78 @@ module('Acceptance | packages', function (hooks) {
     assert
       .dom('[data-test-upgrade-modal] [data-test-pack-field="image"] input')
       .hasValue('nginx:1', 'the values of the CLI install');
+  });
+
+  test('packs are uploaded and removed on the Registries tab', async function (assert) {
+    useToken(null, 'management');
+    await visit('/packages');
+    await click('[data-test-tab="registries"]');
+
+    const file = new File(['archive'], 'web-app-1.2.0.tgz', {
+      type: 'application/gzip',
+    });
+    await triggerEvent('[data-test-btn-upload-pack] input', 'change', {
+      files: [file],
+    });
+    assert.ok(
+      lastRequest('PUT', '/v1/pack-upload').url.includes(
+        'filename=web-app-1.2.0.tgz'
+      )
+    );
+    assert
+      .dom('[data-test-registry-row="uploads"]')
+      .includesText('Uploaded packs');
+    assert
+      .dom('[data-test-registry-upload="web-app-1.2.0.tgz"]')
+      .includesText('web-app@1.2.0');
+
+    await click('[data-test-tab="catalog"]');
+    assert.dom('[data-test-pack-card="uploads/web-app"]').exists();
+
+    await click('[data-test-tab="registries"]');
+    await click('[data-test-btn-remove-upload="web-app-1.2.0.tgz"]');
+    assert.ok(lastRequest('DELETE', '/v1/pack-upload/uploads/'));
+    assert
+      .dom('[data-test-registry-upload="web-app-1.2.0.tgz"]')
+      .doesNotExist();
+  });
+
+  test('a release from a local directory is upgraded after its pack is uploaded', async function (assert) {
+    useToken(null, 'management');
+    const pack = {
+      name: 'web-app',
+      version: '1.2.0',
+      registry: '<<local folder>>',
+      path: '/home/ops/packs/web-app',
+    };
+    server.db.norcaReleases.insert({
+      Region: 'global',
+      ID: 'rel-local',
+      Namespace: 'default',
+      Name: 'local-web',
+      Spec: { pack, revision: 1, maxHistory: 10, atomic: true },
+      Status: { phase: 'deployed', revision: 1, resources: [], conditions: [] },
+      History: [
+        revision('default', 'local-web', 1, '1.2.0', {
+          spec: { pack, values: { image: 'nginx:1' } },
+          status: { phase: 'deployed', hooks: [] },
+        }),
+      ],
+      Events: [],
+      Drift: [],
+    });
+
+    await visit('/packages/default/local-web');
+    assert.dom('[data-test-upgrade-release]').doesNotExist();
+    assert.dom('[data-test-add-release-registry]').doesNotExist();
+    await triggerEvent('[data-test-upload-release-pack] input', 'change', {
+      files: [new File(['archive'], 'web-app-1.2.0.tgz')],
+    });
+    await click('[data-test-upgrade-release]');
+    assert
+      .dom('[data-test-upgrade-modal] [data-test-pack-field="image"] input')
+      .hasValue('nginx:1');
+    assert.dom('[data-test-upgrade-modal]').includesText('uploads registry');
   });
 
   test('pack registries are added, synced, edited and removed', async function (assert) {

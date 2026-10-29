@@ -17,6 +17,7 @@ import {
 import {
   formSchema,
   initialState,
+  applyJSON,
   parseDraft,
   setPath,
   validate,
@@ -26,6 +27,9 @@ import {
   runCommand,
   compareVersionsDesc,
 } from 'nomad-ui/utils/pack-form';
+
+// The tabs of the form itself, after those of the pack.
+const OWN_TABS = ['json', 'cli'];
 
 /**
  * The install (or upgrade) form of a pack of a cluster registry. The
@@ -59,6 +63,9 @@ export default class PackagesSchemaForm extends Component {
   @tracked values = {};
   @tracked redacted = [];
   @tracked drafts = {};
+  // The text of the JSON tab while it is edited, and its error.
+  @tracked jsonDraft = null;
+  @tracked jsonError = null;
   @tracked draftErrors = {};
   @tracked errors = {};
 
@@ -109,8 +116,34 @@ export default class PackagesSchemaForm extends Component {
         icon: t.icon,
         count: this.tabErrorCount(t) || undefined,
       })),
+      {
+        id: 'json',
+        label: 'JSON',
+        icon: 'code',
+        count: this.jsonError ? 1 : undefined,
+      },
       { id: 'cli', label: 'CLI command', icon: 'terminal-2' },
     ];
+  }
+
+  // The overrides as JSON; the text being edited while it is edited.
+  get jsonText() {
+    return this.jsonDraft ?? JSON.stringify(this.payloadValues, null, 2);
+  }
+
+  @action setJson(text) {
+    this.jsonDraft = text;
+    const res = applyJSON(this.form, this.values, text);
+    if (res.error) {
+      this.jsonError = res.error;
+      return;
+    }
+    this.jsonError = null;
+    this.values = res.values;
+    this.drafts = {};
+    this.draftErrors = {};
+    this.errors = {};
+    this.plan = null;
   }
 
   tabErrorCount(tab) {
@@ -123,12 +156,14 @@ export default class PackagesSchemaForm extends Component {
   get currentTab() {
     return (
       this.form.tabs.find((t) => t.id === this.activeTab) ||
-      (this.activeTab === 'cli' ? null : this.form.tabs[0])
+      (OWN_TABS.includes(this.activeTab) ? null : this.form.tabs[0])
     );
   }
 
   get selectedTab() {
-    return this.activeTab === 'cli' ? 'cli' : this.currentTab?.id;
+    return OWN_TABS.includes(this.activeTab)
+      ? this.activeTab
+      : this.currentTab?.id;
   }
 
   // The groups of the current tab with the fields x-ui-show-if leaves.
@@ -251,6 +286,11 @@ export default class PackagesSchemaForm extends Component {
   }
 
   @action selectTab(id) {
+    // Leaving the JSON tab shows the values as the form has them; a text
+    // that doesn't apply stays until it is fixed.
+    if (this.activeTab === 'json' && id !== 'json' && !this.jsonError) {
+      this.jsonDraft = null;
+    }
     this.activeTab = id;
   }
 
@@ -311,11 +351,13 @@ export default class PackagesSchemaForm extends Component {
     });
     if (!this.releaseName.trim())
       errors.__name = 'The release name is required';
+    if (this.jsonError) errors.__json = this.jsonError;
     this.errors = errors;
     const ids = Object.keys(errors);
     if (!ids.length) return true;
     const tab = this.form.tabs.find((t) => this.tabErrorCount(t));
     if (tab) this.activeTab = tab.id;
+    else if (this.jsonError) this.activeTab = 'json';
     return false;
   }
 

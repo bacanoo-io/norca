@@ -71,7 +71,12 @@ function widgetOf(prop) {
     case 'datacenter-multiselect':
       return 'tags';
     case 'slider':
-      return 'number';
+      // The ends of the slider are its minimum and maximum.
+      return Number.isFinite(prop.minimum) &&
+        Number.isFinite(prop.maximum) &&
+        prop.minimum < prop.maximum
+        ? 'slider'
+        : 'number';
     case 'object-list':
       return 'json';
     case 'node-pool-select':
@@ -111,6 +116,7 @@ function emptyValue(field) {
     case 'json':
       return field.type === 'object' ? {} : [];
     case 'number':
+    case 'slider':
       return null;
     default:
       return '';
@@ -134,6 +140,7 @@ function fieldOf(key, prop, required, path) {
     maximum: prop.maximum,
     unit: prop['x-ui-unit'] || '',
     presets: prop['x-ui-presets'] || null,
+    step: prop['x-ui-step'] ?? (prop.type === 'integer' ? 1 : null),
     tab: tabId(prop['x-ui-tab']),
     group: prop['x-ui-group'] || '',
     order: Number(prop['x-ui-order'] ?? 1000),
@@ -240,7 +247,8 @@ function parseMaybeJSON(v) {
 function coerce(field, v) {
   if (v === undefined || v === null) return v;
   switch (field.widget) {
-    case 'number': {
+    case 'number':
+    case 'slider': {
       const n = Number(v);
       return v === '' || isNaN(n) ? v : n;
     }
@@ -380,7 +388,7 @@ export function validate(
       return;
     }
     if (isEmpty(v)) return;
-    if (f.widget === 'number') {
+    if (f.widget === 'number' || f.widget === 'slider') {
       const n = Number(v);
       if (isNaN(n)) errors[f.id] = `${f.title} must be a number`;
       else if (f.integer && !Number.isInteger(n))
@@ -411,6 +419,44 @@ export function validate(
 
 function same(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * The values of the form for the JSON text of the overrides (the JSON tab):
+ * the defaults, the values of the Variable secrets (which the JSON leaves
+ * out), and the values of the text. Returns { values } or { error }.
+ */
+export function applyJSON(form, values, text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    return { error: `Not valid JSON: ${e.message}` };
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { error: 'The values must be a JSON object of variable names' };
+  }
+  const byKey = new Map(form.fields.map((f) => [f.key, f]));
+  const unknown = Object.keys(parsed).filter(
+    (k) => !byKey.has(k) || byKey.get(k).secretPath
+  );
+  if (unknown.length) {
+    return {
+      error: `Not variables of the pack${
+        unknown.some((k) => byKey.get(k)?.secretPath)
+          ? ' (secrets are entered on their tab)'
+          : ''
+      }: ${unknown.join(', ')}`,
+    };
+  }
+  const out = initialState(form, {}).values;
+  for (const f of form.fields) {
+    if (f.secretPath) out[f.key] = values[f.key];
+  }
+  for (const [k, v] of Object.entries(parsed)) {
+    out[k] = coerce(byKey.get(k), v);
+  }
+  return { values: out };
 }
 
 /**

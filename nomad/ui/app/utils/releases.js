@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { apiRequest } from 'nomad-ui/utils/norca-api';
+import { apiRequest, ApiError, withParams } from 'nomad-ui/utils/norca-api';
 
 // Pack releases (package-management-plan.md; pack/docs/releases.md). The
 // typed views of a release carry Spec and Status whose keys are PascalCase
@@ -186,10 +186,29 @@ export function upgradeTarget(pack, registries) {
         normalizeSource(r.Spec?.Source) === source &&
         (r.Status?.Packs || []).some((p) => p.Name === pack.Name)
     );
-  const reg = named || bySource;
+  // A pack from a local directory: the pack uploaded to an uploads
+  // registry of the cluster.
+  const uploaded =
+    isLocalPack(pack) &&
+    regs.find(
+      (r) =>
+        r.Spec?.Type === 'uploads' &&
+        (r.Status?.Packs || []).some((p) => p.Name === pack.Name)
+    );
+  const reg = named || bySource || uploaded;
   return reg
     ? { registry: reg.Name, name: pack.Name, version: pack.Version || '' }
     : null;
+}
+
+// Whether a release was installed with the CLI from a local directory or
+// an offline bundle: its pack can only reach the servers as an upload.
+export function isLocalPack(pack) {
+  if (!pack?.Name) return false;
+  if (String(pack.Source || '').startsWith('bundle:')) return true;
+  return (
+    !pack.Source && (!pack.Registry || pack.Registry === '<<local folder>>')
+  );
 }
 
 /**
@@ -226,6 +245,47 @@ export function registrySuggestion(pack, registries) {
     source: type === 'oci' ? normalizeSource(raw) : raw.replace(/\/+$/, ''),
     defaultRef: ref && ref !== 'latest' ? ref : '',
   };
+}
+
+// Uploads a pack archive (a bundle of norca pack bundle create, or a tar or
+// tar.gz of pack directories) to a registry of the type "uploads" (default
+// "uploads", created if missing). The body is the file itself.
+export async function uploadPack(token, region, registry, file) {
+  const url = withParams('/v1/pack-upload', {
+    region: region || undefined,
+    registry: registry || undefined,
+    filename: file?.name || undefined,
+  });
+  const response = await token.authorizedRawRequest(url, {
+    method: 'PUT',
+    body: file,
+  });
+  let body = null;
+  try {
+    body = await response.json();
+  } catch (e) {
+    body = null;
+  }
+  if (!response.ok) {
+    throw new ApiError(
+      typeof body === 'string'
+        ? body
+        : `PUT /v1/pack-upload: ${response.status}`,
+      response.status,
+      body
+    );
+  }
+  return { body: normalize(body) };
+}
+
+export function deletePackUpload(token, region, registry, digest) {
+  return apiRequest(
+    token,
+    `/v1/pack-upload/${encodeURIComponent(registry)}/${encodeURIComponent(
+      digest
+    )}`,
+    { method: 'DELETE', params: { region } }
+  );
 }
 
 export async function listCatalogPacks(token, region, registry) {

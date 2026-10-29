@@ -94,7 +94,7 @@ const packRegistryKindSchema = `{
       "type": "object",
       "required": ["type", "source"],
       "properties": {
-        "type": {"type": "string", "enum": ["dir", "git", "oci", "bundle"]},
+        "type": {"type": "string", "enum": ["dir", "git", "oci", "bundle", "uploads"]},
         "source": {"type": "string"},
         "defaultRef": {"type": "string"},
         "syncInterval": {"type": "string"},
@@ -119,7 +119,30 @@ const packRegistryKindSchema = `{
         "lastGoodSyncAt": {"type": "string"},
         "syncGeneration": {"type": "integer", "minimum": 0},
         "packCount": {"type": "integer", "minimum": 0},
-        "packs": {"type": "array", "items": {"type": "object"}}
+        "packs": {"type": "array", "items": {"type": "object"}},
+        "uploads": {"type": "array", "items": {"type": "object"}}
+      }
+    }
+  }
+}`
+
+// packUploadKindSchema is the JSON Schema of the chunks of uploaded packs.
+const packUploadKindSchema = `{
+  "type": "object",
+  "properties": {
+    "spec": {
+      "type": "object",
+      "required": ["registry", "digest", "chunk", "chunks", "data"],
+      "properties": {
+        "registry": {"type": "string"},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "fileName": {"type": "string"},
+        "format": {"type": "string", "enum": ["bundle", "archive"]},
+        "size": {"type": "integer", "minimum": 0},
+        "chunk": {"type": "integer", "minimum": 0},
+        "chunks": {"type": "integer", "minimum": 1},
+        "uploadedAt": {"type": "string"},
+        "data": {"type": "string"}
       }
     }
   }
@@ -172,6 +195,19 @@ func builtinReleaseKinds() []*structs.ObjectKind {
 				{Name: "Phase", Path: "status.phase"},
 				{Name: "Packs", Path: "status.packCount"},
 				{Name: "LastSynced", Path: "status.lastSyncedAt"},
+			},
+		},
+		{
+			Group:       structs.ReleaseObjectGroup,
+			Kind:        structs.PackUploadKind,
+			Description: "Chunk of a pack uploaded to a cluster pack registry (built in, managed by the pack upload API)",
+			Namespaced:  false,
+			Schema:      packUploadKindSchema,
+			Columns: []*structs.ObjectKindColumn{
+				{Name: "Registry", Path: "spec.registry"},
+				{Name: "File", Path: "spec.fileName"},
+				{Name: "Chunk", Path: "spec.chunk"},
+				{Name: "Chunks", Path: "spec.chunks"},
 			},
 		},
 	}

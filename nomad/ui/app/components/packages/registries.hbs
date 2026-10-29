@@ -11,7 +11,17 @@
     <p class="text-secondary mb-0">
       The servers fetch a registry when it is saved or synced, and its packs appear in the catalog.
     </p>
-    <Ui::Button @variant="primary" @icon="plus" {{on "click" this.openAdd}} data-test-btn-add-registry>Add registry</Ui::Button>
+    <div class="d-flex gap-2">
+      <Ui::FileButton
+        @label={{if this.isUploading "Uploading..." "Upload pack"}}
+        @icon="upload"
+        @accept=".tar,.tgz,.gz,application/gzip,application/x-tar"
+        @onChange={{this.upload}}
+        title="A bundle of norca pack bundle create, or a tar or tar.gz of pack directories (at most 8 MiB)"
+        data-test-btn-upload-pack
+      />
+      <Ui::Button @variant="primary" @icon="plus" {{on "click" this.openAdd}} data-test-btn-add-registry>Add registry</Ui::Button>
+    </div>
   </div>
 
   {{#if this.isLoading}}
@@ -46,6 +56,14 @@
           <span class="font-monospace small">{{row.source}}</span>
           {{#if row.ref}}<span class="small text-secondary"> @ {{row.ref}}</span>{{/if}}
           {{#if row.keys}}<div class="small text-secondary">{{row.keys}} trusted {{if (eq row.keys 1) "key" "keys"}}</div>{{/if}}
+          {{#each row.uploads as |u|}}
+            <div class="small d-flex align-items-center gap-2 mt-1" data-test-registry-upload={{u.FileName}}>
+              <span class="font-monospace">{{or u.FileName u.Digest}}</span>
+              <span class="text-secondary">{{u.size}}{{#if u.when}}, {{u.when}}{{/if}}{{#if u.Packs}}: {{join ", " u.Packs}}{{/if}}</span>
+              {{#if u.Error}}<span class="text-danger">{{u.Error}}</span>{{/if}}
+              <Ui::Button @size="sm" @variant="ghost" @icon="x" @iconOnly={{true}} @label="Remove {{u.FileName}}" {{on "click" (fn this.removeUpload row u)}} data-test-btn-remove-upload={{u.FileName}} />
+            </div>
+          {{/each}}
           {{#if row.auth}}<div class="small text-secondary" data-test-registry-auth>credentials: <span class="font-monospace">{{row.auth}}</span></div>{{/if}}
         </td>
         <td data-test-registry-phase>

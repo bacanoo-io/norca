@@ -49,7 +49,25 @@
     />
 
     <div id="pack-form-panel" role="tabpanel">
-      {{#if (eq this.selectedTab "cli")}}
+      {{#if (eq this.selectedTab "json")}}
+        <div data-test-form-json>
+          <p class="text-secondary">
+            The values the install sends: those that differ from the defaults of the pack. Edit them here or on the
+            other tabs; Variable secrets are entered on their tab.
+          </p>
+          <Ui::CodeEditor
+            @label="Values"
+            @language="json"
+            @value={{this.jsonText}}
+            @onChange={{this.setJson}}
+            @invalid={{if this.jsonError true false}}
+            @minHeight="16rem"
+          />
+          {{#if this.jsonError}}
+            <Ui::Alert @tone="danger" class="mt-2" data-test-form-json-error>{{this.jsonError}}</Ui::Alert>
+          {{/if}}
+        </div>
+      {{else if (eq this.selectedTab "cli")}}
         <div data-test-form-cli>
           <p class="text-secondary">
             The same install with the CLI. It needs a local registry of the same source

@@ -16,6 +16,8 @@ import {
   upsertPackRegistry,
   syncPackRegistry,
   deletePackRegistry,
+  uploadPack,
+  deletePackUpload,
 } from 'nomad-ui/utils/releases';
 
 export const REGISTRY_TYPES = [
@@ -36,6 +38,13 @@ export const REGISTRY_TYPES = [
     label: 'Server directory',
     placeholder: '/srv/norca/packs',
     help: 'A directory on the servers, or builtin for the packs that ship with Norca.',
+  },
+  {
+    value: 'uploads',
+    label: 'Uploaded packs',
+    placeholder: 'uploads',
+    help: 'Packs uploaded from the browser or the API (Upload pack), kept by the servers.',
+    selectable: false,
   },
   {
     value: 'bundle',
@@ -98,7 +107,9 @@ export default class PackagesRegistries extends Component {
   @tracked toDelete = null;
   @tracked isDeleting = false;
 
-  types = REGISTRY_TYPES;
+  types = REGISTRY_TYPES.filter((t) => t.selectable !== false);
+
+  @tracked isUploading = false;
 
   setup = modifier(() => {
     this.load();
@@ -121,6 +132,11 @@ export default class PackagesRegistries extends Component {
         source: r.Spec?.Source,
         ref: r.Spec?.DefaultRef,
         keys: (r.Spec?.TrustedKeys || []).length,
+        uploads: (status.Uploads || []).map((u) => ({
+          ...u,
+          size: `${Math.max(1, Math.round((u.Size || 0) / 1024))} KiB`,
+          when: u.UploadedAt ? moment(u.UploadedAt).fromNow() : '',
+        })),
         auth: r.Spec?.AuthSecret?.Path
           ? `${r.Spec.AuthSecret.Namespace || 'default'}/${
               r.Spec.AuthSecret.Path
@@ -348,6 +364,47 @@ export default class PackagesRegistries extends Component {
       });
     } finally {
       this.syncing = null;
+    }
+  }
+
+  @action async upload(event) {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    this.isUploading = true;
+    try {
+      const r = await uploadPack(this.token, this.region, '', file);
+      const reg = r.body?.Registry;
+      this.notifications.add({
+        title: `${file.name} uploaded to ${reg?.Name || 'uploads'}`,
+        color: 'success',
+      });
+      await this.load();
+    } catch (e) {
+      this.notifications.add({
+        title: `${file.name} could not be uploaded`,
+        message: errorMessage(e),
+        color: 'critical',
+      });
+    } finally {
+      this.isUploading = false;
+      if (event?.target) event.target.value = '';
+    }
+  }
+
+  @action async removeUpload(row, upload) {
+    try {
+      await deletePackUpload(this.token, this.region, row.name, upload.Digest);
+      this.notifications.add({
+        title: `${upload.FileName || 'The upload'} removed`,
+        color: 'success',
+      });
+      await this.load();
+    } catch (e) {
+      this.notifications.add({
+        title: 'The upload could not be removed',
+        message: errorMessage(e),
+        color: 'critical',
+      });
     }
   }
 

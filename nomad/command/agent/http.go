@@ -410,6 +410,8 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/pack-registry/", s.wrap(s.PackRegistrySpecificRequest))
 	s.mux.HandleFunc("/v1/packs", s.wrap(s.PacksCatalogRequest))
 	s.mux.HandleFunc("/v1/pack/", s.wrap(s.PackDetailRequest))
+	s.mux.HandleFunc("/v1/pack-upload", s.wrap(s.PackUploadRequest))
+	s.mux.HandleFunc("/v1/pack-upload/", s.wrap(s.PackUploadRequest))
 
 	s.mux.HandleFunc("/v1/allocations", s.wrap(s.AllocsRequest))
 	s.mux.HandleFunc("/v1/allocation/", s.wrap(s.AllocSpecificRequest))

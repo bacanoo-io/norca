@@ -25,6 +25,8 @@ import {
   upsertPackRegistry,
   upgradeTarget,
   registrySuggestion,
+  isLocalPack,
+  uploadPack,
   isDrifted,
   signature,
   phaseTone,
@@ -109,6 +111,49 @@ export default class PackagesRelease extends Component {
       this.clusterRegistries = r.body || [];
     } catch (e) {
       this.clusterRegistries = null;
+    }
+  }
+
+  // A release of a pack from a local directory: uploading the pack makes
+  // it upgradable here.
+  get canUploadPack() {
+    return (
+      Boolean(this.clusterRegistries) &&
+      !this.upgradeTarget &&
+      isLocalPack(this.deployedPack)
+    );
+  }
+
+  @tracked isUploadingPack = false;
+
+  @action async uploadReleasePack(event) {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    this.isUploadingPack = true;
+    try {
+      const r = await uploadPack(this.token, this.region, '', file);
+      const packs = r.body?.Registry?.Status?.Packs || [];
+      if (!packs.some((p) => p.Name === this.deployedPack?.Name)) {
+        this.notifications.add({
+          title: `${file.name} has no pack ${this.deployedPack?.Name}`,
+          color: 'critical',
+        });
+      } else {
+        this.notifications.add({
+          title: `${file.name} uploaded`,
+          color: 'success',
+        });
+      }
+      await this.loadRegistries();
+    } catch (e) {
+      this.notifications.add({
+        title: `${file.name} could not be uploaded`,
+        message: errorMessage(e),
+        color: 'critical',
+      });
+    } finally {
+      this.isUploadingPack = false;
+      if (event?.target) event.target.value = '';
     }
   }
 

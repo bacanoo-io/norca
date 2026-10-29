@@ -58,6 +58,7 @@ var VariableUIBlockSchema = &hcl.BodySchema{
 		{Name: "label"},
 		{Name: "widget"},
 		{Name: "unit"},
+		{Name: "step"},
 		{Name: "presets"},
 		{Name: "options"},
 		{Name: "option_labels"},

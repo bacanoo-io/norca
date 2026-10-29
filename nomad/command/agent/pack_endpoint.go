@@ -4,11 +4,14 @@
 package agent
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
 	"github.com/hashicorp/nomad/nomad"
 	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/hashicorp/nomad/pack/catalog"
 )
 
 // The cluster pack registries and their catalog (nomad/nomad/
@@ -164,6 +167,51 @@ func (s *HTTPServer) PackDetailRequest(resp http.ResponseWriter, req *http.Reque
 	}
 	setMeta(resp, &out.QueryMeta)
 	return out.Detail, nil
+}
+
+// PackUploadRequest handles PUT/POST /v1/pack-upload?registry=&filename=,
+// with the archive as the body, and DELETE /v1/pack-upload/:registry/:digest.
+func (s *HTTPServer) PackUploadRequest(resp http.ResponseWriter, req *http.Request) (any, error) {
+	switch req.Method {
+	case http.MethodPut, http.MethodPost:
+		if req.URL.Path != "/v1/pack-upload" {
+			return nil, CodedError(http.StatusNotFound, "unknown pack upload path")
+		}
+		data, err := io.ReadAll(io.LimitReader(req.Body, catalog.MaxUploadSize+1))
+		if err != nil {
+			return nil, CodedError(http.StatusBadRequest, err.Error())
+		}
+		if len(data) > catalog.MaxUploadSize {
+			return nil, CodedError(http.StatusRequestEntityTooLarge, fmt.Sprintf("the upload is larger than %d MiB", catalog.MaxUploadSize>>20))
+		}
+		args := nomad.PackUploadRequest{
+			Registry: req.URL.Query().Get("registry"),
+			FileName: req.URL.Query().Get("filename"),
+			Data:     data,
+		}
+		s.parseWriteRequest(req, &args.WriteRequest)
+		var out nomad.PackUploadResponse
+		if err := s.agent.RPC("Packs.Upload", &args, &out); err != nil {
+			return nil, err
+		}
+		setIndex(resp, out.Index)
+		return out, nil
+	case http.MethodDelete:
+		parts := strings.Split(strings.TrimPrefix(req.URL.Path, "/v1/pack-upload/"), "/")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, CodedError(http.StatusBadRequest, "expected /v1/pack-upload/:registry/:digest")
+		}
+		args := nomad.PackUploadDeleteRequest{Registry: parts[0], Digest: parts[1]}
+		s.parseWriteRequest(req, &args.WriteRequest)
+		var out nomad.PackUploadResponse
+		if err := s.agent.RPC("Packs.DeleteUpload", &args, &out); err != nil {
+			return nil, err
+		}
+		setIndex(resp, out.Index)
+		return out, nil
+	default:
+		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+	}
 }
 
 // releasePackApply handles POST /v1/release/:name/plan-pack and

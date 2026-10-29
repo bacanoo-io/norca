@@ -31,7 +31,23 @@ export default class PackagesSchemaField extends Component {
 
   get label() {
     const f = this.field;
-    return f.unit ? `${f.title} (${f.unit})` : f.title;
+    // The slider shows its unit beside the value.
+    return f.unit && f.widget !== 'slider' ? `${f.title} (${f.unit})` : f.title;
+  }
+
+  // The step of the slider: the declared one, 1 for whole numbers, or the
+  // power of ten below a hundredth of the range.
+  get sliderStep() {
+    const f = this.field;
+    if (f.step) return f.step;
+    const step = 10 ** Math.floor(Math.log10((f.maximum - f.minimum) / 100));
+    return Number(step.toPrecision(1));
+  }
+
+  // An unset value puts the slider at the minimum.
+  get sliderValue() {
+    const v = this.args.value;
+    return v === null || v === undefined || v === '' ? this.field.minimum : v;
   }
 
   get text() {
@@ -99,6 +115,10 @@ export default class PackagesSchemaField extends Component {
 
   @action changeNumber(text) {
     this.args.onChange(this.field, text === '' ? null : Number(text));
+  }
+
+  @action slide(event) {
+    this.args.onChange(this.field, Number(event.target.value));
   }
 
   @action changeText(text) {

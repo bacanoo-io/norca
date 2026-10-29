@@ -65,7 +65,7 @@ const REDIS_SCHEMA = {
       'x-ui-order': 4,
     },
     replicas: {
-      type: 'number',
+      type: 'integer',
       title: 'Replicas',
       minimum: 1,
       maximum: 9,
@@ -73,6 +73,7 @@ const REDIS_SCHEMA = {
       'x-ui-tab': 'resources',
       'x-ui-group': 'Capacity & Scaling',
       'x-ui-widget': 'slider',
+      'x-ui-unit': 'replicas',
       'x-ui-show-if': { field: 'mode', equals: 'replica' },
       'x-ui-order': 1,
     },
@@ -219,7 +220,68 @@ export const SOURCES = {
 };
 
 // A failed sync keeps the packs of the last good one, as the servers do.
-function sync(name, spec, prev) {
+// Uploads (norcaPackUploads): Mirage can't read the archives, so the file
+// name <pack>-<version>.tgz (or .tar.gz, .tar) names the pack; the schema
+// and README are those of a pack of SOURCES with that name, if any.
+function uploadedPack(fileName) {
+  const m = /^(.+?)-(\d[\w.+-]*?)\.(tgz|tar\.gz|tar)$/.exec(fileName || '');
+  if (!m) return null;
+  const [, name, version] = m;
+  const known = Object.values(SOURCES)
+    .flat()
+    .find((p) => p.entry.Name === name);
+  return {
+    entry: {
+      ...(known?.entry || { Description: 'Uploaded pack', HasSchema: true }),
+      Name: name,
+      Version: version,
+      Signed: false,
+      Digest: `sha256:${name}${version}`,
+    },
+    readme: known?.readme || '',
+    schema: known?.schema || { type: 'object', properties: {} },
+  };
+}
+
+function uploadsOf(db, registry) {
+  return collection(db, 'norcaPackUploads')
+    .all()
+    .filter((u) => u.registry === registry);
+}
+
+function packsOf(db, reg) {
+  if (reg.Spec.type === 'uploads') {
+    return uploadsOf(db, reg.Name).map((u) => u.pack);
+  }
+  return SOURCES[reg.Spec.source];
+}
+
+function sync(name, spec, prev, db) {
+  if (spec.type === 'uploads') {
+    const uploads = uploadsOf(db, name);
+    const now = new Date().toISOString();
+    return {
+      phase: 'Ready',
+      message: `Synchronized ${uploads.length} pack(s)`,
+      lastSyncedAt: now,
+      lastGoodSyncAt: now,
+      syncGeneration: (prev?.syncGeneration || 0) + 1,
+      packCount: uploads.length,
+      packs: uploads.map((u) => ({
+        Compatible: true,
+        ...u.pack.entry,
+        Registry: name,
+      })),
+      uploads: uploads.map((u) => ({
+        digest: u.digest,
+        fileName: u.fileName,
+        format: 'archive',
+        size: u.size,
+        uploadedAt: u.uploadedAt,
+        packs: [`${u.pack.entry.Name}@${u.pack.entry.Version}`],
+      })),
+    };
+  }
   const packs = SOURCES[spec.source];
   const now = new Date().toISOString();
   if (!packs) {
@@ -254,8 +316,8 @@ function view(reg) {
   return plain(reg);
 }
 
-function packOf(reg, name, version) {
-  const packs = SOURCES[reg.Spec.source] || [];
+function packOf(db, reg, name, version) {
+  const packs = packsOf(db, reg) || [];
   const all = packs.filter((p) => p.entry.Name === name);
   const match = version ? all.find((p) => p.entry.Version === version) : all[0];
   return match ? { match, versions: all.map((p) => p.entry.Version) } : null;
@@ -275,7 +337,7 @@ export default function registerPackRoutes(server) {
     if (!NAME.test(payload.Name || '')) {
       return error(400, `invalid registry name: ${payload.Name}`);
     }
-    if (!['dir', 'git', 'oci', 'bundle'].includes(spec.type)) {
+    if (!['dir', 'git', 'oci', 'bundle', 'uploads'].includes(spec.type)) {
       return error(
         400,
         `invalid registry type "${spec.type}": must be dir, git, oci or bundle`
@@ -302,7 +364,7 @@ export default function registerPackRoutes(server) {
           : {}),
         ...(spec.trustedKeys?.length ? { trustedKeys: spec.trustedKeys } : {}),
       },
-      Status: sync(payload.Name, spec, existing?.Status),
+      Status: sync(payload.Name, spec, existing?.Status, db),
     };
     if (existing) c.update(existing.id, record);
     else c.insert(record);
@@ -313,9 +375,65 @@ export default function registerPackRoutes(server) {
     const reg = registryByName(db, request.params.name);
     if (!reg)
       return error(404, `pack registry "${request.params.name}" not found`);
-    const Status = sync(reg.Name, reg.Spec, reg.Status);
+    const Status = sync(reg.Name, reg.Spec, reg.Status, db);
     collection(db, 'norcaPackRegistries').update(reg.id, { Status });
     return json({ ...view(reg), Status });
+  });
+
+  server.put('/pack-upload', function ({ db }, request) {
+    const registry = request.queryParams.registry || 'uploads';
+    const fileName = request.queryParams.filename || '';
+    const pack = uploadedPack(fileName);
+    if (!pack) return error(400, 'the upload contains no pack');
+    const regs = collection(db, 'norcaPackRegistries');
+    let reg = regs.findBy({ Name: registry });
+    if (reg && reg.Spec.type !== 'uploads') {
+      return error(
+        400,
+        `pack registry "${registry}" is of the type "${reg.Spec.type}"; packs can only be uploaded to a registry of the type "uploads"`
+      );
+    }
+    const digest = `sha256:${fileName.length.toString(16).padStart(64, '0')}`;
+    collection(db, 'norcaPackUploads').insert({
+      registry,
+      digest,
+      fileName,
+      size: request.requestBody?.size || 1024,
+      uploadedAt: new Date().toISOString(),
+      pack,
+    });
+    if (!reg) {
+      const spec = { type: 'uploads', source: 'uploads', defaultRef: 'latest' };
+      regs.insert({
+        ID: `reg-${registry}`,
+        Name: registry,
+        Spec: spec,
+        Status: sync(registry, spec, null, db),
+      });
+    } else {
+      regs.update(reg.id, { Status: sync(reg.Name, reg.Spec, reg.Status, db) });
+    }
+    reg = regs.findBy({ Name: registry });
+    return json({ Registry: view(reg), Digest: digest });
+  });
+
+  server.del('/pack-upload/:registry/:digest', function ({ db }, request) {
+    const { registry } = request.params;
+    const digest = decodeURIComponent(request.params.digest);
+    const uploads = collection(db, 'norcaPackUploads');
+    const found = uploads
+      .all()
+      .filter((u) => u.registry === registry && u.digest === digest);
+    if (!found.length)
+      return error(404, `registry "${registry}" has no upload ${digest}`);
+    found.forEach((u) => uploads.remove(u.id));
+    const regs = collection(db, 'norcaPackRegistries');
+    const reg = regs.findBy({ Name: registry });
+    regs.update(reg.id, { Status: sync(reg.Name, reg.Spec, reg.Status, db) });
+    return json({
+      Registry: view(regs.findBy({ Name: registry })),
+      Digest: digest,
+    });
   });
 
   server.del('/pack-registry/:name', function ({ db }, request) {
@@ -340,7 +458,12 @@ export default function registerPackRoutes(server) {
     const reg = registryByName(db, request.params.registry);
     if (!reg)
       return error(404, `pack registry "${request.params.registry}" not found`);
-    const found = packOf(reg, request.params.pack, request.queryParams.version);
+    const found = packOf(
+      db,
+      reg,
+      request.params.pack,
+      request.queryParams.version
+    );
     if (!found) {
       return error(
         404,
@@ -366,7 +489,7 @@ export default function registerPackRoutes(server) {
     const reg = registryByName(db, payload.Registry);
     if (!reg)
       return error(404, `pack registry "${payload.Registry}" not found`);
-    const found = packOf(reg, payload.Pack, payload.Version);
+    const found = packOf(db, reg, payload.Pack, payload.Version);
     if (!found)
       return error(
         404,

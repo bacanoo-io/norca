@@ -50,6 +50,40 @@
             {{/each}}
           </div>
         {{/if}}
+      {{else if (eq this.field.widget "slider")}}
+        <div class="d-flex align-items-center gap-3">
+          <input
+            type="range"
+            class="form-range flex-fill"
+            min={{this.field.minimum}}
+            max={{this.field.maximum}}
+            step={{this.sliderStep}}
+            value={{this.sliderValue}}
+            list={{if this.field.presets (concat f.id "-presets")}}
+            aria-label={{this.field.title}}
+            aria-describedby={{f.describedBy}}
+            data-test-pack-slider
+            {{on "input" this.slide}}
+          />
+          <div class="input-group flex-nowrap" style="width: 9rem">
+            <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @invalid={{f.invalid}} @type="number" @value={{this.value}} @onInput={{this.changeNumber}} step={{this.sliderStep}} min={{this.field.minimum}} max={{this.field.maximum}} />
+            {{#if this.field.unit}}<span class="input-group-text">{{this.field.unit}}</span>{{/if}}
+          </div>
+        </div>
+        <div class="d-flex justify-content-between small text-secondary" style="margin-right: 10rem">
+          <span data-test-pack-slider-min>{{this.field.minimum}}</span>
+          <span data-test-pack-slider-max>{{this.field.maximum}}</span>
+        </div>
+        {{#if this.field.presets}}
+          <datalist id={{concat f.id "-presets"}}>
+            {{#each this.field.presets as |p|}}<option value={{p}}></option>{{/each}}
+          </datalist>
+          <div class="d-flex flex-wrap gap-1 mt-1">
+            {{#each this.field.presets as |p|}}
+              <Ui::Button @size="sm" @variant={{if (eq p @value) "primary" "outline-secondary"}} data-test-pack-preset={{p}} {{on "click" (fn this.change p)}}>{{p}}</Ui::Button>
+            {{/each}}
+          </div>
+        {{/if}}
       {{else if (eq this.field.widget "secret")}}
         <div class="d-flex gap-2">
           <Ui::Input

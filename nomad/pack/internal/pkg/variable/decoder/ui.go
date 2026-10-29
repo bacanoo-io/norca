@@ -31,6 +31,7 @@ var uiAttributeKeys = map[string]string{
 	"label":         "title",
 	"widget":        "x-ui-widget",
 	"unit":          "x-ui-unit",
+	"step":          "x-ui-step",
 	"presets":       "x-ui-presets",
 	"options":       "enum",
 	"option_labels": "x-ui-enum-labels",
@@ -94,7 +95,54 @@ func decodeFormBlocks(v *variables.Variable, blocks hcl.Blocks) hcl.Diagnostics 
 			diags = diags.Extend(decodeValidationBlock(v, b))
 		}
 	}
-	return diags
+	return diags.Extend(checkSlider(v, blocks))
+}
+
+// checkSlider checks a variable with the slider widget: a number with a
+// validation min below its max, the ends of the slider.
+func checkSlider(v *variables.Variable, blocks hcl.Blocks) hcl.Diagnostics {
+	if v.UI == nil || v.UI["x-ui-widget"] != "slider" {
+		return nil
+	}
+	var subject *hcl.Range
+	for _, b := range blocks {
+		if b.Type == schema.VariableBlockUI {
+			subject = b.DefRange.Ptr()
+		}
+	}
+	problem := ""
+	ty := v.ConstraintType
+	minimum, hasMin := v.UI["minimum"]
+	maximum, hasMax := v.UI["maximum"]
+	switch {
+	case ty != cty.NilType && ty != cty.DynamicPseudoType && ty != cty.Number:
+		problem = "The slider widget is for variables of the type number."
+	case !hasMin || !hasMax:
+		problem = "The slider widget needs the min and max of a validation block: the ends of the slider."
+	case toFloat(minimum) >= toFloat(maximum):
+		problem = "The validation min of a slider must be below its max."
+	}
+	if problem == "" {
+		return nil
+	}
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "Invalid slider",
+		Detail:   problem,
+		Subject:  subject,
+	}}
+}
+
+func toFloat(n any) float64 {
+	switch n := n.(type) {
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case float64:
+		return n
+	}
+	return 0
 }
 
 func decodeUIBlock(v *variables.Variable, b *hcl.Block) hcl.Diagnostics {
@@ -147,6 +195,10 @@ func uiAttributeValue(name string, val cty.Value) (any, string) {
 	case "order":
 		if ty != cty.Number {
 			return nil, "The value must be a number."
+		}
+	case "step":
+		if ty != cty.Number || val.AsBigFloat().Sign() <= 0 {
+			return nil, "The step must be a number above 0."
 		}
 	case "presets", "options":
 		if !ty.IsListType() && !ty.IsTupleType() && !ty.IsSetType() {

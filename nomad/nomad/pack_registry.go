@@ -96,6 +96,9 @@ type PackRegistryStatus struct {
 
 	PackCount int                 `json:"packCount"`
 	Packs     []*PackCatalogEntry `json:"packs,omitempty"`
+
+	// Uploads are the uploads of a registry of the type "uploads".
+	Uploads []*PackUploadSummary `json:"uploads,omitempty"`
 }
 
 // syncInterval returns the periodic sync interval of the spec; 0 syncs on
@@ -342,8 +345,14 @@ func (s *Server) UpsertPackRegistry(args *structs.GenericRequest, reg *PackRegis
 	reg.Spec.Source = strings.TrimSpace(reg.Spec.Source)
 	switch reg.Spec.Type {
 	case "dir", "git", "oci", "bundle":
+	case PackRegistryTypeUploads:
+		// Uploaded packs have no source of their own.
+		if reg.Spec.Source != "" && reg.Spec.Source != PackRegistryTypeUploads {
+			return nil, 0, structs.NewErrRPCCodedf(http.StatusBadRequest, "an uploads registry has the source %q", PackRegistryTypeUploads)
+		}
+		reg.Spec.Source = PackRegistryTypeUploads
 	default:
-		return nil, 0, structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid registry type %q: must be dir, git, oci or bundle", reg.Spec.Type)
+		return nil, 0, structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid registry type %q: must be dir, git, oci, bundle or uploads", reg.Spec.Type)
 	}
 	if reg.Spec.Source == "" {
 		return nil, 0, structs.NewErrRPCCodedf(http.StatusBadRequest, "registry source is required")
@@ -471,6 +480,9 @@ func (s *Server) DeletePackRegistry(args *structs.GenericRequest, name string) (
 		return 0, structs.NewErrRPCCodedf(http.StatusNotFound, "pack registry %q not found", name)
 	}
 	if err := s.releases.deleteObject(structs.PackRegistryKind, "", name); err != nil {
+		return 0, err
+	}
+	if err := s.deletePackUploads(name); err != nil {
 		return 0, err
 	}
 	if cacheDir, err := s.releases.packCachePath(); err == nil {
@@ -835,12 +847,23 @@ func (s *Server) syncPackRegistryCatalog(registryName string, spec *PackRegistry
 	if ref == "" {
 		ref = catalog.DefaultRef
 	}
-	auth, err := s.packRegistryAuth(spec)
-	if err != nil {
-		return failed("authSecret: " + err.Error())
-	}
-	if err := catalog.SyncSource(staging, registryName, spec.Type, spec.Source, ref, spec.TrustedKeys, auth, seedBuiltinPacks); err != nil {
-		return failed(err.Error())
+	var uploads []*PackUploadSummary
+	if spec.Type == PackRegistryTypeUploads {
+		if uploads, err = s.importUploads(staging, registryName, spec.TrustedKeys); err != nil {
+			return failed(err.Error())
+		}
+		// An empty uploads registry has no directory to swap in.
+		if err := os.MkdirAll(filepath.Join(staging, registryName), 0o755); err != nil {
+			return failed(err.Error())
+		}
+	} else {
+		auth, err := s.packRegistryAuth(spec)
+		if err != nil {
+			return failed("authSecret: " + err.Error())
+		}
+		if err := catalog.SyncSource(staging, registryName, spec.Type, spec.Source, ref, spec.TrustedKeys, auth, seedBuiltinPacks); err != nil {
+			return failed(err.Error())
+		}
 	}
 	indexed, err := catalog.ScanRegistryPacks(staging, registryName, spec.TrustedKeys)
 	if err != nil {
@@ -888,6 +911,7 @@ func (s *Server) syncPackRegistryCatalog(registryName string, spec *PackRegistry
 		SyncGeneration: generation,
 		PackCount:      len(entries),
 		Packs:          entries,
+		Uploads:        uploads,
 	}
 }
 

@@ -22,6 +22,15 @@
               <Ui::Button @variant="primary" @icon="rocket" data-test-upgrade-release {{on "click" this.openUpgrade}}>Upgrade</Ui::Button>
             {{else if this.registrySuggestion}}
               <Ui::Button @icon="database" data-test-add-release-registry {{on "click" this.openAddRegistry}}>Add its registry to upgrade</Ui::Button>
+            {{else if this.canUploadPack}}
+              <Ui::FileButton
+                @label={{if this.isUploadingPack "Uploading..." "Upload the pack to upgrade"}}
+                @icon="upload"
+                @accept=".tar,.tgz,.gz,application/gzip,application/x-tar"
+                @onChange={{this.uploadReleasePack}}
+                title="The pack was installed from a local directory: upload it as a tar.gz of its directory or a bundle"
+                data-test-upload-release-pack
+              />
             {{/if}}
           {{/if}}
           <Ui::Button @variant="outline-danger" @icon="trash" data-test-uninstall {{on "click" this.askUninstall}}>Uninstall</Ui::Button>

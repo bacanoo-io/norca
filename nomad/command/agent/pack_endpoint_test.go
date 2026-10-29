@@ -4,7 +4,9 @@
 package agent
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +16,7 @@ import (
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/nomad"
 	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/hashicorp/nomad/pack/catalog"
 	"github.com/shoenig/test/must"
 )
 
@@ -93,5 +96,39 @@ func TestHTTP_Packs_InstallFromCatalog(t *testing.T) {
 		b, err := json.Marshal(applied)
 		must.NoError(t, err)
 		must.StrNotContains(t, string(b), "pa55word-from-values")
+	})
+}
+
+func TestHTTP_Packs_Upload(t *testing.T) {
+	ci.Parallel(t)
+	httpTest(t, nil, func(s *TestAgent) {
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+		tw := tar.NewWriter(zw)
+		for name, content := range map[string]string{
+			"metadata.hcl":             "app {\n  url = \"https://example.com\"\n}\n\npack {\n  name    = \"tiny\"\n  version = \"0.1.0\"\n}\n",
+			"variables.hcl":            "variable \"greeting\" {\n  type    = string\n  default = \"hi\"\n}\n",
+			"templates/tiny.nomad.tpl": "job \"tiny\" {\n  group \"g\" {\n    task \"t\" {\n      driver = \"raw_exec\"\n      config {\n        command = \"echo\"\n      }\n    }\n  }\n}\n",
+		} {
+			must.NoError(t, tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(content)), Typeflag: tar.TypeReg}))
+			_, err := tw.Write([]byte(content))
+			must.NoError(t, err)
+		}
+		must.NoError(t, tw.Close())
+		must.NoError(t, zw.Close())
+
+		req, err := http.NewRequest(http.MethodPut, "/v1/pack-upload?filename=tiny.tgz", bytes.NewReader(buf.Bytes()))
+		must.NoError(t, err)
+		out, err := s.Server.PackUploadRequest(httptest.NewRecorder(), req)
+		must.NoError(t, err)
+		resp := out.(nomad.PackUploadResponse)
+		must.Eq(t, "uploads", resp.Registry.Name)
+		must.Eq(t, "tiny", resp.Registry.Status.Packs[0].Name)
+
+		big := bytes.Repeat([]byte("x"), catalog.MaxUploadSize+1)
+		req, err = http.NewRequest(http.MethodPut, "/v1/pack-upload", bytes.NewReader(big))
+		must.NoError(t, err)
+		_, err = s.Server.PackUploadRequest(httptest.NewRecorder(), req)
+		must.ErrorContains(t, err, "larger than")
 	})
 }

@@ -73,6 +73,26 @@ func TestDecoder_FormBlocks(t *testing.T) {
 		"x-ui-show-if":     map[string]any{"field": "enabled"},
 	}, v.UI)
 
+	v, diags = DecodeVariableBlock(testGetHCLBlock(t, testLoadPackFile(t, []byte(`variable "ratio" {
+	type    = number
+	default = 0.5
+	ui {
+		widget = "slider"
+		step   = 0.05
+	}
+	validation {
+		min = 0
+		max = 1
+	}
+}`))))
+	must.False(t, diags.HasErrors(), must.Sprint(diags))
+	must.Eq(t, map[string]any{
+		"x-ui-widget": "slider",
+		"x-ui-step":   0.05,
+		"minimum":     0,
+		"maximum":     1,
+	}, v.UI)
+
 	v, diags = DecodeVariableBlock(testGetHCLBlock(t, testLoadPackFile(t, []byte(`variable "plain" {}`))))
 	must.False(t, diags.HasErrors())
 	must.Nil(t, v.UI)
@@ -97,6 +117,10 @@ func TestDecoder_FormBlocksInvalid(t *testing.T) {
 		"length type":    `validation { min_length = 1.5 }`,
 		"max type":       `validation { max = "9" }`,
 		"integer type":   `validation { integer = 1 }`,
+		"step zero":      `ui { step = 0 }`,
+		"slider bounds":  "ui { widget = \"slider\" }\nvalidation { min = 1 }",
+		"slider order":   "ui { widget = \"slider\" }\nvalidation {\nmin = 5\nmax = 5\n}",
+		"slider type":    "type = string\nui { widget = \"slider\" }\nvalidation {\nmin = 1\nmax = 5\n}",
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {

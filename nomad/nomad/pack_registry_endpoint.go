@@ -171,6 +171,40 @@ func (p *Packs) Delete(args *PackRegistryNameRequest, reply *PackRegistryRespons
 	return nil
 }
 
+// Upload stores a pack archive in a registry of the type "uploads".
+func (p *Packs) Upload(args *PackUploadRequest, reply *PackUploadResponse) error {
+	authErr := p.srv.Authenticate(p.ctx, args)
+	if done, err := p.srv.forward("Packs.Upload", args, args, reply); done {
+		return err
+	}
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+	reg, digest, index, err := p.srv.UploadPack(p.genericRequest(args.Region, args.Namespace, args.AuthToken), args)
+	if err != nil {
+		return err
+	}
+	reply.Registry, reply.Digest, reply.Index = reg, digest, index
+	return nil
+}
+
+// DeleteUpload removes an upload from its registry.
+func (p *Packs) DeleteUpload(args *PackUploadDeleteRequest, reply *PackUploadResponse) error {
+	authErr := p.srv.Authenticate(p.ctx, args)
+	if done, err := p.srv.forward("Packs.DeleteUpload", args, args, reply); done {
+		return err
+	}
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+	reg, index, err := p.srv.DeletePackUpload(p.genericRequest(args.Region, args.Namespace, args.AuthToken), args.Registry, args.Digest)
+	if err != nil {
+		return err
+	}
+	reply.Registry, reply.Digest, reply.Index = reg, args.Digest, index
+	return nil
+}
+
 // Detail returns a pack of a registry with its versions, README and form
 // schema. It is served by the leader, from its cache.
 func (p *Packs) Detail(args *PackDetailRequest, reply *PackDetailRPCResponse) error {
