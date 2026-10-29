@@ -98,7 +98,37 @@ The `secret` block of the job delivers the new version into
 gets `SIGHUP`); the Vault-style template (`{{ with secret "kv/data/test-app/db" }}`)
 is served by the built-in store because the agent has no Vault integration.
 
-### 6. External service and DNS alias (optional)
+### 6. Install from the catalog
+
+Cluster pack registries feed the **Packages → Catalog** of the web UI, and
+the install form is built from the `ui`, `validation` and `rule` blocks of
+the pack. Add the packs of the examples as a registry of the type `dir` (the
+dev agent is its own server, so it reads this checkout):
+
+```shell
+curl -X POST http://127.0.0.1:4646/v1/pack-registry   -d "{\"Name\": \"examples\", \"Spec\": {\"type\": \"dir\", \"source\": \"$(cd ../packs && pwd)\"}}"
+curl -s http://127.0.0.1:4646/v1/packs     # test-app 0.2.0, registry examples
+```
+
+Or add it on **Packages → Registries** (type *Server directory*, source the
+absolute path of `example/packs`). Then, in the web UI:
+
+1. **Packages → Catalog → test-app → Install**, release name `test-ui`.
+2. **General**: job name `test-ui`; switch off *Deliver the secret* (or put
+   `test-ui/db` first).
+3. **Networking**: network mode *Host* (no CNI plugins on the dev agent).
+   The mTLS switch disappears: it needs bridge networking.
+4. **Resources & Scaling**: move *Instances* to 6. **Plan** reports the rule
+   `count_within_scaling` (6 is above `scaling_max` 4); set it back to 2.
+5. **Plan**, then **Install**. The release has the revision and an
+   **Upgrade** with the same form, which sends only the changed values.
+
+```shell
+norca pack status test-app --name=test-ui
+norca pack uninstall test-ui          # or Uninstall in the UI
+```
+
+### 7. External service and DNS alias (optional)
 
 ```shell
 norca service register -alias db.example.com legacy-db
@@ -106,7 +136,7 @@ dig @127.0.0.1 -p 8600 legacy-db.service.nomad    # CNAME db.example.com
 norca service deregister legacy-db
 ```
 
-### 7. Teardown
+### 8. Teardown
 
 ```shell
 norca pack uninstall test-app
@@ -123,7 +153,9 @@ Then stop the agent with Ctrl-C: the dev agent keeps nothing.
   and the job definition (HCL/JSON).
 - **Services**: the catalog with the health of every instance.
 - **Scaling**: the policies of the built-in autoscaler and their events.
-- **Packages**: the `test-app` release and its revisions.
+- **Packages**: the `test-app` release and its revisions; the **Registries**
+  tab with `examples`, the **Catalog** with its packs and the install form
+  (step 6).
 - **Topology** and **Clients**: the node in its datacenter `dc1`.
 
 - **Configuration → Secrets**: the secrets of the built-in secret store with

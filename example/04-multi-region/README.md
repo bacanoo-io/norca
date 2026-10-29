@@ -258,7 +258,9 @@ Either region's UI shows the whole federation:
   region switcher.
 - **Deployments**: the multiregion deployment of test-app with the state of
   each region (pending, blocked, running, successful).
-- **Packages**: the `test-app` and `mtls-gateway` releases with one entry per region.
+- **Packages**: the `test-app` and `mtls-gateway` releases with one entry per region;
+  [cluster registries](../README.md#cluster-registries-and-the-catalog) are per region
+  (add the registry in each, or let `norca-natsbridge -sync-regions` keep them in step).
 - **Network**: the intention `probe → test-api` in eu-1.
 - **Services** (per region): `mtls-gateway`, `test-api` in eu-1, `probe` in eu-2.
 - **Backups** (per region).

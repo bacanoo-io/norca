@@ -54,6 +54,13 @@ norca version                     # Norca v0.1.0 (Nomad API 1.6.5 compatible)
 
 Without `-tags ui` the binary works the same but serves no web UI.
 
+On Windows, for the CLI and the web UI against these clusters (the clients
+of the scenarios run Linux with Docker), `windows.bat` in the root of the
+checkout builds `norca.exe` and `norca-natsbridge.exe` with the embedded UI
+into `dist
+orca_<version>_windows_amd64.zip` (`windows.bat skipui` keeps the
+committed UI and needs no Node or Yarn).
+
 ## The pack registry
 
 The operations packs are in the [Norca pack registry](https://github.com/bacanoo-io/norca-registry),
@@ -76,6 +83,31 @@ Without network access to GitHub, use a checkout of the registry by path
 into an internal OCI registry or an offline bundle
 ([supply-chain.md](../nomad/pack/docs/supply-chain.md)). The test application
 stays in this repository ([packs/test-app](packs/test-app/README.md)).
+
+### Cluster registries and the catalog
+
+The registries above belong to the CLI of one machine. The cluster has its
+own: **Packages → Registries** in the web UI adds pack registries to the
+cluster (`packs.norca.io/Registry` objects: a git repository, an OCI
+repository, a directory on the servers, an offline bundle, or `builtin` for
+the packs that ship with Norca), which the leader fetches when they are
+saved, on **Sync** and every `syncInterval`. **Packages → Catalog** lists
+their packs with version, compatibility and README, and **Install** opens a
+form built from the `ui`, `validation` and `rule` blocks of the pack's
+variables; the leader renders the pack and plans or applies the release.
+For the operations packs:
+
+```shell
+curl -X POST "$NOMAD_ADDR/v1/pack-registry" -H "X-Nomad-Token: $NOMAD_TOKEN"   -d '{"Name": "norca", "Spec": {"type": "git", "source": "https://github.com/bacanoo-io/norca-registry", "defaultRef": "v0.1.0", "syncInterval": "1h"}}'
+```
+
+A private git or OCI source takes `"authSecret": {"namespace": "default", "path": "<variable>"}`:
+a Variable with `username` and `password` (or `token`), or `ssh_private_key`
+and `known_hosts`. [01-local-dev](01-local-dev/README.md#6-install-from-the-catalog)
+installs the test application from the catalog. With NATS (03, 04),
+`norca-natsbridge -sync-pushes` syncs the registries when a pack release is
+published and `-sync-regions` keeps the registries of the regions in step
+([natsbridge README](../nomad/natsbridge/README.md#inbound-pack-registry-syncs)).
 
 ## Feature map
 
@@ -108,7 +140,8 @@ built-in store) are merged and used here.
 | Operator framework: object kind, objects, LoadBalancer operator pack | | | ✓ | |
 | Packs of the [registry](#the-pack-registry): `rustfs`, `loadbalancer-operator`, `nats`, `mtls-gateway`, `openobserve`, `otel-collector` | | ✓ | ✓ | ✓ (supercluster, gateway) |
 | Federation, ACL replication, multiregion deployment, `norca deployment run` | | | | ✓ |
-| Pack releases (`pack run/status/history/uninstall`), `variables_schema` | ✓ | ✓ | ✓ | ✓ (`--regions`) |
+| Pack releases (`pack run/status/history/uninstall`), variable `validation` and `rule` blocks | ✓ | ✓ | ✓ | ✓ (`--regions`) |
+| Cluster pack registries, catalog and install form in the web UI | ✓ | ✓ | ✓ | ✓ |
 | Observability: `openobserve`, `otel-collector` packs (metrics of the nodes and the platform, OTLP), agent `telemetry` | | ✓ (no TLS) | ✓ (Norca's certificates) | ✓ (per region) |
 
 Not shown, with pointers:
@@ -137,7 +170,7 @@ Not shown, with pointers:
 
 ```shell
 norca config validate <dir with the agent files>         # syntax and keys
-norca pack render ./example/packs/test-app -f <vars.hcl>  # the variables schema and the templates
+norca pack render ./example/packs/test-app -f <vars.hcl>  # the validation and rule blocks and the templates
 norca pack render rustfs --registry=norca -f <vars.hcl>   # the same for a pack of the registry
 norca job validate <job file>                             # without an agent: structural checks only
 ```

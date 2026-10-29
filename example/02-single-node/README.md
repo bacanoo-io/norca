@@ -150,6 +150,11 @@ norca service info -verbose rustfs
 norca alloc logs -task create-buckets <alloc ID>     # "bucket norca-backup created"
 ```
 
+The same pack can be installed from the web UI once the registry is a
+[cluster registry](../README.md#cluster-registries-and-the-catalog):
+**Packages → Catalog → rustfs → Install**, with the values of `rustfs.hcl`
+in the form.
+
 `buckets` in `rustfs.hcl` makes the pack create the backup bucket once the
 store is ready (Norca never creates it). Without it, create the bucket with
 an S3 CreateBucket signed by curl:

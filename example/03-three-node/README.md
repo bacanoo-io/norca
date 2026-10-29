@@ -313,5 +313,7 @@ sudo systemctl disable --now norca && sudo rm -rf /opt/norca/data /etc/norca.d
   its selected allocations, the admin policy.
 - **Objects** and **Type definitions**: the `norca.io/LoadBalancer` kind and
   the `test-app` object with its status and events.
-- **Packages**: the releases `test-app`, `test-api`, `lb` (and `nats`).
+- **Packages**: the releases `test-app`, `test-api`, `lb` (and `nats`); with a
+  [cluster registry](../README.md#cluster-registries-and-the-catalog) the
+  **Catalog** of its packs, installed and upgraded through their forms.
 - **Scaling**, **Quotas**, **Admission**, **Backups** as in 02.

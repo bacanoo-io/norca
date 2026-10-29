@@ -25,7 +25,7 @@ The job is built to show Norca features through its variables:
 | Typed scaling policy | `scaling { engine = "builtin" policy { check "cpu" { metric = "nomad.cpu" strategy = "target-value" target } } }` | `scaling_enabled`, `scaling_min`, `scaling_max`, `scaling_cpu_target` |
 | Native mTLS | `mtls { mode = "sidecar" }`: Envoy sidecar, the app port is not mapped to the host, the checks address the allocation | `mtls_sidecar` |
 | Multiregion deployment | `multiregion { strategy region ... }`, group `count = 0` | `multiregion`, `multiregion_max_parallel`, `multiregion_on_failure` |
-| Variables schema | `values.schema.json` (`variables_schema` in `metadata.hcl`), checked by the CLI and the servers | – |
+| Install form, constraints and rules | `ui` and `validation` blocks of the variables, the tabs in `metadata.hcl`, `rule` blocks across variables (`count` within the scaling bounds, `mtls_sidecar` only with bridge networking, multiregion without `region` and scaling, no `:latest` image); checked by the CLI and the servers, and laid out as a form by **Packages → Catalog → Install** | – |
 
 The job meta `app = <job_name>` and `team` are what the network policies,
 `colocate`/`separate` selectors and admission policies of the examples match.
@@ -42,6 +42,28 @@ norca pack run    ./example/packs/test-app --name=test-app [--namespace=<ns>] [-
 norca pack status test-app --name=test-app
 norca pack uninstall test-app
 ```
+
+### From the catalog of the web UI
+
+The pack can also be installed from a cluster pack registry: add this
+directory (or the `example` directory, which has the pack under `packs/`)
+as a registry of the type `dir` on the **Packages → Registries** tab, or
+through the API:
+
+```shell
+curl -X POST "$NOMAD_ADDR/v1/pack-registry" -H "X-Nomad-Token: $NOMAD_TOKEN"   -d '{"Name": "examples", "Spec": {"type": "dir", "source": "/path/to/norca/example/packs"}}'
+```
+
+The path is read by the leader, so it must exist on the servers (the dev
+agent of [01-local-dev](../../01-local-dev/README.md#6-install-from-the-catalog)
+is its own server). **Packages → Catalog** then lists `test-app`, and
+**Install** opens the form of its variables: the tabs General, Resources &
+Scaling, Availability, Networking and Multiregion, with sliders, presets,
+switches and fields shown only when they apply (the autoscaler bounds with
+`scaling_enabled`, `discovery_min_local` with a `discovery_prefer`). The
+leader renders the pack, checks the validation and rule blocks, and plans or
+applies the release; the release gets an **Upgrade** with the same form.
+After editing the pack, **Sync** the registry.
 
 The scenarios have variable files for it:
 [01-local-dev/test-app.hcl](../../01-local-dev/test-app.hcl),
