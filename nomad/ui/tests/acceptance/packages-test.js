@@ -334,6 +334,19 @@ module('Acceptance | packages', function (hooks) {
       command.includes("--var-secret 'nomad/jobs/redis:password=<secret>'")
     );
     assert.notOk(command.includes('s3cret'), 'no secret in the command');
+    assert.notOk(command.includes('--atomic'), 'atomic left to the namespace');
+
+    // Atomic mode: the namespace default, or set for this install.
+    assert
+      .dom('[data-test-form-atomic] [data-test-radio-option="default"]')
+      .isChecked();
+    await click('[data-test-form-atomic] [data-test-radio-option="off"]');
+    await click('[data-test-tab="cli"]');
+    assert.ok(
+      document
+        .querySelector('[data-test-form-cli-command] pre')
+        .textContent.includes('--atomic=false')
+    );
 
     await click('[data-test-btn-plan]');
     assert
@@ -343,6 +356,7 @@ module('Acceptance | packages', function (hooks) {
     await click('[data-test-btn-deploy]');
     const body = lastBody('POST', '/v1/release/redis/deploy-pack');
     assert.strictEqual(body.Registry, 'builtin');
+    assert.false(body.Atomic, 'the atomic mode chosen');
     assert.strictEqual(body.Pack, 'redis');
     assert.strictEqual(body.Version, '7.2.4');
     assert.deepEqual(

@@ -25,6 +25,7 @@ import {
   secrets,
   evaluateShowIf,
   runCommand,
+  atomicDefault,
   compareVersionsDesc,
 } from 'nomad-ui/utils/pack-form';
 
@@ -58,6 +59,9 @@ export default class PackagesSchemaForm extends Component {
   @tracked releaseName = this.args.releaseName || this.defaultReleaseName;
   @tracked namespace = this.args.namespace || 'default';
   @tracked description = '';
+  // Atomic mode of this install or upgrade: "default" leaves it to the
+  // namespace (no Atomic in the request), "on" or "off" sets it.
+  @tracked atomic = 'default';
   @tracked activeTab = null;
 
   @tracked values = {};
@@ -190,6 +194,41 @@ export default class PackagesSchemaForm extends Component {
     return list;
   }
 
+  // The atomic default of the namespace, null when its meta isn't known.
+  get namespaceAtomic() {
+    const ns = (this.system.namespaces || []).find(
+      (n) => (n.get ? n.get('name') : n.Name || n) === this.namespace
+    );
+    return atomicDefault(ns?.get ? ns.get('meta') : ns?.Meta);
+  }
+
+  get atomicOptions() {
+    const def = this.namespaceAtomic;
+    return [
+      {
+        value: 'default',
+        label:
+          def === null
+            ? 'Namespace default'
+            : `Namespace default (${def ? 'on' : 'off'})`,
+      },
+      { value: 'on', label: 'On' },
+      { value: 'off', label: 'Off' },
+    ];
+  }
+
+  get atomicValue() {
+    if (this.atomic === 'on') return true;
+    if (this.atomic === 'off') return false;
+    return undefined;
+  }
+
+  get atomicHelp() {
+    return `A failed ${
+      this.isUpgrade ? 'upgrade' : 'install'
+    } restores the resources as they were before it, instead of leaving them as far as it got. On by default in namespaces with the meta environment = "production" or pack.atomic = "true".`;
+  }
+
   get regions() {
     return (this.system.regions || []).slice().sort();
   }
@@ -209,6 +248,7 @@ export default class PackagesSchemaForm extends Component {
       version: this.version,
       release: this.releaseName,
       namespace: this.namespace,
+      atomic: this.atomicValue,
       values: this.payloadValues,
       secrets: this.payloadSecrets,
       form: this.form,
@@ -306,6 +346,11 @@ export default class PackagesSchemaForm extends Component {
     this.namespace = value;
   }
 
+  @action setAtomic(value) {
+    this.atomic = value;
+    this.plan = null;
+  }
+
   @action setDescription(value) {
     this.description = value;
   }
@@ -370,6 +415,7 @@ export default class PackagesSchemaForm extends Component {
     };
     if (this.payloadSecrets.length) body.Secrets = this.payloadSecrets;
     if (this.description.trim()) body.Description = this.description.trim();
+    if (this.atomicValue !== undefined) body.Atomic = this.atomicValue;
     return body;
   }
 

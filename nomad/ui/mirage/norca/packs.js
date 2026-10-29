@@ -243,6 +243,16 @@ function uploadedPack(fileName) {
   };
 }
 
+// The atomic default of a namespace (structs.ReleaseAtomicDefault).
+function atomicOf(db, ns) {
+  const meta = db.namespaces?.find(ns)?.meta || {};
+  const flag = String(meta['pack.atomic'] ?? '').toLowerCase();
+  if (flag === 'true' || flag === 'false') return flag === 'true';
+  return ['production', 'prod'].includes(
+    String(meta.environment || '').toLowerCase()
+  );
+}
+
 function uploadsOf(db, registry) {
   return collection(db, 'norcaPackUploads')
     .all()
@@ -545,7 +555,7 @@ export default function registerPackRoutes(server) {
       description: payload.Description || '',
       revision: n,
       maxHistory: 10,
-      atomic: true,
+      atomic: payload.Atomic ?? atomicOf(db, ns),
     };
     const rev = revision(ns, name, n, pack.version, {
       spec: {

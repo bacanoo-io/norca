@@ -507,6 +507,7 @@ export function runCommand({
   version,
   release,
   namespace,
+  atomic,
   values,
   secrets = [],
   form,
@@ -517,6 +518,7 @@ export function runCommand({
   if (release) parts.push(`--name=${shellQuote(release)}`);
   if (namespace && namespace !== 'default')
     parts.push(`--namespace=${shellQuote(namespace)}`);
+  if (atomic !== undefined) parts.push(`--atomic=${atomic}`);
   for (const key of Object.keys(values || {}).sort()) {
     const f = form?.fields.find((f) => f.key === key);
     const v = values[key];
@@ -533,6 +535,22 @@ export function runCommand({
     }
   }
   return parts.join(' \\\n  ');
+}
+
+/**
+ * The atomic default of releases in a namespace, as the servers decide it
+ * (structs.ReleaseAtomicDefault): the meta pack.atomic, else on in
+ * namespaces with the meta environment production or prod. Null when the
+ * meta of the namespace is not known.
+ */
+export function atomicDefault(meta) {
+  if (!meta || typeof meta !== 'object') return null;
+  const flag = String(meta['pack.atomic'] ?? '').toLowerCase();
+  if (['true', '1', 't'].includes(flag)) return true;
+  if (['false', '0', 'f'].includes(flag)) return false;
+  return ['production', 'prod'].includes(
+    String(meta.environment || '').toLowerCase()
+  );
 }
 
 function versionParts(v) {

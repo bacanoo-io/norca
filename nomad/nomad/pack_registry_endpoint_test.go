@@ -12,6 +12,7 @@ import (
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/shoenig/test/must"
@@ -35,8 +36,10 @@ func TestPacks_ForwardedToLeader(t *testing.T) {
 	ci.Parallel(t)
 
 	var converted int
+	var atomic *bool
 	convert := func(name string, rendered *api.ReleaseApplyRequest, namespace string) (*structs.ReleaseApplyRequest, error) {
 		converted++
+		atomic = rendered.Atomic
 		return &structs.ReleaseApplyRequest{Name: name, Values: rendered.Values}, nil
 	}
 	s1, cleanup1 := TestServer(t, func(c *Config) {
@@ -108,11 +111,13 @@ func TestPacks_ForwardedToLeader(t *testing.T) {
 	var applied structs.ReleaseApplyResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Packs.Deploy", &PackDeployRPCRequest{
 		Name:         "hello",
-		Deploy:       &PackDeployRequest{Registry: "local", Pack: "hello", Values: map[string]any{"greeting": "hey"}},
+		Deploy:       &PackDeployRequest{Registry: "local", Pack: "hello", Values: map[string]any{"greeting": "hey"}, Atomic: pointer.Of(false)},
 		DryRun:       true,
 		WriteRequest: write,
 	}, &applied))
 	must.Eq(t, 1, converted, must.Sprint("converted on the leader only"))
+	must.NotNil(t, atomic, must.Sprint("the atomic mode of the install reaches the release"))
+	must.False(t, *atomic)
 
 	// A failed sync keeps the packs and the cache of the last good one.
 	must.NoError(t, os.RemoveAll(source))
