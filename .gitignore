@@ -4,3 +4,7 @@
 # Output of windows.bat
 /dist/
 /design
+
+# Local IDE settings and error dumps
+/.idea/
+/errors/
