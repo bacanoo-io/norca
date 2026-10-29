@@ -321,12 +321,21 @@ func (p *ParserV2) parseVariableImpl(name, rawVal string, tgt variables.PackIDKe
 	}
 
 	// If our stored type isn't cty.NilType then attempt to covert the override
-	// variable, so we know they are compatible.
+	// variable, so we know they are compatible. A declared type is converted
+	// with its constraint, which keeps the optional() attributes of objects,
+	// and their defaults are applied, as for a value in a variables file.
 	if varType != cty.NilType {
+		convType := varType
+		if existing.ConstraintType != cty.NilType {
+			convType = existing.ConstraintType
+		}
 		var err *hcl.Diagnostic
-		val, err = hclhelp.ConvertValUsingType(val, varType, expr.Range().Ptr())
+		val, err = hclhelp.ConvertValUsingType(val, convType, expr.Range().Ptr())
 		if err != nil {
 			return hcl.Diagnostics{err}
+		}
+		if existing.TypeDefaults != nil && !val.IsNull() {
+			val = existing.TypeDefaults.Apply(val)
 		}
 	}
 

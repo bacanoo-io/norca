@@ -121,3 +121,20 @@ func NewTestLogger(log func(args ...any)) *TestLogger {
 		log: log,
 	}
 }
+
+// DiscardLogger drops every message. Library callers that return their
+// errors, such as the server-side registry sync, use it instead of printing
+// to the agent's standard output.
+type DiscardLogger struct{}
+
+func (DiscardLogger) Debug(string)                              {}
+func (DiscardLogger) Error(string)                              {}
+func (DiscardLogger) ErrorWithContext(error, string, ...string) {}
+func (DiscardLogger) Info(string)                               {}
+func (DiscardLogger) Trace(string)                              {}
+func (DiscardLogger) Warning(string)                            {}
+
+// Discard returns a logger that drops every message.
+func Discard() Logger {
+	return DiscardLogger{}
+}

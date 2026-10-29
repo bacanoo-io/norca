@@ -30,6 +30,7 @@ import (
 	"github.com/hashicorp/nomad/pack/internal/pkg/bundle"
 	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
 	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
+	"github.com/hashicorp/nomad/pack/internal/pkg/logging"
 	"github.com/hashicorp/nomad/pack/internal/pkg/manager"
 	"github.com/hashicorp/nomad/pack/internal/pkg/oci"
 	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
@@ -199,7 +200,9 @@ func SyncSource(cacheDir, registryName, sourceType, source, ref string, trustedK
 		}
 		return nil
 	case "git":
-		cache, err := caching.NewCache(&caching.CacheConfig{Path: cacheDir})
+		// The server returns the error of a failed clone; the cache's own
+		// messages are not printed to the agent's output.
+		cache, err := caching.NewCache(&caching.CacheConfig{Path: cacheDir, Logger: logging.Discard()})
 		if err != nil {
 			return err
 		}

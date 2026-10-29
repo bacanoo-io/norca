@@ -38,6 +38,11 @@ func NewCache(cfg *CacheConfig) (cache *Cache, err error) {
 	if cfg == nil {
 		cfg = defaultCacheConfig()
 	}
+	if cfg.Logger == nil {
+		// The cache logs through cfg.Logger unconditionally (e.g. while
+		// cloning a git registry); a config without one must not panic.
+		cfg.Logger = logging.Discard()
+	}
 
 	cache = &Cache{
 		cfg:          cfg,
