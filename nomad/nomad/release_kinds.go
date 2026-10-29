@@ -98,7 +98,15 @@ const packRegistryKindSchema = `{
         "source": {"type": "string"},
         "defaultRef": {"type": "string"},
         "syncInterval": {"type": "string"},
-        "authSecret": {"type": "string"},
+        "authSecret": {
+          "type": "object",
+          "required": ["path"],
+          "properties": {
+            "namespace": {"type": "string"},
+            "path": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
         "trustedKeys": {"type": "array", "items": {"type": "string"}}
       }
     },
@@ -108,6 +116,8 @@ const packRegistryKindSchema = `{
         "phase": {"type": "string"},
         "message": {"type": "string"},
         "lastSyncedAt": {"type": "string"},
+        "lastGoodSyncAt": {"type": "string"},
+        "syncGeneration": {"type": "integer", "minimum": 0},
         "packCount": {"type": "integer", "minimum": 0},
         "packs": {"type": "array", "items": {"type": "object"}}
       }

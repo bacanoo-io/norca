@@ -61,8 +61,23 @@ type PackRegistrySpec struct {
 	Source       string   `json:"source"`                 // "builtin", local path, git URL, oci://..., or bundle path
 	DefaultRef   string   `json:"defaultRef,omitempty"`   // default tag/branch ("latest")
 	SyncInterval string   `json:"syncInterval,omitempty"` // periodic sync, e.g. "15m"; "" or "0s": on request only
-	AuthSecret   string   `json:"authSecret,omitempty"`   // optional Nomad Variable path
 	TrustedKeys  []string `json:"trustedKeys,omitempty"`
+
+	// AuthSecret names the Variable with the credentials of a private git
+	// or OCI source (catalog.SourceAuthFromItems).
+	AuthSecret *PackRegistryAuthSecret `json:"authSecret,omitempty"`
+}
+
+// PackRegistryAuthSecret names a Variable with registry credentials: the
+// items username and password (or token) for git https and OCI sources,
+// ssh_private_key and known_hosts for git ssh sources. Saving a registry
+// with it needs read access to the Variable, so that someone who can only
+// write registries can't send the credentials of others to a source of
+// their choosing; the leader reads it for every sync and sends the
+// credentials to the host of the source only.
+type PackRegistryAuthSecret struct {
+	Namespace string `json:"namespace,omitempty"`
+	Path      string `json:"path"`
 }
 
 // PackRegistryStatus records the sync state and indexed packs of a registry.
@@ -338,6 +353,9 @@ func (s *Server) UpsertPackRegistry(args *structs.GenericRequest, reg *PackRegis
 	}
 	if _, err := reg.Spec.syncInterval(); err != nil {
 		return nil, 0, structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
+	}
+	if err := s.checkPackRegistryAuth(args, reg.Spec); err != nil {
+		return nil, 0, err
 	}
 	if err := s.releases.ensureKinds(); err != nil {
 		return nil, 0, err
@@ -715,6 +733,77 @@ func (s *Server) RenderCatalogPack(args *structs.GenericRequest, releaseName str
 // indexes its packs. The fetch goes to a staging directory that replaces
 // the cache only when it succeeded: after a failed sync the status keeps
 // the packs (and generation) of prev and the cache keeps serving them.
+// checkPackRegistryAuth checks the auth secret of a registry being saved:
+// the caller can read the Variable, and it holds credentials that fit the
+// source. Every save checks it, so that changing the source of a registry
+// needs access to its credentials too.
+func (s *Server) checkPackRegistryAuth(args structs.RequestWithIdentity, spec *PackRegistrySpec) error {
+	a := spec.AuthSecret
+	if a == nil {
+		return nil
+	}
+	a.Path = strings.Trim(strings.TrimSpace(a.Path), "/")
+	a.Namespace = strings.TrimSpace(a.Namespace)
+	if a.Namespace == "" {
+		a.Namespace = structs.DefaultNamespace
+	}
+	if a.Path == "" {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "authSecret needs the path of a Variable")
+	}
+	if spec.Type != "git" && spec.Type != "oci" {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "a %s registry takes no authSecret", spec.Type)
+	}
+	aclObj, err := s.ResolveACL(args)
+	if err != nil {
+		return err
+	}
+	if aclObj != nil && !aclObj.AllowVariableOperation(a.Namespace, a.Path, acl.VariablesCapabilityRead, nil) {
+		return structs.NewErrRPCCodedf(http.StatusForbidden,
+			"authSecret: the token can't read the Variable %q in the namespace %q", a.Path, a.Namespace)
+	}
+	auth, err := s.packRegistryAuth(spec)
+	if err != nil {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "authSecret: %v", err)
+	}
+	if err := catalog.ValidateSourceAuth(spec.Type, spec.Source, auth); err != nil {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "authSecret %q: %v", a.Path, err)
+	}
+	return nil
+}
+
+// packRegistryAuth reads the credentials of a registry from its auth
+// secret, or returns nil.
+func (s *Server) packRegistryAuth(spec *PackRegistrySpec) (*catalog.SourceAuth, error) {
+	a := spec.AuthSecret
+	if a == nil || a.Path == "" {
+		return nil, nil
+	}
+	ns := a.Namespace
+	if ns == "" {
+		ns = structs.DefaultNamespace
+	}
+	snap, err := s.State().Snapshot()
+	if err != nil {
+		return nil, err
+	}
+	v, err := snap.GetVariable(nil, ns, a.Path)
+	if err != nil {
+		return nil, err
+	}
+	if v == nil {
+		return nil, fmt.Errorf("the Variable %q does not exist in the namespace %q", a.Path, ns)
+	}
+	plain, err := s.encrypter.Decrypt(v.Data, v.KeyID)
+	if err != nil {
+		return nil, fmt.Errorf("the Variable %q can't be decrypted: %v", a.Path, err)
+	}
+	items := map[string]string{}
+	if err := json.Unmarshal(plain, &items); err != nil {
+		return nil, fmt.Errorf("the Variable %q can't be read: %v", a.Path, err)
+	}
+	return catalog.SourceAuthFromItems(items), nil
+}
+
 func (s *Server) syncPackRegistryCatalog(registryName string, spec *PackRegistrySpec, prev *PackRegistryStatus) *PackRegistryStatus {
 	now := time.Now().UTC().Format(time.RFC3339)
 	failed := func(msg string) *PackRegistryStatus {
@@ -744,7 +833,11 @@ func (s *Server) syncPackRegistryCatalog(registryName string, spec *PackRegistry
 	if ref == "" {
 		ref = catalog.DefaultRef
 	}
-	if err := catalog.SyncSource(staging, registryName, spec.Type, spec.Source, ref, spec.TrustedKeys, seedBuiltinPacks); err != nil {
+	auth, err := s.packRegistryAuth(spec)
+	if err != nil {
+		return failed("authSecret: " + err.Error())
+	}
+	if err := catalog.SyncSource(staging, registryName, spec.Type, spec.Source, ref, spec.TrustedKeys, auth, seedBuiltinPacks); err != nil {
 		return failed(err.Error())
 	}
 	indexed, err := catalog.ScanRegistryPacks(staging, registryName, spec.TrustedKeys)

@@ -46,6 +46,7 @@
           <span class="font-monospace small">{{row.source}}</span>
           {{#if row.ref}}<span class="small text-secondary"> @ {{row.ref}}</span>{{/if}}
           {{#if row.keys}}<div class="small text-secondary">{{row.keys}} trusted {{if (eq row.keys 1) "key" "keys"}}</div>{{/if}}
+          {{#if row.auth}}<div class="small text-secondary" data-test-registry-auth>credentials: <span class="font-monospace">{{row.auth}}</span></div>{{/if}}
         </td>
         <td data-test-registry-phase>
           <Ui::StatusIndicator @tone={{row.phaseTone}} @label={{row.phase}} />
@@ -93,6 +94,20 @@
         <Ui::Field @label="Reference" @help="The tag or branch to fetch; latest when empty." as |f|>
           <Ui::Input @id={{f.id}} @value={{this.formRef}} @onInput={{this.setRef}} @placeholder="latest" data-test-input-reg-ref />
         </Ui::Field>
+      {{/if}}
+      {{#if this.takesAuth}}
+        <div class="row g-3">
+          <div class="col-md-4">
+            <Ui::Field @label="Credentials namespace" as |f|>
+              <Ui::Input @id={{f.id}} @value={{this.formAuthNamespace}} @onInput={{this.setAuthNamespace}} @placeholder="default" data-test-input-reg-auth-namespace />
+            </Ui::Field>
+          </div>
+          <div class="col-md-8">
+            <Ui::Field @label="Credentials Variable" @help={{this.authHelp}} as |f|>
+              <Ui::Input @id={{f.id}} @value={{this.formAuthPath}} @onInput={{this.setAuthPath}} @placeholder="registries/ghcr (empty: a public source)" @monospace={{true}} data-test-input-reg-auth-path />
+            </Ui::Field>
+          </div>
+        </div>
       {{/if}}
       <Ui::Field @label="Sync" @help="The servers fetch the registry again on this schedule; Sync on the list fetches it now." as |f|>
         <Ui::Select @id={{f.id}} @value={{this.formInterval}} @options={{this.intervalOptions}} @onChange={{this.setInterval}} data-test-select-reg-interval />

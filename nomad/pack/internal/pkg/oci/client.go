@@ -129,6 +129,41 @@ type Options struct {
 	// NoDockerConfig disables reading credentials from the docker
 	// configuration.
 	NoDockerConfig bool
+	// NoEnvCredentials disables the credentials of the environment
+	// (NORCA_PACK_REGISTRY_USERNAME, ..._PASSWORD). The servers set it and
+	// NoDockerConfig: they never use credentials of their own environment.
+	NoEnvCredentials bool
+	// AuthHost restricts the credentials to one registry host ("host" or
+	// "host:port"): other hosts, such as a token service elsewhere, get no
+	// credentials and no Authorization header.
+	AuthHost string
+}
+
+// authHostTransport drops the Authorization header of requests to hosts
+// other than host.
+type authHostTransport struct {
+	host string
+	next http.RoundTripper
+}
+
+func (t *authHostTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("Authorization") != "" && !sameHost(req.URL.Host, t.host) {
+		req = req.Clone(req.Context())
+		req.Header.Del("Authorization")
+	}
+	return t.next.RoundTrip(req)
+}
+
+// sameHost compares hosts with the default HTTPS port made explicit.
+func sameHost(a, b string) bool {
+	norm := func(h string) string {
+		h = strings.ToLower(h)
+		if !strings.Contains(h, ":") {
+			h += ":443"
+		}
+		return h
+	}
+	return norm(a) == norm(b)
 }
 
 func (o *Options) httpClient() (*http.Client, error) {
@@ -152,12 +187,16 @@ func (o *Options) httpClient() (*http.Client, error) {
 		tlsConfig.InsecureSkipVerify = true
 	}
 	transport.TLSClientConfig = tlsConfig
-	return &http.Client{Transport: retry.NewTransport(transport)}, nil
+	var rt http.RoundTripper = transport
+	if o.AuthHost != "" {
+		rt = &authHostTransport{host: o.AuthHost, next: transport}
+	}
+	return &http.Client{Transport: retry.NewTransport(rt)}, nil
 }
 
 func (o *Options) credential() auth.CredentialFunc {
 	user, pass := o.Username, o.Password
-	if user == "" && pass == "" {
+	if user == "" && pass == "" && !o.NoEnvCredentials {
 		user, pass = os.Getenv(EnvRegistryUsername), os.Getenv(EnvRegistryPassword)
 	}
 	if user != "" || pass != "" {
@@ -166,7 +205,10 @@ func (o *Options) credential() auth.CredentialFunc {
 			// A password without a user name is used as an identity token.
 			cred = auth.Credential{RefreshToken: pass}
 		}
-		return func(context.Context, string) (auth.Credential, error) {
+		return func(_ context.Context, hostport string) (auth.Credential, error) {
+			if o.AuthHost != "" && !sameHost(hostport, o.AuthHost) {
+				return auth.EmptyCredential, nil
+			}
 			return cred, nil
 		}
 	}

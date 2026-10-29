@@ -9,9 +9,11 @@ package catalog
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -105,11 +107,77 @@ func policyForKeys(trustedKeys []string) (packconfig.Policy, func()) {
 	return packconfig.Policy{KeyFiles: keyFiles}, cleanup
 }
 
+// SourceAuth holds the credentials of a private registry, read from the
+// Variable its authSecret names: username and password (or token) for git
+// https and OCI sources, ssh_private_key and known_hosts for git ssh
+// sources.
+type SourceAuth struct {
+	Username      string
+	Password      string
+	SSHPrivateKey string
+	KnownHosts    string
+}
+
+// SourceAuthFromItems reads the credentials from the items of a Variable.
+func SourceAuthFromItems(items map[string]string) *SourceAuth {
+	a := &SourceAuth{
+		Username:      items["username"],
+		Password:      items["password"],
+		SSHPrivateKey: items["ssh_private_key"],
+		KnownHosts:    items["known_hosts"],
+	}
+	if a.Password == "" {
+		a.Password = items["token"]
+	}
+	return a
+}
+
+// ValidateSourceAuth checks that the credentials fit the source: git
+// sources must be https:// (password or token) or ssh (ssh_private_key and
+// known_hosts), OCI sources need a password or token; other types take no
+// credentials.
+func ValidateSourceAuth(sourceType, source string, a *SourceAuth) error {
+	switch sourceType {
+	case "git":
+		if caching.IsSSHSource(source) {
+			if a.SSHPrivateKey == "" || a.KnownHosts == "" {
+				return errors.New("an ssh source needs the items ssh_private_key and known_hosts")
+			}
+			return nil
+		}
+		u, err := url.Parse(source)
+		if err != nil || u.Scheme != "https" || u.Host == "" {
+			return errors.New("credentials need an https:// or ssh source")
+		}
+		if u.User != nil {
+			return errors.New("the source must not carry credentials; they come from the auth secret")
+		}
+		if a.Password == "" {
+			return errors.New("an https source needs the item password or token")
+		}
+		return nil
+	case "oci":
+		if a.Password == "" {
+			return errors.New("an OCI source needs the item password or token")
+		}
+		return nil
+	default:
+		return fmt.Errorf("a %s registry takes no credentials", sourceType)
+	}
+}
+
 // SyncSource synchronizes a registry source ("dir", "git", "oci", "bundle")
-// into cacheDir/<registryName>.
-func SyncSource(cacheDir, registryName, sourceType, source, ref string, trustedKeys []string, seedBuiltin func(destRefDir, ref string) error) error {
+// into cacheDir/<registryName>. auth (git and oci only) is sent to the
+// host of the source only. The servers' own credentials (environment,
+// docker configuration) are never used.
+func SyncSource(cacheDir, registryName, sourceType, source, ref string, trustedKeys []string, auth *SourceAuth, seedBuiltin func(destRefDir, ref string) error) error {
 	if ref == "" {
 		ref = DefaultRef
+	}
+	if auth != nil {
+		if err := ValidateSourceAuth(sourceType, source, auth); err != nil {
+			return err
+		}
 	}
 	switch sourceType {
 	case "dir":
@@ -132,11 +200,20 @@ func SyncSource(cacheDir, registryName, sourceType, source, ref string, trustedK
 		if err != nil {
 			return err
 		}
-		if _, err := cache.Add(&caching.AddOpts{
+		opts := &caching.AddOpts{
 			RegistryName: registryName,
 			Source:       source,
 			Ref:          ref,
-		}); err != nil {
+		}
+		if auth != nil {
+			opts.GitAuth = &caching.GitAuth{
+				Username:      auth.Username,
+				Password:      auth.Password,
+				SSHPrivateKey: auth.SSHPrivateKey,
+				KnownHosts:    auth.KnownHosts,
+			}
+		}
+		if _, err := cache.Add(opts); err != nil {
 			return fmt.Errorf("failed to clone git registry: %w", err)
 		}
 		return nil
@@ -145,7 +222,10 @@ func SyncSource(cacheDir, registryName, sourceType, source, ref string, trustedK
 		if err != nil {
 			return fmt.Errorf("invalid OCI source: %w", err)
 		}
-		opts := &oci.Options{}
+		opts := &oci.Options{NoDockerConfig: true, NoEnvCredentials: true}
+		if auth != nil {
+			opts.Username, opts.Password, opts.AuthHost = auth.Username, auth.Password, loc.Host
+		}
 		repo, err := opts.Repository(loc)
 		if err != nil {
 			return fmt.Errorf("failed to connect to OCI repository: %w", err)

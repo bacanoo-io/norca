@@ -292,6 +292,14 @@ export default function registerPackRoutes(server) {
         source: spec.source,
         defaultRef: spec.defaultRef || 'latest',
         ...(spec.syncInterval ? { syncInterval: spec.syncInterval } : {}),
+        ...(spec.authSecret
+          ? {
+              authSecret: {
+                namespace: spec.authSecret.namespace || 'default',
+                path: spec.authSecret.path,
+              },
+            }
+          : {}),
         ...(spec.trustedKeys?.length ? { trustedKeys: spec.trustedKeys } : {}),
       },
       Status: sync(payload.Name, spec, existing?.Status),

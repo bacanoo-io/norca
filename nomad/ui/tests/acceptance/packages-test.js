@@ -438,6 +438,7 @@ module('Acceptance | packages', function (hooks) {
     await fillIn('[data-test-input-reg-source]', 'oci://ghcr.io/example/packs');
     await fillIn('[data-test-input-reg-ref]', 'v1');
     await select('[data-test-select-reg-interval]', '1h');
+    await fillIn('[data-test-input-reg-auth-path]', 'registries/ghcr');
     await fillIn(
       '[data-test-input-reg-keys]',
       '-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----\n\nkey-2'
@@ -450,6 +451,7 @@ module('Acceptance | packages', function (hooks) {
         source: 'oci://ghcr.io/example/packs',
         defaultRef: 'v1',
         syncInterval: '1h',
+        authSecret: { path: 'registries/ghcr' },
         trustedKeys: [
           '-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----',
           'key-2',
@@ -458,6 +460,9 @@ module('Acceptance | packages', function (hooks) {
     });
     assert.dom('[data-test-registry-modal]').doesNotExist();
     assert.dom('[data-test-registry-row="apps"]').exists();
+    assert
+      .dom('[data-test-registry-auth]')
+      .includesText('default/registries/ghcr');
     const apps = [
       ...document.querySelectorAll(
         '[data-test-registries-table] [data-test-ui-table-row]'
@@ -495,6 +500,7 @@ module('Acceptance | packages', function (hooks) {
     assert.dom('[data-test-input-reg-name]').isDisabled();
     assert.dom('[data-test-input-reg-ref]').hasValue('v1');
     assert.dom('[data-test-select-reg-interval]').hasValue('1h');
+    assert.dom('[data-test-input-reg-auth-path]').hasValue('registries/ghcr');
     await click('[data-test-btn-cancel-registry]');
 
     await click('[data-test-btn-delete="broken"]');

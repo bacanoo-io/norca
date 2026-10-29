@@ -89,6 +89,8 @@ export default class PackagesRegistries extends Component {
   @tracked formSource = '';
   @tracked formRef = '';
   @tracked formInterval = '';
+  @tracked formAuthNamespace = '';
+  @tracked formAuthPath = '';
   @tracked formKeys = '';
   @tracked isSaving = false;
   @tracked formError = null;
@@ -119,6 +121,11 @@ export default class PackagesRegistries extends Component {
         source: r.Spec?.Source,
         ref: r.Spec?.DefaultRef,
         keys: (r.Spec?.TrustedKeys || []).length,
+        auth: r.Spec?.AuthSecret?.Path
+          ? `${r.Spec.AuthSecret.Namespace || 'default'}/${
+              r.Spec.AuthSecret.Path
+            }`
+          : null,
         phase,
         phaseTone: PHASE_TONES[phase] || 'neutral',
         message: status.Message,
@@ -201,6 +208,8 @@ export default class PackagesRegistries extends Component {
     this.formSource = spec.Source || '';
     this.formRef = spec.DefaultRef || '';
     this.formInterval = spec.SyncInterval || '';
+    this.formAuthNamespace = spec.AuthSecret?.Namespace || '';
+    this.formAuthPath = spec.AuthSecret?.Path || '';
     this.formKeys = (spec.TrustedKeys || []).join('\n\n');
     this.formError = null;
   }
@@ -227,6 +236,27 @@ export default class PackagesRegistries extends Component {
 
   @action setInterval(v) {
     this.formInterval = v;
+  }
+
+  @action setAuthNamespace(v) {
+    this.formAuthNamespace = v;
+  }
+
+  @action setAuthPath(v) {
+    this.formAuthPath = v;
+  }
+
+  // Credentials only apply to git and OCI sources.
+  get takesAuth() {
+    return this.formType === 'git' || this.formType === 'oci';
+  }
+
+  get authHelp() {
+    const items =
+      this.formType === 'oci'
+        ? 'username and password, or token'
+        : 'username and password or token for https:// sources, ssh_private_key and known_hosts for ssh sources';
+    return `A Variable with the items ${items}. Saving needs read access to it; the servers send the credentials to the host of the source only.`;
   }
 
   @action setKeys(v) {
@@ -261,6 +291,13 @@ export default class PackagesRegistries extends Component {
         source: this.formSource.trim(),
         defaultRef: this.formRef.trim() || undefined,
         syncInterval: this.formInterval || undefined,
+        authSecret:
+          this.takesAuth && this.formAuthPath.trim()
+            ? {
+                namespace: this.formAuthNamespace.trim() || undefined,
+                path: this.formAuthPath.trim(),
+              }
+            : undefined,
         trustedKeys: this.trustedKeys,
       });
       const status = r.body?.Status || {};
