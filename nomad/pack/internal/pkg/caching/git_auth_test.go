@@ -164,3 +164,12 @@ func TestCloneAuthenticated_HTTPS(t *testing.T) {
 	must.Error(t, err)
 	must.Eq(t, before, seen.Load(), must.Sprint("the target of the redirect saw no credentials"))
 }
+
+func TestRegistrySource(t *testing.T) {
+	ci.Parallel(t)
+	dir := t.TempDir()
+	must.Eq(t, "", RegistrySource(dir))
+	must.NoError(t, os.WriteFile(filepath.Join(dir, "metadata.json"),
+		[]byte(`{"name":"norca","source":"https://github.com/bacanoo-io/norca-registry","ref":"v0.1.0"}`), 0o644))
+	must.Eq(t, "https://github.com/bacanoo-io/norca-registry", RegistrySource(dir))
+}

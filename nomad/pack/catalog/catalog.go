@@ -62,8 +62,11 @@ type IndexedPack struct {
 // RenderInput holds the parameters for rendering a cached pack into an
 // api.ReleaseApplyRequest on the server.
 type RenderInput struct {
-	PackDir       string
-	RegistryName  string
+	PackDir      string
+	RegistryName string
+	// Source and Ref are those of the registry, recorded in the release.
+	Source        string
+	Ref           string
 	PackName      string
 	Version       string
 	ReleaseName   string
@@ -523,6 +526,8 @@ func RenderPack(in RenderInput) (*api.ReleaseApplyRequest, error) {
 		Name:     in.PackName,
 		Version:  in.Version,
 		Registry: in.RegistryName,
+		Source:   in.Source,
+		Ref:      in.Ref,
 		Path:     in.PackDir,
 		Digest:   digest,
 		Signer:   signer,

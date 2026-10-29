@@ -392,6 +392,13 @@ type ReleasePack struct {
 	Registry string `json:"registry,omitempty"`
 	Path     string `json:"path,omitempty"`
 
+	// Source is where the registry of the pack fetches it from (a git URL
+	// or an oci:// location), and Ref the ref (tag, branch) it was fetched
+	// at. With them the web UI finds the cluster registry of a release
+	// installed with the CLI, whose Registry is a local name.
+	Source string `json:"source,omitempty"`
+	Ref    string `json:"ref,omitempty"`
+
 	// Digest is the OCI manifest digest of a pack from an OCI registry or
 	// a bundle.
 	Digest string `json:"digest,omitempty"`

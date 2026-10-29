@@ -9,7 +9,7 @@ import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
-import { seedReleases } from 'nomad-ui/mirage/norca/releases';
+import { seedReleases, revision } from 'nomad-ui/mirage/norca/releases';
 import { seedPacks } from 'nomad-ui/mirage/norca/packs';
 import {
   useToken,
@@ -415,6 +415,57 @@ module('Acceptance | packages', function (hooks) {
     // Releases of CLI installs (a registry URL) are upgraded with the CLI.
     await visit(RELEASE);
     assert.dom('[data-test-upgrade-release]').doesNotExist();
+  });
+
+  test('a release installed with the CLI is upgraded after its registry is added', async function (assert) {
+    useToken(null, 'management');
+    // norca pack run web-app --registry=apps-local, from an OCI registry.
+    const pack = {
+      name: 'web-app',
+      version: '1.2.0',
+      registry: 'apps-local',
+      source: 'oci://ghcr.io/example/packs:1.2.0',
+      ref: '1.2.0',
+    };
+    server.db.norcaReleases.insert({
+      Region: 'global',
+      ID: 'rel-web',
+      Namespace: 'default',
+      Name: 'web',
+      Spec: { pack, revision: 1, maxHistory: 10, atomic: true },
+      Status: { phase: 'deployed', revision: 1, resources: [], conditions: [] },
+      History: [
+        revision('default', 'web', 1, '1.2.0', {
+          spec: { pack, values: { image: 'nginx:1' } },
+          status: { phase: 'deployed', hooks: [] },
+        }),
+      ],
+      Events: [],
+      Drift: [],
+    });
+
+    await visit('/packages/default/web');
+    assert.dom('[data-test-upgrade-release]').doesNotExist();
+    await click('[data-test-add-release-registry]');
+    assert.dom('[data-test-add-registry-name]').hasValue('apps-local');
+    assert.dom('[data-test-add-registry-ref]').hasValue('1.2.0');
+    assert
+      .dom('[data-test-add-registry-source]')
+      .hasValue('oci://ghcr.io/example/packs');
+    await click('[data-test-add-registry-confirm]');
+    assert.deepEqual(lastBody('POST', '/v1/pack-registry'), {
+      Name: 'apps-local',
+      Spec: {
+        type: 'oci',
+        source: 'oci://ghcr.io/example/packs',
+        defaultRef: '1.2.0',
+      },
+    });
+
+    await click('[data-test-upgrade-release]');
+    assert
+      .dom('[data-test-upgrade-modal] [data-test-pack-field="image"] input')
+      .hasValue('nginx:1', 'the values of the CLI install');
   });
 
   test('pack registries are added, synced, edited and removed', async function (assert) {

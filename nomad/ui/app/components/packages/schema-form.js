@@ -214,7 +214,7 @@ export default class PackagesSchemaForm extends Component {
   fetchDetail(version) {
     return waitForPromise(
       getCatalogPack(
-        this.token.token,
+        this.token,
         this.region,
         this.args.registry,
         this.args.pack,
@@ -338,7 +338,7 @@ export default class PackagesSchemaForm extends Component {
     this.isPlanning = true;
     try {
       const r = await planPackRelease(
-        this.token.token,
+        this.token,
         this.region,
         this.namespace,
         this.releaseName.trim(),
@@ -361,7 +361,7 @@ export default class PackagesSchemaForm extends Component {
     this.isDeploying = true;
     try {
       const r = await deployPackRelease(
-        this.token.token,
+        this.token,
         this.region,
         this.namespace,
         this.releaseName.trim(),

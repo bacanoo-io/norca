@@ -139,6 +139,95 @@ export function deletePackRegistry(token, region, name) {
   });
 }
 
+const REGISTRY_NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
+// Sources compare without the scheme case, a trailing slash or ".git", and
+// for OCI without the tag or digest of a pack location.
+export function normalizeSource(source) {
+  let s = String(source || '').trim();
+  const i = s.indexOf('://');
+  if (i > 0) s = s.slice(0, i).toLowerCase() + s.slice(i);
+  if (s.startsWith('oci://')) {
+    s = s.replace(/@sha256:[0-9a-f]+$/, '');
+    const slash = s.lastIndexOf('/');
+    const colon = s.lastIndexOf(':');
+    if (colon > slash && slash > 'oci://'.length) s = s.slice(0, colon);
+  }
+  return s.replace(/\/+$/, '').replace(/\.git$/, '');
+}
+
+function sourceTag(source) {
+  const s = String(source || '');
+  if (!s.startsWith('oci://')) return '';
+  const slash = s.lastIndexOf('/');
+  const colon = s.lastIndexOf(':');
+  return colon > slash ? s.slice(colon + 1) : '';
+}
+
+/**
+ * The cluster registry to upgrade a release from: the registry the release
+ * names, if it has the same source, else one with the source the CLI
+ * recorded (pack.Source) that has the pack. Returns { registry, name,
+ * version } or null.
+ */
+export function upgradeTarget(pack, registries) {
+  if (!pack?.Name) return null;
+  const regs = registries || [];
+  const source = normalizeSource(pack.Source);
+  const named = regs.find(
+    (r) =>
+      r.Name === pack.Registry &&
+      (!source || normalizeSource(r.Spec?.Source) === source)
+  );
+  const bySource =
+    source &&
+    regs.find(
+      (r) =>
+        normalizeSource(r.Spec?.Source) === source &&
+        (r.Status?.Packs || []).some((p) => p.Name === pack.Name)
+    );
+  const reg = named || bySource;
+  return reg
+    ? { registry: reg.Name, name: pack.Name, version: pack.Version || '' }
+    : null;
+}
+
+/**
+ * A cluster registry to add for a release installed with the CLI from a
+ * git or OCI registry the cluster doesn't have: { name, type, source,
+ * defaultRef }, or null (a local directory or a bundle).
+ */
+export function registrySuggestion(pack, registries) {
+  const raw = String(pack?.Source || '').trim();
+  if (!raw) return null;
+  let type = null;
+  if (raw.startsWith('oci://')) type = 'oci';
+  else if (/^(https:\/\/|ssh:\/\/|[\w.-]+@[\w.-]+:)/.test(raw)) type = 'git';
+  if (!type) return null;
+  const taken = new Set((registries || []).map((r) => r.Name));
+  let name = REGISTRY_NAME.test(pack.Registry || '') ? pack.Registry : '';
+  if (!name || taken.has(name)) {
+    const base =
+      normalizeSource(raw)
+        .split(/[/:]/)
+        .filter(Boolean)
+        .pop()
+        ?.toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'registry';
+    name = base;
+    for (let n = 2; taken.has(name); n++) name = `${base}-${n}`;
+  }
+  const ref = type === 'oci' ? sourceTag(raw) || pack.Ref : pack.Ref;
+  return {
+    name,
+    type,
+    // git sources stay as recorded (some servers need the .git suffix).
+    source: type === 'oci' ? normalizeSource(raw) : raw.replace(/\/+$/, ''),
+    defaultRef: ref && ref !== 'latest' ? ref : '',
+  };
+}
+
 export async function listCatalogPacks(token, region, registry) {
   const r = await apiRequest(token, '/v1/packs', {
     params: { region, registry: registry || undefined },

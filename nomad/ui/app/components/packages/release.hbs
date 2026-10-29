@@ -18,8 +18,10 @@
           <Ui::Button @icon="history" @disabled={{not this.rollbackTargets.length}} data-test-rollback {{on "click" (fn this.openRollback null)}}>Roll back</Ui::Button>
           {{#if this.deployedRevision}}
             <Ui::Button @icon="pencil" data-test-edit-values {{on "click" this.openValues}}>Edit values</Ui::Button>
-            {{#if this.catalogPack}}
+            {{#if this.upgradeTarget}}
               <Ui::Button @variant="primary" @icon="rocket" data-test-upgrade-release {{on "click" this.openUpgrade}}>Upgrade</Ui::Button>
+            {{else if this.registrySuggestion}}
+              <Ui::Button @icon="database" data-test-add-release-registry {{on "click" this.openAddRegistry}}>Add its registry to upgrade</Ui::Button>
             {{/if}}
           {{/if}}
           <Ui::Button @variant="outline-danger" @icon="trash" data-test-uninstall {{on "click" this.askUninstall}}>Uninstall</Ui::Button>
@@ -250,17 +252,60 @@
     <Packages::ValuesEditor @release={{this.release}} @revision={{this.deployedRevision}} @onClose={{this.closeValues}} />
   {{/if}}
 
+  {{#if this.addingRegistry}}
+    <Ui::Modal @title="Add the registry of {{this.release.Name}}" @size="lg" @onClose={{this.closeAddRegistry}} data-test-add-registry-modal>
+      <p class="text-secondary">
+        The release was installed with the CLI from this registry. Added to the cluster, the servers fetch it,
+        and the release can be upgraded from it here.
+      </p>
+      {{#if this.registryError}}
+        <Ui::Alert @tone="danger" class="mb-3" data-test-add-registry-error>{{this.registryError}}</Ui::Alert>
+      {{/if}}
+      <div class="row g-3">
+        <div class="col-md-6">
+          <Ui::Field @label="Name" @help="The name of the cluster registry." as |f|>
+            <Ui::Input @id={{f.id}} @value={{this.addingRegistry.name}} @onInput={{fn this.setAddRegistry "name"}} data-test-add-registry-name />
+          </Ui::Field>
+        </div>
+        <div class="col-md-6">
+          <Ui::Field @label="Reference" @help="The tag or branch to fetch; latest when empty." as |f|>
+            <Ui::Input @id={{f.id}} @value={{this.addingRegistry.defaultRef}} @onInput={{fn this.setAddRegistry "defaultRef"}} @placeholder="latest" data-test-add-registry-ref />
+          </Ui::Field>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <Ui::Field @label="Type" as |f|>
+            <Ui::Input @id={{f.id}} @value={{if (eq this.addingRegistry.type "oci") "OCI registry" "Git repository"}} @readonly={{true}} />
+          </Ui::Field>
+        </div>
+        <div class="col-md-8">
+          <Ui::Field @label="Source" as |f|>
+            <Ui::Input @id={{f.id}} @value={{this.addingRegistry.source}} @readonly={{true}} @monospace={{true}} data-test-add-registry-source />
+          </Ui::Field>
+        </div>
+      </div>
+      <p class="small text-secondary mt-2">
+        A private source needs its credentials: add the registry on the Registries tab of Packages instead.
+      </p>
+      <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+        <Ui::Button @variant="ghost" {{on "click" this.closeAddRegistry}}>Cancel</Ui::Button>
+        <Ui::Button @variant="primary" @icon="check" @isLoading={{this.isAddingRegistry}} {{on "click" this.confirmAddRegistry}} data-test-add-registry-confirm>Add and sync</Ui::Button>
+      </div>
+    </Ui::Modal>
+  {{/if}}
+
   {{#if this.upgrading}}
     <Ui::Modal @title="Upgrade {{this.release.Name}}" @size="xl" @onClose={{this.closeUpgrade}} data-test-upgrade-modal>
       <p class="text-secondary">
-        The servers render {{this.catalogPack.Name}} of the {{this.catalogPack.Registry}} registry with these values and
+        The servers render {{this.upgradeTarget.name}} of the {{this.upgradeTarget.registry}} registry with these values and
         apply it as the next revision. Pick another version to upgrade the pack itself.
       </p>
       <Packages::SchemaForm
         @isUpgrade={{true}}
-        @registry={{this.catalogPack.Registry}}
-        @pack={{this.catalogPack.Name}}
-        @version={{this.catalogPack.Version}}
+        @registry={{this.upgradeTarget.registry}}
+        @pack={{this.upgradeTarget.name}}
+        @version={{this.upgradeTarget.version}}
         @releaseName={{this.release.Name}}
         @namespace={{this.release.Namespace}}
         @region={{this.region}}

@@ -413,6 +413,8 @@ export default function registerPackRoutes(server) {
       name: payload.Pack,
       version: found.match.entry.Version,
       registry: reg.Name,
+      source: reg.Spec.source,
+      ref: reg.Spec.defaultRef,
       digest: found.match.entry.Digest,
     };
     const spec = {

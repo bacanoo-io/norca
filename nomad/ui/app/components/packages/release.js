@@ -21,6 +21,10 @@ import {
   checkDrift,
   uninstallRelease,
   compareRevisions,
+  listPackRegistries,
+  upsertPackRegistry,
+  upgradeTarget,
+  registrySuggestion,
   isDrifted,
   signature,
   phaseTone,
@@ -74,17 +78,88 @@ export default class PackagesRelease extends Component {
 
   // The pack of the deployed revision, when it came from a cluster
   // registry: the servers can render an upgrade from the catalog.
-  get catalogPack() {
-    const pack = this.deployedRevision?.Spec?.Pack || this.release?.Spec?.Pack;
-    // Cluster registries are named like releases; CLI installs record
-    // the source (a URL or <<local folder>>) or a local registry name.
-    if (
-      !pack?.Name ||
-      !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(pack.Registry || '')
-    ) {
-      return null;
+  // The cluster registries of the region, to upgrade from; null until
+  // loaded or without the permission to read them.
+  @tracked clusterRegistries = null;
+  @tracked addingRegistry = null; // { name, type, source, defaultRef }
+  @tracked registryError = null;
+  @tracked isAddingRegistry = false;
+
+  get deployedPack() {
+    return this.deployedRevision?.Spec?.Pack || this.release?.Spec?.Pack;
+  }
+
+  // The cluster registry and pack to upgrade the release from: the
+  // registry it was installed from on the servers, or, for releases of
+  // the CLI, a cluster registry of the source the CLI recorded.
+  get upgradeTarget() {
+    return upgradeTarget(this.deployedPack, this.clusterRegistries);
+  }
+
+  // A cluster registry to add for a CLI install from a registry the
+  // cluster doesn't have.
+  get registrySuggestion() {
+    if (!this.clusterRegistries || this.upgradeTarget) return null;
+    return registrySuggestion(this.deployedPack, this.clusterRegistries);
+  }
+
+  async loadRegistries() {
+    try {
+      const r = await listPackRegistries(this.token, this.region);
+      this.clusterRegistries = r.body || [];
+    } catch (e) {
+      this.clusterRegistries = null;
     }
-    return pack;
+  }
+
+  @action openAddRegistry() {
+    this.registryError = null;
+    this.addingRegistry = { ...this.registrySuggestion };
+  }
+
+  @action closeAddRegistry() {
+    this.addingRegistry = null;
+  }
+
+  @action setAddRegistry(field, value) {
+    this.addingRegistry = { ...this.addingRegistry, [field]: value };
+  }
+
+  @action async confirmAddRegistry() {
+    const r = this.addingRegistry;
+    this.isAddingRegistry = true;
+    this.registryError = null;
+    try {
+      const res = await upsertPackRegistry(
+        this.token,
+        this.region,
+        r.name.trim(),
+        {
+          type: r.type,
+          source: r.source,
+          defaultRef: r.defaultRef.trim() || undefined,
+        }
+      );
+      const status = res.body?.Status || {};
+      if (status.Phase === 'Error') {
+        this.notifications.add({
+          title: `${r.name} added, but the sync failed`,
+          message: status.Message,
+          color: 'critical',
+        });
+      } else {
+        this.notifications.add({
+          title: `${r.name} added to the cluster`,
+          color: 'success',
+        });
+      }
+      this.addingRegistry = null;
+      await this.loadRegistries();
+    } catch (e) {
+      this.registryError = errorMessage(e);
+    } finally {
+      this.isAddingRegistry = false;
+    }
   }
 
   @action openUpgrade() {
@@ -286,6 +361,7 @@ export default class PackagesRelease extends Component {
     ]);
     this.history = history;
     this.events = events;
+    if (this.clusterRegistries === null) await this.loadRegistries();
     if (!this.compareA && history.length > 1) {
       this.compareA = String(history[1].Revision);
       this.compareB = String(history[0].Revision);

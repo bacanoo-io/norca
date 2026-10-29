@@ -709,6 +709,8 @@ func (s *Server) RenderCatalogPack(args *structs.GenericRequest, releaseName str
 	outReq, err := catalog.RenderPack(catalog.RenderInput{
 		PackDir:       packDir,
 		RegistryName:  req.Registry,
+		Source:        reg.Spec.Source,
+		Ref:           reg.Spec.DefaultRef,
 		PackName:      req.Pack,
 		Version:       entry.Version,
 		ReleaseName:   releaseName,

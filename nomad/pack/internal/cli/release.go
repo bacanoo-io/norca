@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -373,6 +374,13 @@ func (c *baseCommand) releasePack(packManager *manager.PackManager, packCfg *cac
 		for _, s := range origin.Signatures {
 			p.Signatures = append(p.Signatures, &api.ReleasePackSignature{Payload: string(s.Payload), Signature: s.Signature})
 		}
+		// OCI registries and bundles.
+		p.Source, p.Ref = origin.Source, origin.Tag
+	} else if packCfg.Registry != caching.DevRegistryName {
+		// git registries: the cache keeps the source next to the packs of
+		// the ref.
+		p.Source = caching.RegistrySource(filepath.Dir(packCfg.Path))
+		p.Ref = packCfg.Ref
 	}
 	return p
 }

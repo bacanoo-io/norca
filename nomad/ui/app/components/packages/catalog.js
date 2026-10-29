@@ -121,9 +121,7 @@ export default class PackagesCatalog extends Component {
     this.isLoading = true;
     this.loadError = null;
     try {
-      const r = await waitForPromise(
-        listCatalogPacks(this.token.token, this.region)
-      );
+      const r = await waitForPromise(listCatalogPacks(this.token, this.region));
       this.entries = r.body || [];
     } catch (e) {
       this.loadError = errorMessage(e);
@@ -140,7 +138,7 @@ export default class PackagesCatalog extends Component {
     try {
       const r = await waitForPromise(
         getCatalogPack(
-          this.token.token,
+          this.token,
           this.region,
           pack.Registry,
           pack.Name,

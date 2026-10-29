@@ -130,6 +130,8 @@ type ReleasePack struct {
 	Version       string                  `json:"version,omitempty"`
 	Registry      string                  `json:"registry,omitempty"`
 	Path          string                  `json:"path,omitempty"`
+	Source        string                  `json:"source,omitempty"`
+	Ref           string                  `json:"ref,omitempty"`
 	Digest        string                  `json:"digest,omitempty"`
 	Signer        string                  `json:"signer,omitempty"`
 	Signatures    []*ReleasePackSignature `json:"signatures,omitempty"`

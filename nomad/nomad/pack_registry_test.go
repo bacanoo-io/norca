@@ -97,6 +97,8 @@ func TestPackRegistry_LifecycleAndServerRender(t *testing.T) {
 	must.NotNil(t, renderedReq)
 	must.Eq(t, "redis", renderedReq.Pack.Name)
 	must.Eq(t, "official", renderedReq.Pack.Registry)
+	must.Eq(t, BuiltinRegistrySource, renderedReq.Pack.Source)
+	must.Eq(t, "latest", renderedReq.Pack.Ref)
 	must.Len(t, 2, renderedReq.Resources)
 	must.Eq[any](t, 2, renderedReq.Values["count"])
 	must.Eq[any](t, 1000, renderedReq.Values["cpu"])

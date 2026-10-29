@@ -172,7 +172,7 @@ export default class PackagesRegistries extends Component {
     this.loadError = null;
     try {
       const r = await waitForPromise(
-        listPackRegistries(this.token.token, this.region)
+        listPackRegistries(this.token, this.region)
       );
       this.registries = r.body || [];
     } catch (e) {
@@ -286,7 +286,7 @@ export default class PackagesRegistries extends Component {
     this.formError = null;
     try {
       // Saving fetches and indexes the registry before it answers.
-      const r = await upsertPackRegistry(this.token.token, this.region, name, {
+      const r = await upsertPackRegistry(this.token, this.region, name, {
         type: this.formType,
         source: this.formSource.trim(),
         defaultRef: this.formRef.trim() || undefined,
@@ -325,7 +325,7 @@ export default class PackagesRegistries extends Component {
   @action async sync(row) {
     this.syncing = row.name;
     try {
-      const r = await syncPackRegistry(this.token.token, this.region, row.name);
+      const r = await syncPackRegistry(this.token, this.region, row.name);
       const status = r.body?.Status || {};
       this.notifications.add(
         status.Phase === 'Error'
@@ -364,7 +364,7 @@ export default class PackagesRegistries extends Component {
     if (!name) return;
     this.isDeleting = true;
     try {
-      await deletePackRegistry(this.token.token, this.region, name);
+      await deletePackRegistry(this.token, this.region, name);
       this.notifications.add({ title: `${name} removed`, color: 'success' });
       this.toDelete = null;
       await this.load();
