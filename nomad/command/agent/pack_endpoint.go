@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/nomad/nomad"
+	"github.com/hashicorp/nomad/nomad/bus"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/pack/catalog"
 )
@@ -230,4 +231,30 @@ func (s *HTTPServer) releasePackApply(resp http.ResponseWriter, req *http.Reques
 	}
 	setIndex(resp, out.Index)
 	return out, nil
+}
+
+// PackRegistryNotifyPush handles POST /v1/pack-registries/notify-push: a
+// pack push notice for the registries of a source, published on the system
+// bus.
+func (s *HTTPServer) PackRegistryNotifyPush(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if req.Method != http.MethodPost && req.Method != http.MethodPut {
+		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+	}
+	var notice bus.PushNotice
+	if err := decodeBody(req, &notice); err != nil {
+		return nil, CodedError(http.StatusBadRequest, err.Error())
+	}
+	args := nomad.PackPushNoticeRequest{
+		Source:   notice.Source,
+		Registry: notice.Registry,
+		Pack:     notice.Pack,
+		Version:  notice.Version,
+		Digest:   notice.Digest,
+	}
+	s.parseWriteRequest(req, &args.WriteRequest)
+	var out nomad.PackPushNoticeResponse
+	if err := s.agent.RPC("Packs.NotifyPush", &args, &out); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }

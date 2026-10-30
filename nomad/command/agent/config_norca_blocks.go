@@ -9,6 +9,7 @@ import (
 	clientconfig "github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/backup"
+	"github.com/hashicorp/nomad/nomad/bus"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/secretstore"
@@ -22,6 +23,7 @@ type norcaServerBlocks struct {
 	mtls         *config.MTLSConfig
 	autoscaler   *autoscaler.Config
 	backup       *backup.Config
+	bus          *bus.Config
 	secretsAudit *secretstore.AuditFileConfig
 
 	// discoveryOverflowFraction is the default overflow fraction of the
@@ -33,7 +35,7 @@ type norcaServerBlocks struct {
 // server configuration: admission, keyring, mtls, autoscaler, backup, secrets
 // and native_service_discovery. The agent runs it when it starts the server
 // and config validate runs it on the files, so both report the same errors.
-func convertNorcaServerBlocks(s *ServerConfig) (*norcaServerBlocks, error) {
+func convertNorcaServerBlocks(s *ServerConfig, ports *Ports) (*norcaServerBlocks, error) {
 	out := &norcaServerBlocks{}
 	if s == nil {
 		s = &ServerConfig{}
@@ -80,6 +82,9 @@ func convertNorcaServerBlocks(s *ServerConfig) (*norcaServerBlocks, error) {
 	if out.backup, err = s.Backup.toServerConfig(); err != nil {
 		return nil, err
 	}
+	if out.bus, err = s.Bus.toServerConfig(ports); err != nil {
+		return nil, fmt.Errorf("invalid server bus configuration: %w", err)
+	}
 	if out.secretsAudit, err = s.Secrets.toAuditFileConfig(); err != nil {
 		return nil, err
 	}
@@ -118,7 +123,7 @@ func convertNorcaClientBlocks(c *ClientConfig, vault *config.VaultConfig) (*clie
 // runs when it starts, for the enabled server and client.
 func validateNorcaBlocks(c *Config) error {
 	if c.Server != nil && c.Server.Enabled {
-		if _, err := convertNorcaServerBlocks(c.Server); err != nil {
+		if _, err := convertNorcaServerBlocks(c.Server, c.Ports); err != nil {
 			return err
 		}
 	}

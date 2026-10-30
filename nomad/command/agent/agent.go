@@ -354,7 +354,7 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 
 	// The Norca blocks: admission, keyring, mtls, autoscaler, backup, secrets
 	// and native_service_discovery (also checked by config validate).
-	norcaBlocks, err := convertNorcaServerBlocks(agentConfig.Server)
+	norcaBlocks, err := convertNorcaServerBlocks(agentConfig.Server, agentConfig.Ports)
 	if err != nil {
 		return nil, err
 	}
@@ -585,6 +585,7 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	// configurations, converted with the other Norca blocks above.
 	conf.Autoscaler = norcaBlocks.autoscaler
 	conf.Backup = norcaBlocks.backup
+	conf.Bus = norcaBlocks.bus
 	conf.SecretsAudit = norcaBlocks.secretsAudit
 	conf.SecretsVaultFallback = agentConfig.Server.Secrets.vaultFallback()
 

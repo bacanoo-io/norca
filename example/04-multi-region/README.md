@@ -212,8 +212,9 @@ norca service info -region eu-1 nats-gateway
 
 The gateways join the two clusters into one supercluster (cluster names =
 region names). Turn on TLS and authentication across clouds
-(`tls_enabled`, `auth_mode`, see the [nats pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/nats/README.md#secrets-tls-and-client-authentication));
-`bridge_enabled = true` adds the event stream → NATS bridge per region.
+(`tls_enabled`, `auth_mode`, see the [nats pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/nats/README.md#secrets-tls-and-client-authentication)).
+The event stream of each region is on the system bus of its servers
+(`NORCA_EVENTS_<region>`), not on this NATS.
 
 ### 8. Backups per region
 
@@ -260,7 +261,7 @@ Either region's UI shows the whole federation:
   each region (pending, blocked, running, successful).
 - **Packages**: the `test-app` and `mtls-gateway` releases with one entry per region;
   [cluster registries](../README.md#cluster-registries-and-the-catalog) are per region
-  (add the registry in each, or let `norca-natsbridge -sync-regions` keep them in step).
+  (add the registry in each).
 - **Network**: the intention `probe → test-api` in eu-1.
 - **Services** (per region): `mtls-gateway`, `test-api` in eu-1, `probe` in eu-2.
 - **Backups** (per region).

@@ -26,9 +26,8 @@ jobs:
       matrix:
         # Nomad Pack is part of the nomad module (nomad/pack). The api client
         # is a separate module; the controller SDK depends only on the api
-        # module; the NATS bridge depends on the api and controller modules
-        # and nats.go. tools holds the build tools (not shipped).
-        module: [nomad, nomad/api, nomad/controller, nomad/natsbridge, nomad/tools]
+        # module. tools holds the build tools (not shipped).
+        module: [nomad, nomad/api, nomad/controller, nomad/tools]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -55,7 +54,7 @@ jobs:
           go install github.com/google/go-licenses@v1.6.0
           # Ignored (their dependencies are still checked):
           # - github.com/hashicorp/nomad/...: this repository (MPL 2.0); the
-          #   api, controller, natsbridge and tools modules carry no LICENSE
+          #   api, controller and tools modules carry no LICENSE
           #   file of their own, and the step above rules out a BSL version.
           # - packages whose license go-licenses cannot classify; each is a
           #   reviewed decision in nomad/tools/thirdparty/overrides.go:

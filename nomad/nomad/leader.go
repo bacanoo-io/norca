@@ -418,6 +418,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Sync the pack registries that have a sync interval.
 	go s.packRegistrySyncLoop(stopCh)
 
+	// Publish the events to the system bus and handle the pack push notices.
+	go s.busEventsLeader(stopCh)
+
 	// Start the garbage collector of custom objects.
 	s.objectGC.SetEnabled(true)
 

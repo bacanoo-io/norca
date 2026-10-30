@@ -16,7 +16,6 @@ Layout
 * the root package and `command/`: the `norca` binary (agent and CLI)
 * `api/`: the HTTP API client (a separate Go module)
 * `controller/`: the controller SDK of the operator framework (a separate Go module)
-* `natsbridge/`: the event stream to NATS bridge (a separate Go module)
 * `pack/`: Nomad Pack v0.4.2, built in as `norca pack`
 * `tools/`: build tools, such as the third-party notice generator (a separate Go module)
 * `ui/`: the web UI

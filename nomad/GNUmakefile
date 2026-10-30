@@ -110,14 +110,6 @@ endif
 pkg/windows_%/$(BINARY_NAME): GO_OUT = $@.exe
 pkg/windows_%/$(BINARY_NAME): GO_TAGS += timetzdata
 
-# The NATS bridge is a separate module (natsbridge/) and needs no cgo.
-pkg/%/norca-natsbridge: ## Build norca-natsbridge for GOOS_GOARCH, e.g. pkg/linux_amd64/norca-natsbridge
-	@echo "==> Building $@..."
-	@CGO_ENABLED=0 \
-		GOOS=$(firstword $(subst _, ,$*)) \
-		GOARCH=$(lastword $(subst _, ,$*)) \
-		go -C natsbridge build -trimpath -o $(PROJECT_ROOT)/$@$(if $(findstring windows_,$*),.exe) ./cmd/norca-natsbridge
-
 # Define package targets for each of the build targets we actually have on this system
 define makePackageTarget
 
@@ -300,12 +292,12 @@ SBOM_PLATFORM = $(SBOM_OS)_$(SBOM_ARCH)
 SBOM_EXE = $(if $(filter windows,$(SBOM_OS)),.exe)
 
 .PHONY: sbom
-sbom: ## Build norca and norca-natsbridge (release tags) and write CycloneDX SBOMs to pkg/sbom/
-	@rm -f pkg/$(SBOM_PLATFORM)/$(BINARY_NAME)$(SBOM_EXE) pkg/$(SBOM_PLATFORM)/norca-natsbridge$(SBOM_EXE)
+sbom: ## Build norca (release tags) and write a CycloneDX SBOM to pkg/sbom/
+	@rm -f pkg/$(SBOM_PLATFORM)/$(BINARY_NAME)$(SBOM_EXE)
 	@GO_TAGS="codegen_generated release" $(MAKE) --no-print-directory \
-		pkg/$(SBOM_PLATFORM)/$(BINARY_NAME) pkg/$(SBOM_PLATFORM)/norca-natsbridge
+		pkg/$(SBOM_PLATFORM)/$(BINARY_NAME)
 	@mkdir -p $(PROJECT_ROOT)/pkg/sbom
-	@for b in $(BINARY_NAME) norca-natsbridge; do \
+	@for b in $(BINARY_NAME); do \
 		$(THIRDPARTY) sbom -root $(REPO_ROOT) -name $$b \
 			-binary $(PROJECT_ROOT)/pkg/$(SBOM_PLATFORM)/$$b$(SBOM_EXE) \
 			-out $(PROJECT_ROOT)/pkg/sbom/$${b}_$(SBOM_PLATFORM).cdx.json || exit 1; \

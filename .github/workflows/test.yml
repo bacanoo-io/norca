@@ -29,7 +29,7 @@ defaults:
 
 env:
   # The nomad module and the separate modules inside it.
-  MODULES: nomad nomad/api nomad/controller nomad/natsbridge nomad/tools
+  MODULES: nomad nomad/api nomad/controller nomad/tools
 
 jobs:
   build:
@@ -49,7 +49,6 @@ jobs:
             nomad/go.sum
             nomad/api/go.sum
             nomad/controller/go.sum
-            nomad/natsbridge/go.sum
             nomad/tools/go.sum
       - name: go build ./...
         env:
@@ -74,7 +73,6 @@ jobs:
             nomad/go.sum
             nomad/api/go.sum
             nomad/controller/go.sum
-            nomad/natsbridge/go.sum
             nomad/tools/go.sum
       - name: go vet ./...
         # Every package of every module was vet-clean when this job was added;
@@ -101,10 +99,9 @@ jobs:
             nomad/go.sum
             nomad/api/go.sum
             nomad/controller/go.sum
-            nomad/natsbridge/go.sum
             nomad/tools/go.sum
       - name: Build norca for the tests that start an agent
-        # The api, controller and natsbridge tests start a dev agent from the
+        # The api and controller tests start a dev agent from the
         # norca binary on the PATH (they skip those tests without one).
         run: |
           mkdir -p "$RUNNER_TEMP/bin"
@@ -132,9 +129,9 @@ jobs:
         # Its tests, including the fuzz and property tests in their normal,
         # non-fuzzing mode, run with ./secretstore/... above.
         run: go -C nomad/tools run ./ubixsync -root "$GITHUB_WORKSPACE" -check
-      - name: api, controller, natsbridge and tools modules
+      - name: api, controller and tools modules
         run: |
-          for m in nomad/api nomad/controller nomad/natsbridge nomad/tools; do
+          for m in nomad/api nomad/controller nomad/tools; do
             echo "::group::$m"
             go -C "$m" test -count=1 -p 4 ./...
             echo "::endgroup::"

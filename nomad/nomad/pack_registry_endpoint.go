@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/hashicorp/nomad/nomad/bus"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -252,4 +253,46 @@ func (p *Packs) Deploy(args *PackDeployRPCRequest, reply *structs.ReleaseApplyRe
 	req.DryRun = args.DryRun
 	req.WriteRequest = args.WriteRequest
 	return NewReleaseEndpoint(p.srv, p.ctx).applyInternal(req, reply, true)
+}
+
+// PackPushNoticeRequest announces that packs were pushed to a registry
+// source (or to the cluster registry Registry). The fields are those of
+// bus.PushNotice.
+type PackPushNoticeRequest struct {
+	Source   string
+	Registry string
+	Pack     string
+	Version  string
+	Digest   string
+	structs.WriteRequest
+}
+
+type PackPushNoticeResponse struct {
+	structs.WriteMeta
+}
+
+// NotifyPush publishes a pack push notice on the system bus, where the
+// leader of every region with the matching registries syncs them. Without
+// the bus the registries of this region are synced directly.
+func (p *Packs) NotifyPush(args *PackPushNoticeRequest, reply *PackPushNoticeResponse) error {
+	authErr := p.srv.Authenticate(p.ctx, args)
+	if done, err := p.srv.forward("Packs.NotifyPush", args, args, reply); done {
+		return err
+	}
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+	if err := p.srv.authorizePackRegistryWrite(args); err != nil {
+		return err
+	}
+	if args.Source == "" && args.Registry == "" {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "a push notice needs a Source or a Registry")
+	}
+	return p.srv.publishPushNotice(&bus.PushNotice{
+		Source:   args.Source,
+		Registry: args.Registry,
+		Pack:     args.Pack,
+		Version:  args.Version,
+		Digest:   args.Digest,
+	})
 }

@@ -44,6 +44,11 @@ func (r *PackUploadDeleteRequest) CodecDecodeSelf(d *codec.Decoder) { decodeFiel
 func (r *PackUploadResponse) CodecEncodeSelf(e *codec.Encoder)      { encodeFields(e, r) }
 func (r *PackUploadResponse) CodecDecodeSelf(d *codec.Decoder)      { decodeFields(d, r) }
 
+func (r *PackPushNoticeRequest) CodecEncodeSelf(e *codec.Encoder)  { encodeFields(e, r) }
+func (r *PackPushNoticeRequest) CodecDecodeSelf(d *codec.Decoder)  { decodeFields(d, r) }
+func (r *PackPushNoticeResponse) CodecEncodeSelf(e *codec.Encoder) { encodeFields(e, r) }
+func (r *PackPushNoticeResponse) CodecDecodeSelf(d *codec.Decoder) { decodeFields(d, r) }
+
 // wireTypes caches the wire struct of a type: its exported fields, none of
 // them embedded, so that the wire struct has no promoted methods.
 var wireTypes sync.Map // reflect.Type -> wireType

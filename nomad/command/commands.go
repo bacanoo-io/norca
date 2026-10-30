@@ -776,6 +776,16 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 			}, nil
 		},
 
+		"operator bus": func() (cli.Command, error) {
+			return &OperatorBusCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator bus status": func() (cli.Command, error) {
+			return &OperatorBusStatusCommand{
+				Meta: meta,
+			}, nil
+		},
 		"operator autopilot": func() (cli.Command, error) {
 			return &OperatorAutopilotCommand{
 				Meta: meta,

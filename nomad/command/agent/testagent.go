@@ -21,6 +21,7 @@ import (
 	client "github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/client/fingerprint"
 	"github.com/hashicorp/nomad/helper"
+	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/helper/testlog"
 	"github.com/hashicorp/nomad/nomad"
 	"github.com/hashicorp/nomad/nomad/mock"
@@ -328,12 +329,14 @@ func (a *TestAgent) Client() *api.Client {
 // Instead of relying on one set of ports to be sufficient we retry
 // starting the agent with different ports on port conflict.
 func (a *TestAgent) pickRandomPorts(c *Config) {
-	ports := ci.PortAllocator.Grab(3)
+	ports := ci.PortAllocator.Grab(5)
 	a.ports = append(a.ports, ports...)
 
 	c.Ports.HTTP = ports[0]
 	c.Ports.RPC = ports[1]
 	c.Ports.Serf = ports[2]
+	c.Ports.Bus = ports[3]
+	c.Ports.BusCluster = ports[4]
 
 	if err := c.normalizeAddrs(); err != nil {
 		a.T.Fatalf("error normalizing config: %v", err)
@@ -388,6 +391,10 @@ func (a *TestAgent) config() *Config {
 		conf.Client.Options = make(map[string]string)
 	}
 	conf.Client.Options[fingerprint.TightenNetworkTimeoutsConfig] = "true"
+
+	// The system bus starts only where a test enables it: every server
+	// would run a NATS server with JetStream otherwise.
+	conf.Server.Bus = &BusConfig{Enabled: pointer.Of(false)}
 
 	if a.ConfigCallback != nil {
 		a.ConfigCallback(conf)

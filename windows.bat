@@ -6,9 +6,8 @@ REM Builds the Windows release of Norca from this checkout:
 REM   1. regenerates the embedded web UI, nomad\command\agent\bindata_assetfs.go
 REM      (as ember-dist and static-assets in nomad\GNUmakefile), built from
 REM      nomad\ui,
-REM   2. builds norca.exe and norca-natsbridge.exe like
-REM      .github\workflows\release.yml,
-REM   3. writes a CycloneDX SBOM per binary, and packages everything into
+REM   2. builds norca.exe like .github\workflows\release.yml,
+REM   3. writes a CycloneDX SBOM, and packages everything into
 REM      dist\norca_<version>_windows_<arch>.zip with a SHA256SUMS file.
 REM
 REM Usage: windows.bat [skipui] [arm64]
@@ -89,7 +88,6 @@ set CGO_ENABLED=0
 set GOOS=windows
 set GOARCH=%ARCH%
 go -C "%NOMAD%" build -trimpath -tags ui,codegen_generated,release,timetzdata -ldflags "-X github.com/hashicorp/nomad/version.GitCommit=%SHA% -X github.com/hashicorp/nomad/version.BuildDate=%BUILDDATE%" -o "%OUT%\norca.exe" . || goto fail
-go -C "%NOMAD%\natsbridge" build -trimpath -o "%OUT%\norca-natsbridge.exe" ./cmd/norca-natsbridge || goto fail
 set CGO_ENABLED=
 set GOOS=
 set GOARCH=
@@ -101,17 +99,17 @@ copy /y "%ROOT%\THIRD_PARTY_NOTICES.md" "%OUT%\THIRD_PARTY_NOTICES.md" >nul || g
 REM --- 3. SBOM, archive, checksums ---------------------------------------------
 echo ==^> Writing the SBOMs
 if not exist "%SBOM%" mkdir "%SBOM%"
-for %%b in (norca norca-natsbridge) do (
+for %%b in (norca) do (
   go -C "%NOMAD%\tools" run ./thirdparty sbom -root "%ROOT%" -strict -name %%b -binary "%OUT%\%%b.exe" -source-url "https://github.com/bacanoo-io/norca/tree/%SHA%" -out "%SBOM%\%%b_%VERSION%_windows_%ARCH%.cdx.json" || goto fail
 )
 
 echo ==^> Packaging dist\%NAME%.zip
 if exist "%DIST%\%NAME%.zip" del "%DIST%\%NAME%.zip"
-"%TAR%" -a -c -f "%DIST%\%NAME%.zip" -C "%OUT%" LICENSE NOTICE THIRD_PARTY_NOTICES.md norca.exe norca-natsbridge.exe || goto fail
+"%TAR%" -a -c -f "%DIST%\%NAME%.zip" -C "%OUT%" LICENSE NOTICE THIRD_PARTY_NOTICES.md norca.exe || goto fail
 
 (
   for /f %%h in ('certutil -hashfile "%DIST%\%NAME%.zip" SHA256 ^| findstr /v ":"') do echo %%h  %NAME%.zip
-  for %%b in (norca norca-natsbridge) do (
+  for %%b in (norca) do (
     for /f %%h in ('certutil -hashfile "%SBOM%\%%b_%VERSION%_windows_%ARCH%.cdx.json" SHA256 ^| findstr /v ":"') do echo %%h  sbom/%%b_%VERSION%_windows_%ARCH%.cdx.json
   )
 ) > "%DIST%\%NAME%_SHA256SUMS"
