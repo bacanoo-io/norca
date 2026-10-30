@@ -160,10 +160,29 @@ func (p *ParserV2) newHandleOverride(o *variables.Override) {
 }
 
 func (p *ParserV2) newHandleOverrideVar(o *variables.Override) {
+	// Like a -var value, the value of a variables file is converted with the
+	// declared type constraint, which keeps the optional() attributes of
+	// objects, also inside lists and maps, and their defaults are applied.
+	// A value that does not convert is left to Merge, which reports it.
+	val, ty := o.Value, o.Type
+	if existing, ok := p.rootVars[o.Path][o.Name]; ok && val != cty.NilVal && !val.IsNull() {
+		convType := existing.Type
+		if existing.ConstraintType != cty.NilType {
+			convType = existing.ConstraintType
+		}
+		if convType != cty.NilType && convType != cty.DynamicPseudoType {
+			if cv, err := hclhelp.ConvertValUsingType(val, convType, o.Range.Ptr()); err == nil {
+				if existing.TypeDefaults != nil && !cv.IsNull() {
+					cv = existing.TypeDefaults.Apply(cv)
+				}
+				val, ty = cv, cv.Type()
+			}
+		}
+	}
 	v := variables.Variable{
 		Name:      o.Name,
-		Type:      o.Type,
-		Value:     o.Value,
+		Type:      ty,
+		Value:     val,
 		DeclRange: o.Range,
 	}
 	p.fileOverrideVars[o.Path] = append(p.fileOverrideVars[o.Path], &v)
