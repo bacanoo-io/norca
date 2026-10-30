@@ -91,6 +91,11 @@ job "natsbridge" {
         NATSBRIDGE_JETSTREAM        = var.jetstream_stream != "" ? "true" : "false"
         NATSBRIDGE_JETSTREAM_STREAM = var.jetstream_stream
         NATSBRIDGE_JETSTREAM_CREATE = var.jetstream_stream != "" ? "true" : "false"
+        # Limits of the stream: without them it grows until the server's
+        # max_file_store is full.
+        NATSBRIDGE_JETSTREAM_MAX_AGE     = "72h"
+        NATSBRIDGE_JETSTREAM_MAX_BYTES   = "512MB"
+        NATSBRIDGE_JETSTREAM_COMPRESSION = "s2"
       }
 
       # NATS credentials from the job's Variable (see step 3). The Variable

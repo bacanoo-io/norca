@@ -241,25 +241,3 @@ func timeoutOr(d time.Duration) time.Duration {
 	}
 	return d
 }
-
-// EnsureStream creates the JetStream stream name for the subjects of the
-// region if it does not exist. An existing stream is left unchanged.
-func EnsureStream(ctx context.Context, js jetstream.JetStream, name, prefix, region string, duplicates time.Duration) error {
-	_, err := js.Stream(ctx, name)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, jetstream.ErrStreamNotFound) {
-		return err
-	}
-	_, err = js.CreateStream(ctx, jetstream.StreamConfig{
-		Name:        name,
-		Description: "Norca events of region " + region,
-		Subjects:    []string{prefix + "." + subjectToken(region) + ".>"},
-		Duplicates:  duplicates,
-	})
-	if errors.Is(err, jetstream.ErrStreamNameAlreadyInUse) {
-		return nil
-	}
-	return err
-}

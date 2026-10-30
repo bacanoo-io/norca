@@ -64,6 +64,19 @@ type Config struct {
 	JetStreamStream     string
 	JetStreamCreate     bool
 	JetStreamDuplicates time.Duration
+	// JetStreamReplicas is the number of replicas of a stream created with
+	// JetStreamCreate; 3 keeps the events when a server (or the
+	// datacenter it runs in) fails.
+	JetStreamReplicas int
+	// The limits and options of the stream created with JetStreamCreate;
+	// see StreamSettings.
+	JetStreamMaxAge      time.Duration
+	JetStreamMaxBytes    int64
+	JetStreamStorage     string
+	JetStreamCompression string
+	JetStreamAllowDirect bool
+	JetStreamDenyDelete  bool
+	JetStreamDenyPurge   bool
 
 	// State: the checkpoint and the leader election lease.
 	Checkpoint         string
@@ -131,6 +144,17 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 		}
 		return d
 	}
+	envInt := func(def int, name string) int {
+		v := getenv(name)
+		if v == "" {
+			return def
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			parseErrs = append(parseErrs, fmt.Errorf("%s: %w", name, err))
+		}
+		return n
+	}
 
 	cfg := &Config{}
 	var topics, eventTypes string
@@ -162,6 +186,15 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 	fs.StringVar(&cfg.JetStreamStream, "jetstream-stream", env("NATSBRIDGE_JETSTREAM_STREAM"), "JetStream stream the messages must be stored in (env NATSBRIDGE_JETSTREAM_STREAM)")
 	fs.BoolVar(&cfg.JetStreamCreate, "jetstream-create", envBool(false, "NATSBRIDGE_JETSTREAM_CREATE"), "create the -jetstream-stream stream for <prefix>.<region>.> if it does not exist (env NATSBRIDGE_JETSTREAM_CREATE)")
 	fs.DurationVar(&cfg.JetStreamDuplicates, "jetstream-duplicates", envDuration(10*time.Minute, "NATSBRIDGE_JETSTREAM_DUPLICATES"), "duplicate window of a stream created with -jetstream-create")
+	fs.IntVar(&cfg.JetStreamReplicas, "jetstream-replicas", envInt(1, "NATSBRIDGE_JETSTREAM_REPLICAS"), "replicas of a stream created with -jetstream-create, 1 to 5 (env NATSBRIDGE_JETSTREAM_REPLICAS)")
+	fs.DurationVar(&cfg.JetStreamMaxAge, "jetstream-max-age", envDuration(0, "NATSBRIDGE_JETSTREAM_MAX_AGE"), "maximum age of the messages of the stream, 0 for no limit (env NATSBRIDGE_JETSTREAM_MAX_AGE)")
+	maxBytes := envOr("0", "NATSBRIDGE_JETSTREAM_MAX_BYTES")
+	fs.StringVar(&maxBytes, "jetstream-max-bytes", maxBytes, `maximum size of the stream (of each replica), e.g. "512MB"; 0 for no limit (env NATSBRIDGE_JETSTREAM_MAX_BYTES)`)
+	fs.StringVar(&cfg.JetStreamStorage, "jetstream-storage", envOr(StorageFile, "NATSBRIDGE_JETSTREAM_STORAGE"), `storage of a stream created with -jetstream-create: "file" or "memory" (env NATSBRIDGE_JETSTREAM_STORAGE)`)
+	fs.StringVar(&cfg.JetStreamCompression, "jetstream-compression", envOr(CompressionNone, "NATSBRIDGE_JETSTREAM_COMPRESSION"), `compression of the stored messages: "none" or "s2" (env NATSBRIDGE_JETSTREAM_COMPRESSION)`)
+	fs.BoolVar(&cfg.JetStreamAllowDirect, "jetstream-allow-direct", envBool(false, "NATSBRIDGE_JETSTREAM_ALLOW_DIRECT"), "let every replica answer direct gets, not only the leader (env NATSBRIDGE_JETSTREAM_ALLOW_DIRECT)")
+	fs.BoolVar(&cfg.JetStreamDenyDelete, "jetstream-deny-delete", envBool(false, "NATSBRIDGE_JETSTREAM_DENY_DELETE"), "forbid deleting single messages of a stream created with -jetstream-create (env NATSBRIDGE_JETSTREAM_DENY_DELETE)")
+	fs.BoolVar(&cfg.JetStreamDenyPurge, "jetstream-deny-purge", envBool(false, "NATSBRIDGE_JETSTREAM_DENY_PURGE"), "forbid purging a stream created with -jetstream-create (env NATSBRIDGE_JETSTREAM_DENY_PURGE)")
 
 	fs.StringVar(&cfg.Checkpoint, "checkpoint", envOr(CheckpointVariable, "NATSBRIDGE_CHECKPOINT"), `checkpoint store: "variable", "file" or "none" (env NATSBRIDGE_CHECKPOINT)`)
 	fs.StringVar(&cfg.CheckpointPath, "checkpoint-path", env("NATSBRIDGE_CHECKPOINT_PATH"), "Variable path or file of the checkpoint (default: <state-prefix>/checkpoint; required for \"file\")")
@@ -192,6 +225,9 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 	}
 
 	var err error
+	if cfg.JetStreamMaxBytes, err = ParseBytes(maxBytes); err != nil {
+		return nil, fmt.Errorf("-jetstream-max-bytes: %w", err)
+	}
 	if cfg.Topics, err = ParseTopics(topics); err != nil {
 		return nil, err
 	}
@@ -250,6 +286,28 @@ func (cfg *Config) validate() error {
 		}
 	default:
 		return fmt.Errorf("invalid -checkpoint %q", cfg.Checkpoint)
+	}
+	if cfg.JetStreamReplicas < 1 || cfg.JetStreamReplicas > 5 {
+		return fmt.Errorf("-jetstream-replicas %d must be 1 to 5", cfg.JetStreamReplicas)
+	}
+	if cfg.JetStreamMaxAge < 0 {
+		return errors.New("-jetstream-max-age can't be negative")
+	}
+	if cfg.JetStreamMaxAge > 0 && cfg.JetStreamMaxAge < cfg.JetStreamDuplicates {
+		return fmt.Errorf("-jetstream-max-age %s must be at least the duplicate window -jetstream-duplicates %s", cfg.JetStreamMaxAge, cfg.JetStreamDuplicates)
+	}
+	switch cfg.JetStreamStorage {
+	case StorageFile, StorageMemory:
+	default:
+		return fmt.Errorf(`invalid -jetstream-storage %q: "file" or "memory"`, cfg.JetStreamStorage)
+	}
+	switch cfg.JetStreamCompression {
+	case CompressionNone, CompressionS2:
+	default:
+		return fmt.Errorf(`invalid -jetstream-compression %q: "none" or "s2"`, cfg.JetStreamCompression)
+	}
+	if cfg.JetStreamCompression == CompressionS2 && cfg.JetStreamStorage == StorageMemory {
+		return errors.New("-jetstream-compression=s2 needs -jetstream-storage=file")
 	}
 	if cfg.JetStreamCreate && cfg.JetStreamStream == "" {
 		return errors.New("-jetstream-create requires -jetstream-stream")

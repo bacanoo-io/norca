@@ -81,6 +81,22 @@ supercluster carries them between the clouds.
   the last published batch. While NATS is unreachable the bridge does not read
   further; the server keeps the events in its event buffer.
 
+### The stream of `-jetstream-create`
+
+The bridge owns the stream it creates. On every start it brings the settings
+that can change on an existing stream back to its flags: duplicate window,
+replicas, `max_age`, `max_bytes`, compression and direct gets (the log says
+`updated the JetStream stream`). The storage and the deny flags can only be
+chosen at creation; when they differ the bridge logs a warning and keeps the
+stream (recreate it to change them). A full stream discards its oldest
+messages (`discard: old`), so the bridge never stops publishing because of
+the limits.
+
+Without `-jetstream-max-age` or `-jetstream-max-bytes` the stream grows until
+the server's `max_file_store` (or `max_memory_store`) is reached, and then
+every publish fails. Set at least one of them; `max_bytes` times the number of
+streams on a server must fit in its store.
+
 ### Checkpoint store (decision)
 
 `-checkpoint=variable` (default) keeps the checkpoint in a Nomad Variable,
@@ -160,6 +176,14 @@ Flags, with environment variables as defaults:
 | `-jetstream` | `NATSBRIDGE_JETSTREAM` | `false` | publish with JetStream, wait for acks |
 | `-jetstream-stream` | `NATSBRIDGE_JETSTREAM_STREAM` | | stream the messages must be stored in |
 | `-jetstream-create` | `NATSBRIDGE_JETSTREAM_CREATE` | `false` | create that stream for `<prefix>.<region>.>` if missing |
+| `-jetstream-duplicates` | `NATSBRIDGE_JETSTREAM_DUPLICATES` | `10m` | duplicate window of that stream |
+| `-jetstream-replicas` | `NATSBRIDGE_JETSTREAM_REPLICAS` | `1` | replicas of that stream (1 to 5); 3 keeps the events when a server or its datacenter fails |
+| `-jetstream-max-age` | `NATSBRIDGE_JETSTREAM_MAX_AGE` | `0` (no limit) | age after which events are dropped, e.g. `72h`; at least the duplicate window |
+| `-jetstream-max-bytes` | `NATSBRIDGE_JETSTREAM_MAX_BYTES` | `0` (no limit) | size of the stream (of each replica), e.g. `512MB` |
+| `-jetstream-storage` | `NATSBRIDGE_JETSTREAM_STORAGE` | `file` | `file` or `memory`; only when the stream is created |
+| `-jetstream-compression` | `NATSBRIDGE_JETSTREAM_COMPRESSION` | `none` | `none` or `s2` (file storage only) |
+| `-jetstream-allow-direct` | `NATSBRIDGE_JETSTREAM_ALLOW_DIRECT` | `false` | every replica answers direct gets, not only the leader |
+| `-jetstream-deny-delete`, `-jetstream-deny-purge` | `NATSBRIDGE_JETSTREAM_DENY_DELETE`, `NATSBRIDGE_JETSTREAM_DENY_PURGE` | `false` | forbid deleting messages / purging; only when the stream is created |
 | `-publish-timeout` | `NATSBRIDGE_PUBLISH_TIMEOUT` | `10s` | per batch |
 | `-checkpoint` | `NATSBRIDGE_CHECKPOINT` | `variable` | `variable`, `file` or `none` |
 | `-checkpoint-path` | `NATSBRIDGE_CHECKPOINT_PATH` | `<state-prefix>/checkpoint` | |

@@ -117,7 +117,21 @@ func Run(ctx context.Context, cfg *Config, logger *slog.Logger) error {
 		}
 		if cfg.JetStreamCreate {
 			if err := retry(ctx, logger, "creating the JetStream stream", func() error {
-				return EnsureStream(ctx, js, cfg.JetStreamStream, cfg.SubjectPrefix, region, cfg.JetStreamDuplicates)
+				res, err := EnsureStream(ctx, js, cfg.JetStreamStream, cfg.SubjectPrefix, region, cfg.StreamSettings())
+				if err != nil {
+					return err
+				}
+				switch {
+				case res.Created:
+					logger.Info("created the JetStream stream", "stream", cfg.JetStreamStream)
+				case len(res.Updated) > 0:
+					logger.Info("updated the JetStream stream", "stream", cfg.JetStreamStream, "settings", strings.Join(res.Updated, ","))
+				}
+				if len(res.Kept) > 0 {
+					logger.Warn("settings of the JetStream stream can't be changed after its creation; recreate the stream to change them",
+						"stream", cfg.JetStreamStream, "settings", strings.Join(res.Kept, ","))
+				}
+				return nil
 			}); err != nil {
 				return nil // canceled
 			}
