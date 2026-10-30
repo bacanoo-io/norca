@@ -32,7 +32,7 @@ make dev                  # writes bin/norca and copies it to $GOBIN
 norca agent -dev          # start a development agent
 norca job init            # write an example job file
 norca job run example.nomad.hcl
-norca version             # Norca v0.1.0 (Nomad API 1.6.5 compatible)
+norca version             # Norca v0.2.0 (Nomad API 1.6.5 compatible)
 ```
 
 The version line shows the Norca version and the Nomad version whose HTTP API and protocols Norca is compatible with; existing Nomad API clients, agents of the cluster and tools keep working against it.
