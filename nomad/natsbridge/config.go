@@ -98,6 +98,9 @@ type Config struct {
 	SyncPushes   bool
 	SyncRegions  bool
 	SyncCooldown time.Duration
+	// SyncStream is the JetStream stream of the push notices; with
+	// JetStream the inbound mode reads through durable consumers.
+	SyncStream string
 }
 
 // registryTopic is the topic filter of the pack registry events that
@@ -212,6 +215,7 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 
 	fs.BoolVar(&cfg.SyncPushes, "sync-pushes", envBool(false, "NATSBRIDGE_SYNC_PUSHES"), "sync the pack registries of the sources named by push notices on <prefix>.packs.pushed (env NATSBRIDGE_SYNC_PUSHES)")
 	fs.BoolVar(&cfg.SyncRegions, "sync-regions", envBool(false, "NATSBRIDGE_SYNC_REGIONS"), "publish the pack registry events and sync a registry when the one of the same name and source in another region found other packs (env NATSBRIDGE_SYNC_REGIONS)")
+	fs.StringVar(&cfg.SyncStream, "sync-stream", envOr(DefaultPushStream, "NATSBRIDGE_SYNC_STREAM"), "with -jetstream: stream of the push notices, consumed durably (created with -jetstream-create) (env NATSBRIDGE_SYNC_STREAM)")
 	fs.DurationVar(&cfg.SyncCooldown, "sync-cooldown", envDuration(time.Minute, "NATSBRIDGE_SYNC_COOLDOWN"), "minimum time between two syncs of a registry triggered from NATS (env NATSBRIDGE_SYNC_COOLDOWN)")
 
 	if err := fs.Parse(args); err != nil {
@@ -320,6 +324,9 @@ func (cfg *Config) validate() error {
 	}
 	if cfg.LeaseDuration < 2*time.Second {
 		return errors.New("-lease-duration must be at least 2s")
+	}
+	if cfg.SyncPushes && cfg.JetStream && cfg.SyncStream == "" {
+		return errors.New("-sync-pushes with -jetstream requires -sync-stream")
 	}
 	if cfg.SyncCooldown < 0 {
 		return errors.New("-sync-cooldown can't be negative")

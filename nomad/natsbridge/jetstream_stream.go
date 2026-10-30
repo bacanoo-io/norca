@@ -69,17 +69,25 @@ type StreamResult struct {
 // EnsureStream creates the JetStream stream name for the subjects of the
 // region, or updates the settings of an existing one that can change.
 func EnsureStream(ctx context.Context, js jetstream.JetStream, name, prefix, region string, set StreamSettings) (StreamResult, error) {
+	return ensureStream(ctx, js, jetstream.StreamConfig{
+		Name:        name,
+		Description: "Norca events of region " + region,
+		Subjects:    []string{prefix + "." + subjectToken(region) + ".>"},
+	}, set)
+}
+
+// ensureStream creates the stream of base (name, description, subjects)
+// with the settings, or updates the settings of an existing one that can
+// change; the subjects of an existing stream are kept.
+func ensureStream(ctx context.Context, js jetstream.JetStream, base jetstream.StreamConfig, set StreamSettings) (StreamResult, error) {
 	var res StreamResult
+	name := base.Name
 	s, err := js.Stream(ctx, name)
 	if errors.Is(err, jetstream.ErrStreamNotFound) {
-		cfg := jetstream.StreamConfig{
-			Name:        name,
-			Description: "Norca events of region " + region,
-			Subjects:    []string{prefix + "." + subjectToken(region) + ".>"},
-			Storage:     storageType(set.Storage),
-			DenyDelete:  set.DenyDelete,
-			DenyPurge:   set.DenyPurge,
-		}
+		cfg := base
+		cfg.Storage = storageType(set.Storage)
+		cfg.DenyDelete = set.DenyDelete
+		cfg.DenyPurge = set.DenyPurge
 		set.apply(&cfg)
 		_, err = js.CreateStream(ctx, cfg)
 		if errors.Is(err, jetstream.ErrStreamNameAlreadyInUse) {

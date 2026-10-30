@@ -6,6 +6,7 @@ package natsbridge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -15,13 +16,21 @@ import (
 )
 
 // fakeRegistries is a RegistryAPI of fixed registries that records syncs.
+// The first failLists listings fail, like an unreachable Norca API.
 type fakeRegistries struct {
-	mu     sync.Mutex
-	regs   []*Registry
-	synced []string
+	mu        sync.Mutex
+	regs      []*Registry
+	synced    []string
+	failLists int
 }
 
 func (f *fakeRegistries) Registries(context.Context) ([]*Registry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.failLists > 0 {
+		f.failLists--
+		return nil, errors.New("norca API unreachable")
+	}
 	return f.regs, nil
 }
 
@@ -169,4 +178,10 @@ func TestConfig_SyncRegionsForwardsRegistryEvents(t *testing.T) {
 	must.Eq(t, "redis", n.Pack)
 	_, _, err = ParsePushConfig(nil, env, nil)
 	must.ErrorContains(t, err, "-source or -registry")
+
+	cfg, err = ParseConfig([]string{"-jetstream", "-sync-pushes"}, env, nil)
+	must.NoError(t, err)
+	must.Eq(t, DefaultPushStream, cfg.SyncStream)
+	_, err = ParseConfig([]string{"-jetstream", "-sync-pushes", "-sync-stream", ""}, env, nil)
+	must.ErrorContains(t, err, "-sync-stream")
 }

@@ -97,24 +97,52 @@ func Run(ctx context.Context, cfg *Config, logger *slog.Logger) error {
 	}
 	defer nc.Close()
 
-	if cfg.SyncPushes || cfg.SyncRegions {
-		syncer := &Syncer{API: &apiRegistries{client: client, region: region}, Region: region, Cooldown: cfg.SyncCooldown, Logger: logger}
-		subs, err := syncer.Subscribe(ctx, nc, cfg.SubjectPrefix, cfg.SyncPushes, cfg.SyncRegions)
-		for _, sub := range subs {
-			defer sub.Unsubscribe() //nolint:errcheck
-		}
-		if err != nil {
+	var js jetstream.JetStream
+	if cfg.JetStream {
+		if js, err = jetstream.New(nc); err != nil {
 			return err
 		}
-		logger.Info("syncing pack registries from NATS", "pushes", cfg.SyncPushes, "regions", cfg.SyncRegions)
+	}
+
+	if cfg.SyncPushes || cfg.SyncRegions {
+		syncer := &Syncer{API: &apiRegistries{client: client, region: region}, Region: region, Cooldown: cfg.SyncCooldown, Logger: logger}
+		if js != nil {
+			// Durable consumers: messages published while no instance runs
+			// are handled when one starts again.
+			if cfg.SyncPushes && cfg.JetStreamCreate {
+				if err := retry(ctx, logger, "creating the push notice stream", func() error {
+					res, err := EnsurePushStream(ctx, js, cfg.SyncStream, cfg.SubjectPrefix, cfg.StreamSettings())
+					if err == nil && res.Created {
+						logger.Info("created the push notice stream", "stream", cfg.SyncStream)
+					}
+					return err
+				}); err != nil {
+					return nil // canceled
+				}
+			}
+			syncCtx, stopSync := context.WithCancel(ctx)
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				syncer.Consume(syncCtx, js, SyncConsumerOptions{
+					Prefix: cfg.SubjectPrefix, Pushes: cfg.SyncPushes, PushStream: cfg.SyncStream, Regions: cfg.SyncRegions,
+				})
+			}()
+			defer func() { stopSync(); <-done }()
+		} else {
+			subs, err := syncer.Subscribe(ctx, nc, cfg.SubjectPrefix, cfg.SyncPushes, cfg.SyncRegions)
+			for _, sub := range subs {
+				defer sub.Unsubscribe() //nolint:errcheck
+			}
+			if err != nil {
+				return err
+			}
+		}
+		logger.Info("syncing pack registries from NATS", "pushes", cfg.SyncPushes, "regions", cfg.SyncRegions, "durable", js != nil)
 	}
 
 	var pub Publisher = &CorePublisher{Conn: nc, Timeout: cfg.PublishTimeout}
-	if cfg.JetStream {
-		js, err := jetstream.New(nc)
-		if err != nil {
-			return err
-		}
+	if js != nil {
 		if cfg.JetStreamCreate {
 			if err := retry(ctx, logger, "creating the JetStream stream", func() error {
 				res, err := EnsureStream(ctx, js, cfg.JetStreamStream, cfg.SubjectPrefix, region, cfg.StreamSettings())
