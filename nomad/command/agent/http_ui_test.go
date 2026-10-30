@@ -36,14 +36,10 @@ func readUIAsset(t *testing.T, fs *UIAssetWrapper, name string) string {
 	return string(b)
 }
 
-func TestUIAssetWrapper_LegacyFallback(t *testing.T) {
+func TestUIAssetWrapper_Fallback(t *testing.T) {
 	fs := testUIAssets(map[string]string{
-		"index.html":            "new",
-		"assets/app.js":         "new-js",
-		"legacy/index.html":     "legacy",
-		"legacy/assets/app.js":  "legacy-js",
-		"legacy/robots.txt":     "legacy-robots",
-		"legacyish/unrelated.x": "x",
+		"index.html":    "new",
+		"assets/app.js": "new-js",
 	})
 
 	cases := []struct {
@@ -52,21 +48,13 @@ func TestUIAssetWrapper_LegacyFallback(t *testing.T) {
 	}{
 		{"/assets/app.js", "new-js"},
 		{"/jobs/example", "new"},
-		{"/legacy/assets/app.js", "legacy-js"},
-		{"/legacy/jobs/example", "legacy"},
-		{"legacy/clients", "legacy"},
-		{"/legacyish/jobs", "new"},
+		// the previous UI is gone: its old links reach the not-found page of
+		// the UI
+		{"/legacy/jobs", "new"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.path, func(t *testing.T) {
 			must.Eq(t, tc.want, readUIAsset(t, fs, tc.path))
 		})
 	}
-}
-
-func TestUIAssetWrapper_NoLegacyBuild(t *testing.T) {
-	// A binary built without the legacy UI serves the new UI's index.html,
-	// whose not-found page handles the unknown route.
-	fs := testUIAssets(map[string]string{"index.html": "new"})
-	must.Eq(t, "new", readUIAsset(t, fs, "/legacy/jobs"))
 }

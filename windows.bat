@@ -4,19 +4,15 @@ REM SPDX-License-Identifier: MPL-2.0
 REM
 REM Builds the Windows release of Norca from this checkout:
 REM   1. regenerates the embedded web UI, nomad\command\agent\bindata_assetfs.go
-REM      (as ember-dist and static-assets in nomad\GNUmakefile): the new UI is
-REM      built from nomad\ui; the legacy UI served at /ui/legacy/ never changes
-REM      and its build tools fail on Windows, so it is taken over from the
-REM      current bindata_assetfs.go (make ember-dist-legacy builds it from
-REM      source on Linux),
+REM      (as ember-dist and static-assets in nomad\GNUmakefile), built from
+REM      nomad\ui,
 REM   2. builds norca.exe and norca-natsbridge.exe like
 REM      .github\workflows\release.yml,
 REM   3. writes a CycloneDX SBOM per binary, and packages everything into
 REM      dist\norca_<version>_windows_<arch>.zip with a SHA256SUMS file.
 REM
-REM Usage: windows.bat [skipui] [nolegacy] [arm64]
+REM Usage: windows.bat [skipui] [arm64]
 REM   skipui    keep the current bindata_assetfs.go (no Node or Yarn needed)
-REM   nolegacy  leave the legacy UI out (/ui/legacy/ then serves the new UI)
 REM   arm64     build for windows/arm64 instead of windows/amd64
 REM
 REM Needs git and Go (go.mod selects the toolchain); for the UI also Node 20
@@ -29,17 +25,15 @@ if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 set "NOMAD=%ROOT%\nomad"
 set "DIST=%ROOT%\dist"
 set "TOOLS=%NOMAD%\build\tools"
-set "LEGACYDIR=%NOMAD%\build\ui-legacy-dist"
 set "TAR=%SystemRoot%\System32\tar.exe"
 set SKIPUI=0
-set SKIPLEGACY=0
 set ARCH=amd64
 
 :args
 if "%~1"=="" goto argsdone
-if /i "%~1"=="skipui" (set SKIPUI=1) else if /i "%~1"=="nolegacy" (set SKIPLEGACY=1) else if /i "%~1"=="arm64" (set ARCH=arm64) else (
+if /i "%~1"=="skipui" (set SKIPUI=1) else if /i "%~1"=="arm64" (set ARCH=arm64) else (
   echo unknown option: %~1
-  echo usage: windows.bat [skipui] [nolegacy] [arm64]
+  echo usage: windows.bat [skipui] [arm64]
   exit /b 2
 )
 shift
@@ -55,25 +49,12 @@ where yarn >nul 2>&1 || (echo yarn is not on the PATH; install Yarn 1.22, or use
 set HUSKY_SKIP_INSTALL=1
 
 REM --- 1. Web UI ---------------------------------------------------------------
-if %SKIPLEGACY%==1 goto newui
-REM Extract the legacy UI before bindata_assetfs.go is regenerated below.
-echo ==^> Taking over the legacy UI from nomad\command\agent\bindata_assetfs.go
-if exist "%LEGACYDIR%" rmdir /s /q "%LEGACYDIR%"
-go -C "%NOMAD%" run -tags ui,codegen_generated ./scripts/legacyui "%LEGACYDIR%" || (echo restore the committed file with: git checkout nomad\command\agent\bindata_assetfs.go, or use: windows.bat nolegacy & goto fail)
-
-:newui
 echo ==^> Building the web UI (nomad\ui)
 pushd "%NOMAD%\ui" || goto fail
 call yarn install --frozen-lockfile --network-timeout 300000 || goto fail
 call npm run build || goto fail
 popd
 
-if %SKIPLEGACY%==1 goto bindata
-REM ember build has emptied ui\dist: put the legacy UI back.
-xcopy /e /i /q "%LEGACYDIR%" "%NOMAD%\ui\dist\legacy" >nul || goto fail
-rmdir /s /q "%LEGACYDIR%"
-
-:bindata
 echo ==^> Embedding the UI into nomad\command\agent\bindata_assetfs.go
 set "GOBIN=%TOOLS%"
 go -C "%NOMAD%" install github.com/hashicorp/go-bindata/go-bindata@bf7910af899725e4938903fb32048c7c0b15f12e || goto fail

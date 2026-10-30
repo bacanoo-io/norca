@@ -164,29 +164,3 @@ func writeUI(t *testing.T, name, license string) string {
 	}
 	return dir
 }
-
-func TestLegacyOnlyOverride(t *testing.T) {
-	dir := writeUI(t, "robust-predicates", "Unlicense")
-	src, err := newNPMSource(dir, t.TempDir(), true)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// The previous UI may use the package under the recorded exception.
-	_, problems, err := collectNPM(dir, src, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(problems) != 0 {
-		t.Errorf("legacy UI: unexpected problems %v", problems)
-	}
-
-	// The web UI may not.
-	_, problems, err = collectNPM(dir, src, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(problems) != 1 || !strings.Contains(problems[0], "legacy UI only") {
-		t.Errorf("web UI: problems = %v, want the legacy-only decision", problems)
-	}
-}

@@ -126,21 +126,12 @@ the agent answers 410 Gone, the subscribers refetch (`onResync`) and the
 stream continues after the refetched state. With Mirage (development) and
 in tests it is disabled (`APP.eventStream` in `config/environment.js`).
 
-### The previous UI
-
-The UI of the previous release is served at `/ui/legacy/` for one release.
-`make prerelease` (target `ember-dist-legacy`) builds it from the commit in
-`LEGACY_UI_REF` with the root URL `/ui/legacy/` into `ui/dist/legacy`,
-which is embedded with the rest of the UI. The agent serves
-`legacy/index.html` for every unknown path under `/ui/legacy/`. A binary
-built without the legacy UI shows the not-found page of the new UI there.
-`make dev-ui` does not build the legacy UI.
+### Embedding the UI
 
 The release workflow embeds the committed `command/agent/bindata_assetfs.go`:
-after a UI change, run `make prerelease` (or `ember-dist`,
-`ember-dist-legacy` and `static-assets`) and commit the regenerated file.
-The legacy UI builds on Linux and macOS; on Windows its ember-auto-import
-version fails, so build it in WSL.
+after a UI change, run `make prerelease` (or `ember-dist` and
+`static-assets`) and commit the regenerated file. On Windows,
+`windows.bat` regenerates it.
 
 ### Troubleshooting
 
