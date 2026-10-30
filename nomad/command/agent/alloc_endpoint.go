@@ -6,6 +6,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -731,9 +732,22 @@ func forwardExecInput(encoder *codec.Encoder, ws *websocket.Conn, errCh chan<- H
 		}
 
 		err = encoder.Encode(sf)
+		if isClosedPipe(err) {
+			// The stream has ended: the streaming goroutine reports how
+			// (normally, or with the error of the RPC, e.g. an unknown
+			// allocation), which this error must not replace.
+			return
+		}
 		if err != nil {
 			errCh <- CodedError(500, err.Error())
 			return
 		}
 	}
+}
+
+// isClosedPipe reports a write to the RPC pipe after the stream was closed.
+// The msgpack encoder wraps the error without keeping it, so the text is
+// compared too.
+func isClosedPipe(err error) bool {
+	return err != nil && (errors.Is(err, io.ErrClosedPipe) || strings.Contains(err.Error(), io.ErrClosedPipe.Error()))
 }
