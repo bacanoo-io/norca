@@ -61,6 +61,13 @@ var validationAttributeKeys = map[string]string{
 //	    group   = "Authentication"
 //	    show_if = { field = "auth_enabled", equals = true }
 //	  }
+//
+// A list of objects can name the choices of attributes of its items, which
+// the install form shows as selects in the columns of its table:
+//
+//	ui {
+//	  item_options = { protocol = ["http", "https", "tcp", "udp"] }
+//	}
 //	  secret {
 //	    path = "nomad/jobs/redis"
 //	    item = "password"
@@ -157,6 +164,9 @@ func decodeUIBlock(v *variables.Variable, b *hcl.Block) hcl.Diagnostics {
 			continue
 		}
 		out, err := uiAttributeValue(name, val)
+		if err == "" && name == "item_options" {
+			err = itemOptions(v, out)
+		}
 		if err != "" {
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
@@ -164,6 +174,9 @@ func decodeUIBlock(v *variables.Variable, b *hcl.Block) hcl.Diagnostics {
 				Detail:   err,
 				Subject:  attr.Expr.Range().Ptr(),
 			})
+			continue
+		}
+		if name == "item_options" {
 			continue
 		}
 		v.UI[uiAttributeKeys[name]] = out
@@ -211,6 +224,10 @@ func uiAttributeValue(name string, val cty.Value) (any, string) {
 		if !ty.IsObjectType() && !ty.IsMapType() {
 			return nil, `The value must be a map of option to label, such as { replica = "Primary + Replicas" }.`
 		}
+	case "item_options":
+		if !ty.IsObjectType() && !ty.IsMapType() {
+			return nil, `The value must be a map of attribute to choices, such as { protocol = ["http", "tcp"] }.`
+		}
 	case "show_if":
 		// A variable name, shown when the variable is set (truthy), or
 		// { field = "...", equals | notEquals | in = ... }.
@@ -235,6 +252,54 @@ func uiAttributeValue(name string, val cty.Value) (any, string) {
 		return nil, err.Error()
 	}
 	return out, ""
+}
+
+// itemOptions adds the choices of attributes of the items of a list of
+// objects to the item schema of the variable (items.properties.<attr>.enum),
+// where the form and the validation of the values find them. It returns an
+// error text.
+func itemOptions(v *variables.Variable, value any) string {
+	options, _ := value.(map[string]any)
+	ty := v.ConstraintType
+	if ty == cty.NilType {
+		ty = v.Type
+	}
+	var attrs map[string]cty.Type
+	if ty.IsListType() || ty.IsSetType() {
+		if elem := ty.ElementType(); elem.IsObjectType() {
+			attrs = elem.AttributeTypes()
+		}
+	}
+	if attrs == nil {
+		return "item_options is for variables of a list of objects."
+	}
+	names := make([]string, 0, len(options))
+	for name := range options {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	props := map[string]any{}
+	for _, name := range names {
+		at, ok := attrs[name]
+		if !ok {
+			return fmt.Sprintf("The items have no attribute %q.", name)
+		}
+		if !at.IsPrimitiveType() {
+			return fmt.Sprintf("The attribute %q is not a string, number or bool.", name)
+		}
+		choices, ok := options[name].([]any)
+		if !ok || len(choices) == 0 {
+			return fmt.Sprintf("The choices of %q must be a non-empty list.", name)
+		}
+		props[name] = map[string]any{"enum": choices}
+	}
+	items, _ := v.UI["items"].(map[string]any)
+	if items == nil {
+		items = map[string]any{}
+		v.UI["items"] = items
+	}
+	items["properties"] = props
+	return ""
 }
 
 func decodeValidationBlock(v *variables.Variable, b *hcl.Block) hcl.Diagnostics {

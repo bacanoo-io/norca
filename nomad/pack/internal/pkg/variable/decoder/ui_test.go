@@ -93,6 +93,30 @@ func TestDecoder_FormBlocks(t *testing.T) {
 		"maximum":     1,
 	}, v.UI)
 
+	// The choices of attributes of the items of a list of objects.
+	v, diags = DecodeVariableBlock(testGetHCLBlock(t, testLoadPackFile(t, []byte(`variable "entrypoints" {
+	type = list(object({
+		name     = string
+		port     = number
+		protocol = optional(string, "http")
+	}))
+	default = [{ name = "web", port = 80 }]
+	ui {
+		item_options = { protocol = ["http", "https", "tcp", "udp"] }
+	}
+	validation {
+		item_min_length = 1
+	}
+}`))))
+	must.False(t, diags.HasErrors(), must.Sprint(diags))
+	must.Eq(t, map[string]any{
+		"items": map[string]any{
+			"minLength":  1,
+			"properties": map[string]any{"protocol": map[string]any{"enum": []any{"http", "https", "tcp", "udp"}}},
+		},
+	}, v.UI)
+	must.True(t, v.HasConstraints())
+
 	v, diags = DecodeVariableBlock(testGetHCLBlock(t, testLoadPackFile(t, []byte(`variable "plain" {}`))))
 	must.False(t, diags.HasErrors())
 	must.Nil(t, v.UI)
@@ -121,6 +145,12 @@ func TestDecoder_FormBlocksInvalid(t *testing.T) {
 		"slider bounds":  "ui { widget = \"slider\" }\nvalidation { min = 1 }",
 		"slider order":   "ui { widget = \"slider\" }\nvalidation {\nmin = 5\nmax = 5\n}",
 		"slider type":    "type = string\nui { widget = \"slider\" }\nvalidation {\nmin = 1\nmax = 5\n}",
+
+		"item_options of a string":   "type = string\nui { item_options = { a = [\"x\"] } }",
+		"item_options unknown attr":  "type = list(object({ a = string }))\nui { item_options = { b = [\"x\"] } }",
+		"item_options empty choices": "type = list(object({ a = string }))\nui { item_options = { a = [] } }",
+		"item_options of a list":     "type = list(object({ a = list(string) }))\nui { item_options = { a = [\"x\"] } }",
+		"item_options type":          "type = list(object({ a = string }))\nui { item_options = [\"x\"] }",
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {

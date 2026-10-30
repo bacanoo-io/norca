@@ -1,0 +1,82 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Field
+  @label={{this.field.title}}
+  @required={{this.field.required}}
+  @help={{this.field.description}}
+  @error={{this.error}}
+>
+  <Ui::Table
+    @columns={{this.columns}}
+    @rows={{this.rows}}
+    @emptyMessage="No items."
+    data-test-pack-table={{this.field.id}}
+    as |row|
+  >
+    {{#each this.field.columns as |column|}}
+      <td data-test-pack-cell={{concat row.index "." column.key}}>
+        {{#if (or (eq column.widget "select") (eq column.widget "segmented"))}}
+          <Ui::Select
+            @size="sm"
+            @label={{column.title}}
+            @invalid={{this.cellError row.index column}}
+            @value={{this.cell row.index column}}
+            @options={{this.options column}}
+            @onChange={{fn this.change row.index column}}
+          />
+        {{else if (eq column.widget "switch")}}
+          <Ui::Switch
+            @label={{column.title}}
+            @checked={{this.cell row.index column}}
+            @onChange={{fn this.change row.index column}}
+          />
+        {{else if (eq column.widget "number")}}
+          <Ui::Input
+            @type="number"
+            @invalid={{this.cellError row.index column}}
+            @value={{this.cell row.index column}}
+            @onInput={{fn this.change row.index column}}
+            aria-label={{column.title}}
+          />
+        {{else}}
+          <Ui::Input
+            @invalid={{this.cellError row.index column}}
+            @monospace={{column.json}}
+            @value={{this.cell row.index column}}
+            @onInput={{fn this.change row.index column}}
+            aria-label={{column.title}}
+          />
+        {{/if}}
+        {{#if (this.cellError row.index column)}}
+          <div
+            class="small text-danger"
+            data-test-pack-cell-error
+          >{{this.cellError row.index column}}</div>
+        {{/if}}
+      </td>
+    {{/each}}
+    <td>
+      <Ui::Button
+        @size="sm"
+        @variant="outline-danger"
+        @icon="trash"
+        @iconOnly={{true}}
+        @label="Remove"
+        data-test-pack-table-remove={{row.index}}
+        {{on "click" (fn this.remove row.index)}}
+      />
+    </td>
+  </Ui::Table>
+  {{#if this.canAdd}}
+    <Ui::Button
+      @size="sm"
+      @variant="outline-primary"
+      @icon="plus"
+      class="mt-2"
+      data-test-pack-table-add
+      {{on "click" this.add}}
+    >Add</Ui::Button>
+  {{/if}}
+</Ui::Field>

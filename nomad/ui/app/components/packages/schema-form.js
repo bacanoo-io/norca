@@ -369,6 +369,15 @@ export default class PackagesSchemaForm extends Component {
     );
     this.plan = null;
     this.clearError(field.id);
+    if (field.widget === 'table') {
+      // The errors of the cells of the table.
+      const prefix = `${field.id}.`;
+      if (Object.keys(this.errors).some((id) => id.startsWith(prefix))) {
+        this.errors = Object.fromEntries(
+          Object.entries(this.errors).filter(([id]) => !id.startsWith(prefix))
+        );
+      }
+    }
   }
 
   @action setDraft(field, text) {

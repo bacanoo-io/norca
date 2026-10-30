@@ -196,6 +196,12 @@ func applyVariableUI(prop, ui map[string]any) {
 			if base, ok := prop["items"].(map[string]any); ok {
 				merged := maps.Clone(base)
 				for sk, sv := range sub {
+					// The choices of attributes (ui item_options) add to
+					// the schemas of the attributes of the items.
+					if sk == "properties" {
+						merged[sk] = mergeItemProperties(base["properties"], sv)
+						continue
+					}
 					merged[sk] = sv
 				}
 				prop[k] = merged
@@ -212,6 +218,33 @@ func applyVariableUI(prop, ui map[string]any) {
 			prop["x-ui-widget"] = "select"
 		}
 	}
+}
+
+// mergeItemProperties lays the attribute schemas of overlay over those of
+// base, attribute by attribute.
+func mergeItemProperties(base, overlay any) any {
+	baseProps, _ := base.(map[string]any)
+	overProps, ok := overlay.(map[string]any)
+	if !ok {
+		return base
+	}
+	out := maps.Clone(baseProps)
+	if out == nil {
+		out = map[string]any{}
+	}
+	for name, sv := range overProps {
+		over, _ := sv.(map[string]any)
+		attr, _ := out[name].(map[string]any)
+		merged := maps.Clone(attr)
+		if merged == nil {
+			merged = map[string]any{}
+		}
+		for k, v := range over {
+			merged[k] = v
+		}
+		out[name] = merged
+	}
+	return out
 }
 
 func ctyTypeToSchema(name string, t cty.Type) map[string]any {

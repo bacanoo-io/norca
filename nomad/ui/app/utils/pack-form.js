@@ -78,7 +78,9 @@ function widgetOf(prop) {
         ? 'slider'
         : 'number';
     case 'object-list':
-      return 'json';
+      // A table with a column per attribute of the items; lists of items
+      // without declared attributes stay JSON.
+      return prop.items?.properties ? 'table' : 'json';
     case 'node-pool-select':
     case 'storage-volume-select':
       return 'text';
@@ -115,6 +117,8 @@ function emptyValue(field) {
       );
     case 'json':
       return field.type === 'object' ? {} : [];
+    case 'table':
+      return [];
     case 'number':
     case 'slider':
       return null;
@@ -138,6 +142,8 @@ function fieldOf(key, prop, required, path) {
     default: prop.default,
     minimum: prop.minimum,
     maximum: prop.maximum,
+    minItems: prop.minItems,
+    maxItems: prop.maxItems,
     unit: prop['x-ui-unit'] || '',
     presets: prop['x-ui-presets'] || null,
     step: prop['x-ui-step'] ?? (prop.type === 'integer' ? 1 : null),
@@ -155,7 +161,14 @@ function fieldOf(key, prop, required, path) {
     integer: prop.type === 'integer',
     itemsNumeric: ['number', 'integer'].includes(prop.items?.type),
     children: [],
+    columns: [],
   };
+  if (widget === 'table') {
+    const items = prop.items || {};
+    field.columns = Object.entries(items.properties || {})
+      .map(([k, p]) => columnOf(k, p, (items.required || []).includes(k)))
+      .sort(byOrder);
+  }
   if (widget === 'object') {
     field.children = Object.entries(prop.properties || {})
       .map(([k, p]) =>
@@ -164,6 +177,54 @@ function fieldOf(key, prop, required, path) {
       .sort(byOrder);
   }
   return field;
+}
+
+// A column of a table: the attribute of the items, shown with a compact
+// widget (a select for a list of choices, a number, a checkbox or text).
+function columnOf(key, prop, required) {
+  const column = fieldOf(key, prop, required, [key]);
+  switch (column.widget) {
+    case 'segmented':
+    case 'select':
+    case 'number':
+    case 'switch':
+      break;
+    case 'slider':
+      column.widget = 'number';
+      break;
+    default:
+      column.widget = 'text';
+  }
+  // Objects and lists in a cell are entered as JSON text.
+  column.json = ['object', 'array'].includes(column.type);
+  return column;
+}
+
+/** A new item of a table: the attributes with a default, the others unset. */
+export function newRow(field) {
+  const row = {};
+  for (const c of field.columns) {
+    if (c.hasDefault) row[c.key] = c.default;
+    else if (c.widget === 'switch') row[c.key] = false;
+  }
+  return row;
+}
+
+/**
+ * The item with a new cell value. An empty value of an optional attribute
+ * is removed, so the pack applies its default.
+ */
+export function setCell(field, row, column, value) {
+  const out = { ...(row || {}) };
+  let v = value;
+  if (column.widget === 'number') v = v === '' || v === null ? null : Number(v);
+  if (column.json && typeof v === 'string') v = parseMaybeJSON(v);
+  if ((v === '' || v === null || v === undefined) && !column.required) {
+    delete out[column.key];
+  } else {
+    out[column.key] = v;
+  }
+  return out;
 }
 
 function byOrder(a, b) {
@@ -258,6 +319,7 @@ function coerce(field, v) {
     case 'key-value':
     case 'json':
     case 'object':
+    case 'table':
       return parseMaybeJSON(v);
     default:
       return typeof v === 'string' ? v : JSON.stringify(v);
@@ -372,6 +434,11 @@ function isEmpty(v) {
   return v === undefined || v === null || v === '';
 }
 
+/** The id of the error of a cell of a table. */
+export function cellId(field, index, column) {
+  return `${field.id}.${index}.${column.key}`;
+}
+
 /** The errors of the visible fields by field id. */
 export function validate(
   form,
@@ -379,27 +446,47 @@ export function validate(
   { redacted = [], draftErrors = {}, upgrade = false } = {}
 ) {
   const errors = { ...draftErrors };
-  const check = (f, v) => {
-    if (errors[f.id]) return;
+  // The error of a value: required, a number in its range, or one of the
+  // choices. id is where the error is reported.
+  const scalar = (f, id, v) => {
     if (f.required && isEmpty(v) && !(f.secretPath && upgrade)) {
-      errors[f.id] = redacted.includes(f.key)
+      errors[id] = redacted.includes(f.key)
         ? `${f.title} is stored redacted: enter it again`
         : `${f.title} is required`;
-      return;
+      return false;
     }
-    if (isEmpty(v)) return;
+    if (isEmpty(v)) return false;
     if (f.widget === 'number' || f.widget === 'slider') {
       const n = Number(v);
-      if (isNaN(n)) errors[f.id] = `${f.title} must be a number`;
+      if (isNaN(n)) errors[id] = `${f.title} must be a number`;
       else if (f.integer && !Number.isInteger(n))
-        errors[f.id] = `${f.title} must be a whole number`;
+        errors[id] = `${f.title} must be a whole number`;
       else if (f.minimum !== undefined && n < f.minimum)
-        errors[f.id] = `${f.title} must be at least ${f.minimum}`;
+        errors[id] = `${f.title} must be at least ${f.minimum}`;
       else if (f.maximum !== undefined && n > f.maximum)
-        errors[f.id] = `${f.title} must be at most ${f.maximum}`;
+        errors[id] = `${f.title} must be at most ${f.maximum}`;
     } else if (f.enum && !f.enum.map(String).includes(String(v))) {
-      errors[f.id] = `${f.title} must be one of ${f.enum.join(', ')}`;
+      errors[id] = `${f.title} must be one of ${f.enum.join(', ')}`;
     }
+    return true;
+  };
+  const check = (f, v) => {
+    if (errors[f.id]) return;
+    if (f.widget === 'table') {
+      const rows = Array.isArray(v) ? v : [];
+      if (f.required && !rows.length) errors[f.id] = `${f.title} is required`;
+      else if (f.minItems !== undefined && rows.length < f.minItems)
+        errors[f.id] = `${f.title} needs at least ${f.minItems} items`;
+      else if (f.maxItems !== undefined && rows.length > f.maxItems)
+        errors[f.id] = `${f.title} has at most ${f.maxItems} items`;
+      rows.forEach((row, i) => {
+        for (const c of f.columns) {
+          scalar(c, cellId(f, i, c), row?.[c.key]);
+        }
+      });
+      return;
+    }
+    if (!scalar(f, f.id, v)) return;
     for (const c of f.children) check(c, v?.[c.key]);
   };
   for (const f of form.fields) {

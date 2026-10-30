@@ -115,3 +115,34 @@ func TestSynthesizeUIFormSchema_VariableUI(t *testing.T) {
 
 	must.Eq(t, tabs, schema["x-ui-tabs"].([]any))
 }
+
+func TestSynthesizeUIFormSchema_ItemOptions(t *testing.T) {
+	t.Parallel()
+
+	v := &Variable{Name: "entrypoints"}
+	v.SetType(cty.List(cty.Object(map[string]cty.Type{
+		"name":     cty.String,
+		"port":     cty.Number,
+		"protocol": cty.String,
+	})))
+	// What the decoder makes of ui { item_options = { protocol = [...] } }
+	// with validation { item_min_length = 1 }.
+	v.UI = map[string]any{"items": map[string]any{
+		"minLength":  1,
+		"properties": map[string]any{"protocol": map[string]any{"enum": []any{"http", "tcp"}}},
+	}}
+	vars := map[pack.ID]map[ID]*Variable{"traefik": {"entrypoints": v}}
+	prop := SynthesizeUIFormSchema("traefik", "traefik", vars, nil, nil)["properties"].(map[string]any)["entrypoints"].(map[string]any)
+
+	must.Eq[any](t, "object-list", prop["x-ui-widget"])
+	items := prop["items"].(map[string]any)
+	must.Eq[any](t, 1, items["minLength"])
+	props := items["properties"].(map[string]any)
+	protocol := props["protocol"].(map[string]any)
+	must.Eq[any](t, []any{"http", "tcp"}, protocol["enum"])
+	must.Eq[any](t, "string", protocol["type"], must.Sprint("the attribute keeps its type"))
+	must.Eq[any](t, "Protocol", protocol["title"])
+	port := props["port"].(map[string]any)
+	must.Eq[any](t, "number", port["type"], must.Sprint("the other attributes stay"))
+	must.MapLen(t, 3, props)
+}

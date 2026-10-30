@@ -25,6 +25,8 @@
         {{/each}}
       </div>
     </fieldset>
+  {{else if (eq this.field.widget "table")}}
+    <Packages::ObjectListField @field={{this.field}} @value={{@value}} @errors={{@errors}} @onChange={{@onChange}} />
   {{else if (eq this.field.widget "switch")}}
     <div class="mb-3">
       <Ui::Switch @switch={{true}} @label={{this.label}} @help={{this.field.description}} @checked={{@value}} @onChange={{this.change}} />
