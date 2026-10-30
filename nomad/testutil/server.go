@@ -68,6 +68,11 @@ type PortsConfig struct {
 	HTTP int `json:"http,omitempty"`
 	RPC  int `json:"rpc,omitempty"`
 	Serf int `json:"serf,omitempty"`
+
+	// Bus and BusCluster are the ports of the system bus of the server:
+	// parallel test agents need their own.
+	Bus        int `json:"bus,omitempty"`
+	BusCluster int `json:"bus_cluster,omitempty"`
 }
 
 // ServerConfig is used to configure the nomad server.
@@ -104,15 +109,17 @@ type ServerConfigCallback func(c *TestServerConfig)
 // defaultServerConfig returns a new TestServerConfig struct
 // with all of the listen ports incremented by one.
 func defaultServerConfig() *TestServerConfig {
-	ports := ci.PortAllocator.Grab(3)
+	ports := ci.PortAllocator.Grab(5)
 	return &TestServerConfig{
 		NodeName:          fmt.Sprintf("node-%d", ports[0]),
 		DisableCheckpoint: true,
 		LogLevel:          "DEBUG",
 		Ports: &PortsConfig{
-			HTTP: ports[0],
-			RPC:  ports[1],
-			Serf: ports[2],
+			HTTP:       ports[0],
+			RPC:        ports[1],
+			Serf:       ports[2],
+			Bus:        ports[3],
+			BusCluster: ports[4],
 		},
 		Server: &ServerConfig{
 			Enabled:         true,

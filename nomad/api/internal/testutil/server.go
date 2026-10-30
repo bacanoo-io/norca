@@ -70,6 +70,11 @@ type PortsConfig struct {
 	HTTP int `json:"http,omitempty"`
 	RPC  int `json:"rpc,omitempty"`
 	Serf int `json:"serf,omitempty"`
+
+	// Bus and BusCluster are the ports of the system bus of the server:
+	// parallel test agents need their own.
+	Bus        int `json:"bus,omitempty"`
+	BusCluster int `json:"bus_cluster,omitempty"`
 }
 
 // ServerConfig is used to configure the nomad server.
@@ -107,7 +112,7 @@ type ServerConfigCallback func(c *TestServerConfig)
 // defaultServerConfig returns a new TestServerConfig struct pre-populated with
 // usable config for running as server.
 func defaultServerConfig(t testing.T) *TestServerConfig {
-	ports := PortAllocator.Grab(3)
+	ports := PortAllocator.Grab(5)
 
 	logLevel := "ERROR"
 	if envLogLevel := os.Getenv("NOMAD_TEST_LOG_LEVEL"); envLogLevel != "" {
@@ -119,9 +124,11 @@ func defaultServerConfig(t testing.T) *TestServerConfig {
 		DisableCheckpoint: true,
 		LogLevel:          logLevel,
 		Ports: &PortsConfig{
-			HTTP: ports[0],
-			RPC:  ports[1],
-			Serf: ports[2],
+			HTTP:       ports[0],
+			RPC:        ports[1],
+			Serf:       ports[2],
+			Bus:        ports[3],
+			BusCluster: ports[4],
 		},
 		Server: &ServerConfig{
 			Enabled:         true,
@@ -196,8 +203,8 @@ func NewTestServer(t testing.T, cb ServerConfigCallback) *TestServer {
 			t.Fatalf("failed to start the agent: %v", err)
 		}
 		t.Logf("the agent exited during its startup (attempt %d), starting it with other ports: %v", attempt, err)
-		ports := PortAllocator.Grab(3)
-		nomadConfig.Ports = &PortsConfig{HTTP: ports[0], RPC: ports[1], Serf: ports[2]}
+		ports := PortAllocator.Grab(5)
+		nomadConfig.Ports = &PortsConfig{HTTP: ports[0], RPC: ports[1], Serf: ports[2], Bus: ports[3], BusCluster: ports[4]}
 	}
 }
 

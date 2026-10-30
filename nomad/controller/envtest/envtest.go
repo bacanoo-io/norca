@@ -186,7 +186,7 @@ func Start(ctx context.Context, opts Options) (*Agent, error) {
 		_ = os.RemoveAll(dir)
 		return nil, err
 	}
-	var ports [3]int
+	var ports [5]int
 	for i := range ports {
 		if ports[i], err = FreePort(); err != nil {
 			return fail(err)
@@ -203,13 +203,15 @@ func Start(ctx context.Context, opts Options) (*Agent, error) {
 bind_addr = "127.0.0.1"
 data_dir  = %q
 ports {
-  http = %d
-  rpc  = %d
-  serf = %d
+  http        = %d
+  rpc         = %d
+  serf        = %d
+  bus         = %d
+  bus_cluster = %d
 }
 %s
 %s
-`, filepath.ToSlash(filepath.Join(dir, "data")), ports[0], ports[1], ports[2], server, opts.ExtraConfig)
+`, filepath.ToSlash(filepath.Join(dir, "data")), ports[0], ports[1], ports[2], ports[3], ports[4], server, opts.ExtraConfig)
 	configFile := filepath.Join(dir, "agent.hcl")
 	if err := os.WriteFile(configFile, []byte(config), 0o600); err != nil {
 		return fail(err)
