@@ -198,8 +198,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [github.com/joyent/triton-go](#go-github-com-joyent-triton-go-v0-0-0-20190112182421-51ffac552869) | v0.0.0-20190112182421-51ffac552869 | MPL-2.0 | norca |
 | [github.com/json-iterator/go](#go-github-com-json-iterator-go-v1-1-12) | v1.1.12 | MIT | norca |
 | [github.com/kevinburke/ssh\_config](#go-github-com-kevinburke-ssh-config-v1-2-0) | v1.2.0 | MIT | norca |
-| [github.com/klauspost/compress](#go-github-com-klauspost-compress-v1-19-2) | v1.19.2 | Apache-2.0 AND BSD-3-Clause AND MIT | norca |
-| [github.com/klauspost/compress](#go-github-com-klauspost-compress-v1-20-0) | v1.20.0 | Apache-2.0 AND BSD-3-Clause AND MIT | norca-natsbridge |
+| [github.com/klauspost/compress](#go-github-com-klauspost-compress-v1-20-0) | v1.20.0 | Apache-2.0 AND BSD-3-Clause AND MIT | norca, norca-natsbridge |
 | [github.com/klauspost/cpuid/v2](#go-github-com-klauspost-cpuid-v2-v2-4-0) | v2.4.0 | MIT | norca |
 | [github.com/klauspost/crc32](#go-github-com-klauspost-crc32-v1-3-0) | v1.3.0 | BSD-3-Clause | norca |
 | [github.com/kr/pretty](#go-github-com-kr-pretty-v0-3-1) | v0.3.1 | MIT | norca |
@@ -242,9 +241,9 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [github.com/morikuni/aec](#go-github-com-morikuni-aec-v1-0-0) | v1.0.0 | MIT | norca |
 | [github.com/mrunalp/fileutils](#go-github-com-mrunalp-fileutils-v0-5-1) | v0.5.1 | Apache-2.0 | norca |
 | [github.com/muesli/reflow](#go-github-com-muesli-reflow-v0-3-0) | v0.3.0 | MIT | norca |
-| [github.com/nats-io/nats.go](#go-github-com-nats-io-nats-go-v1-54-0) | v1.54.0 | Apache-2.0 | norca-natsbridge |
-| [github.com/nats-io/nkeys](#go-github-com-nats-io-nkeys-v0-4-16) | v0.4.16 | Apache-2.0 | norca-natsbridge |
-| [github.com/nats-io/nuid](#go-github-com-nats-io-nuid-v1-0-1) | v1.0.1 | Apache-2.0 | norca-natsbridge |
+| [github.com/nats-io/nats.go](#go-github-com-nats-io-nats-go-v1-54-0) | v1.54.0 | Apache-2.0 | norca, norca-natsbridge |
+| [github.com/nats-io/nkeys](#go-github-com-nats-io-nkeys-v0-4-16) | v0.4.16 | Apache-2.0 | norca, norca-natsbridge |
+| [github.com/nats-io/nuid](#go-github-com-nats-io-nuid-v1-0-1) | v1.0.1 | Apache-2.0 | norca, norca-natsbridge |
 | [github.com/nicolai86/scaleway-sdk](#go-github-com-nicolai86-scaleway-sdk-v1-10-2-0-20180628010248-798f60e20bb2) | v1.10.2-0.20180628010248-798f60e20bb2 | MIT | norca |
 | [github.com/oklog/run](#go-github-com-oklog-run-v1-1-0) | v1.1.0 | Apache-2.0 | norca |
 | [github.com/olekukonko/cat](#go-github-com-olekukonko-cat-v0-0-0-20250911104152-50322a0618f6) | v0.0.0-20250911104152-50322a0618f6 | MIT | norca |
@@ -328,7 +327,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [golang.org/x/sys](#go-golang-org-x-sys-v0-48-0) | v0.48.0 | BSD-3-Clause | norca, norca-natsbridge |
 | [golang.org/x/term](#go-golang-org-x-term-v0-46-0) | v0.46.0 | BSD-3-Clause | norca |
 | [golang.org/x/text](#go-golang-org-x-text-v0-42-0) | v0.42.0 | BSD-3-Clause | norca |
-| [golang.org/x/time](#go-golang-org-x-time-v0-15-0) | v0.15.0 | BSD-3-Clause | norca |
+| [golang.org/x/time](#go-golang-org-x-time-v0-16-0) | v0.16.0 | BSD-3-Clause | norca |
 | [google.golang.org/api](#go-google-golang-org-api-v0-278-0) | v0.278.0 | BSD-3-Clause | norca |
 | [google.golang.org/genproto](#go-google-golang-org-genproto-v0-0-0-20260319201613-d00831a3d3e7) | v0.0.0-20260319201613-d00831a3d3e7 | Apache-2.0 | norca |
 | [google.golang.org/genproto/googleapis/api](#go-google-golang-org-genproto-googleapis-api-v0-0-0-20260706201446-f0a921348800) | v0.0.0-20260706201446-f0a921348800 | Apache-2.0 | norca |
@@ -3054,24 +3053,16 @@ This source code includes following third party code
 - Used in: norca
 - `LICENSE`: [license text 102](#license-text-102)
 
-<a id="go-github-com-klauspost-compress-v1-19-2"></a>
-
-### github.com/klauspost/compress v1.19.2
-
-- License: Apache-2.0 AND BSD-3-Clause AND MIT
-- Used in: norca
-- `LICENSE`: [license text 103](#license-text-103)
-- `internal/snapref/LICENSE`: [license text 69](#license-text-69)
-- `s2/LICENSE`: [license text 104](#license-text-104)
-- `zstd/internal/xxhash/LICENSE.txt`: [license text 31](#license-text-31)
-
 <a id="go-github-com-klauspost-compress-v1-20-0"></a>
 
 ### github.com/klauspost/compress v1.20.0
 
 - License: Apache-2.0 AND BSD-3-Clause AND MIT
-- Used in: norca-natsbridge
+- Used in: norca, norca-natsbridge
 - `LICENSE`: [license text 103](#license-text-103)
+- `internal/snapref/LICENSE`: [license text 69](#license-text-69)
+- `s2/LICENSE`: [license text 104](#license-text-104)
+- `zstd/internal/xxhash/LICENSE.txt`: [license text 31](#license-text-31)
 
 <a id="go-github-com-klauspost-cpuid-v2-v2-4-0"></a>
 
@@ -3457,7 +3448,7 @@ See also https://www.apache.org/dev/crypto.html and/or seek legal counsel.
 ### github.com/nats-io/nats.go v1.54.0
 
 - License: Apache-2.0
-- Used in: norca-natsbridge
+- Used in: norca, norca-natsbridge
 - `LICENSE`: [license text 2](#license-text-2)
 
 <a id="go-github-com-nats-io-nkeys-v0-4-16"></a>
@@ -3465,7 +3456,7 @@ See also https://www.apache.org/dev/crypto.html and/or seek legal counsel.
 ### github.com/nats-io/nkeys v0.4.16
 
 - License: Apache-2.0
-- Used in: norca-natsbridge
+- Used in: norca, norca-natsbridge
 - `LICENSE`: [license text 2](#license-text-2)
 
 <a id="go-github-com-nats-io-nuid-v1-0-1"></a>
@@ -3473,7 +3464,7 @@ See also https://www.apache.org/dev/crypto.html and/or seek legal counsel.
 ### github.com/nats-io/nuid v1.0.1
 
 - License: Apache-2.0
-- Used in: norca-natsbridge
+- Used in: norca, norca-natsbridge
 - `LICENSE`: [license text 2](#license-text-2)
 
 <a id="go-github-com-nicolai86-scaleway-sdk-v1-10-2-0-20180628010248-798f60e20bb2"></a>
@@ -4287,9 +4278,9 @@ limitations under the License.
 - Used in: norca
 - `LICENSE`: [license text 1](#license-text-1)
 
-<a id="go-golang-org-x-time-v0-15-0"></a>
+<a id="go-golang-org-x-time-v0-16-0"></a>
 
-### golang.org/x/time v0.15.0
+### golang.org/x/time v0.16.0
 
 - License: BSD-3-Clause
 - Used in: norca
@@ -13302,7 +13293,7 @@ The Apache Software Foundation (https://www.apache.org/).
 
 ### License text 1
 
-Used by: Go standard library , filippo.io/hpke v0.4.0, golang.org/x/crypto v0.57.0, golang.org/x/exp v0.0.0-20240823005443-9b4947da3948, golang.org/x/net v0.60.0, golang.org/x/oauth2 v0.36.0, golang.org/x/sync v0.23.0, golang.org/x/sys v0.48.0, golang.org/x/term v0.46.0, golang.org/x/text v0.42.0, golang.org/x/time v0.15.0
+Used by: Go standard library , filippo.io/hpke v0.4.0, golang.org/x/crypto v0.57.0, golang.org/x/exp v0.0.0-20240823005443-9b4947da3948, golang.org/x/net v0.60.0, golang.org/x/oauth2 v0.36.0, golang.org/x/sync v0.23.0, golang.org/x/sys v0.48.0, golang.org/x/term v0.46.0, golang.org/x/text v0.42.0, golang.org/x/time v0.16.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -14990,7 +14981,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### License text 31
 
-Used by: github.com/cespare/xxhash/v2 v2.3.0, github.com/klauspost/compress v1.19.2
+Used by: github.com/cespare/xxhash/v2 v2.3.0, github.com/klauspost/compress v1.20.0
 
 ```text
 Copyright (c) 2016 Caleb Spare
@@ -18979,7 +18970,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### License text 69
 
-Used by: github.com/golang/snappy v0.0.4, github.com/klauspost/compress v1.19.2
+Used by: github.com/golang/snappy v0.0.4, github.com/klauspost/compress v1.20.0
 
 ```text
 Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
@@ -24727,7 +24718,7 @@ SOFTWARE.
 
 ### License text 103
 
-Used by: github.com/klauspost/compress v1.19.2, github.com/klauspost/compress v1.20.0
+Used by: github.com/klauspost/compress v1.20.0
 
 ```text
 Copyright (c) 2012 The Go Authors. All rights reserved.
@@ -25040,7 +25031,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### License text 104
 
-Used by: github.com/klauspost/compress v1.19.2
+Used by: github.com/klauspost/compress v1.20.0
 
 ```text
 Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.

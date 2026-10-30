@@ -6,6 +6,7 @@ package client
 import (
 	"fmt"
 
+	"github.com/hashicorp/nomad/acl"
 	"github.com/hashicorp/nomad/client/consulcompat"
 	"github.com/hashicorp/nomad/client/discovery"
 	"github.com/hashicorp/nomad/client/dns"
@@ -56,6 +57,7 @@ func (c *Client) setupDiscovery() error {
 			DatacenterIsRegion: cfg.ConsulCompat.DatacenterIsRegion(),
 			Namespaces:         cfg.ConsulCompat.NamespaceList(),
 			AnonymousToken:     cfg.ConsulCompat.AnonymousToken,
+			KV:                 cfg.ConsulCompat.KV,
 		}, compatBackend{c})
 		if err := compat.Start(); err != nil {
 			c.shutdownDiscovery()
@@ -122,11 +124,12 @@ func (c *Client) ConsulCompatAddr() string {
 // compatBackend gives the Consul-compatible API access to the client.
 type compatBackend struct{ c *Client }
 
-func (b compatBackend) RPC(method string, args, reply any) error { return b.c.RPC(method, args, reply) }
-func (b compatBackend) NodeSecret() string                       { return b.c.secretNodeID() }
-func (b compatBackend) LocalNode() *structs.Node                 { return b.c.Node() }
-func (b compatBackend) Region() string                           { return b.c.Region() }
-func (b compatBackend) Topology() structs.Topology               { return b.c.Topology() }
+func (b compatBackend) RPC(method string, args, reply any) error  { return b.c.RPC(method, args, reply) }
+func (b compatBackend) NodeSecret() string                        { return b.c.secretNodeID() }
+func (b compatBackend) LocalNode() *structs.Node                  { return b.c.Node() }
+func (b compatBackend) Region() string                            { return b.c.Region() }
+func (b compatBackend) Topology() structs.Topology                { return b.c.Topology() }
+func (b compatBackend) ResolveACL(token string) (*acl.ACL, error) { return b.c.ResolveToken(token) }
 
 // LocalServices returns the external services owned by the node.
 func (b compatBackend) LocalServices() consulcompat.LocalServices {

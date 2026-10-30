@@ -364,9 +364,13 @@ const (
 	OnUpdateIgnoreWarn     = "ignore_warnings"
 	OnUpdateIgnore         = "ignore"
 
-	// ServiceProviderConsul is the default provider for services when no
-	// parameter is set.
+	// ServiceProviderConsul registers services in Consul. It is the default
+	// only for services with a Connect block, which needs Consul.
 	ServiceProviderConsul = "consul"
+
+	// ServiceProviderNomad is the native service discovery provider and the
+	// default for services without a Connect block.
+	ServiceProviderNomad = "nomad"
 )
 
 // Canonicalize the Service by ensuring its name and address mode are set. Task
@@ -393,9 +397,13 @@ func (s *Service) Canonicalize(t *Task, tg *TaskGroup, job *Job) {
 		s.OnUpdate = OnUpdateRequireHealthy
 	}
 
-	// Default the service provider.
+	// Default the service provider: the native catalog, unless the service
+	// uses Connect, which needs Consul.
 	if s.Provider == "" {
-		s.Provider = ServiceProviderConsul
+		s.Provider = ServiceProviderNomad
+		if s.Connect != nil {
+			s.Provider = ServiceProviderConsul
+		}
 	}
 
 	if len(s.Meta) == 0 {

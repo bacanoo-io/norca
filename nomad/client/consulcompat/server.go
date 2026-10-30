@@ -16,8 +16,10 @@
 // the agent, which are external services owned by the node:
 // PUT /v1/agent/service/register, PUT /v1/agent/service/deregister/:id,
 // PUT /v1/agent/check/pass|warn|fail/:id, PUT /v1/agent/check/update/:id,
-// GET /v1/agent/services, /v1/agent/service/:id and /v1/agent/checks. Every
-// other endpoint answers 501 Not Implemented.
+// GET /v1/agent/services, /v1/agent/service/:id and /v1/agent/checks; and the
+// key-value store: GET, PUT and DELETE /v1/kv/:key (no sessions), kept in
+// Norca Variables or a NATS JetStream bucket. Every other endpoint answers
+// 501 Not Implemented.
 //
 // Requests are served with the Nomad ACL token they carry (X-Consul-Token,
 // Authorization: Bearer or ?token=), or the configured anonymous token, so
@@ -37,7 +39,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/nomad/acl"
 	"github.com/hashicorp/nomad/nomad/structs"
+	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 )
 
 const (
@@ -73,6 +77,9 @@ type Backend interface {
 	// LocalServices returns the external services owned by the local node,
 	// nil while the client is starting.
 	LocalServices() LocalServices
+
+	// ResolveACL returns the ACL of a token, nil when ACLs are disabled.
+	ResolveACL(token string) (*acl.ACL, error)
 }
 
 // Config of the API.
@@ -89,6 +96,9 @@ type Config struct {
 
 	// AnonymousToken is used for requests without a token.
 	AnonymousToken string
+
+	// KV configures the key-value store; nil uses the defaults.
+	KV *structsc.ConsulCompatKVConfig
 }
 
 // Server is the Consul-compatible API.
@@ -97,6 +107,7 @@ type Server struct {
 	cfg     Config
 	backend Backend
 	nodes   *nodeCache
+	kv      kvStore
 
 	ln  net.Listener
 	srv *http.Server
@@ -107,12 +118,14 @@ func New(logger hclog.Logger, cfg Config, backend Backend) *Server {
 	if len(cfg.Namespaces) == 0 {
 		cfg.Namespaces = []string{structs.DefaultNamespace}
 	}
-	return &Server{
+	s := &Server{
 		logger:  logger.Named("consul_compat"),
 		cfg:     cfg,
 		backend: backend,
 		nodes:   newNodeCache(backend),
 	}
+	s.kv = newKVStore(s, cfg.KV)
+	return s
 }
 
 // Start listens on the configured address and serves the API.
@@ -142,6 +155,9 @@ func (s *Server) Addr() string {
 
 // Shutdown stops the API.
 func (s *Server) Shutdown() {
+	if s.kv != nil {
+		s.kv.Close()
+	}
 	if s.srv == nil {
 		return
 	}
@@ -191,6 +207,10 @@ func (s *Server) route(path string) (handlerFunc, string, bool) {
 
 // ServeHTTP implements http.Handler.
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if key, ok := strings.CutPrefix(req.URL.Path, "/v1/kv/"); ok && s.kv != nil {
+		s.serveKV(w, req, key)
+		return
+	}
 	if h, arg, ok := s.writeRoute(req.URL.Path); ok {
 		s.serveWrite(w, req, h, arg)
 		return
@@ -201,7 +221,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		s.logger.Debug("unsupported endpoint", "method", req.Method, "path", req.URL.Path)
 		http.Error(w, fmt.Sprintf(
 			"Not Implemented: %s %s is not supported by the Consul-compatible API of Norca; "+
-				"it serves the catalog, health and status endpoints and the agent service endpoints only",
+				"it serves the catalog, health, status and KV endpoints and the agent service endpoints only",
 			req.Method, req.URL.Path),
 			http.StatusNotImplemented)
 		return

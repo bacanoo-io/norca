@@ -84,6 +84,7 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 		},
 		validators: []jobValidator{
 			jobConnectHook{},
+			jobConsulProviderHook{srv: s},
 			jobExposeCheckHook{},
 			jobVaultHook{srv: s},
 			jobNamespaceConstraintCheckHook{srv: s},

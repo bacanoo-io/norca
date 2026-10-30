@@ -164,6 +164,56 @@ client {
 	_, err = convertClientConfig(bad)
 	must.ErrorContains(t, err, "datacenter_from")
 
+	// the kv block
+	c, err = parseTestConfig(t, `
+client {
+  consul_compat {
+    enabled = true
+    kv {
+      backend   = "nats"
+      namespace = "prod"
+      path      = "/shared/kv/"
+      nats {
+        urls          = ["nats://10.0.0.1:4222", "nats://10.0.0.2:4222"]
+        bucket        = "kv"
+        create_bucket = false
+        replicas      = 3
+        user          = "kv"
+        password      = "pw"
+        ca_file       = "/etc/nats/ca.pem"
+      }
+    }
+  }
+}
+`)
+	must.NoError(t, err)
+	kv := DefaultConfig().Merge(c).Client.ConsulCompat.KV
+	must.Eq(t, config.ConsulCompatKVNATS, kv.BackendName())
+	must.Eq(t, "prod", kv.Namespace)
+	must.Eq(t, "shared/kv", kv.PathPrefix())
+	must.Eq(t, []string{"nats://10.0.0.1:4222", "nats://10.0.0.2:4222"}, kv.NATS.URLs)
+	must.Eq(t, "kv", kv.NATS.BucketName())
+	must.False(t, kv.NATS.CreatesBucket())
+	must.Eq(t, 3, kv.NATS.Replicas)
+	clientConf, err = convertClientConfig(DefaultConfig().Merge(c))
+	must.NoError(t, err)
+	must.Eq(t, "pw", clientConf.ConsulCompat.KV.NATS.Password)
+
+	bad = DefaultConfig().Merge(c)
+	bad.Client.ConsulCompat.KV.NATS.URLs = nil
+	_, err = convertClientConfig(bad)
+	must.ErrorContains(t, err, "needs nats.urls")
+	bad.Client.ConsulCompat.KV.Backend = "etcd"
+	_, err = convertClientConfig(bad)
+	must.ErrorContains(t, err, "kv backend must be")
+
+	var noKV *config.ConsulCompatKVConfig
+	must.Eq(t, config.ConsulCompatKVVariables, noKV.BackendName())
+	must.Eq(t, config.DefaultConsulCompatKVPath, noKV.PathPrefix())
+	var noNATS *config.ConsulCompatKVNATSConfig
+	must.Eq(t, config.DefaultConsulCompatKVBucket, noNATS.BucketName())
+	must.True(t, noNATS.CreatesBucket())
+
 	var noCompat *config.ConsulCompatConfig
 	must.False(t, noCompat.IsEnabled())
 	must.True(t, noCompat.DatacenterIsRegion())

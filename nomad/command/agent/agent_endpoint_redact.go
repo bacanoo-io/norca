@@ -23,6 +23,14 @@ func redactNorcaConfig(c *Config) {
 		if c.Client.ConsulCompat != nil && c.Client.ConsulCompat.AnonymousToken != "" {
 			c.Client.ConsulCompat.AnonymousToken = redactedValue
 		}
+		if cc := c.Client.ConsulCompat; cc != nil && cc.KV != nil && cc.KV.NATS != nil {
+			if cc.KV.NATS.Password != "" {
+				cc.KV.NATS.Password = redactedValue
+			}
+			if cc.KV.NATS.Token != "" {
+				cc.KV.NATS.Token = redactedValue
+			}
+		}
 		if c.Client.DNS != nil && c.Client.DNS.Token != "" {
 			c.Client.DNS.Token = redactedValue
 		}

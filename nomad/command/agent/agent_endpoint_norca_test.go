@@ -78,7 +78,9 @@ func TestHTTP_AgentSelf_RedactsNorcaSecrets(t *testing.T) {
 	httpTest(t, nil, func(s *TestAgent) {
 		const secret = "badc0deb-adc0-deba-dc0d-ebadc0debadc"
 
-		s.Config.Client.ConsulCompat = &config.ConsulCompatConfig{AnonymousToken: secret}
+		s.Config.Client.ConsulCompat = &config.ConsulCompatConfig{AnonymousToken: secret, KV: &config.ConsulCompatKVConfig{
+			NATS: &config.ConsulCompatKVNATSConfig{User: "kv", Password: secret, Token: secret},
+		}}
 		s.Config.Client.DNS = &config.DNSConfig{Token: secret}
 		s.Config.Server.Backup = &BackupConfig{Destinations: []*BackupDestinationConfig{{
 			Name: "s3", AccessKey: "AKIAEXAMPLE", SecretKey: secret, SessionToken: secret,
@@ -110,6 +112,9 @@ func TestHTTP_AgentSelf_RedactsNorcaSecrets(t *testing.T) {
 
 		must.Eq(t, "<redacted>", self.Config.Client.ConsulCompat.AnonymousToken)
 		must.Eq(t, "<redacted>", self.Config.Client.DNS.Token)
+		must.Eq(t, "<redacted>", self.Config.Client.ConsulCompat.KV.NATS.Password)
+		must.Eq(t, "<redacted>", self.Config.Client.ConsulCompat.KV.NATS.Token)
+		must.Eq(t, "kv", self.Config.Client.ConsulCompat.KV.NATS.User)
 		must.Eq(t, "<redacted>", self.Config.Server.Backup.Destinations[0].SecretKey)
 		must.Eq(t, "<redacted>", self.Config.Server.Backup.Destinations[0].SessionToken)
 		must.Eq(t, "AKIAEXAMPLE", self.Config.Server.Backup.Destinations[0].AccessKey)
@@ -133,6 +138,7 @@ func TestHTTP_AgentSelf_RedactsNorcaSecrets(t *testing.T) {
 
 		must.Eq(t, secret, s.Config.Client.ConsulCompat.AnonymousToken)
 		must.Eq(t, secret, s.Config.Client.DNS.Token)
+		must.Eq(t, secret, s.Config.Client.ConsulCompat.KV.NATS.Password)
 		must.Eq(t, secret, s.Config.Server.Backup.Destinations[0].SecretKey)
 		for _, w := range []int{0, 2, 3} {
 			must.StrContains(t, s.Config.Server.Admission.Webhooks[w].URL, secret)

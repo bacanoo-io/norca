@@ -257,7 +257,7 @@ func TestConsulCompat_Conformance(t *testing.T) {
 	must.Len(t, 0, entries)
 
 	// unsupported endpoints answer 501
-	_, _, err = c.consul.KV().Get("key", nil)
+	_, _, err = c.consul.KV().Acquire(&consulapi.KVPair{Key: "lock", Session: "s"}, nil)
 	must.ErrorContains(t, err, "501")
 	err = c.consul.Agent().CheckRegister(&consulapi.AgentCheckRegistration{Name: "x"})
 	must.ErrorContains(t, err, "501")

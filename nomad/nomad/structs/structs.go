@@ -6950,7 +6950,7 @@ func (tg *TaskGroup) NomadServices() []*Service {
 
 func (tg *TaskGroup) ConsulServices() []*Service {
 	return tg.filterServices(func(s *Service) bool {
-		return s.Provider == ServiceProviderConsul || s.Provider == ""
+		return s.IsConsul()
 	})
 }
 
