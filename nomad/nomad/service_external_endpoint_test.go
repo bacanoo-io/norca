@@ -317,3 +317,57 @@ func TestServiceRegistration_External_ACL(t *testing.T) {
 	delReq.AuthToken = register.SecretID
 	must.NoError(t, msgpackrpc.CallWithCodec(rpcClient(t, s), structs.ServiceRegistrationDeleteExternalRPCMethod, delReq, &delResp))
 }
+
+// TestServiceRegistration_External_BoundToNode: a caller with node write
+// binds a registration with http checks to a client node of its choice.
+func TestServiceRegistration_External_BoundToNode(t *testing.T) {
+	ci.Parallel(t)
+
+	s, _, cleanup := TestACLServer(t, nil)
+	t.Cleanup(cleanup)
+	testutil.WaitForLeader(t, s.RPC)
+
+	register := mock.CreatePolicyAndToken(t, s.State(), 1001, "register",
+		mock.NamespacePolicy(structs.DefaultNamespace, "", []string{acl.NamespaceCapabilityRegisterExternalService}))
+	nodeWriter := mock.CreatePolicyAndToken(t, s.State(), 1003, "node-writer",
+		mock.NamespacePolicy(structs.DefaultNamespace, "", []string{acl.NamespaceCapabilityRegisterExternalService})+
+			"\nnode { policy = \"write\" }\n")
+	node := mock.Node()
+	must.NoError(t, s.State().UpsertNode(structs.MsgTypeTestSetup, 1010, node))
+
+	httpService := func() *structs.ServiceRegistration {
+		return &structs.ServiceRegistration{
+			ID: "portal", ServiceName: "portal", Address: "10.0.0.7", Port: 443,
+			External: &structs.ServiceExternal{
+				Kind:   structs.ExternalServiceKindAddress,
+				Source: structs.ExternalServiceSourceAPI,
+				Checks: []*structs.ExternalServiceCheck{{
+					ID: "http", Type: structs.ExternalCheckTypeHTTP, HTTP: "https://10.0.0.7/health",
+					Interval: 10 * time.Second, Timeout: 2 * time.Second,
+				}},
+			},
+		}
+	}
+	bound := func(nodeID, token string) error {
+		req := &structs.ExternalServiceUpsertRequest{
+			Service:      httpService(),
+			NodeID:       nodeID,
+			WriteRequest: structs.WriteRequest{Region: DefaultRegion, Namespace: structs.DefaultNamespace, AuthToken: token},
+		}
+		var resp structs.ExternalServiceUpsertResponse
+		return msgpackrpc.CallWithCodec(rpcClient(t, s), structs.ServiceRegistrationUpsertExternalRPCMethod, req, &resp)
+	}
+
+	// http checks need a node
+	must.ErrorContains(t, bound("", nodeWriter.SecretID), "run by a client node")
+	// binding needs node write
+	must.ErrorContains(t, bound(node.ID, register.SecretID), "requires node write")
+	// the node must exist
+	must.ErrorContains(t, bound("6d7f2a3c-0000-4000-8000-000000000000", nodeWriter.SecretID), "not found")
+
+	must.NoError(t, bound(node.ID, nodeWriter.SecretID))
+	reg := getRegistration(t, s, "portal")
+	must.NotNil(t, reg)
+	must.Eq(t, node.ID, reg.NodeID)
+	must.Eq(t, node.Datacenter, reg.Datacenter)
+}

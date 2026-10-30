@@ -55,6 +55,71 @@ export default function registerNetworkRoutes(server) {
     });
   });
 
+  // External services (endpoints and domains), kept with the other
+  // registrations of norcaServices.
+  server.get('/services/external', function ({ db }, { queryParams }) {
+    const namespace = queryParams.namespace || 'default';
+    return json(
+      collection(db, 'norcaServices')
+        .where((s) => s.External && inNamespace(s, namespace))
+        .map(plain)
+    );
+  });
+
+  server.put('/service/external/:name', function ({ db }, request) {
+    const svc = body(request);
+    const namespace = request.queryParams.namespace || 'default';
+    const kind = svc.Kind || 'address';
+    if (svc.Name !== request.params.name)
+      return error(400, 'service name does not match the URL');
+    if (kind === 'alias' ? !svc.Target : !svc.Address)
+      return error(400, 'invalid external service: missing address');
+    const checks = (svc.Checks || []).map((c) => ({ ID: c.ID || c.Type, ...c }));
+    if (checks.some((c) => c.Type !== 'ttl') && !svc.NodeID)
+      return error(
+        400,
+        'http and tcp checks are run by a client node: register the service through a client agent'
+      );
+    const id = svc.ID || svc.Name;
+    const record = {
+      ID: id,
+      ServiceName: svc.Name,
+      Namespace: namespace,
+      Address: kind === 'alias' ? svc.Target : svc.Address,
+      Port: svc.Port || 0,
+      Tags: svc.Tags || [],
+      Meta: svc.Meta || null,
+      Datacenter: svc.Datacenter || '',
+      NodeID: svc.NodeID || '',
+      JobID: '',
+      AllocID: '',
+      Ready: true,
+      Health: 'passing',
+      Checks: checks.map((c) => ({ ID: c.ID, Name: c.ID, Status: 'passing' })),
+      External: {
+        Kind: kind,
+        Source: 'api',
+        LocalID: '',
+        Checks: checks,
+        DeregisterCriticalAfter: svc.DeregisterCriticalAfter ?? 3600e9,
+      },
+    };
+    const services = collection(db, 'norcaServices');
+    const existing = services.findBy({ ID: id, Namespace: namespace });
+    if (existing) services.update(existing.id, record);
+    else services.insert(record);
+    return json({ ID: id, Index: 1 });
+  });
+
+  server.delete('/service/external/:id', function ({ db }, request) {
+    const namespace = request.queryParams.namespace || 'default';
+    const services = collection(db, 'norcaServices');
+    const existing = services.findBy({ ID: request.params.id, Namespace: namespace });
+    if (!existing || !existing.External) return error(404, 'external service not found');
+    services.remove(existing.id);
+    return json(null);
+  });
+
   // Intentions
   server.get('/service-intentions', function ({ db }, { queryParams }) {
     const namespace = queryParams.namespace || 'default';

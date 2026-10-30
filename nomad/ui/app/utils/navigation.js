@@ -67,6 +67,12 @@ export const NAVIGATION = [
         icon: 'shield-lock',
         route: 'network',
       },
+      {
+        id: 'endpoints',
+        label: 'Endpoints and domains',
+        icon: 'world',
+        route: 'endpoints',
+      },
     ],
   },
   {

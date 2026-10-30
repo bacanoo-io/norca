@@ -460,6 +460,10 @@ type ExternalServiceUpsertRequest struct {
 	// http or tcp checks require it.
 	NodeSecretID string
 
+	// NodeID, if set without NodeSecretID, binds the registration to that
+	// client node in the same way; the caller needs node write.
+	NodeID string
+
 	WriteRequest
 }
 

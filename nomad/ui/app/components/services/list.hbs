@@ -54,7 +54,7 @@
         @noun="services"
         @viewState={{this.list.viewState}}
         @onApplyView={{this.list.applyView}}
-        @emptyMessage={{if this.list.searchTerm "No service matches the search." "No service is registered. Services of jobs whose service provider is nomad appear here with the health of their instances."}}
+        @emptyMessage={{if this.list.searchTerm "No service matches the search." "No service is registered. Services of jobs (without a provider, or with provider nomad) and registered endpoints appear here with the health of their instances."}}
         data-test-service-catalog
       >
         <:filters>

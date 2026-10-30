@@ -1,0 +1,224 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-endpoints {{this.setup this.region this.namespace}}>
+  <Ui::PageHeader @pretitle="Services and networking" @title="Endpoints and domains" @subtitle={{this.scopeLabel}}>
+    <:actions>
+      {{#if this.canWrite}}
+        <Ui::Button @variant="primary" @icon="plus" data-test-add-endpoint {{on "click" this.add}}>New endpoint</Ui::Button>
+      {{/if}}
+    </:actions>
+  </Ui::PageHeader>
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the endpoints" /></Ui::Card>
+    {{else if this.error}}
+      <Ui::Alert @tone="danger" @title="The endpoints could not be loaded" data-test-endpoints-error>{{this.error}}</Ui::Alert>
+    {{else}}
+      <div class="row row-cards mb-3">
+        <div class="col-sm-6 col-lg-4">
+          <Ui::Stat @id="endpoints" @label="Registered" @value={{this.totals.total}} @hint="endpoints and domains" @color="blue" />
+        </div>
+        <div class="col-sm-6 col-lg-4">
+          <Ui::Stat @id="domains" @label="Domains" @value={{this.totals.domains}} @hint="DNS aliases (CNAME)" @color="azure" />
+        </div>
+        <div class="col-sm-6 col-lg-4">
+          <Ui::Stat @id="critical" @label="Critical" @value={{this.totals.critical}} @hint="left out of discovery" @color={{if this.totals.critical "red" "secondary"}} />
+        </div>
+      </div>
+      <Ui::Card @flush={{true}} data-test-endpoint-list>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Endpoints and domains"
+          @columns={{array
+            (hash key="name" label="Name")
+            (hash key="target" label="Points to")
+            (hash key="health" label="Health")
+            (hash key="checks" label="Checks")
+            (hash key="owner" label="Checks run on")
+            (hash key="actions" label="Actions")
+          }}
+          @rows={{this.rows}}
+          @emptyMessage="No endpoint is registered. Endpoints are services without a job: an address outside the cluster, or a domain that the built-in DNS answers with a CNAME."
+          as |row|
+        >
+          <td data-test-endpoint-name>
+            <span class="font-monospace">{{row.ServiceName}}</span>
+            {{#if (not-eq this.namespace row.Namespace)}}<span class="small text-secondary"> · {{row.Namespace}}</span>{{/if}}
+            {{#each row.Tags as |tag|}}<Ui::Badge class="ms-1">{{tag}}</Ui::Badge>{{/each}}
+          </td>
+          <td class="font-monospace" data-test-endpoint-target>
+            {{#if row.isAlias}}<Ui::Badge @color="azure" class="me-1">domain</Ui::Badge>{{/if}}{{row.target}}
+          </td>
+          <td><Ui::StatusIndicator @tone={{row.health.tone}} @label={{or row.Health "unknown"}} data-test-endpoint-health /></td>
+          <td>{{row.checkTypes}}</td>
+          <td>
+            {{#if row.owner}}{{row.owner}}{{else}}<span class="text-secondary">–</span>{{/if}}
+            {{#if row.fromConsul}}<div class="small text-secondary">registered through the Consul API</div>{{/if}}
+          </td>
+          <td class="text-nowrap">
+            {{#if row.canWrite}}
+              <Ui::Button @size="sm" @variant="ghost" @icon="settings" @iconOnly={{true}} @label={{concat "Change " row.ServiceName}} data-test-edit-endpoint={{row.key}} {{on "click" (fn this.edit row)}} />
+              <Ui::Button @size="sm" @variant="ghost" @icon="trash" @iconOnly={{true}} @label={{concat "Delete " row.ServiceName}} data-test-delete-endpoint={{row.key}} {{on "click" (fn this.askDelete row)}} />
+            {{/if}}
+          </td>
+        </Ui::Table>
+      </Ui::Card>
+      <p class="text-secondary small mt-3">
+        Endpoints appear in the service catalog, the built-in DNS and the Consul-compatible API like the services of jobs.
+        A TTL check is renewed by the registrant (norca service ttl); HTTP and TCP checks run on the chosen client node.
+        Applications can register their own endpoints through the Consul agent API of a client; those are shown here and changed by the application.
+      </p>
+    {{/if}}
+  </Ui::PageBody>
+
+  {{#if this.editing}}
+    <Ui::Modal @title={{if this.editing.isNew "New endpoint" (concat "Change " this.editing.Name)}} @size="lg" @onClose={{this.closeEditor}} data-test-endpoint-editor>
+      <:default>
+        <form id="norca-endpoint-form" {{on "submit" this.save}}>
+          <div class="row">
+            <div class="col-md-6">
+              <Ui::Field @label="Name" @help="The service name: letters, digits and dashes." as |f|>
+                <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @value={{this.editing.Name}} @onInput={{fn this.setField "Name"}} @readonly={{not this.editing.isNew}} @monospace={{true}} data-test-endpoint-name-input />
+              </Ui::Field>
+            </div>
+            <div class="col-md-6">
+              <Ui::Field @label="Namespace" as |f|>
+                <Ui::Input @id={{f.id}} @value={{this.editing.Namespace}} @onInput={{fn this.setField "Namespace"}} @readonly={{not this.editing.isNew}} data-test-endpoint-namespace />
+              </Ui::Field>
+            </div>
+          </div>
+          <Ui::Field @label="Kind" as |f|>
+            <Ui::Select @id={{f.id}} @options={{this.kindOptions}} @value={{this.editing.Kind}} @onChange={{fn this.setField "Kind"}} data-test-endpoint-kind />
+          </Ui::Field>
+          <div class="row">
+            {{#if (eq this.editing.Kind "alias")}}
+              <div class="col-md-8">
+                <Ui::Field @label="Points to" @help="The DNS name of the CNAME record." as |f|>
+                  <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @value={{this.editing.Target}} @onInput={{fn this.setField "Target"}} @monospace={{true}} @placeholder="db.c9xk2.eu-central-1.rds.amazonaws.com" data-test-endpoint-target-input />
+                </Ui::Field>
+              </div>
+            {{else}}
+              <div class="col-md-8">
+                <Ui::Field @label="Address" @help="IP address or host name." as |f|>
+                  <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @value={{this.editing.Address}} @onInput={{fn this.setField "Address"}} @monospace={{true}} @placeholder="10.0.0.5" data-test-endpoint-address />
+                </Ui::Field>
+              </div>
+            {{/if}}
+            <div class="col-md-4">
+              <Ui::Field @label="Port" as |f|>
+                <Ui::Input @id={{f.id}} @type="number" @value={{this.editing.Port}} @onInput={{fn this.setField "Port"}} data-test-endpoint-port />
+              </Ui::Field>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <Ui::Field @label="Tags" @help="Separated by commas." as |f|>
+                <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @value={{this.editing.Tags}} @onInput={{fn this.setField "Tags"}} data-test-endpoint-tags />
+              </Ui::Field>
+            </div>
+            <div class="col-md-6">
+              <Ui::Field @label="Datacenter" @help="Empty: the datacenter of the node of the checks." as |f|>
+                <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @value={{this.editing.Datacenter}} @onInput={{fn this.setField "Datacenter"}} />
+              </Ui::Field>
+            </div>
+          </div>
+          <Ui::Field @label="Meta" @help="One key=value per line." as |f|>
+            <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @multiline={{true}} @rows={{2}} @monospace={{true}} @value={{this.editing.Meta}} @onInput={{fn this.setField "Meta"}} data-test-endpoint-meta />
+          </Ui::Field>
+
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="fw-medium">Checks</div>
+            <Ui::Button @size="sm" @icon="plus" data-test-add-check {{on "click" this.addCheck}}>Add check</Ui::Button>
+          </div>
+          {{#unless this.editing.Checks.length}}
+            <p class="text-secondary small" data-test-endpoint-static>
+              Without checks the endpoint is static: it is always passing and stays until deleted (operator write is needed).
+            </p>
+          {{/unless}}
+          {{#each this.editing.Checks as |check index|}}
+            <div class="row align-items-end" data-test-endpoint-check={{index}}>
+              <div class="col-md-2">
+                <Ui::Field @label="Type" as |f|>
+                  <Ui::Select @id={{f.id}} @options={{this.checkTypeOptions}} @value={{check.Type}} @onChange={{fn this.setCheckField index "Type"}} data-test-check-type />
+                </Ui::Field>
+              </div>
+              {{#if (eq check.Type "ttl")}}
+                <div class="col-md-3">
+                  <Ui::Field @label="TTL" as |f|>
+                    <Ui::Input @id={{f.id}} @value={{check.TTL}} @onInput={{fn this.setCheckField index "TTL"}} data-test-check-ttl />
+                  </Ui::Field>
+                </div>
+                <div class="col-md-6">
+                  <p class="text-secondary small">Renewed with norca service ttl or PUT /v1/service/external/:id/ttl.</p>
+                </div>
+              {{else}}
+                {{#if (eq check.Type "http")}}
+                  <div class="col-md-4">
+                    <Ui::Field @label="URL" as |f|>
+                      <Ui::Input @id={{f.id}} @value={{check.HTTP}} @onInput={{fn this.setCheckField index "HTTP"}} @monospace={{true}} @placeholder="https://10.0.0.5/health" data-test-check-http />
+                    </Ui::Field>
+                  </div>
+                {{else}}
+                  <div class="col-md-4">
+                    <Ui::Field @label="Host and port" as |f|>
+                      <Ui::Input @id={{f.id}} @value={{check.TCP}} @onInput={{fn this.setCheckField index "TCP"}} @monospace={{true}} @placeholder="10.0.0.5:5432" data-test-check-tcp />
+                    </Ui::Field>
+                  </div>
+                {{/if}}
+                <div class="col-md-2">
+                  <Ui::Field @label="Interval" as |f|>
+                    <Ui::Input @id={{f.id}} @value={{check.Interval}} @onInput={{fn this.setCheckField index "Interval"}} data-test-check-interval />
+                  </Ui::Field>
+                </div>
+                <div class="col-md-2">
+                  <Ui::Field @label="Timeout" as |f|>
+                    <Ui::Input @id={{f.id}} @value={{check.Timeout}} @onInput={{fn this.setCheckField index "Timeout"}} data-test-check-timeout />
+                  </Ui::Field>
+                </div>
+              {{/if}}
+              <div class="col-md-1">
+                <Ui::Button @variant="ghost" @icon="trash" @iconOnly={{true}} @label="Remove the check" class="mb-3" data-test-remove-check {{on "click" (fn this.removeCheck index)}} />
+              </div>
+            </div>
+          {{/each}}
+
+          <div class="row">
+            <div class="col-md-6">
+              <Ui::Field @label="Checks run on" @help={{if this.canBindNode "The client node that runs the HTTP and TCP checks." "Choosing a node needs node write."}} as |f|>
+                <Ui::Select @id={{f.id}} @describedBy={{f.describedBy}} @options={{this.nodeOptions}} @value={{this.editing.NodeID}} @onChange={{fn this.setField "NodeID"}} @disabled={{not this.canBindNode}} data-test-endpoint-node />
+              </Ui::Field>
+            </div>
+            <div class="col-md-6">
+              <Ui::Field @label="Deregister after critical" @help="E.g. 1h; 0 keeps the endpoint." as |f|>
+                <Ui::Input @id={{f.id}} @describedBy={{f.describedBy}} @value={{this.editing.DeregisterCriticalAfter}} @onInput={{fn this.setField "DeregisterCriticalAfter"}} data-test-endpoint-dca />
+              </Ui::Field>
+            </div>
+          </div>
+          {{#if this.saveError}}
+            <Ui::Alert @tone="danger" class="mt-3 mb-0" data-test-endpoint-save-error>{{this.saveError}}</Ui::Alert>
+          {{/if}}
+        </form>
+      </:default>
+      <:footer>
+        <Ui::Button @disabled={{this.isSaving}} {{on "click" this.closeEditor}}>Cancel</Ui::Button>
+        <Ui::Button @variant="primary" @type="submit" @isLoading={{this.isSaving}} form="norca-endpoint-form" data-test-endpoint-save>Save</Ui::Button>
+      </:footer>
+    </Ui::Modal>
+  {{/if}}
+
+  {{#if this.deleting}}
+    <Ui::Confirm
+      @title="Delete the endpoint?"
+      @confirmLabel="Delete"
+      @confirmIcon="trash"
+      @onConfirm={{this.confirmDelete}}
+      @onClose={{this.cancelDelete}}
+      @isRunning={{this.isDeleting}}
+      @error={{this.deleteError}}
+    >
+      <span class="font-monospace">{{this.deleting.ServiceName}}</span> leaves the service catalog, the DNS and the Consul-compatible API.
+    </Ui::Confirm>
+  {{/if}}
+</div>

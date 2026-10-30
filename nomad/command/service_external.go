@@ -76,6 +76,10 @@ Register Options:
   -tcp <host:port>
     Add a tcp check of the address, run by the client agent.
 
+  -node <node id>
+    Client node that owns the service and runs its http and tcp checks,
+    instead of the client agent the command talks to. Requires node write.
+
   -interval <duration>
     Interval of the http and tcp checks. Defaults to 10s.
 
@@ -108,6 +112,7 @@ func (c *ServiceRegisterCommand) AutocompleteFlags() complete.Flags {
 			"-datacenter":                complete.PredictAnything,
 			"-ttl":                       complete.PredictAnything,
 			"-http":                      complete.PredictAnything,
+			"-node":                      complete.PredictAnything,
 			"-tcp":                       complete.PredictAnything,
 			"-interval":                  complete.PredictAnything,
 			"-timeout":                   complete.PredictAnything,
@@ -117,7 +122,7 @@ func (c *ServiceRegisterCommand) AutocompleteFlags() complete.Flags {
 }
 
 func (c *ServiceRegisterCommand) Run(args []string) int {
-	var id, address, alias, datacenter, httpURL, tcpAddr, initialStatus, dca string
+	var id, address, alias, datacenter, httpURL, tcpAddr, nodeID, initialStatus, dca string
 	var port int
 	var ttl, interval, timeout time.Duration
 	var tags, meta flaghelper.StringFlag
@@ -134,6 +139,7 @@ func (c *ServiceRegisterCommand) Run(args []string) int {
 	flags.DurationVar(&ttl, "ttl", 0, "")
 	flags.StringVar(&httpURL, "http", "", "")
 	flags.StringVar(&tcpAddr, "tcp", "", "")
+	flags.StringVar(&nodeID, "node", "", "")
 	flags.DurationVar(&interval, "interval", 0, "")
 	flags.DurationVar(&timeout, "timeout", 0, "")
 	flags.StringVar(&initialStatus, "initial-status", "", "")
@@ -159,6 +165,7 @@ func (c *ServiceRegisterCommand) Run(args []string) int {
 		Port:       port,
 		Tags:       tags,
 		Datacenter: datacenter,
+		NodeID:     nodeID,
 	}
 	if alias != "" {
 		svc.Kind = api.ExternalServiceKindAlias

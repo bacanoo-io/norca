@@ -78,6 +78,11 @@ type ExternalService struct {
 	// the client agent owning it, or none.
 	Datacenter string `json:",omitempty"`
 
+	// NodeID is the client node that owns the service and runs its http and
+	// tcp checks (requires node write). Empty: the client agent the request
+	// is sent to, if it has a client.
+	NodeID string `json:",omitempty"`
+
 	// Checks of the service. Without a TTL check, and unless it has http or
 	// tcp checks run by a client agent, the registration is static and
 	// requires operator write.
