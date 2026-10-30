@@ -7,15 +7,25 @@ SPDX-License-Identifier: MPL-2.0
 
 `norca-natsbridge` forwards the event stream (`/v1/event/stream`) of one Norca
 region to NATS. It is the first stage of the events and audit layer of the
-multi-cloud setup (event stream → NATS bridge → history and audit service, see
-`docs/design/nomad-fork-development-plan.md`, "Multi-cloud connectivity").
+multi-cloud setup (event stream → NATS bridge → history and audit service, see the
+[development plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/nomad-fork-development-plan/index.md#multi-cloud-connectivity)).
 
 NATS is used **only as an event and notification bridge**. Nothing in the
 cluster reads from NATS; a NATS outage delays the events but affects neither
-scheduling nor deployments.
+scheduling nor deployments. The optional inbound mode (below) only makes
+the bridge call the Norca API sooner: the pack registries sync on their own
+interval without it.
 
 The bridge runs as a separate job in every region (one region per cloud). A
 built-in output in the agent may follow later.
+
+**Every region or none.** When one region of a cluster runs the bridge, every
+region must run it, with the same subject prefix, JetStream setting and sync
+flags (`-sync-pushes`, `-sync-regions`). A region without a bridge publishes
+none of its events (gaps in the history) and takes no part in the registry
+syncs: it neither sends its registry events nor syncs on those of the others
+or on push notices. With JetStream a region whose bridge uses core NATS has no
+event stream, so the durable consumers of the other regions don't see it.
 
 This is a separate Go module (`github.com/hashicorp/nomad/natsbridge`). It
 depends on the fork's `api` module, the controller SDK (`../controller`, for
@@ -78,6 +88,22 @@ supercluster carries them between the clouds.
 - A failed publish is retried with backoff (1s … 30s) by resubscribing from
   the last published batch. While NATS is unreachable the bridge does not read
   further; the server keeps the events in its event buffer.
+
+### The stream of `-jetstream-create`
+
+The bridge owns the stream it creates. On every start it brings the settings
+that can change on an existing stream back to its flags: duplicate window,
+replicas, `max_age`, `max_bytes`, compression and direct gets (the log says
+`updated the JetStream stream`). The storage and the deny flags can only be
+chosen at creation; when they differ the bridge logs a warning and keeps the
+stream (recreate it to change them). A full stream discards its oldest
+messages (`discard: old`), so the bridge never stops publishing because of
+the limits.
+
+Without `-jetstream-max-age` or `-jetstream-max-bytes` the stream grows until
+the server's `max_file_store` (or `max_memory_store`) is reached, and then
+every publish fails. Set at least one of them; `max_bytes` times the number of
+streams on a server must fit in its store.
 
 ### Checkpoint store (decision)
 
@@ -158,6 +184,14 @@ Flags, with environment variables as defaults:
 | `-jetstream` | `NATSBRIDGE_JETSTREAM` | `false` | publish with JetStream, wait for acks |
 | `-jetstream-stream` | `NATSBRIDGE_JETSTREAM_STREAM` | | stream the messages must be stored in |
 | `-jetstream-create` | `NATSBRIDGE_JETSTREAM_CREATE` | `false` | create that stream for `<prefix>.<region>.>` if missing |
+| `-jetstream-duplicates` | `NATSBRIDGE_JETSTREAM_DUPLICATES` | `10m` | duplicate window of that stream |
+| `-jetstream-replicas` | `NATSBRIDGE_JETSTREAM_REPLICAS` | `1` | replicas of that stream (1 to 5); 3 keeps the events when a server or its datacenter fails |
+| `-jetstream-max-age` | `NATSBRIDGE_JETSTREAM_MAX_AGE` | `0` (no limit) | age after which events are dropped, e.g. `72h`; at least the duplicate window |
+| `-jetstream-max-bytes` | `NATSBRIDGE_JETSTREAM_MAX_BYTES` | `0` (no limit) | size of the stream (of each replica), e.g. `512MB` |
+| `-jetstream-storage` | `NATSBRIDGE_JETSTREAM_STORAGE` | `file` | `file` or `memory`; only when the stream is created |
+| `-jetstream-compression` | `NATSBRIDGE_JETSTREAM_COMPRESSION` | `none` | `none` or `s2` (file storage only) |
+| `-jetstream-allow-direct` | `NATSBRIDGE_JETSTREAM_ALLOW_DIRECT` | `false` | every replica answers direct gets, not only the leader |
+| `-jetstream-deny-delete`, `-jetstream-deny-purge` | `NATSBRIDGE_JETSTREAM_DENY_DELETE`, `NATSBRIDGE_JETSTREAM_DENY_PURGE` | `false` | forbid deleting messages / purging; only when the stream is created |
 | `-publish-timeout` | `NATSBRIDGE_PUBLISH_TIMEOUT` | `10s` | per batch |
 | `-checkpoint` | `NATSBRIDGE_CHECKPOINT` | `variable` | `variable`, `file` or `none` |
 | `-checkpoint-path` | `NATSBRIDGE_CHECKPOINT_PATH` | `<state-prefix>/checkpoint` | |
@@ -166,10 +200,83 @@ Flags, with environment variables as defaults:
 | `-leader-elect` | `NATSBRIDGE_LEADER_ELECT` | `true` | |
 | `-lease-duration` | | `20s` | |
 | `-metrics-addr` | `NATSBRIDGE_METRICS_ADDR` | `127.0.0.1:9464` | `/metrics` and `/healthz`; empty disables |
+| `-sync-pushes` | `NATSBRIDGE_SYNC_PUSHES` | `false` | sync pack registries on push notices (below) |
+| `-sync-regions` | `NATSBRIDGE_SYNC_REGIONS` | `false` | publish pack registry events, sync on those of other regions (below) |
+| `-sync-cooldown` | `NATSBRIDGE_SYNC_COOLDOWN` | `1m` | minimum time between two syncs of a registry triggered from NATS |
+| `-sync-stream` | `NATSBRIDGE_SYNC_STREAM` | `NORCA_PACK_PUSHES` | with `-jetstream`: stream of the push notices (created with `-jetstream-create`) |
 
 The default topics are those a workload identity with `read-job` and node read
 may subscribe to; `ACLToken`, `ACLPolicy`, `NodePool` and `*` need a management
 token.
+
+
+## Inbound: pack registry syncs
+
+The cluster pack registries (`packs.norca.io/Registry`) sync when they are
+saved, on request and on their `syncInterval`; the leader fetches them. With
+the inbound mode, NATS messages make the bridge sync them sooner through
+the API (`POST /v1/pack-registry/:name/sync`). One bridge instance of the
+region handles each message.
+
+**Durable with JetStream** (`-jetstream`): the bridge reads the messages
+through durable consumers named `norca-sync-<region>`, which the instances of
+the region share, so messages published while no instance runs are handled
+when one starts again:
+
+- push notices are stored in the stream `-sync-stream` (`NORCA_PACK_PUSHES`,
+  subjects `<prefix>.packs.pushed` and `<prefix>.packs.pushed.>`, kept for 24h,
+  at most 64MB), which a bridge with `-jetstream-create` creates; one stream
+  serves all regions, every region has its consumer on it;
+- the registry events of another region are read from that region's event
+  stream (the stream of `<prefix>.<region>.>`, e.g. `NORCA_EVENTS_us`): the
+  bridge looks for these streams every minute and creates its consumer on
+  each, filtered to `<prefix>.<region>.CustomObject`. A region whose bridge
+  publishes with core NATS has no stream; its events are not seen.
+
+A handled message is acknowledged; when the Norca API fails it is redelivered
+after 30s (at most 10 times); an invalid one is dropped. A new consumer starts
+with the messages published after its creation, and the server removes it
+after 7 days without a bridge of its region. After a bridge restart a message
+may wait up to 30s (the acknowledgement timeout): the server can still hand
+it to the pull requests of the stopped instance.
+
+**Without JetStream** the instances subscribe in the queue group
+`norca-natsbridge-sync.<region>`; messages published while none runs are
+lost (the registries still sync on their interval).
+
+**Push notices** (`-sync-pushes`): whoever pushes packs, typically the
+release workflow of a pack registry, publishes a notice on
+`<prefix>.packs.pushed` (the region token `packs` is reserved). The bridge
+syncs the cluster registries of that source (compared without the scheme
+case, a trailing `/` or `.git`), or the one named:
+
+```sh
+norca-natsbridge notify-push -nats-url "$NATS_URL" -nats-creds ci.creds \
+  -source oci://ghcr.io/org/packs -pack redis -version 1.2.0
+```
+
+```json
+{"Source":"oci://ghcr.io/org/packs","Registry":"","Pack":"redis","Version":"1.2.0","Digest":"sha256:..."}
+```
+
+**Regions** (`-sync-regions`): the bridge also forwards the events of the
+registries (topic filter `CustomObject:packs.norca.io/Registry`, added to
+`-topics`) and reads the `<prefix>.<region>.CustomObject` events of the other
+regions. When the registry of
+another region found other packs (versions and digests) than the local
+registry of the same name, type and source, the bridge syncs the local one,
+so a new pack version appears in every region at about the same time.
+Registries of the same name with another source are left alone, and the
+cooldown limits the syncs a registry gets from NATS.
+
+The ACL policy (`examples/natsbridge-policy.hcl`) needs
+`object "packs.norca.io/Registry" { capabilities = ["read", "write"] }` in the
+`namespace "*"` block for the inbound mode. With JetStream the bridge's NATS
+user also needs to publish on `$JS.API.STREAM.NAMES`,
+`$JS.API.CONSUMER.CREATE.>`, `$JS.API.CONSUMER.DURABLE.CREATE.>`,
+`$JS.API.CONSUMER.INFO.>`, `$JS.API.CONSUMER.MSG.NEXT.>` and `$JS.ACK.>`
+(the `nats` pack grants them); without JetStream to subscribe to
+`<prefix>.packs.pushed`, `<prefix>.packs.pushed.>` and `<prefix>.*.CustomObject`.
 
 ## Metrics
 

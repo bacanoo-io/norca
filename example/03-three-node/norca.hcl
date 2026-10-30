@@ -3,13 +3,14 @@
 
 # Shared configuration of the three nodes: every node runs a server and a
 # client. Install as /etc/norca.d/norca.hcl on every node, next to its own
-# node-<n>.hcl (name, addresses, zone). Replace every CHANGE_ME first.
+# node-<n>.hcl (name, addresses, datacenter). Replace every CHANGE_ME first.
 #   norca config validate /etc/norca.d/
 
-region     = "global"
-datacenter = "dc1"
-data_dir   = "/opt/norca/data"
-bind_addr  = "0.0.0.0"
+# Each node sets its own datacenter (one per availability zone) in
+# node-<n>.hcl.
+region    = "global"
+data_dir  = "/opt/norca/data"
+bind_addr = "0.0.0.0"
 
 acl {
   enabled = true
@@ -59,6 +60,14 @@ server {
     leaf_cert_ttl = "24h"
   }
 
+  # Topology-aware discovery: the overflow fraction the servers fill in when
+  # a service's discovery block doesn't set overflow_fraction (0..1, default
+  # 0.2; 0 turns the overflow rule off). Reloaded on SIGHUP; jobs keep the
+  # value they were registered with until they are submitted again.
+  native_service_discovery {
+    default_overflow_fraction = 0.2
+  }
+
   secrets {
     audit_file             = "/var/log/norca/secrets-audit.log"
     audit_rotate_duration  = "24h"
@@ -96,11 +105,19 @@ client {
 
   dns {
     enabled    = true
-    namespaces = ["default", "apps"]
+    namespaces = ["default", "apps", "observability"]
+  }
+
+  # Observability (step 12): the host's root directory, read-only, for the
+  # host metrics of the OpenTelemetry Collector (node-1.hcl adds the data
+  # volume of OpenObserve).
+  host_volume "hostfs" {
+    path      = "/"
+    read_only = true
   }
 }
 
-# raw_exec runs the LoadBalancer operator (packs/loadbalancer-operator) and
+# raw_exec runs the LoadBalancer operator (the loadbalancer-operator pack) and
 # its proxies from a binary installed on the nodes.
 plugin "raw_exec" {
   config {

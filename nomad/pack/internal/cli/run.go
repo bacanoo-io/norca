@@ -223,6 +223,8 @@ func (c *RunCommand) run() int {
 func (c *RunCommand) printDeployed() {
 	if c.packConfig.Registry == caching.DevRegistryName {
 		c.ui.Success(fmt.Sprintf("Pack successfully deployed. Use %s to manage this deployed instance with plan, stop, destroy, or info", c.packConfig.SourcePath))
+	} else if c.packConfig.RefDefaulted {
+		c.ui.Success(fmt.Sprintf("Pack successfully deployed. Use %s to manage this deployed instance with plan, stop, destroy, or info", c.packConfig.Name))
 	} else {
 		c.ui.Success(fmt.Sprintf("Pack successfully deployed. Use %s with --ref=%s to manage this deployed instance with plan, stop, destroy, or info", c.packConfig.Name, c.packConfig.Ref))
 	}
@@ -267,7 +269,9 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Default: "",
 			Usage: `Specific git ref of the pack to be run.
 					Supports tags, SHA, and latest. If no ref is specified,
-					defaults to latest.
+					defaults to the ref the registry was last added or
+					updated with (latest if it was added without --ref), or
+					to the newest version of a pack of an OCI registry.
 
 					Using ref with a file path is not supported.`,
 		})
@@ -300,13 +304,9 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Name:    "consul-namespace",
 			Target:  &c.jobConfig.RunConfig.ConsulNamespace,
 			Default: "",
-			Usage: `If set, any services in the job will be registered into the
-					specified Consul namespace. Any template block reading from
-					Consul KV will be scoped to the the specified Consul
-					namespace. If Consul ACLs are enabled and the
-					allow_unauthenticated Norca server Consul configuration is
-					not enabled, then a Consul token must be supplied with
-					appropriate service and KV Consul ACL policy permissions.`,
+			Usage: `Not supported: a job that sets a Consul namespace is
+					rejected. Services, Connect and templates use the namespace
+					of the "consul" block in the agent configuration.`,
 		})
 
 		f.StringVar(&flag.StringVar{
@@ -340,8 +340,9 @@ func (c *RunCommand) Flags() *flag.Sets {
 			Name:    "policy-override",
 			Target:  &c.jobConfig.RunConfig.PolicyOverride,
 			Default: false,
-			Usage: `Sets the flag to force override any soft mandatory Sentinel
-					policies.`,
+			Usage: `Has no effect: Norca has no Sentinel policies, and
+					admission policies cannot be overridden. The flag is
+					accepted for compatibility.`,
 		})
 
 		f.BoolVar(&flag.BoolVar{

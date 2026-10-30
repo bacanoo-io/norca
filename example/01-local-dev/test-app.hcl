@@ -9,4 +9,4 @@ count = 1
 # Use "bridge" when the agent runs as root with the CNI plugins installed.
 network_mode = "host"
 
-discovery_prefer = "zone"
+discovery_prefer = "datacenter"

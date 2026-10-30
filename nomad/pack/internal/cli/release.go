@@ -5,7 +5,9 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -139,17 +141,16 @@ func releasesSupported(client *api.Client) bool {
 }
 
 // releaseName returns the release name of the deployment: the deployment
-// name ("pack@ref" unless --name is given) with the characters that are not
-// allowed in release names replaced, so that a release is the instance the
-// deployment name identifies. Use --name for a release whose pack version
-// changes.
+// name (the pack name, or "pack@ref" with --ref, unless --name is given)
+// with the characters that are not allowed in release names replaced, so
+// that a release is the instance the deployment name identifies.
 func (c *baseCommand) releaseName(cfg *caching.PackConfig) (string, error) {
 	return releaseNameFor(cfg, c.deploymentName)
 }
 
 func releaseNameFor(cfg *caching.PackConfig, deploymentName string) (string, error) {
 	if deploymentName == "" {
-		deploymentName = caching.AppendRef(cfg.Name, cfg.Ref)
+		deploymentName = defaultDeploymentName(cfg)
 	}
 	return release.Name(deploymentName)
 }
@@ -221,14 +222,21 @@ func (c *baseCommand) buildRelease(
 		c.ui.ErrorWithContext(err, ErrParsingArgsOrFlags, errorContext.GetAll()...)
 		return nil, false
 	}
+	// Variables with a secret block go to their Variable item.
+	req.Secrets = manager.MergeSecrets(req.Secrets, packManager.Secrets())
+	vars := maps.Clone(c.vars)
+	for _, name := range packManager.SecretVariables() {
+		delete(vars, name)
+	}
 	varFiles := map[string][]byte{}
 	for _, f := range c.varFiles {
 		if b, err := os.ReadFile(f); err == nil {
 			varFiles[f] = b
 		}
 	}
-	req.Values, req.ValuesHash = release.Values(c.vars, varFiles)
-	req.VariablesSchemas, req.VariableValues = packManager.VariablesSchemas()
+	req.Values, req.ValuesHash = release.Values(vars, varFiles)
+	_, req.VariableValues = packManager.VariablesSchemas()
+	req.VariablesSchemas = packManager.SynthesizedVariablesSchemas()
 	req.Regions = opts.regionList(packManager.Metadata())
 
 	for _, name := range others {
@@ -366,6 +374,13 @@ func (c *baseCommand) releasePack(packManager *manager.PackManager, packCfg *cac
 		for _, s := range origin.Signatures {
 			p.Signatures = append(p.Signatures, &api.ReleasePackSignature{Payload: string(s.Payload), Signature: s.Signature})
 		}
+		// OCI registries and bundles.
+		p.Source, p.Ref = origin.Source, origin.Tag
+	} else if packCfg.Registry != caching.DevRegistryName {
+		// git registries: the cache keeps the source next to the packs of
+		// the ref.
+		p.Source = caching.RegistrySource(filepath.Dir(packCfg.Path))
+		p.Ref = packCfg.Ref
 	}
 	return p
 }

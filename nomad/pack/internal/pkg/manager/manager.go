@@ -43,6 +43,11 @@ type PackManager struct {
 	// the values validated against them, set by ProcessTemplates.
 	schemas      []*api.ReleaseVariablesSchema
 	schemaValues map[string]map[string]any
+
+	// secrets and secretVars are the Variable secrets of the variables with
+	// a secret block and their names, set by ProcessTemplates.
+	secrets    []*api.ReleaseVariableSecret
+	secretVars []string
 }
 
 func NewPackManager(cfg *Config, client *api.Client) *PackManager {
@@ -150,6 +155,7 @@ func (pm *PackManager) ProcessTemplates(renderAux bool, format bool, ignoreMissi
 	if wErr := pm.validateVariables(parsedVars); wErr != nil {
 		return nil, wErr
 	}
+	pm.extractSecrets(parsedVars)
 
 	r := new(renderer.Renderer)
 	r.Client = pm.client

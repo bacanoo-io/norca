@@ -5,7 +5,7 @@ This directory holds the main Go module of [Norca](../README.md). The module
 path stays `github.com/hashicorp/nomad` for compatibility with existing imports.
 
 The code started from the source code of HashiCorp Nomad v1.6.5 (MPL 2.0),
-imported with its git history; see [docs/licensing.md](../docs/licensing.md).
+imported with its git history; see [licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md).
 Norca is not a product of HashiCorp, Inc. or IBM Corp. and is not affiliated
 with them. "Nomad", "Consul" and "HashiCorp" are trademarks of their
 respective owners.

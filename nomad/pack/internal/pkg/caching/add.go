@@ -136,6 +136,13 @@ func (c *Cache) addFromURI(opts *AddOpts) (cachedRegistry *Registry, err error) 
 		return
 	}
 
+	// Record the ref, so that commands without --ref use the packs at it.
+	refPath := filepath.Join(c.cfg.Path, opts.RegistryName, DefaultRefFile)
+	if err = os.WriteFile(refPath, []byte(opts.Ref+"\n"), 0644); err != nil {
+		logger.ErrorWithContext(err, "error recording the ref of the registry", c.ErrorContext.GetAll()...)
+		return
+	}
+
 	return
 }
 
@@ -166,7 +173,15 @@ func (c *Cache) cloneRemoteGitRegistry(opts *AddOpts) (string, error) {
 	if opts.PackName != "" {
 		clonePath = path.Join(clonePath, "packs", opts.PackName)
 	}
-	if err := gg.Get(clonePath, fmt.Sprintf("git::%s", url)); err != nil {
+	if opts.GitAuth != nil {
+		if opts.PackName != "" {
+			return "n/a", fmt.Errorf("credentials can't be used with a target pack")
+		}
+		if err := cloneAuthenticated(clonePath, opts.Source, opts.Ref, opts.IsLatest(), opts.GitAuth); err != nil {
+			logger.ErrorWithContext(err, "could not install registry", c.ErrorContext.GetAll()...)
+			return "n/a", err
+		}
+	} else if err := gg.Get(clonePath, fmt.Sprintf("git::%s", url)); err != nil {
 		logger.ErrorWithContext(err, "could not install registry", c.ErrorContext.GetAll()...)
 		return "n/a", err
 	}
@@ -330,6 +345,9 @@ type AddOpts struct {
 	Username string
 	// Optional password for basic auth to a registry that requires authentication.
 	Password string
+	// GitAuth clones the whole registry with git and these credentials
+	// instead of go-getter (cluster pack registries).
+	GitAuth *GitAuth
 }
 
 // RegistryPath fulfills the cacheOperationProvider interface for AddOpts

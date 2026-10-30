@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/opencontainers/cgroups"
 	"github.com/opencontainers/cgroups/fs2"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -65,6 +66,15 @@ func NewCpusetManagerV2(parent string, reservable []uint16, logger hclog.Logger)
 	parentAbs := filepath.Join(CgroupRoot, parent)
 	if err := os.MkdirAll(parentAbs, 0o755); err != nil {
 		logger.Error("failed to ensure nomad parent cgroup exists; disabling cpuset management", "error", err)
+		return new(NoopCpusetManager)
+	}
+
+	// Norca: the parent may exist without this agent being able to create
+	// the task cgroups in it (e.g. made by an agent run as root before, now
+	// run as a normal user). CgroupPathFor waits until the task's cgroup
+	// exists, so every task would then wait forever.
+	if err := unix.Access(parentAbs, unix.W_OK); err != nil {
+		logger.Error("nomad parent cgroup is not writable; disabling cpuset management", "path", parentAbs, "error", err)
 		return new(NoopCpusetManager)
 	}
 

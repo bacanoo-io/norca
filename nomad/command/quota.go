@@ -23,8 +23,8 @@ Usage: norca quota <subcommand> [options] [args]
   quotas allow operators to restrict the aggregate resource usage of namespaces.
   Users can inspect existing quota specifications, create new quotas, delete and
   list existing quotas, and more. The design of namespace quotas is described in
-  docs/design/kubernetes-features-spec.md ("Namespace quotas") in the Norca
-  repository.
+  the Norca documentation, https://github.com/bacanoo-io/norca-doc
+  (content/docs/design/kubernetes-features-spec.md, "Namespace quotas").
 
   Examine a quota's status:
 

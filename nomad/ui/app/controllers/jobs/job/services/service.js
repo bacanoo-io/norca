@@ -18,7 +18,7 @@ export default class JobsJobServicesServiceController extends Controller {
     { key: 'ready', label: 'Receives traffic' },
     { key: 'health', label: 'Health' },
     { key: 'checks', label: 'Checks' },
-    { key: 'zone', label: 'Zone', hidden: true },
+    { key: 'datacenter', label: 'Datacenter', hidden: true },
   ];
 
   @action

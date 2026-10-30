@@ -466,7 +466,7 @@ func (b *Backup) Diff(args *structs.BackupDiffRequest, reply *structs.BackupDiff
 }
 
 // DownloadURL returns a short-lived pre-signed download URL of a backup
-// object.
+// object. Directory destinations have none: the error names the file.
 func (b *Backup) DownloadURL(args *structs.BackupDownloadURLRequest, reply *structs.BackupDownloadURLResponse) error {
 	authErr := b.srv.Authenticate(b.ctx, args)
 	if done, err := b.srv.forward("Backup.DownloadURL", args, args, reply); done {
@@ -504,6 +504,9 @@ func (b *Backup) DownloadURL(args *structs.BackupDownloadURLRequest, reply *stru
 	if err != nil {
 		if errors.Is(err, backup.ErrNotFound) {
 			return structs.NewErrRPCCodedf(http.StatusNotFound, "%v", err)
+		}
+		if errors.Is(err, backup.ErrNoDownloadURL) {
+			return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
 		}
 		return err
 	}

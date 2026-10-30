@@ -92,7 +92,7 @@ var platforms = []platform{
 	{GOOS: "windows", GOARCH: "amd64", Tags: []string{"timetzdata"}},
 }
 
-// Allowed licenses (docs/licensing.md, "Dependencies"; the UI list matches
+// Allowed licenses (norca-doc content/docs/introduction/license.md, "Dependencies"; the UI list matches
 // the license check in .github/workflows/compliance.yml).
 var (
 	allowedGo  = setOf("MPL-2.0", "Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC")
@@ -134,7 +134,7 @@ func findSourceCopy(importPath string) *sourceCopy {
 }
 
 // forbiddenNPM lists packages that must not be shipped regardless of their
-// license (docs/licensing.md, "Prohibited").
+// license (norca-doc content/docs/introduction/license.md, "Prohibited").
 var forbiddenNPM = setOf("apexcharts")
 
 func setOf(s ...string) map[string]bool {

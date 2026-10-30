@@ -301,7 +301,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 			Default: "",
 			Usage: `If set, this will be the unique identifier of this deployed
 					instance of the specified pack. If not set, the pack name
-					will be used. This is useful for running more than one
+					will be used (pack@ref if --ref is given). This is useful for running more than one
 					instance of a pack within the same cluster. Note that this
 					name must be globally unique within a cluster. Running the
 					run command multiple times with the same name, will just

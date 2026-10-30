@@ -19,7 +19,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
-// Vault-style lookups (docs/design/secrets-plan.md, "Vault compatibility"):
+// Vault-style lookups (norca-doc content/docs/design/secrets-plan.md, "Vault compatibility"):
 // the Vault "secret" template function and the reads through the client's
 // Vault-compatible endpoint, when the agent has no Vault integration. They
 // follow the resolution order of every lookup (VaultStyle set); when they

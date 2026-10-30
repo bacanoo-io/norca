@@ -160,10 +160,29 @@ func (p *ParserV2) newHandleOverride(o *variables.Override) {
 }
 
 func (p *ParserV2) newHandleOverrideVar(o *variables.Override) {
+	// Like a -var value, the value of a variables file is converted with the
+	// declared type constraint, which keeps the optional() attributes of
+	// objects, also inside lists and maps, and their defaults are applied.
+	// A value that does not convert is left to Merge, which reports it.
+	val, ty := o.Value, o.Type
+	if existing, ok := p.rootVars[o.Path][o.Name]; ok && val != cty.NilVal && !val.IsNull() {
+		convType := existing.Type
+		if existing.ConstraintType != cty.NilType {
+			convType = existing.ConstraintType
+		}
+		if convType != cty.NilType && convType != cty.DynamicPseudoType {
+			if cv, err := hclhelp.ConvertValUsingType(val, convType, o.Range.Ptr()); err == nil {
+				if existing.TypeDefaults != nil && !cv.IsNull() {
+					cv = existing.TypeDefaults.Apply(cv)
+				}
+				val, ty = cv, cv.Type()
+			}
+		}
+	}
 	v := variables.Variable{
 		Name:      o.Name,
-		Type:      o.Type,
-		Value:     o.Value,
+		Type:      ty,
+		Value:     val,
 		DeclRange: o.Range,
 	}
 	p.fileOverrideVars[o.Path] = append(p.fileOverrideVars[o.Path], &v)
@@ -234,9 +253,11 @@ func (p *ParserV2) parseRootBodyContent(body *hcl.BodyContent) (map[variables.ID
 
 	var diags hcl.Diagnostics
 
-	// Due to the parsing that uses variableFileSchema, it is safe to assume
-	// every block has a type "variable".
+	// The rule blocks are read by the rules package.
 	for _, block := range body.Blocks {
+		if block.Type != "variable" {
+			continue
+		}
 		cfg, cfgDiags := decoder.DecodeVariableBlock(block)
 		diags = packdiags.SafeDiagnosticsExtend(diags, cfgDiags)
 		if cfg != nil {
@@ -303,7 +324,12 @@ func (p *ParserV2) parseVariableImpl(name, rawVal string, tgt variables.PackIDKe
 		return hcl.Diagnostics{packdiags.DiagMissingRootVar(name, &fakeRange)}
 	}
 
-	expr, diags := hclhelp.ExpressionFromVariableDefinition(fakeRange.Filename, rawVal, existing.Type)
+	varType := existing.Type
+	if varType == cty.NilType && existing.Default != cty.NilVal && !existing.Default.IsNull() {
+		varType = existing.Default.Type()
+	}
+
+	expr, diags := hclhelp.ExpressionFromVariableDefinition(fakeRange.Filename, rawVal, varType)
 	if diags.HasErrors() {
 		return diags
 	}
@@ -314,12 +340,21 @@ func (p *ParserV2) parseVariableImpl(name, rawVal string, tgt variables.PackIDKe
 	}
 
 	// If our stored type isn't cty.NilType then attempt to covert the override
-	// variable, so we know they are compatible.
-	if existing.Type != cty.NilType {
+	// variable, so we know they are compatible. A declared type is converted
+	// with its constraint, which keeps the optional() attributes of objects,
+	// and their defaults are applied, as for a value in a variables file.
+	if varType != cty.NilType {
+		convType := varType
+		if existing.ConstraintType != cty.NilType {
+			convType = existing.ConstraintType
+		}
 		var err *hcl.Diagnostic
-		val, err = hclhelp.ConvertValUsingType(val, existing.Type, expr.Range().Ptr())
+		val, err = hclhelp.ConvertValUsingType(val, convType, expr.Range().Ptr())
 		if err != nil {
 			return hcl.Diagnostics{err}
+		}
+		if existing.TypeDefaults != nil && !val.IsNull() {
+			val = existing.TypeDefaults.Apply(val)
 		}
 	}
 

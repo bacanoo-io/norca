@@ -512,13 +512,17 @@ func (op *Operator) snapshotSave(conn io.ReadWriteCloser) {
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, &args)
 	if authErr != nil {
 		handleFailure(403, structs.ErrPermissionDenied)
+		return
 	}
 
 	// Check agent permissions
 	if aclObj, err := op.srv.ResolveACL(&args); err != nil {
 		code := 500
-		if err == structs.ErrTokenNotFound {
+		switch err {
+		case structs.ErrTokenNotFound:
 			code = 400
+		case structs.ErrPermissionDenied:
+			code = 403
 		}
 		handleFailure(code, err)
 		return
@@ -599,13 +603,17 @@ func (op *Operator) snapshotRestore(conn io.ReadWriteCloser) {
 	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, &args)
 	if authErr != nil {
 		handleFailure(403, structs.ErrPermissionDenied)
+		return
 	}
 
 	// Check agent permissions
 	if aclObj, err := op.srv.ResolveACL(&args); err != nil {
 		code := 500
-		if err == structs.ErrTokenNotFound {
+		switch err {
+		case structs.ErrTokenNotFound:
 			code = 400
+		case structs.ErrPermissionDenied:
+			code = 403
 		}
 		handleFailure(code, err)
 		return

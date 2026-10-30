@@ -122,7 +122,7 @@ func TestCLI_V1_JobPlan_ConflictingDeployment(t *testing.T) {
 		result := runTestPackV1Cmd(t, s, []string{"run", testPack, testRegFlag, testRefFlag})
 		must.Eq(t, 1, result.exitCode)
 		expectNoStdErrOutput(t, result)
-		must.StrContains(t, result.cmdOut.String(), job.ErrExistsInDeployment{JobID: testPack, Deployment: testPack + "@latest"}.Error())
+		must.StrContains(t, result.cmdOut.String(), job.ErrExistsInDeployment{JobID: testPack, Deployment: testPack}.Error())
 	})
 }
 

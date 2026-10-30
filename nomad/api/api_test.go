@@ -39,6 +39,10 @@ func makeACLClient(t *testing.T, cb1 configCallback,
 		t.Fatalf("failed to bootstrap ACLs: %v", err)
 	}
 	client.SetSecretID(root.SecretID)
+
+	// The test server could not observe the leader's establishment
+	// without a token.
+	server.WaitForLeaderEstablished(root.SecretID)
 	return client, server, root
 }
 

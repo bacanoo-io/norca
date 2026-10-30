@@ -399,7 +399,7 @@ ember-dist: ## Build the static UI assets from source
 # before the migration, into ui/dist/legacy, so it must run after ember-dist
 # (ember build empties ui/dist). ui-legacy/ keeps its package.json and yarn.lock
 # for the license notices (tools/thirdparty).
-LEGACY_UI_REF ?= 87a6ea393
+LEGACY_UI_REF ?= 6af54afc8
 LEGACY_UI_BUILD := build/ui-legacy
 
 .PHONY: ember-dist-legacy

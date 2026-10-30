@@ -107,16 +107,14 @@ func TestHTTP_ServiceFailover(t *testing.T) {
 func TestHTTP_ServiceNearSelf(t *testing.T) {
 	ci.Parallel(t)
 
-	httpTest(t, func(c *Config) {
-		c.Client.Meta = map[string]string{"zone": "fsn1"}
-	}, func(s *TestAgent) {
-		settings := &structs.ServiceDiscovery{Prefer: "zone", MinLocal: 1}
+	httpTest(t, nil, func(s *TestAgent) {
+		settings := &structs.ServiceDiscovery{Prefer: "datacenter", MinLocal: 1}
 		dc := s.Agent.Client().Datacenter()
 		regs := []*structs.ServiceRegistration{
 			{ID: "local", ServiceName: "api", Namespace: "default", NodeID: "n", JobID: "j", AllocID: "a",
-				Address: "10.0.0.1", Datacenter: dc, Zone: "fsn1", Ready: true, Discovery: settings},
+				Address: "10.0.0.1", Datacenter: dc, Ready: true, Discovery: settings},
 			{ID: "remote", ServiceName: "api", Namespace: "default", NodeID: "n", JobID: "j", AllocID: "b",
-				Address: "10.0.0.2", Datacenter: dc, Zone: "nbg1", Ready: true, Discovery: settings},
+				Address: "10.0.0.2", Datacenter: dc + "-other", Ready: true, Discovery: settings},
 		}
 		must.NoError(t, s.server.State().UpsertServiceRegistrations(structs.MsgTypeTestSetup, 10, regs))
 

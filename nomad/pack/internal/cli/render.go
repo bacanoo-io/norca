@@ -370,7 +370,9 @@ func (c *RenderCommand) Flags() *flag.Sets {
 			Default: "",
 			Usage: `Specific git ref of the pack to be rendered.
 					Supports tags, SHA, and latest. If no ref is specified,
-					defaults to latest.
+					defaults to the ref the registry was last added or
+					updated with (latest if it was added without --ref), or
+					to the newest version of a pack of an OCI registry.
 
 					Using ref with a file path is not supported.`,
 		})

@@ -80,7 +80,9 @@ export default class Dashboard extends Component {
           !s.error &&
           !!s.leader &&
           s.servers.alive === s.servers.total &&
-          !s.clients.down,
+          !s.clients.down &&
+          !s.seal?.sealed &&
+          !s.seal?.needsRecovery,
         allocationSegments: [
           { label: 'running', value: s.allocations.running, color: 'green' },
           { label: 'pending', value: s.allocations.pending, color: 'azure' },

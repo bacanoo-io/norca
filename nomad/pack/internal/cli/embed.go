@@ -155,7 +155,7 @@ Usage: norca PREFIX <subcommand> [options] [args]
 
   Add a registry and list its packs:
 
-      $ norca PREFIX registry add community github.com/hashicorp/nomad-pack-community-registry
+      $ norca PREFIX registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
       $ norca PREFIX list
 
   Please see the individual subcommand help for detailed usage information.

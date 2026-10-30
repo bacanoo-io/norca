@@ -138,8 +138,10 @@ func (c *baseCommand) fetchFromRegistry(conf *packconfig.Config, reg *packconfig
 		return err
 	}
 
+	// Without --ref the newest version is used, not the default ref of the
+	// pack in the cache.
 	tag := cfg.Ref
-	if tag == "" || tag == caching.DefaultRef {
+	if tag == "" || tag == caching.DefaultRef || cfg.RefDefaulted {
 		tag, err = supplychain.ResolveTag(ctx, repo, "")
 		if err != nil {
 			// Offline: fall back to the newest cached version.
@@ -150,6 +152,11 @@ func (c *baseCommand) fetchFromRegistry(conf *packconfig.Config, reg *packconfig
 			c.ui.Warning(fmt.Sprintf("Could not reach %s (%v); using the cached version %s", loc, err, cached))
 			tag = cached
 		}
+	}
+	// The tag comes from --ref or the registry's tag list and becomes a cache
+	// path.
+	if err := supplychain.ValidateTag(tag); err != nil {
+		return fmt.Errorf("%s: %w", loc, err)
 	}
 	cfg.Ref = tag
 	cfg.Path = supplychain.PackDir(cacheRoot, reg.Name, cfg.Name, tag)

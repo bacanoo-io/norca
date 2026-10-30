@@ -9,7 +9,7 @@ import (
 )
 
 // Sources of the Vault-style secret lookups of a job (Norca,
-// docs/design/secrets-plan.md, "Vault compatibility").
+// norca-doc content/docs/design/secrets-plan.md, "Vault compatibility").
 const (
 	// SecretRefSourceVault is a task vault block.
 	SecretRefSourceVault = "vault"

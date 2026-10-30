@@ -1200,6 +1200,9 @@ func parseServiceMTLS(o *ast.ObjectItem) (*api.ServiceMTLS, error) {
 	valid := []string{
 		"mode",
 		"upstream",
+		"change_mode",
+		"change_signal",
+		"change_on",
 	}
 	if err := checkHCLKeys(o.Val, valid); err != nil {
 		return nil, multierror.Prefix(err, "mtls ->")

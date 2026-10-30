@@ -13,8 +13,15 @@
 # need a management token.
 
 # Events of all namespaces (the bridge subscribes with -namespace "*").
+# With -sync-pushes or -sync-regions the bridge also reads and syncs the
+# cluster pack registries (cluster-scoped objects, authorized here), and
+# -sync-regions publishes their events.
 namespace "*" {
   capabilities = ["read-job"]
+
+  object "packs.norca.io/Registry" {
+    capabilities = ["read", "write"]
+  }
 }
 
 # The namespace of the bridge job: the events of the namespace, plus the

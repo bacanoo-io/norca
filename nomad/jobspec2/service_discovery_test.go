@@ -22,7 +22,7 @@ job "discovery" {
       provider = "nomad"
 
       discovery {
-        prefer            = "zone"
+        prefer            = "datacenter"
         min_local         = 2
         overflow_fraction = 0.3
         failover          = ["eu-gcp", "us-hetzner"]
@@ -49,7 +49,7 @@ func TestParse_ServiceDiscovery(t *testing.T) {
 		service := job.TaskGroups[0].Services[0]
 		d := service.Discovery
 		must.NotNil(t, d)
-		must.Eq(t, "zone", d.Prefer)
+		must.Eq(t, "datacenter", d.Prefer)
 		must.Eq(t, 2, d.MinLocal)
 		must.Eq(t, 0.3, *d.OverflowFraction)
 		must.Eq(t, []string{"eu-gcp", "us-hetzner"}, d.Failover)

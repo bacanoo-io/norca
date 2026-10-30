@@ -93,6 +93,9 @@ func DecodeVariableBlock(block *hcl.Block) (*variables.Variable, hcl.Diagnostics
 		v.Value = val
 	}
 
+	// The install form directives (Norca extension).
+	diags = packdiags.SafeDiagnosticsExtend(diags, decodeFormBlocks(v, content.Blocks))
+
 	if diags.HasErrors() {
 		return nil, diags
 	}

@@ -47,6 +47,31 @@ job "mtls" {
     }
 
     service {
+      name     = "openobserve"
+      provider = "nomad"
+
+      mtls {
+        change_mode = "restart"
+      }
+    }
+
+    task "app" {
+      driver = "docker"
+
+      service {
+        name     = "reloader"
+        provider = "nomad"
+
+        mtls {
+          mode          = "app"
+          change_mode   = "signal"
+          change_signal = "SIGHUP"
+          change_on     = "certificate"
+        }
+      }
+    }
+
+    service {
       name     = "mtls-gateway"
       port     = "gw"
       provider = "nomad"
@@ -76,7 +101,12 @@ func TestParse_ServiceMTLS(t *testing.T) {
 		empty.Canonicalize()
 		must.Eq(t, api.MTLSModeApp, empty.Mode)
 
-		must.Eq(t, api.MTLSModeGateway, job.TaskGroups[0].Services[2].MTLS.Mode)
+		must.Eq(t, api.MTLSModeGateway, job.TaskGroups[0].Services[3].MTLS.Mode)
+
+		must.Eq(t, &api.ServiceMTLS{ChangeMode: api.MTLSChangeModeRestart}, job.TaskGroups[0].Services[2].MTLS)
+		must.Eq(t, &api.ServiceMTLS{
+			Mode: api.MTLSModeApp, ChangeMode: api.MTLSChangeModeSignal, ChangeSignal: "SIGHUP", ChangeOn: api.MTLSChangeOnCertificate,
+		}, job.TaskGroups[0].Tasks[0].Services[0].MTLS)
 	}
 
 	t.Run("hcl2", func(t *testing.T) {
@@ -97,5 +127,8 @@ func TestParse_ServiceMTLS(t *testing.T) {
 	t.Run("hcl1 invalid key", func(t *testing.T) {
 		_, err := jobspec.Parse(strings.NewReader(strings.Replace(serviceMTLSJob, "local_port = 5432", "local_prt = 5432", 1)))
 		must.ErrorContains(t, err, "local_prt")
+
+		_, err = jobspec.Parse(strings.NewReader(strings.Replace(serviceMTLSJob, "change_on ", "change_at ", 1)))
+		must.ErrorContains(t, err, "change_at")
 	})
 }

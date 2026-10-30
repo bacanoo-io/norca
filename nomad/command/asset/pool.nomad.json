@@ -4,9 +4,5 @@
   "Meta": {
     "environment": "prod",
     "owner": "sre"
-  },
-  "SchedulerConfiguration": {
-    "SchedulerAlgorithm": "spread",
-    "MemoryOversubscriptionEnabled": true
   }
 }

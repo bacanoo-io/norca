@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/nomad/api"
+	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -108,20 +109,18 @@ func (s *HTTPServer) serviceFailover(args *structs.ServiceRegistrationByNameRequ
 	}
 }
 
-// apiServiceDiscoveryToStructs converts the discovery block of a service.
+// apiServiceDiscoveryToStructs converts the discovery block of a service. An
+// unset overflow fraction stays unset: the servers fill in their configured
+// default when the job is registered.
 func apiServiceDiscoveryToStructs(in *api.ServiceDiscovery) *structs.ServiceDiscovery {
 	if in == nil {
 		return nil
 	}
-	out := &structs.ServiceDiscovery{
+	return &structs.ServiceDiscovery{
 		Prefer:           in.Prefer,
 		MinLocal:         in.MinLocal,
-		OverflowFraction: structs.DefaultDiscoveryOverflowFraction,
+		OverflowFraction: pointer.Copy(in.OverflowFraction),
 		Failover:         slices.Clone(in.Failover),
 		IncludeNotReady:  in.IncludeNotReady,
 	}
-	if in.OverflowFraction != nil {
-		out.OverflowFraction = *in.OverflowFraction
-	}
-	return out
 }

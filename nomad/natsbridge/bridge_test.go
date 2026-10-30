@@ -180,9 +180,8 @@ func TestBridge_JetStreamDeduplication(t *testing.T) {
 	js, err := jetstream.New(nc)
 	must.NoError(t, err)
 	ctx := context.Background()
-	must.NoError(t, EnsureStream(ctx, js, "NOMAD", "nomad", "r1", time.Minute))
-	// Existing streams are left alone.
-	must.NoError(t, EnsureStream(ctx, js, "NOMAD", "nomad", "r1", time.Hour))
+	_, err = EnsureStream(ctx, js, "NOMAD", "nomad", "r1", StreamSettings{Duplicates: time.Minute, Replicas: 1})
+	must.NoError(t, err)
 	pub := &JetStreamPublisher{JS: js, Timeout: 5 * time.Second, Stream: "NOMAD"}
 
 	src := newFakeSource()
@@ -451,12 +450,17 @@ func TestMetrics_Text(t *testing.T) {
 
 func TestParseConfig(t *testing.T) {
 	env := map[string]string{
-		"NATS_URL":                  "nats://nats:4222",
-		"NATSBRIDGE_JETSTREAM":      "true",
-		"NATSBRIDGE_TOPICS":         "Job,Deployment:web",
-		"NOMAD_JOB_ID":              "natsbridge",
-		"NOMAD_NAMESPACE":           "ops",
-		"NATSBRIDGE_SUBJECT_PREFIX": "norca",
+		"NATS_URL":                          "nats://nats:4222",
+		"NATSBRIDGE_JETSTREAM":              "true",
+		"NATSBRIDGE_TOPICS":                 "Job,Deployment:web",
+		"NOMAD_JOB_ID":                      "natsbridge",
+		"NOMAD_NAMESPACE":                   "ops",
+		"NATSBRIDGE_SUBJECT_PREFIX":         "norca",
+		"NATSBRIDGE_JETSTREAM_REPLICAS":     "3",
+		"NATSBRIDGE_JETSTREAM_MAX_AGE":      "72h",
+		"NATSBRIDGE_JETSTREAM_MAX_BYTES":    "512MB",
+		"NATSBRIDGE_JETSTREAM_COMPRESSION":  "s2",
+		"NATSBRIDGE_JETSTREAM_ALLOW_DIRECT": "true",
 	}
 	var out bytes.Buffer
 	cfg, err := ParseConfig([]string{"-jetstream-stream", "NORCA", "-event-types", "JobRegistered, DeploymentStatusUpdate"},
@@ -473,6 +477,11 @@ func TestParseConfig(t *testing.T) {
 	must.Eq(t, []TopicFilter{{Topic: "Job"}, {Topic: "Deployment", Keys: []string{"web"}}}, cfg.Topics)
 	must.True(t, cfg.LeaderElect)
 	must.Eq(t, CheckpointVariable, cfg.Checkpoint)
+	must.Eq(t, 3, cfg.JetStreamReplicas)
+	must.Eq(t, StreamSettings{
+		Duplicates: 10 * time.Minute, Replicas: 3, MaxAge: 72 * time.Hour, MaxBytes: 512 << 20,
+		Storage: StorageFile, Compression: CompressionS2, AllowDirect: true,
+	}, cfg.StreamSettings())
 
 	noEnv := func(string) string { return "" }
 	for _, args := range [][]string{
@@ -482,6 +491,14 @@ func TestParseConfig(t *testing.T) {
 		{"-subject-prefix", "a..b"},
 		{"-start-at", "yesterday"},
 		{"-nats-cert", "c.pem"},
+		{"-jetstream-replicas", "0"},
+		{"-jetstream-replicas", "7"},
+		{"-jetstream-max-age", "-1h"},
+		{"-jetstream-max-age", "1m"}, // below the duplicate window
+		{"-jetstream-max-bytes", "lots"},
+		{"-jetstream-storage", "disk"},
+		{"-jetstream-compression", "zstd"},
+		{"-jetstream-storage", "memory", "-jetstream-compression", "s2"},
 		{"extra"},
 	} {
 		_, err := ParseConfig(args, noEnv, &out)

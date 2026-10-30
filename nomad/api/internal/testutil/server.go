@@ -17,6 +17,7 @@ package testutil
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -141,6 +142,7 @@ func defaultServerConfig(t testing.T) *TestServerConfig {
 // TestServer is the main server wrapper struct.
 type TestServer struct {
 	cmd    *exec.Cmd
+	exited chan struct{} // closed when cmd has exited
 	Config *TestServerConfig
 	t      testing.T
 
@@ -161,14 +163,7 @@ func NewTestServer(t testing.T, cb ServerConfigCallback) *TestServer {
 	_, err = exec.Command(path, "-version").CombinedOutput()
 	must.NoError(t, err)
 
-	dataDir, err := os.MkdirTemp("", "nomad")
-	must.NoError(t, err)
-
-	configFile, err := os.CreateTemp(dataDir, "nomad")
-	must.NoError(t, err)
-
 	nomadConfig := defaultServerConfig(t)
-	nomadConfig.DataDir = dataDir
 
 	if cb != nil {
 		cb(nomadConfig)
@@ -180,6 +175,40 @@ func NewTestServer(t testing.T, cb ServerConfigCallback) *TestServer {
 		}
 		nomadConfig.Client.Options["test.tighten_network_timeouts"] = "true"
 	}
+
+	// The ports were free when they were grabbed, but the agent of another
+	// test can bind one of them first. The agent then exits during its
+	// startup and is started again with other ports and a new data dir.
+	const attempts = 3
+	for attempt := 1; ; attempt++ {
+		server := startTestServer(t, path, nomadConfig)
+		err := server.waitForStart()
+		if err == nil {
+			// Wait for the client to be ready
+			if nomadConfig.DevMode {
+				server.waitForClient()
+			}
+			return server
+		}
+		exited := server.hasExited()
+		server.Stop()
+		if !exited || attempt == attempts {
+			t.Fatalf("failed to start the agent: %v", err)
+		}
+		t.Logf("the agent exited during its startup (attempt %d), starting it with other ports: %v", attempt, err)
+		ports := PortAllocator.Grab(3)
+		nomadConfig.Ports = &PortsConfig{HTTP: ports[0], RPC: ports[1], Serf: ports[2]}
+	}
+}
+
+// startTestServer starts the agent with the configuration in a new data dir.
+func startTestServer(t testing.T, path string, nomadConfig *TestServerConfig) *TestServer {
+	dataDir, err := os.MkdirTemp("", "nomad")
+	must.NoError(t, err)
+	nomadConfig.DataDir = dataDir
+
+	configFile, err := os.CreateTemp(dataDir, "nomad")
+	must.NoError(t, err)
 
 	configContent, err := json.Marshal(nomadConfig)
 	must.NoError(t, err)
@@ -210,31 +239,48 @@ func NewTestServer(t testing.T, cb ServerConfigCallback) *TestServer {
 	cmd.Stderr = stderr
 	must.NoError(t, cmd.Start())
 
+	exited := make(chan struct{})
+	go func() {
+		defer close(exited)
+		_ = cmd.Wait()
+	}()
+
 	client := cleanhttp.DefaultClient()
 	client.Timeout = 10 * time.Second
 
-	server := &TestServer{
+	return &TestServer{
 		Config: nomadConfig,
 		cmd:    cmd,
+		exited: exited,
 		t:      t,
 
 		HTTPAddr:   fmt.Sprintf("127.0.0.1:%d", nomadConfig.Ports.HTTP),
 		SerfAddr:   fmt.Sprintf("127.0.0.1:%d", nomadConfig.Ports.Serf),
 		HTTPClient: client,
 	}
+}
 
-	// Wait for the server to be ready
-	if nomadConfig.Server.Enabled && nomadConfig.Server.BootstrapExpect != 0 {
-		server.waitForLeader()
-	} else {
-		server.waitForAPI()
+// waitForStart waits for the server to be ready: for a server that
+// bootstraps, until it has an established leader, otherwise until its HTTP
+// API responds.
+func (s *TestServer) waitForStart() error {
+	if s.Config.Server.Enabled && s.Config.Server.BootstrapExpect != 0 {
+		if err := s.waitForLeader(); err != nil {
+			return err
+		}
+		return s.waitForEstablished("")
 	}
+	return s.waitForAPI()
+}
 
-	// Wait for the client to be ready
-	if nomadConfig.DevMode {
-		server.waitForClient()
+// hasExited reports whether the agent process has exited.
+func (s *TestServer) hasExited() bool {
+	select {
+	case <-s.exited:
+		return true
+	default:
+		return false
 	}
-	return server
 }
 
 // Stop stops the test Nomad server, and removes the Nomad data
@@ -244,18 +290,16 @@ func (s *TestServer) Stop() {
 
 	// wait for the process to exit to be sure that the data dir can be
 	// deleted on all platforms.
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_ = s.cmd.Wait()
-	}()
+	if s.hasExited() {
+		return
+	}
 
 	// kill and wait gracefully
 	err := s.cmd.Process.Signal(os.Interrupt)
 	must.NoError(s.t, err)
 
 	select {
-	case <-done:
+	case <-s.exited:
 		return
 	case <-time.After(5 * time.Second):
 		s.t.Logf("timed out waiting for process to gracefully terminate")
@@ -265,16 +309,36 @@ func (s *TestServer) Stop() {
 	must.NoError(s.t, err, must.Sprint("failed to kill process"))
 
 	select {
-	case <-done:
+	case <-s.exited:
 	case <-time.After(5 * time.Second):
 		s.t.Logf("timed out waiting for process to be killed")
+	}
+}
+
+// waitFor calls f until it succeeds, the timeout passes, or the agent
+// exits, and returns the last error of f.
+func (s *TestServer) waitFor(timeout, gap time.Duration, f func() error) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		err := f()
+		if err == nil {
+			return nil
+		}
+		select {
+		case <-s.exited:
+			return fmt.Errorf("agent exited: %w", err)
+		case <-time.After(gap):
+		}
+		if time.Now().After(deadline) {
+			return err
+		}
 	}
 }
 
 // waitForAPI waits for only the agent HTTP endpoint to start
 // responding. This is an indication that the agent has started,
 // but will likely return before a leader is elected.
-func (s *TestServer) waitForAPI() {
+func (s *TestServer) waitForAPI() error {
 	f := func() error {
 		resp, err := s.HTTPClient.Get(s.url("/v1/metrics"))
 		if err != nil {
@@ -286,20 +350,16 @@ func (s *TestServer) waitForAPI() {
 		}
 		return nil
 	}
-	must.Wait(s.t,
-		wait.InitialSuccess(
-			wait.ErrorFunc(f),
-			wait.Timeout(10*time.Second),
-			wait.Gap(1*time.Second),
-		),
-		must.Sprint("failed to wait for api"),
-	)
+	if err := s.waitFor(20*time.Second, 250*time.Millisecond, f); err != nil {
+		return fmt.Errorf("failed to wait for api: %w", err)
+	}
+	return nil
 }
 
 // waitForLeader waits for the Nomad server's HTTP API to become
-// available, and then waits for a known leader and an index of
-// 1 or more to be observed to confirm leader election is done.
-func (s *TestServer) waitForLeader() {
+// available, and then waits for a known leader to be observed.
+// WaitForLeaderEstablished waits for the leader's establishment.
+func (s *TestServer) waitForLeader() error {
 	f := func() error {
 		// Query the API and check the status code
 		// Using this endpoint as it is does not have restricted access
@@ -313,14 +373,91 @@ func (s *TestServer) waitForLeader() {
 		}
 		return nil
 	}
-	must.Wait(s.t,
-		wait.InitialSuccess(
-			wait.ErrorFunc(f),
-			wait.Timeout(10*time.Second),
-			wait.Gap(1*time.Second),
-		),
-		must.Sprint("failed to wait for leader"),
-	)
+	if err := s.waitFor(20*time.Second, 250*time.Millisecond, f); err != nil {
+		return fmt.Errorf("failed to wait for leader: %w", err)
+	}
+	return nil
+}
+
+// WaitForLeaderEstablished waits until the leader has established its
+// leadership as far as the tests depend on it. A leader is reported as soon
+// as it is elected, but it writes the scheduler configuration (job
+// registrations are refused without one) and the first root key (variables
+// can't be encrypted without one) only afterwards.
+//
+// Both are read with the operator API, which needs a management token when
+// ACLs are enabled. Without a token the wait then ends at the first
+// permission denied; tests of an ACL-enabled server wait again with the
+// bootstrap token (see makeACLClient).
+func (s *TestServer) WaitForLeaderEstablished(token string) {
+	if err := s.waitForEstablished(token); err != nil {
+		s.Stop()
+		s.t.Fatalf("%v", err)
+	}
+}
+
+func (s *TestServer) waitForEstablished(token string) error {
+	f := func() error {
+		var sched struct {
+			SchedulerConfig *struct{}
+		}
+		switch err := s.getJSON("/v1/operator/scheduler/configuration", token, &sched); {
+		case errors.Is(err, errPermissionDenied):
+			return nil
+		case err != nil:
+			return fmt.Errorf("failed to get the scheduler configuration: %w", err)
+		case sched.SchedulerConfig == nil:
+			return errors.New("no scheduler configuration yet")
+		}
+
+		var keys []struct {
+			KeyID string
+			State string
+		}
+		switch err := s.getJSON("/v1/operator/keyring/keys", token, &keys); {
+		case errors.Is(err, errPermissionDenied):
+			return nil
+		case err != nil:
+			return fmt.Errorf("failed to list the root keys: %w", err)
+		}
+		for _, key := range keys {
+			if key.State == "active" {
+				return nil
+			}
+		}
+		return errors.New("no active root key yet")
+	}
+	if err := s.waitFor(30*time.Second, 100*time.Millisecond, f); err != nil {
+		return fmt.Errorf("failed to wait for the leader to be established: %w", err)
+	}
+	return nil
+}
+
+// errPermissionDenied is returned by getJSON for a 403 response.
+var errPermissionDenied = errors.New("permission denied")
+
+// getJSON performs an HTTP GET request with the token (if not empty) and
+// decodes the JSON response into out.
+func (s *TestServer) getJSON(path, token string, out any) error {
+	req, err := http.NewRequest(http.MethodGet, s.url(path), nil)
+	if err != nil {
+		return err
+	}
+	if token != "" {
+		req.Header.Set("X-Nomad-Token", token)
+	}
+	resp, err := s.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusForbidden {
+		return errPermissionDenied
+	}
+	if err = s.requireOK(resp); err != nil {
+		return err
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
 }
 
 // waitForClient waits for the Nomad client to be ready. The function returns

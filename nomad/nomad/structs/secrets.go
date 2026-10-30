@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// Secrets of the built-in secret store (docs/design/secrets-plan.md, "The
+// Secrets of the built-in secret store (norca-doc content/docs/design/secrets-plan.md, "The
 // built-in store"). The values and their version history live in the
 // uBixVault KV v2 engine on the barrier of the secret store: they are only
 // ever stored encrypted, as SecretStoreBlob entries. A Secret is the

@@ -111,11 +111,6 @@ type ServiceRegistration struct {
 	// recorded a change of the health of the instance.
 	HealthUpdatedAt int64
 
-	// Zone is the topology zone of the node running the instance, taken from
-	// the topology configuration of the client (by default the node meta
-	// "zone").
-	Zone string
-
 	// Meta is the meta of the service (or its canary meta for canaries).
 	Meta map[string]string
 
@@ -185,7 +180,7 @@ func (s *ServiceRegistration) Equal(o *ServiceRegistration) bool {
 	if s.Ready != o.Ready {
 		return false
 	}
-	if s.Health != o.Health || s.HealthUpdatedAt != o.HealthUpdatedAt || s.Zone != o.Zone {
+	if s.Health != o.Health || s.HealthUpdatedAt != o.HealthUpdatedAt {
 		return false
 	}
 	if !registrationChecksEqual(s.Checks, o.Checks) || !registrationMetaEqual(s.Meta, o.Meta) {

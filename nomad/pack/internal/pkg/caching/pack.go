@@ -21,6 +21,12 @@ type PackConfig struct {
 	Ref        string
 	Path       string
 	SourcePath string
+
+	// RefDefaulted is set by Init when no ref was given (Norca). The ref of a
+	// registry pack is then its default ref in the cache (see
+	// DefaultPackRef), and the default deployment name is the pack name
+	// without the ref.
+	RefDefaulted bool
 }
 
 func (cfg *PackConfig) Init() {
@@ -31,6 +37,7 @@ func (cfg *PackConfig) Init() {
 
 	if cfg.Ref == "" {
 		cfg.Ref = DefaultRef
+		cfg.RefDefaulted = true
 	}
 
 	// If the passed source is a directory path, then set directory based defaults.
@@ -61,6 +68,9 @@ func (cfg *PackConfig) initFromDirectory(packPath string) {
 // initFromArgs is a utility function to build a pack path for registry added
 // packs. Not for use with file system based packs.
 func (cfg *PackConfig) initFromArgs() {
+	if cfg.RefDefaulted {
+		cfg.Ref = DefaultPackRef(DefaultCachePath(), cfg.Registry, cfg.Name)
+	}
 	// Escape the pack name so the constructed path matches the directory name
 	// stored on disk. See EscapePackName for details.
 	escapedName := EscapePackName(cfg.Name)
@@ -71,6 +81,44 @@ func (cfg *PackConfig) initFromArgs() {
 	if cfg.Ref != "" {
 		cfg.Path = AppendRef(cfg.Path, escapedRef)
 	}
+}
+
+// DefaultPackRef returns the ref of a cached registry pack that is used when
+// no ref is given (Norca): the ref the registry was last added or updated
+// with if the pack is cached at it, otherwise "latest" if the pack is cached
+// at it, otherwise the only ref the pack is cached at. If none of these
+// applies, it returns DefaultRef.
+func DefaultPackRef(cachePath, registryName, packName string) string {
+	registryPath := path.Join(cachePath, registryName)
+	cachedAt := func(ref string) bool {
+		escapedRef := EscapeRef(ref)
+		info, err := os.Stat(path.Join(registryPath, escapedRef, AppendRef(EscapePackName(packName), escapedRef)))
+		return err == nil && info.IsDir()
+	}
+
+	if b, err := os.ReadFile(path.Join(registryPath, DefaultRefFile)); err == nil {
+		if ref := strings.TrimSpace(string(b)); ref != "" && cachedAt(ref) {
+			return ref
+		}
+	}
+	if cachedAt(DefaultRef) {
+		return DefaultRef
+	}
+
+	entries, err := os.ReadDir(registryPath)
+	if err != nil {
+		return DefaultRef
+	}
+	var refs []string
+	for _, e := range entries {
+		if ref := UnescapeRef(e.Name()); e.IsDir() && cachedAt(ref) {
+			refs = append(refs, ref)
+		}
+	}
+	if len(refs) == 1 {
+		return refs[0]
+	}
+	return DefaultRef
 }
 
 // Pack wraps a pack.Pack add adds the local cache ref. Useful for

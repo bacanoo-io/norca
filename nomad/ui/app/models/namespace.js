@@ -11,4 +11,5 @@ export default class Namespace extends Model {
   @readOnly('id') name;
   @attr('string') hash;
   @attr('string') description;
+  @attr() meta;
 }

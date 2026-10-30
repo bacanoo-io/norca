@@ -23,8 +23,7 @@ Usage: norca quota list [options]
   List is used to list available quota specifications.
 
   If ACLs are enabled, this command requires a token with the 'quota:read'
-  capability. Any quotas applied to namespaces that the token does not have
-  access to will be filtered from the results.
+  capability. All quota specifications are listed.
 
 General Options:
 

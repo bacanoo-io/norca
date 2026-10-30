@@ -4,13 +4,17 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
 	"github.com/posener/complete"
@@ -75,6 +79,12 @@ func (c *FmtCommand) fmt(paths []string) int {
 
 	for _, file := range filesToFormat {
 		formatted, err := c.formatFile(file)
+		var notHCL *notHCLTemplateError
+		if errors.As(err, &notHCL) {
+			// text templates are left as they are
+			c.ui.Info(fmt.Sprintf("Skipped %s: %v", file, err))
+			continue
+		}
 		if err != nil {
 			c.ui.Error(fmt.Sprintf("Error formatting %s: %v", file, err))
 			exitCode = 1
@@ -106,6 +116,9 @@ func (c *FmtCommand) formatFile(path string) (bool, error) {
 	var formatted string
 	switch {
 	case strings.HasSuffix(path, ".tpl"):
+		if !templateRendersHCL(path) {
+			return false, notHCLTemplate("it renders a %s file", filepath.Ext(strings.TrimSuffix(path, ".tpl")))
+		}
 		formatted, err = c.formatTemplate(string(content))
 	case strings.HasSuffix(path, ".hcl"):
 		formatted, err = c.formatHCL(string(content))
@@ -127,32 +140,174 @@ func (c *FmtCommand) formatFile(path string) (bool, error) {
 	return changed, nil
 }
 
-func (c *FmtCommand) formatTemplate(content string) (string, error) {
-	placeholders := make(map[string]string)
-	placeholderIndex := 0
-
-	templateRegex := regexp.MustCompile(`\[\[.*?\]\]`)
-
-	contentWithPlaceholders := templateRegex.ReplaceAllStringFunc(content, func(match string) string {
-		placeholder := fmt.Sprintf("__NOMAD_PACK_TPL_%d__", placeholderIndex)
-		placeholders[placeholder] = match
-		placeholderIndex++
-		return placeholder
-	})
-
-	formatted := hclwrite.Format([]byte(contentWithPlaceholders))
-	formattedStr := string(formatted)
-
-	for placeholder, original := range placeholders {
-		formattedStr = strings.ReplaceAll(formattedStr, placeholder, original)
-	}
-
-	return formattedStr, nil
+// notHCLTemplateError is returned for a template that is not an HCL template
+// or would not survive HCL formatting: it is left unchanged.
+type notHCLTemplateError struct {
+	reason string
 }
 
+func (e *notHCLTemplateError) Error() string {
+	return "not an HCL template: " + e.reason
+}
+
+func notHCLTemplate(format string, args ...any) error {
+	return &notHCLTemplateError{reason: fmt.Sprintf(format, args...)}
+}
+
+var (
+	// templateActionRe matches a template action, including multi-line
+	// comments.
+	templateActionRe = regexp.MustCompile(`(?s)\[\[.*?\]\]`)
+
+	// defineActionRe matches a define action.
+	defineActionRe = regexp.MustCompile(`^\[\[-?\s*define\s`)
+
+	// actionTokenRe matches the stand-in of an action while lines are
+	// classified.
+	actionTokenRe = regexp.MustCompile("\x00([0-9]+)\x00")
+
+	// actionLineRe matches a line made of action stand-ins only.
+	actionLineRe = regexp.MustCompile("^(\x00[0-9]+\x00[ \t]*)+$")
+
+	// lineTokenRe matches the comment that stands in for a line of actions
+	// during formatting.
+	lineTokenRe = regexp.MustCompile(`#[ \t]*` + tplLinePrefix + `([0-9]+)__`)
+)
+
+const (
+	tplInlinePrefix = "__NORCA_PACK_TPL_"
+	tplLinePrefix   = "__NORCA_PACK_TPL_LINE_"
+)
+
+// formatTemplate formats a pack template as HCL. Only HCL templates are
+// formatted: the template must be HCL once its actions are replaced, a line
+// holding only actions by a comment and an action within a line by an
+// identifier. It returns a notHCLTemplateError, and no change, for text
+// templates (such as outputs.tpl), helper files with define blocks (their
+// fragments are indented for the place they are included) and templates
+// where formatting would change the text around an action.
+func (c *FmtCommand) formatTemplate(content string) (string, error) {
+	// replace the actions by stand-ins, so lines can be classified
+	var actions []string
+	marked := templateActionRe.ReplaceAllStringFunc(content, func(action string) string {
+		actions = append(actions, action)
+		return fmt.Sprintf("\x00%d\x00", len(actions)-1)
+	})
+	for _, action := range actions {
+		if defineActionRe.MatchString(action) {
+			return "", notHCLTemplate("it defines template fragments")
+		}
+	}
+
+	// a line of actions only becomes a comment, an action within a line an
+	// identifier
+	var lineActions []string
+	inline := make(map[string]string)
+	lines := strings.Split(marked, "\n")
+	for i, line := range lines {
+		body := strings.TrimRight(line, "\r")
+		cr := line[len(body):]
+		trimmed := strings.TrimSpace(body)
+		if trimmed != "" && actionLineRe.MatchString(trimmed) {
+			indent := body[:len(body)-len(strings.TrimLeft(body, " \t"))]
+			lines[i] = fmt.Sprintf("%s# %s%d__%s", indent, tplLinePrefix, len(lineActions), cr)
+			lineActions = append(lineActions, trimmed)
+			continue
+		}
+		lines[i] = actionTokenRe.ReplaceAllStringFunc(line, func(token string) string {
+			id := fmt.Sprintf("%s%s__", tplInlinePrefix, strings.Trim(token, "\x00"))
+			inline[id] = token
+			return id
+		})
+	}
+	src := strings.Join(lines, "\n")
+
+	if err := checkHCLTemplate(src, inline); err != nil {
+		return "", err
+	}
+	formatted := string(hclwrite.Format([]byte(src)))
+	if _, diags := hclsyntax.ParseConfig([]byte(formatted), "template", hcl.InitialPos); diags.HasErrors() {
+		return "", notHCLTemplate("formatting would break it: %s", diags.Error())
+	}
+	for id := range inline {
+		if touching(src, id) != touching(formatted, id) {
+			return "", notHCLTemplate("formatting would change the text around a template action")
+		}
+	}
+
+	// restore the actions
+	formatted = lineTokenRe.ReplaceAllStringFunc(formatted, func(token string) string {
+		n, _ := strconv.Atoi(lineTokenRe.FindStringSubmatch(token)[1])
+		return lineActions[n]
+	})
+	for id, token := range inline {
+		formatted = strings.ReplaceAll(formatted, id, token)
+	}
+	restored := actionTokenRe.ReplaceAllStringFunc(formatted, func(token string) string {
+		n, _ := strconv.Atoi(strings.Trim(token, "\x00"))
+		return actions[n]
+	})
+	return restored, nil
+}
+
+// checkHCLTemplate checks that src, a template with its actions replaced, is
+// HCL, and that every inline action stands for a whole HCL token or is part
+// of a string or a comment.
+func checkHCLTemplate(src string, inline map[string]string) error {
+	if _, diags := hclsyntax.ParseConfig([]byte(src), "template", hcl.InitialPos); diags.HasErrors() {
+		return notHCLTemplate("%s", diags.Errs()[0].Error())
+	}
+	tokens, _ := hclsyntax.LexConfig([]byte(src), "template", hcl.InitialPos)
+	for _, tok := range tokens {
+		if !strings.Contains(string(tok.Bytes), tplInlinePrefix) {
+			continue
+		}
+		switch tok.Type {
+		case hclsyntax.TokenQuotedLit, hclsyntax.TokenStringLit, hclsyntax.TokenComment:
+			continue
+		case hclsyntax.TokenIdent:
+			if _, ok := inline[string(tok.Bytes)]; ok {
+				continue
+			}
+		}
+		return notHCLTemplate("a template action is joined to HCL text at line %d", tok.Range.Start.Line)
+	}
+	return nil
+}
+
+// touching returns whether the first occurrence of id in s has no space before
+// and after it.
+func touching(s, id string) [2]bool {
+	i := strings.Index(s, id)
+	if i < 0 {
+		return [2]bool{}
+	}
+	isSpace := func(b byte) bool { return b == ' ' || b == '\t' || b == '\n' || b == '\r' }
+	before := i > 0 && !isSpace(s[i-1])
+	end := i + len(id)
+	after := end < len(s) && !isSpace(s[end])
+	return [2]bool{before, after}
+}
+
+// formatHCL formats an HCL file; it fails on syntax errors.
 func (c *FmtCommand) formatHCL(content string) (string, error) {
+	if _, diags := hclsyntax.ParseConfig([]byte(content), "file", hcl.InitialPos); diags.HasErrors() {
+		return "", diags
+	}
 	formatted := hclwrite.Format([]byte(content))
 	return string(formatted), nil
+}
+
+// templateRendersHCL returns whether a template file renders an HCL file
+// judging by its name: x.nomad.tpl, x.hcl.tpl and x.tpl do, x.json.tpl or
+// x.yaml.tpl do not.
+func templateRendersHCL(path string) bool {
+	inner := filepath.Ext(strings.TrimSuffix(filepath.Base(path), ".tpl"))
+	switch inner {
+	case "", ".nomad", ".hcl":
+		return true
+	}
+	return false
 }
 
 func (c *FmtCommand) findFormattableFiles(dir string) ([]string, error) {
@@ -239,6 +394,13 @@ Usage: norca pack fmt [options] [path...]
 
   Format pack files (.tpl templates and .hcl files) using HCL formatting rules.
   Template files preserve the [[ ]] syntax, while .hcl files are formatted directly.
+
+  Only HCL templates are formatted. A template is skipped, with a note, when it
+  is not HCL once its [[ ]] actions are set aside (a text template such as
+  outputs.tpl), when it renders another file type (x.json.tpl), when it
+  defines template fragments ([[ define ]], as in _helpers.tpl), or when
+  formatting would change the text around an action. Skipped files do not
+  fail -check. An .hcl file with syntax errors is an error.
 
   If no path is given, the current directory is used.
 

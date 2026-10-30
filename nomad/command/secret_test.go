@@ -29,6 +29,20 @@ func TestSecretCommands_Implement(t *testing.T) {
 	var _ cli.Command = &SecretDestroyCommand{}
 }
 
+// TestSecretVersionsCommands_Help checks that the help of destroy does not
+// promise a default version: destroy needs -versions or -all.
+func TestSecretVersionsCommands_Help(t *testing.T) {
+	ci.Parallel(t)
+	destroy := (&SecretDestroyCommand{}).Help()
+	must.StrContains(t, destroy, "Required unless -all is given")
+	must.StrNotContains(t, destroy, "Defaults to the current version")
+	must.StrContains(t, destroy, "-check-index")
+	for _, help := range []string{(&SecretDeleteCommand{}).Help(), (&SecretUndeleteCommand{}).Help()} {
+		must.StrContains(t, help, "Defaults to the current version")
+		must.StrContains(t, help, "-check-index")
+	}
+}
+
 func TestSecretCommands(t *testing.T) {
 	ci.Parallel(t)
 	srv, client, url := testServer(t, false, nil)
@@ -126,13 +140,19 @@ func TestSecretCommands(t *testing.T) {
 	code, out, _ = run(del, "app/db")
 	must.Zero(t, code)
 	must.StrContains(t, out, "deleted the current version")
-	code, _, errOut = run(undel, "-versions", "2", "app/db")
+	code, out, errOut = run(undel, "-versions", "2", "app/db")
 	must.Zero(t, code, must.Sprint(errOut))
+	must.StrContains(t, out, "undeleted versions 2")
 	code, _, errOut = run(destroy, "app/db")
 	must.One(t, code)
 	must.StrContains(t, errOut, "-all")
-	code, _, errOut = run(destroy, "-versions", "1", "app/db")
+	code, _, errOut = run(destroy, "-all", "-versions", "1", "app/db")
+	must.One(t, code)
+	must.StrContains(t, errOut, "Only one of")
+	code, out, errOut = run(destroy, "-versions", "1", "app/db")
 	must.Zero(t, code, must.Sprint(errOut))
+	must.StrContains(t, out, "destroyed versions 1")
+	must.StrNotContains(t, out, "destroyd")
 	code, out, errOut = run(destroy, "-all", "app/db")
 	must.Zero(t, code, must.Sprint(errOut))
 	must.StrContains(t, out, "with all of its versions")

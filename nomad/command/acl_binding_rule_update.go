@@ -34,7 +34,8 @@ func (a *ACLBindingRuleUpdateCommand) Help() string {
 Usage: norca acl binding-rule update [options] <acl_binding_rule_id>
 
   Update is used to update an existing ACL binding rule. Requires a management
-  token.
+  token. The auth method of a binding rule cannot be changed; create a new
+  binding rule instead.
 
 General Options:
 
@@ -45,10 +46,6 @@ Update Options:
   -description
     A free form text description of the binding rule that must not exceed 256
     characters.
-
-  -auth-method
-    Specifies the name of the ACL authentication method that this binding rule
-    is associated with.
 
   -selector
     Selector is an expression that matches against verified identity attributes

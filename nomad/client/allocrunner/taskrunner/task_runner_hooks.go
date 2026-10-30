@@ -184,13 +184,14 @@ func (tr *TaskRunner) initHooks() {
 	// certificate (Norca).
 	if tg := alloc.Job.LookupTaskGroup(alloc.TaskGroup); tg.UsesMTLS() && tr.rpcClient != nil {
 		tr.runnerHooks = append(tr.runnerHooks, newMTLSHook(&mtlsHookConfig{
-			alloc:   alloc,
-			task:    task,
-			rpc:     tr.rpcClient,
-			region:  tr.clientConfig.Region,
-			nodeKey: tr.clientConfig.Node.SecretID,
-			events:  tr,
-			logger:  hookLogger,
+			alloc:     alloc,
+			task:      task,
+			rpc:       tr.rpcClient,
+			region:    tr.clientConfig.Region,
+			nodeKey:   tr.clientConfig.Node.SecretID,
+			events:    tr,
+			lifecycle: tr,
+			logger:    hookLogger,
 		}))
 
 		// The Envoy task of a sidecar or gateway mode mtls service gets

@@ -4,6 +4,9 @@
 package config
 
 import (
+	"fmt"
+	"math"
+
 	"github.com/hashicorp/nomad/helper/pointer"
 )
 
@@ -47,30 +50,29 @@ func (c *NativeServiceDiscoveryConfig) HealthyOnly() bool {
 	return c != nil && c.DefaultHealthyOnly != nil && *c.DefaultHealthyOnly
 }
 
-// TopologyConfig is the topology block of the client configuration.
-type TopologyConfig struct {
-	// Zone is the topology zone of the node. It may reference a node
-	// attribute or meta value as "${attr.<name>}" or "${meta.<name>}".
-	// Defaults to "${meta.zone}".
-	Zone string `hcl:"zone"`
+// ServerNativeServiceDiscoveryConfig is the native_service_discovery block of
+// the server configuration.
+type ServerNativeServiceDiscoveryConfig struct {
+	// DefaultOverflowFraction is the overflow fraction the servers fill in at
+	// job registration for discovery blocks that leave overflow_fraction
+	// unset. It must be between 0 and 1; 0 disables the overflow rule. Unset
+	// means 0.2. Each region's servers apply their own setting.
+	DefaultOverflowFraction *float64 `hcl:"default_overflow_fraction"`
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
 
-// DefaultTopologyZone is the zone of nodes without topology configuration.
-const DefaultTopologyZone = "${meta.zone}"
-
 // Copy returns a copy of c.
-func (c *TopologyConfig) Copy() *TopologyConfig {
+func (c *ServerNativeServiceDiscoveryConfig) Copy() *ServerNativeServiceDiscoveryConfig {
 	if c == nil {
 		return nil
 	}
-	return &TopologyConfig{Zone: c.Zone}
+	return &ServerNativeServiceDiscoveryConfig{DefaultOverflowFraction: pointer.Copy(c.DefaultOverflowFraction)}
 }
 
 // Merge returns c with the values set in o applied.
-func (c *TopologyConfig) Merge(o *TopologyConfig) *TopologyConfig {
+func (c *ServerNativeServiceDiscoveryConfig) Merge(o *ServerNativeServiceDiscoveryConfig) *ServerNativeServiceDiscoveryConfig {
 	switch {
 	case c == nil:
 		return o.Copy()
@@ -78,16 +80,19 @@ func (c *TopologyConfig) Merge(o *TopologyConfig) *TopologyConfig {
 		return c.Copy()
 	}
 	result := c.Copy()
-	if o.Zone != "" {
-		result.Zone = o.Zone
+	if o.DefaultOverflowFraction != nil {
+		result.DefaultOverflowFraction = pointer.Copy(o.DefaultOverflowFraction)
 	}
 	return result
 }
 
-// ZoneSource returns the configured zone, or the default.
-func (c *TopologyConfig) ZoneSource() string {
-	if c == nil || c.Zone == "" {
-		return DefaultTopologyZone
+// Validate checks the values of the block.
+func (c *ServerNativeServiceDiscoveryConfig) Validate() error {
+	if c == nil {
+		return nil
 	}
-	return c.Zone
+	if f := c.DefaultOverflowFraction; f != nil && (*f < 0 || *f > 1 || math.IsNaN(*f)) {
+		return fmt.Errorf("default_overflow_fraction must be between 0 and 1; got %v", *f)
+	}
+	return nil
 }

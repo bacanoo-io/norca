@@ -126,6 +126,8 @@ func (a *ACL) matchingSecretsCapabilitySet(ns, path string) (capabilitySet, bool
 func (a *ACL) AllowSecretOperation(ns, path, op string) bool {
 	switch {
 	case a == nil:
+		// ACLs are disabled: the server resolves a nil ACL object only then,
+		// never for a request without a token or workload identity.
 		return true
 	case a.management:
 		return true
@@ -158,6 +160,8 @@ func (a *ACL) AllowSecretOperation(ns, path, op string) bool {
 func (a *ACL) AllowSecretGrant(ns, pattern, op string) bool {
 	switch {
 	case a == nil:
+		// ACLs are disabled: the server resolves a nil ACL object only then,
+		// never for a request without a token or workload identity.
 		return true
 	case a.management:
 		return true
@@ -260,6 +264,8 @@ func globsIntersect(a, b string) bool {
 func (a *ACL) AllowSecretSearch(ns string) bool {
 	switch {
 	case a == nil:
+		// ACLs are disabled: the server resolves a nil ACL object only then,
+		// never for a request without a token or workload identity.
 		return true
 	case a.management:
 		return true

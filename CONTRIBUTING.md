@@ -27,7 +27,7 @@ Do not modify or remove the existing copyright and license lines in HashiCorp's 
 
 - Taking code, diffs or snippets from HashiCorp releases published under BSL 1.1 (Nomad v1.6.6 and later, Consul v1.16.5 and later, and the BSL versions of every other HashiCorp product), or from the non-public code of HashiCorp Enterprise products.
 - Adding a BSL version of the `github.com/hashicorp/nomad` main module to any `go.mod` file.
-- Adding a dependency whose license is not on the allowed list ([docs/licensing.md](docs/licensing.md)).
+- Adding a dependency whose license is not on the allowed list ([licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md)).
 
 ## Clean room rule
 

@@ -121,6 +121,13 @@ export const NAVIGATION = [
         ability: 'list variables',
       },
       {
+        id: 'secrets',
+        label: 'Secrets',
+        icon: 'lock',
+        route: 'secrets',
+        ability: 'list secret',
+      },
+      {
         id: 'admission',
         label: 'Admission policies',
         icon: 'shield-check',

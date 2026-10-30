@@ -16,7 +16,7 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 )
 
-// Delivery of secrets to tasks (docs/design/secrets-plan.md, "Delivery to
+// Delivery of secrets to tasks (norca-doc content/docs/design/secrets-plan.md, "Delivery to
 // tasks" and "Provider resolution and fallback"). A task's secret blocks name
 // a secret by path; the client resolves the provider that answers the lookup,
 // fetches the value with the task's workload identity and delivers it into

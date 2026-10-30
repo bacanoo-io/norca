@@ -219,6 +219,16 @@ type FetchOptions struct {
 // signatures and content and installs it into the cache. It returns the cache
 // directory of the pack and the verification result.
 func Fetch(ctx context.Context, src Source, packName, tag string, opts FetchOptions) (string, *Result, error) {
+	// The names become cache paths: check them before anything else.
+	if err := ValidatePathName("cache registry name", opts.Registry); err != nil {
+		return "", nil, err
+	}
+	if err := ValidatePathName("pack name", packName); err != nil {
+		return "", nil, err
+	}
+	if err := ValidateTag(tag); err != nil {
+		return "", nil, err
+	}
 	a, err := oci.Fetch(ctx, src, tag)
 	if err != nil {
 		return "", nil, err
@@ -260,6 +270,13 @@ func PackDir(cacheRoot, registryName, packName, tag string) string {
 func install(a *oci.Artifact, origin *Origin, opts FetchOptions) (string, error) {
 	dest := PackDir(opts.CacheRoot, opts.Registry, a.Config.Name, origin.Tag)
 	refDir := path.Dir(dest)
+	// Fetch validated the names; never remove or write outside of the
+	// cache registry's directory whatever they are.
+	registryDir := filepath.Join(opts.CacheRoot, opts.Registry)
+	if !within(registryDir, dest) || filepath.Clean(refDir) == filepath.Clean(registryDir) ||
+		filepath.Clean(registryDir) == filepath.Clean(opts.CacheRoot) {
+		return "", fmt.Errorf("pack %s:%s would be installed outside of the pack cache", a.Config.Name, origin.Tag)
+	}
 	if err := os.MkdirAll(refDir, caching.DefaultDirPerms); err != nil {
 		return "", err
 	}
@@ -308,8 +325,17 @@ func install(a *oci.Artifact, origin *Origin, opts FetchOptions) (string, error)
 // pack has no origin record.
 func VerifyCached(dir string, policy packconfig.Policy) (*Result, error) {
 	o, err := ReadOrigin(dir)
-	if err != nil || o == nil {
+	if err != nil {
 		return nil, err
+	}
+	if o == nil {
+		// If the cache ref metadata indicates this pack came from an OCI
+		// registry or bundle import, a missing origin record means it was
+		// tampered with (PK-5).
+		if cacheRefRequiresOrigin(filepath.Dir(dir)) {
+			return nil, fmt.Errorf("cached pack %s has no origin record (%s was removed); download or import it again", dir, packlock.OriginFileName)
+		}
+		return nil, nil
 	}
 	if got := oci.ManifestDigest(o.Manifest); got != o.ManifestDigest {
 		return nil, fmt.Errorf("origin record of %s is corrupt: manifest digest %s, recorded %s", dir, got, o.ManifestDigest)
@@ -330,4 +356,18 @@ func VerifyCached(dir string, policy packconfig.Policy) (*Result, error) {
 		return nil, err
 	}
 	return &Result{Registry: o.Registry, Source: o.Source, Digest: o.ManifestDigest, Signature: sigRes}, nil
+}
+
+// cacheRefRequiresOrigin reports whether the metadata.json of a cache ref
+// directory records an OCI or bundle source, which must have an origin file.
+func cacheRefRequiresOrigin(refDir string) bool {
+	b, err := os.ReadFile(filepath.Join(refDir, "metadata.json"))
+	if err != nil {
+		return false
+	}
+	var meta caching.Registry
+	if err := json.Unmarshal(b, &meta); err != nil {
+		return false
+	}
+	return strings.HasPrefix(meta.Source, "oci://") || strings.HasPrefix(meta.Source, "bundle:")
 }

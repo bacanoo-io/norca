@@ -154,6 +154,7 @@ export async function fetchRegionSummary(
     quotas,
     usages,
     releases,
+    seal,
   ] = await Promise.all([
     getJSON(request, '/v1/status/leader', { region }).catch(() => ({
       body: null,
@@ -188,6 +189,11 @@ export async function fetchRegionSummary(
       body: null,
       index: 0,
     })),
+    // the seal status of the servers: left out without operator read
+    getJSON(request, '/v1/operator/seal', { region }).catch(() => ({
+      body: null,
+      index: 0,
+    })),
   ]);
 
   const servers = summarizeServers(members, region);
@@ -218,6 +224,7 @@ export async function fetchRegionSummary(
     backup: summarizeBackups(backups.body),
     quotas: nearlyFullQuotas(quotas.body, usages.body, region),
     releases: releaseProblems(releases.body),
+    seal: summarizeSeal(seal.body),
     // the newest index of the fetched state, to resume the event stream after
     index: Math.max(
       nodes.index,
@@ -240,6 +247,31 @@ export function summarizeBackups(body) {
     lastSuccess: set(schedule.LastSuccess) ? schedule.LastSuccess : null,
     overdue: !!schedule.Overdue,
     lastError: schedule.LastError || '',
+  };
+}
+
+// The key protection of a region (GET /v1/operator/seal): the seal types
+// and how many servers are sealed. Null when the token cannot read it.
+export function summarizeSeal(body) {
+  if (!body) return null;
+  const servers = body.Servers || [];
+  const seals = body.Config?.Seals || [];
+  const types = seals.length
+    ? seals
+        .map((s) =>
+          s.Type === 'shares' && s.Threshold
+            ? `shares (${s.Threshold} of ${s.Shares})`
+            : s.Type
+        )
+        .join(' + ')
+    : 'aead (no seal configured)';
+  return {
+    types,
+    aead: !seals.length || seals.every((s) => s.Type === 'aead'),
+    rewrap: !!body.Config?.Rewrap,
+    total: servers.length,
+    sealed: servers.filter((s) => s.Sealed).length,
+    needsRecovery: servers.some((s) => s.SecretCoreRecovery),
   };
 }
 
@@ -293,6 +325,7 @@ export function unreachableRegion(region, error) {
     backup: null,
     quotas: [],
     releases: [],
+    seal: null,
     index: 0,
     error: error?.message || String(error),
   };
@@ -330,6 +363,24 @@ export function buildWarnings(summaries) {
         } not alive in ${where}.`,
         text: 'Restart the server agents or remove the failed members to restore fault tolerance.',
         route: 'servers',
+      });
+    }
+    if (s.seal?.needsRecovery) {
+      warnings.push({
+        tone: 'danger',
+        title: `The secret store of ${where} needs recovery.`,
+        text: 'Its key is wrapped by no seal of the region (a restore from a backup with other seals). Recover it with norca operator unseal -recover or the age copy of the backup.',
+        route: 'secrets',
+      });
+    } else if (s.seal?.sealed) {
+      const n = s.seal.sealed;
+      warnings.push({
+        tone: 'danger',
+        title: `${n} ${
+          n === 1 ? 'server is' : 'servers are'
+        } sealed in ${where}.`,
+        text: 'A sealed server rejects secret and Variable reads and workload identity signing. Unseal it with norca operator unseal.',
+        route: 'secrets',
       });
     }
     if (s.clients.down) {

@@ -14,6 +14,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/hashicorp/memberlist"
+	"github.com/hashicorp/nomad/api"
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
@@ -142,6 +143,11 @@ type Config struct {
 	// NorcaBuild is the Norca product version gossiped by servers. Norca
 	// features gate on it rather than on Build.
 	NorcaBuild string
+
+	// ReleaseFromRendered converts a release request rendered from a pack
+	// of a cluster registry (api types) into a release request. The agent
+	// sets it: the job conversion lives in command/agent.
+	ReleaseFromRendered func(name string, rendered *api.ReleaseApplyRequest, namespace string) (*structs.ReleaseApplyRequest, error)
 
 	// Revision is a string that carries the version.GitCommit of Nomad that
 	// was compiled.
@@ -415,7 +421,8 @@ type Config struct {
 	// Autoscaler configures the built-in autoscaler.
 	Autoscaler *autoscaler.Config
 
-	// Backup configures the scheduled backups to S3-compatible stores.
+	// Backup configures the scheduled backups to S3-compatible stores and
+	// directories.
 	Backup *backup.Config
 
 	// SecretsAudit configures the append-only audit file of the built-in
@@ -447,6 +454,11 @@ type Config struct {
 	// KeyringConfig configures the keyring seal (Norca). Nil means the aead
 	// seal.
 	KeyringConfig *config.KeyringConfig
+
+	// DiscoveryDefaultOverflowFraction is the overflow fraction filled in at
+	// job registration for service discovery blocks that leave it unset
+	// (Norca). It is reloadable.
+	DiscoveryDefaultOverflowFraction float64
 }
 
 func (c *Config) Copy() *Config {
@@ -569,6 +581,8 @@ func DefaultConfig() *Config {
 		JobDefaultPriority:       structs.JobDefaultPriority,
 		JobMaxPriority:           structs.JobDefaultMaxPriority,
 		JobTrackedVersions:       structs.JobDefaultTrackedVersions,
+
+		DiscoveryDefaultOverflowFraction: structs.DefaultDiscoveryOverflowFraction,
 	}
 
 	// Enable all known schedulers by default

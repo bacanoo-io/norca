@@ -5124,6 +5124,15 @@ func (j *Job) RequiredSignals() map[string]map[string][]string {
 				taskSignals[t.ChangeSignal] = struct{}{}
 			}
 
+			// Check if the native mTLS change mode uses signals (Norca)
+			cert, bundle := tg.MTLSChangeActions(task)
+			for _, s := range cert.Signals {
+				taskSignals[s] = struct{}{}
+			}
+			for _, s := range bundle.Signals {
+				taskSignals[s] = struct{}{}
+			}
+
 			// Flatten and sort the signals
 			l := len(taskSignals)
 			if l == 0 {

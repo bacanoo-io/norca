@@ -198,7 +198,7 @@ func (h *vaultHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartRe
 
 // vaultCompatClient is the Vault client of the client's Vault-compatible
 // endpoint (client/vaultcompat), used when the agent has no Vault
-// integration (Norca, docs/design/secrets-plan.md, "Vault compatibility").
+// integration (Norca, norca-doc content/docs/design/secrets-plan.md, "Vault compatibility").
 type vaultCompatClient interface {
 	// VaultAddr returns the endpoint's address for a task of the
 	// allocation, which the task gets as VAULT_ADDR.

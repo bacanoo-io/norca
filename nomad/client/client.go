@@ -2845,7 +2845,6 @@ func (c *Client) setupNomadServiceRegistrationHandler() {
 			c.logger, nsd.NewStatusGetter(c.checkStore),
 		),
 		CheckStore: c.checkStore,
-		Zone:       c.TopologyZone,
 	}
 	c.nomadService = nsd.NewServiceRegistrationHandler(c.logger, &cfg)
 }

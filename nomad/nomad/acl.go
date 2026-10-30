@@ -156,10 +156,20 @@ func (s *Server) remoteIPFromRPCContext(ctx *RPCContext) (net.IP, error) {
 // tokens and Workload Identities. If both are provided the ACL token is
 // preferred, but it is best for the RPC caller to only include the credentials
 // for the identity they intend the operation to be performed with.
+//
+// A nil ACL object is returned only when ACLs are disabled. With ACLs
+// enabled, a request that carries neither an ACL token nor a workload
+// identity is denied: no identity at all (failed or missing authentication),
+// a failed authentication that only recorded the remote address, and a
+// client node authenticated with its secret ID. Client nodes may only call
+// the RPCs that accept them explicitly, through ResolveClientOrACL.
 func (s *Server) ResolveACL(args structs.RequestWithIdentity) (*acl.ACL, error) {
-	identity := args.GetIdentity()
-	if !s.config.ACLEnabled || identity == nil {
+	if !s.config.ACLEnabled {
 		return nil, nil
+	}
+	identity := args.GetIdentity()
+	if identity == nil {
+		return nil, structs.ErrPermissionDenied
 	}
 	aclToken := identity.GetACLToken()
 	if aclToken != nil {
@@ -169,7 +179,17 @@ func (s *Server) ResolveACL(args structs.RequestWithIdentity) (*acl.ACL, error) 
 	if claims != nil {
 		return s.ResolveClaims(claims)
 	}
-	return nil, nil
+	return nil, structs.ErrPermissionDenied
+}
+
+// clientIdentity returns the ID of the client node a request was
+// authenticated as with the node's secret ID, or "" for any other identity.
+// Only possible with ACLs enabled.
+func clientIdentity(args structs.RequestWithIdentity) string {
+	if identity := args.GetIdentity(); identity != nil {
+		return identity.ClientID
+	}
+	return ""
 }
 
 // ResolveACLForToken resolves an ACL from a token only. It should be used only
@@ -193,10 +213,19 @@ func (s *Server) ResolveACLForToken(aclToken *structs.ACLToken) (*acl.ACL, error
 }
 
 // ResolveClientOrACL resolves an ACL if the identity has a token or claim, and
-// falls back to verifying the client ID if one has been set
+// falls back to verifying the client ID if one has been set. It is meant for
+// the RPCs client nodes call with their secret ID: for a client identity it
+// returns a nil ACL object even with ACLs enabled, so the caller must check
+// the client's access itself (see clientIdentity) where it matters.
 func (s *Server) ResolveClientOrACL(args structs.RequestWithIdentity) (*acl.ACL, error) {
+	if !s.config.ACLEnabled {
+		return nil, nil
+	}
 	identity := args.GetIdentity()
-	if !s.config.ACLEnabled || identity == nil || identity.ClientID != "" {
+	if identity == nil {
+		return nil, structs.ErrPermissionDenied
+	}
+	if identity.ClientID != "" {
 		return nil, nil
 	}
 	aclObj, err := s.ResolveACL(args)
@@ -204,7 +233,7 @@ func (s *Server) ResolveClientOrACL(args structs.RequestWithIdentity) (*acl.ACL,
 		return nil, err
 	}
 
-	// Returns either the users aclObj, or nil if ACLs are disabled.
+	// Returns the users aclObj; never nil with ACLs enabled.
 	return aclObj, nil
 }
 

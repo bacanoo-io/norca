@@ -309,9 +309,6 @@ type Config struct {
 	// the workloads of the client (Norca).
 	NativeServiceDiscovery *structsc.NativeServiceDiscoveryConfig
 
-	// Topology holds the topology zone of the node (Norca).
-	Topology *structsc.TopologyConfig
-
 	// DNS configures the built-in DNS server (Norca).
 	DNS *structsc.DNSConfig
 
@@ -770,7 +767,6 @@ func (c *Config) Copy() *Config {
 	nc.ReservableCores = slices.Clone(c.ReservableCores)
 	nc.Artifact = c.Artifact.Copy()
 	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
-	nc.Topology = c.Topology.Copy()
 	nc.DNS = c.DNS.Copy()
 	nc.ConsulCompat = c.ConsulCompat.Copy()
 	nc.Secrets = c.Secrets.Copy()

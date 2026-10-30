@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
@@ -28,6 +29,20 @@ type Registry struct {
 	// LocalRef is a reference to the git SHA that we have available locally
 	LocalRef string  `json:"local_ref,omitempty"`
 	Packs    []*Pack `json:"-"`
+}
+
+// RegistrySource returns the source of the cached registry ref directory
+// dir (<cache>/<registry>/<ref>), from its metadata.json, or "".
+func RegistrySource(dir string) string {
+	b, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		return ""
+	}
+	var r Registry
+	if json.Unmarshal(b, &r) != nil {
+		return ""
+	}
+	return r.Source
 }
 
 // get will attempt to load the specified packs from a path, and then append them

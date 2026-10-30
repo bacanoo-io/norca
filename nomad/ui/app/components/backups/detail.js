@@ -34,7 +34,8 @@ const TABS = [
 /**
  * A backup: its manifest (time, trigger, Raft index, destinations, content
  * counts, labels), browsing its content, comparing it and the restores made
- * from it. Pin, download link and delete for tokens with backup write.
+ * from it. Pin, download link (S3 destinations only) and delete for tokens
+ * with backup write.
  */
 export default class BackupsDetail extends Component {
   @service token;
@@ -79,6 +80,19 @@ export default class BackupsDetail extends Component {
 
   get isUsable() {
     return this.backup && this.backup.Status !== 'failed';
+  }
+
+  // Only S3 destinations sign download URLs; a backup kept only on
+  // directory destinations (file:// locations, shown in the destinations
+  // table) has no download link.
+  get canDownload() {
+    const destinations = this.backup?.Destinations || [];
+    if (!destinations.length) return true;
+    return destinations.some(
+      (d) =>
+        d.Status === 'verified' &&
+        !String(d.Location || '').startsWith('file://')
+    );
   }
 
   get details() {

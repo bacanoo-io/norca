@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/nomad/api"
@@ -33,13 +34,13 @@ func (c *OperatorBackupRestoreBootstrapCommand) Synopsis() string {
 
 func (c *OperatorBackupRestoreBootstrapCommand) Help() string {
 	helpText := `
-Usage: norca operator backup restore-bootstrap [options] -from <s3 url>
+Usage: norca operator backup restore-bootstrap [options] -from <url>
 
   Build a new cluster from a backup, for disaster recovery or a migration to
-  another cloud. The backup is read from the S3-compatible store and
-  decrypted on the machine running this command, with the age identity of the
-  administrators; neither the identity nor the S3 credentials are sent to the
-  cluster.
+  another cloud. The backup is read from the S3-compatible store or from a
+  directory, and decrypted on the machine running this command, with the age
+  identity of the administrators; neither the identity nor the S3 credentials
+  are sent to the cluster.
 
   Start a single new server first, with the region of the backup in its
   configuration and bootstrap_expect = 1, and bootstrap its ACLs if they are
@@ -59,6 +60,12 @@ Usage: norca operator backup restore-bootstrap [options] -from <s3 url>
   (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or MINIO_ACCESS_KEY and
   MINIO_SECRET_KEY), the shared credentials file or the instance profile.
 
+  A backup in a directory of this machine, for example one copied from a
+  directory destination, is a file:// URL of the same form: the backup folder
+  (file:///srv/copy/norca/eu-1/2026/10/24/20261024T140000Z-1834567/) or the
+  folder holding latest.json (file:///srv/copy/norca/eu-1/). On Windows, use
+  file:///C:/backups/norca/eu-1/. The S3 options don't apply to it.
+
   The region of the backup must match the region of the server; the region
   references of the jobs are not rewritten. The cluster must be new: one
   server and no jobs, unless -force is given.
@@ -71,8 +78,8 @@ Restore Bootstrap Options:
 ` + backupIdentityUsage + `
 
   -from <url>
-    The s3:// URL of the backup folder, or of a destination prefix for the
-    latest backup.
+    The s3:// or file:// URL of the backup folder, or of a destination prefix
+    for the latest backup.
 
   -endpoint <url>
     The S3-compatible endpoint, for example https://s3.example.com. Empty
@@ -124,43 +131,78 @@ func (c *OperatorBackupRestoreBootstrapCommand) AutocompleteArgs() complete.Pred
 	return complete.PredictNothing
 }
 
-// parseBackupURL splits an s3:// URL into the bucket, the destination
-// prefix and the backup ID; the ID is empty for a destination prefix.
-func parseBackupURL(raw string) (bucket, prefix, id string, err error) {
+// parseBackupURL splits an s3:// or file:// URL into the destination it
+// names and the backup ID; the ID is empty for a destination prefix. An s3://
+// URL is a bucket and a prefix; a file:// URL is a directory with an empty
+// prefix.
+func parseBackupURL(raw string) (*backup.DestinationConfig, string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", "", "", fmt.Errorf("invalid -from URL: %w", err)
+		return nil, "", fmt.Errorf("invalid -from URL: %w", err)
 	}
-	if u.Scheme != "s3" || u.Host == "" {
-		return "", "", "", fmt.Errorf("-from must be an s3://<bucket>/<path> URL")
+	var dcfg *backup.DestinationConfig
+	var p string
+	switch {
+	case u.Scheme == "s3" && u.Host != "":
+		dcfg = &backup.DestinationConfig{Name: "from", Type: backup.DestinationTypeS3, Bucket: u.Host}
+		p = strings.Trim(u.Path, "/")
+	case u.Scheme == "file" && u.Path != "":
+		dcfg = &backup.DestinationConfig{Name: "from", Type: backup.DestinationTypeDirectory}
+		p = strings.TrimSuffix(u.Path, "/")
+		switch {
+		case u.Host != "" && u.Host != "localhost":
+			// A UNC path: file://host/share/...
+			p = "//" + u.Host + p
+		case len(p) >= 3 && p[0] == '/' && p[2] == ':':
+			// A Windows drive: file:///C:/...
+			p = p[1:]
+		}
+	default:
+		return nil, "", fmt.Errorf("-from must be an s3://<bucket>/<path> or a file:///<path> URL")
 	}
-	p := strings.Trim(u.Path, "/")
+
+	prefix, id := p, ""
 	last := path.Base(p)
 	if _, _, perr := backup.ParseID(last); p != "" && perr == nil {
 		folder, _ := backup.PathFor(last)
 		if p != folder && !strings.HasSuffix(p, "/"+folder) {
-			return "", "", "", fmt.Errorf("backup folder %q must end with %s", p, folder)
+			return nil, "", fmt.Errorf("backup folder %q must end with %s", p, folder)
 		}
-		return u.Host, strings.TrimSuffix(strings.TrimSuffix(p, folder), "/"), last, nil
+		prefix, id = strings.TrimSuffix(strings.TrimSuffix(p, folder), "/"), last
 	}
-	return u.Host, p, "", nil
+
+	if dcfg.Type == backup.DestinationTypeDirectory {
+		if prefix == "" {
+			prefix = "/"
+		}
+		dcfg.Path = filepath.FromSlash(prefix)
+		prefix = ""
+	}
+	// An empty prefix would select the default one; "/" is the root of the
+	// bucket or the directory.
+	dcfg.Prefix = prefix
+	if dcfg.Prefix == "" {
+		dcfg.Prefix = "/"
+	}
+	return dcfg, id, nil
 }
 
 func (c *OperatorBackupRestoreBootstrapCommand) Run(args []string) int {
 	var identityPath, from string
 	var allowRegionChange, force bool
-	dcfg := &backup.DestinationConfig{Name: "from", Type: backup.DestinationTypeS3}
+	// The S3 options; a file:// URL rejects them.
+	s3 := &backup.DestinationConfig{}
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.StringVar(&identityPath, "age-identity", "", "")
 	flags.StringVar(&from, "from", "", "")
-	flags.StringVar(&dcfg.Endpoint, "endpoint", "", "")
-	flags.StringVar(&dcfg.Region, "s3-region", "", "")
-	flags.BoolVar(&dcfg.ForcePathStyle, "force-path-style", false, "")
-	flags.StringVar(&dcfg.CredentialsFile, "credentials-file", "", "")
-	flags.StringVar(&dcfg.Profile, "profile", "", "")
-	flags.StringVar(&dcfg.CAFile, "ca-file", "", "")
+	flags.StringVar(&s3.Endpoint, "endpoint", "", "")
+	flags.StringVar(&s3.Region, "s3-region", "", "")
+	flags.BoolVar(&s3.ForcePathStyle, "force-path-style", false, "")
+	flags.StringVar(&s3.CredentialsFile, "credentials-file", "", "")
+	flags.StringVar(&s3.Profile, "profile", "", "")
+	flags.StringVar(&s3.CAFile, "ca-file", "", "")
 	flags.BoolVar(&allowRegionChange, "allow-region-change", false, "")
 	flags.BoolVar(&force, "force", false, "")
 	if err := flags.Parse(args); err != nil {
@@ -172,11 +214,11 @@ func (c *OperatorBackupRestoreBootstrapCommand) Run(args []string) int {
 		return 1
 	}
 	if from == "" {
-		c.Ui.Error("The backup to restore is required: use -from s3://<bucket>/<path>")
+		c.Ui.Error("The backup to restore is required: use -from s3://<bucket>/<path> or -from file:///<path>")
 		return 1
 	}
 
-	bucket, prefix, id, err := parseBackupURL(from)
+	dcfg, id, err := parseBackupURL(from)
 	if err != nil {
 		c.Ui.Error(err.Error())
 		return 1
@@ -192,19 +234,15 @@ func (c *OperatorBackupRestoreBootstrapCommand) Run(args []string) int {
 		return 1
 	}
 
-	dcfg.Bucket = bucket
-	// An empty prefix would select the default one; "/" is the bucket root.
-	dcfg.Prefix = prefix
-	if dcfg.Prefix == "" {
-		dcfg.Prefix = "/"
-	}
+	dcfg.Endpoint, dcfg.Region, dcfg.ForcePathStyle = s3.Endpoint, s3.Region, s3.ForcePathStyle
+	dcfg.CredentialsFile, dcfg.Profile, dcfg.CAFile = s3.CredentialsFile, s3.Profile, s3.CAFile
 	if err := dcfg.Validate(); err != nil {
-		c.Ui.Error(fmt.Sprintf("Invalid S3 options: %s", err))
+		c.Ui.Error(fmt.Sprintf("Invalid -from or S3 options: %s", err))
 		return 1
 	}
 	dest, err := backup.NewDestination(dcfg, backup.DefaultConfig(), "")
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error creating the S3 client: %s", err))
+		c.Ui.Error(fmt.Sprintf("Error opening %s: %s", from, err))
 		return 1
 	}
 

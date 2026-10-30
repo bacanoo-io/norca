@@ -92,9 +92,16 @@ func (c *secretVersionsCommand) run(args []string, help func() string, name stri
 	case secret == nil:
 		c.Ui.Output(fmt.Sprintf("Destroyed secret %q with all of its versions", path))
 	default:
-		c.Ui.Output(fmt.Sprintf("Secret %q: %sd %s", path, c.op, target))
+		c.Ui.Output(fmt.Sprintf("Secret %q: %s %s", path, secretOpPastTense[c.op], target))
 	}
 	return 0
+}
+
+// secretOpPastTense is the past tense of the operations for the output.
+var secretOpPastTense = map[string]string{
+	"delete":   "deleted",
+	"undelete": "undeleted",
+	"destroy":  "destroyed",
 }
 
 func versionsString(versions []uint64) string {
@@ -108,7 +115,9 @@ func versionsString(versions []uint64) string {
 const secretVersionsOptions = `
   -versions <n,...>
     Comma separated versions. Defaults to the current version.
+` + secretCheckIndexOption
 
+const secretCheckIndexOption = `
   -check-index <index>
     Apply only if the secret's modify index is the given one.
 `
@@ -188,7 +197,8 @@ Usage: norca secret destroy [options] -versions <n,...> <path>
 
   Destroy versions of a secret permanently, or with -all the whole secret
   with all of its versions and its metadata. Destroyed values can not be
-  restored.
+  restored. One of -versions and -all is required: there is no default, so
+  that a destroy never removes more than was named.
 
   If ACLs are enabled, this command requires the 'destroy-secret' capability
   for the path.
@@ -200,8 +210,11 @@ General Options:
 Destroy Options:
 
   -all
-    Destroy the whole secret.
-` + secretVersionsOptions)
+    Destroy the whole secret with all of its versions and its metadata.
+
+  -versions <n,...>
+    Comma separated versions to destroy. Required unless -all is given.
+` + secretCheckIndexOption)
 }
 func (c *SecretDestroyCommand) AutocompleteFlags() complete.Flags {
 	return mergeAutocompleteFlags(c.Meta.AutocompleteFlags(FlagSetClient),

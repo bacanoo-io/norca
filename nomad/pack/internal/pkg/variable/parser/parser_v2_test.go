@@ -489,3 +489,32 @@ func NewStringVariableV2(key, value, kind string) *variables.Variable {
 		DeclRange: hcl.Range{Filename: fmt.Sprintf("<value for var %s from %s>", key, kind)},
 	}
 }
+
+// TestParserV2_FileOverrideOptionalAttributes checks that the values of a
+// variables file get the defaults of the optional() attributes of the
+// declared type, also for objects inside a list, like -var values.
+func TestParserV2_FileOverrideOptionalAttributes(t *testing.T) {
+	fixtureRoot := testfixture.AbsPath(t, "v2/optional_test")
+	p, err := loader.Load(fixtureRoot + "/optional_test")
+	must.NoError(t, err)
+
+	parser, err := NewParserV2(&config.ParserConfig{
+		ParentPack:        p,
+		RootVariableFiles: p.RootVariableFiles(),
+		FileOverrides:     []string{path.Join(fixtureRoot, "optional.vars.hcl")},
+	})
+	must.NoError(t, err)
+	pv, diags := parser.Parse()
+	must.False(t, diags.HasErrors(), must.Sprintf("diags: %v", diags))
+
+	vars := pv.v2Vars["optional_test"]
+	eps := vars["entrypoints"].Value.AsValueSlice()
+	must.Len(t, 2, eps)
+	must.Eq(t, "http", eps[0].GetAttr("protocol").AsString())
+	must.Eq(t, "", eps[0].GetAttr("redirect_to").AsString())
+	must.Eq(t, "tcp", eps[1].GetAttr("protocol").AsString())
+
+	level, _ := vars["options"].Value.GetAttr("level").AsBigFloat().Int64()
+	must.Eq(t, int64(3), level)
+	must.Eq(t, "b", vars["options"].Value.GetAttr("mode").AsString())
+}
