@@ -49,7 +49,7 @@ cd nomad
 make dev                          # bin/norca, also copied to $GOBIN
 # or: go build -tags ui -o norca .
 sudo install bin/norca /usr/local/bin/norca
-norca version                     # Norca v0.2.0 (Nomad API 1.6.5 compatible)
+norca version                     # Norca v0.3.0 (Nomad API 1.6.5 compatible)
 ```
 
 Without `-tags ui` the binary works the same but serves no web UI.
