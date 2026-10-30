@@ -15,11 +15,16 @@ import (
 )
 
 // BackupConfig is the server's backup block: scheduled, encrypted backups of
-// the region's Raft state and keyring into S3-compatible stores.
+// the region's Raft state and keyring into S3-compatible stores and
+// directories.
 //
 //	backup {
 //	  enabled  = true
 //	  interval = "1h"
+//	  destination "local" {
+//	    type = "directory"
+//	    path = "/var/backups/norca"
+//	  }
 //	  destination "primary" {
 //	    type   = "s3"
 //	    bucket = "norca-backup"
@@ -76,10 +81,12 @@ type BackupConfig struct {
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
 
-// BackupDestinationConfig is an S3-compatible backup destination.
+// BackupDestinationConfig is a backup destination: an S3-compatible store
+// (type "s3", the default) or a directory (type "directory", with path).
 type BackupDestinationConfig struct {
 	Name           string `hcl:",key"`
 	Type           string `hcl:"type"`
+	Path           string `hcl:"path"`
 	Endpoint       string `hcl:"endpoint"`
 	Bucket         string `hcl:"bucket"`
 	Prefix         string `hcl:"prefix"`
@@ -396,6 +403,7 @@ func (b *BackupConfig) toServerConfig() (*backup.Config, error) {
 		dc := &backup.DestinationConfig{
 			Name:            d.Name,
 			Type:            d.Type,
+			Path:            d.Path,
 			Endpoint:        d.Endpoint,
 			Bucket:          d.Bucket,
 			Prefix:          d.Prefix,

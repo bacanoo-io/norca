@@ -37,13 +37,14 @@ func NewServiceIntentionEndpoint(srv *Server, ctx *RPCContext) *ServiceIntention
 }
 
 // intentionReadFilter returns a function reporting whether the caller may
-// read the intentions of a namespace.
+// read the intentions of a namespace. Client nodes read them with their
+// secret ID to enforce them for the allocations they run (any namespace).
 func (si *ServiceIntention) intentionReadFilter(args structs.RequestWithIdentity) (func(string) bool, error) {
 	if identity := args.GetIdentity(); identity != nil && identity.Claims != nil {
 		ns := identity.Claims.Namespace
 		return func(namespace string) bool { return namespace == ns }, nil
 	}
-	aclObj, err := si.srv.ResolveACL(args)
+	aclObj, err := si.srv.ResolveClientOrACL(args)
 	if err != nil {
 		return nil, err
 	}

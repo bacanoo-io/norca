@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package api
@@ -43,6 +44,28 @@ func TestService_Canonicalize(t *testing.T) {
 	must.Nil(t, s.Meta)
 	must.Nil(t, s.CanaryMeta)
 	must.Nil(t, s.TaggedAddresses)
+}
+
+func TestServiceDiscovery_Canonicalize(t *testing.T) {
+	testutil.Parallel(t)
+
+	j := &Job{Name: pointerOf("job")}
+	tg := &TaskGroup{Name: pointerOf("group")}
+	task := &Task{Name: "task"}
+
+	// an unset overflow fraction stays unset: the servers fill in their
+	// default at registration
+	s := &Service{Provider: "nomad", Discovery: &ServiceDiscovery{}}
+	s.Canonicalize(task, tg, j)
+	must.Eq(t, "none", s.Discovery.Prefer)
+	must.Nil(t, s.Discovery.OverflowFraction)
+
+	// explicit values, including 0, are kept
+	for _, f := range []float64{0, 0.2, 0.5} {
+		s = &Service{Provider: "nomad", Discovery: &ServiceDiscovery{OverflowFraction: pointerOf(f)}}
+		s.Canonicalize(task, tg, j)
+		must.Eq(t, pointerOf(f), s.Discovery.OverflowFraction)
+	}
 }
 
 func TestServiceCheck_Canonicalize(t *testing.T) {

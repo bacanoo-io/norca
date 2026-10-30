@@ -118,11 +118,10 @@ func (b *Builder) Index() *Index {
 	return b.index
 }
 
+// validName checks a pack name of a bundle, which becomes a path in the
+// bundle and in the pack cache.
 func validName(name string) error {
-	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\:@`) {
-		return fmt.Errorf("invalid pack name %q", name)
-	}
-	return nil
+	return supplychain.ValidatePathName("pack name", name)
 }
 
 func (b *Builder) store(name string) (*ocistore.Store, error) {
@@ -144,6 +143,9 @@ func (b *Builder) store(name string) (*ocistore.Store, error) {
 // signatures, into the bundle. Adding the same pack version twice is a no-op;
 // the returned entry is nil and added is false in that case.
 func (b *Builder) Add(ctx context.Context, src oras.ReadOnlyTarget, tag, source string) (*Entry, *oci.Artifact, bool, error) {
+	if err := supplychain.ValidateTag(tag); err != nil {
+		return nil, nil, false, err
+	}
 	a, err := oci.Fetch(ctx, src, tag)
 	if err != nil {
 		return nil, nil, false, err
@@ -181,6 +183,9 @@ func (b *Builder) Add(ctx context.Context, src oras.ReadOnlyTarget, tag, source 
 // AddArtifact adds a pack built from a local directory, optionally with a
 // signature made by the given key.
 func (b *Builder) AddArtifact(ctx context.Context, a *oci.Artifact, tag, source string, key crypto.Signer) (*Entry, error) {
+	if err := supplychain.ValidateTag(tag); err != nil {
+		return nil, err
+	}
 	if b.index.find(a.Config.Name, tag) != nil {
 		return nil, fmt.Errorf("pack %s:%s is included twice", a.Config.Name, tag)
 	}
@@ -416,8 +421,17 @@ func decodeIndex(r io.Reader) (*Index, error) {
 		return nil, fmt.Errorf("unsupported bundle format version %d", idx.FormatVersion)
 	}
 	for _, e := range idx.Packs {
+		if e == nil {
+			return nil, errors.New("invalid bundle index: empty pack entry")
+		}
 		if err := validName(e.Name); err != nil {
 			return nil, err
+		}
+		// The tag selects the artifact in the bundle's OCI layout, whose
+		// references oras does not validate, and becomes a cache path on
+		// import.
+		if err := supplychain.ValidateTag(e.Tag); err != nil {
+			return nil, fmt.Errorf("pack %s: %w", e.Name, err)
 		}
 	}
 	return &idx, nil
@@ -516,6 +530,9 @@ func (b *Bundle) Verify(ctx context.Context, policy packconfig.Policy) error {
 		src, err := b.Repository(e.Name)
 		if err != nil {
 			return err
+		}
+		if err := supplychain.ValidateTag(e.Tag); err != nil {
+			return fmt.Errorf("pack %s: %w", e.Name, err)
 		}
 		a, err := oci.Fetch(ctx, src, e.Tag)
 		if err != nil {

@@ -98,7 +98,7 @@ func (s *ServiceRegistration) Upsert(
 		}
 	}
 
-	// The health-based catalog (health, checks, zone, meta and discovery
+	// The health-based catalog (health, checks, meta and discovery
 	// settings, with flapping protection) is enabled once every server of the
 	// region runs Norca; until then registrations keep the fields known to
 	// every server.
@@ -197,14 +197,24 @@ func (s *ServiceRegistration) DeleteByID(
 			minNomadServiceRegistrationVersion)
 	}
 
-	// Perform the ACL token resolution.
-	aclObj, err := s.srv.ResolveACL(args)
+	// Perform the ACL token resolution. Client nodes remove the
+	// registrations of the allocations they run with their secret ID.
+	aclObj, err := s.srv.ResolveClientOrACL(args)
 
 	switch err {
 	case nil:
-		// If ACLs are enabled, ensure the caller has the submit-job namespace
-		// capability.
-		if aclObj != nil {
+		if clientID := clientIdentity(args); clientID != "" {
+			// A client node may only remove registrations of its own node.
+			reg, err := s.srv.fsm.State().GetServiceRegistrationByID(nil, args.RequestNamespace(), args.ID)
+			if err != nil {
+				return err
+			}
+			if reg != nil && reg.NodeID != clientID {
+				return structs.ErrPermissionDenied
+			}
+		} else if aclObj != nil {
+			// If ACLs are enabled, ensure the caller has the submit-job
+			// namespace capability.
 			hasSubmitJob := aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob)
 			if !hasSubmitJob {
 				return structs.ErrPermissionDenied

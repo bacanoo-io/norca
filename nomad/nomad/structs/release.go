@@ -34,9 +34,15 @@ const (
 	ReleaseObjectGroup = "packs.norca.io"
 
 	// ReleaseKind is the kind of release objects, ReleaseRevisionKind the
-	// kind of their revisions.
+	// kind of their revisions, and PackRegistryKind the kind of cluster
+	// pack registries.
 	ReleaseKind         = "Release"
 	ReleaseRevisionKind = "ReleaseRevision"
+	PackRegistryKind    = "Registry"
+
+	// PackUploadKind is the kind of the chunks of packs uploaded to a
+	// cluster registry of the type "uploads".
+	PackUploadKind = "PackUpload"
 
 	// ReleaseLabel is the label of revisions naming their release.
 	ReleaseLabel = "packs.norca.io/release"
@@ -207,6 +213,12 @@ var ReleaseKindRef = ObjectKindRef(ReleaseObjectGroup, ReleaseKind)
 
 // ReleaseRevisionKindRef is the "group/Kind" reference of revisions.
 var ReleaseRevisionKindRef = ObjectKindRef(ReleaseObjectGroup, ReleaseRevisionKind)
+
+// PackRegistryKindRef is the "group/Kind" reference of pack registries.
+var PackRegistryKindRef = ObjectKindRef(ReleaseObjectGroup, PackRegistryKind)
+
+// PackUploadKindRef is the "group/Kind" reference of pack upload chunks.
+var PackUploadKindRef = ObjectKindRef(ReleaseObjectGroup, PackUploadKind)
 
 // IsReleaseHookPhase reports whether phase is a hook phase.
 func IsReleaseHookPhase(phase string) bool {
@@ -386,6 +398,13 @@ type ReleasePack struct {
 	Version  string `json:"version,omitempty"`
 	Registry string `json:"registry,omitempty"`
 	Path     string `json:"path,omitempty"`
+
+	// Source is where the registry of the pack fetches it from (a git URL
+	// or an oci:// location), and Ref the ref (tag, branch) it was fetched
+	// at. With them the web UI finds the cluster registry of a release
+	// installed with the CLI, whose Registry is a local name.
+	Source string `json:"source,omitempty"`
+	Ref    string `json:"ref,omitempty"`
 
 	// Digest is the OCI manifest digest of a pack from an OCI registry or
 	// a bundle.

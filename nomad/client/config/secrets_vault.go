@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/nomad/helper/pointer"
 )
 
-// Vault compatibility of the client (docs/design/secrets-plan.md, "Vault
+// Vault compatibility of the client (norca-doc content/docs/design/secrets-plan.md, "Vault
 // compatibility"): when the agent has no Vault integration, Vault-style
 // lookups (the Vault "secret" template function and the reads of tasks with
 // a vault block through the client's Vault-compatible endpoint) are served

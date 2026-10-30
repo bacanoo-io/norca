@@ -45,6 +45,9 @@ func allowObjectsSubscription(aclObj *acl.ACL, namespace string, keys []string) 
 			}
 			continue
 		}
+		if kindRef == structs.ReleaseRevisionKindRef && !aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityReadJob) {
+			return false
+		}
 		if !aclObj.AllowObjectOperation(namespace, kindRef, acl.ObjectCapabilityRead) &&
 			!aclObj.AllowObjectOperation(acl.ObjectClusterNamespace, kindRef, acl.ObjectCapabilityRead) {
 			return false
@@ -71,6 +74,9 @@ func allowObjectEvent(aclObj *acl.ACL, event *structs.Event) bool {
 	namespace := event.Namespace
 	if namespace == "" {
 		namespace = acl.ObjectClusterNamespace
+	}
+	if kindRef == structs.ReleaseRevisionKindRef && !aclObj.AllowNsOp(event.Namespace, acl.NamespaceCapabilityReadJob) {
+		return false
 	}
 	return aclObj.AllowObjectOperation(namespace, kindRef, acl.ObjectCapabilityRead)
 }

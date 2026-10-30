@@ -51,6 +51,24 @@ module('Acceptance | backups', function (hooks) {
     await a11yAudit(assert, STRICT);
   });
 
+  test('the schedule and the recent restores cards of a row have the same height', async function (assert) {
+    useToken(null, 'management');
+    seedBackups(server);
+    await Backups.visit();
+
+    const schedule = document.querySelector('[data-test-schedule]');
+    const restores = document.querySelector('[data-test-recent-restores]');
+    const a = schedule.getBoundingClientRect();
+    const b = restores.getBoundingClientRect();
+    // Side by side on wide screens (then of the same height), stacked on
+    // narrow ones.
+    const sameRow = Math.round(a.top) === Math.round(b.top);
+    assert.ok(
+      sameRow ? Math.round(a.height) === Math.round(b.height) : b.top > a.top,
+      `schedule ${a.top}/${a.height}, restores ${b.top}/${b.height}`
+    );
+  });
+
   test('an overdue schedule becomes a warning that says what to do', async function (assert) {
     useToken(null, 'management');
     seedBackups(server, { overdue: true });
@@ -200,6 +218,26 @@ module('Acceptance | backups', function (hooks) {
     await click('[data-test-download-link]');
     assert.dom('[data-test-download]').includesText('expires');
     assert.dom('[data-test-download-url]').hasValue(/X-Amz-Signature/);
+  });
+
+  test('a backup kept only in directories has no download link', async function (assert) {
+    useToken(null, 'management');
+    seedBackups(server);
+    const backup = server.db.norcaBackups[0];
+    const location = `file:///var/backups/norca/norca/eu/${
+      backup.Path || backup.ID
+    }/`;
+    server.db.norcaBackups.update(backup.id, {
+      Destinations: backup.Destinations.slice(0, 1).map((d) => ({
+        ...d,
+        Name: 'local',
+        Location: location,
+      })),
+    });
+    await Backups.visitBackup({ id: backup.ID });
+    assert.dom('[data-test-download-link]').doesNotExist();
+    assert.dom('[data-test-toggle-pin]').exists();
+    assert.dom('[data-test-backup-panel]').includesText(location);
   });
 
   test('browsing asks for the age identity, then lists the content by type', async function (assert) {

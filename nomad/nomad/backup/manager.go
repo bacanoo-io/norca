@@ -161,6 +161,9 @@ func (m *Manager) SetConfig(cfg *Config) error {
 				dests = nil
 				break
 			}
+			if dd, ok := d.(*dirDestination); ok {
+				dd.server = true
+			}
 			dests = append(dests, d)
 		}
 	}
@@ -242,9 +245,15 @@ func (m *Manager) leaderContext() (context.Context, error) {
 func (m *Manager) run(ctx context.Context) {
 	cleaned := false
 	notReadyLogged := false
+	var checked *Config
 	for {
 		wait := 10 * time.Second
 		cfg := m.Config()
+
+		if checked != cfg && cfg.Configured() {
+			m.checkSharedStorage()
+			checked = cfg
+		}
 
 		switch {
 		case !cfg.Enabled || !cfg.Configured():
@@ -311,6 +320,44 @@ func (m *Manager) abortIncompleteUploads(ctx context.Context) {
 		}
 		if n > 0 {
 			m.logger.Info("aborted incomplete backup uploads", "destination", d.Name(), "count", n)
+		}
+	}
+}
+
+// checkSharedStorage warns when the newest backup that the records list on a
+// directory destination is missing there: the directory is not the same
+// storage on every server of the region, and the new leader can't read the
+// backups the previous one wrote.
+func (m *Manager) checkSharedStorage() {
+	_, dests, err := m.configAndDestinations()
+	if err != nil {
+		return
+	}
+	records, err := m.deps.State().BackupsList(nil)
+	if err != nil {
+		return
+	}
+	for _, dest := range dests {
+		d, ok := dest.(*dirDestination)
+		if !ok {
+			continue
+		}
+		var newest *structs.BackupRecord
+		for _, r := range records {
+			st := r.Destination(d.name)
+			if !r.Usable() || st == nil || st.Status != structs.BackupDestinationStatusVerified {
+				continue
+			}
+			if newest == nil || r.StartedAt.After(newest.StartedAt) {
+				newest = r
+			}
+		}
+		if newest == nil {
+			continue
+		}
+		if found, err := d.exists(newest.Path); err == nil && !found {
+			m.logger.Warn("backup missing on a directory destination", "destination", d.name, "id", newest.ID,
+				"error", sharedStorageHint(d, newest))
 		}
 	}
 }
@@ -705,15 +752,23 @@ func (m *Manager) Delete(record *structs.BackupRecord) (uint64, error) {
 	}
 	m.runLock.Lock()
 	defer m.runLock.Unlock()
-	return m.deleteLocked(ctx, cfg, dests, record)
+	return m.deleteLocked(ctx, cfg, dests, record, true)
 }
 
-func (m *Manager) deleteLocked(ctx context.Context, cfg *Config, dests []Destination, record *structs.BackupRecord) (uint64, error) {
+// deleteLocked deletes a backup. A backup that its record lists on a
+// directory destination but that is missing there is not deleted by the
+// retention (the directory may not be shared by the servers, see
+// sharedStorageHint); a manual deletion removes its record with a warning.
+func (m *Manager) deleteLocked(ctx context.Context, cfg *Config, dests []Destination, record *structs.BackupRecord, manual bool) (uint64, error) {
 	// Never delete outside the backup's own folder.
 	expected, err := PathFor(record.ID)
 	if err != nil || record.Path != expected {
 		return 0, fmt.Errorf("backup %s has an unexpected path %q", record.ID, record.Path)
 	}
+	// The destinations to delete from: those that allow pruning. A backup
+	// missing on a directory destination is checked before anything is
+	// deleted.
+	var targets []Destination
 	for _, st := range record.Destinations {
 		dcfg := cfg.Destination(st.Name)
 		if dcfg == nil || !dcfg.Prune {
@@ -723,9 +778,27 @@ func (m *Manager) deleteLocked(ctx context.Context, cfg *Config, dests []Destina
 			if d.Name() != st.Name {
 				continue
 			}
-			if err := d.DeletePrefix(ctx, record.Path+"/"); err != nil {
-				return 0, fmt.Errorf("failed to delete backup %s from %s: %w", record.ID, st.Name, err)
+			if dd, ok := d.(*dirDestination); ok && st.Status == structs.BackupDestinationStatusVerified {
+				found, err := dd.exists(record.Path)
+				if err != nil {
+					return 0, fmt.Errorf("failed to delete backup %s from %s: %w", record.ID, st.Name, err)
+				}
+				if !found {
+					if !manual {
+						return 0, fmt.Errorf("failed to delete backup %s from %s: %s", record.ID, st.Name,
+							sharedStorageHint(dd, record))
+					}
+					m.logger.Warn("deleting the record of a backup missing on a directory destination",
+						"id", record.ID, "destination", st.Name, "error", sharedStorageHint(dd, record))
+					continue
+				}
 			}
+			targets = append(targets, d)
+		}
+	}
+	for _, d := range targets {
+		if err := d.DeletePrefix(ctx, record.Path+"/"); err != nil {
+			return 0, fmt.Errorf("failed to delete backup %s from %s: %w", record.ID, d.Name(), err)
 		}
 	}
 	return m.deps.Apply(structs.BackupDeleteRequestType|structs.IgnoreUnknownTypeFlag,
@@ -745,7 +818,7 @@ func (m *Manager) prune(ctx context.Context, cfg *Config, dests []Destination) e
 	}
 	var errs []string
 	for _, record := range Expired(records, retention) {
-		if _, err := m.deleteLocked(ctx, cfg, dests, record); err != nil {
+		if _, err := m.deleteLocked(ctx, cfg, dests, record, false); err != nil {
 			errs = append(errs, err.Error())
 			continue
 		}
@@ -887,7 +960,7 @@ func OpenObject(ctx context.Context, dest Destination, record *structs.BackupRec
 	}
 	raw, err := dest.Get(ctx, path.Join(record.Path, obj.Key))
 	if err != nil {
-		return nil, err
+		return nil, missingError(dest, record, err)
 	}
 	hash := sha256.New()
 	counter := &countingWriter{}
@@ -931,11 +1004,26 @@ func (v *verifyingReader) Close() error {
 	return v.raw.Close()
 }
 
-// PresignURL returns a pre-signed download URL of a backup object.
+// PresignURL returns a pre-signed download URL of a backup object. Without
+// a destination name it picks the first destination the backup was verified
+// on that can sign URLs: directory destinations can't (ErrNoDownloadURL).
 func (m *Manager) PresignURL(ctx context.Context, record *structs.BackupRecord, destName, object string, expiry time.Duration) (string, error) {
 	dest, st, err := m.ReadDestination(record, destName)
 	if err != nil {
 		return "", err
+	}
+	if _, ok := dest.(*dirDestination); ok && destName == "" {
+		for _, s := range record.Destinations {
+			if s.Status != structs.BackupDestinationStatusVerified {
+				continue
+			}
+			if d, err := m.Destination(s.Name); err == nil {
+				if _, isDir := d.(*dirDestination); !isDir {
+					dest, st = d, s
+					break
+				}
+			}
+		}
 	}
 	key := ManifestKey
 	if object != structs.BackupObjectManifest {

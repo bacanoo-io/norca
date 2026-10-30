@@ -8,11 +8,18 @@
       {{#if this.health}}
         <Ui::StatusIndicator @tone={{this.health.tone}} @label={{this.health.label}} data-test-object-health />
       {{/if}}
+      {{#if this.deletion}}
+        <Ui::Badge @color="red" @icon="trash" class="ms-2" data-test-object-deleting-badge>deleting</Ui::Badge>
+      {{/if}}
       {{#if @namespace}}<span class="ms-2">namespace {{@namespace}}</span>{{/if}}
     </:subtitle>
     <:actions>
       <Ui::Button @route="objects" @query={{hash kind=this.kindId}}>All {{@kind}} objects</Ui::Button>
-      {{#if (and this.object this.kind this.canWrite)}}
+      <Ui::Button @route="kinds.kind" @models={{array @group @kind}} @icon="list-details" data-test-object-kind-link>Definition</Ui::Button>
+      {{#if (and this.object this.canWrite (not this.deletion))}}
+        <Ui::Button @variant="outline-danger" @icon="trash" data-test-delete-object {{on "click" this.openDelete}}>Delete</Ui::Button>
+      {{/if}}
+      {{#if (and this.object this.kind this.canWrite (not this.deletion))}}
         <Ui::Button @variant="primary" @icon="pencil" data-test-edit-object {{on "click" this.openEditor}}>Edit</Ui::Button>
       {{/if}}
     </:actions>
@@ -28,6 +35,12 @@
         </Ui::EmptyState>
       </Ui::Card>
     {{else}}
+      {{#if this.deletion}}
+        <Ui::Alert @tone="warning" @title="The object is being deleted ({{this.deletion.mode}})" class="mb-3" data-test-object-deletion>
+          It was marked for deletion {{moment-from-now this.deletion.since}} and waits for {{this.deletion.waiting}}.
+          If this lasts, check that the controller of {{this.kindId}} is running.
+        </Ui::Alert>
+      {{/if}}
       {{#if this.health.behind}}
         <Ui::Alert @tone="info" class="mb-3" data-test-object-behind>
           The controller has not processed the latest change yet (generation {{this.object.Generation}}, observed {{this.object.Status.observedGeneration}}).
@@ -40,6 +53,15 @@
             <Ui::CodeBlock @label="Spec" @code={{this.specText}} data-test-object-spec />
             <p class="text-secondary small mt-2 mb-0">Edit checks a changed spec against the schema and the CEL rules of the kind in a dry run before it is saved.</p>
           </Ui::Card>
+          {{#if this.scale}}
+            <Ui::Card @title="Scale" @subtitle="The scale subresource of the kind" class="mt-3" data-test-object-scale>
+              <Ui::Datagrid @items={{this.scaleItems}} />
+              <p class="text-secondary small mt-2 mb-0">
+                {{#if this.scaleConverging}}The controller has not reached the desired count yet. {{/if}}
+                The autoscaler and <span class="font-monospace">norca object scale</span> change the desired count; in the UI, change it with Edit.
+              </p>
+            </Ui::Card>
+          {{/if}}
         </div>
         <div class="col-lg-6">
           <Ui::Card @title="Status" @subtitle="Reported by the controller">
@@ -52,17 +74,18 @@
               <h4 class="mt-3">Owners</h4>
               {{#each this.owners as |owner|}}
                 <div data-test-object-owner>
-                  {{#if owner.isRelease}}
-                    <LinkTo @route="packages.release" @models={{array owner.Namespace owner.Name}}>Release {{owner.Name}}</LinkTo>
+                  {{#if owner.route}}
+                    <LinkTo @route={{owner.route}} @models={{owner.models}} @query={{or owner.query (hash)}} data-test-object-owner-link>{{owner.label}}</LinkTo>
                   {{else}}
-                    {{owner.Kind}} {{owner.Name}}
+                    {{owner.label}}
                   {{/if}}
                 </div>
               {{/each}}
             {{/if}}
             {{#if this.object.Finalizers.length}}
               <h4 class="mt-3">Finalizers</h4>
-              {{#each this.object.Finalizers as |f|}}<Ui::Badge class="me-1 font-monospace">{{f}}</Ui::Badge>{{/each}}
+              {{#each this.object.Finalizers as |f|}}<Ui::Badge class="me-1 font-monospace" data-test-object-finalizer>{{f}}</Ui::Badge>{{/each}}
+              <p class="text-secondary small mt-1 mb-0">The object is deleted only after its controllers remove these.</p>
             {{/if}}
           </Ui::Card>
         </div>
@@ -83,8 +106,54 @@
               <td>
                 {{c.reason}}
                 {{#if c.message}}<div class="small text-secondary">{{c.message}}</div>{{/if}}
+                {{#if c.since}}<div class="small text-secondary">since {{c.since}}</div>{{/if}}
               </td>
             </Ui::Table>
+          </Ui::Card>
+          <Ui::Card @title="Owns" @subtitle="Jobs and objects that reference this object as their owner" @flush={{true}} class="mt-3" data-test-object-owns>
+            {{#if this.ownsAnything}}
+              {{#if this.ownedJobRows.length}}
+              <Ui::Table
+                @inCard={{true}}
+                @caption="Owned jobs and objects"
+                @columns={{array (hash key="what" label="Owned") (hash key="namespace" label="Namespace") (hash key="state" label="State")}}
+                @rows={{this.ownedJobRows}}
+                as |j|
+              >
+                <td data-test-owned-job={{j.name}}>
+                  <Ui::Icon @name="briefcase" class="me-1" />
+                  <LinkTo @route="jobs.job.index" @model={{j.routeId}}>Job {{j.name}}</LinkTo>
+                </td>
+                <td>{{j.namespace}}</td>
+                <td><Ui::StatusIndicator @status={{j.status}} /></td>
+              </Ui::Table>
+              {{/if}}
+              {{#if this.ownedObjectRows.length}}
+                <Ui::Table
+                  @inCard={{true}}
+                  @caption="Owned objects"
+                  @columns={{array (hash key="what" label="Object") (hash key="namespace" label="Namespace") (hash key="state" label="Health")}}
+                  @rows={{this.ownedObjectRows}}
+                  as |o|
+                >
+                  <td data-test-owned-object={{o.Name}}>
+                    <LinkTo @route="objects.object" @models={{array o.Group o.Kind o.Name}} @query={{hash namespace=(or o.Namespace null)}}>{{o.Kind}} {{o.Name}}</LinkTo>
+                  </td>
+                  <td>{{or o.Namespace "–"}}</td>
+                  <td><Ui::StatusIndicator @tone={{o.health.tone}} @label={{o.health.label}} /></td>
+                </Ui::Table>
+              {{/if}}
+            {{else}}
+              <div class="p-3">
+                <p class="text-secondary mb-0" data-test-object-owns-none>
+                  {{#if (and (eq this.ownedJobs null) (eq this.ownedObjects null))}}
+                    Loading what the object owns…
+                  {{else}}
+                    No job or object references this object as its owner. A controller sets the owner when it creates them.
+                  {{/if}}
+                </p>
+              </div>
+            {{/if}}
           </Ui::Card>
           <Ui::Card @title="Full status" class="mt-3">
             <Ui::CodeBlock @label="Status" @code={{this.statusText}} />
@@ -105,5 +174,28 @@
 
   {{#if this.editing}}
     <Objects::Editor @kind={{this.kind}} @object={{this.object}} @region={{this.region}} @onSaved={{this.saved}} @onClose={{this.closeEditor}} />
+  {{/if}}
+
+  {{#if this.deleting}}
+    <Ui::Confirm
+      @title={{concat "Delete " @kind " " @name "?"}}
+      @confirmLabel="Delete object"
+      @confirmIcon="trash"
+      @typedValue={{@name}}
+      @onConfirm={{this.confirmDelete}}
+      @onClose={{this.closeDelete}}
+      @isRunning={{this.isDeleting}}
+      @error={{this.deleteError}}
+      data-test-object-delete-confirm
+    >
+      <Ui::RadioGroup @label="Deletion mode" @value={{this.deletionMode}} @onChange={{this.setDeletionMode}} @help={{this.deletionModeHelp}} data-test-deletion-mode as |g|>
+        {{#each this.deletionModes as |m|}}
+          <g.Option @value={{m.value}} @label={{m.label}} />
+        {{/each}}
+      </Ui::RadioGroup>
+      {{#if this.object.Finalizers.length}}
+        <p class="mb-0">The object has finalizers: it is only marked for deletion until its controllers have cleaned up and removed them.</p>
+      {{/if}}
+    </Ui::Confirm>
   {{/if}}
 </div>

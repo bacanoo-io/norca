@@ -35,7 +35,8 @@ type Destination interface {
 	Location(key string) string
 
 	// Put uploads an object. A negative size streams it with a multipart
-	// upload of fixed part size.
+	// upload of fixed part size (S3), or into a temporary file renamed when
+	// complete (directory).
 	Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
 
 	// Get downloads an object.
@@ -45,14 +46,16 @@ type Destination interface {
 	Size(ctx context.Context, key string) (int64, error)
 
 	// DeletePrefix deletes every object, and aborts every incomplete
-	// multipart upload, under a key prefix.
+	// upload, under a key prefix.
 	DeletePrefix(ctx context.Context, prefix string) error
 
-	// AbortIncompleteUploads aborts the incomplete multipart uploads under a
-	// key prefix, for example after a leader change during a backup.
+	// AbortIncompleteUploads aborts the incomplete multipart uploads (S3) or
+	// removes the temporary files (directory) under a key prefix, for example
+	// after a leader change or a crash during a backup.
 	AbortIncompleteUploads(ctx context.Context, prefix string) (int, error)
 
-	// PresignGet returns a pre-signed download URL of an object.
+	// PresignGet returns a pre-signed download URL of an object; a
+	// directory destination returns ErrNoDownloadURL.
 	PresignGet(ctx context.Context, key string, expiry time.Duration) (string, error)
 }
 
@@ -293,6 +296,8 @@ func NewDestination(cfg *DestinationConfig, c *Config, region string) (Destinati
 	switch cfg.Type {
 	case DestinationTypeS3:
 		return newS3Destination(cfg, region, c.PartSize, c.UploadConcurrency)
+	case DestinationTypeDirectory:
+		return newDirDestination(cfg, region)
 	default:
 		return nil, fmt.Errorf("unsupported destination type %q", cfg.Type)
 	}

@@ -145,6 +145,9 @@ job [[ $job | quote ]] {
 
       discovery {
         prefer = [[ $v.discovery_prefer | quote ]]
+[[- if gt (int $v.discovery_min_local) 0 ]]
+        min_local = [[ $v.discovery_min_local ]]
+[[- end ]]
 [[- if $v.discovery_failover ]]
         failover = [[ $v.discovery_failover | toStringList ]]
 [[- end ]]

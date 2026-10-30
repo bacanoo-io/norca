@@ -4,7 +4,7 @@
 
 # docker.io/library/busybox:1.36.0
 # When pinning use the multi-arch manifest list, `docker buildx imagetools inspect ...`
-FROM docker.io/library/busybox@sha256:9e2bbca079387d7965c3a9cee6d0c53f4f4e63ff7637877a83c4c05f2a666112 as release
+FROM docker.io/library/busybox@sha256:9e2bbca079387d7965c3a9cee6d0c53f4f4e63ff7637877a83c4c05f2a666112 AS release
 
 ARG PRODUCT_NAME=norca
 ARG PRODUCT_VERSION
@@ -24,7 +24,7 @@ LABEL version=${PRODUCT_VERSION}
 LABEL revision=${PRODUCT_REVISION}
 
 # The license, the notice and the third-party notices accompany the binary
-# (docs/licensing.md, "Distribution"). The release workflow stages them in
+# (norca-doc content/docs/introduction/license.md, "Distribution"). The release workflow stages them in
 # dist/doc/ from the repository root.
 COPY dist/doc/LICENSE dist/doc/NOTICE dist/doc/THIRD_PARTY_NOTICES.md /usr/share/doc/norca/
 COPY dist/$TARGETOS/$TARGETARCH/norca /bin/

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package secrets is the client side of secret delivery
-// (docs/design/secrets-plan.md, "Delivery to tasks", "Provider resolution
+// (norca-doc content/docs/design/secrets-plan.md, "Delivery to tasks", "Provider resolution
 // and fallback" and "External providers"): the provider interface, the
 // built-in providers ("norca", the built-in store over server RPC, and
 // "vault", the agent's existing Vault integration), the resolution of the

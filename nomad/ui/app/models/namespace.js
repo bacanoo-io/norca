@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -11,4 +12,5 @@ export default class Namespace extends Model {
   @readOnly('id') name;
   @attr('string') hash;
   @attr('string') description;
+  @attr() meta;
 }

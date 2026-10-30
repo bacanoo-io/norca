@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { apiRequest } from 'nomad-ui/utils/norca-api';
+import { apiRequest, ApiError, withParams } from 'nomad-ui/utils/norca-api';
 
 // Pack releases (package-management-plan.md; pack/docs/releases.md). The
 // typed views of a release carry Spec and Status whose keys are PascalCase
@@ -11,7 +11,13 @@ import { apiRequest } from 'nomad-ui/utils/norca-api';
 // pages normalize them to PascalCase. User data (values, meta) keeps its
 // keys.
 
-const KEEP_KEYS = new Set(['Values', 'VariableValues', 'Meta', 'Labels']);
+const KEEP_KEYS = new Set([
+  'Values',
+  'VariableValues',
+  'Meta',
+  'Labels',
+  'UIFormSchema',
+]);
 
 export function normalize(value) {
   if (Array.isArray(value)) return value.map(normalize);
@@ -95,6 +101,228 @@ export function uninstallRelease(token, region, namespace, name, noHooks) {
       no_hooks: noHooks ? 'true' : undefined,
     },
   });
+}
+
+// Cluster pack registries (packs.norca.io/Registry objects) and the
+// catalog of their packs; the servers sync and render them
+// (nomad/nomad/pack_registry.go).
+export async function listPackRegistries(token, region) {
+  const r = await apiRequest(token, '/v1/pack-registries', {
+    params: { region },
+  });
+  return { ...r, body: normalize(r.body || []) };
+}
+
+// spec: { type, source, defaultRef, trustedKeys }
+export async function upsertPackRegistry(token, region, name, spec) {
+  const r = await apiRequest(token, '/v1/pack-registry', {
+    method: 'POST',
+    params: { region },
+    data: { Name: name, Spec: spec },
+  });
+  return { ...r, body: normalize(r.body) };
+}
+
+export async function syncPackRegistry(token, region, name) {
+  const r = await apiRequest(
+    token,
+    `/v1/pack-registry/${encodeURIComponent(name)}/sync`,
+    { method: 'POST', params: { region } }
+  );
+  return { ...r, body: normalize(r.body) };
+}
+
+export function deletePackRegistry(token, region, name) {
+  return apiRequest(token, `/v1/pack-registry/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    params: { region },
+  });
+}
+
+const REGISTRY_NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
+// Sources compare without the scheme case, a trailing slash or ".git", and
+// for OCI without the tag or digest of a pack location.
+export function normalizeSource(source) {
+  let s = String(source || '').trim();
+  const i = s.indexOf('://');
+  if (i > 0) s = s.slice(0, i).toLowerCase() + s.slice(i);
+  if (s.startsWith('oci://')) {
+    s = s.replace(/@sha256:[0-9a-f]+$/, '');
+    const slash = s.lastIndexOf('/');
+    const colon = s.lastIndexOf(':');
+    if (colon > slash && slash > 'oci://'.length) s = s.slice(0, colon);
+  }
+  return s.replace(/\/+$/, '').replace(/\.git$/, '');
+}
+
+function sourceTag(source) {
+  const s = String(source || '');
+  if (!s.startsWith('oci://')) return '';
+  const slash = s.lastIndexOf('/');
+  const colon = s.lastIndexOf(':');
+  return colon > slash ? s.slice(colon + 1) : '';
+}
+
+/**
+ * The cluster registry to upgrade a release from: the registry the release
+ * names, if it has the same source, else one with the source the CLI
+ * recorded (pack.Source) that has the pack. Returns { registry, name,
+ * version } or null.
+ */
+export function upgradeTarget(pack, registries) {
+  if (!pack?.Name) return null;
+  const regs = registries || [];
+  const source = normalizeSource(pack.Source);
+  const named = regs.find(
+    (r) =>
+      r.Name === pack.Registry &&
+      (!source || normalizeSource(r.Spec?.Source) === source)
+  );
+  const bySource =
+    source &&
+    regs.find(
+      (r) =>
+        normalizeSource(r.Spec?.Source) === source &&
+        (r.Status?.Packs || []).some((p) => p.Name === pack.Name)
+    );
+  // A pack from a local directory: the pack uploaded to an uploads
+  // registry of the cluster.
+  const uploaded =
+    isLocalPack(pack) &&
+    regs.find(
+      (r) =>
+        r.Spec?.Type === 'uploads' &&
+        (r.Status?.Packs || []).some((p) => p.Name === pack.Name)
+    );
+  const reg = named || bySource || uploaded;
+  return reg
+    ? { registry: reg.Name, name: pack.Name, version: pack.Version || '' }
+    : null;
+}
+
+// Whether a release was installed with the CLI from a local directory or
+// an offline bundle: its pack can only reach the servers as an upload.
+export function isLocalPack(pack) {
+  if (!pack?.Name) return false;
+  if (String(pack.Source || '').startsWith('bundle:')) return true;
+  return (
+    !pack.Source && (!pack.Registry || pack.Registry === '<<local folder>>')
+  );
+}
+
+/**
+ * A cluster registry to add for a release installed with the CLI from a
+ * git or OCI registry the cluster doesn't have: { name, type, source,
+ * defaultRef }, or null (a local directory or a bundle).
+ */
+export function registrySuggestion(pack, registries) {
+  const raw = String(pack?.Source || '').trim();
+  if (!raw) return null;
+  let type = null;
+  if (raw.startsWith('oci://')) type = 'oci';
+  else if (/^(https:\/\/|ssh:\/\/|[\w.-]+@[\w.-]+:)/.test(raw)) type = 'git';
+  if (!type) return null;
+  const taken = new Set((registries || []).map((r) => r.Name));
+  let name = REGISTRY_NAME.test(pack.Registry || '') ? pack.Registry : '';
+  if (!name || taken.has(name)) {
+    const base =
+      normalizeSource(raw)
+        .split(/[/:]/)
+        .filter(Boolean)
+        .pop()
+        ?.toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'registry';
+    name = base;
+    for (let n = 2; taken.has(name); n++) name = `${base}-${n}`;
+  }
+  const ref = type === 'oci' ? sourceTag(raw) || pack.Ref : pack.Ref;
+  return {
+    name,
+    type,
+    // git sources stay as recorded (some servers need the .git suffix).
+    source: type === 'oci' ? normalizeSource(raw) : raw.replace(/\/+$/, ''),
+    defaultRef: ref && ref !== 'latest' ? ref : '',
+  };
+}
+
+// Uploads a pack archive (a bundle of norca pack bundle create, or a tar or
+// tar.gz of pack directories) to a registry of the type "uploads" (default
+// "uploads", created if missing). The body is the file itself.
+export async function uploadPack(token, region, registry, file) {
+  const url = withParams('/v1/pack-upload', {
+    region: region || undefined,
+    registry: registry || undefined,
+    filename: file?.name || undefined,
+  });
+  const response = await token.authorizedRawRequest(url, {
+    method: 'PUT',
+    body: file,
+  });
+  let body = null;
+  try {
+    body = await response.json();
+  } catch (e) {
+    body = null;
+  }
+  if (!response.ok) {
+    throw new ApiError(
+      typeof body === 'string'
+        ? body
+        : `PUT /v1/pack-upload: ${response.status}`,
+      response.status,
+      body
+    );
+  }
+  return { body: normalize(body) };
+}
+
+export function deletePackUpload(token, region, registry, digest) {
+  return apiRequest(
+    token,
+    `/v1/pack-upload/${encodeURIComponent(registry)}/${encodeURIComponent(
+      digest
+    )}`,
+    { method: 'DELETE', params: { region } }
+  );
+}
+
+export async function listCatalogPacks(token, region, registry) {
+  const r = await apiRequest(token, '/v1/packs', {
+    params: { region, registry: registry || undefined },
+  });
+  return { ...r, body: normalize(r.body || []) };
+}
+
+// { Pack, Versions, Readme, UIFormSchema }; the schema keeps its keys.
+export async function getCatalogPack(token, region, registry, pack, version) {
+  const r = await apiRequest(
+    token,
+    `/v1/pack/${encodeURIComponent(registry)}/${encodeURIComponent(pack)}`,
+    { params: { region, version: version || undefined } }
+  );
+  return { ...r, body: normalize(r.body) };
+}
+
+// data: { Registry, Pack, Version, Values, Description }; the response is
+// that of an apply (Release, Revision, Changes, Warnings).
+export async function planPackRelease(token, region, namespace, name, data) {
+  const r = await apiRequest(token, path(name, '/plan-pack'), {
+    method: 'POST',
+    params: { region, namespace },
+    data,
+  });
+  return { ...r, body: normalize(r.body) };
+}
+
+export async function deployPackRelease(token, region, namespace, name, data) {
+  const r = await apiRequest(token, path(name, '/deploy-pack'), {
+    method: 'POST',
+    params: { region, namespace },
+    data,
+  });
+  return { ...r, body: normalize(r.body) };
 }
 
 export function condition(release, type) {

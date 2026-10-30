@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -63,6 +64,19 @@ type Config struct {
 	JetStreamStream     string
 	JetStreamCreate     bool
 	JetStreamDuplicates time.Duration
+	// JetStreamReplicas is the number of replicas of a stream created with
+	// JetStreamCreate; 3 keeps the events when a server (or the
+	// datacenter it runs in) fails.
+	JetStreamReplicas int
+	// The limits and options of the stream created with JetStreamCreate;
+	// see StreamSettings.
+	JetStreamMaxAge      time.Duration
+	JetStreamMaxBytes    int64
+	JetStreamStorage     string
+	JetStreamCompression string
+	JetStreamAllowDirect bool
+	JetStreamDenyDelete  bool
+	JetStreamDenyPurge   bool
 
 	// State: the checkpoint and the leader election lease.
 	Checkpoint         string
@@ -78,7 +92,20 @@ type Config struct {
 
 	MetricsAddr string
 	LogLevel    string
+
+	// Inbound mode: NATS messages trigger syncs of the cluster pack
+	// registries (sync.go).
+	SyncPushes   bool
+	SyncRegions  bool
+	SyncCooldown time.Duration
+	// SyncStream is the JetStream stream of the push notices; with
+	// JetStream the inbound mode reads through durable consumers.
+	SyncStream string
 }
+
+// registryTopic is the topic filter of the pack registry events that
+// -sync-regions forwards to the other regions.
+var registryTopic = TopicFilter{Topic: "CustomObject", Keys: []string{RegistryKindRef}}
 
 // ParseConfig parses the command line arguments; getenv supplies the
 // defaults from the environment.
@@ -120,6 +147,17 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 		}
 		return d
 	}
+	envInt := func(def int, name string) int {
+		v := getenv(name)
+		if v == "" {
+			return def
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			parseErrs = append(parseErrs, fmt.Errorf("%s: %w", name, err))
+		}
+		return n
+	}
 
 	cfg := &Config{}
 	var topics, eventTypes string
@@ -151,6 +189,15 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 	fs.StringVar(&cfg.JetStreamStream, "jetstream-stream", env("NATSBRIDGE_JETSTREAM_STREAM"), "JetStream stream the messages must be stored in (env NATSBRIDGE_JETSTREAM_STREAM)")
 	fs.BoolVar(&cfg.JetStreamCreate, "jetstream-create", envBool(false, "NATSBRIDGE_JETSTREAM_CREATE"), "create the -jetstream-stream stream for <prefix>.<region>.> if it does not exist (env NATSBRIDGE_JETSTREAM_CREATE)")
 	fs.DurationVar(&cfg.JetStreamDuplicates, "jetstream-duplicates", envDuration(10*time.Minute, "NATSBRIDGE_JETSTREAM_DUPLICATES"), "duplicate window of a stream created with -jetstream-create")
+	fs.IntVar(&cfg.JetStreamReplicas, "jetstream-replicas", envInt(1, "NATSBRIDGE_JETSTREAM_REPLICAS"), "replicas of a stream created with -jetstream-create, 1 to 5 (env NATSBRIDGE_JETSTREAM_REPLICAS)")
+	fs.DurationVar(&cfg.JetStreamMaxAge, "jetstream-max-age", envDuration(0, "NATSBRIDGE_JETSTREAM_MAX_AGE"), "maximum age of the messages of the stream, 0 for no limit (env NATSBRIDGE_JETSTREAM_MAX_AGE)")
+	maxBytes := envOr("0", "NATSBRIDGE_JETSTREAM_MAX_BYTES")
+	fs.StringVar(&maxBytes, "jetstream-max-bytes", maxBytes, `maximum size of the stream (of each replica), e.g. "512MB"; 0 for no limit (env NATSBRIDGE_JETSTREAM_MAX_BYTES)`)
+	fs.StringVar(&cfg.JetStreamStorage, "jetstream-storage", envOr(StorageFile, "NATSBRIDGE_JETSTREAM_STORAGE"), `storage of a stream created with -jetstream-create: "file" or "memory" (env NATSBRIDGE_JETSTREAM_STORAGE)`)
+	fs.StringVar(&cfg.JetStreamCompression, "jetstream-compression", envOr(CompressionNone, "NATSBRIDGE_JETSTREAM_COMPRESSION"), `compression of the stored messages: "none" or "s2" (env NATSBRIDGE_JETSTREAM_COMPRESSION)`)
+	fs.BoolVar(&cfg.JetStreamAllowDirect, "jetstream-allow-direct", envBool(false, "NATSBRIDGE_JETSTREAM_ALLOW_DIRECT"), "let every replica answer direct gets, not only the leader (env NATSBRIDGE_JETSTREAM_ALLOW_DIRECT)")
+	fs.BoolVar(&cfg.JetStreamDenyDelete, "jetstream-deny-delete", envBool(false, "NATSBRIDGE_JETSTREAM_DENY_DELETE"), "forbid deleting single messages of a stream created with -jetstream-create (env NATSBRIDGE_JETSTREAM_DENY_DELETE)")
+	fs.BoolVar(&cfg.JetStreamDenyPurge, "jetstream-deny-purge", envBool(false, "NATSBRIDGE_JETSTREAM_DENY_PURGE"), "forbid purging a stream created with -jetstream-create (env NATSBRIDGE_JETSTREAM_DENY_PURGE)")
 
 	fs.StringVar(&cfg.Checkpoint, "checkpoint", envOr(CheckpointVariable, "NATSBRIDGE_CHECKPOINT"), `checkpoint store: "variable", "file" or "none" (env NATSBRIDGE_CHECKPOINT)`)
 	fs.StringVar(&cfg.CheckpointPath, "checkpoint-path", env("NATSBRIDGE_CHECKPOINT_PATH"), "Variable path or file of the checkpoint (default: <state-prefix>/checkpoint; required for \"file\")")
@@ -166,6 +213,11 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 	fs.StringVar(&cfg.MetricsAddr, "metrics-addr", envOr("127.0.0.1:9464", "NATSBRIDGE_METRICS_ADDR"), "listen address of /metrics and /healthz; empty disables (env NATSBRIDGE_METRICS_ADDR)")
 	fs.StringVar(&cfg.LogLevel, "log-level", envOr("info", "NATSBRIDGE_LOG_LEVEL"), "log level: debug, info, warn or error")
 
+	fs.BoolVar(&cfg.SyncPushes, "sync-pushes", envBool(false, "NATSBRIDGE_SYNC_PUSHES"), "sync the pack registries of the sources named by push notices on <prefix>.packs.pushed (env NATSBRIDGE_SYNC_PUSHES)")
+	fs.BoolVar(&cfg.SyncRegions, "sync-regions", envBool(false, "NATSBRIDGE_SYNC_REGIONS"), "publish the pack registry events and sync a registry when the one of the same name and source in another region found other packs (env NATSBRIDGE_SYNC_REGIONS)")
+	fs.StringVar(&cfg.SyncStream, "sync-stream", envOr(DefaultPushStream, "NATSBRIDGE_SYNC_STREAM"), "with -jetstream: stream of the push notices, consumed durably (created with -jetstream-create) (env NATSBRIDGE_SYNC_STREAM)")
+	fs.DurationVar(&cfg.SyncCooldown, "sync-cooldown", envDuration(time.Minute, "NATSBRIDGE_SYNC_COOLDOWN"), "minimum time between two syncs of a registry triggered from NATS (env NATSBRIDGE_SYNC_COOLDOWN)")
+
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
@@ -177,8 +229,14 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 	}
 
 	var err error
+	if cfg.JetStreamMaxBytes, err = ParseBytes(maxBytes); err != nil {
+		return nil, fmt.Errorf("-jetstream-max-bytes: %w", err)
+	}
 	if cfg.Topics, err = ParseTopics(topics); err != nil {
 		return nil, err
+	}
+	if cfg.SyncRegions {
+		cfg.Topics = withTopic(cfg.Topics, registryTopic)
 	}
 	for _, t := range strings.Split(eventTypes, ",") {
 		if t = strings.TrimSpace(t); t != "" {
@@ -191,6 +249,28 @@ func ParseConfig(args []string, getenv func(string) string, output io.Writer) (*
 		}
 	}
 	return cfg, cfg.validate()
+}
+
+// withTopic adds the keys of t to its topic in filters, unless the topic is
+// forwarded without keys (all of its events).
+func withTopic(filters []TopicFilter, t TopicFilter) []TopicFilter {
+	for i, f := range filters {
+		if f.Topic != t.Topic && f.Topic != "*" {
+			continue
+		}
+		if len(f.Keys) == 0 {
+			return filters
+		}
+		if f.Topic == t.Topic {
+			for _, k := range t.Keys {
+				if !slices.Contains(f.Keys, k) {
+					filters[i].Keys = append(filters[i].Keys, k)
+				}
+			}
+			return filters
+		}
+	}
+	return append(filters, t)
 }
 
 func (cfg *Config) validate() error {
@@ -211,6 +291,28 @@ func (cfg *Config) validate() error {
 	default:
 		return fmt.Errorf("invalid -checkpoint %q", cfg.Checkpoint)
 	}
+	if cfg.JetStreamReplicas < 1 || cfg.JetStreamReplicas > 5 {
+		return fmt.Errorf("-jetstream-replicas %d must be 1 to 5", cfg.JetStreamReplicas)
+	}
+	if cfg.JetStreamMaxAge < 0 {
+		return errors.New("-jetstream-max-age can't be negative")
+	}
+	if cfg.JetStreamMaxAge > 0 && cfg.JetStreamMaxAge < cfg.JetStreamDuplicates {
+		return fmt.Errorf("-jetstream-max-age %s must be at least the duplicate window -jetstream-duplicates %s", cfg.JetStreamMaxAge, cfg.JetStreamDuplicates)
+	}
+	switch cfg.JetStreamStorage {
+	case StorageFile, StorageMemory:
+	default:
+		return fmt.Errorf(`invalid -jetstream-storage %q: "file" or "memory"`, cfg.JetStreamStorage)
+	}
+	switch cfg.JetStreamCompression {
+	case CompressionNone, CompressionS2:
+	default:
+		return fmt.Errorf(`invalid -jetstream-compression %q: "none" or "s2"`, cfg.JetStreamCompression)
+	}
+	if cfg.JetStreamCompression == CompressionS2 && cfg.JetStreamStorage == StorageMemory {
+		return errors.New("-jetstream-compression=s2 needs -jetstream-storage=file")
+	}
 	if cfg.JetStreamCreate && cfg.JetStreamStream == "" {
 		return errors.New("-jetstream-create requires -jetstream-stream")
 	}
@@ -222,6 +324,12 @@ func (cfg *Config) validate() error {
 	}
 	if cfg.LeaseDuration < 2*time.Second {
 		return errors.New("-lease-duration must be at least 2s")
+	}
+	if cfg.SyncPushes && cfg.JetStream && cfg.SyncStream == "" {
+		return errors.New("-sync-pushes with -jetstream requires -sync-stream")
+	}
+	if cfg.SyncCooldown < 0 {
+		return errors.New("-sync-cooldown can't be negative")
 	}
 	return nil
 }

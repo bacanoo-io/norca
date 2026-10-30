@@ -12,7 +12,7 @@ import (
 )
 
 // Auditor records the audit record of a fetch the client made from an
-// external provider (docs/design/secrets-plan.md, "Audit"). Fetches from
+// external provider (norca-doc content/docs/design/secrets-plan.md, "Audit"). Fetches from
 // the built-in store are not recorded by the client: the servers record
 // every value read of the store themselves, with the same workload identity
 // as the accessor, so a client record would only duplicate it.

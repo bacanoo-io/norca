@@ -10,7 +10,7 @@
 //
 // uBixVault (https://github.com/cwolsen7905/ubixvault, BSD-3-Clause) is a
 // module of its own whose packages are Go internal packages. Norca imports it
-// as source (see docs/design/secrets-plan.md, "Implementation basis") and
+// as source (see norca-doc content/docs/design/secrets-plan.md, "Implementation basis") and
 // applies only mechanical changes, all made by this command, so that a later
 // `git subtree pull` stays easy:
 //

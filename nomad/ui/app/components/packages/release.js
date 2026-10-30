@@ -21,6 +21,12 @@ import {
   checkDrift,
   uninstallRelease,
   compareRevisions,
+  listPackRegistries,
+  upsertPackRegistry,
+  upgradeTarget,
+  registrySuggestion,
+  isLocalPack,
+  uploadPack,
   isDrifted,
   signature,
   phaseTone,
@@ -62,12 +68,156 @@ export default class PackagesRelease extends Component {
     return this.history.find((r) => r.Revision === n) || null;
   }
 
+  @tracked upgrading = false;
+
   @action openValues() {
     this.editingValues = true;
   }
 
   @action closeValues() {
     this.editingValues = false;
+  }
+
+  // The pack of the deployed revision, when it came from a cluster
+  // registry: the servers can render an upgrade from the catalog.
+  // The cluster registries of the region, to upgrade from; null until
+  // loaded or without the permission to read them.
+  @tracked clusterRegistries = null;
+  @tracked addingRegistry = null; // { name, type, source, defaultRef }
+  @tracked registryError = null;
+  @tracked isAddingRegistry = false;
+
+  get deployedPack() {
+    return this.deployedRevision?.Spec?.Pack || this.release?.Spec?.Pack;
+  }
+
+  // The cluster registry and pack to upgrade the release from: the
+  // registry it was installed from on the servers, or, for releases of
+  // the CLI, a cluster registry of the source the CLI recorded.
+  get upgradeTarget() {
+    return upgradeTarget(this.deployedPack, this.clusterRegistries);
+  }
+
+  // A cluster registry to add for a CLI install from a registry the
+  // cluster doesn't have.
+  get registrySuggestion() {
+    if (!this.clusterRegistries || this.upgradeTarget) return null;
+    return registrySuggestion(this.deployedPack, this.clusterRegistries);
+  }
+
+  async loadRegistries() {
+    try {
+      const r = await listPackRegistries(this.token, this.region);
+      this.clusterRegistries = r.body || [];
+    } catch (e) {
+      this.clusterRegistries = null;
+    }
+  }
+
+  // A release of a pack from a local directory: uploading the pack makes
+  // it upgradable here.
+  get canUploadPack() {
+    return (
+      Boolean(this.clusterRegistries) &&
+      !this.upgradeTarget &&
+      isLocalPack(this.deployedPack)
+    );
+  }
+
+  @tracked isUploadingPack = false;
+
+  @action async uploadReleasePack(event) {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    this.isUploadingPack = true;
+    try {
+      const r = await uploadPack(this.token, this.region, '', file);
+      const packs = r.body?.Registry?.Status?.Packs || [];
+      if (!packs.some((p) => p.Name === this.deployedPack?.Name)) {
+        this.notifications.add({
+          title: `${file.name} has no pack ${this.deployedPack?.Name}`,
+          color: 'critical',
+        });
+      } else {
+        this.notifications.add({
+          title: `${file.name} uploaded`,
+          color: 'success',
+        });
+      }
+      await this.loadRegistries();
+    } catch (e) {
+      this.notifications.add({
+        title: `${file.name} could not be uploaded`,
+        message: errorMessage(e),
+        color: 'critical',
+      });
+    } finally {
+      this.isUploadingPack = false;
+      if (event?.target) event.target.value = '';
+    }
+  }
+
+  @action openAddRegistry() {
+    this.registryError = null;
+    this.addingRegistry = { ...this.registrySuggestion };
+  }
+
+  @action closeAddRegistry() {
+    this.addingRegistry = null;
+  }
+
+  @action setAddRegistry(field, value) {
+    this.addingRegistry = { ...this.addingRegistry, [field]: value };
+  }
+
+  @action async confirmAddRegistry() {
+    const r = this.addingRegistry;
+    this.isAddingRegistry = true;
+    this.registryError = null;
+    try {
+      const res = await upsertPackRegistry(
+        this.token,
+        this.region,
+        r.name.trim(),
+        {
+          type: r.type,
+          source: r.source,
+          defaultRef: r.defaultRef.trim() || undefined,
+        }
+      );
+      const status = res.body?.Status || {};
+      if (status.Phase === 'Error') {
+        this.notifications.add({
+          title: `${r.name} added, but the sync failed`,
+          message: status.Message,
+          color: 'critical',
+        });
+      } else {
+        this.notifications.add({
+          title: `${r.name} added to the cluster`,
+          color: 'success',
+        });
+      }
+      this.addingRegistry = null;
+      await this.loadRegistries();
+    } catch (e) {
+      this.registryError = errorMessage(e);
+    } finally {
+      this.isAddingRegistry = false;
+    }
+  }
+
+  @action openUpgrade() {
+    this.upgrading = true;
+  }
+
+  @action closeUpgrade() {
+    this.upgrading = false;
+  }
+
+  @action upgraded() {
+    this.upgrading = false;
+    this.load();
   }
 
   get region() {
@@ -256,6 +406,7 @@ export default class PackagesRelease extends Component {
     ]);
     this.history = history;
     this.events = events;
+    if (this.clusterRegistries === null) await this.loadRegistries();
     if (!this.compareA && history.length > 1) {
       this.compareA = String(history[1].Revision);
       this.compareB = String(history[0].Revision);

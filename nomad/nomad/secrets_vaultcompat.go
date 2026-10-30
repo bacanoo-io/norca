@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
-// Vault compatibility on the servers (docs/design/secrets-plan.md, "Vault
+// Vault compatibility on the servers (norca-doc content/docs/design/secrets-plan.md, "Vault
 // compatibility"): when the servers have no Vault integration, jobs with
 // vault blocks are accepted (instead of failing with "Vault not enabled")
 // and placed on the clients that serve vault blocks from the built-in secret

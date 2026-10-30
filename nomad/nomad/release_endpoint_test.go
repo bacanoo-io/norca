@@ -577,6 +577,52 @@ namespace "default" {
 	err = msgpackrpc.CallWithCodec(c.codec, "Release.Apply", req, &resp)
 	must.ErrorContains(t, err, "Permission denied")
 	must.Nil(t, c.get("default", "app2"))
+
+	// PK-3: A dry-run plan must not reveal whether a secret Variable exists
+	// or matches when the caller lacks Variable permissions.
+	store := c.srv.State()
+	var varReply structs.VariablesApplyResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "Variables.Apply", &structs.VariablesApplyRequest{
+		Op: structs.VarOpSet,
+		Var: &structs.VariableDecrypted{
+			VariableMetadata: structs.VariableMetadata{Namespace: "default", Path: "secret/db"},
+			Items:            map[string]string{"pw": "guess"},
+		},
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: c.token},
+	}, &varReply))
+	planReq := &structs.ReleaseApplyRequest{
+		Name:   "probe",
+		DryRun: true,
+		Pack:   &structs.ReleasePack{Name: "probe"},
+		Resources: []*structs.ReleaseResource{{
+			Type:     structs.ReleaseResourceVariable,
+			Variable: &structs.VariableDecrypted{VariableMetadata: structs.VariableMetadata{Namespace: "default", Path: "secret/db"}, Items: map[string]string{"pw": "guess"}},
+		}},
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: token.SecretID},
+	}
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "Release.Apply", planReq, &resp))
+	must.Len(t, 1, resp.Changes)
+	must.Eq(t, structs.ReleaseChangeUpdate, resp.Changes[0].Action)
+	must.StrContains(t, resp.Changes[0].Error, "Permission denied")
+
+	// PK-4: Reading ReleaseRevision through CustomObject API requires read-job.
+	_, err = c.apply("default", "rev-test", &structs.ReleaseApplyRequest{
+		Pack:      &structs.ReleasePack{Name: "rev-test"},
+		Resources: []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: testReleaseJob("rev-job")}},
+	})
+	must.NoError(t, err)
+	revOnlyToken := mock.CreatePolicyAndToken(t, store, 1003, "rev-only", `
+namespace "default" {
+  object "packs.norca.io/ReleaseRevision" { capabilities = ["read"] }
+}`)
+	var getObj structs.SingleCustomObjectResponse
+	err = msgpackrpc.CallWithCodec(c.codec, "CustomObject.GetCustomObject", &structs.CustomObjectSpecificRequest{
+		Group:        structs.ReleaseObjectGroup,
+		Kind:         structs.ReleaseRevisionKind,
+		Name:         "rev-test.1",
+		QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: revOnlyToken.SecretID},
+	}, &getObj)
+	must.ErrorContains(t, err, "Permission denied")
 }
 
 func TestReleaseResources_Encoding(t *testing.T) {

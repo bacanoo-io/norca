@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package backup implements the scheduled backup of a region's Raft state and
-// keyring into S3-compatible stores. The Manager runs on the leader; the
-// server's Backup RPC endpoint uses it to browse and restore backups.
+// keyring into S3-compatible stores and directories. The Manager runs on the
+// leader; the server's Backup RPC endpoint uses it to browse and restore
+// backups.
 package backup
 
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -18,9 +20,13 @@ import (
 )
 
 const (
-	// DestinationTypeS3 is the only destination type: AWS S3 and
-	// S3-compatible stores such as MinIO.
+	// DestinationTypeS3 is AWS S3 or an S3-compatible store such as MinIO.
 	DestinationTypeS3 = "s3"
+
+	// DestinationTypeDirectory is a directory of the server's filesystem.
+	// It must be the same shared storage on every server of the region, or
+	// the region must have a single server.
+	DestinationTypeDirectory = "directory"
 
 	// EncryptionModeAge encrypts with age public keys (recipients); the
 	// private key never reaches the cluster.
@@ -103,16 +109,24 @@ type Config struct {
 	Retention    *RetentionConfig
 }
 
-// DestinationConfig is an S3-compatible store.
+// DestinationConfig is an S3-compatible store or a directory.
 type DestinationConfig struct {
 	Name string
 	Type string
+
+	// Path is the absolute path of a directory destination.
+	Path string
+
+	// Prefix is the folder of the region's backups in the bucket or below
+	// the path; ${region} is replaced by the region.
+	Prefix string
+
+	// The remaining fields up to Encryption are those of S3 destinations.
 
 	// Endpoint is host[:port] or a URL; an http:// URL disables TLS. Empty
 	// means AWS S3.
 	Endpoint       string
 	Bucket         string
-	Prefix         string
 	Region         string
 	ForcePathStyle bool
 
@@ -343,31 +357,75 @@ func (d *DestinationConfig) Validate() error {
 	if d.Name == "" {
 		add("missing name")
 	}
-	if d.Type != DestinationTypeS3 {
-		add("unsupported type %q, only %q is supported", d.Type, DestinationTypeS3)
-	}
-	if d.Bucket == "" {
-		add("missing bucket")
-	}
-	if (d.AccessKey == "") != (d.SecretKey == "") {
-		add("access_key and secret_key must be set together")
-	}
-	if d.AccessKey != "" && d.CredentialsFile != "" {
-		add("access_key and credentials_file are mutually exclusive")
-	}
-	switch d.SSE {
-	case "", "AES256":
-	case "aws:kms":
+	switch d.Type {
+	case DestinationTypeS3:
+		if d.Path != "" {
+			add("path is only supported by type %q", DestinationTypeDirectory)
+		}
+		if d.Bucket == "" {
+			add("missing bucket")
+		}
+		if (d.AccessKey == "") != (d.SecretKey == "") {
+			add("access_key and secret_key must be set together")
+		}
+		if d.AccessKey != "" && d.CredentialsFile != "" {
+			add("access_key and credentials_file are mutually exclusive")
+		}
+		switch d.SSE {
+		case "", "AES256":
+		case "aws:kms":
+		default:
+			add("invalid sse %q, must be \"AES256\" or \"aws:kms\"", d.SSE)
+		}
+		if d.KMSKey != "" && d.SSE != "aws:kms" {
+			add("kms_key requires sse = \"aws:kms\"")
+		}
+	case DestinationTypeDirectory:
+		if d.Path == "" {
+			add("missing path")
+		} else if !filepath.IsAbs(d.Path) {
+			add("path %q must be absolute", d.Path)
+		}
+		if hasDotDot(d.Prefix) {
+			add("prefix must not contain \"..\"")
+		}
+		for _, key := range d.s3Keys() {
+			add("%s is not supported by type %q", key, DestinationTypeDirectory)
+		}
 	default:
-		add("invalid sse %q, must be \"AES256\" or \"aws:kms\"", d.SSE)
-	}
-	if d.KMSKey != "" && d.SSE != "aws:kms" {
-		add("kms_key requires sse = \"aws:kms\"")
+		add("unsupported type %q, must be %q or %q", d.Type, DestinationTypeS3, DestinationTypeDirectory)
 	}
 	if strings.Contains(strings.ReplaceAll(d.Prefix, "${region}", ""), "${") {
 		add("prefix may only interpolate ${region}")
 	}
 	return mErr.ErrorOrNil()
+}
+
+// s3Keys returns the configuration keys of the S3 options that are set.
+func (d *DestinationConfig) s3Keys() []string {
+	var keys []string
+	for _, o := range []struct {
+		key string
+		set bool
+	}{
+		{"endpoint", d.Endpoint != ""},
+		{"bucket", d.Bucket != ""},
+		{"region", d.Region != ""},
+		{"force_path_style", d.ForcePathStyle},
+		{"access_key", d.AccessKey != ""},
+		{"secret_key", d.SecretKey != ""},
+		{"session_token", d.SessionToken != ""},
+		{"credentials_file", d.CredentialsFile != ""},
+		{"profile", d.Profile != ""},
+		{"ca_file", d.CAFile != ""},
+		{"sse", d.SSE != ""},
+		{"kms_key", d.KMSKey != ""},
+	} {
+		if o.set {
+			keys = append(keys, o.key)
+		}
+	}
+	return keys
 }
 
 // errKMSNotImplemented is returned for the reserved kms mode.

@@ -48,6 +48,7 @@ func TestCLI_ReleaseCommunityRedis(t *testing.T) {
 		rel, _, err := client.Releases().Info("redis", nil)
 		must.NoError(t, err)
 		must.Eq(t, "0.2.1", rel.Spec.Pack.Version)
+		must.Eq(t, "", rel.Spec.Pack.Source, must.Sprint("a local directory has no source"))
 		must.Eq(t, api.ReleasePhaseDeployed, rel.Status.Phase)
 
 		// Upgrade with another image; the variable is recorded.

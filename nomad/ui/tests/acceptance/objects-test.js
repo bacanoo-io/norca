@@ -138,8 +138,8 @@ module('Acceptance | objects and type definitions', function (hooks) {
     assert
       .dom('[data-test-kind-columns] [data-test-ui-table-row]')
       .exists({ count: 3 });
-    assert.dom('[data-test-webhook-approved]').hasText('yes');
-    assert.dom('[data-test-kind-details]').includesText('at most 50');
+    assert.dom('[data-test-webhook-approved]').includesText('approved');
+    assert.dom('[data-test-kind-limits]').includesText('at most 50');
     await a11yAudit(assert, STRICT);
   });
 

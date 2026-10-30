@@ -66,6 +66,14 @@ $norca-aa-text: (
   }
 }
 
+// White text on the solid badges (job status): the backgrounds are the
+// darkened text colors, at least 4.6:1 against white in both themes.
+@each $name in (blue, purple, red, orange, green) {
+  .badge.bg-#{$name} {
+    background-color: nth(map-get($norca-aa-text, $name), 1) !important;
+  }
+}
+
 // White text on the danger buttons.
 .btn-danger {
   --tblr-danger: #c13333;

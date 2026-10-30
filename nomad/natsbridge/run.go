@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -96,15 +97,69 @@ func Run(ctx context.Context, cfg *Config, logger *slog.Logger) error {
 	}
 	defer nc.Close()
 
-	var pub Publisher = &CorePublisher{Conn: nc, Timeout: cfg.PublishTimeout}
+	var js jetstream.JetStream
 	if cfg.JetStream {
-		js, err := jetstream.New(nc)
-		if err != nil {
+		if js, err = jetstream.New(nc); err != nil {
 			return err
 		}
+	}
+
+	if cfg.SyncPushes || cfg.SyncRegions {
+		syncer := &Syncer{API: &apiRegistries{client: client, region: region}, Region: region, Cooldown: cfg.SyncCooldown, Logger: logger}
+		if js != nil {
+			// Durable consumers: messages published while no instance runs
+			// are handled when one starts again.
+			if cfg.SyncPushes && cfg.JetStreamCreate {
+				if err := retry(ctx, logger, "creating the push notice stream", func() error {
+					res, err := EnsurePushStream(ctx, js, cfg.SyncStream, cfg.SubjectPrefix, cfg.StreamSettings())
+					if err == nil && res.Created {
+						logger.Info("created the push notice stream", "stream", cfg.SyncStream)
+					}
+					return err
+				}); err != nil {
+					return nil // canceled
+				}
+			}
+			syncCtx, stopSync := context.WithCancel(ctx)
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				syncer.Consume(syncCtx, js, SyncConsumerOptions{
+					Prefix: cfg.SubjectPrefix, Pushes: cfg.SyncPushes, PushStream: cfg.SyncStream, Regions: cfg.SyncRegions,
+				})
+			}()
+			defer func() { stopSync(); <-done }()
+		} else {
+			subs, err := syncer.Subscribe(ctx, nc, cfg.SubjectPrefix, cfg.SyncPushes, cfg.SyncRegions)
+			for _, sub := range subs {
+				defer sub.Unsubscribe() //nolint:errcheck
+			}
+			if err != nil {
+				return err
+			}
+		}
+		logger.Info("syncing pack registries from NATS", "pushes", cfg.SyncPushes, "regions", cfg.SyncRegions, "durable", js != nil)
+	}
+
+	var pub Publisher = &CorePublisher{Conn: nc, Timeout: cfg.PublishTimeout}
+	if js != nil {
 		if cfg.JetStreamCreate {
 			if err := retry(ctx, logger, "creating the JetStream stream", func() error {
-				return EnsureStream(ctx, js, cfg.JetStreamStream, cfg.SubjectPrefix, region, cfg.JetStreamDuplicates)
+				res, err := EnsureStream(ctx, js, cfg.JetStreamStream, cfg.SubjectPrefix, region, cfg.StreamSettings())
+				if err != nil {
+					return err
+				}
+				switch {
+				case res.Created:
+					logger.Info("created the JetStream stream", "stream", cfg.JetStreamStream)
+				case len(res.Updated) > 0:
+					logger.Info("updated the JetStream stream", "stream", cfg.JetStreamStream, "settings", strings.Join(res.Updated, ","))
+				}
+				if len(res.Kept) > 0 {
+					logger.Warn("settings of the JetStream stream can't be changed after its creation; recreate the stream to change them",
+						"stream", cfg.JetStreamStream, "settings", strings.Join(res.Kept, ","))
+				}
+				return nil
 			}); err != nil {
 				return nil // canceled
 			}
@@ -222,9 +277,22 @@ func connectNATS(cfg *Config, region string, logger *slog.Logger) (*nats.Conn, e
 	if nc.IsConnected() {
 		logger.Info("connected to NATS", "url", nc.ConnectedUrlRedacted())
 	} else {
-		logger.Warn("NATS is not reachable yet, retrying in the background", "url", cfg.NATSURL)
+		logger.Warn("NATS is not reachable yet, retrying in the background", "url", redactNATSURL(cfg.NATSURL))
 	}
 	return nc, nil
+}
+
+// redactNATSURL redacts userinfo credentials in a (potentially comma-separated)
+// NATS URL string before logging.
+func redactNATSURL(raw string) string {
+	parts := strings.Split(raw, ",")
+	for i, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if u, err := url.Parse(trimmed); err == nil && u.User != nil {
+			parts[i] = u.Redacted()
+		}
+	}
+	return strings.Join(parts, ",")
 }
 
 // newAPIClient returns an API client configured like api.DefaultConfig,

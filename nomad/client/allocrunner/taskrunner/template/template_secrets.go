@@ -14,7 +14,7 @@ import (
 	ctconf "github.com/hashicorp/consul-template/config"
 )
 
-// The nomadSecret template function (Norca, docs/design/secrets-plan.md,
+// The nomadSecret template function (Norca, norca-doc content/docs/design/secrets-plan.md,
 // "Delivery to tasks"). The function is an external function of
 // consul-template served by the task's secrets.TemplateSource. Since
 // external functions have no consul-template dependencies, a change of a

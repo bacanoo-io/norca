@@ -360,9 +360,6 @@ type ClientConfig struct {
 	// the workloads of the client (Norca).
 	NativeServiceDiscovery *config.NativeServiceDiscoveryConfig `hcl:"native_service_discovery"`
 
-	// Topology holds the topology zone of the node (Norca).
-	Topology *config.TopologyConfig `hcl:"topology"`
-
 	// DNS configures the built-in DNS server (Norca).
 	DNS *config.DNSConfig `hcl:"dns"`
 
@@ -401,7 +398,6 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.HostNetworks = helper.CopySlice(c.HostNetworks)
 	nc.NomadServiceDiscovery = pointer.Copy(c.NomadServiceDiscovery)
 	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
-	nc.Topology = c.Topology.Copy()
 	nc.DNS = c.DNS.Copy()
 	nc.ConsulCompat = c.ConsulCompat.Copy()
 	nc.Secrets = c.Secrets.Copy()
@@ -703,7 +699,8 @@ type ServerConfig struct {
 	// Autoscaler configures the built-in autoscaler.
 	Autoscaler *AutoscalerConfig `hcl:"autoscaler"`
 
-	// Backup configures the scheduled backups to S3-compatible stores.
+	// Backup configures the scheduled backups to S3-compatible stores and
+	// directories.
 	Backup *BackupConfig `hcl:"backup"`
 
 	// Secrets configures the server side of the built-in secret store.
@@ -717,6 +714,11 @@ type ServerConfig struct {
 
 	// Keyring configures the keyring seal (Norca).
 	Keyring *config.KeyringConfig `hcl:"keyring"`
+
+	// NativeServiceDiscovery holds the server-side settings of native service
+	// discovery: the default overflow fraction filled in at job registration
+	// (Norca).
+	NativeServiceDiscovery *config.ServerNativeServiceDiscoveryConfig `hcl:"native_service_discovery"`
 }
 
 func (s *ServerConfig) Copy() *ServerConfig {
@@ -751,6 +753,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.Admission = s.Admission.Copy()
 	ns.MTLS = s.MTLS.Copy()
 	ns.Keyring = s.Keyring.Copy()
+	ns.NativeServiceDiscovery = s.NativeServiceDiscovery.Copy()
 	return &ns
 }
 
@@ -2124,6 +2127,8 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 		result.Keyring = result.Keyring.Merge(b.Keyring)
 	}
 
+	result.NativeServiceDiscovery = result.NativeServiceDiscovery.Merge(b.NativeServiceDiscovery)
+
 	// Add the schedulers
 	result.EnabledSchedulers = append(result.EnabledSchedulers, b.EnabledSchedulers...)
 
@@ -2307,7 +2312,6 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	}
 
 	result.NativeServiceDiscovery = a.NativeServiceDiscovery.Merge(b.NativeServiceDiscovery)
-	result.Topology = a.Topology.Merge(b.Topology)
 	result.DNS = a.DNS.Merge(b.DNS)
 	result.ConsulCompat = a.ConsulCompat.Merge(b.ConsulCompat)
 	result.Secrets = a.Secrets.Merge(b.Secrets)

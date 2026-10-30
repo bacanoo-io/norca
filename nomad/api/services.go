@@ -78,9 +78,6 @@ type ServiceRegistration struct {
 	// last recorded a change of the health of the instance.
 	HealthUpdatedAt int64
 
-	// Zone is the topology zone of the node running the instance.
-	Zone string
-
 	// Meta is the meta of the service.
 	Meta map[string]string
 
@@ -115,7 +112,7 @@ type ServiceRegistrationCheck struct {
 // provider: the topology preference, regional failover and whether instances
 // that are not ready are discoverable.
 type ServiceDiscovery struct {
-	// Prefer is "none" (default), "zone", "datacenter" or "region".
+	// Prefer is "none" (default), "datacenter" or "region".
 	Prefer string `mapstructure:"prefer" hcl:"prefer,optional"`
 
 	// MinLocal is the number of instances a topology tier must hold before
@@ -123,7 +120,9 @@ type ServiceDiscovery struct {
 	MinLocal int `mapstructure:"min_local" hcl:"min_local,optional"`
 
 	// OverflowFraction is the fraction of all instances a topology tier must
-	// hold before the next tier is left out. Defaults to 0.2.
+	// hold before the next tier is left out; 0 disables the rule. When it is
+	// nil, the servers of the region fill in their default at registration
+	// (the default_overflow_fraction server setting, 0.2 unless configured).
 	OverflowFraction *float64 `mapstructure:"overflow_fraction" hcl:"overflow_fraction,optional"`
 
 	// Failover is the ordered list of regions queried when the local region
@@ -134,19 +133,19 @@ type ServiceDiscovery struct {
 	IncludeNotReady bool `mapstructure:"include_not_ready" hcl:"include_not_ready,optional"`
 }
 
-// DefaultServiceDiscoveryOverflowFraction is the default overflow fraction.
+// DefaultServiceDiscoveryOverflowFraction is the default of the
+// default_overflow_fraction server setting. Canonicalize does not fill it in:
+// an unset OverflowFraction is sent as such and resolved by the servers.
 const DefaultServiceDiscoveryOverflowFraction = 0.2
 
-// Canonicalize sets the defaults of the discovery block.
+// Canonicalize sets the defaults of the discovery block. A nil
+// OverflowFraction stays nil, so the servers apply their configured default.
 func (d *ServiceDiscovery) Canonicalize() {
 	if d == nil {
 		return
 	}
 	if d.Prefer == "" {
 		d.Prefer = "none"
-	}
-	if d.OverflowFraction == nil {
-		d.OverflowFraction = pointerOf(DefaultServiceDiscoveryOverflowFraction)
 	}
 }
 

@@ -35,8 +35,8 @@ func (s *ServiceRegistration) externalServicesEnabled() error {
 }
 
 // resolveExternalACL resolves the ACL of a request writing external services.
-// Node identities cannot write them with ACLs enabled: ResolveACL returns no
-// ACL (allow all) for them.
+// Node identities cannot write them with ACLs enabled (ResolveACL denies them
+// too; the explicit check keeps the intent visible).
 func (s *ServiceRegistration) resolveExternalACL(args structs.RequestWithIdentity) (*acl.ACL, error) {
 	if identity := args.GetIdentity(); identity != nil && identity.ClientID != "" && s.srv.config.ACLEnabled {
 		return nil, structs.ErrPermissionDenied

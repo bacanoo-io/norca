@@ -13,6 +13,10 @@ First, make a pack registry. This will be a repository that provides the structu
 
 Cloning [hashicorp/example-nomad-pack-registry](https://github.com/hashicorp/example-nomad-pack-registry) can give you a head start.
 
+The [Norca pack registry](https://github.com/bacanoo-io/norca-registry) shows packs with Norca's
+extended package format (object kinds, ACL and admission policies, `values.schema.json`) and its
+local checks (`scripts/check-packs.sh`).
+
 Each registry should have a README.md file that describes the packs in it, and
 top-level directory named `packs` that contains a subdirectory for each individual
 pack. Conventionally, the pack subdirectory name matches the pack name.
@@ -279,8 +283,8 @@ Packs added this way will show up in output with a `dev` registry and `dev` ref.
 To use your new pack, you will likely want to publish it to the internet. Push the git repository to a URL
 accessible by your command line tool.
 
-If you wish to share your packs, please consider adding them to the
-[Nomad Pack Community Registry](https://github.com/hashicorp/nomad-pack-community-registry)
+If you wish to share packs for infrastructure that runs on Norca, please consider adding them to the
+[Norca pack registry](https://github.com/bacanoo-io/norca-registry) (see its README for the checks a pack needs).
 
 If you don't want to host a pack registry in version control, you can work locally
 using the filesystem method.

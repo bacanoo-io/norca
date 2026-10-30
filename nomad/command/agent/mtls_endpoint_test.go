@@ -16,6 +16,11 @@ func TestHTTP_ServiceMTLSConversion(t *testing.T) {
 	ci.Parallel(t)
 
 	must.Nil(t, apiServiceMTLSToStructs(nil))
+	must.Eq(t, &structs.ServiceMTLS{
+		Mode: structs.MTLSModeApp, ChangeMode: structs.MTLSChangeModeSignal, ChangeSignal: "SIGHUP", ChangeOn: structs.MTLSChangeOnBundle,
+	}, apiServiceMTLSToStructs(&api.ServiceMTLS{
+		Mode: api.MTLSModeApp, ChangeMode: api.MTLSChangeModeSignal, ChangeSignal: "SIGHUP", ChangeOn: api.MTLSChangeOnBundle,
+	}))
 	got := apiServiceMTLSToStructs(&api.ServiceMTLS{
 		Mode: api.MTLSModeSidecar,
 		Upstreams: []*api.ServiceMTLSUpstream{

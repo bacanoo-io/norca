@@ -12,7 +12,9 @@ import registerScalingRoutes, { seedScaling } from './scaling';
 import registerNetworkRoutes, { seedNetwork } from './network';
 import registerDeploymentRoutes from './deployments';
 import registerReleaseRoutes, { seedReleases } from './releases';
+import registerPackRoutes, { seedPacks } from './packs';
 import registerObjectRoutes, { seedObjects } from './objects';
+import registerSecretRoutes, { seedSecrets } from './secrets';
 
 export function registerNorcaAreas(server) {
   registerBackupRoutes(server);
@@ -21,7 +23,9 @@ export function registerNorcaAreas(server) {
   registerNetworkRoutes(server);
   registerDeploymentRoutes(server);
   registerReleaseRoutes(server);
+  registerPackRoutes(server);
   registerObjectRoutes(server);
+  registerSecretRoutes(server);
 }
 
 // Development data (the default scenario).
@@ -31,5 +35,7 @@ export function seedNorcaAreas(server) {
   seedScaling(server);
   seedNetwork(server);
   seedReleases(server);
+  seedPacks(server);
   seedObjects(server);
+  seedSecrets(server);
 }

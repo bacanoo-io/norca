@@ -9,7 +9,7 @@ When the Norca servers support it, `norca pack run` does not deploy jobs from th
 it renders the pack and sends the rendered resources to the servers, which apply them in a fixed
 order, record an immutable revision of the **release**, and can roll it back, test it, detect drift
 and uninstall it. Rendering stays on the client. See the
-[package management plan](../../../docs/design/package-management-plan.md) for the design.
+[package management plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md) for the design.
 
 - [Quick start](#quick-start)
 - [Releases and revisions](#releases-and-revisions)
@@ -41,9 +41,9 @@ norca pack uninstall cache                                            # delete e
 ```
 
 The release name is the deployment name with characters other than letters, digits, `.`, `_` and
-`-` replaced by `-`: `pack@ref` gives `pack-ref`, a local pack directory gives the pack name, and
-`--name` sets it. Use `--name` for a release whose pack version changes over time, as the default
-deployment name contains the version.
+`-` replaced by `-`. Without `--name` the deployment name is the pack name, so a release keeps its
+name when the registry is updated to a new version; with an explicit `--ref` it is `pack@ref`,
+which gives `pack-ref`. `--name` sets it.
 
 ## Releases and revisions
 
@@ -118,16 +118,77 @@ Known features: `releases`, `release-hooks`, `custom-objects`, `admission-cel`, 
 migration and limits), the ACL policy bound to the controller job, admission policies and the
 controller job, applied in this order as one release. The servers approve the webhooks of a kind
 applied with a management token; otherwise an administrator approves them with
-`norca object-kind webhook approve`. `packs/loadbalancer-operator` in the repository is the
-reference operator pack, and `norca operator init` scaffolds a controller project with one.
+`norca object-kind webhook approve`. `loadbalancer-operator` of the
+[Norca pack registry](https://github.com/bacanoo-io/norca-registry) is the reference operator pack, and
+`norca operator init` scaffolds a controller project with one.
 
 Jobs without `namespace` or `region` belong to the namespace and region of the release. All
 resources of a release must be in its region; jobs with a `multiregion` block use the multiregion
 deployment as usual.
 
+## Variable constraints and rules
+
+Constraints on the values of variables are written in `variables.hcl`: a `validation` block in a
+variable for its own value, and `rule` blocks for conditions on the items of lists and maps or
+across variables:
+
+```hcl
+variable "tls_mode" {
+  type    = string
+  default = "none"
+  ui {
+    options = ["none", "mtls", "secret"]   # the allowed values
+  }
+}
+
+variable "port" {
+  type    = number
+  default = 5432
+  validation {
+    integer = true
+    min     = 1
+    max     = 65535
+  }
+}
+
+variable "datacenters" {
+  type    = list(string)
+  default = ["*"]
+  validation {
+    min_items       = 1
+    item_min_length = 1
+    unique          = true
+  }
+}
+
+rule "tls_mode" {
+  condition     = !var.tls_required || contains(["mtls", "secret"], var.tls_mode)
+  error_message = "tls_mode must be mtls or secret when tls_required is set."
+}
+
+rule "extra_env" {
+  condition = alltrue([
+    for k in keys(var.extra_env) : can(regex("^APP_[A-Z0-9_]+$", k)) && !can(regex("(SECRET|TOKEN)", k))
+  ])
+  error_message = "extra_env: the names must match ^APP_[A-Z0-9_]+$ and not hold secrets."
+}
+```
+
+`validation` takes `min`, `max`, `integer`, `pattern`, `min_length`, `max_length`, `min_items`,
+`max_items`, `unique`, `item_pattern` and `item_min_length`. A rule's `condition` sees the
+variables of its pack as `var.<name>` and the functions of job specifications plus `regex`,
+`regexall`, `alltrue` and `anytrue` (`can(regex(...))` tests a pattern); its `error_message` may
+interpolate them. HCL evaluates both sides of `||` and `&&`: read optional object attributes that
+may not be set with `try(x.attr, default)`.
+
+`render`, `plan`, `run` and `upgrade` check both before rendering and stop with every failing
+variable and rule, as do the servers when they render a pack of a cluster registry. The release
+request carries the constraints of the `validation` blocks and options as the variables schema
+of the pack (below), which the servers check again; rules are checked where the pack is rendered.
+
 ## Variables schema
 
-A pack can describe its variables with a JSON Schema (draft 2020-12 unless the schema declares
+A pack can also describe its variables with a JSON Schema (draft 2020-12 unless the schema declares
 another draft with `$schema`) in `metadata.hcl`:
 
 ```hcl

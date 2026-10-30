@@ -1,4 +1,5 @@
 // Copyright IBM Corp. 2021, 2025
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package logging
@@ -120,4 +121,21 @@ func NewTestLogger(log func(args ...any)) *TestLogger {
 	return &TestLogger{
 		log: log,
 	}
+}
+
+// DiscardLogger drops every message. Library callers that return their
+// errors, such as the server-side registry sync, use it instead of printing
+// to the agent's standard output.
+type DiscardLogger struct{}
+
+func (DiscardLogger) Debug(string)                              {}
+func (DiscardLogger) Error(string)                              {}
+func (DiscardLogger) ErrorWithContext(error, string, ...string) {}
+func (DiscardLogger) Info(string)                               {}
+func (DiscardLogger) Trace(string)                              {}
+func (DiscardLogger) Warning(string)                            {}
+
+// Discard returns a logger that drops every message.
+func Discard() Logger {
+	return DiscardLogger{}
 }

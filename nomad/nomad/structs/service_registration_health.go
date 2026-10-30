@@ -135,7 +135,6 @@ func (s *ServiceRegistration) StripNorcaFields() {
 	s.Health = ""
 	s.Checks = nil
 	s.HealthUpdatedAt = 0
-	s.Zone = ""
 	s.Meta = nil
 	s.Discovery = nil
 	s.External = nil
