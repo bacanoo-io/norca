@@ -29,6 +29,7 @@ const consulKVMaxValueSize = 512 * 1024
 // clients). The clients have no access to the bucket: they forward the KV
 // requests with the token of the request, and the servers apply the
 // Variables rules of the path of the keys in the namespace of the request.
+// The keys of every namespace and path are kept apart (ScopePrefix).
 type ConsulKV struct {
 	srv *Server
 	ctx *RPCContext
@@ -71,12 +72,12 @@ func (k *ConsulKV) Get(args *structs.ConsulKVGetRequest, reply *structs.ConsulKV
 		return err
 	}
 
-	found, index, err := consulkv.Get(k.srv.shutdownCtx, kv, args.Key, args.Prefix,
-		args.MinQueryIndex, args.TimeToBlock())
+	namespace := args.RequestNamespace()
+	found, index, err := consulkv.Get(k.srv.shutdownCtx, kv, consulkv.ScopePrefix(namespace, path),
+		args.Key, args.Prefix, args.MinQueryIndex, args.TimeToBlock())
 	if err != nil {
 		return consulKVError(err)
 	}
-	namespace := args.RequestNamespace()
 	reply.Entries = make([]*structs.ConsulKVEntry, 0, len(found))
 	for _, e := range found {
 		// white room bugfix: only the keys the token may read are listed.
@@ -108,14 +109,16 @@ func (k *ConsulKV) Put(args *structs.ConsulKVPutRequest, reply *structs.ConsulKV
 		return structs.NewErrRPCCoded(http.StatusRequestEntityTooLarge,
 			fmt.Sprintf("Value exceeds %d byte limit", consulKVMaxValueSize))
 	}
-	if _, _, err := k.authorize(args, args.RequestNamespace(), args.Path, acl.VariablesCapabilityWrite, args.Key); err != nil {
+	_, path, err := k.authorize(args, args.RequestNamespace(), args.Path, acl.VariablesCapabilityWrite, args.Key)
+	if err != nil {
 		return err
 	}
 	kv, err := k.srv.consulKVHandle()
 	if err != nil {
 		return err
 	}
-	ok, err := consulkv.Put(k.srv.shutdownCtx, kv, args.Key, args.Value, args.CAS)
+	ok, err := consulkv.Put(k.srv.shutdownCtx, kv, consulkv.ScopePrefix(args.RequestNamespace(), path),
+		args.Key, args.Value, args.CAS)
 	if err != nil {
 		return consulKVError(err)
 	}
@@ -156,8 +159,10 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 		return err
 	}
 	ctx := k.srv.shutdownCtx
+	namespace := args.RequestNamespace()
+	scope := consulkv.ScopePrefix(namespace, path)
 	if !args.Recurse {
-		ok, err := consulkv.Delete(ctx, kv, args.Key, args.CAS)
+		ok, err := consulkv.Delete(ctx, kv, scope, args.Key, args.CAS)
 		if err != nil {
 			return consulKVError(err)
 		}
@@ -165,11 +170,10 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 		return nil
 	}
 
-	found, _, err := consulkv.Get(ctx, kv, args.Key, true, 0, 0)
+	found, _, err := consulkv.Get(ctx, kv, scope, args.Key, true, 0, 0)
 	if err != nil {
 		return consulKVError(err)
 	}
-	namespace := args.RequestNamespace()
 	for _, e := range found {
 		if !consulKVAllowed(aclObj, namespace, path, acl.VariablesCapabilityRead, e.Key) {
 			continue // not listed
@@ -178,7 +182,7 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 		if !consulKVAllowed(aclObj, namespace, path, acl.VariablesCapabilityDestroy, e.Key) {
 			return structs.ErrPermissionDenied
 		}
-		if _, err := consulkv.Delete(ctx, kv, e.Key, nil); err != nil {
+		if _, err := consulkv.Delete(ctx, kv, scope, e.Key, nil); err != nil {
 			return consulKVError(err)
 		}
 	}

@@ -5,6 +5,7 @@ package nomad
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -78,15 +79,19 @@ func (s *Server) exportConsulKV(ctx context.Context) (*consulkv.Export, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reading %q: %w", natsKey, err)
 		}
-		key, err := consulkv.DecodeKey(natsKey)
+		namespace, path, key, err := consulkv.SplitScopedKey(natsKey)
 		if err != nil {
 			return nil, err
 		}
 		out.Entries = append(out.Entries, &consulkv.Entry{
-			Key: key, Value: e.Value(), Revision: e.Revision(), Created: e.Created().UTC(),
+			Namespace: namespace, Path: path, Key: key,
+			Value: e.Value(), Revision: e.Revision(), Created: e.Created().UTC(),
 		})
 	}
-	slices.SortFunc(out.Entries, func(a, b *consulkv.Entry) int { return strings.Compare(a.Key, b.Key) })
+	slices.SortFunc(out.Entries, func(a, b *consulkv.Entry) int {
+		return cmp.Or(strings.Compare(a.Namespace, b.Namespace), strings.Compare(a.Path, b.Path),
+			strings.Compare(a.Key, b.Key))
+	})
 	return out, nil
 }
 
@@ -120,7 +125,7 @@ func (s *Server) importConsulKV(ctx context.Context, entries []*consulkv.Entry, 
 		defer func() { _ = lister.Stop() }()
 		keep := map[string]bool{}
 		for _, e := range entries {
-			keep[consulkv.EncodeKey(e.Key)] = true
+			keep[consulKVNATSKey(e)] = true
 		}
 		for k := range lister.Keys() {
 			if !keep[k] {
@@ -131,11 +136,16 @@ func (s *Server) importConsulKV(ctx context.Context, entries []*consulkv.Entry, 
 		}
 	}
 	for _, e := range entries {
-		if _, err := kv.Put(ctx, consulkv.EncodeKey(e.Key), e.Value); err != nil {
+		if _, err := kv.Put(ctx, consulKVNATSKey(e), e.Value); err != nil {
 			return fmt.Errorf("writing %q: %w", e.Key, err)
 		}
 	}
 	return nil
+}
+
+// consulKVNATSKey returns the NATS key of an entry in the bucket of the bus.
+func consulKVNATSKey(e *consulkv.Entry) string {
+	return consulkv.ScopePrefix(e.Namespace, e.Path) + consulkv.EncodeKey(e.Key)
 }
 
 const (
@@ -205,7 +215,7 @@ func (s *Server) migrateConsulKV(ctx context.Context, aclObj *acl.ACL, namespace
 			continue
 		}
 
-		natsKey := consulkv.EncodeKey(key)
+		natsKey := consulkv.ScopePrefix(namespace, path) + consulkv.EncodeKey(key)
 		if !dryRun {
 			_, err = kv.Create(ctx, natsKey, value)
 			if err == nil {

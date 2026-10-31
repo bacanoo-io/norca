@@ -76,12 +76,13 @@ Restore Options:
     restored if it does not exist; to overwrite an existing entry give its
     current modify index (shown by -dry-run). Can be given several times.
 
-  -consul-kv <key>[@<check-index>]
-    Restore a key of the Consul KV of the system bus. Without a check index
-    the key is only restored if it does not exist; to overwrite an existing
-    key give its current revision (shown by -dry-run). The Variables rules of
-    consul/kv/<key> in the namespace of -namespace (default "default") apply.
-    Can be given several times.
+  -consul-kv [<path>:]<key>[@<check-index>]
+    Restore a key of the Consul KV of the system bus, kept under the
+    Variables path <path> (default "consul/kv") in the namespace of
+    -namespace (default "default"). Without a check index the key is only
+    restored if it does not exist; to overwrite an existing key give its
+    current revision (shown by -dry-run). The Variables rules of
+    <path>/<key> apply. Can be given several times.
 
   -secret <path>[@<check-index>]
     Restore a secret of the built-in secret store: the items of one version

@@ -453,10 +453,14 @@ type BackupContents struct {
 
 // BackupConsulKVStub is a key of the Consul KV in a backup (Norca).
 type BackupConsulKVStub struct {
-	Key      string
-	Size     int
-	Revision uint64
-	Created  time.Time
+	// Namespace and Path are the namespace and the Variables path the key
+	// is kept under (the kv block of the clients).
+	Namespace string
+	Path      string
+	Key       string
+	Size      int
+	Revision  uint64
+	Created   time.Time
 
 	// SHA256 is the hash of the value; the value itself is not returned.
 	SHA256 string

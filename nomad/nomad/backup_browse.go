@@ -127,10 +127,31 @@ func (f *backupContentsFilter) variableItems(ns, path string) bool {
 // consulKV reports whether the caller may list a key of the Consul KV: the
 // Variables rules of its path below consul/kv in the namespace of the
 // request ("default" for all namespaces).
-func (f *backupContentsFilter) consulKV(key string) bool {
-	return strings.HasPrefix(key, f.prefix) &&
-		(f.aclObj == nil || f.aclObj.AllowVariableOperation(consulKVNamespace(f.namespace),
-			consulkv.ACLPath(consulkv.DefaultPath, key), acl.VariablesCapabilityList, nil))
+// consulKV filters the keys of the Consul KV by namespace, the prefix of
+// the key and the Variables rules of the namespace and path of the key.
+func (f *backupContentsFilter) consulKV(e *consulkv.Entry) bool {
+	return backupNamespaceMatches(f.namespace, e.Namespace) &&
+		strings.HasPrefix(e.Key, f.prefix) &&
+		(f.aclObj == nil || f.aclObj.AllowVariableOperation(e.Namespace,
+			consulkv.ACLPath(e.Path, e.Key), acl.VariablesCapabilityList, nil))
+}
+
+// consulKVItemID is the ID of a key of the Consul KV in diffs and restore
+// items: "<path>:<key>", only the key when the path is consul/kv.
+func consulKVItemID(path, key string) string {
+	if path == consulkv.DefaultPath {
+		return key
+	}
+	return path + ":" + key
+}
+
+// splitConsulKVItemID returns the path and the key of a consulKVItemID; a
+// Variables path holds no ":".
+func splitConsulKVItemID(id string) (path, key string) {
+	if path, key, ok := strings.Cut(id, ":"); ok {
+		return path, key
+	}
+	return consulkv.DefaultPath, id
 }
 
 // consulKVNamespace is the namespace whose Variables rules apply to the keys
@@ -147,7 +168,8 @@ func consulKVNamespace(ns string) string {
 func consulKVStub(e *consulkv.Entry) *structs.BackupConsulKVStub {
 	sum := sha256.Sum256(e.Value)
 	return &structs.BackupConsulKVStub{
-		Key: e.Key, Size: len(e.Value), Revision: e.Revision, Created: e.Created,
+		Namespace: e.Namespace, Path: e.Path, Key: e.Key,
+		Size: len(e.Value), Revision: e.Revision, Created: e.Created,
 		SHA256: hex.EncodeToString(sum[:]),
 	}
 }
@@ -323,7 +345,7 @@ func backupContents(loaded *backup.Loaded, contentType string, f *backupContents
 	case structs.BackupContentConsulKV:
 		if loaded.ConsulKV != nil {
 			for _, e := range loaded.ConsulKV.Entries {
-				if f.consulKV(e.Key) {
+				if f.consulKV(e) {
 					out.ConsulKV = append(out.ConsulKV, consulKVStub(e))
 				}
 			}
@@ -373,8 +395,9 @@ func backupDiffEntries(side backupSide, contentType string, f *backupContentsFil
 		// a bucket are not comparable across backups.
 		if side.consulKV != nil {
 			for _, e := range side.consulKV.Entries {
-				if f.consulKV(e.Key) {
-					add(&backupDiffEntry{id: e.Key, status: "sha256:" + consulKVStub(e).SHA256[:12]})
+				if f.consulKV(e) {
+					add(&backupDiffEntry{namespace: e.Namespace, id: consulKVItemID(e.Path, e.Key),
+						status: "sha256:" + consulKVStub(e).SHA256[:12]})
 				}
 			}
 		}

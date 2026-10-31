@@ -36,9 +36,14 @@ func (c *consulKVTest) get(token, namespace, key string, prefix bool, index uint
 }
 
 func (c *consulKVTest) put(token, namespace, key, value string, cas *uint64) (bool, error) {
+	return c.putPath(token, namespace, "", key, value, cas)
+}
+
+// putPath writes a key under the Variables path path ("": consul/kv).
+func (c *consulKVTest) putPath(token, namespace, path, key, value string, cas *uint64) (bool, error) {
 	var resp structs.ConsulKVWriteResponse
 	err := msgpackrpc.CallWithCodec(rpcClient(c.t, c.srv), structs.ConsulKVPutRPCMethod, &structs.ConsulKVPutRequest{
-		Key: key, Value: []byte(value), CAS: cas,
+		Path: path, Key: key, Value: []byte(value), CAS: cas,
 		WriteRequest: structs.WriteRequest{Region: "global", Namespace: namespace, AuthToken: token},
 	}, &resp)
 	return resp.Ok, err
@@ -106,12 +111,14 @@ func TestConsulKVEndpoint_ACL(t *testing.T) {
 		policy("destroyer-xyz", `namespace "default" { variables { path "consul/kv/app/*" { capabilities = ["read", "list", "destroy"] } } }`),
 		policy("other-namespace-writer", `namespace "other" { variables { path "consul/kv/*" { capabilities = ["write", "read"] } } }`),
 		policy("anonymous", `namespace "default" { variables { path "consul/kv/public/*" { capabilities = ["read"] } } }`),
+		policy("scratch-writer", `namespace "default" { variables { path "scratch/*" { capabilities = ["write", "read"] } } }`),
 	}))
 	reader := token("reader")
 	lister := token("lister")
 	writer := token("writer-x")
 	destroyer := token("destroyer-xyz")
 	otherNS := token("other-namespace-writer")
+	scratch := token("scratch-writer")
 
 	for key, value := range map[string]string{"app/x": "1", "app/y": "2", "other": "3", "public/p": "4"} {
 		ok, err := c.put(root.SecretID, "default", key, value, nil)
@@ -169,6 +176,26 @@ func TestConsulKVEndpoint_ACL(t *testing.T) {
 	ok, err = c.put(otherNS, "other", "ns", "v", nil)
 	must.NoError(t, err)
 	must.True(t, ok)
+
+	// white room bugfix: the keys of every namespace and Variables path are
+	// separate, so the rules of a path cover only the keys under it: a token
+	// that may write below scratch/ writes its own app/x, not the one under
+	// consul/kv (deleted above), and the key of the namespace other is not
+	// in default.
+	ok, err = c.putPath(scratch, "default", "scratch", "app/x", "scratch", nil)
+	must.NoError(t, err)
+	must.True(t, ok)
+	_, err = c.put(scratch, "default", "app/x", "scratch", nil)
+	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+	resp, err = c.get(root.SecretID, "default", "app/x", false, 0)
+	must.NoError(t, err)
+	must.SliceEmpty(t, resp.Entries)
+	resp, err = c.get(root.SecretID, "default", "ns", false, 0)
+	must.NoError(t, err)
+	must.SliceEmpty(t, resp.Entries)
+	resp, err = c.get(root.SecretID, "other", "ns", false, 0)
+	must.NoError(t, err)
+	must.Eq(t, []string{"ns"}, keysOf(resp))
 
 	// without a token: the anonymous policy
 	resp, err = c.get("", "default", "public/p", false, 0)
