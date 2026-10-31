@@ -514,6 +514,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/operator/autopilot/configuration", s.wrap(s.OperatorAutopilotConfiguration))
 	s.mux.HandleFunc("/v1/operator/autopilot/health", s.wrap(s.OperatorServerHealth))
 	s.mux.HandleFunc("/v1/operator/bus", s.wrap(s.OperatorBusStatus))
+	s.mux.HandleFunc("/v1/operator/consul-kv/migrate", s.wrap(s.OperatorConsulKVMigrate))
 	s.mux.HandleFunc("/v1/operator/snapshot", s.wrap(s.SnapshotRequest))
 	s.mux.HandleFunc("/v1/operator/backups", s.wrap(s.BackupsRequest))
 	s.mux.HandleFunc("/v1/operator/backup/", s.wrap(s.BackupSpecificRequest))

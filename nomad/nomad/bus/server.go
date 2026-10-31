@@ -10,7 +10,9 @@
 // A clustered JetStream needs a route to another server before it runs, so
 // the bus of a region with a single server runs a standalone JetStream. When
 // a second server appears, the bus restarts clustered; the standalone store
-// is kept aside (StandaloneStoreDir) and its streams are not carried over.
+// is kept aside (StandaloneStoreDir). Its streams are not carried over by
+// NATS: the Norca server copies the Consul KV bucket from it (ReadStoreKV),
+// the other streams are rebuilt.
 package bus
 
 import (
@@ -48,6 +50,10 @@ type Server struct {
 	// embedded server.
 	routesLock sync.Mutex
 	routes     []string
+
+	// storeAside is set once the standalone store was moved aside, so a
+	// retried restart does not replace it with the store of the failed one.
+	storeAside bool
 
 	// nsLock guards the embedded server, replaced when the bus becomes
 	// clustered.
@@ -218,14 +224,14 @@ func (s *Server) SetRoutes(addrs []string) error {
 // becomeClustered restarts the standalone server clustered with the given
 // routes. Connections are closed and reconnect.
 func (s *Server) becomeClustered(routes []string) error {
-	s.logger.Warn("another server joined the region: restarting the system bus clustered; the streams of the standalone bus are not carried over",
+	s.logger.Warn("another server joined the region: restarting the system bus clustered; the Consul KV of the standalone bus is carried over, its other streams are rebuilt",
 		"standalone_store", s.StandaloneStoreDir())
 
 	old := s.server()
 	old.Shutdown()
 	old.WaitForShutdown()
 
-	if s.config.StoreDir != "" {
+	if s.config.StoreDir != "" && !s.storeAside {
 		aside := s.StandaloneStoreDir()
 		if err := os.RemoveAll(aside); err != nil {
 			return fmt.Errorf("bus: removing %s: %w", aside, err)
@@ -233,6 +239,7 @@ func (s *Server) becomeClustered(routes []string) error {
 		if err := os.Rename(s.config.StoreDir, aside); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("bus: moving the standalone store aside: %w", err)
 		}
+		s.storeAside = true
 	}
 	s.l.Lock()
 	clear(s.clients)

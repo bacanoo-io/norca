@@ -4,9 +4,11 @@
 package consulkv
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // EncodeVariablesKey returns the Variables path segment of a Consul key:
@@ -70,4 +72,48 @@ const DefaultPath = "consul/kv"
 // Consul KV under base.
 func ACLPath(base, key string) string {
 	return base + "/" + EncodeVariablesKey(key, false)
+}
+
+// Items of the Variable of a key (the variables backend of the KV).
+const (
+	ItemValue       = "value"        // a UTF-8 value
+	ItemValueBase64 = "value_base64" // any other value, base64
+	ItemFlags       = "flags"        // the flags, when not 0
+)
+
+// EncodeVariableItems returns the Variable items of a value and its flags.
+func EncodeVariableItems(value []byte, flags uint64) map[string]string {
+	items := map[string]string{}
+	if utf8.Valid(value) {
+		items[ItemValue] = string(value)
+	} else {
+		items[ItemValueBase64] = base64.StdEncoding.EncodeToString(value)
+	}
+	if flags != 0 {
+		items[ItemFlags] = strconv.FormatUint(flags, 10)
+	}
+	return items
+}
+
+// DecodeVariableItems reverses EncodeVariableItems.
+func DecodeVariableItems(items map[string]string) ([]byte, uint64, error) {
+	var value []byte
+	if raw, ok := items[ItemValueBase64]; ok {
+		v, err := base64.StdEncoding.DecodeString(raw)
+		if err != nil {
+			return nil, 0, err
+		}
+		value = v
+	} else if raw, ok := items[ItemValue]; ok {
+		value = []byte(raw)
+	}
+	var flags uint64
+	if raw := items[ItemFlags]; raw != "" {
+		f, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return nil, 0, err
+		}
+		flags = f
+	}
+	return value, flags, nil
 }
