@@ -33,7 +33,10 @@ func enableBus(t *testing.T) func(*Config) {
 	return func(c *Config) {
 		store, err := os.MkdirTemp("", "norca-bus-test")
 		must.NoError(t, err)
-		t.Cleanup(func() { _ = os.RemoveAll(store) })
+		t.Cleanup(func() {
+			_ = os.RemoveAll(store)
+			_ = os.RemoveAll(store + ".standalone")
+		})
 		ports := ci.PortAllocator.Grab(2)
 		c.Bus.Enabled = true
 		c.Bus.Port = ports[0]

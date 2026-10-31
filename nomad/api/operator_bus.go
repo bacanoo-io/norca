@@ -108,3 +108,53 @@ func (op *Operator) BusStatus(serverID string, q *QueryOptions) (*BusStatus, *Qu
 	}
 	return &out, qm, nil
 }
+
+// ConsulKVMigrateOptions select the keys of a migration of the Consul KV.
+type ConsulKVMigrateOptions struct {
+	// Path is the Variables path of the kv block, consul/kv by default. The
+	// namespace is that of the write options.
+	Path string
+
+	// DryRun reports what would be copied without writing.
+	DryRun bool
+}
+
+// ConsulKVMigrateResult lists the keys of a migration by outcome.
+type ConsulKVMigrateResult struct {
+	Copied    []string
+	Unchanged []string
+	Conflicts []string
+	Skipped   []*ConsulKVMigrateSkip
+}
+
+// ConsulKVMigrateSkip is a key a migration did not copy, with the reason.
+type ConsulKVMigrateSkip struct {
+	Key    string
+	Reason string
+}
+
+// ConsulKVMigrate copies the keys of the Consul KV kept in Variables (the
+// variables backend of consul_compat) into the bucket of the system bus.
+// Existing keys of the bucket are not overwritten; the Variables are left in
+// place.
+func (op *Operator) ConsulKVMigrate(opts *ConsulKVMigrateOptions, q *WriteOptions) (*ConsulKVMigrateResult, *WriteMeta, error) {
+	v := url.Values{}
+	if opts != nil {
+		if opts.Path != "" {
+			v.Set("path", opts.Path)
+		}
+		if opts.DryRun {
+			v.Set("dry_run", "true")
+		}
+	}
+	path := "/v1/operator/consul-kv/migrate"
+	if len(v) > 0 {
+		path += "?" + v.Encode()
+	}
+	var out ConsulKVMigrateResult
+	wm, err := op.c.put(path, nil, &out, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &out, wm, nil
+}

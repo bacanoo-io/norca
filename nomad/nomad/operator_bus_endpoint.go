@@ -4,6 +4,8 @@
 package nomad
 
 import (
+	"context"
+
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -43,5 +45,37 @@ func (op *Operator) BusStatus(args *structs.BusStatusRequest, reply *structs.Bus
 		return err
 	}
 	reply.Status = status
+	return nil
+}
+
+// ConsulKVMigrate copies the keys of the Consul KV kept in Variables into
+// the bucket of the system bus. It needs operator write; only the keys the
+// token may read as Variables are copied.
+func (op *Operator) ConsulKVMigrate(args *structs.ConsulKVMigrateRequest, reply *structs.ConsulKVMigrateResponse) error {
+	authErr := op.srv.Authenticate(op.ctx, args)
+	if done, err := op.srv.forward("Operator.ConsulKVMigrate", args, args, reply); done {
+		return err
+	}
+	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+
+	aclObj, err := op.srv.ResolveACL(args)
+	if err != nil {
+		return err
+	}
+	if aclObj != nil && !aclObj.AllowOperatorWrite() {
+		return structs.ErrPermissionDenied
+	}
+
+	ctx, cancel := context.WithTimeout(op.srv.shutdownCtx, consulKVMigrateTimeout)
+	defer cancel()
+	result, err := op.srv.migrateConsulKV(ctx, aclObj, args.RequestNamespace(), args.Path, args.DryRun)
+	if err != nil {
+		return err
+	}
+	reply.Result = result
+	reply.Index = op.srv.raft.AppliedIndex()
 	return nil
 }

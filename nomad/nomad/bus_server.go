@@ -89,6 +89,7 @@ func (s *Server) setupBus() error {
 	s.busRoutesCh = make(chan struct{}, 1)
 	go s.busRoutesLoop()
 	go s.busRevalidateLoop()
+	go s.busCarryOverLoop()
 	return nil
 }
 
