@@ -669,6 +669,10 @@ type NodeServerInfo struct {
 	// be contacted at for RPCs.
 	RPCAdvertiseAddr string
 
+	// BusAdvertiseAddr is the host:port of the system bus of the server
+	// (Norca); empty when the server runs without a bus.
+	BusAdvertiseAddr string
+
 	// RpcMajorVersion is the major version number the Nomad Server
 	// supports
 	RPCMajorVersion int32

@@ -883,6 +883,7 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	}
 	conf.DNS = agentConfig.Client.DNS.Copy()
 	conf.ConsulCompat = agentConfig.Client.ConsulCompat.Copy()
+	conf.BusDisabled = !agentConfig.Client.Bus.IsEnabled()
 	conf.Secrets = secretsConf
 
 	artifactConfig, err := clientconfig.ArtifactConfigFromAgent(agentConfig.Client.Artifact)

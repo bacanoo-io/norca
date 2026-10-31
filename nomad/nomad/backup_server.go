@@ -34,6 +34,7 @@ func (s *Server) setupBackup() {
 		Snapshot:       s.backupSnapshot,
 		Keyring:        s.backupKeyring,
 		SecretStoreKey: s.backupSecretStoreKey,
+		ConsulKV:       s.backupConsulKV,
 		KeyringReady:   func() bool { _, err := s.backupKeyring(); return err == nil },
 		State:          func() *state.StateStore { return s.fsm.State() },
 		Apply: func(msgType structs.MessageType, req any) (uint64, error) {

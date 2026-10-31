@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"testing"
 	"time"
@@ -39,13 +40,36 @@ type cluster struct {
 
 func newCluster(t *testing.T, acl bool, compat *structsc.ConsulCompatConfig, opts ...func(*config.Config)) *cluster {
 	t.Helper()
+	return newClusterWith(t, acl, nil, compat, opts...)
+}
+
+// newBusCluster is newCluster with the system bus on the server.
+func newBusCluster(t *testing.T, acl bool, compat *structsc.ConsulCompatConfig, opts ...func(*config.Config)) *cluster {
+	t.Helper()
+	return newClusterWith(t, acl, func(c *nomad.Config) {
+		// Windows may keep a JetStream file open for a moment after the
+		// shutdown, which fails the cleanup of t.TempDir.
+		store, err := os.MkdirTemp("", "norca-bus-test")
+		must.NoError(t, err)
+		t.Cleanup(func() { _ = os.RemoveAll(store) })
+		ports := ci.PortAllocator.Grab(2)
+		c.Bus.Enabled = true
+		c.Bus.Port, c.Bus.ClusterPort = ports[0], ports[1]
+		c.Bus.StoreDir = store
+		c.Bus.MaxMemory, c.Bus.MaxStorage = 32<<20, 128<<20
+		c.Bus.Events.MaxBytes = 16 << 20
+	}, compat, opts...)
+}
+
+func newClusterWith(t *testing.T, acl bool, serverCB func(*nomad.Config), compat *structsc.ConsulCompatConfig, opts ...func(*config.Config)) *cluster {
+	t.Helper()
 	c := &cluster{index: 1000}
 
 	var cleanupS func()
 	if acl {
-		c.server, c.root, cleanupS = nomad.TestACLServer(t, nil)
+		c.server, c.root, cleanupS = nomad.TestACLServer(t, serverCB)
 	} else {
-		c.server, cleanupS = nomad.TestServer(t, nil)
+		c.server, cleanupS = nomad.TestServer(t, serverCB)
 	}
 	t.Cleanup(cleanupS)
 	testutil.WaitForLeader(t, c.server.RPC)

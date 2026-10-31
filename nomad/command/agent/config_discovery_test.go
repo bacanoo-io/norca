@@ -208,7 +208,7 @@ client {
 	must.ErrorContains(t, err, "kv backend must be")
 
 	var noKV *config.ConsulCompatKVConfig
-	must.Eq(t, config.ConsulCompatKVVariables, noKV.BackendName())
+	must.Eq(t, config.ConsulCompatKVAuto, noKV.BackendName())
 	must.Eq(t, config.DefaultConsulCompatKVPath, noKV.PathPrefix())
 	var noNATS *config.ConsulCompatKVNATSConfig
 	must.Eq(t, config.DefaultConsulCompatKVBucket, noNATS.BucketName())

@@ -40,6 +40,7 @@ const (
 	BackupContentDeployments = "deployments"
 	BackupContentAllocations = "allocations"
 	BackupContentSecrets     = "secrets"
+	BackupContentConsulKV    = "consul-kv"
 
 	BackupRestoreModeSelective = "selective"
 	BackupRestoreModeFull      = "full"
@@ -51,6 +52,7 @@ const (
 	BackupRestoreItemACLPolicy = "acl-policy"
 	BackupRestoreItemACLRole   = "acl-role"
 	BackupRestoreItemSecret    = "secret"
+	BackupRestoreItemConsulKV  = "consul-kv"
 
 	// Backup objects.
 	BackupObjectState    = "state"
@@ -181,6 +183,17 @@ type BackupContents struct {
 	ACLRoles    []*ACLRoleListStub
 	Deployments []*Deployment
 	Allocations []*AllocationListStub
+	ConsulKV    []*BackupConsulKVStub
+}
+
+// BackupConsulKVStub is a key of the Consul KV of the system bus in a
+// backup: its size and the hash of its value, never the value.
+type BackupConsulKVStub struct {
+	Key      string
+	Size     int
+	Revision uint64
+	Created  time.Time
+	SHA256   string
 }
 
 // BackupJobStub summarizes a job and its versions in a backup.

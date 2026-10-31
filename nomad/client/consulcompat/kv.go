@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/nomad/acl"
+	"github.com/hashicorp/nomad/helper/consulkv"
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 )
 
@@ -89,13 +90,24 @@ func newKVStore(s *Server, cfg *structsc.ConsulCompatKVConfig) kvStore {
 	if cfg != nil && cfg.Namespace != "" {
 		namespace = cfg.Namespace
 	}
+	acl := &kvACL{backend: s.backend, namespace: namespace, path: cfg.PathPrefix()}
+	variables := func() kvStore { return &variablesKV{backend: s.backend, namespace: namespace, path: cfg.PathPrefix()} }
 	switch cfg.BackendName() {
 	case structsc.ConsulCompatKVNATS:
-		return newNATSKV(s.logger, cfg.NATS, &kvACL{backend: s.backend, namespace: namespace, path: cfg.PathPrefix()})
+		return newNATSKV(s.logger, cfg.NATS, acl)
+	case structsc.ConsulCompatKVBus:
+		return newBusKV(s.logger, s.backend.BusConn, acl)
+	case structsc.ConsulCompatKVAuto:
+		return &autoKV{
+			logger:    s.logger.Named("kv"),
+			busConn:   s.backend.BusConn,
+			bus:       func() kvStore { return newBusKV(s.logger, s.backend.BusConn, acl) },
+			variables: variables,
+		}
 	case structsc.ConsulCompatKVDisabled:
 		return nil
 	default:
-		return &variablesKV{backend: s.backend, namespace: namespace, path: cfg.PathPrefix()}
+		return variables()
 	}
 }
 
@@ -274,55 +286,10 @@ func writeBool(w http.ResponseWriter, ok bool) error {
 // encodeKVKey maps a key to a path relative to the path of the kv block.
 // With prefix set an empty last segment stays empty, so the result is a
 // prefix of the paths of the keys below it.
-func encodeKVKey(key string, prefix bool) string {
-	segments := strings.Split(key, "/")
-	for i, seg := range segments {
-		if seg == "" && !(prefix && i == len(segments)-1) {
-			segments[i] = "~"
-			continue
-		}
-		var b strings.Builder
-		for j := 0; j < len(seg); j++ {
-			c := seg[j]
-			if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' {
-				b.WriteByte(c)
-			} else {
-				fmt.Fprintf(&b, "~%02X", c)
-			}
-		}
-		segments[i] = b.String()
-	}
-	return strings.Join(segments, "/")
-}
+func encodeKVKey(key string, prefix bool) string { return consulkv.EncodeVariablesKey(key, prefix) }
 
 // decodeKVKey reverses encodeKVKey.
-func decodeKVKey(path string) (string, error) {
-	segments := strings.Split(path, "/")
-	for i, seg := range segments {
-		if seg == "~" {
-			segments[i] = ""
-			continue
-		}
-		var b strings.Builder
-		for j := 0; j < len(seg); j++ {
-			if seg[j] != '~' {
-				b.WriteByte(seg[j])
-				continue
-			}
-			if j+2 >= len(seg) {
-				return "", fmt.Errorf("invalid escape in %q", path)
-			}
-			v, err := strconv.ParseUint(seg[j+1:j+3], 16, 8)
-			if err != nil {
-				return "", fmt.Errorf("invalid escape in %q", path)
-			}
-			b.WriteByte(byte(v))
-			j += 2
-		}
-		segments[i] = b.String()
-	}
-	return strings.Join(segments, "/"), nil
-}
+func decodeKVKey(path string) (string, error) { return consulkv.DecodeVariablesKey(path) }
 
 // kvACLPath returns the Variables path whose ACL rules apply to key.
 func kvACLPath(base, key string) string {

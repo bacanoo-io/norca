@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/shoenig/test/must"
 )
 
@@ -39,8 +40,25 @@ func enableBus(t *testing.T) func(*Config) {
 		c.Bus.ClusterPort = ports[1]
 		c.Bus.StoreDir = store
 		c.Bus.MaxMemory = 32 << 20
-		c.Bus.MaxStorage = 64 << 20
+		c.Bus.MaxStorage = 128 << 20
 		c.Bus.Events.MaxBytes = 16 << 20
+	}
+}
+
+// waitBus waits up to 30 seconds for fn: JetStream needs longer than the
+// default wait to elect leaders under the race detector and parallel tests.
+func waitBus(t *testing.T, fn func() (bool, error)) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		ok, err := fn()
+		if ok {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 }
 
@@ -63,6 +81,24 @@ func TestBusServer_Authentication(t *testing.T) {
 	must.NoError(t, err)
 	defer nc.Close()
 	_, err = nats.Connect(busURL(s1), nats.UserInfo(node.ID, "wrong"))
+	must.Error(t, err)
+
+	// The node may use the key-value bucket of the Consul KV, which the
+	// leader creates, and no other stream.
+	nodeJS, err := jetstream.New(nc)
+	must.NoError(t, err)
+	waitBus(t, func() (bool, error) {
+		kv, err := nodeJS.KeyValue(t.Context(), bus.ConsulKVBucket)
+		if err != nil {
+			return false, err
+		}
+		if _, err := kv.Put(t.Context(), "app.config", []byte("v")); err != nil {
+			return false, err
+		}
+		e, err := kv.Get(t.Context(), "app.config")
+		return err == nil && string(e.Value()) == "v", err
+	})
+	_, err = nodeJS.Stream(t.Context(), pushStreamName)
 	must.Error(t, err)
 
 	// A token needs a bus rule.
@@ -222,7 +258,6 @@ func TestBusServer_TLSRoutes(t *testing.T) {
 		}
 	}
 	start := func(name, cert string) (*bus.Server, string) {
-		ports := ci.PortAllocator.Grab(2)
 		clientTLS, clusterTLS, err := busTLS(tlsFor(cert), "global")
 		must.NoError(t, err)
 		cfg := bus.DefaultConfig()
@@ -231,25 +266,34 @@ func TestBusServer_TLSRoutes(t *testing.T) {
 		cfg.ServerName = name
 		cfg.Region = "global"
 		cfg.BindAddr = "127.0.0.1"
-		cfg.Port, cfg.ClusterPort = ports[0], ports[1]
 		// Windows may keep a JetStream file open for a moment after the
 		// shutdown, which fails the cleanup of t.TempDir.
 		store, err := os.MkdirTemp("", "norca-bus-test")
 		must.NoError(t, err)
 		t.Cleanup(func() { _ = os.RemoveAll(store) })
 		cfg.StoreDir = store
-		cfg.MaxMemory, cfg.MaxStorage = 32<<20, 64<<20
+		cfg.MaxMemory, cfg.MaxStorage = 32<<20, 128<<20
 		cfg.Events.MaxBytes = 16 << 20
 		cfg.ClientTLS, cfg.ClusterTLS = clientTLS, clusterTLS
-		b, err := bus.New(cfg, testlog.HCLogger(t), func(c bus.Credentials) (*bus.Grant, error) {
-			if c.Token == "ok" {
-				return &bus.Grant{Kind: bus.KindToken, Name: "ok", All: true}, nil
+		// A reserved port may still be taken by another test for a moment:
+		// retried with new ports.
+		for attempt := 1; ; attempt++ {
+			ports := ci.PortAllocator.Grab(2)
+			cfg.Port, cfg.ClusterPort = ports[0], ports[1]
+			b, err := bus.New(cfg, testlog.HCLogger(t), func(c bus.Credentials) (*bus.Grant, error) {
+				if c.Token == "ok" {
+					return &bus.Grant{Kind: bus.KindToken, Name: "ok", All: true}, nil
+				}
+				return nil, errors.New("denied")
+			})
+			if err != nil && attempt < 3 {
+				t.Logf("starting bus %s: %v; retrying with new ports", name, err)
+				continue
 			}
-			return nil, errors.New("denied")
-		})
-		must.NoError(t, err)
-		t.Cleanup(b.Shutdown)
-		return b, fmt.Sprintf("127.0.0.1:%d", ports[1])
+			must.NoError(t, err)
+			t.Cleanup(b.Shutdown)
+			return b, fmt.Sprintf("127.0.0.1:%d", ports[1])
+		}
 	}
 
 	s1, addr1 := start("s1", "global-server-nomad")

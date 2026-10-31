@@ -33,11 +33,10 @@ const (
 	// busPublishTimeout bounds the acknowledgement of a batch of events.
 	busPublishTimeout = 30 * time.Second
 
-	// pushStreamName and its limits: push notices are small and only
-	// needed until the leader handled them.
-	pushStreamName     = "NORCA_PACK_PUSHES"
-	pushStreamMaxAge   = 24 * time.Hour
-	pushStreamMaxBytes = 64 << 20
+	// pushStreamName and its age limit; bus.PushStreamMaxBytes bounds its
+	// size.
+	pushStreamName   = "NORCA_PACK_PUSHES"
+	pushStreamMaxAge = 24 * time.Hour
 
 	// pushSyncCooldown is the minimum time between two syncs of a registry
 	// triggered by push notices.
@@ -45,9 +44,10 @@ const (
 )
 
 // busEventsLeader runs the bus loops of the leader until stopCh closes: the
-// event stream of the region and the pack push notices.
+// key-value bucket of the Consul KV, and with events enabled the event
+// stream of the region and the pack push notices.
 func (s *Server) busEventsLeader(stopCh chan struct{}) {
-	if s.bus == nil || !s.config.Bus.Events.Enabled {
+	if s.bus == nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(s.shutdownCtx)
@@ -60,16 +60,75 @@ func (s *Server) busEventsLeader(stopCh chan struct{}) {
 	}()
 
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		s.busRetryLoop(ctx, "publishing the events", s.publishBusEvents)
-	}()
-	go func() {
-		defer wg.Done()
-		s.busRetryLoop(ctx, "consuming the pack push notices", s.consumePushNotices)
-	}()
+	run := func(what string, fn func(context.Context, jetstream.JetStream) error) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.busRetryLoop(ctx, what, fn)
+		}()
+	}
+	run("keeping the Consul KV bucket", s.keepConsulKVBucket)
+	if s.config.Bus.Events.Enabled {
+		run("publishing the events", s.publishBusEvents)
+		run("consuming the pack push notices", s.consumePushNotices)
+	}
 	wg.Wait()
+}
+
+// keepConsulKVBucket creates the key-value bucket of the Consul KV of the
+// compat API and keeps its replicas at one per server, up to three.
+func (s *Server) keepConsulKVBucket(ctx context.Context, js jetstream.JetStream) error {
+	check := time.NewTicker(busStreamCheckInterval)
+	defer check.Stop()
+	for {
+		if err := s.ensureConsulKVBucket(ctx, js); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-check.C:
+		}
+	}
+}
+
+func (s *Server) ensureConsulKVBucket(ctx context.Context, js jetstream.JetStream) error {
+	replicas := s.busReplicas()
+	kv, err := js.KeyValue(ctx, bus.ConsulKVBucket)
+	if errors.Is(err, jetstream.ErrBucketNotFound) {
+		_, err = js.CreateKeyValue(ctx, jetstream.KeyValueConfig{
+			Bucket:      bus.ConsulKVBucket,
+			Description: "Consul KV of the Consul-compatible API of Norca",
+			History:     1,
+			Replicas:    replicas,
+			Storage:     jetstream.FileStorage,
+		})
+		if errors.Is(err, jetstream.ErrBucketExists) {
+			return nil
+		}
+		if err == nil {
+			s.logger.Info("system bus: created the key-value bucket of the Consul KV", "bucket", bus.ConsulKVBucket, "replicas", replicas)
+		}
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	status, err := kv.Status(ctx)
+	if err != nil {
+		return err
+	}
+	if status.(*jetstream.KeyValueBucketStatus).StreamInfo().Config.Replicas == replicas {
+		return nil
+	}
+	stream, err := js.Stream(ctx, "KV_"+bus.ConsulKVBucket)
+	if err != nil {
+		return err
+	}
+	cfg := stream.CachedInfo().Config
+	cfg.Replicas = replicas
+	_, err = js.UpdateStream(ctx, cfg)
+	return err
 }
 
 // busRetryLoop runs fn until ctx ends, again after a backoff when it fails.
@@ -276,7 +335,7 @@ func (s *Server) ensurePushStream(ctx context.Context, js jetstream.JetStream) e
 		bus.StreamSettings{
 			Replicas:   s.busReplicas(),
 			MaxAge:     pushStreamMaxAge,
-			MaxBytes:   pushStreamMaxBytes,
+			MaxBytes:   bus.PushStreamMaxBytes,
 			MaxMsgSize: 64 << 10,
 			Duplicates: time.Minute,
 			Storage:    jetstream.FileStorage,

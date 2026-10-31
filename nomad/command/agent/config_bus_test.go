@@ -144,3 +144,29 @@ server {
 	_, err = ParseConfigFile(path)
 	must.ErrorContains(t, err, "stream")
 }
+
+func TestConfig_ClientBus(t *testing.T) {
+	ci.Parallel(t)
+
+	// The client uses the bus by default; enabled = false turns it off and
+	// a later file can turn it on again.
+	var none *ClientBusConfig
+	must.True(t, none.IsEnabled())
+
+	path := filepath.Join(t.TempDir(), "client.hcl")
+	must.NoError(t, os.WriteFile(path, []byte(`client {
+  enabled = true
+  bus {
+    enabled = false
+  }
+}`), 0o600))
+	parsed, err := ParseConfigFile(path)
+	must.NoError(t, err)
+	c := DefaultConfig().Merge(parsed)
+	must.False(t, c.Client.Bus.IsEnabled())
+	must.True(t, c.Client.Bus.Merge(&ClientBusConfig{Enabled: pointer.Of(true)}).IsEnabled())
+
+	must.NoError(t, os.WriteFile(path, []byte(`client { bus { url = "x" } }`), 0o600))
+	_, err = ParseConfigFile(path)
+	must.ErrorContains(t, err, "url")
+}

@@ -10,6 +10,7 @@ import (
 	"io"
 
 	goversion "github.com/hashicorp/go-version"
+	"github.com/hashicorp/nomad/helper/consulkv"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/version"
 )
@@ -100,6 +101,26 @@ func ReadSecretStoreKey(ctx context.Context, dest Destination, record *structs.B
 		return nil, fmt.Errorf("failed to read the secret store key of backup %s: %w", record.ID, err)
 	}
 	return key, nil
+}
+
+// ReadConsulKV reads the export of the Consul KV bucket of a backup; nil
+// when the backup has none.
+func ReadConsulKV(ctx context.Context, dest Destination, record *structs.BackupRecord,
+	st *structs.BackupDestinationStatus, ids Identities) (*consulkv.Export, error) {
+
+	rc, err := OpenObject(ctx, dest, record, st, structs.BackupObjectConsulKV, ids)
+	if errors.Is(err, ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	export, err := consulkv.Decode(rc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the Consul KV of backup %s: %w", record.ID, err)
+	}
+	return export, nil
 }
 
 // CheckIdentity verifies that the identities can decrypt a backup on a

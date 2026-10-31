@@ -27,6 +27,15 @@ const (
 	// datacenters of the local region.
 	ConsulCompatDatacenterFromDatacenter = "datacenter"
 
+	// ConsulCompatKVAuto stores the Consul KV on the system bus of the
+	// servers when they run one, else in Variables. The choice is made once,
+	// when the first request finds out which servers the client has.
+	ConsulCompatKVAuto = "auto"
+
+	// ConsulCompatKVBus stores the Consul KV in the key-value bucket
+	// consul-kv of the system bus of the servers (embedded NATS).
+	ConsulCompatKVBus = "bus"
+
 	// ConsulCompatKVVariables stores the Consul KV in Norca Variables.
 	ConsulCompatKVVariables = "variables"
 
@@ -80,7 +89,9 @@ type ConsulCompatConfig struct {
 // ConsulCompatKVConfig is the kv block of consul_compat: where the Consul
 // key-value store of the API lives.
 type ConsulCompatKVConfig struct {
-	// Backend is "variables" (default), "nats" or "disabled".
+	// Backend is "auto" (default: "bus" when the servers run a system bus,
+	// else "variables"), "bus", "variables", "nats" (an external NATS) or
+	// "disabled".
 	Backend string `hcl:"backend"`
 
 	// Namespace of the keys: of the Variables, and of the ACL rules of both
@@ -171,7 +182,7 @@ func (c *ConsulCompatKVConfig) Merge(o *ConsulCompatKVConfig) *ConsulCompatKVCon
 // BackendName returns the effective backend.
 func (c *ConsulCompatKVConfig) BackendName() string {
 	if c == nil || c.Backend == "" {
-		return ConsulCompatKVVariables
+		return ConsulCompatKVAuto
 	}
 	return c.Backend
 }
@@ -191,14 +202,14 @@ func (c *ConsulCompatKVConfig) Validate() error {
 	}
 	var mErr multierror.Error
 	switch c.Backend {
-	case "", ConsulCompatKVVariables, ConsulCompatKVDisabled:
+	case "", ConsulCompatKVAuto, ConsulCompatKVBus, ConsulCompatKVVariables, ConsulCompatKVDisabled:
 	case ConsulCompatKVNATS:
 		if c.NATS == nil || len(c.NATS.URLs) == 0 {
 			mErr.Errors = append(mErr.Errors, errors.New(`consul_compat kv backend "nats" needs nats.urls`))
 		}
 	default:
-		mErr.Errors = append(mErr.Errors, fmt.Errorf("consul_compat kv backend must be %q, %q or %q, got %q",
-			ConsulCompatKVVariables, ConsulCompatKVNATS, ConsulCompatKVDisabled, c.Backend))
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("consul_compat kv backend must be %q, %q, %q, %q or %q, got %q",
+			ConsulCompatKVAuto, ConsulCompatKVBus, ConsulCompatKVVariables, ConsulCompatKVNATS, ConsulCompatKVDisabled, c.Backend))
 	}
 	if c.Path != "" && !validKVPath.MatchString(c.PathPrefix()) {
 		mErr.Errors = append(mErr.Errors, fmt.Errorf(

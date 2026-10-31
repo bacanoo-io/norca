@@ -37,18 +37,41 @@ func natsKVConfig(t *testing.T) *structsc.ConsulCompatKVConfig {
 	}
 }
 
+// kvBackend is a backend of the KV tests: its kv block, and whether the
+// server runs the system bus.
+type kvBackend struct {
+	kv  func(t *testing.T) *structsc.ConsulCompatKVConfig
+	bus bool
+}
+
+// kvBackends are the KV backends the tests run against: "auto" without a
+// bus falls back to Variables, with a bus it uses the bucket of the bus.
+var kvBackends = map[string]kvBackend{
+	"variables": {kv: func(*testing.T) *structsc.ConsulCompatKVConfig { return nil }},
+	"nats":      {kv: natsKVConfig},
+	"bus": {kv: func(*testing.T) *structsc.ConsulCompatKVConfig {
+		return &structsc.ConsulCompatKVConfig{Backend: structsc.ConsulCompatKVBus}
+	}, bus: true},
+	"auto-bus": {kv: func(*testing.T) *structsc.ConsulCompatKVConfig { return nil }, bus: true},
+}
+
+func (b kvBackend) cluster(t *testing.T, acl bool) *cluster {
+	t.Helper()
+	compat := &structsc.ConsulCompatConfig{KV: b.kv(t)}
+	if b.bus {
+		return newBusCluster(t, acl, compat)
+	}
+	return newCluster(t, acl, compat)
+}
+
 // TestConsulCompat_KV runs the KV of the official Consul API client against
-// both backends.
+// every backend.
 func TestConsulCompat_KV(t *testing.T) {
 	ci.Parallel(t)
 
-	backends := map[string]func(t *testing.T) *structsc.ConsulCompatKVConfig{
-		"variables": func(*testing.T) *structsc.ConsulCompatKVConfig { return nil },
-		"nats":      natsKVConfig,
-	}
-	for name, kvConfig := range backends {
+	for name, backend := range kvBackends {
 		t.Run(name, func(t *testing.T) {
-			c := newCluster(t, false, &structsc.ConsulCompatConfig{KV: kvConfig(t)})
+			c := backend.cluster(t, false)
 			kv := c.consul.KV()
 
 			// missing key: 404, nil pair
@@ -195,13 +218,9 @@ func TestConsulCompat_KVFlags(t *testing.T) {
 func TestConsulCompat_KVACL(t *testing.T) {
 	ci.Parallel(t)
 
-	backends := map[string]func(t *testing.T) *structsc.ConsulCompatKVConfig{
-		"variables": func(*testing.T) *structsc.ConsulCompatKVConfig { return nil },
-		"nats":      natsKVConfig,
-	}
-	for name, kvConfig := range backends {
+	for name, backend := range kvBackends {
 		t.Run(name, func(t *testing.T) {
-			c := newCluster(t, true, &structsc.ConsulCompatConfig{KV: kvConfig(t)})
+			c := backend.cluster(t, true)
 
 			// read-only below consul/kv/app
 			policy := &structs.ACLPolicy{Name: "kv-app-" + name, Rules: `
@@ -239,6 +258,53 @@ namespace "default" {
 			_, _, err = c.consul.KV().Get("app/x", nil)
 			must.Error(t, err)
 			must.True(t, strings.Contains(err.Error(), "403"), must.Sprint(err))
+		})
+	}
+}
+
+// TestConsulCompat_KVBlockingFirstWrite: a blocking query on a missing key
+// of a fresh bucket returns the first write with an index above the one of
+// the missing key, so consul-template sees the change.
+func TestConsulCompat_KVBlockingFirstWrite(t *testing.T) {
+	ci.Parallel(t)
+
+	for name, backend := range kvBackends {
+		t.Run(name, func(t *testing.T) {
+			c := backend.cluster(t, false)
+			kv := c.consul.KV()
+
+			pair, meta, err := kv.Get("fresh/key", nil)
+			must.NoError(t, err)
+			must.Nil(t, pair)
+			missing := meta.LastIndex
+
+			type result struct {
+				pair  *consulapi.KVPair
+				index uint64
+				err   error
+			}
+			done := make(chan result, 1)
+			go func() {
+				p, m, err := kv.Get("fresh/key", &consulapi.QueryOptions{WaitIndex: missing, WaitTime: 20 * time.Second})
+				if err != nil {
+					done <- result{err: err}
+					return
+				}
+				done <- result{pair: p, index: m.LastIndex}
+			}()
+			time.Sleep(500 * time.Millisecond)
+			_, err = kv.Put(&consulapi.KVPair{Key: "fresh/key", Value: []byte("first")}, nil)
+			must.NoError(t, err)
+
+			select {
+			case r := <-done:
+				must.NoError(t, r.err)
+				must.NotNil(t, r.pair)
+				must.Eq(t, "first", string(r.pair.Value))
+				must.Greater(t, missing, r.index)
+			case <-time.After(30 * time.Second):
+				t.Fatal("the blocking query did not return the first write")
+			}
 		})
 	}
 }

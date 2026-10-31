@@ -20,7 +20,7 @@ func TestOperatorBusStatusCommand(t *testing.T) {
 	var _ cli.Command = &OperatorBusStatusCommand{}
 
 	s, client, addr := testServer(t, false, func(c *agent.Config) {
-		c.Server.Bus = &agent.BusConfig{Enabled: pointer.Of(true), MaxStorage: "64MiB", MaxMemory: "32MiB"}
+		c.Server.Bus = &agent.BusConfig{Enabled: pointer.Of(true), MaxStorage: "128MiB", MaxMemory: "32MiB"}
 	})
 	defer s.Shutdown()
 
@@ -30,7 +30,7 @@ func TestOperatorBusStatusCommand(t *testing.T) {
 	must.True(t, st.Enabled)
 	must.False(t, st.Clustered)
 	must.NotNil(t, st.JetStream)
-	must.Eq(t, int64(64<<20), st.JetStream.MaxStorage)
+	must.Eq(t, int64(128<<20), st.JetStream.MaxStorage)
 
 	ui := cli.NewMockUi()
 	cmd := &OperatorBusStatusCommand{Meta: Meta{Ui: ui}}

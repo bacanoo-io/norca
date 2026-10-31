@@ -8,13 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/acl"
+	"github.com/hashicorp/nomad/helper/consulkv"
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -23,15 +23,31 @@ import (
 // natsTimeout bounds a NATS operation that does not block.
 const natsTimeout = 10 * time.Second
 
-// natsKV keeps the Consul KV in a NATS JetStream key-value bucket. The
-// ModifyIndex of a key is its revision (the stream sequence of its last
-// change), which also orders the blocking queries; CreateIndex is not kept
-// by NATS and equals ModifyIndex. Flags are not supported. NATS does not
-// know the Nomad ACLs, so the Variables rules of the keys are checked here.
+// natsKV keeps the Consul KV in a NATS JetStream key-value bucket: of an
+// external NATS (backend "nats") or of the system bus of the servers
+// (backend "bus"). The ModifyIndex of a key is its revision (the stream
+// sequence of its last change); CreateIndex is not kept by NATS and equals
+// ModifyIndex. The blocking index (X-Consul-Index) is the highest revision
+// of the matching keys plus one, or the last sequence of the bucket plus one
+// when none matches, like the table index of Consul: a later write always
+// raises it, also the first write of a fresh bucket (revision 1). Flags are not
+// supported. NATS does not know the Nomad ACLs, so the Variables rules of
+// the keys are checked here.
 type natsKV struct {
 	logger hclog.Logger
-	cfg    *structsc.ConsulCompatKVNATSConfig
 	acl    *kvACL
+
+	// name is the bucket; create and replicas create it when it is missing
+	// (backend "nats" with create_bucket; the bus bucket is created by the
+	// servers).
+	name     string
+	create   bool
+	replicas int
+
+	// connect opens the connection; shared connections (the bus connection
+	// of the client) are not closed by Close.
+	connect func() (*nats.Conn, error)
+	shared  bool
 
 	mu sync.Mutex
 	nc *nats.Conn
@@ -39,7 +55,53 @@ type natsKV struct {
 }
 
 func newNATSKV(logger hclog.Logger, cfg *structsc.ConsulCompatKVNATSConfig, acl *kvACL) *natsKV {
-	return &natsKV{logger: logger.Named("kv"), cfg: cfg, acl: acl}
+	return &natsKV{
+		logger:   logger.Named("kv"),
+		acl:      acl,
+		name:     cfg.BucketName(),
+		create:   cfg.CreatesBucket(),
+		replicas: max(cfg.Replicas, 1),
+		connect:  func() (*nats.Conn, error) { return dialNATS(cfg) },
+	}
+}
+
+// newBusKV keeps the Consul KV in the bucket of the system bus, on the bus
+// connection of the client.
+func newBusKV(logger hclog.Logger, connect func() (*nats.Conn, error), acl *kvACL) *natsKV {
+	return &natsKV{
+		logger:  logger.Named("kv"),
+		acl:     acl,
+		name:    structsc.DefaultConsulCompatKVBucket,
+		connect: connect,
+		shared:  true,
+	}
+}
+
+// dialNATS connects to an external NATS with the credentials of the nats
+// block.
+func dialNATS(c *structsc.ConsulCompatKVNATSConfig) (*nats.Conn, error) {
+	opts := []nats.Option{nats.Name("norca-consul-compat-kv"), nats.MaxReconnects(-1)}
+	switch {
+	case c.CredentialsFile != "":
+		opts = append(opts, nats.UserCredentials(c.CredentialsFile))
+	case c.NKeySeedFile != "":
+		opt, err := nats.NkeyOptionFromSeed(c.NKeySeedFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the nkey seed: %w", err)
+		}
+		opts = append(opts, opt)
+	case c.User != "":
+		opts = append(opts, nats.UserInfo(c.User, c.Password))
+	case c.Token != "":
+		opts = append(opts, nats.Token(c.Token))
+	}
+	if c.CAFile != "" {
+		opts = append(opts, nats.RootCAs(c.CAFile))
+	}
+	if c.CertFile != "" {
+		opts = append(opts, nats.ClientCert(c.CertFile, c.KeyFile))
+	}
+	return nats.Connect(strings.Join(c.URLs, ","), opts...)
 }
 
 // bucket returns the bucket, connecting on first use: the agent starts
@@ -52,29 +114,7 @@ func (n *natsKV) bucket() (jetstream.KeyValue, error) {
 	}
 
 	if n.nc == nil {
-		opts := []nats.Option{nats.Name("norca-consul-compat-kv"), nats.MaxReconnects(-1)}
-		c := n.cfg
-		switch {
-		case c.CredentialsFile != "":
-			opts = append(opts, nats.UserCredentials(c.CredentialsFile))
-		case c.NKeySeedFile != "":
-			opt, err := nats.NkeyOptionFromSeed(c.NKeySeedFile)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read the nkey seed: %w", err)
-			}
-			opts = append(opts, opt)
-		case c.User != "":
-			opts = append(opts, nats.UserInfo(c.User, c.Password))
-		case c.Token != "":
-			opts = append(opts, nats.Token(c.Token))
-		}
-		if c.CAFile != "" {
-			opts = append(opts, nats.RootCAs(c.CAFile))
-		}
-		if c.CertFile != "" {
-			opts = append(opts, nats.ClientCert(c.CertFile, c.KeyFile))
-		}
-		nc, err := nats.Connect(strings.Join(c.URLs, ","), opts...)
+		nc, err := n.connect()
 		if err != nil {
 			return nil, &codedError{http.StatusServiceUnavailable, fmt.Sprintf("NATS backend of the KV is not available: %v", err)}
 		}
@@ -87,14 +127,14 @@ func (n *natsKV) bucket() (jetstream.KeyValue, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), natsTimeout)
 	defer cancel()
-	name := n.cfg.BucketName()
+	name := n.name
 	kv, err := js.KeyValue(ctx, name)
-	if errors.Is(err, jetstream.ErrBucketNotFound) && n.cfg.CreatesBucket() {
+	if errors.Is(err, jetstream.ErrBucketNotFound) && n.create {
 		kv, err = js.CreateKeyValue(ctx, jetstream.KeyValueConfig{
 			Bucket:      name,
 			Description: "Consul KV of the Consul-compatible API of Norca",
 			History:     1,
-			Replicas:    max(n.cfg.Replicas, 1),
+			Replicas:    n.replicas,
 		})
 		if errors.Is(err, jetstream.ErrBucketExists) {
 			kv, err = js.KeyValue(ctx, name)
@@ -139,7 +179,7 @@ func (n *natsKV) Get(r *request, key string, prefix bool) ([]*kvEntry, uint64, e
 	defer func() { _ = w.Stop() }()
 
 	live := make(map[string]jetstream.KeyValueEntry)
-	var index uint64
+	var index uint64 // the highest revision seen; the blocking index is index+1
 	var timeout <-chan time.Time
 	initial := true
 	for {
@@ -150,8 +190,16 @@ func (n *natsKV) Get(r *request, key string, prefix bool) ([]*kvEntry, uint64, e
 			}
 			if e == nil {
 				initial = false
-				if r.index == 0 || index > r.index {
-					return natsEntries(live, n.acl, obj), index, nil
+				if index == 0 {
+					// No matching key: the last sequence of the bucket.
+					if st, err := kv.Status(ctx); err == nil {
+						if bs, ok := st.(*jetstream.KeyValueBucketStatus); ok {
+							index = bs.StreamInfo().State.LastSeq
+						}
+					}
+				}
+				if r.index == 0 || index+1 > r.index {
+					return natsEntries(live, n.acl, obj), index + 1, nil
 				}
 				timer := time.NewTimer(r.wait)
 				defer timer.Stop()
@@ -169,10 +217,10 @@ func (n *natsKV) Get(r *request, key string, prefix bool) ([]*kvEntry, uint64, e
 				delete(live, k)
 			}
 			if !initial {
-				return natsEntries(live, n.acl, obj), index, nil
+				return natsEntries(live, n.acl, obj), index + 1, nil
 			}
 		case <-timeout:
-			return natsEntries(live, n.acl, obj), index, nil
+			return natsEntries(live, n.acl, obj), index + 1, nil
 		case <-ctx.Done():
 			return nil, 0, ctx.Err()
 		}
@@ -265,66 +313,17 @@ func isWrongLastSequence(err error) bool {
 func (n *natsKV) Close() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.nc != nil {
+	if n.nc != nil && !n.shared {
 		n.nc.Close()
-		n.nc, n.kv = nil, nil
 	}
+	n.nc, n.kv = nil, nil
 }
 
-// The keys of the Consul KV are mapped to NATS keys: the segments ("/")
-// become the tokens of the subject ("."), every byte but letters, digits,
-// "-" and "_" becomes "=XX" (its hexadecimal value) and an empty segment
-// becomes "=", so every key has a valid NATS key and the keys below a
-// directory are matched by "<directory>.>".
+// encodeNATSKey and decodeNATSKey map Consul keys to NATS keys and back
+// (helper/consulkv, shared with the backups of the servers).
+func encodeNATSKey(key string) string { return consulkv.EncodeKey(key) }
 
-func encodeNATSKey(key string) string {
-	segments := strings.Split(key, "/")
-	for i, seg := range segments {
-		if seg == "" {
-			segments[i] = "="
-			continue
-		}
-		var b strings.Builder
-		for j := 0; j < len(seg); j++ {
-			c := seg[j]
-			if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' {
-				b.WriteByte(c)
-			} else {
-				fmt.Fprintf(&b, "=%02X", c)
-			}
-		}
-		segments[i] = b.String()
-	}
-	return strings.Join(segments, ".")
-}
-
-func decodeNATSKey(k string) (string, error) {
-	tokens := strings.Split(k, ".")
-	for i, tok := range tokens {
-		if tok == "=" {
-			tokens[i] = ""
-			continue
-		}
-		var b strings.Builder
-		for j := 0; j < len(tok); j++ {
-			if tok[j] != '=' {
-				b.WriteByte(tok[j])
-				continue
-			}
-			if j+2 >= len(tok) {
-				return "", fmt.Errorf("invalid escape in %q", k)
-			}
-			v, err := strconv.ParseUint(tok[j+1:j+3], 16, 8)
-			if err != nil {
-				return "", fmt.Errorf("invalid escape in %q", k)
-			}
-			b.WriteByte(byte(v))
-			j += 2
-		}
-		tokens[i] = b.String()
-	}
-	return strings.Join(tokens, "/"), nil
-}
+func decodeNATSKey(k string) (string, error) { return consulkv.DecodeKey(k) }
 
 // natsFilter returns the subject filter of the watch of a key or a prefix:
 // the directory of the prefix and below; the prefix itself is matched on

@@ -33,6 +33,11 @@ const (
 	// DefaultEventsMaxAge and DefaultEventsMaxBytes bound the event stream.
 	DefaultEventsMaxAge   = 72 * time.Hour
 	DefaultEventsMaxBytes = 1 << 30
+
+	// PushStreamMaxBytes bounds the stream of the pack push notices, which
+	// runs with the events: push notices are small and only needed until
+	// the leader handled them.
+	PushStreamMaxBytes = 64 << 20
 )
 
 // Config is the configuration of the system bus of one server.
@@ -163,8 +168,11 @@ func (c *Config) Validate() error {
 		if c.Events.MaxAge < 0 || c.Events.MaxBytes < 0 {
 			errs = append(errs, fmt.Errorf("bus.events limits must not be negative"))
 		}
-		if c.Events.MaxBytes > c.MaxStorage {
-			errs = append(errs, fmt.Errorf("bus.events.max_bytes must fit into bus.max_storage"))
+		// JetStream reserves the limits of the streams: the event and push
+		// streams must leave room for the streams without a limit (the
+		// Consul KV bucket).
+		if c.Events.MaxBytes+PushStreamMaxBytes >= c.MaxStorage {
+			errs = append(errs, fmt.Errorf("bus.events.max_bytes and the %dMiB of the push notices must fit into bus.max_storage", PushStreamMaxBytes>>20))
 		}
 		if len(c.Events.Topics) == 0 {
 			errs = append(errs, fmt.Errorf("bus.events.topics must name at least one topic or \"*\""))

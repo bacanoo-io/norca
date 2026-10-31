@@ -76,6 +76,13 @@ Restore Options:
     restored if it does not exist; to overwrite an existing entry give its
     current modify index (shown by -dry-run). Can be given several times.
 
+  -consul-kv <key>[@<check-index>]
+    Restore a key of the Consul KV of the system bus. Without a check index
+    the key is only restored if it does not exist; to overwrite an existing
+    key give its current revision (shown by -dry-run). The Variables rules of
+    consul/kv/<key> in the namespace of -namespace (default "default") apply.
+    Can be given several times.
+
   -secret <path>[@<check-index>]
     Restore a secret of the built-in secret store: the items of one version
     of the secret in the backup (the version that was current at backup
@@ -127,6 +134,7 @@ func (c *OperatorBackupRestoreCommand) AutocompleteFlags() complete.Flags {
 			"-job":               complete.PredictAnything,
 			"-variable":          complete.PredictAnything,
 			"-secret":            complete.PredictAnything,
+			"-consul-kv":         complete.PredictAnything,
 			"-version":           complete.PredictAnything,
 			"-with-metadata":     complete.PredictNothing,
 			"-restore-namespace": complete.PredictAnything,
@@ -159,7 +167,7 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	var dryRun, json, full, withMetadata bool
 	var identityPath, destination, confirm string
 	var secretVersion int64
-	var jobs, variables, secrets, namespaces, policies, roles flaghelper.StringFlag
+	var jobs, variables, secrets, namespaces, policies, roles, consulKV flaghelper.StringFlag
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
@@ -169,6 +177,7 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	flags.Var(&jobs, "job", "")
 	flags.Var(&variables, "variable", "")
 	flags.Var(&secrets, "secret", "")
+	flags.Var(&consulKV, "consul-kv", "")
 	flags.Int64Var(&secretVersion, "version", -1, "")
 	flags.BoolVar(&withMetadata, "with-metadata", false, "")
 	flags.Var(&namespaces, "restore-namespace", "")
@@ -230,6 +239,14 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 			item.Version = pointer.Of(uint64(secretVersion))
 		}
 		items = append(items, item)
+	}
+	for _, k := range consulKV {
+		key, index, err := splitAt(k)
+		if err != nil {
+			c.Ui.Error(err.Error())
+			return 1
+		}
+		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemConsulKV, Namespace: namespace, ID: key, CheckIndex: index})
 	}
 	for _, n := range namespaces {
 		items = append(items, &api.BackupRestoreItem{Type: api.BackupRestoreItemNamespace, ID: n})

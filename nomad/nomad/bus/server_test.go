@@ -74,7 +74,7 @@ func testConfig(t *testing.T, name string) *Config {
 	t.Cleanup(func() { _ = os.RemoveAll(store) })
 	c.StoreDir = store
 	c.MaxMemory = 32 << 20
-	c.MaxStorage = 64 << 20
+	c.MaxStorage = 128 << 20
 	c.Events.MaxBytes = 16 << 20
 	return c
 }

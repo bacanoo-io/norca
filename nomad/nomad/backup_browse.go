@@ -4,6 +4,8 @@
 package nomad
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +16,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/nomad/acl"
+	"github.com/hashicorp/nomad/helper/consulkv"
 	"github.com/hashicorp/nomad/helper/snapshot"
 	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/state"
@@ -104,6 +107,40 @@ func (f *backupContentsFilter) secret(ns, path string) bool {
 
 func (f *backupContentsFilter) name(name string) bool {
 	return strings.HasPrefix(name, f.prefix)
+}
+
+// consulKV reports whether the caller may list a key of the Consul KV: the
+// Variables rules of its path below consul/kv in the namespace of the
+// request ("default" for all namespaces).
+func (f *backupContentsFilter) consulKV(key string) bool {
+	return strings.HasPrefix(key, f.prefix) &&
+		(f.aclObj == nil || f.aclObj.AllowVariableOperation(consulKVNamespace(f.namespace),
+			consulkv.ACLPath(consulkv.DefaultPath, key), acl.VariablesCapabilityList, nil))
+}
+
+// consulKVNamespace is the namespace whose Variables rules apply to the keys
+// of the Consul KV in backups: the one of the request, "default" without
+// one.
+func consulKVNamespace(ns string) string {
+	if ns == "" || ns == "*" {
+		return structs.DefaultNamespace
+	}
+	return ns
+}
+
+// consulKVStub summarizes a key of the Consul KV without its value.
+func consulKVStub(e *consulkv.Entry) *structs.BackupConsulKVStub {
+	sum := sha256.Sum256(e.Value)
+	return &structs.BackupConsulKVStub{
+		Key: e.Key, Size: len(e.Value), Revision: e.Revision, Created: e.Created,
+		SHA256: hex.EncodeToString(sum[:]),
+	}
+}
+
+// backupSide is one side of a diff: a state store and the Consul KV.
+type backupSide struct {
+	state    *state.StateStore
+	consulKV *consulkv.Export
 }
 
 // backupContents returns the objects of one content type of a backup.
@@ -268,6 +305,15 @@ func backupContents(loaded *backup.Loaded, contentType string, f *backupContents
 			}
 		}
 
+	case structs.BackupContentConsulKV:
+		if loaded.ConsulKV != nil {
+			for _, e := range loaded.ConsulKV.Entries {
+				if f.consulKV(e.Key) {
+					out.ConsulKV = append(out.ConsulKV, consulKVStub(e))
+				}
+			}
+		}
+
 	default:
 		return nil, structs.NewErrRPCCodedf(400, "unknown content type %q, must be one of %s",
 			contentType, strings.Join(structs.BackupContentTypes, ", "))
@@ -298,7 +344,8 @@ type backupDiffEntry struct {
 }
 
 // backupDiffEntries collects the comparable objects of a content type.
-func backupDiffEntries(store *state.StateStore, contentType string, f *backupContentsFilter) (map[string]*backupDiffEntry, error) {
+func backupDiffEntries(side backupSide, contentType string, f *backupContentsFilter) (map[string]*backupDiffEntry, error) {
+	store := side.state
 	ws := memdb.NewWatchSet()
 	out := make(map[string]*backupDiffEntry)
 	add := func(e *backupDiffEntry) {
@@ -306,6 +353,16 @@ func backupDiffEntries(store *state.StateStore, contentType string, f *backupCon
 	}
 
 	switch contentType {
+	case structs.BackupContentConsulKV:
+		// Keys are compared by the hash of their value: the revisions of
+		// a bucket are not comparable across backups.
+		if side.consulKV != nil {
+			for _, e := range side.consulKV.Entries {
+				if f.consulKV(e.Key) {
+					add(&backupDiffEntry{id: e.Key, status: "sha256:" + consulKVStub(e).SHA256[:12]})
+				}
+			}
+		}
 	case structs.BackupContentNamespaces:
 		iter, err := store.Namespaces(ws)
 		if err != nil {
@@ -423,7 +480,7 @@ func backupDiffEntries(store *state.StateStore, contentType string, f *backupCon
 
 // backupDiff compares two state stores: from is a backup, to the current
 // state or a newer backup. Without a content type all types are compared.
-func backupDiff(from, to *state.StateStore, contentType string, f *backupContentsFilter) ([]*structs.BackupObjectDiff, error) {
+func backupDiff(from, to backupSide, contentType string, f *backupContentsFilter) ([]*structs.BackupObjectDiff, error) {
 	types := structs.BackupContentTypes
 	if contentType != "" {
 		types = []string{contentType}

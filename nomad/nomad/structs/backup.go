@@ -53,6 +53,10 @@ const (
 	// core, written next to the keyring object and encrypted the same way,
 	// so a restore can re-wrap it with the seals of the target region.
 	BackupObjectSecretStoreKey = "secret_store_key"
+
+	// BackupObjectConsulKV (Norca) is the key-value bucket of the Consul KV
+	// on the system bus, exported as JSON and encrypted like the state.
+	BackupObjectConsulKV = "consul_kv"
 )
 
 // Content types of a backup that can be browsed and compared.
@@ -69,6 +73,10 @@ const (
 	// BackupContentSecrets are the secrets of the built-in secret store:
 	// paths, metadata and value hashes, never values.
 	BackupContentSecrets = "secrets"
+
+	// BackupContentConsulKV are the keys of the Consul KV bucket of the
+	// system bus (Norca): keys, sizes and value hashes, never values.
+	BackupContentConsulKV = "consul-kv"
 )
 
 // BackupContentTypes are the content types in display order.
@@ -82,6 +90,7 @@ var BackupContentTypes = []string{
 	BackupContentACLRoles,
 	BackupContentDeployments,
 	BackupContentAllocations,
+	BackupContentConsulKV,
 }
 
 // Restore modes, statuses and item types.
@@ -105,6 +114,10 @@ const (
 	BackupRestoreItemACLPolicy = "acl-policy"
 	BackupRestoreItemACLRole   = "acl-role"
 	BackupRestoreItemSecret    = "secret"
+
+	// BackupRestoreItemConsulKV is a key of the Consul KV bucket of the
+	// system bus (Norca).
+	BackupRestoreItemConsulKV = "consul-kv"
 )
 
 // BackupRecord describes a backup of the Raft state (and the keyring) of a
@@ -435,6 +448,18 @@ type BackupContents struct {
 	ACLRoles    []*ACLRoleListStub
 	Deployments []*Deployment
 	Allocations []*AllocListStub
+	ConsulKV    []*BackupConsulKVStub
+}
+
+// BackupConsulKVStub is a key of the Consul KV in a backup (Norca).
+type BackupConsulKVStub struct {
+	Key      string
+	Size     int
+	Revision uint64
+	Created  time.Time
+
+	// SHA256 is the hash of the value; the value itself is not returned.
+	SHA256 string
 }
 
 // BackupJobStub summarizes a job and its versions in a backup.

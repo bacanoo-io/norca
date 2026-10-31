@@ -416,18 +416,23 @@ func (b *Backup) Diff(args *structs.BackupDiffRequest, reply *structs.BackupDiff
 	}
 
 	diff := &structs.BackupDiff{From: from.Record.ID, FromIndex: from.Record.RaftIndex}
-	var to *state.StateStore
+	var to backupSide
 	switch args.Against {
 	case "", "current":
-		to = b.srv.fsm.State()
+		to.state = b.srv.fsm.State()
+		if args.Type == "" || args.Type == structs.BackupContentConsulKV {
+			if to.consulKV, err = b.srv.exportConsulKV(ctx); err != nil {
+				return fmt.Errorf("failed to read the current Consul KV: %w", err)
+			}
+		}
 		diff.To = "current"
-		diff.ToIndex, _ = to.LatestIndex()
+		diff.ToIndex, _ = to.state.LatestIndex()
 	default:
 		other, err := b.load(ctx, args.Against, args.Destination, args.AgeIdentity)
 		if err != nil {
 			return err
 		}
-		to = other.State
+		to = backupSide{state: other.State, consulKV: other.ConsulKV}
 		diff.To = other.Record.ID
 		diff.ToIndex = other.Record.RaftIndex
 	}
@@ -437,7 +442,7 @@ func (b *Backup) Diff(args *structs.BackupDiffRequest, reply *structs.BackupDiff
 		namespace: args.RequestNamespace(),
 		jobID:     args.JobID,
 	}
-	diff.Objects, err = backupDiff(from.State, to, args.Type, filter)
+	diff.Objects, err = backupDiff(backupSide{state: from.State, consulKV: from.ConsulKV}, to, args.Type, filter)
 	if err != nil {
 		return err
 	}
@@ -448,7 +453,7 @@ func (b *Backup) Diff(args *structs.BackupDiffRequest, reply *structs.BackupDiff
 		if err != nil {
 			return err
 		}
-		toJob, err := to.JobByID(nil, args.RequestNamespace(), args.JobID)
+		toJob, err := to.state.JobByID(nil, args.RequestNamespace(), args.JobID)
 		if err != nil {
 			return err
 		}

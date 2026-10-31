@@ -169,6 +169,10 @@ func TestServerErr(t testing.T, cb func(*Config)) (*Server, func(), error) {
 			Port: ports[0],
 		}
 		config.SerfConfig.MemberlistConfig.BindPort = ports[1]
+		if config.Bus != nil && config.Bus.Enabled {
+			busPorts := ci.PortAllocator.Grab(2)
+			config.Bus.Port, config.Bus.ClusterPort = busPorts[0], busPorts[1]
+		}
 	}
 
 	return nil, nil, fmt.Errorf("error starting test server: %w", err)

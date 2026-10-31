@@ -15,7 +15,7 @@ import (
 var backupContentTypes = []string{
 	api.BackupContentNamespaces, api.BackupContentJobs, api.BackupContentJobVersions,
 	api.BackupContentVariables, api.BackupContentSecrets, api.BackupContentACLPolicies, api.BackupContentACLRoles,
-	api.BackupContentDeployments, api.BackupContentAllocations,
+	api.BackupContentDeployments, api.BackupContentAllocations, api.BackupContentConsulKV,
 }
 
 type OperatorBackupContentsCommand struct {
@@ -221,6 +221,12 @@ func formatBackupContents(c *api.BackupContents) []string {
 		for _, d := range c.Deployments {
 			out = append(out, fmt.Sprintf("%s|%s|%s|%d|%s|%s",
 				d.ID, d.Namespace, d.JobID, d.JobVersion, d.Status, d.StatusDescription))
+		}
+	case api.BackupContentConsulKV:
+		out = append(out, "Key|Size|Revision|Value Hash|Created")
+		for _, e := range c.ConsulKV {
+			out = append(out, fmt.Sprintf("%s|%d|%d|%s|%s",
+				e.Key, e.Size, e.Revision, limit(e.SHA256, 12), formatTime(e.Created)))
 		}
 	case api.BackupContentAllocations:
 		out = append(out, "ID|Namespace|Job ID|Job Version|Task Group|Node ID|Desired|Status|Modified")

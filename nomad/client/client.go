@@ -172,7 +172,10 @@ type Client struct {
 
 	// tlsWrap is used to wrap outbound connections using TLS. It should be
 	// accessed using the lock.
-	tlsWrap     tlsutil.RegionWrapper
+	tlsWrap tlsutil.RegionWrapper
+
+	// bus is the connection to the system bus of the servers (Norca).
+	bus         busClient
 	tlsWrapLock sync.RWMutex
 
 	// servers is the list of nomad servers
@@ -894,6 +897,7 @@ func (c *Client) Shutdown() error {
 
 	// Stop the built-in DNS server (Norca).
 	c.shutdownDiscovery()
+	c.shutdownBus()
 
 	// Stop the Vault-compatible endpoint (Norca).
 	if c.vaultCompat != nil {
@@ -2150,6 +2154,9 @@ func (c *Client) handleNodeUpdateResponse(resp structs.NodeUpdateResponse) error
 
 	// Start or stop the task group usage reports of the built-in autoscaler.
 	c.taskGroupUsage.setInterval(resp.TaskGroupUsageInterval, time.Now())
+
+	// The bus addresses of the servers, for the system bus connection.
+	c.setBusServers(resp.Servers)
 
 	// Convert []*NodeServerInfo to []*servers.Server
 	nomadServers := make([]*servers.Server, 0, len(resp.Servers))

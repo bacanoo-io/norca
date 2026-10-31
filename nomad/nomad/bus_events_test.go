@@ -36,7 +36,7 @@ func busJS(t *testing.T, s *Server) jetstream.JetStream {
 func lastJobEvent(t *testing.T, js jetstream.JetStream, jobID string) *jetstream.RawStreamMsg {
 	t.Helper()
 	var msg *jetstream.RawStreamMsg
-	testutil.WaitForResult(func() (bool, error) {
+	waitBus(t, func() (bool, error) {
 		stream, err := js.Stream(t.Context(), bus.EventStreamName("global"))
 		if err != nil {
 			return false, err
@@ -50,7 +50,7 @@ func lastJobEvent(t *testing.T, js jetstream.JetStream, jobID string) *jetstream
 		}
 		msg = m
 		return true, nil
-	}, func(err error) { t.Fatal(err) })
+	})
 	return msg
 }
 
@@ -199,7 +199,7 @@ func TestBusEvents_PushNotice(t *testing.T) {
 	must.ErrorContains(t, notify(&PackPushNoticeRequest{}), "needs a Source or a Registry")
 	must.NoError(t, notify(&PackPushNoticeRequest{Source: "builtin/", Pack: "redis"}))
 
-	testutil.WaitForResult(func() (bool, error) {
+	waitBus(t, func() (bool, error) {
 		var out PackRegistryListResponse
 		if err := msgpackrpc.CallWithCodec(codec, "Packs.List", &PackRegistryListRequest{
 			QueryOptions: structs.QueryOptions{Region: "global"},
@@ -212,5 +212,5 @@ func TestBusEvents_PushNotice(t *testing.T) {
 			}
 		}
 		return false, fmt.Errorf("the registry was not synced on the push notice")
-	}, func(err error) { t.Fatal(err) })
+	})
 }

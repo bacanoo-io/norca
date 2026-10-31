@@ -191,7 +191,7 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 		return &bus.Grant{
 			Kind:    bus.KindNode,
 			Name:    node.ID,
-			Publish: []string{busTelemetrySubject(s.config.Region, node.ID)},
+			Publish: append([]string{busTelemetrySubject(s.config.Region, node.ID)}, bus.ConsulKVSubjects()...),
 		}, nil
 	}
 
