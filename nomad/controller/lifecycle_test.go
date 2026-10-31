@@ -4,7 +4,9 @@
 package controller_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -92,10 +94,18 @@ func TestLifecycle_OwnersAndAdoption(t *testing.T) {
 	must.True(t, ok)
 	must.Eq(t, owner.Key, key)
 
-	// The owner kind disambiguates kinds whose groups map to the same path.
+	// Groups differing only in dots and dashes have distinct owner
+	// references, even without the owner kind.
 	other := controller.Kind{Group: "example-com", Kind: widgetKind.Kind}
 	_, ok = controller.OwnerFromMeta(other, job.Meta)
 	must.False(t, ok)
+	otherOwner := &controller.Object{Kind: other, Key: owner.Key}
+	must.NotEq(t, controller.OwnerRef(owner), controller.OwnerRef(otherOwner))
+	delete(job.Meta, controller.OwnerKindMetaKey)
+	_, ok = controller.OwnerFromMeta(other, job.Meta)
+	must.False(t, ok)
+	must.False(t, controller.IsOwnedBy(job.Meta, otherOwner))
+	controller.SetOwner(job, owner)
 
 	// Objects owned by objects.
 	child := &controller.Object{Kind: widgetKind, Key: controller.ObjectKey{Namespace: "default", Name: "c"}}
@@ -119,6 +129,52 @@ func TestLifecycle_OwnersAndAdoption(t *testing.T) {
 	must.Len(t, 2, owned)
 	must.True(t, controller.IsOwnedBy(b.GetJob("default", "legacy").Meta, owner))
 	must.False(t, controller.IsOwnedBy(b.GetJob("default", "unrelated").Meta, owner))
+}
+
+// The objects of kinds whose groups differ only in dots and dashes are
+// stored in distinct Variables and don't overwrite each other.
+func TestObjects_GroupPathsDoNotCollide(t *testing.T) {
+	b := fake.New()
+	ctx := context.Background()
+	key := controller.ObjectKey{Namespace: "default", Name: "a"}
+
+	dotted, err := controller.NewObjects(controller.Kind{Group: "db.example.com", Kind: "Cluster"}, b)
+	must.NoError(t, err)
+	dashed, err := controller.NewObjects(controller.Kind{Group: "db-example-com", Kind: "Cluster"}, b)
+	must.NoError(t, err)
+
+	_, err = dotted.Create(ctx, &controller.Object{Key: key, Spec: []byte(`{"v":"dotted"}`)})
+	must.NoError(t, err)
+	_, err = dashed.Create(ctx, &controller.Object{Key: key, Spec: []byte(`{"v":"dashed"}`)})
+	must.NoError(t, err)
+
+	for want, objects := range map[string]*controller.Objects{"dotted": dotted, "dashed": dashed} {
+		list, _, err := objects.List(ctx, "default")
+		must.NoError(t, err)
+		must.Len(t, 1, list)
+		must.Eq(t, `{"v":"`+want+`"}`, string(list[0].Spec))
+	}
+}
+
+// List skips invalid objects and logs them.
+func TestObjects_ListLogsInvalid(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	b := fake.New()
+	putWidget(b, "default", "good", `{"size":1}`)
+	putWidget(b, "default", "bad", `{not json`)
+	objects, err := controller.NewObjects(widgetKind, b)
+	must.NoError(t, err)
+
+	list, _, err := objects.List(context.Background(), "default")
+	must.NoError(t, err)
+	must.Len(t, 1, list)
+	must.Eq(t, "good", list[0].Key.Name)
+	must.StrContains(t, buf.String(), "ignoring invalid object")
+	must.StrContains(t, buf.String(), "default/bad")
 }
 
 func TestLifecycle_ManagedByFromEnv(t *testing.T) {

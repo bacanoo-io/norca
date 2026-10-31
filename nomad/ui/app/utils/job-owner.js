@@ -8,7 +8,7 @@
 // (norca.owner, norca.owner.kind). Jobs with an owner are changed through
 // their owner; a manual change is overwritten at the next reconcile.
 //
-// norca.owner holds "<namespace>/crd/<group with dashes>/<Kind>/<name>"
+// norca.owner holds "<namespace>/crd/<path group>/<Kind>/<name>"
 // (structs.ObjectOwnerMetaValue) and norca.owner.kind the "group/Kind" of
 // the owner, which the link to the object needs (the dashed group can't be
 // turned back into the group).

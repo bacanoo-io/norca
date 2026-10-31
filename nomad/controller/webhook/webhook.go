@@ -254,16 +254,33 @@ func ListenAndServeTLS(ctx context.Context, addr, certFile, keyFile string, h ht
 	return Serve(ctx, tls.NewListener(ln, &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}), h)
 }
 
-// Serve serves the handler on the listener until ctx is done.
+// Serve serves the handler on the listener until ctx is done. When ctx is
+// done it waits (up to 5 seconds) for the requests in progress to finish.
 func Serve(ctx context.Context, ln net.Listener, h http.Handler) error {
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	// white room bugfix: the shutdown goroutine waited for ctx only, so it
+	// leaked when serving failed (until ctx was done, forever with a
+	// background context), and Serve returned as soon as the shutdown
+	// started, before the requests in progress had finished.
+	stop := make(chan struct{})
+	shutdownDone := make(chan struct{})
 	go func() {
-		<-ctx.Done()
+		defer close(shutdownDone)
+		select {
+		case <-ctx.Done():
+		case <-stop:
+			return
+		}
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutdownCtx)
 	}()
-	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	err := srv.Serve(ln)
+	close(stop)
+	<-shutdownDone
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		// The connections accepted before the failure are still served.
+		_ = srv.Close()
 		return err
 	}
 	return nil

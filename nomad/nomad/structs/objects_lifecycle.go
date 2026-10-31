@@ -44,8 +44,9 @@ const (
 	ObjectOwnerKindJob = "Job"
 
 	// JobMetaOwner is the reserved job meta key holding the owner reference
-	// of a job created by a controller: "<namespace>/crd/<group with dots
-	// replaced by dashes>/<Kind>/<name>" (the form of the controller SDK).
+	// of a job created by a controller: "<namespace>/crd/<path form of the
+	// group>/<Kind>/<name>" (the form of the controller SDK; see
+	// ObjectPathGroup).
 	// JobMetaOwnerKind optionally holds the "group/Kind" reference of the
 	// owner, which the dashed group can't always be mapped back to.
 	JobMetaOwner     = "norca.owner"
@@ -447,10 +448,24 @@ func NewObjectManagedError(what, managedBy string) error {
 	return NewErrRPCCodedf(403, "%s is managed by %q; only that identity may modify it", what, managedBy)
 }
 
+// objectPathGroupReplacer maps a group to its path form (ObjectPathGroup).
+var objectPathGroupReplacer = strings.NewReplacer("-", "--", ".", "-")
+
+// ObjectPathGroup returns the group as written in Variables paths and owner
+// references (controller.Kind.PathGroup): dashes are doubled and dots are
+// replaced with dashes. Since the labels of a valid group neither start nor
+// end with a dash, distinct groups have distinct path forms.
+//
+// white room bugfix: dots were replaced with dashes without escaping the
+// dashes, so the owner references of objects of groups like
+// "db.example.com" and "db-example-com" were the same, and without the
+// owner kind meta the garbage collector stopped the jobs of the other kind.
+func ObjectPathGroup(group string) string { return objectPathGroupReplacer.Replace(group) }
+
 // ObjectOwnerMetaValue returns the JobMetaOwner value referencing an
 // object.
 func ObjectOwnerMetaValue(group, kind, namespace, name string) string {
-	return namespace + "/crd/" + strings.ReplaceAll(group, ".", "-") + "/" + kind + "/" + name
+	return namespace + "/crd/" + ObjectPathGroup(group) + "/" + kind + "/" + name
 }
 
 // JobOwnedBy reports whether the meta of a job references the object as its

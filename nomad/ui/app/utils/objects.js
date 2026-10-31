@@ -128,15 +128,17 @@ export function deleteKind(token, region, group, kind) {
 }
 
 // The job meta of jobs owned by an object (the reserved owner key, see
-// structs.ObjectOwnerMetaValue): "<namespace>/crd/<group with dashes>/<Kind>/<name>".
+// structs.ObjectOwnerMetaValue): "<namespace>/crd/<path group>/<Kind>/<name>",
+// where the path group has its dashes doubled and its dots replaced with
+// dashes (structs.ObjectPathGroup).
 export const JOB_META_OWNER = 'norca.owner';
 export const JOB_META_OWNER_KIND = 'norca.owner.kind';
 
 export function ownerMetaValue({ group, kind, namespace, name }) {
-  return `${namespace || ''}/crd/${String(group).replace(
-    /\./g,
-    '-'
-  )}/${kind}/${name}`;
+  // white room bugfix: the dashes of the group were not escaped, so groups
+  // like "db.example.com" and "db-example-com" had the same owner value.
+  const pathGroup = String(group).replace(/-/g, '--').replace(/\./g, '-');
+  return `${namespace || ''}/crd/${pathGroup}/${kind}/${name}`;
 }
 
 // The jobs an object owns, by the owner reference in their meta.

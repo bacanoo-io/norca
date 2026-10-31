@@ -166,6 +166,28 @@ func TestNativeController_ReconcileLifecycle(t *testing.T) {
 	waitFor(t, "job deleted", func() bool { return b.GetJob("default", "widget-a") == nil })
 }
 
+// The recorder of a controller forgets deleted objects, so the first event
+// of an object re-created with the same name is recorded.
+func TestNativeController_RecorderForgetsDeleted(t *testing.T) {
+	b := fake.New()
+	key := controller.ObjectKey{Namespace: "default", Name: "a"}
+	putNativeWidget(b, "default", "a", map[string]any{"size": 1})
+	c, _ := startController(t, b, controller.Options{Storage: controller.StorageNative})
+	waitFor(t, "object cached", func() bool { _, ok := c.Get(key); return ok })
+
+	ctx := context.Background()
+	c.Recorder().Event(ctx, key, controller.EventTypeNormal, "Created", "ok")
+	must.Eq(t, 1, b.Calls("RecordObjectEvents"))
+
+	b.RemoveObject(widgetKind, "default", "a")
+	waitFor(t, "object removed", func() bool { _, ok := c.Get(key); return !ok })
+	putNativeWidget(b, "default", "a", map[string]any{"size": 1})
+	waitFor(t, "object re-created", func() bool { _, ok := c.Get(key); return ok })
+
+	c.Recorder().Event(ctx, key, controller.EventTypeNormal, "Created", "ok")
+	must.Eq(t, 2, b.Calls("RecordObjectEvents"))
+}
+
 func TestNativeObjects_Concurrency(t *testing.T) {
 	b := fake.New()
 	objects, err := controller.NewNativeObjects(widgetKind, b)

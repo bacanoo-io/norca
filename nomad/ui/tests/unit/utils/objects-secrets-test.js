@@ -44,6 +44,17 @@ module('Unit | Utility | objects and secrets', function () {
       value,
       'prod/crd/db-example-com/PostgresCluster/billing'
     );
+    // The dashes of a group are doubled, so groups differing only in dots
+    // and dashes have distinct owner values.
+    assert.strictEqual(
+      ownerMetaValue({
+        group: 'db-example.com',
+        kind: 'PostgresCluster',
+        namespace: 'prod',
+        name: 'billing',
+      }),
+      'prod/crd/db--example-com/PostgresCluster/billing'
+    );
     assert.deepEqual(
       parseObjectOwner(value, 'db.example.com/PostgresCluster'),
       {

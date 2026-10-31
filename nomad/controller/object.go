@@ -20,6 +20,9 @@ import (
 )
 
 const (
+	// maxGroupLength is the maximum length of a group (a DNS subdomain).
+	maxGroupLength = 253
+
 	// PathRoot is the first segment of the Variables path of every custom
 	// object.
 	PathRoot = "crd"
@@ -33,19 +36,27 @@ const (
 )
 
 var (
-	groupRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
+	// white room bugfix: the group rule allowed empty labels and labels
+	// starting or ending with a dash ("a..b", "a.-b"), which made the path
+	// form of groups ambiguous. It is now the rule of the server: a lower
+	// case DNS subdomain.
+	groupRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)
 	kindRe  = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 	nameRe  = regexp.MustCompile(`^[A-Za-z0-9_~-]+$`)
 
 	// nativeNameRe is the rule of the server for native object names.
 	nativeNameRe = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,126}[a-zA-Z0-9])?$`)
+
+	// pathGroupReplacer maps a group to its path form (see PathGroup).
+	pathGroupReplacer = strings.NewReplacer("-", "--", ".", "-")
 )
 
 // Kind identifies a custom object type, for example
 // Kind{Group: "db.example.com", Kind: "PostgresCluster"}.
 type Kind struct {
-	// Group is the API group in domain form; dots are allowed here and are
-	// replaced with dashes in Variables paths.
+	// Group is the API group in domain form (a lower case DNS subdomain);
+	// dots are allowed here and are replaced with dashes in Variables paths
+	// (see PathGroup).
 	Group string
 
 	// Kind is the type name, conventionally in CamelCase.
@@ -57,8 +68,8 @@ func (k Kind) String() string { return k.Group + "/" + k.Kind }
 
 // Validate checks that the kind can be mapped to Variables paths.
 func (k Kind) Validate() error {
-	if !groupRe.MatchString(k.Group) {
-		return fmt.Errorf("invalid group %q: only lowercase letters, digits, dots and dashes are allowed", k.Group)
+	if len(k.Group) > maxGroupLength || !groupRe.MatchString(k.Group) {
+		return fmt.Errorf("invalid group %q: must be a lower case DNS subdomain", k.Group)
 	}
 	if !kindRe.MatchString(k.Kind) {
 		return fmt.Errorf("invalid kind %q: must start with a letter and contain only letters, digits, '_' and '-'", k.Kind)
@@ -66,9 +77,16 @@ func (k Kind) Validate() error {
 	return nil
 }
 
-// PathGroup returns the group as written in Variables paths: dots are
-// replaced with dashes ("db.example.com" -> "db-example-com").
-func (k Kind) PathGroup() string { return strings.ReplaceAll(k.Group, ".", "-") }
+// PathGroup returns the group as written in Variables paths (Variables
+// paths can't contain dots): dashes are doubled and dots are replaced with
+// dashes ("db.example.com" -> "db-example-com", "my-db.example.com" ->
+// "my--db-example-com"). Since the labels of a valid group neither start
+// nor end with a dash, distinct groups have distinct path forms.
+//
+// white room bugfix: dots were replaced with dashes without escaping the
+// dashes, so groups like "db.example.com" and "db-example-com" mapped to
+// the same Variables paths, and their objects overwrote each other.
+func (k Kind) PathGroup() string { return pathGroupReplacer.Replace(k.Group) }
 
 // Prefix returns the Variables path prefix of the objects of the kind,
 // including the trailing slash.
