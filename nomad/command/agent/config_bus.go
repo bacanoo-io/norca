@@ -245,6 +245,47 @@ func (b *BusConfig) toServerConfig(ports *Ports) (*bus.Config, error) {
 	return cfg, nil
 }
 
+// ClientUsageConfig is the client's usage block: whether the client reports
+// the usage of its task groups (for the built-in autoscaler and the metrics
+// store of the servers) when the servers ask for it.
+//
+//	usage {
+//	  enabled = true
+//	}
+type ClientUsageConfig struct {
+	Enabled *bool `hcl:"enabled"`
+
+	// ExtraKeysHCL is used by hcl to surface unexpected keys
+	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
+}
+
+// IsEnabled reports whether the client reports usage; true by default.
+func (c *ClientUsageConfig) IsEnabled() bool {
+	return c == nil || c.Enabled == nil || *c.Enabled
+}
+
+func (c *ClientUsageConfig) Copy() *ClientUsageConfig {
+	if c == nil {
+		return nil
+	}
+	nc := *c
+	nc.Enabled = pointer.Copy(c.Enabled)
+	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
+	return &nc
+}
+
+// Merge merges b into a copy of a.
+func (a *ClientUsageConfig) Merge(b *ClientUsageConfig) *ClientUsageConfig {
+	if a == nil {
+		return b.Copy()
+	}
+	result := a.Copy()
+	if b != nil && b.Enabled != nil {
+		result.Enabled = pointer.Copy(b.Enabled)
+	}
+	return result
+}
+
 // ClientBusConfig is the client's bus block: whether the client connects to
 // the system bus of the servers (with its node secret) for the features
 // that use it, such as the Consul KV of consul_compat.

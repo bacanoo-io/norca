@@ -170,3 +170,28 @@ func TestConfig_ClientBus(t *testing.T) {
 	_, err = ParseConfigFile(path)
 	must.ErrorContains(t, err, "url")
 }
+
+func TestConfig_ClientUsage(t *testing.T) {
+	ci.Parallel(t)
+
+	// The client reports usage by default; enabled = false turns it off.
+	var none *ClientUsageConfig
+	must.True(t, none.IsEnabled())
+
+	path := filepath.Join(t.TempDir(), "client.hcl")
+	must.NoError(t, os.WriteFile(path, []byte(`client {
+  enabled = true
+  usage {
+    enabled = false
+  }
+}`), 0o600))
+	parsed, err := ParseConfigFile(path)
+	must.NoError(t, err)
+	c := DefaultConfig().Merge(parsed)
+	must.False(t, c.Client.Usage.IsEnabled())
+	must.True(t, c.Client.Usage.Merge(&ClientUsageConfig{Enabled: pointer.Of(true)}).IsEnabled())
+
+	must.NoError(t, os.WriteFile(path, []byte(`client { usage { interval = "5s" } }`), 0o600))
+	_, err = ParseConfigFile(path)
+	must.ErrorContains(t, err, "interval")
+}
