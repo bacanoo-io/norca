@@ -10,6 +10,7 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
@@ -32,7 +33,11 @@ type Watcher struct {
 	state *state.StateStore
 
 	// watchers is the set of active watchers, one per volume
-	watchers map[string]*volumeWatcher
+	//
+	// white room bugfix: the key was vol.ID+vol.Namespace, so volume "vol"
+	// in namespace "default" and volume "voldef" in namespace "ault"
+	// shared one watcher (volume IDs are free-form)
+	watchers map[structs.NamespacedID]*volumeWatcher
 
 	// ctx and exitFn are used to cancel the watcher
 	ctx    context.Context
@@ -86,38 +91,56 @@ func (w *Watcher) SetEnabled(enabled bool, state *state.StateStore, leaderAcl st
 	w.flush(enabled)
 
 	// If we are starting now, launch the watch daemon
+	//
+	// white room bugfix: the daemon read w.state without the lock, racing
+	// with the write above when a daemon from the previous leadership term
+	// had not yet seen its context cancelled; it now gets its state store
 	if enabled && !wasEnabled {
-		go w.watchVolumes(w.ctx)
+		go w.watchVolumes(w.ctx, w.state)
 	}
 }
 
 // flush is used to clear the state of the watcher
 func (w *Watcher) flush(enabled bool) {
-	// Stop all the watchers and clear it
-	for _, watcher := range w.watchers {
-		watcher.Stop()
-	}
-
-	// Kill everything associated with the watcher
+	// Kill everything associated with the watcher; cancelling the context
+	// stops all the volume watchers
 	if w.exitFn != nil {
 		w.exitFn()
 	}
 
-	w.watchers = make(map[string]*volumeWatcher, 32)
+	w.watchers = make(map[structs.NamespacedID]*volumeWatcher, 32)
 	w.ctx, w.exitFn = context.WithCancel(context.Background())
 }
 
+// getVolumesRetryInterval is how long watchVolumes waits after a failed
+// query of the volumes
+const getVolumesRetryInterval = time.Second
+
 // watchVolumes is the long lived go-routine that watches for volumes to
 // add and remove watchers on.
-func (w *Watcher) watchVolumes(ctx context.Context) {
+func (w *Watcher) watchVolumes(ctx context.Context, state *state.StateStore) {
 	vIndex := uint64(1)
 	for {
-		volumes, idx, err := w.getVolumes(ctx, vIndex)
+		volumes, idx, err := w.getVolumes(ctx, state, vIndex)
 		if err != nil {
 			if err == context.Canceled {
 				return
 			}
 			w.logger.Error("failed to retrieve volumes", "error", err)
+
+			// white room bugfix: on error the loop retried at once and
+			// reset the index to 0, which makes the next query
+			// non-blocking, so a persistent error spun the CPU and
+			// flooded the log. Wait and keep the last-seen index
+			timer, stop := helper.NewSafeTimer(getVolumesRetryInterval)
+			select {
+			case <-ctx.Done():
+				stop()
+				return
+			case <-timer.C:
+			}
+			stop()
+			continue
 		}
 
 		vIndex = idx // last-seen index
@@ -131,8 +154,8 @@ func (w *Watcher) watchVolumes(ctx context.Context) {
 }
 
 // getVolumes retrieves all volumes blocking at the given index.
-func (w *Watcher) getVolumes(ctx context.Context, minIndex uint64) ([]*structs.CSIVolume, uint64, error) {
-	resp, index, err := w.state.BlockingQuery(w.getVolumesImpl, minIndex, ctx)
+func (w *Watcher) getVolumes(ctx context.Context, state *state.StateStore, minIndex uint64) ([]*structs.CSIVolume, uint64, error) {
+	resp, index, err := state.BlockingQuery(w.getVolumesImpl, minIndex, ctx)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -183,14 +206,16 @@ func (w *Watcher) addLocked(v *structs.CSIVolume) (*volumeWatcher, error) {
 		return nil, nil
 	}
 
+	key := structs.NamespacedID{ID: v.ID, Namespace: v.Namespace}
+
 	// Already watched so trigger an update for the volume
-	if watcher, ok := w.watchers[v.ID+v.Namespace]; ok {
+	if watcher, ok := w.watchers[key]; ok {
 		watcher.Notify(v)
 		return nil, nil
 	}
 
 	watcher := newVolumeWatcher(w, v)
-	w.watchers[v.ID+v.Namespace] = watcher
+	w.watchers[key] = watcher
 
 	// Sending the first volume update here before we return ensures we've hit
 	// the run loop in the goroutine before freeing the lock. This prevents a
@@ -202,9 +227,26 @@ func (w *Watcher) addLocked(v *structs.CSIVolume) (*volumeWatcher, error) {
 	return watcher, nil
 }
 
-// removes a volume from the watch list
-func (w *Watcher) remove(volID string) {
+// remove is called by a volume watcher's goroutine that wants to exit. It
+// removes the watcher from the watch list and reports whether the goroutine
+// may exit, which it may not if an update was queued for it.
+//
+// white room bugfix: remove deleted whatever watcher was stored under the
+// key, so a goroutine of the previous leadership term that returned late
+// from an RPC removed the new term's watcher for the same volume. It also
+// ran after the goroutine had stopped reading updateCh, so an update
+// queued in between was lost or started a second goroutine. Deciding under
+// wlock, which Notify is always called with, closes both gaps.
+func (w *Watcher) remove(key structs.NamespacedID, vw *volumeWatcher) bool {
 	w.wlock.Lock()
 	defer w.wlock.Unlock()
-	delete(w.watchers, volID)
+	if w.watchers[key] != vw {
+		// flushed or replaced, so nothing can notify this watcher anymore
+		return true
+	}
+	if len(vw.updateCh) > 0 {
+		return false
+	}
+	delete(w.watchers, key)
+	return true
 }

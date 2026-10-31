@@ -5,7 +5,6 @@ package volumewatcher
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	log "github.com/hashicorp/go-hclog"
@@ -31,11 +30,18 @@ type volumeWatcher struct {
 	// the ACL needed to send RPCs
 	leaderAcl string
 
-	logger      log.Logger
+	logger log.Logger
+
+	// white room bugfix: the own ctx and exitFn fields were never set
+	// and have been removed; the watcher is cancelled through shutdownCtx
 	shutdownCtx context.Context // parent context
-	ctx         context.Context // own context
-	exitFn      context.CancelFunc
-	deleteFn    func()
+
+	// white room bugfix: deleteFn removed the map entry unconditionally
+	// after the watch goroutine had already decided to exit, so it could
+	// remove a newer watcher (another leadership term) and raced with
+	// Notify. removeFn is called before exiting and reports whether the
+	// goroutine may exit (see Watcher.remove)
+	removeFn func() bool
 
 	// quiescentTimeout is the time we wait until the volume has "settled"
 	// before stopping the child watcher goroutines
@@ -43,9 +49,6 @@ type volumeWatcher struct {
 
 	// updateCh is triggered when there is an updated volume
 	updateCh chan *structs.CSIVolume
-
-	wLock   sync.RWMutex
-	running bool
 }
 
 // newVolumeWatcher returns a volume watcher that is used to watch
@@ -60,49 +63,38 @@ func newVolumeWatcher(parent *Watcher, vol *structs.CSIVolume) *volumeWatcher {
 		leaderAcl:        parent.leaderAcl,
 		logger:           parent.logger.With("volume_id", vol.ID, "namespace", vol.Namespace),
 		shutdownCtx:      parent.ctx,
-		deleteFn:         func() { parent.remove(vol.ID + vol.Namespace) },
 		quiescentTimeout: parent.quiescentTimeout,
 	}
+	key := structs.NamespacedID{ID: vol.ID, Namespace: vol.Namespace}
+	w.removeFn = func() bool { return parent.remove(key, w) }
 
-	// Start the long lived watcher that scans for allocation updates
-	w.Start()
+	// Start the long lived watcher that scans for allocation updates.
+	//
+	// white room bugfix: the running flag and the restart in Notify are
+	// gone. A watcher found in the parent's watch list now always has a
+	// live goroutine, because the goroutine leaves the list (under the
+	// parent's lock) before it exits. Before, Notify could start a second
+	// goroutine for a watcher whose first goroutine was about to remove
+	// it from the list, leaving an untracked goroutine behind
+	w.logger.Trace("starting watcher")
+	go w.watch()
 	return w
 }
 
-// Notify signals an update to the tracked volume.
+// Notify signals an update to the tracked volume. It is called with the
+// parent's lock held, so it must not block.
 func (vw *volumeWatcher) Notify(v *structs.CSIVolume) {
-	if !vw.isRunning() {
-		vw.Start()
-	}
+	// white room bugfix: this was a blocking send. While the watch
+	// goroutine was in a slow Unpublish RPC with an update already queued,
+	// it blocked with the parent's lock held, stalling every other volume
+	// and the leader step-down (SetEnabled needs the lock to cancel
+	// shutdownCtx). If the goroutine was instead exiting it waited for
+	// the same lock in deleteFn, a deadlock. updateCh only wakes the
+	// goroutine (it re-reads the volume from the state store), so an
+	// update that is already queued covers this one.
 	select {
 	case vw.updateCh <- v:
-	case <-vw.shutdownCtx.Done(): // prevent deadlock if we stopped
-	}
-}
-
-func (vw *volumeWatcher) Start() {
-	vw.logger.Trace("starting watcher")
-	vw.wLock.Lock()
-	defer vw.wLock.Unlock()
-	vw.running = true
-	go vw.watch()
-}
-
-func (vw *volumeWatcher) Stop() {
-	vw.logger.Trace("no more claims")
-	vw.wLock.Lock()
-	defer vw.wLock.Unlock()
-	vw.running = false
-}
-
-func (vw *volumeWatcher) isRunning() bool {
-	vw.wLock.RLock()
-	defer vw.wLock.RUnlock()
-	select {
-	case <-vw.shutdownCtx.Done():
-		return false
 	default:
-		return vw.running
 	}
 }
 
@@ -110,9 +102,6 @@ func (vw *volumeWatcher) isRunning() bool {
 // Each pass steps the volume's claims through the various states of reaping
 // until the volume has no more claims eligible to be reaped.
 func (vw *volumeWatcher) watch() {
-	defer vw.deleteFn()
-	defer vw.Stop()
-
 	timer, stop := helper.NewSafeTimer(vw.quiescentTimeout)
 	defer stop()
 
@@ -121,11 +110,15 @@ func (vw *volumeWatcher) watch() {
 		// TODO(tgross): currently server->client RPC have no cancellation
 		// context, so we can't stop the long-runner RPCs gracefully
 		case <-vw.shutdownCtx.Done():
+			// the parent has already flushed its watch list
 			return
 		case vol := <-vw.updateCh:
 			vol = vw.getVolume(vol)
 			if vol == nil {
-				return
+				if vw.removeFn() {
+					return
+				}
+				continue
 			}
 			vw.volumeReap(vol)
 			timer.Reset(vw.quiescentTimeout)
@@ -133,7 +126,10 @@ func (vw *volumeWatcher) watch() {
 			// Wait until the volume has "settled" before stopping this
 			// goroutine so that we can handle the burst of updates around
 			// freeing claims without having to spin it back up
-			return
+			if vw.removeFn() {
+				vw.logger.Trace("no more claims")
+				return
+			}
 		}
 	}
 }
@@ -141,9 +137,6 @@ func (vw *volumeWatcher) watch() {
 // getVolume returns the tracked volume, fully populated with the current
 // state
 func (vw *volumeWatcher) getVolume(vol *structs.CSIVolume) *structs.CSIVolume {
-	vw.wLock.RLock()
-	defer vw.wLock.RUnlock()
-
 	var err error
 	ws := memdb.NewWatchSet()
 
@@ -175,10 +168,6 @@ func (vw *volumeWatcher) volumeReap(vol *structs.CSIVolume) {
 	}
 }
 
-func (vw *volumeWatcher) isUnclaimed(vol *structs.CSIVolume) bool {
-	return len(vol.ReadClaims) == 0 && len(vol.WriteClaims) == 0 && len(vol.PastClaims) == 0
-}
-
 // volumeReapImpl unpublished all the volume's PastClaims. PastClaims
 // will be populated from nil or terminal allocs when we call
 // CSIVolumeDenormalize(), so this assumes we've done so in the caller
@@ -193,43 +182,9 @@ func (vw *volumeWatcher) volumeReapImpl(vol *structs.CSIVolume) error {
 	return result.ErrorOrNil()
 }
 
-func (vw *volumeWatcher) collectPastClaims(vol *structs.CSIVolume) *structs.CSIVolume {
-
-	collect := func(allocs map[string]*structs.Allocation,
-		claims map[string]*structs.CSIVolumeClaim) {
-
-		for allocID, alloc := range allocs {
-			if alloc == nil {
-				_, exists := vol.PastClaims[allocID]
-				if !exists {
-					vol.PastClaims[allocID] = &structs.CSIVolumeClaim{
-						AllocationID: allocID,
-						State:        structs.CSIVolumeClaimStateReadyToFree,
-					}
-				}
-			} else if alloc.Terminated() {
-				// don't overwrite the PastClaim if we've seen it before,
-				// so that we can track state between subsequent calls
-				_, exists := vol.PastClaims[allocID]
-				if !exists {
-					claim, ok := claims[allocID]
-					if !ok {
-						claim = &structs.CSIVolumeClaim{
-							AllocationID: allocID,
-							NodeID:       alloc.NodeID,
-						}
-					}
-					claim.State = structs.CSIVolumeClaimStateTaken
-					vol.PastClaims[allocID] = claim
-				}
-			}
-		}
-	}
-
-	collect(vol.ReadAllocs, vol.ReadClaims)
-	collect(vol.WriteAllocs, vol.WriteClaims)
-	return vol
-}
+// white room bugfix: the unused isUnclaimed and collectPastClaims were
+// removed; PastClaims are collected by the state store's
+// CSIVolumeDenormalize, which getVolume calls.
 
 func (vw *volumeWatcher) unpublish(vol *structs.CSIVolume, claim *structs.CSIVolumeClaim) error {
 	vw.logger.Trace("unpublishing volume", "alloc", claim.AllocationID)
