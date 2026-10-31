@@ -449,3 +449,54 @@ func TestManager_DirectoryNotShared(t *testing.T) {
 	must.ErrorIs(t, err, ErrNotFound)
 	must.StrNotContains(t, err.Error(), "shared storage")
 }
+
+// TestManager_LoadCacheHitDoesNotWait checks that a cached backup is served
+// while another backup is being loaded (white room bugfix).
+func TestManager_LoadCacheHitDoesNotWait(t *testing.T) {
+	ci.Parallel(t)
+	env := newTestEnv(t, 2048)
+	cfg, _ := env.dirTestConfig(t)
+	cfg.Destinations = cfg.Destinations[:1]
+	cfg.BrowseCacheTTL = time.Minute
+	m := New(cfg, env.deps)
+	m.SetLeader(true)
+	defer m.SetLeader(false)
+	first, err := m.Save(SaveOptions{})
+	must.NoError(t, err)
+	second, err := m.Save(SaveOptions{})
+	must.NoError(t, err)
+
+	restore := func(archive io.Reader) (*state.StateStore, error) {
+		_, err := io.ReadAll(archive)
+		return state.TestStateStore(t), err
+	}
+	cached, err := m.Load(t.Context(), first, "", env.identity.String(), restore)
+	must.NoError(t, err)
+
+	// The load of the second backup blocks in its restore.
+	started, release := make(chan struct{}), make(chan struct{})
+	loadDone := make(chan error, 1)
+	go func() {
+		_, err := m.Load(t.Context(), second, "", env.identity.String(), func(archive io.Reader) (*state.StateStore, error) {
+			close(started)
+			<-release
+			return restore(archive)
+		})
+		loadDone <- err
+	}()
+	<-started
+
+	hit := make(chan *Loaded, 1)
+	go func() {
+		ld, _ := m.Load(t.Context(), first, "", env.identity.String(), restore)
+		hit <- ld
+	}()
+	select {
+	case ld := <-hit:
+		must.True(t, ld == cached, must.Sprint("the cached backup is served"))
+	case <-time.After(5 * time.Second):
+		t.Fatal("a cache hit waited for the load of another backup")
+	}
+	close(release)
+	must.NoError(t, <-loadDone)
+}
