@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package scheduler
@@ -738,5 +739,37 @@ func TestSystemStack_Select_BinPack_Overflow(t *testing.T) {
 	// Should have two scores, one from bin packing and one from normalization
 	if len(met.ScoreMetaData) != 1 {
 		t.Fatalf("bad: %#v", met)
+	}
+}
+
+// TestStack_Select_NetworkResetBetweenGroups asserts that a group without a
+// network is not checked against the network of the group placed before it.
+func TestStack_Select_NetworkResetBetweenGroups(t *testing.T) {
+	ci.Parallel(t)
+
+	for _, name := range []string{"generic", "system"} {
+		t.Run(name, func(t *testing.T) {
+			_, ctx := testContext(t)
+
+			var stack Stack
+			if name == "generic" {
+				stack = NewGenericStack(false, ctx)
+			} else {
+				stack = NewSystemStack(false, ctx)
+			}
+			stack.SetNodes([]*structs.Node{mock.Node()}) // host network only
+
+			job := mock.Job()
+			cniGroup := job.TaskGroups[0]
+			cniGroup.Networks[0].Mode = "cni/mynet"
+			plainGroup := cniGroup.Copy()
+			plainGroup.Name = "plain"
+			plainGroup.Networks = nil
+			job.TaskGroups = append(job.TaskGroups, plainGroup)
+			stack.SetJob(job)
+
+			must.Nil(t, stack.Select(cniGroup, &SelectOptions{}))
+			must.NotNil(t, stack.Select(plainGroup, &SelectOptions{}))
+		})
 	}
 }
