@@ -7209,7 +7209,8 @@ func (s *StateStore) UpsertRootKeyMeta(index uint64, rootKeyMeta *structs.RootKe
 			if raw == nil {
 				break
 			}
-			key := raw.(*structs.RootKeyMeta)
+			// A copy: the stored object may be read concurrently.
+			key := raw.(*structs.RootKeyMeta).Copy()
 			modified := false
 
 			switch key.State {
