@@ -406,6 +406,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/releases", s.wrap(s.ReleasesRequest))
 	s.mux.HandleFunc("/v1/release/", s.wrap(s.ReleaseSpecificRequest))
 	s.mux.HandleFunc("/v1/pack-registries", s.wrap(s.PackRegistriesRequest))
+	s.mux.HandleFunc("/v1/pack-registries/notify-push", s.wrap(s.PackRegistryNotifyPush))
 	s.mux.HandleFunc("/v1/pack-registry", s.wrap(s.PackRegistryUpsertRequest))
 	s.mux.HandleFunc("/v1/pack-registry/", s.wrap(s.PackRegistrySpecificRequest))
 	s.mux.HandleFunc("/v1/packs", s.wrap(s.PacksCatalogRequest))
@@ -512,6 +513,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/operator/seal/recover", s.wrap(s.OperatorSealRecoverRequest))
 	s.mux.HandleFunc("/v1/operator/autopilot/configuration", s.wrap(s.OperatorAutopilotConfiguration))
 	s.mux.HandleFunc("/v1/operator/autopilot/health", s.wrap(s.OperatorServerHealth))
+	s.mux.HandleFunc("/v1/operator/bus", s.wrap(s.OperatorBusStatus))
 	s.mux.HandleFunc("/v1/operator/snapshot", s.wrap(s.SnapshotRequest))
 	s.mux.HandleFunc("/v1/operator/backups", s.wrap(s.BackupsRequest))
 	s.mux.HandleFunc("/v1/operator/backup/", s.wrap(s.BackupSpecificRequest))
@@ -658,26 +660,10 @@ func (fs *UIAssetWrapper) Open(name string) (http.File, error) {
 	} else {
 		// serve index.html instead of 404ing
 		if err == os.ErrNotExist {
-			// The previous UI is served under /ui/legacy/ for one release;
-			// its client-side routes fall back to its own index.html.
-			if isLegacyUIPath(name) {
-				if file, err := fs.FileSystem.Open(legacyUIIndex); err == nil {
-					return file, nil
-				}
-			}
 			return fs.FileSystem.Open("index.html")
 		}
 		return nil, err
 	}
-}
-
-// legacyUIIndex is the entry point of the previous UI build, embedded under
-// ui/dist/legacy by the ember-dist-legacy make target.
-const legacyUIIndex = "legacy/index.html"
-
-func isLegacyUIPath(name string) bool {
-	name = strings.TrimPrefix(name, "/")
-	return name == "legacy" || strings.HasPrefix(name, "legacy/")
 }
 
 func CodedError(c int, s string) HTTPCodedError {

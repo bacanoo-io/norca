@@ -327,6 +327,7 @@ func (n *Node) constructNodeServerInfoResponse(nodeID string, snap *state.StateS
 		reply.Servers = append(reply.Servers,
 			&structs.NodeServerInfo{
 				RPCAdvertiseAddr: v.RPCAddr.String(),
+				BusAdvertiseAddr: v.BusAddr,
 				Datacenter:       v.Datacenter,
 			})
 	}

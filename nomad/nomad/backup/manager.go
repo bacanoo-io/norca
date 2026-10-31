@@ -69,6 +69,10 @@ type Deps struct {
 	// scheduled backups that include the keyring wait for it.
 	KeyringReady func() bool
 
+	// ConsulKV, if set, exports the key-value bucket of the Consul KV of
+	// the system bus (Norca), consulkv.Encode; nil without a bus or bucket.
+	ConsulKV func(ctx context.Context) ([]byte, error)
+
 	// State returns the current state store.
 	State func() *state.StateStore
 
@@ -463,6 +467,14 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 		}
 	}
 
+	var consulKV []byte
+	if m.deps.ConsulKV != nil {
+		var err error
+		if consulKV, err = m.deps.ConsulKV(ctx); err != nil {
+			return m.finishFailed(record, fmt.Errorf("failed to export the Consul KV: %w", err))
+		}
+	}
+
 	// Upload to every destination in parallel; one failing destination does
 	// not stop the others.
 	statuses := make([]*structs.BackupDestinationStatus, len(dests))
@@ -471,7 +483,7 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			statuses[i] = m.upload(ctx, cfg, d, record, snap, keyring, coreKey)
+			statuses[i] = m.upload(ctx, cfg, d, record, snap, keyring, coreKey, consulKV)
 		}()
 	}
 	wg.Wait()
@@ -567,7 +579,7 @@ func (m *Manager) finishFailed(record *structs.BackupRecord, err error) (*struct
 // upload encrypts and uploads the objects of a backup to a destination and
 // verifies them.
 func (m *Manager) upload(ctx context.Context, cfg *Config, dest Destination, record *structs.BackupRecord,
-	snap Snapshot, keyring, coreKey []byte) *structs.BackupDestinationStatus {
+	snap Snapshot, keyring, coreKey, consulKV []byte) *structs.BackupDestinationStatus {
 
 	start := time.Now()
 	st := &structs.BackupDestinationStatus{
@@ -616,6 +628,14 @@ func (m *Manager) upload(ctx context.Context, cfg *Config, dest Destination, rec
 		}
 		obj.Key = SecretStoreKeyKey
 		st.Objects[structs.BackupObjectSecretStoreKey] = obj
+	}
+	if consulKV != nil {
+		obj, err := putEncrypted(ctx, dest, path.Join(record.Path, ConsulKVKey), bytes.NewReader(consulKV), enc, cfg.VerifyChecksum)
+		if err != nil {
+			return fail(err)
+		}
+		obj.Key = ConsulKVKey
+		st.Objects[structs.BackupObjectConsulKV] = obj
 	}
 
 	st.Status = structs.BackupDestinationStatusVerified

@@ -56,7 +56,7 @@ Without `-tags ui` the binary works the same but serves no web UI.
 
 On Windows, for the CLI and the web UI against these clusters (the clients
 of the scenarios run Linux with Docker), `windows.bat` in the root of the
-checkout builds `norca.exe` and `norca-natsbridge.exe` with the embedded UI
+checkout builds `norca.exe` with the embedded UI
 into `dist
 orca_<version>_windows_amd64.zip` (`windows.bat skipui` keeps the
 committed UI and needs no Node or Yarn).
@@ -104,10 +104,9 @@ curl -X POST "$NOMAD_ADDR/v1/pack-registry" -H "X-Nomad-Token: $NOMAD_TOKEN"   -
 A private git or OCI source takes `"authSecret": {"namespace": "default", "path": "<variable>"}`:
 a Variable with `username` and `password` (or `token`), or `ssh_private_key`
 and `known_hosts`. [01-local-dev](01-local-dev/README.md#6-install-from-the-catalog)
-installs the test application from the catalog. With NATS (03, 04),
-`norca-natsbridge -sync-pushes` syncs the registries when a pack release is
-published and `-sync-regions` keeps the registries of the regions in step
-([natsbridge README](../nomad/natsbridge/README.md#inbound-pack-registry-syncs)).
+installs the test application from the catalog. A release pipeline can
+announce pushed packs with `POST /v1/pack-registries/notify-push`: the leader
+syncs the registries of that source at once.
 
 ## Feature map
 
@@ -156,8 +155,8 @@ Not shown, with pointers:
   (mentioned in 02), keyring restore: [backup plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/backup-restore-plan.md).
 - The `consul` pack (mentioned in 03): Consul is BSL 1.1 and is installed from
   HashiCorp's release after you accept its license.
-- The event stream → NATS bridge (`bridge_enabled` of the `nats` pack, mentioned
-  in 04) and the Variables topic of the event stream.
+- The event stream on the system bus of the servers (`NORCA_EVENTS_<region>`)
+  and the Variables topic of the event stream.
 - Pack supply chain (OCI registries, signatures, trust policies, bundles,
   `pack.lock`) and signature enforcement in admission:
   [supply-chain.md](../nomad/pack/docs/supply-chain.md), [releases.md](../nomad/pack/docs/releases.md).

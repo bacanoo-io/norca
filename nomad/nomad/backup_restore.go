@@ -4,15 +4,20 @@
 package nomad
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	metrics "github.com/armon/go-metrics"
+	"github.com/hashicorp/nomad/acl"
+	"github.com/hashicorp/nomad/helper/consulkv"
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 // maxBackupRestoreItems bounds the items of a single restore request.
@@ -144,6 +149,8 @@ func validateBackupRestoreItem(item *structs.BackupRestoreItem) error {
 			item.Namespace = structs.DefaultNamespace
 		}
 	case structs.BackupRestoreItemNamespace, structs.BackupRestoreItemACLPolicy, structs.BackupRestoreItemACLRole:
+	case structs.BackupRestoreItemConsulKV:
+		item.Namespace = consulKVNamespace(item.Namespace)
 	default:
 		return fmt.Errorf("invalid restore item type %q", item.Type)
 	}
@@ -153,8 +160,9 @@ func validateBackupRestoreItem(item *structs.BackupRestoreItem) error {
 	if item.WithMetadata && item.Type != structs.BackupRestoreItemSecret {
 		return fmt.Errorf("the metadata option is only used for secrets")
 	}
-	if item.CheckIndex != nil && item.Type != structs.BackupRestoreItemVariable && item.Type != structs.BackupRestoreItemSecret {
-		return fmt.Errorf("a check index can only be given for Variables and secrets")
+	if item.CheckIndex != nil && item.Type != structs.BackupRestoreItemVariable && item.Type != structs.BackupRestoreItemSecret &&
+		item.Type != structs.BackupRestoreItemConsulKV {
+		return fmt.Errorf("a check index can only be given for Variables, secrets and Consul KV keys")
 	}
 	return nil
 }
@@ -193,6 +201,8 @@ func (r *backupRestorer) restore(item *structs.BackupRestoreItem) *structs.Backu
 		err = r.restoreACLPolicy(item, result)
 	case structs.BackupRestoreItemACLRole:
 		err = r.restoreACLRole(item, result)
+	case structs.BackupRestoreItemConsulKV:
+		err = r.restoreConsulKV(item, result)
 	}
 	if err != nil {
 		result.Error = err.Error()
@@ -436,4 +446,72 @@ func (r *backupRestorer) describe(result *structs.BackupRestoreItemResult, kind,
 	}
 	result.Action = "create"
 	result.Description = fmt.Sprintf("re-create %s %q from the backup", kind, name)
+}
+
+// restoreConsulKV writes a key of the Consul KV of the backup into the bucket
+// of the system bus. Like a Variables entry, an existing key is only
+// overwritten with its current revision as the check index. The caller needs
+// the write capability of the Variables path of the key.
+func (r *backupRestorer) restoreConsulKV(item *structs.BackupRestoreItem, result *structs.BackupRestoreItemResult) error {
+	entry := r.loaded.ConsulKV.Entry(item.ID)
+	if entry == nil {
+		return fmt.Errorf("Consul KV key %q not found in the backup", item.ID)
+	}
+	aclObj, err := r.b.srv.ResolveACL(r.args)
+	if err != nil {
+		return err
+	}
+	if aclObj != nil && !aclObj.AllowVariableOperation(item.Namespace,
+		consulkv.ACLPath(consulkv.DefaultPath, item.ID), acl.VariablesCapabilityWrite, nil) {
+		return structs.ErrPermissionDenied
+	}
+
+	ctx, cancel := context.WithTimeout(r.b.srv.shutdownCtx, 30*time.Second)
+	defer cancel()
+	kv, done, err := r.b.srv.consulKVBucket(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	if kv == nil {
+		return fmt.Errorf("the system bus has no Consul KV bucket")
+	}
+	key := consulkv.EncodeKey(item.ID)
+	current, err := kv.Get(ctx, key)
+	switch {
+	case errors.Is(err, jetstream.ErrKeyNotFound):
+		current = nil
+	case err != nil:
+		return err
+	}
+	if current == nil {
+		result.Action = "create"
+		result.Description = fmt.Sprintf("re-create Consul KV key %q (%d bytes)", item.ID, len(entry.Value))
+	} else {
+		result.Action = "update"
+		result.CurrentIndex = current.Revision()
+		result.Description = fmt.Sprintf("overwrite Consul KV key %q (%d bytes) at revision %d", item.ID, len(entry.Value), current.Revision())
+		if item.CheckIndex == nil || *item.CheckIndex == 0 {
+			msg := fmt.Sprintf("Consul KV key %q exists (revision %d); give that check index to overwrite it", item.ID, current.Revision())
+			if r.args.DryRun {
+				result.Description += "; " + msg
+				return nil
+			}
+			return fmt.Errorf("%s", msg)
+		}
+	}
+	if r.args.DryRun {
+		return nil
+	}
+	var revision uint64
+	if current == nil {
+		revision, err = kv.Create(ctx, key, entry.Value)
+	} else {
+		revision, err = kv.Update(ctx, key, entry.Value, *item.CheckIndex)
+	}
+	if err != nil {
+		return fmt.Errorf("Consul KV key %q was not restored: %w", item.ID, err)
+	}
+	result.Index = revision
+	return nil
 }

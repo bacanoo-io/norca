@@ -315,6 +315,10 @@ type Config struct {
 	// ConsulCompat configures the Consul-compatible read API (Norca).
 	ConsulCompat *structsc.ConsulCompatConfig
 
+	// BusDisabled keeps the client off the system bus of the servers
+	// (Norca): it then uses none of the features that need it.
+	BusDisabled bool
+
 	// Secrets configures the secret providers of the client's secret
 	// delivery: the routes of secret paths to providers (Norca).
 	Secrets *SecretsConfig

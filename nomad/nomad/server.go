@@ -41,6 +41,7 @@ import (
 	"github.com/hashicorp/nomad/lib/auth/oidc"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/backup"
+	"github.com/hashicorp/nomad/nomad/bus"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/drainer"
 	"github.com/hashicorp/nomad/nomad/objectgc"
@@ -244,6 +245,11 @@ type Server struct {
 	// backup takes the scheduled backups of the region, running on the
 	// leader.
 	backup *backup.Manager
+
+	// bus is the system bus (embedded NATS); nil when disabled.
+	// busRoutesCh wakes up the loop keeping its routes in line with Serf.
+	bus         *bus.Server
+	busRoutesCh chan struct{}
 
 	// secretStore is the Raft storage and HA lock backend of the built-in
 	// secret store (see setupSecretStore).
@@ -514,6 +520,13 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		s.Shutdown()
 		s.logger.Error("failed to start serf WAN", "error", err)
 		return nil, fmt.Errorf("Failed to start serf: %v", err)
+	}
+
+	// Start the system bus.
+	if err := s.setupBus(); err != nil {
+		s.Shutdown()
+		s.logger.Error("failed to start the system bus", "error", err)
+		return nil, fmt.Errorf("Failed to start the system bus: %v", err)
 	}
 
 	// Initialize the scheduling workers
@@ -795,6 +808,8 @@ func (s *Server) Shutdown() error {
 	if s.autoscaler != nil {
 		s.autoscaler.SetLeader(false)
 	}
+
+	s.shutdownBus()
 
 	if s.serf != nil {
 		s.serf.Shutdown()
@@ -1666,6 +1681,10 @@ func (s *Server) setupSerf(conf *serf.Config, ch chan serf.Event, path string) (
 	conf.Tags["vsn"] = deprecatedAPIMajorVersionStr // for Nomad <= v1.2 compat
 	conf.Tags["raft_vsn"] = fmt.Sprintf("%d", s.config.RaftConfig.ProtocolVersion)
 	conf.Tags["id"] = s.config.NodeID
+	if s.config.Bus != nil && s.config.Bus.Enabled {
+		conf.Tags[busTag] = strconv.Itoa(s.config.Bus.Port)
+		conf.Tags[busClusterTag] = strconv.Itoa(s.config.Bus.ClusterPort)
+	}
 	conf.Tags["rpc_addr"] = s.clientRpcAdvertise.(*net.TCPAddr).IP.String()         // Address that clients will use to RPC to servers
 	conf.Tags["port"] = fmt.Sprintf("%d", s.serverRpcAdvertise.(*net.TCPAddr).Port) // Port servers use to RPC to one and another
 	if s.isSingleServerCluster() {

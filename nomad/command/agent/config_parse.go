@@ -294,6 +294,11 @@ func extraKeys(c *Config) error {
 		return err
 	}
 
+	// Check the events block of the bus
+	if err := c.Server.Bus.extraKeys(); err != nil {
+		return err
+	}
+
 	// Remove the labels of the keyring seal blocks
 	if c.Server.Keyring != nil {
 		for _, seal := range c.Server.Keyring.Seals {

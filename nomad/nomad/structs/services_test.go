@@ -2071,7 +2071,7 @@ func TestService_Equal(t *testing.T) {
 	o.EnableTagOverride = true
 	assertDiff()
 
-	o.Provider = "nomad"
+	o.Provider = "consul"
 	assertDiff()
 
 	o.TaggedAddresses = map[string]string{"foo": "bar"}

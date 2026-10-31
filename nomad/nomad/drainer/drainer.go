@@ -198,7 +198,9 @@ func (n *NodeDrainer) SetEnabled(enabled bool, state *state.StateStore) {
 	n.enabled = enabled
 	if enabled {
 		n.flush(state)
-		go n.run(n.ctx)
+		// The run loop gets the context and watchers of this generation: a
+		// later flush replaces the fields while the old loop may still run.
+		go n.run(n.ctx, n.deadlineNotifier, n.jobWatcher)
 	} else if !enabled && n.exitFn != nil {
 		n.exitFn()
 	}
@@ -225,16 +227,16 @@ func (n *NodeDrainer) flush(state *state.StateStore) {
 
 // run is a long lived event handler that receives changes from the relevant
 // watchers and takes action based on them.
-func (n *NodeDrainer) run(ctx context.Context) {
+func (n *NodeDrainer) run(ctx context.Context, deadlineNotifier DrainDeadlineNotifier, jobWatcher DrainingJobWatcher) {
 	for {
 		select {
-		case <-n.ctx.Done():
+		case <-ctx.Done():
 			return
-		case nodes := <-n.deadlineNotifier.NextBatch():
+		case nodes := <-deadlineNotifier.NextBatch():
 			n.handleDeadlinedNodes(nodes)
-		case req := <-n.jobWatcher.Drain():
+		case req := <-jobWatcher.Drain():
 			n.handleJobAllocDrain(req)
-		case allocs := <-n.jobWatcher.Migrated():
+		case allocs := <-jobWatcher.Migrated():
 			n.handleMigratedAllocs(allocs)
 		}
 	}

@@ -155,6 +155,8 @@ Router.map(function () {
     this.route('service', { path: '/:name' });
   });
 
+  this.route('endpoints');
+
   this.route('network', function () {
     this.route('policy', { path: '/policies/:namespace/:name' });
     this.route('admin-policy', { path: '/admin/:name' });

@@ -60,6 +60,7 @@ func MockJob() *api.Job {
 						Services: []*api.Service{
 							{
 								Name:      "${TASK}-frontend",
+								Provider:  "consul", // script checks need Consul
 								PortLabel: "http",
 								Tags:      []string{"pci:${meta.pci-dss}", "datacenter:${node.datacenter}"},
 								Checks: []api.ServiceCheck{
@@ -75,6 +76,7 @@ func MockJob() *api.Job {
 							},
 							{
 								Name:      "${TASK}-admin",
+								Provider:  "consul", // script checks need Consul
 								PortLabel: "admin",
 							},
 						},

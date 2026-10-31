@@ -70,7 +70,7 @@ func (j *Job) RequiredNativeServiceDiscovery() *NativeServiceDiscoveryUsage {
 // to the function are utilising Nomad native service discovery.
 func requiresNativeServiceDiscovery(group string, services []*Service, basic, checks *set.Set[string]) {
 	for _, tgService := range services {
-		if tgService.Provider == ServiceProviderNomad {
+		if tgService.Provider == ServiceProviderNomad || (tgService.Provider == "" && !tgService.IsConsul()) {
 			basic.Insert(group)
 			if len(tgService.Checks) > 0 {
 				checks.Insert(group)
@@ -111,7 +111,7 @@ func (j *Job) RequiredConsulServiceDiscovery() map[string]bool {
 // to the function are utilising Consul service discovery.
 func requiresConsulServiceDiscovery(services []*Service) bool {
 	for _, tgService := range services {
-		if tgService.Provider == ServiceProviderConsul || tgService.Provider == "" {
+		if tgService.IsConsul() {
 			return true
 		}
 	}

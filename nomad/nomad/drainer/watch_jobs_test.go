@@ -164,10 +164,10 @@ func TestDrainingJobWatcher_DrainJobs(t *testing.T) {
 	// the old ones
 	drainedAllocs := make([]*structs.Allocation, len(drains.Allocs))
 	for i, a := range drains.Allocs {
+		// a copy: the allocs are the objects of the state store
+		a = a.Copy()
 		a.DesiredTransition.Migrate = pointer.Of(true)
-
-		// create a copy so we can reuse this slice
-		drainedAllocs[i] = a.Copy()
+		drainedAllocs[i] = a
 	}
 	must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, index, drainedAllocs))
 	drains.Resp.Respond(index, nil)
@@ -181,6 +181,7 @@ func TestDrainingJobWatcher_DrainJobs(t *testing.T) {
 	replacements := make([]*structs.Allocation, len(drainedAllocs))
 	updates := make([]*structs.Allocation, 0, len(drainedAllocs)*2)
 	for i, a := range drainedAllocs {
+		a = a.Copy() // the inserted alloc is the object of the state store
 		// Stop drained allocs
 		a.DesiredTransition.Migrate = nil
 		a.DesiredStatus = structs.AllocDesiredStatusStop
@@ -235,10 +236,10 @@ func TestDrainingJobWatcher_DrainJobs(t *testing.T) {
 	// Fake migrations once more to finish the drain
 	drainedAllocs = make([]*structs.Allocation, len(drains.Allocs))
 	for i, a := range drains.Allocs {
+		// a copy: the allocs are the objects of the state store
+		a = a.Copy()
 		a.DesiredTransition.Migrate = pointer.Of(true)
-
-		// create a copy so we can reuse this slice
-		drainedAllocs[i] = a.Copy()
+		drainedAllocs[i] = a
 	}
 	must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, index, drainedAllocs))
 	drains.Resp.Respond(index, nil)
@@ -248,16 +249,26 @@ func TestDrainingJobWatcher_DrainJobs(t *testing.T) {
 
 	replacements = make([]*structs.Allocation, len(drainedAllocs))
 	updates = make([]*structs.Allocation, 0, len(drainedAllocs)*2)
+	completeAllocs = make([]*structs.Allocation, len(drainedAllocs))
 	for i, a := range drainedAllocs {
-		a.DesiredTransition.Migrate = nil
+		// a copy: the inserted alloc is the object of the state store; the
+		// stopped alloc keeps its migrate transition, as the scheduler does,
+		// until the client reports it complete
+		a = a.Copy()
 		a.DesiredStatus = structs.AllocDesiredStatusStop
-		a.ClientStatus = structs.AllocClientStatusComplete
+
+		// the client status comes from the client, the upsert keeps it
+		complete := a.Copy()
+		complete.ClientStatus = structs.AllocClientStatusComplete
+		completeAllocs[i] = complete
 
 		replacement := newAlloc(runningNode, a.Job)
 		updates = append(updates, a, replacement)
 		replacements[i] = replacement.Copy()
 	}
 	must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, index, updates))
+	index++
+	must.NoError(t, store.UpdateAllocsFromClient(structs.MsgTypeTestSetup, index, completeAllocs))
 	index++
 
 	assertJobWatcherOps(t, jobWatcher, 0, 6)
@@ -279,10 +290,10 @@ func TestDrainingJobWatcher_DrainJobs(t *testing.T) {
 	// Fake migrations once more to finish the drain
 	drainedAllocs = make([]*structs.Allocation, len(drains.Allocs))
 	for i, a := range drains.Allocs {
+		// a copy: the allocs are the objects of the state store
+		a = a.Copy()
 		a.DesiredTransition.Migrate = pointer.Of(true)
-
-		// create a copy so we can reuse this slice
-		drainedAllocs[i] = a.Copy()
+		drainedAllocs[i] = a
 	}
 	must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, index, drainedAllocs))
 	drains.Resp.Respond(index, nil)
@@ -292,16 +303,26 @@ func TestDrainingJobWatcher_DrainJobs(t *testing.T) {
 
 	replacements = make([]*structs.Allocation, len(drainedAllocs))
 	updates = make([]*structs.Allocation, 0, len(drainedAllocs)*2)
+	completeAllocs = make([]*structs.Allocation, len(drainedAllocs))
 	for i, a := range drainedAllocs {
-		a.DesiredTransition.Migrate = nil
+		// a copy: the inserted alloc is the object of the state store; the
+		// stopped alloc keeps its migrate transition, as the scheduler does,
+		// until the client reports it complete
+		a = a.Copy()
 		a.DesiredStatus = structs.AllocDesiredStatusStop
-		a.ClientStatus = structs.AllocClientStatusComplete
+
+		// the client status comes from the client, the upsert keeps it
+		complete := a.Copy()
+		complete.ClientStatus = structs.AllocClientStatusComplete
+		completeAllocs[i] = complete
 
 		replacement := newAlloc(runningNode, a.Job)
 		updates = append(updates, a, replacement)
 		replacements[i] = replacement.Copy()
 	}
 	must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, index, updates))
+	index++
+	must.NoError(t, store.UpdateAllocsFromClient(structs.MsgTypeTestSetup, index, completeAllocs))
 	index++
 
 	assertJobWatcherOps(t, jobWatcher, 0, 4)

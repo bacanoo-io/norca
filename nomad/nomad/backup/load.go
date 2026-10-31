@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/nomad/helper/consulkv"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
@@ -36,6 +37,10 @@ type Loaded struct {
 	// (Norca); nil if the backup has no secret store key object, as backups
 	// taken before Norca wrote it.
 	SecretStoreKey []byte
+
+	// ConsulKV is the Consul KV bucket of the system bus in the backup
+	// (Norca); nil if the backup has none (no bus, or no bucket yet).
+	ConsulKV *consulkv.Export
 }
 
 // RestoreFunc restores a Raft snapshot archive into a new state store.
@@ -143,6 +148,19 @@ func (m *Manager) Load(ctx context.Context, record *structs.BackupRecord, destNa
 		rc.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load the secret store key of backup %s: %w", record.ID, err)
+		}
+	}
+
+	rc, err = m.Open(ctx, record, dest.Name(), structs.BackupObjectConsulKV, ids)
+	switch {
+	case errors.Is(err, ErrNotFound):
+	case err != nil:
+		return nil, err
+	default:
+		loaded.ConsulKV, err = consulkv.Decode(rc)
+		rc.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load the Consul KV of backup %s: %w", record.ID, err)
 		}
 	}
 

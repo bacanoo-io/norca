@@ -701,7 +701,7 @@ func Test_jobImpliedConstraints_Mutate(t *testing.T) {
 								Name: "example-group-service-1",
 							},
 						},
-						Constraints: []*structs.Constraint{consulServiceDiscoveryConstraint},
+						Constraints: []*structs.Constraint{nativeServiceDiscoveryConstraint},
 					},
 				},
 			},

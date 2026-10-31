@@ -94,6 +94,24 @@ func (s *ServiceRegistration) UpsertExternal(
 		if reg.Datacenter == "" {
 			reg.Datacenter = node.Datacenter
 		}
+	} else if args.NodeID != "" {
+		// Bound by the caller to a node of its choice (e.g. from the UI):
+		// that node runs the http and tcp checks.
+		if aclObj != nil && !aclObj.AllowNodeWrite() {
+			return structs.NewErrRPCCoded(http.StatusForbidden,
+				"Permission denied: binding an external service to a node requires node write")
+		}
+		node, err := s.srv.fsm.State().NodeByID(nil, args.NodeID)
+		if err != nil {
+			return err
+		}
+		if node == nil {
+			return structs.NewErrRPCCodedf(http.StatusBadRequest, "node %q not found", args.NodeID)
+		}
+		reg.NodeID = node.ID
+		if reg.Datacenter == "" {
+			reg.Datacenter = node.Datacenter
+		}
 	}
 
 	for _, check := range reg.External.Checks {

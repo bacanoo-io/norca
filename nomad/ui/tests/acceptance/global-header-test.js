@@ -12,8 +12,8 @@ import Layout from 'nomad-ui/tests/pages/layout';
 
 let managementToken;
 
-// The top bar of the global frame: external UI links and the previous UI
-// live in the "More" menu (or the user menu when signed in).
+// The top bar of the global frame: the external UI links live in the "More"
+// menu (or the user menu when signed in).
 module('Acceptance | global header', function (hooks) {
   setupApplicationTest(hooks);
   setupMirage(hooks);
@@ -26,13 +26,11 @@ module('Acceptance | global header', function (hooks) {
     server.create('agent');
 
     await visit('/');
-    await Layout.navbar.end.moreMenu.open();
 
+    // without links the menu itself is left out
+    assert.dom('[data-test-header-more]').doesNotExist();
     assert.false(Layout.navbar.end.consulLink.isPresent);
     assert.false(Layout.navbar.end.vaultLink.isPresent);
-    assert
-      .dom('[data-test-legacy-ui-link]')
-      .hasAttribute('href', '/ui/legacy/');
   });
 
   test('it displays the Consul and Vault links', async function (assert) {

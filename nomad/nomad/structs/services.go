@@ -586,15 +586,33 @@ const (
 	AddressModeDriver = "driver"
 	AddressModeAlloc  = "alloc"
 
-	// ServiceProviderConsul is the default service provider and the way Nomad
-	// worked before native service discovery.
+	// ServiceProviderConsul registers services in Consul. It is the default
+	// only for services with a Connect block, which needs Consul.
 	ServiceProviderConsul = "consul"
 
-	// ServiceProviderNomad is the native service discovery provider. At the
-	// time of writing, there are a number of restrictions around its
-	// functionality and use.
+	// ServiceProviderNomad is the native service discovery provider and the
+	// default: Norca does not need Consul.
 	ServiceProviderNomad = "nomad"
 )
+
+// DefaultServiceProvider returns the provider of a service that sets none:
+// consul when it has a Connect block (Connect needs Consul), nomad
+// otherwise.
+func DefaultServiceProvider(connect *ConsulConnect) string {
+	if connect != nil {
+		return ServiceProviderConsul
+	}
+	return ServiceProviderNomad
+}
+
+// IsConsul reports whether the service registers in Consul, also before
+// Canonicalize set its provider.
+func (s *Service) IsConsul() bool {
+	if s.Provider == "" {
+		return DefaultServiceProvider(s.Connect) == ServiceProviderConsul
+	}
+	return s.Provider == ServiceProviderConsul
+}
 
 // Service represents a Consul service definition
 type Service struct {
@@ -653,8 +671,8 @@ type Service struct {
 	OnUpdate string
 
 	// Provider dictates which service discovery provider to use. This can be
-	// either ServiceProviderConsul or ServiceProviderNomad and defaults to the former when
-	// left empty by the operator.
+	// either ServiceProviderConsul or ServiceProviderNomad; left empty by the
+	// operator it defaults to DefaultServiceProvider.
 	Provider string
 
 	// Discovery holds the discovery settings of a service using the Nomad
@@ -729,11 +747,10 @@ func (s *Service) Canonicalize(job, taskGroup, task, jobNamespace string) {
 		check.Canonicalize(s.Name, s.TaskName)
 	}
 
-	// Set the provider to its default value. The value of consul ensures this
-	// new feature and parameter behaves in the same manner a previous versions
-	// which did not include this.
+	// Set the provider to its default value: the native catalog, unless the
+	// service uses Connect.
 	if s.Provider == "" {
-		s.Provider = ServiceProviderConsul
+		s.Provider = DefaultServiceProvider(s.Connect)
 	}
 
 	// Consul API returns "default" whether the namespace is empty or set as
@@ -865,6 +882,12 @@ func (s *Service) validateNomadService(mErr *multierror.Error) {
 
 		// validate the nomad check
 		if err := c.validateNomad(); err != nil {
+			if c.Type == ServiceCheckScript || c.Type == ServiceCheckGRPC {
+				// Typical of a job written for Nomad, where consul was the
+				// default provider.
+				err = fmt.Errorf("%w; %s checks need provider = %q (the default provider is %q)",
+					err, c.Type, ServiceProviderConsul, ServiceProviderNomad)
+			}
 			mErr.Errors = append(mErr.Errors, err)
 		}
 	}

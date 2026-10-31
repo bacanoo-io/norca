@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/backup"
+	"github.com/hashicorp/nomad/nomad/bus"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
@@ -425,6 +426,10 @@ type Config struct {
 	// directories.
 	Backup *backup.Config
 
+	// Bus configures the system bus, the embedded NATS server. It is
+	// disabled by default here; the agent enables it on servers.
+	Bus *bus.Config
+
 	// SecretsAudit configures the append-only audit file of the built-in
 	// secret store on this server; nil disables the file (the SecretAccess
 	// event topic is always published).
@@ -578,6 +583,7 @@ func DefaultConfig() *Config {
 		DeploymentQueryRateLimit: deploymentwatcher.LimitStateQueriesPerSecond,
 		Autoscaler:               autoscaler.DefaultConfig(),
 		Backup:                   backup.DefaultConfig(),
+		Bus:                      bus.DefaultConfig(),
 		JobDefaultPriority:       structs.JobDefaultPriority,
 		JobMaxPriority:           structs.JobDefaultMaxPriority,
 		JobTrackedVersions:       structs.JobDefaultTrackedVersions,

@@ -55,8 +55,6 @@ func runNotices(args []string) error {
 type inventory struct {
 	goMods map[string]*goModule
 	npm    []*npmPackage
-	// legacyUI reports whether the npm list includes the previous UI.
-	legacyUI bool
 }
 
 // collect builds the inventory and fails if a license is not allowed.
@@ -76,7 +74,6 @@ func collect(c commonFlags) (*inventory, error) {
 			return nil, err
 		}
 		inv.npm = pkgs
-		inv.legacyUI = legacyUIPresent(c.root)
 		problems = append(problems, p...)
 	}
 	if len(problems) > 0 {
@@ -86,14 +83,6 @@ func collect(c commonFlags) (*inventory, error) {
 		return nil, err
 	}
 	return inv, nil
-}
-
-// legacyUINote names the manifests of the previous UI when it is embedded.
-func legacyUINote(inv *inventory) string {
-	if !inv.legacyUI {
-		return ""
-	}
-	return " and of the previous UI served at `/ui/legacy` for one release (`nomad/ui-legacy/package.json`, `nomad/ui-legacy/yarn.lock`)"
 }
 
 func licenseError(problems []string) error {
@@ -210,7 +199,7 @@ func renderNotices(inv *inventory) []byte {
 	fmt.Fprintf(&b, "The %s binaries and the container images also contain the third-party components listed below, each under its own license. ", strings.Join(names, " and "))
 	b.WriteString("The license files of each component are reproduced in full under \"License texts\". ")
 	b.WriteString("Where a component ships NOTICE files, their contents are reproduced with it, as section 4(d) of the Apache License 2.0 requires.\n\n")
-	fmt.Fprintf(&b, "The list covers the Go modules linked into the binaries on every release platform (%s) and the production npm dependencies of the web UI embedded in `norca` (`nomad/ui/package.json`, `nomad/ui/yarn.lock`)%s.\n\n", strings.Join(plats, ", "), legacyUINote(inv))
+	fmt.Fprintf(&b, "The list covers the Go modules linked into the binaries on every release platform (%s) and the production npm dependencies of the web UI embedded in `norca` (`nomad/ui/package.json`, `nomad/ui/yarn.lock`).\n\n", strings.Join(plats, ", "))
 
 	// Summary.
 	b.WriteString("## Summary\n\n")

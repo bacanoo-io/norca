@@ -39,7 +39,7 @@ func TestService_Canonicalize(t *testing.T) {
 	must.Eq(t, fmt.Sprintf("%s-%s-%s", *j.Name, *tg.Name, task.Name), s.Name)
 	must.Eq(t, "auto", s.AddressMode)
 	must.Eq(t, OnUpdateRequireHealthy, s.OnUpdate)
-	must.Eq(t, ServiceProviderConsul, s.Provider)
+	must.Eq(t, ServiceProviderNomad, s.Provider)
 	must.Nil(t, s.Meta)
 	must.Nil(t, s.CanaryMeta)
 	must.Nil(t, s.TaggedAddresses)

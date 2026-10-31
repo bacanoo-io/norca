@@ -59,6 +59,33 @@ export function serviceInstances(token, region, name, namespace) {
   });
 }
 
+// External services: endpoints (an address) and domains (a DNS alias)
+// registered without a job.
+export function listExternalServices(token, region, namespace) {
+  return apiRequest(token, '/v1/services/external', {
+    params: { region, namespace },
+  });
+}
+
+export function saveExternalService(token, region, namespace, svc) {
+  return apiRequest(
+    token,
+    `/v1/service/external/${encodeURIComponent(svc.Name)}`,
+    { method: 'PUT', params: { region, namespace }, data: svc }
+  );
+}
+
+export function deleteExternalService(token, region, namespace, id) {
+  return apiRequest(token, `/v1/service/external/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    params: { region, namespace },
+  });
+}
+
+export function listNodes(token, region) {
+  return apiRequest(token, '/v1/nodes', { params: { region } });
+}
+
 export function listIntentions(token, region, namespace) {
   return apiRequest(token, '/v1/service-intentions', {
     params: { region, namespace },

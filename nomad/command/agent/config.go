@@ -365,6 +365,9 @@ type ClientConfig struct {
 	// ConsulCompat configures the Consul-compatible read API (Norca).
 	ConsulCompat *config.ConsulCompatConfig `hcl:"consul_compat"`
 
+	// Bus configures the use of the system bus of the servers (Norca).
+	Bus *ClientBusConfig `hcl:"bus"`
+
 	// Secrets configures the secret delivery of the client: the routes of
 	// secret paths to providers (Norca).
 	Secrets *ClientSecretsConfig `hcl:"secrets"`
@@ -399,6 +402,7 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.NativeServiceDiscovery = c.NativeServiceDiscovery.Copy()
 	nc.DNS = c.DNS.Copy()
 	nc.ConsulCompat = c.ConsulCompat.Copy()
+	nc.Bus = c.Bus.Copy()
 	nc.Secrets = c.Secrets.Copy()
 	nc.Artifact = c.Artifact.Copy()
 	nc.Drain = c.Drain.Copy()
@@ -702,6 +706,10 @@ type ServerConfig struct {
 	// directories.
 	Backup *BackupConfig `hcl:"backup"`
 
+	// Bus configures the system bus, the NATS server embedded in the
+	// servers.
+	Bus *BusConfig `hcl:"bus"`
+
 	// Secrets configures the server side of the built-in secret store.
 	Secrets *SecretsConfig `hcl:"secrets"`
 
@@ -748,6 +756,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobTrackedVersions = pointer.Copy(s.JobTrackedVersions)
 	ns.Autoscaler = s.Autoscaler.Copy()
 	ns.Backup = s.Backup.Copy()
+	ns.Bus = s.Bus.Copy()
 	ns.Secrets = s.Secrets.Copy()
 	ns.Admission = s.Admission.Copy()
 	ns.MTLS = s.MTLS.Copy()
@@ -1095,6 +1104,11 @@ type Ports struct {
 	HTTP int `hcl:"http"`
 	RPC  int `hcl:"rpc"`
 	Serf int `hcl:"serf"`
+
+	// Bus and BusCluster are the ports of the system bus of a server: the
+	// client connections and the routes between the servers.
+	Bus        int `hcl:"bus"`
+	BusCluster int `hcl:"bus_cluster"`
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -1317,9 +1331,11 @@ func DefaultConfig() *Config {
 		Datacenter: "dc1",
 		BindAddr:   "0.0.0.0",
 		Ports: &Ports{
-			HTTP: 4646,
-			RPC:  4647,
-			Serf: 4648,
+			HTTP:       4646,
+			RPC:        4647,
+			Serf:       4648,
+			Bus:        4649,
+			BusCluster: 4650,
 		},
 		Addresses:      &Addresses{},
 		AdvertiseAddrs: &AdvertiseAddrs{},
@@ -2066,6 +2082,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 		result.Backup = result.Backup.Merge(b.Backup)
 	}
 
+	if b.Bus != nil {
+		result.Bus = result.Bus.Merge(b.Bus)
+	}
+
 	if b.Secrets != nil {
 		result.Secrets = result.Secrets.Merge(b.Secrets)
 	}
@@ -2313,6 +2333,7 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	result.NativeServiceDiscovery = a.NativeServiceDiscovery.Merge(b.NativeServiceDiscovery)
 	result.DNS = a.DNS.Merge(b.DNS)
 	result.ConsulCompat = a.ConsulCompat.Merge(b.ConsulCompat)
+	result.Bus = a.Bus.Merge(b.Bus)
 	result.Secrets = a.Secrets.Merge(b.Secrets)
 
 	result.Artifact = a.Artifact.Merge(b.Artifact)
@@ -2429,6 +2450,12 @@ func (a *Ports) Merge(b *Ports) *Ports {
 	}
 	if b.Serf != 0 {
 		result.Serf = b.Serf
+	}
+	if b.Bus != 0 {
+		result.Bus = b.Bus
+	}
+	if b.BusCluster != 0 {
+		result.BusCluster = b.BusCluster
 	}
 	return &result
 }

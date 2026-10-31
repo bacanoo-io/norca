@@ -78,11 +78,6 @@ var binaries = []binary{
 		CGO:       true,
 		UI:        true,
 	},
-	{
-		Name:      "norca-natsbridge",
-		ModuleDir: "nomad/natsbridge",
-		Package:   "./cmd/norca-natsbridge",
-	},
 }
 
 var platforms = []platform{

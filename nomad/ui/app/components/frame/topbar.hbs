@@ -71,20 +71,20 @@
           {{#if this.uiConfig.Vault.BaseUIURL}}
             <dd.Item @href={{this.uiConfig.Vault.BaseUIURL}} @external={{true}} @icon="external-link" data-test-header-vault-link>Vault</dd.Item>
           {{/if}}
-          <dd.Item @href={{this.legacyURL}} @icon="history" data-test-legacy-ui-link>Previous UI</dd.Item>
           <dd.Divider />
           <dd.Item @tone="danger" @icon="logout" data-test-profile-dropdown-sign-out-link {{on "click" this.signOut}}>Sign out</dd.Item>
         </Ui::Dropdown>
       {{else}}
-        <Ui::Dropdown @label="More" @icon="dots-vertical" @iconOnly={{true}} @triggerClass="btn-ghost-secondary" data-test-header-more as |dd|>
-          {{#if this.uiConfig.Consul.BaseUIURL}}
-            <dd.Item @href={{this.uiConfig.Consul.BaseUIURL}} @external={{true}} @icon="external-link" data-test-header-consul-link>Consul</dd.Item>
-          {{/if}}
-          {{#if this.uiConfig.Vault.BaseUIURL}}
-            <dd.Item @href={{this.uiConfig.Vault.BaseUIURL}} @external={{true}} @icon="external-link" data-test-header-vault-link>Vault</dd.Item>
-          {{/if}}
-          <dd.Item @href={{this.legacyURL}} @icon="history" data-test-legacy-ui-link>Previous UI</dd.Item>
-        </Ui::Dropdown>
+        {{#if (or this.uiConfig.Consul.BaseUIURL this.uiConfig.Vault.BaseUIURL)}}
+          <Ui::Dropdown @label="More" @icon="dots-vertical" @iconOnly={{true}} @triggerClass="btn-ghost-secondary" data-test-header-more as |dd|>
+            {{#if this.uiConfig.Consul.BaseUIURL}}
+              <dd.Item @href={{this.uiConfig.Consul.BaseUIURL}} @external={{true}} @icon="external-link" data-test-header-consul-link>Consul</dd.Item>
+            {{/if}}
+            {{#if this.uiConfig.Vault.BaseUIURL}}
+              <dd.Item @href={{this.uiConfig.Vault.BaseUIURL}} @external={{true}} @icon="external-link" data-test-header-vault-link>Vault</dd.Item>
+            {{/if}}
+          </Ui::Dropdown>
+        {{/if}}
         {{#if this.aclEnabled}}
           <Ui::Button
             @route="settings.tokens"

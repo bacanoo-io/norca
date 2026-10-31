@@ -9,9 +9,8 @@
 ### Changes
 
 - **Cluster pack registries** (`packs.norca.io/Registry`: `dir` with the built-in packs, `git`, `oci`, `bundle`): managed on the Packages page of the UI (registries, catalog with README, compatibility and signature) and with `norca pack registry`. Install and Upgrade use a form built from the pack's variables; the leader renders the pack and plans or applies it as a server-rendered release, optionally atomic. Syncs fetch into a staging directory and keep the last good packs when a sync fails.
-- **Registry syncs from NATS**: `norca-natsbridge -sync-pushes` syncs the registries of a source on push notices, `-sync-regions` follows the registry syncs of other regions.
+- **System bus**: the servers embed NATS with JetStream (`server { bus {} }`, ports `bus` 4649 and `bus_cluster` 4650; the servers of a region form one cluster; nodes log in with their node secret, other connections with an ACL token with a `bus` rule; `norca operator bus status`). The leader publishes the event stream of the region into `NORCA_EVENTS_<region>` (subjects `nomad.<region>.<topic>`) and syncs the cluster registries on pack push notices (`POST /v1/pack-registries/notify-push`).
 - **Backups to a directory**: `destination "<name>" { type = "directory" path = "..." }`, with the encryption, verification, retention and pinning of the S3 destinations.
-- **norca-natsbridge stream settings**: `-jetstream-replicas`, `-jetstream-max-age`, `-jetstream-max-bytes`, `-jetstream-storage`, `-jetstream-compression`, `-jetstream-allow-direct`, `-jetstream-deny-delete` and `-jetstream-deny-purge` for the stream it creates. The bridge keeps the settings that can change on an existing stream at its flags; a full stream drops its oldest events. Use with the `nats` pack 0.5.0 of the Norca pack registry (`v0.3.0`).
 - **Windows build**: `windows.bat` builds and packages the Windows release locally.
 - **CNI**: the client uses the CNI library `containernetworking/cni` v1.3.1 (was v1.1.2), `containernetworking/plugins` v1.9.1 (was v1.2.0) and `containerd/go-cni` v1.1.14 (was v1.1.9). Network configurations (`.conflist`, `.conf`, `.json` in `cni_config_dir`) may now declare `cniVersion` up to **1.1.0**; the built-in `bridge` network mode still writes a 0.4.0 configuration and works with every 1.x release of the CNI reference plugins. See [CNI compatibility](#cni-compatibility).
 
@@ -37,7 +36,7 @@ Norca is an independent fork of HashiCorp Nomad v1.6.5 (MPL 2.0); it is not a pr
 | macOS Apple silicon | `norca_{{VERSION}}_darwin_arm64.tar.gz` |
 | Windows x86-64 | `norca_{{VERSION}}_windows_amd64.zip` |
 
-Each archive contains `norca` and `norca-natsbridge`. Checksums: `norca_{{VERSION}}_SHA256SUMS`. Software bills of materials (CycloneDX 1.5 JSON) for every binary: `<binary>_{{VERSION}}_<os>_<arch>.cdx.json`.
+Each archive contains `norca`. Checksums: `norca_{{VERSION}}_SHA256SUMS`. Software bill of materials (CycloneDX 1.5 JSON): `norca_{{VERSION}}_<os>_<arch>.cdx.json`.
 
 ### CNI compatibility
 
