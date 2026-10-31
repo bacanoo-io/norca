@@ -86,21 +86,40 @@ func TestBusServer_Authentication(t *testing.T) {
 	_, err = nats.Connect(busURL(s1), nats.UserInfo(node.ID, "wrong"))
 	must.Error(t, err)
 
-	// The node may use the key-value bucket of the Consul KV, which the
-	// leader creates, and no other stream.
-	nodeJS, err := jetstream.New(nc)
+	// The node has no access to the key-value bucket of the Consul KV,
+	// which the leader creates (it is used through the ConsulKV endpoint
+	// with the ACL of the request token), and to no other stream.
+	mgmtKV, err := s1.bus.Connect()
+	must.NoError(t, err)
+	defer mgmtKV.Close()
+	mgmtJS, err := jetstream.New(mgmtKV)
 	must.NoError(t, err)
 	waitBus(t, func() (bool, error) {
-		kv, err := nodeJS.KeyValue(t.Context(), bus.ConsulKVBucket)
+		kv, err := mgmtJS.KeyValue(t.Context(), bus.ConsulKVBucket)
 		if err != nil {
 			return false, err
 		}
-		if _, err := kv.Put(t.Context(), "app.config", []byte("v")); err != nil {
-			return false, err
-		}
-		e, err := kv.Get(t.Context(), "app.config")
-		return err == nil && string(e.Value()) == "v", err
+		_, err = kv.Put(t.Context(), "app.config", []byte("v"))
+		return err == nil, err
 	})
+	nodeJS, err := jetstream.New(nc)
+	must.NoError(t, err)
+	_, err = nodeJS.KeyValue(t.Context(), bus.ConsulKVBucket)
+	must.Error(t, err)
+	// The subjects of the KV API are denied too.
+	inbox, err := nc.SubscribeSync(nc.NewRespInbox())
+	must.NoError(t, err)
+	must.NoError(t, nc.PublishRequest("$JS.API.DIRECT.GET.KV_"+bus.ConsulKVBucket+".$KV."+bus.ConsulKVBucket+".app.config", inbox.Subject, nil))
+	must.NoError(t, nc.PublishMsg(&nats.Msg{Subject: "$KV." + bus.ConsulKVBucket + ".app.config", Data: []byte("evil")}))
+	must.NoError(t, nc.Flush())
+	_, err = inbox.NextMsg(time.Second)
+	must.ErrorIs(t, err, nats.ErrTimeout)
+	must.ErrorContains(t, nc.LastError(), "Permissions Violation")
+	kv, err := mgmtJS.KeyValue(t.Context(), bus.ConsulKVBucket)
+	must.NoError(t, err)
+	e, err := kv.Get(t.Context(), "app.config")
+	must.NoError(t, err)
+	must.Eq(t, "v", string(e.Value()))
 	_, err = nodeJS.Stream(t.Context(), pushStreamName)
 	must.Error(t, err)
 

@@ -92,16 +92,17 @@ func newKVStore(s *Server, cfg *structsc.ConsulCompatKVConfig) kvStore {
 	}
 	acl := &kvACL{backend: s.backend, namespace: namespace, path: cfg.PathPrefix()}
 	variables := func() kvStore { return &variablesKV{backend: s.backend, namespace: namespace, path: cfg.PathPrefix()} }
+	bus := func() kvStore { return &busKV{backend: s.backend, namespace: namespace, path: cfg.PathPrefix()} }
 	switch cfg.BackendName() {
 	case structsc.ConsulCompatKVNATS:
 		return newNATSKV(s.logger, cfg.NATS, acl)
 	case structsc.ConsulCompatKVBus:
-		return newBusKV(s.logger, s.backend.BusConn, acl)
+		return bus()
 	case structsc.ConsulCompatKVAuto:
 		return &autoKV{
 			logger:    s.logger.Named("kv"),
-			busConn:   s.backend.BusConn,
-			bus:       func() kvStore { return newBusKV(s.logger, s.backend.BusConn, acl) },
+			busKnown:  s.backend.ServersRunBus,
+			bus:       bus,
 			variables: variables,
 		}
 	case structsc.ConsulCompatKVDisabled:

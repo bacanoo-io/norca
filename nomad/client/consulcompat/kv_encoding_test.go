@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/nomad/helper/consulkv"
 	"github.com/shoenig/test/must"
 )
 
@@ -43,15 +44,15 @@ func TestKVKeyEncoding_NATS(t *testing.T) {
 	// the key rules of the NATS key-value store
 	natsKey := regexp.MustCompile(`^[-/_=.a-zA-Z0-9]+$`)
 	for _, key := range kvTestKeys {
-		enc := encodeNATSKey(key)
+		enc := consulkv.EncodeKey(key)
 		must.True(t, natsKey.MatchString(enc), must.Sprintf("%q -> %q", key, enc))
 		must.False(t, strings.HasPrefix(enc, ".") || strings.HasSuffix(enc, ".") || strings.Contains(enc, ".."), must.Sprint(enc))
-		dec, err := decodeNATSKey(enc)
+		dec, err := consulkv.DecodeKey(enc)
 		must.NoError(t, err)
 		must.Eq(t, key, dec)
 	}
-	must.Eq(t, ">", natsFilter("app", true))
-	must.Eq(t, "app.>", natsFilter("app/", true))
-	must.Eq(t, "app.sub.>", natsFilter("app/sub/x", true))
-	must.Eq(t, "app.db=2Eurl", natsFilter("app/db.url", false))
+	must.Eq(t, ">", consulkv.Filter("app", true))
+	must.Eq(t, "app.>", consulkv.Filter("app/", true))
+	must.Eq(t, "app.sub.>", consulkv.Filter("app/sub/x", true))
+	must.Eq(t, "app.db=2Eurl", consulkv.Filter("app/db.url", false))
 }

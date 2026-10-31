@@ -51,25 +51,6 @@ const (
 	ConsulKVBucket = "consul-kv"
 )
 
-// ConsulKVSubjects are the subjects a client node may publish to use the
-// key-value bucket of the Consul KV: get, put, delete, list and watch
-// (ordered consumers with flow control). Replies come to its inbox.
-func ConsulKVSubjects() []string {
-	stream := "KV_" + ConsulKVBucket
-	return []string{
-		"$KV." + ConsulKVBucket + ".>",
-		"$JS.API.INFO",
-		"$JS.API.STREAM.INFO." + stream,
-		"$JS.API.STREAM.MSG.GET." + stream,
-		"$JS.API.DIRECT.GET." + stream,
-		"$JS.API.DIRECT.GET." + stream + ".>",
-		"$JS.API.CONSUMER.*." + stream,
-		"$JS.API.CONSUMER.*." + stream + ".>",
-		"$JS.FC." + stream + ".>",
-		"$JS.ACK." + stream + ".>",
-	}
-}
-
 // GapPayload is the payload of a gap marker.
 type GapPayload struct {
 	FromIndex uint64

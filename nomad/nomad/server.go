@@ -251,6 +251,10 @@ type Server struct {
 	bus         *bus.Server
 	busRoutesCh chan struct{}
 
+	// consulKV is the connection of the ConsulKV endpoint to the bucket of
+	// the Consul KV on the bus.
+	consulKV consulKVConn
+
 	// secretStore is the Raft storage and HA lock backend of the built-in
 	// secret store (see setupSecretStore).
 	secretStore *secretstore.Backend
@@ -1426,6 +1430,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewBackupEndpoint(s, ctx))
 	_ = server.Register(NewNetworkPolicyEndpoint(s, ctx))
 	_ = server.Register(NewSecretEndpoint(s, ctx))
+	_ = server.Register(NewConsulKVEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))
 	_ = server.Register(NewPlanEndpoint(s, ctx))
 	_ = server.Register(NewQuotaEndpoint(s, ctx))

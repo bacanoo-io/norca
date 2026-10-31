@@ -42,7 +42,6 @@ import (
 	"github.com/hashicorp/nomad/acl"
 	"github.com/hashicorp/nomad/nomad/structs"
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
-	"github.com/nats-io/nats.go"
 )
 
 const (
@@ -82,10 +81,10 @@ type Backend interface {
 	// ResolveACL returns the ACL of a token, nil when ACLs are disabled.
 	ResolveACL(token string) (*acl.ACL, error)
 
-	// BusConn returns the connection of the client to the system bus of
-	// the servers (KV backends "bus" and "auto"); ErrNoBus when there is
-	// none to use.
-	BusConn() (*nats.Conn, error)
+	// ServersRunBus reports whether the servers of the client run the
+	// system bus (KV backend "auto"); an error while the client does not
+	// know its servers yet.
+	ServersRunBus() (bool, error)
 }
 
 // Config of the API.
