@@ -302,6 +302,9 @@ func TestDockerCoordinator_Cleanup_HonorsCtx(t *testing.T) {
 	// Remove image
 	coordinator.RemoveImage(id1, callerID)
 	testutil.WaitForResult(func() (bool, error) {
+		// white room bugfix: read the mock under its lock, the removal goroutine writes it concurrently.
+		mock.lock.Lock()
+		defer mock.lock.Unlock()
 		if _, ok := mock.removed[id1]; ok {
 			return true, nil
 		}
@@ -318,5 +321,7 @@ func TestDockerCoordinator_Cleanup_HonorsCtx(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Check that only no delete happened
+	mock.lock.Lock()
+	defer mock.lock.Unlock()
 	require.Equal(t, map[string]int{id1: 1}, mock.removed, "removed images")
 }

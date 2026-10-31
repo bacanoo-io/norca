@@ -78,7 +78,14 @@ func (d *Driver) handleFingerprint(ctx context.Context, ch chan *drivers.Fingerp
 			return
 		case <-ticker.C:
 			ticker.Reset(fingerprintPeriod)
-			ch <- d.buildFingerprint()
+			// white room bugfix: do not block on send once the receiver is gone, the goroutine leaked after ctx cancel.
+			select {
+			case ch <- d.buildFingerprint():
+			case <-ctx.Done():
+				return
+			case <-d.ctx.Done():
+				return
+			}
 		}
 	}
 }
