@@ -51,10 +51,21 @@ type RestoreFunc func(archive io.Reader) (*state.StateStore, error)
 // every time. The key includes a hash of the identity, so a cached backup is
 // only served to requests that could decrypt it.
 type loadCache struct {
+	// loadMu serializes the loads; mu guards the cached backup only, so a
+	// cache hit does not wait for the load of another backup.
+	loadMu sync.Mutex
+
 	mu     sync.Mutex
 	key    string
 	loaded *Loaded
 	timer  *time.Timer
+}
+
+// lookup returns the cached backup of key, or nil.
+func (c *loadCache) lookup(key string) *Loaded {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.get(key)
 }
 
 func (c *loadCache) get(key string) *Loaded {
@@ -99,9 +110,16 @@ func (m *Manager) Load(ctx context.Context, record *structs.BackupRecord, destNa
 	sum := sha256.Sum256([]byte(record.ID + "\x00" + dest.Name() + "\x00" + identity))
 	key := hex.EncodeToString(sum[:])
 
-	m.cache.mu.Lock()
-	defer m.cache.mu.Unlock()
-	if loaded := m.cache.get(key); loaded != nil {
+	// white room bugfix: the cache is checked under its own lock; only the
+	// loads are serialized, so a cache hit no longer waits for the download
+	// and restore of another backup.
+	if loaded := m.cache.lookup(key); loaded != nil {
+		return loaded, nil
+	}
+	m.cache.loadMu.Lock()
+	defer m.cache.loadMu.Unlock()
+	// Loaded meanwhile by the request this one waited for.
+	if loaded := m.cache.lookup(key); loaded != nil {
 		return loaded, nil
 	}
 
@@ -164,6 +182,8 @@ func (m *Manager) Load(ctx context.Context, record *structs.BackupRecord, destNa
 		}
 	}
 
+	m.cache.mu.Lock()
 	m.cache.put(key, loaded, m.Config().BrowseCacheTTL)
+	m.cache.mu.Unlock()
 	return loaded, nil
 }
