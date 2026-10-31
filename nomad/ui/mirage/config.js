@@ -517,6 +517,64 @@ function routes() {
     return JSON.stringify(findLeader(schema));
   });
 
+  // The metrics store of the servers: a synthetic, deterministic history.
+  // Fixtures turn it off (metricsStoreEnabled: false) or deny it.
+  const metricsStep = 30;
+  const metricsValue = (metric, i) => {
+    if (metric.endsWith('oom_kills')) return i === 3 ? 1 : 0;
+    if (metric.endsWith('allocs_running')) return i < 10 ? 2 : 3;
+    if (metric.endsWith('allocs_queued')) return 0;
+    if (metric.endsWith('cpu_throttled')) return 2;
+    if (metric.endsWith('cpu_mhz')) return 200 + (i % 5) * 20;
+    if (metric.endsWith('memory_cache_mb')) return 32;
+    if (metric.endsWith('memory_mb')) return 120 + (i % 3) * 10;
+    return 30 + (i % 4) * 5;
+  };
+  this.get('/metrics/history', function (schema, { queryParams }) {
+    const metric = queryParams.metric || 'norca.group.cpu';
+    if (server.metricsStoreEnabled === false) {
+      return { Enabled: false, Metric: metric, Step: 0, Points: [] };
+    }
+    const now = Math.floor(Date.now() / 1000 / metricsStep) * metricsStep;
+    const Points = Array.from({ length: 20 }, (_, i) => {
+      const value = metricsValue(metric, i);
+      return {
+        Time: new Date((now - (19 - i) * metricsStep) * 1000).toISOString(),
+        Avg: value,
+        Max: value * 1.5,
+      };
+    });
+    return { Enabled: true, Metric: metric, Step: metricsStep * 1e9, Points };
+  });
+  this.get('/metrics/summary', function () {
+    if (server.metricsStoreEnabled === false) {
+      return { Enabled: false, Metrics: {} };
+    }
+    return {
+      Enabled: true,
+      Window: 3600e9,
+      AllocatedCPUMHz: 500,
+      AllocatedMemoryMB: 256,
+      Metrics: {
+        'norca.group.cpu_mhz': { Avg: 220, P95: 300, Max: 420, Samples: 20 },
+        'norca.group.memory_mb': { Avg: 130, P95: 150, Max: 210, Samples: 20 },
+      },
+    };
+  });
+  this.get('/metrics/series', function () {
+    if (server.metricsStoreEnabled === false) {
+      return { Enabled: false, Groups: [], Gauges: [] };
+    }
+    return {
+      Enabled: true,
+      Groups: [],
+      Gauges: ['dc1', 'dc2'].map((dc) => ({
+        Metric: 'norca.cluster.cpu_used',
+        Labels: { dc, pool: 'default' },
+      })),
+    };
+  });
+
   // The Raft peers of the region: every server agent, the first one leads.
   this.get('/operator/raft/configuration', function (schema) {
     const leader = findLeader(schema);

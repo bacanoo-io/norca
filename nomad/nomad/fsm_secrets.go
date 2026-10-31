@@ -28,7 +28,7 @@ func (n *nomadFSM) applySecretApply(msgType structs.MessageType, buf []byte, ind
 	}
 
 	if err := n.state.ApplySecret(msgType, index, &req); err != nil {
-		if !errors.Is(err, structs.ErrSecretConflict) {
+		if !errors.Is(err, structs.ErrSecretConflict) && !errors.Is(err, structs.ErrSecretReplicaConflict) {
 			n.logger.Error("ApplySecret failed", "error", err)
 		}
 		return err
@@ -44,7 +44,7 @@ func (n *nomadFSM) applySecretPurge(msgType structs.MessageType, buf []byte, ind
 	}
 
 	if err := n.state.PurgeSecret(msgType, index, &req); err != nil {
-		if !errors.Is(err, structs.ErrSecretConflict) {
+		if !errors.Is(err, structs.ErrSecretConflict) && !errors.Is(err, structs.ErrSecretReplicaConflict) {
 			n.logger.Error("PurgeSecret failed", "error", err)
 		}
 		return err

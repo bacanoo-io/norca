@@ -42,6 +42,25 @@ const (
 	NamespaceCapabilityDestroySecret = "destroy-secret"
 )
 
+// The dynamic secrets of the built-in engine (phase 7). Engines and their
+// leases are namespace objects; the capabilities are granted for the whole
+// namespace only, never in secret blocks. A credential is requested with
+// read-secret on the virtual secret path "engines/<engine>/creds/<role>"
+// (structs.SecretEngineCredsPath), so that the secret blocks of policies and
+// the secret_access bindings of jobs grant it like any secret read.
+const (
+	// NamespaceCapabilityReadSecretEngine allows listing and reading the
+	// secret engines and the leases of the namespace. Neither contains a
+	// credential.
+	NamespaceCapabilityReadSecretEngine = "read-secret-engine"
+
+	// NamespaceCapabilityWriteSecretEngine allows creating, updating and
+	// deleting secret engines, rotating their admin credential
+	// (rotate-root) and revoking leases. Naming an engine's admin credential
+	// requires read-secret on its path as well.
+	NamespaceCapabilityWriteSecretEngine = "write-secret-engine"
+)
+
 // SecretPathPolicy is a secret block of a namespace policy: capabilities on
 // the secret paths matching PathSpec, a path that may contain globs.
 type SecretPathPolicy struct {

@@ -447,6 +447,28 @@ type Config struct {
 	// the built-in store (Norca). The agent enables it by default.
 	SecretsVaultFallback bool
 
+	// SecretsExpiryWarning is how long before a secret's expires_at the
+	// leader announces SecretExpiring; 0 means the default of 7 days.
+	SecretsExpiryWarning time.Duration
+
+	// secretsWatcherDisabled keeps the leader from running the secrets
+	// watcher; tests drive their own watcher instead.
+	secretsWatcherDisabled bool
+
+	// secretLeaseWatcherDisabled keeps the leader from running the lease
+	// watcher of the dynamic secrets; tests drive their own watchers.
+	secretLeaseWatcherDisabled bool
+
+	// SecretsReplicationInterval is the longest time between two full
+	// comparisons of the replicated secrets with the authoritative region
+	// on the leader of another region (the blocking query on their metadata
+	// returns earlier for every change); 0 means the default of 5 minutes.
+	SecretsReplicationInterval time.Duration
+
+	// secretsReplicationDisabled keeps the leader from running the
+	// replication of secrets; tests drive their own rounds instead.
+	secretsReplicationDisabled bool
+
 	// JobDefaultPriority is the default Job priority if not specified.
 	JobDefaultPriority int
 

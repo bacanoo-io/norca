@@ -39,6 +39,13 @@ import (
 // the items into the task's environment, and watches for changes, which are
 // re-delivered according to the change mode.
 //
+// A dynamic secret (engine and role, phase 7) is a credential created for
+// the task with a lease: the hook renews the lease while the task runs (at
+// half of its remaining time), asks for a new credential once the lease
+// can't be extended any more (max_ttl) or was revoked, delivers it with the
+// change mode, and revokes the lease when the task stops. The servers revoke
+// the leases of stopped allocations and unrenewed leases themselves.
+//
 // Values stay in memory: environment values are set on the environment
 // builder directly (the hook's response environment is persisted in the
 // client's state) and are removed from the persisted driver handle
@@ -65,6 +72,13 @@ const (
 	// secretWaitEventInterval rate limits the events of a secret that is
 	// still being waited for.
 	secretWaitEventInterval = 30 * time.Second
+
+	// secretLeaseMinWait bounds the waits of the lease loop from below.
+	secretLeaseMinWait = 100 * time.Millisecond
+
+	// secretRevokeTimeout bounds the revocation of a lease at the task's
+	// stop.
+	secretRevokeTimeout = 5 * time.Second
 )
 
 type secretHookConfig struct {
@@ -90,12 +104,13 @@ type secretHook struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	lock    sync.Mutex
-	started bool
-	states  []*secretState
-	envs    map[string]map[string]string
-	exec    ti.ScriptExecutor
-	taskDir string
+	lock     sync.Mutex
+	started  bool
+	restored bool
+	states   []*secretState
+	envs     map[string]map[string]string
+	exec     ti.ScriptExecutor
+	taskDir  string
 }
 
 // secretState is the delivery state of one secret block.
@@ -112,6 +127,29 @@ type secretState struct {
 	// version and fingerprint describe the delivered value.
 	version     string
 	fingerprint string
+
+	// lease is the lease of the delivered credential of a dynamic secret;
+	// leaseLock guards it, as the task's stop revokes it.
+	leaseLock sync.Mutex
+	lease     *secrets.Lease
+
+	// resumed is set for a dynamic secret of a restored task whose lease
+	// was found in the hook's persisted state: the delivered file stays,
+	// and the lease is renewed.
+	resumed bool
+}
+
+// currentLease returns the lease of the delivered credential.
+func (st *secretState) currentLease() *secrets.Lease {
+	st.leaseLock.Lock()
+	defer st.leaseLock.Unlock()
+	return st.lease
+}
+
+func (st *secretState) setLease(l *secrets.Lease) {
+	st.leaseLock.Lock()
+	defer st.leaseLock.Unlock()
+	st.lease = l
 }
 
 // done ends the wait for the first delivery; it reports whether it was
@@ -140,10 +178,40 @@ func newSecretHook(config *secretHookConfig) *secretHook {
 
 func (*secretHook) Name() string { return secretHookName }
 
+// secretLeaseStatePrefix prefixes the hook state keys of the leases of the
+// dynamic secrets: the lease ID and its expiry, never the credential. A
+// restored task resumes renewing them.
+const secretLeaseStatePrefix = "lease."
+
+// encodeSecretLease and decodeSecretLease convert a lease to and from its
+// hook state value.
+func encodeSecretLease(l *secrets.Lease) string {
+	return fmt.Sprintf("%s %d %d", l.ID, l.ExpireTime.UnixNano(), l.MaxExpireTime.UnixNano())
+}
+
+func decodeSecretLease(v string) *secrets.Lease {
+	parts := strings.Fields(v)
+	if len(parts) != 3 {
+		return nil
+	}
+	expire, err1 := strconv.ParseInt(parts[1], 10, 64)
+	maxExpire, err2 := strconv.ParseInt(parts[2], 10, 64)
+	if err1 != nil || err2 != nil || parts[0] == "" {
+		return nil
+	}
+	return &secrets.Lease{
+		ID:            parts[0],
+		Renewable:     expire < maxExpire,
+		ExpireTime:    time.Unix(0, expire),
+		MaxExpireTime: time.Unix(0, maxExpire),
+	}
+}
+
 // Prestart starts the delivery of every secret on the first run and blocks
 // until every required secret is delivered or has failed. A task restored
 // after a client restart is already running with its delivered files: its
-// secrets are fetched again in the background, without blocking.
+// secrets are fetched again in the background, without blocking, and the
+// leases of its dynamic secrets found in the hook state are renewed.
 func (h *secretHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartRequest, resp *interfaces.TaskPrestartResponse) error {
 	h.lock.Lock()
 	restored := false
@@ -151,12 +219,22 @@ func (h *secretHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartR
 		h.started = true
 		h.taskDir = req.TaskDir.Dir
 		restored = h.config.lifecycle.IsRunning()
+		h.restored = restored
 		jobID := structs.SecretJobID(h.config.alloc.Job)
 		for _, spec := range h.config.task.Secrets {
 			st := &secretState{
 				spec:    spec,
 				path:    structs.InterpolateSecretPath(spec.Path, jobID, h.config.alloc.TaskGroup, h.config.task.Name),
 				initial: make(chan struct{}),
+			}
+			if spec.Engine != "" {
+				// Routes and events refer to the credentials path.
+				st.path = structs.SecretEngineCredsPath(spec.Engine, spec.Role)
+				if restored {
+					if l := decodeSecretLease(req.PreviousState[secretLeaseStatePrefix+spec.Name]); l != nil {
+						st.lease, st.resumed = l, true
+					}
+				}
 			}
 			h.states = append(h.states, st)
 			go h.run(st)
@@ -166,6 +244,7 @@ func (h *secretHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartR
 	h.lock.Unlock()
 
 	if restored {
+		resp.State = maps.Clone(req.PreviousState)
 		return nil
 	}
 	for _, st := range states {
@@ -179,6 +258,14 @@ func (h *secretHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartR
 			}
 		case <-ctx.Done():
 			return nil
+		}
+	}
+	for _, st := range states {
+		if l := st.currentLease(); l != nil {
+			if resp.State == nil {
+				resp.State = map[string]string{}
+			}
+			resp.State[secretLeaseStatePrefix+st.spec.Name] = encodeSecretLease(l)
 		}
 	}
 	return nil
@@ -199,9 +286,43 @@ func (h *secretHook) Poststart(ctx context.Context, req *interfaces.TaskPoststar
 	return nil
 }
 
+// Stop ends the deliveries and revokes the leases of the task's dynamic
+// secrets. Shutdown (the agent stops, the task keeps running) does not.
 func (h *secretHook) Stop(ctx context.Context, req *interfaces.TaskStopRequest, resp *interfaces.TaskStopResponse) error {
 	h.cancel()
+	h.lock.Lock()
+	states := h.states
+	h.lock.Unlock()
+	for _, st := range states {
+		h.revoke(st)
+	}
 	return nil
+}
+
+// revoke revokes the lease of a dynamic secret, if any. A failure is
+// logged: the servers revoke the lease once the allocation stopped.
+func (h *secretHook) revoke(st *secretState) {
+	lease := st.currentLease()
+	if lease == nil {
+		return
+	}
+	res, err := h.config.registry.Resolve(secrets.LookupFor(h.config.alloc.Job, h.config.alloc.TaskGroup, st.spec.Provider, st.path))
+	if err != nil {
+		return
+	}
+	lm, ok := res.Provider.(secrets.LeaseManager)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), secretRevokeTimeout)
+	defer cancel()
+	if err := lm.Revoke(ctx, lease, h.identity()); err != nil {
+		h.logger.Warn("failed to revoke the lease of a dynamic secret; the servers revoke it",
+			"secret", st.spec.Name, "lease_id", lease.ID, "error", err)
+		return
+	}
+	st.setLease(nil)
+	h.logger.Debug("revoked the lease of a dynamic secret", "secret", st.spec.Name, "lease_id", lease.ID)
 }
 
 func (h *secretHook) Shutdown() {
@@ -284,6 +405,9 @@ func (h *secretHook) event(format string, args ...any) {
 // providers that don't audit reads themselves.
 func (h *secretHook) fetch(st *secretState, p secrets.Provider) (*secrets.Secret, error) {
 	req := &secrets.Request{Path: st.path, Version: st.spec.Version, Identity: h.identity()}
+	if st.spec.Engine != "" {
+		req.Path, req.Engine, req.Role, req.Name = "", st.spec.Engine, st.spec.Role, st.spec.Name
+	}
 	sec, err, aerr := secrets.FetchAudited(h.ctx, p, req, h.config.auditor)
 	if aerr != nil {
 		h.logger.Warn("failed to record the audit record of a secret fetch",
@@ -308,6 +432,26 @@ func (h *secretHook) run(st *secretState) {
 	h.event("secret %s: %s", spec.Name, res)
 	h.logger.Debug("secret provider resolved", "secret", spec.Name, "provider", p.Name(), "source", res.Source)
 
+	var leases secrets.LeaseManager
+	if spec.Engine != "" {
+		lm, ok := p.(secrets.LeaseManager)
+		if !ok || !p.Capabilities().Leases {
+			err := fmt.Errorf("provider %s does not support dynamic secrets (engine, role)", p.Name())
+			h.event("secret %s: %v", spec.Name, err)
+			fail(fmt.Errorf("secret %s: %w", spec.Name, err))
+			return
+		}
+		leases = lm
+		if st.resumed {
+			// The task runs with the delivered credential; keep its
+			// lease alive, or replace it if it ended meanwhile.
+			h.event("secret %s: resuming lease %s", spec.Name, st.currentLease().ID)
+			st.done(nil)
+			h.leaseLoop(st, p, leases)
+			return
+		}
+	}
+
 	// First delivery.
 	deadline := time.Now().Add(spec.Timeout)
 	var lastEvent time.Time
@@ -316,10 +460,15 @@ func (h *secretHook) run(st *secretState) {
 		sec, err := h.fetch(st, p)
 		if err == nil {
 			if err = h.deliver(st, sec); err == nil {
-				h.event("secret %s: delivered%s", spec.Name, versionSuffix(st.version))
+				h.event("secret %s: delivered%s", spec.Name, deliveredSuffix(sec))
 				if !st.done(nil) {
 					// An optional secret delivered after its timeout is
 					// a change of the running task.
+					h.changed(st)
+				} else if sec.Lease != nil && h.isRestored() {
+					// After a client restart without a persisted lease
+					// the task still uses a credential whose lease the
+					// client no longer renews; the servers revoke it.
 					h.changed(st)
 				}
 				break
@@ -363,11 +512,125 @@ func (h *secretHook) run(st *secretState) {
 		}
 	}
 
+	if leases != nil {
+		h.leaseLoop(st, p, leases)
+		return
+	}
 	// A pinned version never changes.
 	if spec.Version != 0 {
 		return
 	}
 	h.watch(st, p)
+}
+
+func (h *secretHook) isRestored() bool {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+	return h.restored
+}
+
+// deliveredSuffix describes a delivered secret for the task events: its
+// version, or its lease.
+func deliveredSuffix(sec *secrets.Secret) string {
+	if l := sec.Lease; l != nil {
+		return fmt.Sprintf(" (lease %s, until %s at most)", l.ID, l.MaxExpireTime.UTC().Format(time.RFC3339))
+	}
+	return versionSuffix(sec.Version)
+}
+
+// leaseLoop keeps the credential of a dynamic secret alive until the task
+// stops: it renews the lease at half of its remaining time, and asks for a
+// new credential (delivered with the change mode) when the lease can't be
+// extended any more, at half of the time left before its max_ttl, or when
+// a renewal finds it revoked. Failed requests are retried with a backoff.
+func (h *secretHook) leaseLoop(st *secretState, p secrets.Provider, lm secrets.LeaseManager) {
+	spec := st.spec
+	var attempts uint64
+	var lastEvent time.Time
+	reissue := false
+	var retryAt time.Time
+
+	report := func(format string, args ...any) {
+		msg := fmt.Sprintf(format, args...)
+		if time.Since(lastEvent) >= secretWaitEventInterval {
+			lastEvent = time.Now()
+			h.event("secret %s: %s", spec.Name, msg)
+		}
+		h.logger.Warn("dynamic secret", "secret", spec.Name, "provider", p.Name(), "error", msg)
+	}
+	backoff := func() time.Time {
+		d := helper.Backoff(secretBackoffBaseline, secretBackoffLimit, attempts)
+		attempts++
+		return time.Now().Add(d)
+	}
+
+	for h.ctx.Err() == nil {
+		lease := st.currentLease()
+		now := time.Now()
+		var at time.Time
+		switch {
+		case !retryAt.IsZero():
+			at = retryAt
+		case lease == nil:
+			reissue, at = true, now
+		case !lease.ExpireTime.Before(lease.MaxExpireTime):
+			// The lease ends at its max_ttl: a new credential is needed.
+			reissue, at = true, now.Add(lease.MaxExpireTime.Sub(now)/2)
+		default:
+			at = now.Add(lease.ExpireTime.Sub(now) / 2)
+		}
+		wait := max(time.Until(at), secretLeaseMinWait)
+		select {
+		case <-h.ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+		retryAt = time.Time{}
+
+		if !reissue {
+			renewed, err := lm.Renew(h.ctx, lease, h.identity())
+			if h.ctx.Err() != nil {
+				return
+			}
+			if err == nil {
+				attempts = 0
+				st.setLease(renewed)
+				h.logger.Trace("renewed the lease of a dynamic secret", "secret", spec.Name, "lease_id", renewed.ID)
+				continue
+			}
+			switch secrets.KindOf(err) {
+			case secrets.KindNotFound, secrets.KindDenied:
+				// Revoked or expired: a new credential is needed.
+				h.event("secret %s: lease %s ended (%v); requesting a new credential", spec.Name, lease.ID, err)
+				reissue = true
+			default:
+				report("failed to renew lease %s: %v", lease.ID, err)
+				retryAt = backoff()
+				if lease.ExpireTime.Before(retryAt) {
+					// It would expire before the retry.
+					reissue = true
+					retryAt = time.Time{}
+				}
+				continue
+			}
+		}
+
+		sec, err := h.fetch(st, p)
+		if h.ctx.Err() != nil {
+			return
+		}
+		if err == nil {
+			err = h.deliver(st, sec)
+		}
+		if err != nil {
+			report("failed to get a new credential: %v (keeping the delivered credential)", err)
+			retryAt = backoff()
+			continue
+		}
+		attempts, reissue = 0, false
+		h.event("secret %s: new credential delivered%s", spec.Name, deliveredSuffix(sec))
+		h.changed(st)
+	}
 }
 
 // watch re-delivers the secret when it changes, through the provider's
@@ -451,8 +714,23 @@ func versionSuffix(version string) string {
 }
 
 // deliver writes the file and sets the environment variables of a secret.
+// A dynamic secret without a file or env block is written to the provider's
+// default file; its lease becomes the secret's lease.
 func (h *secretHook) deliver(st *secretState, sec *secrets.Secret) error {
 	spec := st.spec
+	if spec.File == nil && len(spec.Env) == 0 {
+		if sec.DefaultFile == "" || sec.DefaultFileItem == "" {
+			return fmt.Errorf("secret %s: the provider has no default delivery; give the secret a file block", spec.Name)
+		}
+		data, ok := sec.Items[sec.DefaultFileItem]
+		if !ok {
+			return fmt.Errorf("secret %s: item %q not found", spec.Name, sec.DefaultFileItem)
+		}
+		dest := "secrets/" + sec.DefaultFile
+		if err := writeSecretFile(h.taskDir, dest, []byte(data), h.config.task); err != nil {
+			return fmt.Errorf("secret %s: failed to write %s: %v", spec.Name, dest, err)
+		}
+	}
 	if spec.File != nil {
 		data, err := secrets.Render(spec.File, sec.Items)
 		if err != nil {
@@ -478,6 +756,9 @@ func (h *secretHook) deliver(st *secretState, sec *secrets.Secret) error {
 	}
 	st.version = sec.Version
 	st.fingerprint = secrets.Fingerprint(sec.Items)
+	if sec.Lease != nil {
+		st.setLease(sec.Lease)
+	}
 	return nil
 }
 

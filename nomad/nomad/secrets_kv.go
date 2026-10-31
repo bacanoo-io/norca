@@ -78,6 +78,16 @@ type serverSecrets struct {
 
 	// auditFile is the audit file, if configured.
 	auditFile *secretstore.AuditFile
+
+	// replicaKeys caches, in the authoritative region, the replication
+	// public keys of the other regions by region.
+	replicaKeysLock sync.Mutex
+	replicaKeys     map[string]*secretReplicaPublicKey
+
+	// engineLocks serialize the operations of each dynamic secrets engine
+	// on the leader (see engineLock).
+	engineLocksLock sync.Mutex
+	engineLocks     map[secretEngineKey]*sync.Mutex
 }
 
 // setupSecrets creates the audit trail of the secrets.
@@ -132,6 +142,8 @@ func secretCodedError(err error) error {
 		return nil
 	case errors.Is(err, structs.ErrSecretConflict):
 		return structs.NewErrRPCCoded(http.StatusConflict, structs.ErrSecretConflict.Error())
+	case errors.Is(err, structs.ErrSecretReplicaConflict):
+		return structs.NewErrRPCCoded(http.StatusConflict, structs.ErrSecretReplicaConflict.Error())
 	case errors.Is(err, structs.ErrSecretNotFound), errors.Is(err, kv.ErrSecretNotFound):
 		return structs.NewErrRPCCoded(http.StatusNotFound, structs.ErrSecretNotFound.Error())
 	case errors.Is(err, kv.ErrVersionNotFound):
@@ -142,6 +154,12 @@ func secretCodedError(err error) error {
 		return structs.NewErrRPCCoded(http.StatusNotFound, "secret version is destroyed")
 	case errors.Is(err, barrier.ErrSealed), errors.Is(err, storage.ErrFenced):
 		return errSecretUnavailable(err)
+	case errors.Is(err, structs.ErrSecretEngineNotFound):
+		return structs.NewErrRPCCoded(http.StatusNotFound, structs.ErrSecretEngineNotFound.Error())
+	case errors.Is(err, structs.ErrSecretLeaseNotFound):
+		return structs.NewErrRPCCoded(http.StatusNotFound, structs.ErrSecretLeaseNotFound.Error())
+	case errors.Is(err, structs.ErrSecretLeaseRevoked):
+		return structs.NewErrRPCCoded(http.StatusNotFound, structs.ErrSecretLeaseRevoked.Error())
 	case errors.Is(err, secretstore.ErrServersNotReady):
 		return structs.NewErrRPCCoded(http.StatusServiceUnavailable, err.Error())
 	default:
@@ -160,6 +178,8 @@ func secretAccessResult(err error) string {
 		return structs.SecretAccessResultDenied
 	case !ok:
 		return structs.SecretAccessResultError
+	case code == http.StatusForbidden:
+		return structs.SecretAccessResultDenied
 	case code == http.StatusNotFound:
 		return structs.SecretAccessResultNotFound
 	case code == http.StatusConflict:
@@ -346,6 +366,9 @@ func (s *Server) secretWrite(args *secretWrite) (*structs.Secret, uint64, error)
 	if err != nil {
 		return nil, 0, err
 	}
+	if err := s.secretReplicaReadOnly(existing); err != nil {
+		return nil, 0, err
+	}
 	if err := checkSecretIndex(existing, args.checkIndex); err != nil {
 		return nil, 0, err
 	}
@@ -363,6 +386,10 @@ func (s *Server) secretWrite(args *secretWrite) (*structs.Secret, uint64, error)
 		meta = *args.metaIfNew.Copy()
 	}
 	meta.Canonicalize()
+	if meta.Replicate && !s.secretsAuthoritative() {
+		return nil, 0, structs.NewErrRPCCodedf(http.StatusBadRequest,
+			"replicate can only be set in the authoritative region %q", s.config.AuthoritativeRegion)
+	}
 
 	ctx, batch := secretstore.WithBatch(context.Background())
 	b := c.Barrier()
@@ -431,6 +458,9 @@ func (s *Server) secretVersionsOp(op string, args *structs.SecretVersionsRequest
 	}
 	if existing == nil {
 		return nil, 0, structs.ErrSecretNotFound
+	}
+	if err := s.secretReplicaReadOnly(existing); err != nil {
+		return nil, 0, err
 	}
 	if err := checkSecretIndex(existing, args.CheckIndex); err != nil {
 		return nil, 0, err

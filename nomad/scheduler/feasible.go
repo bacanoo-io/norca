@@ -395,7 +395,7 @@ func (c *NetworkChecker) SetNetwork(network *structs.NetworkResource) {
 		c.networkMode = "host"
 	}
 
-	// white room bugfix: the slice was made with its length instead of its
+	// clean room bugfix: the slice was made with its length instead of its
 	// capacity, so every port list started with as many zero ports.
 	c.ports = make([]structs.Port, 0, len(network.DynamicPorts)+len(network.ReservedPorts))
 	c.ports = append(c.ports, network.DynamicPorts...)

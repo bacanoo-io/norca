@@ -365,7 +365,7 @@ func (b *driverPluginServer) TaskEvents(req *proto.TaskEventsRequest, srv proto.
 	}
 
 	for {
-		// white room bugfix: this only waited on ch, so when the client went
+		// clean room bugfix: this only waited on ch, so when the client went
 		// away and the driver never closed ch (the shared eventer drops
 		// cancelled consumers without closing them) the handler hung forever.
 		var event *TaskEvent

@@ -67,7 +67,7 @@ func (s *Server) exportConsulKV(ctx context.Context) (*consulkv.Export, error) {
 	if err != nil {
 		return nil, err
 	}
-	// white room bugfix: the lister is stopped also on an early return (the
+	// clean room bugfix: the lister is stopped also on an early return (the
 	// connection closed by done ends it too, but only after the return).
 	defer func() { _ = lister.Stop() }()
 	out := &consulkv.Export{Bucket: bus.ConsulKVBucket, Entries: []*consulkv.Entry{}}
@@ -121,7 +121,7 @@ func (s *Server) importConsulKV(ctx context.Context, entries []*consulkv.Entry, 
 		if err != nil {
 			return err
 		}
-		// white room bugfix: the lister is stopped also on an early return.
+		// clean room bugfix: the lister is stopped also on an early return.
 		defer func() { _ = lister.Stop() }()
 		keep := map[string]bool{}
 		for _, e := range entries {

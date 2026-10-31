@@ -35,7 +35,7 @@ type Watcher struct {
 
 	// watchers is the set of active watchers, one per volume
 	//
-	// white room bugfix: the key was vol.ID+vol.Namespace, so volume "vol"
+	// clean room bugfix: the key was vol.ID+vol.Namespace, so volume "vol"
 	// in namespace "default" and volume "voldef" in namespace "ault"
 	// shared one watcher (volume IDs are free-form)
 	watchers map[structs.NamespacedID]*volumeWatcher
@@ -101,7 +101,7 @@ func (w *Watcher) SetEnabled(enabled bool, state *state.StateStore, leaderAcl st
 
 	// If we are starting now, launch the watch daemon
 	//
-	// white room bugfix: the daemon read w.state without the lock, racing
+	// clean room bugfix: the daemon read w.state without the lock, racing
 	// with the write above when a daemon from the previous leadership term
 	// had not yet seen its context cancelled; it now gets its state store
 	if enabled && !wasEnabled {
@@ -137,7 +137,7 @@ func (w *Watcher) watchVolumes(ctx context.Context, state *state.StateStore) {
 			}
 			w.logger.Error("failed to retrieve volumes", "error", err)
 
-			// white room bugfix: on error the loop retried at once and
+			// clean room bugfix: on error the loop retried at once and
 			// reset the index to 0, which makes the next query
 			// non-blocking, so a persistent error spun the CPU and
 			// flooded the log. Wait and keep the last-seen index
@@ -240,7 +240,7 @@ func (w *Watcher) addLocked(v *structs.CSIVolume) (*volumeWatcher, error) {
 // removes the watcher from the watch list and reports whether the goroutine
 // may exit, which it may not if an update was queued for it.
 //
-// white room bugfix: remove deleted whatever watcher was stored under the
+// clean room bugfix: remove deleted whatever watcher was stored under the
 // key, so a goroutine of the previous leadership term that returned late
 // from an RPC removed the new term's watcher for the same volume. It also
 // ran after the goroutine had stopped reading updateCh, so an update

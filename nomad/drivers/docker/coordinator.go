@@ -140,7 +140,7 @@ func newDockerCoordinator(config *dockerCoordinatorConfig) *dockerCoordinator {
 // error that occurred during the pull
 func (d *dockerCoordinator) PullImage(image string, authOptions *docker.AuthConfiguration, callerID string,
 	emitFn LogEventFn, pullTimeout, pullActivityTimeout time.Duration) (imageID string, err error) {
-	// white room bugfix: share a pull only between callers with the same credentials, so one caller's bad or missing auth cannot fail (or serve) another's pull.
+	// clean room bugfix: share a pull only between callers with the same credentials, so one caller's bad or missing auth cannot fail (or serve) another's pull.
 	key := pullKey(image, authOptions)
 
 	// Get the future
@@ -164,7 +164,7 @@ func (d *dockerCoordinator) PullImage(image string, authOptions *docker.AuthConf
 	// Delete the future since we don't need it and we don't want to cache an
 	// image being there if it has possibly been manually deleted (outside of
 	// Nomad).
-	// white room bugfix: only delete our own future (and its loggers), a newer pull of the same image may have replaced it while we waited.
+	// clean room bugfix: only delete our own future (and its loggers), a newer pull of the same image may have replaced it while we waited.
 	if d.pullFutures[key] == future {
 		delete(d.pullFutures, key)
 		d.clearPullLogger(key)

@@ -238,6 +238,18 @@ func (e *Secret) Upsert(args *structs.SecretUpsertRequest, reply *structs.Secret
 		if err := args.Meta.Validate(); err != nil {
 			return e.finish(rec, structs.NewErrRPCCoded(http.StatusBadRequest, err.Error()))
 		}
+		// The leader dispatches the rotation job with its own authority, so
+		// naming a job requires the right to dispatch it.
+		if job := secretRotateJob(args.Meta); job != "" {
+			existing, err := e.srv.State().SecretByPath(nil, namespace, args.Path)
+			if err != nil {
+				return e.finish(rec, err)
+			}
+			if (existing == nil || secretRotateJob(&existing.SecretMeta) != job) &&
+				!aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityDispatchJob) {
+				return e.denied(rec)
+			}
+		}
 	}
 
 	if err := e.srv.secretAudit(rec, false); err != nil {
@@ -310,6 +322,14 @@ func (e *Secret) versionsOp(method, op, capability string, args *structs.SecretV
 	reply.Secret = secret
 	reply.Index = index
 	return nil
+}
+
+// secretRotateJob returns the rotation job of metadata, "" if none.
+func secretRotateJob(m *structs.SecretMeta) string {
+	if m == nil || m.Rotate == nil {
+		return ""
+	}
+	return m.Rotate.Job
 }
 
 // validateWrite checks the version gate and the target of a write.

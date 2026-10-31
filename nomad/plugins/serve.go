@@ -51,7 +51,7 @@ func serve(plugin interface{}, logger log.Logger) {
 	case drivers.DriverPlugin:
 		drivers.Serve(p, logger)
 	default:
-		// white room bugfix: an unsupported plugin only printed a line and the
+		// clean room bugfix: an unsupported plugin only printed a line and the
 		// process exited 0, so a broken plugin binary looked like a clean
 		// exit. Log it and exit non-zero; the stdout line is kept because the
 		// host shows it as the unrecognized handshake.

@@ -21,10 +21,20 @@
 
 .norca-brand {
   justify-content: flex-start !important;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 600;
   font-size: 1.1rem;
   letter-spacing: -0.01em;
   color: #fff;
+}
+
+// The Norca icon; it stays when the collapsed sidebar hides the name.
+.norca-brand-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .norca-sidebar {

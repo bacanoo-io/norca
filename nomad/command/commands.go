@@ -594,6 +594,33 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		"secret import": func() (cli.Command, error) {
 			return &SecretImportCommand{Meta: meta}, nil
 		},
+		"secret engine": func() (cli.Command, error) {
+			return &SecretEngineCommand{Meta: meta}, nil
+		},
+		"secret engine list": func() (cli.Command, error) {
+			return &SecretEngineListCommand{Meta: meta}, nil
+		},
+		"secret engine info": func() (cli.Command, error) {
+			return &SecretEngineInfoCommand{Meta: meta}, nil
+		},
+		"secret engine apply": func() (cli.Command, error) {
+			return &SecretEngineApplyCommand{Meta: meta}, nil
+		},
+		"secret engine delete": func() (cli.Command, error) {
+			return &SecretEngineDeleteCommand{Meta: meta}, nil
+		},
+		"secret engine rotate-root": func() (cli.Command, error) {
+			return &SecretEngineRotateRootCommand{Meta: meta}, nil
+		},
+		"secret lease": func() (cli.Command, error) {
+			return &SecretLeaseCommand{Meta: meta}, nil
+		},
+		"secret lease list": func() (cli.Command, error) {
+			return &SecretLeaseListCommand{Meta: meta}, nil
+		},
+		"secret lease revoke": func() (cli.Command, error) {
+			return &SecretLeaseRevokeCommand{Meta: meta}, nil
+		},
 		"namespace": func() (cli.Command, error) {
 			return &NamespaceCommand{
 				Meta: meta,

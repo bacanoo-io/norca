@@ -1,0 +1,28 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Card @title="Usage and allocations" @subtitle="Of the group, from the metrics store of the servers" data-test-scaling-history ...attributes>
+  <:actions>
+    <Ui::Tabs @label="Range" @tabs={{this.tabs}} @selected={{this.range}} @onSelect={{this.selectRange}} />
+  </:actions>
+  <:default>
+    {{#if (eq this.state "loading")}}
+      <Ui::Spinner @showLabel={{true}} @label="Loading the usage history" />
+    {{else if (eq this.state "disabled")}}
+      <p class="text-secondary mb-0" data-test-scaling-history-disabled>
+        The servers keep no usage history: the metrics store is disabled.
+      </p>
+    {{else if (eq this.state "forbidden")}}
+      <p class="text-secondary mb-0" data-test-scaling-history-forbidden>Your token cannot read the usage history of this job.</p>
+    {{else if (eq this.state "error")}}
+      <Ui::Alert @tone="danger" @title="The usage history could not be loaded">{{this.error}}</Ui::Alert>
+    {{else if this.isEmpty}}
+      <Ui::EmptyState @compact={{true}} @icon="chart-line" @title="No usage in this range" @message="The history fills as the clients report the usage of the running allocations." />
+    {{else}}
+      <Ui::Chart @label="Usage and running allocations of {{@group}} over time" @option={{this.option}} @height={{240}} data-test-scaling-history-chart>
+        {{this.summaryText}}
+      </Ui::Chart>
+    {{/if}}
+  </:default>
+</Ui::Card>

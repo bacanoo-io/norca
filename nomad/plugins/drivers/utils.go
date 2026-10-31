@@ -383,7 +383,7 @@ func exitResultToProto(result *ExitResult) *proto.ExitResult {
 }
 
 func exitResultFromProto(pb *proto.ExitResult) *ExitResult {
-	// white room bugfix: a response from an external plugin without a result
+	// clean room bugfix: a response from an external plugin without a result
 	// message (proto3 leaves it nil) panicked the client.
 	if pb == nil {
 		return &ExitResult{}
@@ -415,7 +415,7 @@ func taskStatusToProto(status *TaskStatus) (*proto.TaskStatus, error) {
 }
 
 func taskStatusFromProto(pb *proto.TaskStatus) (*TaskStatus, error) {
-	// white room bugfix: a response from an external plugin without a task
+	// clean room bugfix: a response from an external plugin without a task
 	// status message (proto3 leaves it nil) panicked the client.
 	if pb == nil {
 		return nil, errors.New("missing task status")
@@ -459,7 +459,7 @@ func TaskStatsToProto(stats *TaskResourceUsage) (*proto.TaskStats, error) {
 }
 
 func TaskStatsFromProto(pb *proto.TaskStats) (*TaskResourceUsage, error) {
-	// white room bugfix: pb.Timestamp panicked when an external plugin sent a
+	// clean room bugfix: pb.Timestamp panicked when an external plugin sent a
 	// response without stats; the getter yields nil, which is an error here.
 	timestamp, err := ptypes.Timestamp(pb.GetTimestamp())
 	if err != nil {
@@ -509,7 +509,7 @@ func resourceUsageToProto(ru *ResourceUsage) *proto.TaskResourceUsage {
 }
 
 func resourceUsageFromProto(pb *proto.TaskResourceUsage) *ResourceUsage {
-	// white room bugfix: stats from an external plugin without an aggregate
+	// clean room bugfix: stats from an external plugin without an aggregate
 	// usage message (proto3 leaves it nil) panicked the client. Treat it as
 	// an empty usage, like the missing cpu and memory parts below.
 	if pb == nil {

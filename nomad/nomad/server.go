@@ -1436,6 +1436,8 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewBackupEndpoint(s, ctx))
 	_ = server.Register(NewNetworkPolicyEndpoint(s, ctx))
 	_ = server.Register(NewSecretEndpoint(s, ctx))
+	_ = server.Register(NewSecretEngineEndpoint(s, ctx))
+	_ = server.Register(NewSecretLeaseEndpoint(s, ctx))
 	_ = server.Register(NewConsulKVEndpoint(s, ctx))
 	_ = server.Register(NewMetricsStoreEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))

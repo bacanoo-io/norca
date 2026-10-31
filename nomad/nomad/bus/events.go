@@ -86,7 +86,7 @@ func ValidSubjectPrefix(prefix string) error {
 }
 
 // EventSubject is the subject of the events of a topic of a namespace of a
-// region. white room bugfix: the namespace is a token of the subject, so
+// region. clean room bugfix: the namespace is a token of the subject, so
 // a bus subscribe rule can be limited to the events of a namespace
 // ("nomad.*.dev.>"); events without a namespace use "_", which namespace
 // names cannot contain.

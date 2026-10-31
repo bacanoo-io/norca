@@ -90,7 +90,7 @@ func decodeToken(tok string) (string, error) {
 // variables backend, and the Variables rules of a namespace and path apply
 // to exactly the keys kept under them.
 //
-// white room bugfix: without the namespace and the path in the key, a token
+// clean room bugfix: without the namespace and the path in the key, a token
 // with Variables write on any path of any namespace could write every key of
 // the bucket by naming that path and namespace in its KV request.
 

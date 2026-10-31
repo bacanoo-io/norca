@@ -251,7 +251,7 @@ func TestNetworkPolicyEndpoint_AllocRulesAndStatus(t *testing.T) {
 	req.AuthToken = other.SecretID
 	must.EqError(t, msgpackrpc.CallWithCodec(codec, "NetworkPolicy.GetAllocRules", req, &resp), structs.ErrPermissionDenied.Error())
 
-	// white room bugfix: a token without the permissions gets the same
+	// clean room bugfix: a token without the permissions gets the same
 	// answer for an existing and a missing allocation; one with them gets
 	// an empty rule set for a missing allocation.
 	outsider := mock.CreatePolicyAndToken(t, store, 1004, "outsider", `node { policy = "read" }`)

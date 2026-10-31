@@ -637,7 +637,7 @@ func (n *NetworkPolicy) GetAllocRules(args *structs.NetworkPolicyAllocRequest, r
 					return structs.ErrPermissionDenied
 				}
 			} else if clientID == "" {
-				// white room bugfix: a missing allocation needs the same
+				// clean room bugfix: a missing allocation needs the same
 				// permissions on the namespace of the request, so a caller
 				// without them gets the same answer for an existing and a
 				// missing allocation (no existence oracle). Nodes keep

@@ -35,7 +35,10 @@ type TaskSecret struct {
 	// Version pins a version; 0 is the latest.
 	Version uint64 `hcl:"version,optional" json:",omitempty"`
 
-	// Engine and Role are reserved for dynamic secrets.
+	// Engine and Role ask for a dynamic secret: a credential of the role of
+	// the engine of the job's namespace, delivered to the engine's default
+	// file (secrets/nats.creds for nats) unless a file or env block is
+	// given. Path and Version are empty then.
 	Engine string `hcl:"engine,optional" json:",omitempty"`
 	Role   string `hcl:"role,optional" json:",omitempty"`
 

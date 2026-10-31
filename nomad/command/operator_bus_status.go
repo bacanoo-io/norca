@@ -102,7 +102,7 @@ func (c *OperatorBusStatusCommand) Run(args []string) int {
 		return 0
 	}
 
-	c.Ui.Output(formatBusStatus(status))
+	c.Ui.Output(c.Colorize().Color(formatBusStatus(status)))
 	return 0
 }
 

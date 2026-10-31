@@ -110,7 +110,7 @@ func (m *Manager) Load(ctx context.Context, record *structs.BackupRecord, destNa
 	sum := sha256.Sum256([]byte(record.ID + "\x00" + dest.Name() + "\x00" + identity))
 	key := hex.EncodeToString(sum[:])
 
-	// white room bugfix: the cache is checked under its own lock; only the
+	// clean room bugfix: the cache is checked under its own lock; only the
 	// loads are serialized, so a cache hit no longer waits for the download
 	// and restore of another backup.
 	if loaded := m.cache.lookup(key); loaded != nil {

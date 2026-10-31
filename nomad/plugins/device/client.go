@@ -60,7 +60,7 @@ func (d *devicePluginClient) handleFingerprint(
 		resp, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				// white room bugfix: the error was sent unconditionally, so a
+				// clean room bugfix: the error was sent unconditionally, so a
 				// consumer that had stopped reading after cancelling reqCtx
 				// left this goroutine blocked forever on a full channel. The
 				// error is still delivered whenever there is room for it.
@@ -144,7 +144,7 @@ func (d *devicePluginClient) handleStats(
 		resp, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				// white room bugfix: the error was sent unconditionally, so a
+				// clean room bugfix: the error was sent unconditionally, so a
 				// consumer that had stopped reading after cancelling reqCtx
 				// left this goroutine blocked forever on a full channel. The
 				// error is still delivered whenever there is room for it.

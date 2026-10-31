@@ -64,6 +64,14 @@
     </:default>
   </Ui::Card>
 
+  <Metrics::TaskGroupHistory
+    @namespace={{or this.model.job.namespace.name "default"}}
+    @job={{this.model.job.plainId}}
+    @group={{this.model.name}}
+    @reservedCPU={{this.model.reservedCPU}}
+    @reservedMemory={{this.model.reservedMemory}}
+  />
+
   <h2 class="h3 mb-2">Allocations</h2>
   <Allocations::Table
     @id="task-group-allocations"

@@ -258,7 +258,7 @@ func ListenAndServeTLS(ctx context.Context, addr, certFile, keyFile string, h ht
 // done it waits (up to 5 seconds) for the requests in progress to finish.
 func Serve(ctx context.Context, ln net.Listener, h http.Handler) error {
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
-	// white room bugfix: the shutdown goroutine waited for ctx only, so it
+	// clean room bugfix: the shutdown goroutine waited for ctx only, so it
 	// leaked when serving failed (until ctx was done, forever with a
 	// background context), and Serve returned as soon as the shutdown
 	// started, before the requests in progress had finished.

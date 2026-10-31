@@ -117,6 +117,7 @@ export function secretMeta(secret) {
     Labels: secret?.Labels || {},
     ExpiresAt: secret?.ExpiresAt || null,
     RotateEvery: secret?.RotateEvery || 0,
+    Rotate: secret?.Rotate?.Job ? { Job: secret.Rotate.Job } : null,
     MaxVersions: secret?.MaxVersions || 10,
   };
 }
@@ -137,6 +138,12 @@ export const SECRET_META_SCHEMA = {
       patternMessage: 'must be an RFC 3339 time, e.g. 2027-01-31T00:00:00Z',
     },
     RotateEvery: { type: 'integer', minimum: 0 },
+    Rotate: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: ['Job'],
+      properties: { Job: { type: 'string', minLength: 1, maxLength: 128 } },
+    },
     MaxVersions: { type: 'integer', minimum: 1, maximum: 100 },
   },
 };

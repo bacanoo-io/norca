@@ -247,7 +247,8 @@ func isNamespaceCapabilityValid(cap string) bool {
 		NamespaceCapabilityRegisterExternalService, NamespaceCapabilityWriteIntention,
 		NamespaceCapabilityReadNetworkPolicy, NamespaceCapabilityWriteNetworkPolicy,
 		NamespaceCapabilityListSecrets, NamespaceCapabilityReadSecret,
-		NamespaceCapabilityWriteSecret, NamespaceCapabilityDestroySecret:
+		NamespaceCapabilityWriteSecret, NamespaceCapabilityDestroySecret,
+		NamespaceCapabilityReadSecretEngine, NamespaceCapabilityWriteSecretEngine:
 		return true
 	// Capabilities without effect, accepted for compatibility with existing
 	// policies

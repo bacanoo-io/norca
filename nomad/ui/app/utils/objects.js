@@ -135,7 +135,7 @@ export const JOB_META_OWNER = 'norca.owner';
 export const JOB_META_OWNER_KIND = 'norca.owner.kind';
 
 export function ownerMetaValue({ group, kind, namespace, name }) {
-  // white room bugfix: the dashes of the group were not escaped, so groups
+  // clean room bugfix: the dashes of the group were not escaped, so groups
   // like "db.example.com" and "db-example-com" had the same owner value.
   const pathGroup = String(group).replace(/-/g, '--').replace(/\./g, '-');
   return `${namespace || ''}/crd/${pathGroup}/${kind}/${name}`;

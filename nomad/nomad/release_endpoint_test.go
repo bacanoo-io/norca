@@ -626,7 +626,7 @@ namespace "default" {
 }
 
 // TestRelease_RevisionVariablesACL checks that a revision does not reveal
-// the values of its Variables to a token that may not read them (white room
+// the values of its Variables to a token that may not read them (clean room
 // bugfix): Release.GetRevision leaves them out, the object API and the
 // object events carry no encoded content.
 func TestRelease_RevisionVariablesACL(t *testing.T) {

@@ -179,7 +179,7 @@ func New(backend Backend, reconciler Reconciler, opts Options) (*Controller, err
 			}
 		},
 		OnDelete: func(obj *Object) {
-			// white room bugfix: the recorder kept the last event of
+			// clean room bugfix: the recorder kept the last event of
 			// deleted objects, dropping the first event of an object
 			// re-created with the same name within the window.
 			c.recorder.Forget(obj.Key)

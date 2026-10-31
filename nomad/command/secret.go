@@ -43,6 +43,9 @@ Usage: norca secret <subcommand> [options] [args]
 
       $ norca secret get -item password prod/db/postgres
 
+  Dynamic secrets (credentials created for tasks with a lease) are managed
+  with "norca secret engine" and "norca secret lease".
+
   Please see the individual subcommand help for detailed usage information.
 `
 	return strings.TrimSpace(helpText)
@@ -115,6 +118,10 @@ func formatSecretMetadata(s *api.Secret) string {
 	if s.RotateEvery > 0 {
 		rotate = s.RotateEvery.String()
 	}
+	rotateJob := "<none>"
+	if s.Rotate != nil && s.Rotate.Job != "" {
+		rotateJob = s.Rotate.Job
+	}
 	out := []string{
 		fmt.Sprintf("Namespace|%s", s.Namespace),
 		fmt.Sprintf("Path|%s", s.Path),
@@ -128,10 +135,15 @@ func formatSecretMetadata(s *api.Secret) string {
 		fmt.Sprintf("Labels|%s", formatSecretLabels(s.Labels)),
 		fmt.Sprintf("Expires At|%s", formatSecretTime(s.ExpiresAt)),
 		fmt.Sprintf("Rotate Every|%s", rotate),
+		fmt.Sprintf("Rotate Job|%s", rotateJob),
 		fmt.Sprintf("Max Versions|%d", s.MaxVersions),
+		fmt.Sprintf("Replicate|%t", s.Replicate),
 		fmt.Sprintf("Create Time|%s", formatUnixNanoTime(s.CreateTime)),
 		fmt.Sprintf("Modify Time|%s", formatUnixNanoTime(s.ModifyTime)),
 		fmt.Sprintf("Modify Index|%d", s.ModifyIndex),
+	}
+	if s.Replica != nil {
+		out = append(out, fmt.Sprintf("Replicated From|%s (read-only replica)", s.Replica.Region))
 	}
 	return formatKV(out)
 }

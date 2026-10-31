@@ -75,7 +75,7 @@ var dynamicVaultSegments = map[string]bool{"creds": true, "sts": true, "static-c
 
 // vaultDynamicMessage ends the error of a Vault path of a dynamic secrets
 // engine served by the built-in store.
-const vaultDynamicMessage = "requires a Vault/OpenBao provider or the built-in dynamic engine (not available yet)"
+const vaultDynamicMessage = "requires a Vault/OpenBao provider or the built-in dynamic engine, which is used with a secret block naming the engine and the role"
 
 // Map maps a Vault path onto the built-in store. Paths that match no rule
 // fail: paths of dynamic engines with a message that they need a Vault or

@@ -100,6 +100,28 @@ export default class SecretsDetail extends Component {
     return at && new Date(at).getTime() < Date.now();
   }
 
+  // When the rotation of the current version is due: its creation time
+  // plus the rotation interval, as the leader's secrets watcher computes it.
+  get rotationDueAt() {
+    const s = this.secret;
+    if (!s?.RotateEvery || s.Deleted || s.Destroyed) return null;
+    const current = (s.Versions || []).find(
+      (v) => v.Version === s.CurrentVersion
+    );
+    const written = current?.CreateTime || s.ModifyTime;
+    if (!written) return null;
+    return new Date((written + s.RotateEvery) / 1e6);
+  }
+
+  get rotationDue() {
+    const at = this.rotationDueAt;
+    return at && at.getTime() <= Date.now();
+  }
+
+  get rotateJob() {
+    return this.secret?.Rotate?.Job || null;
+  }
+
   get metadata() {
     const s = this.secret;
     if (!s) return [];
@@ -134,7 +156,17 @@ export default class SecretsDetail extends Component {
     if (s.RotateEvery)
       items.push({
         title: 'Rotate every',
-        value: formatInterval(s.RotateEvery),
+        value: this.rotationDueAt
+          ? `${formatInterval(s.RotateEvery)} (due ${moment(
+              this.rotationDueAt
+            ).fromNow()})`
+          : formatInterval(s.RotateEvery),
+      });
+    if (this.rotateJob)
+      items.push({
+        title: 'Rotation job',
+        value: this.rotateJob,
+        mono: true,
       });
     return items;
   }

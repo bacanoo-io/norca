@@ -24,6 +24,10 @@ var norcaWatchQueryTime = 1 * time.Minute
 // task's workload identity. Changes are watched with blocking queries on
 // the secret's metadata; the value is fetched only when the version changes.
 // The servers audit every value read, so the client records none.
+//
+// Requests with an engine and a role ask the built-in dynamic secrets
+// engine for a credential (SecretLease.Create); the provider renews and
+// revokes its leases as a LeaseManager.
 type NorcaProvider struct {
 	rpc    config.RPCer
 	region string
@@ -38,7 +42,7 @@ func (p *NorcaProvider) Name() string { return structs.SecretProviderNorca }
 func (p *NorcaProvider) Type() string { return structs.SecretProviderNorca }
 
 func (p *NorcaProvider) Capabilities() Capabilities {
-	return Capabilities{Versions: true, Watch: true, AuditsReads: true}
+	return Capabilities{Versions: true, Watch: true, Leases: true, AuditsReads: true}
 }
 
 func (p *NorcaProvider) query(id *Identity) structs.QueryOptions {
@@ -55,7 +59,13 @@ func (p *NorcaProvider) check(req *Request) error {
 		return NewError(p.Name(), KindUnavailable, errors.New("no server connection"))
 	}
 	if req.Engine != "" || req.Role != "" {
-		return NewError(p.Name(), KindInvalid, errors.New("dynamic secrets are not supported yet"))
+		if err := structs.ValidateSecretEngineName("engine", req.Engine); err != nil {
+			return NewError(p.Name(), KindInvalid, err)
+		}
+		if err := structs.ValidateSecretEngineName("role", req.Role); err != nil {
+			return NewError(p.Name(), KindInvalid, err)
+		}
+		return nil
 	}
 	if err := structs.ValidateSecretPath(req.Path); err != nil {
 		return NewError(p.Name(), KindInvalid, err)
@@ -70,6 +80,9 @@ func (p *NorcaProvider) Fetch(ctx context.Context, req *Request) (*Secret, error
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if req.Engine != "" {
+		return p.createLease(req)
 	}
 	args := &structs.SecretReadRequest{
 		Path:         req.Path,
@@ -90,10 +103,94 @@ func (p *NorcaProvider) Fetch(ctx context.Context, req *Request) (*Secret, error
 	}, nil
 }
 
+// write returns the write options of a request of the identity.
+func (p *NorcaProvider) write(id *Identity) structs.WriteRequest {
+	q := structs.WriteRequest{Region: p.region}
+	if id != nil {
+		q.Namespace = id.Namespace
+		q.AuthToken = id.Token
+	}
+	return q
+}
+
+// createLease asks the dynamic secrets engine for a credential of the role.
+func (p *NorcaProvider) createLease(req *Request) (*Secret, error) {
+	args := &structs.SecretLeaseCreateRequest{
+		Engine:       req.Engine,
+		Role:         req.Role,
+		SecretName:   req.Name,
+		WriteRequest: p.write(req.Identity),
+	}
+	var reply structs.SecretLeaseCreateResponse
+	if err := p.rpc.RPC(structs.SecretLeaseCreateRPCMethod, args, &reply); err != nil {
+		return nil, p.classify(err)
+	}
+	if reply.Lease == nil || len(reply.Items) == 0 {
+		return nil, NewError(p.Name(), KindUnavailable, errors.New("the servers returned no credential"))
+	}
+	return &Secret{
+		Items:           map[string]string(reply.Items.Copy()),
+		Version:         reply.Lease.ID,
+		Lease:           norcaLease(reply.Lease),
+		DefaultFile:     reply.File,
+		DefaultFileItem: reply.FileItem,
+	}, nil
+}
+
+// norcaLease converts a lease of the servers.
+func norcaLease(l *structs.SecretLease) *Lease {
+	expire := time.Unix(0, l.ExpireTime)
+	return &Lease{
+		ID:            l.ID,
+		Duration:      time.Until(expire),
+		Renewable:     l.ExpireTime < l.MaxExpireTime,
+		ExpireTime:    expire,
+		MaxExpireTime: time.Unix(0, l.MaxExpireTime),
+	}
+}
+
+// Renew extends a lease of the task.
+func (p *NorcaProvider) Renew(ctx context.Context, lease *Lease, id *Identity) (*Lease, error) {
+	if p.rpc == nil {
+		return nil, NewError(p.Name(), KindUnavailable, errors.New("no server connection"))
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	args := &structs.SecretLeaseRenewRequest{LeaseID: lease.ID, WriteRequest: p.write(id)}
+	var reply structs.SecretLeaseWriteResponse
+	if err := p.rpc.RPC(structs.SecretLeaseRenewRPCMethod, args, &reply); err != nil {
+		return nil, p.classify(err)
+	}
+	if reply.Lease == nil {
+		return nil, NewError(p.Name(), KindNotFound, structs.ErrSecretLeaseNotFound)
+	}
+	return norcaLease(reply.Lease), nil
+}
+
+// Revoke ends a lease of the task.
+func (p *NorcaProvider) Revoke(ctx context.Context, lease *Lease, id *Identity) error {
+	if p.rpc == nil {
+		return NewError(p.Name(), KindUnavailable, errors.New("no server connection"))
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	args := &structs.SecretLeaseRevokeRequest{LeaseID: lease.ID, WriteRequest: p.write(id)}
+	var reply structs.SecretLeaseRevokeResponse
+	if err := p.rpc.RPC(structs.SecretLeaseRevokeRPCMethod, args, &reply); err != nil {
+		return p.classify(err)
+	}
+	return nil
+}
+
 // ReadMetadata reads the metadata of the secret, without its value.
 func (p *NorcaProvider) ReadMetadata(ctx context.Context, req *Request) (*Metadata, error) {
 	if err := p.check(req); err != nil {
 		return nil, err
+	}
+	if req.Engine != "" {
+		return nil, NewError(p.Name(), KindInvalid, errors.New("dynamic secrets have no metadata"))
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -161,6 +258,9 @@ func norcaMetadata(s *structs.Secret, version uint64) *Metadata {
 func (p *NorcaProvider) Watch(ctx context.Context, req *Request, version string) (string, error) {
 	if err := p.check(req); err != nil {
 		return "", err
+	}
+	if req.Engine != "" {
+		return "", NewError(p.Name(), KindInvalid, errors.New("dynamic secrets are renewed, not watched"))
 	}
 	var index uint64
 	for {

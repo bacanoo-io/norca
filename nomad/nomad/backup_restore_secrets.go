@@ -132,6 +132,16 @@ func (r *backupRestorer) restoreSecret(item *structs.BackupRestoreItem, result *
 		if err := backupMeta.Validate(); err != nil {
 			return finish(fmt.Errorf("the metadata of secret %q in the backup is invalid: %w", path, err))
 		}
+		// A rotation job is dispatched by the leader with its own
+		// authority, as for Secret.Upsert.
+		var currentMeta *structs.SecretMeta
+		if current != nil {
+			currentMeta = &current.SecretMeta
+		}
+		if job := secretRotateJob(backupMeta); job != "" && job != secretRotateJob(currentMeta) &&
+			!aclObj.AllowNsOp(ns, acl.NamespaceCapabilityDispatchJob) {
+			return finish(structs.ErrPermissionDenied)
+		}
 	}
 
 	from := fmt.Sprintf("the value of version %d of secret %q in backup %s", version, path, r.loaded.Record.ID)

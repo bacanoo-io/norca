@@ -41,7 +41,11 @@ func TestTaskSecret_CanonicalizeValidate(t *testing.T) {
 		{"unknown placeholder", func(s *TaskSecret) { s.Path = "jobs/${NOMAD_JOB_ID}/db" }, "only the ${job}"},
 		{"norca path", func(s *TaskSecret) { s.Provider = "norca"; s.Path = "kv/../db" }, "invalid secret path"},
 		{"provider", func(s *TaskSecret) { s.Provider = "a/b" }, "invalid provider name"},
-		{"engine", func(s *TaskSecret) { s.Engine = "pg" }, "not supported yet"},
+		{"engine without role", func(s *TaskSecret) { s.Path = ""; s.Engine = "pg" }, "needs both engine and role"},
+		{"role without engine", func(s *TaskSecret) { s.Path = ""; s.Role = "ro" }, "needs both engine and role"},
+		{"engine with path", func(s *TaskSecret) { s.Engine, s.Role = "pg", "ro" }, "has no path"},
+		{"engine with version", func(s *TaskSecret) { s.Path, s.Engine, s.Role, s.Version = "", "pg", "ro", 2 }, "has no versions"},
+		{"engine name", func(s *TaskSecret) { s.Path, s.Engine, s.Role = "", "p g", "ro" }, "invalid engine name"},
 		{"no delivery", func(s *TaskSecret) { s.File = nil; s.Env = nil }, "file or env block"},
 		{"outside secrets", func(s *TaskSecret) { s.File.Destination = "local/db.env" }, "must be below secrets/"},
 		{"escape", func(s *TaskSecret) { s.File.Destination = "secrets/../local/x" }, "clean relative path"},
@@ -78,6 +82,11 @@ func TestTaskSecret_CanonicalizeValidate(t *testing.T) {
 		s.Canonicalize()
 		must.NoError(t, s.Validate(), must.Sprint(f))
 	}
+	// A dynamic secret needs neither a path nor a delivery block.
+	s = &TaskSecret{Name: "nats", Engine: "nats", Role: "worker"}
+	s.Canonicalize()
+	must.NoError(t, s.Validate())
+
 	s = testTaskSecret()
 	s.File.Format, s.File.Template = "template", "{{ .password }}"
 	s.ChangeMode, s.ChangeScript = SecretChangeModeScript, &ChangeScript{Command: "/bin/reload"}
@@ -111,6 +120,17 @@ func TestTaskSecrets_TaskValidation(t *testing.T) {
 	must.StrContains(t, validateTaskSecrets(task).Error(), "destination of a template")
 	task.Templates = nil
 	must.NoError(t, validateTaskSecrets(task))
+
+	// Two dynamic secrets can't share the engine's default file.
+	n1 := &TaskSecret{Name: "n1", Engine: "nats", Role: "a"}
+	n2 := &TaskSecret{Name: "n2", Engine: "nats", Role: "b"}
+	n1.Canonicalize()
+	n2.Canonicalize()
+	task.Secrets = append(task.Secrets, n1, n2)
+	must.StrContains(t, validateTaskSecrets(task).Error(), "default file")
+	n2.File = &TaskSecretFile{Destination: "secrets/b.creds", Format: "raw:creds"}
+	must.NoError(t, validateTaskSecrets(task))
+	task.Secrets = task.Secrets[:2]
 
 	task.SecretAccess = []*SecretAccess{{Path: "jobs/${job}/${task}/*"}}
 	must.NoError(t, validateTaskSecrets(task))

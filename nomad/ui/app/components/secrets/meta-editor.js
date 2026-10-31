@@ -48,6 +48,7 @@ export default class SecretsMetaEditor extends Component {
           Labels: meta.Labels || null,
           ExpiresAt: meta.ExpiresAt || null,
           RotateEvery: meta.RotateEvery || 0,
+          Rotate: meta.Rotate?.Job ? { Job: meta.Rotate.Job } : null,
           MaxVersions: meta.MaxVersions || 0,
         },
         cas: s.ModifyIndex,

@@ -408,6 +408,14 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applySecretApply(msgType, buf[1:], log.Index)
 	case structs.SecretPurgeRequestType:
 		return n.applySecretPurge(msgType, buf[1:], log.Index)
+	case structs.SecretEngineApplyRequestType:
+		return n.applySecretEngineApply(msgType, buf[1:], log.Index)
+	case structs.SecretEnginePurgeRequestType:
+		return n.applySecretEnginePurge(msgType, buf[1:], log.Index)
+	case structs.SecretLeaseApplyRequestType:
+		return n.applySecretLeaseApply(msgType, buf[1:], log.Index)
+	case structs.SecretLeasePurgeRequestType:
+		return n.applySecretLeasePurge(msgType, buf[1:], log.Index)
 	}
 
 	// Check enterprise only message types.
@@ -1983,6 +1991,11 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case SecretEngineSnapshot, SecretLeaseSnapshot:
+			if err := restoreSecretEngineSnapshot(snapType, restore, dec); err != nil {
+				return err
+			}
+
 		case AdmissionPolicySnapshot:
 			policy := new(structs.AdmissionPolicy)
 			if err := dec.Decode(policy); err != nil {
@@ -2591,6 +2604,10 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistSecrets(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistSecretEngines(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}

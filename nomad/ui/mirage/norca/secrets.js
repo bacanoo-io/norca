@@ -56,6 +56,7 @@ function stub(s) {
     Labels: v.Labels,
     ExpiresAt: v.ExpiresAt,
     RotateEvery: v.RotateEvery,
+    Rotate: v.Rotate || null,
     CurrentVersion: v.CurrentVersion,
     Deleted: v.Deleted,
     Destroyed: v.Destroyed,
@@ -140,6 +141,7 @@ export default function registerSecretRoutes(server) {
           Labels: Meta.Labels || null,
           ExpiresAt: Meta.ExpiresAt || null,
           RotateEvery: Meta.RotateEvery || 0,
+          Rotate: Meta.Rotate || null,
           MaxVersions: Meta.MaxVersions || 10,
         }
       : {};
@@ -153,6 +155,7 @@ export default function registerSecretRoutes(server) {
           Labels: null,
           ExpiresAt: null,
           RotateEvery: 0,
+          Rotate: null,
           MaxVersions: 10,
           CurrentVersion: 0,
           Versions: [],

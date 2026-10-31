@@ -75,10 +75,23 @@ Put Options:
     (for example "720h").
 
   -rotate-every <duration>
-    How often the value should be rotated.
+    How often the value should be rotated. The leader announces
+    SecretRotationDue once the interval has elapsed since the current
+    version was written; "0" removes the interval.
+
+  -rotate-job <job>
+    Parameterized job of the secret's namespace that the leader dispatches
+    once per version when the rotation is due; the job writes the new
+    version. It must declare the dispatch meta key "secret_path" and
+    requires a rotation interval. An empty value removes it.
 
   -max-versions <n>
     Number of versions kept (default 10); older versions are destroyed.
+
+  -replicate
+    Replicate the secret to the other regions of the federation, where it
+    is read-only. Only allowed in the authoritative region;
+    "-replicate=false" stops the replication and removes the copies.
 `
 	return strings.TrimSpace(helpText)
 }
@@ -92,7 +105,9 @@ func (c *SecretPutCommand) AutocompleteFlags() complete.Flags {
 			"-label":        complete.PredictAnything,
 			"-expires-at":   complete.PredictAnything,
 			"-rotate-every": complete.PredictAnything,
+			"-rotate-job":   complete.PredictAnything,
 			"-max-versions": complete.PredictAnything,
+			"-replicate":    complete.PredictNothing,
 		})
 }
 
@@ -103,7 +118,8 @@ func (c *SecretPutCommand) AutocompleteArgs() complete.Predictor {
 func (c *SecretPutCommand) Run(args []string) int {
 	var checkIndex int64
 	var maxVersions int
-	var description, owner, expiresAt, rotateEvery string
+	var replicate bool
+	var description, owner, expiresAt, rotateEvery, rotateJob string
 	var labels flaghelper.StringFlag
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
@@ -114,7 +130,9 @@ func (c *SecretPutCommand) Run(args []string) int {
 	flags.Var(&labels, "label", "")
 	flags.StringVar(&expiresAt, "expires-at", "", "")
 	flags.StringVar(&rotateEvery, "rotate-every", "", "")
+	flags.StringVar(&rotateJob, "rotate-job", "", "")
 	flags.IntVar(&maxVersions, "max-versions", 0, "")
+	flags.BoolVar(&replicate, "replicate", false, "")
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
@@ -148,7 +166,7 @@ func (c *SecretPutCommand) Run(args []string) int {
 
 	write := &api.SecretWrite{Items: items}
 	metaFlags := set["description"] || set["owner"] || set["label"] || set["expires-at"] ||
-		set["rotate-every"] || set["max-versions"]
+		set["rotate-every"] || set["rotate-job"] || set["max-versions"] || set["replicate"]
 	if metaFlags {
 		// Start from the existing metadata, so that only the flags given
 		// change it.
@@ -197,8 +215,17 @@ func (c *SecretPutCommand) Run(args []string) int {
 			}
 			meta.RotateEvery = d
 		}
+		if set["rotate-job"] {
+			meta.Rotate = nil
+			if rotateJob != "" {
+				meta.Rotate = &api.SecretRotate{Job: rotateJob}
+			}
+		}
 		if set["max-versions"] {
 			meta.MaxVersions = maxVersions
+		}
+		if set["replicate"] {
+			meta.Replicate = replicate
 		}
 		write.Meta = meta
 	}

@@ -169,7 +169,7 @@ func stopTimeoutSeconds(killTimeout time.Duration) uint {
 	if killTimeout <= 0 {
 		return 0
 	}
-	// white room bugfix: round up, truncation turned a sub-second kill_timeout into 0 (immediate SIGKILL).
+	// clean room bugfix: round up, truncation turned a sub-second kill_timeout into 0 (immediate SIGKILL).
 	return uint(math.Ceil(killTimeout.Seconds()))
 }
 

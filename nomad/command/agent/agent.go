@@ -590,6 +590,7 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	conf.MetricsStore = norcaBlocks.metricsStore
 	conf.SecretsAudit = norcaBlocks.secretsAudit
 	conf.SecretsVaultFallback = agentConfig.Server.Secrets.vaultFallback()
+	conf.SecretsExpiryWarning = norcaBlocks.secretsExpiryWarning
 
 	// Add the search configuration
 	if search := agentConfig.Server.Search; search != nil {

@@ -177,7 +177,7 @@ func TestConsulKVEndpoint_ACL(t *testing.T) {
 	must.NoError(t, err)
 	must.True(t, ok)
 
-	// white room bugfix: the keys of every namespace and Variables path are
+	// clean room bugfix: the keys of every namespace and Variables path are
 	// separate, so the rules of a path cover only the keys under it: a token
 	// that may write below scratch/ writes its own app/x, not the one under
 	// consul/kv (deleted above), and the key of the namespace other is not

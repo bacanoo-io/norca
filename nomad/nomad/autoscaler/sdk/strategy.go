@@ -1,4 +1,5 @@
 // Copyright IBM Corp. 2020, 2026
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package sdk
