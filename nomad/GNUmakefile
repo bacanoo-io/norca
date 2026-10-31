@@ -110,14 +110,6 @@ endif
 pkg/windows_%/$(BINARY_NAME): GO_OUT = $@.exe
 pkg/windows_%/$(BINARY_NAME): GO_TAGS += timetzdata
 
-# The NATS bridge is a separate module (natsbridge/) and needs no cgo.
-pkg/%/norca-natsbridge: ## Build norca-natsbridge for GOOS_GOARCH, e.g. pkg/linux_amd64/norca-natsbridge
-	@echo "==> Building $@..."
-	@CGO_ENABLED=0 \
-		GOOS=$(firstword $(subst _, ,$*)) \
-		GOARCH=$(lastword $(subst _, ,$*)) \
-		go -C natsbridge build -trimpath -o $(PROJECT_ROOT)/$@$(if $(findstring windows_,$*),.exe) ./cmd/norca-natsbridge
-
 # Define package targets for each of the build targets we actually have on this system
 define makePackageTarget
 
@@ -273,7 +265,7 @@ dev: hclfmt ## Build for the current development platform
 
 .PHONY: prerelease
 prerelease: GO_TAGS=ui codegen_generated release
-prerelease: generate-all ember-dist ember-dist-legacy static-assets ## Generate all the static assets for a Nomad release
+prerelease: generate-all ember-dist static-assets ## Generate all the static assets for a Nomad release
 
 .PHONY: release
 release: GO_TAGS=ui codegen_generated release
@@ -300,12 +292,12 @@ SBOM_PLATFORM = $(SBOM_OS)_$(SBOM_ARCH)
 SBOM_EXE = $(if $(filter windows,$(SBOM_OS)),.exe)
 
 .PHONY: sbom
-sbom: ## Build norca and norca-natsbridge (release tags) and write CycloneDX SBOMs to pkg/sbom/
-	@rm -f pkg/$(SBOM_PLATFORM)/$(BINARY_NAME)$(SBOM_EXE) pkg/$(SBOM_PLATFORM)/norca-natsbridge$(SBOM_EXE)
+sbom: ## Build norca (release tags) and write a CycloneDX SBOM to pkg/sbom/
+	@rm -f pkg/$(SBOM_PLATFORM)/$(BINARY_NAME)$(SBOM_EXE)
 	@GO_TAGS="codegen_generated release" $(MAKE) --no-print-directory \
-		pkg/$(SBOM_PLATFORM)/$(BINARY_NAME) pkg/$(SBOM_PLATFORM)/norca-natsbridge
+		pkg/$(SBOM_PLATFORM)/$(BINARY_NAME)
 	@mkdir -p $(PROJECT_ROOT)/pkg/sbom
-	@for b in $(BINARY_NAME) norca-natsbridge; do \
+	@for b in $(BINARY_NAME); do \
 		$(THIRDPARTY) sbom -root $(REPO_ROOT) -name $$b \
 			-binary $(PROJECT_ROOT)/pkg/$(SBOM_PLATFORM)/$$b$(SBOM_EXE) \
 			-out $(PROJECT_ROOT)/pkg/sbom/$${b}_$(SBOM_PLATFORM).cdx.json || exit 1; \
@@ -393,27 +385,6 @@ ember-dist: ## Build the static UI assets from source
 	@cd ui && HUSKY_SKIP_INSTALL=1 yarn install --silent --network-timeout 300000
 	@echo "==> Building Ember application"
 	@cd ui && npm run build
-
-# The previous web UI stays available under /ui/legacy/ for one release while
-# its pages move to the new UI. It is built from LEGACY_UI_REF, the last commit
-# before the migration, into ui/dist/legacy, so it must run after ember-dist
-# (ember build empties ui/dist). ui-legacy/ keeps its package.json and yarn.lock
-# for the license notices (tools/thirdparty).
-LEGACY_UI_REF ?= 6af54afc8
-LEGACY_UI_BUILD := build/ui-legacy
-
-.PHONY: ember-dist-legacy
-ember-dist-legacy: ## Build the previous UI (served at /ui/legacy/) into ui/dist/legacy
-	@echo "==> Building the legacy UI from $(LEGACY_UI_REF)"
-	@rm -rf $(LEGACY_UI_BUILD) && mkdir -p $(LEGACY_UI_BUILD)
-	@git archive --format=tar $(LEGACY_UI_REF) ui | tar -x -C $(LEGACY_UI_BUILD) --strip-components=1
-	@cmp ui-legacy/package.json $(LEGACY_UI_BUILD)/package.json && cmp ui-legacy/yarn.lock $(LEGACY_UI_BUILD)/yarn.lock \
-		|| { echo "ui-legacy/ must hold the package.json and yarn.lock of $(LEGACY_UI_REF) (license notices)"; exit 1; }
-	@sed -i.orig "s|rootURL: '/ui/'|rootURL: '/ui/legacy/'|" $(LEGACY_UI_BUILD)/config/environment.js
-	@grep -q "rootURL: '/ui/legacy/'" $(LEGACY_UI_BUILD)/config/environment.js
-	@cd $(LEGACY_UI_BUILD) && HUSKY_SKIP_INSTALL=1 yarn install --frozen-lockfile --silent --network-timeout 300000
-	@cd $(LEGACY_UI_BUILD) && HUSKY_SKIP_INSTALL=1 npm run build
-	@rm -rf ui/dist/legacy && mkdir -p ui/dist && cp -R $(LEGACY_UI_BUILD)/dist ui/dist/legacy
 
 .PHONY: dev-ui
 dev-ui: ember-dist static-assets ## Build a dev UI binary

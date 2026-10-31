@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package mock
@@ -79,6 +80,7 @@ func Job() *structs.Job {
 						Services: []*structs.Service{
 							{
 								Name:      "${TASK}-frontend",
+								Provider:  "consul", // script checks need Consul
 								PortLabel: "http",
 								Tags:      []string{"pci:${meta.pci-dss}", "datacenter:${node.datacenter}"},
 								Checks: []*structs.ServiceCheck{
@@ -94,6 +96,7 @@ func Job() *structs.Job {
 							},
 							{
 								Name:      "${TASK}-admin",
+								Provider:  "consul",
 								PortLabel: "admin",
 							},
 						},
@@ -215,6 +218,7 @@ func MultiTaskGroupJob() *structs.Job {
 				Services: []*structs.Service{
 					{
 						Name:      "${TASK}-backend",
+						Provider:  "consul", // script checks need Consul
 						PortLabel: "http",
 						Tags:      []string{"pci:${meta.pci-dss}", "datacenter:${node.datacenter}"},
 						Checks: []*structs.ServiceCheck{
@@ -230,6 +234,7 @@ func MultiTaskGroupJob() *structs.Job {
 					},
 					{
 						Name:      "${TASK}-admin",
+						Provider:  "consul",
 						PortLabel: "admin",
 					},
 				},
@@ -541,6 +546,7 @@ func MaxParallelJob() *structs.Job {
 						Services: []*structs.Service{
 							{
 								Name:      "${TASK}-frontend",
+								Provider:  "consul", // script checks need Consul
 								PortLabel: "http",
 								Tags:      []string{"pci:${meta.pci-dss}", "datacenter:${node.datacenter}"},
 								Checks: []*structs.ServiceCheck{
@@ -556,6 +562,7 @@ func MaxParallelJob() *structs.Job {
 							},
 							{
 								Name:      "${TASK}-admin",
+								Provider:  "consul",
 								PortLabel: "admin",
 							},
 						},

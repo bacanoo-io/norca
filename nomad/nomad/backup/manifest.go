@@ -26,6 +26,10 @@ const (
 	// to the keyring and encrypted the same way.
 	SecretStoreKeyKey = "secret-store-key.age"
 
+	// ConsulKVKey is the export of the Consul KV bucket of the system bus
+	// (Norca).
+	ConsulKVKey = "consul-kv.json.age"
+
 	// idTimeFormat is the time part of a backup ID.
 	idTimeFormat = "20060102T150405Z"
 )
@@ -40,6 +44,8 @@ func ObjectKey(object string) (string, error) {
 		return KeyringKey, nil
 	case structs.BackupObjectSecretStoreKey:
 		return SecretStoreKeyKey, nil
+	case structs.BackupObjectConsulKV:
+		return ConsulKVKey, nil
 	case structs.BackupObjectManifest:
 		return ManifestKey, nil
 	}

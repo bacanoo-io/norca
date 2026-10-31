@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package api
@@ -740,7 +741,7 @@ func TestJobs_Canonicalize(t *testing.T) {
 										PortLabel:   "db",
 										AddressMode: "auto",
 										OnUpdate:    "require_healthy",
-										Provider:    "consul",
+										Provider:    "nomad",
 										Checks: []ServiceCheck{
 											{
 												Name:     "alive",

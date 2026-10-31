@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -3950,8 +3951,8 @@ func TestService_Canonicalize(t *testing.T) {
 			inputJobNamespace: "platform",
 			expectedOutputService: &Service{
 				Name:      "redis-db",
-				Provider:  "consul",
-				Namespace: "default",
+				Provider:  "nomad",
+				Namespace: "platform",
 				TaskName:  "redis",
 			},
 			name: "interpolate task in name",
@@ -3966,8 +3967,8 @@ func TestService_Canonicalize(t *testing.T) {
 			inputJobNamespace: "platform",
 			expectedOutputService: &Service{
 				Name:      "db",
-				Provider:  "consul",
-				Namespace: "default",
+				Provider:  "nomad",
+				Namespace: "platform",
 				TaskName:  "redis",
 			},
 			name: "no interpolation in name",
@@ -3982,8 +3983,8 @@ func TestService_Canonicalize(t *testing.T) {
 			inputJobNamespace: "platform",
 			expectedOutputService: &Service{
 				Name:      "example-cache-redis-db",
-				Provider:  "consul",
-				Namespace: "default",
+				Provider:  "nomad",
+				Namespace: "platform",
 				TaskName:  "redis",
 			},
 			name: "interpolate job, taskgroup and task in name",
@@ -3998,8 +3999,8 @@ func TestService_Canonicalize(t *testing.T) {
 			inputJobNamespace: "platform",
 			expectedOutputService: &Service{
 				Name:      "example-cache-redis-db",
-				Provider:  "consul",
-				Namespace: "default",
+				Provider:  "nomad",
+				Namespace: "platform",
 				TaskName:  "redis",
 			},
 			name: "interpolate base in name",
@@ -4020,6 +4021,24 @@ func TestService_Canonicalize(t *testing.T) {
 				TaskName:  "redis",
 			},
 			name: "nomad provider",
+		},
+		{
+			inputService: &Service{
+				Name:    "db",
+				Connect: &ConsulConnect{Native: true},
+			},
+			inputJob:          "example",
+			inputTaskGroup:    "cache",
+			inputTask:         "redis",
+			inputJobNamespace: "platform",
+			expectedOutputService: &Service{
+				Name:      "db",
+				Connect:   &ConsulConnect{Native: true},
+				Provider:  "consul",
+				Namespace: "default",
+				TaskName:  "redis",
+			},
+			name: "connect defaults to consul",
 		},
 	}
 

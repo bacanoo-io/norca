@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -2572,6 +2573,7 @@ func TestJobs_ApiJobToStructsJob(t *testing.T) {
 				Services: []*api.Service{
 					{
 						Name:              "groupserviceA",
+						Provider:          "consul",
 						Tags:              []string{"a", "b"},
 						CanaryTags:        []string{"d", "e"},
 						EnableTagOverride: true,
@@ -2672,6 +2674,7 @@ func TestJobs_ApiJobToStructsJob(t *testing.T) {
 						Services: []*api.Service{
 							{
 								Name:              "serviceA",
+								Provider:          "consul",
 								Tags:              []string{"1", "2"},
 								CanaryTags:        []string{"3", "4"},
 								EnableTagOverride: true,

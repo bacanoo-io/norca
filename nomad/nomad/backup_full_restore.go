@@ -168,7 +168,12 @@ func (b *Backup) fullRestorePreview(loaded *backup.Loaded) (*structs.BackupResto
 	}
 	preview.CurrentIndex, _ = current.LatestIndex()
 
-	diffs, err := backupDiff(loaded.State, current, "", &backupContentsFilter{namespace: "*"})
+	currentKV, err := b.srv.exportConsulKV(b.srv.shutdownCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the current Consul KV: %w", err)
+	}
+	diffs, err := backupDiff(backupSide{state: loaded.State, consulKV: loaded.ConsulKV},
+		backupSide{state: current, consulKV: currentKV}, "", &backupContentsFilter{namespace: "*"})
 	if err != nil {
 		return nil, err
 	}
@@ -474,6 +479,10 @@ func (b *Backup) runFullRestore(ctx context.Context, record *structs.BackupResto
 		return fail(err)
 	}
 	defer clear(coreKey)
+	consulKV, err := backup.ReadConsulKV(ctx, dest, backupRecord, st, ids)
+	if err != nil {
+		return fail(err)
+	}
 
 	// 3. The keys of the backup into the keystore of every server, so the
 	// restored Variables and workload identities stay readable.
@@ -515,6 +524,13 @@ func (b *Backup) runFullRestore(ctx context.Context, record *structs.BackupResto
 
 	if err := b.reapplyBackupRecords(backups, restores, record.ID); err != nil {
 		notes = append(notes, "failed to keep the current backup records: "+err.Error())
+	}
+	// Norca: the Consul KV bucket of the system bus is not in the Raft
+	// state; it gets the keys of the backup (keys added since are removed).
+	if consulKV != nil {
+		if err := b.srv.importConsulKV(ctx, consulKV.Entries, true); err != nil {
+			notes = append(notes, "failed to restore the Consul KV: "+err.Error())
+		}
 	}
 	if err := b.srv.reapplySealConfig(sealConfig); err != nil {
 		notes = append(notes, "failed to keep the current keyring seal configuration: "+err.Error())

@@ -86,13 +86,6 @@ export default class FrameCommandPalette extends Component {
         icon: 'info-circle',
         run: () => this.showShortcuts(),
       },
-      {
-        id: 'legacy',
-        section: 'Actions',
-        label: 'Open the previous UI',
-        icon: 'history',
-        run: () => window.location.assign(`${config.rootURL || '/ui/'}legacy/`),
-      },
     ];
 
     const regions = this.system.shouldShowRegions

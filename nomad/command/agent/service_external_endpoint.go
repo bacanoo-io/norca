@@ -73,11 +73,11 @@ func (s *HTTPServer) externalServiceRegister(resp http.ResponseWriter, req *http
 		return nil, CodedError(http.StatusBadRequest, err.Error())
 	}
 
-	args := structs.ExternalServiceUpsertRequest{Service: reg}
+	args := structs.ExternalServiceUpsertRequest{Service: reg, NodeID: in.NodeID}
 	s.parseWriteRequest(req, &args.WriteRequest)
 
 	var reply structs.ExternalServiceUpsertResponse
-	if client := s.agent.Client(); client != nil && reg.External.HasNodeChecks() {
+	if client := s.agent.Client(); client != nil && reg.External.HasNodeChecks() && in.NodeID == "" {
 		// the client node of this agent runs the http and tcp checks
 		err = client.RegisterExternalService(&args, &reply)
 	} else {

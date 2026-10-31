@@ -105,7 +105,7 @@ module('Acceptance | services and network', function (hooks) {
     await visit('/services');
     assert
       .dom('[data-test-ui-table-empty]')
-      .includesText('service provider is nomad');
+      .includesText('registered endpoints appear here');
     assert.dom('[data-test-mtls-root]').includesText('not enabled');
   });
 

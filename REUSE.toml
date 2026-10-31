@@ -23,10 +23,10 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "HashiCorp, Inc. and Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
-# Modules written for Norca (controller SDK, NATS bridge); files without a
-# header (go.mod, go.sum, JSON schemas) are Norca's own.
+# Modules written for Norca (controller SDK); files without a header
+# (go.mod, go.sum, JSON schemas) are Norca's own.
 [[annotations]]
-path = ["nomad/controller/**", "nomad/natsbridge/**"]
+path = ["nomad/controller/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"

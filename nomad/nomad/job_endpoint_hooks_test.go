@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -701,7 +702,7 @@ func Test_jobImpliedConstraints_Mutate(t *testing.T) {
 								Name: "example-group-service-1",
 							},
 						},
-						Constraints: []*structs.Constraint{consulServiceDiscoveryConstraint},
+						Constraints: []*structs.Constraint{nativeServiceDiscoveryConstraint},
 					},
 				},
 			},

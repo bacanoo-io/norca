@@ -35,39 +35,21 @@ type override struct {
 	// Exception marks a decided exception to the allow-list, documented in
 	// norca-doc content/docs/introduction/license.md: License may be a license that is not allowed.
 	Exception bool
-	// LegacyOnly limits the override to the previous UI (nomad/ui-legacy):
-	// a package of the web UI that matches it fails the check.
-	LegacyOnly bool
 
 	used bool
 }
 
 var overrides = []override{
-	// Legacy UI exceptions (decision of 2026-10-25): accepted for the old
-	// Ember UI only, which is served at /ui/legacy for one release and then
-	// removed together with these entries. Not valid for the new UI
-	// (LegacyOnly). No version pin, so that the Ember upgrade does not reopen
-	// the decision.
-	{
-		Kind:       "npm",
-		Name:       "robust-predicates",
-		LegacyOnly: true,
-		License:    "Unlicense",
-		Exception:  true,
-		Reason: "Legacy UI exception. The Unlicense (public domain dedication with a permissive fallback, OSI approved) is not on the " +
-			"allow-list; the package is part of the legacy UI bundle through d3 > d3-delaunay > delaunator.",
-	},
-	// Build-time exceptions for both UIs (legacy UI decision of 2026-10-25,
-	// extended to the new UI the same day): every Ember addon declares
-	// ember-cli-babel (and so Babel, browserslist and caniuse-lite) as a
-	// production dependency, and the Ember build tools use
+	// Build-time exceptions of the UI (decision of 2026-10-25): every Ember
+	// addon declares ember-cli-babel (and so Babel, browserslist and
+	// caniuse-lite) as a production dependency, and the Ember build tools use
 	// json-stable-stringify 1.0 (jsonify). Neither is part of the UI bundle.
 	{
 		Kind:      "npm",
 		Name:      "caniuse-lite",
 		License:   "CC-BY-4.0",
 		Exception: true,
-		Reason: "Build-time exception (decision of 2026-10-25, both UIs). Browser support data used by " +
+		Reason: "Build-time exception (decision of 2026-10-25). Browser support data used by " +
 			"browserslist while Babel builds the UI (ember-cli-babel > @babel/helper-compilation-targets > browserslist); a " +
 			"build-time dependency, not part of the UI bundle, listed because the Ember addons declare ember-cli-babel as a " +
 			"production dependency.",
@@ -77,7 +59,7 @@ var overrides = []override{
 		Name:      "jsonify",
 		License:   "LicenseRef-Public-Domain",
 		Exception: true,
-		Reason: "Build-time exception (decision of 2026-10-25, both UIs). Declared \"Public Domain\" in " +
+		Reason: "Build-time exception (decision of 2026-10-25). Declared \"Public Domain\" in " +
 			"package.json, no license file. A build-time dependency (calculate-cache-key-for-tree, ember-cli-htmlbars and " +
 			"broccoli-babel-transpiler > json-stable-stringify 1.0), not part of the UI bundle.",
 	},
@@ -113,13 +95,6 @@ var overrides = []override{
 		Reason: "package.json declares the non-SPDX value \"FreeBSD\" (the FreeBSD License); the license text, the BSD 2-clause " +
 			"text (Copyright 2010 Gary Court), is the header of lib/jsv.js. A dependency of the jsonlint command line tool, not part " +
 			"of the UI bundle.",
-	},
-	{
-		Kind:    "npm",
-		Name:    "dialog-polyfill",
-		Version: "0.5.6",
-		License: "BSD-3-Clause",
-		Reason:  "package.json declares the non-SPDX value \"BSD\"; the LICENSE file is the BSD 3-clause text (The Chromium Authors).",
 	},
 	{
 		Kind:    "go",

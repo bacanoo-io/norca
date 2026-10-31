@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # Release pipeline, started by pushing a tag v<NorcaVersion>, e.g. v0.1.0 or
-# v0.1.0-rc.1. It builds norca and norca-natsbridge for the release platforms,
+# v0.1.0-rc.1. It builds norca for the release platforms,
 # writes a CycloneDX SBOM per binary, packages the binaries with LICENSE,
 # NOTICE and THIRD_PARTY_NOTICES.md, builds and pushes the container image to
 # GHCR and creates a draft GitHub release with the archives, checksums, SBOMs
@@ -132,7 +132,7 @@ jobs:
         with:
           go-version-file: nomad/go.mod
           cache: false
-      - name: Build norca and norca-natsbridge
+      - name: Build norca
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -146,7 +146,6 @@ jobs:
           mkdir -p "$out"
           ldflags="-X github.com/hashicorp/nomad/version.GitCommit=$GITHUB_SHA -X github.com/hashicorp/nomad/version.BuildDate=$BUILD_DATE"
           CGO_ENABLED="$CGO" go -C nomad build -trimpath -tags "$TAGS" -ldflags "$ldflags" -o "$out/norca$ext" .
-          CGO_ENABLED=0 go -C nomad/natsbridge build -trimpath -o "$out/norca-natsbridge$ext" ./cmd/norca-natsbridge
           go version -m "$out/norca$ext" | sed -n '1,20p'
       - name: Required glibc version
         if: matrix.goos == 'linux'
@@ -160,7 +159,7 @@ jobs:
           ext=""
           if [ "$TARGET" = windows_amd64 ]; then ext=".exe"; fi
           mkdir -p dist/sbom
-          for b in norca norca-natsbridge; do
+          for b in norca; do
             go -C nomad/tools run ./thirdparty sbom -root "$GITHUB_WORKSPACE" -strict -name "$b" \
               -binary "$GITHUB_WORKSPACE/dist/bin/$TARGET/$b$ext" -source-url "$SOURCE_URL" \
               -out "$GITHUB_WORKSPACE/dist/sbom/${b}_${VERSION}_${TARGET}.cdx.json"

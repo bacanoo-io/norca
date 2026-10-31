@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -35,12 +36,17 @@ func (s *Server) serfEventHandler() {
 			case serf.EventMemberJoin:
 				s.nodeJoin(e.(serf.MemberEvent))
 				s.localMemberEvent(e.(serf.MemberEvent))
+				s.notifyBusRoutes()
 			case serf.EventMemberLeave, serf.EventMemberFailed:
 				s.nodeFailed(e.(serf.MemberEvent))
 				s.localMemberEvent(e.(serf.MemberEvent))
+				s.notifyBusRoutes()
 			case serf.EventMemberReap:
 				s.localMemberEvent(e.(serf.MemberEvent))
-			case serf.EventMemberUpdate, serf.EventUser, serf.EventQuery: // Ignore
+				s.notifyBusRoutes()
+			case serf.EventMemberUpdate:
+				s.notifyBusRoutes()
+			case serf.EventUser, serf.EventQuery: // Ignore
 			default:
 				s.logger.Warn("unhandled serf event", "event", log.Fmt("%#v", e))
 			}

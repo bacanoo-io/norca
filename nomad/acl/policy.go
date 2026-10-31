@@ -138,6 +138,7 @@ type Policy struct {
 	Plugin      *PluginPolicy       `hcl:"plugin"`
 	Admission   *AdmissionPolicy    `hcl:"admission"`
 	Backup      *BackupPolicy       `hcl:"backup"`
+	Bus         *BusPolicy          `hcl:"bus"`
 	Raw         string              `hcl:"-"`
 }
 
@@ -153,7 +154,8 @@ func (p *Policy) IsEmpty() bool {
 		p.Quota == nil &&
 		p.Plugin == nil &&
 		p.Admission == nil &&
-		p.Backup == nil
+		p.Backup == nil &&
+		p.Bus == nil
 }
 
 // NamespacePolicy is the policy for a specific namespace
@@ -525,6 +527,12 @@ func Parse(rules string) (*Policy, error) {
 
 	if p.Plugin != nil && !p.Plugin.isValid() {
 		return nil, fmt.Errorf("Invalid plugin policy: %#v", p.Plugin)
+	}
+
+	if p.Bus != nil {
+		if err := p.Bus.validate(); err != nil {
+			return nil, fmt.Errorf("Invalid bus policy: %v", err)
+		}
 	}
 	return p, nil
 }

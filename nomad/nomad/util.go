@@ -64,6 +64,10 @@ type serverParts struct {
 	// NorcaVersion is the Norca product version of the server, or nil if the
 	// server does not advertise one (e.g. an upstream Nomad server).
 	NorcaVersion *version.Version
+
+	// BusAddr is where clients reach the system bus of the server (the RPC
+	// advertise IP and the bus port); empty without a bus.
+	BusAddr string
 }
 
 func (s *serverParts) String() string {
@@ -153,6 +157,9 @@ func isNomadServer(m serf.Member) (bool, *serverParts) {
 		Status:       m.Status,
 		NonVoter:     nonVoter,
 		MajorVersion: deprecatedAPIMajorVersion,
+	}
+	if busPort, err := strconv.Atoi(m.Tags[busTag]); err == nil && busPort > 0 {
+		parts.BusAddr = net.JoinHostPort(rpcIP.String(), strconv.Itoa(busPort))
 	}
 	return true, parts
 }

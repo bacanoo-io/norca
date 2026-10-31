@@ -8,7 +8,6 @@ import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
 import { htmlSafe } from '@ember/template';
 import { ALL_REGIONS, ALL_NAMESPACES } from 'nomad-ui/services/frame';
-import config from 'nomad-ui/config/environment';
 
 // The top bar: command palette, region and namespace scope, notifications
 // from the event stream, color theme, user and token.
@@ -73,10 +72,6 @@ export default class FrameTopbar extends Component {
         label.BackgroundColor || 'transparent'
       };`
     );
-  }
-
-  get legacyURL() {
-    return `${config.rootURL || '/ui/'}legacy/`;
   }
 
   @action
