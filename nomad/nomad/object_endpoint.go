@@ -527,7 +527,9 @@ func (c *CustomObject) List(args *structs.CustomObjectListRequest, reply *struct
 			objects := []*structs.CustomObject{}
 			pager, err := paginator.NewPaginator(iter, objectTokenizer{}, []paginator.Filter{filter}, args.QueryOptions,
 				func(raw any) error {
-					objects = append(objects, raw.(*structs.CustomObject))
+					// white room bugfix: the encoded content of a release
+					// revision only for tokens that may read all of it.
+					objects = append(objects, redactReleaseRevision(aclObj, raw.(*structs.CustomObject)))
 					return nil
 				})
 			if err != nil {
@@ -608,7 +610,9 @@ func (c *CustomObject) GetCustomObject(args *structs.CustomObjectSpecificRequest
 				}
 			}
 
-			reply.Object = obj
+			// white room bugfix: the encoded content of a release revision
+			// only for tokens that may read all of it.
+			reply.Object = redactReleaseRevision(aclObj, obj)
 			if obj != nil {
 				reply.Index = obj.ModifyIndex
 			} else {

@@ -1091,6 +1091,22 @@ func (r *ReleaseRevision) ObjectParts() (spec, status map[string]any, err error)
 	return spec, status, nil
 }
 
+// WithoutRevisionContent returns a release revision object without its
+// encoded content (the spec "content"), which holds the resources of the
+// revision with the decrypted values of its Variables. Other objects are
+// returned as they are.
+func WithoutRevisionContent(obj *CustomObject) *CustomObject {
+	if obj == nil || obj.KindRef() != ReleaseRevisionKindRef {
+		return obj
+	}
+	if _, ok := obj.Spec["content"]; !ok {
+		return obj
+	}
+	out := obj.Copy()
+	delete(out.Spec, "content")
+	return out
+}
+
 // WithoutContent returns a copy of the revision without the encoded
 // content, for listings.
 func (r *ReleaseRevision) WithoutContent() *ReleaseRevision {

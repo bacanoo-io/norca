@@ -378,6 +378,22 @@ func TestBackupEndpoint_ACL(t *testing.T) {
 	store := srv.fsm.State()
 	reader := mock.CreatePolicyAndToken(t, store, 1001, "backup-read", `backup { policy = "read" }`)
 	nobody := mock.CreatePolicyAndToken(t, store, 1002, "nothing", `node { policy = "read" }`)
+	lister := mock.CreatePolicyAndToken(t, store, 1003, "backup-list-vars", `
+backup { policy = "read" }
+namespace "default" {
+  variables {
+    path "secret/*" { capabilities = ["list"] }
+  }
+}`)
+	var varResp structs.VariablesApplyResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.VariablesApplyRPCMethod, &structs.VariablesApplyRequest{
+		Op: structs.VarOpSet,
+		Var: &structs.VariableDecrypted{
+			VariableMetadata: structs.VariableMetadata{Namespace: "default", Path: "secret/app"},
+			Items:            map[string]string{"aws_secret_key": "x"},
+		},
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: root.SecretID},
+	}, &varResp))
 
 	// A job, backed up by the management token.
 	job := mock.Job()
@@ -407,6 +423,33 @@ func TestBackupEndpoint_ACL(t *testing.T) {
 		ID: saveResp.ID, AgeIdentity: identity.String(),
 		QueryOptions: structs.QueryOptions{Region: "global", Namespace: "*", AuthToken: reader.SecretID}}, &contents))
 	must.Len(t, 0, contents.Contents.Jobs)
+
+	// white room bugfix: the ACL policies and roles are listed for a
+	// management token only, in the contents and in the diff.
+	browse := func(typ, token string) *structs.BackupContents {
+		var out structs.BackupContentsResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Contents", &structs.BackupContentsRequest{
+			ID: saveResp.ID, Type: typ, AgeIdentity: identity.String(),
+			QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: token}}, &out))
+		return out.Contents
+	}
+	must.Len(t, 0, browse(structs.BackupContentACLPolicies, reader.SecretID).ACLPolicies)
+	must.SliceNotEmpty(t, browse(structs.BackupContentACLPolicies, root.SecretID).ACLPolicies)
+	var diff structs.BackupDiffResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Diff", &structs.BackupDiffRequest{
+		ID: saveResp.ID, Type: structs.BackupContentACLPolicies, AgeIdentity: identity.String(),
+		QueryOptions: structs.QueryOptions{Region: "global", AuthToken: reader.SecretID}}, &diff))
+	must.Len(t, 0, diff.Diff.Objects)
+
+	// white room bugfix: the item names of a Variable need read; list shows
+	// the path only.
+	vars := browse(structs.BackupContentVariables, lister.SecretID).Variables
+	must.Len(t, 1, vars)
+	must.Eq(t, "secret/app", vars[0].Path)
+	must.Len(t, 0, vars[0].Keys)
+	vars = browse(structs.BackupContentVariables, root.SecretID).Variables
+	must.Len(t, 1, vars)
+	must.Eq(t, []string{"aws_secret_key"}, vars[0].Keys)
 
 	// Restoring needs the namespace permission too: the inner Job.Register
 	// runs with the caller's token.

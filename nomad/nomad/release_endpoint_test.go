@@ -625,6 +625,77 @@ namespace "default" {
 	must.ErrorContains(t, err, "Permission denied")
 }
 
+// TestRelease_RevisionVariablesACL checks that a revision does not reveal
+// the values of its Variables to a token that may not read them (white room
+// bugfix): Release.GetRevision leaves them out, the object API and the
+// object events carry no encoded content.
+func TestRelease_RevisionVariablesACL(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	_, err := c.apply("default", "vars", &structs.ReleaseApplyRequest{
+		Pack: &structs.ReleasePack{Name: "vars"},
+		Resources: []*structs.ReleaseResource{
+			{Type: structs.ReleaseResourceJob, Job: testReleaseJob("vars-web")},
+			{Type: structs.ReleaseResourceVariable, Variable: &structs.VariableDecrypted{
+				VariableMetadata: structs.VariableMetadata{Path: "config/vars"},
+				Items:            map[string]string{"password": "s3cret"},
+			}},
+		},
+	})
+	must.NoError(t, err)
+
+	reader := mock.CreatePolicyAndToken(t, c.srv.State(), 1010, "release-reader", `
+namespace "default" {
+  policy = "read"
+  object "packs.norca.io/Release" { capabilities = ["read"] }
+  object "packs.norca.io/ReleaseRevision" { capabilities = ["read"] }
+}`)
+
+	// The root token sees every resource and the content.
+	full := c.revision("default", "vars", 1)
+	must.Len(t, 2, full.Resources)
+	must.NotEq(t, "", full.Spec.Content)
+
+	// The reader gets the job only, without the content.
+	var resp structs.SingleReleaseRevisionResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "Release.GetRevision", &structs.ReleaseRevisionRequest{
+		Name: "vars", Revision: 1,
+		QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: reader.SecretID},
+	}, &resp))
+	must.NotNil(t, resp.Revision)
+	must.Len(t, 1, resp.Revision.Resources)
+	must.Eq(t, structs.ReleaseResourceJob, resp.Revision.Resources[0].Type)
+	must.Eq(t, "", resp.Revision.Spec.Content)
+
+	getObject := func(token string) *structs.CustomObject {
+		var out structs.SingleCustomObjectResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "CustomObject.GetCustomObject", &structs.CustomObjectSpecificRequest{
+			Group: structs.ReleaseObjectGroup, Kind: structs.ReleaseRevisionKind, Name: "vars.1",
+			QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: token},
+		}, &out))
+		must.NotNil(t, out.Object)
+		return out.Object
+	}
+	must.MapContainsKey(t, getObject(c.token).Spec, "content")
+	must.MapNotContainsKey(t, getObject(reader.SecretID).Spec, "content")
+
+	var list structs.CustomObjectListResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "CustomObject.List", &structs.CustomObjectListRequest{
+		Group: structs.ReleaseObjectGroup, Kind: structs.ReleaseRevisionKind,
+		QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default", AuthToken: reader.SecretID},
+	}, &list))
+	must.Len(t, 1, list.Objects)
+	must.MapNotContainsKey(t, list.Objects[0].Spec, "content")
+
+	// The stored object keeps its content (rollback needs it).
+	stored, err := c.srv.State().CustomObjectByName(nil, structs.ReleaseObjectGroup, structs.ReleaseRevisionKind, "default", "vars.1")
+	must.NoError(t, err)
+	must.MapContainsKey(t, stored.Spec, "content")
+	must.MapNotContainsKey(t, structs.WithoutRevisionContent(stored).Spec, "content")
+}
+
 func TestReleaseResources_Encoding(t *testing.T) {
 	ci.Parallel(t)
 	resources := testReleasePack("enc")
