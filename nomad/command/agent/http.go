@@ -494,6 +494,8 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 
 	s.mux.HandleFunc("/v1/metrics", s.wrap(s.MetricsRequest))
 	s.mux.HandleFunc("/v1/metrics/history", s.wrap(s.MetricsHistoryRequest))
+	s.mux.HandleFunc("/v1/metrics/series", s.wrap(s.MetricsSeriesRequest))
+	s.mux.HandleFunc("/v1/metrics/summary", s.wrap(s.MetricsSummaryRequest))
 
 	s.mux.HandleFunc("/v1/validate/job", s.wrap(s.ValidateJobRequest))
 

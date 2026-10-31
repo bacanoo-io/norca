@@ -34,6 +34,25 @@ const (
 	MetricsGroupAllocsQueued  = "norca.group.allocs_queued"
 )
 
+// The gauge metrics the servers sample. The cluster metrics have the labels
+// dc and pool, the quota metrics the label quota.
+const (
+	MetricsClusterCPUAllocated    = "norca.cluster.cpu_allocated"
+	MetricsClusterCPUUsed         = "norca.cluster.cpu_used"
+	MetricsClusterMemoryAllocated = "norca.cluster.memory_allocated"
+	MetricsClusterMemoryUsed      = "norca.cluster.memory_used"
+	MetricsClusterDiskAllocated   = "norca.cluster.disk_allocated"
+	MetricsClusterNodesReady      = "norca.cluster.nodes_ready"
+
+	MetricsAutopilotHealthy          = "norca.cluster.autopilot_healthy"
+	MetricsAutopilotFailureTolerance = "norca.cluster.autopilot_failure_tolerance"
+
+	MetricsQuotaCPUAllocated    = "norca.quota.cpu_mhz_allocated"
+	MetricsQuotaCPUUsed         = "norca.quota.cpu_mhz_used"
+	MetricsQuotaMemoryAllocated = "norca.quota.memory_mb_allocated"
+	MetricsQuotaMemoryUsed      = "norca.quota.memory_mb_used"
+)
+
 // MetricsStore reads the history of the task group usage the servers keep.
 type MetricsStore struct {
 	c *Client
@@ -48,6 +67,10 @@ func (c *Client) MetricsStore() *MetricsStore {
 type MetricsHistoryOptions struct {
 	// Metric is one of the MetricsGroup* metrics; empty is MetricsGroupCPU.
 	Metric string
+
+	// Labels select the series of a gauge metric (dc and pool, or quota);
+	// the job and the group are ignored then.
+	Labels map[string]string
 
 	// From and To bound the history (To exclusive); zero To is now, zero
 	// From an hour before To.
@@ -91,6 +114,9 @@ func (m *MetricsStore) History(jobID, group string, opts *MetricsHistoryOptions,
 		if opts.Metric != "" {
 			v.Set("metric", opts.Metric)
 		}
+		for name, value := range opts.Labels {
+			v.Set(name, value)
+		}
 		if !opts.From.IsZero() {
 			v.Set("from", opts.From.Format(time.RFC3339))
 		}
@@ -106,6 +132,76 @@ func (m *MetricsStore) History(jobID, group string, opts *MetricsHistoryOptions,
 	}
 	var out MetricsHistory
 	qm, err := m.c.query("/v1/metrics/history?"+v.Encode(), &out, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &out, qm, nil
+}
+
+// MetricsSeries lists the series of the metrics store the token may read.
+type MetricsSeries struct {
+	Enabled bool
+	Groups  []*MetricsGroup
+	Gauges  []*MetricsGaugeSeries
+}
+
+// MetricsGroup is a task group with series.
+type MetricsGroup struct {
+	Namespace string
+	JobID     string
+	Group     string
+}
+
+// MetricsGaugeSeries is a series of a gauge metric.
+type MetricsGaugeSeries struct {
+	Metric string
+	Labels map[string]string
+}
+
+// Series lists the task groups with series in the namespaces the token may
+// read jobs of, and the gauge series it may read.
+func (m *MetricsStore) Series(q *QueryOptions) (*MetricsSeries, *QueryMeta, error) {
+	var out MetricsSeries
+	qm, err := m.c.query("/v1/metrics/series", &out, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &out, qm, nil
+}
+
+// UsageSummary is the usage of a task group over a window, per allocation,
+// against the CPU (MHz) and memory (MiB) an allocation of the current job
+// version has.
+type UsageSummary struct {
+	Enabled           bool
+	Window            time.Duration
+	AllocatedCPUMHz   int64
+	AllocatedMemoryMB int64
+	// Metrics is the summary of each usage metric, by name.
+	Metrics map[string]*UsageSummaryValue
+}
+
+// UsageSummaryValue is the mean of the interval averages, the 95th
+// percentile and the largest of the interval maxima of a metric, and the
+// number of intervals.
+type UsageSummaryValue struct {
+	Avg     float64
+	P95     float64
+	Max     float64
+	Samples int
+}
+
+// Summary returns the usage of a task group in the namespace of the query
+// options over window (0: 720h) before now.
+func (m *MetricsStore) Summary(jobID, group string, window time.Duration, q *QueryOptions) (*UsageSummary, *QueryMeta, error) {
+	v := url.Values{}
+	v.Set("job", jobID)
+	v.Set("group", group)
+	if window > 0 {
+		v.Set("window", window.String())
+	}
+	var out UsageSummary
+	qm, err := m.c.query("/v1/metrics/summary?"+v.Encode(), &out, q)
 	if err != nil {
 		return nil, nil, err
 	}

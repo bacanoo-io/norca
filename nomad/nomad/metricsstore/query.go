@@ -5,6 +5,7 @@ package metricsstore
 
 import (
 	"errors"
+	"math"
 	"fmt"
 	"slices"
 	"time"
@@ -36,9 +37,18 @@ type Point struct {
 func (s *Store) Query(key GroupKey, metric string, from, to time.Time, maxPoints int) ([]Point, time.Duration, error) {
 	idx := metricIndex(metric)
 	if idx < 0 {
-		return nil, 0, fmt.Errorf("unknown metric %q", metric)
+		return nil, 0, errUnknownMetric(metric)
 	}
-	counter := groupMetricDefs[idx].kind == kindCounter
+	return s.query(metric, key.labels(), groupMetricDefs[idx].kind == kindCounter, from, to, maxPoints)
+}
+
+func errUnknownMetric(metric string) error {
+	return fmt.Errorf("unknown metric %q", metric)
+}
+
+// query reads and downsamples the series <metric>.avg and <metric>.max of
+// labels; counter sums the averages of a step.
+func (s *Store) query(metric string, labels []tstorage.Label, counter bool, from, to time.Time, maxPoints int) ([]Point, time.Duration, error) {
 	if !from.Before(to) {
 		return nil, 0, errors.New("from must be before to")
 	}
@@ -57,7 +67,6 @@ func (s *Store) Query(key GroupKey, metric string, from, to time.Time, maxPoints
 	if start == end {
 		end++
 	}
-	labels := key.labels()
 	avg, err := s.selectPoints(metric+".avg", labels, start, end)
 	if err != nil {
 		return nil, 0, err
@@ -112,6 +121,52 @@ func (s *Store) Query(key GroupKey, metric string, from, to time.Time, maxPoints
 		out = append(out, p)
 	}
 	return out, step, nil
+}
+
+// Summary is the usage of a metric over a range: the mean of the interval
+// averages, the 95th percentile and the largest of the interval maxima.
+type Summary struct {
+	Avg     float64
+	P95     float64
+	Max     float64
+	Samples int
+}
+
+// Summarize returns the summary of a usage metric of a task group between
+// from and to, from the stored points.
+func (s *Store) Summarize(key GroupKey, metric string, from, to time.Time) (*Summary, error) {
+	if idx := metricIndex(metric); idx < 0 || groupMetricDefs[idx].kind != kindUsage {
+		return nil, errUnknownMetric(metric)
+	}
+	labels := key.labels()
+	avg, err := s.selectPoints(metric+".avg", labels, from.Unix(), to.Unix())
+	if err != nil {
+		return nil, err
+	}
+	mx, err := s.selectPoints(metric+".max", labels, from.Unix(), to.Unix())
+	if err != nil {
+		return nil, err
+	}
+	out := &Summary{Samples: len(avg)}
+	if len(avg) > 0 {
+		var sum float64
+		for _, p := range avg {
+			sum += p.Value
+		}
+		out.Avg = sum / float64(len(avg))
+	}
+	if len(mx) > 0 {
+		values := make([]float64, len(mx))
+		for i, p := range mx {
+			values[i] = p.Value
+		}
+		slices.Sort(values)
+		out.Max = values[len(values)-1]
+		// The nearest-rank 95th percentile.
+		rank := int(math.Ceil(0.95*float64(len(values)))) - 1
+		out.P95 = values[max(rank, 0)]
+	}
+	return out, nil
 }
 
 // selectPoints reads a series; none is no error.

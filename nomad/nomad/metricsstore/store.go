@@ -61,6 +61,14 @@ type Store struct {
 	// newest is the time of the newest report.
 	newest int64
 
+	// gauges are the gauge series by gaugeKey, gaugePending their values
+	// not written yet by window start.
+	gauges       map[string]GaugeSeries
+	gaugePending map[int64]map[string]float64
+
+	// live is the latest usage report of each node.
+	live map[string]*nodeLive
+
 	droppedReports atomic.Uint64
 	droppedGroups  atomic.Uint64
 
@@ -94,8 +102,11 @@ func Open(cfg *Config, logger hclog.Logger) (*Store, error) {
 		logger:  logger.Named("metrics_store"),
 		cfg:     cfg.Copy(),
 		db:      db,
-		pending: map[int64]map[GroupKey]*window{},
-		series:  map[GroupKey]struct{}{},
+		pending:      map[int64]map[GroupKey]*window{},
+		series:       map[GroupKey]struct{}{},
+		gauges:       map[string]GaugeSeries{},
+		gaugePending: map[int64]map[string]float64{},
+		live:         map[string]*nodeLive{},
 		stopCh:  make(chan struct{}),
 		doneCh:  make(chan struct{}),
 	}
@@ -120,6 +131,7 @@ func (s *Store) Ingest(report *structs.TaskGroupUsageReport, at time.Time) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.recordLiveLocked(report, at)
 	if start+interval <= s.written || ts < s.newest-int64(s.cfg.PartitionDuration/time.Second) {
 		s.droppedReports.Add(1)
 		return
@@ -140,7 +152,7 @@ func (s *Store) Ingest(report *structs.TaskGroupUsageReport, at time.Time) {
 		}
 		key := GroupKey{Namespace: ns, Job: g.JobID, Group: g.TaskGroup}
 		if _, ok := s.series[key]; !ok {
-			if s.cfg.MaxSeries > 0 && (len(s.series)+1)*seriesPerGroup > s.cfg.MaxSeries {
+			if s.cfg.MaxSeries > 0 && s.seriesCountLocked()+seriesPerGroup > s.cfg.MaxSeries {
 				s.droppedGroups.Add(1)
 				continue
 			}
@@ -187,7 +199,7 @@ func (s *Store) RecordAllocs(at time.Time, groups map[GroupKey]AllocCounts) {
 			if n.Running == 0 && n.Queued == 0 {
 				continue
 			}
-			if s.cfg.MaxSeries > 0 && (len(s.series)+1)*seriesPerGroup > s.cfg.MaxSeries {
+			if s.cfg.MaxSeries > 0 && s.seriesCountLocked()+seriesPerGroup > s.cfg.MaxSeries {
 				s.droppedGroups.Add(1)
 				continue
 			}
@@ -254,6 +266,7 @@ func (s *Store) flush(until time.Time) error {
 		}
 		delete(s.pending, start)
 	}
+	rows = append(rows, s.gaugeRowsLocked(limit, interval)...)
 	if aligned := limit - limit%interval; aligned > s.written {
 		s.written = aligned
 	}
@@ -412,14 +425,30 @@ func (s *Store) loadSeries() error {
 	if err != nil {
 		return err
 	}
-	var keys []GroupKey
-	if err := json.Unmarshal(b, &keys); err != nil {
+	var saved savedSeries
+	if err := json.Unmarshal(b, &saved); err != nil {
 		return err
 	}
-	for _, k := range keys {
+	for _, k := range saved.Groups {
 		s.series[k] = struct{}{}
 	}
+	for _, g := range saved.Gauges {
+		if _, ok := gaugeLabels[g.Metric]; ok {
+			s.gauges[gaugeKey(g.Metric, g.Labels)] = g
+		}
+	}
 	return nil
+}
+
+// savedSeries is the content of the series file.
+type savedSeries struct {
+	Groups []GroupKey
+	Gauges []GaugeSeries
+}
+
+// seriesCountLocked is the number of series; s.mu is held.
+func (s *Store) seriesCountLocked() int {
+	return len(s.series)*seriesPerGroup + 2*len(s.gauges)
 }
 
 // saveSeries writes the series when they changed, atomically.
@@ -435,7 +464,7 @@ func (s *Store) saveSeries() error {
 	s.seriesDirty = false
 	s.mu.Unlock()
 
-	b, err := json.Marshal(s.Groups())
+	b, err := json.Marshal(savedSeries{Groups: s.Groups(), Gauges: s.Gauges()})
 	if err != nil {
 		return err
 	}
@@ -476,7 +505,7 @@ type Status struct {
 func (s *Store) Status() *Status {
 	st := s.db.Stats()
 	s.mu.Lock()
-	series := len(s.series) * seriesPerGroup
+	series := s.seriesCountLocked()
 	s.mu.Unlock()
 	out := &Status{
 		Partitions:     st.Partitions,

@@ -147,27 +147,6 @@ func (s *Server) seedAutoscalerUsage() {
 	}
 }
 
-// metricsStoreAllocsLoop samples the running and the queued allocations of
-// every task group from the state into the metrics store, every interval.
-// Every server has the state, so each samples its own store.
-func (s *Server) metricsStoreAllocsLoop(interval time.Duration) {
-	tick := time.NewTicker(interval)
-	defer tick.Stop()
-	for {
-		select {
-		case <-s.shutdownCtx.Done():
-			return
-		case now := <-tick.C:
-			groups, err := s.allocCounts()
-			if err != nil {
-				s.logger.Warn("metrics store: reading the job summaries failed", "error", err)
-				continue
-			}
-			s.metricsStore.RecordAllocs(now, groups)
-		}
-	}
-}
-
 // allocCounts returns the running and the queued allocations of every task
 // group, from the job summaries.
 func (s *Server) allocCounts() (map[metricsstore.GroupKey]metricsstore.AllocCounts, error) {
