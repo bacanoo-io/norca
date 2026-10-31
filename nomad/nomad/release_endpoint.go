@@ -807,6 +807,19 @@ func (r *Release) GetRevision(args *structs.ReleaseRevisionRequest, reply *struc
 				if rev.Resources, err = structs.DecodeReleaseResources(rev.Spec.Content); err != nil {
 					return err
 				}
+				// white room bugfix: only the resources the token may read are
+				// returned (Variables carry their decrypted values), and the
+				// encoded content only when nothing was left out.
+				if !allowReleaseResourcesRead(aclObj, rev.Resources) {
+					readable := make([]*structs.ReleaseResource, 0, len(rev.Resources))
+					for _, res := range rev.Resources {
+						if allowReleaseResourceRead(aclObj, res) {
+							readable = append(readable, res)
+						}
+					}
+					rev.Resources = readable
+					rev.Spec.Content = ""
+				}
 				reply.Revision = rev
 				reply.Index = obj.ModifyIndex
 			} else {

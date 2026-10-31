@@ -109,6 +109,21 @@ func (f *backupContentsFilter) name(name string) bool {
 	return strings.HasPrefix(name, f.prefix)
 }
 
+// aclObject reports whether the caller may list an ACL policy or role.
+// white room bugfix: like ACL.ListPolicies and ACL.ListRoles, only a
+// management token lists them all; backup read alone revealed every name
+// and description.
+func (f *backupContentsFilter) aclObject(name string) bool {
+	return f.name(name) && (f.aclObj == nil || f.aclObj.IsManagement())
+}
+
+// variableItems reports whether the caller may see the item names of a
+// Variable. white room bugfix: the names need read, list shows the paths
+// only, as in the Variables API.
+func (f *backupContentsFilter) variableItems(ns, path string) bool {
+	return f.aclObj == nil || f.aclObj.AllowVariableOperation(ns, path, acl.VariablesCapabilityRead, nil)
+}
+
 // consulKV reports whether the caller may list a key of the Consul KV: the
 // Variables rules of its path below consul/kv in the namespace of the
 // request ("default" for all namespaces).
@@ -232,7 +247,7 @@ func backupContents(loaded *backup.Loaded, contentType string, f *backupContents
 				Namespace: v.Namespace, Path: v.Path, CreateTime: v.CreateTime,
 				ModifyTime: v.ModifyTime, ModifyIndex: v.ModifyIndex,
 			}
-			if keyring != nil {
+			if keyring != nil && f.variableItems(v.Namespace, v.Path) {
 				if items, err := decryptBackupVariable(keyring, v); err == nil {
 					for k := range items {
 						stub.Keys = append(stub.Keys, k)
@@ -264,7 +279,7 @@ func backupContents(loaded *backup.Loaded, contentType string, f *backupContents
 		}
 		for raw := iter.Next(); raw != nil; raw = iter.Next() {
 			p := raw.(*structs.ACLPolicy)
-			if f.name(p.Name) {
+			if f.aclObject(p.Name) {
 				out.ACLPolicies = append(out.ACLPolicies, p.Stub())
 			}
 		}
@@ -276,7 +291,7 @@ func backupContents(loaded *backup.Loaded, contentType string, f *backupContents
 		}
 		for raw := iter.Next(); raw != nil; raw = iter.Next() {
 			r := raw.(*structs.ACLRole)
-			if f.name(r.Name) {
+			if f.aclObject(r.Name) {
 				out.ACLRoles = append(out.ACLRoles, r.Stub())
 			}
 		}
@@ -432,7 +447,7 @@ func backupDiffEntries(side backupSide, contentType string, f *backupContentsFil
 		}
 		for raw := iter.Next(); raw != nil; raw = iter.Next() {
 			p := raw.(*structs.ACLPolicy)
-			if f.name(p.Name) {
+			if f.aclObject(p.Name) {
 				add(&backupDiffEntry{id: p.Name, modifyIndex: p.ModifyIndex})
 			}
 		}
@@ -443,7 +458,7 @@ func backupDiffEntries(side backupSide, contentType string, f *backupContentsFil
 		}
 		for raw := iter.Next(); raw != nil; raw = iter.Next() {
 			r := raw.(*structs.ACLRole)
-			if f.name(r.Name) {
+			if f.aclObject(r.Name) {
 				add(&backupDiffEntry{id: r.Name, modifyIndex: r.ModifyIndex})
 			}
 		}

@@ -934,6 +934,33 @@ func allowReleaseResourceRead(aclObj *acl.ACL, res *structs.ReleaseResource) boo
 	return false
 }
 
+// redactReleaseRevision returns a release revision object without its
+// encoded content unless aclObj may read every resource in it: the content
+// holds the decrypted values of the release's Variables. Other objects are
+// returned as they are.
+func redactReleaseRevision(aclObj *acl.ACL, obj *structs.CustomObject) *structs.CustomObject {
+	if aclObj == nil || obj == nil || obj.KindRef() != structs.ReleaseRevisionKindRef {
+		return obj
+	}
+	if rev, err := structs.ReleaseRevisionFromObject(obj); err == nil {
+		if resources, err := structs.DecodeReleaseResources(rev.Spec.Content); err == nil &&
+			allowReleaseResourcesRead(aclObj, resources) {
+			return obj
+		}
+	}
+	return structs.WithoutRevisionContent(obj)
+}
+
+// allowReleaseResourcesRead reports whether aclObj may read every resource.
+func allowReleaseResourcesRead(aclObj *acl.ACL, resources []*structs.ReleaseResource) bool {
+	for _, res := range resources {
+		if !allowReleaseResourceRead(aclObj, res) {
+			return false
+		}
+	}
+	return true
+}
+
 // releaseTakenResources removes resources taken over by this release from
 // the releases that owned them.
 func (m *releaseManager) releaseTakenResources(op *releaseOp, taken map[string]string) {

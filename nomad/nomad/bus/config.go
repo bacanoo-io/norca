@@ -91,7 +91,7 @@ type Config struct {
 
 // EventsConfig configures the event stream of the region: the leader
 // publishes the events of the event broker into the JetStream stream
-// NORCA_EVENTS_<region> on <SubjectPrefix>.<region>.<topic>, and consumes
+// NORCA_EVENTS_<region> on <SubjectPrefix>.<region>.<namespace>.<topic>, and consumes
 // the pack push notices on <SubjectPrefix>.packs.pushed.
 type EventsConfig struct {
 	Enabled       bool

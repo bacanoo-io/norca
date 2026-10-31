@@ -555,7 +555,10 @@ func objectEventFromChange(change memdb.Change) (structs.Event, bool) {
 			Key:        object.KindRef() + "/" + object.Name,
 			FilterKeys: []string{object.KindRef()},
 			Namespace:  object.Namespace,
-			Payload:    &structs.CustomObjectEvent{Object: object},
+			// white room bugfix: events of release revisions carry no
+			// encoded content (decrypted Variables); Release.GetRevision
+			// returns it filtered by the token.
+			Payload: &structs.CustomObjectEvent{Object: structs.WithoutRevisionContent(object)},
 		}, true
 
 	case TableObjectEvents:

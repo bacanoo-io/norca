@@ -41,7 +41,7 @@ func lastJobEvent(t *testing.T, js jetstream.JetStream, jobID string) *jetstream
 		if err != nil {
 			return false, err
 		}
-		m, err := stream.GetLastMsgForSubject(t.Context(), "nomad.global.Job")
+		m, err := stream.GetLastMsgForSubject(t.Context(), "nomad.global.default.Job")
 		if err != nil {
 			return false, err
 		}
@@ -73,6 +73,7 @@ func TestBusEvents_Publish(t *testing.T) {
 	}, &resp))
 
 	msg := lastJobEvent(t, js, job.ID)
+	must.Eq(t, "nomad.global."+job.Namespace+".Job", msg.Subject)
 	must.Eq(t, "global", msg.Header.Get(bus.HeaderRegion))
 	must.Eq(t, "Job", msg.Header.Get(bus.HeaderTopic))
 	must.Eq(t, "JobRegistered", msg.Header.Get(bus.HeaderType))

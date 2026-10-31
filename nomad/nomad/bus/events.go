@@ -17,8 +17,9 @@ import (
 )
 
 // The messages of the event stream: one per event of the event broker, on
-// <prefix>.<region>.<topic>, with the event JSON of the event stream API and
-// the metadata in headers.
+// <prefix>.<region>.<namespace>.<topic> ("_" for events without a
+// namespace), with the event JSON of the event stream API and the metadata
+// in headers.
 
 // Headers of the event messages. Nats-Msg-Id is the JetStream deduplication
 // header; the others repeat the metadata of the event so that consumers can
@@ -111,9 +112,13 @@ func ValidSubjectPrefix(prefix string) error {
 	return nil
 }
 
-// EventSubject is the subject of the events of a topic of a region.
-func EventSubject(prefix, region, topic string) string {
-	return prefix + "." + SubjectToken(region) + "." + SubjectToken(topic)
+// EventSubject is the subject of the events of a topic of a namespace of a
+// region. white room bugfix: the namespace is a token of the subject, so
+// a bus subscribe rule can be limited to the events of a namespace
+// ("nomad.*.dev.>"); events without a namespace use "_", which namespace
+// names cannot contain.
+func EventSubject(prefix, region, namespace, topic string) string {
+	return prefix + "." + SubjectToken(region) + "." + SubjectToken(namespace) + "." + SubjectToken(topic)
 }
 
 // EventStreamName is the name of the event stream of a region.
@@ -140,7 +145,7 @@ func EventMessage(prefix, region string, ev *Event) *nats.Msg {
 	if len(data) > 0 && data[0] == '{' {
 		data = withRegion(data, region)
 	}
-	msg := nats.NewMsg(EventSubject(prefix, region, ev.Topic))
+	msg := nats.NewMsg(EventSubject(prefix, region, ev.Namespace, ev.Topic))
 	msg.Data = data
 	msg.Header.Set(HeaderMsgID, EventMsgID(region, ev))
 	msg.Header.Set(HeaderRegion, region)
@@ -188,7 +193,7 @@ func GapMessage(prefix, region string, fromIndex uint64, reason string, now time
 		Payload: map[string]GapPayload{"Gap": {FromIndex: fromIndex, Reason: reason, Time: now.UTC()}},
 	}
 	data, _ := json.Marshal(ev)
-	msg := nats.NewMsg(EventSubject(prefix, region, GapTopic))
+	msg := nats.NewMsg(EventSubject(prefix, region, "", GapTopic))
 	msg.Data = data
 	msg.Header.Set(HeaderMsgID, fmt.Sprintf("%s:gap:%d", region, fromIndex))
 	msg.Header.Set(HeaderRegion, region)
