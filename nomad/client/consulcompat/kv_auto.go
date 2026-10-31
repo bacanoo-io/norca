@@ -4,17 +4,11 @@
 package consulcompat
 
 import (
-	"errors"
 	"net/http"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/nats-io/nats.go"
 )
-
-// ErrNoBus is returned by Backend.BusConn when the client has no system bus
-// to use: it is disabled on the client, or the servers run without one.
-var ErrNoBus = errors.New("the servers run no system bus")
 
 // autoKV is the backend "auto": the bucket of the system bus when the
 // servers run one, Variables otherwise. The choice is made by the first
@@ -22,7 +16,7 @@ var ErrNoBus = errors.New("the servers run no system bus")
 // heartbeat) and kept: the keys must not move between two stores.
 type autoKV struct {
 	logger    hclog.Logger
-	busConn   func() (*nats.Conn, error)
+	busKnown  func() (bool, error)
 	bus       func() kvStore
 	variables func() kvStore
 
@@ -37,16 +31,16 @@ func (a *autoKV) resolve() (kvStore, error) {
 	if a.store != nil {
 		return a.store, nil
 	}
-	_, err := a.busConn()
+	runBus, err := a.busKnown()
 	switch {
-	case err == nil:
+	case err != nil:
+		return nil, &codedError{http.StatusServiceUnavailable, "the KV is not available yet: " + err.Error()}
+	case runBus:
 		a.store = a.bus()
 		a.logger.Info("the Consul KV is kept on the system bus of the servers")
-	case errors.Is(err, ErrNoBus):
+	default:
 		a.store = a.variables()
 		a.logger.Info("the Consul KV is kept in Variables: the servers run no system bus")
-	default:
-		return nil, &codedError{http.StatusServiceUnavailable, "the KV is not available yet: " + err.Error()}
 	}
 	return a.store, nil
 }
