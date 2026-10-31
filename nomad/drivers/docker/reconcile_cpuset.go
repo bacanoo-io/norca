@@ -117,6 +117,10 @@ func (d *Driver) trackedTasks() map[coordinate]struct{} {
 
 	m := make(map[coordinate]struct{}, len(d.tasks.store))
 	for _, h := range d.tasks.store {
+		// white room bugfix: skip tasks without Linux resources instead of panicking the background fixer.
+		if h.task.Resources == nil || h.task.Resources.LinuxResources == nil {
+			continue
+		}
 		m[coordinate{
 			containerID: h.containerID,
 			allocID:     h.task.AllocID,

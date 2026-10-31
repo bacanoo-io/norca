@@ -48,6 +48,29 @@ func TestDockerDriver_authFromHelper(t *testing.T) {
 	require.Equal(t, "registry.local:5000", string(content))
 }
 
+func TestDockerDriver_authFromHelper_NotFound(t *testing.T) {
+	dir := t.TempDir()
+
+	// a helper with no credentials for the registry, as the docker
+	// credential helpers report it
+	notFound := []byte("#!/bin/sh\necho 'credentials not found in native keychain'\nexit 1\n")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "docker-credential-testnotfound"), notFound, 0777))
+
+	failing := []byte("#!/bin/sh\necho 'boom' >&2\nexit 1\n")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "docker-credential-testfail"), failing, 0777))
+
+	t.Setenv("PATH", fmt.Sprintf("%s:%s", os.Getenv("PATH"), dir))
+
+	// an IP registry avoids the DNS lookup the docker registry parser does
+	creds, err := authFromHelper("testnotfound")("127.0.0.1:5000/repo/image")
+	require.NoError(t, err)
+	require.Nil(t, creds)
+
+	// any other helper failure is still an error
+	_, err = authFromHelper("testfail")("127.0.0.1:5000/repo/image")
+	require.Error(t, err)
+}
+
 func TestDockerDriver_PluginConfig_PidsLimit(t *testing.T) {
 	ci.Parallel(t)
 	testutil.DockerCompatible(t)

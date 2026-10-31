@@ -330,6 +330,14 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 		return nil, nil, err
 	}
 
+	// white room bugfix: release the image reference taken by createImage when the task fails to start, it leaked and blocked image GC.
+	started := false
+	defer func() {
+		if !started {
+			d.coordinator.RemoveImage(id, cfg.ID)
+		}
+	}()
+
 	if runtime.GOOS == "windows" {
 		err = d.convertAllocPathsForWindowsLCOW(cfg, driverConfig.Image)
 		if err != nil {
@@ -466,6 +474,7 @@ CREATE:
 	d.tasks.Set(cfg.ID, h)
 	go h.run()
 
+	started = true
 	return handle, net, nil
 }
 
@@ -684,11 +693,12 @@ func (d *Driver) loadImage(task *drivers.TaskConfig, driverConfig *TaskConfig, c
 	if err != nil {
 		return "", fmt.Errorf("unable to open image archive: %v", err)
 	}
+	// white room bugfix: close the archive on every path, a failed LoadImage leaked the file descriptor.
+	defer f.Close()
 
 	if err := client.LoadImage(docker.LoadImageOptions{InputStream: f}); err != nil {
 		return "", err
 	}
-	f.Close()
 
 	dockerImage, err := client.InspectImage(driverConfig.Image)
 	if err != nil {
@@ -722,9 +732,11 @@ func (d *Driver) convertAllocPathsForWindowsLCOW(task *drivers.TaskConfig, image
 }
 
 func (d *Driver) containerBinds(task *drivers.TaskConfig, driverConfig *TaskConfig) ([]string, error) {
-	allocDirBind := fmt.Sprintf("%s:%s", task.TaskDir().SharedAllocDir, task.Env[taskenv.AllocDir])
-	taskLocalBind := fmt.Sprintf("%s:%s", task.TaskDir().LocalDir, task.Env[taskenv.TaskLocalDir])
-	secretDirBind := fmt.Sprintf("%s:%s", task.TaskDir().SecretsDir, task.Env[taskenv.SecretsDir])
+	// SELinux Label is applied to each volume
+	selinuxLabel := d.config.Volumes.SelinuxLabel
+	allocDirBind := bindWithLabel(fmt.Sprintf("%s:%s", task.TaskDir().SharedAllocDir, task.Env[taskenv.AllocDir]), "", selinuxLabel)
+	taskLocalBind := bindWithLabel(fmt.Sprintf("%s:%s", task.TaskDir().LocalDir, task.Env[taskenv.TaskLocalDir]), "", selinuxLabel)
+	secretDirBind := bindWithLabel(fmt.Sprintf("%s:%s", task.TaskDir().SecretsDir, task.Env[taskenv.SecretsDir]), "", selinuxLabel)
 	binds := []string{allocDirBind, taskLocalBind, secretDirBind}
 
 	taskLocalBindVolume := driverConfig.VolumeDriver == ""
@@ -758,21 +770,26 @@ func (d *Driver) containerBinds(task *drivers.TaskConfig, driverConfig *TaskConf
 			return nil, fmt.Errorf("volumes are not enabled; cannot mount host paths: %+q", userbind)
 		}
 
-		bind := src + ":" + dst
-		if mode != "" {
-			bind += ":" + mode
-		}
-		binds = append(binds, bind)
-	}
-
-	if selinuxLabel := d.config.Volumes.SelinuxLabel; selinuxLabel != "" {
-		// Apply SELinux Label to each volume
-		for i := range binds {
-			binds[i] = fmt.Sprintf("%s:%s", binds[i], selinuxLabel)
-		}
+		binds = append(binds, bindWithLabel(src+":"+dst, mode, selinuxLabel))
 	}
 
 	return binds, nil
+}
+
+// bindWithLabel appends the bind mode and the optional SELinux label to a
+// "src:dst" bind.
+func bindWithLabel(bind, mode, selinuxLabel string) string {
+	// white room bugfix: join the SELinux label to an existing mode with a comma, "src:dst:ro:z" is an invalid bind.
+	if selinuxLabel != "" {
+		if mode != "" {
+			mode += ","
+		}
+		mode += selinuxLabel
+	}
+	if mode != "" {
+		bind += ":" + mode
+	}
+	return bind
 }
 
 func (d *Driver) findPauseContainer(allocID string) (string, error) {
@@ -1548,7 +1565,8 @@ func (d *Driver) WaitTask(ctx context.Context, taskID string) (<-chan *drivers.E
 	if !ok {
 		return nil, drivers.ErrTaskNotFound
 	}
-	ch := make(chan *drivers.ExitResult)
+	// white room bugfix: buffer the single result, callers may stop reading after their ctx ends and the sender leaked.
+	ch := make(chan *drivers.ExitResult, 1)
 	go d.handleWait(ctx, ch, h)
 	return ch, nil
 }
@@ -1728,6 +1746,8 @@ var _ drivers.ExecTaskStreamingDriver = (*Driver)(nil)
 func (d *Driver) ExecTaskStreaming(ctx context.Context, taskID string, opts *drivers.ExecOptions) (*drivers.ExitResult, error) {
 	defer opts.Stdout.Close()
 	defer opts.Stderr.Close()
+	// white room bugfix: close stdin too, so the stream goroutine writing into it does not block after the exec ends.
+	defer opts.Stdin.Close()
 
 	done := make(chan interface{})
 	defer close(done)

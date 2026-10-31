@@ -5,6 +5,8 @@ package docker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"regexp"
 	"sync"
@@ -99,7 +101,8 @@ type dockerCoordinator struct {
 	imageLock sync.Mutex
 
 	// pullFutures is used to allow multiple callers to pull the same image but
-	// only have one request be sent to Docker
+	// only have one request be sent to Docker. It is keyed by pullKey, as are
+	// pullLoggers.
 	pullFutures map[string]*pullFuture
 
 	// pullLoggers is used to track the LogEventFn for each alloc pulling an image.
@@ -136,15 +139,18 @@ func newDockerCoordinator(config *dockerCoordinatorConfig) *dockerCoordinator {
 // error that occurred during the pull
 func (d *dockerCoordinator) PullImage(image string, authOptions *docker.AuthConfiguration, callerID string,
 	emitFn LogEventFn, pullTimeout, pullActivityTimeout time.Duration) (imageID string, err error) {
+	// white room bugfix: share a pull only between callers with the same credentials, so one caller's bad or missing auth cannot fail (or serve) another's pull.
+	key := pullKey(image, authOptions)
+
 	// Get the future
 	d.imageLock.Lock()
-	future, ok := d.pullFutures[image]
-	d.registerPullLogger(image, emitFn)
+	future, ok := d.pullFutures[key]
+	d.registerPullLogger(key, emitFn)
 	if !ok {
 		// Make the future
 		future = newPullFuture()
-		d.pullFutures[image] = future
-		go d.pullImageImpl(image, authOptions, pullTimeout, pullActivityTimeout, future)
+		d.pullFutures[key] = future
+		go d.pullImageImpl(key, image, authOptions, pullTimeout, pullActivityTimeout, future)
 	}
 	d.imageLock.Unlock()
 
@@ -157,7 +163,11 @@ func (d *dockerCoordinator) PullImage(image string, authOptions *docker.AuthConf
 	// Delete the future since we don't need it and we don't want to cache an
 	// image being there if it has possibly been manually deleted (outside of
 	// Nomad).
-	delete(d.pullFutures, image)
+	// white room bugfix: only delete our own future (and its loggers), a newer pull of the same image may have replaced it while we waited.
+	if d.pullFutures[key] == future {
+		delete(d.pullFutures, key)
+		d.clearPullLogger(key)
+	}
 
 	// If we are cleaning up, we increment the reference count on the image
 	if err == nil && d.cleanup {
@@ -169,17 +179,16 @@ func (d *dockerCoordinator) PullImage(image string, authOptions *docker.AuthConf
 
 // pullImageImpl is the implementation of pulling an image. The results are
 // returned via the passed future
-func (d *dockerCoordinator) pullImageImpl(image string, authOptions *docker.AuthConfiguration,
+func (d *dockerCoordinator) pullImageImpl(key, image string, authOptions *docker.AuthConfiguration,
 	pullTimeout, pullActivityTimeout time.Duration, future *pullFuture) {
 
-	defer d.clearPullLogger(image)
 	// Parse the repo and tag
 	repo, tag := parseDockerImage(image)
 	ctx, cancel := context.WithTimeout(context.Background(), pullTimeout)
 	defer cancel()
 
 	pm := newImageProgressManager(image, cancel, pullActivityTimeout, d.handlePullInactivity,
-		d.handlePullProgressReport, d.handleSlowPullProgressReport)
+		d.handlePullProgressReport, d.handleSlowPullProgressReport(key))
 	defer pm.stop()
 
 	pullOptions := docker.PullImageOptions{
@@ -393,10 +402,29 @@ func (d *dockerCoordinator) handlePullProgressReport(image, msg string, _ time.T
 	d.logger.Debug("image pull progress", "image_name", image, "message", msg)
 }
 
-func (d *dockerCoordinator) handleSlowPullProgressReport(image, msg string, _ time.Time) {
-	d.emitEvent(image, fmt.Sprintf("Docker image pull progress: %s", msg), map[string]string{
-		"image": image,
-	})
+// handleSlowPullProgressReport returns the slow progress reporter emitting to
+// the loggers registered under the pull key.
+func (d *dockerCoordinator) handleSlowPullProgressReport(key string) progressReporterFunc {
+	return func(image, msg string, _ time.Time) {
+		d.emitEvent(key, fmt.Sprintf("Docker image pull progress: %s", msg), map[string]string{
+			"image": image,
+		})
+	}
+}
+
+// pullKey returns the key under which concurrent pulls of an image are shared:
+// the image name, plus a digest of the credentials when there are any.
+func pullKey(image string, auth *docker.AuthConfiguration) string {
+	if authIsEmpty(auth) {
+		return image
+	}
+	h := sha256.New()
+	for _, s := range []string{auth.Username, auth.Password, auth.Email,
+		auth.ServerAddress, auth.IdentityToken, auth.RegistryToken} {
+		h.Write([]byte(s))
+		h.Write([]byte{0})
+	}
+	return image + "\x00" + hex.EncodeToString(h.Sum(nil))
 }
 
 // recoverablePullError wraps the error gotten when trying to pull and image if

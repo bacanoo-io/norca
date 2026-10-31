@@ -142,6 +142,11 @@ func authFromDockerConfig(file string) authBackend {
 	}
 }
 
+// credentialsNotFoundMessage is what docker credential helpers print on stdout
+// when they have no credentials for the requested registry (see
+// docker-credential-helpers credentials.ErrCredentialsNotFound).
+const credentialsNotFoundMessage = "credentials not found in native keychain"
+
 // authFromHelper generates an authBackend for a docker-credentials-helper;
 // A script taking the requested domain on input, outputting JSON with
 // "Username" and "Secret"
@@ -161,6 +166,10 @@ func authFromHelper(helperName string) authBackend {
 		cmd.Stdin = strings.NewReader(repoInfo.Index.Name)
 		output, err := cmd.Output()
 		if err != nil {
+			// white room bugfix: like the docker CLI, a helper with no credentials for this registry means anonymous access, not a pull failure.
+			if strings.TrimSpace(string(output)) == credentialsNotFoundMessage {
+				return nil, nil
+			}
 			exitErr, ok := err.(*exec.ExitError)
 			if ok {
 				return nil, fmt.Errorf(
@@ -188,13 +197,16 @@ func authFromHelper(helperName string) authBackend {
 
 // authIsEmpty returns if auth is nil or an empty structure
 func authIsEmpty(auth *docker.AuthConfiguration) bool {
+	// white room bugfix: nil auth is empty, and token-only auth (IdentityToken/RegistryToken) is not.
 	if auth == nil {
-		return false
+		return true
 	}
 	return auth.Username == "" &&
 		auth.Password == "" &&
 		auth.Email == "" &&
-		auth.ServerAddress == ""
+		auth.ServerAddress == "" &&
+		auth.IdentityToken == "" &&
+		auth.RegistryToken == ""
 }
 
 func validateCgroupPermission(s string) bool {
