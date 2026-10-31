@@ -408,6 +408,7 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// valid on this leader.
 	s.setAutoscalerSecret(uuid.Generate())
 	s.autoscaler.SetLeader(true)
+	go s.seedAutoscalerUsage()
 
 	// Start the scheduled backups.
 	s.backup.SetLeader(true)

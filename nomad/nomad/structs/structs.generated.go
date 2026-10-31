@@ -29655,9 +29655,9 @@ func (x *TaskGroupUsage) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(9)
+				r.WriteArrayStart(12)
 			} else {
-				r.WriteMapStart(9)
+				r.WriteMapStart(12)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -29839,6 +29839,55 @@ func (x *TaskGroupUsage) CodecEncodeSelf(e *codec1978.Encoder) {
 				yy36.CodecEncodeSelf(e)
 			}
 			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				yy39 := &x.MemoryCacheMB
+				yy39.CodecEncodeSelf(e)
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"MemoryCacheMB\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `MemoryCacheMB`)
+				}
+				r.WriteMapElemValue()
+				yy41 := &x.MemoryCacheMB
+				yy41.CodecEncodeSelf(e)
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				yy44 := &x.CPUThrottledPercent
+				yy44.CodecEncodeSelf(e)
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"CPUThrottledPercent\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `CPUThrottledPercent`)
+				}
+				r.WriteMapElemValue()
+				yy46 := &x.CPUThrottledPercent
+				yy46.CodecEncodeSelf(e)
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					r.EncodeInt(int64(x.OOMKills))
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"OOMKills\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `OOMKills`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					r.EncodeInt(int64(x.OOMKills))
+				}
+			}
+			if yyr2 || yy2arr2 {
 				r.WriteArrayEnd()
 			} else {
 				r.WriteMapEnd()
@@ -29949,6 +29998,24 @@ func (x *TaskGroupUsage) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 			} else {
 				x.MemoryPercent.CodecDecodeSelf(d)
 			}
+		case "MemoryCacheMB":
+			if r.TryDecodeAsNil() {
+				x.MemoryCacheMB = TaskGroupUsageValue{}
+			} else {
+				x.MemoryCacheMB.CodecDecodeSelf(d)
+			}
+		case "CPUThrottledPercent":
+			if r.TryDecodeAsNil() {
+				x.CPUThrottledPercent = TaskGroupUsageValue{}
+			} else {
+				x.CPUThrottledPercent.CodecDecodeSelf(d)
+			}
+		case "OOMKills":
+			if r.TryDecodeAsNil() {
+				x.OOMKills = 0
+			} else {
+				x.OOMKills = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
+			}
 		default:
 			z.DecStructFieldNotFound(-1, yys3)
 		} // end switch yys3
@@ -29960,16 +30027,16 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj13 int
-	var yyb13 bool
-	var yyhl13 bool = l >= 0
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	var yyj16 int
+	var yyb16 bool
+	var yyhl16 bool = l >= 0
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb16 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb16 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29979,13 +30046,13 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb16 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb16 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29995,13 +30062,13 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.JobID = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb16 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb16 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -30011,13 +30078,13 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.TaskGroup = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb16 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb16 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -30027,13 +30094,13 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Allocs = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb16 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb16 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -30043,13 +30110,13 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Samples = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb16 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb16 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -30059,13 +30126,13 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.CPUMHz.CodecDecodeSelf(d)
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb16 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb16 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -30075,13 +30142,13 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.CPUPercent.CodecDecodeSelf(d)
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb16 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb16 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -30091,13 +30158,13 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.MemoryMB.CodecDecodeSelf(d)
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb16 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb16 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -30107,18 +30174,66 @@ func (x *TaskGroupUsage) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.MemoryPercent.CodecDecodeSelf(d)
 	}
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
+	} else {
+		yyb16 = r.CheckBreak()
+	}
+	if yyb16 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.MemoryCacheMB = TaskGroupUsageValue{}
+	} else {
+		x.MemoryCacheMB.CodecDecodeSelf(d)
+	}
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
+	} else {
+		yyb16 = r.CheckBreak()
+	}
+	if yyb16 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.CPUThrottledPercent = TaskGroupUsageValue{}
+	} else {
+		x.CPUThrottledPercent.CodecDecodeSelf(d)
+	}
+	yyj16++
+	if yyhl16 {
+		yyb16 = yyj16 > l
+	} else {
+		yyb16 = r.CheckBreak()
+	}
+	if yyb16 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.OOMKills = 0
+	} else {
+		x.OOMKills = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
+	}
 	for {
-		yyj13++
-		if yyhl13 {
-			yyb13 = yyj13 > l
+		yyj16++
+		if yyhl16 {
+			yyb16 = yyj16 > l
 		} else {
-			yyb13 = r.CheckBreak()
+			yyb16 = r.CheckBreak()
 		}
-		if yyb13 {
+		if yyb16 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj13-1, "")
+		z.DecStructFieldNotFound(yyj16-1, "")
 	}
 	r.ReadArrayEnd()
 }

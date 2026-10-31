@@ -53,6 +53,19 @@ type TaskGroupUsage struct {
 	// MemoryPercent is the memory usage as a percentage of the allocated
 	// memory.
 	MemoryPercent TaskGroupUsageValue
+
+	// MemoryCacheMB is the page cache in MiB (reclaimable; part of the
+	// memory usage when the driver measures the cgroup usage).
+	MemoryCacheMB TaskGroupUsageValue
+
+	// CPUThrottledPercent is the time the tasks were throttled by their CPU
+	// limit (CFS quota), as a percentage of the time between two
+	// measurements; the times of the tasks of an allocation add up.
+	CPUThrottledPercent TaskGroupUsageValue
+
+	// OOMKills is the number of tasks killed by the kernel for running out
+	// of memory in the window, of all allocations of the group on the node.
+	OOMKills int
 }
 
 // TaskGroupUsageValue is the average and the maximum of a usage value.

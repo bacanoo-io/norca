@@ -121,9 +121,11 @@ func (c *Client) collectTaskGroupUsage() {
 		}
 
 		for _, ar := range c.getAllocRunners() {
-			if st := ar.AllocState(); st == nil || st.ClientStatus != structs.AllocClientStatusRunning {
+			st := ar.AllocState()
+			if st == nil || st.ClientStatus != structs.AllocClientStatusRunning {
 				continue
 			}
+			c.taskGroupUsage.agg.ObserveTaskStates(ar.Alloc(), st.TaskStates)
 			usage, err := ar.StatsReporter().LatestAllocStats("")
 			if err != nil {
 				continue

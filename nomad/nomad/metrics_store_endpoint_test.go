@@ -125,8 +125,23 @@ func TestMetricsStore_History(t *testing.T) {
 		QueryOptions: structs.QueryOptions{Region: "global", AuthToken: root.SecretID},
 	}, &status))
 	must.True(t, status.Status.Enabled)
-	must.Eq(t, 8, status.Status.Series)
+	must.Eq(t, 18, status.Status.Series)
 	must.False(t, status.Status.Newest.IsZero())
+
+	// The servers sample the running and the queued allocations from the
+	// job summaries.
+	must.NoError(t, st.UpsertJobSummary(1100, &structs.JobSummary{
+		JobID: "batch", Namespace: "default",
+		Summary: map[string]structs.TaskGroupSummary{"work": {Running: 2, Queued: 3}},
+	}))
+	waitBus(t, func() (bool, error) {
+		var resp structs.MetricsHistoryResponse
+		err := msgpackrpc.CallWithCodec(codec, structs.MetricsStoreHistoryRPCMethod, &structs.MetricsHistoryRequest{
+			JobID: "batch", Group: "work", Metric: metricsstore.MetricAllocsQueued,
+			QueryOptions: structs.QueryOptions{Region: "global", AuthToken: root.SecretID},
+		}, &resp)
+		return err == nil && len(resp.Points) > 0 && resp.Points[0].Avg == 3, err
+	})
 }
 
 // TestMetricsStore_Disabled checks the answers of a server without the
@@ -157,4 +172,28 @@ func TestMetricsStore_Disabled(t *testing.T) {
 	}, &status))
 	must.False(t, status.Status.Enabled)
 	must.NotEq(t, "", status.Status.Server)
+}
+
+// TestMetricsStore_SeedAutoscaler checks that a new leader fills the usage
+// window of the built-in autoscaler from its metrics store.
+func TestMetricsStore_SeedAutoscaler(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, func(c *Config) {
+		enableMetricsStore(t)(c)
+		c.Autoscaler = autoscaler.DefaultConfig()
+		c.Autoscaler.Enabled = true
+	})
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+
+	at := time.Now().Add(-time.Minute)
+	s.metricsStore.Ingest(&structs.TaskGroupUsageReport{NodeID: "n", Window: 10 * time.Second,
+		Groups: []*structs.TaskGroupUsage{{
+			Namespace: "default", JobID: "api", TaskGroup: "web", Allocs: 1, Samples: 5,
+			CPUPercent: structs.TaskGroupUsageValue{Avg: 25, Max: 40},
+		}}}, at)
+	must.Eq(t, 0, s.autoscalerUsageGroupsForTest())
+	s.seedAutoscalerUsage()
+	must.Eq(t, 1, s.autoscalerUsageGroupsForTest())
 }

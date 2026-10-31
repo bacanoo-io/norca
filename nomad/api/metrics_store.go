@@ -20,6 +20,18 @@ const (
 	MetricsGroupMemory = "norca.group.memory"
 	// MetricsGroupMemoryMB is the memory usage in MiB.
 	MetricsGroupMemoryMB = "norca.group.memory_mb"
+	// MetricsGroupCPUThrottled is the time the tasks were throttled by
+	// their CPU limit, in percent.
+	MetricsGroupCPUThrottled = "norca.group.cpu_throttled"
+	// MetricsGroupMemoryCacheMB is the page cache in MiB.
+	MetricsGroupMemoryCacheMB = "norca.group.memory_cache_mb"
+	// MetricsGroupOOMKills is the number of tasks killed for running out of
+	// memory; Avg is the sum in the step.
+	MetricsGroupOOMKills = "norca.group.oom_kills"
+	// MetricsGroupAllocsRunning and MetricsGroupAllocsQueued are the running
+	// and the queued allocations of the group.
+	MetricsGroupAllocsRunning = "norca.group.allocs_running"
+	MetricsGroupAllocsQueued  = "norca.group.allocs_queued"
 )
 
 // MetricsStore reads the history of the task group usage the servers keep.

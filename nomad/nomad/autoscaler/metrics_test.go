@@ -453,3 +453,44 @@ func BenchmarkUsageCollector_Memory(b *testing.B) {
 	}
 	b.ReportMetric(perThousand, "bytes/1000groups")
 }
+
+// TestUsageCollector_Seed checks that seeds from the metrics store make the
+// built-in metrics available at once on a new leader, and which seeds are
+// left out.
+func TestUsageCollector_Seed(t *testing.T) {
+	ci.Parallel(t)
+
+	start := time.Unix(1_700_000_000, 0)
+	c := newUsageCollector()
+	c.setActive(true, 5*time.Minute, start)
+	key := webKey("api")
+	_, err := c.query(start, key, usageCPUPercent, start.Add(-time.Minute), start)
+	must.ErrorIs(t, err, ErrInsufficientData)
+
+	seed := func(ago time.Duration, cpu float64) UsageSeed {
+		return UsageSeed{At: start.Add(-ago), Usage: usageReport("api", "web", 1, cpu, 100).Groups[0]}
+	}
+	// A window of seeds every 30s, one too old, one not older than the
+	// start (live reports cover it).
+	var seeds []UsageSeed
+	for ago := 30 * time.Second; ago <= 5*time.Minute; ago += 30 * time.Second {
+		seeds = append(seeds, seed(ago, 40))
+	}
+	seeds = append(seeds, seed(10*time.Minute, 99), seed(0, 99))
+	must.Eq(t, 10, c.seed(start, seeds))
+
+	agg, err := c.query(start, key, usageCPUPercent, start.Add(-5*time.Minute), start)
+	must.NoError(t, err)
+	must.Eq(t, 40.0, agg.avg)
+	must.Eq(t, 40.0, agg.max)
+
+	// A live report of the next bucket is kept apart from the seeds.
+	c.record(start.Add(time.Second), usageReport("api", "web", 1, 70, 100))
+	agg, err = c.query(start.Add(time.Second), key, usageCPUPercent, start, start.Add(time.Second))
+	must.NoError(t, err)
+	must.Eq(t, 70.0, agg.avg)
+
+	// An inactive collector takes no seeds.
+	idle := newUsageCollector()
+	must.Eq(t, 0, idle.seed(start, seeds))
+}

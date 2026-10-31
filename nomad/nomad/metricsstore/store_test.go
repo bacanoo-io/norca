@@ -74,6 +74,92 @@ func TestStore_Coalesce(t *testing.T) {
 	must.ErrorContains(t, err, "unknown metric")
 }
 
+// TestStore_CounterAndState checks the OOM kills (a sum per window and per
+// step), the new usage values and the allocations sampled by the server.
+func TestStore_CounterAndState(t *testing.T) {
+	ci.Parallel(t)
+	s := openTest(t, testConfig(t.TempDir()))
+	defer func() { must.NoError(t, s.Close()) }()
+
+	base := time.Now().Add(-time.Hour).Truncate(time.Minute)
+	oom := func(kills int, throttled float64) *structs.TaskGroupUsageReport {
+		r := usage("api", 2, 10, 10)
+		r.Groups[0].OOMKills = kills
+		r.Groups[0].CPUThrottledPercent = structs.TaskGroupUsageValue{Avg: throttled, Max: throttled * 2}
+		r.Groups[0].MemoryCacheMB = structs.TaskGroupUsageValue{Avg: 30, Max: 40}
+		return r
+	}
+	s.Ingest(oom(1, 10), base.Add(time.Second))
+	s.Ingest(oom(2, 20), base.Add(2*time.Second))
+	s.Ingest(oom(3, 0), base.Add(31*time.Second))
+	s.RecordAllocs(base.Add(5*time.Second), map[GroupKey]AllocCounts{
+		web: {Running: 3, Queued: 1},
+		{Namespace: "default", Job: "idle", Group: "web"}: {},
+	})
+	s.RecordAllocs(base.Add(35*time.Second), map[GroupKey]AllocCounts{web: {Running: 4}})
+	must.NoError(t, s.flush(base.Add(time.Minute)))
+
+	// Per window: 3 then 3 kills; one step of a minute sums them.
+	points, _, err := s.Query(web, MetricOOMKills, base, base.Add(time.Minute), 0)
+	must.NoError(t, err)
+	must.Len(t, 2, points)
+	must.Eq(t, 3.0, points[0].Avg)
+	must.Eq(t, 2.0, points[0].Max)
+	points, _, err = s.Query(web, MetricOOMKills, base, base.Add(time.Minute), 1)
+	must.NoError(t, err)
+	must.Len(t, 1, points)
+	must.Eq(t, 6.0, points[0].Avg)
+
+	points, _, err = s.Query(web, MetricCPUThrottled, base, base.Add(30*time.Second), 0)
+	must.NoError(t, err)
+	must.Eq(t, 15.0, points[0].Avg)
+	must.Eq(t, 40.0, points[0].Max)
+	points, _, err = s.Query(web, MetricMemoryCacheMB, base, base.Add(30*time.Second), 0)
+	must.NoError(t, err)
+	must.Eq(t, 30.0, points[0].Avg)
+
+	points, _, err = s.Query(web, MetricAllocsRunning, base, base.Add(time.Minute), 0)
+	must.NoError(t, err)
+	must.Len(t, 2, points)
+	must.Eq(t, 3.0, points[0].Avg)
+	must.Eq(t, 4.0, points[1].Avg)
+	points, _, err = s.Query(web, MetricAllocsQueued, base, base.Add(30*time.Second), 0)
+	must.NoError(t, err)
+	must.Eq(t, 1.0, points[0].Avg)
+
+	// A group with nothing running or queued gets no series.
+	must.Eq(t, []GroupKey{web}, s.Groups())
+}
+
+// TestStore_UsageSince checks the usage read back for the autoscaler: the
+// stored windows and those not written yet.
+func TestStore_UsageSince(t *testing.T) {
+	ci.Parallel(t)
+	s := openTest(t, testConfig(t.TempDir()))
+	defer func() { must.NoError(t, s.Close()) }()
+
+	base := time.Now().Add(-3 * time.Minute).Truncate(30 * time.Second)
+	s.Ingest(usage("api", 2, 10, 20), base.Add(time.Second))
+	s.Ingest(usage("api", 2, 30, 40), base.Add(31*time.Second))
+	must.NoError(t, s.flush(base.Add(30*time.Second))) // the second stays pending
+	s.RecordAllocs(base.Add(time.Second), map[GroupKey]AllocCounts{{Namespace: "default", Job: "batch", Group: "w"}: {Running: 1}})
+
+	windows, err := s.UsageSince(base)
+	must.NoError(t, err)
+	must.Len(t, 2, windows)
+	must.Eq(t, base.Unix(), windows[0].Start.Unix())
+	must.Eq(t, "api", windows[0].Usage.JobID)
+	must.Eq(t, 10.0, windows[0].Usage.CPUPercent.Avg)
+	must.Eq(t, 20.0, windows[0].Usage.CPUPercent.Max)
+	must.Eq(t, 100.0, windows[0].Usage.MemoryMB.Avg)
+	must.Eq(t, 30.0, windows[1].Usage.CPUPercent.Avg)
+	must.Eq(t, 1, windows[1].Usage.Samples)
+
+	windows, err = s.UsageSince(base.Add(time.Minute))
+	must.NoError(t, err)
+	must.SliceEmpty(t, windows)
+}
+
 // TestStore_Downsample checks the steps of a query: the mean of the
 // averages and the maximum of the maxima of each step.
 func TestStore_Downsample(t *testing.T) {

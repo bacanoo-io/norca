@@ -90,6 +90,7 @@ func (s *Server) setupBus() error {
 			return err
 		}
 		s.metricsStore = store
+		go s.metricsStoreAllocsLoop(msCfg.SampleInterval)
 	}
 
 	s.busRoutesCh = make(chan struct{}, 1)

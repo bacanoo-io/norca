@@ -21,26 +21,6 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
-// The metrics of a task group, per allocation. Each is stored as two series,
-// <name>.avg and <name>.max, labeled with the namespace, job and group.
-const (
-	// MetricCPU is the CPU usage in percent of the allocated CPU.
-	MetricCPU = "norca.group.cpu"
-	// MetricCPUMHz is the CPU usage in MHz.
-	MetricCPUMHz = "norca.group.cpu_mhz"
-	// MetricMemory is the memory usage in percent of the allocated memory.
-	MetricMemory = "norca.group.memory"
-	// MetricMemoryMB is the memory usage in MiB.
-	MetricMemoryMB = "norca.group.memory_mb"
-)
-
-// GroupMetrics are the metrics of a task group, in the order of their values
-// in a coalescing window.
-var GroupMetrics = []string{MetricCPU, MetricCPUMHz, MetricMemory, MetricMemoryMB}
-
-// seriesPerGroup is the number of series of a task group.
-var seriesPerGroup = 2 * len(GroupMetrics)
-
 const (
 	// seriesFile keeps the task groups with series, which tstorage can't
 	// list.
@@ -60,27 +40,6 @@ type GroupKey struct {
 
 func (k GroupKey) labels() []tstorage.Label {
 	return []tstorage.Label{{Name: "ns", Value: k.Namespace}, {Name: "job", Value: k.Job}, {Name: "group", Value: k.Group}}
-}
-
-// window coalesces the reports of a task group in one sample interval: the
-// averages weighted by the number of samples, the maximum of the maxima.
-type window struct {
-	samples float64
-	sum     [4]float64
-	max     [4]float64
-}
-
-func (w *window) add(g *structs.TaskGroupUsage) {
-	values := [4]structs.TaskGroupUsageValue{g.CPUPercent, g.CPUMHz, g.MemoryPercent, g.MemoryMB}
-	s := float64(g.Samples)
-	first := w.samples == 0
-	w.samples += s
-	for i, v := range values {
-		w.sum[i] += v.Avg * s
-		if first || v.Max > w.max[i] {
-			w.max[i] = v.Max
-		}
-	}
 }
 
 // Store is the metrics store of a server.
@@ -193,7 +152,55 @@ func (s *Store) Ingest(report *structs.TaskGroupUsageReport, at time.Time) {
 			w = &window{}
 			groups[key] = w
 		}
-		w.add(g)
+		w.addUsage(g)
+	}
+}
+
+// AllocCounts are the running and the queued allocations of a task group.
+type AllocCounts struct {
+	Running int
+	Queued  int
+}
+
+// RecordAllocs stores the allocations of the task groups sampled by the
+// server at the time at. Task groups without series that have neither
+// running nor queued allocations are left out.
+func (s *Store) RecordAllocs(at time.Time, groups map[GroupKey]AllocCounts) {
+	interval := int64(s.cfg.SampleInterval / time.Second)
+	ts := at.Unix()
+	start := ts - ts%interval
+	running, queued := metricIndex(MetricAllocsRunning), metricIndex(MetricAllocsQueued)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if start+interval <= s.written {
+		return
+	}
+	s.newest = max(s.newest, ts)
+	windows := s.pending[start]
+	if windows == nil {
+		windows = map[GroupKey]*window{}
+		s.pending[start] = windows
+	}
+	for key, n := range groups {
+		if _, ok := s.series[key]; !ok {
+			if n.Running == 0 && n.Queued == 0 {
+				continue
+			}
+			if s.cfg.MaxSeries > 0 && (len(s.series)+1)*seriesPerGroup > s.cfg.MaxSeries {
+				s.droppedGroups.Add(1)
+				continue
+			}
+			s.series[key] = struct{}{}
+			s.seriesDirty = true
+		}
+		w := windows[key]
+		if w == nil {
+			w = &window{}
+			windows[key] = w
+		}
+		w.setState(running, float64(n.Running))
+		w.setState(queued, float64(n.Queued))
 	}
 }
 
@@ -233,12 +240,16 @@ func (s *Store) flush(until time.Time) error {
 		}
 		for key, w := range groups {
 			labels := key.labels()
-			for i, metric := range GroupMetrics {
+			for i, d := range groupMetricDefs {
+				avg, mx, ok := w.value(i)
+				if !ok {
+					continue
+				}
 				rows = append(rows,
-					tstorage.Row{Metric: metric + ".avg", Labels: labels,
-						DataPoint: tstorage.DataPoint{Timestamp: start, Value: w.sum[i] / w.samples}},
-					tstorage.Row{Metric: metric + ".max", Labels: labels,
-						DataPoint: tstorage.DataPoint{Timestamp: start, Value: w.max[i]}})
+					tstorage.Row{Metric: d.name + ".avg", Labels: labels,
+						DataPoint: tstorage.DataPoint{Timestamp: start, Value: avg}},
+					tstorage.Row{Metric: d.name + ".max", Labels: labels,
+						DataPoint: tstorage.DataPoint{Timestamp: start, Value: mx}})
 			}
 		}
 		delete(s.pending, start)
@@ -290,6 +301,90 @@ func (s *Store) Close() error {
 		)
 	})
 	return err
+}
+
+// UsageWindow is the usage of a task group in one sample interval, as the
+// store keeps it: one sample per interval.
+type UsageWindow struct {
+	Start time.Time
+	Usage *structs.TaskGroupUsage
+}
+
+// usageMetrics are the values of a UsageWindow.
+var usageMetrics = []struct {
+	name  string
+	value func(*structs.TaskGroupUsage) *structs.TaskGroupUsageValue
+}{
+	{MetricCPU, func(g *structs.TaskGroupUsage) *structs.TaskGroupUsageValue { return &g.CPUPercent }},
+	{MetricCPUMHz, func(g *structs.TaskGroupUsage) *structs.TaskGroupUsageValue { return &g.CPUMHz }},
+	{MetricMemory, func(g *structs.TaskGroupUsage) *structs.TaskGroupUsageValue { return &g.MemoryPercent }},
+	{MetricMemoryMB, func(g *structs.TaskGroupUsage) *structs.TaskGroupUsageValue { return &g.MemoryMB }},
+}
+
+// UsageSince returns the CPU and memory usage of every task group since
+// from, by sample interval: the stored points and the windows not written
+// yet. It seeds the built-in autoscaler of a new leader.
+func (s *Store) UsageSince(from time.Time) ([]UsageWindow, error) {
+	type wkey struct {
+		group GroupKey
+		start int64
+	}
+	found := map[wkey]*structs.TaskGroupUsage{}
+	get := func(k GroupKey, start int64) *structs.TaskGroupUsage {
+		g := found[wkey{k, start}]
+		if g == nil {
+			g = &structs.TaskGroupUsage{Namespace: k.Namespace, JobID: k.Job, TaskGroup: k.Group, Samples: 1}
+			found[wkey{k, start}] = g
+		}
+		return g
+	}
+
+	// The windows not written yet.
+	s.mu.Lock()
+	for start, groups := range s.pending {
+		if start < from.Unix() {
+			continue
+		}
+		for k, w := range groups {
+			if !w.has[metricIndex(MetricCPU)] {
+				continue // only allocations
+			}
+			g := get(k, start)
+			for _, m := range usageMetrics {
+				avg, mx, _ := w.value(metricIndex(m.name))
+				*m.value(g) = structs.TaskGroupUsageValue{Avg: avg, Max: mx}
+			}
+		}
+	}
+	s.mu.Unlock()
+
+	end := time.Now().Add(s.cfg.SampleInterval).Unix()
+	for _, k := range s.Groups() {
+		labels := k.labels()
+		for _, m := range usageMetrics {
+			avg, err := s.selectPoints(m.name+".avg", labels, from.Unix(), end)
+			if err != nil {
+				return nil, err
+			}
+			mx, err := s.selectPoints(m.name+".max", labels, from.Unix(), end)
+			if err != nil {
+				return nil, err
+			}
+			for _, p := range avg {
+				m.value(get(k, p.Timestamp)).Avg = p.Value
+			}
+			for _, p := range mx {
+				m.value(get(k, p.Timestamp)).Max = p.Value
+			}
+		}
+	}
+
+	out := make([]UsageWindow, 0, len(found))
+	for k, g := range found {
+		out = append(out, UsageWindow{Start: time.Unix(k.start, 0), Usage: g})
+	}
+	slices.SortFunc(out, func(a, b UsageWindow) int { return a.Start.Compare(b.Start) })
+	return out, nil
 }
 
 // Groups returns the task groups with series, sorted.

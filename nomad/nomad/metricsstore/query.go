@@ -21,7 +21,8 @@ const (
 )
 
 // Point is the value of a metric in one step of a query: the mean of the
-// averages and the maximum of the maxima of the stored points in the step.
+// averages (the sum, for a count such as the OOM kills) and the maximum of
+// the maxima of the stored points in the step.
 type Point struct {
 	// Time is the start of the step.
 	Time time.Time
@@ -33,9 +34,11 @@ type Point struct {
 // (inclusive) and to (exclusive), downsampled to at most maxPoints steps
 // (DefaultMaxPoints when 0). Steps without stored points are left out.
 func (s *Store) Query(key GroupKey, metric string, from, to time.Time, maxPoints int) ([]Point, time.Duration, error) {
-	if !slices.Contains(GroupMetrics, metric) {
+	idx := metricIndex(metric)
+	if idx < 0 {
 		return nil, 0, fmt.Errorf("unknown metric %q", metric)
 	}
+	counter := groupMetricDefs[idx].kind == kindCounter
 	if !from.Before(to) {
 		return nil, 0, errors.New("from must be before to")
 	}
@@ -101,7 +104,9 @@ func (s *Store) Query(key GroupKey, metric string, from, to time.Time, maxPoints
 	for _, k := range keys {
 		b := buckets[k]
 		p := Point{Time: time.Unix(start+k*stepSec, 0).UTC(), Max: b.max}
-		if b.n > 0 {
+		if b.n > 0 && counter {
+			p.Avg = b.sum
+		} else if b.n > 0 {
 			p.Avg = b.sum / float64(b.n)
 		}
 		out = append(out, p)

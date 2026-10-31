@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/bus"
+	"github.com/hashicorp/nomad/nomad/metricsstore"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -122,6 +124,66 @@ func (s *Server) consumeTelemetry(ctx context.Context, js jetstream.JetStream) e
 	case <-cc.Closed():
 		return errors.New("the telemetry consumer stopped")
 	}
+}
+
+// seedAutoscalerUsage fills the usage window of the built-in autoscaler of a
+// new leader from its metrics store, so that the built-in metrics need not
+// wait one window after a leader change.
+func (s *Server) seedAutoscalerUsage() {
+	if s.autoscaler == nil || s.metricsStore == nil {
+		return
+	}
+	windows, err := s.metricsStore.UsageSince(time.Now().Add(-s.autoscaler.MetricsWindow()))
+	if err != nil {
+		s.logger.Warn("metrics store: reading the usage for the autoscaler failed", "error", err)
+		return
+	}
+	seeds := make([]autoscaler.UsageSeed, len(windows))
+	for i, w := range windows {
+		seeds[i] = autoscaler.UsageSeed{At: w.Start, Usage: w.Usage}
+	}
+	if n := s.autoscaler.SeedUsage(seeds); n > 0 {
+		s.logger.Info("autoscaler: usage window filled from the metrics store", "intervals", n)
+	}
+}
+
+// metricsStoreAllocsLoop samples the running and the queued allocations of
+// every task group from the state into the metrics store, every interval.
+// Every server has the state, so each samples its own store.
+func (s *Server) metricsStoreAllocsLoop(interval time.Duration) {
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+	for {
+		select {
+		case <-s.shutdownCtx.Done():
+			return
+		case now := <-tick.C:
+			groups, err := s.allocCounts()
+			if err != nil {
+				s.logger.Warn("metrics store: reading the job summaries failed", "error", err)
+				continue
+			}
+			s.metricsStore.RecordAllocs(now, groups)
+		}
+	}
+}
+
+// allocCounts returns the running and the queued allocations of every task
+// group, from the job summaries.
+func (s *Server) allocCounts() (map[metricsstore.GroupKey]metricsstore.AllocCounts, error) {
+	iter, err := s.fsm.State().JobSummaries(nil)
+	if err != nil {
+		return nil, err
+	}
+	out := map[metricsstore.GroupKey]metricsstore.AllocCounts{}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		summary := raw.(*structs.JobSummary)
+		for group, tg := range summary.Summary {
+			key := metricsstore.GroupKey{Namespace: summary.Namespace, Job: summary.JobID, Group: group}
+			out[key] = metricsstore.AllocCounts{Running: tg.Running, Queued: tg.Queued}
+		}
+	}
+	return out, nil
 }
 
 // handleTelemetry stores a usage report of the bus in the metrics store and

@@ -132,3 +132,62 @@ func TestTaskGroupUsageAggregator_NoAllocatedResources(t *testing.T) {
 	must.Eq(t, 100.0, out[0].CPUMHz.Avg)
 	must.Eq(t, 0.0, out[0].CPUPercent.Avg)
 }
+
+// TestTaskGroupUsageAggregator_ThrottleCacheOOM checks the throttled time
+// between two measurements, the page cache and the OOM kills, each counted
+// once.
+func TestTaskGroupUsageAggregator_ThrottleCacheOOM(t *testing.T) {
+	ci.Parallel(t)
+
+	agg := NewTaskGroupUsageAggregator()
+	a := usageAlloc("api", "web")
+	measure := func(ts int64, throttledNs uint64, cacheMiB uint64) *cstructs.AllocResourceUsage {
+		u := fakeUsage(100, 64)
+		u.Timestamp = ts
+		u.ResourceUsage.CpuStats.ThrottledTime = throttledNs
+		u.ResourceUsage.MemoryStats.Cache = cacheMiB * 1024 * 1024
+		return u
+	}
+	const second = int64(1e9)
+
+	// The first measurement has no throttling yet; 0.5s of 1s throttled is
+	// 50%, then 0.1s of 1s 10%.
+	agg.Observe(a, measure(10*second, 0, 32))
+	agg.Observe(a, measure(11*second, uint64(second/2), 32))
+	agg.Observe(a, measure(12*second, uint64(second/2+second/10), 16))
+
+	oom := func(at int64) *structs.TaskEvent {
+		return structs.NewTaskEvent(structs.TaskTerminated).SetOOMKilled(true)
+	}
+	e1, e2 := oom(1), oom(2)
+	e1.Time, e2.Time = 100, 200
+	other := structs.NewTaskEvent(structs.TaskStarted)
+	other.Time = 300
+	states := map[string]*structs.TaskState{"web": {Events: []*structs.TaskEvent{e1, other, e2}}}
+	agg.ObserveTaskStates(a, states)
+	agg.ObserveTaskStates(a, states) // counted once
+
+	groups := agg.Flush()
+	must.Len(t, 1, groups)
+	g := groups[0]
+	must.Eq(t, 30.0, g.CPUThrottledPercent.Avg)
+	must.Eq(t, 50.0, g.CPUThrottledPercent.Max)
+	must.Eq(t, (32.0+32+16)/3, g.MemoryCacheMB.Avg)
+	must.Eq(t, 32.0, g.MemoryCacheMB.Max)
+	must.Eq(t, 2, g.OOMKills)
+
+	// A new kill in the next window; a restarted task resets the counter.
+	e3 := oom(3)
+	e3.Time = 400
+	states["web"].Events = append(states["web"].Events, e3)
+	agg.ObserveTaskStates(a, states)
+	agg.Observe(a, measure(13*second, 0, 16))
+	agg.Observe(a, measure(14*second, uint64(second/4), 16))
+	g = agg.Flush()[0]
+	must.Eq(t, 1, g.OOMKills)
+	must.Eq(t, 25.0, g.CPUThrottledPercent.Avg)
+
+	// An allocation not seen in a window is forgotten.
+	must.Nil(t, agg.Flush())
+	must.MapEmpty(t, agg.allocs)
+}
