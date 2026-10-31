@@ -21,7 +21,15 @@ Your contribution is licensed under the license of the file it touches. New file
 // SPDX-License-Identifier: MPL-2.0
 ```
 
-Do not modify or remove the existing copyright and license lines in HashiCorp's original files. A modified HashiCorp file may additionally get a `SPDX-FileCopyrightText: <year> Norca contributors` line.
+Do not modify or remove the existing copyright and license lines in HashiCorp's original files. When you modify such a file for the first time, add this line right after the HashiCorp (or IBM) copyright line, in the comment style of the file:
+
+```
+// Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+```
+
+Files that already carry a `SPDX-FileCopyrightText: <year> Norca contributors` line need no further line.
 
 ## Prohibited
 

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -189,6 +190,13 @@ const (
 	// IgnoreUnknownTypeFlag set. 111 is reserved for the store.
 	SecretApplyRequestType MessageType = 109
 	SecretPurgeRequestType MessageType = 110
+	// Norca dynamic secrets (112-115 assigned to the secret engines): the
+	// engines of the namespaces and the leases of their credentials (never
+	// the credentials). They are sent with the IgnoreUnknownTypeFlag set.
+	SecretEngineApplyRequestType MessageType = 112
+	SecretEnginePurgeRequestType MessageType = 113
+	SecretLeaseApplyRequestType  MessageType = 114
+	SecretLeasePurgeRequestType  MessageType = 115
 )
 
 const (

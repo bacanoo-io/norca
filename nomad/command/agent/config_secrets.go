@@ -20,6 +20,7 @@ import (
 //	  audit_rotate_duration  = "24h"
 //	  audit_rotate_max_files = 30
 //	  vault_fallback         = true
+//	  expiry_warning         = "168h"
 //	}
 //
 // The seal of the store is configured in the keyring block.
@@ -48,6 +49,10 @@ type SecretsConfig struct {
 	// "Vault compatibility"). Defaults to true; false keeps the Nomad
 	// behaviour of rejecting such jobs.
 	VaultFallback *bool `hcl:"vault_fallback"`
+
+	// ExpiryWarning is how long before a secret's expires_at the leader
+	// announces SecretExpiring (a duration, default "168h", 7 days).
+	ExpiryWarning string `hcl:"expiry_warning"`
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
@@ -88,7 +93,26 @@ func (c *SecretsConfig) Merge(b *SecretsConfig) *SecretsConfig {
 	if b.VaultFallback != nil {
 		result.VaultFallback = pointer.Copy(b.VaultFallback)
 	}
+	if b.ExpiryWarning != "" {
+		result.ExpiryWarning = b.ExpiryWarning
+	}
 	return result
+}
+
+// expiryWarning parses the expiry warning window; 0 means the server
+// default.
+func (c *SecretsConfig) expiryWarning() (time.Duration, error) {
+	if c == nil || c.ExpiryWarning == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(c.ExpiryWarning)
+	if err != nil {
+		return 0, fmt.Errorf("secrets.expiry_warning: %w", err)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("secrets.expiry_warning must be positive")
+	}
+	return d, nil
 }
 
 // vaultFallback returns whether the Vault fallback is enabled (default

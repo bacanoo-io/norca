@@ -424,7 +424,7 @@ namespace "default" {
 		QueryOptions: structs.QueryOptions{Region: "global", Namespace: "*", AuthToken: reader.SecretID}}, &contents))
 	must.Len(t, 0, contents.Contents.Jobs)
 
-	// white room bugfix: the ACL policies and roles are listed for a
+	// clean room bugfix: the ACL policies and roles are listed for a
 	// management token only, in the contents and in the diff.
 	browse := func(typ, token string) *structs.BackupContents {
 		var out structs.BackupContentsResponse
@@ -441,7 +441,7 @@ namespace "default" {
 		QueryOptions: structs.QueryOptions{Region: "global", AuthToken: reader.SecretID}}, &diff))
 	must.Len(t, 0, diff.Diff.Objects)
 
-	// white room bugfix: the item names of a Variable need read; list shows
+	// clean room bugfix: the item names of a Variable need read; list shows
 	// the path only.
 	vars := browse(structs.BackupContentVariables, lister.SecretID).Variables
 	must.Len(t, 1, vars)

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docker
@@ -78,7 +79,7 @@ func (d *Driver) handleFingerprint(ctx context.Context, ch chan *drivers.Fingerp
 			return
 		case <-ticker.C:
 			ticker.Reset(fingerprintPeriod)
-			// white room bugfix: do not block on send once the receiver is gone, the goroutine leaked after ctx cancel.
+			// clean room bugfix: do not block on send once the receiver is gone, the goroutine leaked after ctx cancel.
 			select {
 			case ch <- d.buildFingerprint():
 			case <-ctx.Done():

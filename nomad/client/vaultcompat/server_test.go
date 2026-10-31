@@ -254,7 +254,7 @@ func TestEndpoint_Unsupported(t *testing.T) {
 
 	_, err = vc.Logical().Read("database/creds/readonly")
 	must.Eq(t, http.StatusNotImplemented, statusOf(err))
-	must.ErrorContains(t, err, "requires a Vault/OpenBao provider or the built-in dynamic engine (not available yet)")
+	must.ErrorContains(t, err, "requires a Vault/OpenBao provider or the built-in dynamic engine, which is used with a secret block")
 
 	_, err = vc.Logical().Write("kv/data/app/db", map[string]any{"data": map[string]any{"x": "y"}})
 	must.Eq(t, http.StatusMethodNotAllowed, statusOf(err))

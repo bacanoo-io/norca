@@ -139,7 +139,7 @@ func (r *EventRecorder) Event(ctx context.Context, key ObjectKey, eventType, rea
 		return
 	}
 	r.last[key] = recordedEvent{event: id, at: now}
-	// white room bugfix: entries were only removed by Forget, so the
+	// clean room bugfix: entries were only removed by Forget, so the
 	// memory of every object ever recorded (deleted ones included) was
 	// kept forever. Entries older than the window drop nothing anymore;
 	// they are swept at most once per window.

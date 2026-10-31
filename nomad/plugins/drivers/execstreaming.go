@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package drivers
@@ -29,13 +30,13 @@ func StreamToExecOptions(
 
 	// handle input
 	go func() {
-		// white room bugfix: inWriter was left open when the input stream
+		// clean room bugfix: inWriter was left open when the input stream
 		// ended or failed, so a command reading stdin waited forever for
 		// input that could no longer arrive. Close it on every exit path.
 		var inErr error
 		defer func() { inWriter.CloseWithError(inErr) }()
 
-		// white room bugfix: every unexpected message was sent to errCh inside
+		// clean room bugfix: every unexpected message was sent to errCh inside
 		// the loop, so more of them than errCh has room for (one slot per
 		// goroutine) blocked this goroutine and the output goroutines forever.
 		// Only the first input error is reported, as doneCh carries one anyway.

@@ -6,6 +6,7 @@
 import Component from '@glimmer/component';
 import { inject as service } from '@ember/service';
 import { NAVIGATION } from 'nomad-ui/utils/navigation';
+import config from 'nomad-ui/config/environment';
 
 // The left menu: the groups of the information architecture, group headers
 // are not clickable. Collapsible to icons on large screens, a toggled panel
@@ -15,6 +16,9 @@ export default class FrameSidebar extends Component {
   @service system;
   @service abilities;
   @service keyboard;
+
+  // The Norca icon in public/images, below the root URL of the UI.
+  logoURL = `${config.rootURL}images/norca-logo.png`;
 
   get groups() {
     return NAVIGATION.map(({ group, items }) => ({

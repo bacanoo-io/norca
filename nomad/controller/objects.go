@@ -75,7 +75,7 @@ func (c *Objects) List(ctx context.Context, namespace string) ([]*Object, uint64
 		if obj == nil {
 			obj, err = c.store.get(ctx, e.key)
 			if errors.Is(err, errInvalidObject) {
-				// white room bugfix: invalid objects were skipped silently,
+				// clean room bugfix: invalid objects were skipped silently,
 				// unlike in the informer; they are logged now.
 				slog.Default().Warn("ignoring invalid object", "kind", c.store.kind().String(),
 					"object", e.key.String(), "error", err)
@@ -156,7 +156,7 @@ func (c *Objects) UpdateStatus(ctx context.Context, obj *Object, status any) (*O
 		if err != nil {
 			return nil, err
 		}
-		// white room bugfix: the status was applied to whatever object
+		// clean room bugfix: the status was applied to whatever object
 		// had the name on the retry, also to one re-created after the
 		// object was deleted, where an observedGeneration computed for the
 		// old object can claim that the new spec was acted on.

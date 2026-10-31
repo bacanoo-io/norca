@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package volumewatcher
@@ -32,11 +33,11 @@ type volumeWatcher struct {
 
 	logger log.Logger
 
-	// white room bugfix: the own ctx and exitFn fields were never set
+	// clean room bugfix: the own ctx and exitFn fields were never set
 	// and have been removed; the watcher is cancelled through shutdownCtx
 	shutdownCtx context.Context // parent context
 
-	// white room bugfix: deleteFn removed the map entry unconditionally
+	// clean room bugfix: deleteFn removed the map entry unconditionally
 	// after the watch goroutine had already decided to exit, so it could
 	// remove a newer watcher (another leadership term) and raced with
 	// Notify. removeFn is called before exiting and reports whether the
@@ -70,7 +71,7 @@ func newVolumeWatcher(parent *Watcher, vol *structs.CSIVolume) *volumeWatcher {
 
 	// Start the long lived watcher that scans for allocation updates.
 	//
-	// white room bugfix: the running flag and the restart in Notify are
+	// clean room bugfix: the running flag and the restart in Notify are
 	// gone. A watcher found in the parent's watch list now always has a
 	// live goroutine, because the goroutine leaves the list (under the
 	// parent's lock) before it exits. Before, Notify could start a second
@@ -84,7 +85,7 @@ func newVolumeWatcher(parent *Watcher, vol *structs.CSIVolume) *volumeWatcher {
 // Notify signals an update to the tracked volume. It is called with the
 // parent's lock held, so it must not block.
 func (vw *volumeWatcher) Notify(v *structs.CSIVolume) {
-	// white room bugfix: this was a blocking send. While the watch
+	// clean room bugfix: this was a blocking send. While the watch
 	// goroutine was in a slow Unpublish RPC with an update already queued,
 	// it blocked with the parent's lock held, stalling every other volume
 	// and the leader step-down (SetEnabled needs the lock to cancel
@@ -182,7 +183,7 @@ func (vw *volumeWatcher) volumeReapImpl(vol *structs.CSIVolume) error {
 	return result.ErrorOrNil()
 }
 
-// white room bugfix: the unused isUnclaimed and collectPastClaims were
+// clean room bugfix: the unused isUnclaimed and collectPastClaims were
 // removed; PastClaims are collected by the state store's
 // CSIVolumeDenormalize, which getVolume calls.
 

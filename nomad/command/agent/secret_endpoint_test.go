@@ -57,6 +57,21 @@ func TestHTTP_Secrets(t *testing.T) {
 		must.Eq(t, []string{"pw"}, info.ItemKeys)
 		must.Eq(t, time.Hour, info.RotateEvery)
 		must.Eq(t, time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC), info.ExpiresAt.UTC())
+		must.Nil(t, info.Rotate)
+
+		// The rotation job round trips through the metadata and the list.
+		meta.Rotate = &api.SecretRotate{Job: "rotate-db"}
+		_, _, err = secrets.Write("app/db", &api.SecretWrite{Meta: meta}, nil)
+		must.NoError(t, err)
+		info, _, err = secrets.Info("app/db", nil)
+		must.NoError(t, err)
+		must.Eq(t, "rotate-db", info.Rotate.Job)
+		must.Len(t, 2, info.Versions)
+		stubs, _, err := secrets.List("app/db", nil)
+		must.NoError(t, err)
+		must.Eq(t, "rotate-db", stubs[0].Rotate.Job)
+		_, _, err = secrets.Write("app/db", &api.SecretWrite{Meta: &api.SecretMeta{Rotate: &api.SecretRotate{Job: "rotate-db"}}}, nil)
+		must.ErrorContains(t, err, "requires rotate_every")
 		list, _, err := secrets.List("app/", nil)
 		must.NoError(t, err)
 		must.Len(t, 1, list)
@@ -169,4 +184,27 @@ func TestConfig_SecretsAudit(t *testing.T) {
 	merged := c.Merge(&SecretsConfig{AuditRotateMaxFiles: 9})
 	must.Eq(t, "/var/log/a.log", merged.AuditFile)
 	must.Eq(t, 9, merged.AuditRotateMaxFiles)
+}
+
+func TestConfig_SecretsExpiryWarning(t *testing.T) {
+	ci.Parallel(t)
+
+	var nilConf *SecretsConfig
+	d, err := nilConf.expiryWarning()
+	must.NoError(t, err)
+	must.Zero(t, d)
+
+	path := filepath.Join(t.TempDir(), "server.hcl")
+	must.NoError(t, os.WriteFile(path, []byte(`server { secrets { expiry_warning = "72h" } }`), 0o600))
+	parsed, err := ParseConfigFile(path)
+	must.NoError(t, err)
+	blocks, err := convertNorcaServerBlocks(parsed.Server, nil)
+	must.NoError(t, err)
+	must.Eq(t, 72*time.Hour, blocks.secretsExpiryWarning)
+	must.Eq(t, "72h", parsed.Server.Secrets.Merge(&SecretsConfig{AuditFile: "x"}).ExpiryWarning)
+
+	for _, bad := range []string{"soon", "-1h", "0s"} {
+		_, err := (&SecretsConfig{ExpiryWarning: bad}).expiryWarning()
+		must.ErrorContains(t, err, "expiry_warning", must.Sprint(bad))
+	}
 }

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package state
@@ -59,6 +60,10 @@ var MsgTypeEvents = map[structs.MessageType]string{
 	structs.AdminNetworkPolicyDeleteRequestType:          structs.TypeAdminNetworkPolicyDeleted,
 	structs.SecretApplyRequestType:                       structs.TypeSecretUpserted,
 	structs.SecretPurgeRequestType:                       structs.TypeSecretDeleted,
+	structs.SecretEngineApplyRequestType:                 structs.TypeSecretEngineUpserted,
+	structs.SecretEnginePurgeRequestType:                 structs.TypeSecretEngineDeleted,
+	structs.SecretLeaseApplyRequestType:                  structs.TypeSecretLeaseRenewed,
+	structs.SecretLeasePurgeRequestType:                  structs.TypeSecretLeaseDeleted,
 }
 
 func eventsFromChanges(tx ReadTxn, changes Changes) *structs.Events {
@@ -230,6 +235,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 			return networkPolicyEventFromChange(change)
 		case TableSecrets:
 			return secretEventFromChange(change)
+		case TableSecretEngines, TableSecretLeases:
+			return secretEngineEventFromChange(change)
 		}
 		return structs.Event{}, false
 	}
@@ -425,6 +432,8 @@ func eventFromChange(change memdb.Change) (structs.Event, bool) {
 		return networkPolicyEventFromChange(change)
 	case TableSecrets:
 		return secretEventFromChange(change)
+	case TableSecretEngines, TableSecretLeases:
+		return secretEngineEventFromChange(change)
 	}
 
 	return structs.Event{}, false

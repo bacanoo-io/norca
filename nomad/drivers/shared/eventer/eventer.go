@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package eventer
@@ -121,7 +122,7 @@ func (e *Eventer) gcConsumers() {
 		select {
 		case <-consumer.ctx.Done():
 			// consumer context finished, filtering it out of loop
-			// white room bugfix: the channel was dropped without being
+			// clean room bugfix: the channel was dropped without being
 			// closed, unlike in iterateConsumers, so a consumer ranging
 			// over it waited forever.
 			close(consumer.ch)

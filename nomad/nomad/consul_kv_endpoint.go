@@ -80,7 +80,7 @@ func (k *ConsulKV) Get(args *structs.ConsulKVGetRequest, reply *structs.ConsulKV
 	}
 	reply.Entries = make([]*structs.ConsulKVEntry, 0, len(found))
 	for _, e := range found {
-		// white room bugfix: only the keys the token may read are listed.
+		// clean room bugfix: only the keys the token may read are listed.
 		if consulKVAllowed(aclObj, namespace, path, acl.VariablesCapabilityRead, e.Key) {
 			reply.Entries = append(reply.Entries, &structs.ConsulKVEntry{Key: e.Key, Value: e.Value, Revision: e.Revision})
 		}
@@ -178,7 +178,7 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 		if !consulKVAllowed(aclObj, namespace, path, acl.VariablesCapabilityRead, e.Key) {
 			continue // not listed
 		}
-		// white room bugfix: every key needs destroy.
+		// clean room bugfix: every key needs destroy.
 		if !consulKVAllowed(aclObj, namespace, path, acl.VariablesCapabilityDestroy, e.Key) {
 			return structs.ErrPermissionDenied
 		}
@@ -195,7 +195,7 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 // (consul/kv by default), in the namespace of the request. It returns the
 // ACL (nil: ACLs disabled) and the path.
 //
-// white room bugfix: the clients have no access to the bucket of the Consul
+// clean room bugfix: the clients have no access to the bucket of the Consul
 // KV; this is where the Variables rules of the keys are enforced, with the
 // token of the KV request (the anonymous policy without one). A node secret
 // has no ACL and is denied.

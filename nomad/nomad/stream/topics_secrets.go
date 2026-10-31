@@ -10,10 +10,17 @@ import (
 
 func init() {
 	// Secret events carry metadata and the keyed value hash only; they are
-	// visible to everyone who may list the secret's path.
+	// visible to everyone who may list the secret's path. The events of the
+	// dynamic secrets engines and their leases (keyed by engine name and
+	// lease ID) carry no credential and are visible with
+	// read-secret-engine in their namespace.
 	topicPolicies[structs.TopicSecret] = topicPolicy{
 		allowSubscribe: func(aclObj *acl.ACL, namespace string, keys []string) bool {
 			if aclObj == nil {
+				return true
+			}
+			if aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityReadSecretEngine) {
+				// The events are filtered one by one.
 				return true
 			}
 			for _, key := range keys {
@@ -26,6 +33,9 @@ func init() {
 		allowEvent: func(aclObj *acl.ACL, event *structs.Event) bool {
 			if aclObj == nil {
 				return true
+			}
+			if structs.IsSecretEngineEventType(event.Type) {
+				return aclObj.AllowNsOp(event.Namespace, acl.NamespaceCapabilityReadSecretEngine)
 			}
 			return aclObj.AllowSecretOperation(event.Namespace, event.Key, acl.NamespaceCapabilityListSecrets)
 		},

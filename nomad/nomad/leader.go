@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -418,6 +419,18 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 
 	// Sync the pack registries that have a sync interval.
 	go s.packRegistrySyncLoop(stopCh)
+
+	// Announce expiring, expired and rotation-due secrets and dispatch
+	// their rotation jobs; it stops when stopCh is closed on revoke.
+	go s.runSecretsWatcher(stopCh)
+
+	// Revoke the leases of dynamic secrets that ended and keep the backends
+	// of the secret engines in line with them.
+	go s.runSecretLeaseWatcher(stopCh)
+
+	// Outside the authoritative region, replicate the secrets marked
+	// replicate there; it stops when stopCh is closed on revoke.
+	go s.replicateSecrets(stopCh)
 
 	// Publish the events to the system bus and handle the pack push notices.
 	go s.busEventsLeader(stopCh)

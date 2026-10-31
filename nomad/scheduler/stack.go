@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package scheduler
@@ -165,7 +166,7 @@ func (s *GenericStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ra
 	if len(tg.Networks) > 0 {
 		s.taskGroupNetwork.SetNetwork(tg.Networks[0])
 	} else {
-		// white room bugfix: a group without a network kept the network
+		// clean room bugfix: a group without a network kept the network
 		// mode and ports of the previous group placed with this stack.
 		s.taskGroupNetwork.SetNetwork(nil)
 	}
@@ -377,7 +378,7 @@ func (s *SystemStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ran
 	if len(tg.Networks) > 0 {
 		s.taskGroupNetwork.SetNetwork(tg.Networks[0])
 	} else {
-		// white room bugfix: a group without a network kept the network
+		// clean room bugfix: a group without a network kept the network
 		// mode and ports of the previous group placed with this stack.
 		s.taskGroupNetwork.SetNetwork(nil)
 	}

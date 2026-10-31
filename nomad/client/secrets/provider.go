@@ -53,11 +53,12 @@ type Request struct {
 	// Identity is the workload the lookup is made for.
 	Identity *Identity
 
-	// Engine and Role are reserved for dynamic secrets: a provider with the
-	// Leases capability creates a credential for the role and returns it
-	// with a lease.
+	// Engine and Role ask for a dynamic secret: a provider with the Leases
+	// capability creates a credential for the role and returns it with a
+	// lease. Name is the label of the task's secret block.
 	Engine string
 	Role   string
+	Name   string
 }
 
 // Secret is a fetched secret value. It must never be logged.
@@ -72,6 +73,12 @@ type Secret struct {
 	// Lease is set for dynamic secrets, which must be renewed and are
 	// revoked when the task stops.
 	Lease *Lease
+
+	// DefaultFile and DefaultFileItem are the default delivery of a dynamic
+	// secret, for secret blocks without a file or env block: the file name
+	// below secrets/ and the item written to it (raw).
+	DefaultFile     string
+	DefaultFileItem string
 
 	// Metadata is the metadata of the secret, if the provider has it. It
 	// is not secret; responses in the shapes of other stores (the Vault KV
@@ -122,11 +129,17 @@ type MetadataReader interface {
 	ReadMetadata(ctx context.Context, req *Request) (*Metadata, error)
 }
 
-// Lease is the lease of a dynamic secret.
+// Lease is the lease of a dynamic secret. It is not secret.
 type Lease struct {
 	ID        string
 	Duration  time.Duration
 	Renewable bool
+
+	// ExpireTime is when the lease ends unless it is renewed, MaxExpireTime
+	// when it ends for good (max_ttl): a renewal can't extend it beyond, a
+	// new credential is needed then.
+	ExpireTime    time.Time
+	MaxExpireTime time.Time
 }
 
 // Capabilities describe what a provider supports, so callers can use the
@@ -178,7 +191,8 @@ type Watcher interface {
 	Watch(ctx context.Context, req *Request, version string) (string, error)
 }
 
-// LeaseManager is implemented by providers of dynamic secrets.
+// LeaseManager is implemented by providers of dynamic secrets: Renew
+// extends a lease and returns it with its new expiry, Revoke ends it.
 type LeaseManager interface {
 	Renew(ctx context.Context, lease *Lease, identity *Identity) (*Lease, error)
 	Revoke(ctx context.Context, lease *Lease, identity *Identity) error

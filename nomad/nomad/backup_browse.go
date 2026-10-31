@@ -110,7 +110,7 @@ func (f *backupContentsFilter) name(name string) bool {
 }
 
 // aclObject reports whether the caller may list an ACL policy or role.
-// white room bugfix: like ACL.ListPolicies and ACL.ListRoles, only a
+// clean room bugfix: like ACL.ListPolicies and ACL.ListRoles, only a
 // management token lists them all; backup read alone revealed every name
 // and description.
 func (f *backupContentsFilter) aclObject(name string) bool {
@@ -118,7 +118,7 @@ func (f *backupContentsFilter) aclObject(name string) bool {
 }
 
 // variableItems reports whether the caller may see the item names of a
-// Variable. white room bugfix: the names need read, list shows the paths
+// Variable. clean room bugfix: the names need read, list shows the paths
 // only, as in the Variables API.
 func (f *backupContentsFilter) variableItems(ns, path string) bool {
 	return f.aclObj == nil || f.aclObj.AllowVariableOperation(ns, path, acl.VariablesCapabilityRead, nil)

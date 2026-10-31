@@ -36,7 +36,7 @@ const (
 )
 
 var (
-	// white room bugfix: the group rule allowed empty labels and labels
+	// clean room bugfix: the group rule allowed empty labels and labels
 	// starting or ending with a dash ("a..b", "a.-b"), which made the path
 	// form of groups ambiguous. It is now the rule of the server: a lower
 	// case DNS subdomain.
@@ -83,7 +83,7 @@ func (k Kind) Validate() error {
 // "my--db-example-com"). Since the labels of a valid group neither start
 // nor end with a dash, distinct groups have distinct path forms.
 //
-// white room bugfix: dots were replaced with dashes without escaping the
+// clean room bugfix: dots were replaced with dashes without escaping the
 // dashes, so groups like "db.example.com" and "db-example-com" mapped to
 // the same Variables paths, and their objects overwrote each other.
 func (k Kind) PathGroup() string { return pathGroupReplacer.Replace(k.Group) }

@@ -39,6 +39,9 @@ func TestOperatorBusStatusCommand(t *testing.T) {
 	must.StrContains(t, out, "standalone (single server)")
 	must.StrContains(t, out, "Meta Leader")
 	must.StrContains(t, out, st.Server)
+	// The markup of the section titles is rendered, never printed.
+	must.StrNotContains(t, out, "[bold]")
+	must.StrNotContains(t, out, "[reset]")
 
 	ui = cli.NewMockUi()
 	cmd = &OperatorBusStatusCommand{Meta: Meta{Ui: ui}}

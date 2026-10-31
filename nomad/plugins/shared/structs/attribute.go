@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -306,7 +307,7 @@ func (a *Attribute) Comparable(b *Attribute) bool {
 		return b.Bool != nil
 	}
 
-	// white room bugfix: a number (or an empty attribute) was reported as
+	// clean room bugfix: a number (or an empty attribute) was reported as
 	// comparable with anything, e.g. Int vs String gave true while String vs
 	// Int gave false. Compare already returned false for those through the
 	// comparators; Comparable itself is now symmetric.

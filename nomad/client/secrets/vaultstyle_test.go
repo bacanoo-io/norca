@@ -39,7 +39,7 @@ func TestVaultMapper_DefaultRules(t *testing.T) {
 
 	// Dynamic engines fail with the message of the plan; never a fallback.
 	_, err := m.Map("database/creds/readonly")
-	must.ErrorContains(t, err, "requires a Vault/OpenBao provider or the built-in dynamic engine (not available yet)")
+	must.ErrorContains(t, err, "requires a Vault/OpenBao provider or the built-in dynamic engine, which is used with a secret block")
 	must.True(t, IsUnsupported(err))
 	must.False(t, IsRecoverable(err))
 	_, err = m.Map("aws/sts/deploy")
@@ -238,7 +238,7 @@ func TestTemplateSource_Vault(t *testing.T) {
 	}), wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
 
 	_, err = src.VaultFunc("database/creds/ro")
-	must.ErrorContains(t, err, "requires a Vault/OpenBao provider or the built-in dynamic engine (not available yet)")
+	must.ErrorContains(t, err, "requires a Vault/OpenBao provider or the built-in dynamic engine, which is used with a secret block")
 	_, err = src.VaultFunc("pki/issue/web", "common_name=x")
 	must.ErrorContains(t, err, "writes")
 	_, err = src.VaultListFunc("kv/metadata/")

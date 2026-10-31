@@ -203,7 +203,7 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 		if node == nil || node.SecretID == "" || !constantTimeEqual(node.SecretID, c.Password) {
 			return nil, errors.New("unknown node or wrong secret")
 		}
-		// white room bugfix: a node may publish its telemetry only. It has
+		// clean room bugfix: a node may publish its telemetry only. It has
 		// no access to the bucket of the Consul KV, whose keys are ruled by
 		// the Variables ACL: the clients use it through the ConsulKV RPC
 		// endpoint, which applies the ACL with the token of the request.

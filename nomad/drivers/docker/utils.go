@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docker
@@ -166,7 +167,7 @@ func authFromHelper(helperName string) authBackend {
 		cmd.Stdin = strings.NewReader(repoInfo.Index.Name)
 		output, err := cmd.Output()
 		if err != nil {
-			// white room bugfix: like the docker CLI, a helper with no credentials for this registry means anonymous access, not a pull failure.
+			// clean room bugfix: like the docker CLI, a helper with no credentials for this registry means anonymous access, not a pull failure.
 			if strings.TrimSpace(string(output)) == credentialsNotFoundMessage {
 				return nil, nil
 			}
@@ -197,7 +198,7 @@ func authFromHelper(helperName string) authBackend {
 
 // authIsEmpty returns if auth is nil or an empty structure
 func authIsEmpty(auth *docker.AuthConfiguration) bool {
-	// white room bugfix: nil auth is empty, and token-only auth (IdentityToken/RegistryToken) is not.
+	// clean room bugfix: nil auth is empty, and token-only auth (IdentityToken/RegistryToken) is not.
 	if auth == nil {
 		return true
 	}

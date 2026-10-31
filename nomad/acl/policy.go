@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package acl
@@ -246,7 +247,8 @@ func isNamespaceCapabilityValid(cap string) bool {
 		NamespaceCapabilityRegisterExternalService, NamespaceCapabilityWriteIntention,
 		NamespaceCapabilityReadNetworkPolicy, NamespaceCapabilityWriteNetworkPolicy,
 		NamespaceCapabilityListSecrets, NamespaceCapabilityReadSecret,
-		NamespaceCapabilityWriteSecret, NamespaceCapabilityDestroySecret:
+		NamespaceCapabilityWriteSecret, NamespaceCapabilityDestroySecret,
+		NamespaceCapabilityReadSecretEngine, NamespaceCapabilityWriteSecretEngine:
 		return true
 	// Capabilities without effect, accepted for compatibility with existing
 	// policies

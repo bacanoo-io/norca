@@ -1,0 +1,39 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.isShown}}
+  <Ui::Card @title="Capacity" @subtitle="Allocated against used, in percent of the ready nodes" data-test-cluster-history ...attributes>
+    <:actions>
+      {{#if (gt this.scopes.length 1)}}
+        <Ui::Select
+          @label="Datacenter and node pool"
+          @options={{this.scopeOptions}}
+          @value={{this.scope.key}}
+          @onChange={{this.selectScope}}
+          class="me-2"
+          data-test-cluster-history-scope
+        />
+      {{/if}}
+      <Ui::Tabs @label="Range" @tabs={{this.tabs}} @selected={{this.range}} @onSelect={{this.selectRange}} />
+    </:actions>
+    <:default>
+      {{#if (eq this.state "loading")}}
+        <Ui::Spinner @showLabel={{true}} @label="Loading the capacity history" />
+      {{else if (eq this.state "disabled")}}
+        <p class="text-secondary mb-0" data-test-cluster-history-disabled>
+          The servers keep no capacity history: the metrics store is disabled.
+        </p>
+      {{else if (eq this.state "error")}}
+        <Ui::Alert @tone="danger" @title="The capacity history could not be loaded">{{this.error}}</Ui::Alert>
+      {{else}}
+        {{#if (eq this.scopes.length 1)}}
+          <p class="text-secondary small mb-2" data-test-cluster-history-scope-label>{{this.scope.label}}</p>
+        {{/if}}
+        <Ui::Chart @label="Capacity of {{this.scope.label}} over time" @option={{this.option}} @height={{220}} data-test-cluster-history-chart>
+          {{this.summaryText}}
+        </Ui::Chart>
+      {{/if}}
+    </:default>
+  </Ui::Card>
+{{/if}}

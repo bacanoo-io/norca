@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -555,7 +556,7 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 
 	defer metrics.MeasureSince([]string{"nomad", "client", "update_status"}, time.Now())
 
-	// white room bugfix: the caller was never checked, so with ACLs enabled
+	// clean room bugfix: the caller was never checked, so with ACLs enabled
 	// anyone (even anonymous) could set the status of any node, and take over
 	// the server-to-client connection of a node. A client node may only
 	// update itself (its secret ID); anything else needs node write, as the
@@ -1365,7 +1366,7 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 		return fmt.Errorf("missing node ID")
 	}
 
-	// white room bugfix: only the first allocation of the request named the
+	// clean room bugfix: only the first allocation of the request named the
 	// node and the caller was never checked against it, so any caller (even
 	// an anonymous one with ACLs enabled) could set the client status of the
 	// allocations of other nodes. With ACLs enabled the caller must be the
@@ -1410,7 +1411,7 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 			continue
 		}
 
-		// white room bugfix: the NodeID of the update is the caller's own
+		// clean room bugfix: the NodeID of the update is the caller's own
 		// claim; the stored allocation must run on the node too.
 		if alloc.NodeID != nodeID {
 			return structs.ErrPermissionDenied

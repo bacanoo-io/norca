@@ -34,8 +34,24 @@ type SecretMeta struct {
 	ExpiresAt   *time.Time        `json:",omitempty"`
 	RotateEvery time.Duration     `json:",omitempty"`
 
+	// Rotate names the parameterized job the leader dispatches once per
+	// version when RotateEvery has elapsed; it requires RotateEvery.
+	Rotate *SecretRotate `json:",omitempty"`
+
 	// MaxVersions is the number of versions kept (default 10).
 	MaxVersions int `json:",omitempty"`
+
+	// Replicate copies the secret to the other regions of the federation,
+	// where it is read-only. It can only be set in the authoritative region.
+	Replicate bool `json:",omitempty"`
+}
+
+// SecretRotate is the rotation hook of a secret: a parameterized job of the
+// secret's namespace, dispatched with the meta "secret_path" (and
+// "secret_namespace" and "secret_version" if the job declares them). The
+// job writes the new version.
+type SecretRotate struct {
+	Job string
 }
 
 // SecretVersion describes a retained version of a secret, never its value.
@@ -45,6 +61,22 @@ type SecretVersion struct {
 	Deleted    bool
 	Destroyed  bool
 	ValueHash  string
+
+	// SourceHash is, for a replica, the version's value hash in the
+	// authoritative region.
+	SourceHash string `json:",omitempty"`
+}
+
+// SecretReplica describes a replica: a read-only copy of a secret of the
+// authoritative region.
+type SecretReplica struct {
+	// Region is the authoritative region the secret is replicated from.
+	Region string
+
+	// SourceCreateIndex and SourceModifyIndex are the indexes of the secret
+	// in the authoritative region at the last replication.
+	SourceCreateIndex uint64
+	SourceModifyIndex uint64
 }
 
 // Secret is the metadata of a secret: everything except its values.
@@ -61,6 +93,10 @@ type Secret struct {
 	ValueHash      string
 	Versions       []*SecretVersion
 
+	// Replica is set for a read-only copy of a secret of the authoritative
+	// region.
+	Replica *SecretReplica `json:",omitempty"`
+
 	CreateIndex uint64
 	ModifyIndex uint64
 	CreateTime  int64
@@ -76,6 +112,9 @@ type SecretStub struct {
 	Labels         map[string]string
 	ExpiresAt      *time.Time
 	RotateEvery    time.Duration
+	Rotate         *SecretRotate
+	Replicate      bool
+	ReplicatedFrom string `json:",omitempty"`
 	CurrentVersion uint64
 	Deleted        bool
 	Destroyed      bool

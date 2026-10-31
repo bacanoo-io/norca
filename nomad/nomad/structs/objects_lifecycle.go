@@ -456,7 +456,7 @@ var objectPathGroupReplacer = strings.NewReplacer("-", "--", ".", "-")
 // replaced with dashes. Since the labels of a valid group neither start nor
 // end with a dash, distinct groups have distinct path forms.
 //
-// white room bugfix: dots were replaced with dashes without escaping the
+// clean room bugfix: dots were replaced with dashes without escaping the
 // dashes, so the owner references of objects of groups like
 // "db.example.com" and "db-example-com" were the same, and without the
 // owner kind meta the garbage collector stopped the jobs of the other kind.

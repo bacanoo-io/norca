@@ -88,7 +88,9 @@ func (s *StateStore) SecretByPath(ws memdb.WatchSet, namespace, path string) (*s
 // versions in one transaction. It fails with structs.ErrSecretConflict,
 // without changing anything, if the row's ModifyIndex is not
 // req.ExpectedIndex (0: the row must not exist) or if a blob of
-// req.CreateBlobs exists already.
+// req.CreateBlobs exists already, and with
+// structs.ErrSecretReplicaConflict for a replica that may not replace the
+// existing row (secretReplicaCheck).
 func (s *StateStore) ApplySecret(msgType structs.MessageType, index uint64, req *structs.SecretApplyRequest) error {
 	if req.Secret == nil {
 		return fmt.Errorf("secret apply without a secret")
@@ -99,6 +101,9 @@ func (s *StateStore) ApplySecret(msgType structs.MessageType, index uint64, req 
 	secret := req.Secret
 	existing, err := secretCheckIndexTxn(txn, secret.Namespace, secret.Path, req.ExpectedIndex)
 	if err != nil {
+		return err
+	}
+	if err := secretReplicaCheck(existing, secret); err != nil {
 		return err
 	}
 	for _, path := range req.CreateBlobs {
@@ -177,6 +182,27 @@ func secretCheckIndexTxn(txn *txn, namespace, path string, expected uint64) (*st
 		return nil, structs.ErrSecretConflict
 	}
 	return existing, nil
+}
+
+// secretReplicaCheck applies the rules of replicated secrets to the write
+// of a row: a replica never overwrites a secret of the region itself, and
+// never a newer version of the same secret of the authoritative region (by
+// its create index there and the version number). An older state of the
+// authoritative region therefore never replaces a newer one, also when a
+// former leader's write commits late.
+func secretReplicaCheck(existing, secret *structs.Secret) error {
+	if secret.Replica == nil || existing == nil {
+		return nil
+	}
+	if existing.Replica == nil {
+		return structs.ErrSecretReplicaConflict
+	}
+	if existing.Replica.Region == secret.Replica.Region &&
+		existing.Replica.SourceCreateIndex == secret.Replica.SourceCreateIndex &&
+		existing.CurrentVersion > secret.CurrentVersion {
+		return structs.ErrSecretReplicaConflict
+	}
+	return nil
 }
 
 // upsertSecretStoreBlobsTxn writes barrier blobs in a transaction.

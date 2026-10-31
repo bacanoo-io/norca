@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docker
@@ -302,7 +303,7 @@ func TestDockerCoordinator_Cleanup_HonorsCtx(t *testing.T) {
 	// Remove image
 	coordinator.RemoveImage(id1, callerID)
 	testutil.WaitForResult(func() (bool, error) {
-		// white room bugfix: read the mock under its lock, the removal goroutine writes it concurrently.
+		// clean room bugfix: read the mock under its lock, the removal goroutine writes it concurrently.
 		mock.lock.Lock()
 		defer mock.lock.Unlock()
 		if _, ok := mock.removed[id1]; ok {

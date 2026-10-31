@@ -1,0 +1,60 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Ui::Card @title="Usage history" @subtitle="Per allocation, from the metrics store of the servers" class="mb-3" data-test-usage-history ...attributes>
+  <:actions>
+    <Ui::Tabs @label="Range" @tabs={{this.tabs}} @selected={{this.range}} @onSelect={{this.selectRange}} data-test-usage-range />
+  </:actions>
+  <:default>
+    {{#if (eq this.state "loading")}}
+      <Ui::Spinner @showLabel={{true}} @label="Loading the usage history" />
+    {{else if (eq this.state "disabled")}}
+      <Ui::Alert @tone="info" @title="No usage history" data-test-usage-disabled>
+        The servers keep no history of the task group usage: the metrics store is disabled
+        (<code>metrics_store.enabled = false</code>). An external monitoring system may collect it instead.
+      </Ui::Alert>
+    {{else if (eq this.state "forbidden")}}
+      <p class="text-secondary mb-0" data-test-usage-forbidden>Your token cannot read the usage history of this job.</p>
+    {{else if (eq this.state "error")}}
+      <Ui::Alert @tone="danger" @title="The usage history could not be loaded" data-test-usage-error>{{this.error}}</Ui::Alert>
+    {{else if this.isEmpty}}
+      <Ui::EmptyState @compact={{true}} @icon="chart-line" @title="No usage in this range" @message="The history fills as the clients report the usage of the running allocations." data-test-usage-empty />
+    {{else}}
+      <div class="row row-cards">
+        <div class="col-lg-6">
+          <h3 class="h4 mb-2">CPU</h3>
+          <Ui::Chart @label="CPU use of {{@group}} over time" @option={{this.cpuOption}} @height={{220}} data-test-usage-cpu>
+            {{this.summaryText}}
+          </Ui::Chart>
+        </div>
+        <div class="col-lg-6">
+          <h3 class="h4 mb-2">Memory{{#if this.oomKills}} <Ui::Badge @color="red" data-test-usage-oom>{{this.oomKills}} OOM kills</Ui::Badge>{{/if}}</h3>
+          <Ui::Chart @label="Memory use of {{@group}} over time" @option={{this.memoryOption}} @height={{220}} data-test-usage-memory>
+            {{this.summaryText}}
+          </Ui::Chart>
+        </div>
+      </div>
+      {{#if this.rightSizing}}
+        <h3 class="h4 mt-3 mb-2">Right-sizing</h3>
+        <Ui::Table
+          @caption="Allocated resources against the measured use in the range"
+          @columns={{array
+            (hash key="label" label="Resource")
+            (hash key="allocated" label="Allocated")
+            (hash key="measured" label="Measured")
+            (hash key="suggested" label="Suggested")
+          }}
+          @rows={{this.rightSizing}}
+          data-test-usage-right-sizing
+        as |row|>
+          <td>{{row.label}}</td>
+          <td>{{row.allocated}}</td>
+          <td>{{row.measured}}</td>
+          <td data-test-usage-suggested={{row.key}}>{{row.suggested}} <span class="text-secondary small">{{row.change}}</span></td>
+        </Ui::Table>
+        <p class="text-secondary small mt-2 mb-0">The suggestion adds 20% headroom to the measured value. A short range may miss the peaks of the workload.</p>
+      {{/if}}
+    {{/if}}
+  </:default>
+</Ui::Card>

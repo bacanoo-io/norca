@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -545,6 +546,10 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	// Secrets of the built-in secret store (Norca)
 	s.mux.HandleFunc("/v1/secrets", s.wrap(s.SecretsListRequest))
 	s.mux.HandleFunc("/v1/secret/", s.wrap(s.SecretSpecificRequest))
+	s.mux.HandleFunc("/v1/secret-engines", s.wrap(s.SecretEnginesListRequest))
+	s.mux.HandleFunc("/v1/secret-engine/", s.wrap(s.SecretEngineSpecificRequest))
+	s.mux.HandleFunc("/v1/secret-leases", s.wrap(s.SecretLeasesListRequest))
+	s.mux.HandleFunc("/v1/secret-lease/", s.wrap(s.SecretLeaseSpecificRequest))
 
 	agentConfig := s.agent.GetConfig()
 	uiConfigEnabled := agentConfig.UI != nil && agentConfig.UI.Enabled

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docker
@@ -168,7 +169,7 @@ func stopTimeoutSeconds(killTimeout time.Duration) uint {
 	if killTimeout <= 0 {
 		return 0
 	}
-	// white room bugfix: round up, truncation turned a sub-second kill_timeout into 0 (immediate SIGKILL).
+	// clean room bugfix: round up, truncation turned a sub-second kill_timeout into 0 (immediate SIGKILL).
 	return uint(math.Ceil(killTimeout.Seconds()))
 }
 

@@ -78,6 +78,32 @@ const (
 	// Args: SecretRecordAccessRequest
 	// Reply: GenericResponse
 	SecretRecordAccessRPCMethod = "Secret.RecordAccess"
+
+	// SecretReplicationListRPCMethod lists the metadata of the replicated
+	// secrets of the authoritative region, with blocking queries. It is
+	// internal: only the servers of another region may call it, to replicate
+	// the secrets.
+	//
+	// Args: SecretReplicationListRequest
+	// Reply: SecretReplicationListResponse
+	SecretReplicationListRPCMethod = "Secret.ReplicationList"
+
+	// SecretReplicateRPCMethod reads the state of a replicated secret and
+	// the values of the requested versions on the leader of the
+	// authoritative region, encrypted for the requesting region. It is
+	// internal: only the servers of another region may call it.
+	//
+	// Args: SecretReplicateRequest
+	// Reply: SecretReplicateResponse
+	SecretReplicateRPCMethod = "Secret.Replicate"
+
+	// SecretReplicationKeyRPCMethod returns the replication public key of
+	// the region, which the authoritative region encrypts the replicated
+	// values for. It is internal: only servers may call it.
+	//
+	// Args: SecretReplicationKeyRequest
+	// Reply: SecretReplicationKeyResponse
+	SecretReplicationKeyRPCMethod = "Secret.ReplicationKey"
 )
 
 const (
@@ -109,6 +135,14 @@ const (
 	TypeSecretUpserted = "SecretUpserted"
 	TypeSecretDeleted  = "SecretDeleted"
 	TypeSecretAccessed = "SecretAccessed"
+
+	// The lifecycle events of the Secret topic, published by the leader's
+	// secrets watcher with a SecretLifecycleEvent payload.
+	TypeSecretExpiring           = "SecretExpiring"
+	TypeSecretExpired            = "SecretExpired"
+	TypeSecretRotationDue        = "SecretRotationDue"
+	TypeSecretRotationDispatched = "SecretRotationDispatched"
+	TypeSecretRotationFailed     = "SecretRotationFailed"
 )
 
 var (
@@ -118,6 +152,11 @@ var (
 	// ErrSecretConflict is returned when the check index of a write does not
 	// match the secret, or when the secret was modified concurrently.
 	ErrSecretConflict = errors.New("secret was modified concurrently (check index mismatch)")
+
+	// ErrSecretReplicaConflict is returned by the state store for the write
+	// of a replica that would overwrite a secret of the region itself, or a
+	// newer version of the replica.
+	ErrSecretReplicaConflict = errors.New("secret replica conflicts with the stored secret")
 
 	// validSecretPath restricts secret paths to URL safe characters that
 	// need no escaping in templates; "." is excluded, so no path segment can
@@ -191,16 +230,28 @@ type SecretMeta struct {
 	// Labels are free key/value labels.
 	Labels map[string]string
 
-	// ExpiresAt is when the secret's value expires, if set. Expiry warnings
-	// and events are produced by a later phase; the store keeps and shows it.
+	// ExpiresAt is when the secret's value expires, if set. The leader's
+	// secrets watcher announces SecretExpiring within the expiry warning
+	// window before it and SecretExpired once it has passed.
 	ExpiresAt *time.Time
 
-	// RotateEvery is the interval the value should be rotated in, if set.
+	// RotateEvery is the interval the value should be rotated in, if set:
+	// once it has elapsed since the current version was written, the
+	// leader announces SecretRotationDue and dispatches the Rotate job.
 	RotateEvery time.Duration
+
+	// Rotate names the rotation job of the secret, if any. It requires
+	// RotateEvery.
+	Rotate *SecretRotate
 
 	// MaxVersions is the number of versions kept; older versions are
 	// destroyed on the next write. 0 means SecretDefaultMaxVersions.
 	MaxVersions int
+
+	// Replicate copies the secret to the other regions of the federation.
+	// It can only be set in the authoritative region; the copies are
+	// read-only replicas.
+	Replicate bool
 }
 
 // Copy returns a deep copy of the metadata.
@@ -218,6 +269,10 @@ func (m *SecretMeta) Copy() *SecretMeta {
 	if m.ExpiresAt != nil {
 		t := *m.ExpiresAt
 		out.ExpiresAt = &t
+	}
+	if m.Rotate != nil {
+		r := *m.Rotate
+		out.Rotate = &r
 	}
 	return &out
 }
@@ -237,6 +292,14 @@ func (m *SecretMeta) Validate() error {
 	if m.RotateEvery < 0 {
 		return errors.New("rotate_every must not be negative")
 	}
+	if m.Rotate != nil {
+		if err := m.Rotate.Validate(); err != nil {
+			return err
+		}
+		if m.RotateEvery == 0 {
+			return errors.New("a rotation job requires rotate_every")
+		}
+	}
 	if len(m.Description) > 1024 {
 		return errors.New("description is limited to 1024 bytes")
 	}
@@ -254,6 +317,37 @@ func (m *SecretMeta) Validate() error {
 	return nil
 }
 
+// SecretRotate is the rotation hook of a secret: when the secret's
+// rotate_every has elapsed since its current version was written, the leader
+// dispatches the parameterized Job of the secret's namespace once for that
+// version. The job writes the new version itself.
+type SecretRotate struct {
+	// Job is the ID of the parameterized job.
+	Job string
+}
+
+// Validate checks the rotation hook.
+func (r *SecretRotate) Validate() error {
+	switch {
+	case r.Job == "":
+		return errors.New("rotate requires a job")
+	case len(r.Job) > 128:
+		return errors.New("rotate job is limited to 128 bytes")
+	case strings.ContainsAny(r.Job, " \000/"):
+		return fmt.Errorf("invalid rotate job %q", r.Job)
+	}
+	return nil
+}
+
+// Dispatch meta keys of a rotation job. The job must declare
+// SecretRotateMetaPath in its parameterized block (meta_required or
+// meta_optional); the other keys are passed only if it declares them.
+const (
+	SecretRotateMetaPath      = "secret_path"
+	SecretRotateMetaNamespace = "secret_namespace"
+	SecretRotateMetaVersion   = "secret_version"
+)
+
 // SecretVersion describes one retained version of a secret, never its value.
 type SecretVersion struct {
 	Version    uint64
@@ -266,8 +360,14 @@ type SecretVersion struct {
 	Destroyed bool
 
 	// ValueHash is the keyed hash of the version's items; empty once the
-	// version is destroyed.
+	// version is destroyed. A replica has a value hash only for the
+	// versions whose value it holds.
 	ValueHash string
+
+	// SourceHash is, for a version of a replica, the value hash of the
+	// version in the authoritative region. The keyed hashes of two regions
+	// differ, so the replication compares the versions by this hash.
+	SourceHash string `json:",omitempty"`
 }
 
 // Secret is the metadata row of a secret in the secrets table. It never
@@ -294,6 +394,10 @@ type Secret struct {
 	// Versions are the retained versions, oldest first.
 	Versions []*SecretVersion
 
+	// Replica is set for a copy of a secret of the authoritative region. A
+	// replica is written by the replication only and is read-only.
+	Replica *SecretReplica `json:",omitempty"`
+
 	CreateIndex uint64
 	ModifyIndex uint64
 	CreateTime  int64
@@ -310,6 +414,10 @@ func (s *Secret) Copy() *Secret {
 		out.SecretMeta = *m
 	}
 	out.ItemKeys = append([]string(nil), s.ItemKeys...)
+	if s.Replica != nil {
+		r := *s.Replica
+		out.Replica = &r
+	}
 	if s.Versions != nil {
 		out.Versions = make([]*SecretVersion, len(s.Versions))
 		for i, v := range s.Versions {
@@ -333,7 +441,7 @@ func (s *Secret) Version(v uint64) *SecretVersion {
 // Stub returns the list form of the secret.
 func (s *Secret) Stub() *SecretStub {
 	m := s.SecretMeta.Copy()
-	return &SecretStub{
+	stub := &SecretStub{
 		Namespace:      s.Namespace,
 		Path:           s.Path,
 		Description:    m.Description,
@@ -341,6 +449,8 @@ func (s *Secret) Stub() *SecretStub {
 		Labels:         m.Labels,
 		ExpiresAt:      m.ExpiresAt,
 		RotateEvery:    m.RotateEvery,
+		Rotate:         m.Rotate,
+		Replicate:      m.Replicate,
 		CurrentVersion: s.CurrentVersion,
 		Deleted:        s.Deleted,
 		Destroyed:      s.Destroyed,
@@ -350,6 +460,10 @@ func (s *Secret) Stub() *SecretStub {
 		CreateTime:     s.CreateTime,
 		ModifyTime:     s.ModifyTime,
 	}
+	if s.Replica != nil {
+		stub.ReplicatedFrom = s.Replica.Region
+	}
+	return stub
 }
 
 // GetNamespace returns the secret's namespace. Used for pagination.
@@ -370,6 +484,9 @@ type SecretStub struct {
 	Labels         map[string]string
 	ExpiresAt      *time.Time
 	RotateEvery    time.Duration
+	Rotate         *SecretRotate
+	Replicate      bool
+	ReplicatedFrom string `json:",omitempty"`
 	CurrentVersion uint64
 	Deleted        bool
 	Destroyed      bool
@@ -378,6 +495,19 @@ type SecretStub struct {
 	ModifyIndex    uint64
 	CreateTime     int64
 	ModifyTime     int64
+}
+
+// SecretReplica describes a replica: a read-only copy of a secret of the
+// authoritative region, written by the replication of the region's leader.
+type SecretReplica struct {
+	// Region is the authoritative region the secret is replicated from.
+	Region string
+
+	// SourceCreateIndex and SourceModifyIndex are the create and modify
+	// index of the secret in the authoritative region at the replication.
+	// The create index tells a secret recreated there apart.
+	SourceCreateIndex uint64
+	SourceModifyIndex uint64
 }
 
 // ValidateSecretPath checks a secret path: URL safe characters, no empty
@@ -399,9 +529,42 @@ type SecretEvent struct {
 	Secret *Secret
 }
 
-// SecretAccessor identifies who accessed a secret: an ACL token or a
-// workload identity.
+// SecretLifecycleEvent is the payload of the lifecycle events of the Secret
+// topic: expiry and rotation reminders and the rotation job dispatches. It
+// carries the metadata of the secret, never its values.
+type SecretLifecycleEvent struct {
+	Secret *SecretStub
+
+	// Version is the current version the event is about.
+	Version uint64
+
+	// ExpiresAt is the expiry of SecretExpiring and SecretExpired.
+	ExpiresAt *time.Time `json:",omitempty"`
+
+	// RotationDueAt is when the rotation of Version became due (its
+	// creation time plus rotate_every), set for the rotation events.
+	RotationDueAt *time.Time `json:",omitempty"`
+
+	// Job is the rotation job, DispatchedJobID and EvalID the dispatched
+	// child job and its evaluation.
+	Job             string `json:",omitempty"`
+	DispatchedJobID string `json:",omitempty"`
+	EvalID          string `json:",omitempty"`
+
+	// Error, Attempt and NextAttempt describe a failed dispatch and when it
+	// is retried.
+	Error       string     `json:",omitempty"`
+	Attempt     int        `json:",omitempty"`
+	NextAttempt *time.Time `json:",omitempty"`
+}
+
+// SecretAccessor identifies who accessed a secret: an ACL token, a
+// workload identity or a component of the servers.
 type SecretAccessor struct {
+	// System names the server component that acted on its own authority,
+	// for example "secret-rotation" for the dispatch of a rotation job.
+	System string `json:",omitempty"`
+
 	// AccessorID is the accessor ID of the ACL token, if one was used.
 	AccessorID string `json:",omitempty"`
 
@@ -428,6 +591,13 @@ const (
 	SecretOpUndelete = "undelete"
 	SecretOpDestroy  = "destroy"
 	SecretOpRestore  = "restore"
+
+	// SecretOpRotate is the dispatch of a secret's rotation job.
+	SecretOpRotate = "rotate"
+
+	// SecretOpReplicate is the read of values for another region in the
+	// authoritative region, and the write of a replica in the other region.
+	SecretOpReplicate = "replicate"
 )
 
 // Secret access results, as recorded in audit records.
@@ -478,6 +648,23 @@ type SecretAccessEvent struct {
 
 	// ProviderVersion is the version the external provider reported.
 	ProviderVersion string `json:",omitempty"`
+
+	// Job and DispatchedJobID are the rotation job and its dispatched
+	// child job of a rotate operation.
+	Job             string `json:",omitempty"`
+	DispatchedJobID string `json:",omitempty"`
+
+	// PeerRegion is the other region of a replication: the region the
+	// values were read for in the authoritative region, and the
+	// authoritative region at the write or removal of a replica.
+	PeerRegion string `json:",omitempty"`
+
+	// Engine, Role and LeaseID name the engine, the role and the lease of
+	// the operations of dynamic secrets; Reason is why a lease was revoked.
+	Engine  string `json:",omitempty"`
+	Role    string `json:",omitempty"`
+	LeaseID string `json:",omitempty"`
+	Reason  string `json:",omitempty"`
 }
 
 // SecretRecordAccessRequest is the audit record of a fetch from an external
@@ -608,4 +795,71 @@ type SecretPurgeRequest struct {
 	ExpectedIndex uint64
 	DeleteBlobs   []string
 	WriteRequest
+}
+
+// SecretReplicationListRequest lists the replicated secrets of the
+// authoritative region for the replication of ReplicaRegion.
+type SecretReplicationListRequest struct {
+	// ReplicaRegion is the region that replicates.
+	ReplicaRegion string
+	QueryOptions
+}
+
+// SecretReplicationListResponse are the metadata rows of the replicated
+// secrets, never values.
+type SecretReplicationListResponse struct {
+	Secrets []*Secret
+	QueryMeta
+}
+
+// SecretReplicateRequest reads the state of a replicated secret and the
+// values of Versions for ReplicaRegion, encrypted for the replication key
+// KeyID of that region.
+type SecretReplicateRequest struct {
+	ReplicaRegion string
+	KeyID         string
+
+	SecretNamespace string
+	Path            string
+
+	// Versions are the versions whose values are needed; versions that are
+	// not live (deleted, destroyed or no longer retained) are skipped.
+	Versions []uint64
+
+	QueryOptions
+}
+
+// SecretReplicateResponse is the state of a replicated secret in the
+// authoritative region. A nil Secret is a tombstone: the secret is gone or
+// no longer replicated, and its replicas are removed.
+type SecretReplicateResponse struct {
+	Secret *Secret
+	Values []*SecretReplicaValue
+	QueryMeta
+}
+
+// SecretReplicaValue is the value of one version, encrypted for the
+// replication key of the requesting region.
+type SecretReplicaValue struct {
+	Version uint64
+
+	// ValueHash is the version's value hash in the authoritative region.
+	ValueHash string
+
+	// Sealed is the JSON encoded items, encrypted for the replication key
+	// of the requesting region (package secretsrepl).
+	Sealed []byte
+}
+
+// SecretReplicationKeyRequest asks a region for its replication public key.
+type SecretReplicationKeyRequest struct {
+	QueryOptions
+}
+
+// SecretReplicationKeyResponse is the replication public key of a region.
+type SecretReplicationKeyResponse struct {
+	Region    string
+	KeyID     string
+	PublicKey []byte
+	QueryMeta
 }

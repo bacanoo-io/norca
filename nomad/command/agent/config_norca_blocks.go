@@ -5,6 +5,7 @@ package agent
 
 import (
 	"fmt"
+	"time"
 
 	clientconfig "github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
@@ -27,6 +28,10 @@ type norcaServerBlocks struct {
 	bus          *bus.Config
 	metricsStore *metricsstore.Config
 	secretsAudit *secretstore.AuditFileConfig
+
+	// secretsExpiryWarning is the expiry warning window of the secrets
+	// watcher; 0 keeps the server default.
+	secretsExpiryWarning time.Duration
 
 	// discoveryOverflowFraction is the default overflow fraction of the
 	// native_service_discovery block; nil keeps the server default.
@@ -91,6 +96,9 @@ func convertNorcaServerBlocks(s *ServerConfig, ports *Ports) (*norcaServerBlocks
 		return nil, fmt.Errorf("invalid server metrics_store configuration: %w", err)
 	}
 	if out.secretsAudit, err = s.Secrets.toAuditFileConfig(); err != nil {
+		return nil, err
+	}
+	if out.secretsExpiryWarning, err = s.Secrets.expiryWarning(); err != nil {
 		return nil, err
 	}
 	return out, nil

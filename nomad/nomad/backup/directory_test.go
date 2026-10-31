@@ -451,7 +451,7 @@ func TestManager_DirectoryNotShared(t *testing.T) {
 }
 
 // TestManager_LoadCacheHitDoesNotWait checks that a cached backup is served
-// while another backup is being loaded (white room bugfix).
+// while another backup is being loaded (clean room bugfix).
 func TestManager_LoadCacheHitDoesNotWait(t *testing.T) {
 	ci.Parallel(t)
 	env := newTestEnv(t, 2048)

@@ -110,8 +110,9 @@ type TaskSecret struct {
 	// is re-delivered when it changes.
 	Version uint64
 
-	// Engine and Role are reserved for dynamic secrets (a later phase);
-	// they must be empty for now.
+	// Engine and Role ask for a dynamic secret: a credential of the role
+	// created by the engine of the job's namespace, renewed while the task
+	// runs and revoked when it stops. Path and Version are empty then.
 	Engine string
 	Role   string
 
@@ -360,10 +361,29 @@ func (s *TaskSecret) Validate() error {
 	if s.Provider != "" && !validSecretProviderName.MatchString(s.Provider) {
 		add("invalid provider name %q", s.Provider)
 	}
-	if s.Engine != "" || s.Role != "" {
-		add("dynamic secret engines (engine, role) are not supported yet")
+	dynamic := s.Engine != "" || s.Role != ""
+	switch {
+	case !dynamic:
+	case s.Engine == "" || s.Role == "":
+		add("a dynamic secret needs both engine and role")
+	default:
+		if err := ValidateSecretEngineName("engine", s.Engine); err != nil {
+			mErr = multierror.Append(mErr, err)
+		}
+		if err := ValidateSecretEngineName("role", s.Role); err != nil {
+			mErr = multierror.Append(mErr, err)
+		}
+		if s.Path != "" {
+			add("a dynamic secret (engine, role) has no path")
+		}
+		if s.Version != 0 {
+			add("a dynamic secret (engine, role) has no versions")
+		}
 	}
-	if err := validateSecretRefPath(s.Path); err != nil {
+	if dynamic {
+		// The engine and the role are checked by the servers when the
+		// credential is requested.
+	} else if err := validateSecretRefPath(s.Path); err != nil {
 		mErr = multierror.Append(mErr, err)
 	} else if s.Provider == SecretProviderNorca {
 		// The built-in store's paths are checked here already; other
@@ -373,7 +393,9 @@ func (s *TaskSecret) Validate() error {
 		}
 	}
 
-	if s.File == nil && len(s.Env) == 0 {
+	if s.File == nil && len(s.Env) == 0 && !dynamic {
+		// A dynamic secret without them is delivered to the engine's
+		// default file (secrets/nats.creds for nats).
 		add("a secret needs a file or env block to be delivered")
 	}
 	if s.File != nil {
@@ -458,9 +480,17 @@ func validateTaskSecrets(t *Task) error {
 	names := map[string]struct{}{}
 	dests := map[string]string{}
 	envs := map[string]string{}
+	defaultFile := ""
 	for _, s := range t.Secrets {
 		if s == nil {
 			continue
+		}
+		if s.Engine != "" && s.File == nil && len(s.Env) == 0 {
+			if defaultFile != "" {
+				mErr = multierror.Append(mErr, fmt.Errorf(
+					"dynamic secrets %q and %q both use the engine's default file; give them file blocks", defaultFile, s.Name))
+			}
+			defaultFile = s.Name
 		}
 		if err := s.Validate(); err != nil {
 			mErr = multierror.Append(mErr, multierror.Prefix(err, fmt.Sprintf("secret %q:", s.Name)))
@@ -662,6 +692,10 @@ type SecretRef struct {
 	Path    string
 	Version uint64
 
+	// Engine and Role are set for a dynamic secret.
+	Engine string
+	Role   string
+
 	// FileFormat is the format of the file delivery, "" without one.
 	FileFormat string
 
@@ -705,6 +739,8 @@ func (j *Job) SecretRefs() []*SecretRef {
 					DefaultProvider: def,
 					Path:            InterpolateSecretPath(s.Path, jobID, tg.Name, t.Name),
 					Version:         s.Version,
+					Engine:          s.Engine,
+					Role:            s.Role,
 					Optional:        s.Optional,
 					Env:             []string{},
 				}

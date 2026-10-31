@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docker
@@ -330,7 +331,7 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 		return nil, nil, err
 	}
 
-	// white room bugfix: release the image reference taken by createImage when the task fails to start, it leaked and blocked image GC.
+	// clean room bugfix: release the image reference taken by createImage when the task fails to start, it leaked and blocked image GC.
 	started := false
 	defer func() {
 		if !started {
@@ -693,7 +694,7 @@ func (d *Driver) loadImage(task *drivers.TaskConfig, driverConfig *TaskConfig, c
 	if err != nil {
 		return "", fmt.Errorf("unable to open image archive: %v", err)
 	}
-	// white room bugfix: close the archive on every path, a failed LoadImage leaked the file descriptor.
+	// clean room bugfix: close the archive on every path, a failed LoadImage leaked the file descriptor.
 	defer f.Close()
 
 	if err := client.LoadImage(docker.LoadImageOptions{InputStream: f}); err != nil {
@@ -779,7 +780,7 @@ func (d *Driver) containerBinds(task *drivers.TaskConfig, driverConfig *TaskConf
 // bindWithLabel appends the bind mode and the optional SELinux label to a
 // "src:dst" bind.
 func bindWithLabel(bind, mode, selinuxLabel string) string {
-	// white room bugfix: join the SELinux label to an existing mode with a comma, "src:dst:ro:z" is an invalid bind.
+	// clean room bugfix: join the SELinux label to an existing mode with a comma, "src:dst:ro:z" is an invalid bind.
 	if selinuxLabel != "" {
 		if mode != "" {
 			mode += ","
@@ -1565,7 +1566,7 @@ func (d *Driver) WaitTask(ctx context.Context, taskID string) (<-chan *drivers.E
 	if !ok {
 		return nil, drivers.ErrTaskNotFound
 	}
-	// white room bugfix: buffer the single result, callers may stop reading after their ctx ends and the sender leaked.
+	// clean room bugfix: buffer the single result, callers may stop reading after their ctx ends and the sender leaked.
 	ch := make(chan *drivers.ExitResult, 1)
 	go d.handleWait(ctx, ch, h)
 	return ch, nil
@@ -1746,7 +1747,7 @@ var _ drivers.ExecTaskStreamingDriver = (*Driver)(nil)
 func (d *Driver) ExecTaskStreaming(ctx context.Context, taskID string, opts *drivers.ExecOptions) (*drivers.ExitResult, error) {
 	defer opts.Stdout.Close()
 	defer opts.Stderr.Close()
-	// white room bugfix: close stdin too, so the stream goroutine writing into it does not block after the exec ends.
+	// clean room bugfix: close stdin too, so the stream goroutine writing into it does not block after the exec ends.
 	defer opts.Stdin.Close()
 
 	done := make(chan interface{})

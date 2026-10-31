@@ -1,0 +1,3 @@
+
+# The test build made in a Linux container (ember-auto-import breaks on Windows paths)
+/dist-test-linux/

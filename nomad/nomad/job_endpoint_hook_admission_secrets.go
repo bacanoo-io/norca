@@ -55,6 +55,8 @@ func admissionSecretRefsValue(job *structs.Job, vaultEnabled bool) []any {
 			"effective_provider": effective,
 			"path":               r.Path,
 			"version":            int64(r.Version),
+			"engine":             r.Engine,
+			"role":               r.Role,
 			"file_format":        r.FileFormat,
 			"env":                env,
 			"optional":           r.Optional,

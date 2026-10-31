@@ -807,7 +807,7 @@ func (r *Release) GetRevision(args *structs.ReleaseRevisionRequest, reply *struc
 				if rev.Resources, err = structs.DecodeReleaseResources(rev.Spec.Content); err != nil {
 					return err
 				}
-				// white room bugfix: only the resources the token may read are
+				// clean room bugfix: only the resources the token may read are
 				// returned (Variables carry their decrypted values), and the
 				// encoded content only when nothing was left out.
 				if !allowReleaseResourcesRead(aclObj, rev.Resources) {
