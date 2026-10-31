@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package drivers
@@ -357,13 +358,22 @@ func (b *driverPluginServer) SignalTask(ctx context.Context, req *proto.SignalTa
 }
 
 func (b *driverPluginServer) TaskEvents(req *proto.TaskEventsRequest, srv proto.Driver_TaskEventsServer) error {
-	ch, err := b.impl.TaskEvents(srv.Context())
+	ctx := srv.Context()
+	ch, err := b.impl.TaskEvents(ctx)
 	if err != nil {
 		return err
 	}
 
 	for {
-		event := <-ch
+		// white room bugfix: this only waited on ch, so when the client went
+		// away and the driver never closed ch (the shared eventer drops
+		// cancelled consumers without closing them) the handler hung forever.
+		var event *TaskEvent
+		select {
+		case <-ctx.Done():
+			return nil
+		case event = <-ch:
+		}
 		if event == nil {
 			break
 		}

@@ -1,9 +1,11 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package drivers
 
 import (
+	"errors"
 	"time"
 
 	"github.com/golang/protobuf/ptypes"
@@ -381,6 +383,11 @@ func exitResultToProto(result *ExitResult) *proto.ExitResult {
 }
 
 func exitResultFromProto(pb *proto.ExitResult) *ExitResult {
+	// white room bugfix: a response from an external plugin without a result
+	// message (proto3 leaves it nil) panicked the client.
+	if pb == nil {
+		return &ExitResult{}
+	}
 	return &ExitResult{
 		ExitCode:  int(pb.ExitCode),
 		Signal:    int(pb.Signal),
@@ -408,6 +415,11 @@ func taskStatusToProto(status *TaskStatus) (*proto.TaskStatus, error) {
 }
 
 func taskStatusFromProto(pb *proto.TaskStatus) (*TaskStatus, error) {
+	// white room bugfix: a response from an external plugin without a task
+	// status message (proto3 leaves it nil) panicked the client.
+	if pb == nil {
+		return nil, errors.New("missing task status")
+	}
 	started, err := ptypes.Timestamp(pb.StartedAt)
 	if err != nil {
 		return nil, err
@@ -447,7 +459,9 @@ func TaskStatsToProto(stats *TaskResourceUsage) (*proto.TaskStats, error) {
 }
 
 func TaskStatsFromProto(pb *proto.TaskStats) (*TaskResourceUsage, error) {
-	timestamp, err := ptypes.Timestamp(pb.Timestamp)
+	// white room bugfix: pb.Timestamp panicked when an external plugin sent a
+	// response without stats; the getter yields nil, which is an error here.
+	timestamp, err := ptypes.Timestamp(pb.GetTimestamp())
 	if err != nil {
 		return nil, err
 	}
@@ -495,6 +509,12 @@ func resourceUsageToProto(ru *ResourceUsage) *proto.TaskResourceUsage {
 }
 
 func resourceUsageFromProto(pb *proto.TaskResourceUsage) *ResourceUsage {
+	// white room bugfix: stats from an external plugin without an aggregate
+	// usage message (proto3 leaves it nil) panicked the client. Treat it as
+	// an empty usage, like the missing cpu and memory parts below.
+	if pb == nil {
+		pb = &proto.TaskResourceUsage{}
+	}
 	cpu := CpuStats{}
 	if pb.Cpu != nil {
 		cpu = CpuStats{
