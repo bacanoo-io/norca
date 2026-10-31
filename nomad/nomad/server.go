@@ -42,6 +42,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/bus"
+	"github.com/hashicorp/nomad/nomad/metricsstore"
 	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
 	"github.com/hashicorp/nomad/nomad/drainer"
 	"github.com/hashicorp/nomad/nomad/objectgc"
@@ -250,6 +251,10 @@ type Server struct {
 	// busRoutesCh wakes up the loop keeping its routes in line with Serf.
 	bus         *bus.Server
 	busRoutesCh chan struct{}
+
+	// metricsStore keeps the history of the task group usage of the bus;
+	// nil when it or the bus is disabled.
+	metricsStore *metricsstore.Store
 
 	// consulKV is the connection of the ConsulKV endpoint to the bucket of
 	// the Consul KV on the bus.
@@ -1431,6 +1436,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewNetworkPolicyEndpoint(s, ctx))
 	_ = server.Register(NewSecretEndpoint(s, ctx))
 	_ = server.Register(NewConsulKVEndpoint(s, ctx))
+	_ = server.Register(NewMetricsStoreEndpoint(s, ctx))
 	_ = server.Register(NewPeriodicEndpoint(s, ctx))
 	_ = server.Register(NewPlanEndpoint(s, ctx))
 	_ = server.Register(NewQuotaEndpoint(s, ctx))

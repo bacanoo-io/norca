@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/autoscaler"
 	"github.com/hashicorp/nomad/nomad/backup"
 	"github.com/hashicorp/nomad/nomad/bus"
+	"github.com/hashicorp/nomad/nomad/metricsstore"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/secretstore"
@@ -24,6 +25,7 @@ type norcaServerBlocks struct {
 	autoscaler   *autoscaler.Config
 	backup       *backup.Config
 	bus          *bus.Config
+	metricsStore *metricsstore.Config
 	secretsAudit *secretstore.AuditFileConfig
 
 	// discoveryOverflowFraction is the default overflow fraction of the
@@ -84,6 +86,9 @@ func convertNorcaServerBlocks(s *ServerConfig, ports *Ports) (*norcaServerBlocks
 	}
 	if out.bus, err = s.Bus.toServerConfig(ports); err != nil {
 		return nil, fmt.Errorf("invalid server bus configuration: %w", err)
+	}
+	if out.metricsStore, err = s.MetricsStore.toServerConfig(); err != nil {
+		return nil, fmt.Errorf("invalid server metrics_store configuration: %w", err)
 	}
 	if out.secretsAudit, err = s.Secrets.toAuditFileConfig(); err != nil {
 		return nil, err

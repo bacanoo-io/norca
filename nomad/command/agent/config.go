@@ -710,6 +710,9 @@ type ServerConfig struct {
 	// servers.
 	Bus *BusConfig `hcl:"bus"`
 
+	// MetricsStore configures the history of the task group usage.
+	MetricsStore *MetricsStoreConfig `hcl:"metrics_store"`
+
 	// Secrets configures the server side of the built-in secret store.
 	Secrets *SecretsConfig `hcl:"secrets"`
 
@@ -757,6 +760,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.Autoscaler = s.Autoscaler.Copy()
 	ns.Backup = s.Backup.Copy()
 	ns.Bus = s.Bus.Copy()
+	ns.MetricsStore = s.MetricsStore.Copy()
 	ns.Secrets = s.Secrets.Copy()
 	ns.Admission = s.Admission.Copy()
 	ns.MTLS = s.MTLS.Copy()
@@ -2084,6 +2088,10 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 
 	if b.Bus != nil {
 		result.Bus = result.Bus.Merge(b.Bus)
+	}
+
+	if b.MetricsStore != nil {
+		result.MetricsStore = result.MetricsStore.Merge(b.MetricsStore)
 	}
 
 	if b.Secrets != nil {

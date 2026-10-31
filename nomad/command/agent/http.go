@@ -493,6 +493,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/agent/pprof/", s.wrapNonJSON(s.AgentPprofRequest))
 
 	s.mux.HandleFunc("/v1/metrics", s.wrap(s.MetricsRequest))
+	s.mux.HandleFunc("/v1/metrics/history", s.wrap(s.MetricsHistoryRequest))
 
 	s.mux.HandleFunc("/v1/validate/job", s.wrap(s.ValidateJobRequest))
 
@@ -514,6 +515,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/operator/autopilot/configuration", s.wrap(s.OperatorAutopilotConfiguration))
 	s.mux.HandleFunc("/v1/operator/autopilot/health", s.wrap(s.OperatorServerHealth))
 	s.mux.HandleFunc("/v1/operator/bus", s.wrap(s.OperatorBusStatus))
+	s.mux.HandleFunc("/v1/operator/metrics-store", s.wrap(s.OperatorMetricsStoreStatus))
 	s.mux.HandleFunc("/v1/operator/consul-kv/migrate", s.wrap(s.OperatorConsulKVMigrate))
 	s.mux.HandleFunc("/v1/operator/snapshot", s.wrap(s.SnapshotRequest))
 	s.mux.HandleFunc("/v1/operator/backups", s.wrap(s.BackupsRequest))

@@ -42,6 +42,16 @@ precedence = "closest"
 SPDX-FileCopyrightText = "2026 Christopher W. Olsen"
 SPDX-License-Identifier = "BSD-3-Clause"
 
+# tstorage v0.3.6 (Apache-2.0, https://github.com/nakabonne/tstorage), copied for
+# the metrics store with the changes noted at the top of the modified files;
+# see nomad/internal/tstorage/LICENSE and NOTICE.txt. Files Norca adds carry SPDX
+# headers of their own (MPL-2.0), which take precedence.
+[[annotations]]
+path = ["nomad/internal/tstorage/**"]
+precedence = "closest"
+SPDX-FileCopyrightText = "The tstorage authors (github.com/nakabonne/tstorage)"
+SPDX-License-Identifier = "Apache-2.0"
+
 # Test fixture copied unmodified from the Nomad Pack Community Registry (MPL 2.0),
 # see nomad/pack/fixtures/community/README.md.
 [[annotations]]

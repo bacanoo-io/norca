@@ -124,9 +124,10 @@ func (s *Server) consumeTelemetry(ctx context.Context, js jetstream.JetStream) e
 	}
 }
 
-// handleTelemetry hands a usage report of the bus to the autoscaler, which
-// keeps it only on the leader. The node of the report must be the node of
-// the subject, the only subject the node may publish on.
+// handleTelemetry stores a usage report of the bus in the metrics store and
+// hands it to the autoscaler, which keeps it only on the leader. The node of
+// the report must be the node of the subject, the only subject the node may
+// publish on.
 func (s *Server) handleTelemetry(m jetstream.Msg) {
 	var report structs.TaskGroupUsageReport
 	if err := json.Unmarshal(m.Data(), &report); err != nil {
@@ -138,10 +139,14 @@ func (s *Server) handleTelemetry(m jetstream.Msg) {
 		s.logger.Debug("system bus: ignoring a task group usage report of another node", "subject", m.Subject())
 		return
 	}
-	if s.autoscaler == nil {
-		return
+	published := time.Now()
+	if meta, err := m.Metadata(); err == nil {
+		published = meta.Timestamp
 	}
-	if meta, err := m.Metadata(); err == nil && time.Since(meta.Timestamp) > report.Window+telemetryFreshness {
+	if s.metricsStore != nil {
+		s.metricsStore.Ingest(&report, published)
+	}
+	if s.autoscaler == nil || time.Since(published) > report.Window+telemetryFreshness {
 		return
 	}
 	s.autoscaler.RecordUsage(&report)

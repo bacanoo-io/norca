@@ -115,6 +115,12 @@ var sourceCopies = []sourceCopy{
 		Dir:        "nomad/secretstore/ubix",
 		ImportPath: "github.com/hashicorp/nomad/secretstore/ubix",
 	},
+	{
+		Path:       "github.com/nakabonne/tstorage",
+		Version:    "v0.3.6",
+		Dir:        "nomad/internal/tstorage",
+		ImportPath: "github.com/hashicorp/nomad/internal/tstorage",
+	},
 }
 
 // findSourceCopy returns the source copy a package belongs to, or nil.

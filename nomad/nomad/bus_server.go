@@ -17,6 +17,7 @@ import (
 
 	"github.com/hashicorp/nomad/helper/tlsutil"
 	"github.com/hashicorp/nomad/nomad/bus"
+	"github.com/hashicorp/nomad/nomad/metricsstore"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
@@ -80,6 +81,17 @@ func (s *Server) setupBus() error {
 	}
 	s.bus = b
 
+	if msCfg := s.config.MetricsStore.Copy(); msCfg != nil && msCfg.Enabled {
+		if msCfg.Dir == "" && s.config.DataDir != "" {
+			msCfg.Dir = filepath.Join(s.config.DataDir, "tsdb")
+		}
+		store, err := metricsstore.Open(msCfg, s.logger)
+		if err != nil {
+			return err
+		}
+		s.metricsStore = store
+	}
+
 	s.busRoutesCh = make(chan struct{}, 1)
 	go s.busRoutesLoop()
 	go s.busRevalidateLoop()
@@ -100,11 +112,16 @@ func (s *Server) raftServers() int {
 	return len(future.Configuration().Servers)
 }
 
-// shutdownBus stops the system bus.
+// shutdownBus stops the system bus and the metrics store it feeds.
 func (s *Server) shutdownBus() {
 	if s.bus != nil {
 		s.consulKV.close()
 		s.bus.Shutdown()
+	}
+	if s.metricsStore != nil {
+		if err := s.metricsStore.Close(); err != nil {
+			s.logger.Warn("closing the metrics store failed", "error", err)
+		}
 	}
 }
 
