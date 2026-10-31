@@ -164,6 +164,9 @@ func (h *nodeHeartbeater) invalidateHeartbeat(id string) {
 		NodeEvent: structs.NewNodeEvent().SetSubsystem(structs.NodeEventSubsystemCluster).SetMessage(NodeHeartbeatEventMissed),
 		WriteRequest: structs.WriteRequest{
 			Region: h.srv.config.Region,
+			// white room bugfix: Node.UpdateStatus now checks the caller;
+			// the leader marks the node down with its own token.
+			AuthToken: h.srv.getLeaderAcl(),
 		},
 	}
 

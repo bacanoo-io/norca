@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/mock"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/testutil"
+	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )
 
@@ -170,6 +171,26 @@ func TestHeartbeat_InvalidateHeartbeat(t *testing.T) {
 	require.True(out.TerminalStatus())
 	require.Len(out.Events, 2)
 	require.Equal(NodeHeartbeatEventMissed, out.Events[1].Message)
+}
+
+// TestHeartbeat_InvalidateHeartbeat_ACL asserts that the leader marks a node
+// down with ACLs enabled, where Node.UpdateStatus checks the caller.
+func TestHeartbeat_InvalidateHeartbeat_ACL(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, _, cleanupS1 := TestACLServer(t, nil)
+	defer cleanupS1()
+	testutil.WaitForLeader(t, s1.RPC)
+
+	node := mock.Node()
+	store := s1.fsm.State()
+	must.NoError(t, store.UpsertNode(structs.MsgTypeTestSetup, 1, node))
+
+	s1.invalidateHeartbeat(node.ID)
+
+	out, err := store.NodeByID(nil, node.ID)
+	must.NoError(t, err)
+	must.True(t, out.TerminalStatus())
 }
 
 func TestHeartbeat_ClearHeartbeatTimer(t *testing.T) {

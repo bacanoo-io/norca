@@ -555,6 +555,21 @@ func (n *Node) UpdateStatus(args *structs.NodeUpdateStatusRequest, reply *struct
 
 	defer metrics.MeasureSince([]string{"nomad", "client", "update_status"}, time.Now())
 
+	// white room bugfix: the caller was never checked, so with ACLs enabled
+	// anyone (even anonymous) could set the status of any node, and take over
+	// the server-to-client connection of a node. A client node may only
+	// update itself (its secret ID); anything else needs node write, as the
+	// leader's heartbeat timer has.
+	if aclObj, err := n.srv.ResolveClientOrACL(args); err != nil {
+		return err
+	} else if clientID := clientIdentity(args); clientID != "" {
+		if clientID != args.NodeID {
+			return structs.ErrPermissionDenied
+		}
+	} else if aclObj != nil && !aclObj.AllowNodeWrite() {
+		return structs.ErrPermissionDenied
+	}
+
 	// Verify the arguments
 	if args.NodeID == "" {
 		return fmt.Errorf("missing node ID for client status update")
@@ -1350,6 +1365,21 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 		return fmt.Errorf("missing node ID")
 	}
 
+	// white room bugfix: only the first allocation of the request named the
+	// node and the caller was never checked against it, so any caller (even
+	// an anonymous one with ACLs enabled) could set the client status of the
+	// allocations of other nodes. With ACLs enabled the caller must be the
+	// node itself (its secret ID), and every allocation of the request must
+	// belong to that node.
+	if n.srv.config.ACLEnabled && clientIdentity(args) != nodeID {
+		return structs.ErrPermissionDenied
+	}
+	for _, alloc := range args.Alloc {
+		if alloc.NodeID != nodeID {
+			return structs.ErrPermissionDenied
+		}
+	}
+
 	node, err := n.srv.State().NodeByID(nil, nodeID)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve node %s: %v", nodeID, err)
@@ -1378,6 +1408,12 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 		alloc, _ := n.srv.State().AllocByID(nil, allocToUpdate.ID)
 		if alloc == nil {
 			continue
+		}
+
+		// white room bugfix: the NodeID of the update is the caller's own
+		// claim; the stored allocation must run on the node too.
+		if alloc.NodeID != nodeID {
+			return structs.ErrPermissionDenied
 		}
 
 		if !allocToUpdate.TerminalStatus() && alloc.ClientStatus != structs.AllocClientStatusUnknown {

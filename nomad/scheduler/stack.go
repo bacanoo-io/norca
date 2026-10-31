@@ -164,6 +164,10 @@ func (s *GenericStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ra
 	s.taskGroupCSIVolumes.SetVolumes(options.AllocName, tg.Volumes)
 	if len(tg.Networks) > 0 {
 		s.taskGroupNetwork.SetNetwork(tg.Networks[0])
+	} else {
+		// white room bugfix: a group without a network kept the network
+		// mode and ports of the previous group placed with this stack.
+		s.taskGroupNetwork.SetNetwork(nil)
 	}
 	s.distinctHostsConstraint.SetTaskGroup(tg)
 	s.distinctPropertyConstraint.SetTaskGroup(tg)
@@ -372,6 +376,10 @@ func (s *SystemStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ran
 	s.taskGroupCSIVolumes.SetVolumes(options.AllocName, tg.Volumes)
 	if len(tg.Networks) > 0 {
 		s.taskGroupNetwork.SetNetwork(tg.Networks[0])
+	} else {
+		// white room bugfix: a group without a network kept the network
+		// mode and ports of the previous group placed with this stack.
+		s.taskGroupNetwork.SetNetwork(nil)
 	}
 	s.taskGroupNetPolicy.SetTaskGroup(tg)
 	s.wrappedChecks.SetTaskGroup(tg.Name)

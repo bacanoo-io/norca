@@ -151,7 +151,8 @@ func (c *multiregionCluster) simulateClients(region string, healthy bool) {
 			if err != nil {
 				continue
 			}
-			var updates []*structs.Allocation
+			// Each node updates only its own allocations.
+			updates := map[string][]*structs.Allocation{}
 			for raw := iter.Next(); raw != nil; raw = iter.Next() {
 				alloc := raw.(*structs.Allocation)
 				switch {
@@ -162,22 +163,21 @@ func (c *multiregionCluster) simulateClients(region string, healthy bool) {
 						Healthy:   pointer.Of(healthy),
 						Timestamp: time.Now(),
 					}
-					updates = append(updates, alloc)
+					updates[alloc.NodeID] = append(updates[alloc.NodeID], alloc)
 				case alloc.DesiredStatus != structs.AllocDesiredStatusRun && !alloc.ClientTerminalStatus():
 					alloc = alloc.Copy()
 					alloc.ClientStatus = structs.AllocClientStatusComplete
-					updates = append(updates, alloc)
+					updates[alloc.NodeID] = append(updates[alloc.NodeID], alloc)
 				}
 			}
-			if len(updates) == 0 {
-				continue
+			for _, nodeUpdates := range updates {
+				req := &structs.AllocUpdateRequest{
+					Alloc:        nodeUpdates,
+					WriteRequest: structs.WriteRequest{Region: region},
+				}
+				var resp structs.GenericResponse
+				_ = s.RPC("Node.UpdateAlloc", req, &resp)
 			}
-			req := &structs.AllocUpdateRequest{
-				Alloc:        updates,
-				WriteRequest: structs.WriteRequest{Region: region},
-			}
-			var resp structs.GenericResponse
-			_ = s.RPC("Node.UpdateAlloc", req, &resp)
 		}
 	}()
 }

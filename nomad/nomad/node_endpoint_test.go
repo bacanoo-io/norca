@@ -364,9 +364,12 @@ func TestClientEndpoint_Register_NodePool_Multiregion(t *testing.T) {
 
 	// Setup heartbeat for node in region-1.
 	go heartbeat(ctx, rpcClient(t, s1), &structs.NodeUpdateStatusRequest{
-		NodeID:       node1.ID,
-		Status:       structs.NodeStatusReady,
-		WriteRequest: structs.WriteRequest{Region: "region-1"},
+		NodeID: node1.ID,
+		Status: structs.NodeStatusReady,
+		WriteRequest: structs.WriteRequest{
+			Region:    "region-1",
+			AuthToken: node1.SecretID,
+		},
 	})
 
 	// Verify client becomes ready.
@@ -402,9 +405,12 @@ func TestClientEndpoint_Register_NodePool_Multiregion(t *testing.T) {
 
 	// Setup heartbeat for node in region-2.
 	go heartbeat(ctx, rpcClient(t, s2), &structs.NodeUpdateStatusRequest{
-		NodeID:       node2.ID,
-		Status:       structs.NodeStatusReady,
-		WriteRequest: structs.WriteRequest{Region: "region-2"},
+		NodeID: node2.ID,
+		Status: structs.NodeStatusReady,
+		WriteRequest: structs.WriteRequest{
+			Region:    "region-2",
+			AuthToken: node2.SecretID,
+		},
 	})
 
 	// Verify client is kept at the initializing status and has a node pool
@@ -3142,6 +3148,130 @@ func TestClientEndpoint_UpdateAlloc_NodeNotReady(t *testing.T) {
 	updatedAlloc.NodeID = node.ID
 	err = msgpackrpc.CallWithCodec(codec, "Node.UpdateAlloc", allocUpdateReq, &allocUpdateResp)
 	require.NoError(t, err)
+}
+
+// TestClientEndpoint_UpdateAlloc_OtherNode asserts that a node cannot update
+// the allocations of another node, whatever node it names in the request,
+// and with ACLs enabled only with its own secret ID.
+func TestClientEndpoint_UpdateAlloc_OtherNode(t *testing.T) {
+	ci.Parallel(t)
+
+	for _, aclEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("acl=%v", aclEnabled), func(t *testing.T) {
+			var s1 *Server
+			var root *structs.ACLToken
+			var cleanup func()
+			if aclEnabled {
+				s1, root, cleanup = TestACLServer(t, func(c *Config) { c.NumSchedulers = 0 })
+			} else {
+				s1, cleanup = TestServer(t, func(c *Config) { c.NumSchedulers = 0 })
+			}
+			defer cleanup()
+			codec := rpcClient(t, s1)
+			testutil.WaitForLeader(t, s1.RPC)
+			store := s1.fsm.State()
+
+			node1, node2 := mock.Node(), mock.Node()
+			must.NoError(t, store.UpsertNode(structs.MsgTypeTestSetup, 100, node1))
+			must.NoError(t, store.UpsertNode(structs.MsgTypeTestSetup, 101, node2))
+
+			job := mock.Job()
+			must.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, 102, nil, job))
+			alloc1, alloc2 := mock.Alloc(), mock.Alloc()
+			for _, a := range []*structs.Allocation{alloc1, alloc2} {
+				a.Job = job
+				a.JobID = job.ID
+				a.TaskGroup = job.TaskGroups[0].Name
+				a.ClientStatus = structs.AllocClientStatusRunning
+			}
+			alloc1.NodeID = node1.ID
+			alloc2.NodeID = node2.ID
+			must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, 103, []*structs.Allocation{alloc1, alloc2}))
+
+			update := func(a *structs.Allocation, nodeID string) *structs.Allocation {
+				return &structs.Allocation{
+					ID:           a.ID,
+					NodeID:       nodeID,
+					ClientStatus: structs.AllocClientStatusFailed,
+				}
+			}
+			call := func(token string, allocs ...*structs.Allocation) error {
+				req := &structs.AllocUpdateRequest{
+					Alloc:        allocs,
+					WriteRequest: structs.WriteRequest{Region: "global", AuthToken: token},
+				}
+				var resp structs.GenericResponse
+				return msgpackrpc.CallWithCodec(codec, "Node.UpdateAlloc", req, &resp)
+			}
+
+			// node1 hides the allocation of node2 behind one of its own,
+			// naming either itself or node2 for it.
+			err := call(node1.SecretID, update(alloc1, node1.ID), update(alloc2, node1.ID))
+			must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+			err = call(node1.SecretID, update(alloc1, node1.ID), update(alloc2, node2.ID))
+			must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+
+			if aclEnabled {
+				// The node must be the caller.
+				err = call("", update(alloc2, node2.ID))
+				must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+				err = call(node1.SecretID, update(alloc2, node2.ID))
+				must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+				err = call(root.SecretID, update(alloc2, node2.ID))
+				must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+			}
+
+			out, err := store.AllocByID(nil, alloc2.ID)
+			must.NoError(t, err)
+			must.Eq(t, structs.AllocClientStatusRunning, out.ClientStatus)
+
+			// The node updates its own allocations.
+			must.NoError(t, call(node2.SecretID, update(alloc2, node2.ID)))
+			out, err = store.AllocByID(nil, alloc2.ID)
+			must.NoError(t, err)
+			must.Eq(t, structs.AllocClientStatusFailed, out.ClientStatus)
+		})
+	}
+}
+
+// TestClientEndpoint_UpdateStatus_ACL asserts that with ACLs enabled a node
+// can only update its own status, and anything else needs node write.
+func TestClientEndpoint_UpdateStatus_ACL(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, root, cleanupS1 := TestACLServer(t, nil)
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+	store := s1.fsm.State()
+
+	node1, node2 := mock.Node(), mock.Node()
+	must.NoError(t, store.UpsertNode(structs.MsgTypeTestSetup, 100, node1))
+	must.NoError(t, store.UpsertNode(structs.MsgTypeTestSetup, 101, node2))
+	readToken := mock.CreatePolicyAndToken(t, store, 102, "node-read", mock.NodePolicy(acl.PolicyRead))
+
+	call := func(token string) error {
+		req := &structs.NodeUpdateStatusRequest{
+			NodeID:       node2.ID,
+			Status:       structs.NodeStatusDown,
+			WriteRequest: structs.WriteRequest{Region: "global", AuthToken: token},
+		}
+		var resp structs.NodeUpdateResponse
+		return msgpackrpc.CallWithCodec(codec, "Node.UpdateStatus", req, &resp)
+	}
+
+	must.ErrorContains(t, call(""), structs.ErrPermissionDenied.Error())
+	must.ErrorContains(t, call(node1.SecretID), structs.ErrPermissionDenied.Error())
+	must.ErrorContains(t, call(readToken.SecretID), structs.ErrPermissionDenied.Error())
+	out, err := store.NodeByID(nil, node2.ID)
+	must.NoError(t, err)
+	must.Eq(t, structs.NodeStatusReady, out.Status)
+
+	must.NoError(t, call(node2.SecretID))
+	must.NoError(t, call(root.SecretID))
+	out, err = store.NodeByID(nil, node2.ID)
+	must.NoError(t, err)
+	must.Eq(t, structs.NodeStatusDown, out.Status)
 }
 
 func TestClientEndpoint_BatchUpdate(t *testing.T) {
