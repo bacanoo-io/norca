@@ -4,6 +4,8 @@
 package volumewatcher
 
 import (
+	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -551,4 +553,87 @@ func TestVolumeWatch_RapidLeadershipChanges(t *testing.T) {
 	}
 	close(stopCh)
 	<-doneCh
+}
+
+// TestVolumeWatch_QueryErrorBackoff checks that a failing volumes query is
+// retried after the retry interval with the last-seen index, instead of at
+// once with index 0 (a non-blocking query that spins), and that the loop
+// stops during the wait when its context is cancelled.
+func TestVolumeWatch_QueryErrorBackoff(t *testing.T) {
+	ci.Parallel(t)
+
+	watcher := NewVolumesWatcher(testlog.HCLogger(t), &MockRPCServer{}, "")
+	watcher.retryInterval = 50 * time.Millisecond
+
+	type call struct {
+		at       time.Time
+		minIndex uint64
+	}
+	var l sync.Mutex
+	var calls []call
+	failures := make(chan struct{})
+	watcher.queryVolumes = func(ctx context.Context, _ *state.StateStore, minIndex uint64) ([]*structs.CSIVolume, uint64, error) {
+		l.Lock()
+		calls = append(calls, call{time.Now(), minIndex})
+		n := len(calls)
+		l.Unlock()
+		switch {
+		case n == 1:
+			return nil, 42, nil // a first successful query
+		case n <= 4:
+			return nil, 0, errors.New("state store unavailable")
+		case n == 5:
+			close(failures)
+		}
+		<-ctx.Done()
+		return nil, 0, ctx.Err()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		watcher.watchVolumes(ctx, nil)
+		close(done)
+	}()
+
+	select {
+	case <-failures:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the query was not retried")
+	}
+	l.Lock()
+	got := append([]call(nil), calls...)
+	l.Unlock()
+	must.Len(t, 5, got)
+	for i := 2; i < len(got); i++ {
+		must.Eq(t, uint64(42), got[i].minIndex, must.Sprintf("call %d", i+1))
+		must.GreaterEq(t, watcher.retryInterval, got[i].at.Sub(got[i-1].at), must.Sprintf("call %d", i+1))
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the loop did not stop")
+	}
+
+	// A cancellation during the wait stops the loop at once.
+	watcher.retryInterval = time.Hour
+	calls = nil
+	watcher.queryVolumes = func(context.Context, *state.StateStore, uint64) ([]*structs.CSIVolume, uint64, error) {
+		return nil, 0, errors.New("state store unavailable")
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	done = make(chan struct{})
+	go func() {
+		watcher.watchVolumes(ctx, nil)
+		close(done)
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the loop did not stop during the wait")
+	}
 }

@@ -47,6 +47,11 @@ type Watcher struct {
 	// before stopping the child watcher goroutines
 	quiescentTimeout time.Duration
 
+	// queryVolumes is the blocking query of the volumes (getVolumes), and
+	// retryInterval the wait after it failed; tests replace them.
+	queryVolumes  func(ctx context.Context, state *state.StateStore, minIndex uint64) ([]*structs.CSIVolume, uint64, error)
+	retryInterval time.Duration
+
 	wlock sync.RWMutex
 }
 
@@ -61,14 +66,17 @@ func NewVolumesWatcher(logger log.Logger, rpc CSIVolumeRPC, leaderAcl string) *W
 	// context
 	ctx, exitFn := context.WithCancel(context.Background())
 
-	return &Watcher{
+	w := &Watcher{
 		rpc:              rpc,
 		logger:           logger.Named("volumes_watcher"),
 		ctx:              ctx,
 		exitFn:           exitFn,
 		leaderAcl:        leaderAcl,
 		quiescentTimeout: defaultQuiescentTimeout,
+		retryInterval:    getVolumesRetryInterval,
 	}
+	w.queryVolumes = w.getVolumes
+	return w
 }
 
 // SetEnabled is used to control if the watcher is enabled. The
@@ -121,7 +129,7 @@ const getVolumesRetryInterval = time.Second
 func (w *Watcher) watchVolumes(ctx context.Context, state *state.StateStore) {
 	vIndex := uint64(1)
 	for {
-		volumes, idx, err := w.getVolumes(ctx, state, vIndex)
+		volumes, idx, err := w.queryVolumes(ctx, state, vIndex)
 		if err != nil {
 			if err == context.Canceled {
 				return
@@ -132,7 +140,7 @@ func (w *Watcher) watchVolumes(ctx context.Context, state *state.StateStore) {
 			// reset the index to 0, which makes the next query
 			// non-blocking, so a persistent error spun the CPU and
 			// flooded the log. Wait and keep the last-seen index
-			timer, stop := helper.NewSafeTimer(getVolumesRetryInterval)
+			timer, stop := helper.NewSafeTimer(w.retryInterval)
 			select {
 			case <-ctx.Done():
 				stop()
