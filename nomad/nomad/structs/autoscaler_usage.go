@@ -6,10 +6,13 @@ package structs
 import "time"
 
 // TaskGroupUsageReport is the resource usage of the task groups running on a
-// client node, aggregated by the client over one window. Clients attach it
-// to Node.UpdateAlloc when the servers ask for it (see
-// NodeUpdateResponse.TaskGroupUsageInterval). The leader keeps it in memory
-// for the built-in autoscaler; it is never written to Raft.
+// client node, aggregated by the client over one window. Clients publish it
+// as JSON on their telemetry subject of the system bus (BusTelemetrySubject)
+// when the servers ask for it (see NodeUpdateResponse.TaskGroupUsageInterval),
+// split into several reports of the same window when it would exceed
+// BusTelemetryMaxMsgSize. Every server reads them from the telemetry stream;
+// the leader keeps them in memory for the built-in autoscaler. They are
+// never written to Raft.
 type TaskGroupUsageReport struct {
 	// NodeID is the reporting node.
 	NodeID string

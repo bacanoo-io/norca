@@ -253061,9 +253061,9 @@ func (x *ApplyPlanResultsRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(19)
+				r.WriteArrayStart(18)
 			} else {
-				r.WriteMapStart(19)
+				r.WriteMapStart(18)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -253209,42 +253209,6 @@ func (x *ApplyPlanResultsRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 					}
 				}
 			}
-			var yyn18 bool
-			if x.AllocUpdateRequest.TaskGroupUsage == nil {
-				yyn18 = true
-				goto LABEL18
-			}
-		LABEL18:
-			if yyr2 || yy2arr2 {
-				if yyn18 {
-					r.WriteArrayElem()
-					r.EncodeNil()
-				} else {
-					r.WriteArrayElem()
-					if x.TaskGroupUsage == nil {
-						r.EncodeNil()
-					} else {
-						x.TaskGroupUsage.CodecEncodeSelf(e)
-					}
-				}
-			} else {
-				r.WriteMapElemKey()
-				if z.IsJSONHandle() {
-					z.WriteStr("\"TaskGroupUsage\"")
-				} else {
-					r.EncodeStringEnc(codecSelferCcUTF8100, `TaskGroupUsage`)
-				}
-				r.WriteMapElemValue()
-				if yyn18 {
-					r.EncodeNil()
-				} else {
-					if x.TaskGroupUsage == nil {
-						r.EncodeNil()
-					} else {
-						x.TaskGroupUsage.CodecEncodeSelf(e)
-					}
-				}
-			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
 				if false {
@@ -253372,14 +253336,14 @@ func (x *ApplyPlanResultsRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 					r.EncodeBool(bool(x.Forwarded))
 				}
 			}
-			var yyn36 bool
+			var yyn33 bool
 			if x.Deployment == nil {
-				yyn36 = true
-				goto LABEL36
+				yyn33 = true
+				goto LABEL33
 			}
-		LABEL36:
+		LABEL33:
 			if yyr2 || yy2arr2 {
-				if yyn36 {
+				if yyn33 {
 					r.WriteArrayElem()
 					r.EncodeNil()
 				} else {
@@ -253398,7 +253362,7 @@ func (x *ApplyPlanResultsRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 					r.EncodeStringEnc(codecSelferCcUTF8100, `Deployment`)
 				}
 				r.WriteMapElemValue()
-				if yyn36 {
+				if yyn33 {
 					r.EncodeNil()
 				} else {
 					if x.Deployment == nil {
@@ -253694,18 +253658,6 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromMap(l int, d *codec1978.Dec
 
 				x.Job.CodecDecodeSelf(d)
 			}
-		case "TaskGroupUsage":
-			if r.TryDecodeAsNil() {
-				if true && x.AllocUpdateRequest.TaskGroupUsage != nil {
-					x.AllocUpdateRequest.TaskGroupUsage = nil
-				}
-			} else {
-				if x.AllocUpdateRequest.TaskGroupUsage == nil {
-					x.AllocUpdateRequest.TaskGroupUsage = new(TaskGroupUsageReport)
-				}
-
-				x.TaskGroupUsage.CodecDecodeSelf(d)
-			}
 		case "Region":
 			if r.TryDecodeAsNil() {
 				x.AllocUpdateRequest.WriteRequest.Region = ""
@@ -253816,16 +253768,16 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj32 int
-	var yyb32 bool
-	var yyhl32 bool = l >= 0
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	var yyj31 int
+	var yyb31 bool
+	var yyhl31 bool = l >= 0
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -253838,13 +253790,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 			h.decSlicePtrtoAllocation((*[]*Allocation)(&x.Alloc), d)
 		}
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -253857,13 +253809,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 			h.decSlicePtrtoAllocationDiff((*[]*AllocationDiff)(&x.AllocsStopped), d)
 		}
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -253876,13 +253828,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 			h.decSlicePtrtoAllocation((*[]*Allocation)(&x.AllocsUpdated), d)
 		}
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -253895,13 +253847,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 			h.decSlicePtrtoEvaluation((*[]*Evaluation)(&x.Evals), d)
 		}
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -253917,35 +253869,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 
 		x.Job.CodecDecodeSelf(d)
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
-		r.ReadArrayEnd()
-		return
-	}
-	r.ReadArrayElem()
-	if r.TryDecodeAsNil() {
-		if true && x.AllocUpdateRequest.TaskGroupUsage != nil {
-			x.AllocUpdateRequest.TaskGroupUsage = nil
-		}
-	} else {
-		if x.AllocUpdateRequest.TaskGroupUsage == nil {
-			x.AllocUpdateRequest.TaskGroupUsage = new(TaskGroupUsageReport)
-		}
-
-		x.TaskGroupUsage.CodecDecodeSelf(d)
-	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
-	} else {
-		yyb32 = r.CheckBreak()
-	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -253955,13 +253885,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 	} else {
 		x.Region = (string)(r.DecodeString())
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -253971,13 +253901,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -253987,13 +253917,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 	} else {
 		x.AuthToken = (string)(r.DecodeString())
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254003,13 +253933,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 	} else {
 		x.IdempotencyToken = (string)(r.DecodeString())
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254019,13 +253949,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 	} else {
 		x.Forwarded = (bool)(r.DecodeBool())
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254041,13 +253971,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 
 		x.Deployment.CodecDecodeSelf(d)
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254060,13 +253990,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 			h.decSlicePtrtoDeploymentStatusUpdate((*[]*DeploymentStatusUpdate)(&x.DeploymentUpdates), d)
 		}
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254076,13 +254006,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 	} else {
 		x.EvalID = (string)(r.DecodeString())
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254095,13 +254025,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 			h.decSlicePtrtoAllocation((*[]*Allocation)(&x.NodePreemptions), d)
 		}
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254114,13 +254044,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 			h.decSlicePtrtoAllocationDiff((*[]*AllocationDiff)(&x.AllocsPreempted), d)
 		}
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254133,13 +254063,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 			h.decSlicePtrtoEvaluation((*[]*Evaluation)(&x.PreemptionEvals), d)
 		}
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254152,13 +254082,13 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 			z.F.DecSliceStringX(&x.IneligibleNodes, d)
 		}
 	}
-	yyj32++
-	if yyhl32 {
-		yyb32 = yyj32 > l
+	yyj31++
+	if yyhl31 {
+		yyb31 = yyj31 > l
 	} else {
-		yyb32 = r.CheckBreak()
+		yyb31 = r.CheckBreak()
 	}
-	if yyb32 {
+	if yyb31 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254169,17 +254099,17 @@ func (x *ApplyPlanResultsRequest) codecDecodeSelfFromArray(l int, d *codec1978.D
 		x.UpdatedAt = (int64)(r.DecodeInt64())
 	}
 	for {
-		yyj32++
-		if yyhl32 {
-			yyb32 = yyj32 > l
+		yyj31++
+		if yyhl31 {
+			yyb31 = yyj31 > l
 		} else {
-			yyb32 = r.CheckBreak()
+			yyb31 = r.CheckBreak()
 		}
-		if yyb32 {
+		if yyb31 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj32-1, "")
+		z.DecStructFieldNotFound(yyj31-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -254200,9 +254130,9 @@ func (x *AllocUpdateRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(11)
+				r.WriteArrayStart(10)
 			} else {
-				r.WriteMapStart(11)
+				r.WriteMapStart(10)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -254345,42 +254275,6 @@ func (x *AllocUpdateRequest) CodecEncodeSelf(e *codec1978.Encoder) {
 						r.EncodeNil()
 					} else {
 						x.Job.CodecEncodeSelf(e)
-					}
-				}
-			}
-			var yyn18 bool
-			if x.TaskGroupUsage == nil {
-				yyn18 = true
-				goto LABEL18
-			}
-		LABEL18:
-			if yyr2 || yy2arr2 {
-				if yyn18 {
-					r.WriteArrayElem()
-					r.EncodeNil()
-				} else {
-					r.WriteArrayElem()
-					if x.TaskGroupUsage == nil {
-						r.EncodeNil()
-					} else {
-						x.TaskGroupUsage.CodecEncodeSelf(e)
-					}
-				}
-			} else {
-				r.WriteMapElemKey()
-				if z.IsJSONHandle() {
-					z.WriteStr("\"TaskGroupUsage\"")
-				} else {
-					r.EncodeStringEnc(codecSelferCcUTF8100, `TaskGroupUsage`)
-				}
-				r.WriteMapElemValue()
-				if yyn18 {
-					r.EncodeNil()
-				} else {
-					if x.TaskGroupUsage == nil {
-						r.EncodeNil()
-					} else {
-						x.TaskGroupUsage.CodecEncodeSelf(e)
 					}
 				}
 			}
@@ -254616,18 +254510,6 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromMap(l int, d *codec1978.Decoder)
 
 				x.Job.CodecDecodeSelf(d)
 			}
-		case "TaskGroupUsage":
-			if r.TryDecodeAsNil() {
-				if true && x.TaskGroupUsage != nil {
-					x.TaskGroupUsage = nil
-				}
-			} else {
-				if x.TaskGroupUsage == nil {
-					x.TaskGroupUsage = new(TaskGroupUsageReport)
-				}
-
-				x.TaskGroupUsage.CodecDecodeSelf(d)
-			}
 		case "Region":
 			if r.TryDecodeAsNil() {
 				x.WriteRequest.Region = ""
@@ -254669,16 +254551,16 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj19 int
-	var yyb19 bool
-	var yyhl19 bool = l >= 0
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	var yyj18 int
+	var yyb18 bool
+	var yyhl18 bool = l >= 0
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254691,13 +254573,13 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 			h.decSlicePtrtoAllocation((*[]*Allocation)(&x.Alloc), d)
 		}
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254710,13 +254592,13 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 			h.decSlicePtrtoAllocationDiff((*[]*AllocationDiff)(&x.AllocsStopped), d)
 		}
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254729,13 +254611,13 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 			h.decSlicePtrtoAllocation((*[]*Allocation)(&x.AllocsUpdated), d)
 		}
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254748,13 +254630,13 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 			h.decSlicePtrtoEvaluation((*[]*Evaluation)(&x.Evals), d)
 		}
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254770,35 +254652,13 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 
 		x.Job.CodecDecodeSelf(d)
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
-		r.ReadArrayEnd()
-		return
-	}
-	r.ReadArrayElem()
-	if r.TryDecodeAsNil() {
-		if true && x.TaskGroupUsage != nil {
-			x.TaskGroupUsage = nil
-		}
-	} else {
-		if x.TaskGroupUsage == nil {
-			x.TaskGroupUsage = new(TaskGroupUsageReport)
-		}
-
-		x.TaskGroupUsage.CodecDecodeSelf(d)
-	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
-	} else {
-		yyb19 = r.CheckBreak()
-	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254808,13 +254668,13 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Region = (string)(r.DecodeString())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254824,13 +254684,13 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254840,13 +254700,13 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.AuthToken = (string)(r.DecodeString())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254856,13 +254716,13 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 	} else {
 		x.IdempotencyToken = (string)(r.DecodeString())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -254873,17 +254733,17 @@ func (x *AllocUpdateRequest) codecDecodeSelfFromArray(l int, d *codec1978.Decode
 		x.Forwarded = (bool)(r.DecodeBool())
 	}
 	for {
-		yyj19++
-		if yyhl19 {
-			yyb19 = yyj19 > l
+		yyj18++
+		if yyhl18 {
+			yyb18 = yyj18 > l
 		} else {
-			yyb19 = r.CheckBreak()
+			yyb18 = r.CheckBreak()
 		}
-		if yyb19 {
+		if yyb18 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj19-1, "")
+		z.DecStructFieldNotFound(yyj18-1, "")
 	}
 	r.ReadArrayEnd()
 }

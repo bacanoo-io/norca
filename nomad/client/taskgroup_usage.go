@@ -4,6 +4,7 @@
 package client
 
 import (
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -13,12 +14,11 @@ import (
 
 // taskGroupUsageReporter aggregates the resource usage of the client's task
 // groups for the built-in autoscaler of the servers, and holds the finished
-// report until allocSync sends it with the next Node.UpdateAlloc.
+// report until it is published on the system bus.
 //
 // The servers enable it through the heartbeat response
-// (NodeUpdateResponse.TaskGroupUsageInterval). While the interval is zero,
-// nothing is collected or sent, so clients talking to old servers or to a
-// cluster without the built-in autoscaler behave as before.
+// (NodeUpdateResponse.TaskGroupUsageInterval). While the interval is zero
+// (no built-in autoscaler, or no system bus), nothing is collected or sent.
 type taskGroupUsageReporter struct {
 	agg *allocrunner.TaskGroupUsageAggregator
 
@@ -59,7 +59,7 @@ func (r *taskGroupUsageReporter) getInterval() time.Duration {
 }
 
 // windowDone closes the current window if it has elapsed, and stores its
-// report for allocSync. A report that was not sent yet is replaced: only
+// report for publishing. A report that was not sent yet is replaced: only
 // the latest window is worth sending.
 func (r *taskGroupUsageReporter) windowDone(nodeID string, now time.Time) {
 	r.l.Lock()
@@ -131,7 +131,77 @@ func (c *Client) collectTaskGroupUsage() {
 			c.taskGroupUsage.agg.Observe(ar.Alloc(), usage)
 		}
 		c.taskGroupUsage.windowDone(c.NodeID(), time.Now())
+		if report := c.taskGroupUsage.take(); report != nil {
+			if err := c.publishTaskGroupUsage(report); err != nil {
+				// The report is dropped; the next window brings a new one.
+				c.logger.Debug("error publishing task group usage", "error", err)
+			}
+		}
 
 		timer.Reset(sampleInterval)
 	}
+}
+
+// publishTaskGroupUsage publishes a usage report on the telemetry subject
+// of the node, split into reports of the same window that each fit into a
+// message of the telemetry stream.
+func (c *Client) publishTaskGroupUsage(report *structs.TaskGroupUsageReport) error {
+	nc, err := c.BusConn()
+	if err != nil {
+		return err
+	}
+	subject := structs.BusTelemetrySubject(c.Region(), c.NodeID())
+	msgs, err := splitTaskGroupUsage(report, structs.BusTelemetryMaxMsgSize)
+	if err != nil {
+		return err
+	}
+	for _, msg := range msgs {
+		if err := nc.Publish(subject, msg); err != nil {
+			return err
+		}
+	}
+	return nc.FlushTimeout(5 * time.Second)
+}
+
+// splitTaskGroupUsage encodes a report as JSON messages of at most limit
+// bytes, each with a part of the groups.
+func splitTaskGroupUsage(report *structs.TaskGroupUsageReport, limit int) ([][]byte, error) {
+	var msgs [][]byte
+	part := &structs.TaskGroupUsageReport{NodeID: report.NodeID, Window: report.Window}
+	flush := func() error {
+		if len(part.Groups) == 0 {
+			return nil
+		}
+		b, err := json.Marshal(part)
+		if err != nil {
+			return err
+		}
+		msgs = append(msgs, b)
+		part = &structs.TaskGroupUsageReport{NodeID: report.NodeID, Window: report.Window}
+		return nil
+	}
+	// The report without groups, and a margin for the separators.
+	base, err := json.Marshal(part)
+	if err != nil {
+		return nil, err
+	}
+	size := len(base)
+	for _, g := range report.Groups {
+		b, err := json.Marshal(g)
+		if err != nil {
+			return nil, err
+		}
+		if len(part.Groups) > 0 && size+len(b)+1 > limit {
+			if err := flush(); err != nil {
+				return nil, err
+			}
+			size = len(base)
+		}
+		part.Groups = append(part.Groups, g)
+		size += len(b) + 1
+	}
+	if err := flush(); err != nil {
+		return nil, err
+	}
+	return msgs, nil
 }

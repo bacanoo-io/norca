@@ -4,6 +4,7 @@
 package nomad
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -17,9 +18,11 @@ import (
 	"github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/autoscaler"
+	"github.com/hashicorp/nomad/nomad/bus"
 	"github.com/hashicorp/nomad/nomad/mock"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/testutil"
+	"github.com/nats-io/nats.go"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
@@ -68,7 +71,7 @@ func (s *statsCallSink) statsCalls() []string {
 
 // TestAutoscaler_BuiltinMetricFromClients runs a server with the built-in
 // autoscaler and a client with the mock driver. A policy on nomad.cpu is
-// evaluated from the usage the client pushes with Node.UpdateAlloc, without
+// evaluated from the usage the client publishes on the system bus, without
 // any allocation stats RPC.
 func TestAutoscaler_BuiltinMetricFromClients(t *testing.T) {
 	// Not parallel: the test replaces the global metrics sink.
@@ -82,6 +85,7 @@ func TestAutoscaler_BuiltinMetricFromClients(t *testing.T) {
 
 	const window = 3 * time.Second
 	s, cleanupS := TestServer(t, func(c *Config) {
+		enableBus(t)(c)
 		c.Autoscaler = autoscaler.DefaultConfig()
 		c.Autoscaler.Enabled = true
 		c.Autoscaler.DefaultEngine = structs.ScalingPolicyEngineBuiltin
@@ -182,12 +186,14 @@ func TestAutoscaler_BuiltinMetricFromClients(t *testing.T) {
 	must.SliceEmpty(t, sink.statsCalls())
 }
 
-// TestNodeEndpoint_UpdateAlloc_TaskGroupUsage checks the heartbeat setting
-// and usage only Node.UpdateAlloc requests.
-func TestNodeEndpoint_UpdateAlloc_TaskGroupUsage(t *testing.T) {
+// TestBusTelemetry_TaskGroupUsage checks the heartbeat setting and the usage
+// reports on the system bus: kept by the leader's collector, and only from
+// the node of the subject.
+func TestBusTelemetry_TaskGroupUsage(t *testing.T) {
 	ci.Parallel(t)
 
 	s, cleanupS := TestServer(t, func(c *Config) {
+		enableBus(t)(c)
 		c.Autoscaler = autoscaler.DefaultConfig()
 		c.Autoscaler.Enabled = true
 		c.Autoscaler.ClientMetricsInterval = 5 * time.Second
@@ -205,35 +211,38 @@ func TestNodeEndpoint_UpdateAlloc_TaskGroupUsage(t *testing.T) {
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.Register", reg, &regResp))
 	must.Eq(t, 5*time.Second, regResp.TaskGroupUsageInterval)
 
-	report := &structs.TaskGroupUsageReport{
-		NodeID: node.ID,
-		Window: 5 * time.Second,
-		Groups: []*structs.TaskGroupUsage{{
-			Namespace: structs.DefaultNamespace, JobID: "api", TaskGroup: "web", Allocs: 1, Samples: 5,
-		}},
+	// The leader creates the telemetry stream.
+	js := busJS(t, s)
+	waitBus(t, func() (bool, error) {
+		_, err := js.Stream(t.Context(), bus.TelemetryStreamName("global"))
+		return err == nil, err
+	})
+
+	nc, err := nats.Connect(busURL(s), nats.UserInfo(node.ID, node.SecretID))
+	must.NoError(t, err)
+	defer nc.Close()
+	publish := func(report *structs.TaskGroupUsageReport) {
+		b, err := json.Marshal(report)
+		must.NoError(t, err)
+		must.NoError(t, nc.Publish(structs.BusTelemetrySubject("global", node.ID), b))
+		must.NoError(t, nc.Flush())
+	}
+	group := func(job string) []*structs.TaskGroupUsage {
+		return []*structs.TaskGroupUsage{{
+			Namespace: structs.DefaultNamespace, JobID: job, TaskGroup: "web", Allocs: 1, Samples: 5,
+		}}
 	}
 
-	// A usage report signed with another secret is ignored.
-	req := &structs.AllocUpdateRequest{
-		TaskGroupUsage: report,
-		WriteRequest:   structs.WriteRequest{Region: "global", AuthToken: uuid.Generate()},
-	}
-	var resp structs.GenericResponse
-	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.UpdateAlloc", req, &resp))
-	must.Eq(t, 0, s.autoscalerUsageGroupsForTest())
+	// A report naming another node on the subject of this one is ignored.
+	publish(&structs.TaskGroupUsageReport{NodeID: uuid.Generate(), Window: 5 * time.Second, Groups: group("spoofed")})
 
-	// The node may send usage without allocation updates. It is kept in
-	// memory, not written to Raft.
-	index := s.raft.LastIndex()
-	req.AuthToken = node.SecretID
-	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.UpdateAlloc", req, &resp))
-	must.Eq(t, 1, s.autoscalerUsageGroupsForTest())
-	must.Eq(t, index, s.raft.LastIndex())
-
-	// Requests without usage still need allocations.
-	req.TaskGroupUsage = nil
-	must.ErrorContains(t, msgpackrpc.CallWithCodec(codec, "Node.UpdateAlloc", req, &resp),
-		"must update at least one allocation")
+	// The leader's collector keeps the usage of the node.
+	publish(&structs.TaskGroupUsageReport{NodeID: node.ID, Window: 5 * time.Second, Groups: group("api")})
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool { return s.autoscalerUsageGroupsForTest() == 1 }),
+		wait.Timeout(30*time.Second),
+		wait.Gap(100*time.Millisecond),
+	))
 
 	// With the autoscaler disabled clients are not asked for usage.
 	cfg := autoscaler.DefaultConfig()
@@ -246,6 +255,27 @@ func TestNodeEndpoint_UpdateAlloc_TaskGroupUsage(t *testing.T) {
 	var hbResp structs.NodeUpdateResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.UpdateStatus", hb, &hbResp))
 	must.Eq(t, time.Duration(0), hbResp.TaskGroupUsageInterval)
+}
+
+// TestBusTelemetry_NoBus checks that without the system bus the clients are
+// not asked for usage: the reports travel on the bus only.
+func TestBusTelemetry_NoBus(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanupS := TestServer(t, func(c *Config) {
+		c.Autoscaler = autoscaler.DefaultConfig()
+		c.Autoscaler.Enabled = true
+		c.Autoscaler.ClientMetricsInterval = 5 * time.Second
+	})
+	defer cleanupS()
+	testutil.WaitForLeader(t, s.RPC)
+
+	var regResp structs.NodeUpdateResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(rpcClient(t, s), "Node.Register", &structs.NodeRegisterRequest{
+		Node:         mock.Node(),
+		WriteRequest: structs.WriteRequest{Region: "global"},
+	}, &regResp))
+	must.Eq(t, time.Duration(0), regResp.TaskGroupUsageInterval)
 }
 
 // autoscalerUsageGroupsForTest returns the number of task groups in the

@@ -4,12 +4,15 @@
 package client
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/nomad/ci"
 	cstructs "github.com/hashicorp/nomad/client/structs"
 	"github.com/hashicorp/nomad/nomad/mock"
+	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 )
 
@@ -66,4 +69,40 @@ func allocrunnerFakeUsage() *cstructs.AllocResourceUsage {
 		},
 		Timestamp: 1,
 	}
+}
+
+// TestSplitTaskGroupUsage checks that a report too large for one message of
+// the telemetry stream is split into reports of the same window.
+func TestSplitTaskGroupUsage(t *testing.T) {
+	report := &structs.TaskGroupUsageReport{NodeID: "node", Window: 10 * time.Second}
+	for i := 0; i < 100; i++ {
+		report.Groups = append(report.Groups, &structs.TaskGroupUsage{
+			Namespace: "default", JobID: fmt.Sprintf("job-%03d", i), TaskGroup: "web", Allocs: 1, Samples: 5,
+		})
+	}
+
+	msgs, err := splitTaskGroupUsage(report, 1<<20)
+	must.NoError(t, err)
+	must.Len(t, 1, msgs)
+
+	msgs, err = splitTaskGroupUsage(report, 2048)
+	must.NoError(t, err)
+	must.Greater(t, 1, len(msgs))
+	var groups []string
+	for _, m := range msgs {
+		must.LessEq(t, 2048, len(m))
+		var part structs.TaskGroupUsageReport
+		must.NoError(t, json.Unmarshal(m, &part))
+		must.Eq(t, "node", part.NodeID)
+		must.Eq(t, 10*time.Second, part.Window)
+		for _, g := range part.Groups {
+			groups = append(groups, g.JobID)
+		}
+	}
+	must.Len(t, 100, groups)
+	must.Eq(t, "job-099", groups[99])
+
+	msgs, err = splitTaskGroupUsage(&structs.TaskGroupUsageReport{NodeID: "node"}, 2048)
+	must.NoError(t, err)
+	must.SliceEmpty(t, msgs)
 }

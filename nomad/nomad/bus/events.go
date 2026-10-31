@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -71,16 +72,7 @@ type Event struct {
 
 // SubjectToken replaces the characters a subject token can't contain.
 func SubjectToken(s string) string {
-	if s == "" {
-		return "_"
-	}
-	return strings.Map(func(r rune) rune {
-		switch r {
-		case '.', '*', '>', ' ', '\t', '\r', '\n':
-			return '_'
-		}
-		return r
-	}, s)
+	return structs.BusSubjectToken(s)
 }
 
 // ValidSubjectPrefix checks a subject prefix: tokens separated by dots.
@@ -104,7 +96,19 @@ func EventSubject(prefix, region, namespace, topic string) string {
 
 // EventStreamName is the name of the event stream of a region.
 func EventStreamName(region string) string {
-	return "NORCA_EVENTS_" + strings.Map(func(r rune) rune {
+	return regionStreamName("NORCA_EVENTS_", region)
+}
+
+// TelemetryStreamName is the name of the stream of the task group usage
+// reports of the clients of a region.
+func TelemetryStreamName(region string) string {
+	return regionStreamName("NORCA_TELEMETRY_", region)
+}
+
+// regionStreamName is prefix followed by the region, with the characters a
+// stream name can't contain replaced.
+func regionStreamName(prefix, region string) string {
+	return prefix + strings.Map(func(r rune) rune {
 		switch {
 		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
 			return r

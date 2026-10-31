@@ -1212,11 +1212,6 @@ type AllocUpdateRequest struct {
 	// It is pulled out since it is common to reduce payload size.
 	Job *Job
 
-	// TaskGroupUsage is the resource usage of the client's task groups,
-	// optionally attached by clients for the built-in autoscaler. It is
-	// handed to the leader's in-memory collector and never written to Raft.
-	TaskGroupUsage *TaskGroupUsageReport
-
 	WriteRequest
 }
 
