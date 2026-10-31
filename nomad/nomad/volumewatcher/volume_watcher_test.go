@@ -4,7 +4,6 @@
 package volumewatcher
 
 import (
-	"context"
 	"testing"
 
 	"github.com/hashicorp/nomad/ci"
@@ -31,13 +30,10 @@ func TestVolumeWatch_Reap(t *testing.T) {
 	vol := testVolume(plugin, alloc, node.ID)
 	vol.PastClaims = vol.ReadClaims
 
-	ctx, exitFn := context.WithCancel(context.Background())
 	w := &volumeWatcher{
 		v:      vol,
 		rpc:    srv,
 		state:  srv.State(),
-		ctx:    ctx,
-		exitFn: exitFn,
 		logger: testlog.HCLogger(t),
 	}
 
@@ -99,13 +95,10 @@ func TestVolumeReapBadState(t *testing.T) {
 	require.NoError(t, err)
 	srv.state.CSIVolumeDenormalize(nil, vol)
 
-	ctx, exitFn := context.WithCancel(context.Background())
 	w := &volumeWatcher{
 		v:      vol,
 		rpc:    srv,
 		state:  srv.State(),
-		ctx:    ctx,
-		exitFn: exitFn,
 		logger: testlog.HCLogger(t),
 	}
 

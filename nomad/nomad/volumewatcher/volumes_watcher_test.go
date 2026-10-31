@@ -4,6 +4,7 @@
 package volumewatcher
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -323,4 +324,231 @@ func TestVolumeWatch_RegisterDeregister(t *testing.T) {
 		defer watcher.wlock.RUnlock()
 		return 0 == len(watcher.watchers)
 	}, time.Second, 10*time.Millisecond)
+}
+
+// blockingRPCServer blocks the first Unpublish RPC until release is
+// closed, to simulate a slow client RPC
+type blockingRPCServer struct {
+	MockRPCServer
+	once    sync.Once
+	entered chan struct{}
+	release chan struct{}
+}
+
+func newBlockingRPCServer(t *testing.T) *blockingRPCServer {
+	srv := &blockingRPCServer{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	srv.state = state.TestStateStore(t)
+	return srv
+}
+
+func (srv *blockingRPCServer) Unpublish(args *structs.CSIVolumeUnpublishRequest, reply *structs.CSIVolumeUnpublishResponse) error {
+	first := false
+	srv.once.Do(func() { first = true })
+	if first {
+		close(srv.entered)
+		<-srv.release
+	}
+	return srv.MockRPCServer.Unpublish(args, reply)
+}
+
+// upsertVolumeWithPastClaim registers a volume claimed by an allocation
+// that doesn't exist, so the volume watcher has a claim to unpublish
+func upsertVolumeWithPastClaim(t *testing.T, s *state.StateStore, index uint64) *structs.CSIVolume {
+	plugin := mock.CSIPlugin()
+	node := testNode(plugin, s)
+	vol := testVolume(plugin, mock.Alloc(), node.ID)
+	must.NoError(t, s.UpsertCSIVolume(index, []*structs.CSIVolume{vol}))
+	return vol
+}
+
+// TestVolumeWatch_NotifyDuringSlowRPC asserts that updates for a volume
+// whose watcher is stuck in an Unpublish RPC don't block the volumes
+// watcher (which holds its lock while notifying) or the leader step-down
+func TestVolumeWatch_NotifyDuringSlowRPC(t *testing.T) {
+	ci.Parallel(t)
+
+	srv := newBlockingRPCServer(t)
+	t.Cleanup(func() { close(srv.release) })
+
+	watcher := NewVolumesWatcher(testlog.HCLogger(t), srv, "")
+	watcher.quiescentTimeout = time.Hour
+	vol := upsertVolumeWithPastClaim(t, srv.State(), 100)
+	watcher.SetEnabled(true, srv.State(), "")
+
+	select {
+	case <-srv.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("watcher never called Unpublish")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 3; i++ {
+			must.NoError(t, watcher.add(vol))
+		}
+		watcher.SetEnabled(false, nil, "")
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("volume update or step-down blocked behind an in-flight Unpublish RPC")
+	}
+}
+
+// TestVolumeWatch_StaleWatcherAfterLeadershipChange asserts that a
+// watcher from a previous leadership term that finishes late doesn't
+// remove the watcher of the current term for the same volume
+func TestVolumeWatch_StaleWatcherAfterLeadershipChange(t *testing.T) {
+	ci.Parallel(t)
+
+	srv := newBlockingRPCServer(t)
+	watcher := NewVolumesWatcher(testlog.HCLogger(t), srv, "")
+	watcher.quiescentTimeout = time.Hour
+	upsertVolumeWithPastClaim(t, srv.State(), 100)
+	watcher.SetEnabled(true, srv.State(), "")
+
+	select {
+	case <-srv.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("watcher never called Unpublish")
+	}
+
+	// step down while the old watcher is in the RPC, then step up again
+	watcher.SetEnabled(false, nil, "")
+	watcher.SetEnabled(true, srv.State(), "")
+	t.Cleanup(func() { watcher.SetEnabled(false, nil, "") })
+
+	numWatchers := func() int {
+		watcher.wlock.RLock()
+		defer watcher.wlock.RUnlock()
+		return len(watcher.watchers)
+	}
+	require.Eventually(t, func() bool {
+		return numWatchers() == 1 && srv.countCSIUnpublish.Load() == 1
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// let the old watcher's RPC finish; it must exit without touching
+	// the new term's watchers
+	close(srv.release)
+	require.Eventually(t, func() bool {
+		return srv.countCSIUnpublish.Load() == 2
+	}, 5*time.Second, 10*time.Millisecond)
+	require.Never(t, func() bool { return numWatchers() != 1 },
+		500*time.Millisecond, 10*time.Millisecond,
+		"old watcher removed the new leader's watcher")
+}
+
+// TestVolumeWatch_Remove asserts that a volume watcher only leaves the
+// watch list when no update is queued for it, and never removes another
+// watcher stored under its key
+func TestVolumeWatch_Remove(t *testing.T) {
+	ci.Parallel(t)
+
+	srv := &MockRPCServer{}
+	srv.state = state.TestStateStore(t)
+	watcher := NewVolumesWatcher(testlog.HCLogger(t), srv, "")
+	watcher.SetEnabled(true, srv.State(), "")
+	t.Cleanup(func() { watcher.SetEnabled(false, nil, "") })
+
+	vol := mock.CSIVolume(mock.CSIPlugin())
+	key := structs.NamespacedID{ID: vol.ID, Namespace: vol.Namespace}
+	numWatchers := func() int {
+		watcher.wlock.RLock()
+		defer watcher.wlock.RUnlock()
+		return len(watcher.watchers)
+	}
+
+	// a watcher without a goroutine, so the test controls updateCh
+	vw := &volumeWatcher{updateCh: make(chan *structs.CSIVolume, 1)}
+	watcher.wlock.Lock()
+	watcher.watchers[key] = vw
+	vw.Notify(vol)
+	vw.Notify(vol) // must not block
+	watcher.wlock.Unlock()
+
+	must.False(t, watcher.remove(key, vw), must.Sprint("update queued"))
+	must.Eq(t, 1, numWatchers())
+
+	<-vw.updateCh
+	must.True(t, watcher.remove(key, vw))
+	must.Eq(t, 0, numWatchers())
+
+	other := &volumeWatcher{updateCh: make(chan *structs.CSIVolume, 1)}
+	watcher.wlock.Lock()
+	watcher.watchers[key] = other
+	watcher.wlock.Unlock()
+	must.True(t, watcher.remove(key, vw))
+	must.Eq(t, 1, numWatchers())
+}
+
+// TestVolumeWatch_NamespacedKeys asserts that volumes whose ID and
+// namespace concatenate to the same string get their own watchers
+func TestVolumeWatch_NamespacedKeys(t *testing.T) {
+	ci.Parallel(t)
+
+	srv := &MockRPCServer{}
+	srv.state = state.TestStateStore(t)
+	ns := mock.Namespace()
+	ns.Name = "ault"
+	must.NoError(t, srv.State().UpsertNamespaces(100, []*structs.Namespace{ns}))
+
+	plugin := mock.CSIPlugin()
+	vol1 := mock.CSIVolume(plugin)
+	vol1.ID = "vol"
+	vol2 := mock.CSIVolume(plugin)
+	vol2.ID = "voldef"
+	vol2.Namespace = "ault"
+	must.NoError(t, srv.State().UpsertCSIVolume(101, []*structs.CSIVolume{vol1, vol2}))
+
+	watcher := NewVolumesWatcher(testlog.HCLogger(t), srv, "")
+	watcher.quiescentTimeout = time.Hour
+	watcher.SetEnabled(true, srv.State(), "")
+	t.Cleanup(func() { watcher.SetEnabled(false, nil, "") })
+
+	require.Eventually(t, func() bool {
+		watcher.wlock.RLock()
+		defer watcher.wlock.RUnlock()
+		return len(watcher.watchers) == 2
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+// TestVolumeWatch_RapidLeadershipChanges toggles leadership while
+// volumes change, for the race detector
+func TestVolumeWatch_RapidLeadershipChanges(t *testing.T) {
+	ci.Parallel(t)
+
+	srv := &MockRPCServer{}
+	srv.state = state.TestStateStore(t)
+	watcher := NewVolumesWatcher(testlog.HCLogger(t), srv, "")
+	watcher.quiescentTimeout = 10 * time.Millisecond
+
+	plugin := mock.CSIPlugin()
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	go func() {
+		defer close(doneCh)
+		for index := uint64(100); ; index++ {
+			select {
+			case <-stopCh:
+				return
+			default:
+			}
+			vol := mock.CSIVolume(plugin)
+			if err := srv.State().UpsertCSIVolume(index, []*structs.CSIVolume{vol}); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+
+	for i := 0; i < 200; i++ {
+		watcher.SetEnabled(true, srv.State(), "")
+		watcher.SetEnabled(false, nil, "")
+	}
+	close(stopCh)
+	<-doneCh
 }
