@@ -223,10 +223,10 @@ func formatBackupContents(c *api.BackupContents) []string {
 				d.ID, d.Namespace, d.JobID, d.JobVersion, d.Status, d.StatusDescription))
 		}
 	case api.BackupContentConsulKV:
-		out = append(out, "Key|Size|Revision|Value Hash|Created")
+		out = append(out, "Namespace|Path|Key|Size|Revision|Value Hash|Created")
 		for _, e := range c.ConsulKV {
-			out = append(out, fmt.Sprintf("%s|%d|%d|%s|%s",
-				e.Key, e.Size, e.Revision, limit(e.SHA256, 12), formatTime(e.Created)))
+			out = append(out, fmt.Sprintf("%s|%s|%s|%d|%d|%s|%s",
+				e.Namespace, e.Path, e.Key, e.Size, e.Revision, limit(e.SHA256, 12), formatTime(e.Created)))
 		}
 	case api.BackupContentAllocations:
 		out = append(out, "ID|Namespace|Job ID|Job Version|Task Group|Node ID|Desired|Status|Modified")

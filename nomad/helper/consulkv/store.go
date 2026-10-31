@@ -23,16 +23,19 @@ const Timeout = 10 * time.Second
 // matches, like the table index of Consul: a later write always raises it,
 // also the first write of a fresh bucket (revision 1). They know nothing of
 // the Nomad ACLs: the callers check the Variables rules of the keys.
+//
+// scope is the beginning of the NATS keys: ScopePrefix in the bucket of the
+// system bus, "" in a bucket of its own.
 
 // Get returns the live key, or the keys with the prefix key, and the
 // blocking index of the result. With index set it blocks until the blocking
 // index exceeds index or wait passes.
-func Get(ctx context.Context, kv jetstream.KeyValue, key string, prefix bool, index uint64, wait time.Duration) ([]*Entry, uint64, error) {
+func Get(ctx context.Context, kv jetstream.KeyValue, scope, key string, prefix bool, index uint64, wait time.Duration) ([]*Entry, uint64, error) {
 	// A watch delivers the last revision of every matching key (delete
 	// markers included), a nil entry, then the changes.
 	ctx, cancel := context.WithTimeout(ctx, wait+Timeout)
 	defer cancel()
-	w, err := kv.Watch(ctx, Filter(key, prefix))
+	w, err := kv.Watch(ctx, scope+Filter(key, prefix))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -66,7 +69,11 @@ func Get(ctx context.Context, kv jetstream.KeyValue, key string, prefix bool, in
 				timeout = timer.C
 				continue
 			}
-			k, err := DecodeKey(e.Key())
+			natsKey, ok := strings.CutPrefix(e.Key(), scope)
+			if !ok {
+				continue
+			}
+			k, err := DecodeKey(natsKey)
 			if err != nil || (prefix && !strings.HasPrefix(k, key)) || (!prefix && k != key) {
 				continue
 			}
@@ -99,10 +106,10 @@ func entries(live map[string]jetstream.KeyValueEntry) []*Entry {
 // Put stores the value of key. With cas set it only stores when the
 // revision of the key is *cas (0: the key must not exist) and reports false
 // otherwise.
-func Put(ctx context.Context, kv jetstream.KeyValue, key string, value []byte, cas *uint64) (bool, error) {
+func Put(ctx context.Context, kv jetstream.KeyValue, scope, key string, value []byte, cas *uint64) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
-	k := EncodeKey(key)
+	k := scope + EncodeKey(key)
 	var err error
 	switch {
 	case cas == nil:
@@ -121,14 +128,14 @@ func Put(ctx context.Context, kv jetstream.KeyValue, key string, value []byte, c
 // Delete deletes key. With cas set it only deletes when the revision of the
 // key is *cas and reports false otherwise. A tree is deleted by listing its
 // keys with Get and deleting them one by one: not atomic.
-func Delete(ctx context.Context, kv jetstream.KeyValue, key string, cas *uint64) (bool, error) {
+func Delete(ctx context.Context, kv jetstream.KeyValue, scope, key string, cas *uint64) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 	var opts []jetstream.KVDeleteOpt
 	if cas != nil {
 		opts = append(opts, jetstream.LastRevision(*cas))
 	}
-	err := kv.Delete(ctx, EncodeKey(key), opts...)
+	err := kv.Delete(ctx, scope+EncodeKey(key), opts...)
 	if errors.Is(err, jetstream.ErrKeyRevisionMismatch) || isWrongLastSequence(err) {
 		return false, nil
 	}

@@ -15,9 +15,9 @@ import (
 	"github.com/hashicorp/nomad/ci"
 	"github.com/hashicorp/nomad/helper/consulkv"
 	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/mock"
 	"github.com/hashicorp/nomad/nomad/backup/s3fake"
 	"github.com/hashicorp/nomad/nomad/bus"
+	"github.com/hashicorp/nomad/nomad/mock"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/testutil"
 	"github.com/nats-io/nats.go/jetstream"
@@ -55,11 +55,15 @@ func TestBusKV_Backup(t *testing.T) {
 		return err == nil, err
 	})
 	put := func(key, value string) {
-		_, err := kv.Put(t.Context(), consulkv.EncodeKey(key), []byte(value))
+		_, err := kv.Put(t.Context(), testConsulKVKey(key), []byte(value))
 		must.NoError(t, err)
 	}
 	put("app/config", "v1")
 	put("app/db.url", "postgres://db")
+	// The same key under another Variables path is a separate key.
+	scratchKey := consulkv.ScopePrefix("default", "scratch") + consulkv.EncodeKey("app/config")
+	_, err = kv.Put(t.Context(), scratchKey, []byte("s"))
+	must.NoError(t, err)
 
 	var saved structs.BackupSaveResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Save", &structs.BackupSaveRequest{
@@ -75,14 +79,19 @@ func TestBusKV_Backup(t *testing.T) {
 		ID: record.ID, Type: structs.BackupContentConsulKV, AgeIdentity: identity.String(),
 		QueryOptions: structs.QueryOptions{Region: "global"},
 	}, &contents))
-	must.Len(t, 2, contents.Contents.ConsulKV)
+	must.Len(t, 3, contents.Contents.ConsulKV)
 	must.Eq(t, "app/config", contents.Contents.ConsulKV[0].Key)
+	must.Eq(t, consulkv.DefaultPath, contents.Contents.ConsulKV[0].Path)
 	must.Eq(t, 2, contents.Contents.ConsulKV[0].Size)
 	must.Eq(t, "app/db.url", contents.Contents.ConsulKV[1].Key)
+	must.Eq(t, "app/config", contents.Contents.ConsulKV[2].Key)
+	must.Eq(t, "scratch", contents.Contents.ConsulKV[2].Path)
+	must.Eq(t, "default", contents.Contents.ConsulKV[2].Namespace)
 
 	// One key changes, one is deleted, one is added: the diff shows them.
 	put("app/config", "v2")
-	must.NoError(t, kv.Delete(t.Context(), consulkv.EncodeKey("app/db.url")))
+	must.NoError(t, kv.Delete(t.Context(), testConsulKVKey("app/db.url")))
+	must.NoError(t, kv.Delete(t.Context(), scratchKey))
 	put("app/new", "x")
 	var diff structs.BackupDiffResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Backup.Diff", &structs.BackupDiffRequest{
@@ -94,9 +103,10 @@ func TestBusKV_Backup(t *testing.T) {
 		changes[d.ID] = d.Change
 	}
 	must.Eq(t, map[string]string{
-		"app/config": structs.BackupDiffModified,
-		"app/db.url": structs.BackupDiffDeleted,
-		"app/new":    structs.BackupDiffAdded,
+		"app/config":         structs.BackupDiffModified,
+		"app/db.url":         structs.BackupDiffDeleted,
+		"app/new":            structs.BackupDiffAdded,
+		"scratch:app/config": structs.BackupDiffDeleted,
 	}, changes)
 
 	restore := func(item *structs.BackupRestoreItem) *structs.BackupRestoreItemResult {
@@ -113,7 +123,7 @@ func TestBusKV_Backup(t *testing.T) {
 	res := restore(&structs.BackupRestoreItem{Type: structs.BackupRestoreItemConsulKV, ID: "app/db.url"})
 	must.Eq(t, "", res.Error)
 	must.Eq(t, "create", res.Action)
-	e, err := kv.Get(t.Context(), consulkv.EncodeKey("app/db.url"))
+	e, err := kv.Get(t.Context(), testConsulKVKey("app/db.url"))
 	must.NoError(t, err)
 	must.Eq(t, "postgres://db", string(e.Value()))
 
@@ -124,9 +134,17 @@ func TestBusKV_Backup(t *testing.T) {
 	res = restore(&structs.BackupRestoreItem{Type: structs.BackupRestoreItemConsulKV, ID: "app/config",
 		CheckIndex: pointer.Of(current)})
 	must.Eq(t, "", res.Error)
-	e, err = kv.Get(t.Context(), consulkv.EncodeKey("app/config"))
+	e, err = kv.Get(t.Context(), testConsulKVKey("app/config"))
 	must.NoError(t, err)
 	must.Eq(t, "v1", string(e.Value()))
+
+	// A key under another path is named "<path>:<key>".
+	res = restore(&structs.BackupRestoreItem{Type: structs.BackupRestoreItemConsulKV, ID: "scratch:app/config"})
+	must.Eq(t, "", res.Error)
+	must.Eq(t, "create", res.Action)
+	e, err = kv.Get(t.Context(), scratchKey)
+	must.NoError(t, err)
+	must.Eq(t, "s", string(e.Value()))
 
 	// A key that is not in the backup is an error.
 	res = restore(&structs.BackupRestoreItem{Type: structs.BackupRestoreItemConsulKV, ID: "app/none"})
@@ -135,8 +153,8 @@ func TestBusKV_Backup(t *testing.T) {
 	// The full restore replaces the bucket with the keys of the backup.
 	export, err := srv.exportConsulKV(t.Context())
 	must.NoError(t, err)
-	must.NotNil(t, export.Entry("app/new"))
-	must.NoError(t, srv.importConsulKV(t.Context(), []*consulkv.Entry{{Key: "app/config", Value: []byte("v1")}}, true))
+	must.NotNil(t, export.Entry("default", consulkv.DefaultPath, "app/new"))
+	must.NoError(t, srv.importConsulKV(t.Context(), []*consulkv.Entry{{Namespace: "default", Path: consulkv.DefaultPath, Key: "app/config", Value: []byte("v1")}}, true))
 	export, err = srv.exportConsulKV(t.Context())
 	must.NoError(t, err)
 	must.Len(t, 1, export.Entries)
@@ -183,9 +201,9 @@ func TestBusKV_Migrate(t *testing.T) {
 	setVar("nomad/jobs/unrelated", map[string]string{"a": "b"})
 
 	// Two keys are already in the bucket.
-	_, err = kv.Put(t.Context(), consulkv.EncodeKey("app/same"), []byte("s"))
+	_, err = kv.Put(t.Context(), testConsulKVKey("app/same"), []byte("s"))
 	must.NoError(t, err)
-	_, err = kv.Put(t.Context(), consulkv.EncodeKey("app/other"), []byte("new"))
+	_, err = kv.Put(t.Context(), testConsulKVKey("app/other"), []byte("new"))
 	must.NoError(t, err)
 
 	migrate := func(dryRun bool) *structs.ConsulKVMigrateResult {
@@ -205,16 +223,16 @@ func TestBusKV_Migrate(t *testing.T) {
 	must.Eq(t, []string{"app/other"}, res.Conflicts)
 	must.Len(t, 1, res.Skipped)
 	must.Eq(t, "app/flagged", res.Skipped[0].Key)
-	_, err = kv.Get(t.Context(), consulkv.EncodeKey("app/config"))
+	_, err = kv.Get(t.Context(), testConsulKVKey("app/config"))
 	must.ErrorIs(t, err, jetstream.ErrKeyNotFound)
 
 	res = migrate(false)
 	must.SliceContainsAll(t, []string{"app/config", "app/bin"}, res.Copied)
 	must.Eq(t, []string{"app/other"}, res.Conflicts)
-	e, err := kv.Get(t.Context(), consulkv.EncodeKey("app/bin"))
+	e, err := kv.Get(t.Context(), testConsulKVKey("app/bin"))
 	must.NoError(t, err)
 	must.Eq(t, []byte{0xff, 0x00}, e.Value())
-	e, err = kv.Get(t.Context(), consulkv.EncodeKey("app/other"))
+	e, err = kv.Get(t.Context(), testConsulKVKey("app/other"))
 	must.NoError(t, err)
 	must.Eq(t, "new", string(e.Value()), must.Sprint("an existing key is not overwritten"))
 
@@ -301,9 +319,9 @@ func TestBusKV_CarryOver(t *testing.T) {
 		kv, err = js.KeyValue(t.Context(), bus.ConsulKVBucket)
 		return err == nil, err
 	})
-	_, err = kv.Put(t.Context(), consulkv.EncodeKey("app/config"), []byte("v1"))
+	_, err = kv.Put(t.Context(), testConsulKVKey("app/config"), []byte("v1"))
 	must.NoError(t, err)
-	_, err = kv.Put(t.Context(), consulkv.EncodeKey("app/db.url"), []byte("postgres://db"))
+	_, err = kv.Put(t.Context(), testConsulKVKey("app/db.url"), []byte("postgres://db"))
 	must.NoError(t, err)
 
 	s2, cleanup2 := TestServer(t, func(c *Config) {
@@ -331,7 +349,13 @@ func TestBusKV_CarryOver(t *testing.T) {
 	})
 	export, err := s2.exportConsulKV(t.Context())
 	must.NoError(t, err)
-	must.Eq(t, "postgres://db", string(export.Entry("app/db.url").Value))
+	must.Eq(t, "postgres://db", string(export.Entry("default", consulkv.DefaultPath, "app/db.url").Value))
 	_, err = os.Stat(filepath.Join(s1.bus.StandaloneStoreDir(), busCarriedOverMarker))
 	must.NoError(t, err)
+}
+
+// testConsulKVKey is the NATS key of a key under consul/kv in the default
+// namespace in the bucket of the bus.
+func testConsulKVKey(key string) string {
+	return consulkv.ScopePrefix("default", consulkv.DefaultPath) + consulkv.EncodeKey(key)
 }
