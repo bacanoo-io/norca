@@ -494,3 +494,71 @@ func TestUsageCollector_Seed(t *testing.T) {
 	idle := newUsageCollector()
 	must.Eq(t, 0, idle.seed(start, seeds))
 }
+
+// TestUsageAPM_History checks when the built-in metrics are read from the
+// metrics store: a range beyond the collector's window (metrics_window), and
+// a collector without a full window yet; otherwise from the collector.
+func TestUsageAPM_History(t *testing.T) {
+	ci.Parallel(t)
+
+	h := newHarness(t, structs.ScalingPolicyEngineBuiltin, targetValuePolicy(nil), nil)
+	group := h.job.TaskGroups[0].Name
+	key := targetKey{namespace: h.job.Namespace, job: h.job.ID, group: group}
+
+	type call struct {
+		metric   string
+		from, to time.Time
+	}
+	var calls []call
+	samples := 4
+	history := func(namespace, job, g, metric string, from, to time.Time) (float64, float64, int, error) {
+		must.Eq(t, key, targetKey{namespace: namespace, job: job, group: g})
+		calls = append(calls, call{metric, from, to})
+		return 20, 70, samples, nil
+	}
+
+	c := newUsageCollector()
+	c.setActive(true, 5*time.Minute, h.clock.Now())
+	apm := &usageAPM{collector: c, state: h.deps.State, target: key, now: h.clock.Now, history: history}
+	now := h.clock.Now()
+
+	// No full window yet: the store answers, also an instant query (its
+	// latest minute).
+	ms, err := apm.Query(MetricCPU, sdk.TimeRange{From: now.Add(-time.Minute), To: now})
+	must.NoError(t, err)
+	must.Eq(t, 20.0, ms[0].Value)
+	ms, err = apm.Query("taskgroup_max_cpu-allocated", sdk.TimeRange{From: now, To: now})
+	must.NoError(t, err)
+	must.Eq(t, 70.0, ms[0].Value)
+	must.Eq(t, now.Add(-historyInstantRange), calls[1].from)
+	must.Eq(t, "norca.group.cpu", calls[1].metric)
+
+	// A full window: within it the collector answers.
+	h.clock.Advance(5 * time.Minute)
+	now = h.clock.Now()
+	c.record(now, usageReport(h.job.ID, group, 10, 40, 64))
+	calls = nil
+	ms, err = apm.Query(MetricCPU, sdk.TimeRange{From: now.Add(-time.Minute), To: now})
+	must.NoError(t, err)
+	must.Eq(t, 40.0, ms[0].Value)
+	must.SliceEmpty(t, calls)
+
+	// A range beyond the window: the store.
+	ms, err = apm.Query(MetricMemoryMB, sdk.TimeRange{From: now.Add(-time.Hour), To: now})
+	must.NoError(t, err)
+	must.Eq(t, 20.0, ms[0].Value)
+	must.Eq(t, []call{{"norca.group.memory_mb", now.Add(-time.Hour), now}}, calls)
+
+	// No points in the store: the collector answers for its window.
+	samples = 0
+	ms, err = apm.Query(MetricCPU, sdk.TimeRange{From: now.Add(-time.Hour), To: now})
+	must.NoError(t, err)
+	must.Eq(t, 40.0, ms[0].Value)
+
+	// Without a store the collector's error stands.
+	apm.history = nil
+	c.setActive(false, 5*time.Minute, now)
+	c.setActive(true, 5*time.Minute, now)
+	_, err = apm.Query(MetricCPU, sdk.TimeRange{From: now.Add(-time.Hour), To: now})
+	must.ErrorIs(t, err, ErrInsufficientData)
+}
