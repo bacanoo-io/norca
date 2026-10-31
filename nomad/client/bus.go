@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/client/consulcompat"
 	"github.com/hashicorp/nomad/helper/tlsutil"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/nats-io/nats.go"
@@ -50,13 +49,30 @@ func (c *Client) setBusServers(servers []*structs.NodeServerInfo) {
 	c.bus.addrs = addrs
 }
 
+// errNoBus is returned by BusConn when the client has no system bus to use:
+// it is disabled on the client, or the servers run none.
+var errNoBus = errors.New("the servers run no system bus")
+
+// ServersRunBus reports whether the servers of the client run the system
+// bus, errBusUnknown before the first heartbeat told it. The Consul KV of
+// the bus is used through the RPC of the servers, not through the bus
+// connection of the client.
+func (c *Client) ServersRunBus() (bool, error) {
+	c.bus.l.Lock()
+	defer c.bus.l.Unlock()
+	if !c.bus.known {
+		return false, errBusUnknown
+	}
+	return len(c.bus.addrs) > 0, nil
+}
+
 // BusConn returns the connection of the client to the system bus,
-// connecting on first use. It returns consulcompat.ErrNoBus when the bus is
-// disabled on the client or the servers run none.
+// connecting on first use. It returns errNoBus when the bus is disabled on
+// the client or the servers run none.
 func (c *Client) BusConn() (*nats.Conn, error) {
 	cfg := c.GetConfig()
 	if cfg.BusDisabled {
-		return nil, consulcompat.ErrNoBus
+		return nil, errNoBus
 	}
 
 	c.bus.l.Lock()
@@ -68,7 +84,7 @@ func (c *Client) BusConn() (*nats.Conn, error) {
 		return nil, errBusUnknown
 	}
 	if len(c.bus.addrs) == 0 {
-		return nil, consulcompat.ErrNoBus
+		return nil, errNoBus
 	}
 
 	scheme := "nats://"

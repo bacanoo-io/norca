@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/nomad/client/dns"
 	"github.com/hashicorp/nomad/client/externalsvc"
 	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/nats-io/nats.go"
 )
 
 // discoveryServers are the service discovery servers of the client: the
@@ -131,7 +130,7 @@ func (b compatBackend) LocalNode() *structs.Node                  { return b.c.N
 func (b compatBackend) Region() string                            { return b.c.Region() }
 func (b compatBackend) Topology() structs.Topology                { return b.c.Topology() }
 func (b compatBackend) ResolveACL(token string) (*acl.ACL, error) { return b.c.ResolveToken(token) }
-func (b compatBackend) BusConn() (*nats.Conn, error)              { return b.c.BusConn() }
+func (b compatBackend) ServersRunBus() (bool, error)              { return b.c.ServersRunBus() }
 
 // LocalServices returns the external services owned by the node.
 func (b compatBackend) LocalServices() consulcompat.LocalServices {

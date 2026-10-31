@@ -153,3 +153,80 @@ type ConsulKVMigrateSkip struct {
 	Key    string
 	Reason string
 }
+
+const (
+	// ConsulKVGetRPCMethod reads a key, or the keys with a prefix, of the
+	// Consul KV bucket of the system bus.
+	//
+	// Args: ConsulKVGetRequest
+	// Reply: ConsulKVGetResponse
+	ConsulKVGetRPCMethod = "ConsulKV.Get"
+
+	// ConsulKVPutRPCMethod writes a key of the Consul KV bucket of the
+	// system bus.
+	//
+	// Args: ConsulKVPutRequest
+	// Reply: ConsulKVWriteResponse
+	ConsulKVPutRPCMethod = "ConsulKV.Put"
+
+	// ConsulKVDeleteRPCMethod deletes a key, or the keys with a prefix, of
+	// the Consul KV bucket of the system bus.
+	//
+	// Args: ConsulKVDeleteRequest
+	// Reply: ConsulKVWriteResponse
+	ConsulKVDeleteRPCMethod = "ConsulKV.Delete"
+)
+
+// ConsulKVEntry is a key of the Consul KV bucket of the system bus: the
+// Consul key, its value and its revision (its ModifyIndex).
+type ConsulKVEntry struct {
+	Key      string
+	Value    []byte
+	Revision uint64
+}
+
+// ConsulKVGetRequest reads the key Key, or with Prefix the keys starting
+// with Key. Path is the Variables path whose rules apply to the keys
+// (consul/kv by default), in the namespace of the request. MinQueryIndex
+// and MaxQueryTime make it a blocking query on the blocking index of the
+// result.
+type ConsulKVGetRequest struct {
+	Key    string
+	Prefix bool
+	Path   string
+	QueryOptions
+}
+
+// ConsulKVGetResponse holds the live keys the token may read; Index is the
+// blocking index of the result.
+type ConsulKVGetResponse struct {
+	Entries []*ConsulKVEntry
+	QueryMeta
+}
+
+// ConsulKVPutRequest writes Value to Key. With CAS set it only writes when
+// the revision of the key is *CAS (0: the key must not exist).
+type ConsulKVPutRequest struct {
+	Key   string
+	Value []byte
+	CAS   *uint64
+	Path  string
+	WriteRequest
+}
+
+// ConsulKVDeleteRequest deletes Key, or with Recurse the keys starting with
+// Key. With CAS set it only deletes when the revision of the key is *CAS.
+type ConsulKVDeleteRequest struct {
+	Key     string
+	Recurse bool
+	CAS     *uint64
+	Path    string
+	WriteRequest
+}
+
+// ConsulKVWriteResponse reports whether a write or a delete was applied:
+// false on a failed check-and-set.
+type ConsulKVWriteResponse struct {
+	Ok bool
+	WriteMeta
+}
