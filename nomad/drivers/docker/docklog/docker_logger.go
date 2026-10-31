@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docklog
@@ -169,6 +170,8 @@ func (d *dockerLogger) openStreams(ctx context.Context, opts *StartOpts) (stdout
 	if stderrF == nil {
 		stderrF, err = fifo.OpenWriter(opts.Stderr)
 		if err != nil {
+			// white room bugfix: close the already opened stdout fifo, it leaked when opening stderr failed.
+			stdoutF.Close()
 			return nil, nil, err
 		}
 	}

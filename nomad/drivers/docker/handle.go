@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docker
@@ -6,6 +7,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
 	"strings"
@@ -161,6 +163,16 @@ func parseSignal(os, signal string) (os.Signal, error) {
 	return signals.Parse(signal)
 }
 
+// stopTimeoutSeconds converts the kill timeout into the whole seconds the
+// Docker stop API takes.
+func stopTimeoutSeconds(killTimeout time.Duration) uint {
+	if killTimeout <= 0 {
+		return 0
+	}
+	// white room bugfix: round up, truncation turned a sub-second kill_timeout into 0 (immediate SIGKILL).
+	return uint(math.Ceil(killTimeout.Seconds()))
+}
+
 // Kill is used to terminate the task.
 func (h *taskHandle) Kill(killTimeout time.Duration, signal string) error {
 	var err error
@@ -174,7 +186,7 @@ func (h *taskHandle) Kill(killTimeout time.Duration, signal string) error {
 		graciousTimeout := killTimeout + dockerTimeout
 		ctx, cancel := context.WithTimeout(context.Background(), graciousTimeout)
 		defer cancel()
-		apiTimeout := uint(killTimeout.Seconds())
+		apiTimeout := stopTimeoutSeconds(killTimeout)
 		err = h.infinityClient.StopContainerWithContext(h.containerID, apiTimeout, ctx)
 	} else {
 		ctx, cancel := context.WithTimeout(context.Background(), killTimeout)
