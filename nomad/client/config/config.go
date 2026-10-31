@@ -319,6 +319,10 @@ type Config struct {
 	// (Norca): it then uses none of the features that need it.
 	BusDisabled bool
 
+	// UsageDisabled keeps the client from collecting and reporting the
+	// usage of its task groups, even when the servers ask for it (Norca).
+	UsageDisabled bool
+
 	// Secrets configures the secret providers of the client's secret
 	// delivery: the routes of secret paths to providers (Norca).
 	Secrets *SecretsConfig

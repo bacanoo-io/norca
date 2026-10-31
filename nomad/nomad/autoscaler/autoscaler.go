@@ -40,6 +40,14 @@ type Deps struct {
 	// by clients. Optional.
 	AllocStats nomadapm.AllocStatsFn
 
+	// UsageHistory reads the usage of a task group over a range from the
+	// metrics store: the mean of the interval averages, the largest
+	// maximum and the number of intervals. metric is the store's name
+	// (norca.group.cpu, cpu_mhz, memory, memory_mb). Optional; with it the
+	// built-in metrics serve query windows longer than metrics_window, and
+	// the time after a leader change before the window is full.
+	UsageHistory func(namespace, job, group, metric string, from, to time.Time) (avg, max float64, samples int, err error)
+
 	// PublishEvent publishes the events of the Scaling topic. Optional.
 	PublishEvent EventPublisher
 

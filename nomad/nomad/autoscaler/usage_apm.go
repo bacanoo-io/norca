@@ -4,6 +4,7 @@
 package autoscaler
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -43,7 +44,23 @@ type usageAPM struct {
 	state     func() *state.StateStore
 	target    targetKey
 	now       func() time.Time
+
+	// history reads the metrics store (Deps.UsageHistory); nil without one.
+	history func(namespace, job, group, metric string, from, to time.Time) (avg, max float64, samples int, err error)
 }
+
+// historyMetrics are the names of the collected values in the metrics
+// store.
+var historyMetrics = map[usageMetric]string{
+	usageCPUPercent:    "norca.group.cpu",
+	usageMemoryPercent: "norca.group.memory",
+	usageCPUMHz:        "norca.group.cpu_mhz",
+	usageMemoryMB:      "norca.group.memory_mb",
+}
+
+// historyInstantRange is the range of the metrics store read for an
+// instant query: the latest sample intervals.
+const historyInstantRange = time.Minute
 
 var _ plugins.Looker = (*usageAPM)(nil)
 
@@ -65,7 +82,7 @@ func (u *usageAPM) Query(q string, r sdk.TimeRange) (sdk.TimestampedMetrics, err
 		return nil, err
 	}
 
-	agg, err := u.collector.query(u.now(), query.key, query.metric, r.From, r.To)
+	agg, err := u.aggregate(query, r)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", q, err)
 	}
@@ -85,6 +102,44 @@ func (u *usageAPM) Query(q string, r sdk.TimeRange) (sdk.TimestampedMetrics, err
 	}
 
 	return sdk.TimestampedMetrics{{Timestamp: r.To, Value: value * query.scale}}, nil
+}
+
+// aggregate returns the usage of the query's task group in the range: from
+// the metrics store when the range reaches back beyond the collector's
+// window (metrics_window) or the collector has no full window yet (after a
+// leader change), otherwise, and when the store has no points, from the
+// collector, which limits the range to its window.
+func (u *usageAPM) aggregate(query *usageQuery, r sdk.TimeRange) (usageAggregate, error) {
+	now := u.now()
+	if u.history != nil && r.From.Before(now.Add(-u.collector.windowSize())) {
+		if agg, err := u.fromHistory(query, r); !errors.Is(err, errNoUsage) {
+			return agg, err
+		}
+	}
+	agg, err := u.collector.query(now, query.key, query.metric, r.From, r.To)
+	if errors.Is(err, ErrInsufficientData) && u.history != nil {
+		if hist, herr := u.fromHistory(query, r); herr == nil {
+			return hist, nil
+		}
+	}
+	return agg, err
+}
+
+// fromHistory reads the usage from the metrics store.
+func (u *usageAPM) fromHistory(query *usageQuery, r sdk.TimeRange) (usageAggregate, error) {
+	from := r.From
+	if !from.Before(r.To) {
+		from = r.To.Add(-historyInstantRange)
+	}
+	avg, mx, samples, err := u.history(query.key.namespace, query.key.job, query.key.group,
+		historyMetrics[query.metric], from, r.To)
+	if err != nil {
+		return usageAggregate{}, err
+	}
+	if samples == 0 {
+		return usageAggregate{}, errNoUsage
+	}
+	return usageAggregate{avg: avg, max: mx}, nil
 }
 
 // QueryMultiple returns the single stream of Query.
@@ -183,5 +238,5 @@ func (r *runner) usageLooker(policy *sdk.ScalingPolicy) plugins.Looker {
 	if key.namespace == "" {
 		key.namespace = structs.DefaultNamespace
 	}
-	return &usageAPM{collector: r.usage, state: r.deps.State, target: key, now: r.now}
+	return &usageAPM{collector: r.usage, state: r.deps.State, target: key, now: r.now, history: r.deps.UsageHistory}
 }

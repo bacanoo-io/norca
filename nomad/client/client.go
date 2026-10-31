@@ -2152,8 +2152,13 @@ func (c *Client) handleNodeUpdateResponse(resp structs.NodeUpdateResponse) error
 	// rebalance rate.
 	c.servers.SetNumNodes(resp.NumNodes)
 
-	// Start or stop the task group usage reports of the built-in autoscaler.
-	c.taskGroupUsage.setInterval(resp.TaskGroupUsageInterval, time.Now())
+	// Start or stop the task group usage reports (built-in autoscaler and
+	// metrics store of the servers); none while the client disables them.
+	interval := resp.TaskGroupUsageInterval
+	if c.GetConfig().UsageDisabled {
+		interval = 0
+	}
+	c.taskGroupUsage.setInterval(interval, time.Now())
 
 	// The bus addresses of the servers, for the system bus connection.
 	c.setBusServers(resp.Servers)

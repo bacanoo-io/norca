@@ -368,6 +368,9 @@ type ClientConfig struct {
 	// Bus configures the use of the system bus of the servers (Norca).
 	Bus *ClientBusConfig `hcl:"bus"`
 
+	// Usage configures the usage reports of the task groups (Norca).
+	Usage *ClientUsageConfig `hcl:"usage"`
+
 	// Secrets configures the secret delivery of the client: the routes of
 	// secret paths to providers (Norca).
 	Secrets *ClientSecretsConfig `hcl:"secrets"`
@@ -403,6 +406,7 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.DNS = c.DNS.Copy()
 	nc.ConsulCompat = c.ConsulCompat.Copy()
 	nc.Bus = c.Bus.Copy()
+	nc.Usage = c.Usage.Copy()
 	nc.Secrets = c.Secrets.Copy()
 	nc.Artifact = c.Artifact.Copy()
 	nc.Drain = c.Drain.Copy()
@@ -2342,6 +2346,7 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	result.DNS = a.DNS.Merge(b.DNS)
 	result.ConsulCompat = a.ConsulCompat.Merge(b.ConsulCompat)
 	result.Bus = a.Bus.Merge(b.Bus)
+	result.Usage = a.Usage.Merge(b.Usage)
 	result.Secrets = a.Secrets.Merge(b.Secrets)
 
 	result.Artifact = a.Artifact.Merge(b.Artifact)

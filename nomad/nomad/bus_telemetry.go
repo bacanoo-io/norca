@@ -126,6 +126,20 @@ func (s *Server) consumeTelemetry(ctx context.Context, js jetstream.JetStream) e
 	}
 }
 
+// autoscalerUsageHistory reads the usage of a task group for the built-in
+// autoscaler from the metrics store; without a store no intervals.
+func (s *Server) autoscalerUsageHistory(namespace, job, group, metric string, from, to time.Time) (float64, float64, int, error) {
+	if s.metricsStore == nil {
+		return 0, 0, 0, nil
+	}
+	key := metricsstore.GroupKey{Namespace: namespace, Job: job, Group: group}
+	sum, err := s.metricsStore.Summarize(key, metric, from, to)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return sum.Avg, sum.Max, sum.Samples, nil
+}
+
 // seedAutoscalerUsage fills the usage window of the built-in autoscaler of a
 // new leader from its metrics store, so that the built-in metrics need not
 // wait one window after a leader change.

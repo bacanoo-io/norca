@@ -303,6 +303,13 @@ func (c *usageCollector) sweepLocked(now time.Time) {
 	metrics.SetGauge([]string{"nomad", "autoscaler", "usage", "groups"}, float32(len(c.groups)))
 }
 
+// windowSize returns the window of the collector.
+func (c *usageCollector) windowSize() time.Duration {
+	c.l.Lock()
+	defer c.l.Unlock()
+	return c.window
+}
+
 // query aggregates the usage of a task group received in [from, to],
 // limited to the collector's window.
 func (c *usageCollector) query(now time.Time, key targetKey, metric usageMetric, from, to time.Time) (usageAggregate, error) {

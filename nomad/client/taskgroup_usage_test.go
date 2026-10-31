@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/nomad/ci"
+	"github.com/hashicorp/nomad/client/config"
 	cstructs "github.com/hashicorp/nomad/client/structs"
 	"github.com/hashicorp/nomad/nomad/mock"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -105,4 +106,21 @@ func TestSplitTaskGroupUsage(t *testing.T) {
 	msgs, err = splitTaskGroupUsage(&structs.TaskGroupUsageReport{NodeID: "node"}, 2048)
 	must.NoError(t, err)
 	must.SliceEmpty(t, msgs)
+}
+
+// TestClient_UsageDisabled checks that a client with usage disabled ignores
+// the interval the servers ask for.
+func TestClient_UsageDisabled(t *testing.T) {
+	ci.Parallel(t)
+
+	for _, disabled := range []bool{false, true} {
+		c, cleanup := TestClient(t, func(cfg *config.Config) { cfg.UsageDisabled = disabled })
+		_ = c.handleNodeUpdateResponse(structs.NodeUpdateResponse{TaskGroupUsageInterval: 10 * time.Second})
+		want := 10 * time.Second
+		if disabled {
+			want = 0
+		}
+		must.Eq(t, want, c.taskGroupUsage.getInterval(), must.Sprintf("disabled=%t", disabled))
+		cleanup()
+	}
 }
