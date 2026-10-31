@@ -30,6 +30,11 @@ const (
 	// of its streams, e.g. the replicas after servers joined or left.
 	busStreamCheckInterval = time.Minute
 
+	// busKVCheckInterval is how often the leader checks the Consul KV
+	// bucket: a bus that became clustered starts without it, and the
+	// clients need it at once.
+	busKVCheckInterval = 10 * time.Second
+
 	// busPublishTimeout bounds the acknowledgement of a batch of events.
 	busPublishTimeout = 30 * time.Second
 
@@ -78,7 +83,7 @@ func (s *Server) busEventsLeader(stopCh chan struct{}) {
 // keepConsulKVBucket creates the key-value bucket of the Consul KV of the
 // compat API and keeps its replicas at one per server, up to three.
 func (s *Server) keepConsulKVBucket(ctx context.Context, js jetstream.JetStream) error {
-	check := time.NewTicker(busStreamCheckInterval)
+	check := time.NewTicker(busKVCheckInterval)
 	defer check.Stop()
 	for {
 		if err := s.ensureConsulKVBucket(ctx, js); err != nil {

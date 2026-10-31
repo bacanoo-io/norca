@@ -71,7 +71,10 @@ func testConfig(t *testing.T, name string) *Config {
 	// shutdown, which fails the cleanup of t.TempDir: removed best effort.
 	store, err := os.MkdirTemp("", "norca-bus-test")
 	must.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(store) })
+	t.Cleanup(func() {
+		_ = os.RemoveAll(store)
+		_ = os.RemoveAll(store + ".standalone")
+	})
 	c.StoreDir = store
 	c.MaxMemory = 32 << 20
 	c.MaxStorage = 128 << 20
@@ -309,6 +312,13 @@ func TestBus_StandaloneToCluster(t *testing.T) {
 	must.NoError(t, err)
 	_, err = js.CreateStream(t.Context(), jetstream.StreamConfig{Name: "OLD", Subjects: []string{"old.>"}})
 	must.NoError(t, err)
+	kv, err := js.CreateKeyValue(t.Context(), jetstream.KeyValueConfig{Bucket: "kvtest"})
+	must.NoError(t, err)
+	_, err = kv.Put(t.Context(), "a.b", []byte("v1"))
+	must.NoError(t, err)
+	_, err = kv.Put(t.Context(), "gone", []byte("x"))
+	must.NoError(t, err)
+	must.NoError(t, kv.Delete(t.Context(), "gone"))
 
 	// No routes: stays standalone.
 	must.NoError(t, s1.SetRoutes(nil))
@@ -345,6 +355,15 @@ func TestBus_StandaloneToCluster(t *testing.T) {
 	_, err = js.Stream(t.Context(), "OLD")
 	must.ErrorIs(t, err, jetstream.ErrStreamNotFound)
 	createStream(t, js, jetstream.StreamConfig{Name: "NEW", Subjects: []string{"new.>"}, Replicas: 2})
+
+	// The key-value buckets of the standalone store can be read from the
+	// store kept aside: live keys only; a missing bucket has no keys.
+	entries, err := ReadStoreKV(t.Context(), s1.StandaloneStoreDir(), "kvtest", c1.MaxStorage, hclog.NewNullLogger())
+	must.NoError(t, err)
+	must.Eq(t, []KVEntry{{Key: "a.b", Value: []byte("v1")}}, entries)
+	entries, err = ReadStoreKV(t.Context(), s1.StandaloneStoreDir(), "missing", c1.MaxStorage, hclog.NewNullLogger())
+	must.NoError(t, err)
+	must.Nil(t, entries)
 }
 
 // createStream creates a replicated stream, retrying while JetStream has a

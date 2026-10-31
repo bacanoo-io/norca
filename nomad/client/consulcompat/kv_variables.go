@@ -4,25 +4,16 @@
 package consulcompat
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
-	"unicode/utf8"
 
+	"github.com/hashicorp/nomad/helper/consulkv"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // maxVariablePath is the length of a Variables path.
 const maxVariablePath = 128
-
-// Items of the Variable of a key.
-const (
-	kvItemValue       = "value"        // a UTF-8 value
-	kvItemValueBase64 = "value_base64" // any other value, base64
-	kvItemFlags       = "flags"        // the flags, when not 0
-)
 
 // variablesKV keeps the Consul KV in Norca Variables: the key "app/config"
 // is the Variable "<path>/app/config" of the namespace. The servers apply
@@ -120,17 +111,8 @@ func (v *variablesKV) entry(d *structs.VariableDecrypted) (*kvEntry, error) {
 		return nil, err
 	}
 	e := &kvEntry{Key: key, CreateIndex: d.CreateIndex, ModifyIndex: d.ModifyIndex}
-	if raw, ok := d.Items[kvItemValueBase64]; ok {
-		if e.Value, err = base64.StdEncoding.DecodeString(raw); err != nil {
-			return nil, err
-		}
-	} else if raw, ok := d.Items[kvItemValue]; ok {
-		e.Value = []byte(raw)
-	}
-	if raw := d.Items[kvItemFlags]; raw != "" {
-		if e.Flags, err = strconv.ParseUint(raw, 10, 64); err != nil {
-			return nil, err
-		}
+	if e.Value, e.Flags, err = consulkv.DecodeVariableItems(d.Items); err != nil {
+		return nil, err
 	}
 	return e, nil
 }
@@ -140,15 +122,7 @@ func (v *variablesKV) Put(r *request, e *kvEntry, cas *uint64) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	items := structs.VariableItems{}
-	if utf8.Valid(e.Value) {
-		items[kvItemValue] = string(e.Value)
-	} else {
-		items[kvItemValueBase64] = base64.StdEncoding.EncodeToString(e.Value)
-	}
-	if e.Flags != 0 {
-		items[kvItemFlags] = strconv.FormatUint(e.Flags, 10)
-	}
+	items := structs.VariableItems(consulkv.EncodeVariableItems(e.Value, e.Flags))
 	vd := &structs.VariableDecrypted{
 		VariableMetadata: structs.VariableMetadata{Namespace: v.namespace, Path: path},
 		Items:            items,

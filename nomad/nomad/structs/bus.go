@@ -111,3 +111,45 @@ type BusConnections struct {
 	InBytes  int64
 	OutBytes int64
 }
+
+// ConsulKVMigrateRequest copies the keys of the Consul KV kept in Variables
+// (the variables backend of consul_compat) into the bucket of the system
+// bus. The keys are the Variables below Path in the namespace of the
+// request; existing keys of the bucket are not overwritten and the
+// Variables are left in place.
+type ConsulKVMigrateRequest struct {
+	// Path is the Variables path of the kv block, consul/kv by default.
+	Path string
+
+	// DryRun reports what would be copied without writing.
+	DryRun bool
+
+	WriteRequest
+}
+
+// ConsulKVMigrateResponse is the result of a migration of the Consul KV.
+type ConsulKVMigrateResponse struct {
+	Result *ConsulKVMigrateResult
+	WriteMeta
+}
+
+// ConsulKVMigrateResult lists the keys of a migration by outcome.
+type ConsulKVMigrateResult struct {
+	// Copied keys were created in the bucket (with DryRun: would be).
+	Copied []string
+
+	// Unchanged keys were already in the bucket with the same value.
+	Unchanged []string
+
+	// Conflicts were already in the bucket with another value: left as is.
+	Conflicts []string
+
+	// Skipped keys could not be copied.
+	Skipped []*ConsulKVMigrateSkip
+}
+
+// ConsulKVMigrateSkip is a key a migration did not copy, with the reason.
+type ConsulKVMigrateSkip struct {
+	Key    string
+	Reason string
+}
