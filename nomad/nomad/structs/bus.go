@@ -3,7 +3,33 @@
 
 package structs
 
-import "time"
+import (
+	"strings"
+	"time"
+)
+
+// BusTelemetryMaxMsgSize is the largest message of the telemetry stream.
+const BusTelemetryMaxMsgSize = 64 << 10
+
+// BusTelemetrySubject is the subject a client node publishes its task group
+// usage reports on, the only subject a node may publish on the system bus.
+func BusTelemetrySubject(region, nodeID string) string {
+	return "norca.telemetry." + BusSubjectToken(region) + "." + BusSubjectToken(nodeID)
+}
+
+// BusSubjectToken replaces the characters a subject token can't contain.
+func BusSubjectToken(s string) string {
+	if s == "" {
+		return "_"
+	}
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '.', '*', '>', ' ', '\t', '\r', '\n':
+			return '_'
+		}
+		return r
+	}, s)
+}
 
 // BusStatusRequest asks a server for the status of its system bus. The
 // server that receives the request answers (AllowStale); ServerID asks

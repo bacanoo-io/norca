@@ -214,6 +214,84 @@ func (c *usageCollector) record(now time.Time, report *structs.TaskGroupUsageRep
 	}
 }
 
+// UsageSeed is the usage of a task group in a past interval, read back from
+// the metrics store to fill the window of a new leader.
+type UsageSeed struct {
+	// At is the start of the interval.
+	At    time.Time
+	Usage *structs.TaskGroupUsage
+}
+
+// seed fills the window with usage of before the collector started, and
+// moves its start back to the oldest seed: with a full window of seeds the
+// built-in metrics are available at once instead of after one window. Seeds
+// not older than the start (live reports cover them) or older than the
+// window, and seeds for a bucket holding newer data are left out.
+func (c *usageCollector) seed(now time.Time, seeds []UsageSeed) int {
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	if !c.active || len(seeds) == 0 {
+		return 0
+	}
+	width := int64(c.bucketWidth)
+	oldest := c.started
+	used := 0
+	for _, s := range seeds {
+		g := s.Usage
+		if g == nil || g.Samples <= 0 || g.JobID == "" || g.TaskGroup == "" ||
+			!s.At.Before(c.started) || now.Sub(s.At) > c.window {
+			continue
+		}
+		ns := g.Namespace
+		if ns == "" {
+			ns = structs.DefaultNamespace
+		}
+		key := targetKey{namespace: ns, job: g.JobID, group: g.TaskGroup}
+		gu, ok := c.groups[key]
+		if !ok {
+			if len(c.groups) >= maxUsageGroups {
+				continue
+			}
+			gu = &groupUsage{}
+			c.groups[key] = gu
+		}
+		atNano := s.At.UnixNano()
+		start := atNano - atNano%width
+		b := &gu.buckets[(atNano/width)%usageBuckets]
+		if b.start > start {
+			continue
+		}
+		if b.start != start {
+			*b = usageBucket{start: start}
+		}
+		if s.At.After(gu.last) {
+			gu.last = s.At
+		}
+		w := float64(g.Samples)
+		values := [numUsageMetrics]structs.TaskGroupUsageValue{
+			usageCPUPercent:    g.CPUPercent,
+			usageMemoryPercent: g.MemoryPercent,
+			usageCPUMHz:        g.CPUMHz,
+			usageMemoryMB:      g.MemoryMB,
+		}
+		b.weight += w
+		for i, v := range values {
+			b.sum[i] += v.Avg * w
+			if v.Max > b.max[i] {
+				b.max[i] = v.Max
+			}
+		}
+		if s.At.Before(oldest) {
+			oldest = s.At
+		}
+		used++
+	}
+	c.started = oldest
+	metrics.SetGauge([]string{"nomad", "autoscaler", "usage", "groups"}, float32(len(c.groups)))
+	return used
+}
+
 // sweepLocked drops the task groups without a report within the window.
 func (c *usageCollector) sweepLocked(now time.Time) {
 	c.lastSweep = now

@@ -106,6 +106,23 @@ func (a *Autoscaler) SetLeader(leader bool) {
 	a.reconcileLocked(false)
 }
 
+// SeedUsage fills the usage window of a new leader with the usage of before
+// it became leader, from the metrics store, and returns the number of seeds
+// used. It does nothing while the autoscaler does not run on this server.
+func (a *Autoscaler) SeedUsage(seeds []UsageSeed) int {
+	return a.usage.seed(a.now(), seeds)
+}
+
+// MetricsWindow returns the window of the built-in metrics.
+func (a *Autoscaler) MetricsWindow() time.Duration {
+	a.l.Lock()
+	defer a.l.Unlock()
+	if a.config.MetricsWindow <= 0 {
+		return DefaultMetricsWindow
+	}
+	return a.config.MetricsWindow
+}
+
 // SetConfig applies a reloaded configuration. A running autoscaler is
 // restarted if the configuration changed, and stopped if it was disabled.
 func (a *Autoscaler) SetConfig(config *Config) {
