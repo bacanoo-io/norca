@@ -453,7 +453,8 @@ func (r *backupRestorer) describe(result *structs.BackupRestoreItemResult, kind,
 // overwritten with its current revision as the check index. The caller needs
 // the write capability of the Variables path of the key.
 func (r *backupRestorer) restoreConsulKV(item *structs.BackupRestoreItem, result *structs.BackupRestoreItemResult) error {
-	entry := r.loaded.ConsulKV.Entry(item.ID)
+	path, id := splitConsulKVItemID(item.ID)
+	entry := r.loaded.ConsulKV.Entry(item.Namespace, path, id)
 	if entry == nil {
 		return fmt.Errorf("Consul KV key %q not found in the backup", item.ID)
 	}
@@ -462,7 +463,7 @@ func (r *backupRestorer) restoreConsulKV(item *structs.BackupRestoreItem, result
 		return err
 	}
 	if aclObj != nil && !aclObj.AllowVariableOperation(item.Namespace,
-		consulkv.ACLPath(consulkv.DefaultPath, item.ID), acl.VariablesCapabilityWrite, nil) {
+		consulkv.ACLPath(path, id), acl.VariablesCapabilityWrite, nil) {
 		return structs.ErrPermissionDenied
 	}
 
@@ -476,7 +477,7 @@ func (r *backupRestorer) restoreConsulKV(item *structs.BackupRestoreItem, result
 	if kv == nil {
 		return fmt.Errorf("the system bus has no Consul KV bucket")
 	}
-	key := consulkv.EncodeKey(item.ID)
+	key := consulKVNATSKey(entry)
 	current, err := kv.Get(ctx, key)
 	switch {
 	case errors.Is(err, jetstream.ErrKeyNotFound):

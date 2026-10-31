@@ -189,11 +189,13 @@ type BackupContents struct {
 // BackupConsulKVStub is a key of the Consul KV of the system bus in a
 // backup: its size and the hash of its value, never the value.
 type BackupConsulKVStub struct {
-	Key      string
-	Size     int
-	Revision uint64
-	Created  time.Time
-	SHA256   string
+	Namespace string
+	Path      string
+	Key       string
+	Size      int
+	Revision  uint64
+	Created   time.Time
+	SHA256    string
 }
 
 // BackupJobStub summarizes a job and its versions in a backup.

@@ -51,6 +51,16 @@ func TestKVKeyEncoding_NATS(t *testing.T) {
 		must.NoError(t, err)
 		must.Eq(t, key, dec)
 	}
+	// The bucket of the system bus: the namespace and the Variables path
+	// are one token each.
+	scope := consulkv.ScopePrefix("default", "consul/kv")
+	must.Eq(t, "default.consul=2Fkv.", scope)
+	ns, path, key, err := consulkv.SplitScopedKey(scope + consulkv.EncodeKey("app/db.url"))
+	must.NoError(t, err)
+	must.Eq(t, []string{"default", "consul/kv", "app/db.url"}, []string{ns, path, key})
+	_, _, _, err = consulkv.SplitScopedKey("app")
+	must.Error(t, err)
+
 	must.Eq(t, ">", consulkv.Filter("app", true))
 	must.Eq(t, "app.>", consulkv.Filter("app/", true))
 	must.Eq(t, "app.sub.>", consulkv.Filter("app/sub/x", true))

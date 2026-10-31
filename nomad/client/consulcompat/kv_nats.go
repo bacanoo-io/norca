@@ -128,7 +128,7 @@ func (n *natsKV) Get(r *request, key string, prefix bool) ([]*kvEntry, uint64, e
 	if err != nil {
 		return nil, 0, err
 	}
-	found, index, err := consulkv.Get(context.Background(), kv, key, prefix, r.index, r.wait)
+	found, index, err := consulkv.Get(context.Background(), kv, "", key, prefix, r.index, r.wait)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -153,7 +153,7 @@ func (n *natsKV) Put(r *request, e *kvEntry, cas *uint64) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return consulkv.Put(context.Background(), kv, e.Key, e.Value, cas)
+	return consulkv.Put(context.Background(), kv, "", e.Key, e.Value, cas)
 }
 
 func (n *natsKV) Delete(r *request, key string, recurse bool, cas *uint64) (bool, error) {
@@ -165,7 +165,7 @@ func (n *natsKV) Delete(r *request, key string, recurse bool, cas *uint64) (bool
 		if err != nil {
 			return false, err
 		}
-		return consulkv.Delete(context.Background(), kv, key, cas)
+		return consulkv.Delete(context.Background(), kv, "", key, cas)
 	}
 
 	// Not atomic: the keys are deleted one by one.

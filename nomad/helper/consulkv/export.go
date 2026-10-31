@@ -21,13 +21,16 @@ type Export struct {
 	Entries []*Entry
 }
 
-// Entry is a key of the Consul KV: the Consul key (not the NATS key), its
-// value and the revision it had in the bucket.
+// Entry is a key of the Consul KV: the namespace and the Variables path of
+// the key (see ScopePrefix), the Consul key (not the NATS key), its value
+// and the revision it had in the bucket.
 type Entry struct {
-	Key      string
-	Value    []byte
-	Revision uint64
-	Created  time.Time
+	Namespace string
+	Path      string
+	Key       string
+	Value     []byte
+	Revision  uint64
+	Created   time.Time
 }
 
 // Encode returns the JSON of an export.
@@ -48,13 +51,14 @@ func Decode(r io.Reader) (*Export, error) {
 	return &e, nil
 }
 
-// Entry returns the entry of a key, nil if the export has none.
-func (e *Export) Entry(key string) *Entry {
+// Entry returns the entry of a key under path in namespace, nil if the
+// export has none.
+func (e *Export) Entry(namespace, path, key string) *Entry {
 	if e == nil {
 		return nil
 	}
 	for _, en := range e.Entries {
-		if en.Key == key {
+		if en.Namespace == namespace && en.Path == path && en.Key == key {
 			return en
 		}
 	}
