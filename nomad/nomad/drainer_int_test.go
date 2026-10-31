@@ -523,19 +523,22 @@ func TestDrainer_AllTypes_NoDeadline(t *testing.T) {
 	allocs, err := store.AllocsByJob(nil, job.Namespace, bjob.ID, false)
 	must.NoError(t, err)
 
-	var updates []*structs.Allocation
+	// Each node updates only its own allocations.
+	updates := map[string][]*structs.Allocation{}
 	for _, alloc := range allocs {
 		new := alloc.Copy()
 		new.ClientStatus = structs.AllocClientStatusComplete
-		updates = append(updates, new)
+		updates[alloc.NodeID] = append(updates[alloc.NodeID], new)
 	}
 
-	batchDoneReq := &structs.AllocUpdateRequest{
-		Alloc:        updates,
-		WriteRequest: structs.WriteRequest{Region: "global"},
+	for _, nodeUpdates := range updates {
+		batchDoneReq := &structs.AllocUpdateRequest{
+			Alloc:        nodeUpdates,
+			WriteRequest: structs.WriteRequest{Region: "global"},
+		}
+		err = msgpackrpc.CallWithCodec(codec, "Node.UpdateAlloc", batchDoneReq, &resp)
+		must.NoError(t, err)
 	}
-	err = msgpackrpc.CallWithCodec(codec, "Node.UpdateAlloc", batchDoneReq, &resp)
-	must.NoError(t, err)
 
 	// Wait for the service allocations to be replaced
 	waitForPlacedAllocs(t, store, n2.ID, 3)

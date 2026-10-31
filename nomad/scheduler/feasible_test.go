@@ -666,6 +666,26 @@ func TestNetworkChecker(t *testing.T) {
 	}
 }
 
+func TestNetworkChecker_SetNetwork(t *testing.T) {
+	ci.Parallel(t)
+
+	_, ctx := testContext(t)
+	checker := NewNetworkChecker(ctx)
+
+	checker.SetNetwork(&structs.NetworkResource{
+		Mode:          "bridge",
+		DynamicPorts:  []structs.Port{{Label: "http"}},
+		ReservedPorts: []structs.Port{{Label: "admin", Value: 8080}},
+	})
+	must.Eq(t, "bridge", checker.networkMode)
+	must.Eq(t, []structs.Port{{Label: "http"}, {Label: "admin", Value: 8080}}, checker.ports)
+
+	// nil resets the checker to its initial state
+	checker.SetNetwork(nil)
+	must.Eq(t, "host", checker.networkMode)
+	must.Nil(t, checker.ports)
+}
+
 func TestNetworkChecker_bridge_upgrade_path(t *testing.T) {
 	ci.Parallel(t)
 

@@ -380,13 +380,23 @@ func NewNetworkChecker(ctx Context) *NetworkChecker {
 	return &NetworkChecker{ctx: ctx, networkMode: "host"}
 }
 
+// SetNetwork sets the network of the task group to check; nil (a group
+// without a network) resets the checker to its initial state.
 func (c *NetworkChecker) SetNetwork(network *structs.NetworkResource) {
+	if network == nil {
+		c.networkMode = "host"
+		c.ports = nil
+		return
+	}
+
 	c.networkMode = network.Mode
 	if c.networkMode == "" {
 		c.networkMode = "host"
 	}
 
-	c.ports = make([]structs.Port, len(network.DynamicPorts)+len(network.ReservedPorts))
+	// white room bugfix: the slice was made with its length instead of its
+	// capacity, so every port list started with as many zero ports.
+	c.ports = make([]structs.Port, 0, len(network.DynamicPorts)+len(network.ReservedPorts))
 	c.ports = append(c.ports, network.DynamicPorts...)
 	c.ports = append(c.ports, network.ReservedPorts...)
 }
