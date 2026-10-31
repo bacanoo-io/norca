@@ -694,3 +694,27 @@ func BenchmarkParse(b *testing.B) {
 		}
 	}
 }
+
+// TestAttribute_ComparableSymmetric asserts that Comparable gives the same
+// answer in both directions.
+func TestAttribute_ComparableSymmetric(t *testing.T) {
+	attrs := []*Attribute{
+		NewIntAttribute(1, ""),
+		NewFloatAttribute(1.5, ""),
+		NewStringAttribute("foo"),
+		NewBoolAttribute(true),
+		NewIntAttribute(1, UnitMB),
+		{},
+	}
+
+	for _, a := range attrs {
+		for _, b := range attrs {
+			require.Equal(t, a.Comparable(b), b.Comparable(a), "%#v vs %#v", a, b)
+		}
+	}
+
+	require.False(t, NewIntAttribute(1, "").Comparable(NewStringAttribute("1")))
+	require.False(t, NewFloatAttribute(1, "").Comparable(NewBoolAttribute(true)))
+	require.True(t, NewIntAttribute(1, "").Comparable(NewFloatAttribute(1, "")))
+	require.False(t, (&Attribute{}).Comparable(&Attribute{}))
+}

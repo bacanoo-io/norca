@@ -121,3 +121,31 @@ func TestEventer_iterateConsumers(t *testing.T) {
 	require.Nil(ev1)
 	require.Equal(0, len(e.consumers))
 }
+
+// TestEventer_gcConsumersCloses asserts that garbage collecting a consumer
+// whose context is done closes its channel, as iterateConsumers does.
+func TestEventer_gcConsumersCloses(t *testing.T) {
+	ci.Parallel(t)
+
+	e := &Eventer{
+		events: make(chan *drivers.TaskEvent),
+		ctx:    context.Background(),
+		logger: testlog.HCLogger(t),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	consumer, err := e.TaskEvents(ctx)
+	require.NoError(t, err)
+
+	cancel()
+	e.gcConsumers()
+	require.Empty(t, e.consumers)
+
+	select {
+	case ev, ok := <-consumer:
+		require.False(t, ok)
+		require.Nil(t, ev)
+	case <-time.After(5 * time.Second):
+		t.Fatal("consumer channel was not closed")
+	}
+}

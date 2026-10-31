@@ -107,8 +107,20 @@ func (d *driverPluginClient) handleFingerprint(reqCtx context.Context, ch chan *
 		pb, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				ch <- &Fingerprint{
+				// white room bugfix: the error was sent unconditionally, so a
+				// consumer that had stopped reading after cancelling reqCtx
+				// left this goroutine blocked forever on a full channel. The
+				// error is still delivered whenever there is room for it.
+				resp := &Fingerprint{
 					Err: grpcutils.HandleReqCtxGrpcErr(err, reqCtx, d.doneCtx),
+				}
+				select {
+				case ch <- resp:
+				default:
+					select {
+					case ch <- resp:
+					case <-reqCtx.Done():
+					}
 				}
 			}
 
@@ -178,7 +190,10 @@ func (d *driverPluginClient) StartTask(c *TaskConfig) (*TaskHandle, *DriverNetwo
 // will immedialy return the ExitResult. WaitTask can be called multiple times for
 // the same task without issue.
 func (d *driverPluginClient) WaitTask(ctx context.Context, id string) (<-chan *ExitResult, error) {
-	ch := make(chan *ExitResult)
+	// white room bugfix: the channel was unbuffered, so when the caller gave
+	// up waiting (cancelled ctx) handleWaitTask blocked forever on its single
+	// send. One slot lets that send always complete.
+	ch := make(chan *ExitResult, 1)
 	go d.handleWaitTask(ctx, id, ch)
 	return ch, nil
 }
@@ -198,9 +213,12 @@ func (d *driverPluginClient) handleWaitTask(ctx context.Context, id string, ch c
 	if err != nil {
 		result.Err = grpcutils.HandleReqCtxGrpcErr(err, ctx, d.doneCtx)
 	} else {
-		result.ExitCode = int(resp.Result.ExitCode)
-		result.Signal = int(resp.Result.Signal)
-		result.OOMKilled = resp.Result.OomKilled
+		// white room bugfix: Result was dereferenced directly, but the server
+		// answers {Err: "channel closed"} without a Result when the driver
+		// closes its wait channel, which panicked the client.
+		result.ExitCode = int(resp.GetResult().GetExitCode())
+		result.Signal = int(resp.GetResult().GetSignal())
+		result.OOMKilled = resp.GetResult().GetOomKilled()
 		if len(resp.Err) > 0 {
 			result.Err = errors.New(resp.Err)
 		}
@@ -347,8 +365,20 @@ func (d *driverPluginClient) handleTaskEvents(reqCtx context.Context, ch chan *T
 		ev, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				ch <- &TaskEvent{
+				// white room bugfix: the error was sent unconditionally, so a
+				// consumer that had stopped reading after cancelling reqCtx
+				// left this goroutine blocked forever on a full channel. The
+				// error is still delivered whenever there is room for it.
+				resp := &TaskEvent{
 					Err: grpcutils.HandleReqCtxGrpcErr(err, reqCtx, d.doneCtx),
+				}
+				select {
+				case ch <- resp:
+				default:
+					select {
+					case ch <- resp:
+					case <-reqCtx.Done():
+					}
 				}
 			}
 
@@ -438,6 +468,10 @@ func (d *driverPluginClient) ExecTaskStreamingRaw(ctx context.Context,
 		for {
 			m, err := execStream.Recv()
 			if err == io.EOF {
+				// white room bugfix: the end of the caller's input was not
+				// passed on, so the plugin side never saw its stream end and
+				// the command's stdin stayed open. Half-close our side.
+				stream.CloseSend()
 				return
 			} else if err != nil {
 				errCh <- err
@@ -476,9 +510,14 @@ func (d *driverPluginClient) ExecTaskStreamingRaw(ctx context.Context,
 
 var _ DriverNetworkManager = (*driverPluginClient)(nil)
 
-func (d *driverPluginClient) CreateNetwork(allocID string, _ *NetworkCreateRequest) (*NetworkIsolationSpec, bool, error) {
+func (d *driverPluginClient) CreateNetwork(allocID string, netReq *NetworkCreateRequest) (*NetworkIsolationSpec, bool, error) {
 	req := &proto.CreateNetworkRequest{
 		AllocId: allocID,
+	}
+	// white room bugfix: the request was dropped, so the hostname never
+	// reached an external driver although the proto carries it (field 2).
+	if netReq != nil {
+		req.Hostname = netReq.Hostname
 	}
 
 	resp, err := d.client.CreateNetwork(d.doneCtx, req)
