@@ -636,6 +636,16 @@ func (n *NetworkPolicy) GetAllocRules(args *structs.NetworkPolicyAllocRequest, r
 					!aclObj.AllowNetworkPolicyRead(alloc.Namespace) {
 					return structs.ErrPermissionDenied
 				}
+			} else if clientID == "" {
+				// white room bugfix: a missing allocation needs the same
+				// permissions on the namespace of the request, so a caller
+				// without them gets the same answer for an existing and a
+				// missing allocation (no existence oracle). Nodes keep
+				// blocking on allocations they do not have yet.
+				ns := args.RequestNamespace()
+				if !aclObj.AllowNsOp(ns, acl.NamespaceCapabilityReadJob) || !aclObj.AllowNetworkPolicyRead(ns) {
+					return structs.ErrPermissionDenied
+				}
 			}
 
 			reply.Rules, err = networkPolicyAllocRules(ws, store, alloc)
