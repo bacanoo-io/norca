@@ -1678,3 +1678,34 @@ func TestClient_RPC_NodeExpandVolume(t *testing.T) {
 		must.EqError(t, err, "address is empty")
 	})
 }
+
+// TestCompareCapabilities_BlockAfterMismatch asserts that a matching
+// 'block-device' capability is accepted even when an earlier capability in
+// the response did not match.
+func TestCompareCapabilities_BlockAfterMismatch(t *testing.T) {
+	ci.Parallel(t)
+
+	mode := &csipbv1.VolumeCapability_AccessMode{
+		Mode: csipbv1.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+	}
+	block := &csipbv1.VolumeCapability_Block{Block: &csipbv1.VolumeCapability_BlockVolume{}}
+	expected := &csipbv1.VolumeCapability{AccessType: block, AccessMode: mode}
+
+	got := []*csipbv1.VolumeCapability{
+		{
+			AccessType: block,
+			AccessMode: &csipbv1.VolumeCapability_AccessMode{
+				Mode: csipbv1.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+			},
+		},
+		{AccessType: block, AccessMode: mode},
+	}
+	must.NoError(t, compareCapabilities(expected, got))
+
+	// a mount capability for a block request is still rejected
+	got = []*csipbv1.VolumeCapability{{
+		AccessType: &csipbv1.VolumeCapability_Mount{Mount: &csipbv1.VolumeCapability_MountVolume{}},
+		AccessMode: mode,
+	}}
+	must.Error(t, compareCapabilities(expected, got))
+}

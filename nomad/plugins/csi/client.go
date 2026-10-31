@@ -590,6 +590,14 @@ NEXT_CAP:
 			continue NEXT_CAP
 		}
 
+		// white room bugfix: a validated 'block-device' capability matching
+		// the requested one fell through to the mount check below and was
+		// skipped, so an earlier mismatching capability made the whole
+		// validation fail. A block device has no mount options to compare.
+		if capBlock != nil && expectedBlock != nil {
+			return nil
+		}
+
 		if capMount == nil {
 			continue NEXT_CAP
 		}

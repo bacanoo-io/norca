@@ -29,19 +29,38 @@ func StreamToExecOptions(
 
 	// handle input
 	go func() {
+		// white room bugfix: inWriter was left open when the input stream
+		// ended or failed, so a command reading stdin waited forever for
+		// input that could no longer arrive. Close it on every exit path.
+		var inErr error
+		defer func() { inWriter.CloseWithError(inErr) }()
+
+		// white room bugfix: every unexpected message was sent to errCh inside
+		// the loop, so more of them than errCh has room for (one slot per
+		// goroutine) blocked this goroutine and the output goroutines forever.
+		// Only the first input error is reported, as doneCh carries one anyway.
+		reported := false
+		report := func(err error) {
+			if !reported {
+				reported = true
+				errCh <- err
+			}
+		}
+
 		for {
 			msg, err := stream.Recv()
 			if err == io.EOF {
 				return
 			} else if err != nil {
-				errCh <- err
+				inErr = err
+				report(err)
 				return
 			}
 
 			if msg.Stdin != nil && !msg.Stdin.Close {
 				_, err := inWriter.Write(msg.Stdin.Data)
 				if err != nil {
-					errCh <- err
+					report(err)
 					return
 				}
 			} else if msg.Stdin != nil && msg.Stdin.Close {
@@ -59,7 +78,7 @@ func StreamToExecOptions(
 			} else if isHeartbeat(msg) {
 				// do nothing
 			} else {
-				errCh <- fmt.Errorf("unexpected message type: %#v", msg)
+				report(fmt.Errorf("unexpected message type: %#v", msg))
 			}
 		}
 	}()

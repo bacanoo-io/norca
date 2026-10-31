@@ -306,7 +306,15 @@ func (a *Attribute) Comparable(b *Attribute) bool {
 		return b.Bool != nil
 	}
 
-	return true
+	// white room bugfix: a number (or an empty attribute) was reported as
+	// comparable with anything, e.g. Int vs String gave true while String vs
+	// Int gave false. Compare already returned false for those through the
+	// comparators; Comparable itself is now symmetric.
+	if a.Int != nil || a.Float != nil {
+		return b.Int != nil || b.Float != nil
+	}
+
+	return false
 }
 
 // Compare compares two attributes. If the returned boolean value is false, it

@@ -121,6 +121,10 @@ func (e *Eventer) gcConsumers() {
 		select {
 		case <-consumer.ctx.Done():
 			// consumer context finished, filtering it out of loop
+			// white room bugfix: the channel was dropped without being
+			// closed, unlike in iterateConsumers, so a consumer ranging
+			// over it waited forever.
+			close(consumer.ch)
 		default:
 			filtered = append(filtered, consumer)
 		}
