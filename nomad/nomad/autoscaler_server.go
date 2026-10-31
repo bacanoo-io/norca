@@ -57,6 +57,7 @@ func (s *Server) setupAutoscaler() {
 		Scaler:       &autoscalerJobScaler{srv: s},
 		ObjectScaler: &autoscalerJobScaler{srv: s},
 		PublishEvent: s.publishScalingEvent,
+		UsageHistory: s.autoscalerUsageHistory,
 		ServersReady: func() bool {
 			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
 		},

@@ -326,3 +326,31 @@ func TestMetricsStore_GaugesSeriesSummaryACL(t *testing.T) {
 	must.Eq(t, 100.0, summary.Metrics[metricsstore.MetricCPUMHz].Avg)
 	must.Eq(t, 200.0, summary.Metrics[metricsstore.MetricCPUMHz].P95)
 }
+
+// TestMetricsStore_AutoscalerHistory checks the usage the built-in
+// autoscaler reads from the metrics store for long query windows.
+func TestMetricsStore_AutoscalerHistory(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, enableMetricsStore(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+
+	at := time.Now().Add(-30 * time.Minute)
+	s.metricsStore.Ingest(&structs.TaskGroupUsageReport{NodeID: "n", Window: 10 * time.Second,
+		Groups: []*structs.TaskGroupUsage{{
+			Namespace: "default", JobID: "api", TaskGroup: "web", Allocs: 1, Samples: 5,
+			CPUPercent: structs.TaskGroupUsageValue{Avg: 25, Max: 40},
+		}}}, at)
+	waitBus(t, func() (bool, error) {
+		avg, mx, n, err := s.autoscalerUsageHistory("default", "api", "web", metricsstore.MetricCPU, at.Add(-time.Minute), time.Now())
+		return err == nil && n == 1 && avg == 25 && mx == 40, err
+	})
+
+	// Without a store: no intervals.
+	s2, cleanup2 := TestServer(t, nil)
+	defer cleanup2()
+	_, _, n, err := s2.autoscalerUsageHistory("default", "api", "web", metricsstore.MetricCPU, at, time.Now())
+	must.NoError(t, err)
+	must.Eq(t, 0, n)
+}
