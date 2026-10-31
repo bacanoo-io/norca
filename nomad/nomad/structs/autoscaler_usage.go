@@ -6,10 +6,13 @@ package structs
 import "time"
 
 // TaskGroupUsageReport is the resource usage of the task groups running on a
-// client node, aggregated by the client over one window. Clients attach it
-// to Node.UpdateAlloc when the servers ask for it (see
-// NodeUpdateResponse.TaskGroupUsageInterval). The leader keeps it in memory
-// for the built-in autoscaler; it is never written to Raft.
+// client node, aggregated by the client over one window. Clients publish it
+// as JSON on their telemetry subject of the system bus (BusTelemetrySubject)
+// when the servers ask for it (see NodeUpdateResponse.TaskGroupUsageInterval),
+// split into several reports of the same window when it would exceed
+// BusTelemetryMaxMsgSize. Every server reads them from the telemetry stream;
+// the leader keeps them in memory for the built-in autoscaler. They are
+// never written to Raft.
 type TaskGroupUsageReport struct {
 	// NodeID is the reporting node.
 	NodeID string
@@ -50,6 +53,19 @@ type TaskGroupUsage struct {
 	// MemoryPercent is the memory usage as a percentage of the allocated
 	// memory.
 	MemoryPercent TaskGroupUsageValue
+
+	// MemoryCacheMB is the page cache in MiB (reclaimable; part of the
+	// memory usage when the driver measures the cgroup usage).
+	MemoryCacheMB TaskGroupUsageValue
+
+	// CPUThrottledPercent is the time the tasks were throttled by their CPU
+	// limit (CFS quota), as a percentage of the time between two
+	// measurements; the times of the tasks of an allocation add up.
+	CPUThrottledPercent TaskGroupUsageValue
+
+	// OOMKills is the number of tasks killed by the kernel for running out
+	// of memory in the window, of all allocations of the group on the node.
+	OOMKills int
 }
 
 // TaskGroupUsageValue is the average and the maximum of a usage value.

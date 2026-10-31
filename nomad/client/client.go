@@ -2230,19 +2230,14 @@ func (c *Client) allocSync() {
 			updateTicks++
 			toSync := c.pendingUpdates.nextBatch(c, updateTicks)
 
-			// A finished task group usage report rides along with the
-			// allocation updates, or is sent alone if there are none.
-			usage := c.taskGroupUsage.take()
-
-			if len(toSync) == 0 && usage == nil {
+			if len(toSync) == 0 {
 				syncTicker.Reset(allocSyncIntv)
 				continue
 			}
 
 			// Send to server.
 			args := structs.AllocUpdateRequest{
-				Alloc:          toSync,
-				TaskGroupUsage: usage,
+				Alloc: toSync,
 				WriteRequest: structs.WriteRequest{
 					Region:    c.Region(),
 					AuthToken: c.secretNodeID(),
@@ -2251,13 +2246,6 @@ func (c *Client) allocSync() {
 
 			var resp structs.GenericResponse
 			err := c.RPC("Node.UpdateAlloc", &args, &resp)
-			if err != nil && len(toSync) == 0 {
-				// Only the usage report failed; it is dropped, the next
-				// window brings a new one.
-				c.logger.Debug("error sending task group usage", "error", err)
-				syncTicker.Reset(allocSyncIntv)
-				continue
-			}
 			if err != nil {
 				// Error updating allocations, do *not* clear
 				// updates and retry after backoff

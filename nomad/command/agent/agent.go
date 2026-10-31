@@ -586,6 +586,7 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	conf.Autoscaler = norcaBlocks.autoscaler
 	conf.Backup = norcaBlocks.backup
 	conf.Bus = norcaBlocks.bus
+	conf.MetricsStore = norcaBlocks.metricsStore
 	conf.SecretsAudit = norcaBlocks.secretsAudit
 	conf.SecretsVaultFallback = agentConfig.Server.Secrets.vaultFallback()
 

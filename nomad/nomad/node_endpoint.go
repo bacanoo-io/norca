@@ -1338,15 +1338,6 @@ func (n *Node) UpdateAlloc(args *structs.AllocUpdateRequest, reply *structs.Gene
 
 	defer metrics.MeasureSince([]string{"nomad", "client", "update_alloc"}, time.Now())
 
-	// Task group usage for the built-in autoscaler goes to the leader's
-	// memory, not to Raft. A request may carry only usage.
-	if args.TaskGroupUsage != nil {
-		n.srv.autoscalerRecordUsage(args)
-		if len(args.Alloc) == 0 {
-			return nil
-		}
-	}
-
 	// Ensure at least a single alloc
 	if len(args.Alloc) == 0 {
 		return fmt.Errorf("must update at least one allocation")

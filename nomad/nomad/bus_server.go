@@ -17,6 +17,7 @@ import (
 
 	"github.com/hashicorp/nomad/helper/tlsutil"
 	"github.com/hashicorp/nomad/nomad/bus"
+	"github.com/hashicorp/nomad/nomad/metricsstore"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/nomad/structs/config"
@@ -39,12 +40,6 @@ const (
 	busRevalidateInterval     = 5 * time.Second
 	busRevalidateFullInterval = time.Minute
 )
-
-// busTelemetrySubject is the only subject a node may publish on: its usage
-// reports.
-func busTelemetrySubject(region, nodeID string) string {
-	return "norca.telemetry." + region + "." + nodeID
-}
 
 // setupBus starts the system bus when it is enabled. The bus runs clustered
 // when the region has or expects more than one server.
@@ -86,10 +81,23 @@ func (s *Server) setupBus() error {
 	}
 	s.bus = b
 
+	if msCfg := s.config.MetricsStore.Copy(); msCfg != nil && msCfg.Enabled {
+		if msCfg.Dir == "" && s.config.DataDir != "" {
+			msCfg.Dir = filepath.Join(s.config.DataDir, "tsdb")
+		}
+		store, err := metricsstore.Open(msCfg, s.logger)
+		if err != nil {
+			return err
+		}
+		s.metricsStore = store
+		go s.metricsStoreSampleLoop(msCfg.SampleInterval)
+	}
+
 	s.busRoutesCh = make(chan struct{}, 1)
 	go s.busRoutesLoop()
 	go s.busRevalidateLoop()
 	go s.busCarryOverLoop()
+	go s.busRetryLoop(s.shutdownCtx, "consuming the task group usage", s.consumeTelemetry)
 	return nil
 }
 
@@ -105,11 +113,16 @@ func (s *Server) raftServers() int {
 	return len(future.Configuration().Servers)
 }
 
-// shutdownBus stops the system bus.
+// shutdownBus stops the system bus and the metrics store it feeds.
 func (s *Server) shutdownBus() {
 	if s.bus != nil {
 		s.consulKV.close()
 		s.bus.Shutdown()
+	}
+	if s.metricsStore != nil {
+		if err := s.metricsStore.Close(); err != nil {
+			s.logger.Warn("closing the metrics store failed", "error", err)
+		}
 	}
 }
 
@@ -197,7 +210,7 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 		return &bus.Grant{
 			Kind:    bus.KindNode,
 			Name:    node.ID,
-			Publish: []string{busTelemetrySubject(s.config.Region, node.ID)},
+			Publish: []string{structs.BusTelemetrySubject(s.config.Region, node.ID)},
 		}, nil
 	}
 

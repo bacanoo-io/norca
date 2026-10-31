@@ -242,6 +242,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [github.com/morikuni/aec](#go-github-com-morikuni-aec-v1-0-0) | v1.0.0 | MIT | norca |
 | [github.com/mrunalp/fileutils](#go-github-com-mrunalp-fileutils-v0-5-1) | v0.5.1 | Apache-2.0 | norca |
 | [github.com/muesli/reflow](#go-github-com-muesli-reflow-v0-3-0) | v0.3.0 | MIT | norca |
+| [github.com/nakabonne/tstorage](#go-github-com-nakabonne-tstorage-v0-3-6) | v0.3.6 (source copy in nomad/internal/tstorage) | Apache-2.0 | norca |
 | [github.com/nats-io/jwt/v2](#go-github-com-nats-io-jwt-v2-v2-8-2) | v2.8.2 | Apache-2.0 | norca |
 | [github.com/nats-io/nats-server/v2](#go-github-com-nats-io-nats-server-v2-v2-15-0) | v2.15.0 | Apache-2.0 | norca |
 | [github.com/nats-io/nats.go](#go-github-com-nats-io-nats-go-v1-54-0) | v1.54.0 | Apache-2.0 | norca |
@@ -3308,6 +3309,36 @@ See also https://www.apache.org/dev/crypto.html and/or seek legal counsel.
 - License: MIT
 - Used in: norca
 - `LICENSE`: [license text 124](#license-text-124)
+
+<a id="go-github-com-nakabonne-tstorage-v0-3-6"></a>
+
+### github.com/nakabonne/tstorage v0.3.6 (source copy in nomad/internal/tstorage)
+
+- License: Apache-2.0
+- Used in: norca
+- `LICENSE`: [license text 2](#license-text-2)
+
+NOTICE (`NOTICE.txt`):
+
+```text
+tstorage
+===============
+
+This product contains a modified part of VictoriaMetrics, distributed by VictoriaMetrics, Inc:
+
+  * License: https://github.com/VictoriaMetrics/VictoriaMetrics/blob/master/LICENSE (Apache License v2.0)
+  * Homepage: https://github.com/VictoriaMetrics/VictoriaMetrics
+
+This product contains a modified part of catena, distributed by Cistern:
+
+  * License: https://github.com/Cistern/catena/blob/master/LICENSE
+  * Homepage: https://github.com/Cistern/catena
+
+This product contains a modified part of go-tsz, distributed by dgryski:
+
+  * License: https://github.com/dgryski/go-tsz/blob/master/LICENSE
+  * Homepage: https://github.com/dgryski/go-tsz
+```
 
 <a id="go-github-com-nats-io-jwt-v2-v2-8-2"></a>
 
@@ -11938,7 +11969,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### License text 2
 
-Used by: cel.dev/expr v0.25.2, cloud.google.com/go v0.121.6, cloud.google.com/go/auth v0.20.0, cloud.google.com/go/auth/oauth2adapt v0.2.8, cloud.google.com/go/compute/metadata v0.9.0, cloud.google.com/go/iam v1.5.3, cloud.google.com/go/monitoring v1.24.3, cloud.google.com/go/storage v1.56.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0, github.com/Masterminds/goutils v1.1.1, github.com/agext/levenshtein v1.2.1, github.com/aws/aws-sdk-go v1.44.184, github.com/checkpoint-restore/go-criu/v8 v8.3.0, github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2, github.com/container-storage-interface/spec v1.7.0, github.com/containerd/go-cni v1.1.14, github.com/containernetworking/cni v1.3.1, github.com/containernetworking/plugins v1.9.1, github.com/coreos/go-oidc/v3 v3.1.0, github.com/dimchansky/utfbom v1.1.0, github.com/distribution/reference v0.6.0, github.com/docker/distribution v2.8.3+incompatible, github.com/envoyproxy/go-control-plane/envoy v1.37.0, github.com/envoyproxy/protoc-gen-validate v1.3.3, github.com/go-jose/go-jose/v4 v4.1.4, github.com/go-logr/logr v1.4.3, github.com/go-logr/stdr v1.2.2, github.com/google/btree v1.0.1, github.com/google/go-tpm v0.9.8, github.com/google/nftables v0.3.0, github.com/google/s2a-go v0.1.9, github.com/googleapis/enterprise-certificate-proxy v0.3.15, github.com/grpc-ecosystem/go-grpc-middleware v1.4.0, github.com/hashicorp/cronexpr v1.1.2, github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07, github.com/matttproud/golang\_protobuf\_extensions/v2 v2.0.0, github.com/minio/crc64nvme v1.1.1, github.com/minio/highwayhash v1.0.4, github.com/minio/md5-simd v1.1.2, github.com/minio/minio-go/v7 v7.3.0, github.com/moby/sys/devices v0.1.0, github.com/moby/sys/mount v0.3.3, github.com/moby/sys/mountinfo v0.7.2, github.com/moby/sys/sequential v0.5.0, github.com/moby/sys/user v0.4.1, github.com/moby/sys/userns v0.2.1, github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd, github.com/modern-go/reflect2 v1.0.2, github.com/nats-io/jwt/v2 v2.8.2, github.com/nats-io/nats-server/v2 v2.15.0, github.com/nats-io/nats.go v1.54.0, github.com/nats-io/nkeys v0.4.16, github.com/nats-io/nuid v1.0.1, github.com/oklog/run v1.1.0, github.com/opencontainers/cgroups v0.1.0, github.com/opencontainers/selinux v1.13.1, github.com/prometheus/client\_golang v1.18.0, github.com/prometheus/client\_model v0.6.2, github.com/prometheus/common v0.45.0, github.com/prometheus/procfs v0.12.0, github.com/skeema/knownhosts v1.3.1, github.com/softlayer/softlayer-go v0.0.0-20180806151055-260589d94c7d, github.com/spiffe/go-spiffe/v2 v2.8.1, github.com/tklauser/numcpus v0.6.0, github.com/vmware/govmomi v0.18.0, github.com/xanzy/ssh-agent v0.3.3, github.com/zclconf/go-cty-yaml v1.0.3, go.opentelemetry.io/auto/sdk v1.2.1, google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7, google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800, google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800, google.golang.org/grpc v1.84.0, gopkg.in/square/go-jose.v2 v2.6.0, gopkg.in/yaml.v2 v2.4.0, baseline-browser-mapping 2.11.28, workerpool 3.1.2
+Used by: cel.dev/expr v0.25.2, cloud.google.com/go v0.121.6, cloud.google.com/go/auth v0.20.0, cloud.google.com/go/auth/oauth2adapt v0.2.8, cloud.google.com/go/compute/metadata v0.9.0, cloud.google.com/go/iam v1.5.3, cloud.google.com/go/monitoring v1.24.3, cloud.google.com/go/storage v1.56.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0, github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0, github.com/Masterminds/goutils v1.1.1, github.com/agext/levenshtein v1.2.1, github.com/aws/aws-sdk-go v1.44.184, github.com/checkpoint-restore/go-criu/v8 v8.3.0, github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2, github.com/container-storage-interface/spec v1.7.0, github.com/containerd/go-cni v1.1.14, github.com/containernetworking/cni v1.3.1, github.com/containernetworking/plugins v1.9.1, github.com/coreos/go-oidc/v3 v3.1.0, github.com/dimchansky/utfbom v1.1.0, github.com/distribution/reference v0.6.0, github.com/docker/distribution v2.8.3+incompatible, github.com/envoyproxy/go-control-plane/envoy v1.37.0, github.com/envoyproxy/protoc-gen-validate v1.3.3, github.com/go-jose/go-jose/v4 v4.1.4, github.com/go-logr/logr v1.4.3, github.com/go-logr/stdr v1.2.2, github.com/google/btree v1.0.1, github.com/google/go-tpm v0.9.8, github.com/google/nftables v0.3.0, github.com/google/s2a-go v0.1.9, github.com/googleapis/enterprise-certificate-proxy v0.3.15, github.com/grpc-ecosystem/go-grpc-middleware v1.4.0, github.com/hashicorp/cronexpr v1.1.2, github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07, github.com/matttproud/golang\_protobuf\_extensions/v2 v2.0.0, github.com/minio/crc64nvme v1.1.1, github.com/minio/highwayhash v1.0.4, github.com/minio/md5-simd v1.1.2, github.com/minio/minio-go/v7 v7.3.0, github.com/moby/sys/devices v0.1.0, github.com/moby/sys/mount v0.3.3, github.com/moby/sys/mountinfo v0.7.2, github.com/moby/sys/sequential v0.5.0, github.com/moby/sys/user v0.4.1, github.com/moby/sys/userns v0.2.1, github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd, github.com/modern-go/reflect2 v1.0.2, github.com/nakabonne/tstorage v0.3.6, github.com/nats-io/jwt/v2 v2.8.2, github.com/nats-io/nats-server/v2 v2.15.0, github.com/nats-io/nats.go v1.54.0, github.com/nats-io/nkeys v0.4.16, github.com/nats-io/nuid v1.0.1, github.com/oklog/run v1.1.0, github.com/opencontainers/cgroups v0.1.0, github.com/opencontainers/selinux v1.13.1, github.com/prometheus/client\_golang v1.18.0, github.com/prometheus/client\_model v0.6.2, github.com/prometheus/common v0.45.0, github.com/prometheus/procfs v0.12.0, github.com/skeema/knownhosts v1.3.1, github.com/softlayer/softlayer-go v0.0.0-20180806151055-260589d94c7d, github.com/spiffe/go-spiffe/v2 v2.8.1, github.com/tklauser/numcpus v0.6.0, github.com/vmware/govmomi v0.18.0, github.com/xanzy/ssh-agent v0.3.3, github.com/zclconf/go-cty-yaml v1.0.3, go.opentelemetry.io/auto/sdk v1.2.1, google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7, google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800, google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800, google.golang.org/grpc v1.84.0, gopkg.in/square/go-jose.v2 v2.6.0, gopkg.in/yaml.v2 v2.4.0, baseline-browser-mapping 2.11.28, workerpool 3.1.2
 
 ```text
                                  Apache License

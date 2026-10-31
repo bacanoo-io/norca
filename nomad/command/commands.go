@@ -786,6 +786,16 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"operator metrics-store": func() (cli.Command, error) {
+			return &OperatorMetricsStoreCommand{
+				Meta: meta,
+			}, nil
+		},
+		"operator metrics-store status": func() (cli.Command, error) {
+			return &OperatorMetricsStoreStatusCommand{
+				Meta: meta,
+			}, nil
+		},
 		"operator consul-kv": func() (cli.Command, error) {
 			return &OperatorConsulKVCommand{
 				Meta: meta,
