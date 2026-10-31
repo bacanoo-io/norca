@@ -5,6 +5,7 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -35,6 +36,23 @@ func TestKind_Paths(t *testing.T) {
 	} {
 		_, ok := k.NameFromPath(p)
 		must.False(t, ok, must.Sprint(p))
+	}
+
+	// Groups that differ only in dots and dashes have distinct paths.
+	paths := map[string]string{}
+	for _, group := range []string{"db.example.com", "db-example-com", "db-example.com", "db.example-com", "db--example.com", "a-b.c", "a.b-c", "a--b"} {
+		g := Kind{Group: group, Kind: "PostgresCluster"}
+		must.NoError(t, g.Validate(), must.Sprint(group))
+		other, dup := paths[g.Prefix()]
+		must.False(t, dup, must.Sprintf("%s and %s map to %s", group, other, g.Prefix()))
+		paths[g.Prefix()] = group
+	}
+	must.Eq(t, "my--db-example-com", Kind{Group: "my-db.example.com"}.PathGroup())
+
+	// Groups that are not DNS subdomains would make the path form
+	// ambiguous ("a.-b" and "a-.b" would both map to "a---b").
+	for _, group := range []string{"a..b", "a.-b", "a-.b", "-a", "a-", ".a", "a."} {
+		must.Error(t, Kind{Group: group, Kind: "X"}.Validate(), must.Sprint(group))
 	}
 
 	must.Error(t, Kind{Group: "Upper.case", Kind: "X"}.Validate())
@@ -173,4 +191,25 @@ func TestConfigureUnixSocket(t *testing.T) {
 	leader, err := client.Status().Leader()
 	must.NoError(t, err)
 	must.Eq(t, "127.0.0.1:4647", leader)
+}
+
+// The recorder forgets objects whose last event is older than the window,
+// so its memory does not grow with every object ever recorded.
+func TestEventRecorder_SweepsExpired(t *testing.T) {
+	objects, err := NewObjects(Kind{Group: "example.com", Kind: "Widget"}, nil)
+	must.NoError(t, err)
+	now := time.Unix(1000, 0)
+	rec := NewEventRecorder(objects, time.Minute)
+	rec.now = func() time.Time { return now }
+
+	ctx := t.Context()
+	for i := range 100 {
+		rec.Event(ctx, ObjectKey{Namespace: "default", Name: fmt.Sprint(i)}, EventTypeNormal, "Reconciled", "ok")
+	}
+	must.MapLen(t, 100, rec.last)
+
+	now = now.Add(time.Minute)
+	rec.Event(ctx, ObjectKey{Namespace: "default", Name: "new"}, EventTypeNormal, "Reconciled", "ok")
+	must.MapLen(t, 1, rec.last)
+	must.MapContainsKey(t, rec.last, ObjectKey{Namespace: "default", Name: "new"})
 }

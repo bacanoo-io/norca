@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -134,4 +135,66 @@ func TestServe(t *testing.T) {
 		t.Fatal("Serve did not stop")
 	}
 	must.Error(t, webhook.ListenAndServeTLS(context.Background(), "127.0.0.1:0", "missing.pem", "missing-key.pem", nil))
+}
+
+// failingListener fails every Accept.
+type failingListener struct{ net.Listener }
+
+func (failingListener) Accept() (net.Conn, error) { return nil, errors.New("accept failed") }
+
+// A failing Serve does not leave its shutdown goroutine behind.
+func TestServe_FailureDoesNotLeak(t *testing.T) {
+	before := runtime.NumGoroutine()
+	for range 20 {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		must.NoError(t, err)
+		must.Error(t, webhook.Serve(context.Background(), failingListener{ln}, http.NotFoundHandler()))
+		ln.Close()
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for runtime.NumGoroutine() > before && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	must.LessEq(t, before, runtime.NumGoroutine())
+}
+
+// Serve returns only after the requests in progress finished.
+func TestServe_WaitsForRequests(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	must.NoError(t, err)
+	started, release := make(chan struct{}), make(chan struct{})
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(started)
+		<-release
+		w.WriteHeader(http.StatusNoContent)
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- webhook.Serve(ctx, ln, h) }()
+
+	reqDone := make(chan int, 1)
+	go func() {
+		resp, err := http.Get("http://" + ln.Addr().String())
+		if err != nil {
+			reqDone <- 0
+			return
+		}
+		resp.Body.Close()
+		reqDone <- resp.StatusCode
+	}()
+	<-started
+	cancel()
+	select {
+	case <-done:
+		t.Fatal("Serve returned with a request in progress")
+	case <-time.After(200 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case err := <-done:
+		must.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("Serve did not stop")
+	}
+	must.Eq(t, http.StatusNoContent, <-reqDone)
 }

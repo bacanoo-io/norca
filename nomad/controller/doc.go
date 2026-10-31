@@ -18,8 +18,8 @@
 //     (CommonStatus.Observe sets observedGeneration).
 //   - StorageVariables (the default, phase 1 prototype): objects are
 //     Variables under the path convention crd/<group>/<kind>/<name>, where
-//     the group is written with dashes instead of dots (Variables
-//     paths do not allow dots), for example
+//     the group is written with dashes instead of dots and its own
+//     dashes doubled (Variables paths do not allow dots), for example
 //     crd/db-example-com/PostgresCluster/billing for the kind
 //     db.example.com/PostgresCluster. The spec and the status are JSON
 //     documents in the "spec" and "status" items of the same Variable, and

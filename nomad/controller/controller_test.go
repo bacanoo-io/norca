@@ -247,6 +247,39 @@ func TestController_StatusConflictRetry(t *testing.T) {
 	must.ErrorIs(t, err, controller.ErrConflict)
 	_, err = objects.Update(context.Background(), obj)
 	must.ErrorIs(t, err, controller.ErrConflict)
+
+	// The status of an object is not applied to an object re-created with
+	// the same name after a deletion.
+	cur, err := objects.Get(context.Background(), obj.Key)
+	must.NoError(t, err)
+	b.RemoveVariable("default", widgetKind.Path("a"))
+	putWidget(b, "default", "a", `{"size":9}`)
+	_, err = objects.UpdateStatus(context.Background(), cur, widgetStatus{Size: 2})
+	must.ErrorIs(t, err, controller.ErrNotFound)
+	recreated, err := objects.Get(context.Background(), obj.Key)
+	must.NoError(t, err)
+	must.Eq(t, 0, len(recreated.Status))
+}
+
+func TestNativeObjects_StatusNotAppliedToRecreated(t *testing.T) {
+	b := fake.New()
+	putNativeWidget(b, "default", "a", map[string]any{"size": 1})
+	objects, err := controller.NewNativeObjects(widgetKind, b)
+	must.NoError(t, err)
+	ctx := context.Background()
+	key := controller.ObjectKey{Namespace: "default", Name: "a"}
+	obj, err := objects.Get(ctx, key)
+	must.NoError(t, err)
+
+	b.RemoveObject(widgetKind, "default", "a")
+	putNativeWidget(b, "default", "a", map[string]any{"size": 9})
+	var st widgetStatus
+	st.Observe(obj)
+	_, err = objects.UpdateStatus(ctx, obj, st)
+	must.ErrorIs(t, err, controller.ErrNotFound)
+	recreated, err := objects.Get(ctx, key)
+	must.NoError(t, err)
+	must.Eq(t, 0, recreated.ObservedGeneration())
 }
 
 func TestController_LeaderElection(t *testing.T) {

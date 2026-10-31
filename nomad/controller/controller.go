@@ -178,7 +178,13 @@ func New(backend Backend, reconciler Reconciler, opts Options) (*Controller, err
 				c.Enqueue(newObj.Key)
 			}
 		},
-		OnDelete: func(obj *Object) { c.Enqueue(obj.Key) },
+		OnDelete: func(obj *Object) {
+			// white room bugfix: the recorder kept the last event of
+			// deleted objects, dropping the first event of an object
+			// re-created with the same name within the window.
+			c.recorder.Forget(obj.Key)
+			c.Enqueue(obj.Key)
+		},
 	})
 
 	if opts.LeaderElection != nil {

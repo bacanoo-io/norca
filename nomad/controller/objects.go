@@ -61,7 +61,9 @@ func (c *Objects) Get(ctx context.Context, key ObjectKey) (*Object, error) {
 
 // List reads every object of the kind in the namespace ("*" for all
 // namespaces the token can access). Variables that are not valid objects are
-// skipped. It returns the index of the listing.
+// skipped (and logged), so the listing does not prove that an object is
+// gone: check with Get before acting on a missing object. It returns the
+// index of the listing.
 func (c *Objects) List(ctx context.Context, namespace string) ([]*Object, uint64, error) {
 	entries, index, err := c.store.list(ctx, namespace, 0)
 	if err != nil {
@@ -72,7 +74,13 @@ func (c *Objects) List(ctx context.Context, namespace string) ([]*Object, uint64
 		obj := e.obj
 		if obj == nil {
 			obj, err = c.store.get(ctx, e.key)
-			if errors.Is(err, ErrNotFound) || errors.Is(err, errInvalidObject) {
+			if errors.Is(err, errInvalidObject) {
+				// white room bugfix: invalid objects were skipped silently,
+				// unlike in the informer; they are logged now.
+				slog.Default().Warn("ignoring invalid object", "kind", c.store.kind().String(),
+					"object", e.key.String(), "error", err)
+				continue
+			} else if errors.Is(err, ErrNotFound) {
 				continue
 			} else if err != nil {
 				return nil, 0, err
@@ -122,8 +130,8 @@ const maxStatusRetries = 5
 // Native objects are written on the status endpoint, which requires the
 // "write-status" capability instead of "write".
 //
-// It returns the stored object. If the object no longer exists it returns
-// an error wrapping ErrNotFound.
+// It returns the stored object. If the object no longer exists (or was
+// deleted and re-created) it returns an error wrapping ErrNotFound.
 func (c *Objects) UpdateStatus(ctx context.Context, obj *Object, status any) (*Object, error) {
 	cur := obj.Copy()
 	if err := cur.SetStatus(status); err != nil {
@@ -144,9 +152,27 @@ func (c *Objects) UpdateStatus(ctx context.Context, obj *Object, status any) (*O
 			return nil, fmt.Errorf("writing the status of %s %s: %w", kind, obj.Key, err)
 		}
 		slog.Default().Debug("status write conflict, retrying", "kind", kind.String(), "object", obj.Key.String())
-		obj, err = c.Get(ctx, obj.Key)
+		fresh, err := c.Get(ctx, obj.Key)
 		if err != nil {
 			return nil, err
 		}
+		// white room bugfix: the status was applied to whatever object
+		// had the name on the retry, also to one re-created after the
+		// object was deleted, where an observedGeneration computed for the
+		// old object can claim that the new spec was acted on.
+		if !sameIncarnation(obj, fresh) {
+			return nil, fmt.Errorf("writing the status of %s %s: the object was re-created: %w", kind, obj.Key, ErrNotFound)
+		}
+		obj = fresh
 	}
+}
+
+// sameIncarnation reports whether cur is a later version of obj and not an
+// object re-created with the same name. Unknown identities (zero ID or
+// CreateIndex, for example of a hand-built object) are not compared.
+func sameIncarnation(obj, cur *Object) bool {
+	if obj.ID != "" && cur.ID != "" {
+		return obj.ID == cur.ID
+	}
+	return obj.CreateIndex == 0 || obj.CreateIndex == cur.CreateIndex
 }

@@ -29,9 +29,9 @@ const (
 	ObjectEventTypeWarning = "Warning"
 
 	// JobMetaOwner is the reserved job meta key referencing the custom
-	// object that owns a job: "<namespace>/crd/<group with dots replaced
-	// by dashes>/<Kind>/<name>". JobMetaOwnerKind optionally holds the
-	// owner's "group/Kind". The object garbage collector stops the jobs of
+	// object that owns a job: "<namespace>/crd/<group with dashes doubled
+	// and dots replaced by dashes>/<Kind>/<name>". JobMetaOwnerKind
+	// optionally holds the owner's "group/Kind". The object garbage collector stops the jobs of
 	// deleted owners (except in the orphan mode).
 	JobMetaOwner     = "norca.owner"
 	JobMetaOwnerKind = "norca.owner.kind"
