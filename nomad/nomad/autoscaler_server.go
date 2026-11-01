@@ -6,9 +6,9 @@ package nomad
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/autoscaler"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // autoscalerACLPolicy is the only permission of the built-in autoscaler's

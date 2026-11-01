@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package hclspecutils
@@ -6,9 +7,9 @@ package hclspecutils
 import (
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
 	"github.com/hashicorp/hcl/v2/hcldec"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )

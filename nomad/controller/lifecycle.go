@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 )
 
 // Lifecycle helpers for native objects: finalizers, the object event log,

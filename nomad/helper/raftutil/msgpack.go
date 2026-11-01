@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package raftutil
@@ -9,8 +10,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-msgpack/codec"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // fixTime converts any suspected time.Time binary string representation to time.Time

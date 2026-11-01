@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/varfile"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/varfile/fixture"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad/pack/internal/pkg/varfile"
-	"github.com/hashicorp/nomad/pack/internal/pkg/varfile/fixture"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
 	"github.com/shoenig/test/must"
 )
 

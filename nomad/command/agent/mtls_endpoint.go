@@ -6,8 +6,8 @@ package agent
 import (
 	"net/http"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // apiServiceMTLSToStructs converts the mtls block of a service.

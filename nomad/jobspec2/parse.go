@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package jobspec2
@@ -12,10 +13,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	hcljson "github.com/hashicorp/hcl/v2/json"
-	"github.com/hashicorp/nomad/api"
 )
 
 func Parse(path string, r io.Reader) (*api.Job, error) {

@@ -10,8 +10,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/hashicorp/nomad/pack/internal/config"
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/config"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
 )
 
 type packCreator struct {

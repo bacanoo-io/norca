@@ -1,0 +1,29 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.objects.length}}
+  <details class="mt-3" data-test-preview-objects ...attributes>
+    <summary>Affected objects ({{this.objects.length}}{{if @preview.Truncated ", the first ones"}})</summary>
+    <Ui::Table
+      @caption="Affected objects"
+      @columns={{array (hash key="type" label="Type") (hash key="change" label="Change") (hash key="id" label="Name") (hash key="ns" label="Namespace")}}
+      @rows={{this.rows}}
+      as |o|
+    >
+      <td>{{o.Type}}</td>
+      <td>{{o.Change}}</td>
+      <td class="font-monospace">{{o.ID}}</td>
+      <td>{{or o.Namespace "–"}}</td>
+    </Ui::Table>
+    <Ui::Pagination
+      class="mt-2"
+      @page={{this.page}}
+      @pageSize={{this.pageSize}}
+      @total={{this.objects.length}}
+      @noun="objects"
+      @onPageChange={{this.setPage}}
+      @onPageSizeChange={{this.setPageSize}}
+    />
+  </details>
+{{/if}}

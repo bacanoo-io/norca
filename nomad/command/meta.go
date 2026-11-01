@@ -11,9 +11,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/clienv"
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/clienv"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 	colorable "github.com/mattn/go-colorable"
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/colorstring"

@@ -27,7 +27,7 @@ variable "job_name" {
 }
 
 variable "team" {
-  description = "Value of the job meta \"team\" (the admission policy of the examples warns about jobs without it)."
+  description = "Value of the job meta \"team\"."
   type        = string
   default     = "demo"
 

@@ -17,7 +17,7 @@ import (
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/errdef"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/signing"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/signing"
 )
 
 // Signatures are stored the way cosign stores key-based signatures: in an

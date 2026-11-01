@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/nomad/helper/raftutil"
+	"github.com/bacanoo-io/norca/nomad/helper/raftutil"
 	"github.com/posener/complete"
 )
 

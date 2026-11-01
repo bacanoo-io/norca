@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/helper/pointer"
 	"golang.org/x/crypto/blake2b"
 )
 

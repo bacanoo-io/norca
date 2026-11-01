@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )
@@ -166,6 +166,7 @@ func formatMetricsStoreStatus(st *api.MetricsStoreStatus) string {
 		fmt.Sprintf("Retention|%s", st.Retention),
 		fmt.Sprintf("Sample Interval|%s", st.SampleInterval),
 		fmt.Sprintf("Dropped Reports|%d", st.DroppedReports),
+		fmt.Sprintf("Duplicate Reports|%d", st.DuplicateReports),
 		fmt.Sprintf("Dropped Groups|%d", st.DroppedGroups),
 	})
 }

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 )
 
@@ -35,7 +35,7 @@ func TestJobEndpoint_SecretDeliveryConversion(t *testing.T) {
 					Provider:     "norca",
 					Path:         "jobs/${job}/db",
 					Version:      2,
-					File:         &api.TaskSecretFile{Destination: "secrets/db.json", Format: "json"},
+					Files:        []*api.TaskSecretFile{{Destination: "secrets/db.json", Format: "json"}},
 					Env:          map[string]string{"DB_PASSWORD": "password"},
 					ChangeMode:   "script",
 					ChangeScript: &api.ChangeScript{Command: pointer.Of("/bin/reload"), Args: []string{"x"}, Timeout: pointer.Of(time.Second), FailOnError: pointer.Of(true)},
@@ -68,7 +68,7 @@ func TestJobEndpoint_SecretDeliveryConversion(t *testing.T) {
 		Provider:     "norca",
 		Path:         "jobs/${job}/db",
 		Version:      2,
-		File:         &structs.TaskSecretFile{Destination: "secrets/db.json", Format: "json"},
+		Files:        []*structs.TaskSecretFile{{Destination: "secrets/db.json", Format: "json"}},
 		Env:          map[string]string{"DB_PASSWORD": "password"},
 		ChangeMode:   "script",
 		ChangeScript: &structs.ChangeScript{Command: "/bin/reload", Args: []string{"x"}, Timeout: time.Second, FailOnError: true},

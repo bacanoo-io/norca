@@ -8,18 +8,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/clienv"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/clienv"
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/manager"
-	"github.com/hashicorp/nomad/pack/internal/pkg/renderer"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
-	"github.com/hashicorp/nomad/pack/internal/runner"
-	"github.com/hashicorp/nomad/pack/internal/runner/job"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/manager"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/renderer"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/runner"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/runner/job"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 // get an initialized error context for a command that accepts pack args.

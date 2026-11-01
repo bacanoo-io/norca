@@ -7,14 +7,14 @@ import (
 	"fmt"
 	"time"
 
-	clientconfig "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/nomad/autoscaler"
-	"github.com/hashicorp/nomad/nomad/backup"
-	"github.com/hashicorp/nomad/nomad/bus"
-	"github.com/hashicorp/nomad/nomad/metricsstore"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
-	"github.com/hashicorp/nomad/secretstore"
+	clientconfig "github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler"
+	"github.com/bacanoo-io/norca/nomad/nomad/backup"
+	"github.com/bacanoo-io/norca/nomad/nomad/bus"
+	"github.com/bacanoo-io/norca/nomad/nomad/metricsstore"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/secretstore"
 )
 
 // norcaServerBlocks are the Norca blocks of the server configuration,
@@ -32,6 +32,10 @@ type norcaServerBlocks struct {
 	// secretsExpiryWarning is the expiry warning window of the secrets
 	// watcher; 0 keeps the server default.
 	secretsExpiryWarning time.Duration
+
+	// secretsOperatorTimeout bounds the calls to the operators of secret
+	// engines.
+	secretsOperatorTimeout time.Duration
 
 	// discoveryOverflowFraction is the default overflow fraction of the
 	// native_service_discovery block; nil keeps the server default.
@@ -99,6 +103,9 @@ func convertNorcaServerBlocks(s *ServerConfig, ports *Ports) (*norcaServerBlocks
 		return nil, err
 	}
 	if out.secretsExpiryWarning, err = s.Secrets.expiryWarning(); err != nil {
+		return nil, err
+	}
+	if out.secretsOperatorTimeout, err = s.Secrets.operatorTimeout(); err != nil {
 		return nil, err
 	}
 	return out, nil

@@ -19,7 +19,7 @@ The job is built to show Norca features through its variables:
 | Built-in secret store | `secret "db"` block: the secret `<job_name>/db` as `secrets/db.env` and as `DB_USER`/`DB_PASSWORD`; `secret_access { path = "${job}/*" }` grants the read to the workload identities | `secrets_enabled` |
 | Vault compatibility without a Vault | the page template reads `{{ with secret "kv/data/<job_name>/db" }}`, served by the built-in store, and shows only `.Data.metadata.version` | `secrets_enabled` |
 | Health check roles | `startup` (`/healthz`, `startup_timeout`), `readiness` (`/ready`), `liveness` (`/healthz`) | `startup_timeout` |
-| Native service catalog | group service, `provider = "nomad"`, optional `discovery { prefer, min_local, failover }` | `discovery_prefer`, `discovery_min_local`, `discovery_failover` |
+| Native service catalog | group service (the default provider), optional `discovery { prefer, min_local, failover }` | `discovery_prefer`, `discovery_min_local`, `discovery_failover` |
 | Disruption budget | `disruption { max_unavailable }` | `disruption_max_unavailable` |
 | Cross-job anti-affinity | `separate { selector { app = <job_name> } scope required }` | `separate_scope`, `separate_required` |
 | Typed scaling policy | `scaling { engine = "builtin" policy { check "cpu" { metric = "nomad.cpu" strategy = "target-value" target } } }` | `scaling_enabled`, `scaling_min`, `scaling_max`, `scaling_cpu_target` |
@@ -51,7 +51,8 @@ as a registry of the type `dir` on the **Packages → Registries** tab, or
 through the API:
 
 ```shell
-curl -X POST "$NOMAD_ADDR/v1/pack-registry" -H "X-Nomad-Token: $NOMAD_TOKEN"   -d '{"Name": "examples", "Spec": {"type": "dir", "source": "/path/to/norca/example/packs"}}'
+curl -X POST "$NORCA_ADDR/v1/pack-registry" -H "X-Nomad-Token: $NORCA_TOKEN" \
+  -d '{"Name": "examples", "Spec": {"type": "dir", "source": "/path/to/norca/example/packs"}}'
 ```
 
 The path is read by the leader, so it must exist on the servers (the dev

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package oidc
@@ -9,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/cap/oidc"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // providerConfig returns the OIDC provider configuration for an OIDC

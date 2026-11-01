@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"

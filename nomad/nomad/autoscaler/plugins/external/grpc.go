@@ -18,13 +18,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins"
+	apmproto "github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/apm/proto/v1"
+	baseproto "github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/base/proto/v1"
+	sharedproto "github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/shared/proto/v1"
+	strategyproto "github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/strategy/proto/v1"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
-	apmproto "github.com/hashicorp/nomad/nomad/autoscaler/plugins/apm/proto/v1"
-	baseproto "github.com/hashicorp/nomad/nomad/autoscaler/plugins/base/proto/v1"
-	sharedproto "github.com/hashicorp/nomad/nomad/autoscaler/plugins/shared/proto/v1"
-	strategyproto "github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/proto/v1"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
 	"google.golang.org/grpc"
 )
 

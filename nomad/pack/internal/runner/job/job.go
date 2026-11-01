@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/runner"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/runner"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 // Runner is the job implementation of the runner.Runner interface.

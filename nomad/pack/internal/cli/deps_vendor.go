@@ -10,9 +10,9 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/deps"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/deps"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
 )
 
 type depsVendorCommand struct {

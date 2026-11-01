@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/tlsutil"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/tlsutil"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/nats-io/nats.go"
 )
 

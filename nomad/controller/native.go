@@ -11,7 +11,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 )
 
 // Storage selects where the objects of a kind are stored.

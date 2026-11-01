@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // roleState is the part of a restarter specific to check roles.

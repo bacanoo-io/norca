@@ -9,6 +9,7 @@ import (
 	"maps"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -91,6 +92,14 @@ var (
 	}
 )
 
+// SecretFallbackRecoverSignal returns a task from its fallback to a dynamic
+// secret as soon as a credential can be created.
+const SecretFallbackRecoverSignal = "signal"
+
+// DefaultSecretFallbackRecoverInterval is how often a task on a fallback asks
+// for a credential.
+const DefaultSecretFallbackRecoverInterval = 10 * time.Second
+
 // TaskSecret is a secret block of a task: one secret delivered into the
 // task's secrets directory and/or environment.
 type TaskSecret struct {
@@ -116,8 +125,28 @@ type TaskSecret struct {
 	Engine string
 	Role   string
 
-	// File delivers the secret as a file below secrets/.
-	File *TaskSecretFile
+	// Params are the request parameters of a dynamic secret, passed to the
+	// operator of the engine. The role lists the keys a job may send.
+	Params map[string]string
+
+	// Fallback is a path of the built-in store delivered instead of a
+	// dynamic secret when the credential can't be created at the start of
+	// the task. A renewal never switches to it. FallbackRecover "signal"
+	// keeps asking for a credential and applies the change mode when one is
+	// delivered; empty stays on the fallback until the task restarts.
+	// A restart of the task asks for a credential again, unless
+	// FallbackKeepOnRestart keeps it on the fallback.
+	Fallback              string
+	FallbackRecover       string
+	FallbackKeepOnRestart bool
+
+	// FallbackRecoverInterval is how often FallbackRecover asks for a
+	// credential.
+	FallbackRecoverInterval time.Duration
+
+	// Files deliver the secret as files below secrets/: one block for each
+	// file.
+	Files []*TaskSecretFile
 
 	// Env delivers items as environment variables: variable name to item.
 	Env map[string]string
@@ -181,7 +210,13 @@ func (s *TaskSecret) Copy() *TaskSecret {
 		return nil
 	}
 	out := *s
-	out.File = s.File.Copy()
+	out.Params = maps.Clone(s.Params)
+	if s.Files != nil {
+		out.Files = make([]*TaskSecretFile, len(s.Files))
+		for i, f := range s.Files {
+			out.Files[i] = f.Copy()
+		}
+	}
 	out.Env = maps.Clone(s.Env)
 	out.ChangeScript = s.ChangeScript.Copy()
 	return &out
@@ -195,10 +230,14 @@ func (s *TaskSecret) Equal(o *TaskSecret) bool {
 	switch {
 	case s.Name != o.Name, s.Provider != o.Provider, s.Path != o.Path, s.Version != o.Version,
 		s.Engine != o.Engine, s.Role != o.Role,
+		s.Fallback != o.Fallback, s.FallbackRecover != o.FallbackRecover,
+		s.FallbackKeepOnRestart != o.FallbackKeepOnRestart,
+		s.FallbackRecoverInterval != o.FallbackRecoverInterval,
 		s.ChangeMode != o.ChangeMode, s.ChangeSignal != o.ChangeSignal,
 		s.Optional != o.Optional, s.Timeout != o.Timeout:
 		return false
-	case !s.File.Equal(o.File), !maps.Equal(s.Env, o.Env), !s.ChangeScript.Equal(o.ChangeScript):
+	case !slices.EqualFunc(s.Files, o.Files, (*TaskSecretFile).Equal), !maps.Equal(s.Params, o.Params),
+		!maps.Equal(s.Env, o.Env), !s.ChangeScript.Equal(o.ChangeScript):
 		return false
 	}
 	return true
@@ -337,8 +376,16 @@ func (s *TaskSecret) Canonicalize() {
 	if s.Timeout == 0 {
 		s.Timeout = DefaultSecretTimeout
 	}
-	if s.File != nil && s.File.Format == "" {
-		s.File.Format = SecretFileFormatEnv
+	for _, f := range s.Files {
+		if f != nil && f.Format == "" {
+			f.Format = SecretFileFormatEnv
+		}
+	}
+	if len(s.Params) == 0 {
+		s.Params = nil
+	}
+	if s.FallbackRecover != "" && s.FallbackRecoverInterval == 0 {
+		s.FallbackRecoverInterval = DefaultSecretFallbackRecoverInterval
 	}
 	if len(s.Env) == 0 {
 		s.Env = nil
@@ -380,6 +427,38 @@ func (s *TaskSecret) Validate() error {
 			add("a dynamic secret (engine, role) has no versions")
 		}
 	}
+	if !dynamic {
+		if len(s.Params) > 0 {
+			add("params are for dynamic secrets (engine, role)")
+		}
+		if s.Fallback != "" {
+			add("fallback is for dynamic secrets (engine, role)")
+		}
+	}
+	if s.Fallback != "" {
+		if err := ValidateSecretPath(placeholderFree(s.Fallback)); err != nil {
+			add("fallback: %v", err)
+		}
+	}
+	if s.FallbackRecoverInterval != 0 {
+		if s.FallbackRecover == "" {
+			add("fallback_recover_interval needs fallback_recover")
+		} else if s.FallbackRecoverInterval < time.Second {
+			add("fallback_recover_interval must be at least 1s")
+		}
+	}
+	if s.FallbackKeepOnRestart && s.Fallback == "" {
+		add("fallback_keep_on_restart needs a fallback")
+	}
+	switch s.FallbackRecover {
+	case "":
+	case SecretFallbackRecoverSignal:
+		if s.Fallback == "" {
+			add("fallback_recover needs a fallback")
+		}
+	default:
+		add("invalid fallback_recover %q", s.FallbackRecover)
+	}
 	if dynamic {
 		// The engine and the role are checked by the servers when the
 		// credential is requested.
@@ -393,13 +472,13 @@ func (s *TaskSecret) Validate() error {
 		}
 	}
 
-	if s.File == nil && len(s.Env) == 0 && !dynamic {
-		// A dynamic secret without them is delivered to the engine's
-		// default file (secrets/nats.creds for nats).
+	if len(s.Files) == 0 && len(s.Env) == 0 {
 		add("a secret needs a file or env block to be delivered")
 	}
-	if s.File != nil {
-		if err := s.File.validate(); err != nil {
+	for _, f := range s.Files {
+		if f == nil {
+			add("empty file block")
+		} else if err := f.validate(); err != nil {
 			mErr = multierror.Append(mErr, err)
 		}
 	}
@@ -480,17 +559,9 @@ func validateTaskSecrets(t *Task) error {
 	names := map[string]struct{}{}
 	dests := map[string]string{}
 	envs := map[string]string{}
-	defaultFile := ""
 	for _, s := range t.Secrets {
 		if s == nil {
 			continue
-		}
-		if s.Engine != "" && s.File == nil && len(s.Env) == 0 {
-			if defaultFile != "" {
-				mErr = multierror.Append(mErr, fmt.Errorf(
-					"dynamic secrets %q and %q both use the engine's default file; give them file blocks", defaultFile, s.Name))
-			}
-			defaultFile = s.Name
 		}
 		if err := s.Validate(); err != nil {
 			mErr = multierror.Append(mErr, multierror.Prefix(err, fmt.Sprintf("secret %q:", s.Name)))
@@ -499,13 +570,16 @@ func validateTaskSecrets(t *Task) error {
 			mErr = multierror.Append(mErr, fmt.Errorf("duplicate secret %q", s.Name))
 		}
 		names[s.Name] = struct{}{}
-		if s.File != nil {
-			if other, ok := dests[s.File.Destination]; ok {
+		for _, f := range s.Files {
+			if f == nil {
+				continue
+			}
+			if other, ok := dests[f.Destination]; ok {
 				mErr = multierror.Append(mErr, fmt.Errorf("secrets %q and %q have the same destination", other, s.Name))
 			}
-			dests[s.File.Destination] = s.Name
+			dests[f.Destination] = s.Name
 			for _, tmpl := range t.Templates {
-				if tmpl != nil && path.Clean(tmpl.DestPath) == s.File.Destination {
+				if tmpl != nil && path.Clean(tmpl.DestPath) == f.Destination {
 					mErr = multierror.Append(mErr, fmt.Errorf("secret %q has the destination of a template", s.Name))
 				}
 			}
@@ -744,14 +818,27 @@ func (j *Job) SecretRefs() []*SecretRef {
 					Optional:        s.Optional,
 					Env:             []string{},
 				}
-				if s.File != nil {
-					ref.FileFormat = s.File.Format
+				if len(s.Files) > 0 {
+					ref.FileFormat = s.Files[0].Format
 				}
 				for name := range s.Env {
 					ref.Env = append(ref.Env, name)
 				}
 				sort.Strings(ref.Env)
 				out = append(out, ref)
+				if s.Fallback != "" {
+					// The fallback is an ordinary read of the task.
+					out = append(out, &SecretRef{
+						Group:    tg.Name,
+						Task:     t.Name,
+						Source:   "secret",
+						Name:     s.Name,
+						Provider: SecretProviderNorca,
+						Path:     InterpolateSecretPath(s.Fallback, jobID, tg.Name, t.Name),
+						Optional: s.Optional,
+						Env:      []string{},
+					})
+				}
 			}
 			for _, tmpl := range t.Templates {
 				if tmpl == nil {

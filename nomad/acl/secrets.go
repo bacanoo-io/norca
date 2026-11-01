@@ -55,9 +55,7 @@ const (
 	NamespaceCapabilityReadSecretEngine = "read-secret-engine"
 
 	// NamespaceCapabilityWriteSecretEngine allows creating, updating and
-	// deleting secret engines, rotating their admin credential
-	// (rotate-root) and revoking leases. Naming an engine's admin credential
-	// requires read-secret on its path as well.
+	// deleting secret engines and revoking leases.
 	NamespaceCapabilityWriteSecretEngine = "write-secret-engine"
 )
 

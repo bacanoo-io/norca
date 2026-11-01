@@ -17,14 +17,14 @@ import (
 	// into their command logic. This is because they are run as separate
 	// processes along side of a task. By early importing them we can avoid
 	// additional code being imported and thus reserving memory.
-	_ "github.com/hashicorp/nomad/client/allocrunner/taskrunner/getter"
-	_ "github.com/hashicorp/nomad/client/logmon"
-	_ "github.com/hashicorp/nomad/drivers/docker/docklog"
-	_ "github.com/hashicorp/nomad/drivers/shared/executor"
+	_ "github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/getter"
+	_ "github.com/bacanoo-io/norca/nomad/client/logmon"
+	_ "github.com/bacanoo-io/norca/nomad/drivers/docker/docklog"
+	_ "github.com/bacanoo-io/norca/nomad/drivers/shared/executor"
 
 	// Don't move any other code imports above the import block above!
-	"github.com/hashicorp/nomad/command"
-	"github.com/hashicorp/nomad/version"
+	"github.com/bacanoo-io/norca/nomad/command"
+	"github.com/bacanoo-io/norca/nomad/version"
 	"github.com/mitchellh/cli"
 )
 

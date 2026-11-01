@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // jobMTLSHook validates jobs that use native mTLS: every server must run

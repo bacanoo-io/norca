@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package config
@@ -6,7 +7,7 @@ package config
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 	vault "github.com/hashicorp/vault/api"
 )
 

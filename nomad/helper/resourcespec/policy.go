@@ -13,10 +13,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/v2/hclsimple"
-	"github.com/hashicorp/nomad/api"
 )
 
 // aclPolicyFile is the HCL form of an ACL policy with its metadata:

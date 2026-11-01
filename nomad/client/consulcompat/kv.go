@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/helper/consulkv"
-	structsc "github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/helper/consulkv"
+	structsc "github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 )
 
 // maxKVValueSize is the largest value Consul accepts.

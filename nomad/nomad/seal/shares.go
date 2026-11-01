@@ -11,10 +11,10 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/shamir"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/shamir"
 )
 
 // ShareSize is the size of one unseal share: a byte per key byte plus the

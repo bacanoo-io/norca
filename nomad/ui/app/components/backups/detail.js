@@ -132,7 +132,8 @@ export default class BackupsDetail extends Component {
       'acl-policies': 'acl_policies',
       'acl-roles': 'acl_roles',
     };
-    return CONTENT_TYPES.map((t) => ({
+    // The manifest counts these types only.
+    return CONTENT_TYPES.filter((t) => keys[t.id]).map((t) => ({
       ...t,
       count: s[keys[t.id]] ?? 0,
     }));

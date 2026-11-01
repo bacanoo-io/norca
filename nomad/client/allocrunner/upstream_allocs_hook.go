@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package allocrunner
@@ -6,8 +7,8 @@ package allocrunner
 import (
 	"context"
 
+	"github.com/bacanoo-io/norca/nomad/client/config"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/config"
 )
 
 // upstreamAllocsHook waits for a PrevAllocWatcher to exit before allowing

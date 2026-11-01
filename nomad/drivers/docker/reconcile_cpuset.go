@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/lib/cgutil"
+	"github.com/bacanoo-io/norca/nomad/helper"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/lib/cgutil"
-	"github.com/hashicorp/nomad/helper"
 )
 
 const (

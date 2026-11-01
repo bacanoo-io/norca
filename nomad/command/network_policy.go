@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
-	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/cli"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"

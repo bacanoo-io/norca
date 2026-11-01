@@ -1,10 +1,11 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package resources
 
 import (
-	"github.com/hashicorp/nomad/helper/stats"
+	"github.com/bacanoo-io/norca/nomad/helper/stats"
 )
 
 // PIDs holds all of a task's pids and their cpu percentage calculators

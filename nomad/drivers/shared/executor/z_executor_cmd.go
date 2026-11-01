@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package executor
@@ -10,7 +11,7 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
 
-	"github.com/hashicorp/nomad/plugins/base"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
 )
 
 // Install a plugin cli handler to ease working with tests

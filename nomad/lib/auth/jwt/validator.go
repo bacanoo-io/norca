@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package jwt
@@ -13,8 +14,8 @@ import (
 	"github.com/hashicorp/cap/jwt"
 	"golang.org/x/exp/slices"
 
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Validate performs token signature verification and JWT header validation,

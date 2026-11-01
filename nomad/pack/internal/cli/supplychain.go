@@ -14,14 +14,14 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
-	"github.com/hashicorp/nomad/pack/internal/pkg/oci"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packlock"
-	"github.com/hashicorp/nomad/pack/internal/pkg/signing"
-	"github.com/hashicorp/nomad/pack/internal/pkg/supplychain"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/loader"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/oci"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packconfig"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packlock"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/signing"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/supplychain"
 )
 
 const (

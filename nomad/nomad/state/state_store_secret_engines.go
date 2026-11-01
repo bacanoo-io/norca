@@ -6,8 +6,8 @@ package state
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // The tables of the dynamic secrets of the built-in engine: the engines of

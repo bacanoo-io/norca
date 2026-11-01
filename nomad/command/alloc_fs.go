@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api/contexts"
 	humanize "github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/api/contexts"
 	"github.com/posener/complete"
 )
 

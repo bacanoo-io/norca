@@ -7,8 +7,8 @@ import (
 	"sort"
 	"sync"
 
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // TaskGroupUsageAggregator aggregates the resource usage measurements

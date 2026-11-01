@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 )
 
 // NativeServiceDiscoveryConfig is the native_service_discovery block of the

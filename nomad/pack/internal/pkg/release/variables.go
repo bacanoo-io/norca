@@ -6,7 +6,7 @@ package release
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/nomad/objectschema"
+	"github.com/bacanoo-io/norca/nomad/nomad/objectschema"
 )
 
 // ValidateVariables validates the effective variable values of a pack

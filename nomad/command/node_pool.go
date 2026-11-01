@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api/contexts"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/api/contexts"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )

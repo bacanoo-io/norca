@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -6,8 +7,8 @@ package structs
 import (
 	"sync"
 
-	"github.com/hashicorp/nomad/client/pluginmanager/csimanager"
-	"github.com/hashicorp/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/csimanager"
+	"github.com/bacanoo-io/norca/nomad/helper"
 )
 
 // AllocHookResources contains data that is provided by AllocRunner Hooks for

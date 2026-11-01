@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 )
 
 // outputDisruptionBudgets prints the current state of the disruption budgets

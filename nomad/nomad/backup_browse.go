@@ -13,14 +13,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/helper/consulkv"
+	"github.com/bacanoo-io/norca/nomad/helper/snapshot"
+	"github.com/bacanoo-io/norca/nomad/nomad/backup"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/helper/consulkv"
-	"github.com/hashicorp/nomad/helper/snapshot"
-	"github.com/hashicorp/nomad/nomad/backup"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // backupRestoreFunc returns the function that restores a backup's snapshot
@@ -352,10 +352,214 @@ func backupContents(loaded *backup.Loaded, contentType string, f *backupContents
 		}
 
 	default:
-		return nil, structs.NewErrRPCCodedf(400, "unknown content type %q, must be one of %s",
-			contentType, strings.Join(structs.BackupContentTypes, ", "))
+		objects, ok, err := backupObjects(store, contentType, f)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, structs.NewErrRPCCodedf(400, "unknown content type %q, must be one of %s",
+				contentType, strings.Join(structs.BackupContentTypes, ", "))
+		}
+		out.Objects = objects
 	}
 	return out, nil
+}
+
+// allowed reports whether the caller passes an ACL check; everything passes
+// without an ACL object (no ACLs, the preview of a full restore).
+func (f *backupContentsFilter) allowed(check func(*acl.ACL) bool) bool {
+	return f.aclObj == nil || check(f.aclObj)
+}
+
+// management reports whether the caller holds a management token.
+func (f *backupContentsFilter) management() bool {
+	return f.allowed((*acl.ACL).IsManagement)
+}
+
+// backupObjects returns the objects of the content types that share the
+// BackupObjectStub form, for browsing and for comparisons; ok is false for
+// any other type. The read rules of each type are those of its List
+// endpoint.
+func backupObjects(store *state.StateStore, contentType string, f *backupContentsFilter) (out []*structs.BackupObjectStub, ok bool, err error) {
+	ws := memdb.NewWatchSet()
+	add := func(ns, id, detail string, modifyIndex uint64) {
+		out = append(out, &structs.BackupObjectStub{Namespace: ns, ID: id, Detail: detail, ModifyIndex: modifyIndex})
+	}
+	// each runs visit on every row of an iterator.
+	each := func(iter memdb.ResultIterator, err error, visit func(raw any)) error {
+		if err != nil {
+			return err
+		}
+		for raw := iter.Next(); raw != nil; raw = iter.Next() {
+			visit(raw)
+		}
+		return nil
+	}
+	namespaced := func(ns, id string) bool {
+		return backupNamespaceMatches(f.namespace, ns) && strings.HasPrefix(id, f.prefix)
+	}
+
+	ok = true
+	switch contentType {
+	case structs.BackupContentQuotas:
+		if f.allowed((*acl.ACL).AllowQuotaRead) {
+			iter, iterErr := store.QuotaSpecs(ws, state.SortDefault)
+			err = each(iter, iterErr, func(raw any) {
+				if q := raw.(*structs.QuotaSpec); f.name(q.Name) {
+					add("", q.Name, q.Description, q.ModifyIndex)
+				}
+			})
+		}
+
+	case structs.BackupContentAdmissionPolicies:
+		if f.allowed((*acl.ACL).AllowAdmissionRead) {
+			iter, iterErr := store.AdmissionPolicies(ws, state.SortDefault)
+			err = each(iter, iterErr, func(raw any) {
+				if p := raw.(*structs.AdmissionPolicy); f.name(p.Name) {
+					add("", p.Name, p.Description, p.ModifyIndex)
+				}
+			})
+		}
+
+	case structs.BackupContentNetworkPolicies:
+		iter, iterErr := store.NetworkPolicies(ws, state.SortDefault)
+		err = each(iter, iterErr, func(raw any) {
+			p := raw.(*structs.NetworkPolicy)
+			if namespaced(p.Namespace, p.Name) && f.allowed(func(a *acl.ACL) bool { return a.AllowNetworkPolicyRead(p.Namespace) }) {
+				add(p.Namespace, p.Name, p.Description, p.ModifyIndex)
+			}
+		})
+
+	case structs.BackupContentAdminNetworkPolicies:
+		if f.allowed((*acl.ACL).AllowOperatorRead) {
+			iter, iterErr := store.AdminNetworkPolicies(ws, state.SortDefault)
+			err = each(iter, iterErr, func(raw any) {
+				if p := raw.(*structs.AdminNetworkPolicy); f.name(p.Name) {
+					add("", p.Name, p.Description, p.ModifyIndex)
+				}
+			})
+		}
+
+	case structs.BackupContentServiceIntentions:
+		var intentions []*structs.ServiceIntention
+		intentions, err = store.ServiceIntentions(ws, structs.AllNamespacesSentinel)
+		for _, si := range intentions {
+			id := si.SourceNamespace + "/" + si.Source + " -> " + si.Destination
+			if namespaced(si.Namespace, id) && f.allowed(func(a *acl.ACL) bool {
+				return a.AllowNsOp(si.Namespace, acl.NamespaceCapabilityReadJob)
+			}) {
+				add(si.Namespace, id, si.Action, si.ModifyIndex)
+			}
+		}
+
+	case structs.BackupContentObjectKinds:
+		iter, iterErr := store.ObjectKinds(ws, "", state.SortDefault)
+		err = each(iter, iterErr, func(raw any) {
+			k := raw.(*structs.ObjectKind)
+			if f.name(k.KindRef()) && f.allowed(func(a *acl.ACL) bool { return a.AllowObjectKindRead(k.KindRef()) }) {
+				add("", k.KindRef(), k.Description, k.ModifyIndex)
+			}
+		})
+
+	case structs.BackupContentCustomObjects:
+		var kinds []*structs.ObjectKind
+		iter, iterErr := store.ObjectKinds(ws, "", state.SortDefault)
+		if err = each(iter, iterErr, func(raw any) { kinds = append(kinds, raw.(*structs.ObjectKind)) }); err != nil {
+			return nil, true, err
+		}
+		for _, k := range kinds {
+			iter, iterErr := store.CustomObjects(ws, k.Group, k.Kind, structs.AllNamespacesSentinel, state.SortDefault)
+			if err = each(iter, iterErr, func(raw any) {
+				o := raw.(*structs.CustomObject)
+				id := k.KindRef() + "/" + o.Name
+				if namespaced(o.Namespace, id) && f.allowed(func(a *acl.ACL) bool {
+					return customObjectReadable(a, k, o)
+				}) {
+					add(o.Namespace, id, "", o.ModifyIndex)
+				}
+			}); err != nil {
+				return nil, true, err
+			}
+		}
+
+	case structs.BackupContentSecretEngines:
+		iter, iterErr := store.SecretEngines(ws)
+		err = each(iter, iterErr, func(raw any) {
+			e := raw.(*structs.SecretEngine)
+			if namespaced(e.Namespace, e.Name) && f.allowed(func(a *acl.ACL) bool {
+				return a.AllowNsOp(e.Namespace, acl.NamespaceCapabilityReadSecretEngine)
+			}) {
+				add(e.Namespace, e.Name, e.Type, e.ModifyIndex)
+			}
+		})
+
+	case structs.BackupContentSecretLeases:
+		iter, iterErr := store.SecretLeases(ws)
+		err = each(iter, iterErr, func(raw any) {
+			l := raw.(*structs.SecretLease)
+			if namespaced(l.Namespace, l.ID) && f.allowed(func(a *acl.ACL) bool {
+				return a.AllowNsOp(l.Namespace, acl.NamespaceCapabilityReadSecretEngine)
+			}) {
+				add(l.Namespace, l.ID, l.Engine+"/"+l.Role, l.ModifyIndex)
+			}
+		})
+
+	case structs.BackupContentACLTokens:
+		if f.management() {
+			iter, iterErr := store.ACLTokens(ws, state.SortDefault)
+			err = each(iter, iterErr, func(raw any) {
+				if t := raw.(*structs.ACLToken); f.name(t.AccessorID) {
+					add("", t.AccessorID, t.Name, t.ModifyIndex)
+				}
+			})
+		}
+
+	case structs.BackupContentACLAuthMethods:
+		if f.management() {
+			iter, iterErr := store.GetACLAuthMethods(ws)
+			err = each(iter, iterErr, func(raw any) {
+				if m := raw.(*structs.ACLAuthMethod); f.name(m.Name) {
+					add("", m.Name, m.Type, m.ModifyIndex)
+				}
+			})
+		}
+
+	case structs.BackupContentACLBindingRules:
+		if f.management() {
+			iter, iterErr := store.GetACLBindingRules(ws)
+			err = each(iter, iterErr, func(raw any) {
+				if r := raw.(*structs.ACLBindingRule); f.name(r.ID) {
+					add("", r.ID, r.Description, r.ModifyIndex)
+				}
+			})
+		}
+
+	case structs.BackupContentNodePools:
+		iter, iterErr := store.NodePools(ws, state.SortDefault)
+		err = each(iter, iterErr, func(raw any) {
+			p := raw.(*structs.NodePool)
+			if f.name(p.Name) && f.allowed(func(a *acl.ACL) bool { return a.AllowNodePool(p.Name) }) {
+				add("", p.Name, p.Description, p.ModifyIndex)
+			}
+		})
+
+	default:
+		ok = false
+	}
+	if err != nil {
+		return nil, true, err
+	}
+	return out, ok, nil
+}
+
+// customObjectReadable applies the read rules of CustomObject.List: release
+// revisions also need read-job in their namespace.
+func customObjectReadable(aclObj *acl.ACL, kind *structs.ObjectKind, o *structs.CustomObject) bool {
+	ref := kind.KindRef()
+	if !aclObj.AllowObjectOperation(objectACLNamespace(kind, o.Namespace), ref, acl.ObjectCapabilityRead) {
+		return false
+	}
+	return ref != structs.ReleaseRevisionKindRef || aclObj.AllowNsOp(o.Namespace, acl.NamespaceCapabilityReadJob)
 }
 
 // decryptBackupVariable decrypts a Variables entry with a keyring.
@@ -511,7 +715,16 @@ func backupDiffEntries(side backupSide, contentType string, f *backupContentsFil
 			}
 		}
 	default:
-		return nil, structs.NewErrRPCCodedf(400, "unknown content type %q", contentType)
+		objects, ok, err := backupObjects(store, contentType, f)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, structs.NewErrRPCCodedf(400, "unknown content type %q", contentType)
+		}
+		for _, o := range objects {
+			add(&backupDiffEntry{namespace: o.Namespace, id: o.ID, modifyIndex: o.ModifyIndex})
+		}
 	}
 	return out, nil
 }

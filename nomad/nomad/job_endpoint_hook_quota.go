@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // jobQuotaMutatingHook fills in the task resources the job doesn't set from

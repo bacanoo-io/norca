@@ -39,10 +39,10 @@ import (
 	"oras.land/oras-go/v2"
 	ocistore "oras.land/oras-go/v2/content/oci"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/oci"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
-	"github.com/hashicorp/nomad/pack/internal/pkg/signing"
-	"github.com/hashicorp/nomad/pack/internal/pkg/supplychain"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/oci"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packconfig"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/signing"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/supplychain"
 )
 
 const (

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	consulapi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // nodeTTL is how long the details of a node are cached.

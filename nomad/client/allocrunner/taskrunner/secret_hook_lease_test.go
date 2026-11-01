@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/secrets"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/secrets"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
@@ -62,11 +62,9 @@ func (p *testLeaseProvider) Fetch(ctx context.Context, req *secrets.Request) (*s
 	p.leases[l.ID] = l
 	cp := *l
 	return &secrets.Secret{
-		Items:           map[string]string{"creds": fmt.Sprintf("creds-%d-%s", p.issued, secretTestCanary)},
-		Version:         l.ID,
-		Lease:           &cp,
-		DefaultFile:     "nats.creds",
-		DefaultFileItem: "creds",
+		Items:   map[string]string{"creds": fmt.Sprintf("creds-%d-%s", p.issued, secretTestCanary)},
+		Version: l.ID,
+		Lease:   &cp,
 	}, nil
 }
 
@@ -111,7 +109,8 @@ func (p *testLeaseProvider) counts() (issued int, renewals map[string]int, revok
 }
 
 func natsSecret(mode string) *structs.TaskSecret {
-	return &structs.TaskSecret{Name: "nats", Engine: "nats", Role: "worker", ChangeMode: mode, Timeout: 5 * time.Second}
+	return &structs.TaskSecret{Name: "nats", Engine: "nats", Role: "worker",
+		Files: []*structs.TaskSecretFile{{Destination: "secrets/nats.creds", Format: "raw:creds"}}, ChangeMode: mode, Timeout: 5 * time.Second}
 }
 
 func readCreds(t *testing.T, ht *secretHookTest) string {

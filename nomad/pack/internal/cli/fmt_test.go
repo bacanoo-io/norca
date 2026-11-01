@@ -14,10 +14,10 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/ci"
-	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad/pack/internal/testui"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	flag "github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/testui"
 )
 
 // ── Unit tests for formatTemplate() ──────────────────────────────────────────

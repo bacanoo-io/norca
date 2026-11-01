@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers/proto"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/plugins/drivers/proto"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 	"google.golang.org/grpc"

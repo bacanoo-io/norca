@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package paginator
@@ -6,8 +7,8 @@ package paginator
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-bexpr"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // Iterator is the interface that must be implemented to supply data to the

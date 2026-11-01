@@ -6,7 +6,6 @@ package nomad
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -15,8 +14,8 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 
-	"github.com/hashicorp/nomad/nomad/secretengine"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/secretengine"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // The lease watcher runs on the leader and ends the leases of the dynamic
@@ -30,14 +29,9 @@ import (
 //     gone), that expired without renewal, or that reached their max_ttl;
 //   - removes revoked leases once their credential has expired (the end of
 //     max_ttl), when the backend no longer needs to know them;
-//   - retires an engine's old admin key, replaced by rotate-root, once no
-//     live lease is signed by it any more: the key is removed from the
-//     backend;
-//   - brings each engine's backend in line with the engine and its leases
-//     (for NATS: pushes the account JWT with the revocations) whenever that
-//     state changed, and again every secretLeaseResyncInterval, as a NATS
-//     server may have restarted with an older account JWT. Failed pushes
-//     are retried with a backoff.
+//   - sends each engine's operator the revoked credentials whenever they
+//     changed, and again every secretLeaseResyncInterval. Failed calls are
+//     retried with a backoff.
 //
 // Every revocation is an audit record (lease-revoke, accessor
 // "secret-engine") and a SecretLeaseRevoked event of the Secret topic.
@@ -263,8 +257,7 @@ func (w *secretLeaseWatcher) revoke(leases []*structs.SecretLease) error {
 	return nil
 }
 
-// engine retires the old admin keys of an engine that sign no live lease any
-// more and brings its backend in line. It returns when to look again (zero
+// engine brings the backend of an engine in line. It returns when to look again (zero
 // if nothing is due before the next resync).
 func (w *secretLeaseWatcher) engine(ctx context.Context, engine *structs.SecretEngine, now time.Time) time.Time {
 	key := secretEngineKey{engine.Namespace, engine.Name}
@@ -293,11 +286,6 @@ func (w *secretLeaseWatcher) engine(ctx context.Context, engine *structs.SecretE
 		return time.Time{}
 	}
 	engine = current.Copy()
-
-	if err := w.retireKeys(engine, now); err != nil {
-		logger.Warn("failed to retire the old admin keys of the secret engine", "error", err)
-		return now.Add(secretSyncBackoffMin)
-	}
 
 	revoked, err := w.srv.secretEngineRevocations(engine.Namespace, engine.Name, now)
 	if err != nil {
@@ -331,50 +319,6 @@ func (w *secretLeaseWatcher) engine(ctx context.Context, engine *structs.SecretE
 	return now.Add(w.resync)
 }
 
-// retireKeys removes the retired admin keys that sign no live lease any
-// more from the engine. The caller holds the engine's lock.
-func (w *secretLeaseWatcher) retireKeys(engine *structs.SecretEngine, now time.Time) error {
-	if engine.State == nil || len(engine.State.RetiredKeys) == 0 {
-		return nil
-	}
-	iter, err := w.srv.State().SecretLeasesByEngine(nil, engine.Namespace, engine.Name)
-	if err != nil {
-		return err
-	}
-	inUse := map[string]bool{}
-	for raw := iter.Next(); raw != nil; raw = iter.Next() {
-		if l := raw.(*structs.SecretLease); l.Live(now) {
-			inUse[l.SigningKey] = true
-		}
-	}
-	var keep, removed []string
-	for _, k := range engine.State.RetiredKeys {
-		if inUse[k] {
-			keep = append(keep, k)
-		} else {
-			removed = append(removed, k)
-		}
-	}
-	if len(removed) == 0 {
-		return nil
-	}
-	engine.State.RetiredKeys = keep
-	for _, k := range removed {
-		if !slices.Contains(engine.State.RemovedKeys, k) {
-			engine.State.RemovedKeys = append(engine.State.RemovedKeys, k)
-		}
-	}
-	engine.ModifyTime = now.UnixNano()
-	updated, _, err := w.srv.secretEngineApply(engine, engine.ModifyIndex)
-	if err != nil {
-		return err
-	}
-	*engine = *updated
-	w.logger.Info("retired old admin keys of the secret engine", "namespace", engine.Namespace,
-		"engine", engine.Name, "keys", removed)
-	return nil
-}
-
 // sync brings the backend of an engine in line. The caller holds the
 // engine's lock.
 func (w *secretLeaseWatcher) sync(ctx context.Context, engine *structs.SecretEngine, revoked map[string]time.Time) error {
@@ -382,24 +326,17 @@ func (w *secretLeaseWatcher) sync(ctx context.Context, engine *structs.SecretEng
 	if err != nil {
 		return err
 	}
-	cred, err := w.srv.secretEngineCredential(engine)
-	if err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(ctx, secretEngineTimeout)
 	defer cancel()
-	return backend.Sync(ctx, &secretengine.SyncRequest{Engine: engine, Credential: cred, Revoked: revoked})
+	return backend.Sync(ctx, &secretengine.SyncRequest{Engine: engine, Revoked: revoked,
+		Call: w.srv.secretOperatorCall(engine)})
 }
 
 // secretEngineFingerprint describes the state a sync of an engine brings
-// the backend to: the engine's version, the version of its admin
-// credential and the revocations.
+// the backend to: the engine's version and the revocations.
 func secretEngineFingerprint(s *Server, engine *structs.SecretEngine, revoked map[string]time.Time) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d", engine.ModifyIndex)
-	if sec, err := s.State().SecretByPath(nil, engine.Namespace, engine.CredentialPath); err == nil && sec != nil {
-		fmt.Fprintf(&b, "|%d|%s", sec.ModifyIndex, sec.ValueHash)
-	}
 	keys := make([]string, 0, len(revoked))
 	for k, at := range revoked {
 		keys = append(keys, fmt.Sprintf("%s@%d", k, at.Unix()))

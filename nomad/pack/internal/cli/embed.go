@@ -12,8 +12,8 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 
-	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
+	flag "github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper"
 )
 
 // EmbeddedCommands returns the Nomad Pack commands keyed by their name below

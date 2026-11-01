@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/internal/tstorage/internal/syscall"
+	"github.com/bacanoo-io/norca/nomad/internal/tstorage/internal/syscall"
 )
 
 const (

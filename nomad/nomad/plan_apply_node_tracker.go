@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -8,9 +9,9 @@ import (
 	"time"
 
 	"github.com/armon/go-metrics"
+	"github.com/bacanoo-io/norca/nomad/helper"
 	"github.com/hashicorp/go-hclog"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/hashicorp/nomad/helper"
 	"golang.org/x/time/rate"
 )
 

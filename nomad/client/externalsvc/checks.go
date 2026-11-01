@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // outputLimit is the number of bytes of an HTTP response kept as output.

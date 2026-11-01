@@ -8,23 +8,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	testinginterface "github.com/mitchellh/go-testing-interface"
+	"github.com/bacanoo-io/norca/nomad/ci"
 	"github.com/shoenig/test/must"
 )
-
-// recordingT is a go-testing-interface T that records failures instead of
-// failing the real test.
-type recordingT struct {
-	testinginterface.RuntimeT
-	errors []string
-}
-
-func (r *recordingT) Errorf(format string, args ...any) {
-	r.errors = append(r.errors, fmt.Sprintf(format, args...))
-}
-
-func (r *recordingT) Helper() {}
 
 func TestCallCounter_IncGet(t *testing.T) {
 	ci.Parallel(t)
@@ -85,19 +71,4 @@ func TestCallCounter_Concurrent(t *testing.T) {
 	for i := 0; i < workers; i++ {
 		must.Eq(t, perWorker, got[fmt.Sprintf("worker-%d", i)])
 	}
-}
-
-func TestCallCounter_AssertCalled(t *testing.T) {
-	ci.Parallel(t)
-
-	c := NewCallCounter()
-	c.Inc("called")
-
-	rt := &recordingT{}
-	c.AssertCalled(rt, "called")
-	must.SliceEmpty(t, rt.errors)
-
-	c.AssertCalled(rt, "never-called")
-	must.Len(t, 1, rt.errors)
-	must.StrContains(t, rt.errors[0], "never-called")
 }

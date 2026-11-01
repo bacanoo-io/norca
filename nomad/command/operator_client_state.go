@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"strings"
 
+	trstate "github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/state"
+	"github.com/bacanoo-io/norca/nomad/client/state"
 	"github.com/hashicorp/go-hclog"
-	trstate "github.com/hashicorp/nomad/client/allocrunner/taskrunner/state"
-	"github.com/hashicorp/nomad/client/state"
 	"github.com/posener/complete"
 )
 

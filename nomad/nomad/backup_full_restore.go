@@ -15,12 +15,12 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
+	"github.com/bacanoo-io/norca/nomad/helper/snapshot"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/backup"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/helper/snapshot"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/backup"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // maxStoredPreviewObjects bounds the changed objects kept in the restore
@@ -219,6 +219,12 @@ func (b *Backup) fullRestorePreview(loaded *backup.Loaded) (*structs.BackupResto
 		}
 	}
 
+	var leasesExpire time.Time
+	preview.SecretLeasesLost, leasesExpire, err = secretLeasesLost(current, loaded.State, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
 	for _, key := range loaded.Keys {
 		if _, err := b.srv.encrypter.GetKey(key.Meta.KeyID); err != nil {
 			preview.KeysAdded = append(preview.KeysAdded, key.Meta.KeyID)
@@ -237,6 +243,11 @@ func (b *Backup) fullRestorePreview(loaded *backup.Loaded) (*structs.BackupResto
 		preview.Warnings = append(preview.Warnings, fmt.Sprintf(
 			"%d ACL tokens were created after the backup and are deleted", preview.ACLTokensRemoved))
 	}
+	if preview.SecretLeasesLost > 0 {
+		preview.Warnings = append(preview.Warnings, fmt.Sprintf(
+			"%d dynamic secret credentials were issued after the backup: their leases are lost, so they can't be revoked and stay valid until %s at the latest",
+			preview.SecretLeasesLost, leasesExpire.UTC().Format(time.RFC3339)))
+	}
 	if w := secretStoreSealWarning(storedCoreEnvelope(loaded.State), backup.SealsOf(current), loaded.SecretStoreKey != nil); w != "" {
 		preview.Warnings = append(preview.Warnings, w)
 	}
@@ -247,6 +258,32 @@ func (b *Backup) fullRestorePreview(loaded *backup.Loaded) (*structs.BackupResto
 	preview.Warnings = append(preview.Warnings,
 		"every change since the backup is lost; an automatic backup of the current state is taken first")
 	return preview, nil
+}
+
+// secretLeasesLost counts the live leases of the current state that are not
+// in the backup, and returns the time the last of their credentials expires.
+func secretLeasesLost(current, backupState *state.StateStore, now time.Time) (int, time.Time, error) {
+	iter, err := current.SecretLeases(nil)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	count := 0
+	var last int64
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		lease := raw.(*structs.SecretLease)
+		if lease.Revoked || lease.MaxExpireTime <= now.UnixNano() {
+			continue
+		}
+		old, err := backupState.SecretLeaseByID(nil, lease.ID)
+		if err != nil {
+			return 0, time.Time{}, err
+		}
+		if old == nil {
+			count++
+			last = max(last, lease.MaxExpireTime)
+		}
+	}
+	return count, time.Unix(0, last), nil
 }
 
 // expireRestore marks a pending restore past its approval period expired.

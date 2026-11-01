@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/api/contexts"
+	"github.com/bacanoo-io/norca/nomad/api/contexts"
 	"github.com/posener/complete"
 )
 

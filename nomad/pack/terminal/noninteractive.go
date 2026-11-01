@@ -20,8 +20,8 @@ import (
 	"github.com/mitchellh/go-glint"
 	"github.com/mitchellh/go-wordwrap"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper"
 )
 
 type nonInteractiveUI struct {

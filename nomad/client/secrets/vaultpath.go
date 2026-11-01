@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Vault-style lookups served by the built-in store (norca-doc content/docs/design/secrets-plan.md,

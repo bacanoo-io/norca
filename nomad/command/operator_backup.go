@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	humanize "github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/cli"
 )
 

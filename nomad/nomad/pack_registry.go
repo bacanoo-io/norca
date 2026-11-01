@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/pack/catalog"
-	"github.com/hashicorp/nomad/version"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/pack/catalog"
+	"github.com/bacanoo-io/norca/nomad/version"
 )
 
 const (

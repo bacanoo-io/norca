@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/posener/complete"
 )
 
@@ -16,6 +16,11 @@ var backupContentTypes = []string{
 	api.BackupContentNamespaces, api.BackupContentJobs, api.BackupContentJobVersions,
 	api.BackupContentVariables, api.BackupContentSecrets, api.BackupContentACLPolicies, api.BackupContentACLRoles,
 	api.BackupContentDeployments, api.BackupContentAllocations, api.BackupContentConsulKV,
+	api.BackupContentACLTokens, api.BackupContentACLAuthMethods, api.BackupContentACLBindingRules,
+	api.BackupContentQuotas, api.BackupContentAdmissionPolicies, api.BackupContentNetworkPolicies,
+	api.BackupContentAdminNetworkPolicies, api.BackupContentServiceIntentions, api.BackupContentObjectKinds,
+	api.BackupContentCustomObjects, api.BackupContentSecretEngines, api.BackupContentSecretLeases,
+	api.BackupContentNodePools,
 }
 
 type OperatorBackupContentsCommand struct {
@@ -234,6 +239,11 @@ func formatBackupContents(c *api.BackupContents) []string {
 			out = append(out, fmt.Sprintf("%s|%s|%s|%d|%s|%s|%s|%s|%s",
 				a.ID, a.Namespace, a.JobID, a.JobVersion, a.TaskGroup, limit(a.NodeID, 8),
 				a.DesiredStatus, a.ClientStatus, formatUnixNano(a.ModifyTime)))
+		}
+	default:
+		out = append(out, "ID|Namespace|Detail|Modify Index")
+		for _, o := range c.Objects {
+			out = append(out, fmt.Sprintf("%s|%s|%s|%d", o.ID, o.Namespace, o.Detail, o.ModifyIndex))
 		}
 	}
 	return out

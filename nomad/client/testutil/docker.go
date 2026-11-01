@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package testutil
@@ -7,8 +8,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/testutil"
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/hashicorp/nomad/testutil"
 )
 
 // DockerIsConnected checks to see if a docker daemon is available (local or remote)

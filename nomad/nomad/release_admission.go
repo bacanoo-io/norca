@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad/admission"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/admission"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // ReleaseAdmissionDeniedPrefix starts the error of releases rejected by
@@ -93,10 +93,10 @@ func (m *releaseManager) admitRelease(snap *state.StateSnapshot, op *releaseOp, 
 			"namespace": op.namespace,
 			"action":    in.action,
 			"pack": map[string]any{
-				"name":          pack.Name,
-				"version":       pack.Version,
-				"registry":      pack.Registry,
-				"path":          pack.Path,
+				"name":           pack.Name,
+				"version":        pack.Version,
+				"registry":       pack.Registry,
+				"path":           pack.Path,
 				"digest":         pack.Digest,
 				"signer":         pack.Signer,
 				"signed":         len(sigs) > 0,

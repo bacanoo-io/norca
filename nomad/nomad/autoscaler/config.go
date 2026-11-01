@@ -9,9 +9,9 @@ import (
 	"slices"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

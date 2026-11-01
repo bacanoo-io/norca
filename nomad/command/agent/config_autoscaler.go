@@ -8,8 +8,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/autoscaler"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler"
 	"github.com/mitchellh/copystructure"
 )
 

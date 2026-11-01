@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package framework
@@ -8,10 +9,10 @@ import (
 	"os"
 	"testing"
 
+	napi "github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/useragent"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
 	capi "github.com/hashicorp/consul/api"
-	napi "github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/useragent"
-	"github.com/hashicorp/nomad/helper/uuid"
 	vapi "github.com/hashicorp/vault/api"
 )
 

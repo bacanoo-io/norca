@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docklog
@@ -6,7 +7,7 @@ package docklog
 import (
 	"context"
 
-	"github.com/hashicorp/nomad/drivers/docker/docklog/proto"
+	"github.com/bacanoo-io/norca/nomad/drivers/docker/docklog/proto"
 )
 
 // dockerLoggerClient implements the dockerLogger interface for client side requests

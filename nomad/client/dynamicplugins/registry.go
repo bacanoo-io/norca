@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 // dynamicplugins is a package that manages dynamic plugins in Nomad.
@@ -14,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/helper"
 )
 
 const (

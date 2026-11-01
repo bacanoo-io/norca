@@ -7,8 +7,8 @@ package jobspec2
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 )
 
 func normalizeJob(jc *jobConfig) {

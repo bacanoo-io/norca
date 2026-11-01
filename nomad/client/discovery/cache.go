@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

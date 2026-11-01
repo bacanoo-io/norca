@@ -20,7 +20,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/hashicorp/nomad/helper/tlsutil"
+	"github.com/bacanoo-io/norca/nomad/helper/tlsutil"
 )
 
 // days is the validity of the generated CA and certificates.

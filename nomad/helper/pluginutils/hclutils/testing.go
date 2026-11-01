@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package hclutils
@@ -6,13 +7,13 @@ package hclutils
 import (
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/hclspecutils"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/nomad/helper/pluginutils/hclspecutils"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
 	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"

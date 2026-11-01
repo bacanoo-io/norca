@@ -8,16 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/ci"
 	"github.com/shoenig/test/must"
 )
 
 func testTaskSecret() *TaskSecret {
 	return &TaskSecret{
-		Name: "db",
-		Path: "jobs/${job}/db",
-		File: &TaskSecretFile{Destination: "secrets/db.env"},
-		Env:  map[string]string{"DB_PASSWORD": "password"},
+		Name:  "db",
+		Path:  "jobs/${job}/db",
+		Files: []*TaskSecretFile{{Destination: "secrets/db.env"}},
+		Env:   map[string]string{"DB_PASSWORD": "password"},
 	}
 }
 
@@ -28,7 +28,7 @@ func TestTaskSecret_CanonicalizeValidate(t *testing.T) {
 	s.Canonicalize()
 	must.Eq(t, SecretChangeModeRestart, s.ChangeMode)
 	must.Eq(t, DefaultSecretTimeout, s.Timeout)
-	must.Eq(t, SecretFileFormatEnv, s.File.Format)
+	must.Eq(t, SecretFileFormatEnv, s.Files[0].Format)
 	must.NoError(t, s.Validate())
 
 	cases := []struct {
@@ -46,16 +46,16 @@ func TestTaskSecret_CanonicalizeValidate(t *testing.T) {
 		{"engine with path", func(s *TaskSecret) { s.Engine, s.Role = "pg", "ro" }, "has no path"},
 		{"engine with version", func(s *TaskSecret) { s.Path, s.Engine, s.Role, s.Version = "", "pg", "ro", 2 }, "has no versions"},
 		{"engine name", func(s *TaskSecret) { s.Path, s.Engine, s.Role = "", "p g", "ro" }, "invalid engine name"},
-		{"no delivery", func(s *TaskSecret) { s.File = nil; s.Env = nil }, "file or env block"},
-		{"outside secrets", func(s *TaskSecret) { s.File.Destination = "local/db.env" }, "must be below secrets/"},
-		{"escape", func(s *TaskSecret) { s.File.Destination = "secrets/../local/x" }, "clean relative path"},
-		{"absolute", func(s *TaskSecret) { s.File.Destination = "/secrets/x" }, "clean relative path"},
-		{"dir itself", func(s *TaskSecret) { s.File.Destination = "secrets/" }, "clean relative path"},
-		{"reserved", func(s *TaskSecret) { s.File.Destination = "secrets/nomad_token" }, "is reserved"},
-		{"format", func(s *TaskSecret) { s.File.Format = "yaml" }, "invalid secret file format"},
-		{"raw item", func(s *TaskSecret) { s.File.Format = "raw:" }, "needs an item"},
-		{"template", func(s *TaskSecret) { s.File.Format = "template" }, "requires a template"},
-		{"template format", func(s *TaskSecret) { s.File.Template = "{{ .a }}" }, "requires format template"},
+		{"no delivery", func(s *TaskSecret) { s.Files = nil; s.Env = nil }, "file or env block"},
+		{"outside secrets", func(s *TaskSecret) { s.Files[0].Destination = "local/db.env" }, "must be below secrets/"},
+		{"escape", func(s *TaskSecret) { s.Files[0].Destination = "secrets/../local/x" }, "clean relative path"},
+		{"absolute", func(s *TaskSecret) { s.Files[0].Destination = "/secrets/x" }, "clean relative path"},
+		{"dir itself", func(s *TaskSecret) { s.Files[0].Destination = "secrets/" }, "clean relative path"},
+		{"reserved", func(s *TaskSecret) { s.Files[0].Destination = "secrets/nomad_token" }, "is reserved"},
+		{"format", func(s *TaskSecret) { s.Files[0].Format = "yaml" }, "invalid secret file format"},
+		{"raw item", func(s *TaskSecret) { s.Files[0].Format = "raw:" }, "needs an item"},
+		{"template", func(s *TaskSecret) { s.Files[0].Format = "template" }, "requires a template"},
+		{"template format", func(s *TaskSecret) { s.Files[0].Template = "{{ .a }}" }, "requires format template"},
 		{"env name", func(s *TaskSecret) { s.Env = map[string]string{"1X": "a"} }, "invalid environment variable"},
 		{"env prefix", func(s *TaskSecret) { s.Env = map[string]string{"NOMAD_X": "a"} }, "reserved"},
 		{"env item", func(s *TaskSecret) { s.Env = map[string]string{"X": ""} }, "needs an item"},
@@ -78,17 +78,19 @@ func TestTaskSecret_CanonicalizeValidate(t *testing.T) {
 
 	for _, f := range []string{"json", "raw:password", "env"} {
 		s := testTaskSecret()
-		s.File.Format = f
+		s.Files[0].Format = f
 		s.Canonicalize()
 		must.NoError(t, s.Validate(), must.Sprint(f))
 	}
-	// A dynamic secret needs neither a path nor a delivery block.
-	s = &TaskSecret{Name: "nats", Engine: "nats", Role: "worker"}
+	// A dynamic secret needs no path, but a delivery block.
+	s = &TaskSecret{Name: "db", Engine: "pg", Role: "app"}
 	s.Canonicalize()
+	must.ErrorContains(t, s.Validate(), "needs a file or env block")
+	s.Env = map[string]string{"DB_PASSWORD": "password"}
 	must.NoError(t, s.Validate())
 
 	s = testTaskSecret()
-	s.File.Format, s.File.Template = "template", "{{ .password }}"
+	s.Files[0].Format, s.Files[0].Template = "template", "{{ .password }}"
 	s.ChangeMode, s.ChangeScript = SecretChangeModeScript, &ChangeScript{Command: "/bin/reload"}
 	s.Canonicalize()
 	must.NoError(t, s.Validate())
@@ -110,7 +112,7 @@ func TestTaskSecrets_TaskValidation(t *testing.T) {
 	must.StrContains(t, err.Error(), "the same environment variable")
 
 	b.Name = "db"
-	b.File.Destination = "secrets/b"
+	b.Files[0].Destination = "secrets/b"
 	b.Env = nil
 	err = validateTaskSecrets(task)
 	must.StrContains(t, err.Error(), `duplicate secret "db"`)
@@ -120,17 +122,6 @@ func TestTaskSecrets_TaskValidation(t *testing.T) {
 	must.StrContains(t, validateTaskSecrets(task).Error(), "destination of a template")
 	task.Templates = nil
 	must.NoError(t, validateTaskSecrets(task))
-
-	// Two dynamic secrets can't share the engine's default file.
-	n1 := &TaskSecret{Name: "n1", Engine: "nats", Role: "a"}
-	n2 := &TaskSecret{Name: "n2", Engine: "nats", Role: "b"}
-	n1.Canonicalize()
-	n2.Canonicalize()
-	task.Secrets = append(task.Secrets, n1, n2)
-	must.StrContains(t, validateTaskSecrets(task).Error(), "default file")
-	n2.File = &TaskSecretFile{Destination: "secrets/b.creds", Format: "raw:creds"}
-	must.NoError(t, validateTaskSecrets(task))
-	task.Secrets = task.Secrets[:2]
 
 	task.SecretAccess = []*SecretAccess{{Path: "jobs/${job}/${task}/*"}}
 	must.NoError(t, validateTaskSecrets(task))
@@ -155,7 +146,7 @@ func TestTaskSecret_CopyEqual(t *testing.T) {
 	c.Env["X"] = "y"
 	must.False(t, s.Equal(c))
 	c = s.Copy()
-	c.File.Format = "json"
+	c.Files[0].Format = "json"
 	must.False(t, s.Equal(c))
 	c = s.Copy()
 	c.ChangeScript.Args[0] = "b"
@@ -276,9 +267,9 @@ func TestJobDiff_Secrets(t *testing.T) {
 	sec := next.TaskGroups[0].Tasks[0].Secrets[0]
 	sec.Path = "jobs/${job}/db2"
 	sec.Env["DB_USER"] = "username"
-	sec.File.Format = "json"
+	sec.Files[0].Format = "json"
 	next.TaskGroups[0].Tasks[0].Secrets = append(next.TaskGroups[0].Tasks[0].Secrets,
-		&TaskSecret{Name: "cert", Path: "certs/web", File: &TaskSecretFile{Destination: "secrets/cert.pem", Format: "raw:cert"}})
+		&TaskSecret{Name: "cert", Path: "certs/web", Files: []*TaskSecretFile{{Destination: "secrets/cert.pem", Format: "raw:cert"}}})
 
 	d, err = old.Diff(next, false)
 	must.NoError(t, err)
@@ -292,4 +283,49 @@ func TestJobDiff_Secrets(t *testing.T) {
 
 	// The default provider and secret blocks need new allocations.
 	must.False(t, TaskSecretsEqual(old.TaskGroups[0].Tasks[0].Secrets, next.TaskGroups[0].Tasks[0].Secrets))
+}
+
+func TestTaskSecret_DynamicOptions(t *testing.T) {
+	ci.Parallel(t)
+
+	base := func() *TaskSecret {
+		return &TaskSecret{Name: "db", Engine: "pg", Role: "app", Timeout: time.Minute, ChangeMode: SecretChangeModeRestart,
+			Fallback: "app/db", Params: map[string]string{"cn": "a"},
+			Files: []*TaskSecretFile{
+				{Destination: "secrets/a", Format: "raw:cert"},
+				{Destination: "secrets/b", Format: "raw:key"},
+			}}
+	}
+	must.NoError(t, base().Validate())
+
+	for name, tc := range map[string]struct {
+		change func(*TaskSecret)
+		want   string
+	}{
+		"params of a static secret":   {func(s *TaskSecret) { s.Engine, s.Role, s.Fallback, s.Path = "", "", "", "a/b" }, "params are for dynamic"},
+		"fallback of a static secret": {func(s *TaskSecret) { s.Engine, s.Role, s.Params, s.Path = "", "", nil, "a/b" }, "fallback is for dynamic"},
+		"fallback without delivery":   {func(s *TaskSecret) { s.Files = nil }, "needs a file or env block"},
+		"recover without fallback":    {func(s *TaskSecret) { s.Fallback, s.FallbackRecover = "", "signal" }, "needs a fallback"},
+		"interval without recover":    {func(s *TaskSecret) { s.FallbackRecoverInterval = time.Minute }, "needs fallback_recover"},
+		"short interval":              {func(s *TaskSecret) { s.FallbackRecover, s.FallbackRecoverInterval = "signal", time.Millisecond }, "at least 1s"},
+		"unknown recover":             {func(s *TaskSecret) { s.FallbackRecover = "soon" }, "invalid fallback_recover"},
+		"bad fallback path":           {func(s *TaskSecret) { s.Fallback = "../x" }, "fallback:"},
+		"file without destination":    {func(s *TaskSecret) { s.Files[1].Destination = "" }, "requires a destination"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := base()
+			tc.change(s)
+			must.ErrorContains(t, s.Validate(), tc.want)
+		})
+	}
+
+	// Two files of one block may not share a destination.
+	task := &Task{Secrets: []*TaskSecret{base()}}
+	task.Secrets[0].Files[1].Destination = "secrets/a"
+	must.ErrorContains(t, validateTaskSecrets(task), "the same destination")
+
+	copied := base().Copy()
+	must.True(t, copied.Equal(base()))
+	copied.Files[0].Destination = "secrets/c"
+	must.False(t, copied.Equal(base()))
 }

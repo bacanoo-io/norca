@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	flaghelper "github.com/hashicorp/nomad/helper/flags"
+	"github.com/bacanoo-io/norca/nomad/api"
+	flaghelper "github.com/bacanoo-io/norca/nomad/helper/flags"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package mock
@@ -10,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/brianvoe/gofakeit/v6"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 type MockVariables map[string]*structs.VariableDecrypted

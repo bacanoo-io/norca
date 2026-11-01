@@ -14,8 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/loader"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 )
 
 // Registry represents a registry definition from the global cache.

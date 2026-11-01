@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package benchmarks
@@ -14,8 +15,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hashicorp/nomad/helper/raftutil"
-	"github.com/hashicorp/nomad/scheduler"
+	"github.com/bacanoo-io/norca/nomad/helper/raftutil"
+	"github.com/bacanoo-io/norca/nomad/scheduler"
 	"github.com/stretchr/testify/require"
 )
 

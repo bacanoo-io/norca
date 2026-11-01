@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/acl"
+	api "github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/jobspec"
+	"github.com/bacanoo-io/norca/nomad/jobspec2"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/golang/snappy"
-	"github.com/hashicorp/nomad/acl"
-	api "github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/jobspec"
-	"github.com/hashicorp/nomad/jobspec2"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )

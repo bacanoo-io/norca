@@ -19,12 +19,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/time/rate"
 
-	"github.com/hashicorp/nomad/nomad/secretsrepl"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/kv"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/storage"
+	"github.com/bacanoo-io/norca/nomad/nomad/secretsrepl"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/kv"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/storage"
 )
 
 // Replication of secrets between regions (norca-doc

@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"
@@ -2490,19 +2490,19 @@ func TestTask_Validate_Service_Check_AddressMode(t *testing.T) {
 
 	getTask := func(s *Service) (*Task, *TaskGroup) {
 		return &Task{
-				Services: []*Service{s},
-			}, &TaskGroup{
-				Networks: []*NetworkResource{
-					{
-						DynamicPorts: []Port{
-							{
-								Label: "http",
-								Value: 9999,
-							},
+			Services: []*Service{s},
+		}, &TaskGroup{
+			Networks: []*NetworkResource{
+				{
+					DynamicPorts: []Port{
+						{
+							Label: "http",
+							Value: 9999,
 						},
 					},
 				},
-			}
+			},
+		}
 	}
 
 	cases := []struct {

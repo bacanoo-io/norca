@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/hashicorp/nomad/version"
+	"github.com/bacanoo-io/norca/nomad/version"
 )
 
 const (

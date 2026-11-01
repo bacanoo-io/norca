@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 	"github.com/shoenig/test/must"
 )
 
@@ -90,7 +90,7 @@ job "web" {
 		Provider:     "norca",
 		Path:         "jobs/${job}/db",
 		Version:      3,
-		File:         &api.TaskSecretFile{Destination: "secrets/db.env", Format: "env"},
+		Files:        []*api.TaskSecretFile{{Destination: "secrets/db.env", Format: "env"}},
 		Env:          map[string]string{"DB_USER": "username", "DB_PASSWORD": "password"},
 		ChangeMode:   "signal",
 		ChangeSignal: "SIGHUP",
@@ -100,7 +100,7 @@ job "web" {
 		Name:       "cert",
 		Path:       "certs/web",
 		Optional:   true,
-		File:       &api.TaskSecretFile{Destination: "secrets/cert.pem", Format: "template", Template: "{{ .cert }}"},
+		Files:      []*api.TaskSecretFile{{Destination: "secrets/cert.pem", Format: "template", Template: "{{ .cert }}"}},
 		ChangeMode: "script",
 		ChangeScript: &api.ChangeScript{
 			Command:     pointer.Of("/bin/reload"),

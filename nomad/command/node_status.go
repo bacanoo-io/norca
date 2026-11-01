@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api/contexts"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 	humanize "github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/api/contexts"
-	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/posener/complete"
 )
 

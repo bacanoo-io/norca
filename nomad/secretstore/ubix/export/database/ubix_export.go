@@ -10,7 +10,7 @@
 // the two. The documentation is in the original package.
 package database
 
-import ubix "github.com/hashicorp/nomad/secretstore/ubix/internal/database"
+import ubix "github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/database"
 
 // Types.
 type (

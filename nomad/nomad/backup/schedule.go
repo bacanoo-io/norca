@@ -7,8 +7,8 @@ import (
 	"hash/fnv"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/cronexpr"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // RegionOffset returns the offset of a region's scheduled times, in

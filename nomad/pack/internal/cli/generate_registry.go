@@ -5,10 +5,10 @@
 package cli
 
 import (
-	"github.com/hashicorp/nomad/pack/internal/config"
-	"github.com/hashicorp/nomad/pack/internal/creator"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/config"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/creator"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
 	"github.com/posener/complete"
 )
 

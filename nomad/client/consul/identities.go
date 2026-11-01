@@ -1,11 +1,12 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package consul
 
 import (
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // Implementation of ServiceIdentityAPI used to interact with Nomad Server from

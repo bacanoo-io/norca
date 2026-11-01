@@ -7,7 +7,7 @@ package cli
 import (
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
 )
 
 // depsHelpCommand exists solely to provide top level help for the deps

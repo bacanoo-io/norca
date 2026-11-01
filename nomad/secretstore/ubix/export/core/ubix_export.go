@@ -10,7 +10,7 @@
 // the two. The documentation is in the original package.
 package core
 
-import ubix "github.com/hashicorp/nomad/secretstore/ubix/internal/core"
+import ubix "github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/core"
 
 // Types.
 type (

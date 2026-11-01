@@ -12,11 +12,11 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/helper/consulkv"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/backup"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/helper/consulkv"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/backup"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -69,6 +69,8 @@ func (b *Backup) Restore(args *structs.BackupRestoreRequest, reply *structs.Back
 			return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
 		}
 	}
+
+	orderBackupRestoreItems(args.Items)
 
 	ctx, cancel := b.backupContext()
 	defer cancel()
@@ -144,11 +146,15 @@ func validateBackupRestoreItem(item *structs.BackupRestoreItem) error {
 		return fmt.Errorf("restore item of type %q has no ID", item.Type)
 	}
 	switch item.Type {
-	case structs.BackupRestoreItemJob, structs.BackupRestoreItemVariable, structs.BackupRestoreItemSecret:
+	case structs.BackupRestoreItemJob, structs.BackupRestoreItemVariable, structs.BackupRestoreItemSecret,
+		structs.BackupRestoreItemNetworkPolicy, structs.BackupRestoreItemServiceIntention,
+		structs.BackupRestoreItemCustomObject:
 		if item.Namespace == "" {
 			item.Namespace = structs.DefaultNamespace
 		}
-	case structs.BackupRestoreItemNamespace, structs.BackupRestoreItemACLPolicy, structs.BackupRestoreItemACLRole:
+	case structs.BackupRestoreItemNamespace, structs.BackupRestoreItemACLPolicy, structs.BackupRestoreItemACLRole,
+		structs.BackupRestoreItemQuota, structs.BackupRestoreItemAdmissionPolicy,
+		structs.BackupRestoreItemAdminNetworkPolicy:
 	case structs.BackupRestoreItemConsulKV:
 		item.Namespace = consulKVNamespace(item.Namespace)
 	default:
@@ -203,6 +209,18 @@ func (r *backupRestorer) restore(item *structs.BackupRestoreItem) *structs.Backu
 		err = r.restoreACLRole(item, result)
 	case structs.BackupRestoreItemConsulKV:
 		err = r.restoreConsulKV(item, result)
+	case structs.BackupRestoreItemQuota:
+		err = r.restoreQuota(item, result)
+	case structs.BackupRestoreItemAdmissionPolicy:
+		err = r.restoreAdmissionPolicy(item, result)
+	case structs.BackupRestoreItemNetworkPolicy:
+		err = r.restoreNetworkPolicy(item, result)
+	case structs.BackupRestoreItemAdminNetworkPolicy:
+		err = r.restoreAdminNetworkPolicy(item, result)
+	case structs.BackupRestoreItemServiceIntention:
+		err = r.restoreServiceIntention(item, result)
+	case structs.BackupRestoreItemCustomObject:
+		err = r.restoreCustomObject(item, result)
 	}
 	if err != nil {
 		result.Error = err.Error()
@@ -350,6 +368,9 @@ func (r *backupRestorer) restoreNamespace(item *structs.BackupRestoreItem, resul
 	}
 	if ns == nil {
 		return fmt.Errorf("namespace %q not found in the backup", item.ID)
+	}
+	if err := r.checkNamespaceQuota(ns); err != nil {
+		return err
 	}
 	current, err := r.b.srv.State().NamespaceByName(nil, item.ID)
 	if err != nil {

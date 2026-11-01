@@ -4,8 +4,8 @@
 package backup
 
 import (
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // SealsOf returns the keyring seals that wrap the keys of a region, for the

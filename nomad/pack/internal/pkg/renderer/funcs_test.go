@@ -9,9 +9,9 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/shoenig/test/must"
 	"github.com/zclconf/go-cty/cty"
 )

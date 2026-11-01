@@ -1,14 +1,14 @@
-module github.com/hashicorp/nomad/controller
+module github.com/bacanoo-io/norca/nomad/controller
 
 go 1.27
 
 toolchain go1.27.3
 
 // The SDK uses only the API module of the fork; never the main Nomad module.
-replace github.com/hashicorp/nomad/api => ../api
+replace github.com/bacanoo-io/norca/nomad/api => ../api
 
 require (
-	github.com/hashicorp/nomad/api v0.0.0-20230103221135-ce00d683f9be
+	github.com/bacanoo-io/norca/nomad/api v0.0.0-20230103221135-ce00d683f9be
 	github.com/shoenig/test v0.6.6
 )
 

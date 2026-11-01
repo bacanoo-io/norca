@@ -5,8 +5,8 @@
 package parser
 
 import (
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser/config"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser/config"
 )
 
 type Parser interface {

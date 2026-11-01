@@ -7,8 +7,8 @@ module <% .Module %>
 go 1.27
 
 require (
-	github.com/hashicorp/nomad/api v0.0.0-20230103221135-ce00d683f9be
-	github.com/hashicorp/nomad/controller v0.0.0
+	github.com/bacanoo-io/norca/nomad/api v0.0.0-20230103221135-ce00d683f9be
+	github.com/bacanoo-io/norca/nomad/controller v0.0.0
 )
 
 // The SDK and the API module are those of your Norca checkout: point the
@@ -16,12 +16,12 @@ require (
 // run "go mod tidy".
 <%- if .SDKPath %>
 replace (
-	github.com/hashicorp/nomad/api => <% .APIDir %>
-	github.com/hashicorp/nomad/controller => <% .ControllerDir %>
+	github.com/bacanoo-io/norca/nomad/api => <% .APIDir %>
+	github.com/bacanoo-io/norca/nomad/controller => <% .ControllerDir %>
 )
 <%- else %>
 // replace (
-// 	github.com/hashicorp/nomad/api => /path/to/norca/nomad/api
-// 	github.com/hashicorp/nomad/controller => /path/to/norca/nomad/controller
+// 	github.com/bacanoo-io/norca/nomad/api => /path/to/norca/nomad/api
+// 	github.com/bacanoo-io/norca/nomad/controller => /path/to/norca/nomad/controller
 // )
 <%- end %>

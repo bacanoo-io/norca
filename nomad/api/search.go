@@ -1,10 +1,11 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package api
 
 import (
-	"github.com/hashicorp/nomad/api/contexts"
+	"github.com/bacanoo-io/norca/nomad/api/contexts"
 )
 
 type Search struct {
@@ -64,7 +65,8 @@ func (s *Search) FuzzySearch(text string, context contexts.Context, q *QueryOpti
 // ID.
 //
 // e.g. A Task-level service would have scope like,
-//   ["<namespace>", "<job>", "<group>", "<task>"]
+//
+//	["<namespace>", "<job>", "<group>", "<task>"]
 type FuzzyMatch struct {
 	ID    string   // ID is UUID or Name of object
 	Scope []string `json:",omitempty"` // IDs of parent objects

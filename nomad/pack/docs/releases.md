@@ -429,4 +429,4 @@ and rollback work for client-side deployments as well.
 | Drift | `GET /v1/release/:name/drift` |
 | Uninstall | `DELETE /v1/release/:name?propagation=background\|orphan&no_hooks=&timeout=` |
 
-The Go client is `client.Releases()` in `github.com/hashicorp/nomad/api`.
+The Go client is `client.Releases()` in `github.com/bacanoo-io/norca/nomad/api`.

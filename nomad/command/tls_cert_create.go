@@ -13,9 +13,9 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/helper/flags"
-	"github.com/hashicorp/nomad/helper/tlsutil"
-	"github.com/hashicorp/nomad/lib/file"
+	"github.com/bacanoo-io/norca/nomad/helper/flags"
+	"github.com/bacanoo-io/norca/nomad/helper/tlsutil"
+	"github.com/bacanoo-io/norca/nomad/lib/file"
 )
 
 type TLSCertCreateCommand struct {

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/objectlint"
-	"github.com/hashicorp/nomad/helper/resourcespec"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/objectlint"
+	"github.com/bacanoo-io/norca/nomad/helper/resourcespec"
 	"github.com/shoenig/test/must"
 )
 
@@ -60,7 +60,7 @@ func TestRender(t *testing.T) {
 		must.Eq(t, string(formatted), content, must.Sprintf("%s is not gofmt-clean", p))
 	}
 	must.StrContains(t, byPath["go.mod"], "module example.com/postgres-cluster-operator")
-	must.StrContains(t, byPath["go.mod"], "github.com/hashicorp/nomad/controller => /src/norca/nomad/controller")
+	must.StrContains(t, byPath["go.mod"], "github.com/bacanoo-io/norca/nomad/controller => /src/norca/nomad/controller")
 	must.StrContains(t, byPath["types.go"], `controller.Kind{Group: "db.example.com", Kind: "PostgresCluster"}`)
 	must.StrContains(t, byPath["types.go"], `"db.example.com/postgres-cluster-cleanup"`)
 

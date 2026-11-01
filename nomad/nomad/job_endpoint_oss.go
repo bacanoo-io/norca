@@ -8,7 +8,7 @@
 package nomad
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // enforceSubmitJob is the policy slot of the submit-job scope. It runs the

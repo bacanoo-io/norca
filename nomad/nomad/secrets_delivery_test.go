@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/nomad/stream"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/testutil"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/stream"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/testutil"
 	"github.com/shoenig/test/must"
 )
 
@@ -27,7 +27,7 @@ func secretDeliveryJob(id string) *structs.Job {
 	tg.Tasks[0].Secrets = []*structs.TaskSecret{{
 		Name: "db",
 		Path: "jobs/${job}/db",
-		File: &structs.TaskSecretFile{Destination: "secrets/db.env"},
+		Files: []*structs.TaskSecretFile{{Destination: "secrets/db.env"}},
 	}}
 	return job
 }

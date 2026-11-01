@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package drivers
@@ -13,13 +14,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hashicorp/nomad/client/allocdir"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/drivers/proto"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/bacanoo-io/norca/nomad/client/allocdir"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers/proto"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
+	pstructs "github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/msgpack"
 	"golang.org/x/exp/maps"

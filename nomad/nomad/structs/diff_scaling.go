@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/hashicorp/nomad/helper/flatmap"
+	"github.com/bacanoo-io/norca/nomad/helper/flatmap"
 )
 
 // scalingTypedFields are the scalar fields of the typed scaling policy. They

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package drivers
@@ -6,11 +7,11 @@ package drivers
 import (
 	"context"
 
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
+	baseproto "github.com/bacanoo-io/norca/nomad/plugins/base/proto"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers/proto"
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/plugins/base"
-	baseproto "github.com/hashicorp/nomad/plugins/base/proto"
-	"github.com/hashicorp/nomad/plugins/drivers/proto"
 	"google.golang.org/grpc"
 )
 

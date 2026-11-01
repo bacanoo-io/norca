@@ -6,15 +6,15 @@ package autoscaler
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/apm/nomadapm"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/apm/prometheus"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/external"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/strategy/fixedvalue"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/strategy/passthrough"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/strategy/targetvalue"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/strategy/threshold"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/apm/nomadapm"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/apm/prometheus"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/external"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/fixedvalue"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/passthrough"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/targetvalue"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/threshold"
 )
 
 // ExternalPluginLoader loads the plugins that run outside the server

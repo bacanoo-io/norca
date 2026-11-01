@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/bacanoo-io/norca/nomad/helper/consulkv"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/version"
 	goversion "github.com/hashicorp/go-version"
-	"github.com/hashicorp/nomad/helper/consulkv"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/version"
 )
 
 // CheckRestorable returns an error if the Raft state of a backup must not

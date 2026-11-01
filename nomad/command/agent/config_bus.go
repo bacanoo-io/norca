@@ -9,10 +9,10 @@ import (
 	"slices"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/nomad/bus"
 	"github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/bus"
 )
 
 // BusConfig is the server's bus block: the system bus, a NATS server with

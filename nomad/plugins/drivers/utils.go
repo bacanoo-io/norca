@@ -8,9 +8,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers/proto"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers/proto"
 )
 
 var taskStateToProtoMap = map[TaskState]proto.TaskState{

@@ -10,11 +10,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/json"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
 )
 
 // DecodeResult is returned by the

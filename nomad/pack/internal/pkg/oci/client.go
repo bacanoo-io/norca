@@ -21,7 +21,7 @@ import (
 	"oras.land/oras-go/v2/registry/remote/credentials"
 	"oras.land/oras-go/v2/registry/remote/retry"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/version"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/version"
 )
 
 // Scheme is the URL scheme of OCI registry sources.

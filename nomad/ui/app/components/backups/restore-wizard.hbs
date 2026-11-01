@@ -200,22 +200,7 @@
                   <td data-test-count-restored={{row.type}}>{{row.restored}}</td>
                   <td data-test-count-reverted={{row.type}}>{{row.reverted}}</td>
                 </Ui::Table>
-                {{#if this.previewObjects.length}}
-                  <details class="mt-3">
-                    <summary>Affected objects{{if this.preview.Truncated " (first ones)"}}</summary>
-                    <Ui::Table
-                      @caption="Affected objects"
-                      @columns={{array (hash key="type" label="Type") (hash key="change" label="Change") (hash key="id" label="Name") (hash key="ns" label="Namespace")}}
-                      @rows={{this.previewObjects}}
-                      as |o|
-                    >
-                      <td>{{o.Type}}</td>
-                      <td>{{o.Change}}</td>
-                      <td class="font-monospace">{{o.ID}}</td>
-                      <td>{{or o.Namespace "–"}}</td>
-                    </Ui::Table>
-                  </details>
-                {{/if}}
+                <Backups::PreviewObjects @preview={{this.preview}} />
               {{else if this.isWorking}}
                 <Ui::Spinner @showLabel={{true}} @label="Comparing the backup with the current state" />
               {{/if}}

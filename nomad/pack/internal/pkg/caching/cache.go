@@ -13,9 +13,9 @@ import (
 
 	"github.com/go-git/go-git/v5"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
-	"github.com/hashicorp/nomad/pack/internal/pkg/logging"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper/filesystem"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/logging"
 )
 
 const (

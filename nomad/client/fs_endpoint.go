@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package client
@@ -22,12 +23,12 @@ import (
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hpcloud/tail/watch"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/client/allocdir"
-	sframer "github.com/hashicorp/nomad/client/lib/streamframer"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/client/allocdir"
+	sframer "github.com/bacanoo-io/norca/nomad/client/lib/streamframer"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 var (

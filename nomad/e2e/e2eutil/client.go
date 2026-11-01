@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package e2eutil
@@ -6,9 +7,9 @@ package e2eutil
 import (
 	"testing"
 
+	napi "github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/useragent"
 	capi "github.com/hashicorp/consul/api"
-	napi "github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/useragent"
 	vapi "github.com/hashicorp/vault/api"
 	"github.com/shoenig/test/must"
 )

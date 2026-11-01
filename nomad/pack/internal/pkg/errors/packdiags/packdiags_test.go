@@ -8,8 +8,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad/ci"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

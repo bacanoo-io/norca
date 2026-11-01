@@ -11,11 +11,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/helper/constraints/semver"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	psstructs "github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/nomad/helper/constraints/semver"
-	"github.com/hashicorp/nomad/nomad/structs"
-	psstructs "github.com/hashicorp/nomad/plugins/shared/structs"
 	"golang.org/x/exp/constraints"
 )
 

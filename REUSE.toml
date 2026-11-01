@@ -7,6 +7,13 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
+# The result of the clean room audit: file names and scores. CSV has no comments.
+[[annotations]]
+path = ["clean-room-result/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Norca contributors"
+SPDX-License-Identifier = "MPL-2.0"
+
 # Deployment examples: own files, MPL 2.0 (the files also carry SPDX headers)
 [[annotations]]
 path = ["example/**"]

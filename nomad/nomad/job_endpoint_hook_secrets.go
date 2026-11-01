@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // jobSecretsHook handles the secret delivery blocks of jobs (Norca,

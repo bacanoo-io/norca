@@ -27,12 +27,12 @@ import (
 	"github.com/hashicorp/consul-template/signals"
 	log "github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/helper/users"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	ti "github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/taskenv"
+	"github.com/bacanoo-io/norca/nomad/helper/users"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // The files of the native mTLS hook, in the mtls directory of the task's

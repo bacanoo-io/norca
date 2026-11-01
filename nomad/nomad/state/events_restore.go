@@ -6,7 +6,7 @@ package state
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // topicIndexTables maps an event topic to the state store tables whose writes

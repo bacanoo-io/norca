@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hashicorp/nomad/pack/internal/cli"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/cli"
 )
 
 func main() {

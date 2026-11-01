@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !windows
@@ -17,9 +18,9 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	ctestutil "github.com/hashicorp/nomad/client/testutil"
-	"github.com/hashicorp/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	ctestutil "github.com/bacanoo-io/norca/nomad/client/testutil"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
 )
 
 // TestPrevAlloc_StreamAllocDir_Ok asserts that streaming a tar to an alloc dir

@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	norcaversion "github.com/bacanoo-io/norca/nomad/version"
 	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	norcaversion "github.com/hashicorp/nomad/version"
 )
 
 // releaseFeatures are the server features a pack can require in the

@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/hashicorp/nomad/helper/users"
+	"github.com/bacanoo-io/norca/nomad/helper/users"
 )
 
 // Writer writes configuration files into a directory. A file is only

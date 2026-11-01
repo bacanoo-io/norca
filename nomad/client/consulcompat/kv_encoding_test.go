@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/helper/consulkv"
+	"github.com/bacanoo-io/norca/nomad/helper/consulkv"
 	"github.com/shoenig/test/must"
 )
 

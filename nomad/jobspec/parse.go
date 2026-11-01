@@ -13,10 +13,10 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/mapstructure"
 )
 

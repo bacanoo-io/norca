@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	vapi "github.com/hashicorp/vault/api"
 	"golang.org/x/exp/slices"
 )

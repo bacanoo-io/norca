@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/hashicorp/nomad/controller"
+	"github.com/bacanoo-io/norca/nomad/controller"
 )
 
 // Kind is the custom object type maintained by this operator. Objects live

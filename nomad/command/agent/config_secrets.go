@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/secretstore"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/secretstore"
 )
 
 // SecretsConfig is the server's secrets block: the server side settings of
@@ -54,6 +54,15 @@ type SecretsConfig struct {
 	// announces SecretExpiring (a duration, default "168h", 7 days).
 	ExpiryWarning string `hcl:"expiry_warning"`
 
+	// OperatorMaxConcurrent bounds the calls in flight to the operator of a
+	// secret engine, per engine and leader (default 10).
+	OperatorMaxConcurrent int `hcl:"operator_max_concurrent"`
+
+	// OperatorTimeout bounds a request to the operator of a secret engine,
+	// with the wait for its turn (default 10s). A task waits for it when it
+	// starts.
+	OperatorTimeout string `hcl:"operator_timeout"`
+
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -96,12 +105,37 @@ func (c *SecretsConfig) Merge(b *SecretsConfig) *SecretsConfig {
 	if b.ExpiryWarning != "" {
 		result.ExpiryWarning = b.ExpiryWarning
 	}
+	if b.OperatorMaxConcurrent != 0 {
+		result.OperatorMaxConcurrent = b.OperatorMaxConcurrent
+	}
+	if b.OperatorTimeout != "" {
+		result.OperatorTimeout = b.OperatorTimeout
+	}
 	return result
+}
+
+// operatorTimeout parses the timeout of the calls to operators; 0 means the
+// server default.
+func (c *SecretsConfig) operatorTimeout() (time.Duration, error) {
+	if c == nil || c.OperatorTimeout == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(c.OperatorTimeout)
+	if err != nil {
+		return 0, fmt.Errorf("secrets.operator_timeout: %w", err)
+	}
+	if d < time.Second {
+		return 0, fmt.Errorf("secrets.operator_timeout must be at least 1s")
+	}
+	return d, nil
 }
 
 // expiryWarning parses the expiry warning window; 0 means the server
 // default.
 func (c *SecretsConfig) expiryWarning() (time.Duration, error) {
+	if c != nil && c.OperatorMaxConcurrent < 0 {
+		return 0, fmt.Errorf("secrets.operator_max_concurrent must not be negative")
+	}
 	if c == nil || c.ExpiryWarning == "" {
 		return 0, nil
 	}

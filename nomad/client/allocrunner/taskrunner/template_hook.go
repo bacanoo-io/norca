@@ -9,14 +9,14 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	ti "github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/template"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/secrets"
+	"github.com/bacanoo-io/norca/nomad/client/taskenv"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/template"
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/secrets"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

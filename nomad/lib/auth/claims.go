@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package auth
@@ -11,7 +12,7 @@ import (
 
 	"github.com/mitchellh/pointerstructure"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // SelectorData returns the data for go-bexpr for selector evaluation.

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/api/contexts"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api/contexts"
 	"github.com/posener/complete"
 )
 

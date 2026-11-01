@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 	"golang.org/x/exp/slices"

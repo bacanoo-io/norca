@@ -4,9 +4,9 @@
 package fingerprint
 
 import (
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/netpolicy"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/allocrunner/netpolicy"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // NetworkPolicyFingerprint detects whether the node can enforce network

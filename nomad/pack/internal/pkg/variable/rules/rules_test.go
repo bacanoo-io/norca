@@ -6,8 +6,8 @@ package rules
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/shoenig/test/must"
 	"github.com/zclconf/go-cty/cty"
 )

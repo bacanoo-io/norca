@@ -1,9 +1,10 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
 
-import "github.com/hashicorp/nomad/nomad/structs"
+import "github.com/bacanoo-io/norca/nomad/nomad/structs"
 
 // systemEvals are handled specially, each job may have a blocked eval on each node
 type systemEvals struct {

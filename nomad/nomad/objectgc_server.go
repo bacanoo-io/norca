@@ -6,8 +6,8 @@ package nomad
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/objectgc"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/objectgc"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // setupObjectGC creates the garbage collector of custom objects. It runs only

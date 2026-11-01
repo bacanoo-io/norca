@@ -5,8 +5,8 @@
 package state
 
 import (
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 var MsgTypeEvents = map[structs.MessageType]string{

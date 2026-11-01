@@ -12,9 +12,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper/filesystem"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
 	"github.com/mitchellh/cli"
 )
 

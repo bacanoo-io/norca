@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package state
@@ -10,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	trstate "github.com/hashicorp/nomad/client/allocrunner/taskrunner/state"
-	dmstate "github.com/hashicorp/nomad/client/devicemanager/state"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	driverstate "github.com/hashicorp/nomad/client/pluginmanager/drivermanager/state"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	trstate "github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/state"
+	dmstate "github.com/bacanoo-io/norca/nomad/client/devicemanager/state"
+	"github.com/bacanoo-io/norca/nomad/client/dynamicplugins"
+	driverstate "github.com/bacanoo-io/norca/nomad/client/pluginmanager/drivermanager/state"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"

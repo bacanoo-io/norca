@@ -11,8 +11,8 @@ package threshold
 import (
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

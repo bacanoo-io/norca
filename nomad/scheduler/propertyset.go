@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package scheduler
@@ -7,10 +8,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // propertySet is used to track the values used for a particular property.

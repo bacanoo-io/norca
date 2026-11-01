@@ -17,19 +17,20 @@ import (
 	"sync"
 	"time"
 
+	metrics "github.com/armon/go-metrics"
 	"github.com/hashicorp/consul-template/signals"
 	log "github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/secrets"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/users"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	ti "github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/secrets"
+	"github.com/bacanoo-io/norca/nomad/client/taskenv"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/helper/users"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 )
 
 // The secret hook delivers the task's secret blocks (Norca,
@@ -68,6 +69,10 @@ const (
 	// failed fetches and watches.
 	secretBackoffBaseline = 1 * time.Second
 	secretBackoffLimit    = 30 * time.Second
+
+	// secretFallbackAttempts is how many times a credential is requested
+	// before a task starts with the fallback of its secret block.
+	secretFallbackAttempts = 3
 
 	// secretWaitEventInterval rate limits the events of a secret that is
 	// still being waited for.
@@ -137,6 +142,37 @@ type secretState struct {
 	// was found in the hook's persisted state: the delivered file stays,
 	// and the lease is renewed.
 	resumed bool
+
+	// keepFallback is set for a restored task that stays on its fallback.
+	keepFallback bool
+
+	// onFallback is set while the fallback is delivered; provider and
+	// manager serve the request of a credential when the task restarts.
+	// leaseLock guards them.
+	onFallback bool
+	provider   secrets.Provider
+	manager    secrets.LeaseManager
+}
+
+// setFallback records that the fallback is delivered.
+func (st *secretState) setFallback(p secrets.Provider, lm secrets.LeaseManager) {
+	st.leaseLock.Lock()
+	defer st.leaseLock.Unlock()
+	st.onFallback, st.provider, st.manager = true, p, lm
+}
+
+// fallback returns the provider if the fallback is delivered.
+func (st *secretState) fallback() (secrets.Provider, secrets.LeaseManager, bool) {
+	st.leaseLock.Lock()
+	defer st.leaseLock.Unlock()
+	return st.provider, st.manager, st.onFallback
+}
+
+// leaveFallback ends the fallback.
+func (st *secretState) leaveFallback() {
+	st.leaseLock.Lock()
+	defer st.leaseLock.Unlock()
+	st.onFallback = false
 }
 
 // currentLease returns the lease of the delivered credential.
@@ -183,6 +219,10 @@ func (*secretHook) Name() string { return secretHookName }
 // restored task resumes renewing them.
 const secretLeaseStatePrefix = "lease."
 
+// secretFallbackStatePrefix marks in the hook state a secret delivered from
+// its fallback.
+const secretFallbackStatePrefix = "fallback."
+
 // encodeSecretLease and decodeSecretLease convert a lease to and from its
 // hook state value.
 func encodeSecretLease(l *secrets.Lease) string {
@@ -215,6 +255,7 @@ func decodeSecretLease(v string) *secrets.Lease {
 func (h *secretHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartRequest, resp *interfaces.TaskPrestartResponse) error {
 	h.lock.Lock()
 	restored := false
+	started := h.started
 	if !h.started {
 		h.started = true
 		h.taskDir = req.TaskDir.Dir
@@ -234,18 +275,27 @@ func (h *secretHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartR
 					if l := decodeSecretLease(req.PreviousState[secretLeaseStatePrefix+spec.Name]); l != nil {
 						st.lease, st.resumed = l, true
 					}
+					st.keepFallback = spec.FallbackKeepOnRestart && req.PreviousState[secretFallbackStatePrefix+spec.Name] != ""
 				}
 			}
 			h.states = append(h.states, st)
 			go h.run(st)
 		}
 	}
+	// A later run is a restart of the task: the hook runs on, with what it
+	// delivered.
+	restarted := started && !h.config.lifecycle.IsRunning()
 	states := h.states
 	h.lock.Unlock()
 
 	if restored {
 		resp.State = maps.Clone(req.PreviousState)
 		return nil
+	}
+	if restarted {
+		for _, st := range states {
+			h.retryFallback(st)
+		}
 	}
 	for _, st := range states {
 		if st.spec.Optional {
@@ -266,6 +316,12 @@ func (h *secretHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartR
 				resp.State = map[string]string{}
 			}
 			resp.State[secretLeaseStatePrefix+st.spec.Name] = encodeSecretLease(l)
+		}
+		if _, _, on := st.fallback(); on {
+			if resp.State == nil {
+				resp.State = map[string]string{}
+			}
+			resp.State[secretFallbackStatePrefix+st.spec.Name] = "1"
 		}
 	}
 	return nil
@@ -442,6 +498,13 @@ func (h *secretHook) run(st *secretState) {
 			return
 		}
 		leases = lm
+		if st.keepFallback {
+			// The task was started with the fallback and stays on it.
+			h.event("secret %s: staying on the fallback", spec.Name)
+			st.setFallback(p, lm)
+			st.done(nil)
+			return
+		}
 		if st.resumed {
 			// The task runs with the delivered credential; keep its
 			// lease alive, or replace it if it ended meanwhile.
@@ -458,6 +521,7 @@ func (h *secretHook) run(st *secretState) {
 	var attempts uint64
 	for {
 		sec, err := h.fetch(st, p)
+		fetchFailed := err != nil
 		if err == nil {
 			if err = h.deliver(st, sec); err == nil {
 				h.event("secret %s: delivered%s", spec.Name, deliveredSuffix(sec))
@@ -476,6 +540,15 @@ func (h *secretHook) run(st *secretState) {
 		}
 		if h.ctx.Err() != nil {
 			fail(h.ctx.Err())
+			return
+		}
+		if fetchFailed && spec.Fallback != "" && secrets.KindOf(err) == secrets.KindUnavailable &&
+			attempts+1 >= secretFallbackAttempts && h.deliverFallback(st, p, err) {
+			st.setFallback(p, leases)
+			st.done(nil)
+			if spec.FallbackRecover == structs.SecretFallbackRecoverSignal {
+				h.recoverFromFallback(st, p, leases)
+			}
 			return
 		}
 		recoverable := secrets.IsRecoverable(err)
@@ -594,6 +667,18 @@ func (h *secretHook) leaseLoop(st *secretState, p secrets.Provider, lm secrets.L
 			}
 			if err == nil {
 				attempts = 0
+				if items := renewed.NewItems; len(items) > 0 {
+					// The renewal replaced the credential.
+					renewed.NewItems = nil
+					if err := h.deliver(st, &secrets.Secret{Items: items, Version: renewed.ID, Lease: renewed}); err != nil {
+						report("failed to deliver the renewed credential: %v", err)
+						st.setLease(renewed)
+						continue
+					}
+					h.event("secret %s: renewed credential delivered", spec.Name)
+					h.changed(st)
+					continue
+				}
 				st.setLease(renewed)
 				h.logger.Trace("renewed the lease of a dynamic secret", "secret", spec.Name, "lease_id", renewed.ID)
 				continue
@@ -630,6 +715,83 @@ func (h *secretHook) leaseLoop(st *secretState, p secrets.Provider, lm secrets.L
 		attempts, reissue = 0, false
 		h.event("secret %s: new credential delivered%s", spec.Name, deliveredSuffix(sec))
 		h.changed(st)
+	}
+}
+
+// deliverFallback delivers the static fallback of a dynamic secret and
+// reports whether it succeeded. The reason of the failed credential stays in
+// the task events: running on a fallback must be visible.
+func (h *secretHook) deliverFallback(st *secretState, p secrets.Provider, reason error) bool {
+	spec := st.spec
+	path := structs.InterpolateSecretPath(spec.Fallback, structs.SecretJobID(h.config.alloc.Job),
+		h.config.alloc.TaskGroup, h.config.task.Name)
+	sec, err, aerr := secrets.FetchAudited(h.ctx, p, &secrets.Request{Path: path, Identity: h.identity()}, h.config.auditor)
+	if aerr != nil {
+		h.logger.Warn("failed to record the audit record of a secret fetch",
+			"secret", spec.Name, "provider", p.Name(), "error", aerr)
+	}
+	if err == nil {
+		err = h.deliver(st, sec)
+	}
+	if err != nil {
+		h.logger.Warn("failed to deliver the fallback of a secret", "secret", spec.Name, "error", err)
+		return false
+	}
+	metrics.IncrCounterWithLabels([]string{"client", "secrets", "fallback"}, 1,
+		[]metrics.Label{{Name: "engine", Value: spec.Engine}})
+	h.event("secret %s: provider fallback, static secret %s delivered (%v)", spec.Name, path, reason)
+	return true
+}
+
+// retryFallback asks for a credential once when a task on a fallback
+// restarts, before the task runs. With fallback_recover the running loop does
+// this, and fallback_keep_on_restart keeps the fallback. If it fails, the task
+// starts with the fallback again.
+func (h *secretHook) retryFallback(st *secretState) {
+	spec := st.spec
+	p, lm, on := st.fallback()
+	if !on || spec.FallbackKeepOnRestart || spec.FallbackRecover != "" {
+		return
+	}
+	sec, err := h.fetch(st, p)
+	if err == nil {
+		err = h.deliver(st, sec)
+	}
+	if err != nil {
+		h.event("secret %s: staying on the fallback after the restart: %v", spec.Name, err)
+		return
+	}
+	st.leaveFallback()
+	h.event("secret %s: credential delivered, leaving the fallback%s", spec.Name, deliveredSuffix(sec))
+	go h.leaseLoop(st, p, lm)
+}
+
+// recoverFromFallback asks for a credential until one is delivered, applies
+// the change mode and goes on with the lease.
+func (h *secretHook) recoverFromFallback(st *secretState, p secrets.Provider, lm secrets.LeaseManager) {
+	spec := st.spec
+	for {
+		select {
+		case <-h.ctx.Done():
+			return
+		case <-time.After(spec.FallbackRecoverInterval):
+		}
+		sec, err := h.fetch(st, p)
+		if h.ctx.Err() != nil {
+			return
+		}
+		if err == nil {
+			err = h.deliver(st, sec)
+		}
+		if err != nil {
+			h.logger.Debug("still on the fallback of a secret", "secret", spec.Name, "error", err)
+			continue
+		}
+		st.leaveFallback()
+		h.event("secret %s: credential delivered, leaving the fallback%s", spec.Name, deliveredSuffix(sec))
+		h.changed(st)
+		h.leaseLoop(st, p, lm)
+		return
 	}
 }
 
@@ -718,26 +880,13 @@ func versionSuffix(version string) string {
 // default file; its lease becomes the secret's lease.
 func (h *secretHook) deliver(st *secretState, sec *secrets.Secret) error {
 	spec := st.spec
-	if spec.File == nil && len(spec.Env) == 0 {
-		if sec.DefaultFile == "" || sec.DefaultFileItem == "" {
-			return fmt.Errorf("secret %s: the provider has no default delivery; give the secret a file block", spec.Name)
-		}
-		data, ok := sec.Items[sec.DefaultFileItem]
-		if !ok {
-			return fmt.Errorf("secret %s: item %q not found", spec.Name, sec.DefaultFileItem)
-		}
-		dest := "secrets/" + sec.DefaultFile
-		if err := writeSecretFile(h.taskDir, dest, []byte(data), h.config.task); err != nil {
-			return fmt.Errorf("secret %s: failed to write %s: %v", spec.Name, dest, err)
-		}
-	}
-	if spec.File != nil {
-		data, err := secrets.Render(spec.File, sec.Items)
+	for _, f := range spec.Files {
+		data, err := secrets.Render(f, sec.Items)
 		if err != nil {
 			return fmt.Errorf("secret %s: %v", spec.Name, err)
 		}
-		if err := writeSecretFile(h.taskDir, spec.File.Destination, data, h.config.task); err != nil {
-			return fmt.Errorf("secret %s: failed to write %s: %v", spec.Name, spec.File.Destination, err)
+		if err := writeSecretFile(h.taskDir, f.Destination, data, h.config.task); err != nil {
+			return fmt.Errorf("secret %s: failed to write %s: %v", spec.Name, f.Destination, err)
 		}
 	}
 	if len(spec.Env) > 0 {

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package getter
@@ -8,10 +9,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	cconfig "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/testlog"
-	sconfig "github.com/hashicorp/nomad/nomad/structs/config"
+	cconfig "github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	sconfig "github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	"github.com/shoenig/test/must"
 )
 

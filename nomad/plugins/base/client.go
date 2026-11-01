@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package base
@@ -7,9 +8,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/nomad/helper/pluginutils/grpcutils"
-	"github.com/hashicorp/nomad/plugins/base/proto"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/grpcutils"
+	"github.com/bacanoo-io/norca/nomad/plugins/base/proto"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
 )
 
 // BasePluginClient implements the client side of a remote base plugin, using

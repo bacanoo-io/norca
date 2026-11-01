@@ -11,8 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-msgpack/codec"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // EncodeJob returns the job in the Nomad API JSON form (the same form the

@@ -18,10 +18,10 @@ import (
 	"github.com/hashicorp/go-set"
 	"github.com/hashicorp/go-version"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/state/paginator"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/state/paginator"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // ServiceRegistration encapsulates the service registrations RPC endpoint
@@ -365,8 +365,10 @@ func (s *ServiceRegistration) listAllServiceRegistrations(
 	reply *structs.ServiceRegistrationListResponse) error {
 
 	// Perform ACL resolution. The request already goes through forwarding
-	// and metrics setup before being called.
-	aclObj, err := s.srv.ResolveACL(args)
+	// and metrics setup before being called. A client node reads every
+	// namespace, like the listing of a single namespace: the mTLS gateways
+	// list the services of their region with the identity of the node.
+	aclObj, err := s.srv.ResolveClientOrACL(args)
 	if err != nil {
 		return err
 	}

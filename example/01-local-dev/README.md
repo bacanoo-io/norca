@@ -6,8 +6,8 @@ SPDX-License-Identifier: MPL-2.0
 # 01 – Local development agent
 
 A development agent (`norca agent -dev`: server and client in one process,
-state in memory, no ACLs, no TLS) with the new web UI, the native service
-catalog with the built-in DNS and the Consul-compatible API, the built-in
+state in memory, no ACLs, no TLS) with the web UI, the native service
+catalog with the built-in DNS and the Consul-compatible API and KV, the built-in
 secret store and the built-in autoscaler. It is the quickest way to try the
 features; everything is gone when the agent stops.
 
@@ -23,7 +23,7 @@ features; everything is gone when the agent stops.
 
 | File | |
 | --- | --- |
-| [dev.hcl](dev.hcl) | Additions to the dev agent: autoscaler, DNS, Consul-compatible API |
+| [dev.hcl](dev.hcl) | Additions to the dev agent: autoscaler, DNS, Consul-compatible API, healthy-only service lookups of the workloads (`default_healthy_only`) |
 | [test-app.hcl](test-app.hcl) | Variables of the [test-app pack](../packs/test-app/README.md) for a dev agent |
 
 ## Steps
@@ -74,6 +74,11 @@ dig @127.0.0.1 -p 8600 test-app.service.consul SRV   # consul_compat names
 curl http://127.0.0.1:8500/v1/catalog/services
 curl 'http://127.0.0.1:8500/v1/health/service/test-app?passing'
 
+# Consul KV of the same API, kept in a bucket of the system bus of the servers
+curl -X PUT --data 'hello' http://127.0.0.1:8500/v1/kv/test-app/motd
+curl 'http://127.0.0.1:8500/v1/kv/test-app/motd?raw'
+norca operator bus status
+
 # The page shows the version of the secret read with a Vault-style template
 curl http://<address:port from service info>/
 
@@ -106,8 +111,9 @@ the pack. Add the packs of the examples as a registry of the type `dir` (the
 dev agent is its own server, so it reads this checkout):
 
 ```shell
-curl -X POST http://127.0.0.1:4646/v1/pack-registry   -d "{\"Name\": \"examples\", \"Spec\": {\"type\": \"dir\", \"source\": \"$(cd ../packs && pwd)\"}}"
-curl -s http://127.0.0.1:4646/v1/packs     # test-app 0.2.0, registry examples
+curl -X POST http://127.0.0.1:4646/v1/pack-registry \
+  -d "{\"Name\": \"examples\", \"Spec\": {\"type\": \"dir\", \"source\": \"$(cd ../packs && pwd)\"}}"
+curl -s http://127.0.0.1:4646/v1/packs     # test-app 0.3.0, registry examples
 ```
 
 Or add it on **Packages → Registries** (type *Server directory*, source the
@@ -152,12 +158,12 @@ Then stop the agent with Ctrl-C: the dev agent keeps nothing.
   and liveness checks, the **Scaling** tab with the typed policy, versions
   and the job definition (HCL/JSON).
 - **Services**: the catalog with the health of every instance.
-- **Scaling**: the policies of the built-in autoscaler and their events.
+- **Scaling**: the policies of the built-in autoscaler, their events and the
+  usage history of the task groups.
 - **Packages**: the `test-app` release and its revisions; the **Registries**
   tab with `examples`, the **Catalog** with its packs and the install form
   (step 6).
 - **Topology** and **Clients**: the node in its datacenter `dc1`.
-
 - **Configuration → Secrets**: the secrets of the built-in secret store with
   their versions and metadata (`norca secret ...` on the command line).
 

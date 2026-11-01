@@ -1,9 +1,10 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package taskrunner
 
-import "github.com/hashicorp/nomad/client/allocrunner/interfaces"
+import "github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
 
 // Statically assert the stats hook implements the expected interfaces
 var _ interfaces.TaskPrestartHook = (*vaultHook)(nil)

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
 	"github.com/shoenig/test/must"
 )
 

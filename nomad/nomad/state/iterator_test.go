@@ -6,8 +6,8 @@ package state
 import (
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/ci"
 	"github.com/shoenig/test/must"
 )
 

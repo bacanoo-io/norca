@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -11,7 +12,7 @@ import (
 
 	multierror "github.com/hashicorp/go-multierror"
 
-	"github.com/hashicorp/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/helper"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )

@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/bacanoo-io/norca/nomad/jobspec2"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/hashicorp/nomad/jobspec2"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"

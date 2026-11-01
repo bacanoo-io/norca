@@ -4,10 +4,10 @@
 package client
 
 import (
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/secrets"
-	"github.com/hashicorp/nomad/client/vaultcompat"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/secrets"
+	"github.com/bacanoo-io/norca/nomad/client/vaultcompat"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // setupVaultCompat sets up the Vault-compatible endpoint of the built-in

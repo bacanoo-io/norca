@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
-	"github.com/hashicorp/nomad/nomad/structs"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // taskGroupQuery is the plugins internal representation of a query and

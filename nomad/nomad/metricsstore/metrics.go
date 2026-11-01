@@ -4,7 +4,7 @@
 package metricsstore
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // The metrics of a task group. Each is stored as two series, <name>.avg and

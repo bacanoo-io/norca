@@ -1,4 +1,4 @@
-module github.com/hashicorp/nomad
+module github.com/bacanoo-io/norca/nomad
 
 go 1.27
 
@@ -21,7 +21,11 @@ replace (
 replace github.com/armon/go-metrics => github.com/armon/go-metrics v0.0.0-20230509193637-d9ca9af9f1f9
 
 // Nomad is built using the current source of the API module
-replace github.com/hashicorp/nomad/api => ./api
+replace github.com/bacanoo-io/norca/nomad/api => ./api
+
+// consul-template imports the API module by its upstream path; the stand-in
+// aliases the Norca API types, so no upstream version comes from the proxy
+replace github.com/hashicorp/nomad/api => ./compat/upstreamapi
 
 require (
 	filippo.io/age v1.3.2
@@ -31,6 +35,7 @@ require (
 	github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e
 	github.com/armon/go-metrics v0.4.1
 	github.com/aws/aws-sdk-go v1.44.184
+	github.com/bacanoo-io/norca/nomad/api v0.0.0-20230103221135-ce00d683f9be
 	github.com/bgentry/speakeasy v0.1.0
 	github.com/briandowns/spinner v1.23.2
 	github.com/brianvoe/gofakeit/v6 v6.20.1
@@ -95,7 +100,6 @@ require (
 	github.com/hashicorp/logutils v1.0.0
 	github.com/hashicorp/memberlist v0.5.0
 	github.com/hashicorp/net-rpc-msgpackrpc v0.0.0-20151116020338-a14192a58a69
-	github.com/hashicorp/nomad/api v0.0.0-20230103221135-ce00d683f9be
 	github.com/hashicorp/raft v1.5.0
 	github.com/hashicorp/raft-autopilot v0.1.6
 	github.com/hashicorp/raft-boltdb/v2 v2.2.2
@@ -277,6 +281,7 @@ require (
 	github.com/hashicorp/go-secure-stdlib/tlsutil v0.1.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/mdns v1.0.4 // indirect
+	github.com/hashicorp/nomad/api v0.0.0-20230103221135-ce00d683f9be // indirect
 	github.com/hashicorp/vault/api/auth/kubernetes v0.9.0 // indirect
 	github.com/hashicorp/vic v1.5.1-0.20190403131502-bbfe86ec9443 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
@@ -307,8 +312,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mrunalp/fileutils v0.5.1 // indirect
-	github.com/nats-io/jwt/v2 v2.8.2
-	github.com/nats-io/nkeys v0.4.16
+	github.com/nats-io/jwt/v2 v2.8.2 // indirect
+	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
 	github.com/oklog/run v1.1.0 // indirect

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package executor
@@ -12,9 +13,9 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	dproto "github.com/bacanoo-io/norca/nomad/plugins/drivers/proto"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	dproto "github.com/hashicorp/nomad/plugins/drivers/proto"
 )
 
 // execHelper is a convenient wrapper for starting and executing commands, and handling their output

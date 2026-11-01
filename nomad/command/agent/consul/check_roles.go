@@ -4,8 +4,8 @@
 package consul
 
 import (
-	"github.com/hashicorp/nomad/client/serviceregistration"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // isConsulCheck returns true if check is registered in Consul. Liveness checks

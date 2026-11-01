@@ -15,7 +15,7 @@
 package proto
 
 import (
-	v1 "github.com/hashicorp/nomad/nomad/autoscaler/plugins/shared/proto/v1"
+	v1 "github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/shared/proto/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

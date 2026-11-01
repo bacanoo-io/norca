@@ -6,8 +6,8 @@ package state
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // TableSecretStoreBlobs is the table of the physical storage of the built-in

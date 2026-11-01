@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	consulapi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // LocalServices gives the API the external services owned by the local node:

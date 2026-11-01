@@ -3,7 +3,7 @@
 
 package nomad
 
-import "github.com/hashicorp/nomad/nomad/structs"
+import "github.com/bacanoo-io/norca/nomad/nomad/structs"
 
 // admissionSecretRefsValue is the "secrets" list of the CEL request
 // variable of job admission (Norca, norca-doc content/docs/design/secrets-plan.md, "Delivery

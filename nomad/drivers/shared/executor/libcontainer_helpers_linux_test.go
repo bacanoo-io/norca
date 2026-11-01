@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/ci"
 	"github.com/opencontainers/runc/libcontainer"
 	lutils "github.com/opencontainers/runc/libcontainer/utils"
 	"github.com/shoenig/test/must"

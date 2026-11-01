@@ -18,9 +18,9 @@ import (
 	"github.com/fatih/color"
 	"github.com/mitchellh/go-glint"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 type nonInteractiveTestUI struct {

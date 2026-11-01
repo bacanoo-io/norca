@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package hclspecutils
@@ -6,10 +7,10 @@ package hclspecutils
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
 	hcl "github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
 )
 
 var (

@@ -9,9 +9,9 @@ import (
 	"slices"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/nomad/metricsstore"
 	"github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/metricsstore"
 )
 
 // MetricsStoreConfig is the server's metrics_store block: the history of the

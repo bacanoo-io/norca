@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package grpcutils
@@ -7,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/nomad/plugins/base/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/base/structs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

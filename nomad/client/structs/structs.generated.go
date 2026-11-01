@@ -7,11 +7,11 @@ package structs
 
 import (
 	"errors"
+	pkg1_stats "github.com/bacanoo-io/norca/nomad/client/stats"
+	pkg4_structs "github.com/bacanoo-io/norca/nomad/nomad/structs"
+	pkg2_device "github.com/bacanoo-io/norca/nomad/plugins/device"
+	pkg3_structs "github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 	codec1978 "github.com/hashicorp/go-msgpack/codec"
-	pkg1_stats "github.com/hashicorp/nomad/client/stats"
-	pkg4_structs "github.com/hashicorp/nomad/nomad/structs"
-	pkg2_device "github.com/hashicorp/nomad/plugins/device"
-	pkg3_structs "github.com/hashicorp/nomad/plugins/shared/structs"
 	"runtime"
 	"strconv"
 	"time"

@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // A multiregion deployment is the deployment of one region of a multiregion

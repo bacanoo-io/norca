@@ -7,8 +7,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Conversions of the secret delivery blocks of jobs (Norca).
@@ -45,23 +45,30 @@ func apiTaskSecretsToStructs(in []*api.TaskSecret) []*structs.TaskSecret {
 			continue
 		}
 		ts := &structs.TaskSecret{
-			Name:         s.Name,
-			Provider:     s.Provider,
-			Path:         s.Path,
-			Version:      s.Version,
-			Engine:       s.Engine,
-			Role:         s.Role,
-			Env:          maps.Clone(s.Env),
-			ChangeMode:   s.ChangeMode,
-			ChangeSignal: s.ChangeSignal,
-			Optional:     s.Optional,
-			Timeout:      s.Timeout,
+			Name:                    s.Name,
+			Provider:                s.Provider,
+			Path:                    s.Path,
+			Version:                 s.Version,
+			Engine:                  s.Engine,
+			Role:                    s.Role,
+			Params:                  maps.Clone(s.Params),
+			Fallback:                s.Fallback,
+			FallbackRecover:         s.FallbackRecover,
+			FallbackKeepOnRestart:   s.FallbackKeepOnRestart,
+			FallbackRecoverInterval: s.FallbackRecoverInterval,
+			Env:                     maps.Clone(s.Env),
+			ChangeMode:              s.ChangeMode,
+			ChangeSignal:            s.ChangeSignal,
+			Optional:                s.Optional,
+			Timeout:                 s.Timeout,
 		}
-		if s.File != nil {
-			ts.File = &structs.TaskSecretFile{
-				Destination: s.File.Destination,
-				Format:      s.File.Format,
-				Template:    s.File.Template,
+		for _, f := range s.Files {
+			if f != nil {
+				ts.Files = append(ts.Files, &structs.TaskSecretFile{
+					Destination: f.Destination,
+					Format:      f.Format,
+					Template:    f.Template,
+				})
 			}
 		}
 		if cs := s.ChangeScript; cs != nil {

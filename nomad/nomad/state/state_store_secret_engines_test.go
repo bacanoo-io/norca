@@ -7,20 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 )
 
 func testSecretEngine(name string) *structs.SecretEngine {
 	return &structs.SecretEngine{
-		Namespace:      structs.DefaultNamespace,
-		Name:           name,
-		Type:           structs.SecretEngineTypeNATS,
-		CredentialPath: "nats/admin",
-		NATS:           &structs.SecretEngineNATS{Servers: []string{"nats://127.0.0.1:4222"}, AccountJWT: "jwt"},
-		Roles:          []*structs.SecretEngineRole{{Name: "worker", TTL: time.Hour, MaxTTL: 2 * time.Hour}},
+		Namespace: structs.DefaultNamespace,
+		Name:      name,
+		Type:      structs.SecretEngineTypeOperator,
+		Operator:  &structs.SecretEngineOperator{Service: "pg"},
+		Roles:     []*structs.SecretEngineRole{{Name: "worker", TTL: time.Hour, MaxTTL: 2 * time.Hour}},
 	}
 }
 

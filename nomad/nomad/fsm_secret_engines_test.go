@@ -9,8 +9,8 @@ import (
 
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // TestSecretEngineFSM_SnapshotRestore applies an engine and a lease through
@@ -18,10 +18,9 @@ import (
 func TestSecretEngineFSM_SnapshotRestore(t *testing.T) {
 	ci.Parallel(t)
 	fsm := testFSM(t)
-	engine := &structs.SecretEngine{Namespace: "default", Name: "nats", Type: structs.SecretEngineTypeNATS,
-		CredentialPath: "nats/admin", NATS: &structs.SecretEngineNATS{Servers: []string{"nats://x:4222"}, AccountJWT: "jwt"},
-		Roles: []*structs.SecretEngineRole{{Name: "worker", TTL: time.Hour, MaxTTL: 2 * time.Hour}},
-		State: &structs.SecretEngineState{RetiredKeys: []string{"AOLD"}}}
+	engine := &structs.SecretEngine{Namespace: "default", Name: "nats", Type: structs.SecretEngineTypeOperator,
+		Operator: &structs.SecretEngineOperator{Service: "pg"},
+		Roles:    []*structs.SecretEngineRole{{Name: "worker", TTL: time.Hour, MaxTTL: 2 * time.Hour}}}
 	apply := func(mt structs.MessageType, req any) any {
 		buf, err := structs.Encode(mt, req)
 		must.NoError(t, err)
@@ -41,7 +40,7 @@ func TestSecretEngineFSM_SnapshotRestore(t *testing.T) {
 	fsm2 := testSnapshotRestore(t, fsm)
 	e, err := fsm2.State().SecretEngineByName(nil, "default", "nats")
 	must.NoError(t, err)
-	must.Eq(t, []string{"AOLD"}, e.State.RetiredKeys)
+	must.Eq(t, "pg", e.Operator.Service)
 	l, err := fsm2.State().SecretLeaseByID(nil, "l1")
 	must.NoError(t, err)
 	must.Eq(t, "UABC", l.BackendRef)

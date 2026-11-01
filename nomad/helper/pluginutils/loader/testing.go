@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package loader
@@ -7,10 +8,10 @@ import (
 	"net"
 	"sync"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
 	log "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/plugins/base"
 )
 
 // MockCatalog provides a mock PluginCatalog to be used for testing

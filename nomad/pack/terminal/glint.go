@@ -21,8 +21,8 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-glint"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper"
 )
 
 type glintUI struct {

@@ -12,7 +12,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/testfixture"
 )
 
 // isolateCache points the Nomad Pack cache, which every command except

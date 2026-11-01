@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package getter
@@ -6,7 +7,7 @@ package getter
 import (
 	"os"
 
-	"github.com/hashicorp/nomad/helper/subproc"
+	"github.com/bacanoo-io/norca/nomad/helper/subproc"
 )
 
 const (

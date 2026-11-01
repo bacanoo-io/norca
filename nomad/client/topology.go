@@ -4,7 +4,7 @@
 package client
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Topology returns the location of the node: its region and datacenter.

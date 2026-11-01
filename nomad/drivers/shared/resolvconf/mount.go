@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package resolvconf
@@ -8,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/docker/docker/libnetwork/types"
-	"github.com/hashicorp/nomad/plugins/drivers"
 )
 
 func GenerateDNSMount(taskDir string, conf *drivers.DNSConfig) (*drivers.MountConfig, error) {

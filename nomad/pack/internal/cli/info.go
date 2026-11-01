@@ -10,12 +10,12 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser/config"
-	varpkg "github.com/hashicorp/nomad/pack/sdk/pack/variables"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/loader"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser/config"
+	varpkg "github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/mitchellh/go-glint"
 	"github.com/zclconf/go-cty/cty"
 )

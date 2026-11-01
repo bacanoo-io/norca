@@ -15,12 +15,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/tlsutil"
-	"github.com/hashicorp/nomad/nomad/bus"
-	"github.com/hashicorp/nomad/nomad/metricsstore"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/helper/tlsutil"
+	"github.com/bacanoo-io/norca/nomad/nomad/bus"
+	"github.com/bacanoo-io/norca/nomad/nomad/metricsstore"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	"github.com/hashicorp/serf/serf"
 )
 

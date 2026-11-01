@@ -12,18 +12,16 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/state/paginator"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/state/paginator"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // SecretEngine is the RPC endpoint of the dynamic secrets engines of the
 // built-in secret store, callable externally through the
-// "/v1/secret-engine{s}" HTTP API. Reads need read-secret-engine, writes and
-// rotate-root write-secret-engine; naming an admin credential also needs
-// read-secret on its path. Writes and rotate-root run on the leader and are
-// audited.
+// "/v1/secret-engine{s}" HTTP API. Reads need read-secret-engine, writes
+// write-secret-engine. Writes run on the leader and are audited.
 type SecretEngine struct {
 	srv    *Server
 	ctx    *RPCContext
@@ -153,7 +151,7 @@ func (e *SecretEngine) Read(args *structs.SecretEngineReadRequest, reply *struct
 
 // Upsert creates or updates an engine. The leader reads the engine's admin
 // credential, validates the configuration with it and brings the backend in
-// line (for NATS: pushes the account JWT) before the engine is written.
+// line before the engine is written.
 func (e *SecretEngine) Upsert(args *structs.SecretEngineUpsertRequest, reply *structs.SecretEngineWriteResponse) error {
 	authErr := e.srv.Authenticate(e.ctx, args)
 	if done, err := e.srv.forward(structs.SecretEngineUpsertRPCMethod, args, args, reply); done {
@@ -184,24 +182,12 @@ func (e *SecretEngine) Upsert(args *structs.SecretEngineUpsertRequest, reply *st
 	}
 	engine := args.Engine.Copy()
 	engine.Namespace = namespace
-	engine.State = nil
 	engine.Canonicalize()
 	if err := engine.Validate(); err != nil {
 		return e.secret.finish(rec, structs.NewErrRPCCoded(http.StatusBadRequest, err.Error()))
 	}
 	if err := e.validateNamespace(namespace); err != nil {
 		return e.secret.finish(rec, err)
-	}
-
-	// The engine reads its admin credential with the leader's authority, so
-	// naming it requires the right to read it.
-	existing, err := e.srv.State().SecretEngineByName(nil, namespace, engine.Name)
-	if err != nil {
-		return e.secret.finish(rec, err)
-	}
-	if (existing == nil || existing.CredentialPath != engine.CredentialPath) &&
-		!aclObj.AllowSecretOperation(namespace, engine.CredentialPath, acl.NamespaceCapabilityReadSecret) {
-		return e.secret.denied(rec)
 	}
 
 	if err := e.srv.secretAudit(rec, false); err != nil {
@@ -245,43 +231,6 @@ func (e *SecretEngine) Delete(args *structs.SecretEngineDeleteRequest, reply *st
 	if err := e.secret.finish(rec, err); err != nil {
 		return err
 	}
-	reply.Index = index
-	return nil
-}
-
-// RotateRoot rotates the admin key of an engine.
-func (e *SecretEngine) RotateRoot(args *structs.SecretEngineRotateRootRequest, reply *structs.SecretEngineWriteResponse) error {
-	authErr := e.srv.Authenticate(e.ctx, args)
-	if done, err := e.srv.forward(structs.SecretEngineRotateRootRPCMethod, args, args, reply); done {
-		return err
-	}
-	e.srv.MeasureRPCRate("secret_engine", structs.RateMetricWrite, args)
-	defer metrics.MeasureSince([]string{"nomad", "secret_engine", "rotate_root"}, time.Now())
-
-	namespace := args.RequestNamespace()
-	rec := e.secret.auditRecord(args.GetIdentity(), structs.SecretOpRotateRoot, namespace, secretEnginePath(args.Name))
-	rec.Engine = args.Name
-	if authErr != nil {
-		return e.secret.denied(rec)
-	}
-	aclObj, err := e.secret.resolveACL(args)
-	if err != nil {
-		return e.secret.finish(rec, err)
-	}
-	if !aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityWriteSecretEngine) {
-		return e.secret.denied(rec)
-	}
-	if err := e.srv.secretAudit(rec, false); err != nil {
-		return err
-	}
-	out, key, index, err := e.srv.secretEngineRotateRoot(namespace, args.Name)
-	if err := e.secret.finish(rec, err); err != nil {
-		return err
-	}
-	metrics.IncrCounter([]string{"nomad", "secrets", "engine", "rotate_root"}, 1)
-	e.logger.Info("rotated the admin key of the secret engine", "namespace", namespace, "engine", args.Name, "key", key)
-	reply.Engine = out
-	reply.Key = key
 	reply.Index = index
 	return nil
 }
@@ -519,8 +468,6 @@ func (e *SecretLease) Create(args *structs.SecretLeaseCreateRequest, reply *stru
 		[]metrics.Label{{Name: "engine", Value: args.Engine}})
 	reply.Lease = lease
 	reply.Items = cred.Items
-	reply.File = cred.File
-	reply.FileItem = cred.FileItem
 	reply.Index = index
 	return nil
 }
@@ -576,13 +523,14 @@ func (e *SecretLease) Renew(args *structs.SecretLeaseRenewRequest, reply *struct
 	if err := e.srv.secretAudit(rec, false); err != nil {
 		return err
 	}
-	out, index, err := e.srv.secretLeaseRenew(lease)
+	out, items, index, err := e.srv.secretLeaseRenew(lease)
 	if err := e.secret.finish(rec, err); err != nil {
 		return err
 	}
 	metrics.IncrCounterWithLabels([]string{"nomad", "secrets", "leases", "renewed"}, 1,
 		[]metrics.Label{{Name: "engine", Value: lease.Engine}})
 	reply.Lease = out
+	reply.Items = items
 	reply.Index = index
 	return nil
 }

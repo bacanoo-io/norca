@@ -31,14 +31,14 @@ import (
 	"github.com/rs/cors"
 	"golang.org/x/time/rate"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/client"
-	"github.com/hashicorp/nomad/command/agent/event"
-	"github.com/hashicorp/nomad/helper/noxssrw"
-	"github.com/hashicorp/nomad/helper/tlsutil"
-	"github.com/hashicorp/nomad/nomad"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/client"
+	"github.com/bacanoo-io/norca/nomad/command/agent/event"
+	"github.com/bacanoo-io/norca/nomad/helper/noxssrw"
+	"github.com/bacanoo-io/norca/nomad/helper/tlsutil"
+	"github.com/bacanoo-io/norca/nomad/nomad"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 )
 
 const (
@@ -520,6 +520,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/operator/bus", s.wrap(s.OperatorBusStatus))
 	s.mux.HandleFunc("/v1/operator/metrics-store", s.wrap(s.OperatorMetricsStoreStatus))
 	s.mux.HandleFunc("/v1/operator/consul-kv/migrate", s.wrap(s.OperatorConsulKVMigrate))
+	s.mux.HandleFunc("/v1/operator/consul-kv/restore", s.wrap(s.OperatorConsulKVRestore))
 	s.mux.HandleFunc("/v1/operator/snapshot", s.wrap(s.SnapshotRequest))
 	s.mux.HandleFunc("/v1/operator/backups", s.wrap(s.BackupsRequest))
 	s.mux.HandleFunc("/v1/operator/backup/", s.wrap(s.BackupSpecificRequest))

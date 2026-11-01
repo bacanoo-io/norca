@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 )
 
 // Cluster is what the operator reads from the cluster besides its objects

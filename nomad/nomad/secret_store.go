@@ -12,13 +12,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/seal"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/core"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/storage"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/seal"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/core"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/storage"
 )
 
 // secretCoreKeyringPath is where the barrier of the core keeps its key,

@@ -10,7 +10,7 @@
 // the two. The documentation is in the original package.
 package transit
 
-import ubix "github.com/hashicorp/nomad/secretstore/ubix/internal/transit"
+import ubix "github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/transit"
 
 // Types.
 type (

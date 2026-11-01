@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // TableSealConfig holds the keyring seal configuration of the region, a

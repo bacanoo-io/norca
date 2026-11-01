@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package e2eutil
@@ -7,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/bacanoo-io/norca/nomad/testutil"
 )
 
 func WaitForLastDeploymentStatus(jobID, ns, status string, wc *WaitConfig) error {

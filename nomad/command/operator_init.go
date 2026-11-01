@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/command/operatorinit"
+	"github.com/bacanoo-io/norca/nomad/command/operatorinit"
 	"github.com/posener/complete"
 )
 

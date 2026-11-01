@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package logmon
@@ -6,8 +7,8 @@ package logmon
 import (
 	"context"
 
+	"github.com/bacanoo-io/norca/nomad/client/logmon/proto"
 	"github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/client/logmon/proto"
 )
 
 type logmonServer struct {

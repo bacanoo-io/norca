@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package jobspec2
@@ -7,10 +8,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/jobspec2/hclutil"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/ext/dynblock"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/jobspec2/hclutil"
 	"github.com/zclconf/go-cty/cty"
 )
 

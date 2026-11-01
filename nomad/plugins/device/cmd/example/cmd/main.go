@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package main
@@ -6,8 +7,8 @@ package main
 import (
 	log "github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/plugins"
-	"github.com/hashicorp/nomad/plugins/device/cmd/example"
+	"github.com/bacanoo-io/norca/nomad/plugins"
+	"github.com/bacanoo-io/norca/nomad/plugins/device/cmd/example"
 )
 
 func main() {

@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/helper/pointer"
 )
 
 // Topology preferences of the discovery block of a service. They select which

@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // externalServiceRequest serves the external service endpoints below

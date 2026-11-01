@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // parsePolicy parses the values on an structs.ScalingPolicy into a

@@ -17,9 +17,9 @@ import (
 	"testing/iotest"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api/internal/testutil"
 	"github.com/felixge/httpsnoop"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/api/internal/testutil"
 	"github.com/shoenig/test/must"
 )
 

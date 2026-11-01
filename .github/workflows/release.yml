@@ -144,7 +144,7 @@ jobs:
           if [ "$GOOS" = windows ]; then ext=".exe"; fi
           out="$GITHUB_WORKSPACE/dist/bin/$TARGET"
           mkdir -p "$out"
-          ldflags="-X github.com/hashicorp/nomad/version.GitCommit=$GITHUB_SHA -X github.com/hashicorp/nomad/version.BuildDate=$BUILD_DATE"
+          ldflags="-X github.com/bacanoo-io/norca/nomad/version.GitCommit=$GITHUB_SHA -X github.com/bacanoo-io/norca/nomad/version.BuildDate=$BUILD_DATE"
           CGO_ENABLED="$CGO" go -C nomad build -trimpath -tags "$TAGS" -ldflags "$ldflags" -o "$out/norca$ext" .
           go version -m "$out/norca$ext" | sed -n '1,20p'
       - name: Required glibc version

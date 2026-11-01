@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/storage"
 )
 
 // Errors.

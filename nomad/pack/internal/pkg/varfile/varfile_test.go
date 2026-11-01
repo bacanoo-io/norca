@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
 	"github.com/shoenig/test/must"
 	"github.com/zclconf/go-cty/cty"
 )

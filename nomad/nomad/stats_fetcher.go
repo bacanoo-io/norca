@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -12,8 +13,8 @@ import (
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 
-	"github.com/hashicorp/nomad/helper/pool"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/pool"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // StatsFetcher has two functions for autopilot. First, lets us fetch all the

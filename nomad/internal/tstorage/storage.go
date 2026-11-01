@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/internal/tstorage/internal/timerpool"
+	"github.com/bacanoo-io/norca/nomad/internal/tstorage/internal/timerpool"
 )
 
 var (

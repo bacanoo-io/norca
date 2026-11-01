@@ -4,8 +4,8 @@
 package state
 
 import (
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // quotaEventsFromChanges returns the events of the Quota topic for a set of

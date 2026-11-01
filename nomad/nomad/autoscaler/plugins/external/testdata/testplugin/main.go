@@ -17,10 +17,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/external"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/external"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
 )
 
 func main() {

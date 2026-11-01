@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 // fake is a package that includes fake implementations of public interfaces
@@ -13,9 +14,9 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/csi"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
+	"github.com/bacanoo-io/norca/nomad/plugins/csi"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
 )
 
 var _ csi.CSIPlugin = &Client{}

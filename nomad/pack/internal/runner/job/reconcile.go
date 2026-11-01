@@ -7,10 +7,10 @@ package job
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 // stopRemovedJobs queries Nomad for all jobs belonging to this pack deployment

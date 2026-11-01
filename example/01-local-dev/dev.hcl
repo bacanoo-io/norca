@@ -33,9 +33,11 @@ client {
     ttl           = "5s"
   }
 
-  # Read-only Consul-compatible HTTP API for tools that only know Consul
-  # (Traefik consulcatalog, Prometheus consul_sd_configs, consul-template):
+  # Consul-compatible HTTP API for tools that only know Consul (Traefik
+  # consulcatalog, Prometheus consul_sd_configs, consul-template): the catalog,
+  # read-only, and the Consul KV, kept on the system bus of the servers:
   #   curl http://127.0.0.1:8500/v1/catalog/services
+  #   curl http://127.0.0.1:8500/v1/kv/test-app/motd
   # It listens on Consul's default address, which is also the default of the
   # agent's own consul block. The agent notices this and keeps its Consul
   # integration from talking to itself: no auto_advertise, no auto-join, no

@@ -40,6 +40,46 @@ export const CONTENT_TYPES = [
     key: 'ACLRoles',
     restoreType: 'acl-role',
   },
+  { id: 'secrets', label: 'Secrets', key: 'Secrets' },
+  { id: 'consul-kv', label: 'Consul KV', key: 'ConsulKV' },
+  { id: 'acl-tokens', label: 'ACL tokens', key: 'Objects' },
+  { id: 'acl-auth-methods', label: 'Auth methods', key: 'Objects' },
+  { id: 'acl-binding-rules', label: 'Binding rules', key: 'Objects' },
+  { id: 'quotas', label: 'Quotas', key: 'Objects', restoreType: 'quota' },
+  {
+    id: 'admission-policies',
+    label: 'Admission policies',
+    key: 'Objects',
+    restoreType: 'admission-policy',
+  },
+  {
+    id: 'network-policies',
+    label: 'Network policies',
+    key: 'Objects',
+    restoreType: 'network-policy',
+  },
+  {
+    id: 'admin-network-policies',
+    label: 'Admin network policies',
+    key: 'Objects',
+    restoreType: 'admin-network-policy',
+  },
+  {
+    id: 'service-intentions',
+    label: 'Intentions',
+    key: 'Objects',
+    restoreType: 'service-intention',
+  },
+  { id: 'object-kinds', label: 'Type definitions', key: 'Objects' },
+  {
+    id: 'custom-objects',
+    label: 'Objects',
+    key: 'Objects',
+    restoreType: 'custom-object',
+  },
+  { id: 'secret-engines', label: 'Secret engines', key: 'Objects' },
+  { id: 'secret-leases', label: 'Secret leases', key: 'Objects' },
+  { id: 'node-pools', label: 'Node pools', key: 'Objects' },
 ];
 
 export const RESTORE_TYPE_LABELS = {
@@ -48,6 +88,12 @@ export const RESTORE_TYPE_LABELS = {
   namespace: 'Namespace',
   'acl-policy': 'ACL policy',
   'acl-role': 'ACL role',
+  quota: 'Quota',
+  'admission-policy': 'Admission policy',
+  'network-policy': 'Network policy',
+  'admin-network-policy': 'Admin network policy',
+  'service-intention': 'Intention',
+  'custom-object': 'Object',
 };
 
 export function isSet(time) {

@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/nomad/helper/tlsutil"
+	"github.com/bacanoo-io/norca/nomad/helper/tlsutil"
 	"github.com/posener/complete"
 	"github.com/ryanuber/columnize"
 )

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -10,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/pool"
-	"github.com/hashicorp/nomad/helper/tlsutil"
+	"github.com/bacanoo-io/norca/nomad/helper/pool"
+	"github.com/bacanoo-io/norca/nomad/helper/tlsutil"
 	"github.com/hashicorp/raft"
 )
 

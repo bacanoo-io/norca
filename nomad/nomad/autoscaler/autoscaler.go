@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/apm/nomadapm"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/apm/nomadapm"
-	"github.com/hashicorp/nomad/nomad/state"
 )
 
 // versionCheckInterval is how often the autoscaler checks whether all servers

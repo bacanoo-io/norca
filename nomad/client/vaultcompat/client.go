@@ -9,8 +9,8 @@ import (
 
 	vaultapi "github.com/hashicorp/vault/api"
 
-	"github.com/hashicorp/nomad/client/vaultclient"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/vaultclient"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Client is the Vault client of the task runners when the agent has no

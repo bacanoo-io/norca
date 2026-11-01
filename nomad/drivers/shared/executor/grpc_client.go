@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package executor
@@ -12,13 +13,13 @@ import (
 	"time"
 
 	"github.com/LK4D4/joincontext"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/drivers/shared/executor/proto"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/grpcutils"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	dproto "github.com/bacanoo-io/norca/nomad/plugins/drivers/proto"
 	"github.com/golang/protobuf/ptypes"
 	hclog "github.com/hashicorp/go-hclog"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/drivers/shared/executor/proto"
-	"github.com/hashicorp/nomad/helper/pluginutils/grpcutils"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	dproto "github.com/hashicorp/nomad/plugins/drivers/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

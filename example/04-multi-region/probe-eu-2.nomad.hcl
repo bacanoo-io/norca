@@ -26,9 +26,8 @@ job "probe" {
     }
 
     service {
-      name     = "probe"
-      provider = "nomad"
-      port     = "8080" # nothing listens there: the probe only connects out
+      name = "probe"
+      port = "8080" # nothing listens there: the probe only connects out
 
       mtls {
         mode = "sidecar"

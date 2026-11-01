@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	flagHelper "github.com/hashicorp/nomad/helper/flags"
+	"github.com/bacanoo-io/norca/nomad/api"
+	flagHelper "github.com/bacanoo-io/norca/nomad/helper/flags"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )

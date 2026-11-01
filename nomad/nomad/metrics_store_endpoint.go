@@ -9,9 +9,9 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/metricsstore"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/metricsstore"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 const (
@@ -286,6 +286,7 @@ func (op *Operator) MetricsStoreStatus(args *structs.MetricsStoreStatusRequest, 
 	status.Oldest = st.Oldest
 	status.Newest = st.Newest
 	status.DroppedReports = st.DroppedReports
+	status.DuplicateReports = st.DuplicateReports
 	status.DroppedGroups = st.DroppedGroups
 	status.Retention = st.Retention
 	status.SampleInterval = st.SampleInterval

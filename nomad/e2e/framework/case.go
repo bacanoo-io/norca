@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package framework
@@ -6,8 +7,8 @@ package framework
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	capi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/nomad/api"
 )
 
 // TestSuite defines a set of test cases and under what conditions to run them

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package fingerprint
@@ -18,9 +19,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	log "github.com/hashicorp/go-hclog"
 
+	"github.com/bacanoo-io/norca/nomad/helper/stats"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
-	"github.com/hashicorp/nomad/helper/stats"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

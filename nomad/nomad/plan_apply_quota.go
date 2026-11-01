@@ -4,8 +4,8 @@
 package nomad
 
 import (
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // evaluatePlanQuota returns whether the plan would be over quota. This is the

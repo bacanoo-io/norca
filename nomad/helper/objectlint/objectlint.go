@@ -15,10 +15,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/nomad/admission"
-	"github.com/hashicorp/nomad/nomad/objectschema"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/nomad/admission"
+	"github.com/bacanoo-io/norca/nomad/nomad/objectschema"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Severity of a finding.

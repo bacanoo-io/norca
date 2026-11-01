@@ -14,20 +14,20 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	"golang.org/x/exp/slices"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler"
+	"github.com/bacanoo-io/norca/nomad/nomad/backup"
+	"github.com/bacanoo-io/norca/nomad/nomad/bus"
+	"github.com/bacanoo-io/norca/nomad/nomad/deploymentwatcher"
+	"github.com/bacanoo-io/norca/nomad/nomad/metricsstore"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/scheduler"
+	"github.com/bacanoo-io/norca/nomad/secretstore"
+	"github.com/bacanoo-io/norca/nomad/version"
 	"github.com/hashicorp/memberlist"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/autoscaler"
-	"github.com/hashicorp/nomad/nomad/backup"
-	"github.com/hashicorp/nomad/nomad/bus"
-	"github.com/hashicorp/nomad/nomad/metricsstore"
-	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
-	"github.com/hashicorp/nomad/scheduler"
-	"github.com/hashicorp/nomad/secretstore"
-	"github.com/hashicorp/nomad/version"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
 )
@@ -450,6 +450,14 @@ type Config struct {
 	// SecretsExpiryWarning is how long before a secret's expires_at the
 	// leader announces SecretExpiring; 0 means the default of 7 days.
 	SecretsExpiryWarning time.Duration
+
+	// SecretsOperatorMaxConcurrent bounds the calls in flight to the
+	// operator of a secret engine; 0 is the default of 10.
+	SecretsOperatorMaxConcurrent int
+
+	// SecretsOperatorTimeout bounds a request to the operator of a secret
+	// engine, with the wait for its turn; 0 is the default of 10s.
+	SecretsOperatorTimeout time.Duration
 
 	// secretsWatcherDisabled keeps the leader from running the secrets
 	// watcher; tests drive their own watcher instead.

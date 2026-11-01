@@ -9,7 +9,7 @@ package packcmd
 import (
 	"github.com/mitchellh/cli"
 
-	packcli "github.com/hashicorp/nomad/pack/internal/cli"
+	packcli "github.com/bacanoo-io/norca/nomad/pack/internal/cli"
 )
 
 // Prefix is the name of the command that groups the Nomad Pack subcommands.

@@ -1,4 +1,5 @@
 // Copyright IBM Corp. 2021, 2025
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package testhelper
@@ -7,8 +8,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/command/agent"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/command/agent"
 	"github.com/shoenig/test/must"
 )
 

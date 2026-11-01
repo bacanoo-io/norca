@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/hashicorp/nomad/secretstore/ubix/internal/shamir"
-	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/shamir"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/storage"
 )
 
 // unsealedShamirCore returns an initialized, unsealed Shamir core and its keys.

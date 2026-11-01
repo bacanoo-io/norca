@@ -9,9 +9,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/schema"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/schema"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
 	"github.com/zclconf/go-cty/cty"
 )
 

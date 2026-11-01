@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // The HTTP API of the dynamic secrets engines and their leases (Norca,
@@ -40,7 +40,6 @@ func (s *HTTPServer) SecretEnginesListRequest(resp http.ResponseWriter, req *htt
 //	GET    /v1/secret-engine/:name               the engine
 //	PUT    /v1/secret-engine/:name[?cas=n]       create or update
 //	DELETE /v1/secret-engine/:name[?cas=n]       delete (no live leases)
-//	POST   /v1/secret-engine/:name/rotate-root   rotate the admin key
 //	POST   /v1/secret-engine/:name/revoke        revoke all leases
 func (s *HTTPServer) SecretEngineSpecificRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	name := strings.TrimPrefix(req.URL.Path, "/v1/secret-engine/")
@@ -56,12 +55,10 @@ func (s *HTTPServer) SecretEngineSpecificRequest(resp http.ResponseWriter, req *
 		return s.secretEngineDelete(resp, req, name)
 	case http.MethodPost:
 		switch {
-		case strings.HasSuffix(name, "/rotate-root"):
-			return s.secretEngineRotateRoot(resp, req, strings.TrimSuffix(name, "/rotate-root"))
 		case strings.HasSuffix(name, "/revoke"):
 			return s.secretLeaseRevoke(resp, req, &structs.SecretLeaseRevokeRequest{Engine: strings.TrimSuffix(name, "/revoke")})
 		}
-		return nil, CodedError(http.StatusBadRequest, "POST is only valid for /rotate-root and /revoke; write with PUT")
+		return nil, CodedError(http.StatusBadRequest, "POST is only valid for /revoke; write with PUT")
 	default:
 		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
 	}
@@ -86,7 +83,6 @@ func (s *HTTPServer) secretEngineRead(resp http.ResponseWriter, req *http.Reques
 // secretEngineWriteResult is the body of the response of an engine write.
 type secretEngineWriteResult struct {
 	Engine *structs.SecretEngine
-	Key    string `json:",omitempty"`
 }
 
 func (s *HTTPServer) secretEngineWrite(resp http.ResponseWriter, req *http.Request, name string) (interface{}, error) {
@@ -129,17 +125,6 @@ func (s *HTTPServer) secretEngineDelete(resp http.ResponseWriter, req *http.Requ
 	}
 	setIndex(resp, out.Index)
 	return nil, nil
-}
-
-func (s *HTTPServer) secretEngineRotateRoot(resp http.ResponseWriter, req *http.Request, name string) (interface{}, error) {
-	args := structs.SecretEngineRotateRootRequest{Name: name}
-	s.parseWriteRequest(req, &args.WriteRequest)
-	var out structs.SecretEngineWriteResponse
-	if err := s.agent.RPC(structs.SecretEngineRotateRootRPCMethod, &args, &out); err != nil {
-		return nil, err
-	}
-	setIndex(resp, out.Index)
-	return &secretEngineWriteResult{Engine: out.Engine, Key: out.Key}, nil
 }
 
 // SecretLeasesListRequest serves GET /v1/secret-leases?engine=&prefix=.

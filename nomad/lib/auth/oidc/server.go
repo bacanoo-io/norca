@@ -9,8 +9,8 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/cap/oidc"
-	"github.com/hashicorp/nomad/api"
 )
 
 // CallbackServer is started with NewCallbackServer and creates an HTTP

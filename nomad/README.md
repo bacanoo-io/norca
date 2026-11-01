@@ -1,8 +1,9 @@
 Norca main module
 ===
 
-This directory holds the main Go module of [Norca](../README.md). The module
-path stays `github.com/hashicorp/nomad` for compatibility with existing imports.
+This directory holds the main Go module of [Norca](../README.md),
+`github.com/bacanoo-io/norca/nomad`. The API client is the
+`github.com/bacanoo-io/norca/nomad/api` module in `api/`.
 
 The code started from the source code of HashiCorp Nomad v1.6.5 (MPL 2.0),
 imported with its git history; see [licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md).

@@ -10,9 +10,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hashicorp/nomad/helper/crypto"
-	"github.com/hashicorp/nomad/nomad/seal"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/crypto"
+	"github.com/bacanoo-io/norca/nomad/nomad/seal"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // The keystore and the seal (see nomad/seal): every key file holds the root

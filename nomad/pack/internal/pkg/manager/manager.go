@@ -9,14 +9,14 @@ import (
 	"path"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/loader"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/renderer"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser/config"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
-	"github.com/hashicorp/nomad/pack/internal/pkg/renderer"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser/config"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
 )
 
 // Config contains all the user specified parameters needed to correctly run

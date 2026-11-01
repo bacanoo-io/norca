@@ -13,8 +13,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/controller"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/controller"
 )
 
 // --- Native objects ---

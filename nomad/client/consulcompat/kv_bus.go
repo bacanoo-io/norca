@@ -4,7 +4,7 @@
 package consulcompat
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // busKV keeps the Consul KV in the bucket of the system bus of the servers

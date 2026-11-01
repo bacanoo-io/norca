@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package cluster3
@@ -10,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	nomadapi "github.com/bacanoo-io/norca/nomad/api"
 	consulapi "github.com/hashicorp/consul/api"
-	nomadapi "github.com/hashicorp/nomad/api"
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"

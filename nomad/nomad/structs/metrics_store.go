@@ -178,7 +178,10 @@ type MetricsStoreStatus struct {
 	// DroppedReports counts the reports too old to store, DroppedGroups the
 	// task groups left out at the series limit.
 	DroppedReports uint64
-	DroppedGroups  uint64
+
+	// DuplicateReports counts the reports the bus delivered again.
+	DuplicateReports uint64
+	DroppedGroups    uint64
 
 	Retention      time.Duration
 	SampleInterval time.Duration

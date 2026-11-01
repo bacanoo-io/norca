@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Expired returns the backups that the retention deletes, using the

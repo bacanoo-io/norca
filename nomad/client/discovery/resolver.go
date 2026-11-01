@@ -7,7 +7,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Query is a lookup of the instances of a service.

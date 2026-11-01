@@ -6,7 +6,7 @@ package nomad
 import (
 	"math"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // setDiscoveryDefaultOverflowFraction sets the overflow fraction the server

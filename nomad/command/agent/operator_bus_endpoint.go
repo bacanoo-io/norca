@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // OperatorBusStatus returns the status of the system bus of the server that
@@ -29,6 +29,29 @@ func (s *HTTPServer) OperatorBusStatus(resp http.ResponseWriter, req *http.Reque
 		return nil, err
 	}
 	return reply.Status, nil
+}
+
+// OperatorConsulKVRestore replaces the Consul KV bucket of the system bus
+// with the keys of a backup.
+//
+//	PUT /v1/operator/consul-kv/restore
+func (s *HTTPServer) OperatorConsulKVRestore(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if req.Method != http.MethodPost && req.Method != http.MethodPut {
+		return nil, CodedError(405, ErrInvalidMethod)
+	}
+
+	var args structs.ConsulKVRestoreRequest
+	if err := decodeBody(req, &args); err != nil {
+		return nil, CodedError(400, err.Error())
+	}
+	s.parseWriteRequest(req, &args.WriteRequest)
+
+	var reply structs.ConsulKVRestoreResponse
+	if err := s.agent.RPC("Operator.ConsulKVRestore", &args, &reply); err != nil {
+		return nil, err
+	}
+	setIndex(resp, reply.Index)
+	return &reply, nil
 }
 
 // OperatorConsulKVMigrate copies the keys of the Consul KV kept in Variables

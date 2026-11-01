@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package loader
@@ -6,7 +7,7 @@ package loader
 import (
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 )
 
 // configMap returns a mapping of plugin binary name to config.

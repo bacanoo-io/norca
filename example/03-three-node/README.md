@@ -21,13 +21,13 @@ On top of [02-single-node](../02-single-node/README.md) this shows: joining
 servers, unsealing every server, native mTLS with an Envoy sidecar and
 service intentions, network rules, cross-job affinity and anti-affinity
 over datacenters, the disruption budget during a drain, the operator framework
-with the LoadBalancer operator, and the NATS pack.
+with the LoadBalancer operator.
 
 ## Prerequisites
 
 - Three Linux machines (`10.0.0.11`–`10.0.0.13` below; replace them) that
-  reach each other on ports 4646–4648 and on the dynamic port range
-  (20000–32000), with Docker, the CNI plugins in `/opt/cni/bin` and a
+  reach each other on ports 4646–4650 (HTTP, RPC, gossip and the system bus)
+  and on the dynamic port range (20000–32000), with Docker, the CNI plugins in `/opt/cni/bin` and a
   kernel with **nftables** (`nf_tables`; the agent programs the rules over
   netlink, the `nft` tool is optional). Nodes that can enforce network rules
   get the node attribute `norca.network_policy.nftables = true`.
@@ -49,7 +49,6 @@ with the LoadBalancer operator, and the NATS pack.
 | [test-api.hcl](test-api.hcl) | test-app pack as `test-api`, behind an mTLS sidecar |
 | [probe.nomad.hcl](probe.nomad.hcl) | A client of `test-api` through an mTLS upstream, colocated with test-app |
 | [lb-test-app.hcl](lb-test-app.hcl) | A `norca.io/LoadBalancer` object for test-app |
-| [nats.hcl](nats.hcl) | Variables of the [nats pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/nats/README.md) |
 | [../02-single-node/norca.service](../02-single-node/norca.service) | systemd unit |
 
 ## Steps
@@ -92,7 +91,6 @@ leader once all three (`bootstrap_expect = 3`) are up.
 ```shell
 export NORCA_ADDR=https://10.0.0.11:4646
 export NORCA_CACERT=$PWD/tls/nomad-agent-ca.pem
-norca server members
 ```
 
 ### 3. ACLs and the seal
@@ -100,6 +98,7 @@ norca server members
 ```shell
 norca acl bootstrap
 export NORCA_TOKEN=<Secret ID of the bootstrap token>
+norca server members
 
 # Initializes the keyring of the region on the leader and prints the five
 # shares once. The other two servers stay sealed.
@@ -110,6 +109,9 @@ norca operator seal-status                       # names of the sealed servers
 norca operator unseal -server-id <name of server 2>   # three times
 norca operator unseal -server-id <name of server 3>   # three times
 norca operator seal-status
+
+# The system bus of the servers: routes to the other two, streams of the region.
+norca operator bus status
 ```
 
 After a restart a server is sealed again and needs three shares; the region
@@ -183,6 +185,11 @@ through the catalog or DNS needs a workload certificate and an intention.
 See [native mTLS: sidecar and gateway](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md) for the sidecar, the
 upstreams and the limits (TCP only).
 
+Full Consul is available as a pack as well, the
+[consul pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/consul/README.md)
+(Consul is BSL 1.1 and is installed from HashiCorp's releases after you accept
+its license); service discovery, DNS and mTLS above don't need it.
+
 ### 7. Disruption budget and drains
 
 ```shell
@@ -203,7 +210,9 @@ norca job scaling-events -namespace apps test-app
 
 The built-in autoscaler on the leader keeps the average CPU usage of the
 test-app instances near 70% of their reservation, between 3 and 6
-instances, within the quota of the namespace.
+instances, within the quota of the namespace. The clients report the usage
+over the system bus; every server also keeps its history (`norca operator
+metrics-store`, the **Scaling** page of the web UI).
 
 ### 9. Operator framework: the LoadBalancer operator
 
@@ -226,20 +235,7 @@ norca object events norca.io/LoadBalancer test-app -namespace apps
 curl http://<address from the object status>:8080/   # through the proxy job of the load balancer
 ```
 
-### 10. NATS (optional)
-
-```shell
-norca pack run nats --registry=norca --name=nats -f nats.hcl
-norca service info nats-monitor
-```
-
-Three NATS servers, one per datacenter, with JetStream and the disruption budget
-of the pack. Full Consul is available the same way with
-the [consul pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/consul/README.md) (Consul is BSL 1.1 and is
-installed from HashiCorp's releases after you accept its license); service
-discovery, DNS and mTLS above don't need it.
-
-### 11. Backups
+### 10. Backups
 
 ```shell
 norca operator backup save -label note=after-setup
@@ -250,15 +246,15 @@ norca operator backup contents -age-identity ~/backup-identity.txt -type secrets
 Scheduled backups run on the leader every 6 hours (`schedule`); after a
 leader change the new leader continues the schedule.
 
-### 12. Observability
+### 11. Observability
 
 OpenObserve (single mode on node-1, which has the host volume `openobserve`)
 with TLS from Norca's workload certificates, and an OpenTelemetry Collector
-on every node (host, agent and NATS metrics, OTLP of the
+on every node (host and agent metrics, OTLP of the
 applications), from the registry's
 [openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/packs/openobserve/README.md)
 and [otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md)
-packs (both in the registry tag `v0.1.0`):
+packs:
 
 ```shell
 sudo install -d -m 700 /srv/openobserve                                 # on node-1
@@ -272,7 +268,6 @@ norca pack run otel-collector --registry=norca --namespace=observability \
   --var namespace=observability \
   --var nomad_address=https://127.0.0.1:4646 --var nomad_ca_secret_path=norca/agent-ca \
   --var 'discovery_namespaces=["default","apps"]'
-norca pack upgrade nats --registry=norca --name=nats -f nats.hcl --var metrics_enabled=true
 ```
 
 The UI is `https://openobserve.service.observability.nomad:5080/` (the
@@ -283,14 +278,13 @@ For OpenObserve in cluster mode (routers, ingesters, queriers, compactor,
 alertmanager) add the `postgres` pack (database `openobserve`), RustFS and
 NATS with JetStream: see the openobserve pack's README.
 
-### 13. Teardown
+### 12. Teardown
 
 ```shell
 norca pack uninstall otel-collector --namespace=observability
 norca pack uninstall openobserve --namespace=observability
 norca object delete norca.io/LoadBalancer test-app -namespace apps
 norca pack uninstall lb --namespace=apps
-norca pack uninstall nats
 norca job stop -namespace apps -purge probe
 norca pack uninstall test-api --namespace=apps
 norca pack uninstall test-app --namespace=apps
@@ -309,11 +303,11 @@ sudo systemctl disable --now norca && sudo rm -rf /opt/norca/data /etc/norca.d
   `colocate` rules and the live state of the disruption budget.
 - **Services**: `test-app` (datacenters, health), `test-api` and `probe` behind
   their sidecars.
-- **Network**: the intentions of `apps`, the network policy of test-app with
+- **Intentions and rules**: the intentions of `apps`, the network policy of test-app with
   its selected allocations, the admin policy.
 - **Objects** and **Type definitions**: the `norca.io/LoadBalancer` kind and
   the `test-app` object with its status and events.
-- **Packages**: the releases `test-app`, `test-api`, `lb` (and `nats`); with a
+- **Packages**: the releases `test-app`, `test-api`, `lb`; with a
   [cluster registry](../README.md#cluster-registries-and-the-catalog) the
   **Catalog** of its packs, installed and upgraded through their forms.
-- **Scaling**, **Quotas**, **Admission**, **Backups** as in 02.
+- **Scaling**, **Quotas**, **Admission policies**, **Backups** as in 02.

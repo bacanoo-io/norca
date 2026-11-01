@@ -21,7 +21,7 @@
 //     files. The packages that are kept are listed in keepPackages; anything
 //     upstream adds later is dropped unless it is added there.
 //  2. Import paths are rewritten from github.com/cwolsen7905/ubixvault/... to
-//     github.com/hashicorp/nomad/secretstore/ubix/....
+//     github.com/bacanoo-io/norca/nomad/secretstore/ubix/....
 //  3. A thin facade is generated for each package in exportPackages under
 //     nomad/secretstore/ubix/export/<pkg>: type aliases and references to the
 //     exported constants, error variables and functions of the internal
@@ -66,7 +66,7 @@ const (
 	// upstreamModule is the module path of uBixVault.
 	upstreamModule = "github.com/cwolsen7905/ubixvault"
 	// norcaPath is the import path of subtreeDir in the nomad module.
-	norcaPath = "github.com/hashicorp/nomad/secretstore/ubix"
+	norcaPath = "github.com/bacanoo-io/norca/nomad/secretstore/ubix"
 	// exportDir is the directory of the generated facades, relative to
 	// subtreeDir. It is Norca's own and never exists upstream.
 	exportDir = "export"
