@@ -7,13 +7,13 @@ package decoder
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors/packdiags"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/internal/hclhelp"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/schema"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors/packdiags"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/internal/hclhelp"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/schema"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
 	"github.com/zclconf/go-cty/cty"
 )
 

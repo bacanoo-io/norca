@@ -10,17 +10,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/ryanuber/columnize"
 
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 const (
 	preemptionDisplayThreshold = 10
 )
 
-// updateType* is copied from github.com/hashicorp/nomad/scheduler, so we don't
+// updateType* is copied from github.com/bacanoo-io/norca/nomad/scheduler, so we don't
 // need import it.
 const (
 	updateTypeIgnore            = "ignore"

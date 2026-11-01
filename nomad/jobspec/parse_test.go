@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/ci"
 	capi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
 	"github.com/stretchr/testify/require"
 )
 

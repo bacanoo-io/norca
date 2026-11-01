@@ -21,9 +21,9 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/structs"
-	fake "github.com/hashicorp/nomad/plugins/csi/testing"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	fake "github.com/bacanoo-io/norca/nomad/plugins/csi/testing"
 )
 
 func newTestClient(t *testing.T) (*fake.IdentityClient, *fake.ControllerClient, *fake.NodeClient, CSIPlugin) {

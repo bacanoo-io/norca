@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/ci"
 	"github.com/shoenig/test/must"
 )
 

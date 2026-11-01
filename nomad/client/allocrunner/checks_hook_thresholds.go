@@ -6,7 +6,7 @@ package allocrunner
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // checkThresholds applies the success_before_passing and

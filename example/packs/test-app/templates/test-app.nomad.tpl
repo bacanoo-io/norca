@@ -1,6 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
-[[- template "test_app.validate" . ]]
 [[- $v := vars . ]]
 [[- $job := $v.job_name ]]
 [[- $bridge := eq $v.network_mode "bridge" ]]
@@ -124,14 +123,13 @@ job [[ $job | quote ]] {
     # instance gets traffic and counts for deployments, liveness restarts a
     # hung task.
     service {
-      name     = [[ $job | quote ]]
-      provider = "nomad"
+      name = [[ $job | quote ]]
 [[- if $sidecar ]]
-      port     = "80"
+      port = "80"
 [[- else ]]
-      port     = "http"
+      port = "http"
 [[- end ]]
-      tags     = ["http"]
+      tags = ["http"]
 [[- if $sidecar ]]
 
       # Envoy sidecar: the service is registered with the address of the

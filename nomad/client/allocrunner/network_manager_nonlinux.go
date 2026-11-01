@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !linux
@@ -7,11 +8,11 @@
 package allocrunner
 
 import (
+	clientconfig "github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/drivermanager"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 	hclog "github.com/hashicorp/go-hclog"
-	clientconfig "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/pluginmanager/drivermanager"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
 )
 
 // noopNetworkManager implements the drivers.DriverNetoworkManager interface to

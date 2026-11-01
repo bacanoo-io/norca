@@ -6,7 +6,7 @@ package variables
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 	"github.com/shoenig/test/must"
 	"github.com/zclconf/go-cty/cty"
 )

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -12,16 +13,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/hclspecutils"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/hclutils"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
+	"github.com/bacanoo-io/norca/nomad/plugins/device"
 	hclog "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
 	plugin "github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/v2/hcldec"
-	"github.com/hashicorp/nomad/helper/pluginutils/hclspecutils"
-	"github.com/hashicorp/nomad/helper/pluginutils/hclutils"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/device"
 	"github.com/kr/pretty"
 	"github.com/mitchellh/cli"
 	"github.com/zclconf/go-cty/cty/msgpack"

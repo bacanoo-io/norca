@@ -16,14 +16,14 @@ import (
 	"github.com/hashicorp/consul-template/signals"
 	log "github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
-	"github.com/hashicorp/nomad/client/secrets"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/client/vaultclient"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	ti "github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/secrets"
+	"github.com/bacanoo-io/norca/nomad/client/taskenv"
+	"github.com/bacanoo-io/norca/nomad/client/vaultclient"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 )
 
 const (

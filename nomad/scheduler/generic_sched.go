@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package scheduler
@@ -9,13 +10,13 @@ import (
 	"sort"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	log "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

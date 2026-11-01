@@ -32,10 +32,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	hclog "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // Config configures the garbage collector.

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package config
@@ -7,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	"github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/nomad/structs/config"
 )
 
 // ArtifactConfig is the internal readonly copy of the client agent's

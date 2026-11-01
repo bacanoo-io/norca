@@ -13,8 +13,8 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
-	"github.com/hashicorp/nomad/nomad/seal"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/seal"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // isLocalServer reports whether a server name (with or without the region

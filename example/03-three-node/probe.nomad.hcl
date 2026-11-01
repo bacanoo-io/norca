@@ -36,9 +36,8 @@ job "probe" {
     # The certificate of the sidecar carries the DNS name of this service,
     # which the intentions of the destination refer to (source "probe").
     service {
-      name     = "probe"
-      provider = "nomad"
-      port     = "8080" # nothing listens there: the probe only connects out
+      name = "probe"
+      port = "8080" # nothing listens there: the probe only connects out
 
       mtls {
         mode = "sidecar"

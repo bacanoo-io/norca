@@ -13,9 +13,9 @@ its own datacenter (`dc-a`, `dc-b`, `dc-c`, one per availability zone).
 Every region has its own Raft, seal, secret store and backups; the outage of
 one region does not stop the other.
 
-This shows: federation with ACL replication, a multiregion deployment of
+This shows: federation with ACL and secret replication, a multiregion deployment of
 the test application (one version, rolled out region by region), native
-mTLS across regions through a gateway, a NATS supercluster, a pack release
+mTLS across regions through a gateway, a pack release
 installed in both regions at once, and per-region backups.
 
 A third region is added the same way as `eu-2`.
@@ -24,11 +24,11 @@ A third region is added the same way as `eu-2`.
 
 - Everything of 03 in every region.
 - The regions reach each other over the VPN on 4647 (RPC) and 4648 (gossip)
-  between the servers, 8443 (mTLS gateway) and 7222 (NATS gateways)
+  between the servers (the system bus stays inside a region), 8443 (mTLS gateway)
   between the clients.
 - One CA for both regions (the servers verify `server.<region>.nomad`).
 - The [Norca pack registry](../README.md#the-pack-registry) added as `norca`
-  (the `mtls-gateway` and `nats` packs).
+  (the `mtls-gateway` pack).
 
 ## Files
 
@@ -40,7 +40,6 @@ A third region is added the same way as `eu-2`.
 | [test-app-multiregion.hcl](test-app-multiregion.hcl) | test-app pack as a multiregion job |
 | [mtls-gateway.nomad.hcl](mtls-gateway.nomad.hcl) | The mTLS gateway of a region as a plain job (what the [mtls-gateway pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/mtls-gateway/README.md) renders with its defaults) |
 | [probe-eu-2.nomad.hcl](probe-eu-2.nomad.hcl) | The probe in eu-2, reading test-api of eu-1 |
-| [nats-eu-1.hcl](nats-eu-1.hcl), [nats-eu-2.hcl](nats-eu-2.hcl) | Variables of the nats pack per region, joined into a supercluster |
 
 ## Steps
 
@@ -88,7 +87,8 @@ Put the two secret IDs into `region-eu-2.hcl` (`acl.replication_token`,
 Install every eu-2 node the same way (with its own `node.hcl` addresses and
 `region-eu-2.hcl` as `region.hcl`). Its `retry_join` list contains a server
 of eu-1, which federates the regions; no ACL bootstrap in eu-2, the tokens
-and policies are replicated from eu-1.
+and policies are replicated from eu-1. Until the first replication is done,
+about a minute, requests to eu-2 are refused with `Permission denied`.
 
 ```shell
 norca server members                     # the servers of both regions
@@ -107,7 +107,7 @@ The native mTLS CAs of the regions trust each other (`mtls.federation`, a
 trust domain shared by the federation):
 
 ```shell
-norca operator api /v1/mtls/roots          # roots of eu-1 and eu-2
+norca operator api /v1/mtls/roots          # roots of eu-1 and eu-2, within a few minutes
 ```
 
 ### 4. Global objects
@@ -123,11 +123,14 @@ norca admission-policy apply -region eu-2 ../policies/admission-apps.hcl   # adm
 norca namespace list -region eu-2
 ```
 
-Secrets are region-local: put the secret of test-app in both regions.
+Secrets are region-local unless they are replicated: `-replicate`, in the
+authoritative region, copies the secret of test-app to eu-2 as a read-only
+replica, which the tasks there read like any other secret. Wait for it before
+step 5, the task waits for its secret.
 
 ```shell
-norca secret put -region eu-1 -namespace apps test-app/db username=app password=-
-norca secret put -region eu-2 -namespace apps test-app/db username=app password=-
+norca secret put -region eu-1 -namespace apps -replicate test-app/db username=app password=-
+norca secret info -region eu-2 -namespace apps test-app/db    # Replicated From
 ```
 
 ### 5. Multiregion deployment of test-app
@@ -200,23 +203,9 @@ terminating it.
 Intentions are regional: unlike ACL policies, namespaces and quotas they
 are not replicated from eu-1, so the intention is created with
 `-region eu-1`, where test-api runs; an intention in eu-2 has no effect on
-it. See [native-mtls.md](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md#authorization).
+it. See [authorization](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md#authorization).
 
-### 7. NATS supercluster
-
-```shell
-norca pack run nats --registry=norca --name=nats --region=eu-1 -f nats-eu-1.hcl
-norca pack run nats --registry=norca --name=nats --region=eu-2 -f nats-eu-2.hcl
-norca service info -region eu-1 nats-gateway
-```
-
-The gateways join the two clusters into one supercluster (cluster names =
-region names). Turn on TLS and authentication across clouds
-(`tls_enabled`, `auth_mode`, see the [nats pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/nats/README.md#secrets-tls-and-client-authentication)).
-The event stream of each region is on the system bus of its servers
-(`NORCA_EVENTS_<region>`), not on this NATS.
-
-### 8. Backups per region
+### 7. Backups per region
 
 The `backup` block of 03 is in every region; its prefix `norca/${region}`
 keeps the backups of the regions apart in one bucket, and each region's
@@ -228,25 +217,23 @@ norca operator backup list -region eu-2
 norca operator backup save -region eu-2 -label note=after-federation
 ```
 
-### 9. Observability per region
+### 8. Observability per region
 
-Secrets, catalogs and workload certificates are regional: run step 12 of
-[03](../03-three-node/README.md#12-observability) in every region (`-region`
+Secrets, catalogs and workload certificates are regional: run step 11 of
+[03](../03-three-node/README.md#11-observability) in every region (`-region`
 with the CLI, `--region` with the packs), so each region has its own
 OpenObserve and the collectors of a region export to it. The agent
 configuration of 03 already has the `telemetry` block (`prometheus_metrics`)
 the collectors scrape; the mTLS gateways have metrics with
 `envoy_task_enabled` and `metrics_enabled` of the mtls-gateway pack.
 
-### 10. Teardown
+### 9. Teardown
 
 ```shell
 norca job stop -region eu-2 -namespace apps -purge probe
 norca pack uninstall test-api --region=eu-1 --namespace=apps
 norca pack uninstall test-app --namespace=apps --all-regions
 norca pack uninstall mtls-gateway --all-regions
-norca pack uninstall nats --region=eu-1
-norca pack uninstall nats --region=eu-2
 ```
 
 Then stop the agents of eu-2 and eu-1 as in 03.
@@ -262,6 +249,6 @@ Either region's UI shows the whole federation:
 - **Packages**: the `test-app` and `mtls-gateway` releases with one entry per region;
   [cluster registries](../README.md#cluster-registries-and-the-catalog) are per region
   (add the registry in each).
-- **Network**: the intention `probe → test-api` in eu-1.
+- **Intentions and rules**: the intention `probe → test-api` in eu-1.
 - **Services** (per region): `mtls-gateway`, `test-api` in eu-1, `probe` in eu-2.
 - **Backups** (per region).

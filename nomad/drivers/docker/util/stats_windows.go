@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package util
@@ -6,9 +7,9 @@ package util
 import (
 	"runtime"
 
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/stats"
 	docker "github.com/fsouza/go-dockerclient"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper/stats"
 )
 
 var (

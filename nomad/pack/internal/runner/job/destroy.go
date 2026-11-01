@@ -5,8 +5,8 @@
 package job
 
 import (
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 func (r *Runner) DestroyDeployment(ui terminal.UI) []*errors.WrappedUIContext {

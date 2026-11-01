@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/ext"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

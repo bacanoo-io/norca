@@ -15,10 +15,10 @@ import (
 	"github.com/hashicorp/go-hclog"
 	vaultapi "github.com/hashicorp/vault/api"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/secrets"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client/secrets"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 )
 

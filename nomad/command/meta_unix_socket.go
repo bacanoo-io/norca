@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 )
 
 // unixSocketPrefix marks an agent address that is a unix domain socket, e.g.

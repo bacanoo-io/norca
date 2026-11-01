@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/external"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/external/externaltest"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/external"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/external/externaltest"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )

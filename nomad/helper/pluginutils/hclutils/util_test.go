@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package hclutils_test
@@ -6,12 +7,12 @@ package hclutils_test
 import (
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/drivers/docker"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/hclspecutils"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/hclutils"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
 	"github.com/hashicorp/hcl/v2/hcldec"
-	"github.com/hashicorp/nomad/drivers/docker"
-	"github.com/hashicorp/nomad/helper/pluginutils/hclspecutils"
-	"github.com/hashicorp/nomad/helper/pluginutils/hclutils"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"

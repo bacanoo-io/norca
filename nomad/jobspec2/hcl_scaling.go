@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad/api"
 )
 
 // validateScalingPolicyDocument checks the attributes of the policy block

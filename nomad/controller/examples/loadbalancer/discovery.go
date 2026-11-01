@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/controller"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/controller"
 )
 
 // Service meta keys that mark a service for a load balancer. They stand in

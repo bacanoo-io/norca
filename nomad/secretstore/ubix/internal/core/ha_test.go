@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
-	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage/storagetest"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/storage"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/storage/storagetest"
 )
 
 // haReplica is one replica in a test cluster.

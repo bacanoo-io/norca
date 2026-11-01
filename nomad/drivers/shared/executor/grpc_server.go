@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package executor
@@ -13,10 +14,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/hashicorp/nomad/drivers/shared/executor/proto"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	sproto "github.com/hashicorp/nomad/plugins/shared/structs/proto"
+	"github.com/bacanoo-io/norca/nomad/drivers/shared/executor/proto"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	sproto "github.com/bacanoo-io/norca/nomad/plugins/shared/structs/proto"
 )
 
 type grpcExecutorServer struct {

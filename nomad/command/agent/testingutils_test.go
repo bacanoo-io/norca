@@ -7,9 +7,9 @@ package agent
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
 )
 
 func MockJob() *api.Job {

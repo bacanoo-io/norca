@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package config
@@ -11,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
 	consulapi "github.com/hashicorp/consul/api"
 	sockaddr "github.com/hashicorp/go-sockaddr"
-	"github.com/hashicorp/nomad/ci"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

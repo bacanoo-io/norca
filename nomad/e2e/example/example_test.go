@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package example
@@ -8,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/e2e/v3/cluster3"
-	"github.com/hashicorp/nomad/e2e/v3/jobs3"
-	"github.com/hashicorp/nomad/e2e/v3/namespaces3"
-	"github.com/hashicorp/nomad/e2e/v3/util3"
+	"github.com/bacanoo-io/norca/nomad/e2e/v3/cluster3"
+	"github.com/bacanoo-io/norca/nomad/e2e/v3/jobs3"
+	"github.com/bacanoo-io/norca/nomad/e2e/v3/namespaces3"
+	"github.com/bacanoo-io/norca/nomad/e2e/v3/util3"
 	"github.com/shoenig/test/must"
 )
 

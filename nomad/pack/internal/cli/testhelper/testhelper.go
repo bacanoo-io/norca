@@ -10,11 +10,11 @@ import (
 	"path"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/command/agent"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/testfixture"
+	"github.com/bacanoo-io/norca/nomad/testutil"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/command/agent"
-	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
-	"github.com/hashicorp/nomad/testutil"
 	"github.com/shoenig/test/must"
 )
 

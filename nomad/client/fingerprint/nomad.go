@@ -9,8 +9,8 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/version"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/version"
 )
 
 // NomadFingerprint is used to fingerprint the Nomad version

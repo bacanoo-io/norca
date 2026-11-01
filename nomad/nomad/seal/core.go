@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/core"
-	ubixseal "github.com/hashicorp/nomad/secretstore/ubix/export/seal"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/core"
+	ubixseal "github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/seal"
 )
 
 // CoreMasterKeyPath is the storage path where the uBixVault core keeps its

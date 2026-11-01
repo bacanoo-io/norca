@@ -7,14 +7,14 @@ package cli
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/fatih/color"
-	"github.com/hashicorp/nomad/api"
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	flag "github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 type StatusCommand struct {

@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/checks"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/checks/checkstore"
+	"github.com/bacanoo-io/norca/nomad/client/taskenv"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/serviceregistration/checks"
-	"github.com/hashicorp/nomad/client/serviceregistration/checks/checkstore"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

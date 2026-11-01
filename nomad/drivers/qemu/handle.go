@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package qemu
@@ -9,10 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/drivers/shared/executor"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/drivers/shared/executor"
-	"github.com/hashicorp/nomad/plugins/drivers"
 )
 
 type taskHandle struct {

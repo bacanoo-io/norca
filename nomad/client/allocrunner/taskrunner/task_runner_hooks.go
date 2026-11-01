@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/LK4D4/joincontext"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
 )
 
 // hookResources captures the resources for the task provided by hooks.

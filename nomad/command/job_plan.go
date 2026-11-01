@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/scheduler"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/scheduler"
 	"github.com/posener/complete"
 )
 

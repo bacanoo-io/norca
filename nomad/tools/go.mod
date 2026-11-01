@@ -1,4 +1,4 @@
-module github.com/hashicorp/nomad/tools
+module github.com/bacanoo-io/norca/nomad/tools
 
 go 1.20
 

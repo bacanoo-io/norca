@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	clientconfig "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/helper/pointer"
+	clientconfig "github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 )
 
 // ClientSecretsConfig is the client's secrets block: the routes that pick

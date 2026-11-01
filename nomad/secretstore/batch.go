@@ -8,8 +8,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/storage"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/storage"
 )
 
 // Batch collects the writes the barrier makes for one operation of the

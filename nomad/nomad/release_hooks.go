@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // Hooks are batch jobs of a pack marked with the pack.hook meta. They run

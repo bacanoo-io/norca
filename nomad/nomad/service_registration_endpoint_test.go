@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -7,13 +8,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/testutil"
 	"github.com/hashicorp/go-memdb"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/testutil"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )
@@ -860,6 +861,18 @@ func TestServiceRegistration_List(t *testing.T) {
 							},
 						}},
 				}, serviceRegResp.Services)
+
+				// The node secret ID reads every namespace with the wildcard.
+				serviceRegReq.QueryOptions.Namespace = structs.AllNamespacesSentinel
+				var wildcardResp structs.ServiceRegistrationListResponse
+				err = msgpackrpc.CallWithCodec(
+					codec, structs.ServiceRegistrationListRPCMethod, serviceRegReq, &wildcardResp)
+				require.NoError(t, err)
+				namespaces := make([]string, 0, len(wildcardResp.Services))
+				for _, stub := range wildcardResp.Services {
+					namespaces = append(namespaces, stub.Namespace)
+				}
+				require.ElementsMatch(t, []string{structs.DefaultNamespace, "platform"}, namespaces)
 			},
 			name: "ACLs enabled with node secret token",
 		},

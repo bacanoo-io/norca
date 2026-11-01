@@ -18,14 +18,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/allocdir"
+	ifs "github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration"
+	"github.com/bacanoo-io/norca/nomad/client/taskenv"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/allocdir"
-	ifs "github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/serviceregistration"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
 	"oss.indeed.com/go/libtime/decay"
 )
 

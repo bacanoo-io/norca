@@ -8,16 +8,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/manager"
-	"github.com/hashicorp/nomad/pack/internal/pkg/renderer"
-	"github.com/hashicorp/nomad/pack/internal/pkg/supplychain"
-	"github.com/hashicorp/nomad/pack/internal/runner"
-	"github.com/hashicorp/nomad/pack/internal/runner/job"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/manager"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/renderer"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/supplychain"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/runner"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/runner/job"
 	"github.com/posener/complete"
 )
 

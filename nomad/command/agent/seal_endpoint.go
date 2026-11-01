@@ -6,7 +6,7 @@ package agent
 import (
 	"net/http"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // OperatorSealStatusRequest is GET /v1/operator/seal: the seal status of

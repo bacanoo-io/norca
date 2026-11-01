@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common"
 	"github.com/google/cel-go/common/ast"
@@ -20,7 +21,6 @@ import (
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
 	"github.com/google/cel-go/parser"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // Validation rules of custom object kinds (operator framework). They run in

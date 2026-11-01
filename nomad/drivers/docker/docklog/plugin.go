@@ -9,10 +9,10 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/bacanoo-io/norca/nomad/drivers/docker/docklog/proto"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/drivers/docker/docklog/proto"
-	"github.com/hashicorp/nomad/plugins/base"
 	"google.golang.org/grpc"
 )
 

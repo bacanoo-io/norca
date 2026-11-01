@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 	"github.com/zclconf/go-cty/cty"
 )
 

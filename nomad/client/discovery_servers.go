@@ -6,12 +6,12 @@ package client
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/client/consulcompat"
-	"github.com/hashicorp/nomad/client/discovery"
-	"github.com/hashicorp/nomad/client/dns"
-	"github.com/hashicorp/nomad/client/externalsvc"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/client/consulcompat"
+	"github.com/bacanoo-io/norca/nomad/client/discovery"
+	"github.com/bacanoo-io/norca/nomad/client/dns"
+	"github.com/bacanoo-io/norca/nomad/client/externalsvc"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // discoveryServers are the service discovery servers of the client: the

@@ -16,11 +16,11 @@ import (
 	"sync"
 	"time"
 
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/escapingfs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	hclog "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper/escapingfs"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hpcloud/tail/watch"
 	tomb "gopkg.in/tomb.v1"
 )

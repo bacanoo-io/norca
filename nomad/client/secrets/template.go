@@ -11,9 +11,9 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // TemplateSource serves the nomadSecret template function of a task:

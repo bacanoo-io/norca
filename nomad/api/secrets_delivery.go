@@ -42,7 +42,24 @@ type TaskSecret struct {
 	Engine string `hcl:"engine,optional" json:",omitempty"`
 	Role   string `hcl:"role,optional" json:",omitempty"`
 
-	File *TaskSecretFile `hcl:"file,block" json:",omitempty"`
+	// Params are passed to the operator of a dynamic secret.
+	Params map[string]string `hcl:"params,optional" json:",omitempty"`
+
+	// Fallback is a path of the built-in store delivered when a dynamic
+	// secret can't be created at the start of the task.
+	Fallback        string `hcl:"fallback,optional" json:",omitempty"`
+	FallbackRecover string `hcl:"fallback_recover,optional" json:",omitempty"`
+
+	// FallbackRecoverInterval is how often fallback_recover asks for a
+	// credential (default 10s).
+	FallbackRecoverInterval time.Duration `hcl:"fallback_recover_interval,optional" json:",omitempty"`
+
+	// FallbackKeepOnRestart keeps a task on its fallback when it restarts;
+	// otherwise a restart asks for a credential again.
+	FallbackKeepOnRestart bool `hcl:"fallback_keep_on_restart,optional" json:",omitempty"`
+
+	// Files are the files the secret is delivered to.
+	Files []*TaskSecretFile `hcl:"file,block" json:",omitempty"`
 
 	// Env maps environment variables to items.
 	Env map[string]string `hcl:"env,block" json:",omitempty"`

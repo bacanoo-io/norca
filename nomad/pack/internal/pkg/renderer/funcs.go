@@ -11,9 +11,9 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
 	"golang.org/x/exp/maps"
 )
 

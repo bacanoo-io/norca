@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package servers_test
@@ -10,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/servers"
-	"github.com/hashicorp/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client/servers"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
 	"github.com/stretchr/testify/require"
 )
 

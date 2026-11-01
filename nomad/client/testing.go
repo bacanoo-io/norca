@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package client
@@ -9,15 +10,15 @@ import (
 	"net/rpc"
 	"time"
 
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/fingerprint"
-	"github.com/hashicorp/nomad/client/servers"
-	"github.com/hashicorp/nomad/client/serviceregistration/mock"
-	agentconsul "github.com/hashicorp/nomad/command/agent/consul"
-	"github.com/hashicorp/nomad/helper/pluginutils/catalog"
-	"github.com/hashicorp/nomad/helper/pluginutils/singleton"
-	"github.com/hashicorp/nomad/helper/pool"
-	"github.com/hashicorp/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/fingerprint"
+	"github.com/bacanoo-io/norca/nomad/client/servers"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/mock"
+	agentconsul "github.com/bacanoo-io/norca/nomad/command/agent/consul"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/catalog"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/singleton"
+	"github.com/bacanoo-io/norca/nomad/helper/pool"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
 	testing "github.com/mitchellh/go-testing-interface"
 )
 

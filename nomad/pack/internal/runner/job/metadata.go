@@ -5,11 +5,11 @@
 package job
 
 import (
+	"github.com/bacanoo-io/norca/nomad/jobspec2/hclutil"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/hashicorp/nomad/jobspec2/hclutil"
 	"github.com/zclconf/go-cty/cty"
 )
 

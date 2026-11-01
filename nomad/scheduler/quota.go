@@ -4,8 +4,8 @@
 package scheduler
 
 import (
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // quotaStateReader is the part of the state store used for quota

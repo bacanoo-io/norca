@@ -77,6 +77,22 @@ const (
 	// BackupContentConsulKV are the keys of the Consul KV bucket of the
 	// system bus (Norca): keys, sizes and value hashes, never values.
 	BackupContentConsulKV = "consul-kv"
+
+	// The configuration of the Norca features and the rest of the ACL state:
+	// names and descriptions, never tokens, credentials or specifications.
+	BackupContentQuotas               = "quotas"
+	BackupContentAdmissionPolicies    = "admission-policies"
+	BackupContentNetworkPolicies      = "network-policies"
+	BackupContentAdminNetworkPolicies = "admin-network-policies"
+	BackupContentServiceIntentions    = "service-intentions"
+	BackupContentObjectKinds          = "object-kinds"
+	BackupContentCustomObjects        = "custom-objects"
+	BackupContentSecretEngines        = "secret-engines"
+	BackupContentSecretLeases         = "secret-leases"
+	BackupContentACLTokens            = "acl-tokens"
+	BackupContentACLAuthMethods       = "acl-auth-methods"
+	BackupContentACLBindingRules      = "acl-binding-rules"
+	BackupContentNodePools            = "node-pools"
 )
 
 // BackupContentTypes are the content types in display order.
@@ -88,9 +104,22 @@ var BackupContentTypes = []string{
 	BackupContentSecrets,
 	BackupContentACLPolicies,
 	BackupContentACLRoles,
+	BackupContentACLTokens,
+	BackupContentACLAuthMethods,
+	BackupContentACLBindingRules,
+	BackupContentQuotas,
+	BackupContentAdmissionPolicies,
+	BackupContentNetworkPolicies,
+	BackupContentAdminNetworkPolicies,
+	BackupContentServiceIntentions,
+	BackupContentObjectKinds,
+	BackupContentCustomObjects,
+	BackupContentSecretEngines,
+	BackupContentNodePools,
+	BackupContentConsulKV,
+	BackupContentSecretLeases,
 	BackupContentDeployments,
 	BackupContentAllocations,
-	BackupContentConsulKV,
 }
 
 // Restore modes, statuses and item types.
@@ -118,6 +147,16 @@ const (
 	// BackupRestoreItemConsulKV is a key of the Consul KV bucket of the
 	// system bus (Norca).
 	BackupRestoreItemConsulKV = "consul-kv"
+
+	// The configuration of the Norca features. Custom objects are named
+	// "<group>/<kind>/<name>", service intentions
+	// "<source namespace>/<source> -> <destination>".
+	BackupRestoreItemQuota              = "quota"
+	BackupRestoreItemAdmissionPolicy    = "admission-policy"
+	BackupRestoreItemNetworkPolicy      = "network-policy"
+	BackupRestoreItemAdminNetworkPolicy = "admin-network-policy"
+	BackupRestoreItemServiceIntention   = "service-intention"
+	BackupRestoreItemCustomObject       = "custom-object"
 )
 
 // BackupRecord describes a backup of the Raft state (and the keyring) of a
@@ -449,6 +488,25 @@ type BackupContents struct {
 	Deployments []*Deployment
 	Allocations []*AllocListStub
 	ConsulKV    []*BackupConsulKVStub
+
+	// Objects are the objects of the types without a list of their own.
+	Objects []*BackupObjectStub
+}
+
+// BackupObjectStub is an object of a backup: its identity and a description,
+// never a token, a credential or a specification.
+type BackupObjectStub struct {
+	// Namespace is empty for the objects of the region.
+	Namespace string
+
+	// ID is the name of the object; the accessor ID of an ACL token,
+	// "<group>/<kind>/<name>" of a custom object, "<source namespace>/<source> ->
+	// <destination>" of a service intention.
+	ID string
+
+	// Detail is a short description of the object.
+	Detail      string
+	ModifyIndex uint64
 }
 
 // BackupConsulKVStub is a key of the Consul KV in a backup (Norca).
@@ -557,7 +615,7 @@ type BackupObjectDiff struct {
 
 // BackupRestoreItem selects an object to restore from a backup.
 type BackupRestoreItem struct {
-	// Type is "job", "variable", "namespace", "acl-policy" or "acl-role".
+	// Type is one of the BackupRestoreItem constants.
 	Type string
 
 	// Namespace of a job or a Variables entry.
@@ -653,6 +711,11 @@ type BackupRestorePreview struct {
 
 	// ACLTokensRemoved is the number of ACL tokens created after the backup.
 	ACLTokensRemoved int
+
+	// SecretLeasesLost is the number of live leases of dynamic secrets
+	// issued after the backup. Their records are lost, so their credentials
+	// can't be revoked and stay valid until they expire.
+	SecretLeasesLost int
 
 	// KeysAdded are the IDs of the root keys of the backup that are missing
 	// from the current keyring.

@@ -16,7 +16,7 @@ advertise {
 }
 
 client {
-  # The data of OpenObserve (step 12): only this node has the volume, so the
+  # The data of OpenObserve (step 11): only this node has the volume, so the
   # single instance always runs here.
   host_volume "openobserve" {
     path      = "/srv/openobserve"

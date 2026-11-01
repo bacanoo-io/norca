@@ -11,12 +11,12 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
 	"github.com/google/cel-go/ext"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 )

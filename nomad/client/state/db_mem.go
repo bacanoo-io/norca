@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package state
@@ -6,15 +7,15 @@ package state
 import (
 	"sync"
 
+	arstate "github.com/bacanoo-io/norca/nomad/client/allocrunner/state"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/state"
+	dmstate "github.com/bacanoo-io/norca/nomad/client/devicemanager/state"
+	"github.com/bacanoo-io/norca/nomad/client/dynamicplugins"
+	driverstate "github.com/bacanoo-io/norca/nomad/client/pluginmanager/drivermanager/state"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/checks"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	arstate "github.com/hashicorp/nomad/client/allocrunner/state"
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/state"
-	dmstate "github.com/hashicorp/nomad/client/devicemanager/state"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	driverstate "github.com/hashicorp/nomad/client/pluginmanager/drivermanager/state"
-	"github.com/hashicorp/nomad/client/serviceregistration/checks"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"golang.org/x/exp/maps"
 )
 

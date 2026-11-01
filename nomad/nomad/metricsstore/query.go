@@ -5,12 +5,12 @@ package metricsstore
 
 import (
 	"errors"
-	"math"
 	"fmt"
+	"math"
 	"slices"
 	"time"
 
-	"github.com/hashicorp/nomad/internal/tstorage"
+	"github.com/bacanoo-io/norca/nomad/internal/tstorage"
 )
 
 const (

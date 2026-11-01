@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package apitests
@@ -8,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/ci"
 	capOIDC "github.com/hashicorp/cap/oidc"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
 	"github.com/shoenig/test/must"
 )
 

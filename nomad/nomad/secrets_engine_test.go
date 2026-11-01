@@ -15,27 +15,21 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
-	"github.com/nats-io/nats.go"
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/secretengine"
-	"github.com/hashicorp/nomad/nomad/secretengine/natstest"
-	"github.com/hashicorp/nomad/nomad/stream"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/nomad/stream"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore"
+	"github.com/bacanoo-io/norca/nomad/testutil"
 )
 
-// engineTest is a server with an ACL root token, an embedded NATS server in
-// operator mode and the admin credential of a nats engine stored at
-// "nats/admin".
+// engineTest is a server with an ACL root token.
 type engineTest struct {
 	t    *testing.T
 	s    *Server
 	root *structs.ACLToken
-	nats *natstest.Server
 }
 
 func newEngineTest(t *testing.T, cb func(*Config)) *engineTest {
@@ -47,25 +41,10 @@ func newEngineTest(t *testing.T, cb func(*Config)) *engineTest {
 		}
 	})
 	t.Cleanup(cleanup)
-	et := &engineTest{t: t, s: s, root: root, nats: natstest.Start(t)}
-	var w structs.SecretWriteResponse
-	must.NoError(t, s.RPC(structs.SecretUpsertRPCMethod,
-		secretWriteReq("nats/admin", root.SecretID, et.nats.Credential()), &w))
-	return et
+	return &engineTest{t: t, s: s, root: root}
 }
 
-func (et *engineTest) engine() *structs.SecretEngine {
-	return &structs.SecretEngine{
-		Name:           "nats",
-		Type:           structs.SecretEngineTypeNATS,
-		CredentialPath: "nats/admin",
-		NATS:           &structs.SecretEngineNATS{Servers: []string{et.nats.URL}, AccountJWT: et.nats.AccountJWT},
-		Roles: []*structs.SecretEngineRole{{
-			Name: "worker", TTL: 2 * time.Second, MaxTTL: 5 * time.Second,
-			NATS: &structs.SecretRoleNATS{Publish: []string{"orders.>"}, Subscribe: []string{"orders.>"}},
-		}},
-	}
-}
+func (et *engineTest) engine() *structs.SecretEngine { return operatorEngine() }
 
 func (et *engineTest) upsert(token string, engine *structs.SecretEngine) (*structs.SecretEngineWriteResponse, error) {
 	var resp structs.SecretEngineWriteResponse
@@ -85,9 +64,9 @@ func (et *engineTest) alloc(grant bool) (*structs.Allocation, string) {
 	alloc := mock.Alloc()
 	alloc.ClientStatus = structs.AllocClientStatusRunning
 	task := alloc.Job.TaskGroups[0].Tasks[0]
-	task.Secrets = []*structs.TaskSecret{{Name: "nats", Engine: "nats", Role: "worker"}}
+	task.Secrets = []*structs.TaskSecret{{Name: "pg", Engine: "pg", Role: "worker", Env: map[string]string{"PW": "password"}}}
 	if grant {
-		task.SecretAccess = []*structs.SecretAccess{{Path: "engines/nats/creds/*"}}
+		task.SecretAccess = []*structs.SecretAccess{{Path: "engines/pg/creds/*"}}
 	}
 	store := et.s.fsm.State()
 	index, _ := store.LatestIndex()
@@ -100,7 +79,7 @@ func (et *engineTest) alloc(grant bool) (*structs.Allocation, string) {
 func (et *engineTest) create(token string) (*structs.SecretLeaseCreateResponse, error) {
 	var resp structs.SecretLeaseCreateResponse
 	err := et.s.RPC(structs.SecretLeaseCreateRPCMethod, &structs.SecretLeaseCreateRequest{
-		Engine: "nats", Role: "worker", SecretName: "nats",
+		Engine: "pg", Role: "worker", SecretName: "pg",
 		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: token},
 	}, &resp)
 	return &resp, err
@@ -110,16 +89,6 @@ func (et *engineTest) lease(id string) *structs.SecretLease {
 	l, err := et.s.fsm.State().SecretLeaseByID(nil, id)
 	must.NoError(et.t, err)
 	return l
-}
-
-// connect connects to the NATS server with a credential's items.
-func (et *engineTest) connect(items structs.SecretItems) error {
-	nc, err := nats.Connect(et.nats.URL, nats.NoReconnect(), nats.Timeout(5*time.Second),
-		nats.UserJWTAndSeed(items[secretengine.NATSItemJWT], items[secretengine.NATSItemSeed]))
-	if err == nil {
-		nc.Close()
-	}
-	return err
 }
 
 // testLeaseWatcher is a lease watcher with a settable clock.
@@ -137,38 +106,22 @@ func TestSecretEngineEndpoint_CRUDAndACL(t *testing.T) {
 		`namespace "default" { capabilities = ["read-secret-engine"] }`)
 	writer := mock.CreatePolicyAndToken(t, store, 1002, "engine-writer",
 		`namespace "default" { capabilities = ["write-secret-engine", "read-secret-engine"] }`)
-	owner := mock.CreatePolicyAndToken(t, store, 1003, "engine-owner",
-		`namespace "default" {
-		   capabilities = ["write-secret-engine"]
-		   secret "nats/*" { capabilities = ["read-secret"] }
-		 }`)
+	startMockOperator(t, et, "")
 
-	// Naming the admin credential needs read-secret on it.
 	_, err := et.upsert(reader.SecretID, et.engine())
-	must.EqError(t, err, structs.ErrPermissionDenied.Error())
-	_, err = et.upsert(writer.SecretID, et.engine())
 	must.EqError(t, err, structs.ErrPermissionDenied.Error())
 
 	// Invalid engines.
 	bad := et.engine()
 	bad.Roles[0].MaxTTL = time.Second
-	_, err = et.upsert(owner.SecretID, bad)
+	_, err = et.upsert(writer.SecretID, bad)
 	must.ErrorContains(t, err, "max_ttl must not be shorter than ttl")
-	bad = et.engine()
-	bad.CredentialPath = "nats/missing"
-	_, err = et.upsert(owner.SecretID, bad)
-	must.ErrorContains(t, err, "is not readable")
-	bad = et.engine()
-	bad.NATS.Servers = []string{"nats://127.0.0.1:1"}
-	_, err = et.upsert(owner.SecretID, bad)
-	must.ErrorContains(t, err, "configuring the backend failed")
 
-	resp, err := et.upsert(owner.SecretID, et.engine())
+	resp, err := et.upsert(writer.SecretID, et.engine())
 	must.NoError(t, err)
-	must.Eq(t, "nats", resp.Engine.Name)
+	must.Eq(t, "pg", resp.Engine.Name)
 	must.Eq(t, structs.DefaultNamespace, resp.Engine.Namespace)
 
-	// An update keeps the credential path: write-secret-engine suffices.
 	upd := et.engine()
 	upd.Description = "orders"
 	resp, err = et.upsert(writer.SecretID, upd)
@@ -176,7 +129,7 @@ func TestSecretEngineEndpoint_CRUDAndACL(t *testing.T) {
 	must.Eq(t, "orders", resp.Engine.Description)
 	typ := et.engine()
 	typ.Type = "postgresql"
-	_, err = et.upsert(owner.SecretID, typ)
+	_, err = et.upsert(writer.SecretID, typ)
 	must.Error(t, err)
 
 	var list structs.SecretEngineListResponse
@@ -186,33 +139,33 @@ func TestSecretEngineEndpoint_CRUDAndACL(t *testing.T) {
 	must.Eq(t, []string{"worker"}, list.Engines[0].Roles)
 	var read structs.SecretEngineResponse
 	must.NoError(t, et.s.RPC(structs.SecretEngineReadRPCMethod,
-		&structs.SecretEngineReadRequest{Name: "nats", QueryOptions: secretQuery(reader.SecretID)}, &read))
+		&structs.SecretEngineReadRequest{Name: "pg", QueryOptions: secretQuery(reader.SecretID)}, &read))
 	must.Eq(t, "orders", read.Engine.Description)
 	none := mock.CreatePolicyAndToken(t, store, 1004, "none", `namespace "default" { capabilities = ["list-secrets"] }`)
 	err = et.s.RPC(structs.SecretEngineReadRPCMethod,
-		&structs.SecretEngineReadRequest{Name: "nats", QueryOptions: secretQuery(none.SecretID)}, &read)
+		&structs.SecretEngineReadRequest{Name: "pg", QueryOptions: secretQuery(none.SecretID)}, &read)
 	must.EqError(t, err, structs.ErrPermissionDenied.Error())
 
 	// No delete while a lease is live.
 	_, wi := et.alloc(true)
 	created, err := et.create(wi)
 	must.NoError(t, err)
-	del := &structs.SecretEngineDeleteRequest{Name: "nats",
+	del := &structs.SecretEngineDeleteRequest{Name: "pg",
 		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: writer.SecretID}}
 	var delResp structs.SecretEngineWriteResponse
 	must.ErrorContains(t, et.s.RPC(structs.SecretEngineDeleteRPCMethod, del, &delResp), "live leases")
 
 	var rev structs.SecretLeaseRevokeResponse
-	err = et.s.RPC(structs.SecretLeaseRevokeRPCMethod, &structs.SecretLeaseRevokeRequest{Engine: "nats",
+	err = et.s.RPC(structs.SecretLeaseRevokeRPCMethod, &structs.SecretLeaseRevokeRequest{Engine: "pg",
 		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: reader.SecretID}}, &rev)
 	must.EqError(t, err, structs.ErrPermissionDenied.Error())
-	must.NoError(t, et.s.RPC(structs.SecretLeaseRevokeRPCMethod, &structs.SecretLeaseRevokeRequest{Engine: "nats",
+	must.NoError(t, et.s.RPC(structs.SecretLeaseRevokeRPCMethod, &structs.SecretLeaseRevokeRequest{Engine: "pg",
 		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: writer.SecretID}}, &rev))
 	must.Eq(t, []string{created.Lease.ID}, rev.Revoked)
 	must.Eq(t, structs.SecretLeaseRevokeOperator, et.lease(created.Lease.ID).RevokeReason)
 
 	must.NoError(t, et.s.RPC(structs.SecretEngineDeleteRPCMethod, del, &delResp))
-	e, err := store.SecretEngineByName(nil, structs.DefaultNamespace, "nats")
+	e, err := store.SecretEngineByName(nil, structs.DefaultNamespace, "pg")
 	must.NoError(t, err)
 	must.Nil(t, e)
 	must.Nil(t, et.lease(created.Lease.ID))
@@ -220,11 +173,12 @@ func TestSecretEngineEndpoint_CRUDAndACL(t *testing.T) {
 
 // TestSecretLease_Lifecycle creates a credential for a task, renews it up to
 // its max_ttl, and checks the revocations of the lease watcher: an expired
-// lease, a stopped allocation and max_ttl; the NATS server refuses the
-// revoked credentials.
+// lease, a stopped allocation and max_ttl; the operator gets the revoked
+// credentials.
 func TestSecretLease_Lifecycle(t *testing.T) {
 	ci.Parallel(t)
 	et := newEngineTest(t, nil)
+	op := startMockOperator(t, et, "")
 	_, err := et.upsert(et.root.SecretID, et.engine())
 	must.NoError(t, err)
 
@@ -237,7 +191,7 @@ func TestSecretLease_Lifecycle(t *testing.T) {
 	must.ErrorContains(t, err, "require a workload identity")
 
 	alloc, wi := et.alloc(true)
-	other := &structs.SecretLeaseCreateRequest{Engine: "nats", Role: "admin", SecretName: "nats",
+	other := &structs.SecretLeaseCreateRequest{Engine: "pg", Role: "admin", SecretName: "pg",
 		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: wi}}
 	var otherResp structs.SecretLeaseCreateResponse
 	must.ErrorContains(t, et.s.RPC(structs.SecretLeaseCreateRPCMethod, other, &otherResp), "has no secret block")
@@ -247,12 +201,9 @@ func TestSecretLease_Lifecycle(t *testing.T) {
 	lease := created.Lease
 	must.Eq(t, alloc.ID, lease.AllocID)
 	must.Eq(t, "web", lease.Task)
-	must.Eq(t, "nats", lease.SecretName)
-	must.Eq(t, "nats.creds", created.File)
-	must.Eq(t, "creds", created.FileItem)
-	must.Eq(t, created.Items[secretengine.NATSItemUser], lease.BackendRef)
+	must.Eq(t, "pg", lease.SecretName)
+	must.Eq(t, "ref-"+lease.ID, lease.BackendRef)
 	must.False(t, lease.Revoked)
-	must.NoError(t, et.connect(created.Items))
 
 	// Renewal extends the lease by its TTL, never beyond max_ttl.
 	renew := func(id string) (*structs.SecretLease, error) {
@@ -276,20 +227,19 @@ func TestSecretLease_Lifecycle(t *testing.T) {
 	must.EqError(t, err, structs.ErrPermissionDenied.Error())
 
 	// The watcher revokes the lease that expired without renewal and
-	// pushes the revocation: the NATS server refuses the credential.
+	// sends the revocation to the operator.
 	w := testLeaseWatcher(et.s, func() time.Time { return time.Unix(0, renewed.ExpireTime).Add(time.Millisecond) })
 	w.evaluate(context.Background(), memdb.NewWatchSet())
 	got := et.lease(lease.ID)
 	must.True(t, got.Revoked)
 	must.Eq(t, structs.SecretLeaseRevokeExpired, got.RevokeReason)
-	must.Error(t, et.connect(created.Items))
+	must.True(t, op.isRevoked(lease.BackendRef))
 	_, err = renew(lease.ID)
 	must.ErrorContains(t, err, "revoked")
 
 	// A stopped allocation: its lease is revoked at once.
 	second, err := et.create(wi)
 	must.NoError(t, err)
-	must.NoError(t, et.connect(second.Items))
 	stopped := alloc.Copy()
 	stopped.ClientStatus = structs.AllocClientStatusComplete
 	index, _ := et.s.fsm.State().LatestIndex()
@@ -297,7 +247,7 @@ func TestSecretLease_Lifecycle(t *testing.T) {
 	w.now = time.Now
 	w.evaluate(context.Background(), memdb.NewWatchSet())
 	must.Eq(t, structs.SecretLeaseRevokeStopped, et.lease(second.Lease.ID).RevokeReason)
-	must.Error(t, et.connect(second.Items))
+	must.True(t, op.isRevoked(second.Lease.BackendRef))
 	_, err = et.create(wi)
 	must.EqError(t, err, structs.ErrPermissionDenied.Error())
 
@@ -322,11 +272,10 @@ func TestSecretLease_Lifecycle(t *testing.T) {
 
 // TestSecretLease_LeaderChange checks that the leases are revoked after a
 // leader change: the leases are in Raft, and the watcher of the new leader
-// revokes the lease that is not renewed and pushes the revocation (it pushes
-// the account JWT of every engine at its start).
+// revokes the lease that is not renewed and sends the revocation to the
+// operator.
 func TestSecretLease_LeaderChange(t *testing.T) {
 	ci.Parallel(t)
-	ns := natstest.Start(t)
 	var servers []*Server
 	for i := 0; i < 3; i++ {
 		s, cleanup := TestServer(t, func(c *Config) { c.BootstrapExpect = 3 })
@@ -352,9 +301,24 @@ func TestSecretLease_LeaderChange(t *testing.T) {
 	}
 	leader := leaderOf(servers)
 
-	var w structs.SecretWriteResponse
-	must.NoError(t, leader.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("nats/admin", "", ns.Credential()), &w))
-	et := &engineTest{t: t, s: leader, nats: ns}
+	et := &engineTest{t: t, s: leader}
+	op := startMockOperator(t, et, "")
+	// The next leader signs its client certificate with the CA of the region,
+	// whose key is replicated in the background.
+	root := waitForMTLSRoot(t, leader)
+	waitForSecretStore(t, "keyring replicated", func() bool {
+		for _, s := range servers {
+			if _, err := s.encrypter.GetKey(root.SigningKeyID); err != nil {
+				return false
+			}
+		}
+		return true
+	})
+	for _, s := range servers {
+		if s != leader {
+			op.register(t, s)
+		}
+	}
 	engine := et.engine()
 	engine.Roles[0].TTL, engine.Roles[0].MaxTTL = 3*time.Second, time.Hour
 	_, err := et.upsert("", engine)
@@ -362,7 +326,7 @@ func TestSecretLease_LeaderChange(t *testing.T) {
 
 	alloc := mock.Alloc()
 	alloc.ClientStatus = structs.AllocClientStatusRunning
-	alloc.Job.TaskGroups[0].Tasks[0].Secrets = []*structs.TaskSecret{{Name: "nats", Engine: "nats", Role: "worker"}}
+	alloc.Job.TaskGroups[0].Tasks[0].Secrets = []*structs.TaskSecret{{Name: "pg", Engine: "pg", Role: "worker", Env: map[string]string{"PW": "password"}}}
 	for _, s := range servers {
 		// The allocation is put into every server's state directly.
 		index, _ := s.fsm.State().LatestIndex()
@@ -372,7 +336,6 @@ func TestSecretLease_LeaderChange(t *testing.T) {
 	must.NoError(t, err)
 	created, err := et.create(wi)
 	must.NoError(t, err)
-	must.NoError(t, et.connect(created.Items))
 
 	// The leader goes away before the lease expires.
 	var rest []*Server
@@ -389,54 +352,7 @@ func TestSecretLease_LeaderChange(t *testing.T) {
 	})
 	l, _ := next.State().SecretLeaseByID(nil, created.Lease.ID)
 	must.Eq(t, structs.SecretLeaseRevokeExpired, l.RevokeReason)
-	waitForSecretStore(t, "credential refused", func() bool { return et.connect(created.Items) != nil })
-}
-
-// TestSecretEngine_RotateRoot rotates the account signing key: leases of the
-// old key keep working until they end, then the old key is retired and
-// removed from the account.
-func TestSecretEngine_RotateRoot(t *testing.T) {
-	ci.Parallel(t)
-	et := newEngineTest(t, nil)
-	_, err := et.upsert(et.root.SecretID, et.engine())
-	must.NoError(t, err)
-	_, wi := et.alloc(true)
-	old, err := et.create(wi)
-	must.NoError(t, err)
-
-	var resp structs.SecretEngineWriteResponse
-	must.NoError(t, et.s.RPC(structs.SecretEngineRotateRootRPCMethod, &structs.SecretEngineRotateRootRequest{Name: "nats",
-		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: et.root.SecretID}}, &resp))
-	must.NotEq(t, old.Lease.SigningKey, resp.Key)
-	must.Eq(t, []string{old.Lease.SigningKey}, resp.Engine.State.RetiredKeys)
-	must.Positive(t, resp.Engine.State.RootRotateTime)
-	sec, err := et.s.fsm.State().SecretByPath(nil, structs.DefaultNamespace, "nats/admin")
-	must.NoError(t, err)
-	must.Eq(t, 2, sec.CurrentVersion)
-
-	fresh, err := et.create(wi)
-	must.NoError(t, err)
-	must.Eq(t, resp.Key, fresh.Lease.SigningKey)
-	must.NoError(t, et.connect(old.Items))
-	must.NoError(t, et.connect(fresh.Items))
-
-	// While the old lease lives the key stays; once it is revoked the
-	// watcher retires the key and removes it from the account.
-	w := testLeaseWatcher(et.s, time.Now)
-	w.evaluate(context.Background(), memdb.NewWatchSet())
-	e, _ := et.s.fsm.State().SecretEngineByName(nil, structs.DefaultNamespace, "nats")
-	must.Eq(t, []string{old.Lease.SigningKey}, e.State.RetiredKeys)
-
-	var rev structs.SecretLeaseRevokeResponse
-	must.NoError(t, et.s.RPC(structs.SecretLeaseRevokeRPCMethod, &structs.SecretLeaseRevokeRequest{LeaseID: old.Lease.ID,
-		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: wi}}, &rev))
-	must.Eq(t, structs.SecretLeaseRevokeStopped, et.lease(old.Lease.ID).RevokeReason)
-	w.evaluate(context.Background(), memdb.NewWatchSet())
-	e, _ = et.s.fsm.State().SecretEngineByName(nil, structs.DefaultNamespace, "nats")
-	must.SliceEmpty(t, e.State.RetiredKeys)
-	must.Eq(t, []string{old.Lease.SigningKey}, e.State.RemovedKeys)
-	must.Error(t, et.connect(old.Items))
-	must.NoError(t, et.connect(fresh.Items))
+	waitForSecretStore(t, "revocation sent", func() bool { return op.isRevoked(l.BackendRef) })
 }
 
 // TestSecretLease_AuditAndRedaction checks the audit records and events of
@@ -460,6 +376,7 @@ func TestSecretLease_AuditAndRedaction(t *testing.T) {
 	must.NoError(t, err)
 	defer sub.Unsubscribe()
 
+	startMockOperator(t, et, "")
 	_, err = et.upsert(et.root.SecretID, et.engine())
 	must.NoError(t, err)
 	_, wi := et.alloc(true)
@@ -474,7 +391,7 @@ func TestSecretLease_AuditAndRedaction(t *testing.T) {
 
 	var list structs.SecretLeaseListResponse
 	must.NoError(t, et.s.RPC(structs.SecretLeaseListRPCMethod,
-		&structs.SecretLeaseListRequest{Engine: "nats", QueryOptions: secretQuery(et.root.SecretID)}, &list))
+		&structs.SecretLeaseListRequest{Engine: "pg", QueryOptions: secretQuery(et.root.SecretID)}, &list))
 	must.Len(t, 1, list.Leases)
 
 	var access []*structs.SecretAccessEvent
@@ -517,15 +434,14 @@ func TestSecretLease_AuditAndRedaction(t *testing.T) {
 		}
 	}
 	must.NotNil(t, create)
-	must.Eq(t, "engines/nats/creds/worker", create.Path)
+	must.Eq(t, "engines/pg/creds/worker", create.Path)
 	must.Eq(t, created.Lease.ID, create.LeaseID)
-	must.Eq(t, "nats", create.Engine)
+	must.Eq(t, "pg", create.Engine)
 	must.Eq(t, "worker", create.Role)
 	must.Eq(t, "web", create.Accessor.Task)
 
 	outputs = append(outputs, list, rr, rev, created.Lease)
-	canaries := []string{created.Items[secretengine.NATSItemSeed], created.Items[secretengine.NATSItemJWT],
-		et.nats.AccountSigningSeed, et.nats.OperatorSigningSeed}
+	canaries := []string{created.Items["password"]}
 	for i, out := range outputs {
 		data, err := json.Marshal(out)
 		must.NoError(t, err)
@@ -540,7 +456,6 @@ func TestSecretLease_AuditAndRedaction(t *testing.T) {
 		must.StrNotContains(t, string(audit), c)
 		must.StrNotContains(t, logs.String(), c)
 	}
-	assertSecretStoreCiphertext(t, et.s, et.nats.AccountSigningSeed)
 	must.True(t, strings.Contains(strings.Join(types, ","), structs.TypeSecretLeaseCreated), must.Sprint(types))
 	_ = fmt.Sprint
 }

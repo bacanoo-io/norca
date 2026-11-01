@@ -8,7 +8,7 @@
 package nomad
 
 import (
-	"github.com/hashicorp/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
 )
 
 // refreshIndex returns the index the scheduler should refresh to as the maximum

@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/api"
 	"github.com/posener/complete"
 	"github.com/ryanuber/columnize"
 )

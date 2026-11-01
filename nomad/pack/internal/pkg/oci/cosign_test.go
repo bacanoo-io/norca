@@ -12,8 +12,8 @@ import (
 
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/oci/ocitest"
-	"github.com/hashicorp/nomad/pack/internal/pkg/signing"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/oci/ocitest"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/signing"
 )
 
 // TestCosignInterop checks signatures against the cosign CLI in both

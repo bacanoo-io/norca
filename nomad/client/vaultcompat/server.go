@@ -53,10 +53,10 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"golang.org/x/time/rate"
 
-	"github.com/hashicorp/nomad/client/secrets"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/version"
+	"github.com/bacanoo-io/norca/nomad/client/secrets"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/version"
 )
 
 // defaultBridgeSubnet is the default subnet of the client's bridge network.

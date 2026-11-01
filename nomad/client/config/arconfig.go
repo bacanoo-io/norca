@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package config
@@ -8,21 +9,21 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/client/allocdir"
-	arinterfaces "github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/consul"
-	"github.com/hashicorp/nomad/client/devicemanager"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/client/interfaces"
-	"github.com/hashicorp/nomad/client/lib/cgutil"
-	"github.com/hashicorp/nomad/client/pluginmanager/csimanager"
-	"github.com/hashicorp/nomad/client/pluginmanager/drivermanager"
-	"github.com/hashicorp/nomad/client/serviceregistration"
-	"github.com/hashicorp/nomad/client/serviceregistration/checks/checkstore"
-	"github.com/hashicorp/nomad/client/serviceregistration/wrapper"
-	cstate "github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/client/vaultclient"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/allocdir"
+	arinterfaces "github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/consul"
+	"github.com/bacanoo-io/norca/nomad/client/devicemanager"
+	"github.com/bacanoo-io/norca/nomad/client/dynamicplugins"
+	"github.com/bacanoo-io/norca/nomad/client/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/lib/cgutil"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/csimanager"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/drivermanager"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/checks/checkstore"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/wrapper"
+	cstate "github.com/bacanoo-io/norca/nomad/client/state"
+	"github.com/bacanoo-io/norca/nomad/client/vaultclient"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // AllocRunnerFactory returns an AllocRunner interface built from the

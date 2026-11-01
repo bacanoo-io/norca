@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

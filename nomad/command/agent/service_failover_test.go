@@ -10,11 +10,11 @@ import (
 	"testing"
 
 	metrics "github.com/armon/go-metrics"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/nomad"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 )
 

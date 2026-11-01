@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package csimanager
@@ -7,9 +8,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/dynamicplugins"
+	"github.com/bacanoo-io/norca/nomad/plugins/csi"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/plugins/csi"
 )
 
 const managerFingerprintInterval = 30 * time.Second

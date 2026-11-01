@@ -5,7 +5,7 @@
 package config
 
 import (
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 )
 
 type ParserVersion int

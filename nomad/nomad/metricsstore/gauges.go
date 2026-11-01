@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/internal/tstorage"
+	"github.com/bacanoo-io/norca/nomad/internal/tstorage"
 )
 
 // The metrics the servers sample from their state and from the live usage

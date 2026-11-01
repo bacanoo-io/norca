@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build unix
@@ -13,7 +14,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/hashicorp/nomad/helper/users"
+	"github.com/bacanoo-io/norca/nomad/helper/users"
 	"golang.org/x/sys/unix"
 )
 

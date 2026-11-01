@@ -11,11 +11,11 @@ import (
 	"net/netip"
 	"os"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
 	"github.com/google/nftables/userdata"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"

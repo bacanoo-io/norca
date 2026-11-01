@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/hcl/v2/hclsimple"
-	"github.com/hashicorp/nomad/api"
 	"github.com/posener/complete"
 )
 

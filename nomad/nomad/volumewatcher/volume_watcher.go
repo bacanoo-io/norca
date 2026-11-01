@@ -8,12 +8,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // volumeWatcher is used to watch a single volume and trigger the

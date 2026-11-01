@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 )
 

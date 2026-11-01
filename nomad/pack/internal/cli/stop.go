@@ -9,14 +9,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad/pack/internal/pkg/renderer"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/renderer"
 )
 
 type StopCommand struct {

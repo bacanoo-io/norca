@@ -17,13 +17,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/strategy/fixedvalue"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/strategy/targetvalue"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/strategy/threshold"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/fixedvalue"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/targetvalue"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/strategy/threshold"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // BuiltinMetrics returns the names of the metrics a check can use by name

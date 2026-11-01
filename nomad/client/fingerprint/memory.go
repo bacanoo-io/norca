@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package fingerprint
@@ -6,8 +7,8 @@ package fingerprint
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 

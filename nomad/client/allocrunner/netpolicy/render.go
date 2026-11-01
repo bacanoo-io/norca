@@ -8,7 +8,7 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // match is a single nftables rule worth of matching: an optional peer

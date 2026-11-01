@@ -13,12 +13,12 @@ import (
 
 	gg "github.com/hashicorp/go-getter"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/oci"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packlock"
-	"github.com/hashicorp/nomad/pack/internal/pkg/supplychain"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/oci"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packconfig"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packlock"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/supplychain"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 // Options control vendoring.

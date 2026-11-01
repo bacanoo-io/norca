@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package testutil
@@ -10,11 +11,11 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/helper/useragent"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/helper/useragent"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	vapi "github.com/hashicorp/vault/api"
 	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/stretchr/testify/require"

@@ -11,11 +11,11 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/state/paginator"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/state/paginator"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // NetworkPolicy endpoint manages the network policies of namespaces and the

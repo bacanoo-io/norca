@@ -7,8 +7,8 @@ import (
 	"net"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper/pointer"
 )
 
 // consulFingerprintName is the name of the Consul fingerprinter of the client.

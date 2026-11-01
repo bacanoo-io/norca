@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -13,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/acl"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/acl"
 	"golang.org/x/crypto/blake2b"
 )
 

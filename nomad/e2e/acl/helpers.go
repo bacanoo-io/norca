@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package acl
@@ -6,8 +7,8 @@ package acl
 import (
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/api"
 	"github.com/shoenig/test"
 	"github.com/shoenig/test/must"
 )

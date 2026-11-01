@@ -1,11 +1,12 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package singleton
 
 import (
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/loader"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
 )
 
 // future is a sharable future for retrieving a plugin instance or any error

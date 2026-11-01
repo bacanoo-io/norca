@@ -6,8 +6,8 @@ package state
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // TableAdmissionPolicies is the table of the CEL admission policies.

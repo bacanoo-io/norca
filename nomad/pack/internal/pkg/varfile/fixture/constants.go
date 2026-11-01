@@ -5,7 +5,7 @@
 package fixture
 
 import (
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 )
 
 const GoodConfigfileHCL = `# variable answers

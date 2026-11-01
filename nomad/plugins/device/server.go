@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package device
@@ -11,7 +12,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/hashicorp/nomad/plugins/device/proto"
+	"github.com/bacanoo-io/norca/nomad/plugins/device/proto"
 )
 
 // devicePluginServer wraps a device plugin and exposes it via gRPC.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/shoenig/test/must"
 )
 

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !windows
@@ -18,20 +19,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client/allocdir"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/taskenv"
+	"github.com/bacanoo-io/norca/nomad/client/testutil"
+	agentconsul "github.com/bacanoo-io/norca/nomad/command/agent/consul"
+	"github.com/bacanoo-io/norca/nomad/helper/args"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	consulapi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/client/testutil"
-	agentconsul "github.com/hashicorp/nomad/command/agent/consul"
-	"github.com/hashicorp/nomad/helper/args"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )

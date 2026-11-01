@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package client
@@ -12,11 +13,11 @@ import (
 	metrics "github.com/armon/go-metrics"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/client/pluginmanager/csimanager"
-	"github.com/hashicorp/nomad/client/structs"
-	nstructs "github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/csi"
+	"github.com/bacanoo-io/norca/nomad/client/dynamicplugins"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/csimanager"
+	"github.com/bacanoo-io/norca/nomad/client/structs"
+	nstructs "github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/csi"
 )
 
 // CSI endpoint is used for interacting with CSI plugins on a client.

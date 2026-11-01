@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/internal/tstorage"
+	"github.com/bacanoo-io/norca/nomad/internal/tstorage"
 )
 
 func ExampleNewStorage_withDataPath() {

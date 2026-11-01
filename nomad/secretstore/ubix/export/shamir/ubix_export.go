@@ -10,7 +10,7 @@
 // the two. The documentation is in the original package.
 package shamir
 
-import ubix "github.com/hashicorp/nomad/secretstore/ubix/internal/shamir"
+import ubix "github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/shamir"
 
 // Errors.
 var (

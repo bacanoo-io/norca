@@ -87,7 +87,7 @@ mkdir "%OUT%" || goto fail
 set CGO_ENABLED=0
 set GOOS=windows
 set GOARCH=%ARCH%
-go -C "%NOMAD%" build -trimpath -tags ui,codegen_generated,release,timetzdata -ldflags "-X github.com/hashicorp/nomad/version.GitCommit=%SHA% -X github.com/hashicorp/nomad/version.BuildDate=%BUILDDATE%" -o "%OUT%\norca.exe" . || goto fail
+go -C "%NOMAD%" build -trimpath -tags ui,codegen_generated,release,timetzdata -ldflags "-X github.com/bacanoo-io/norca/nomad/version.GitCommit=%SHA% -X github.com/bacanoo-io/norca/nomad/version.BuildDate=%BUILDDATE%" -o "%OUT%\norca.exe" . || goto fail
 set CGO_ENABLED=
 set GOOS=
 set GOARCH=

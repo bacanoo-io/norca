@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package fingerprint
@@ -8,11 +9,11 @@ import (
 	"net"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	log "github.com/hashicorp/go-hclog"
 	sockaddr "github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/go-sockaddr/template"
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

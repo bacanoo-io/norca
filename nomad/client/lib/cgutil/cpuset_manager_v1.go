@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/lib/cpuset"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/lib/cpuset"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/opencontainers/cgroups"
 	"github.com/opencontainers/cgroups/fs"
 	"golang.org/x/sys/unix"

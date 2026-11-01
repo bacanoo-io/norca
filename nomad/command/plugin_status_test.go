@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package command
@@ -6,9 +7,9 @@ package command
 import (
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 	"github.com/stretchr/testify/require"

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package e2eutil
@@ -8,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/testutil"
 	capi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/nomad/testutil"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package client
@@ -12,17 +13,17 @@ import (
 
 	"github.com/hashicorp/go-msgpack/codec"
 
-	"github.com/hashicorp/nomad/command/agent/host"
-	"github.com/hashicorp/nomad/command/agent/monitor"
-	"github.com/hashicorp/nomad/command/agent/pprof"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/command/agent/host"
+	"github.com/bacanoo-io/norca/nomad/command/agent/monitor"
+	"github.com/bacanoo-io/norca/nomad/command/agent/pprof"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 
 	metrics "github.com/armon/go-metrics"
 	log "github.com/hashicorp/go-hclog"
 
-	sframer "github.com/hashicorp/nomad/client/lib/streamframer"
-	cstructs "github.com/hashicorp/nomad/client/structs"
+	sframer "github.com/bacanoo-io/norca/nomad/client/lib/streamframer"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
 )
 
 type Agent struct {

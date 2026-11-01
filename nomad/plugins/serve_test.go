@@ -10,8 +10,8 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/ci"
 	"github.com/shoenig/test/must"
 )
 

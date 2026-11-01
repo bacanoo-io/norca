@@ -8,10 +8,10 @@ import (
 	"slices"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/nomad/backup"
 	"github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/backup"
 )
 
 // BackupConfig is the server's backup block: scheduled, encrypted backups of

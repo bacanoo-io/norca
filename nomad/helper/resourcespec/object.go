@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/go-cty-funcs/filesystem"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/hashicorp/nomad/api"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"

@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/snapshot"
-	"github.com/hashicorp/nomad/nomad/backup"
-	"github.com/hashicorp/nomad/nomad/seal"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/snapshot"
+	"github.com/bacanoo-io/norca/nomad/nomad/backup"
+	"github.com/bacanoo-io/norca/nomad/nomad/seal"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // setupBackup creates the backup manager. It only takes backups while this

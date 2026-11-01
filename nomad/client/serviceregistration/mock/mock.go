@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package mock
@@ -8,8 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/serviceregistration"
 )
 
 // Ensure that the mock handler implements the service registration handler

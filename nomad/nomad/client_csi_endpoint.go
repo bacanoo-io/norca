@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -14,8 +15,8 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
 
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // ClientCSI is used to forward RPC requests to the targed Nomad client's

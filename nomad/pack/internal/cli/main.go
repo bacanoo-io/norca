@@ -14,9 +14,9 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/go-glint"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper"
-	"github.com/hashicorp/nomad/pack/internal/pkg/version"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/version"
 )
 
 const (

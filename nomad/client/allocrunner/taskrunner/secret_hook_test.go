@@ -17,26 +17,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client/allocdir"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/getter"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	consulapi "github.com/bacanoo-io/norca/nomad/client/consul"
+	"github.com/bacanoo-io/norca/nomad/client/devicemanager"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/drivermanager"
+	"github.com/bacanoo-io/norca/nomad/client/secrets"
+	regMock "github.com/bacanoo-io/norca/nomad/client/serviceregistration/mock"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/wrapper"
+	cstate "github.com/bacanoo-io/norca/nomad/client/state"
+	"github.com/bacanoo-io/norca/nomad/client/taskenv"
+	"github.com/bacanoo-io/norca/nomad/client/vaultclient"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/nomad/testutil"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/getter"
-	"github.com/hashicorp/nomad/client/config"
-	consulapi "github.com/hashicorp/nomad/client/consul"
-	"github.com/hashicorp/nomad/client/devicemanager"
-	"github.com/hashicorp/nomad/client/pluginmanager/drivermanager"
-	"github.com/hashicorp/nomad/client/secrets"
-	regMock "github.com/hashicorp/nomad/client/serviceregistration/mock"
-	"github.com/hashicorp/nomad/client/serviceregistration/wrapper"
-	cstate "github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/client/vaultclient"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/testutil"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
@@ -263,7 +263,7 @@ func dbSecret(mode string) *structs.TaskSecret {
 	return &structs.TaskSecret{
 		Name:       "db",
 		Path:       "jobs/${job}/db",
-		File:       &structs.TaskSecretFile{Destination: "secrets/db.env"},
+		Files:      []*structs.TaskSecretFile{{Destination: "secrets/db.env"}},
 		Env:        map[string]string{"DB_PASSWORD": "password"},
 		ChangeMode: mode,
 		Timeout:    5 * time.Second,

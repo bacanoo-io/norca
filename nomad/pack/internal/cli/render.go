@@ -16,11 +16,11 @@ import (
 	"github.com/posener/complete"
 	"golang.org/x/exp/maps"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper/filesystem"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 // RenderCommand is a command that allows users to render the templates within

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // allocEvict handles POST /v1/allocation/:id/evict. If the disruption budget

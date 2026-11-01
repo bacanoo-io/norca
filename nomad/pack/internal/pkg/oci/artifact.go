@@ -25,8 +25,8 @@ import (
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/packlock"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packlock"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 )
 
 const (

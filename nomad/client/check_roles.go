@@ -4,8 +4,8 @@
 package client
 
 import (
-	"github.com/hashicorp/nomad/client/serviceregistration"
-	"github.com/hashicorp/nomad/client/serviceregistration/nsd"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/nsd"
 )
 
 // localCheckStatusSetter is implemented by service registration handlers whose

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/hashicorp/nomad/nomad/objectschema"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/objectschema"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // validateReleaseVariables validates the effective variable values of a pack

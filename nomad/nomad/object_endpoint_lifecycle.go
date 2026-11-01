@@ -13,10 +13,10 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // Lifecycle of custom objects: deletion with finalizers and propagation

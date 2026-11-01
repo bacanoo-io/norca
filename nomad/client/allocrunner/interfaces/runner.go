@@ -1,16 +1,17 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package interfaces
 
 import (
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/client/allocrunner/state"
-	"github.com/hashicorp/nomad/client/pluginmanager/csimanager"
-	"github.com/hashicorp/nomad/client/pluginmanager/drivermanager"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/nomad/client/allocdir"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/state"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/csimanager"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/drivermanager"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 )
 
 // AllocRunner is the interface to the allocRunner struct used by client.Client

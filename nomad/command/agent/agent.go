@@ -18,26 +18,26 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
+	"github.com/bacanoo-io/norca/nomad/client"
+	clientconfig "github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/lib/cgutil"
+	"github.com/bacanoo-io/norca/nomad/client/state"
+	"github.com/bacanoo-io/norca/nomad/command/agent/consul"
+	"github.com/bacanoo-io/norca/nomad/command/agent/event"
+	"github.com/bacanoo-io/norca/nomad/helper/bufconndialer"
+	"github.com/bacanoo-io/norca/nomad/helper/escapingfs"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/loader"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/lib/cpuset"
+	"github.com/bacanoo-io/norca/nomad/nomad"
+	"github.com/bacanoo-io/norca/nomad/nomad/deploymentwatcher"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	"github.com/dustin/go-humanize"
 	consulapi "github.com/hashicorp/consul/api"
 	log "github.com/hashicorp/go-hclog"
 	uuidparse "github.com/hashicorp/go-uuid"
-	"github.com/hashicorp/nomad/client"
-	clientconfig "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/lib/cgutil"
-	"github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/command/agent/consul"
-	"github.com/hashicorp/nomad/command/agent/event"
-	"github.com/hashicorp/nomad/helper/bufconndialer"
-	"github.com/hashicorp/nomad/helper/escapingfs"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/lib/cpuset"
-	"github.com/hashicorp/nomad/nomad"
-	"github.com/hashicorp/nomad/nomad/deploymentwatcher"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/raft"
 )
 
@@ -591,6 +591,10 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	conf.SecretsAudit = norcaBlocks.secretsAudit
 	conf.SecretsVaultFallback = agentConfig.Server.Secrets.vaultFallback()
 	conf.SecretsExpiryWarning = norcaBlocks.secretsExpiryWarning
+	conf.SecretsOperatorTimeout = norcaBlocks.secretsOperatorTimeout
+	if agentConfig.Server.Secrets != nil {
+		conf.SecretsOperatorMaxConcurrent = agentConfig.Server.Secrets.OperatorMaxConcurrent
+	}
 
 	// Add the search configuration
 	if search := agentConfig.Server.Search; search != nil {

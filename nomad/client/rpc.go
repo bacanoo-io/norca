@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package client
@@ -12,12 +13,12 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
+	"github.com/bacanoo-io/norca/nomad/client/servers"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	inmem "github.com/bacanoo-io/norca/nomad/helper/codec"
+	"github.com/bacanoo-io/norca/nomad/helper/pool"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-msgpack/codec"
-	"github.com/hashicorp/nomad/client/servers"
-	"github.com/hashicorp/nomad/helper"
-	inmem "github.com/hashicorp/nomad/helper/codec"
-	"github.com/hashicorp/nomad/helper/pool"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // rpcEndpoints holds the RPC endpoints

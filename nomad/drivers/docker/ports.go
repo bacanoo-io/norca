@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docker
@@ -6,9 +7,9 @@ package docker
 import (
 	"strconv"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/hclutils"
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper/pluginutils/hclutils"
 )
 
 // publishedPorts is a utility struct to keep track of the port bindings to publish.

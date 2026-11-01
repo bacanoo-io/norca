@@ -10,7 +10,7 @@ package sdk
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
 )
 
 // ScalingEvaluation forms an individual analysis undertaken by the autoscaler

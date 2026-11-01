@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -8,9 +9,9 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hashicorp/logutils"
-	"github.com/hashicorp/nomad/ci"
 )
 
 func TestSyslogFilter(t *testing.T) {

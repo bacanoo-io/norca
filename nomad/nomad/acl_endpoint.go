@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package nomad
@@ -19,15 +20,15 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-set"
 
-	policy "github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/lib/auth"
-	"github.com/hashicorp/nomad/lib/auth/jwt"
-	"github.com/hashicorp/nomad/lib/auth/oidc"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/state/paginator"
-	"github.com/hashicorp/nomad/nomad/structs"
+	policy "github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/lib/auth"
+	"github.com/bacanoo-io/norca/nomad/lib/auth/jwt"
+	"github.com/bacanoo-io/norca/nomad/lib/auth/oidc"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/state/paginator"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 var (

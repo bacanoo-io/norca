@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package docker
@@ -10,11 +11,11 @@ import (
 	"sync"
 	"time"
 
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/drivers/docker/util"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	nstructs "github.com/bacanoo-io/norca/nomad/nomad/structs"
 	docker "github.com/fsouza/go-dockerclient"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/drivers/docker/util"
-	"github.com/hashicorp/nomad/helper"
-	nstructs "github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

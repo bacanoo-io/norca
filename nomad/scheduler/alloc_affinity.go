@@ -6,8 +6,8 @@ package scheduler
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // This file implements the colocate and separate (cross-job affinity and

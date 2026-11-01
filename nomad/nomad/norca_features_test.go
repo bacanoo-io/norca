@@ -6,7 +6,7 @@ package nomad
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/ci"
 	"github.com/hashicorp/serf/serf"
 	"github.com/shoenig/test/must"
 )

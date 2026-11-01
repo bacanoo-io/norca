@@ -1,11 +1,12 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package taskrunner
 
 import (
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 func (tr *TaskRunner) Alloc() *structs.Allocation {

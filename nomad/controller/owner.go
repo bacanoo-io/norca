@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 )
 
 // OwnerMetaKey is the reserved job meta key holding the owner reference of

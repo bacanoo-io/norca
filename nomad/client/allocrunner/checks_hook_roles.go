@@ -6,9 +6,9 @@ package allocrunner
 import (
 	"sync"
 
-	"github.com/hashicorp/nomad/client/serviceregistration/checks/checkstore"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/checks/checkstore"
+	"github.com/bacanoo-io/norca/nomad/client/taskenv"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // groupWorkload is the workload key of group level services.

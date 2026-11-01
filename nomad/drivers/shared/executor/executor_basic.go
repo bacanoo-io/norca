@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !linux
@@ -8,9 +9,9 @@ package executor
 import (
 	"os/exec"
 
+	"github.com/bacanoo-io/norca/nomad/client/lib/resources"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/lib/resources"
-	"github.com/hashicorp/nomad/plugins/drivers"
 )
 
 func NewExecutorWithIsolation(logger hclog.Logger, cpuTotalTicks uint64) Executor {

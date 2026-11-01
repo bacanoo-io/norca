@@ -6,7 +6,7 @@ package stream
 import (
 	"sync"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // indexWatermarks tracks, per topic, the highest Raft index at which events

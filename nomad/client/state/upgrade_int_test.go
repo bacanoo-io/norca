@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package state_test
@@ -13,21 +14,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocrunner"
-	"github.com/hashicorp/nomad/client/allocwatcher"
-	"github.com/hashicorp/nomad/client/config"
-	clientconfig "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/devicemanager"
-	dmstate "github.com/hashicorp/nomad/client/devicemanager/state"
-	"github.com/hashicorp/nomad/client/pluginmanager/drivermanager"
-	regMock "github.com/hashicorp/nomad/client/serviceregistration/mock"
-	. "github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/client/vaultclient"
-	"github.com/hashicorp/nomad/helper/boltdd"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/structs"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner"
+	"github.com/bacanoo-io/norca/nomad/client/allocwatcher"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	clientconfig "github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/devicemanager"
+	dmstate "github.com/bacanoo-io/norca/nomad/client/devicemanager/state"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/drivermanager"
+	regMock "github.com/bacanoo-io/norca/nomad/client/serviceregistration/mock"
+	. "github.com/bacanoo-io/norca/nomad/client/state"
+	"github.com/bacanoo-io/norca/nomad/client/vaultclient"
+	"github.com/bacanoo-io/norca/nomad/helper/boltdd"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	pstructs "github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 )
 
@@ -32,7 +32,6 @@ func (f *leaseRPC) RPC(method string, args, reply any) error {
 		r := reply.(*structs.SecretLeaseCreateResponse)
 		r.Lease = f.lease.Copy()
 		r.Items = structs.SecretItems{"creds": "file"}
-		r.File, r.FileItem = "nats.creds", "creds"
 	case structs.SecretLeaseRenewRPCMethod:
 		r := reply.(*structs.SecretLeaseWriteResponse)
 		f.lease.ExpireTime = f.lease.MaxExpireTime
@@ -58,8 +57,6 @@ func TestNorcaProvider_Leases(t *testing.T) {
 	s, err := p.Fetch(ctx, &Request{Engine: "nats", Role: "worker", Name: "nats", Identity: id})
 	must.NoError(t, err)
 	must.Eq(t, "file", s.Items["creds"])
-	must.Eq(t, "nats.creds", s.DefaultFile)
-	must.Eq(t, "creds", s.DefaultFileItem)
 	must.Eq(t, "l1", s.Lease.ID)
 	must.True(t, s.Lease.Renewable)
 	must.Eq(t, now.Add(time.Hour).UnixNano(), s.Lease.MaxExpireTime.UnixNano())

@@ -13,7 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hashicorp/nomad/controller/webhook"
+	"github.com/bacanoo-io/norca/nomad/controller/webhook"
 )
 
 // The "webhook" subcommand serves the admission webhooks of the

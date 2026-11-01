@@ -38,10 +38,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	structsc "github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/structs"
-	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 )
 
 const (

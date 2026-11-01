@@ -7,8 +7,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Auditor records the audit record of a fetch the client made from an

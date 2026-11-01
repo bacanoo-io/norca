@@ -6,7 +6,7 @@ package agent
 import (
 	"net/http"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // objectSubresourceRequest handles /v1/object/:group/:kind/:name/:sub.

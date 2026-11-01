@@ -7,7 +7,7 @@ package flag
 import (
 	"strings"
 
-	"github.com/hashicorp/nomad/helper/clienv"
+	"github.com/bacanoo-io/norca/nomad/helper/clienv"
 	"github.com/posener/complete"
 )
 

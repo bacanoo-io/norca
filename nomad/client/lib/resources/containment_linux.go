@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/bacanoo-io/norca/nomad/client/lib/cgutil"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/lib/cgutil"
 	"github.com/opencontainers/cgroups"
 	// device management for cgroups v1 and v2 is a separate package that must
 	// be linked in; without it, setting the v2 device rules below fails

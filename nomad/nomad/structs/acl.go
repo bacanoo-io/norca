@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -12,14 +13,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/lib/lang"
 	"github.com/hashicorp/go-bexpr"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-set"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/lib/lang"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/exp/slices"
 	"oss.indeed.com/go/libtime"

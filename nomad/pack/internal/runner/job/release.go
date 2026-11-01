@@ -4,9 +4,9 @@
 package job
 
 import (
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 // FormatJobDiff prints a job diff like the job plan does, for the plans of

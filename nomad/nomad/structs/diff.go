@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hashicorp/nomad/helper/flatmap"
+	"github.com/bacanoo-io/norca/nomad/helper/flatmap"
 	"github.com/mitchellh/hashstructure"
 )
 

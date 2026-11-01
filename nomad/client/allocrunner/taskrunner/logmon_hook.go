@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package taskrunner
@@ -12,14 +13,14 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/logmon"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	bstructs "github.com/bacanoo-io/norca/nomad/plugins/base/structs"
+	pstructs "github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/logmon"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
-	bstructs "github.com/hashicorp/nomad/plugins/base/structs"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )

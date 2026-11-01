@@ -1,4 +1,5 @@
 // Copyright IBM Corp. 2021, 2025
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package pack
@@ -6,7 +7,7 @@ package pack
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/ci"
 	"github.com/shoenig/test/must"
 )
 

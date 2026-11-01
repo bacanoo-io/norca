@@ -8,15 +8,15 @@ import (
 	"path"
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/command/agent"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/command/agent"
 	"github.com/shoenig/test/must"
 
-	ct "github.com/hashicorp/nomad/pack/internal/cli/testhelper"
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
-	"github.com/hashicorp/nomad/pack/internal/pkg/logging"
-	"github.com/hashicorp/nomad/pack/internal/runner/job"
+	ct "github.com/bacanoo-io/norca/nomad/pack/internal/cli/testhelper"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper/filesystem"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/logging"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/runner/job"
 )
 
 // TestCLI_PinnedRegistryRef runs a pack of a registry that was added with a

@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"strings"
 
+	agent "github.com/bacanoo-io/norca/nomad/command/agent"
 	multierror "github.com/hashicorp/go-multierror"
-	agent "github.com/hashicorp/nomad/command/agent"
 )
 
 type ConfigValidateCommand struct {

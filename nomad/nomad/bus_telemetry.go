@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/autoscaler"
-	"github.com/hashicorp/nomad/nomad/bus"
-	"github.com/hashicorp/nomad/nomad/metricsstore"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler"
+	"github.com/bacanoo-io/norca/nomad/nomad/bus"
+	"github.com/bacanoo-io/norca/nomad/nomad/metricsstore"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -29,6 +29,10 @@ const (
 	// telemetryConsumerInactive removes the consumer of a server that is
 	// gone.
 	telemetryConsumerInactive = 2 * telemetryStreamMaxAge
+
+	// telemetryAckWait is the wait for the acknowledgement of a report
+	// before it is delivered again.
+	telemetryAckWait = 30 * time.Second
 
 	// telemetryFreshness is how old a report may be beyond its window to
 	// still reach the autoscaler, which takes it as current usage. Older
@@ -53,25 +57,29 @@ func (s *Server) keepTelemetryStream(ctx context.Context, js jetstream.JetStream
 	}
 }
 
-// ensureTelemetryStream creates or updates the telemetry stream: memory
-// storage (the reports are transient), at most a quarter of max_memory,
-// the oldest reports dropped first.
+// ensureTelemetryStream creates or updates the telemetry stream: file
+// storage, so that the reports survive a restart of every server until they
+// are read into the metrics stores, at most a sixteenth of max_storage, the
+// oldest reports dropped first.
 func (s *Server) ensureTelemetryStream(ctx context.Context, js jetstream.JetStream) error {
 	return bus.EnsureStream(ctx, js, bus.TelemetryStreamName(s.config.Region),
 		"Norca task group usage of region "+s.config.Region,
 		[]string{"norca.telemetry." + structs.BusSubjectToken(s.config.Region) + ".*"},
 		bus.StreamSettings{
-			Replicas:   s.busReplicas(),
-			MaxAge:     telemetryStreamMaxAge,
-			MaxBytes:   s.config.Bus.MaxMemory / 4,
-			MaxMsgSize: structs.BusTelemetryMaxMsgSize,
-			Storage:    jetstream.MemoryStorage,
+			Replicas:    s.busReplicas(),
+			MaxAge:      telemetryStreamMaxAge,
+			MaxBytes:    s.config.Bus.MaxStorage / 16,
+			MaxMsgSize:  structs.BusTelemetryMaxMsgSize,
+			Storage:     jetstream.FileStorage,
+			Compression: jetstream.S2Compression,
 		})
 }
 
 // consumeTelemetry reads the usage reports of the clients with the durable
 // consumer norca-usage-<server id> of this server: every server gets every
 // report, also those sent while it restarted (up to the age of the stream).
+// A report is acknowledged once it is handled; a report whose acknowledgement
+// was lost comes again, and the metrics store takes it once.
 func (s *Server) consumeTelemetry(ctx context.Context, js jetstream.JetStream) error {
 	name := bus.TelemetryStreamName(s.config.Region)
 	for {
@@ -92,10 +100,10 @@ func (s *Server) consumeTelemetry(ctx context.Context, js jetstream.JetStream) e
 
 	consumer, err := js.CreateOrUpdateConsumer(ctx, name, jetstream.ConsumerConfig{
 		Durable:           "norca-usage-" + structs.BusSubjectToken(s.config.NodeID),
-		AckPolicy:         jetstream.AckNonePolicy,
+		AckPolicy:         jetstream.AckExplicitPolicy,
+		AckWait:           telemetryAckWait,
 		DeliverPolicy:     jetstream.DeliverAllPolicy,
 		InactiveThreshold: telemetryConsumerInactive,
-		MemoryStorage:     true,
 	})
 	if err != nil {
 		return err
@@ -187,19 +195,26 @@ func (s *Server) handleTelemetry(m jetstream.Msg) {
 	var report structs.TaskGroupUsageReport
 	if err := json.Unmarshal(m.Data(), &report); err != nil {
 		s.logger.Debug("system bus: invalid task group usage report", "subject", m.Subject(), "error", err)
+		_ = m.Term() // it would not get better by being delivered again
 		return
 	}
 	nodeID := m.Subject()[strings.LastIndex(m.Subject(), ".")+1:]
 	if report.NodeID == "" || structs.BusSubjectToken(report.NodeID) != nodeID {
 		s.logger.Debug("system bus: ignoring a task group usage report of another node", "subject", m.Subject())
+		_ = m.Term()
 		return
 	}
+	// The report is handled by the time it is acknowledged.
+	defer func() { _ = m.Ack() }()
+
 	published := time.Now()
+	var sequence uint64
 	if meta, err := m.Metadata(); err == nil {
 		published = meta.Timestamp
+		sequence = meta.Sequence.Stream
 	}
-	if s.metricsStore != nil {
-		s.metricsStore.Ingest(&report, published)
+	if s.metricsStore != nil && !s.metricsStore.IngestStream(&report, published, sequence) {
+		return // delivered again: the autoscaler has it too
 	}
 	if s.autoscaler == nil || time.Since(published) > report.Window+telemetryFreshness {
 		return

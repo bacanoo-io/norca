@@ -74,11 +74,6 @@ type Secret struct {
 	// revoked when the task stops.
 	Lease *Lease
 
-	// DefaultFile and DefaultFileItem are the default delivery of a dynamic
-	// secret, for secret blocks without a file or env block: the file name
-	// below secrets/ and the item written to it (raw).
-	DefaultFile     string
-	DefaultFileItem string
 
 	// Metadata is the metadata of the secret, if the provider has it. It
 	// is not secret; responses in the shapes of other stores (the Vault KV
@@ -140,6 +135,10 @@ type Lease struct {
 	// new credential is needed then.
 	ExpireTime    time.Time
 	MaxExpireTime time.Time
+
+	// NewItems are the values of a credential that a renewal replaced,
+	// delivered like a new version. They are never persisted.
+	NewItems map[string]string
 }
 
 // Capabilities describe what a provider supports, so callers can use the

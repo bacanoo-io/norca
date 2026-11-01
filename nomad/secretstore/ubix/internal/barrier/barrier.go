@@ -27,7 +27,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/storage"
 )
 
 // KeySize is the required length in bytes of both the master key and the barrier

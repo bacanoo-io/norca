@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 )
 
 // PackConfig represents the common configuration required by all packs. Used primarily

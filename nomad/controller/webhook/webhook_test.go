@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/controller/webhook"
+	"github.com/bacanoo-io/norca/nomad/controller/webhook"
 	"github.com/shoenig/test/must"
 )
 

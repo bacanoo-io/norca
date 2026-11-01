@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package getter
@@ -15,10 +16,10 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/bacanoo-io/norca/nomad/client/interfaces"
+	"github.com/bacanoo-io/norca/nomad/helper/subproc"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-getter"
-	"github.com/hashicorp/nomad/client/interfaces"
-	"github.com/hashicorp/nomad/helper/subproc"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

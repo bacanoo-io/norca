@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	docker "github.com/fsouza/go-dockerclient"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 var (

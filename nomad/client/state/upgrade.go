@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package state
@@ -9,11 +10,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/bacanoo-io/norca/nomad/client/dynamicplugins"
+	"github.com/bacanoo-io/norca/nomad/helper/boltdd"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-msgpack/codec"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/helper/boltdd"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"go.etcd.io/bbolt"
 )
 

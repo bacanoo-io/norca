@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // ErrNoDownloadURL is returned for a pre-signed download URL of an object on

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Render returns the contents of a secret file in the file's format:

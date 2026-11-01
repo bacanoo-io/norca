@@ -1,9 +1,10 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package config
 
-import "github.com/hashicorp/nomad/helper/pointer"
+import "github.com/bacanoo-io/norca/nomad/helper/pointer"
 
 const (
 	// LimitsNonStreamingConnsPerClient is the number of connections per

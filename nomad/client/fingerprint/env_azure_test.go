@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 func TestAzureFingerprint_nonAzure(t *testing.T) {

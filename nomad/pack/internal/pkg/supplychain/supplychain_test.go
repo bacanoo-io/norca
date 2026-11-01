@@ -13,13 +13,13 @@ import (
 
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
-	"github.com/hashicorp/nomad/pack/internal/pkg/oci"
-	"github.com/hashicorp/nomad/pack/internal/pkg/oci/ocitest"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packlock"
-	"github.com/hashicorp/nomad/pack/internal/pkg/signing"
-	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/loader"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/oci"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/oci/ocitest"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packconfig"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packlock"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/signing"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/testfixture"
 )
 
 func TestNewestTag(t *testing.T) {

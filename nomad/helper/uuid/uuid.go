@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package uuid
@@ -6,7 +7,7 @@ package uuid
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/helper/crypto"
+	"github.com/bacanoo-io/norca/nomad/helper/crypto"
 )
 
 // Generate is used to generate a random UUID.

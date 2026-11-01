@@ -11,11 +11,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/storage"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/storage"
 )
 
 // DefaultMaxValueSize is the default limit of a single stored value. A

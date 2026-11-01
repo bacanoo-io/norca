@@ -132,10 +132,6 @@ export default class BackupsRestoreWizard extends Component {
     return previewCounts(this.preview);
   }
 
-  get previewObjects() {
-    return (this.preview?.Objects || []).slice(0, 100);
-  }
-
   get confirmMatches() {
     return this.typed.trim() === this.regionName;
   }

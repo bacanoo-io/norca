@@ -9,9 +9,9 @@ import (
 	"path"
 	"sync"
 
-	"github.com/hashicorp/nomad/client/pluginmanager"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/csi"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/csi"
 )
 
 // Test fakes of Manager and VolumeManager for packages that drive the CSI

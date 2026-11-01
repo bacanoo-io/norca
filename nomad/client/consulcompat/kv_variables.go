@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hashicorp/nomad/helper/consulkv"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/consulkv"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // maxVariablePath is the length of a Variables path.

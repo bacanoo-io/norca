@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/controller"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/controller"
 )
 
 // Provider implements load balancers of one class. Cloud providers (AWS

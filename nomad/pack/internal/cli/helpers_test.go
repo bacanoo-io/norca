@@ -13,10 +13,10 @@ import (
 	"github.com/posener/complete"
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/helper/filesystem"
-	"github.com/hashicorp/nomad/pack/internal/pkg/logging"
-	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/helper/filesystem"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/logging"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/testfixture"
 )
 
 func TestExtractFlagValue(t *testing.T) {

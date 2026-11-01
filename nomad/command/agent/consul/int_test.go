@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package consul_test
@@ -9,23 +10,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client/allocdir"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/taskrunner"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/devicemanager"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/drivermanager"
+	regMock "github.com/bacanoo-io/norca/nomad/client/serviceregistration/mock"
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/wrapper"
+	"github.com/bacanoo-io/norca/nomad/client/state"
+	"github.com/bacanoo-io/norca/nomad/client/vaultclient"
+	"github.com/bacanoo-io/norca/nomad/command/agent/consul"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner"
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/devicemanager"
-	"github.com/hashicorp/nomad/client/pluginmanager/drivermanager"
-	regMock "github.com/hashicorp/nomad/client/serviceregistration/mock"
-	"github.com/hashicorp/nomad/client/serviceregistration/wrapper"
-	"github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/client/vaultclient"
-	"github.com/hashicorp/nomad/command/agent/consul"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/stretchr/testify/require"
 )
 

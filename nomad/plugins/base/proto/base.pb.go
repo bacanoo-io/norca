@@ -6,8 +6,8 @@ package proto
 import (
 	context "context"
 	fmt "fmt"
+	hclspec "github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
 	proto "github.com/golang/protobuf/proto"
-	hclspec "github.com/hashicorp/nomad/plugins/shared/hclspec"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"

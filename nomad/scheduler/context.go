@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package scheduler
@@ -6,9 +7,9 @@ package scheduler
 import (
 	"regexp"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // Context is used to track contextual information used for placement

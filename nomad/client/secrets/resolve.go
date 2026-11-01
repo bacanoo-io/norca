@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Source is the resolution step that defined the provider of a lookup.

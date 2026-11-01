@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package base
@@ -8,9 +9,9 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/bacanoo-io/norca/nomad/plugins/base/proto"
 	"github.com/hashicorp/go-msgpack/codec"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/plugins/base/proto"
 	"google.golang.org/grpc"
 )
 

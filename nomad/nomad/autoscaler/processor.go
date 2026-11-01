@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/apm/nomadapm"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/apm/nomadapm"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
 )
 
 // DefaultQueryWindow is the value used if `query_window` is not specified in

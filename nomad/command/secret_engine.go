@@ -8,12 +8,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/hcl/v2/hclsimple"
-	"github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )
@@ -34,28 +33,23 @@ Usage: norca secret engine <subcommand> [options] [args]
   built-in secret store. An engine creates short-lived credentials for the
   tasks that ask for them with a secret block naming the engine and a role:
 
-      secret "nats" {
-        engine = "nats"
+      secret "db" {
+        engine = "postgres"
         role   = "worker"
       }
 
-  The credential is delivered to the task (secrets/nats.creds for the nats
-  engine), renewed while the task runs and revoked when it stops. The
-  engine's admin credential is a built-in secret the engine refers to by
-  path.
+  The credential is delivered to the task like any secret, with file and env
+  blocks. The engine names the service of an operator, which creates the
+  credentials of its target system.
 
   Create or update an engine from a specification:
 
-      $ norca secret engine apply nats-engine.hcl
+      $ norca secret engine apply postgres.hcl
 
   List the engines and show one:
 
       $ norca secret engine list
-      $ norca secret engine info nats
-
-  Rotate the engine's admin key:
-
-      $ norca secret engine rotate-root nats
+      $ norca secret engine info postgres
 
   Please see the individual subcommand help for detailed usage information.
 `
@@ -158,10 +152,10 @@ func (c *SecretEngineListCommand) Run(args []string) int {
 		c.Ui.Output("No secret engines found")
 		return 0
 	}
-	rows := []string{"Namespace|Name|Type|Roles|Credential Path|Modify Time"}
+	rows := []string{"Namespace|Name|Type|Roles|Modify Time"}
 	for _, e := range engines {
-		rows = append(rows, fmt.Sprintf("%s|%s|%s|%s|%s|%s", e.Namespace, e.Name, e.Type,
-			strings.Join(e.Roles, ","), e.CredentialPath, formatUnixNanoTime(e.ModifyTime)))
+		rows = append(rows, fmt.Sprintf("%s|%s|%s|%s|%s", e.Namespace, e.Name, e.Type,
+			strings.Join(e.Roles, ","), formatUnixNanoTime(e.ModifyTime)))
 	}
 	c.Ui.Output(formatList(rows))
 	return 0
@@ -256,62 +250,42 @@ func formatSecretEngine(e *api.SecretEngine) string {
 		fmt.Sprintf("Name|%s", e.Name),
 		fmt.Sprintf("Type|%s", e.Type),
 		fmt.Sprintf("Description|%s", e.Description),
-		fmt.Sprintf("Credential Path|%s", e.CredentialPath),
 	}
-	if e.NATS != nil {
-		kv = append(kv, fmt.Sprintf("Servers|%s", strings.Join(e.NATS.Servers, ",")))
-	}
-	if st := e.State; st != nil {
-		if st.RootRotateTime > 0 {
-			kv = append(kv, fmt.Sprintf("Root Rotated|%s", formatUnixNanoTime(st.RootRotateTime)))
-		}
-		if len(st.RetiredKeys) > 0 {
-			kv = append(kv, fmt.Sprintf("Retired Keys|%s", strings.Join(st.RetiredKeys, ",")))
-		}
+	if e.Operator != nil {
+		kv = append(kv, fmt.Sprintf("Service|%s", e.Operator.Service))
 	}
 	kv = append(kv,
 		fmt.Sprintf("Modify Time|%s", formatUnixNanoTime(e.ModifyTime)),
 		fmt.Sprintf("Modify Index|%d", e.ModifyIndex))
 	out := formatKV(kv)
 
-	rows := []string{"Role|TTL|Max TTL|Publish|Subscribe"}
+	rows := []string{"Role|TTL|Max TTL|Params"}
 	for _, r := range e.Roles {
-		var pub, sub string
-		if r.NATS != nil {
-			pub, sub = strings.Join(r.NATS.Publish, ","), strings.Join(r.NATS.Subscribe, ",")
-		}
-		rows = append(rows, fmt.Sprintf("%s|%s|%s|%s|%s", r.Name, r.TTL, r.MaxTTL, pub, sub))
+		rows = append(rows, fmt.Sprintf("%s|%s|%s|%s", r.Name, r.TTL, r.MaxTTL, strings.Join(r.Params, ",")))
 	}
 	return out + "\n\n" + formatList(rows)
 }
 
 // secretEngineFile is the HCL specification of an engine.
 type secretEngineFile struct {
-	Name           string                  `hcl:"name"`
-	Type           string                  `hcl:"type"`
-	Description    string                  `hcl:"description,optional"`
-	CredentialPath string                  `hcl:"credential_path"`
-	NATS           *secretEngineNATSFile   `hcl:"nats,block"`
-	Roles          []*secretEngineRoleFile `hcl:"role,block"`
+	Name        string                    `hcl:"name"`
+	Type        string                    `hcl:"type"`
+	Description string                    `hcl:"description,optional"`
+	Operator    *secretEngineOperatorFile `hcl:"operator,block"`
+	Roles       []*secretEngineRoleFile   `hcl:"role,block"`
 }
 
-type secretEngineNATSFile struct {
-	Servers        []string `hcl:"servers"`
-	AccountJWT     string   `hcl:"account_jwt,optional"`
-	AccountJWTFile string   `hcl:"account_jwt_file,optional"`
-	CACert         string   `hcl:"ca_cert,optional"`
-	CACertFile     string   `hcl:"ca_cert_file,optional"`
+type secretEngineOperatorFile struct {
+	Service   string `hcl:"service"`
+	Namespace string `hcl:"namespace,optional"`
 }
 
 type secretEngineRoleFile struct {
-	Name           string   `hcl:"name,label"`
-	TTL            string   `hcl:"ttl,optional"`
-	MaxTTL         string   `hcl:"max_ttl,optional"`
-	Publish        []string `hcl:"publish,optional"`
-	Subscribe      []string `hcl:"subscribe,optional"`
-	PublishDeny    []string `hcl:"publish_deny,optional"`
-	SubscribeDeny  []string `hcl:"subscribe_deny,optional"`
-	AllowResponses bool     `hcl:"allow_responses,optional"`
+	Name   string            `hcl:"name,label"`
+	TTL    string            `hcl:"ttl,optional"`
+	MaxTTL string            `hcl:"max_ttl,optional"`
+	Config map[string]string `hcl:"config,optional"`
+	Params []string          `hcl:"params,optional"`
 }
 
 // parseSecretEngine parses an engine specification in HCL or, if jsonInput
@@ -334,37 +308,15 @@ func parseSecretEngine(path string, content []byte, jsonInput bool) (*api.Secret
 		return nil, err
 	}
 	engine := &api.SecretEngine{
-		Name:           file.Name,
-		Type:           file.Type,
-		Description:    file.Description,
-		CredentialPath: file.CredentialPath,
+		Name:        file.Name,
+		Type:        file.Type,
+		Description: file.Description,
 	}
-	readFile := func(f string) (string, error) {
-		if !filepath.IsAbs(f) && path != "-" {
-			f = filepath.Join(filepath.Dir(path), f)
-		}
-		data, err := os.ReadFile(f)
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSpace(string(data)), nil
-	}
-	if n := file.NATS; n != nil {
-		engine.NATS = &api.SecretEngineNATS{Servers: n.Servers, AccountJWT: n.AccountJWT, CACert: n.CACert}
-		var err error
-		if n.AccountJWTFile != "" {
-			if engine.NATS.AccountJWT, err = readFile(n.AccountJWTFile); err != nil {
-				return nil, fmt.Errorf("account_jwt_file: %v", err)
-			}
-		}
-		if n.CACertFile != "" {
-			if engine.NATS.CACert, err = readFile(n.CACertFile); err != nil {
-				return nil, fmt.Errorf("ca_cert_file: %v", err)
-			}
-		}
+	if o := file.Operator; o != nil {
+		engine.Operator = &api.SecretEngineOperator{Service: o.Service, Namespace: o.Namespace}
 	}
 	for _, r := range file.Roles {
-		role := &api.SecretEngineRole{Name: r.Name}
+		role := &api.SecretEngineRole{Name: r.Name, Config: r.Config, Params: r.Params}
 		var err error
 		if r.TTL != "" {
 			if role.TTL, err = time.ParseDuration(r.TTL); err != nil {
@@ -374,15 +326,6 @@ func parseSecretEngine(path string, content []byte, jsonInput bool) (*api.Secret
 		if r.MaxTTL != "" {
 			if role.MaxTTL, err = time.ParseDuration(r.MaxTTL); err != nil {
 				return nil, fmt.Errorf("role %q: invalid max_ttl: %v", r.Name, err)
-			}
-		}
-		if engine.Type == api.SecretEngineTypeNATS {
-			role.NATS = &api.SecretRoleNATS{
-				Publish:        r.Publish,
-				Subscribe:      r.Subscribe,
-				PublishDeny:    r.PublishDeny,
-				SubscribeDeny:  r.SubscribeDeny,
-				AllowResponses: r.AllowResponses,
 			}
 		}
 		engine.Roles = append(engine.Roles, role)
@@ -406,34 +349,29 @@ func (c *SecretEngineApplyCommand) Help() string {
 Usage: norca secret engine apply [options] <input>
 
   Create or update a dynamic secrets engine from a specification file, or
-  from standard input with "-". The servers read the engine's admin
-  credential, check the configuration with it and configure the backend
-  (for nats: push the account JWT) before the engine is written.
+  from standard input with "-". The engine names the service of an operator,
+  which creates the credentials of its target system; the operator may start
+  after the engine.
 
-      name            = "nats"
-      type            = "nats"
-      credential_path = "nats/admin"
+      name = "postgres"
+      type = "operator"
 
-      nats {
-        servers          = ["nats://nats.service.consul:4222"]
-        account_jwt_file = "app-account.jwt"
+      operator {
+        service = "postgres-operator"
       }
 
-      role "worker" {
-        ttl       = "1h"
-        max_ttl   = "24h"
-        publish   = ["orders.>"]
-        subscribe = ["orders.>", "_INBOX.>"]
+      role "app" {
+        ttl     = "1h"
+        max_ttl = "24h"
+        config  = { database = "app" }
+        params  = ["schema"]
       }
 
-  The admin credential of a nats engine is the built-in secret at
-  credential_path with the items account_signing_seed (an account signing
-  key seed, SA...), operator_signing_seed (an operator signing key seed,
-  SO...) and system_creds (the credentials file of a system account user).
+  config is passed to the operator and must hold nothing secret; params lists
+  the keys of the params a job may send.
 
   If ACLs are enabled, this command requires the 'write-secret-engine'
-  capability, and 'read-secret' on the credential path when it is set or
-  changed.
+  capability.
 
 General Options:
 
@@ -570,74 +508,6 @@ func (c *SecretEngineDeleteCommand) Run(args []string) int {
 	return 0
 }
 
-// SecretEngineRotateRootCommand rotates the admin key of an engine.
-type SecretEngineRotateRootCommand struct {
-	Meta
-}
-
-func (c *SecretEngineRotateRootCommand) Name() string { return "secret engine rotate-root" }
-
-func (c *SecretEngineRotateRootCommand) Synopsis() string {
-	return "Rotate the admin key of a dynamic secrets engine"
-}
-
-func (c *SecretEngineRotateRootCommand) Help() string {
-	helpText := `
-Usage: norca secret engine rotate-root [options] <name>
-
-  Rotate the admin key of a dynamic secrets engine. For nats, the engine
-  creates a new account signing key, adds it to the account (pushing the
-  account JWT), and writes it as a new version of the engine's credential
-  secret. The old key stays in the account until the last lease it signed
-  has ended, and is then removed. The new key is never printed.
-
-  If ACLs are enabled, this command requires the 'write-secret-engine'
-  capability.
-
-General Options:
-
-  ` + generalOptionsUsage(usageOptsDefault)
-	return strings.TrimSpace(helpText)
-}
-
-func (c *SecretEngineRotateRootCommand) AutocompleteFlags() complete.Flags {
-	return c.Meta.AutocompleteFlags(FlagSetClient)
-}
-
-func (c *SecretEngineRotateRootCommand) AutocompleteArgs() complete.Predictor {
-	return complete.PredictAnything
-}
-
-func (c *SecretEngineRotateRootCommand) Run(args []string) int {
-	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
-	flags.Usage = func() { c.Ui.Output(c.Help()) }
-	if err := flags.Parse(args); err != nil {
-		return 1
-	}
-	args = flags.Args()
-	if len(args) != 1 {
-		c.Ui.Error("This command takes one argument: <name>")
-		c.Ui.Error(commandErrorText(c))
-		return 1
-	}
-	client, err := c.Meta.Client()
-	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
-		return 1
-	}
-	engine, key, _, err := client.SecretEngines().RotateRoot(args[0], nil)
-	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error rotating the admin key: %s", err))
-		return 1
-	}
-	c.Ui.Output(fmt.Sprintf("Rotated the admin key of secret engine %q; new key %s", engine.Name, key))
-	if engine.State != nil && len(engine.State.RetiredKeys) > 0 {
-		c.Ui.Output(fmt.Sprintf("Retired keys (removed once their leases end): %s",
-			strings.Join(engine.State.RetiredKeys, ", ")))
-	}
-	return 0
-}
-
 type SecretLeaseCommand struct {
 	Meta
 }
@@ -651,7 +521,7 @@ Usage: norca secret lease <subcommand> [options] [args]
   task's client and revoked when the task stops, when it is not renewed, or
   at its max_ttl. Leases never contain the credential.
 
-      $ norca secret lease list -engine nats
+      $ norca secret lease list -engine postgres
       $ norca secret lease revoke <lease-id>
 
   Please see the individual subcommand help for detailed usage information.
@@ -779,7 +649,7 @@ Usage: norca secret lease revoke [options] <lease-id>
        norca secret lease revoke [options] -engine <name>
 
   Revoke a lease, or every live lease of an engine. The credential stops
-  working (for nats: the user is added to the account's revocation list);
+  working;
   a task that still runs gets a new credential from its client, delivered
   with the change mode of its secret block.
 

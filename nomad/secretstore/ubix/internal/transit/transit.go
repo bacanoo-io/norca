@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/storage"
 )
 
 // keySize selects AES-256.

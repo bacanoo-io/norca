@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // norcaWatchQueryTime bounds a blocking query of the metadata watch, so that
@@ -132,8 +132,6 @@ func (p *NorcaProvider) createLease(req *Request) (*Secret, error) {
 		Items:           map[string]string(reply.Items.Copy()),
 		Version:         reply.Lease.ID,
 		Lease:           norcaLease(reply.Lease),
-		DefaultFile:     reply.File,
-		DefaultFileItem: reply.FileItem,
 	}, nil
 }
 
@@ -165,7 +163,9 @@ func (p *NorcaProvider) Renew(ctx context.Context, lease *Lease, id *Identity) (
 	if reply.Lease == nil {
 		return nil, NewError(p.Name(), KindNotFound, structs.ErrSecretLeaseNotFound)
 	}
-	return norcaLease(reply.Lease), nil
+	out := norcaLease(reply.Lease)
+	out.NewItems = map[string]string(reply.Items.Copy())
+	return out, nil
 }
 
 // Revoke ends a lease of the task.

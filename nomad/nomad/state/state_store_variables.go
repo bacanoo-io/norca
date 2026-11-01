@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // Variables queries all the variables and is used only for

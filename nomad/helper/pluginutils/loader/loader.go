@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package loader
@@ -8,15 +9,15 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/plugins"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
+	"github.com/bacanoo-io/norca/nomad/plugins/device"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
 	log "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
 	version "github.com/hashicorp/go-version"
-	"github.com/hashicorp/nomad/nomad/structs/config"
-	"github.com/hashicorp/nomad/plugins"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/device"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
 )
 
 // PluginCatalog is used to retrieve plugins, either external or internal

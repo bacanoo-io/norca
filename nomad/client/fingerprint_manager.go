@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package client
@@ -7,11 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/client/fingerprint"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/loader"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/fingerprint"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // FingerprintManager runs a client fingerprinters on a continuous basis, and

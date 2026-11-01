@@ -6,9 +6,9 @@ package state
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // EvictAlloc marks an allocation for migration and creates the eviction's

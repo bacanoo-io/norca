@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/helper/pointer"
 )
 
 // Defaults of the dns block of the client configuration.

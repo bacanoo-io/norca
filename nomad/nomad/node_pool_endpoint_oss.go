@@ -10,7 +10,7 @@ package nomad
 import (
 	"errors"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 func (n *NodePool) validateLicense(pool *structs.NodePool) error {

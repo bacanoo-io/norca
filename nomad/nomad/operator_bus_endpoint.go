@@ -6,7 +6,8 @@ package nomad
 import (
 	"context"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/consulkv"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // BusStatus returns the status of the system bus of the server that
@@ -45,6 +46,45 @@ func (op *Operator) BusStatus(args *structs.BusStatusRequest, reply *structs.Bus
 		return err
 	}
 	reply.Status = status
+	return nil
+}
+
+// ConsulKVRestore replaces the Consul KV bucket of the system bus with the
+// keys of a backup. Like the restore of the keyring it needs a management
+// token: it overwrites keys of every namespace.
+func (op *Operator) ConsulKVRestore(args *structs.ConsulKVRestoreRequest, reply *structs.ConsulKVRestoreResponse) error {
+	authErr := op.srv.Authenticate(op.ctx, args)
+	if done, err := op.srv.forward("Operator.ConsulKVRestore", args, args, reply); done {
+		return err
+	}
+	op.srv.MeasureRPCRate("operator", structs.RateMetricWrite, args)
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+
+	aclObj, err := op.srv.ResolveACL(args)
+	if err != nil {
+		return err
+	}
+	if aclObj != nil && !aclObj.IsManagement() {
+		return structs.ErrPermissionDenied
+	}
+
+	entries := make([]*consulkv.Entry, 0, len(args.Entries))
+	for _, e := range args.Entries {
+		if e == nil || e.Key == "" {
+			return structs.NewErrRPCCodedf(400, "every entry of the Consul KV needs a key")
+		}
+		entries = append(entries, &consulkv.Entry{Namespace: e.Namespace, Path: e.Path, Key: e.Key, Value: e.Value})
+	}
+
+	ctx, cancel := context.WithTimeout(op.srv.shutdownCtx, consulKVMigrateTimeout)
+	defer cancel()
+	if err := op.srv.importConsulKV(ctx, entries, true); err != nil {
+		return err
+	}
+	reply.Restored = len(entries)
+	reply.Index = op.srv.raft.AppliedIndex()
 	return nil
 }
 

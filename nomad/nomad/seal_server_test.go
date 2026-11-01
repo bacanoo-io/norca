@@ -16,13 +16,13 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/seal"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/storage"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/nomad/seal"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/storage"
+	"github.com/bacanoo-io/norca/nomad/testutil"
 	"github.com/shoenig/test/must"
 )
 

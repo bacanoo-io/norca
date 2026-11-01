@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/barrier"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/storage"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/barrier"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/storage"
 )
 
 // Selective restore of a secret. A backup holds a secret as its metadata

@@ -12,11 +12,11 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
+	"github.com/bacanoo-io/norca/nomad/nomad/backup"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/backup"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // backupDownloadURLExpiry is the validity of a pre-signed download URL.

@@ -10,7 +10,7 @@
 // the two. The documentation is in the original package.
 package audit
 
-import ubix "github.com/hashicorp/nomad/secretstore/ubix/internal/audit"
+import ubix "github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/audit"
 
 // Types.
 type (

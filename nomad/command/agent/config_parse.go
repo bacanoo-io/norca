@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"time"
 
+	client "github.com/bacanoo-io/norca/nomad/client/config"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	"github.com/hashicorp/hcl"
-	client "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs/config"
 )
 
 // ParseConfigFile returns an agent.Config from parsed from a file.

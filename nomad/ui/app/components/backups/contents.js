@@ -126,6 +126,35 @@ const VIEWS = {
     ],
     item: (r) => ({ Type: 'acl-role', ID: r.Name }),
   },
+  secrets: {
+    columns: ['Path', 'Namespace', 'Version', 'Value hash'],
+    cells: (s) => [
+      { value: s.Path, mono: true },
+      { value: s.Namespace },
+      { value: String(s.CurrentVersion) },
+      { value: s.ValueHash || '–', mono: true },
+    ],
+  },
+  'consul-kv': {
+    columns: ['Key', 'Namespace', 'Path', 'Size', 'Value hash'],
+    cells: (e) => [
+      { value: e.Key, mono: true },
+      { value: e.Namespace },
+      { value: e.Path },
+      { value: String(e.Size) },
+      { value: String(e.SHA256 || '').slice(0, 12) || '–', mono: true },
+    ],
+  },
+};
+
+// The types the API returns in the common object form.
+const OBJECT_VIEW = {
+  columns: ['Object', 'Namespace', 'Detail'],
+  cells: (o) => [
+    { value: o.ID, mono: true },
+    { value: o.Namespace || '–' },
+    { value: o.Detail || '–' },
+  ],
 };
 
 /**
@@ -161,7 +190,17 @@ export default class BackupsContents extends Component {
   }
 
   get view() {
-    return VIEWS[this.type];
+    if (VIEWS[this.type]) return VIEWS[this.type];
+    const type = CONTENT_TYPES.find((t) => t.id === this.type)?.restoreType;
+    if (!type) return OBJECT_VIEW;
+    return {
+      ...OBJECT_VIEW,
+      // The objects of the package manager own other resources.
+      item: (o) =>
+        o.ID.startsWith('packs.norca.io/')
+          ? undefined
+          : { Type: type, Namespace: o.Namespace || undefined, ID: o.ID },
+    };
   }
 
   get columns() {

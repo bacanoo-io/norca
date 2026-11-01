@@ -12,13 +12,13 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/bundle"
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/oci"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
-	"github.com/hashicorp/nomad/pack/internal/pkg/supplychain"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/bundle"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/oci"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packconfig"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/supplychain"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 // BundleCreateCommand creates an offline bundle of packs.

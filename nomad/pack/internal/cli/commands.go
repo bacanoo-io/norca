@@ -12,15 +12,15 @@ import (
 	"runtime"
 	"strconv"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/clienv"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/clienv"
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	flag "github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/envloader"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	flag "github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/envloader"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 const (

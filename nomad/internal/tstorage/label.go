@@ -3,7 +3,7 @@ package tstorage
 import (
 	"sort"
 
-	"github.com/hashicorp/nomad/internal/tstorage/internal/encoding"
+	"github.com/bacanoo-io/norca/nomad/internal/tstorage/internal/encoding"
 )
 
 const (

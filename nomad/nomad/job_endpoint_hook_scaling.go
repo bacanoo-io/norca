@@ -6,9 +6,9 @@ package nomad
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/nomad/autoscaler"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // jobScalingHook handles the typed scaling policies of the built-in

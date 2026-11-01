@@ -6,7 +6,7 @@ package metricsstore
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // liveMergeWindow is how close in time the parts of a split usage report

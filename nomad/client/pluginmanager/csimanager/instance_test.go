@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package csimanager
@@ -9,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/csi"
-	"github.com/hashicorp/nomad/plugins/csi/fake"
+	"github.com/bacanoo-io/norca/nomad/client/dynamicplugins"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/csi"
+	"github.com/bacanoo-io/norca/nomad/plugins/csi/fake"
 	"github.com/stretchr/testify/require"
 )
 

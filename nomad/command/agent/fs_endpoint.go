@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -13,10 +14,10 @@ import (
 	"strconv"
 	"strings"
 
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/hashicorp/go-msgpack/codec"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 var (

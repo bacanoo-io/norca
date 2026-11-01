@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/client/testutil"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/lib/cpuset"
-	"github.com/hashicorp/nomad/nomad/mock"
+	"github.com/bacanoo-io/norca/nomad/client/testutil"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/lib/cpuset"
+	"github.com/bacanoo-io/norca/nomad/nomad/mock"
 	"github.com/opencontainers/cgroups"
 	"github.com/stretchr/testify/require"
 )

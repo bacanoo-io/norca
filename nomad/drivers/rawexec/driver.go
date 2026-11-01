@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package rawexec
@@ -13,15 +14,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/drivers/shared/eventer"
+	"github.com/bacanoo-io/norca/nomad/drivers/shared/executor"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/loader"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
+	pstructs "github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 	"github.com/hashicorp/consul-template/signals"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/drivers/shared/eventer"
-	"github.com/hashicorp/nomad/drivers/shared/executor"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
 )
 
 const (

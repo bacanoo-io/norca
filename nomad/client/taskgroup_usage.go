@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/client/allocrunner"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // taskGroupUsageReporter aggregates the resource usage of the client's task

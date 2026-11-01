@@ -3,7 +3,7 @@ PROJECT_ROOT := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 THIS_OS := $(shell uname | cut -d- -f1)
 THIS_ARCH := $(shell uname -m)
 
-GO_MODULE = github.com/hashicorp/nomad
+GO_MODULE = github.com/bacanoo-io/norca/nomad
 
 # BINARY_NAME is the name of the built binary. A copy or symlink named nomad
 # works as a compatibility alias, but it is not built or installed by default.
@@ -177,10 +177,10 @@ check: ## Lint the source code
 	@if (git status -s | grep -q -e '\.hcl$$' -e '\.nomad$$' -e '\.tf$$'); then echo the following HCL files are out of sync; git status -s | grep -e '\.hcl$$' -e '\.nomad$$' -e '\.tf$$'; exit 1; fi
 
 	@echo "==> Check API package is isolated from rest"
-	@cd ./api && if go list --test -f '{{ join .Deps "\n" }}' . | grep github.com/hashicorp/nomad/ | grep -v -e /nomad/api/ -e nomad/api.test; then echo "  /api package depends the ^^ above internal nomad packages.  Remove such dependency"; exit 1; fi
+	@cd ./api && if go list --test -f '{{ join .Deps "\n" }}' . | grep github.com/bacanoo-io/norca/nomad/ | grep -v -e /nomad/api/ -e nomad/api.test; then echo "  /api package depends the ^^ above internal nomad packages.  Remove such dependency"; exit 1; fi
 
 	@echo "==> Check command package does not import structs"
-	@cd ./command && if go list -f '{{ join .Imports "\n" }}' . | grep github.com/hashicorp/nomad/nomad/structs; then echo "  /command package imports the structs pkg. Remove such import"; exit 1; fi
+	@cd ./command && if go list -f '{{ join .Imports "\n" }}' . | grep github.com/bacanoo-io/norca/nomad/nomad/structs; then echo "  /command package imports the structs pkg. Remove such import"; exit 1; fi
 
 	@echo "==> Checking Go mod.."
 	@GO111MODULE=on $(MAKE) tidy
@@ -333,7 +333,7 @@ e2e-test: dev ## Run the Nomad e2e test suite
 		$(if $(ENABLE_RACE),-race) $(if $(VERBOSE),-v) \
 		-timeout=900s \
 		-tags "$(GO_TAGS)" \
-		github.com/hashicorp/nomad/e2e
+		github.com/bacanoo-io/norca/nomad/e2e
 
 .PHONY: integration-test
 integration-test: dev ## Run Nomad integration tests
@@ -344,7 +344,7 @@ integration-test: dev ## Run Nomad integration tests
 		-timeout=900s \
 		-count=1 \
 		-tags "$(GO_TAGS)" \
-		github.com/hashicorp/nomad/e2e/vaultcompat
+		github.com/bacanoo-io/norca/nomad/e2e/vaultcompat
 
 .PHONY: clean
 clean: GOPATH=$(shell go env GOPATH)

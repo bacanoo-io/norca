@@ -26,9 +26,9 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/helper/discover"
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/discover"
 	testing "github.com/mitchellh/go-testing-interface"
 )
 

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 )
 
 // PackTemplateContext v2

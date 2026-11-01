@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/shoenig/test/must"
 )
 
@@ -38,6 +38,29 @@ func usage(job string, samples int, cpuAvg, cpuMax float64) *structs.TaskGroupUs
 }
 
 var web = GroupKey{Namespace: "default", Job: "api", Group: "web"}
+
+// A redelivered report counts once, also after a restart of the store; a
+// stream created again starts its sequences over and is not a redelivery.
+func TestStore_IngestStreamDuplicates(t *testing.T) {
+	ci.Parallel(t)
+	cfg := testConfig(t.TempDir())
+	s := openTest(t, cfg)
+
+	base := time.Now().Add(-time.Hour).Truncate(30 * time.Second)
+	first, second := base.Add(time.Second), base.Add(2*time.Second)
+	must.True(t, s.IngestStream(usage("api", 1, 10, 20), first, 7))
+	must.False(t, s.IngestStream(usage("api", 1, 10, 20), first, 7))
+	must.True(t, s.IngestStream(usage("api", 1, 30, 40), second, 8))
+	must.False(t, s.IngestStream(usage("api", 1, 10, 20), first, 7))
+	must.Eq(t, 2, s.Status().DuplicateReports)
+	must.NoError(t, s.Close())
+
+	s = openTest(t, cfg)
+	defer func() { must.NoError(t, s.Close()) }()
+	must.False(t, s.IngestStream(usage("api", 1, 30, 40), second, 8))
+	must.True(t, s.IngestStream(usage("api", 1, 50, 60), base.Add(3*time.Second), 1))
+	must.False(t, s.IngestStream(nil, base.Add(4*time.Second), 2))
+}
 
 // TestStore_Coalesce checks the weighted averages and the maxima of the
 // reports of one window, and that a late report of a written window is

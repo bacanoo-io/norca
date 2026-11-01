@@ -18,13 +18,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/audit"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/barrier"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/core"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/kv"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/storage"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/audit"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/barrier"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/core"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/kv"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/storage"
 )
 
 // The secrets of the built-in store are kept by uBixVault's KV v2 engine,
@@ -83,6 +83,11 @@ type serverSecrets struct {
 	// public keys of the other regions by region.
 	replicaKeysLock sync.Mutex
 	replicaKeys     map[string]*secretReplicaPublicKey
+
+	// operators bounds the calls to the operators of the engines,
+	// operatorCert is the client certificate of the leader in those calls.
+	operators    operatorSlots
+	operatorCert operatorClientCert
 
 	// engineLocks serialize the operations of each dynamic secrets engine
 	// on the leader (see engineLock).

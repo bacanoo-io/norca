@@ -10,12 +10,12 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/hashicorp/nomad/api"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 )
 
 type PackTemplateContext = parser.PackTemplateContext

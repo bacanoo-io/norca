@@ -33,9 +33,8 @@ job "mtls-gateway" {
     # "mtls-gateway" is the name upstreams with a region look for by
     # default. The servers inject the Envoy task mtls-gateway-mtls-gateway.
     service {
-      name     = "mtls-gateway"
-      port     = "mtls"
-      provider = "nomad"
+      name = "mtls-gateway"
+      port = "mtls"
 
       mtls {
         mode = "gateway"

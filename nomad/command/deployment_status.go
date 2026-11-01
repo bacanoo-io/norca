@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api/contexts"
 	"github.com/gosuri/uilive"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/api/contexts"
 	"github.com/mitchellh/go-glint"
 	"github.com/mitchellh/go-glint/components"
 	"github.com/moby/term"

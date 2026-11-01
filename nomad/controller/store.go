@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 )
 
 // objectStore is the storage of the objects of one kind: Variables or

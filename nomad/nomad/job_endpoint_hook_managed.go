@@ -6,8 +6,8 @@ package nomad
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/acl"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // checkManagedJob protects jobs managed by a controller (operator

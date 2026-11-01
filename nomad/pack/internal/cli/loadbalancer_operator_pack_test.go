@@ -13,11 +13,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/command/agent"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/command/agent"
 	"github.com/shoenig/test/must"
 
-	ct "github.com/hashicorp/nomad/pack/internal/cli/testhelper"
+	ct "github.com/bacanoo-io/norca/nomad/pack/internal/cli/testhelper"
 )
 
 // The tests in this file install the LoadBalancer operator pack of the Norca

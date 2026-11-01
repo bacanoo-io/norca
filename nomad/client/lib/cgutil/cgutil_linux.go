@@ -12,9 +12,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/opencontainers/cgroups"
 	lcc "github.com/opencontainers/runc/libcontainer/configs"
 )

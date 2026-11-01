@@ -5,7 +5,7 @@
 package command
 
 import (
-	"github.com/hashicorp/nomad/version"
+	"github.com/bacanoo-io/norca/nomad/version"
 	"github.com/mitchellh/cli"
 )
 

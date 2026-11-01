@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/posener/complete"
 	"golang.org/x/crypto/ssh/terminal"
 )

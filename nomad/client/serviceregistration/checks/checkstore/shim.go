@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/serviceregistration/checks"
+	"github.com/bacanoo-io/norca/nomad/client/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/serviceregistration/checks"
-	"github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )

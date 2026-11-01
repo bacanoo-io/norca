@@ -16,10 +16,10 @@ import (
 
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
-	"github.com/hashicorp/nomad/pack/internal/pkg/oci"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
-	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/loader"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/oci"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packconfig"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/testfixture"
 )
 
 // craftedTags are tags a bundle author could use to reach a path outside of

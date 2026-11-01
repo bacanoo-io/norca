@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 // FailHook is designed to fail for testing purposes,
@@ -15,7 +16,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
+	"github.com/bacanoo-io/norca/nomad/client/allocrunner/interfaces"
 )
 
 var ErrFailHookError = errors.New("failed successfully")

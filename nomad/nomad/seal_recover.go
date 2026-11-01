@@ -13,12 +13,12 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
-	"github.com/hashicorp/nomad/nomad/seal"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/barrier"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/shamir"
+	"github.com/bacanoo-io/norca/nomad/nomad/seal"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/barrier"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/shamir"
 )
 
 // Recovery of a restored secret store (norca-doc content/docs/design/secrets-plan.md, "Backup

@@ -144,7 +144,7 @@ access key and the secret key are the values of
 ```shell
 norca secret put rustfs/root access_key=norca-backup secret_key=-   # type the secret key, then Ctrl-D
 
-norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
+norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.3.0
 norca pack run rustfs --registry=norca --name=rustfs -f rustfs.hcl
 norca service info -verbose rustfs
 norca alloc logs -task create-buckets <alloc ID>     # "bucket norca-backup created"
@@ -247,10 +247,9 @@ administrator with another management token (`norca operator backup approve`);
 OpenObserve (single mode: SQLite and the data on the host volume
 `openobserve` of `norca.hcl`) and an OpenTelemetry Collector on the node,
 both from the registry ([openobserve](https://github.com/bacanoo-io/norca-registry/blob/main/packs/openobserve/README.md),
-[otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md),
-both in the registry tag `v0.1.0`). The
+[otel-collector](https://github.com/bacanoo-io/norca-registry/blob/main/packs/otel-collector/README.md)). The
 agent serves its Prometheus metrics already (`telemetry` in `norca.hcl`).
-Native mTLS is not enabled here, so both run without TLS:
+To keep this scenario short both run without TLS (03 uses workload certificates):
 
 ```shell
 sudo install -d -m 700 /srv/openobserve
@@ -294,12 +293,12 @@ token, or the `dev` token for the developer's view).
   scaling page of the typed policy, versions.
 - **Services**: `test-app` and `rustfs` with the health of every instance.
 - **Quotas**: usage of `apps` against its limits.
-- **Admission**: the `apps-baseline` policy and its rules.
-- **Scaling**: the policy, its checks and the scaling events.
+- **Admission policies**: the `apps-baseline` policy and its rules.
+- **Scaling**: the policy, its checks, the scaling events and the usage
+  history of the task groups.
 - **Backups**: the list, contents (with the age identity), comparison and
   restore.
 - **Packages**: the `test-app` and `rustfs` releases with their revisions.
-
 - **Configuration → Secrets**: the secrets of the built-in secret store
   (`test-app/db`, `rustfs/root`) with their versions and metadata
   (`norca secret ...` on the command line).

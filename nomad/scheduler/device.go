@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package scheduler
@@ -8,8 +9,8 @@ import (
 
 	"math"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	psstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	psstructs "github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 )
 
 // deviceAllocator is used to allocate devices to allocations. The allocator

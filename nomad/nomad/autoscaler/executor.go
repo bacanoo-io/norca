@@ -11,9 +11,9 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
-	"github.com/hashicorp/nomad/nomad/structs"
 	"golang.org/x/time/rate"
 )
 

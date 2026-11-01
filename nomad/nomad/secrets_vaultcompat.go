@@ -6,7 +6,7 @@ package nomad
 import (
 	"errors"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Vault compatibility on the servers (norca-doc content/docs/design/secrets-plan.md, "Vault

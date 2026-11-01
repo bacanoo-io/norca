@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package config
@@ -7,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 )
 
 // DrainConfig describes a Node's drain behavior on graceful shutdown.

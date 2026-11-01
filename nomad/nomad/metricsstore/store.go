@@ -16,9 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/internal/tstorage"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/internal/tstorage"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (
@@ -60,6 +60,11 @@ type Store struct {
 	written int64
 	// newest is the time of the newest report.
 	newest int64
+	// streamAt and streamSeq are the publish time and the stream sequence
+	// of the newest report taken from a stream, saved with the series: a
+	// report at or before them is a redelivery.
+	streamAt  int64
+	streamSeq uint64
 
 	// gauges are the gauge series by gaugeKey, gaugePending their values
 	// not written yet by window start.
@@ -69,8 +74,9 @@ type Store struct {
 	// live is the latest usage report of each node.
 	live map[string]*nodeLive
 
-	droppedReports atomic.Uint64
-	droppedGroups  atomic.Uint64
+	droppedReports   atomic.Uint64
+	droppedGroups    atomic.Uint64
+	duplicateReports atomic.Uint64
 
 	stopCh   chan struct{}
 	doneCh   chan struct{}
@@ -99,16 +105,16 @@ func Open(cfg *Config, logger hclog.Logger) (*Store, error) {
 		return nil, fmt.Errorf("opening the metrics store: %w", err)
 	}
 	s := &Store{
-		logger:  logger.Named("metrics_store"),
-		cfg:     cfg.Copy(),
-		db:      db,
+		logger:       logger.Named("metrics_store"),
+		cfg:          cfg.Copy(),
+		db:           db,
 		pending:      map[int64]map[GroupKey]*window{},
 		series:       map[GroupKey]struct{}{},
 		gauges:       map[string]GaugeSeries{},
 		gaugePending: map[int64]map[string]float64{},
 		live:         map[string]*nodeLive{},
-		stopCh:  make(chan struct{}),
-		doneCh:  make(chan struct{}),
+		stopCh:       make(chan struct{}),
+		doneCh:       make(chan struct{}),
 	}
 	if err := s.loadSeries(); err != nil {
 		s.logger.Warn("the list of the task groups with series is lost; they appear again with their next report", "error", err)
@@ -125,12 +131,40 @@ func (s *Store) Ingest(report *structs.TaskGroupUsageReport, at time.Time) {
 	if report == nil {
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ingestLocked(report, at)
+}
+
+// IngestStream is Ingest for a report read from a stream in order, with its
+// stream sequence, and tells whether the report was new. The stream delivers
+// a report again when its acknowledgement was lost, also after a restart, and
+// a report must count once: the windows average the reports and the live
+// usage adds them up. The publish time orders the reports across a stream
+// that was created again, which starts its sequences over.
+func (s *Store) IngestStream(report *structs.TaskGroupUsageReport, at time.Time, seq uint64) bool {
+	if report == nil {
+		return false
+	}
+	nanos := at.UnixNano()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if nanos < s.streamAt || (nanos == s.streamAt && seq == s.streamSeq) {
+		s.duplicateReports.Add(1)
+		return false
+	}
+	s.streamAt, s.streamSeq = nanos, seq
+	s.seriesDirty = true
+	s.ingestLocked(report, at)
+	return true
+}
+
+// ingestLocked adds a report to its window; s.mu is held.
+func (s *Store) ingestLocked(report *structs.TaskGroupUsageReport, at time.Time) {
 	interval := int64(s.cfg.SampleInterval / time.Second)
 	ts := at.Unix()
 	start := ts - ts%interval
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.recordLiveLocked(report, at)
 	if start+interval <= s.written || ts < s.newest-int64(s.cfg.PartitionDuration/time.Second) {
 		s.droppedReports.Add(1)
@@ -429,6 +463,7 @@ func (s *Store) loadSeries() error {
 	if err := json.Unmarshal(b, &saved); err != nil {
 		return err
 	}
+	s.streamAt, s.streamSeq, s.written = saved.StreamAt, saved.StreamSeq, saved.Written
 	for _, k := range saved.Groups {
 		s.series[k] = struct{}{}
 	}
@@ -444,6 +479,13 @@ func (s *Store) loadSeries() error {
 type savedSeries struct {
 	Groups []GroupKey
 	Gauges []GaugeSeries
+
+	// StreamAt and StreamSeq are the position in the stream of the reports,
+	// Written the end of the windows written: a window is written once, also
+	// across a restart.
+	StreamAt  int64
+	StreamSeq uint64
+	Written   int64
 }
 
 // seriesCountLocked is the number of series; s.mu is held.
@@ -462,9 +504,15 @@ func (s *Store) saveSeries() error {
 		return nil
 	}
 	s.seriesDirty = false
+	streamAt, streamSeq := s.streamAt, s.streamSeq
+	// Close flushes with a limit in the far future: what is written ends
+	// with the window of the newest report.
+	interval := int64(s.cfg.SampleInterval / time.Second)
+	written := min(s.written, s.newest-s.newest%interval+interval)
 	s.mu.Unlock()
 
-	b, err := json.Marshal(savedSeries{Groups: s.Groups(), Gauges: s.Gauges()})
+	b, err := json.Marshal(savedSeries{Groups: s.Groups(), Gauges: s.Gauges(),
+		StreamAt: streamAt, StreamSeq: streamSeq, Written: written})
 	if err != nil {
 		return err
 	}
@@ -497,8 +545,10 @@ type Status struct {
 	// task groups left out at max_series.
 	DroppedReports uint64
 	DroppedGroups  uint64
-	Retention      time.Duration
-	SampleInterval time.Duration
+	// DuplicateReports counts the reports a stream delivered again.
+	DuplicateReports uint64
+	Retention        time.Duration
+	SampleInterval   time.Duration
 }
 
 // Status returns the state of the store.
@@ -508,16 +558,17 @@ func (s *Store) Status() *Status {
 	series := s.seriesCountLocked()
 	s.mu.Unlock()
 	out := &Status{
-		Partitions:     st.Partitions,
-		DiskPartitions: st.DiskPartitions,
-		DiskBytes:      st.DiskBytes,
-		MaxDiskSize:    s.cfg.MaxDiskSize,
-		Series:         series,
-		MaxSeries:      s.cfg.MaxSeries,
-		DroppedReports: s.droppedReports.Load(),
-		DroppedGroups:  s.droppedGroups.Load(),
-		Retention:      s.cfg.Retention,
-		SampleInterval: s.cfg.SampleInterval,
+		Partitions:       st.Partitions,
+		DiskPartitions:   st.DiskPartitions,
+		DiskBytes:        st.DiskBytes,
+		MaxDiskSize:      s.cfg.MaxDiskSize,
+		Series:           series,
+		MaxSeries:        s.cfg.MaxSeries,
+		DroppedReports:   s.droppedReports.Load(),
+		DroppedGroups:    s.droppedGroups.Load(),
+		DuplicateReports: s.duplicateReports.Load(),
+		Retention:        s.cfg.Retention,
+		SampleInterval:   s.cfg.SampleInterval,
 	}
 	if st.MinTimestamp > 0 {
 		out.Oldest = time.Unix(st.MinTimestamp, 0).UTC()

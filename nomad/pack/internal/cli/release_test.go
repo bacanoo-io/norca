@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/command/agent"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/command/agent"
 	"github.com/shoenig/test/must"
 
-	ct "github.com/hashicorp/nomad/pack/internal/cli/testhelper"
-	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
-	"github.com/hashicorp/nomad/pack/internal/runner/job"
+	ct "github.com/bacanoo-io/norca/nomad/pack/internal/cli/testhelper"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/testfixture"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/runner/job"
 )
 
 // TestCLI_ReleaseCommunityRedis installs the unmodified community redis pack

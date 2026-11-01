@@ -21,9 +21,9 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/hashicorp/nomad/drivers/docker/docklog"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/bacanoo-io/norca/nomad/drivers/docker/docklog"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	pstructs "github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 )
 
 type taskHandle struct {

@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Task tokens of the endpoint.

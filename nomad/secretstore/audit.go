@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/secretstore/ubix/export/audit"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/export/audit"
 )
 
 // The audit trail of the secret store uses uBixVault's audit broker: every

@@ -6,11 +6,11 @@ package proto
 import (
 	context "context"
 	fmt "fmt"
+	hclspec "github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
+	proto1 "github.com/bacanoo-io/norca/nomad/plugins/shared/structs/proto"
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
-	hclspec "github.com/hashicorp/nomad/plugins/shared/hclspec"
-	proto1 "github.com/hashicorp/nomad/plugins/shared/structs/proto"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"

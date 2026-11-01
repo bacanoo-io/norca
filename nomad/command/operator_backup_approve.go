@@ -8,17 +8,17 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/posener/complete"
 )
 
-// maxPreviewObjects is the number of changed objects of a full restore
-// preview shown in the human readable output.
-const maxPreviewObjects = 50
+// defaultPreviewPerPage is the number of changed objects of a full restore
+// preview on a page of the human readable output.
+const defaultPreviewPerPage = 50
 
 // runFull requests (or with dryRun, previews) a full restore of the region.
 func (c *OperatorBackupRestoreCommand) runFull(client *api.Client, id, identity, destination, confirm string,
-	dryRun, json bool) int {
+	dryRun, json bool, page, perPage int) int {
 
 	resp, _, err := client.Backups().Restore(id, &api.BackupRestoreRequest{
 		Mode:        api.BackupRestoreModeFull,
@@ -42,7 +42,7 @@ func (c *OperatorBackupRestoreCommand) runFull(client *api.Client, id, identity,
 		return 0
 	}
 
-	c.Ui.Output(c.Colorize().Color(formatBackupRestorePreview(resp.Preview)))
+	c.Ui.Output(c.Colorize().Color(formatBackupRestorePreview(resp.Preview, page, perPage)))
 	if resp.Restore == nil {
 		c.Ui.Output("\nDry run: nothing was requested.")
 		return 0
@@ -54,8 +54,29 @@ func (c *OperatorBackupRestoreCommand) runFull(client *api.Client, id, identity,
 	return 0
 }
 
+// previewPage returns the range of a page (from 1) of total objects; a page
+// past the end is the last one.
+func previewPage(total, page, perPage int) (first, last int) {
+	if perPage < 1 {
+		perPage = defaultPreviewPerPage
+	}
+	pages := max(1, (total+perPage-1)/perPage)
+	page = min(max(1, page), pages)
+	first = (page - 1) * perPage
+	return first, min(first+perPage, total)
+}
+
+// previewPageNote describes a page of the changed objects.
+func previewPageNote(total, first, last, page int) string {
+	note := fmt.Sprintf("Objects %d-%d of %d", first+1, last, total)
+	if last < total {
+		note += fmt.Sprintf("; next page: -page=%d", max(1, page)+1)
+	}
+	return note
+}
+
 // formatBackupRestorePreview formats the preview of a full restore.
-func formatBackupRestorePreview(p *api.BackupRestorePreview) string {
+func formatBackupRestorePreview(p *api.BackupRestorePreview, page, perPage int) string {
 	if p == nil {
 		return ""
 	}
@@ -64,6 +85,7 @@ func formatBackupRestorePreview(p *api.BackupRestorePreview) string {
 		fmt.Sprintf("Region|%s (current Raft index %d)", p.Region, p.CurrentIndex),
 		fmt.Sprintf("Allocations Stopped|%d", p.AllocationsStopped),
 		fmt.Sprintf("ACL Tokens Removed|%d", p.ACLTokensRemoved),
+		fmt.Sprintf("Secret Leases Lost|%d", p.SecretLeasesLost),
 		fmt.Sprintf("Keys Added|%s", strings.Join(p.KeysAdded, ",")),
 	}
 	out := "[bold]Full Restore Preview[reset]\n" + formatKV(basic)
@@ -86,10 +108,8 @@ func formatBackupRestorePreview(p *api.BackupRestorePreview) string {
 
 	if len(p.Objects) > 0 {
 		objects := []string{"Type|Change|Namespace|ID|Backup|Current"}
-		for i, o := range p.Objects {
-			if i == maxPreviewObjects {
-				break
-			}
+		first, last := previewPage(len(p.Objects), page, perPage)
+		for _, o := range p.Objects[first:last] {
 			change := "reverted"
 			switch o.Change {
 			case "added":
@@ -101,7 +121,8 @@ func formatBackupRestorePreview(p *api.BackupRestorePreview) string {
 				formatDiffSide(o.FromVersion, o.FromStatus), formatDiffSide(o.ToVersion, o.ToStatus)))
 		}
 		out += "\n\n[bold]Changed Objects[reset]\n" + formatList(objects)
-		if len(p.Objects) > maxPreviewObjects || p.Truncated {
+		out += "\n" + previewPageNote(len(p.Objects), first, last, page)
+		if p.Truncated {
 			out += "\n(more objects change; use -json for the full list)"
 		}
 	}
@@ -165,7 +186,7 @@ func formatBackupRestore(r *api.BackupRestore) string {
 	basic = append(basic, fmt.Sprintf("Modified|%s", formatTime(r.ModifyTime)))
 	out := formatKV(basic)
 	if r.Preview != nil {
-		out += "\n\n" + formatBackupRestorePreview(r.Preview)
+		out += "\n\n" + formatBackupRestorePreview(r.Preview, 1, defaultPreviewPerPage)
 	}
 	return out
 }

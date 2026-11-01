@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package example
@@ -12,12 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
+	"github.com/bacanoo-io/norca/nomad/plugins/device"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/hclspec"
+	"github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/device"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
-	"github.com/hashicorp/nomad/plugins/shared/structs"
 	"github.com/kr/pretty"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

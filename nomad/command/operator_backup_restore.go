@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	flaghelper "github.com/hashicorp/nomad/helper/flags"
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/api"
+	flaghelper "github.com/bacanoo-io/norca/nomad/helper/flags"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 	"github.com/posener/complete"
 )
 
@@ -117,6 +117,34 @@ Restore Options:
   -dry-run
     Only show what would be restored.
 
+  -quota <name>
+    Restore a quota. Can be given several times. A namespace restored without
+    its quota is refused when the quota no longer exists.
+
+  -admission-policy <name>
+    Restore an admission policy. Can be given several times.
+
+  -network-policy <name>
+    Restore a network policy of the namespace. Can be given several times.
+
+  -admin-network-policy <name>
+    Restore an admin network policy. Can be given several times.
+
+  -intention "<source namespace>/<source> -> <destination>"
+    Restore a service intention of the namespace, named as in the
+    service-intentions content type. Can be given several times.
+
+  -custom-object <group>/<kind>/<name>
+    Restore a custom object of the namespace: its spec, labels and owners.
+    Its type definition must exist. The objects of packs.norca.io can't be
+    restored one by one. Can be given several times.
+
+  -page <n>
+    The page of the changed objects of a full restore to show. Defaults to 1.
+
+  -per-page <n>
+    The number of changed objects on a page. Defaults to 50.
+
   -destination <name>
     The destination to read the backup from.
 
@@ -129,21 +157,29 @@ Restore Options:
 func (c *OperatorBackupRestoreCommand) AutocompleteFlags() complete.Flags {
 	return mergeAutocompleteFlags(c.Meta.AutocompleteFlags(FlagSetClient),
 		complete.Flags{
-			"-age-identity":      complete.PredictFiles("*"),
-			"-full":              complete.PredictNothing,
-			"-confirm":           complete.PredictAnything,
-			"-job":               complete.PredictAnything,
-			"-variable":          complete.PredictAnything,
-			"-secret":            complete.PredictAnything,
-			"-consul-kv":         complete.PredictAnything,
-			"-version":           complete.PredictAnything,
-			"-with-metadata":     complete.PredictNothing,
-			"-restore-namespace": complete.PredictAnything,
-			"-acl-policy":        complete.PredictAnything,
-			"-acl-role":          complete.PredictAnything,
-			"-dry-run":           complete.PredictNothing,
-			"-destination":       complete.PredictAnything,
-			"-json":              complete.PredictNothing,
+			"-age-identity":         complete.PredictFiles("*"),
+			"-full":                 complete.PredictNothing,
+			"-confirm":              complete.PredictAnything,
+			"-job":                  complete.PredictAnything,
+			"-variable":             complete.PredictAnything,
+			"-secret":               complete.PredictAnything,
+			"-consul-kv":            complete.PredictAnything,
+			"-version":              complete.PredictAnything,
+			"-with-metadata":        complete.PredictNothing,
+			"-restore-namespace":    complete.PredictAnything,
+			"-acl-policy":           complete.PredictAnything,
+			"-acl-role":             complete.PredictAnything,
+			"-dry-run":              complete.PredictNothing,
+			"-quota":                complete.PredictAnything,
+			"-admission-policy":     complete.PredictAnything,
+			"-network-policy":       complete.PredictAnything,
+			"-admin-network-policy": complete.PredictAnything,
+			"-intention":            complete.PredictAnything,
+			"-custom-object":        complete.PredictAnything,
+			"-page":                 complete.PredictAnything,
+			"-per-page":             complete.PredictAnything,
+			"-destination":          complete.PredictAnything,
+			"-json":                 complete.PredictNothing,
 		})
 }
 
@@ -171,6 +207,8 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	var jobs, variables, secrets, namespaces, policies, roles, consulKV flaghelper.StringFlag
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
+	var page, perPage int
+	var quotas, admissionPolicies, networkPolicies, adminNetworkPolicies, intentions, customObjects flaghelper.StringFlag
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.StringVar(&identityPath, "age-identity", "", "")
 	flags.BoolVar(&full, "full", false, "")
@@ -184,7 +222,15 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	flags.Var(&namespaces, "restore-namespace", "")
 	flags.Var(&policies, "acl-policy", "")
 	flags.Var(&roles, "acl-role", "")
+	flags.Var(&quotas, "quota", "")
+	flags.Var(&admissionPolicies, "admission-policy", "")
+	flags.Var(&networkPolicies, "network-policy", "")
+	flags.Var(&adminNetworkPolicies, "admin-network-policy", "")
+	flags.Var(&intentions, "intention", "")
+	flags.Var(&customObjects, "custom-object", "")
 	flags.BoolVar(&dryRun, "dry-run", false, "")
+	flags.IntVar(&page, "page", 1, "")
+	flags.IntVar(&perPage, "per-page", defaultPreviewPerPage, "")
 	flags.StringVar(&destination, "destination", "", "")
 	flags.BoolVar(&json, "json", false, "")
 	if err := flags.Parse(args); err != nil {
@@ -279,6 +325,23 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 		return 1
 	}
 
+	for _, group := range []struct {
+		itemType  string
+		namespace string
+		names     []string
+	}{
+		{api.BackupRestoreItemQuota, "", quotas},
+		{api.BackupRestoreItemAdmissionPolicy, "", admissionPolicies},
+		{api.BackupRestoreItemNetworkPolicy, namespace, networkPolicies},
+		{api.BackupRestoreItemAdminNetworkPolicy, "", adminNetworkPolicies},
+		{api.BackupRestoreItemServiceIntention, namespace, intentions},
+		{api.BackupRestoreItemCustomObject, namespace, customObjects},
+	} {
+		for _, name := range group.names {
+			items = append(items, &api.BackupRestoreItem{Type: group.itemType, Namespace: group.namespace, ID: name})
+		}
+	}
+
 	client, err := c.Meta.Client()
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
@@ -286,7 +349,7 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	}
 
 	if full {
-		return c.runFull(client, flags.Args()[0], identity, destination, confirm, dryRun, json)
+		return c.runFull(client, flags.Args()[0], identity, destination, confirm, dryRun, json, page, perPage)
 	}
 
 	resp, _, err := client.Backups().Restore(flags.Args()[0], &api.BackupRestoreRequest{

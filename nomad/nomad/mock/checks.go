@@ -5,7 +5,7 @@
 package mock
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // CheckShim is a mock implementation of checkstore.Shim

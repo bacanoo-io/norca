@@ -9,7 +9,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/logging"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/logging"
 	"github.com/shoenig/test/must"
 )
 

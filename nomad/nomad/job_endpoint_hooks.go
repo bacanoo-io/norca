@@ -7,10 +7,10 @@ package nomad
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/dustin/go-humanize"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

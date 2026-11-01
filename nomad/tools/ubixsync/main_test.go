@@ -77,8 +77,8 @@ func (hidden) Exported() {}
 import (
 	"context"
 
+	"github.com/bz/other"
 	"` + upstreamModule + `/internal/storage"
-	"github.com/dzz/other"
 )
 
 type Engine struct{ s storage.Backend }
@@ -121,8 +121,9 @@ func New(s storage.Backend) *Engine { _ = context.Background; _ = other.X; retur
 	if strings.Contains(kv, upstreamModule) || !strings.Contains(kv, `"`+norcaPath+`/internal/storage"`) {
 		t.Errorf("kv.go imports not rewritten:\n%s", kv)
 	}
-	// The rewritten path sorts after the other import of the group.
-	if strings.Index(kv, "github.com/dzz/other") > strings.Index(kv, norcaPath+"/internal/storage") {
+	// The rewritten path sorts before the other import of the group, which
+	// came first in the upstream file.
+	if strings.Index(kv, "github.com/bz/other") < strings.Index(kv, norcaPath+"/internal/storage") {
 		t.Errorf("kv.go imports not sorted:\n%s", kv)
 	}
 	if s := readTree(t, root, "internal/kv/kv_test.go"); strings.Contains(s, upstreamModule) {

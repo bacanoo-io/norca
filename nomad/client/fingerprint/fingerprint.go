@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package fingerprint
@@ -8,8 +9,8 @@ import (
 	"sort"
 	"time"
 
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
 	log "github.com/hashicorp/go-hclog"
-	cstructs "github.com/hashicorp/nomad/client/structs"
 )
 
 // EmptyDuration is to be used by fingerprinters that are not periodic.

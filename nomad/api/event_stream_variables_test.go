@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/hashicorp/nomad/api/internal/testutil"
+	"github.com/bacanoo-io/norca/nomad/api/internal/testutil"
 	"github.com/shoenig/test/must"
 )
 

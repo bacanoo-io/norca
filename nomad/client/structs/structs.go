@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -9,9 +10,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/hashicorp/nomad/client/stats"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/device"
+	"github.com/bacanoo-io/norca/nomad/client/stats"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/device"
 )
 
 // RpcError is used for serializing errors with a potential error code

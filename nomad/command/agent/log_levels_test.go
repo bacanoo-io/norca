@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -6,8 +7,8 @@ package agent
 import (
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
 	"github.com/hashicorp/logutils"
-	"github.com/hashicorp/nomad/ci"
 )
 
 func TestLevelFilter(t *testing.T) {

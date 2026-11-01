@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// SecretEngineTypeNATS is the NATS backend of the dynamic secrets engine.
-const SecretEngineTypeNATS = "nats"
+// SecretEngineTypeOperator is an engine served by an operator.
+const SecretEngineTypeOperator = "operator"
 
 // SecretEngines is used to manage the dynamic secrets engines of the
-// built-in secret store. Engines never contain a credential: their admin
-// credential is a built-in secret they refer to by path.
+// built-in secret store. An engine names an operator: a service that creates
+// the credentials of its target system and keeps its admin credential.
 type SecretEngines struct {
 	client *Client
 }
@@ -29,20 +29,12 @@ type SecretEngine struct {
 	Namespace string `json:",omitempty"`
 	Name      string
 
-	// Type is the backend type ("nats").
+	// Type is the backend type ("operator").
 	Type        string
 	Description string `json:",omitempty"`
 
-	// CredentialPath is the built-in secret holding the engine's admin
-	// credential (for nats: the items account_signing_seed,
-	// operator_signing_seed and system_creds).
-	CredentialPath string
-
-	NATS  *SecretEngineNATS   `json:",omitempty"`
-	Roles []*SecretEngineRole `json:",omitempty"`
-
-	// State is maintained by the servers (rotate-root).
-	State *SecretEngineState `json:",omitempty"`
+	Operator *SecretEngineOperator `json:",omitempty"`
+	Roles    []*SecretEngineRole   `json:",omitempty"`
 
 	CreateIndex uint64 `json:",omitempty"`
 	ModifyIndex uint64 `json:",omitempty"`
@@ -50,61 +42,42 @@ type SecretEngine struct {
 	ModifyTime  int64  `json:",omitempty"`
 }
 
-// SecretEngineNATS is the connection of a nats engine.
-type SecretEngineNATS struct {
-	// Servers are the NATS server URLs the account JWT is pushed to.
-	Servers []string
-
-	// AccountJWT is the account JWT as issued by the operator.
-	AccountJWT string
-
-	// CACert is an optional PEM CA certificate of the servers.
-	CACert string `json:",omitempty"`
-}
-
-// SecretEngineState is the state of an engine maintained by the servers.
-type SecretEngineState struct {
-	RetiredKeys    []string `json:",omitempty"`
-	RemovedKeys    []string `json:",omitempty"`
-	RootRotateTime int64    `json:",omitempty"`
-}
-
 // SecretEngineRole is a role of an engine.
 type SecretEngineRole struct {
 	Name   string
-	TTL    time.Duration   `json:",omitempty"`
-	MaxTTL time.Duration   `json:",omitempty"`
-	NATS   *SecretRoleNATS `json:",omitempty"`
+	TTL    time.Duration `json:",omitempty"`
+	MaxTTL time.Duration `json:",omitempty"`
+
+	// Config is passed to the operator of an engine; it must hold nothing
+	// secret.
+	Config map[string]string `json:",omitempty"`
+
+	// Params are the keys of the params a job may send to the operator.
+	Params []string `json:",omitempty"`
 }
 
-// SecretRoleNATS are the permissions of the NATS users of a role.
-type SecretRoleNATS struct {
-	Publish        []string `json:",omitempty"`
-	Subscribe      []string `json:",omitempty"`
-	PublishDeny    []string `json:",omitempty"`
-	SubscribeDeny  []string `json:",omitempty"`
-	AllowResponses bool     `json:",omitempty"`
+// SecretEngineOperator names the service of the operator of an engine.
+type SecretEngineOperator struct {
+	Service   string
+	Namespace string `json:",omitempty"`
 }
 
 // SecretEngineStub is the list form of an engine.
 type SecretEngineStub struct {
-	Namespace      string
-	Name           string
-	Type           string
-	Description    string
-	CredentialPath string
-	Roles          []string
-	RootRotateTime int64
-	CreateIndex    uint64
-	ModifyIndex    uint64
-	CreateTime     int64
-	ModifyTime     int64
+	Namespace   string
+	Name        string
+	Type        string
+	Description string
+	Roles       []string
+	CreateIndex uint64
+	ModifyIndex uint64
+	CreateTime  int64
+	ModifyTime  int64
 }
 
 // secretEngineWriteResult is the body of the response of an engine write.
 type secretEngineWriteResult struct {
 	Engine *SecretEngine
-	Key    string
 }
 
 func secretEngineEndpoint(name string) string {
@@ -165,17 +138,6 @@ func (s *SecretEngines) Delete(name string, q *WriteOptions) (*WriteMeta, error)
 	return s.client.delete(secretEngineEndpoint(name), nil, nil, q)
 }
 
-// RotateRoot rotates the admin key of an engine and returns the engine and
-// the public key of the new admin key.
-func (s *SecretEngines) RotateRoot(name string, q *WriteOptions) (*SecretEngine, string, *WriteMeta, error) {
-	var out secretEngineWriteResult
-	wm, err := s.client.post(secretEngineEndpoint(name)+"/rotate-root", nil, &out, q)
-	if err != nil {
-		return nil, "", nil, err
-	}
-	return out.Engine, out.Key, wm, nil
-}
-
 // RevokeLeases revokes every live lease of an engine and returns their IDs.
 func (s *SecretEngines) RevokeLeases(name string, q *WriteOptions) ([]string, *WriteMeta, error) {
 	var out secretLeaseRevokeResult
@@ -221,10 +183,8 @@ type SecretLease struct {
 	RevokeTime    int64  `json:",omitempty"`
 	RevokeReason  string `json:",omitempty"`
 
-	// BackendRef identifies the credential at the backend (for NATS the
-	// user's public key), SigningKey the admin key that signed it.
+	// BackendRef identifies the credential at the operator.
 	BackendRef  string
-	SigningKey  string `json:",omitempty"`
 	CreateIndex uint64
 	ModifyIndex uint64
 }

@@ -6,8 +6,8 @@ package state
 import (
 	"fmt"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	memdb "github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // TableSecrets is the table of the metadata rows of the built-in secret

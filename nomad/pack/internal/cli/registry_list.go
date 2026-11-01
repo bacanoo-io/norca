@@ -7,8 +7,8 @@ package cli
 import (
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
 )
 
 // RegistryListCommand lists all registries and pack that have been downloaded

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser/config"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/loader"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser/config"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 	"github.com/shoenig/test/must"
 )
 

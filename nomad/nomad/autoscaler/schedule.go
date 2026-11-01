@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
 	"github.com/hashicorp/cronexpr"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
 )
 
 // compiledSchedule is the cached runtime representation of a schedule.

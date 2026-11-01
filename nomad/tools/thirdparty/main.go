@@ -113,13 +113,13 @@ var sourceCopies = []sourceCopy{
 		Path:       "github.com/cwolsen7905/ubixvault",
 		Version:    "v1.5.0",
 		Dir:        "nomad/secretstore/ubix",
-		ImportPath: "github.com/hashicorp/nomad/secretstore/ubix",
+		ImportPath: "github.com/bacanoo-io/norca/nomad/secretstore/ubix",
 	},
 	{
 		Path:       "github.com/nakabonne/tstorage",
 		Version:    "v0.3.6",
 		Dir:        "nomad/internal/tstorage",
-		ImportPath: "github.com/hashicorp/nomad/internal/tstorage",
+		ImportPath: "github.com/bacanoo-io/norca/nomad/internal/tstorage",
 	},
 }
 

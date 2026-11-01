@@ -29,7 +29,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // The files of the configuration directory.

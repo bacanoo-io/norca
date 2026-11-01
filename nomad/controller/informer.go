@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 )
 
 // EventHandler receives the changes of the objects in an informer's cache.

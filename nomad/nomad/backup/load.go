@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/consulkv"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/helper/consulkv"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Loaded is a backup decrypted into a separate in-memory state store, for

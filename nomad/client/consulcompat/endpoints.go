@@ -9,10 +9,10 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/version"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-bexpr"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/version"
 )
 
 // instance is a service registration with its node and Consul name.

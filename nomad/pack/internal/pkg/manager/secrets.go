@@ -6,8 +6,8 @@ package manager
 import (
 	"sort"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser"
 	"github.com/zclconf/go-cty/cty"
 )
 

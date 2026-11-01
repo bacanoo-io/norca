@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package allocwatcher
@@ -14,13 +15,13 @@ import (
 	"syscall"
 	"time"
 
+	nomadapi "github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/client/allocdir"
+	"github.com/bacanoo-io/norca/nomad/client/config"
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	hclog "github.com/hashicorp/go-hclog"
-	nomadapi "github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/client/config"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 const (

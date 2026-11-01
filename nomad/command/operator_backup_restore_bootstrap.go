@@ -14,9 +14,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/nomad/backup"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/nomad/backup"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/posener/complete"
 )
 
@@ -317,6 +317,11 @@ func (c *OperatorBackupRestoreBootstrapCommand) Run(args []string) int {
 		return 1
 	}
 	defer clear(coreKey)
+	consulKV, err := backup.ReadConsulKV(ctx, dest, record, st, ids)
+	if err != nil {
+		c.Ui.Error(err.Error())
+		return 1
+	}
 	c.Ui.Output(fmt.Sprintf("Downloaded and verified backup %s (Raft index %d, %d bytes)", record.ID, record.RaftIndex, size))
 
 	// 1. The keystore.
@@ -335,7 +340,23 @@ func (c *OperatorBackupRestoreBootstrapCommand) Run(args []string) int {
 		c.Ui.Warn("The backup has no keyring: its Variables can't be decrypted")
 	}
 
-	// 2. The Raft state.
+	// 2. The Consul KV bucket of the system bus (Norca). It is not in the
+	// Raft state, and the token of this command ends with that restore. A
+	// failure does not stop the restore of the state.
+	if consulKV != nil {
+		entries := make([]*api.ConsulKVRestoreEntry, 0, len(consulKV.Entries))
+		for _, e := range consulKV.Entries {
+			entries = append(entries, &api.ConsulKVRestoreEntry{
+				Namespace: e.Namespace, Path: e.Path, Key: e.Key, Value: e.Value})
+		}
+		if restored, _, err := client.Operator().ConsulKVRestore(entries, nil); err != nil {
+			c.Ui.Warn(fmt.Sprintf("The Consul KV was not restored: %s", err))
+		} else {
+			c.Ui.Output(fmt.Sprintf("Restored %d keys of the Consul KV", restored))
+		}
+	}
+
+	// 3. The Raft state.
 	if _, err := archive.Seek(0, io.SeekStart); err != nil {
 		c.Ui.Error(err.Error())
 		return 1
@@ -346,7 +367,7 @@ func (c *OperatorBackupRestoreBootstrapCommand) Run(args []string) int {
 	}
 	c.Ui.Output(fmt.Sprintf("Restored the state of backup %s into region %q.", record.ID, region))
 
-	// 3. The key of the secret store, wrapped again with the seal of this
+	// 4. The key of the secret store, wrapped again with the seal of this
 	// region (Norca).
 	c.recoverSecretStore(client, coreKey)
 	c.Ui.Output("The ACL tokens of the backup are in effect now. Join the other new servers to this one.")

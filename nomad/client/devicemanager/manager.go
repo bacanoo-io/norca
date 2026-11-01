@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 // Package devicemanager is used to manage device plugins
@@ -10,16 +11,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/devicemanager/state"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/loader"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
+	"github.com/bacanoo-io/norca/nomad/plugins/device"
+	pstructs "github.com/bacanoo-io/norca/nomad/plugins/shared/structs"
 	log "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/client/devicemanager/state"
-	"github.com/hashicorp/nomad/client/pluginmanager"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/device"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
 )
 
 // Manager is the interface used to manage device plugins

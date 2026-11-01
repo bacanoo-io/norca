@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 )
 
 // Vault compatibility of the client (norca-doc content/docs/design/secrets-plan.md, "Vault

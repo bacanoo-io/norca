@@ -33,7 +33,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 )
 
 // Options configure the agent.

@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/plugins/drivers"
 )
 
 var (

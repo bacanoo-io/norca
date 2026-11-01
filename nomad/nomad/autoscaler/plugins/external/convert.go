@@ -12,8 +12,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins/shared/proto/v1"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins/shared/proto/v1"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"

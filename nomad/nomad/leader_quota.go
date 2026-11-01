@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // replicateQuotaSpecs is used to replicate quota specifications from the

@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/hashicorp/nomad/helper/flatmap"
+	"github.com/bacanoo-io/norca/nomad/helper/flatmap"
 )
 
 // Diffs of the secret delivery blocks (Norca): secrets blocks of jobs and
@@ -87,15 +87,17 @@ func taskSecretDiff(old, new *TaskSecret, contextual bool) *ObjectDiff {
 
 	diff.Fields = fieldDiffs(oldPrimitiveFlat, newPrimitiveFlat, contextual)
 
-	var oldFile, newFile interface{}
-	if old.File != nil {
-		oldFile = old.File
-	}
-	if new.File != nil {
-		newFile = new.File
-	}
-	if fDiff := primitiveObjectDiff(oldFile, newFile, nil, "File", contextual); fDiff != nil {
-		diff.Objects = append(diff.Objects, fDiff)
+	for i := 0; i < max(len(old.Files), len(new.Files)); i++ {
+		var oldFile, newFile interface{}
+		if i < len(old.Files) && old.Files[i] != nil {
+			oldFile = old.Files[i]
+		}
+		if i < len(new.Files) && new.Files[i] != nil {
+			newFile = new.Files[i]
+		}
+		if fDiff := primitiveObjectDiff(oldFile, newFile, nil, "File", contextual); fDiff != nil {
+			diff.Objects = append(diff.Objects, fDiff)
+		}
 	}
 
 	// The Env items are primitive fields of the flattened secret

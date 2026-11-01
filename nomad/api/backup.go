@@ -42,6 +42,20 @@ const (
 	BackupContentSecrets     = "secrets"
 	BackupContentConsulKV    = "consul-kv"
 
+	BackupContentQuotas               = "quotas"
+	BackupContentAdmissionPolicies    = "admission-policies"
+	BackupContentNetworkPolicies      = "network-policies"
+	BackupContentAdminNetworkPolicies = "admin-network-policies"
+	BackupContentServiceIntentions    = "service-intentions"
+	BackupContentObjectKinds          = "object-kinds"
+	BackupContentCustomObjects        = "custom-objects"
+	BackupContentSecretEngines        = "secret-engines"
+	BackupContentSecretLeases         = "secret-leases"
+	BackupContentACLTokens            = "acl-tokens"
+	BackupContentACLAuthMethods       = "acl-auth-methods"
+	BackupContentACLBindingRules      = "acl-binding-rules"
+	BackupContentNodePools            = "node-pools"
+
 	BackupRestoreModeSelective = "selective"
 	BackupRestoreModeFull      = "full"
 
@@ -53,6 +67,13 @@ const (
 	BackupRestoreItemACLRole   = "acl-role"
 	BackupRestoreItemSecret    = "secret"
 	BackupRestoreItemConsulKV  = "consul-kv"
+
+	BackupRestoreItemQuota              = "quota"
+	BackupRestoreItemAdmissionPolicy    = "admission-policy"
+	BackupRestoreItemNetworkPolicy      = "network-policy"
+	BackupRestoreItemAdminNetworkPolicy = "admin-network-policy"
+	BackupRestoreItemServiceIntention   = "service-intention"
+	BackupRestoreItemCustomObject       = "custom-object"
 
 	// Backup objects.
 	BackupObjectState    = "state"
@@ -184,6 +205,16 @@ type BackupContents struct {
 	Deployments []*Deployment
 	Allocations []*AllocationListStub
 	ConsulKV    []*BackupConsulKVStub
+	Objects     []*BackupObjectStub
+}
+
+// BackupObjectStub is an object of a backup: its identity and a description,
+// never a token, a credential or a specification.
+type BackupObjectStub struct {
+	Namespace   string
+	ID          string
+	Detail      string
+	ModifyIndex uint64
 }
 
 // BackupConsulKVStub is a key of the Consul KV of the system bus in a
@@ -309,6 +340,7 @@ type BackupRestorePreview struct {
 	Counts             map[string]int
 	AllocationsStopped int
 	ACLTokensRemoved   int
+	SecretLeasesLost   int
 	KeysAdded          []string
 	Warnings           []string
 	Objects            []*BackupObjectDiff

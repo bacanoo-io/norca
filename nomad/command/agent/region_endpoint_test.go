@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package agent
@@ -8,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/ci"
 )
 
 func TestHTTP_RegionList(t *testing.T) {

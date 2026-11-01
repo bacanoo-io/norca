@@ -14,10 +14,10 @@
 package external
 
 import (
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
 )
 
 // Handshake is used to do a basic handshake between a plugin and host. If

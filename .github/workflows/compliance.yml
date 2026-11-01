@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # Actions are pinned by commit (checkout and setup-go as in release.yml):
-#   actions/checkout v7.0.1, actions/setup-go v7.0.0, actions/setup-node v7.1.0.
+#   actions/checkout v7.0.1, actions/setup-go v7.0.0, actions/setup-node v7.1.0,
+#   scanoss/gha-code-scan v1.7.0.
 name: Compliance
 
 on:
@@ -37,14 +38,15 @@ jobs:
       - name: Forbidden modules (BSL HashiCorp modules)
         working-directory: ${{ matrix.module }}
         run: |
-          # BSL versions of the Nomad main module are forbidden; the fork's own modules and the api module are allowed.
-          if go list -m all | grep -E '^github.com/hashicorp/nomad v1\.([7-9]|[1-9][0-9])\.|^github.com/hashicorp/nomad v1\.6\.([6-9]|[1-9][0-9])'; then
-            echo "BSL Nomad module among the dependencies" >&2; exit 1
+          # The upstream Nomad main module is forbidden in any version.
+          if go list -m all | awk '$1 == "github.com/hashicorp/nomad"' | grep .; then
+            echo "Upstream Nomad module among the dependencies" >&2; exit 1
           fi
-          # Every github.com/hashicorp/nomad[/...] module must be this module or
-          # a local replace of this repository (so no upstream version, BSL
-          # pseudo-versions included, comes from the proxy).
-          remote=$(go list -m all | awk '($1 == "github.com/hashicorp/nomad" || index($1, "github.com/hashicorp/nomad/") == 1) && NF > 1 && !($3 == "=>" && $4 ~ /^\.\.?\//)')
+          # Every github.com/bacanoo-io/norca/nomad[/...] module and the upstream
+          # github.com/hashicorp/nomad/api (imported by consul-template, replaced
+          # by nomad/compat/upstreamapi) must be this module or a local replace
+          # of this repository, so no upstream version comes from the proxy.
+          remote=$(go list -m all | awk '($1 == "github.com/bacanoo-io/norca/nomad" || index($1, "github.com/bacanoo-io/norca/nomad/") == 1 || index($1, "github.com/hashicorp/nomad/") == 1) && NF > 1 && !($3 == "=>" && $4 ~ /^\.\.?\//)')
           if [ -n "$remote" ]; then
             echo "Nomad modules not replaced by this repository: $remote" >&2; exit 1
           fi
@@ -53,9 +55,11 @@ jobs:
         run: |
           go install github.com/google/go-licenses@v1.6.0
           # Ignored (their dependencies are still checked):
-          # - github.com/hashicorp/nomad/...: this repository (MPL 2.0); the
-          #   api, controller and tools modules carry no LICENSE
-          #   file of their own, and the step above rules out a BSL version.
+          # - github.com/bacanoo-io/norca/nomad/... and the stand-in
+          #   github.com/hashicorp/nomad/api: this repository (MPL 2.0); the
+          #   api, controller and tools modules and the stand-in carry no
+          #   LICENSE file of their own, and the step above rules out an
+          #   upstream version.
           # - packages whose license go-licenses cannot classify; each is a
           #   reviewed decision in nomad/tools/thirdparty/overrides.go:
           #   vic/pkg/vsphere/tags (Apache-2.0, the LICENSE file is VMware's
@@ -63,7 +67,8 @@ jobs:
           #   libcap/psx (BSD-3-Clause or GPL-2.0, used under BSD-3-Clause).
           go-licenses check ./... \
             --allowed_licenses=MPL-2.0,Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC \
-            --ignore github.com/hashicorp/nomad/ \
+            --ignore github.com/bacanoo-io/norca/nomad/ \
+            --ignore github.com/hashicorp/nomad/api \
             --ignore github.com/hashicorp/vic/pkg/vsphere/tags \
             --ignore github.com/tj/go-spin \
             --ignore kernel.org/pub/linux/libs/security/libcap/psx
@@ -132,6 +137,29 @@ jobs:
           if [ -n "$files" ] && grep -il 'apexcharts' $files; then
             echo "ApexCharts is forbidden (found in the files above)" >&2; exit 1
           fi
+
+  snippet-scan:
+    # SCANOSS matches the added, modified and renamed files of the pull
+    # request or push (delta mode) against the open source knowledge base
+    # (api.osskb.org; only fingerprints are sent) and fails on a file or
+    # snippet match with a license of the explicit list below (GPL, AGPL,
+    # LGPL, SSPL, EUPL, OSL, CC-BY-SA). MPL-2.0 is not in the
+    # list: the upstream Nomad code itself is MPL-2.0. Matches against BSL
+    # HashiCorp code are the subject of the separate clean room audit.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: scanoss/gha-code-scan@d3c8f659544885761c8e3b96743ea14b830474aa # v1.7.0
+        with:
+          scanMode: delta
+          policies: copyleft
+          # Strong and weak copyleft licenses (comma-separated, no spaces).
+          licenses.copyleft.explicit: GPL-1.0-only,GPL-1.0-or-later,GPL-2.0-only,GPL-2.0-or-later,GPL-3.0-only,GPL-3.0-or-later,AGPL-1.0-only,AGPL-1.0-or-later,AGPL-3.0-only,AGPL-3.0-or-later,LGPL-2.0-only,LGPL-2.0-or-later,LGPL-2.1-only,LGPL-2.1-or-later,LGPL-3.0-only,LGPL-3.0-or-later,SSPL-1.0,EUPL-1.1,EUPL-1.2,OSL-3.0,CC-BY-SA-4.0
 
   dco:
     if: github.event_name == 'pull_request'

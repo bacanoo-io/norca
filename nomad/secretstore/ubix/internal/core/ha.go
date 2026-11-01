@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/nomad/secretstore/ubix/internal/storage"
+	"github.com/bacanoo-io/norca/nomad/secretstore/ubix/internal/storage"
 )
 
 // haLockName is the one HA lock a vault's replicas contend for.

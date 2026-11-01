@@ -6,10 +6,9 @@ package structs
 import (
 	"errors"
 	"fmt"
-	"net/url"
+	"maps"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
 
 	multierror "github.com/hashicorp/go-multierror"
@@ -17,14 +16,13 @@ import (
 
 // Dynamic secrets of the built-in engine (norca-doc
 // content/docs/design/secrets-plan.md, "Rotation and dynamic secrets",
-// phase 7). A SecretEngine of a namespace describes a backend (the first one
-// is NATS) and the roles credentials are created for. Its admin credential is
-// a built-in secret the engine refers to by path; it is never part of the
-// engine object. A task asks for a credential with a secret block naming the
-// engine and the role; the leader creates the credential on the backend,
-// records a SecretLease in Raft and returns the credential to the client
-// only. Leases hold the backend's reference of the credential (for NATS the
-// user's public key), never the credential itself.
+// phase 7). A SecretEngine of a namespace names the operator, a service that
+// creates the credentials of its target system, and the roles credentials are
+// created for. The admin credential of the target system belongs to the
+// operator. A task asks for a credential with a secret block naming the engine
+// and the role; the leader records a SecretLease in Raft, asks the operator
+// and returns the credential to the client only. Leases hold the operator's
+// reference of the credential, never the credential itself.
 
 const (
 	// SecretEngineListRPCMethod lists the engines of a namespace.
@@ -50,12 +48,6 @@ const (
 	// Args: SecretEngineDeleteRequest
 	// Reply: SecretEngineWriteResponse
 	SecretEngineDeleteRPCMethod = "SecretEngine.Delete"
-
-	// SecretEngineRotateRootRPCMethod rotates the engine's admin credential.
-	//
-	// Args: SecretEngineRotateRootRequest
-	// Reply: SecretEngineWriteResponse
-	SecretEngineRotateRootRPCMethod = "SecretEngine.RotateRoot"
 
 	// SecretLeaseListRPCMethod lists the leases of a namespace.
 	//
@@ -93,9 +85,10 @@ const (
 )
 
 const (
-	// SecretEngineTypeNATS is the NATS backend: credentials are NATS users
-	// (an NKey and a user JWT signed by the account signing key).
-	SecretEngineTypeNATS = "nats"
+	// SecretEngineTypeOperator is an engine served by an operator: a service
+	// that creates the credentials of its target system. Norca keeps the
+	// leases; the admin credential belongs to the operator.
+	SecretEngineTypeOperator = "operator"
 
 	// SecretLeaseDefaultTTL and SecretLeaseDefaultMaxTTL are the lease
 	// durations of roles that set none.
@@ -114,7 +107,6 @@ const (
 const (
 	SecretOpEngineWrite  = "engine-write"
 	SecretOpEngineDelete = "engine-delete"
-	SecretOpRotateRoot   = "rotate-root"
 	SecretOpLeaseCreate  = "lease-create"
 	SecretOpLeaseRenew   = "lease-renew"
 	SecretOpLeaseRevoke  = "lease-revoke"
@@ -172,10 +164,6 @@ var (
 
 	// validSecretEngineName restricts engine and role names.
 	validSecretEngineName = regexp.MustCompile("^[a-zA-Z0-9_-]{1,64}$")
-
-	// validNATSSubject restricts the subjects of NATS roles: no white space,
-	// no empty tokens.
-	validNATSSubject = regexp.MustCompile(`^[^\s.]+(\.[^\s.]+)*$`)
 )
 
 // SecretEngineCredsPath is the virtual secret path of the credentials of a
@@ -199,25 +187,16 @@ type SecretEngine struct {
 	Namespace string
 	Name      string
 
-	// Type is the backend type, "nats".
+	// Type is the backend type, "operator".
 	Type string
 
 	Description string
 
-	// CredentialPath is the built-in secret, in the engine's namespace,
-	// that holds the engine's admin credential. The engine reads it on the
-	// leader; it is never copied into the engine.
-	CredentialPath string
-
-	// NATS is the configuration of the nats backend.
-	NATS *SecretEngineNATS `json:",omitempty"`
+	// Operator is the service of an operator engine.
+	Operator *SecretEngineOperator `json:",omitempty"`
 
 	// Roles are the roles credentials are created for.
 	Roles []*SecretEngineRole
-
-	// State is maintained by the leader (rotate-root); it is kept on
-	// updates.
-	State *SecretEngineState `json:",omitempty"`
 
 	CreateIndex uint64
 	ModifyIndex uint64
@@ -225,47 +204,14 @@ type SecretEngine struct {
 	ModifyTime  int64
 }
 
-// SecretEngineNATS is the connection of a nats engine. Nothing of it is
-// secret: the account JWT holds public keys only.
-type SecretEngineNATS struct {
-	// Servers are the URLs of the NATS servers the engine pushes the
-	// account JWT to (nats://, tls://, ws:// or wss://).
-	Servers []string
+// SecretEngineOperator names the service of the operator of an engine.
+type SecretEngineOperator struct {
+	// Service is the service of the operator in the native catalog.
+	Service string
 
-	// AccountJWT is the account JWT as issued by the operator (for example
-	// with nsc). The engine pushes it with its signing keys and the
-	// revocations of the leases, re-signed with the operator signing key.
-	AccountJWT string
-
-	// CACert is an optional PEM encoded CA certificate of the servers' TLS.
-	CACert string `json:",omitempty"`
-}
-
-// SecretEngineState is the state of an engine maintained by the leader.
-type SecretEngineState struct {
-	// RetiredKeys are the public keys of admin keys replaced by rotate-root
-	// that still sign live leases; the leader removes each once its last
-	// lease has ended.
-	RetiredKeys []string `json:",omitempty"`
-
-	// RemovedKeys are the public keys of admin keys the engine removed from
-	// the backend (for NATS: from the account's signing keys, also when the
-	// operator's account JWT still lists them).
-	RemovedKeys []string `json:",omitempty"`
-
-	// RootRotateTime is the time of the last rotate-root.
-	RootRotateTime int64 `json:",omitempty"`
-}
-
-// Copy returns a deep copy of the state.
-func (s *SecretEngineState) Copy() *SecretEngineState {
-	if s == nil {
-		return nil
-	}
-	out := *s
-	out.RetiredKeys = slices.Clone(s.RetiredKeys)
-	out.RemovedKeys = slices.Clone(s.RemovedKeys)
-	return &out
+	// Namespace is the namespace of the service, by default the namespace
+	// of the engine.
+	Namespace string `json:",omitempty"`
 }
 
 // SecretEngineRole is a role of an engine: what the credentials of the role
@@ -278,23 +224,12 @@ type SecretEngineRole struct {
 	TTL    time.Duration
 	MaxTTL time.Duration
 
-	// NATS are the permissions of the NATS users of the role.
-	NATS *SecretRoleNATS `json:",omitempty"`
-}
+	// Config is passed to the operator of an engine; Norca does not read
+	// it. It must hold nothing secret: it is stored in Raft.
+	Config map[string]string `json:",omitempty"`
 
-// SecretRoleNATS are the permissions of a NATS user created for a role.
-type SecretRoleNATS struct {
-	// Publish and Subscribe are the subjects the user may publish to and
-	// subscribe to (wildcards allowed); PublishDeny and SubscribeDeny
-	// exclude subjects from them.
-	Publish       []string `json:",omitempty"`
-	Subscribe     []string `json:",omitempty"`
-	PublishDeny   []string `json:",omitempty"`
-	SubscribeDeny []string `json:",omitempty"`
-
-	// AllowResponses lets the user publish one response to the reply
-	// subject of each request it received.
-	AllowResponses bool `json:",omitempty"`
+	// Params are the keys of the params a job may send to the operator.
+	Params []string `json:",omitempty"`
 }
 
 // Copy returns a deep copy of the engine.
@@ -303,10 +238,9 @@ func (e *SecretEngine) Copy() *SecretEngine {
 		return nil
 	}
 	out := *e
-	if e.NATS != nil {
-		n := *e.NATS
-		n.Servers = slices.Clone(e.NATS.Servers)
-		out.NATS = &n
+	if e.Operator != nil {
+		o := *e.Operator
+		out.Operator = &o
 	}
 	if e.Roles != nil {
 		out.Roles = make([]*SecretEngineRole, len(e.Roles))
@@ -314,7 +248,6 @@ func (e *SecretEngine) Copy() *SecretEngine {
 			out.Roles[i] = r.Copy()
 		}
 	}
-	out.State = e.State.Copy()
 	return &out
 }
 
@@ -331,24 +264,20 @@ func (e *SecretEngine) Role(name string) *SecretEngineRole {
 // Stub returns the list form of the engine.
 func (e *SecretEngine) Stub() *SecretEngineStub {
 	stub := &SecretEngineStub{
-		Namespace:      e.Namespace,
-		Name:           e.Name,
-		Type:           e.Type,
-		Description:    e.Description,
-		CredentialPath: e.CredentialPath,
-		Roles:          []string{},
-		CreateIndex:    e.CreateIndex,
-		ModifyIndex:    e.ModifyIndex,
-		CreateTime:     e.CreateTime,
-		ModifyTime:     e.ModifyTime,
+		Namespace:   e.Namespace,
+		Name:        e.Name,
+		Type:        e.Type,
+		Description: e.Description,
+		Roles:       []string{},
+		CreateIndex: e.CreateIndex,
+		ModifyIndex: e.ModifyIndex,
+		CreateTime:  e.CreateTime,
+		ModifyTime:  e.ModifyTime,
 	}
 	for _, r := range e.Roles {
 		if r != nil {
 			stub.Roles = append(stub.Roles, r.Name)
 		}
-	}
-	if e.State != nil {
-		stub.RootRotateTime = e.State.RootRotateTime
 	}
 	return stub
 }
@@ -389,23 +318,15 @@ func (e *SecretEngine) Validate() error {
 	if len(e.Description) > 1024 {
 		add("description is limited to 1024 bytes")
 	}
-	if err := ValidateSecretPath(e.CredentialPath); err != nil {
-		add("credential_path: %v", err)
-	} else if strings.HasPrefix(e.CredentialPath, secretEngineCredsPrefix) {
-		add("credential_path %q: the engines/ paths are the credentials of engines", e.CredentialPath)
-	}
-
 	switch e.Type {
-	case SecretEngineTypeNATS:
-		if e.NATS == nil {
-			add("a nats engine requires a nats block")
-		} else if err := e.NATS.validate(); err != nil {
-			mErr = multierror.Append(mErr, err)
+	case SecretEngineTypeOperator:
+		if e.Operator == nil || e.Operator.Service == "" {
+			add("an operator engine requires an operator block with a service")
 		}
 	case "":
 		add("an engine requires a type")
 	default:
-		add("unsupported engine type %q (supported: %s)", e.Type, SecretEngineTypeNATS)
+		add("unsupported engine type %q (supported: %s)", e.Type, SecretEngineTypeOperator)
 	}
 
 	if len(e.Roles) == 0 {
@@ -430,49 +351,14 @@ func (e *SecretEngine) Validate() error {
 	return mErr.ErrorOrNil()
 }
 
-func (n *SecretEngineNATS) validate() error {
-	var mErr *multierror.Error
-	if len(n.Servers) == 0 {
-		mErr = multierror.Append(mErr, errors.New("nats: at least one server URL is required"))
-	}
-	for _, s := range n.Servers {
-		u, err := url.Parse(s)
-		if err != nil || u.Host == "" {
-			mErr = multierror.Append(mErr, fmt.Errorf("nats: invalid server URL %q", s))
-			continue
-		}
-		switch u.Scheme {
-		case "nats", "tls", "ws", "wss":
-		default:
-			mErr = multierror.Append(mErr, fmt.Errorf("nats: server URL %q needs the scheme nats, tls, ws or wss", s))
-		}
-		if u.User != nil {
-			mErr = multierror.Append(mErr, fmt.Errorf("nats: server URL %q must not contain credentials", s))
-		}
-	}
-	if n.AccountJWT == "" {
-		mErr = multierror.Append(mErr, errors.New("nats: the account JWT is required"))
-	}
-	if len(n.AccountJWT) > 64*1024 || len(n.CACert) > 64*1024 {
-		mErr = multierror.Append(mErr, errors.New("nats: the account JWT and the CA certificate are limited to 64 KiB"))
-	}
-	return mErr.ErrorOrNil()
-}
-
 // Copy returns a deep copy of the role.
 func (r *SecretEngineRole) Copy() *SecretEngineRole {
 	if r == nil {
 		return nil
 	}
 	out := *r
-	if r.NATS != nil {
-		n := *r.NATS
-		n.Publish = slices.Clone(r.NATS.Publish)
-		n.Subscribe = slices.Clone(r.NATS.Subscribe)
-		n.PublishDeny = slices.Clone(r.NATS.PublishDeny)
-		n.SubscribeDeny = slices.Clone(r.NATS.SubscribeDeny)
-		out.NATS = &n
-	}
+	out.Config = maps.Clone(r.Config)
+	out.Params = slices.Clone(r.Params)
 	return &out
 }
 
@@ -490,36 +376,20 @@ func (r *SecretEngineRole) validate(engineType string) error {
 	if r.MaxTTL < r.TTL {
 		add("max_ttl must not be shorter than ttl")
 	}
-	switch engineType {
-	case SecretEngineTypeNATS:
-		if r.NATS == nil || len(r.NATS.Publish)+len(r.NATS.Subscribe) == 0 {
-			add("a nats role needs publish or subscribe subjects")
-			break
-		}
-		for _, list := range [][]string{r.NATS.Publish, r.NATS.Subscribe, r.NATS.PublishDeny, r.NATS.SubscribeDeny} {
-			for _, s := range list {
-				if !validNATSSubject.MatchString(s) {
-					add("invalid NATS subject %q", s)
-				}
-			}
-		}
-	}
 	return mErr.ErrorOrNil()
 }
 
 // SecretEngineStub is the list form of an engine.
 type SecretEngineStub struct {
-	Namespace      string
-	Name           string
-	Type           string
-	Description    string
-	CredentialPath string
-	Roles          []string
-	RootRotateTime int64 `json:",omitempty"`
-	CreateIndex    uint64
-	ModifyIndex    uint64
-	CreateTime     int64
-	ModifyTime     int64
+	Namespace   string
+	Name        string
+	Type        string
+	Description string
+	Roles       []string
+	CreateIndex uint64
+	ModifyIndex uint64
+	CreateTime  int64
+	ModifyTime  int64
 }
 
 // SecretLease is the lease of a credential created by an engine. It never
@@ -565,11 +435,9 @@ type SecretLease struct {
 	RevokeTime   int64  `json:",omitempty"`
 	RevokeReason string `json:",omitempty"`
 
-	// BackendRef identifies the credential at the backend (for NATS the
-	// user's public key), SigningKey the public key of the admin key that
-	// signed it. Neither is secret.
+	// BackendRef identifies the credential at the operator. It is not
+	// secret.
 	BackendRef string
-	SigningKey string `json:",omitempty"`
 
 	CreateIndex uint64
 	ModifyIndex uint64
@@ -661,17 +529,10 @@ type SecretEngineDeleteRequest struct {
 	WriteRequest
 }
 
-// SecretEngineRotateRootRequest rotates the admin credential of an engine.
-type SecretEngineRotateRootRequest struct {
-	Name string
-	WriteRequest
-}
-
 // SecretEngineWriteResponse is the engine after a write; nil after a
-// delete. Key names the new admin key of a rotate-root (a public key).
+// delete.
 type SecretEngineWriteResponse struct {
 	Engine *SecretEngine
-	Key    string `json:",omitempty"`
 	WriteMeta
 }
 
@@ -738,12 +599,6 @@ type SecretLeaseCreateResponse struct {
 	Lease *SecretLease
 	Items SecretItems
 
-	// File and FileItem are the backend's default delivery: the file name
-	// below secrets/ and the item written to it, for secret blocks without
-	// a file or env block (nats: "nats.creds" and the "creds" item).
-	File     string
-	FileItem string
-
 	WriteMeta
 }
 
@@ -756,6 +611,11 @@ type SecretLeaseRenewRequest struct {
 // SecretLeaseWriteResponse is the lease after a renewal.
 type SecretLeaseWriteResponse struct {
 	Lease *SecretLease
+
+	// Items are the new values of a credential that its renewal replaced,
+	// for example a certificate. They are not stored.
+	Items SecretItems `json:",omitempty"`
+
 	WriteMeta
 }
 

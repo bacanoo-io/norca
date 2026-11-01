@@ -7,8 +7,8 @@ package state
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/nomad/stream"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/stream"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // StateRestore is used to optimize the performance when restoring state by

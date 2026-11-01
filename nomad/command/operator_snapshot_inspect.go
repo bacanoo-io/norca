@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/nomad/helper/snapshot"
+	"github.com/bacanoo-io/norca/nomad/helper/snapshot"
 	"github.com/posener/complete"
 )
 

@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad"
-	"github.com/hashicorp/nomad/nomad/bus"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/pack/catalog"
+	"github.com/bacanoo-io/norca/nomad/nomad"
+	"github.com/bacanoo-io/norca/nomad/nomad/bus"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/pack/catalog"
 )
 
 // The cluster pack registries and their catalog (nomad/nomad/

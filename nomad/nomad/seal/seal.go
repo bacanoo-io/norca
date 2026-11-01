@@ -53,7 +53,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // KeySize is the size of the keys the seals use and wrap (AES-256).

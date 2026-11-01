@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // The inbound listener of a sidecar authorizes connections with an Envoy

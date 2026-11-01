@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris
@@ -12,17 +13,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/lib/cgutil"
-	ctestutils "github.com/hashicorp/nomad/client/testutil"
-	"github.com/hashicorp/nomad/drivers/shared/capabilities"
-	"github.com/hashicorp/nomad/drivers/shared/executor"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/helper/uuid"
-	basePlug "github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	dtestutil "github.com/hashicorp/nomad/plugins/drivers/testutils"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client/lib/cgutil"
+	ctestutils "github.com/bacanoo-io/norca/nomad/client/testutil"
+	"github.com/bacanoo-io/norca/nomad/drivers/shared/capabilities"
+	"github.com/bacanoo-io/norca/nomad/drivers/shared/executor"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	basePlug "github.com/bacanoo-io/norca/nomad/plugins/base"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
+	dtestutil "github.com/bacanoo-io/norca/nomad/plugins/drivers/testutils"
+	"github.com/bacanoo-io/norca/nomad/testutil"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )

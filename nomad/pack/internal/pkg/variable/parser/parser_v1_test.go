@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/testfixture"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/variable/parser/config"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
-	"github.com/hashicorp/nomad/pack/internal/pkg/variable/parser/config"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
 	"github.com/shoenig/test/must"
 	"github.com/spf13/afero"
 	"github.com/zclconf/go-cty/cty"

@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/api"
 
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 // Multi-region installs: run, upgrade and plan with --regions (or regions in

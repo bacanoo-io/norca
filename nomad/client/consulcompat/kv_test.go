@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	structsc "github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 	ctdep "github.com/hashicorp/consul-template/dependency"
 	consulapi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
-	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/shoenig/test/must"
 )

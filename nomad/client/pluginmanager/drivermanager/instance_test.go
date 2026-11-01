@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package drivermanager
@@ -8,13 +9,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/loader"
+	"github.com/bacanoo-io/norca/nomad/helper/pluginutils/singleton"
+	"github.com/bacanoo-io/norca/nomad/helper/testlog"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
+	dtu "github.com/bacanoo-io/norca/nomad/plugins/drivers/testutils"
 	log "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/helper/pluginutils/singleton"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/plugins/base"
-	dtu "github.com/hashicorp/nomad/plugins/drivers/testutils"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )

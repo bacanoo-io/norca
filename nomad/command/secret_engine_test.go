@@ -4,76 +4,65 @@
 package command
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/ci"
 	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 )
 
 func TestSecretEngine_Parse(t *testing.T) {
 	ci.Parallel(t)
-	dir := t.TempDir()
-	must.NoError(t, os.WriteFile(filepath.Join(dir, "app.jwt"), []byte("eyJ.account.jwt\n"), 0o600))
-	spec := filepath.Join(dir, "engine.hcl")
+	spec := filepath.Join(t.TempDir(), "engine.hcl")
 	content := []byte(`
-name            = "nats"
-type            = "nats"
-description     = "orders"
-credential_path = "nats/admin"
+name        = "postgres"
+type        = "operator"
+description = "orders"
 
-nats {
-  servers          = ["nats://127.0.0.1:4222"]
-  account_jwt_file = "app.jwt"
+operator {
+  service   = "postgres-operator"
+  namespace = "platform"
 }
 
-role "worker" {
-  ttl             = "30m"
-  max_ttl         = "12h"
-  publish         = ["orders.>"]
-  subscribe       = ["orders.>", "_INBOX.>"]
-  publish_deny    = ["orders.secret"]
-  allow_responses = true
+role "app" {
+  ttl     = "30m"
+  max_ttl = "12h"
+  config  = { database = "app" }
+  params  = ["schema"]
 }
 
-role "reader" {
-  subscribe = ["orders.>"]
-}
+role "reader" {}
 `)
 	engine, err := parseSecretEngine(spec, content, false)
 	must.NoError(t, err)
 	must.Eq(t, &api.SecretEngine{
-		Name:           "nats",
-		Type:           "nats",
-		Description:    "orders",
-		CredentialPath: "nats/admin",
-		NATS:           &api.SecretEngineNATS{Servers: []string{"nats://127.0.0.1:4222"}, AccountJWT: "eyJ.account.jwt"},
+		Name:        "postgres",
+		Type:        "operator",
+		Description: "orders",
+		Operator:    &api.SecretEngineOperator{Service: "postgres-operator", Namespace: "platform"},
 		Roles: []*api.SecretEngineRole{
-			{Name: "worker", TTL: 30 * time.Minute, MaxTTL: 12 * time.Hour, NATS: &api.SecretRoleNATS{
-				Publish: []string{"orders.>"}, Subscribe: []string{"orders.>", "_INBOX.>"},
-				PublishDeny: []string{"orders.secret"}, AllowResponses: true}},
-			{Name: "reader", NATS: &api.SecretRoleNATS{Subscribe: []string{"orders.>"}}},
+			{Name: "app", TTL: 30 * time.Minute, MaxTTL: 12 * time.Hour,
+				Config: map[string]string{"database": "app"}, Params: []string{"schema"}},
+			{Name: "reader"},
 		},
 	}, engine)
 
 	_, err = parseSecretEngine(spec, []byte(`name = "x"`), false)
 	must.Error(t, err)
 	bad := []byte(`
-name = "nats"
-type = "nats"
-credential_path = "a"
+name = "postgres"
+type = "operator"
 role "r" { ttl = "soon" }
 `)
 	_, err = parseSecretEngine(spec, bad, false)
 	must.ErrorContains(t, err, "invalid ttl")
 
-	engine, err = parseSecretEngine("-", []byte(`{"Name":"nats","Type":"nats","CredentialPath":"a"}`), true)
+	engine, err = parseSecretEngine("-", []byte(`{"Name":"pg","Type":"operator","Operator":{"Service":"s"}}`), true)
 	must.NoError(t, err)
-	must.Eq(t, "a", engine.CredentialPath)
+	must.Eq(t, "s", engine.Operator.Service)
 }
 
 func TestSecretEngineCommands_Usage(t *testing.T) {

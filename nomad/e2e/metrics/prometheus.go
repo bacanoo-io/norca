@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package metrics
@@ -10,9 +11,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/hashicorp/nomad/e2e/e2eutil"
-	"github.com/hashicorp/nomad/e2e/framework"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/bacanoo-io/norca/nomad/e2e/e2eutil"
+	"github.com/bacanoo-io/norca/nomad/e2e/framework"
+	"github.com/bacanoo-io/norca/nomad/helper/uuid"
 	"github.com/prometheus/common/model"
 )
 

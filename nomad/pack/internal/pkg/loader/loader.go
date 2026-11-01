@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad/objectschema"
-	"github.com/hashicorp/nomad/pack/internal/pkg/release"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/nomad/objectschema"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/release"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 )
 
 func Load(name string) (*pack.Pack, error) {

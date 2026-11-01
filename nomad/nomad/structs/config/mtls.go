@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/bacanoo-io/norca/nomad/helper/pointer"
 )
 
 const (

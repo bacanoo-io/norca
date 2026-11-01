@@ -17,8 +17,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hashicorp/nomad/pack/internal/pkg/bundle"
-	"github.com/hashicorp/nomad/pack/internal/pkg/loader"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/bundle"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/loader"
 )
 
 const (

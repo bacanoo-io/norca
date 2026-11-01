@@ -109,6 +109,26 @@ func (op *Operator) BusStatus(serverID string, q *QueryOptions) (*BusStatus, *Qu
 	return &out, qm, nil
 }
 
+// ConsulKVRestoreEntry is a key of the Consul KV to restore.
+type ConsulKVRestoreEntry struct {
+	Namespace string
+	Path      string
+	Key       string
+	Value     []byte
+}
+
+// ConsulKVRestore replaces the Consul KV bucket of the system bus with the
+// keys of a backup. It needs a management token and returns the number of
+// restored keys.
+func (op *Operator) ConsulKVRestore(entries []*ConsulKVRestoreEntry, q *WriteOptions) (int, *WriteMeta, error) {
+	var out struct{ Restored int }
+	wm, err := op.c.put("/v1/operator/consul-kv/restore", map[string]any{"Entries": entries}, &out, q)
+	if err != nil {
+		return 0, nil, err
+	}
+	return out.Restored, wm, nil
+}
+
 // ConsulKVMigrateOptions select the keys of a migration of the Consul KV.
 type ConsulKVMigrateOptions struct {
 	// Path is the Variables path of the kv block, consul/kv by default. The

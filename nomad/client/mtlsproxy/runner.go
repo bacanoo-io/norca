@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/client/discovery"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/discovery"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // The files the mtls hook writes into the mtls directory of the task.

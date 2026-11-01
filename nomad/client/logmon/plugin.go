@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package logmon
@@ -8,10 +9,10 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/bacanoo-io/norca/nomad/client/logmon/proto"
+	"github.com/bacanoo-io/norca/nomad/plugins/base"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/client/logmon/proto"
-	"github.com/hashicorp/nomad/plugins/base"
 	"google.golang.org/grpc"
 )
 

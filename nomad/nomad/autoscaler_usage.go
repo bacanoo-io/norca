@@ -6,7 +6,7 @@ package nomad
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/autoscaler"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler"
 )
 
 // autoscalerUsageInterval is the task group usage aggregation window the

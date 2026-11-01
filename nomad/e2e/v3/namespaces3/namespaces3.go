@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package namespaces3
@@ -7,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	nomadapi "github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/e2e/v3/util3"
+	"github.com/bacanoo-io/norca/nomad/helper"
 	"github.com/hashicorp/go-set"
-	nomadapi "github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/e2e/v3/util3"
-	"github.com/hashicorp/nomad/helper"
 	"github.com/shoenig/test"
 	"github.com/shoenig/test/must"
 )

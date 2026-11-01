@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/metricsstore"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/metricsstore"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // MetricsHistoryRequest returns the history of a metric of a task group

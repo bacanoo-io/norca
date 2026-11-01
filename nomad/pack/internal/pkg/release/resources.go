@@ -16,8 +16,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/resourcespec"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/helper/resourcespec"
 )
 
 // templateTypes maps the extensions of resource templates to the release

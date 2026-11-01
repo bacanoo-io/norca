@@ -15,8 +15,8 @@ import (
 
 	vaultapi "github.com/hashicorp/vault/api"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	structsc "github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
+	structsc "github.com/bacanoo-io/norca/nomad/nomad/structs/config"
 )
 
 // vaultPollInterval is how often the vault provider reads a secret again to

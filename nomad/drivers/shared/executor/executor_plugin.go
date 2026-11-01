@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package executor
@@ -6,9 +7,9 @@ package executor
 import (
 	"context"
 
+	"github.com/bacanoo-io/norca/nomad/drivers/shared/executor/proto"
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/drivers/shared/executor/proto"
 	"google.golang.org/grpc"
 )
 

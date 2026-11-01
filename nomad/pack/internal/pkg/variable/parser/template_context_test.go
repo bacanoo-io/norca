@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	sdkpack "github.com/hashicorp/nomad/pack/sdk/pack"
-	"github.com/hashicorp/nomad/pack/sdk/pack/variables"
+	sdkpack "github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack/variables"
 	"github.com/shoenig/test/must"
 )
 

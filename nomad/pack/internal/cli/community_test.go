@@ -8,17 +8,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/command/agent"
+	"github.com/bacanoo-io/norca/nomad/api"
+	"github.com/bacanoo-io/norca/nomad/command/agent"
 	"github.com/shoenig/test/must"
 
-	ct "github.com/hashicorp/nomad/pack/internal/cli/testhelper"
-	"github.com/hashicorp/nomad/pack/internal/pkg/caching"
-	"github.com/hashicorp/nomad/pack/internal/pkg/oci/ocitest"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packconfig"
-	"github.com/hashicorp/nomad/pack/internal/pkg/packlock"
-	"github.com/hashicorp/nomad/pack/internal/pkg/testfixture"
-	"github.com/hashicorp/nomad/pack/internal/runner/job"
+	ct "github.com/bacanoo-io/norca/nomad/pack/internal/cli/testhelper"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/oci/ocitest"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packconfig"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/packlock"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/testfixture"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/runner/job"
 )
 
 // The tests in this file exercise the supply chain features with the redis

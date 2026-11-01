@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/bacanoo-io/norca/nomad/plugins/device"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/plugins/device"
-	"github.com/hashicorp/nomad/plugins/drivers"
 )
 
 // PluginFactory returns a new plugin instance

@@ -6,9 +6,9 @@ package nomad
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/metricsstore"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/metricsstore"
+	"github.com/bacanoo-io/norca/nomad/nomad/state"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // metricsStoreSampleLoop samples the allocations of the task groups, the

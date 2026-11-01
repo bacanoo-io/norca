@@ -138,6 +138,28 @@ type BusConnections struct {
 	OutBytes int64
 }
 
+// ConsulKVRestoreRequest replaces the Consul KV bucket of the system bus with
+// the keys of a backup: operator backup restore-bootstrap, which reads the
+// backup on the machine of the administrator.
+type ConsulKVRestoreRequest struct {
+	Entries []*ConsulKVRestoreEntry
+	WriteRequest
+}
+
+// ConsulKVRestoreEntry is a key of the Consul KV to restore.
+type ConsulKVRestoreEntry struct {
+	Namespace string
+	Path      string
+	Key       string
+	Value     []byte
+}
+
+// ConsulKVRestoreResponse is the result of a restore of the Consul KV.
+type ConsulKVRestoreResponse struct {
+	Restored int
+	WriteMeta
+}
+
 // ConsulKVMigrateRequest copies the keys of the Consul KV kept in Variables
 // (the variables backend of consul_compat) into the bucket of the system
 // bus. The keys are the Variables below Path in the namespace of the

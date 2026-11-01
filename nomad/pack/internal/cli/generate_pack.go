@@ -7,11 +7,11 @@ package cli
 import (
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/pack/internal/config"
-	"github.com/hashicorp/nomad/pack/internal/creator"
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
-	"github.com/hashicorp/nomad/pack/sdk/pack"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/config"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/creator"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/sdk/pack"
 )
 
 // GeneratePackCommand adds a registry to the global cache.

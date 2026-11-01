@@ -5,8 +5,8 @@
 package runner
 
 import (
-	"github.com/hashicorp/nomad/pack/internal/pkg/errors"
-	"github.com/hashicorp/nomad/pack/terminal"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/nomad/pack/terminal"
 )
 
 // Config is the generic configuration used by each runner implementation

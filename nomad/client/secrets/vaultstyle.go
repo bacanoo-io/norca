@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // Vault-style lookups (norca-doc content/docs/design/secrets-plan.md, "Vault compatibility"):

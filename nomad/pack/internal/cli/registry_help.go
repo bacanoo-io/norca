@@ -5,7 +5,7 @@
 package cli
 
 import (
-	"github.com/hashicorp/nomad/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/nomad/pack/internal/pkg/flag"
 	"github.com/posener/complete"
 )
 

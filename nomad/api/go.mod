@@ -1,4 +1,4 @@
-module github.com/hashicorp/nomad/api
+module github.com/bacanoo-io/norca/nomad/api
 
 go 1.27
 

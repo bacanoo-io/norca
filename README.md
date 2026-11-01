@@ -1,10 +1,20 @@
 # Norca
 
+**Project status: alpha.** The design, the documentation and the implementation are not final and may change.
+
+> [!WARNING]
+> **Agentically generated.** This codebase was produced through agentic,
+> spec-driven development: each feature began as a written design and
+> implementation spec, then a coding agent executed the plan under human
+> review. Tests, code review, and CI gates apply as they would for any
+> project, but the authorship pattern is not a single human contributor —
+> keep that in mind when evaluating fit for your environment.
+
 An independent, open source workload scheduler and orchestrator built on the **HashiCorp Nomad v1.6.5** source code (MPL 2.0), with its own extensions: a built-in autoscaler, namespace quotas, admission policies, backup and restore, service discovery without Consul, package management and a new web UI.
 
 **This project is not a product of HashiCorp or IBM and is not affiliated with them.** "Nomad", "Consul" and "HashiCorp" are trademarks of their respective owners; they appear here only to describe the origin of the code.
 
-**Note on internal identifiers:** for compatibility with existing Nomad clients, tools and configurations, and to allow gradual refactoring, technical identifiers in the code and its interfaces may still contain `nomad`: the Go module and package paths (`github.com/hashicorp/nomad`), type and function names, environment variables (`NOMAD_ADDR`, `NOMAD_TOKEN`), CLI flags, HCL and JSON configuration parameters, HTTP API endpoints and metric names. They are kept only for functional interoperability and do not imply any official association with HashiCorp, Inc. or IBM.
+**Note on internal identifiers:** for compatibility with existing Nomad clients, tools and configurations, and to allow gradual refactoring, technical identifiers in the code and its interfaces may still contain `nomad`: the `nomad/` directory and package names, type and function names, environment variables (`NOMAD_ADDR`, `NOMAD_TOKEN`), CLI flags, HCL and JSON configuration parameters, HTTP API endpoints and metric names. They are kept only for functional interoperability and do not imply any official association with HashiCorp, Inc. or IBM.
 
 ## Documentation
 
@@ -22,7 +32,7 @@ v1.6.5 is the last Nomad release published under MPL 2.0. `nomad/` was imported 
 
 ## Usage
 
-Norca is a single binary, `norca`, which runs both the agent and the CLI. Build it from the `nomad/` directory (the Go module keeps its original path, `github.com/hashicorp/nomad`):
+Norca is a single binary, `norca`, which runs both the agent and the CLI. Build it from the `nomad/` directory (Go module `github.com/bacanoo-io/norca/nomad`):
 
 ```shell
 cd nomad
@@ -46,7 +56,7 @@ Step-by-step deployment examples with the new features (development agent, singl
 `norca pack` (Nomad Pack, built in) installs packs from git and OCI registries. The operations packs (NATS, the cross-region mTLS gateway, RustFS as the backup store, Consul, the LoadBalancer operator) live in the [Norca pack registry](https://github.com/bacanoo-io/norca-registry):
 
 ```shell
-norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.1.0
+norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.3.0
 norca pack run nats --registry=norca
 ```
 
@@ -109,7 +119,7 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Package management, client-side supply chain: OCI registries, cosign-compatible signing and trust policies, offline bundles (air-gapped), `pack.lock` | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md), [usage](nomad/pack/docs/supply-chain.md) |
 | Package management: server-side releases (`packs.norca.io/Release` objects with revision history, atomic install/upgrade, hooks and tests, rollback, drift detection, uninstall), signature enforcement in admission (`trusted_keys`) | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
 | Package management: JSON Schema for pack variables (`variables_schema`, checked by the CLI and the servers), multi-region installs (`--regions`, global resources from the authoritative region, per-region status) | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
-| Embedded secret storage (sealed keyring with cloud KMS, transit or unseal shares; versioned, audited secrets; `secret` block delivering files and env); the existing Vault integration stays, further external providers (OpenBao, AWS, GCP and Scaleway secret managers, plugins) can be added, and lookups fall back to the built-in store when no external store is defined | In progress (phases 0–4: uBixVault core on Norca's Raft; `shares` seal with `norca operator unseal`, seal status and online rewrap; versioned `Secret` objects with `norca secret`, ACL capabilities, `SecretAccess` audit topic and audit file; `secret` block delivering files and env with `norca` and `vault` providers and fallback, `nomadSecret` template function, `secret_access` grants; Vault compatibility without a Vault: Vault-style `secret` template reads and task `vault` blocks served by the built-in store through a client Vault-compatible KV endpoint, `norca secret import -from-vault` / `-from-variable`; web UI Secrets page with audited value reveal and seal status) | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/secrets-plan.md) |
+| Embedded secret storage (sealed keyring with cloud KMS, transit or unseal shares; versioned, audited secrets; `secret` block delivering files and env); the existing Vault integration stays, further external providers (OpenBao, AWS, GCP and Scaleway secret managers, plugins) can be added, and lookups fall back to the built-in store when no external store is defined | In progress (phases 0–4: uBixVault core on Norca's Raft; `shares` seal with `norca operator unseal`, seal status and online rewrap; versioned `Secret` objects with `norca secret`, ACL capabilities, `SecretAccess` audit topic and audit file; `secret` block delivering files and env with `norca` and `vault` providers and fallback, `nomadSecret` template function, `secret_access` grants; Vault compatibility without a Vault: Vault-style `secret` template reads and task `vault` blocks served by the built-in store through a client Vault-compatible KV endpoint, `norca secret import -from-vault` / `-from-variable`; web UI Secrets page with audited value reveal and seal status; dynamic secrets served by operators: leases with renewal and revocation, operator SDK `controller/secrets`, fallback to a static secret) | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/secrets-plan.md) |
 | New web UI: Ember 6.12 LTS with a Tabler base and ECharts, live updates over the event stream, dashboard as the landing page; every page on the Norca component layer (jobs, allocations, clients, servers and regions, topology, storage, evaluations, Variables, access, backups, quotas, scaling, services, intentions, network rules, multiregion deployments, packages, objects, type definitions, admission policies, with unified lists and HCL/JSON editors); WCAG 2.1 AA in light and dark mode; the previous UI (`/ui/legacy`) has been removed | Available (phases 1–4) | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/ui-plan.md) |
 
 Only features marked "Available" can be used; the others are being built or are in the design phase.
@@ -117,6 +127,9 @@ Only features marked "Available" can be used; the others are being built or are 
 ## License
 
 The code and documentation of this project are licensed under the **MPL 2.0** ([LICENSES/MPL-2.0.txt](LICENSES/MPL-2.0.txt)). Files taken from third parties keep their original license; these are marked by their file headers and by [REUSE.toml](REUSE.toml). The licenses and notices of the third-party components of the binaries and the web UI are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), generated by `make notices` in `nomad/` and shipped with every release archive and container image.
+
+The clean room similarity audit is described in [CLEAN_ROOM.md](CLEAN_ROOM.md); its latest result is in
+[clean-room-result/](clean-room-result/).
 
 ## Contributing
 

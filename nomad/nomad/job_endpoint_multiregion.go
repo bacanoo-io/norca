@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // A job with a multiregion block is registered in every region it lists. The

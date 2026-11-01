@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/api"
 	"github.com/posener/complete"
 )
 

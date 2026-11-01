@@ -20,9 +20,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/plugins"
+	"github.com/bacanoo-io/norca/nomad/nomad/autoscaler/sdk"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/autoscaler/plugins"
-	"github.com/hashicorp/nomad/nomad/autoscaler/sdk"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"

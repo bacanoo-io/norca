@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package taskrunner
@@ -9,9 +10,9 @@ import (
 	"sync"
 	"time"
 
+	cstructs "github.com/bacanoo-io/norca/nomad/client/structs"
+	bstructs "github.com/bacanoo-io/norca/nomad/plugins/base/structs"
 	log "github.com/hashicorp/go-hclog"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	bstructs "github.com/hashicorp/nomad/plugins/base/structs"
 )
 
 const (

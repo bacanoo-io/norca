@@ -4,7 +4,7 @@
 package nomad
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // jobVaultNamespaceDefaulter makes the job-level Vault namespace the default

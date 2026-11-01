@@ -4,8 +4,8 @@
 package jobspec2
 
 import (
+	"github.com/bacanoo-io/norca/nomad/api"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/nomad/api"
 )
 
 // allocAffinityHCL has the fields and HCL tags of api.AllocAffinity but no

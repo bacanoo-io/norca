@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 )
 
 // exportKeys returns copies of all root keys of the keyring, for the

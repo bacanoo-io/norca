@@ -108,7 +108,7 @@ client {
     namespaces = ["default", "apps", "observability"]
   }
 
-  # Observability (step 12): the host's root directory, read-only, for the
+  # Observability (step 11): the host's root directory, read-only, for the
   # host metrics of the OpenTelemetry Collector (node-1.hcl adds the data
   # volume of OpenObserve).
   host_volume "hostfs" {

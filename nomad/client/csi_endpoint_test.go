@@ -13,13 +13,13 @@ import (
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/client/pluginmanager/csimanager"
-	"github.com/hashicorp/nomad/client/structs"
-	nstructs "github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/csi"
-	"github.com/hashicorp/nomad/plugins/csi/fake"
+	"github.com/bacanoo-io/norca/nomad/ci"
+	"github.com/bacanoo-io/norca/nomad/client/dynamicplugins"
+	"github.com/bacanoo-io/norca/nomad/client/pluginmanager/csimanager"
+	"github.com/bacanoo-io/norca/nomad/client/structs"
+	nstructs "github.com/bacanoo-io/norca/nomad/nomad/structs"
+	"github.com/bacanoo-io/norca/nomad/plugins/csi"
+	"github.com/bacanoo-io/norca/nomad/plugins/csi/fake"
 )
 
 var fakePlugin = &dynamicplugins.PluginInfo{

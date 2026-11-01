@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bacanoo-io/norca/nomad/helper"
+	"github.com/bacanoo-io/norca/nomad/nomad/structs"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
 )
 
 // composite of allocID + taskName for uniqueness

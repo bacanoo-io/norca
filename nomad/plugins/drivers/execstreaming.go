@@ -10,7 +10,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/hashicorp/nomad/plugins/drivers/proto"
+	"github.com/bacanoo-io/norca/nomad/plugins/drivers/proto"
 )
 
 // StreamToExecOptions is a convenience method to convert exec stream into
