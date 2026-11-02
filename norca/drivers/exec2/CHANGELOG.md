@@ -1,0 +1,33 @@
+## 0.1.1 (October 22, 2025)
+
+* build: Update Nomad version to 1.10.2. [GH-71](https://github.com/hashicorp/nomad-driver-exec2/pull/71)
+* build: Update Go to 1.24.4. [GH-71](https://github.com/hashicorp/nomad-driver-exec2/pull/71)
+
+SECURITY:
+
+* Ignore setting LD_* environment variables which can lead to privileged code execution. [GH-76](https://github.com/hashicorp/nomad-driver-exec2/pull/76)
+* Bump dependencies to latest versions. [GH-64](https://github.com/hashicorp/nomad-driver-exec2/pull/64)
+* Bump go to `v1.23.5`. [GH-64](https://github.com/hashicorp/nomad-driver-exec2/pull/65)
+
+## 0.1.0 (October 15, 2024)
+
+GA release of exec2! v0.1.0
+
+## 0.1.0-beta.2 (July 18, 2024)
+
+IMPROVEMENTS:
+
+* Implemented support for setting `oom_score_adj` on a per-task basis. [GH-40](https://github.com/hashicorp/nomad-driver-exec2/pull/40)
+* Updated the Linux packaging to install into the default Nomad plugin directory. [GH-39](https://github.com/hashicorp/nomad-driver-exec2/pull/39)
+
+BUG FIXES:
+
+* Fixed a bug where the temp directory created for tasks was not available. [GH-38](https://github.com/hashicorp/nomad-driver-exec2/pull/38)
+
+## 0.1.0-beta.1 (June 5, 2024)
+
+First beta release of initial v0.1.0 version.
+
+## 0.1.0-alpha.2 (May 24, 2024)
+
+Second alpha release of initial v0.1.0 version.
