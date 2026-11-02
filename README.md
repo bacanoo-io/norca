@@ -12,30 +12,33 @@
 
 An independent, open source workload scheduler and orchestrator built on the **HashiCorp Nomad v1.6.5** source code (MPL 2.0), with its own extensions: a built-in autoscaler, namespace quotas, admission policies, backup and restore, service discovery without Consul, package management and a new web UI.
 
+> [!IMPORTANT]
+> **Norca is not a drop-in replacement for Nomad.** It started from the Nomad v1.6.5 source and keeps the Nomad 1.6.5 HTTP API, so API clients and tools built against that API can talk to it. Everything else is Norca's own: the binary and CLI are `norca`, the environment variables are `NORCA_*` (also the ones injected into workloads), job files use the `.norca.hcl` suffix, the built-in DNS and the TLS and mTLS names use the `.norca` domain, and the many additions change behaviour and configuration. An existing Nomad cluster, its job files, certificates and configuration cannot be switched to Norca without changes, and Norca makes no promise of compatibility with future Nomad releases.
+
 **This project is not a product of HashiCorp or IBM and is not affiliated with them.** "Nomad", "Consul" and "HashiCorp" are trademarks of their respective owners; they appear here only to describe the origin of the code.
 
-**Note on internal identifiers:** for compatibility with existing Nomad clients, tools and configurations, and to allow gradual refactoring, technical identifiers in the code and its interfaces may still contain `nomad`: the `nomad/` directory and package names, type and function names, environment variables (`NOMAD_ADDR`, `NOMAD_TOKEN`), CLI flags, HCL and JSON configuration parameters, HTTP API endpoints and metric names. They are kept only for functional interoperability and do not imply any official association with HashiCorp, Inc. or IBM.
+**Note on internal identifiers:** for compatibility with the Nomad 1.6.5 HTTP API, and to allow gradual refactoring, technical identifiers in the code and its interfaces may still contain `nomad`: type and function names, CLI flags, HCL and JSON configuration parameters, HTTP API endpoints and metric names. They are kept only for functional interoperability and do not imply any official association with HashiCorp, Inc. or IBM.
 
 ## Documentation
 
-The documentation lives in its own repository, [bacanoo-io/norca-doc](https://github.com/bacanoo-io/norca-doc) (a Hugo site): introduction and compatibility, getting started, the Norca features with examples, configuration and diagrams, the job specification, agent configuration, CLI and HTTP API reference, operations, security, and the design documents with their status. It replaces the former `docs/` directory of this repository (design documents, `licensing.md`, `native-mtls.md`), which moved there on 2026-10-27. The reference pages adapt the Nomad v1.6.5 documentation text, which stays here unchanged as the upstream reference in [nomad/website/content/](nomad/website/README.md).
+The documentation lives in its own repository, [bacanoo-io/norca-doc](https://github.com/bacanoo-io/norca-doc) (a Hugo site): introduction and compatibility, getting started, the Norca features with examples, configuration and diagrams, the job specification, agent configuration, CLI and HTTP API reference, operations, security, and the design documents with their status. It replaces the former `docs/` directory of this repository (design documents, `licensing.md`, `native-mtls.md`), which moved there on 2026-10-27. The reference pages adapt the Nomad v1.6.5 documentation text, which stays here unchanged as the upstream reference in [norca/website/content/](norca/website/README.md).
 
 ## Origin
 
 | Component | Based on | Commit | License |
 | --- | --- | --- | --- |
-| `nomad/` | HashiCorp Nomad v1.6.5 | `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f` | MPL 2.0 |
-| `nomad/pack/` | HashiCorp Nomad Pack v0.4.2 | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 |
-| built-in autoscaler (`nomad/nomad/autoscaler/`) | HashiCorp Nomad Autoscaler v0.6.0 | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 |
+| `norca/` | HashiCorp Nomad v1.6.5 | `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f` | MPL 2.0 |
+| `norca/pack/` | HashiCorp Nomad Pack v0.4.2 | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 |
+| built-in autoscaler (`norca/norca/autoscaler/`) | HashiCorp Nomad Autoscaler v0.6.0 | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 |
 
-v1.6.5 is the last Nomad release published under MPL 2.0. `nomad/` was imported with the upstream git history up to `8495495ba` (2023-08-09), the last release/1.6.x commit before HashiCorp's license change; the changes of the later 1.6.x commits up to v1.6.5 are part of the import commit, without the 45 files of v1.6.5 that carry a BUSL-1.1 header, so the history contains no upstream commit from after the license change. Nomad Pack was imported with its full git history, so its starting commit can be verified; Nomad Pack was later moved into `nomad/pack/` (part of the Nomad Go module, run as `norca pack`); its original commits remain in the history and `git blame` still reaches them. This project contains no code from HashiCorp releases published under BSL 1.1. Details: [licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md).
+v1.6.5 is the last Nomad release published under MPL 2.0. `norca/` was imported with the upstream git history up to `8495495ba` (2023-08-09), the last release/1.6.x commit before HashiCorp's license change; the changes of the later 1.6.x commits up to v1.6.5 are part of the import commit, without the 45 files of v1.6.5 that carry a BUSL-1.1 header, so the history contains no upstream commit from after the license change. Nomad Pack was imported with its full git history, so its starting commit can be verified; Nomad Pack was later moved into `norca/pack/` (part of the Nomad Go module, run as `norca pack`); its original commits remain in the history and `git blame` still reaches them. This project contains no code from HashiCorp releases published under BSL 1.1. Details: [licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md).
 
 ## Usage
 
-Norca is a single binary, `norca`, which runs both the agent and the CLI. Build it from the `nomad/` directory (Go module `github.com/bacanoo-io/norca/nomad`):
+Norca is a single binary, `norca`, which runs both the agent and the CLI. Build it from the `norca/` directory (Go module `github.com/bacanoo-io/norca/norca`):
 
 ```shell
-cd nomad
+cd norca
 make dev                  # writes bin/norca and copies it to $GOBIN
 # or: go build -o norca .
 ```
@@ -43,7 +46,7 @@ make dev                  # writes bin/norca and copies it to $GOBIN
 ```shell
 norca agent -dev          # start a development agent
 norca job init            # write an example job file
-norca job run example.nomad.hcl
+norca job run example.norca.hcl
 norca version             # Norca v0.3.0 (Nomad API 1.6.5 compatible)
 ```
 
@@ -60,7 +63,7 @@ norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref
 norca pack run nats --registry=norca
 ```
 
-See [nomad/pack/README.md](nomad/pack/README.md) and the [pack docs](nomad/pack/docs/).
+See [norca/pack/README.md](norca/pack/README.md) and the [pack docs](norca/pack/docs/).
 
 ### Compatibility alias `nomad`
 
@@ -68,24 +71,24 @@ A copy of the binary, or a symlink to it, named `nomad` (`nomad.exe` on Windows)
 
 ### Environment variables
 
-The CLI and the API client read their settings from `NORCA_*` environment variables. Each one is also accepted with its Nomad name (`NOMAD_*`), which is used when the `NORCA_*` variable is unset or empty:
+The CLI and the API client read their settings from `NORCA_*` environment variables:
 
-| Variable | Fallback | Meaning |
-| --- | --- | --- |
-| `NORCA_ADDR` | `NOMAD_ADDR` | Address of the HTTP API, default `http://127.0.0.1:4646` |
-| `NORCA_TOKEN` | `NOMAD_TOKEN` | ACL token secret ID |
-| `NORCA_REGION` | `NOMAD_REGION` | Region to forward requests to |
-| `NORCA_NAMESPACE` | `NOMAD_NAMESPACE` | Target namespace |
-| `NORCA_HTTP_AUTH` | `NOMAD_HTTP_AUTH` | HTTP basic auth, `user:password` |
-| `NORCA_CACERT`, `NORCA_CAPATH` | `NOMAD_CACERT`, `NOMAD_CAPATH` | CA certificate file or directory |
-| `NORCA_CLIENT_CERT`, `NORCA_CLIENT_KEY` | `NOMAD_CLIENT_CERT`, `NOMAD_CLIENT_KEY` | Client certificate and key for mTLS |
-| `NORCA_TLS_SERVER_NAME` | `NOMAD_TLS_SERVER_NAME` | SNI server name |
-| `NORCA_SKIP_VERIFY` | `NOMAD_SKIP_VERIFY` | Skip TLS verification |
-| `NORCA_CLI_NO_COLOR`, `NORCA_CLI_FORCE_COLOR` | `NOMAD_CLI_NO_COLOR`, `NOMAD_CLI_FORCE_COLOR` | Disable or force colored output |
-| `NORCA_PACK_ALLOW_UNSET_VARS`, `NORCA_PACK_PLAN_EXIT_CODE_*` | `NOMAD_PACK_*` | `norca pack` settings |
-| `NORCA_PACK_CONFIG`, `NORCA_PACK_CACHE_DIR`, `NORCA_PACK_REGISTRY_USERNAME`, `NORCA_PACK_REGISTRY_PASSWORD`, `NORCA_PACK_KEY_PASSWORD`, `NORCA_PACK_LOCK` | – | `norca pack` OCI registries, signing and lock files ([details](nomad/pack/docs/supply-chain.md)) |
+| Variable | Meaning |
+| --- | --- |
+| `NORCA_ADDR` | Address of the HTTP API, default `http://127.0.0.1:4646` |
+| `NORCA_TOKEN` | ACL token secret ID |
+| `NORCA_REGION` | Region to forward requests to |
+| `NORCA_NAMESPACE` | Target namespace |
+| `NORCA_HTTP_AUTH` | HTTP basic auth, `user:password` |
+| `NORCA_CACERT`, `NORCA_CAPATH` | CA certificate file or directory |
+| `NORCA_CLIENT_CERT`, `NORCA_CLIENT_KEY` | Client certificate and key for mTLS |
+| `NORCA_TLS_SERVER_NAME` | SNI server name |
+| `NORCA_SKIP_VERIFY` | Skip TLS verification |
+| `NORCA_CLI_NO_COLOR`, `NORCA_CLI_FORCE_COLOR` | Disable or force colored output |
+| `NORCA_PACK_ALLOW_UNSET_VARS`, `NORCA_PACK_PLAN_EXIT_CODE_*` | `norca pack` settings |
+| `NORCA_PACK_CONFIG`, `NORCA_PACK_CACHE_DIR`, `NORCA_PACK_REGISTRY_USERNAME`, `NORCA_PACK_REGISTRY_PASSWORD`, `NORCA_PACK_KEY_PASSWORD`, `NORCA_PACK_LOCK` | `norca pack` OCI registries, signing and lock files ([details](norca/pack/docs/supply-chain.md)) |
 
-Command-line flags take precedence over both. Names that are part of the Nomad compatibility surface are unchanged: the variables injected into workloads (`NOMAD_ALLOC_ID`, `NOMAD_TASK_DIR`, ...), the jobspec variable prefix `NOMAD_VAR_`, the pack variable prefix `NOMAD_PACK_VAR_`, the `X-Nomad-Token` HTTP header and the agent's configuration, metric and Raft/Serf names.
+Command-line flags take precedence. The variables injected into workloads (`NORCA_ALLOC_ID`, `NORCA_TASK_DIR`, ...), the jobspec variable prefix `NORCA_VAR_` and the pack variable prefix `NORCA_PACK_VAR_` use the same prefix.
 
 ## Feature status
 
@@ -102,7 +105,7 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Disruption budget | Available | [specification, item 5](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/kubernetes-features-spec.md) |
 | Health check roles (startup, readiness, liveness) | Available | [specification, item 6](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/kubernetes-features-spec.md) |
 | Network rules, levels A and B (`NetworkPolicy`, cluster-level `AdminNetworkPolicy` with explicit deny; egress by CIDR and port, ingress on the node and host ports; nftables in the allocation's network namespace; nodes that cannot enforce are filtered out) | Available | [specification, item 7](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/kubernetes-features-spec.md) |
-| Operator framework: native custom objects (`ObjectKind`, `CustomObject`, schema, CEL with `oldSelf`), controller SDK `nomad/controller`, LoadBalancer example; lifecycle: finalizers, deletion modes (background, foreground, orphan), garbage collection of owned objects and jobs, per-object event log, managed-job protection, `scale` subresource for the autoscaler; ecosystem: operator packs (`loadbalancer-operator` of the [pack registry](https://github.com/bacanoo-io/norca-registry)), type-bound webhooks, schema migrations with CEL, per-kind limits, `norca operator init`, `norca object-kind lint`, SDK `webhook` and `envtest` packages | Available (phases 1–4, including the web UI: object and type definition pages with lifecycle, webhook approval and limits) | [specification, item 8](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/kubernetes-features-spec.md) |
+| Operator framework: native custom objects (`ObjectKind`, `CustomObject`, schema, CEL with `oldSelf`), controller SDK `norca/controller`, LoadBalancer example; lifecycle: finalizers, deletion modes (background, foreground, orphan), garbage collection of owned objects and jobs, per-object event log, managed-job protection, `scale` subresource for the autoscaler; ecosystem: operator packs (`loadbalancer-operator` of the [pack registry](https://github.com/bacanoo-io/norca-registry)), type-bound webhooks, schema migrations with CEL, per-kind limits, `norca operator init`, `norca object-kind lint`, SDK `webhook` and `envtest` packages | Available (phases 1–4, including the web UI: object and type definition pages with lifecycle, webhook approval and limits) | [specification, item 8](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/kubernetes-features-spec.md) |
 | System bus: NATS with JetStream embedded in the servers; the event stream of each region and pack push notices on it | Available | [System bus](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/system-bus.md) |
 | Multiregion deployments (one region per cloud; staged rollout, `on_failure`, global tokens, `norca deployment run`) | Available | [development plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/nomad-fork-development-plan/index.md) |
 | NATS pack (`nats` of the pack registry: supercluster with JetStream and gateways, for applications) | Available | [nats](https://github.com/bacanoo-io/norca-registry/blob/main/packs/nats/README.md) |
@@ -116,9 +119,9 @@ Command-line flags take precedence over both. Names that are part of the Nomad c
 | Native mTLS, step 3: Envoy sidecar (`mtls { mode = "sidecar" }`, file-based xDS, intentions as Envoy RBAC), upstreams on local ports, cross-region SNI passthrough gateway (`mode = "gateway"`, `upstream { region }`) | Available (phase 5, step 3; tested against Envoy 1.39 and 1.40) | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/consul-independence-plan.md), [usage](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/native-mtls/sidecar-and-gateway.md) |
 | Package management: Nomad Pack built in (`norca pack`) | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md) |
 | Norca pack registry ([norca-registry](https://github.com/bacanoo-io/norca-registry), a separate repository): operations packs `nats`, `mtls-gateway` (cross-region mTLS gateway), `rustfs` (S3 store of the backups), `consul`, `loadbalancer-operator` | Available | [registry](https://github.com/bacanoo-io/norca-registry#readme) |
-| Package management, client-side supply chain: OCI registries, cosign-compatible signing and trust policies, offline bundles (air-gapped), `pack.lock` | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md), [usage](nomad/pack/docs/supply-chain.md) |
-| Package management: server-side releases (`packs.norca.io/Release` objects with revision history, atomic install/upgrade, hooks and tests, rollback, drift detection, uninstall), signature enforcement in admission (`trusted_keys`) | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
-| Package management: JSON Schema for pack variables (`variables_schema`, checked by the CLI and the servers), multi-region installs (`--regions`, global resources from the authoritative region, per-region status) | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md), [usage](nomad/pack/docs/releases.md) |
+| Package management, client-side supply chain: OCI registries, cosign-compatible signing and trust policies, offline bundles (air-gapped), `pack.lock` | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md), [usage](norca/pack/docs/supply-chain.md) |
+| Package management: server-side releases (`packs.norca.io/Release` objects with revision history, atomic install/upgrade, hooks and tests, rollback, drift detection, uninstall), signature enforcement in admission (`trusted_keys`) | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md), [usage](norca/pack/docs/releases.md) |
+| Package management: JSON Schema for pack variables (`variables_schema`, checked by the CLI and the servers), multi-region installs (`--regions`, global resources from the authoritative region, per-region status) | Available | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/package-management-plan.md), [usage](norca/pack/docs/releases.md) |
 | Embedded secret storage (sealed keyring with cloud KMS, transit or unseal shares; versioned, audited secrets; `secret` block delivering files and env); the existing Vault integration stays, further external providers (OpenBao, AWS, GCP and Scaleway secret managers, plugins) can be added, and lookups fall back to the built-in store when no external store is defined | In progress (phases 0–4: uBixVault core on Norca's Raft; `shares` seal with `norca operator unseal`, seal status and online rewrap; versioned `Secret` objects with `norca secret`, ACL capabilities, `SecretAccess` audit topic and audit file; `secret` block delivering files and env with `norca` and `vault` providers and fallback, `nomadSecret` template function, `secret_access` grants; Vault compatibility without a Vault: Vault-style `secret` template reads and task `vault` blocks served by the built-in store through a client Vault-compatible KV endpoint, `norca secret import -from-vault` / `-from-variable`; web UI Secrets page with audited value reveal and seal status; dynamic secrets served by operators: leases with renewal and revocation, operator SDK `controller/secrets`, fallback to a static secret) | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/secrets-plan.md) |
 | New web UI: Ember 6.12 LTS with a Tabler base and ECharts, live updates over the event stream, dashboard as the landing page; every page on the Norca component layer (jobs, allocations, clients, servers and regions, topology, storage, evaluations, Variables, access, backups, quotas, scaling, services, intentions, network rules, multiregion deployments, packages, objects, type definitions, admission policies, with unified lists and HCL/JSON editors); WCAG 2.1 AA in light and dark mode; the previous UI (`/ui/legacy`) has been removed | Available (phases 1–4) | [plan](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/design/ui-plan.md) |
 

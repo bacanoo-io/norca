@@ -23,9 +23,9 @@ SPDX-License-Identifier = "MPL-2.0"
 
 # Files of the HashiCorp forks keep their own headers; files without a header
 # (generated code, test data) fall under the license of the fork.
-# nomad/pack/** originates from HashiCorp Nomad Pack v0.4.2 (MPL 2.0).
+# norca/pack/** originates from HashiCorp Nomad Pack v0.4.2 (MPL 2.0).
 [[annotations]]
-path = ["nomad/**"]
+path = ["norca/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "HashiCorp, Inc. and Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
@@ -33,41 +33,41 @@ SPDX-License-Identifier = "MPL-2.0"
 # Modules written for Norca (controller SDK); files without a header
 # (go.mod, go.sum, JSON schemas) are Norca's own.
 [[annotations]]
-path = ["nomad/controller/**"]
+path = ["norca/controller/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
 # uBixVault v1.5.0 (BSD-3-Clause, https://github.com/cwolsen7905/ubixvault),
 # imported with git subtree for the built-in secret store; see
-# nomad/secretstore/ubix/LICENSE. Its files carry no headers. The files Norca
+# norca/secretstore/ubix/LICENSE. Its files carry no headers. The files Norca
 # adds inside the subtree (the generated facades under export/, test helpers)
 # carry SPDX headers of their own (MPL-2.0), which take precedence.
 [[annotations]]
-path = ["nomad/secretstore/ubix/**"]
+path = ["norca/secretstore/ubix/**"]
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 Christopher W. Olsen"
 SPDX-License-Identifier = "BSD-3-Clause"
 
 # tstorage v0.3.6 (Apache-2.0, https://github.com/nakabonne/tstorage), copied for
 # the metrics store with the changes noted at the top of the modified files;
-# see nomad/internal/tstorage/LICENSE and NOTICE.txt. Files Norca adds carry SPDX
+# see norca/internal/tstorage/LICENSE and NOTICE.txt. Files Norca adds carry SPDX
 # headers of their own (MPL-2.0), which take precedence.
 [[annotations]]
-path = ["nomad/internal/tstorage/**"]
+path = ["norca/internal/tstorage/**"]
 precedence = "closest"
 SPDX-FileCopyrightText = "The tstorage authors (github.com/nakabonne/tstorage)"
 SPDX-License-Identifier = "Apache-2.0"
 
 # Test fixture copied unmodified from the Nomad Pack Community Registry (MPL 2.0),
-# see nomad/pack/fixtures/community/README.md.
+# see norca/pack/fixtures/community/README.md.
 [[annotations]]
-path = ["nomad/pack/fixtures/community/packs/**"]
+path = ["norca/pack/fixtures/community/packs/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "IBM Corp. and the Nomad Pack Community Registry contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
-# THIRD_PARTY_NOTICES.md is generated (nomad/tools/thirdparty) and reproduces the
+# THIRD_PARTY_NOTICES.md is generated (norca/tools/thirdparty) and reproduces the
 # license texts and notices of the dependencies, some of which contain SPDX tags of
 # their own; those describe the dependencies, not this file.
 [[annotations]]

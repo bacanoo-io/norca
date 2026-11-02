@@ -1,0 +1,27 @@
+<%- /*
+SPDX-FileCopyrightText: 2026 Norca contributors
+SPDX-License-Identifier: MPL-2.0
+*/ -%>
+module <% .Module %>
+
+go 1.27
+
+require (
+	github.com/bacanoo-io/norca/norca/api v0.0.0-20230103221135-ce00d683f9be
+	github.com/bacanoo-io/norca/norca/controller v0.0.0
+)
+
+// The SDK and the API module are those of your Norca checkout: point the
+// replace directives at its norca/controller and norca/api directories, then
+// run "go mod tidy".
+<%- if .SDKPath %>
+replace (
+	github.com/bacanoo-io/norca/norca/api => <% .APIDir %>
+	github.com/bacanoo-io/norca/norca/controller => <% .ControllerDir %>
+)
+<%- else %>
+// replace (
+// 	github.com/bacanoo-io/norca/norca/api => /path/to/norca/norca/api
+// 	github.com/bacanoo-io/norca/norca/controller => /path/to/norca/norca/controller
+// )
+<%- end %>

@@ -28,8 +28,8 @@ defaults:
     shell: bash
 
 env:
-  # The nomad module and the separate modules inside it.
-  MODULES: nomad nomad/api nomad/controller nomad/tools
+  # The norca module and the separate modules inside it.
+  MODULES: norca norca/api norca/controller norca/tools
 
 jobs:
   build:
@@ -44,12 +44,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: nomad/go.mod
+          go-version-file: norca/go.mod
           cache-dependency-path: |
-            nomad/go.sum
-            nomad/api/go.sum
-            nomad/controller/go.sum
-            nomad/tools/go.sum
+            norca/go.sum
+            norca/api/go.sum
+            norca/controller/go.sum
+            norca/tools/go.sum
       - name: go build ./...
         env:
           GOOS: ${{ matrix.goos }}
@@ -68,12 +68,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: nomad/go.mod
+          go-version-file: norca/go.mod
           cache-dependency-path: |
-            nomad/go.sum
-            nomad/api/go.sum
-            nomad/controller/go.sum
-            nomad/tools/go.sum
+            norca/go.sum
+            norca/api/go.sum
+            norca/controller/go.sum
+            norca/tools/go.sum
       - name: go vet ./...
         # Every package of every module was vet-clean when this job was added;
         # keep it that way rather than narrowing the package list.
@@ -89,26 +89,26 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      NOMAD_TEST_LOG_LEVEL: "OFF"
+      NORCA_TEST_LOG_LEVEL: "OFF"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: nomad/go.mod
+          go-version-file: norca/go.mod
           cache-dependency-path: |
-            nomad/go.sum
-            nomad/api/go.sum
-            nomad/controller/go.sum
-            nomad/tools/go.sum
+            norca/go.sum
+            norca/api/go.sum
+            norca/controller/go.sum
+            norca/tools/go.sum
       - name: Build norca for the tests that start an agent
         # The api and controller tests start a dev agent from the
         # norca binary on the PATH (they skip those tests without one).
         run: |
           mkdir -p "$RUNNER_TEMP/bin"
-          go -C nomad build -o "$RUNNER_TEMP/bin/norca" .
+          go -C norca build -o "$RUNNER_TEMP/bin/norca" .
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-      - name: nomad module
-        working-directory: nomad
+      - name: norca module
+        working-directory: norca
         run: |
           go test -count=1 -p 4 \
             ./acl/... \
@@ -118,20 +118,20 @@ jobs:
             ./jobspec/... \
             ./jobspec2/... \
             ./lib/... \
-            ./nomad/state/... \
-            ./nomad/structs/... \
+            ./norca/state/... \
+            ./norca/structs/... \
             ./scheduler/... \
             ./secretstore/... \
             ./version/...
-      - name: uBixVault subtree adapted to the nomad module
-        # nomad/secretstore/ubix must match what nomad/tools/ubixsync makes
+      - name: uBixVault subtree adapted to the norca module
+        # norca/secretstore/ubix must match what norca/tools/ubixsync makes
         # of it (no unused upstream code, rewritten imports, current facades).
         # Its tests, including the fuzz and property tests in their normal,
         # non-fuzzing mode, run with ./secretstore/... above.
-        run: go -C nomad/tools run ./ubixsync -root "$GITHUB_WORKSPACE" -check
+        run: go -C norca/tools run ./ubixsync -root "$GITHUB_WORKSPACE" -check
       - name: api, controller and tools modules
         run: |
-          for m in nomad/api nomad/controller nomad/tools; do
+          for m in norca/api norca/controller norca/tools; do
             echo "::group::$m"
             go -C "$m" test -count=1 -p 4 ./...
             echo "::endgroup::"

@@ -1,0 +1,35 @@
+// Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package norca
+
+import (
+	"fmt"
+
+	"github.com/bacanoo-io/norca/norca/norca/structs"
+)
+
+// jobNodePoolValidatingHook is an admission hook that ensures the job has valid
+// node pool configuration.
+type jobNodePoolValidatingHook struct {
+	srv *Server
+}
+
+func (j jobNodePoolValidatingHook) Name() string {
+	return "node-pool-validation"
+}
+
+func (j jobNodePoolValidatingHook) Validate(job *structs.Job) ([]error, error) {
+	poolName := job.NodePool
+
+	pool, err := j.srv.State().NodePoolByName(nil, poolName)
+	if err != nil {
+		return nil, err
+	}
+	if pool == nil {
+		return nil, fmt.Errorf("job %q is in nonexistent node pool %q", job.ID, poolName)
+	}
+
+	return j.enterpriseValidation(job, pool)
+}

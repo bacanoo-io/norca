@@ -1,0 +1,53 @@
+// Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package e2eutil
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/bacanoo-io/norca/norca/api"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
+	"github.com/shoenig/test"
+	"github.com/shoenig/test/must"
+)
+
+// ApplyJobPolicy applies an ACL job policy or noops if ACLs are disabled.
+// Registers a cleanup function to delete the policy.
+func ApplyJobPolicy(t *testing.T, nomad *api.Client, ns, j, g, task, rules string) *api.ACLPolicy {
+
+	policy := &api.ACLPolicy{
+		Name: j + uuid.Short(),
+		Description: fmt.Sprintf("Policy for test=%s ns=%s job=%s group=%s task=%s rules=%s",
+			t.Name(), ns, j, g, task, rules),
+		Rules: rules,
+		JobACL: &api.JobACL{
+			Namespace: ns,
+			JobID:     j,
+			Group:     g,
+			Task:      task,
+		},
+	}
+
+	wm, err := nomad.ACLPolicies().Upsert(policy, nil)
+	if err != nil {
+		if strings.Contains(err.Error(), "ACL support disabled") {
+			t.Logf("ACL support disabled. Skipping ApplyJobPolicy(t, c, %q, %q, %q, %q, %q)",
+				ns, j, g, task, rules)
+			return nil
+		}
+		must.NoError(t, err)
+	}
+
+	t.Cleanup(func() {
+		_, err := nomad.ACLPolicies().Delete(policy.Name, nil)
+		test.NoError(t, err)
+	})
+
+	policy.CreateIndex = wm.LastIndex
+	policy.ModifyIndex = wm.LastIndex
+	return policy
+}

@@ -8,8 +8,8 @@ region = "eu-2"
 
 tls {
   # norca tls cert create -server -region eu-2 ... (the same CA as eu-1)
-  cert_file = "/etc/norca.d/tls/eu-2-server-nomad.pem"
-  key_file  = "/etc/norca.d/tls/eu-2-server-nomad-key.pem"
+  cert_file = "/etc/norca.d/tls/eu-2-server-norca.pem"
+  key_file  = "/etc/norca.d/tls/eu-2-server-norca-key.pem"
 }
 
 acl {

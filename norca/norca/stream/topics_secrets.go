@@ -1,0 +1,51 @@
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package stream
+
+import (
+	"github.com/bacanoo-io/norca/norca/acl"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
+)
+
+func init() {
+	// Secret events carry metadata and the keyed value hash only; they are
+	// visible to everyone who may list the secret's path. The events of the
+	// dynamic secrets engines and their leases (keyed by engine name and
+	// lease ID) carry no credential and are visible with
+	// read-secret-engine in their namespace.
+	topicPolicies[structs.TopicSecret] = topicPolicy{
+		allowSubscribe: func(aclObj *acl.ACL, namespace string, keys []string) bool {
+			if aclObj == nil {
+				return true
+			}
+			if aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityReadSecretEngine) {
+				// The events are filtered one by one.
+				return true
+			}
+			for _, key := range keys {
+				if !aclObj.AllowSecretOperation(namespace, key, acl.NamespaceCapabilityListSecrets) {
+					return false
+				}
+			}
+			return true
+		},
+		allowEvent: func(aclObj *acl.ACL, event *structs.Event) bool {
+			if aclObj == nil {
+				return true
+			}
+			if structs.IsSecretEngineEventType(event.Type) {
+				return aclObj.AllowNsOp(event.Namespace, acl.NamespaceCapabilityReadSecretEngine)
+			}
+			return aclObj.AllowSecretOperation(event.Namespace, event.Key, acl.NamespaceCapabilityListSecrets)
+		},
+		globKeys: true,
+	}
+
+	// The audit records of the secret store require operator read.
+	topicPolicies[structs.TopicSecretAccess] = topicPolicy{
+		allowSubscribe: func(aclObj *acl.ACL, _ string, _ []string) bool {
+			return aclObj == nil || aclObj.AllowOperatorRead()
+		},
+	}
+}

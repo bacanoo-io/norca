@@ -31,9 +31,9 @@ tls {
   http = true
   rpc  = true
 
-  ca_file   = "/etc/norca.d/tls/nomad-agent-ca.pem"
-  cert_file = "/etc/norca.d/tls/global-server-nomad.pem"
-  key_file  = "/etc/norca.d/tls/global-server-nomad-key.pem"
+  ca_file   = "/etc/norca.d/tls/norca-agent-ca.pem"
+  cert_file = "/etc/norca.d/tls/global-server-norca.pem"
+  key_file  = "/etc/norca.d/tls/global-server-norca-key.pem"
 
   verify_server_hostname = true
   verify_https_client    = false
@@ -132,7 +132,7 @@ client {
     default_healthy_only = true
   }
 
-  # Built-in DNS on the host: dig @127.0.0.1 -p 8600 test-app.service.apps.nomad
+  # Built-in DNS on the host: dig @127.0.0.1 -p 8600 test-app.service.apps.norca
   dns {
     enabled    = true
     namespaces = ["default", "apps"]

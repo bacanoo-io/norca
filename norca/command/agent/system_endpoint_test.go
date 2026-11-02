@@ -1,0 +1,51 @@
+// Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package agent
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/bacanoo-io/norca/norca/ci"
+)
+
+func TestHTTP_SystemGarbageCollect(t *testing.T) {
+	ci.Parallel(t)
+	httpTest(t, nil, func(s *TestAgent) {
+		// Make the HTTP request
+		req, err := http.NewRequest(http.MethodPut, "/v1/system/gc", nil)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		respW := httptest.NewRecorder()
+
+		// Make the request
+		if _, err := s.Server.GarbageCollectRequest(respW, req); err != nil {
+			t.Fatalf("err: %v", err)
+		}
+	})
+}
+
+func TestHTTP_ReconcileJobSummaries(t *testing.T) {
+	ci.Parallel(t)
+	httpTest(t, nil, func(s *TestAgent) {
+		// Make the HTTP request
+		req, err := http.NewRequest(http.MethodPut, "/v1/system/reconcile/summaries", nil)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		respW := httptest.NewRecorder()
+
+		// Make the request
+		if _, err := s.Server.ReconcileJobSummaries(respW, req); err != nil {
+			t.Fatalf("err: %v", err)
+		}
+
+		if respW.Code != 200 {
+			t.Fatalf("expected: %v, actual: %v", 200, respW.Code)
+		}
+	})
+}

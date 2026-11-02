@@ -1,0 +1,64 @@
+// Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package broker
+
+import (
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestGenericNotifier(t *testing.T) {
+	ci.Parallel(t)
+
+	// Create the new notifier.
+	stopChan := make(chan struct{})
+	defer close(stopChan)
+
+	notifier := NewGenericNotifier()
+	go notifier.Run(stopChan)
+
+	// Ensure we have buffered channels.
+	require.Equal(t, 1, cap(notifier.publishCh))
+	require.Equal(t, 1, cap(notifier.subscribeCh))
+	require.Equal(t, 1, cap(notifier.unsubscribeCh))
+
+	// Test that the timeout works.
+	var timeoutWG sync.WaitGroup
+
+	for i := 0; i < 6; i++ {
+		timeoutWG.Add(1)
+		go func(wg *sync.WaitGroup) {
+			defer wg.Done()
+			msg := notifier.WaitForChange(100 * time.Millisecond)
+			assert.Equal(t, "wait timed out after 100ms", msg)
+		}(&timeoutWG)
+	}
+	timeoutWG.Wait()
+
+	// Test that all subscribers receive an update when a single notification
+	// is sent.
+	var notifiedWG sync.WaitGroup
+
+	for i := 0; i < 6; i++ {
+		notifiedWG.Add(1)
+		go func(wg *sync.WaitGroup) {
+			defer wg.Done()
+			msg := notifier.WaitForChange(3 * time.Second)
+			assert.Equal(t, "we got an update and not a timeout", msg)
+		}(&notifiedWG)
+	}
+
+	// Ensure the routines have had time to start before sending the notify
+	// signal, otherwise the test is a flake.
+	time.Sleep(500 * time.Millisecond)
+
+	notifier.Notify("we got an update and not a timeout")
+	notifiedWG.Wait()
+}

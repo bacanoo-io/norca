@@ -1,0 +1,373 @@
+// Copyright IBM Corp. 2021, 2025
+// Modifications Copyright (c) 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package cli
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/bacanoo-io/norca/norca/api"
+
+	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/caching"
+	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/errors"
+	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/flag"
+	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/manager"
+	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/renderer"
+	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/supplychain"
+	"github.com/bacanoo-io/norca/norca/pack/internal/runner"
+	"github.com/bacanoo-io/norca/norca/pack/internal/runner/job"
+	"github.com/posener/complete"
+)
+
+type PlanCommand struct {
+	*baseCommand
+	packConfig        *caching.PackConfig
+	jobConfig         *job.CLIConfig
+	exitCodeNoChanges int
+	exitCodeChanges   int
+	exitCodeError     int
+
+	// release holds the release flags.
+	release releaseOptions
+}
+
+func (c *PlanCommand) Run(args []string) int {
+	c.cmdKey = "plan" // Add cmdKey here to print out helpUsageMessage on Init error
+	// Initialize. If we fail, we just exit since Init handles the UI.
+	if err := c.Init(
+		WithExactArgs(1, args),
+		WithFlags(c.Flags()),
+		WithNoConfig(),
+	); err != nil {
+		c.ui.ErrorWithContext(err, ErrParsingArgsOrFlags)
+		c.ui.Info(c.helpUsageMessage())
+		return c.exitCodeError
+	}
+
+	c.packConfig.Name = c.args[0]
+
+	// Set the packConfig defaults if necessary and generate our UI error context.
+	errorContext := initPackCommand(c.packConfig)
+
+	// Download and verify packs from OCI registries, and check the lock file.
+	provenance, err := c.preparePack(c.packConfig)
+	if err != nil {
+		c.ui.ErrorWithContext(err, "failed to verify pack", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+
+	// verify packs exist before planning jobs
+	if err := caching.VerifyPackExists(c.packConfig, errorContext, c.ui); err != nil {
+		return c.exitCodeError
+	}
+
+	// If no deploymentName set default to pack@ref
+	c.deploymentName = getDeploymentName(c.baseCommand, c.packConfig)
+	errorContext.Add(errors.UIContextPrefixDeploymentName, c.deploymentName)
+
+	client, err := c.getAPIClient()
+	if err != nil {
+		c.ui.ErrorWithContext(err, "failed to initialize client", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+
+	packManager := generatePackManager(c.baseCommand, client, c.packConfig)
+
+	// load pack
+	r, err := renderPack(
+		packManager,
+		c.ui,
+		false,
+		false,
+		c.ignoreMissingVars,
+		errorContext,
+	)
+	if err != nil {
+		return c.exitCodeError
+	}
+
+	// Commands that render templates are required to render at least one
+	// parent template.
+	if r.LenParentRenders() < 1 {
+		c.ui.ErrorWithContext(errors.ErrNoTemplatesRendered, "no templates rendered", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+
+	// Let the servers plan the release if they can.
+	releasesOK := releasesSupported(client)
+	if regions := c.release.regionList(packManager.Metadata()); len(regions) > 0 && (!releasesOK || c.release.clientSide) {
+		c.ui.ErrorWithContext(fmt.Errorf("a multi-region plan (regions %v) needs servers with pack release support", regions),
+			"failed to plan pack", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+	if releasesOK && !c.release.clientSide {
+		return c.planRelease(client, packManager, provenance, r, errorContext)
+	}
+	parents, others := jobRenders(r.ParentRenders())
+	if len(others) > 0 {
+		c.ui.ErrorWithContext(errResourcesNeedServer(others), "failed to plan pack", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+
+	depConfig := runner.Config{
+		PackName:       c.packConfig.Name,
+		PathPath:       c.packConfig.Path,
+		PackRef:        c.packConfig.Ref,
+		DeploymentName: c.deploymentName,
+		RegistryName:   c.packConfig.Registry,
+		PackDigest:     provenanceDigest(provenance),
+		SignerKeyID:    provenance.SignerKeyID(),
+	}
+
+	// TODO(jrasell) come up with a better way to pass the appropriate config.
+	jobRunner, err := generateRunner(client, "job", c.jobConfig, &depConfig)
+	if err != nil {
+		c.ui.ErrorWithContext(err, "failed to generate deployer", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+
+	// Set the rendered templates on the job deployer.
+	jobRunner.SetTemplates(parents)
+
+	// Parse the templates. If we have any error, output this and exit.
+	if validateErrs := jobRunner.ParseTemplates(); validateErrs != nil {
+		for _, validateErr := range validateErrs {
+			validateErr.Context.Append(errorContext)
+			c.ui.ErrorWithContext(validateErr.Err, validateErr.Subject, validateErr.Context.GetAll()...)
+		}
+		return c.exitCodeError
+	}
+
+	if canonicalizeErrs := jobRunner.CanonicalizeTemplates(); canonicalizeErrs != nil {
+		for _, canonicalizeErr := range canonicalizeErrs {
+			canonicalizeErr.Context.Append(errorContext)
+			c.ui.ErrorWithContext(canonicalizeErr.Err, canonicalizeErr.Subject, canonicalizeErr.Context.GetAll()...)
+		}
+		return c.exitCodeError
+	}
+
+	if conflictErrs := jobRunner.CheckForConflicts(errorContext); conflictErrs != nil {
+		for _, conflictErr := range conflictErrs {
+			c.ui.ErrorWithContext(conflictErr.Err, conflictErr.Subject, conflictErr.Context.GetAll()...)
+		}
+		return c.exitCodeError
+	}
+
+	planExitCode, planErrs := jobRunner.PlanDeployment(c.ui, errorContext)
+	for _, planErrs := range planErrs {
+		c.ui.ErrorWithContext(planErrs.Err, planErrs.Subject, planErrs.Context.GetAll()...)
+	}
+
+	if planExitCode < 2 {
+		c.ui.Success("Plan succeeded")
+	}
+
+	// Map planExitCode to replacement values.
+	switch planExitCode {
+	case 0:
+		return c.exitCodeNoChanges
+	case 1:
+		return c.exitCodeChanges
+	case 255:
+		return c.exitCodeError
+	default: // protect from unexpected new exit codes.
+		return planExitCode
+	}
+}
+
+// planRelease plans the release on the servers and prints the changes.
+func (c *PlanCommand) planRelease(client *api.Client, packManager *manager.PackManager, provenance *supplychain.Result,
+	r *renderer.Rendered, errorContext *errors.UIErrorContext) int {
+
+	name, err := c.releaseName(c.packConfig)
+	if err != nil {
+		c.ui.ErrorWithContext(err, "invalid release name", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+	req, ok := c.buildRelease(packManager, c.packConfig, provenance, c.jobConfig, r, &c.release, errorContext)
+	if !ok {
+		return c.exitCodeError
+	}
+	resp, _, err := client.Releases().Plan(name, req, nil)
+	if err != nil {
+		c.ui.ErrorWithContext(err, "failed to plan release", errorContext.GetAll()...)
+		return c.exitCodeError
+	}
+
+	changed := false
+	countChanges := func(changes []*api.ReleaseResourceChange) {
+		for _, ch := range changes {
+			switch ch.Action {
+			case "unchanged", "hook", "remote", "adopt":
+			default:
+				changed = true
+			}
+			if ch.JobDiff != nil && ch.Action != "unchanged" && c.jobConfig.PlanConfig.Diff {
+				job.FormatJobDiff(ch.JobDiff, c.jobConfig.PlanConfig.Verbose, c.ui)
+			}
+		}
+	}
+	if len(req.Regions) > 0 && len(resp.Regions) > 0 {
+		c.ui.Info(fmt.Sprintf("Release %q in the regions %s:", name, strings.Join(req.Regions, ", ")))
+		if c.printRegionResults(name, resp, true) != 0 {
+			return c.exitCodeError
+		}
+		for _, r := range resp.Regions {
+			countChanges(r.Changes)
+		}
+	} else {
+		if len(req.Regions) > 0 {
+			c.ui.Warning("The servers do not support multi-region installs; the plan is for their region only")
+		}
+		c.ui.Info(fmt.Sprintf("Release %q, revision %d:", name, resp.Revision))
+		printChanges(c.ui, resp.Changes)
+		countChanges(resp.Changes)
+		printWarnings(c.ui, resp.Warnings)
+	}
+	c.ui.Success("Plan succeeded")
+	if changed {
+		return c.exitCodeChanges
+	}
+	return c.exitCodeNoChanges
+}
+
+func (c *PlanCommand) Flags() *flag.Sets {
+	c.packConfig = &caching.PackConfig{}
+
+	return c.flagSet(flagSetOperation|flagSetNomadClient, func(set *flag.Sets) {
+		f := set.NewSet("Plan Options")
+		c.addLockFlag(f)
+
+		c.jobConfig = &job.CLIConfig{
+			RunConfig:  &job.RunCLIConfig{},
+			PlanConfig: &job.PlanCLIConfig{},
+		}
+
+		f.StringVar(&flag.StringVar{
+			Name:    "registry",
+			Target:  &c.packConfig.Registry,
+			Default: "",
+			Usage:   `Specific registry name containing the pack to be planned.`,
+		})
+
+		c.release.addFlags(set.NewSet("Release Options"))
+
+		f.StringVar(&flag.StringVar{
+			Name:    "ref",
+			Target:  &c.packConfig.Ref,
+			Default: "",
+			Usage: `Specific git ref of the pack to be planned.
+					Supports tags, SHA, and latest. If no ref is specified,
+					defaults to the ref the registry was last added or
+					updated with (latest if it was added without --ref), or
+					to the newest version of a pack of an OCI registry.
+
+					Using ref with a file path is not supported.`,
+		})
+
+		f.BoolVar(&flag.BoolVar{
+			Name:    "diff",
+			Target:  &c.jobConfig.PlanConfig.Diff,
+			Default: true,
+			Usage: `Determines whether the diff between the remote job and
+					planned job is shown. Defaults to true.`,
+		})
+
+		f.BoolVar(&flag.BoolVar{
+			Name:    "deploy-override",
+			Target:  &c.jobConfig.PlanConfig.DeployOverride,
+			Default: false,
+			Usage: `Sets the flag to force deploy over currently deployed job (even 
+					externally deployed jobs).`,
+		})
+
+		f.BoolVar(&flag.BoolVar{
+			Name:    "policy-override",
+			Target:  &c.jobConfig.PlanConfig.PolicyOverride,
+			Default: false,
+			Usage: `Has no effect: Norca has no Sentinel policies, and
+					admission policies cannot be overridden. The flag is
+					accepted for compatibility.`,
+		})
+
+		f.BoolVarP(&flag.BoolVarP{
+			BoolVar: &flag.BoolVar{
+				Name:    "verbose",
+				Target:  &c.jobConfig.PlanConfig.Verbose,
+				Default: false,
+				Usage:   `Increase diff verbosity.`,
+			},
+			Shorthand: "v",
+		})
+		f.IntVar(&flag.IntVar{
+			Name:    "exit-code-no-changes",
+			Target:  &c.exitCodeNoChanges,
+			Default: 0,
+			EnvVar:  EnvPlanExitCodeNoChanges,
+			Usage:   `Override exit code returned when the plan shows no changes. Can also be set via the NORCA_PACK_PLAN_EXIT_CODE_NO_CHANGES environment variable (flags take precedence).`,
+		})
+
+		f.IntVar(&flag.IntVar{
+			Name:    "exit-code-makes-changes",
+			Target:  &c.exitCodeChanges,
+			Default: 1,
+			EnvVar:  EnvPlanExitCodeMakesChanges,
+			Usage:   `Override exit code returned when the plan shows changes. Can also be set via the NORCA_PACK_PLAN_EXIT_CODE_MAKES_CHANGES environment variable (flags take precedence).`,
+		})
+
+		f.IntVar(&flag.IntVar{
+			Name:    "exit-code-error",
+			Target:  &c.exitCodeError,
+			Default: 255,
+			EnvVar:  EnvPlanExitCodeError,
+			Usage:   `Override exit code returned when there is an error. Can also be set via the NORCA_PACK_PLAN_EXIT_CODE_ERROR environment variable (flags take precedence).`,
+		})
+	})
+}
+
+func (c *PlanCommand) AutocompleteArgs() complete.Predictor {
+	return predictPackName
+}
+
+func (c *PlanCommand) AutocompleteFlags() complete.Flags {
+	return c.Flags().Completions()
+}
+
+func (c *PlanCommand) Help() string {
+	c.Example = `
+	# Plan an example pack with the default deployment name
+	norca pack plan example
+
+	# Plan an example pack at a specific ref
+	norca pack plan example --ref=v0.0.1
+
+	# Plan a pack from a registry other than the default registry
+	norca pack plan nats --registry=norca --ref=v0.1.0
+
+	# Plan an example pack without showing the diff
+	norca pack plan example --diff=false
+
+	# Plan a pack under development from the filesystem - supports current
+	# working directory or relative path
+	norca pack plan .
+	`
+
+	return formatHelp(`
+	Usage: norca pack plan <pack-name> [options]
+
+	Determine the effects of submitting a new or updated Norca Pack
+
+	Plan will return one of the following exit codes:
+		* code 0:   No objects will be created or destroyed.
+		* code 1:   Objects will be created or destroyed.
+		* code 255: An error occurred determining the plan.
+
+` + c.GetExample() + c.Flags().Help())
+}
+
+// Synopsis satisfies the Synopsis function of the cli.Command interface.
+func (c *PlanCommand) Synopsis() string {
+	return "Dry-run a pack update to determine its effects"
+}

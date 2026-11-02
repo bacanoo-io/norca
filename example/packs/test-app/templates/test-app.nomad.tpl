@@ -205,7 +205,7 @@ job [[ $job | quote ]] {
 <head><title>[[ $job ]]</title></head>
 <body>
 <h1>[[ $job ]]</h1>
-<p>Allocation {{ env "NOMAD_ALLOC_ID" }} on node {{ env "node.unique.name" }}, region {{ env "NOMAD_REGION" }}, namespace {{ env "NOMAD_NAMESPACE" }}.</p>
+<p>Allocation {{ env "NORCA_ALLOC_ID" }} on node {{ env "node.unique.name" }}, region {{ env "NORCA_REGION" }}, namespace {{ env "NORCA_NAMESPACE" }}.</p>
 [[- if $v.secrets_enabled ]]
 {{- /* A Vault-style read: without a Vault integration it is served by the built-in store (kv/data/<p> reads the secret <p>). Only the version is shown, never the value. */}}
 {{ with secret "kv/data/[[ $job ]]/db" }}<p>Secret [[ $job ]]/db: version {{ .Data.metadata.version }}</p>{{ end }}

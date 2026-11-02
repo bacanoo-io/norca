@@ -26,7 +26,7 @@ A third region is added the same way as `eu-2`.
 - The regions reach each other over the VPN on 4647 (RPC) and 4648 (gossip)
   between the servers (the system bus stays inside a region), 8443 (mTLS gateway)
   between the clients.
-- One CA for both regions (the servers verify `server.<region>.nomad`).
+- One CA for both regions (the servers verify `server.<region>.norca`).
 - The [Norca pack registry](../README.md#the-pack-registry) added as `norca`
   (the `mtls-gateway` pack).
 
@@ -38,8 +38,8 @@ A third region is added the same way as `eu-2`.
 | [region-eu-2.hcl](region-eu-2.hcl) | Same for eu-2, with the replication token, the join address in eu-1 and the catalog token of the clients |
 | [quota-apps.hcl](quota-apps.hcl) | The quota of `apps` with a limit per region |
 | [test-app-multiregion.hcl](test-app-multiregion.hcl) | test-app pack as a multiregion job |
-| [mtls-gateway.nomad.hcl](mtls-gateway.nomad.hcl) | The mTLS gateway of a region as a plain job (what the [mtls-gateway pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/mtls-gateway/README.md) renders with its defaults) |
-| [probe-eu-2.nomad.hcl](probe-eu-2.nomad.hcl) | The probe in eu-2, reading test-api of eu-1 |
+| [mtls-gateway.norca.hcl](mtls-gateway.norca.hcl) | The mTLS gateway of a region as a plain job (what the [mtls-gateway pack](https://github.com/bacanoo-io/norca-registry/blob/main/packs/mtls-gateway/README.md) renders with its defaults) |
+| [probe-eu-2.norca.hcl](probe-eu-2.norca.hcl) | The probe in eu-2, reading test-api of eu-1 |
 
 ## Steps
 
@@ -51,10 +51,10 @@ region:
 ```shell
 norca tls ca create
 # In a directory per node (eu-1: 10.0.0.11-13, eu-2: 10.0.1.11-13):
-norca tls cert create -server -region eu-1 -ca ../nomad-agent-ca.pem -key ../nomad-agent-ca-key.pem \
-  -additional-ipaddress 10.0.0.11     # eu-1-server-nomad.pem, valid for server.eu-1.nomad
-norca tls cert create -server -region eu-2 -ca ../nomad-agent-ca.pem -key ../nomad-agent-ca-key.pem \
-  -additional-ipaddress 10.0.1.11     # eu-2-server-nomad.pem
+norca tls cert create -server -region eu-1 -ca ../norca-agent-ca.pem -key ../norca-agent-ca-key.pem \
+  -additional-ipaddress 10.0.0.11     # eu-1-server-norca.pem, valid for server.eu-1.norca
+norca tls cert create -server -region eu-2 -ca ../norca-agent-ca.pem -key ../norca-agent-ca-key.pem \
+  -additional-ipaddress 10.0.1.11     # eu-2-server-norca.pem
 ```
 
 Use the same gossip key (`server.encrypt`) in both regions: the servers of
@@ -62,12 +62,12 @@ a federation share one gossip pool.
 
 ### 2. Region eu-1
 
-Install every eu-1 node as in 03 (step 2), with its `eu-1-server-nomad*.pem`
+Install every eu-1 node as in 03 (step 2), with its `eu-1-server-norca*.pem`
 in `/etc/norca.d/tls/` and `region-eu-1.hcl` as `/etc/norca.d/region.hcl`
 before the first start, then:
 
 ```shell
-export NORCA_ADDR=https://10.0.0.11:4646 NORCA_CACERT=$PWD/nomad-agent-ca.pem
+export NORCA_ADDR=https://10.0.0.11:4646 NORCA_CACERT=$PWD/norca-agent-ca.pem
 norca acl bootstrap                       # the bootstrap token is global
 export NORCA_TOKEN=<Secret ID>
 norca operator keyring rewrap -to shares  # shares of eu-1
@@ -168,7 +168,7 @@ from their own `native_service_discovery { default_overflow_fraction }`
 if the settings do:
 
 ```shell
-dig @127.0.0.1 -p 8600 test-app.service.apps.nomad SRV   # on an eu-2 node: eu-2 instances
+dig @127.0.0.1 -p 8600 test-app.service.apps.norca SRV   # on an eu-2 node: eu-2 instances
 # no healthy instance in eu-2 -> the same query answers with the eu-1 instances
 ```
 
@@ -184,11 +184,11 @@ and `norca job run -namespace apps <rendered file>` from any region.
 # A gateway in every region that offers services to the others: one release
 # of the mtls-gateway pack in both regions (a system job on every node).
 norca pack run mtls-gateway --registry=norca --name=mtls-gateway --regions=eu-1,eu-2
-# without the registry: norca job run -var region=eu-1 mtls-gateway.nomad.hcl (and eu-2)
+# without the registry: norca job run -var region=eu-1 mtls-gateway.norca.hcl (and eu-2)
 
 # test-api in eu-1 (behind its sidecar, variables of 03), the probe in eu-2:
 norca pack run ../packs/test-app --region=eu-1 --name=test-api --namespace=apps -f ../03-three-node/test-api.hcl
-norca job run probe-eu-2.nomad.hcl
+norca job run probe-eu-2.norca.hcl
 
 # The intentions of the destination region decide.
 norca service intention create -region eu-1 -namespace apps probe test-api
@@ -197,7 +197,7 @@ norca alloc logs -region eu-2 -namespace apps -task probe <probe alloc ID>    # 
 
 The probe's sidecar connects to the gateway service of eu-1 (static port
 8443 on the eu-1 nodes); the gateway forwards the TLS stream by its SNI name
-`test-api.service.apps.eu-1.nomad` to a sidecar of test-api without
+`test-api.service.apps.eu-1.norca` to a sidecar of test-api without
 terminating it.
 
 Intentions are regional: unlike ACL policies, namespaces and quotas they
