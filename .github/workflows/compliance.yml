@@ -3,7 +3,7 @@
 #
 # Actions are pinned by commit (checkout and setup-go as in release.yml):
 #   actions/checkout v7.0.1, actions/setup-go v7.0.0, actions/setup-node v7.1.0,
-#   scanoss/gha-code-scan v1.7.0.
+#   scanoss/gha-code-scan v1.7.0, fsfe/reuse-action v5.0.0.
 name: Compliance
 
 on:
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: fsfe/reuse-action@v5
+      - uses: fsfe/reuse-action@bb774aa972c2a89ff34781233d275075cbddf542 # v5.0.0
 
   go-licenses:
     runs-on: ubuntu-24.04
