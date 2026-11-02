@@ -11,15 +11,19 @@ works on Norca code. The clean room rule of Norca (the
 [license page](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md) of the
 documentation) keeps HashiCorp code published under
 BSL 1.1 out of the development environment; this audit needs that code as the
-other side of the comparison, so it runs in a throwaway container. The scripts are in `cleanroom\` of the private
-lab repository. This document is in both repositories, with the same content, as `CLEAN_ROOM.md` in Norca
-and `cleanroom\README.md` in the lab; `audit.ps1` stops if they differ:
+other side of the comparison, so it runs in a throwaway container. The scripts
+and a step-by-step description of the comparison and its parameters are in
+`clean-room-audit/` of the Norca repository (`clean-room-audit/README.md`).
+This document is also kept, with the same content, as `cleanroom\README.md` of
+the private lab repository:
 
-- `audit.ps1` starts `node:24-bookworm` with two mounts only: this directory
+- `audit.ps1` starts `node:24-bookworm` with three mounts only: the
+  `clean-room-audit/` directory (read-only), the Norca checkout it belongs to
   (read-only) and the output directory.
-- Inside, `run.sh` clones Norca and fetches the two compared Nomad tags from GitHub (with retries),
-  extracts the compared files to `/work`, runs Dolos and hands the results to
-  `report.mjs`.
+- Inside, `run.sh` clones Norca from that checkout (or from a URL given with
+  `-NorcaUrl`) and fetches the two compared Nomad tags from GitHub (with
+  retries), extracts the compared files to `/work`, runs Dolos and hands the
+  results to `report.mjs`.
 - `report.mjs` writes `pairs.csv` and `summary.md`: file names and scores, no
   source code. Dolos' own `files.csv` and `kgrams.csv` (which contain code) and
   its web view stay in the container, which `--rm` removes.
@@ -43,14 +47,16 @@ sides are reported.
 
 ## Running
 
+From the root of a Norca checkout:
+
 ```powershell
-.\cleanroom\audit.ps1                                   # both sets, newest BSL tag
-.\cleanroom\audit.ps1 -Sets bugfix -BslTag v1.10.5 -Threshold 0.3
+.\clean-room-audit\audit.ps1                                   # both sets, newest BSL tag
+.\clean-room-audit\audit.ps1 -Sets bugfix -BslTag v1.10.5 -Threshold 0.3
 ```
 
-Needs Docker Desktop and internet access. The result replaces
-[`clean-room-result/`](https://github.com/bacanoo-io/norca/tree/main/clean-room-result) of a Norca checkout next to the lab repository (`-NorcaDir`), to be
-committed: `pairs.csv` has every pair, `summary.md` the commit, tags and candidates of the run.
+Needs Docker and internet access (for the HashiCorp side). The result replaces
+`clean-room-result/` of the checkout, to be committed: `pairs.csv` has every
+pair, `summary.md` the commit, tags and candidates of the run.
 `norca/scripts/compliance-audit.sh` checks that it is in the repository. A mechanics test without any BSL code
 writes elsewhere: `-Sets bugfix -BslTag v1.6.4 -OutDir <dir>` (an MPL release).
 

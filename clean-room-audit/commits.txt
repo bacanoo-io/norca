@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Norca contributors
+# SPDX-License-Identifier: MPL-2.0
+#
+# Norca commits of clean room work, from the commit table of the clean room
+# pages of norca-doc (content/docs/clean-room/_index.md). run.sh also adds
+# every commit whose message mentions "clean room" (or the former "white
+# room"). One full or abbreviated hash per line, then a comment.
+32e5db098 Consul KV: migration from Variables, carry-over to a clustered bus
+d25baac98 Docker driver: clean room bugfixes
+6c0a3a5f3 Backups: a cached backup is served while another one loads
+72f634912 ACL clean room bugfixes: release revisions, backups, events, network policies
+77aa0af7e Consul KV on the bus through the servers; nodes lose direct access
+8aa389f27 Consul KV on the bus: keys kept apart by namespace and path
+d2529f1c9 Volume watcher: clean room bugfixes
+0f87349fd Volume watcher: test for the backoff of a failed volumes query
+cc4d34a8f Plugins: clean room bugfixes
+4e4b1eaa3 Core and scheduler: clean room bugfixes
+1e23e9e83 Controller SDK: clean room bugfixes
