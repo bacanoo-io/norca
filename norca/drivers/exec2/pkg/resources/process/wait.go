@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package process
@@ -10,7 +11,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/norca/plugins/drivers"
 	"golang.org/x/sys/unix"
 )
 

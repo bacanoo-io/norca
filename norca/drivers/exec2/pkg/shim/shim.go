@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package shim
@@ -17,10 +18,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/drivers/exec2/pkg/resources"
+	"github.com/bacanoo-io/norca/norca/drivers/exec2/pkg/resources/process"
+	"github.com/bacanoo-io/norca/norca/helper/users/dynamic"
 	"github.com/hashicorp/go-set/v2"
-	"github.com/hashicorp/nomad-driver-exec2/pkg/resources"
-	"github.com/hashicorp/nomad-driver-exec2/pkg/resources/process"
-	"github.com/hashicorp/nomad/helper/users/dynamic"
 	"golang.org/x/sys/unix"
 )
 

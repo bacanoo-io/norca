@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package plugin
@@ -6,12 +7,12 @@ package plugin
 import (
 	"context"
 
+	"github.com/bacanoo-io/norca/norca/helper/pluginutils/loader"
+	"github.com/bacanoo-io/norca/norca/plugins/base"
+	"github.com/bacanoo-io/norca/norca/plugins/drivers"
+	"github.com/bacanoo-io/norca/norca/plugins/drivers/fsisolation"
+	"github.com/bacanoo-io/norca/norca/plugins/shared/hclspec"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/plugins/drivers/fsisolation"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
 )
 
 const (

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package plugin
@@ -13,20 +14,20 @@ import (
 	"slices"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/client/lib/cpustats"
+	cstructs "github.com/bacanoo-io/norca/norca/client/structs"
+	"github.com/bacanoo-io/norca/norca/drivers/exec2/pkg/resources"
+	"github.com/bacanoo-io/norca/norca/drivers/exec2/pkg/shim"
+	"github.com/bacanoo-io/norca/norca/drivers/exec2/pkg/task"
+	"github.com/bacanoo-io/norca/norca/drivers/exec2/pkg/util"
+	"github.com/bacanoo-io/norca/norca/drivers/shared/eventer"
+	"github.com/bacanoo-io/norca/norca/helper"
+	"github.com/bacanoo-io/norca/norca/plugins/base"
+	"github.com/bacanoo-io/norca/norca/plugins/drivers"
+	"github.com/bacanoo-io/norca/norca/plugins/drivers/utils"
+	"github.com/bacanoo-io/norca/norca/plugins/shared/hclspec"
+	"github.com/bacanoo-io/norca/norca/plugins/shared/structs"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad-driver-exec2/pkg/resources"
-	"github.com/hashicorp/nomad-driver-exec2/pkg/shim"
-	"github.com/hashicorp/nomad-driver-exec2/pkg/task"
-	"github.com/hashicorp/nomad-driver-exec2/pkg/util"
-	"github.com/hashicorp/nomad/client/lib/cpustats"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/drivers/shared/eventer"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/plugins/drivers/utils"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
-	"github.com/hashicorp/nomad/plugins/shared/structs"
 	"oss.indeed.com/go/libtime"
 )
 
@@ -84,7 +85,7 @@ func (p *Plugin) SetConfig(c *base.Config) error {
 
 	// If the plugin is being called with no agent config, nothing to do.
 	// This happens when Nomad is getting the version string, for example.
-	if c.AgentConfig.Driver == nil {
+	if c.AgentConfig == nil || c.AgentConfig.Driver == nil {
 		return nil
 	}
 
