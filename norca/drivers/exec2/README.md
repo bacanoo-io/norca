@@ -31,6 +31,9 @@ are written for Norca from the requirements of the driver, not copied.
   the node, internal drivers only), `helper/users/dynamic` and the
   `DynamicWorkloadUsers` capability with the client's `dynamic_user` task
   hook, `subproc.ExitNotRunnable`.
+- Limits: `memory.oom.group` is always set; `memory.swap.max` is 0 unless the
+  plugin option `allow_swap` is true; `pids_limit` (plugin and task) sets
+  `pids.max`, a task may only lower the plugin limit.
 - The tests use the driver harness cgroup (`testing.slice`) instead of the
   upstream `cgroupslib`, and the Norca dynamic user names (`norca:<uid>`).
 

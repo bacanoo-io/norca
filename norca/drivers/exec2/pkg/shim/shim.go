@@ -7,8 +7,10 @@ package shim
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +34,7 @@ type Options struct {
 	UnveilPaths    []string
 	UnveilDefaults bool
 	OOMScoreAdj    int
+	PidsLimit      int64 // pids.max; 0 means no limit
 }
 
 // Environment represents runtime configuration.
@@ -47,6 +50,8 @@ type Environment struct {
 	MemoryMax    uint64            // memory_max in megabytes
 	CPUBandwidth uint64            // cpu / cores bandwidth
 	OOMScoreAdj  int               // oom_score_adj for the task
+	PidsLimit    int64             // pids.max; 0 means no limit
+	AllowSwap    bool              // leave memory.swap.max unset (swap allowed)
 }
 
 type ExecTwo interface {
@@ -382,6 +387,26 @@ func (e *exe) constrain() error {
 			return err
 		}
 		if err := e.writeCG("memory.max", fmt.Sprintf("%d", e.env.MemoryMax)); err != nil {
+			return err
+		}
+	}
+
+	// no swap unless the operator allows it; the file is missing when the
+	// kernel does not account swap, then there is nothing to limit
+	if !e.env.AllowSwap {
+		if err := e.writeCG("memory.swap.max", "0"); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+	}
+
+	// on an out of memory kill, stop the whole task rather than one process
+	if err := e.writeCG("memory.oom.group", "1"); err != nil {
+		return err
+	}
+
+	// limit the number of processes
+	if e.env.PidsLimit > 0 {
+		if err := e.writeCG("pids.max", strconv.FormatInt(e.env.PidsLimit, 10)); err != nil {
 			return err
 		}
 	}
