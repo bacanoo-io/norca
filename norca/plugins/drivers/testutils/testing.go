@@ -120,6 +120,11 @@ func (h *DriverHarness) MkAllocDir(t *drivers.TaskConfig, enableLogs bool) func(
 	dir, err := os.MkdirTemp("", "nomad_driver_harness-")
 	require.NoError(h.t, err)
 
+	// Like the client's data directory, the directory must be traversable:
+	// drivers that run a task as an unprivileged user (exec2) open the log
+	// pipes and the task directory as that user.
+	require.NoError(h.t, os.Chmod(dir, 0o755))
+
 	allocDir := allocdir.NewAllocDir(h.logger, dir, t.AllocID)
 	require.NoError(h.t, allocDir.Build())
 
