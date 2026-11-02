@@ -51,6 +51,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/pool"
 	hstats "github.com/bacanoo-io/norca/norca/helper/stats"
 	"github.com/bacanoo-io/norca/norca/helper/tlsutil"
+	"github.com/bacanoo-io/norca/norca/helper/users/dynamic"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	nconfig "github.com/bacanoo-io/norca/norca/norca/structs/config"
@@ -371,6 +372,15 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 		cfg.StateDBFactory = state.GetStateDBFactory(cfg.DevMode)
 	}
 
+	// The pool of dynamic users for drivers that run tasks without a user
+	// as anonymous users (exec2); shared by every task runner.
+	if cfg.DynamicUserPool == nil {
+		if err := cfg.DynamicUsers.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid dynamic user range: %w", err)
+		}
+		cfg.DynamicUserPool = dynamic.New(cfg.DynamicUsers)
+	}
+
 	// Create the logger
 	logger := cfg.Logger.ResetNamedIntercept("client")
 
@@ -476,11 +486,12 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 	c.csimanager = csiManager
 	c.pluginManagers.RegisterAndRun(csiManager.PluginManager())
 
-	// Setup the driver manager
+	// Setup the driver manager. The plugin config is read after fingerprinting,
+	// so that it carries the CPU capacity of the node.
 	driverConfig := &drivermanager.Config{
 		Logger:              c.logger,
 		Loader:              cfg.PluginSingletonLoader,
-		PluginConfig:        cfg.NomadPluginConfig(),
+		PluginConfig:        c.GetConfig().NomadPluginConfig(),
 		Updater:             c.batchNodeUpdates.updateNodeFromDriver,
 		EventHandlerFactory: c.GetTaskEventHandler,
 		State:               c.stateDB,

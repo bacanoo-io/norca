@@ -78,7 +78,7 @@ func (h *identityHook) setToken() error {
 // writeToken writes the given token to disk
 func (h *identityHook) writeToken(token string) error {
 	// Write token as owner readable only
-	if err := users.WriteFileFor(h.tokenPath, []byte(token), h.tr.task.User); err != nil {
+	if err := users.WriteFileFor(h.tokenPath, []byte(token), h.tr.taskUser()); err != nil {
 		return fmt.Errorf("failed to write nomad token: %w", err)
 	}
 

@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package users
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/user"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -20,8 +22,33 @@ var globalCache = newCache()
 // Lookup returns the user.User entry associated with the given username.
 //
 // Values are cached up to 1 hour, or 1 minute for failure cases.
+//
+// A dynamic user name (DynamicPrefix followed by the ID, see
+// helper/users/dynamic) is not looked up: the entry is made from the ID,
+// with the same GID and no home directory.
 func Lookup(username string) (*user.User, error) {
+	if u, ok := dynamicUser(username); ok {
+		return u, nil
+	}
 	return globalCache.GetUser(username)
+}
+
+// DynamicPrefix starts the name of a dynamic user. A colon cannot be part of
+// a user name in /etc/passwd, so the name cannot clash with a real user.
+const DynamicPrefix = "norca:"
+
+// DynamicHome is the home directory of a dynamic user: there is none.
+const DynamicHome = "/nonexistent"
+
+func dynamicUser(username string) (*user.User, bool) {
+	rest, ok := strings.CutPrefix(username, DynamicPrefix)
+	if !ok {
+		return nil, false
+	}
+	if n, err := strconv.Atoi(rest); err != nil || n <= 0 {
+		return nil, false
+	}
+	return &user.User{Uid: rest, Gid: rest, Username: username, HomeDir: DynamicHome}, true
 }
 
 // lock is used to serialize all user lookup at the process level, because

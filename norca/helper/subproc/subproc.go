@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package subproc
@@ -23,6 +24,11 @@ const (
 	// ExitTimeout indicates the subprocess timed out before completion.
 	ExitTimeout
 )
+
+// ExitNotRunnable indicates the subprocess could not find or run the command
+// it was to start. It is 127, the code a shell uses for a command it cannot
+// find, so that the task's exit code reads the same as from a shell.
+const ExitNotRunnable = 127
 
 // MainFunc is the function that runs for this sub-process.
 //

@@ -5,6 +5,7 @@
 package base
 
 import (
+	"github.com/bacanoo-io/norca/norca/client/lib/cpustats"
 	"github.com/bacanoo-io/norca/norca/plugins/base/proto"
 	"github.com/bacanoo-io/norca/norca/plugins/shared/hclspec"
 )
@@ -66,6 +67,20 @@ type ClientDriverConfig struct {
 	// ClientMinPort is the lower range of the ports that the client uses for
 	// communicating with plugin subsystems over loopback
 	ClientMinPort uint
+
+	// Compute is the CPU capacity of the node from the CPU fingerprint.
+	// Only internal (built-in) drivers receive it; it is not part of the
+	// plugin protocol.
+	Compute cpustats.Compute
+}
+
+// Compute returns the CPU capacity of the node, or the zero value when the
+// agent did not send a driver configuration.
+func (c *AgentConfig) Compute() cpustats.Compute {
+	if c == nil || c.Driver == nil {
+		return cpustats.Compute{}
+	}
+	return c.Driver.Compute
 }
 
 func (c *AgentConfig) toProto() *proto.NomadConfig {

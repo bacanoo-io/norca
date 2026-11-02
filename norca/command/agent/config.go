@@ -257,6 +257,11 @@ type ClientConfig struct {
 	// MaxKillTimeout allows capping the user-specifiable KillTimeout.
 	MaxKillTimeout string `hcl:"max_kill_timeout"`
 
+	// DynamicUserMin and DynamicUserMax bound the user IDs handed out to
+	// tasks without a user on drivers that support it (exec2).
+	DynamicUserMin int `hcl:"dynamic_user_min"`
+	DynamicUserMax int `hcl:"dynamic_user_max"`
+
 	// ClientMaxPort is the upper range of the ports that the client uses for
 	// communicating with plugin subsystems
 	ClientMaxPort int `hcl:"client_max_port"`
@@ -2204,6 +2209,12 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	}
 	if b.CpuCompute != 0 {
 		result.CpuCompute = b.CpuCompute
+	}
+	if b.DynamicUserMin != 0 {
+		result.DynamicUserMin = b.DynamicUserMin
+	}
+	if b.DynamicUserMax != 0 {
+		result.DynamicUserMax = b.DynamicUserMax
 	}
 	if b.MemoryMB != 0 {
 		result.MemoryMB = b.MemoryMB

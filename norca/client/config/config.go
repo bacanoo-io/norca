@@ -21,11 +21,13 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/interfaces"
 	"github.com/bacanoo-io/norca/norca/client/lib/cgutil"
+	"github.com/bacanoo-io/norca/norca/client/lib/cpustats"
 	"github.com/bacanoo-io/norca/norca/client/state"
 	"github.com/bacanoo-io/norca/norca/command/agent/host"
 	"github.com/bacanoo-io/norca/norca/helper/bufconndialer"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/loader"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/users/dynamic"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	structsc "github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/bacanoo-io/norca/norca/plugins/base"
@@ -160,6 +162,14 @@ type Config struct {
 	// A mapping of directories on the host OS to attempt to embed inside each
 	// task's chroot.
 	ChrootEnv map[string]string
+
+	// DynamicUsers is the range of user IDs handed out to tasks without a
+	// user on drivers that support it (exec2).
+	DynamicUsers dynamic.PoolConfig
+
+	// DynamicUserPool hands out the IDs of DynamicUsers. The client creates
+	// it; copies of the config share it.
+	DynamicUserPool dynamic.Pool
 
 	// Options provides arbitrary key-value configuration for nomad internals,
 	// like fingerprinters and drivers. The format is:
@@ -797,6 +807,7 @@ func DefaultConfig() *Config {
 		GCInodeUsageThreshold:   70,
 		GCMaxAllocs:             50,
 		NoHostUUID:              true,
+		DynamicUsers:            dynamic.PoolConfig{Min: dynamic.DefaultMin, Max: dynamic.DefaultMax},
 		DisableRemoteExec:       false,
 		TemplateConfig: &ClientTemplateConfig{
 			FunctionDenylist:   DefaultTemplateFunctionDenylist,
@@ -957,10 +968,18 @@ func splitValue(val string) map[string]struct{} {
 
 // NomadPluginConfig produces the NomadConfig struct which is sent to Nomad plugins
 func (c *Config) NomadPluginConfig() *base.AgentConfig {
-	return &base.AgentConfig{
+	cfg := &base.AgentConfig{
 		Driver: &base.ClientDriverConfig{
 			ClientMinPort: c.ClientMinPort,
 			ClientMaxPort: c.ClientMaxPort,
 		},
 	}
+	if c.Node != nil && c.Node.NodeResources != nil {
+		cpu := c.Node.NodeResources.Cpu
+		cfg.Driver.Compute = cpustats.Compute{
+			TotalCompute: int(cpu.CpuShares),
+			NumCores:     int(cpu.TotalCpuCores),
+		}
+	}
+	return cfg
 }

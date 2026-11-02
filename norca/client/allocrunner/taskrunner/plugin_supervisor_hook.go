@@ -186,8 +186,8 @@ func (h *csiPluginSupervisorHook) Prestart(ctx context.Context,
 	h.setSocketHook()
 
 	if _, ok := h.task.Env["CSI_ENDPOINT"]; !ok {
-		switch h.caps.FSIsolation {
-		case drivers.FSIsolationNone:
+		switch {
+		case h.caps.FSIsolation.HostPaths():
 			// Plugin tasks with no filesystem isolation won't have the
 			// plugin dir bind-mounted to their alloc dir, but we can
 			// provide them the path to the socket. These Nomad-only
