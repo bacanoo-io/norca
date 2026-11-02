@@ -108,7 +108,7 @@ func (c mtlsChange) String() string {
 type mtlsHook struct {
 	alloc     *structs.Allocation
 	taskName  string
-	taskUser  string
+	taskUser  func() string
 	rpc       config.RPCer
 	region    string
 	nodeKey   string
@@ -162,13 +162,16 @@ type mtlsHookConfig struct {
 	events    eventEmitter
 	lifecycle ti.TaskLifecycle
 	logger    log.Logger
+
+	// taskUser is the user the task runs as (TaskRunner.taskUser)
+	taskUser func() string
 }
 
 func newMTLSHook(c *mtlsHookConfig) *mtlsHook {
 	h := &mtlsHook{
 		alloc:     c.alloc,
 		taskName:  c.task.Name,
-		taskUser:  c.task.User,
+		taskUser:  c.taskUser,
 		rpc:       c.rpc,
 		region:    c.region,
 		nodeKey:   c.nodeKey,
@@ -770,7 +773,7 @@ func (h *mtlsHook) apply(ctx context.Context, changes mtlsChange, onCert, onBund
 func (h *mtlsHook) writeFile(name string, contents []byte) error {
 	path := filepath.Join(h.dir, name)
 	tmp := fmt.Sprintf("%s.tmp%d", path, mrand.Int63n(math.MaxInt32))
-	if err := users.WriteFileFor(tmp, contents, h.taskUser); err != nil {
+	if err := users.WriteFileFor(tmp, contents, h.user()); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("failed to write %s: %w", name, err)
 	}
@@ -779,4 +782,12 @@ func (h *mtlsHook) writeFile(name string, contents []byte) error {
 		return fmt.Errorf("failed to write %s: %w", name, err)
 	}
 	return nil
+}
+
+// user is the user the task runs as, the owner of the written files.
+func (h *mtlsHook) user() string {
+	if h.taskUser == nil {
+		return ""
+	}
+	return h.taskUser()
 }

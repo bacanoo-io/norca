@@ -270,6 +270,10 @@ type TaskRunner struct {
 	networkIsolationLock sync.Mutex
 	networkIsolationSpec *drivers.NetworkIsolationSpec
 
+	// dynamicUser is the anonymous user the task runs as when its driver
+	// supports dynamic users and the task names none (dynamic_user_hook.go)
+	dynamicUser dynamicUser
+
 	// serviceRegWrapper is the handler wrapper that is used by service hooks
 	// to perform service and check registration and deregistration.
 	serviceRegWrapper *wrapper.HandlerWrapper
@@ -1187,7 +1191,7 @@ func (tr *TaskRunner) buildTaskConfig() *drivers.TaskConfig {
 		Mounts:           tr.hookResources.getMounts(),
 		Env:              env.Map(),
 		DeviceEnv:        env.DeviceEnv(),
-		User:             task.User,
+		User:             tr.taskUser(),
 		AllocDir:         tr.taskDir.AllocDir,
 		StdoutPath:       tr.logmonHookConfig.stdoutFifo,
 		StderrPath:       tr.logmonHookConfig.stderrFifo,
@@ -1214,6 +1218,9 @@ func (tr *TaskRunner) Restore() error {
 		ts.Canonicalize()
 		tr.state = ts
 	}
+
+	// take back the dynamic user before the task handle is recovered
+	tr.restoreDynamicUser()
 
 	// If a TaskHandle was persisted, ensure it is valid or destroy it.
 	if taskHandle := tr.localState.TaskHandle; taskHandle != nil {

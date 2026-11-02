@@ -28,6 +28,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/escapingfs"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/loader"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/users/dynamic"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/lib/cpuset"
 	"github.com/bacanoo-io/norca/norca/norca"
@@ -745,6 +746,15 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	}
 	if agentConfig.Client.CpuCompute != 0 {
 		conf.CpuCompute = agentConfig.Client.CpuCompute
+	}
+	if agentConfig.Client.DynamicUserMin != 0 {
+		conf.DynamicUsers.Min = dynamic.UGID(agentConfig.Client.DynamicUserMin)
+	}
+	if agentConfig.Client.DynamicUserMax != 0 {
+		conf.DynamicUsers.Max = dynamic.UGID(agentConfig.Client.DynamicUserMax)
+	}
+	if err := conf.DynamicUsers.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid client dynamic_user_min/dynamic_user_max: %w", err)
 	}
 	if agentConfig.Client.MemoryMB != 0 {
 		conf.MemoryMB = agentConfig.Client.MemoryMB

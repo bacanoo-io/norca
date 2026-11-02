@@ -88,8 +88,8 @@ func setEnvvars(envBuilder *taskenv.Builder, fsi drivers.FSIsolation, taskDir *a
 	envBuilder.SetClientTaskSecretsDir(taskDir.SecretsDir)
 
 	// Set driver-specific environment variables
-	switch fsi {
-	case drivers.FSIsolationNone:
+	switch {
+	case fsi.HostPaths():
 		// Use host paths
 		envBuilder.SetAllocDir(taskDir.SharedAllocDir)
 		envBuilder.SetTaskLocalDir(taskDir.LocalDir)

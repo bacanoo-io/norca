@@ -18,6 +18,7 @@ import (
 	cstructs "github.com/bacanoo-io/norca/norca/client/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/plugins/base"
+	"github.com/bacanoo-io/norca/norca/plugins/drivers/fsisolation"
 	"github.com/bacanoo-io/norca/norca/plugins/drivers/proto"
 	"github.com/bacanoo-io/norca/norca/plugins/shared/hclspec"
 	pstructs "github.com/bacanoo-io/norca/norca/plugins/shared/structs"
@@ -134,19 +135,23 @@ type Fingerprint struct {
 }
 
 // FSIsolation is an enumeration to describe what kind of filesystem isolation
-// a driver supports.
-type FSIsolation string
+// a driver supports. The modes are defined in the fsisolation package.
+type FSIsolation = fsisolation.Mode
 
 var (
 	// FSIsolationNone means no isolation. The host filesystem is used.
-	FSIsolationNone = FSIsolation("none")
+	FSIsolationNone = fsisolation.None
 
 	// FSIsolationChroot means the driver will use a chroot on the host
 	// filesystem.
-	FSIsolationChroot = FSIsolation("chroot")
+	FSIsolationChroot = fsisolation.Chroot
 
 	// FSIsolationImage means the driver uses an image.
-	FSIsolationImage = FSIsolation("image")
+	FSIsolationImage = fsisolation.Image
+
+	// FSIsolationUnveil means the task runs on the host filesystem with the
+	// reachable paths limited by the driver.
+	FSIsolationUnveil = fsisolation.Unveil
 )
 
 type Capabilities struct {
@@ -179,6 +184,12 @@ type Capabilities struct {
 	// DisableLogCollection indicates this driver has disabled log collection
 	// and the client should not start a logmon process.
 	DisableLogCollection bool
+
+	// DynamicWorkloadUsers indicates the driver runs a task without a user
+	// as an anonymous user that the client hands out (helper/users/dynamic).
+	// The client then always sets TaskConfig.User. Only internal drivers
+	// report it; it is not part of the plugin protocol.
+	DynamicWorkloadUsers bool
 }
 
 func (c *Capabilities) HasNetIsolationMode(m NetIsolationMode) bool {

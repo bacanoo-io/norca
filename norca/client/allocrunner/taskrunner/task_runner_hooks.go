@@ -75,6 +75,12 @@ func (tr *TaskRunner) initHooks() {
 		newAPIHook(tr.shutdownCtx, tr.clientConfig.APIListenerRegistrar, hookLogger),
 	}
 
+	// If the driver runs a task without a user as a dynamic user, hand one
+	// out before the hooks that run as the task user (artifacts, templates).
+	if tr.usesDynamicUser() {
+		tr.runnerHooks = append(tr.runnerHooks, newDynamicUserHook(tr, hookLogger))
+	}
+
 	// If the task has a CSI block, add the hook.
 	if task.CSIPluginConfig != nil {
 		tr.runnerHooks = append(tr.runnerHooks, newCSIPluginSupervisorHook(
@@ -117,6 +123,7 @@ func (tr *TaskRunner) initHooks() {
 			logger:     hookLogger,
 			nomadToken: tr.getNomadToken,
 			vaultToken: tr.getVaultToken,
+			taskUser:   tr.taskUser,
 		}))
 	}
 
@@ -193,6 +200,7 @@ func (tr *TaskRunner) initHooks() {
 			events:    tr,
 			lifecycle: tr,
 			logger:    hookLogger,
+			taskUser:  tr.taskUser,
 		}))
 
 		// The Envoy task of a sidecar or gateway mode mtls service gets
@@ -275,7 +283,7 @@ func (tr *TaskRunner) prestart() error {
 		// Build the request
 		req := interfaces.TaskPrestartRequest{
 			Alloc:         alloc,
-			Task:          tr.Task(),
+			Task:          tr.taskWithUser(),
 			TaskDir:       tr.taskDir,
 			TaskEnv:       tr.envBuilder.Build(),
 			TaskResources: tr.taskResources,

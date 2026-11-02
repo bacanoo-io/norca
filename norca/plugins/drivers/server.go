@@ -53,8 +53,10 @@ func (b *driverPluginServer) Capabilities(ctx context.Context, req *proto.Capabi
 		},
 	}
 
+	// The protocol has no value for FSIsolationUnveil: it travels as NONE,
+	// which gives the client the same (host) task paths.
 	switch caps.FSIsolation {
-	case FSIsolationNone:
+	case FSIsolationNone, FSIsolationUnveil:
 		resp.Capabilities.FsIsolation = proto.DriverCapabilities_NONE
 	case FSIsolationChroot:
 		resp.Capabilities.FsIsolation = proto.DriverCapabilities_CHROOT

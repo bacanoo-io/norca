@@ -100,6 +100,10 @@ type secretHookConfig struct {
 	// identity and Vault token.
 	nomadToken func() string
 	vaultToken func() string
+
+	// taskUser is the user the task runs as (TaskRunner.taskUser); when
+	// nil, the user of the task
+	taskUser func() string
 }
 
 type secretHook struct {
@@ -885,7 +889,7 @@ func (h *secretHook) deliver(st *secretState, sec *secrets.Secret) error {
 		if err != nil {
 			return fmt.Errorf("secret %s: %v", spec.Name, err)
 		}
-		if err := writeSecretFile(h.taskDir, f.Destination, data, h.config.task); err != nil {
+		if err := writeSecretFile(h.taskDir, f.Destination, data, h.fileTask()); err != nil {
 			return fmt.Errorf("secret %s: failed to write %s: %v", spec.Name, f.Destination, err)
 		}
 	}
@@ -1122,4 +1126,20 @@ func (tr *TaskRunner) secretAuditRecorder() secrets.Auditor {
 	}
 	tr.secretAuditor = secrets.NewRPCAuditor(tr.rpcClient, tr.clientConfig.Region)
 	return tr.secretAuditor
+}
+
+// fileTask is the task as the owner of the secret files sees it: with the
+// user it runs as, which for a dynamic user is not in the task itself.
+func (h *secretHook) fileTask() *structs.Task {
+	task := h.config.task
+	if task.User != "" || h.config.taskUser == nil {
+		return task
+	}
+	user := h.config.taskUser()
+	if user == "" {
+		return task
+	}
+	t := *task
+	t.User = user
+	return &t
 }
