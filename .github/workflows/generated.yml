@@ -17,16 +17,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: nomad/go.mod
-          cache-dependency-path: nomad/go.sum
+          go-version-file: norca/go.mod
+          cache-dependency-path: norca/go.sum
       - name: Regenerate the msgpack codec
-        working-directory: nomad/nomad/structs
+        working-directory: norca/norca/structs
         run: |
           go install github.com/hashicorp/go-msgpack/codec/codecgen@v1.1.5
           bash generate.sh
       - name: Check that structs.generated.go is up to date
         run: |
-          if ! git diff --exit-code -- nomad/nomad/structs/structs.generated.go; then
-            echo "structs.generated.go is stale: run 'bash generate.sh' in nomad/nomad/structs and commit the result" >&2
+          if ! git diff --exit-code -- norca/norca/structs/structs.generated.go; then
+            echo "structs.generated.go is stale: run 'bash generate.sh' in norca/norca/structs and commit the result" >&2
             exit 1
           fi

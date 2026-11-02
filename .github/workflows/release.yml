@@ -9,7 +9,7 @@
 # and release notes (.github/release-notes.md) that link the source tag.
 #
 # The platforms, build tags and cgo settings must match the lists in
-# nomad/tools/thirdparty/main.go, which THIRD_PARTY_NOTICES.md is built from.
+# norca/tools/thirdparty/main.go, which THIRD_PARTY_NOTICES.md is built from.
 #
 # Actions are pinned by commit:
 #   actions/checkout v7.0.1, actions/setup-go v7.0.0,
@@ -51,17 +51,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: nomad/go.mod
+          go-version-file: norca/go.mod
           cache: false
       - name: Check the tag against version.NorcaVersion
         id: version
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          norca="$(sed -n 's/^[[:space:]]*NorcaVersion[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' nomad/version/version.go)"
+          norca="$(sed -n 's/^[[:space:]]*NorcaVersion[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' norca/version/version.go)"
           version="${TAG#v}"
           if [ "${version%%-*}" != "$norca" ]; then
-            echo "::error::tag $TAG does not match NorcaVersion $norca in nomad/version/version.go"
+            echo "::error::tag $TAG does not match NorcaVersion $norca in norca/version/version.go"
             exit 1
           fi
           {
@@ -71,8 +71,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       - name: THIRD_PARTY_NOTICES.md is current and every license decision is final
         # -strict also fails on license decisions pending legal review
-        # (nomad/tools/thirdparty/overrides.go).
-        run: go -C nomad/tools run ./thirdparty notices -root "$GITHUB_WORKSPACE" -strict -check "$GITHUB_WORKSPACE/THIRD_PARTY_NOTICES.md"
+        # (norca/tools/thirdparty/overrides.go).
+        run: go -C norca/tools run ./thirdparty notices -root "$GITHUB_WORKSPACE" -strict -check "$GITHUB_WORKSPACE/THIRD_PARTY_NOTICES.md"
 
   build:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
@@ -130,7 +130,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: nomad/go.mod
+          go-version-file: norca/go.mod
           cache: false
       - name: Build norca
         env:
@@ -144,8 +144,8 @@ jobs:
           if [ "$GOOS" = windows ]; then ext=".exe"; fi
           out="$GITHUB_WORKSPACE/dist/bin/$TARGET"
           mkdir -p "$out"
-          ldflags="-X github.com/bacanoo-io/norca/nomad/version.GitCommit=$GITHUB_SHA -X github.com/bacanoo-io/norca/nomad/version.BuildDate=$BUILD_DATE"
-          CGO_ENABLED="$CGO" go -C nomad build -trimpath -tags "$TAGS" -ldflags "$ldflags" -o "$out/norca$ext" .
+          ldflags="-X github.com/bacanoo-io/norca/norca/version.GitCommit=$GITHUB_SHA -X github.com/bacanoo-io/norca/norca/version.BuildDate=$BUILD_DATE"
+          CGO_ENABLED="$CGO" go -C norca build -trimpath -tags "$TAGS" -ldflags "$ldflags" -o "$out/norca$ext" .
           go version -m "$out/norca$ext" | sed -n '1,20p'
       - name: Required glibc version
         if: matrix.goos == 'linux'
@@ -160,7 +160,7 @@ jobs:
           if [ "$TARGET" = windows_amd64 ]; then ext=".exe"; fi
           mkdir -p dist/sbom
           for b in norca; do
-            go -C nomad/tools run ./thirdparty sbom -root "$GITHUB_WORKSPACE" -strict -name "$b" \
+            go -C norca/tools run ./thirdparty sbom -root "$GITHUB_WORKSPACE" -strict -name "$b" \
               -binary "$GITHUB_WORKSPACE/dist/bin/$TARGET/$b$ext" -source-url "$SOURCE_URL" \
               -out "$GITHUB_WORKSPACE/dist/sbom/${b}_${VERSION}_${TARGET}.cdx.json"
           done
@@ -193,11 +193,11 @@ jobs:
       - name: Stage the binaries and the license files
         run: |
           for arch in amd64 arm64; do
-            install -D -m 0755 "dist/bin/linux_$arch/norca" "nomad/dist/linux/$arch/norca"
+            install -D -m 0755 "dist/bin/linux_$arch/norca" "norca/dist/linux/$arch/norca"
           done
-          install -D -m 0644 nomad/LICENSE nomad/dist/doc/LICENSE
-          install -D -m 0644 NOTICE nomad/dist/doc/NOTICE
-          install -D -m 0644 THIRD_PARTY_NOTICES.md nomad/dist/doc/THIRD_PARTY_NOTICES.md
+          install -D -m 0644 norca/LICENSE norca/dist/doc/LICENSE
+          install -D -m 0644 NOTICE norca/dist/doc/NOTICE
+          install -D -m 0644 THIRD_PARTY_NOTICES.md norca/dist/doc/THIRD_PARTY_NOTICES.md
       - name: Image name
         id: name
         env:
@@ -213,8 +213,8 @@ jobs:
         id: push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: nomad
-          file: nomad/Dockerfile
+          context: norca
+          file: norca/Dockerfile
           target: release
           platforms: linux/amd64,linux/arm64
           build-args: |
@@ -251,7 +251,7 @@ jobs:
             name="norca_${VERSION}_${target}"
             mkdir -p "stage/$name"
             install -m 0755 "$dir"/* "stage/$name/"
-            install -m 0644 nomad/LICENSE NOTICE THIRD_PARTY_NOTICES.md "stage/$name/"
+            install -m 0644 norca/LICENSE NOTICE THIRD_PARTY_NOTICES.md "stage/$name/"
             find "stage/$name" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
             if [ "${target%%_*}" = windows ]; then
               (cd stage && zip -X -q -r "../release/$name.zip" "$name")

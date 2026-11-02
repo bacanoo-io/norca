@@ -45,8 +45,8 @@ available version.
 sudo mkdir -p /etc/norca.d/tls /opt/norca/data /var/log/norca
 sudo install -d -o 10001 -g 10001 -m 750 /srv/rustfs   # the RustFS data, owned by its container user
 
-# CA and server certificate (valid for server.global.nomad, localhost and the
-# machine address). Keep nomad-agent-ca-key.pem offline.
+# CA and server certificate (valid for server.global.norca, localhost and the
+# machine address). Keep norca-agent-ca-key.pem offline.
 cd /etc/norca.d/tls
 sudo norca tls ca create
 sudo norca tls cert create -server -additional-ipaddress 10.0.0.10
@@ -80,7 +80,7 @@ CLI environment for the following steps:
 
 ```shell
 export NORCA_ADDR=https://10.0.0.10:4646
-export NORCA_CACERT=/etc/norca.d/tls/nomad-agent-ca.pem
+export NORCA_CACERT=/etc/norca.d/tls/norca-agent-ca.pem
 ```
 
 ### 3. ACL bootstrap
@@ -206,7 +206,7 @@ failed upgrade restores the previous revision.
 norca job status -namespace apps test-app                  # allocations and the disruption budget
 norca service info -namespace apps -verbose test-app      # instances, health, the three check roles
 norca scaling policy list -namespace apps                 # typed policy, engine builtin
-dig @127.0.0.1 -p 8600 test-app.service.apps.nomad SRV     # built-in DNS
+dig @127.0.0.1 -p 8600 test-app.service.apps.norca SRV     # built-in DNS
 curl http://<address:port from service info>/              # "Secret test-app/db: version 1"
 
 # Rotate the secret: the secret block delivers it again (SIGHUP), the
@@ -259,7 +259,7 @@ norca pack run openobserve --registry=norca --namespace=observability \
   --var namespace=observability --var tls_mode=none
 norca alloc logs -namespace observability -task bootstrap <alloc ID>     # "ingest credentials ... stored"
 
-norca secret put -namespace observability norca/agent-ca ca=@/etc/norca.d/tls/nomad-agent-ca.pem
+norca secret put -namespace observability norca/agent-ca ca=@/etc/norca.d/tls/norca-agent-ca.pem
 norca pack run otel-collector --registry=norca --namespace=observability \
   --var namespace=observability --var openobserve_tls=none \
   --var nomad_address=https://127.0.0.1:4646 --var nomad_ca_secret_path=norca/agent-ca \

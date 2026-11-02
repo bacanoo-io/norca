@@ -47,7 +47,7 @@ with the LoadBalancer operator.
 | [node-1.hcl](node-1.hcl), [node-2.hcl](node-2.hcl), [node-3.hcl](node-3.hcl) | Name, addresses and datacenter of each node, installed as `/etc/norca.d/node.hcl` |
 | [test-app.hcl](test-app.hcl) | test-app pack: 3 instances spread over the datacenters, autoscaled up to 6 |
 | [test-api.hcl](test-api.hcl) | test-app pack as `test-api`, behind an mTLS sidecar |
-| [probe.nomad.hcl](probe.nomad.hcl) | A client of `test-api` through an mTLS upstream, colocated with test-app |
+| [probe.norca.hcl](probe.norca.hcl) | A client of `test-api` through an mTLS upstream, colocated with test-app |
 | [lb-test-app.hcl](lb-test-app.hcl) | A `norca.io/LoadBalancer` object for test-app |
 | [../02-single-node/norca.service](../02-single-node/norca.service) | systemd unit |
 
@@ -60,14 +60,14 @@ mkdir tls && cd tls
 norca tls ca create
 for i in 1 2 3; do
   mkdir node-$i
-  (cd node-$i && norca tls cert create -server -ca ../nomad-agent-ca.pem \
-     -key ../nomad-agent-ca-key.pem -additional-ipaddress 10.0.0.1$i)
+  (cd node-$i && norca tls cert create -server -ca ../norca-agent-ca.pem \
+     -key ../norca-agent-ca-key.pem -additional-ipaddress 10.0.0.1$i)
 done
 norca operator gossip keyring generate       # server.encrypt, the same on every node
 age-keygen -o ~/backup-identity.txt          # public key into backup.encryption.recipients
 ```
 
-Every server certificate is valid for `server.global.nomad`, `localhost`
+Every server certificate is valid for `server.global.norca`, `localhost`
 and the address of its node.
 
 ### 2. Install and start every node
@@ -76,7 +76,7 @@ On node `n` (1, 2, 3):
 
 ```shell
 sudo mkdir -p /etc/norca.d/tls /opt/norca/data /var/log/norca
-sudo cp tls/nomad-agent-ca.pem tls/node-n/global-server-nomad*.pem /etc/norca.d/tls/
+sudo cp tls/norca-agent-ca.pem tls/node-n/global-server-norca*.pem /etc/norca.d/tls/
 sudo cp norca.hcl /etc/norca.d/norca.hcl         # replace every CHANGE_ME
 sudo cp node-n.hcl /etc/norca.d/node.hcl
 sudo install -m 600 ../02-single-node/backup-credentials.example /etc/norca.d/backup-credentials   # CHANGE_ME
@@ -90,7 +90,7 @@ leader once all three (`bootstrap_expect = 3`) are up.
 
 ```shell
 export NORCA_ADDR=https://10.0.0.11:4646
-export NORCA_CACERT=$PWD/tls/nomad-agent-ca.pem
+export NORCA_CACERT=$PWD/tls/norca-agent-ca.pem
 ```
 
 ### 3. ACLs and the seal
@@ -156,7 +156,7 @@ to see the datacenter filter:
 
 ```shell
 norca job scale -namespace apps test-app 6
-dig @127.0.0.1 -p 8600 test-app.service.apps.nomad SRV   # on node-1: the two dc-a instances
+dig @127.0.0.1 -p 8600 test-app.service.apps.norca SRV   # on node-1: the two dc-a instances
 norca alloc stop -namespace apps <one dc-a alloc ID>     # while it is replaced: dc-a + rest of the region
 norca job scale -namespace apps test-app 3
 ```
@@ -165,7 +165,7 @@ norca job scale -namespace apps test-app 3
 
 ```shell
 norca pack run ../packs/test-app --name=test-api --namespace=apps -f test-api.hcl
-norca job run probe.nomad.hcl
+norca job run probe.norca.hcl
 
 # Without an intention the connection is denied:
 norca alloc logs -namespace apps -task probe <probe alloc ID>    # "test-api: no connection"
@@ -220,8 +220,8 @@ metrics-store`, the **Scaling** page of the web UI).
 # Build the operator binary (it is also the TCP proxy of the "nomad" class)
 # and install it on every node. The pack is loadbalancer-operator of the
 # Norca pack registry (see ../README.md#the-pack-registry).
-(cd ../../nomad/controller && go build -o norca-loadbalancer ./examples/loadbalancer)
-sudo install ../../nomad/controller/norca-loadbalancer /usr/local/bin/   # on every node
+(cd ../../norca/controller && go build -o norca-loadbalancer ./examples/loadbalancer)
+sudo install ../../norca/controller/norca-loadbalancer /usr/local/bin/   # on every node
 
 # One release: object kind, ACL policy bound to the controller job,
 # admission policy and the controller job (two instances, leader election).
@@ -263,14 +263,14 @@ norca secret put -namespace observability openobserve/root password=-   # 8+ cha
 norca pack run openobserve --registry=norca --namespace=observability --var namespace=observability
 norca alloc logs -namespace observability -task bootstrap <alloc ID>     # "ingest credentials ... stored"
 
-norca secret put -namespace observability norca/agent-ca ca=@nomad-agent-ca.pem
+norca secret put -namespace observability norca/agent-ca ca=@norca-agent-ca.pem
 norca pack run otel-collector --registry=norca --namespace=observability \
   --var namespace=observability \
   --var nomad_address=https://127.0.0.1:4646 --var nomad_ca_secret_path=norca/agent-ca \
   --var 'discovery_namespaces=["default","apps"]'
 ```
 
-The UI is `https://openobserve.service.observability.nomad:5080/` (the
+The UI is `https://openobserve.service.observability.norca:5080/` (the
 certificate's name; resolve it to node-1, e.g. in `/etc/hosts`, or through the
 built-in DNS) once the CA of the region is trusted by the browser:
 `norca operator api /v1/mtls/roots | jq -r '.Roots[].RootCert' > norca-mtls-ca.pem`.

@@ -43,10 +43,10 @@ Never commit real ones.
 
 Norca is one binary, `norca`, for the agent and the CLI. Build it with the
 web UI embedded (the `ui` build tag; the UI assets are committed in
-`nomad/command/agent/bindata_assetfs.go`):
+`norca/command/agent/bindata_assetfs.go`):
 
 ```shell
-cd nomad
+cd norca
 make dev                          # bin/norca, also copied to $GOBIN
 # or: go build -tags ui -o norca .
 sudo install bin/norca /usr/local/bin/norca
@@ -82,7 +82,7 @@ with (here `v0.3.0`); without `--name` the release is named after the pack. See
 Without network access to GitHub, use a checkout of the registry by path
 (`norca pack run <checkout>/packs/rustfs --name=rustfs -f ...`), or move the packs
 into an internal OCI registry or an offline bundle
-([supply-chain.md](../nomad/pack/docs/supply-chain.md)). The test application
+([supply-chain.md](../norca/pack/docs/supply-chain.md)). The test application
 stays in the Norca repository ([packs/test-app](packs/test-app/README.md)).
 
 ### Cluster registries and the catalog
@@ -160,7 +160,7 @@ Not shown, with pointers:
   event stream.
 - Pack supply chain (OCI registries, signatures, trust policies, bundles,
   `pack.lock`) and signature enforcement in admission:
-  [supply-chain.md](../nomad/pack/docs/supply-chain.md), [releases.md](../nomad/pack/docs/releases.md).
+  [supply-chain.md](../norca/pack/docs/supply-chain.md), [releases.md](../norca/pack/docs/releases.md).
 - `norca secret import -from-vault` / `-from-variable`, task `vault` blocks
   served by the client's Vault-compatible endpoint (`client { secrets { vault_compat } }`).
 - Expiry and rotation of secrets (`-expires-at`, `-rotate-every`, rotation jobs) and
@@ -184,6 +184,6 @@ including those of the Norca blocks (`keyring`, `backup`, `autoscaler`,
 them when it starts; the placeholders (`CHANGE_ME`) must be replaced first.
 Without a reachable agent `norca job validate` skips the server-side
 checks (admission, mTLS injection, typed scaling policies), so a job with
-only a gateway service (no task, like `04-multi-region/mtls-gateway.nomad.hcl`
+only a gateway service (no task, like `04-multi-region/mtls-gateway.norca.hcl`
 or the rendered `mtls-gateway` pack) fails there although the servers accept
 it.

@@ -25,7 +25,7 @@ client {
   }
 
   # Built-in DNS server answering from the native catalog:
-  #   dig @127.0.0.1 -p 8600 test-app.service.nomad SRV
+  #   dig @127.0.0.1 -p 8600 test-app.service.norca SRV
   dns {
     enabled       = true
     bind          = "127.0.0.1:8600"

@@ -1,0 +1,28 @@
+# Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
+# SPDX-License-Identifier: MPL-2.0
+
+job "networking" {
+  datacenters = ["dc1", "dc2"]
+
+  constraint {
+    attribute = "${attr.kernel.name}"
+    value     = "linux"
+  }
+
+  group "bridged" {
+    network {
+      hostname = "mylittlepony-${NORCA_ALLOC_INDEX}"
+      mode     = "bridge"
+    }
+
+    task "sleep" {
+      driver = "docker"
+      config {
+        image   = "busybox:1"
+        command = "/bin/sleep"
+        args    = ["300"]
+      }
+    }
+  }
+}

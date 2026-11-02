@@ -1,0 +1,30 @@
+// Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+//go:build !ent
+// +build !ent
+
+package norca
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/bacanoo-io/norca/norca/norca/structs"
+	vapi "github.com/hashicorp/vault/api"
+)
+
+// validateNamespaces returns an error if the job contains multiple Vault
+// namespaces.
+func (jobVaultHook) validateNamespaces(
+	blocks map[string]map[string]*structs.Vault,
+	token *vapi.Secret,
+) error {
+
+	requestedNamespaces := structs.VaultNamespaceSet(blocks)
+	if len(requestedNamespaces) > 0 {
+		return fmt.Errorf("%w, Namespaces: %s", ErrMultipleNamespaces, strings.Join(requestedNamespaces, ", "))
+	}
+	return nil
+}

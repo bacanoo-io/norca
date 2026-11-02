@@ -20,9 +20,9 @@ tls {
   http = true
   rpc  = true
 
-  ca_file   = "/etc/norca.d/tls/nomad-agent-ca.pem"
-  cert_file = "/etc/norca.d/tls/global-server-nomad.pem"
-  key_file  = "/etc/norca.d/tls/global-server-nomad-key.pem"
+  ca_file   = "/etc/norca.d/tls/norca-agent-ca.pem"
+  cert_file = "/etc/norca.d/tls/global-server-norca.pem"
+  key_file  = "/etc/norca.d/tls/global-server-norca-key.pem"
 
   verify_server_hostname = true
   verify_https_client    = false

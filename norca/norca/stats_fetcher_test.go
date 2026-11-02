@@ -1,0 +1,109 @@
+// Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package norca
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/testutil"
+	"github.com/hashicorp/raft"
+)
+
+func TestStatsFetcher(t *testing.T) {
+	ci.Parallel(t)
+
+	conf := func(c *Config) {
+		c.Region = "region-a"
+		c.BootstrapExpect = 3
+	}
+
+	s1, cleanupS1 := TestServer(t, conf)
+	defer cleanupS1()
+
+	s2, cleanupS2 := TestServer(t, conf)
+	defer cleanupS2()
+
+	s3, cleanupS3 := TestServer(t, conf)
+	defer cleanupS3()
+
+	TestJoin(t, s1, s2, s3)
+	testutil.WaitForLeader(t, s1.RPC)
+
+	members := s1.serf.Members()
+	if len(members) != 3 {
+		t.Fatalf("bad len: %d", len(members))
+	}
+
+	var servers []*serverParts
+	for _, member := range members {
+		ok, server := isNomadServer(member)
+		if !ok {
+			t.Fatalf("bad: %#v", member)
+		}
+		servers = append(servers, server)
+	}
+
+	// Do a normal fetch and make sure we get three responses.
+	func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		stats := s1.statsFetcher.Fetch(ctx, s1.autopilotServers())
+		if len(stats) != 3 {
+			t.Fatalf("bad: %#v", stats)
+		}
+		for id, stat := range stats {
+			switch id {
+			case raft.ServerID(s1.config.NodeID), raft.ServerID(s2.config.NodeID), raft.ServerID(s3.config.NodeID):
+				// OK
+			default:
+				t.Fatalf("bad: %s", id)
+			}
+
+			if stat == nil || stat.LastTerm == 0 {
+				t.Fatalf("bad: %#v", stat)
+			}
+		}
+	}()
+
+	// Fake an in-flight request to server 3 and make sure we don't fetch
+	// from it.
+	func() {
+		// autopilot runs Fetch in the background, so the map must only be
+		// accessed with the lock held
+		s1.statsFetcher.inflightLock.Lock()
+		s1.statsFetcher.inflight[raft.ServerID(s3.config.NodeID)] = struct{}{}
+		s1.statsFetcher.inflightLock.Unlock()
+		defer func() {
+			s1.statsFetcher.inflightLock.Lock()
+			delete(s1.statsFetcher.inflight, raft.ServerID(s3.config.NodeID))
+			s1.statsFetcher.inflightLock.Unlock()
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		stats := s1.statsFetcher.Fetch(ctx, s1.autopilotServers())
+		if len(stats) != 2 {
+			t.Fatalf("bad: %#v", stats)
+		}
+		for id, stat := range stats {
+			switch id {
+			case raft.ServerID(s1.config.NodeID), raft.ServerID(s2.config.NodeID):
+				// OK
+			case raft.ServerID(s3.config.NodeID):
+				t.Fatalf("bad")
+			default:
+				t.Fatalf("bad: %s", id)
+			}
+
+			if stat == nil || stat.LastTerm == 0 {
+				t.Fatalf("bad: %#v", stat)
+			}
+		}
+	}()
+}

@@ -25,10 +25,10 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        # Nomad Pack is part of the nomad module (nomad/pack). The api client
+        # Nomad Pack is part of the norca module (norca/pack). The api client
         # is a separate module; the controller SDK depends only on the api
         # module. tools holds the build tools (not shipped).
-        module: [nomad, nomad/api, nomad/controller, nomad/tools]
+        module: [norca, norca/api, norca/controller, norca/tools]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -42,11 +42,11 @@ jobs:
           if go list -m all | awk '$1 == "github.com/hashicorp/nomad"' | grep .; then
             echo "Upstream Nomad module among the dependencies" >&2; exit 1
           fi
-          # Every github.com/bacanoo-io/norca/nomad[/...] module and the upstream
+          # Every github.com/bacanoo-io/norca/norca[/...] module and the upstream
           # github.com/hashicorp/nomad/api (imported by consul-template, replaced
-          # by nomad/compat/upstreamapi) must be this module or a local replace
+          # by norca/compat/upstreamapi) must be this module or a local replace
           # of this repository, so no upstream version comes from the proxy.
-          remote=$(go list -m all | awk '($1 == "github.com/bacanoo-io/norca/nomad" || index($1, "github.com/bacanoo-io/norca/nomad/") == 1 || index($1, "github.com/hashicorp/nomad/") == 1) && NF > 1 && !($3 == "=>" && $4 ~ /^\.\.?\//)')
+          remote=$(go list -m all | awk '($1 == "github.com/bacanoo-io/norca/norca" || index($1, "github.com/bacanoo-io/norca/norca/") == 1 || index($1, "github.com/hashicorp/nomad/") == 1) && NF > 1 && !($3 == "=>" && $4 ~ /^\.\.?\//)')
           if [ -n "$remote" ]; then
             echo "Nomad modules not replaced by this repository: $remote" >&2; exit 1
           fi
@@ -55,19 +55,19 @@ jobs:
         run: |
           go install github.com/google/go-licenses@v1.6.0
           # Ignored (their dependencies are still checked):
-          # - github.com/bacanoo-io/norca/nomad/... and the stand-in
+          # - github.com/bacanoo-io/norca/norca/... and the stand-in
           #   github.com/hashicorp/nomad/api: this repository (MPL 2.0); the
           #   api, controller and tools modules and the stand-in carry no
           #   LICENSE file of their own, and the step above rules out an
           #   upstream version.
           # - packages whose license go-licenses cannot classify; each is a
-          #   reviewed decision in nomad/tools/thirdparty/overrides.go:
+          #   reviewed decision in norca/tools/thirdparty/overrides.go:
           #   vic/pkg/vsphere/tags (Apache-2.0, the LICENSE file is VMware's
           #   appliance disclosure), go-spin (MIT, stated in its readme only),
           #   libcap/psx (BSD-3-Clause or GPL-2.0, used under BSD-3-Clause).
           go-licenses check ./... \
             --allowed_licenses=MPL-2.0,Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC \
-            --ignore github.com/bacanoo-io/norca/nomad/ \
+            --ignore github.com/bacanoo-io/norca/norca/ \
             --ignore github.com/hashicorp/nomad/api \
             --ignore github.com/hashicorp/vic/pkg/vsphere/tags \
             --ignore github.com/tj/go-spin \
@@ -79,14 +79,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: nomad/go.mod
-          cache-dependency-path: nomad/go.sum
+          go-version-file: norca/go.mod
+          cache-dependency-path: norca/go.sum
       - name: THIRD_PARTY_NOTICES.md is up to date and every license is allowed
-        working-directory: nomad
+        working-directory: norca
         # Fails if the committed file differs from the generated one ('make
         # notices' regenerates it) or if a dependency's license is not on the
         # allow-list. The UI packages come from the registry tarballs named
-        # in nomad/ui/yarn.lock; no yarn install is needed.
+        # in norca/ui/yarn.lock; no yarn install is needed.
         run: make check-notices
 
   ui-licenses:
@@ -97,7 +97,7 @@ jobs:
         with:
           node-version: 20
       - name: Licenses of the UI dependencies
-        working-directory: nomad/ui
+        working-directory: norca/ui
         env:
           HUSKY_SKIP_INSTALL: "1"
         run: |
@@ -170,7 +170,7 @@ jobs:
           fetch-depth: 0
       - name: Check Signed-off-by
         run: |
-          # The imported upstream history (nomad/, Nomad Pack) has no sign-offs; only commits of the PR are checked.
+          # The imported upstream history (norca/, Nomad Pack) has no sign-offs; only commits of the PR are checked.
           # A git subtree add or pull in the PR brings upstream history along: the commits reachable from the
           # upstream commit it names (git-subtree-split) are not the PR's own and are left out.
           upstream=$(git log --merges --format=%B origin/${{ github.base_ref }}..HEAD |

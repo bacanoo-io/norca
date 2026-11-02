@@ -3,9 +3,9 @@ REM SPDX-FileCopyrightText: 2026 Norca contributors
 REM SPDX-License-Identifier: MPL-2.0
 REM
 REM Builds the Windows release of Norca from this checkout:
-REM   1. regenerates the embedded web UI, nomad\command\agent\bindata_assetfs.go
-REM      (as ember-dist and static-assets in nomad\GNUmakefile), built from
-REM      nomad\ui,
+REM   1. regenerates the embedded web UI, norca\command\agent\bindata_assetfs.go
+REM      (as ember-dist and static-assets in norca\GNUmakefile), built from
+REM      norca\ui,
 REM   2. builds norca.exe like .github\workflows\release.yml,
 REM   3. writes a CycloneDX SBOM, and packages everything into
 REM      dist\norca_<version>_windows_<arch>.zip with a SHA256SUMS file.
@@ -21,9 +21,9 @@ setlocal EnableExtensions DisableDelayedExpansion
 
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
-set "NOMAD=%ROOT%\nomad"
+set "NORCA_DIR=%ROOT%\norca"
 set "DIST=%ROOT%\dist"
-set "TOOLS=%NOMAD%\build\tools"
+set "TOOLS=%NORCA_DIR%\build\tools"
 set "TAR=%SystemRoot%\System32\tar.exe"
 set SKIPUI=0
 set ARCH=amd64
@@ -48,27 +48,27 @@ where yarn >nul 2>&1 || (echo yarn is not on the PATH; install Yarn 1.22, or use
 set HUSKY_SKIP_INSTALL=1
 
 REM --- 1. Web UI ---------------------------------------------------------------
-echo ==^> Building the web UI (nomad\ui)
-pushd "%NOMAD%\ui" || goto fail
+echo ==^> Building the web UI (norca\ui)
+pushd "%NORCA_DIR%\ui" || goto fail
 call yarn install --frozen-lockfile --network-timeout 300000 || goto fail
 call npm run build || goto fail
 popd
 
-echo ==^> Embedding the UI into nomad\command\agent\bindata_assetfs.go
+echo ==^> Embedding the UI into norca\command\agent\bindata_assetfs.go
 set "GOBIN=%TOOLS%"
-go -C "%NOMAD%" install github.com/hashicorp/go-bindata/go-bindata@bf7910af899725e4938903fb32048c7c0b15f12e || goto fail
-go -C "%NOMAD%" install github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs@234c15e7648ff35458026de92b34c637bae5e6f7 || goto fail
+go -C "%NORCA_DIR%" install github.com/hashicorp/go-bindata/go-bindata@bf7910af899725e4938903fb32048c7c0b15f12e || goto fail
+go -C "%NORCA_DIR%" install github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs@234c15e7648ff35458026de92b34c637bae5e6f7 || goto fail
 set GOBIN=
 set "PATH=%TOOLS%;%PATH%"
-pushd "%NOMAD%" || goto fail
+pushd "%NORCA_DIR%" || goto fail
 go-bindata-assetfs -pkg agent -prefix ui -modtime 1480000000 -tags ui -o bindata_assetfs.go ./ui/dist/... || goto fail
 move /y bindata_assetfs.go command\agent\bindata_assetfs.go >nul || goto fail
 popd
 
 REM --- 2. Binaries -------------------------------------------------------------
 :binaries
-for /f tokens^=2^ delims^=^" %%v in ('findstr /c:"NorcaVersion = " "%NOMAD%\version\version.go"') do set "VERSION=%%v"
-if not defined VERSION (echo NorcaVersion not found in nomad\version\version.go & goto fail)
+for /f tokens^=2^ delims^=^" %%v in ('findstr /c:"NorcaVersion = " "%NORCA_DIR%\version\version.go"') do set "VERSION=%%v"
+if not defined VERSION (echo NorcaVersion not found in norca\version\version.go & goto fail)
 for /f %%s in ('git -C "%ROOT%" rev-parse HEAD') do set "SHA=%%s"
 set TZ=UTC0
 for /f %%t in ('git -C "%ROOT%" show -s "--format=%%cd" "--date=format-local:%%Y-%%m-%%dT%%H:%%M:%%SZ" HEAD') do set "BUILDDATE=%%t"
@@ -87,12 +87,12 @@ mkdir "%OUT%" || goto fail
 set CGO_ENABLED=0
 set GOOS=windows
 set GOARCH=%ARCH%
-go -C "%NOMAD%" build -trimpath -tags ui,codegen_generated,release,timetzdata -ldflags "-X github.com/bacanoo-io/norca/nomad/version.GitCommit=%SHA% -X github.com/bacanoo-io/norca/nomad/version.BuildDate=%BUILDDATE%" -o "%OUT%\norca.exe" . || goto fail
+go -C "%NORCA_DIR%" build -trimpath -tags ui,codegen_generated,release,timetzdata -ldflags "-X github.com/bacanoo-io/norca/norca/version.GitCommit=%SHA% -X github.com/bacanoo-io/norca/norca/version.BuildDate=%BUILDDATE%" -o "%OUT%\norca.exe" . || goto fail
 set CGO_ENABLED=
 set GOOS=
 set GOARCH=
 
-copy /y "%NOMAD%\LICENSE" "%OUT%\LICENSE" >nul || goto fail
+copy /y "%NORCA_DIR%\LICENSE" "%OUT%\LICENSE" >nul || goto fail
 copy /y "%ROOT%\NOTICE" "%OUT%\NOTICE" >nul || goto fail
 copy /y "%ROOT%\THIRD_PARTY_NOTICES.md" "%OUT%\THIRD_PARTY_NOTICES.md" >nul || goto fail
 
@@ -100,7 +100,7 @@ REM --- 3. SBOM, archive, checksums --------------------------------------------
 echo ==^> Writing the SBOMs
 if not exist "%SBOM%" mkdir "%SBOM%"
 for %%b in (norca) do (
-  go -C "%NOMAD%\tools" run ./thirdparty sbom -root "%ROOT%" -strict -name %%b -binary "%OUT%\%%b.exe" -source-url "https://github.com/bacanoo-io/norca/tree/%SHA%" -out "%SBOM%\%%b_%VERSION%_windows_%ARCH%.cdx.json" || goto fail
+  go -C "%NORCA_DIR%\tools" run ./thirdparty sbom -root "%ROOT%" -strict -name %%b -binary "%OUT%\%%b.exe" -source-url "https://github.com/bacanoo-io/norca/tree/%SHA%" -out "%SBOM%\%%b_%VERSION%_windows_%ARCH%.cdx.json" || goto fail
 )
 
 echo ==^> Packaging dist\%NAME%.zip

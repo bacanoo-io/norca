@@ -51,7 +51,7 @@ sides are reported.
 Needs Docker Desktop and internet access. The result replaces
 [`clean-room-result/`](https://github.com/bacanoo-io/norca/tree/main/clean-room-result) of a Norca checkout next to the lab repository (`-NorcaDir`), to be
 committed: `pairs.csv` has every pair, `summary.md` the commit, tags and candidates of the run.
-`nomad/scripts/compliance-audit.sh` checks that it is in the repository. A mechanics test without any BSL code
+`norca/scripts/compliance-audit.sh` checks that it is in the repository. A mechanics test without any BSL code
 writes elsewhere: `-Sets bugfix -BslTag v1.6.4 -OutDir <dir>` (an MPL release).
 
 ## Reading the result
@@ -71,6 +71,13 @@ same shape score high. Two measures separate this from copying:
   BUSL file it replaces) is compared once more character by character, which
   also counts names, literals and comments. A high syntax score with a low
   character score is shared structure; both high is a reason to look closely.
+- **Restored MPL files.** v1.6.5 replaced some MPL files with BUSL files. A
+  Norca file at such a path that matches the MPL file of the anchor (the
+  import's second parent, the last release/1.6.x commit before the license
+  change) in all but at most 10% of its lines, module path and Norca header
+  lines aside, is HashiCorp's MPL code brought back. The BUSL file grew out
+  of it, so they resemble each other; the report lists such files on their
+  own and never as candidates.
 
 In the `bugfix` set, generated code (`structs.generated.go`) matches
 legitimately; same-path pairs (Norca and HashiCorp changing the same file)

@@ -11,8 +11,8 @@ region = "eu-1"
 
 tls {
   # norca tls cert create -server -region eu-1 ...
-  cert_file = "/etc/norca.d/tls/eu-1-server-nomad.pem"
-  key_file  = "/etc/norca.d/tls/eu-1-server-nomad-key.pem"
+  cert_file = "/etc/norca.d/tls/eu-1-server-norca.pem"
+  key_file  = "/etc/norca.d/tls/eu-1-server-norca-key.pem"
 }
 
 server {
@@ -21,7 +21,7 @@ server {
   # The servers of all regions share one gossip pool: use the same encrypt
   # key in every region (norca.hcl).
 
-  # The trust domain of native mTLS defaults to "<authoritative region>.nomad",
+  # The trust domain of native mTLS defaults to "<authoritative region>.norca",
   # so all regions share it; federation copies the CAs of the other regions
   # into the trust bundle of this one (the default).
   mtls {

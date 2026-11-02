@@ -38,7 +38,7 @@ Files that already carry a `SPDX-FileCopyrightText: <year> Norca contributors` l
 ## Prohibited
 
 - Taking code, diffs or snippets from HashiCorp releases published under BSL 1.1 (Nomad v1.6.6 and later, Consul v1.16.5 and later, and the BSL versions of every other HashiCorp product), or from the non-public code of HashiCorp Enterprise products.
-- Adding the upstream `github.com/hashicorp/nomad` module (any version) or an upstream version of `github.com/hashicorp/nomad/api` to any `go.mod` file; the latter is replaced by the stand-in in `nomad/compat/upstreamapi`.
+- Adding the upstream `github.com/hashicorp/nomad` module (any version) or an upstream version of `github.com/hashicorp/nomad/api` to any `go.mod` file; the latter is replaced by the stand-in in `norca/compat/upstreamapi`.
 - Adding a dependency whose license is not on the allowed list ([licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md)).
 
 ## Clean room rule
@@ -51,4 +51,4 @@ Code taken from other projects (for example Kubernetes) goes into a separate fil
 
 ## Checks
 
-Every pull request runs (`.github/workflows/`): `reuse lint`, license checks for the Go modules and the UI packages, the check that `THIRD_PARTY_NOTICES.md` is up to date (`make notices` in `nomad/` regenerates it), the ApexCharts ban, the DCO check, and the check that the generated msgpack codec (`nomad/nomad/structs/structs.generated.go`) is current. The test workflow (`test.yml`) builds the `nomad`, `api`, `controller` and `tools` modules for Linux and Windows, runs `go vet ./...` in each of them, and runs the unit tests that need neither root nor Docker, Consul or Vault (the core packages of the `nomad` module listed in the workflow, and the tests of the other modules, which start a dev agent from a `norca` binary built in the job). The integration suites (drivers, client, command, server, e2e) do not run in CI: run the tests of the packages you change, and of their direct dependents, before opening a pull request.
+Every pull request runs (`.github/workflows/`): `reuse lint`, license checks for the Go modules and the UI packages, the check that `THIRD_PARTY_NOTICES.md` is up to date (`make notices` in `norca/` regenerates it), the ApexCharts ban, the DCO check, and the check that the generated msgpack codec (`norca/norca/structs/structs.generated.go`) is current. The test workflow (`test.yml`) builds the `norca`, `api`, `controller` and `tools` modules for Linux and Windows, runs `go vet ./...` in each of them, and runs the unit tests that need neither root nor Docker, Consul or Vault (the core packages of the `norca` module listed in the workflow, and the tests of the other modules, which start a dev agent from a `norca` binary built in the job). The integration suites (drivers, client, command, server, e2e) do not run in CI: run the tests of the packages you change, and of their direct dependents, before opening a pull request.

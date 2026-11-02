@@ -67,7 +67,7 @@ agent as root with the CNI plugins in `/opt/cni/bin` and drop that line.
 norca service info -verbose test-app
 
 # Built-in DNS (healthy instances only)
-dig @127.0.0.1 -p 8600 test-app.service.nomad SRV
+dig @127.0.0.1 -p 8600 test-app.service.norca SRV
 dig @127.0.0.1 -p 8600 test-app.service.consul SRV   # consul_compat names
 
 # Consul-compatible API, as Traefik or Prometheus would read it
@@ -138,7 +138,7 @@ norca pack uninstall test-ui          # or Uninstall in the UI
 
 ```shell
 norca service register -alias db.example.com legacy-db
-dig @127.0.0.1 -p 8600 legacy-db.service.nomad    # CNAME db.example.com
+dig @127.0.0.1 -p 8600 legacy-db.service.norca    # CNAME db.example.com
 norca service deregister legacy-db
 ```
 
