@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 job "resources" {
@@ -25,7 +26,7 @@ job "resources" {
 
       config {
         command = "cat"
-        args    = ["/sys/fs/cgroup/nomad.slice/share.slice/${NOMAD_ALLOC_ID}.${NOMAD_TASK_NAME}.scope/memory.max"]
+        args    = ["/sys/fs/cgroup/nomad.slice/share.slice/${NORCA_ALLOC_ID}.${NORCA_TASK_NAME}.scope/memory.max"]
         unveil  = ["r:/sys/fs/cgroup/nomad.slice"]
       }
       resources {
@@ -38,7 +39,7 @@ job "resources" {
       driver = "exec2"
       config {
         command = "cat"
-        args    = ["/sys/fs/cgroup/nomad.slice/share.slice/${NOMAD_ALLOC_ID}.${NOMAD_TASK_NAME}.scope/memory.max"]
+        args    = ["/sys/fs/cgroup/nomad.slice/share.slice/${NORCA_ALLOC_ID}.${NORCA_TASK_NAME}.scope/memory.max"]
         unveil  = ["r:/sys/fs/cgroup/nomad.slice"]
       }
       resources {
@@ -52,7 +53,7 @@ job "resources" {
       driver = "exec2"
       config {
         command = "cat"
-        args    = ["/sys/fs/cgroup/nomad.slice/share.slice/${NOMAD_ALLOC_ID}.${NOMAD_TASK_NAME}.scope/memory.low"]
+        args    = ["/sys/fs/cgroup/nomad.slice/share.slice/${NORCA_ALLOC_ID}.${NORCA_TASK_NAME}.scope/memory.low"]
         unveil  = ["r:/sys/fs/cgroup/nomad.slice"]
       }
       resources {
@@ -66,7 +67,7 @@ job "resources" {
       driver = "exec2"
       config {
         command = "cat"
-        args    = ["/sys/fs/cgroup/nomad.slice/share.slice/${NOMAD_ALLOC_ID}.${NOMAD_TASK_NAME}.scope/cpu.max"]
+        args    = ["/sys/fs/cgroup/nomad.slice/share.slice/${NORCA_ALLOC_ID}.${NORCA_TASK_NAME}.scope/cpu.max"]
         unveil  = ["r:/sys/fs/cgroup/nomad.slice"]
       }
       resources {
@@ -78,7 +79,7 @@ job "resources" {
       driver = "exec2"
       config {
         command = "cat"
-        args    = ["/sys/fs/cgroup/nomad.slice/reserve.slice/${NOMAD_ALLOC_ID}.${NOMAD_TASK_NAME}.scope/cpu.max"]
+        args    = ["/sys/fs/cgroup/nomad.slice/reserve.slice/${NORCA_ALLOC_ID}.${NORCA_TASK_NAME}.scope/cpu.max"]
         unveil  = ["r:/sys/fs/cgroup/nomad.slice"]
       }
       resources {

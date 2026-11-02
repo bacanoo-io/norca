@@ -334,7 +334,7 @@ func TestFunctional_cases(t *testing.T) {
 			command:        "sh",
 			unveilDefaults: true,
 			unveilPaths:    []string{"r:/etc/hosts"},
-			args:           []string{"-c", "cp /etc/hosts ${NOMAD_TASK_DIR}"},
+			args:           []string{"-c", "cp /etc/hosts ${NORCA_TASK_DIR}"},
 			exp:            &drivers.ExitResult{ExitCode: 0},
 		},
 		{
@@ -343,7 +343,7 @@ func TestFunctional_cases(t *testing.T) {
 			command:        "sh",
 			unveilDefaults: true,
 			unveilPaths:    []string{"r:/etc/hosts"},
-			args:           []string{"-c", "cp /etc/hosts ${NOMAD_ALLOC_DIR}"},
+			args:           []string{"-c", "cp /etc/hosts ${NORCA_ALLOC_DIR}"},
 			exp:            &drivers.ExitResult{ExitCode: 0},
 		},
 		{
@@ -352,26 +352,26 @@ func TestFunctional_cases(t *testing.T) {
 			command:        "sh",
 			unveilDefaults: true,
 			unveilPaths:    []string{"r:/etc/hosts"},
-			args:           []string{"-c", "cp /etc/hosts ${NOMAD_SECRETS_DIR}"},
+			args:           []string{"-c", "cp /etc/hosts ${NORCA_SECRETS_DIR}"},
 			exp:            &drivers.ExitResult{ExitCode: 0},
 		},
 		// fail to write to task directory with no defaults
 		{
 			name:           "write to task directory no defaults",
-			user:           "nomad-81000",
+			user:           "norca:81000",
 			command:        "sh",
 			unveilDefaults: false,
 			unveilPaths:    []string{"r:/etc/hosts"},
-			args:           []string{"-c", "cp /etc/hosts ${NOMAD_TASK_DIR}"},
+			args:           []string{"-c", "cp /etc/hosts ${NORCA_TASK_DIR}"},
 			exp:            &drivers.ExitResult{ExitCode: 2},
 		},
 		{
 			name:           "write to alloc directory no defaults",
-			user:           "nomad-81000",
+			user:           "norca:81000",
 			command:        "sh",
 			unveilDefaults: false,
 			unveilPaths:    []string{"r:/etc/hosts"},
-			args:           []string{"-c", "cp /etc/hosts ${NOMAD_ALLOC_DIR}"},
+			args:           []string{"-c", "cp /etc/hosts ${NORCA_ALLOC_DIR}"},
 			exp:            &drivers.ExitResult{ExitCode: 2},
 		},
 		{
@@ -380,13 +380,13 @@ func TestFunctional_cases(t *testing.T) {
 			command:        "sh",
 			unveilDefaults: false,
 			unveilPaths:    []string{"r:/etc/hosts"},
-			args:           []string{"-c", "cp /etc/hosts ${NOMAD_SECRETS_DIR}"},
+			args:           []string{"-c", "cp /etc/hosts ${NORCA_SECRETS_DIR}"},
 			exp:            &drivers.ExitResult{ExitCode: 2},
 		},
 		// dyanmic id
 		{
 			name:           "id dynamic",
-			user:           "nomad-89000",
+			user:           "norca:89000",
 			command:        "id",
 			unveilDefaults: true,
 			exp:            &drivers.ExitResult{ExitCode: 0},
@@ -421,7 +421,7 @@ func TestFunctional_cases(t *testing.T) {
 		// able to use TMPDIR
 		{
 			name:           "use TMPDIR",
-			user:           "nomad-82000",
+			user:           "norca:82000",
 			command:        "mktemp",
 			unveilDefaults: true,
 			exp:            &drivers.ExitResult{ExitCode: 0},

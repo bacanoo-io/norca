@@ -34,6 +34,9 @@ are written for Norca from the requirements of the driver, not copied.
 - Limits: `memory.oom.group` is always set; `memory.swap.max` is 0 unless the
   plugin option `allow_swap` is true; `pids_limit` (plugin and task) sets
   `pids.max`, a task may only lower the plugin limit.
+- The task environment variables are `NORCA_*` (the driver unveils
+  `NORCA_TASK_DIR`, `NORCA_ALLOC_DIR` and `NORCA_SECRETS_DIR`); the e2e tests
+  call the `norca` CLI and configure the driver as `plugin "exec2"`.
 - The tests use the driver harness cgroup (`testing.slice`) instead of the
   upstream `cgroupslib`, and the Norca dynamic user names (`norca:<uid>`).
 

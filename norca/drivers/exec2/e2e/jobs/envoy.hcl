@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 job "envoy" {
@@ -30,7 +31,7 @@ job "envoy" {
 
       config {
         command = "/opt/bin/envoy"
-        args    = ["-c", "${NOMAD_TASK_DIR}/local/envoy.yaml"]
+        args    = ["-c", "${NORCA_TASK_DIR}/local/envoy.yaml"]
         unveil  = ["rx:/opt/bin", "rwc:/dev/shm"]
       }
 
@@ -40,7 +41,7 @@ job "envoy" {
       }
 
       template {
-        destination = "${NOMAD_TASK_DIR}/local/envoy.yaml"
+        destination = "${NORCA_TASK_DIR}/local/envoy.yaml"
         data        = <<EOF
 static_resources:
 
@@ -49,7 +50,7 @@ static_resources:
     address:
       socket_address:
         address: 0.0.0.0
-        port_value: {{ env "NOMAD_PORT_lb" }}
+        port_value: {{ env "NORCA_PORT_lb" }}
     filter_chains:
     - filters:
       - name: envoy.filters.network.http_connection_manager

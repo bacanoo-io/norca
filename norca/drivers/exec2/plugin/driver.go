@@ -187,7 +187,7 @@ func failure(state drivers.HealthState, desc string) *drivers.Fingerprint {
 }
 
 func (p *Plugin) pipePaths(stdout, stderr string, env map[string]string) (string, string) {
-	mountsTaskDir := env["NOMAD_ALLOC_DIR"]
+	mountsTaskDir := env["NORCA_ALLOC_DIR"]
 	outFilename := filepath.Base(stdout)
 	errFilename := filepath.Base(stderr)
 	outPath := filepath.Join(mountsTaskDir, "logs", outFilename)
@@ -533,10 +533,10 @@ func (p *Plugin) setOptions(driverTaskConfig *drivers.TaskConfig) (*shim.Options
 	// if the plugin config.unveil_defaults value is set to true (very common)
 	// then automatically unveil the sandbox directories
 	if p.config.UnveilDefaults {
-		unveil = append(unveil, "rwxc:"+driverTaskConfig.Env["NOMAD_TASK_DIR"])
-		unveil = append(unveil, "rwxc:"+driverTaskConfig.Env["NOMAD_ALLOC_DIR"])
-		unveil = append(unveil, "rwxc:"+driverTaskConfig.Env["NOMAD_SECRETS_DIR"])
-		parent := filepath.Dir(driverTaskConfig.Env["NOMAD_TASK_DIR"])
+		unveil = append(unveil, "rwxc:"+driverTaskConfig.Env["NORCA_TASK_DIR"])
+		unveil = append(unveil, "rwxc:"+driverTaskConfig.Env["NORCA_ALLOC_DIR"])
+		unveil = append(unveil, "rwxc:"+driverTaskConfig.Env["NORCA_SECRETS_DIR"])
+		parent := filepath.Dir(driverTaskConfig.Env["NORCA_TASK_DIR"])
 		unveil = append(unveil, "rwxc:"+filepath.Join(parent, "tmp"))
 	}
 

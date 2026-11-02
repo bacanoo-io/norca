@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 variable "javabin" {
@@ -41,7 +42,7 @@ public class Test {
 
       config {
         command = "${var.javabin}/javac"
-        args    = ["-d", "${NOMAD_ALLOC_DIR}", "local/Test.java"]
+        args    = ["-d", "${NORCA_ALLOC_DIR}", "local/Test.java"]
         unveil  = ["r:${var.etcjava}"]
       }
 
@@ -56,7 +57,7 @@ public class Test {
 
       config {
         command = "${var.javabin}/java"
-        args    = ["-cp", "${NOMAD_ALLOC_DIR}", "Test"]
+        args    = ["-cp", "${NORCA_ALLOC_DIR}", "Test"]
         unveil  = ["r:${var.etcjava}"]
       }
 

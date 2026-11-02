@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 job "exit7" {
@@ -33,8 +34,8 @@ EOH
       }
 
       config {
-        command = "${NOMAD_TASK_DIR}/exit7.sh"
-        unveil  = ["rx:${NOMAD_TASK_DIR}"]
+        command = "${NORCA_TASK_DIR}/exit7.sh"
+        unveil  = ["rx:${NORCA_TASK_DIR}"]
       }
 
       resources {

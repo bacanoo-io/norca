@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 job "secret" {
@@ -25,7 +26,7 @@ job "secret" {
 
       config {
         command = "cat"
-        args    = ["${NOMAD_SECRETS_DIR}/nomad_token"]
+        args    = ["${NORCA_SECRETS_DIR}/nomad_token"]
       }
 
       identity {

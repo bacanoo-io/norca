@@ -268,7 +268,7 @@ func flatten(user, home string, env map[string]string) []string {
 	env["HOME"] = home
 
 	// set the tmp directory to the one made for the task
-	parent := filepath.Dir(env["NOMAD_TASK_DIR"])
+	parent := filepath.Dir(env["NORCA_TASK_DIR"])
 	tmp := filepath.Join(parent, "tmp")
 	env["TMPDIR"] = tmp
 
