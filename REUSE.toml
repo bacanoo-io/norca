@@ -8,8 +8,10 @@ SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
 
 # The result of the clean room audit: file names and scores. CSV has no comments.
+# The audit itself (clean-room-audit/): the scripts carry SPDX headers, the
+# README falls under this annotation.
 [[annotations]]
-path = ["clean-room-result/**"]
+path = ["clean-room-result/**", "clean-room-audit/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
