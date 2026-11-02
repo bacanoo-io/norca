@@ -30,6 +30,7 @@ The documentation lives in its own repository, [bacanoo-io/norca-doc](https://gi
 | `norca/` | HashiCorp Nomad v1.6.5 | `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f` | MPL 2.0 |
 | `norca/pack/` | HashiCorp Nomad Pack v0.4.2 | `cd4d2a41c22adba1350b8d5da63252f2dde33262` | MPL 2.0 |
 | built-in autoscaler (`norca/norca/autoscaler/`) | HashiCorp Nomad Autoscaler v0.6.0 | `a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace` | MPL 2.0 |
+| `exec2` task driver (`norca/drivers/exec2/`) | HashiCorp nomad-driver-exec2 v0.1.1 | `806e1aa12b9549addd9babbf17400e953acd3c3e` | MPL 2.0 |
 
 v1.6.5 is the last Nomad release published under MPL 2.0. `norca/` was imported with the upstream git history up to `8495495ba` (2023-08-09), the last release/1.6.x commit before HashiCorp's license change; the changes of the later 1.6.x commits up to v1.6.5 are part of the import commit, without the 45 files of v1.6.5 that carry a BUSL-1.1 header, so the history contains no upstream commit from after the license change. Nomad Pack was imported with its full git history, so its starting commit can be verified; Nomad Pack was later moved into `norca/pack/` (part of the Nomad Go module, run as `norca pack`); its original commits remain in the history and `git blame` still reaches them. This project contains no code from HashiCorp releases published under BSL 1.1. Details: [licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md).
 
