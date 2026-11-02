@@ -53,6 +53,11 @@ var driverConfigSpec = hclspec.NewObject(map[string]*hclspec.Spec{
 		hclspec.NewLiteral("false"),
 	),
 	"unveil_paths": hclspec.NewAttr("unveil_paths", "list(string)", false),
+	"pids_limit":   hclspec.NewAttr("pids_limit", "number", false),
+	"allow_swap": hclspec.NewDefault(
+		hclspec.NewAttr("allow_swap", "bool", false),
+		hclspec.NewLiteral("false"),
+	),
 })
 
 // taskConfigSpec is the HCL configuration set for the task on the jobspec
@@ -61,6 +66,7 @@ var taskConfigSpec = hclspec.NewObject(map[string]*hclspec.Spec{
 	"args":          hclspec.NewAttr("args", "list(string)", false),
 	"unveil":        hclspec.NewAttr("unveil", "list(string)", false),
 	"oom_score_adj": hclspec.NewAttr("oom_score_adj", "number", false),
+	"pids_limit":    hclspec.NewAttr("pids_limit", "number", false),
 })
 
 var capabilities = &drivers.Capabilities{
@@ -83,6 +89,13 @@ type Config struct {
 	UnveilDefaults bool     `codec:"unveil_defaults"`
 	UnveilPaths    []string `codec:"unveil_paths"`
 	UnveilByTask   bool     `codec:"unveil_by_task"`
+
+	// PidsLimit is the most processes a task may run (pids.max); 0 means no
+	// limit. A task may set a lower limit, not a higher one.
+	PidsLimit int64 `codec:"pids_limit"`
+
+	// AllowSwap lets tasks use swap. By default memory.swap.max is 0.
+	AllowSwap bool `codec:"allow_swap"`
 }
 
 // TaskConfig represents the exec2 driver task configuration that gets set in
@@ -92,4 +105,5 @@ type TaskConfig struct {
 	Args        []string `codec:"args"`
 	Unveil      []string `codec:"unveil"`
 	OOMScoreAdj int      `codec:"oom_score_adj"`
+	PidsLimit   int64    `codec:"pids_limit"`
 }

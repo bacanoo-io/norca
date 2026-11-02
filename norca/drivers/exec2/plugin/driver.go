@@ -261,6 +261,8 @@ func (p *Plugin) StartTask(config *drivers.TaskConfig) (*drivers.TaskHandle, *dr
 		MemoryMax:    memoryMax,
 		CPUBandwidth: bandwidth,
 		OOMScoreAdj:  opts.OOMScoreAdj,
+		PidsLimit:    opts.PidsLimit,
+		AllowSwap:    p.config.AllowSwap,
 	}
 
 	// what is about to happen
@@ -271,6 +273,8 @@ func (p *Plugin) StartTask(config *drivers.TaskConfig) (*drivers.TaskHandle, *dr
 		"unveil_paths", opts.UnveilPaths,
 		"unveil_defaults", opts.UnveilDefaults,
 		"oom_score_adj", opts.OOMScoreAdj,
+		"pids_limit", opts.PidsLimit,
+		"allow_swap", p.config.AllowSwap,
 	)
 
 	// create the runner and start it
@@ -545,11 +549,33 @@ func (p *Plugin) setOptions(driverTaskConfig *drivers.TaskConfig) (*shim.Options
 		unveil = append(unveil, taskConfig.Unveil...)
 	}
 
+	pidsLimit, err := resolvePidsLimit(p.config.PidsLimit, taskConfig.PidsLimit)
+	if err != nil {
+		return nil, err
+	}
+
 	return &shim.Options{
 		Command:        taskConfig.Command,
 		Arguments:      taskConfig.Args,
 		UnveilPaths:    unveil,
 		UnveilDefaults: p.config.UnveilDefaults,
 		OOMScoreAdj:    taskConfig.OOMScoreAdj,
+		PidsLimit:      pidsLimit,
 	}, nil
+}
+
+// resolvePidsLimit returns the pids.max of a task from the plugin limit and
+// the task limit (0 means unset for both): the task may only lower the
+// plugin limit.
+func resolvePidsLimit(plugin, task int64) (int64, error) {
+	switch {
+	case plugin < 0 || task < 0:
+		return 0, fmt.Errorf("pids_limit must not be negative")
+	case task == 0:
+		return plugin, nil
+	case plugin > 0 && task > plugin:
+		return 0, fmt.Errorf("pids_limit %d is greater than the plugin pids_limit %d", task, plugin)
+	default:
+		return task, nil
+	}
 }
