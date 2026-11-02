@@ -20,3 +20,25 @@ Norca the driver is built into the agent.
 
 Upstream builds against Nomad v1.10.2. Packages that Norca does not have
 are written for Norca from the requirements of the driver, not copied.
+
+## Changes in Norca
+
+- Built into the agent on Linux (`helper/pluginutils/catalog/register_linux.go`).
+- Imports use the Norca module; the copied files that changed carry a
+  "Modifications Copyright" line.
+- Written for Norca: `plugins/drivers/fsisolation` (the `unveil` mode),
+  `client/lib/cpustats` with `AgentConfig.Compute()` (the CPU fingerprint of
+  the node, internal drivers only), `helper/users/dynamic` and the
+  `DynamicWorkloadUsers` capability with the client's `dynamic_user` task
+  hook, `subproc.ExitNotRunnable`.
+- The tests use the driver harness cgroup (`testing.slice`) instead of the
+  upstream `cgroupslib`, and the Norca dynamic user names (`norca:<uid>`).
+
+## Dynamic users
+
+A task without `user` runs as an anonymous user: the client hands out an ID
+from the range `client { dynamic_user_min, dynamic_user_max }` (default
+80000-89999) as UID and GID, passes it to the driver as `norca:<id>`, keeps it
+across client restarts and frees it when the task will not run again. Files
+the client writes for the task (secrets, identity token, mTLS certificates,
+the task API socket) belong to that user.

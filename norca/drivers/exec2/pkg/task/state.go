@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package task
@@ -6,7 +7,7 @@ package task
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/norca/plugins/drivers"
 )
 
 // State is the runtime state encoded in the handle, returned to the Nomad

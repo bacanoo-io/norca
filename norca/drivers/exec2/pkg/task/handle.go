@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build linux
@@ -10,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad-driver-exec2/pkg/resources"
-	"github.com/hashicorp/nomad-driver-exec2/pkg/shim"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/bacanoo-io/norca/norca/drivers/exec2/pkg/resources"
+	"github.com/bacanoo-io/norca/norca/drivers/exec2/pkg/shim"
+	"github.com/bacanoo-io/norca/norca/plugins/drivers"
 	"oss.indeed.com/go/libtime"
 )
 

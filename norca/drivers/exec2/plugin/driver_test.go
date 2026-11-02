@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package plugin
@@ -15,16 +16,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/lib/cgroupslib"
-	ctests "github.com/hashicorp/nomad/client/testutil"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	dtests "github.com/hashicorp/nomad/plugins/drivers/testutils"
-	dstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/client/lib/cpustats"
+	ctests "github.com/bacanoo-io/norca/norca/client/testutil"
+	"github.com/bacanoo-io/norca/norca/helper/testlog"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/bacanoo-io/norca/norca/plugins/base"
+	"github.com/bacanoo-io/norca/norca/plugins/drivers"
+	dtests "github.com/bacanoo-io/norca/norca/plugins/drivers/testutils"
+	dstructs "github.com/bacanoo-io/norca/norca/plugins/shared/structs"
 	"github.com/shoenig/test/must"
 )
 
@@ -36,7 +37,7 @@ func newTestHarness(t *testing.T, pluginConfig *Config) *dtests.DriverHarness {
 	baseConfig := &base.Config{
 		AgentConfig: &base.AgentConfig{
 			Driver: &base.ClientDriverConfig{
-				Topology: structs.MockWorkstationTopology(),
+				Compute: cpustats.Compute{TotalCompute: 4 * 2_000, NumCores: 4},
 			},
 		},
 	}
@@ -50,7 +51,7 @@ func newTestHarness(t *testing.T, pluginConfig *Config) *dtests.DriverHarness {
 
 	// configure cgroups controllers
 	procs := max(1, runtime.GOMAXPROCS(0)-1)
-	must.NoError(t, cgroupslib.Init(logger, fmt.Sprintf("0-%d", procs)))
+	initTestCgroups(t, fmt.Sprintf("0-%d", procs))
 
 	// create a harness to run our plugin
 	return dtests.NewDriverHarness(t, plugin)
@@ -73,7 +74,7 @@ func basicResources(allocID, taskName string) *drivers.Resources {
 		LinuxResources: &drivers.LinuxResources{
 			CPUShares:        500,
 			MemoryLimitBytes: 256 * 1024 * 1024,
-			CpusetCgroupPath: cgroupslib.LinuxResourcesPath(allocID, taskName, false),
+			CpusetCgroupPath: testCgroupPath(allocID, taskName),
 		},
 	}
 }
@@ -103,7 +104,7 @@ func TestFunctional_StartWait(t *testing.T) {
 	taskName := "start_wait_test_" + uuid.Short()
 
 	task := &drivers.TaskConfig{
-		User:      "nomad-80000",
+		User:      "norca:80000",
 		ID:        uuid.Generate(),
 		Name:      taskName,
 		AllocID:   allocID,
@@ -113,7 +114,6 @@ func TestFunctional_StartWait(t *testing.T) {
 	must.NoError(t, task.EncodeConcreteDriverConfig(&taskConfig))
 
 	harness := newTestHarness(t, pluginConfig)
-	harness.MakeTaskCgroup(task.AllocID, task.Name)
 	cleanup := harness.MkAllocDir(task, true)
 	defer cleanup()
 
@@ -167,11 +167,11 @@ func TestFunctional_cases(t *testing.T) {
 		// run 'env' with default unveil paths
 		{
 			name:           "dynamic user",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "env",
 			unveilDefaults: true,
 			exp:            &drivers.ExitResult{ExitCode: 0},
-			stdoutRe:       regexp.MustCompile(`USER=nomad-80000`),
+			stdoutRe:       regexp.MustCompile(`USER=norca:80000`),
 		},
 		{
 			name:           "nobody user",
@@ -193,7 +193,7 @@ func TestFunctional_cases(t *testing.T) {
 		// (e.g. not even root can access it)
 		{
 			name:           "read /etc/passwd as dynamic using defaults",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "cat",
 			unveilDefaults: true,
 			args:           []string{"/etc/passwd"},
@@ -222,7 +222,7 @@ func TestFunctional_cases(t *testing.T) {
 		// allowing any task to read /etc/passwd
 		{
 			name:           "read /etc/passwd as dynamic using custom paths via plugin",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "cat",
 			unveilDefaults: true,
 			unveilPaths:    []string{"r:/etc/passwd"},
@@ -254,7 +254,7 @@ func TestFunctional_cases(t *testing.T) {
 		// doing so in plugin config
 		{
 			name:           "read /etc/passwd as dynamic using custom paths via task",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "cat",
 			unveilDefaults: true,
 			unveilByTask:   true,
@@ -288,7 +288,7 @@ func TestFunctional_cases(t *testing.T) {
 		// try to execute a non-existent file
 		{
 			name:           "execute non-existent program",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "/usr/bin/doesnotexist",
 			unveilDefaults: true,
 			exp:            &drivers.ExitResult{ExitCode: 127},
@@ -297,7 +297,7 @@ func TestFunctional_cases(t *testing.T) {
 		// try to execute non-executable file
 		{
 			name:           "execute non-executable file",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "/etc/os-release",
 			unveilDefaults: true,
 			unveilPaths:    []string{"rx:/etc"},
@@ -308,7 +308,7 @@ func TestFunctional_cases(t *testing.T) {
 		// longer work
 		{
 			name:           "run 'env' as dynamic without default paths",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "/usr/bin/env",
 			unveilDefaults: false,
 			exp:            &drivers.ExitResult{ExitCode: 2},
@@ -330,7 +330,7 @@ func TestFunctional_cases(t *testing.T) {
 		// write to task directory
 		{
 			name:           "write to task directory",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "sh",
 			unveilDefaults: true,
 			unveilPaths:    []string{"r:/etc/hosts"},
@@ -339,7 +339,7 @@ func TestFunctional_cases(t *testing.T) {
 		},
 		{
 			name:           "write to alloc directory",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "sh",
 			unveilDefaults: true,
 			unveilPaths:    []string{"r:/etc/hosts"},
@@ -348,7 +348,7 @@ func TestFunctional_cases(t *testing.T) {
 		},
 		{
 			name:           "write to secrets directory",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "sh",
 			unveilDefaults: true,
 			unveilPaths:    []string{"r:/etc/hosts"},
@@ -376,7 +376,7 @@ func TestFunctional_cases(t *testing.T) {
 		},
 		{
 			name:           "write to secrets directory no defaults",
-			user:           "nomad-80000",
+			user:           "norca:80000",
 			command:        "sh",
 			unveilDefaults: false,
 			unveilPaths:    []string{"r:/etc/hosts"},
@@ -457,7 +457,6 @@ func TestFunctional_cases(t *testing.T) {
 			must.NoError(t, task.EncodeConcreteDriverConfig(&taskConfig))
 
 			harness := newTestHarness(t, pluginConfig)
-			harness.MakeTaskCgroup(task.AllocID, task.Name)
 			cleanup := harness.MkAllocDir(task, true)
 			defer cleanup()
 

@@ -1,13 +1,15 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package resources
 
 import (
+	"errors"
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/client/lib/cpustats"
+	"github.com/bacanoo-io/norca/norca/client/lib/cpustats"
 )
 
 type MicroSecond uint64
@@ -79,7 +81,12 @@ var (
 )
 
 func SetSpecs(compute cpustats.Compute) {
-	perCore := uint64(compute.TotalCompute) / uint64(compute.NumCores)
+	// without the CPU fingerprint there is no per-core speed; Bandwidth
+	// then refuses to start tasks rather than divide by zero
+	if !compute.Usable() {
+		return
+	}
+	perCore := uint64(compute.PerCoreMHz())
 
 	lock.Lock()
 	specs.MHz = perCore
@@ -99,6 +106,9 @@ func GetSpecs() Specs {
 // We assume the bandwidth per-core base is 100_000 which is the default.
 func Bandwidth(mhz uint64) (uint64, error) {
 	speed := GetSpecs().MHz
+	if speed == 0 {
+		return 0, errors.New("the CPU speed of the node is unknown")
+	}
 	v := (mhz * 100000) / speed
 	return v, nil
 }

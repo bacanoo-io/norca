@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package shim
@@ -12,8 +13,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/hashicorp/nomad-driver-exec2/pkg/util"
-	"github.com/hashicorp/nomad/helper/subproc"
+	"github.com/bacanoo-io/norca/norca/drivers/exec2/pkg/util"
+	"github.com/bacanoo-io/norca/norca/helper/subproc"
 )
 
 const (
