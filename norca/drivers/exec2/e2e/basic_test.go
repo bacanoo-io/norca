@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-//go:build e2e
+//go:build e2e && linux
 
 // Run these tests manually by setting the e2e tag when running go test, e.g.
 //
