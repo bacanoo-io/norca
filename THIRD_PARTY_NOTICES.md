@@ -167,6 +167,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [github.com/hashicorp/go-secure-stdlib/strutil](#go-github-com-hashicorp-go-secure-stdlib-strutil-v0-1-2) | v0.1.2 | MPL-2.0 | norca |
 | [github.com/hashicorp/go-secure-stdlib/tlsutil](#go-github-com-hashicorp-go-secure-stdlib-tlsutil-v0-1-2) | v0.1.2 | MPL-2.0 | norca |
 | [github.com/hashicorp/go-set](#go-github-com-hashicorp-go-set-v0-1-14) | v0.1.14 | MPL-2.0 | norca |
+| [github.com/hashicorp/go-set/v2](#go-github-com-hashicorp-go-set-v2-v2-1-0) | v2.1.0 | MPL-2.0 | norca |
 | [github.com/hashicorp/go-sockaddr](#go-github-com-hashicorp-go-sockaddr-v1-0-2) | v1.0.2 | MPL-2.0 | norca |
 | [github.com/hashicorp/go-syslog](#go-github-com-hashicorp-go-syslog-v1-0-0) | v1.0.0 | MIT | norca |
 | [github.com/hashicorp/go-uuid](#go-github-com-hashicorp-go-uuid-v1-0-3) | v1.0.3 | MPL-2.0 | norca |
@@ -280,9 +281,9 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [github.com/sean-/seed](#go-github-com-sean-seed-v0-0-0-20170313163322-e2103e2c3529) | v0.0.0-20170313163322-e2103e2c3529 | BSD-3-Clause AND MIT | norca |
 | [github.com/sergi/go-diff](#go-github-com-sergi-go-diff-v1-3-2-0-20230802210424-5b0b94c5c0d3) | v1.3.2-0.20230802210424-5b0b94c5c0d3 | MIT | norca |
 | [github.com/shirou/gopsutil/v3](#go-github-com-shirou-gopsutil-v3-v3-23-4) | v3.23.4 | BSD-3-Clause | norca |
-| [github.com/shoenig/go-landlock](#go-github-com-shoenig-go-landlock-v0-1-5) | v0.1.5 | MPL-2.0 | norca |
+| [github.com/shoenig/go-landlock](#go-github-com-shoenig-go-landlock-v1-2-2) | v1.2.2 | MPL-2.0 | norca |
 | [github.com/shoenig/go-m1cpu](#go-github-com-shoenig-go-m1cpu-v0-1-6) | v0.1.6 | MPL-2.0 | norca |
-| [github.com/shoenig/test](#go-github-com-shoenig-test-v0-6-7) | v0.6.7 | MPL-2.0 | norca |
+| [github.com/shoenig/test](#go-github-com-shoenig-test-v1-11-0) | v1.11.0 | MPL-2.0 | norca |
 | [github.com/shopspring/decimal](#go-github-com-shopspring-decimal-v1-3-1) | v1.3.1 | MIT | norca |
 | [github.com/sirupsen/logrus](#go-github-com-sirupsen-logrus-v1-9-4) | v1.9.4 | MIT | norca |
 | [github.com/skeema/knownhosts](#go-github-com-skeema-knownhosts-v1-3-1) | v1.3.1 | Apache-2.0 | norca |
@@ -346,7 +347,7 @@ The list covers the Go modules linked into the binaries on every release platfor
 | [gopkg.in/warnings.v0](#go-gopkg-in-warnings-v0-v0-1-2) | v0.1.2 | BSD-2-Clause | norca |
 | [gopkg.in/yaml.v2](#go-gopkg-in-yaml-v2-v2-4-0) | v2.4.0 | Apache-2.0 AND MIT | norca |
 | [gopkg.in/yaml.v3](#go-gopkg-in-yaml-v3-v3-0-1) | v3.0.1 | Apache-2.0 AND MIT | norca |
-| [kernel.org/pub/linux/libs/security/libcap/psx](#go-kernel-org-pub-linux-libs-security-libcap-psx-v1-2-66) | v1.2.66 | BSD-3-Clause | norca |
+| [kernel.org/pub/linux/libs/security/libcap/psx](#go-kernel-org-pub-linux-libs-security-libcap-psx-v1-2-70) | v1.2.70 | BSD-3-Clause | norca |
 | [oras.land/oras-go/v2](#go-oras-land-oras-go-v2-v2-6-2) | v2.6.2 | Apache-2.0 | norca |
 | [oss.indeed.com/go/libtime](#go-oss-indeed-com-go-libtime-v1-6-0) | v1.6.0 | BSD-3-Clause | norca |
 | [@ampproject/remapping](#npm-ampproject-remapping-2-1-2) (npm) | 2.1.2 | Apache-2.0 | norca (web UI) |
@@ -2655,6 +2656,14 @@ This Source Code Form is subject to the terms of the Mozilla Public License, v. 
 - Used in: norca
 - `LICENSE`: [license text 90](#license-text-90)
 
+<a id="go-github-com-hashicorp-go-set-v2-v2-1-0"></a>
+
+### github.com/hashicorp/go-set/v2 v2.1.0
+
+- License: MPL-2.0
+- Used in: norca
+- `LICENSE`: [license text 90](#license-text-90)
+
 <a id="go-github-com-hashicorp-go-sockaddr-v1-0-2"></a>
 
 ### github.com/hashicorp/go-sockaddr v1.0.2
@@ -3722,9 +3731,9 @@ SoundCloud Ltd. (http://soundcloud.com/).
 - Used in: norca
 - `LICENSE`: [license text 146](#license-text-146)
 
-<a id="go-github-com-shoenig-go-landlock-v0-1-5"></a>
+<a id="go-github-com-shoenig-go-landlock-v1-2-2"></a>
 
-### github.com/shoenig/go-landlock v0.1.5
+### github.com/shoenig/go-landlock v1.2.2
 
 - License: MPL-2.0
 - Used in: norca
@@ -3738,9 +3747,9 @@ SoundCloud Ltd. (http://soundcloud.com/).
 - Used in: norca
 - `LICENSE`: [license text 82](#license-text-82)
 
-<a id="go-github-com-shoenig-test-v0-6-7"></a>
+<a id="go-github-com-shoenig-test-v1-11-0"></a>
 
-### github.com/shoenig/test v0.6.7
+### github.com/shoenig/test v1.11.0
 
 - License: MPL-2.0
 - Used in: norca
@@ -4370,9 +4379,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-<a id="go-kernel-org-pub-linux-libs-security-libcap-psx-v1-2-66"></a>
+<a id="go-kernel-org-pub-linux-libs-security-libcap-psx-v1-2-70"></a>
 
-### kernel.org/pub/linux/libs/security/libcap/psx v1.2.66
+### kernel.org/pub/linux/libs/security/libcap/psx v1.2.70
 
 - License: BSD-3-Clause
 - License decision: Dual-licensed: the License file offers "one or the other" of BSD 3-clause and GPL v2.0; Norca uses it under BSD-3-Clause. Linked through github.com/shoenig/go-landlock (Linux only).
@@ -18418,7 +18427,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### License text 82
 
-Used by: github.com/hashicorp/cap v0.2.0, github.com/hashicorp/errwrap v1.1.0, github.com/hashicorp/go-cleanhttp v0.5.2, github.com/hashicorp/go-connlimit v0.3.0, github.com/hashicorp/go-cty-funcs v0.0.0-20200930094925-2721b1e36840, github.com/hashicorp/go-discover v0.0.0-20220621183603-a413e131e836, github.com/hashicorp/go-envparse v0.0.0-20180119215841-310ca1881b22, github.com/hashicorp/go-immutable-radix v1.3.1, github.com/hashicorp/go-memdb v1.3.4, github.com/hashicorp/go-multierror v1.1.1, github.com/hashicorp/go-rootcerts v1.0.2, github.com/hashicorp/go-safetemp v1.0.0, github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.4, github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7, github.com/hashicorp/go-secure-stdlib/reloadutil v0.1.1, github.com/hashicorp/go-secure-stdlib/strutil v0.1.2, github.com/hashicorp/go-secure-stdlib/tlsutil v0.1.2, github.com/hashicorp/go-sockaddr v1.0.2, github.com/hashicorp/golang-lru v0.5.4, github.com/hashicorp/hcl v1.0.1-vault-3, github.com/hashicorp/hil v0.0.0-20210521165536-27a72121fd40, github.com/hashicorp/logutils v1.0.0, github.com/hashicorp/memberlist v0.5.0, github.com/hashicorp/raft-autopilot v0.1.6, github.com/hashicorp/raft-boltdb/v2 v2.2.2, github.com/hashicorp/serf v0.10.1, github.com/joyent/triton-go v0.0.0-20190112182421-51ffac552869, github.com/mitchellh/cli v1.1.5, github.com/shoenig/go-landlock v0.1.5, github.com/shoenig/go-m1cpu v0.1.6, github.com/shoenig/test v0.6.7
+Used by: github.com/hashicorp/cap v0.2.0, github.com/hashicorp/errwrap v1.1.0, github.com/hashicorp/go-cleanhttp v0.5.2, github.com/hashicorp/go-connlimit v0.3.0, github.com/hashicorp/go-cty-funcs v0.0.0-20200930094925-2721b1e36840, github.com/hashicorp/go-discover v0.0.0-20220621183603-a413e131e836, github.com/hashicorp/go-envparse v0.0.0-20180119215841-310ca1881b22, github.com/hashicorp/go-immutable-radix v1.3.1, github.com/hashicorp/go-memdb v1.3.4, github.com/hashicorp/go-multierror v1.1.1, github.com/hashicorp/go-rootcerts v1.0.2, github.com/hashicorp/go-safetemp v1.0.0, github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.4, github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7, github.com/hashicorp/go-secure-stdlib/reloadutil v0.1.1, github.com/hashicorp/go-secure-stdlib/strutil v0.1.2, github.com/hashicorp/go-secure-stdlib/tlsutil v0.1.2, github.com/hashicorp/go-sockaddr v1.0.2, github.com/hashicorp/golang-lru v0.5.4, github.com/hashicorp/hcl v1.0.1-vault-3, github.com/hashicorp/hil v0.0.0-20210521165536-27a72121fd40, github.com/hashicorp/logutils v1.0.0, github.com/hashicorp/memberlist v0.5.0, github.com/hashicorp/raft-autopilot v0.1.6, github.com/hashicorp/raft-boltdb/v2 v2.2.2, github.com/hashicorp/serf v0.10.1, github.com/joyent/triton-go v0.0.0-20190112182421-51ffac552869, github.com/mitchellh/cli v1.1.5, github.com/shoenig/go-landlock v1.2.2, github.com/shoenig/go-m1cpu v0.1.6, github.com/shoenig/test v1.11.0
 
 ```text
 Mozilla Public License, version 2.0
@@ -21051,7 +21060,7 @@ Exhibit B - “Incompatible With Secondary Licenses” Notice
 
 ### License text 90
 
-Used by: github.com/hashicorp/go-set v0.1.14
+Used by: github.com/hashicorp/go-set v0.1.14, github.com/hashicorp/go-set/v2 v2.1.0
 
 ```text
 Copyright (c) 2022 HashiCorp, Inc.
@@ -27614,9 +27623,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### License text 175
 
-Used by: kernel.org/pub/linux/libs/security/libcap/psx v1.2.66
+Used by: kernel.org/pub/linux/libs/security/libcap/psx v1.2.70
 
 ```text
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only */
+
 Unless otherwise *explicitly* stated, the following text describes the
 licensed conditions under which the contents of this libcap/psx release
 may be used and distributed.

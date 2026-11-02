@@ -19,6 +19,11 @@ Mozilla Public License 2.0:
   commit a24707db8f2abd3ee74ce0cb5cc0d2b699d2cace
   Copyright (c) HashiCorp, Inc.
 
+  HashiCorp nomad-driver-exec2 v0.1.1
+  https://github.com/hashicorp/nomad-driver-exec2
+  commit 806e1aa12b9549addd9babbf17400e953acd3c3e
+  Copyright (c) HashiCorp, Inc.
+
 The source code of these works is available at the addresses above and in
 this project's repository.
 
