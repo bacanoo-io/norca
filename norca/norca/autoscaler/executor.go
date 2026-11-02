@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	hclog "github.com/hashicorp/go-hclog"

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/client"
 	"github.com/bacanoo-io/norca/norca/client/config"

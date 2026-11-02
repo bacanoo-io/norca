@@ -7,7 +7,7 @@ package norca
 import (
 	"time"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	nstructs "github.com/bacanoo-io/norca/norca/norca/structs"
 	log "github.com/hashicorp/go-hclog"
 

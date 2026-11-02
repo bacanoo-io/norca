@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armon/go-metrics"
+	"github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/go-hclog"
 )

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/interfaces"
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/netpolicy"
 	"github.com/bacanoo-io/norca/norca/client/config"

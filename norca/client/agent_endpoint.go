@@ -19,7 +19,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	log "github.com/hashicorp/go-hclog"
 
 	sframer "github.com/bacanoo-io/norca/norca/client/lib/streamframer"

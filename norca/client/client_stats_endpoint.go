@@ -7,7 +7,7 @@ package client
 import (
 	"time"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/client/structs"
 	nstructs "github.com/bacanoo-io/norca/norca/norca/structs"
 )
