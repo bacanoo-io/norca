@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
+//go:build linux
+
 package plugin
 
 import (
