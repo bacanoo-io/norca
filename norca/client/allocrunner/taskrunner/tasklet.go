@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	log "github.com/hashicorp/go-hclog"
 
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/taskrunner/interfaces"

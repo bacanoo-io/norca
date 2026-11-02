@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/client"
 	clientconfig "github.com/bacanoo-io/norca/norca/client/config"
 	"github.com/bacanoo-io/norca/norca/client/lib/cgutil"

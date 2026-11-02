@@ -19,7 +19,7 @@ import (
 	"syscall"
 	"time"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hpcloud/tail/watch"
 

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/armon/go-metrics"
+	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/bacanoo-io/norca/norca/acl"

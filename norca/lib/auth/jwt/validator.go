@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/armon/go-metrics"
+	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/cap/jwt"
 	"golang.org/x/exp/slices"
 

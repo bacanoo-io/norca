@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	metrics "github.com/armon/go-metrics"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/helper/snapshot"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/backup"
