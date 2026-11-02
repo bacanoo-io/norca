@@ -112,5 +112,10 @@ func Bandwidth(mhz uint64) (uint64, error) {
 		return 0, errors.New("the CPU speed of the node is unknown")
 	}
 	v := (mhz * 100000) / speed
-	return v, nil
+	// The kernel does not accept a cpu.max quota below 1 ms per period
+	// (EINVAL), which a small cpu value on a fast core gives.
+	return max(v, minQuota), nil
 }
+
+// minQuota is the smallest cpu.max quota the kernel accepts, in µs.
+const minQuota = 1000
