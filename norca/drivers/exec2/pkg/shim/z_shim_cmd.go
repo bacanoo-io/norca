@@ -112,7 +112,7 @@ func init() {
 
 		// retrieve the exit status of the task process and write it to a
 		// known location in case the plugin driver needs to read it back
-		destination := filepath.Join(os.Getenv("NOMAD_TASK_DIR"), ".exit_status.txt")
+		destination := filepath.Join(os.Getenv("NORCA_TASK_DIR"), ".exit_status.txt")
 		_ = os.WriteFile(destination, []byte(strconv.Itoa(code)), 0o644)
 		return code
 	})

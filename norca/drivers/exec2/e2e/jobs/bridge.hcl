@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 job "bridge" {
@@ -43,7 +44,7 @@ job "bridge" {
 
       config {
         command = "python3"
-        args    = ["-m", "http.server", "8181", "--directory", "${NOMAD_TASK_DIR}"]
+        args    = ["-m", "http.server", "8181", "--directory", "${NORCA_TASK_DIR}"]
       }
 
       template {

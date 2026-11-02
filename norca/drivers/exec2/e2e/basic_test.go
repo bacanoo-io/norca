@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build e2e
@@ -41,7 +42,7 @@ func pause() {
 func setup(t *testing.T) context.Context {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	t.Cleanup(func() {
-		run(t, ctx, "nomad", "system", "gc")
+		run(t, ctx, "norca", "system", "gc")
 		cancel()
 	})
 	pause()
@@ -68,7 +69,7 @@ var (
 func wait(t *testing.T, ctx context.Context, job string) {
 	const retries = 60
 	for i := range retries {
-		output := run(t, ctx, "nomad", "job", "status", job)
+		output := run(t, ctx, "norca", "job", "status", job)
 		if jobStatusRe.MatchString(output) {
 			return
 		}
@@ -81,7 +82,7 @@ func wait(t *testing.T, ctx context.Context, job string) {
 func logs(t *testing.T, ctx context.Context, alloc string) string {
 	const retries = 30
 	for i := range retries {
-		output := strings.TrimSpace(run(t, ctx, "nomad", "alloc", "logs", alloc))
+		output := strings.TrimSpace(run(t, ctx, "norca", "alloc", "logs", alloc))
 		if output != "" {
 			return output
 		}
@@ -95,7 +96,7 @@ func logs(t *testing.T, ctx context.Context, alloc string) string {
 func logs2(t *testing.T, ctx context.Context, job, task string) string {
 	const retries = 30
 	for i := range retries {
-		output := strings.TrimSpace(run(t, ctx, "nomad", "logs", "-job", job, task))
+		output := strings.TrimSpace(run(t, ctx, "norca", "logs", "-job", job, task))
 		if output != "" {
 			return output
 		}
@@ -109,7 +110,7 @@ func logs2(t *testing.T, ctx context.Context, job, task string) string {
 func purge(t *testing.T, ctx context.Context, job string) func() {
 	return func() {
 		t.Log("STOP", job)
-		cmd := exec.CommandContext(ctx, "nomad", "job", "stop", "-purge", job)
+		cmd := exec.CommandContext(ctx, "norca", "job", "stop", "-purge", job)
 		b, err := cmd.CombinedOutput()
 		output := strings.TrimSpace(string(b))
 		if err != nil {
@@ -136,11 +137,11 @@ func TestPluginStarts(t *testing.T) {
 	ctx := setup(t)
 
 	// can connect to nomad
-	jobs := run(t, ctx, "nomad", "job", "status")
+	jobs := run(t, ctx, "norca", "job", "status")
 	must.Eq(t, "No running jobs", jobs)
 
 	// exec2 plugin is present and healthy
-	status := run(t, ctx, "nomad", "node", "status", "-self", "-verbose")
+	status := run(t, ctx, "norca", "node", "status", "-self", "-verbose")
 	exec2Re := regexp.MustCompile(`exec2\s+true\s+true\s+Healthy`)
 	must.RegexMatch(t, exec2Re, status)
 }
@@ -149,12 +150,12 @@ func TestBasic_Env(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "env")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/env.hcl")
-	statusOutput := run(t, ctx, "nomad", "job", "status", "env")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/env.hcl")
+	statusOutput := run(t, ctx, "norca", "job", "status", "env")
 
-	// env contains expected NOMAD_SHORT_ALLOC_ID
+	// env contains expected NORCA_SHORT_ALLOC_ID
 	alloc := allocFromJobStatus(t, statusOutput)
-	containsAllocEnvRe := regexp.MustCompile(`NOMAD_SHORT_ALLOC_ID=` + alloc)
+	containsAllocEnvRe := regexp.MustCompile(`NORCA_SHORT_ALLOC_ID=` + alloc)
 
 	// env contains sensible USER (dynamic)
 	containsUserRe := regexp.MustCompile(`USER=nomad-\d+`)
@@ -168,8 +169,8 @@ func TestBasic_Mktemp(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "mktemp")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/mktemp.hcl")
-	statusOutput := run(t, ctx, "nomad", "job", "status", "mktemp")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/mktemp.hcl")
+	statusOutput := run(t, ctx, "norca", "job", "status", "mktemp")
 	alloc := allocFromJobStatus(t, statusOutput)
 
 	// contains reasonable mktemp output
@@ -182,18 +183,18 @@ func TestBasic_Sleep(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "sleep")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/sleep.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/sleep.hcl")
 
 	// no log output, make sure job is running
-	jobStatus := run(t, ctx, "nomad", "job", "status", "sleep")
+	jobStatus := run(t, ctx, "norca", "job", "status", "sleep")
 	must.RegexMatch(t, runningRe, jobStatus)
 
 	// stop the job
-	stopOutput := run(t, ctx, "nomad", "job", "stop", "sleep")
+	stopOutput := run(t, ctx, "norca", "job", "stop", "sleep")
 	must.StrContains(t, stopOutput, `finished with status "complete"`)
 
 	// check job is stopped
-	stopStatus := run(t, ctx, "nomad", "job", "status", "sleep")
+	stopStatus := run(t, ctx, "norca", "job", "status", "sleep")
 	deadRe := regexp.MustCompile(`Status\s+=\s+dead\s+\(stopped\)`)
 	must.RegexMatch(t, deadRe, stopStatus)
 }
@@ -202,7 +203,7 @@ func TestBasic_Java(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "java")()
 
-	_ = run(t, ctx, "nomad", "job", "run",
+	_ = run(t, ctx, "norca", "job", "run",
 		"-var=javabin=/usr/lib/jvm/temurin-21-jdk-amd64/bin",
 		"-var=etcjava=/etc/alternatives",
 		"./jobs/java.hcl",
@@ -217,10 +218,10 @@ func TestBasic_HTTP(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "http")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/http.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/http.hcl")
 
 	// make sure job is running
-	jobStatus := run(t, ctx, "nomad", "job", "status", "http")
+	jobStatus := run(t, ctx, "norca", "job", "status", "http")
 	must.RegexMatch(t, runningRe, jobStatus)
 
 	// curl localhost:8181
@@ -228,11 +229,11 @@ func TestBasic_HTTP(t *testing.T) {
 	must.StrContains(t, curlOutput, `<title>example</title>`)
 
 	// stop the job
-	stopOutput := run(t, ctx, "nomad", "job", "stop", "http")
+	stopOutput := run(t, ctx, "norca", "job", "stop", "http")
 	must.StrContains(t, stopOutput, `finished with status "complete"`)
 
 	// check job is stopped
-	stopStatus := run(t, ctx, "nomad", "job", "status", "http")
+	stopStatus := run(t, ctx, "norca", "job", "status", "http")
 	stoppedRe := regexp.MustCompile(`Status\s+=\s+dead\s+\(stopped\)`)
 	must.RegexMatch(t, stoppedRe, stopStatus)
 }
@@ -241,15 +242,15 @@ func TestBasic_Passwd(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "passwd")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/passwd.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/passwd.hcl")
 
 	// make sure job is failing (cannot read /etc/passwd)
 	time.Sleep(20 * time.Second)
-	jobStatus := run(t, ctx, "nomad", "job", "status", "passwd")
+	jobStatus := run(t, ctx, "norca", "job", "status", "passwd")
 	must.RegexMatch(t, deadRe, jobStatus)
 
 	// stop the job and check complete
-	stopOutput := run(t, ctx, "nomad", "job", "stop", "-purge", "passwd")
+	stopOutput := run(t, ctx, "norca", "job", "stop", "-purge", "passwd")
 	must.StrContains(t, stopOutput, `finished with status "complete"`)
 }
 
@@ -257,9 +258,9 @@ func TestBasic_Cgroup(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "cgroup")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/cgroup.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/cgroup.hcl")
 
-	statusOutput := run(t, ctx, "nomad", "job", "status", "cgroup")
+	statusOutput := run(t, ctx, "norca", "job", "status", "cgroup")
 
 	alloc := allocFromJobStatus(t, statusOutput)
 	cgroupRe := regexp.MustCompile(`0::/nomad\.slice/share.slice/` + alloc + `.+\.cat\.scope`)
@@ -272,9 +273,9 @@ func TestBasic_Bridge(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "bridge")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/bridge.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/bridge.hcl")
 
-	serviceInfo := run(t, ctx, "nomad", "service", "info", "homepage")
+	serviceInfo := run(t, ctx, "norca", "service", "info", "homepage")
 	addressRe := regexp.MustCompile(`([\d]+\.[\d]+.[\d]+\.[\d]+:[\d]+)`)
 
 	m := addressRe.FindStringSubmatch(serviceInfo)
@@ -290,7 +291,7 @@ func TestBasic_ProcessNamespace(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "ps")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/ps.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/ps.hcl")
 
 	logs := logs2(t, ctx, "ps", "ps")
 	lines := strings.Split(logs, "\n") // header + shim + ps
@@ -301,15 +302,15 @@ func TestBasic_Exit7(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "exit7")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/exit7.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/exit7.hcl")
 
 	// make sure job is failing (script returns exit code 7)
 	time.Sleep(15 * time.Second)
-	jobStatus := run(t, ctx, "nomad", "job", "status", "exit7")
+	jobStatus := run(t, ctx, "norca", "job", "status", "exit7")
 	must.RegexMatch(t, deadRe, jobStatus)
 
 	// stop the job and check complete
-	stopOutput := run(t, ctx, "nomad", "job", "stop", "-purge", "exit7")
+	stopOutput := run(t, ctx, "norca", "job", "stop", "-purge", "exit7")
 	must.StrContains(t, stopOutput, `finished with status "complete"`)
 }
 
@@ -317,9 +318,9 @@ func TestBasic_Ignore(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "ignore")
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/ignore.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/ignore.hcl")
 
-	stopOutput := run(t, ctx, "nomad", "job", "stop", "ignore")
+	stopOutput := run(t, ctx, "norca", "job", "stop", "ignore")
 	must.StrContains(t, stopOutput, `finished with status "complete"`)
 }
 
@@ -327,7 +328,7 @@ func TestBasic_Resources(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "resources")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/resources.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/resources.hcl")
 
 	t.Run("memory.max", func(t *testing.T) {
 		output := logs2(t, ctx, "resources", "memory.max")
@@ -372,14 +373,14 @@ func TestBasic_Envoy(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "envoy")
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/envoy.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/envoy.hcl")
 
 	// make sure job is running
-	jobStatus := run(t, ctx, "nomad", "job", "status", "envoy")
+	jobStatus := run(t, ctx, "norca", "job", "status", "envoy")
 	must.RegexMatch(t, runningRe, jobStatus)
 
 	// make sure the service is registered
-	envoyService := run(t, ctx, "nomad", "service", "info", "envoy")
+	envoyService := run(t, ctx, "norca", "service", "info", "envoy")
 	must.StrContains(t, envoyService, "envoy-test")
 }
 
@@ -387,9 +388,9 @@ func TestBasic_Secret(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "secret")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/secret.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/secret.hcl")
 
-	statusOutput := run(t, ctx, "nomad", "job", "status", "secret")
+	statusOutput := run(t, ctx, "norca", "job", "status", "secret")
 	alloc := allocFromJobStatus(t, statusOutput)
 
 	output := logs(t, ctx, alloc)
@@ -401,10 +402,10 @@ func TestBasic_OomScoreAdj(t *testing.T) {
 	ctx := setup(t)
 	defer purge(t, ctx, "oom")()
 
-	_ = run(t, ctx, "nomad", "job", "run", "./jobs/oom_score_adj.hcl")
+	_ = run(t, ctx, "norca", "job", "run", "./jobs/oom_score_adj.hcl")
 
 	// run the job
-	jobStatus := run(t, ctx, "nomad", "job", "status", "oom")
+	jobStatus := run(t, ctx, "norca", "job", "status", "oom")
 	must.RegexMatch(t, runningRe, jobStatus)
 
 	// get the pid

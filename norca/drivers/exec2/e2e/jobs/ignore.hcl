@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 job "ignore" {
@@ -27,7 +28,7 @@ job "ignore" {
 
       config {
         command = "python3"
-        args    = ["${NOMAD_TASK_DIR}/ignore.py"]
+        args    = ["${NORCA_TASK_DIR}/ignore.py"]
       }
 
       resources {
