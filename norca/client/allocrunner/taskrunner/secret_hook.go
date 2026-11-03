@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/consul-template/signals"
 	log "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/interfaces"
 	ti "github.com/bacanoo-io/norca/norca/client/allocrunner/taskrunner/interfaces"

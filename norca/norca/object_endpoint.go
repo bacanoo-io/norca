@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/admission"
@@ -24,6 +23,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/state/paginator"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/go-memdb"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 const (

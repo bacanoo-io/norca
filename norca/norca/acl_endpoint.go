@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-metrics"
 	capOIDC "github.com/hashicorp/cap/oidc"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-set"
 
 	policy "github.com/bacanoo-io/norca/norca/acl"

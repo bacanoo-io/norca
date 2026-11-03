@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/client"
 	"github.com/bacanoo-io/norca/norca/client/config"
@@ -21,6 +20,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
+	metrics "github.com/hashicorp/go-metrics"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/nats-io/nats.go"
 	"github.com/shoenig/test/must"

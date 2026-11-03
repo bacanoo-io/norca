@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/interfaces"
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/netpolicy"
 	"github.com/bacanoo-io/norca/norca/client/config"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/plugins/drivers"
 	hclog "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 const (

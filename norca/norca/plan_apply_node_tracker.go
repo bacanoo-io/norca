@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-metrics"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 )

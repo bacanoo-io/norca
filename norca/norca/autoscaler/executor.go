@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	hclog "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 	"golang.org/x/time/rate"
 )
 

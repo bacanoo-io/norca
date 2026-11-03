@@ -19,10 +19,10 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/useragent"
 	tomb "gopkg.in/tomb.v2"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	log "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 	multierror "github.com/hashicorp/go-multierror"
 	vapi "github.com/hashicorp/vault/api"
 

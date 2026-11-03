@@ -19,8 +19,8 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 
-	metrics "github.com/hashicorp/go-metrics"
 	log "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 
 	sframer "github.com/bacanoo-io/norca/norca/client/lib/streamframer"
 	cstructs "github.com/bacanoo-io/norca/norca/client/structs"

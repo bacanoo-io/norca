@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 // applyAllocEvict evicts an allocation if its disruption budget allows it.

@@ -25,8 +25,8 @@ func secretDeliveryJob(id string) *structs.Job {
 	tg := job.TaskGroups[0]
 	tg.SecretAccess = []*structs.SecretAccess{{Path: "jobs/${job}/*"}}
 	tg.Tasks[0].Secrets = []*structs.TaskSecret{{
-		Name: "db",
-		Path: "jobs/${job}/db",
+		Name:  "db",
+		Path:  "jobs/${job}/db",
 		Files: []*structs.TaskSecretFile{{Destination: "secrets/db.env"}},
 	}}
 	return job

@@ -6,9 +6,12 @@ package tstorage
 //
 // The partition's lifecycle is: Writable -> ReadOnly.
 // *Writable*:
-//   it can be written. Only one partition can be writable within a partition list.
+//
+//	it can be written. Only one partition can be writable within a partition list.
+//
 // *ReadOnly*:
-//   it can't be written. Partitions will be ReadOnly if it exceeds the partition range.
+//
+//	it can't be written. Partitions will be ReadOnly if it exceeds the partition range.
 type partition interface {
 	// Write operations
 	//

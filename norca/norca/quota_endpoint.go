@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/go-metrics"
 
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
