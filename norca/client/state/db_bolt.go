@@ -138,7 +138,6 @@ func taskBucketName(taskName string) []byte {
 	return []byte("task-" + taskName)
 }
 
-
 // BoltStateDB persists and restores the client state in a BoltDB file
 // (state_store = "boltdb"; the default is Badger). All
 // methods are safe for concurrent access.
@@ -217,7 +216,6 @@ func (s *BoltStateDB) GetAllAllocations() ([]*structs.Allocation, map[string]err
 	return allocs, errs, nil
 }
 
-
 func (s *BoltStateDB) getAllAllocations(tx *boltdd.Tx) ([]*structs.Allocation, map[string]error) {
 	allocs := make([]*structs.Allocation, 0, 10)
 	errs := map[string]error{}
@@ -279,7 +277,6 @@ func (s *BoltStateDB) PutAllocation(alloc *structs.Allocation, opts ...WriteOpti
 	})
 }
 
-
 // PutDeploymentStatus stores an allocation's DeploymentStatus or returns an
 // error.
 func (s *BoltStateDB) PutDeploymentStatus(allocID string, ds *structs.AllocDeploymentStatus) error {
@@ -332,7 +329,6 @@ func (s *BoltStateDB) GetDeploymentStatus(allocID string) (*structs.AllocDeploym
 
 	return entry.DeploymentStatus, nil
 }
-
 
 // PutNetworkStatus stores an allocation's DeploymentStatus or returns an
 // error.
@@ -434,7 +430,6 @@ func (s *BoltStateDB) GetAcknowledgedState(allocID string) (*arstate.State, erro
 
 	return entry.State, nil
 }
-
 
 // PutAllocVolumes stores stubs of an allocation's dynamic volume mounts so they
 // can be restored.
@@ -831,7 +826,6 @@ func (s *BoltStateDB) GetDynamicPluginRegistryState() (*dynamicplugins.RegistryS
 	return ps, nil
 }
 
-
 // PutCheckResult puts qr into the state store.
 func (s *BoltStateDB) PutCheckResult(allocID string, qr *structs.CheckQueryResult) error {
 	return s.db.Update(func(tx *boltdd.Tx) error {
@@ -968,7 +962,6 @@ func (s *BoltStateDB) init() error {
 		return addMeta(tx.BoltTx())
 	})
 }
-
 
 // updateWithOptions enables adjustments to db.Update operation, including Batch mode.
 func (s *BoltStateDB) updateWithOptions(opts []WriteOption, updateFn func(tx *boltdd.Tx) error) error {
