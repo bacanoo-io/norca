@@ -369,7 +369,7 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 	}
 
 	if cfg.StateDBFactory == nil {
-		cfg.StateDBFactory = state.GetStateDBFactory(cfg.DevMode)
+		cfg.StateDBFactory = state.GetStateDBFactory(cfg.DevMode, cfg.StateBadger)
 	}
 
 	// The pool of dynamic users for drivers that run tasks without a user
@@ -1229,7 +1229,7 @@ func (c *Client) restoreState() error {
 		return err
 	}
 	for allocID, err := range allocErrs {
-		// The boltdb values don't exist or didn't decode correctly. The state
+		// The stored values don't exist or didn't decode correctly. The state
 		// store is corrupt or there was a backwards incompatibility. Either way
 		// log it so we can debug it with operator client-state command.
 		c.logger.Error("error restoring alloc", "error", err, "alloc_id", allocID)

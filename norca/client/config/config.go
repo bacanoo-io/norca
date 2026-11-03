@@ -24,6 +24,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/client/lib/cpustats"
 	"github.com/bacanoo-io/norca/norca/client/state"
 	"github.com/bacanoo-io/norca/norca/command/agent/host"
+	"github.com/bacanoo-io/norca/norca/helper/badgerdb"
 	"github.com/bacanoo-io/norca/norca/helper/bufconndialer"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/loader"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
@@ -257,6 +258,10 @@ type Config struct {
 	// PluginSingletonLoader is a plugin loader that will returns singleton
 	// instances of the plugins.
 	PluginSingletonLoader loader.PluginCatalog
+
+	// StateBadger tunes the Badger database of the client state; zero
+	// values take badgerdb.ClientDefaults.
+	StateBadger badgerdb.Options
 
 	// StateDBFactory is used to override stateDB implementations,
 	StateDBFactory state.NewStateDBFunc

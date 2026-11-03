@@ -426,7 +426,7 @@ func (tc *ClientStateTC) TestClientState_Corrupt(f *framework.F) {
 	assertHealthy()
 
 	// Remove task bucket from client state
-	db, err := state.NewBoltStateDB(testlog.HCLogger(t), filepath.Join(clientAgent.DataDir, "client"))
+	db, err := state.NewBadgerStateDB(testlog.HCLogger(t), filepath.Join(clientAgent.DataDir, "client"))
 	f.NoError(err)
 
 	f.NoError(db.DeleteTaskBucket(alloc.ID, "sleeper"))

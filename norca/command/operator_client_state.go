@@ -21,9 +21,10 @@ type OperatorClientStateCommand struct {
 
 func (c *OperatorClientStateCommand) Help() string {
 	helpText := `
-Usage: norca operator client-state <path_to_nomad_dir>
+Usage: norca operator client-state <data_dir>/client
 
-  Emits a representation of the stored client state in JSON format.
+  Emits a representation of the stored client state in JSON format. The
+  state can only be read while no agent uses the data directory.
 `
 	return strings.TrimSpace(helpText)
 }
@@ -42,14 +43,14 @@ func (c *OperatorClientStateCommand) Name() string { return "operator client-sta
 
 func (c *OperatorClientStateCommand) Run(args []string) int {
 	if len(args) != 1 {
-		c.Ui.Error("This command takes one argument: <nomad-data-dir>")
+		c.Ui.Error("This command takes one argument: <data_dir>/client")
 		c.Ui.Error(commandErrorText(c))
 
 		return 1
 	}
 
 	logger := hclog.L()
-	db, err := state.NewBoltStateDB(logger, args[0])
+	db, err := state.NewBadgerStateDB(logger, args[0])
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("failed to open client state: %v", err))
 		return 1

@@ -22,6 +22,7 @@ import (
 	client "github.com/bacanoo-io/norca/norca/client/config"
 	"github.com/bacanoo-io/norca/norca/client/fingerprint"
 	"github.com/bacanoo-io/norca/norca/helper"
+	"github.com/bacanoo-io/norca/norca/helper/badgerdb"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/helper/users"
 	"github.com/bacanoo-io/norca/norca/norca"
@@ -262,6 +263,9 @@ type ClientConfig struct {
 	DynamicUserMin int `hcl:"dynamic_user_min"`
 	DynamicUserMax int `hcl:"dynamic_user_max"`
 
+	// Badger configures the Badger database of the client state.
+	Badger *BadgerConfig `hcl:"badger"`
+
 	// ClientMaxPort is the upper range of the ports that the client uses for
 	// communicating with plugin subsystems
 	ClientMaxPort int `hcl:"client_max_port"`
@@ -416,6 +420,7 @@ func (c *ClientConfig) Copy() *ClientConfig {
 	nc.Secrets = c.Secrets.Copy()
 	nc.Artifact = c.Artifact.Copy()
 	nc.Drain = c.Drain.Copy()
+	nc.Badger = c.Badger.Copy()
 	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
 	return &nc
 }
@@ -779,9 +784,10 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	return &ns
 }
 
-// BadgerConfig tunes the Badger database of the raft log of a server: the
-// options that matter against compaction spikes and for memory. Unset (zero)
-// values take the defaults of helper/raftbadger.
+// BadgerConfig tunes a Badger database: the raft log of a server (server
+// block) or the state of a client (client block). It holds the options that
+// matter against compaction spikes and for memory. Unset (zero) values take
+// the server or client defaults of helper/badgerdb.
 type BadgerConfig struct {
 	// MemTableSizeMB is the size of a memtable, the unit flushed to level 0.
 	MemTableSizeMB int `hcl:"mem_table_size_mb"`
@@ -811,6 +817,27 @@ func (b *BadgerConfig) Copy() *BadgerConfig {
 	}
 	nb := *b
 	return &nb
+}
+
+// Apply sets the values of b in o; block names the block in errors.
+func (b *BadgerConfig) Apply(o *badgerdb.Options, block string) error {
+	if b == nil {
+		return nil
+	}
+	o.MemTableSizeMB = b.MemTableSizeMB
+	o.NumLevelZeroTables = b.NumLevelZeroTables
+	o.NumLevelZeroTablesStall = b.NumLevelZeroTablesStall
+	o.NumCompactors = b.NumCompactors
+	o.BlockCacheSizeMB = b.BlockCacheSizeMB
+	o.IndexCacheSizeMB = b.IndexCacheSizeMB
+	if b.ValueLogGCInterval != "" {
+		d, err := time.ParseDuration(b.ValueLogGCInterval)
+		if err != nil || d <= 0 {
+			return fmt.Errorf("invalid %s badger value_log_gc_interval %q", block, b.ValueLogGCInterval)
+		}
+		o.ValueLogGCInterval = d
+	}
+	return nil
 }
 
 // Merge returns b with the values set in o.
@@ -2254,6 +2281,9 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	}
 	if b.DynamicUserMax != 0 {
 		result.DynamicUserMax = b.DynamicUserMax
+	}
+	if b.Badger != nil {
+		result.Badger = result.Badger.Merge(b.Badger)
 	}
 	if b.MemoryMB != 0 {
 		result.MemoryMB = b.MemoryMB

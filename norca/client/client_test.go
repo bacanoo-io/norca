@@ -31,6 +31,7 @@ import (
 	regMock "github.com/bacanoo-io/norca/norca/client/serviceregistration/mock"
 	cstate "github.com/bacanoo-io/norca/norca/client/state"
 	"github.com/bacanoo-io/norca/norca/command/agent/consul"
+	"github.com/bacanoo-io/norca/norca/helper/badgerdb"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/catalog"
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/singleton"
 	"github.com/bacanoo-io/norca/norca/helper/testlog"
@@ -1010,7 +1011,7 @@ func TestClient_Init(t *testing.T) {
 
 	config := config.DefaultConfig()
 	config.AllocDir = allocDir
-	config.StateDBFactory = cstate.GetStateDBFactory(true)
+	config.StateDBFactory = cstate.GetStateDBFactory(true, badgerdb.Options{})
 
 	// Node is always initialized in agent.go:convertClientConfig()
 	config.Node = mock.Node()
