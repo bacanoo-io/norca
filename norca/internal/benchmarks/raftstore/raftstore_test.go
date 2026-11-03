@@ -30,27 +30,33 @@ type store interface {
 // a server.
 type newStore func(b *testing.B) store
 
-// stores lists the implementations to compare.
-var stores = map[string]newStore{
-	"bolt": func(b *testing.B) store {
+// stores lists the implementations to compare, in a fixed order: the
+// Badger profiles that fit the 2 GB lab VMs run first.
+var stores = []struct {
+	name string
+	open newStore
+}{
+	{"bolt", func(b *testing.B) store {
 		s, err := raftboltdb.New(raftboltdb.Options{Path: filepath.Join(b.TempDir(), "raft.db")})
 		if err != nil {
 			b.Fatal(err)
 		}
 		b.Cleanup(func() { _ = s.Close() })
 		return s
-	},
-	"badger":       badgerStore(0),
-	"badger-vt4k":  badgerStore(4),
-	"badger-vt64k": badgerStore(64),
+	}},
+	{"badger-small", badgerStore("small", 0)},
+	{"badger-small-vt4k", badgerStore("small", 4)},
+	{"badger", badgerStore("", 0)},
+	{"badger-vt4k", badgerStore("", 4)},
 }
 
-// badgerStore opens the Badger store with values above thresholdKB in the
-// value log (0: the default).
-func badgerStore(thresholdKB int) newStore {
+// badgerStore opens the Badger store with a profile; values above
+// thresholdKB go to the value log (0: the profile's).
+func badgerStore(profile string, thresholdKB int) newStore {
 	return func(b *testing.B) store {
 		s, err := raftbadger.Open(raftbadger.Options{
 			Path:             filepath.Join(b.TempDir(), "badger"),
+			Profile:          profile,
 			ValueThresholdKB: thresholdKB,
 		})
 		if err != nil {
@@ -62,8 +68,8 @@ func badgerStore(thresholdKB int) newStore {
 }
 
 func run(b *testing.B, fn func(*testing.B, store)) {
-	for name, open := range stores {
-		b.Run(name, func(b *testing.B) { fn(b, open(b)) })
+	for _, st := range stores {
+		b.Run(st.name, func(b *testing.B) { fn(b, st.open(b)) })
 	}
 }
 
