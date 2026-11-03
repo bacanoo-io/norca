@@ -262,6 +262,10 @@ func TestJobPeriodicForceCommand_ACL(t *testing.T) {
 	})
 	defer srv.Shutdown()
 	client.SetSecretID(srv.RootToken.SecretID)
+	// The jobs are placed on the client of the test agent: wait until it is
+	// ready, or an evaluation that runs first fails to place them and the
+	// command exits with 2 (clean room bugfix: the test raced the client).
+	waitForNodes(t, client)
 
 	// Create a periodic job.
 	jobID := "test_job_periodic_force_acl"

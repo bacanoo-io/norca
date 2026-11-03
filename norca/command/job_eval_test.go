@@ -137,10 +137,15 @@ func TestJobEvalCommand_ACL(t *testing.T) {
 	ci.Parallel(t)
 
 	// Start server with ACL enabled.
-	srv, _, url := testServer(t, true, func(c *agent.Config) {
+	srv, client, url := testServer(t, true, func(c *agent.Config) {
 		c.ACL.Enabled = true
 	})
 	defer srv.Shutdown()
+	// The jobs are placed on the client of the test agent: wait until it is
+	// ready, or an evaluation that runs first fails to place them and the
+	// command exits with 2 (clean room bugfix: the test raced the client).
+	client.SetSecretID(srv.RootToken.SecretID)
+	waitForNodes(t, client)
 
 	// Create a job.
 	job := mock.MinJob()

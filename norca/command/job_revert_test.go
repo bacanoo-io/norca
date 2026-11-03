@@ -79,6 +79,11 @@ func TestJobRevertCommand_ACL(t *testing.T) {
 		c.ACL.Enabled = true
 	})
 	defer srv.Shutdown()
+	// The jobs are placed on the client of the test agent: wait until it is
+	// ready, or an evaluation that runs first fails to place them and the
+	// command exits with 2 (clean room bugfix: the test raced the client).
+	client.SetSecretID(srv.RootToken.SecretID)
+	waitForNodes(t, client)
 
 	testCases := []struct {
 		name        string
