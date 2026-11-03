@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bacanoo-io/norca/norca/helper/raftbadger"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	raftbench "github.com/hashicorp/raft/bench"
@@ -33,6 +34,14 @@ type newStore func(b *testing.B) store
 var stores = map[string]newStore{
 	"bolt": func(b *testing.B) store {
 		s, err := raftboltdb.New(raftboltdb.Options{Path: filepath.Join(b.TempDir(), "raft.db")})
+		if err != nil {
+			b.Fatal(err)
+		}
+		b.Cleanup(func() { _ = s.Close() })
+		return s
+	},
+	"badger": func(b *testing.B) store {
+		s, err := raftbadger.Open(raftbadger.Options{Path: filepath.Join(b.TempDir(), "badger")})
 		if err != nil {
 			b.Fatal(err)
 		}

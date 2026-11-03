@@ -16,6 +16,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/raftbadger"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
 	"github.com/bacanoo-io/norca/norca/norca/backup"
@@ -410,8 +411,9 @@ type Config struct {
 	// SearchConfig provides knobs for Search API.
 	SearchConfig *structs.SearchConfig
 
-	// RaftBoltNoFreelistSync configures whether freelist syncing is enabled.
-	RaftBoltNoFreelistSync bool
+	// RaftBadger configures the Badger database of the raft log; the server
+	// sets the path. Zero values take raftbadger.ServerDefaults.
+	RaftBadger raftbadger.Options
 
 	// AgentShutdown is used to call agent.Shutdown from the context of a Server
 	// It is used primarily for licensing

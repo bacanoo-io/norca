@@ -673,8 +673,8 @@ type ServerConfig struct {
 	// DeploymentWatcher to throttle the amount of simultaneously deployments
 	DeploymentQueryRateLimit float64 `hcl:"deploy_query_rate_limit"`
 
-	// RaftBoltConfig configures boltdb as used by raft.
-	RaftBoltConfig *RaftBoltConfig `hcl:"raft_boltdb"`
+	// Badger configures the Badger database of the raft log.
+	Badger *BadgerConfig `hcl:"badger"`
 
 	// RaftSnapshotThreshold controls how many outstanding logs there must be
 	// before we perform a snapshot. This is to prevent excessive snapshotting by
@@ -760,7 +760,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.JobMaxSourceSize = pointer.Copy(s.JobMaxSourceSize)
 	ns.ExtraKeysHCL = slices.Clone(s.ExtraKeysHCL)
 	ns.Search = s.Search.Copy()
-	ns.RaftBoltConfig = s.RaftBoltConfig.Copy()
+	ns.Badger = s.Badger.Copy()
 	ns.RaftSnapshotInterval = pointer.Copy(s.RaftSnapshotInterval)
 	ns.RaftSnapshotThreshold = pointer.Copy(s.RaftSnapshotThreshold)
 	ns.RaftTrailingLogs = pointer.Copy(s.RaftTrailingLogs)
@@ -779,24 +779,65 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	return &ns
 }
 
-// RaftBoltConfig is used in servers to configure parameters of the boltdb
-// used for raft consensus.
-type RaftBoltConfig struct {
-	// NoFreelistSync toggles whether the underlying raft storage should sync its
-	// freelist to disk within the bolt .db file. When disabled, IO performance
-	// will be improved but at the expense of longer startup times.
-	//
-	// Default: false.
-	NoFreelistSync bool `hcl:"no_freelist_sync"`
+// BadgerConfig tunes the Badger database of the raft log of a server: the
+// options that matter against compaction spikes and for memory. Unset (zero)
+// values take the defaults of helper/raftbadger.
+type BadgerConfig struct {
+	// MemTableSizeMB is the size of a memtable, the unit flushed to level 0.
+	MemTableSizeMB int `hcl:"mem_table_size_mb"`
+
+	// NumLevelZeroTables is the number of level 0 tables that starts a
+	// compaction of level 0.
+	NumLevelZeroTables int `hcl:"num_level_zero_tables"`
+
+	// NumLevelZeroTablesStall is the number of level 0 tables at which
+	// writes stall until compaction catches up.
+	NumLevelZeroTablesStall int `hcl:"num_level_zero_tables_stall"`
+
+	// NumCompactors is the number of parallel compactions (at least 2).
+	NumCompactors int `hcl:"num_compactors"`
+
+	// BlockCacheSizeMB and IndexCacheSizeMB bound the caches.
+	BlockCacheSizeMB int `hcl:"block_cache_size_mb"`
+	IndexCacheSizeMB int `hcl:"index_cache_size_mb"`
+
+	// ValueLogGCInterval is how often the value log garbage collection runs.
+	ValueLogGCInterval string `hcl:"value_log_gc_interval"`
 }
 
-func (r *RaftBoltConfig) Copy() *RaftBoltConfig {
-	if r == nil {
+func (b *BadgerConfig) Copy() *BadgerConfig {
+	if b == nil {
 		return nil
 	}
+	nb := *b
+	return &nb
+}
 
-	nr := *r
-	return &nr
+// Merge returns b with the values set in o.
+func (b *BadgerConfig) Merge(o *BadgerConfig) *BadgerConfig {
+	if b == nil {
+		return o.Copy()
+	}
+	r := b.Copy()
+	if o == nil {
+		return r
+	}
+	for _, f := range []struct{ dst, src *int }{
+		{&r.MemTableSizeMB, &o.MemTableSizeMB},
+		{&r.NumLevelZeroTables, &o.NumLevelZeroTables},
+		{&r.NumLevelZeroTablesStall, &o.NumLevelZeroTablesStall},
+		{&r.NumCompactors, &o.NumCompactors},
+		{&r.BlockCacheSizeMB, &o.BlockCacheSizeMB},
+		{&r.IndexCacheSizeMB, &o.IndexCacheSizeMB},
+	} {
+		if *f.src != 0 {
+			*f.dst = *f.src
+		}
+	}
+	if o.ValueLogGCInterval != "" {
+		r.ValueLogGCInterval = o.ValueLogGCInterval
+	}
+	return r
 }
 
 // PlanRejectionTracker is used in servers to configure the plan rejection
@@ -2130,10 +2171,8 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 		}
 	}
 
-	if b.RaftBoltConfig != nil {
-		result.RaftBoltConfig = &RaftBoltConfig{
-			NoFreelistSync: b.RaftBoltConfig.NoFreelistSync,
-		}
+	if b.Badger != nil {
+		result.Badger = result.Badger.Merge(b.Badger)
 	}
 
 	if b.RaftSnapshotThreshold != nil {

@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bacanoo-io/norca/norca/helper/raftbadger"
 	"github.com/bacanoo-io/norca/norca/norca"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
 var ErrNoMoreLogs = fmt.Errorf("no more logs")
@@ -33,7 +33,7 @@ type FSMHelper struct {
 	logger hclog.Logger
 
 	// nomad state
-	store *raftboltdb.BoltStore
+	store *raftbadger.Store
 	fsm   nomadFSM
 	snaps *raft.FileSnapshotStore
 
@@ -44,7 +44,7 @@ type FSMHelper struct {
 }
 
 func NewFSM(p string) (*FSMHelper, error) {
-	store, firstIdx, lastIdx, err := RaftStateInfo(filepath.Join(p, "raft.db"))
+	store, firstIdx, lastIdx, err := RaftStateInfo(filepath.Join(p, raftStoreDir))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open raft database %v: %v", p, err)
 	}

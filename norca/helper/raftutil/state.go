@@ -11,31 +11,23 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
+	"github.com/bacanoo-io/norca/norca/helper/raftbadger"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
-	"go.etcd.io/bbolt"
 )
 
 var (
 	errAlreadyOpen = errors.New("unable to open raft logs that are in use")
 )
 
-// RaftStateInfo returns info about the nomad state, as found in the passed data-dir directory
-func RaftStateInfo(p string) (store *raftboltdb.BoltStore, firstIdx uint64, lastIdx uint64, err error) {
-	opts := raftboltdb.Options{
-		Path: p,
-		BoltOptions: &bbolt.Options{
-			ReadOnly: true,
-			Timeout:  1 * time.Second,
-		},
-	}
-	s, err := raftboltdb.New(opts)
+// RaftStateInfo opens the raft store (the Badger directory p) read-only and
+// returns it with its first and last index.
+func RaftStateInfo(p string) (store *raftbadger.Store, firstIdx uint64, lastIdx uint64, err error) {
+	s, err := raftbadger.Open(raftbadger.Options{Path: p, ReadOnly: true})
 	if err != nil {
-		if strings.HasSuffix(err.Error(), "timeout") {
+		if strings.Contains(err.Error(), "Cannot acquire directory lock") || strings.Contains(err.Error(), "Cannot create lock file") {
 			return nil, 0, 0, errAlreadyOpen
 		}
 		return nil, 0, 0, fmt.Errorf("failed to open raft logs: %v", err)
@@ -195,30 +187,37 @@ func commandName(mt structs.MessageType) string {
 	return fmt.Sprintf("%v", mt)
 }
 
-// FindRaftFile finds raft.db and returns path
+// raftStoreDir is the directory of the raft store inside the raft directory.
+const raftStoreDir = "badger"
+
+// FindRaftFile finds the raft store (the Badger directory) in a data
+// directory, a raft directory or the store directory itself, and returns its
+// path. A BoltDB raft.db of an older Norca is reported, not read.
 func FindRaftFile(p string) (raftpath string, err error) {
-	// Try known locations before traversal to avoid walking deep structure
-	if _, err = os.Stat(filepath.Join(p, "server", "raft", "raft.db")); err == nil {
-		raftpath = filepath.Join(p, "server", "raft", "raft.db")
-	} else if _, err = os.Stat(filepath.Join(p, "raft", "raft.db")); err == nil {
-		raftpath = filepath.Join(p, "raft", "raft.db")
-	} else if _, err = os.Stat(filepath.Join(p, "raft.db")); err == nil {
-		raftpath = filepath.Join(p, "raft.db")
-	} else if _, err = os.Stat(p); err == nil && filepath.Ext(p) == ".db" {
-		// Also accept path to .db file
-		raftpath = p
-	} else {
-		raftpath, err = FindFileInPath("raft.db", p)
+	for _, c := range []string{
+		filepath.Join(p, "server", "raft", raftStoreDir),
+		filepath.Join(p, "raft", raftStoreDir),
+		filepath.Join(p, raftStoreDir),
+		p,
+	} {
+		if raftbadger.IsStore(c) {
+			return c, nil
+		}
 	}
-
+	for _, c := range []string{filepath.Join(p, "server", "raft", "raft.db"), filepath.Join(p, "raft", "raft.db"), filepath.Join(p, "raft.db"), p} {
+		if st, err := os.Stat(c); err == nil && st.Mode().IsRegular() && filepath.Base(c) == "raft.db" {
+			return "", fmt.Errorf("%s is a BoltDB raft store of an older Norca; this version keeps raft in Badger (raft/%s)", c, raftStoreDir)
+		}
+	}
+	manifest, err := FindFileInPath("MANIFEST", p)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("no raft store found in %s", p)
 	}
-
-	return raftpath, nil
+	return filepath.Dir(manifest), nil
 }
 
-// FindRaftDir finds raft.db and returns parent directory path
+// FindRaftDir finds the raft store and returns the raft directory that holds
+// it (and the snapshots)
 func FindRaftDir(p string) (raftpath string, err error) {
 	raftpath, err = FindRaftFile(p)
 	if err != nil {

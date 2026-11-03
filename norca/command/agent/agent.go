@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/client"
 	clientconfig "github.com/bacanoo-io/norca/norca/client/config"
 	"github.com/bacanoo-io/norca/norca/client/lib/cgutil"
@@ -38,6 +37,7 @@ import (
 	"github.com/dustin/go-humanize"
 	consulapi "github.com/hashicorp/consul/api"
 	log "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 	uuidparse "github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/raft"
 )
@@ -607,9 +607,21 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 		}
 	}
 
-	// Set the raft bolt parameters
-	if bolt := agentConfig.Server.RaftBoltConfig; bolt != nil {
-		conf.RaftBoltNoFreelistSync = bolt.NoFreelistSync
+	// The Badger database of the raft log
+	if b := agentConfig.Server.Badger; b != nil {
+		conf.RaftBadger.MemTableSizeMB = b.MemTableSizeMB
+		conf.RaftBadger.NumLevelZeroTables = b.NumLevelZeroTables
+		conf.RaftBadger.NumLevelZeroTablesStall = b.NumLevelZeroTablesStall
+		conf.RaftBadger.NumCompactors = b.NumCompactors
+		conf.RaftBadger.BlockCacheSizeMB = b.BlockCacheSizeMB
+		conf.RaftBadger.IndexCacheSizeMB = b.IndexCacheSizeMB
+		if b.ValueLogGCInterval != "" {
+			d, err := time.ParseDuration(b.ValueLogGCInterval)
+			if err != nil || d <= 0 {
+				return nil, fmt.Errorf("invalid server badger value_log_gc_interval %q", b.ValueLogGCInterval)
+			}
+			conf.RaftBadger.ValueLogGCInterval = d
+		}
 	}
 
 	// Interpret job_max_source_size as bytes from string value
