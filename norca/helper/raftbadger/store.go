@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package raftbadger is the raft log store and stable store of the Norca
-// servers on Badger (storage and RPC plan, phase 2). It replaces
+// servers on Badger (storage update plan, phase 2). It replaces
 // raft-boltdb.
 //
 // Layout (all keys in one Badger database):

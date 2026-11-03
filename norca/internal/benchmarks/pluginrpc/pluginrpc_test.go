@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package pluginrpc benchmarks the connection between the agent and a task
-// driver plugin process (B3 of the storage and RPC plan): a unary call and a
+// driver plugin process (B3 of the storage update plan): a unary call and a
 // stream of task statistics through the plugin protocol, with the mock
 // driver behind it, so that the protocol is what is measured.
 //

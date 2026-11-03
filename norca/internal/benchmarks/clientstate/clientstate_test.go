@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package clientstate benchmarks the persistent state of a client (B2 of the
-// storage and RPC plan): storing and reading allocations and task runner
+// storage update plan): storing and reading allocations and task runner
 // states, as the client does when allocations change and when it restarts.
 //
 //	go test -run '^$' -bench . -benchmem -count 10 ./internal/benchmarks/clientstate/
