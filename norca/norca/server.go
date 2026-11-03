@@ -22,21 +22,20 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/acl"
 	consulapi "github.com/hashicorp/consul/api"
 	log "github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-metrics"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
-	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"github.com/hashicorp/serf/serf"
-	"go.etcd.io/bbolt"
 
 	"github.com/bacanoo-io/norca/norca/command/agent/consul"
 	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/bacanoo-io/norca/norca/helper/codec"
 	"github.com/bacanoo-io/norca/norca/helper/pool"
+	"github.com/bacanoo-io/norca/norca/helper/raftbadger"
 	"github.com/bacanoo-io/norca/norca/helper/stats"
 	"github.com/bacanoo-io/norca/norca/helper/tlsutil"
 	"github.com/bacanoo-io/norca/norca/lib/auth/oidc"
@@ -118,7 +117,7 @@ type Server struct {
 	// region to protect operations that require strong consistency
 	raft          *raft.Raft
 	raftLayer     *RaftLayer
-	raftStore     *raftboltdb.BoltStore
+	raftStore     *raftbadger.Store
 	raftInmem     *raft.InmemStore
 	raftTransport *raft.NetworkTransport
 
@@ -1531,23 +1530,24 @@ func (s *Server) setupRaft() error {
 			return fmt.Errorf("failed to write Raft version file: %v", err)
 		}
 
-		// Create the BoltDB backend, with NoFreelistSync option
-		store, raftErr := raftboltdb.New(raftboltdb.Options{
-			Path:   filepath.Join(path, "raft.db"),
-			NoSync: false, // fsync each log write
-			BoltOptions: &bbolt.Options{
-				NoFreelistSync: s.config.RaftBoltNoFreelistSync,
-			},
-		})
+		// A BoltDB raft store of an older Norca is not read or converted:
+		// the server would start with an empty log next to it.
+		if _, err := os.Stat(filepath.Join(path, "raft.db")); err == nil {
+			return fmt.Errorf("%s is a BoltDB raft store of an older Norca; this version keeps raft in Badger: "+
+				"remove the server's data directory and let it rejoin the cluster", filepath.Join(path, "raft.db"))
+		}
+
+		// The Badger backend (durable writes, see helper/raftbadger)
+		opts := s.config.RaftBadger
+		opts.Path = filepath.Join(path, "badger")
+		opts.Logger = s.logger.Named("raft-store")
+		store, raftErr := raftbadger.Open(opts)
 		if raftErr != nil {
 			return raftErr
 		}
 		s.raftStore = store
 		stable = store
-		s.logger.Info("setting up raft bolt store", "no_freelist_sync", s.config.RaftBoltNoFreelistSync)
-
-		// Start publishing bboltdb metrics
-		go store.RunMetrics(s.shutdownCtx, 0)
+		s.logger.Info("setting up raft badger store", "path", opts.Path)
 
 		// Wrap the store in a LogCache to improve performance
 		cacheStore, err := raft.NewLogCache(raftLogCacheSize, store)
