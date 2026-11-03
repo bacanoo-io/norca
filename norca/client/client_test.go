@@ -1011,7 +1011,7 @@ func TestClient_Init(t *testing.T) {
 
 	config := config.DefaultConfig()
 	config.AllocDir = allocDir
-	config.StateDBFactory = cstate.GetStateDBFactory(true, badgerdb.Options{})
+	config.StateDBFactory = cstate.GetStateDBFactory(true, "", badgerdb.Options{})
 
 	// Node is always initialized in agent.go:convertClientConfig()
 	config.Node = mock.Node()

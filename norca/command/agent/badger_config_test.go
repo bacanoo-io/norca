@@ -99,3 +99,51 @@ func TestBadgerConfig_merge(t *testing.T) {
 	must.Eq(t, "zstd", m.Compression)
 	must.Eq(t, "small", a.Profile)
 }
+
+// TestStoreConfig_parseAndConvert asserts raft_store, raft_boltdb and
+// state_store reach the server and client configuration, and that unknown
+// stores are refused.
+func TestStoreConfig_parseAndConvert(t *testing.T) {
+	ci.Parallel(t)
+
+	path := filepath.Join(t.TempDir(), "agent.hcl")
+	must.NoError(t, os.WriteFile(path, []byte(`
+server {
+  enabled    = true
+  raft_store = "boltdb"
+  raft_boltdb {
+    no_freelist_sync = true
+  }
+}
+client {
+  enabled     = true
+  state_store = "boltdb"
+}
+`), 0o600))
+	parsed, err := ParseConfigFile(path)
+	must.NoError(t, err)
+	conf := DevConfig(nil).Merge(parsed)
+	must.NoError(t, conf.normalizeAddrs())
+
+	sc, err := convertServerConfig(conf)
+	must.NoError(t, err)
+	must.Eq(t, "boltdb", sc.RaftStore)
+	must.True(t, sc.RaftBoltNoFreelistSync)
+
+	cc, err := convertClientConfig(conf)
+	must.NoError(t, err)
+	must.Eq(t, "boltdb", cc.StateStore)
+
+	// a later file without the keys keeps them
+	merged := conf.Merge(&Config{Server: &ServerConfig{}, Client: &ClientConfig{}})
+	must.Eq(t, "boltdb", merged.Server.RaftStore)
+	must.Eq(t, "boltdb", merged.Client.StateStore)
+	must.True(t, merged.Server.RaftBoltConfig.NoFreelistSync)
+
+	conf.Server.RaftStore = "etcd"
+	_, err = convertServerConfig(conf)
+	must.ErrorContains(t, err, "unknown server raft_store")
+	conf.Client.StateStore = "sqlite"
+	_, err = convertClientConfig(conf)
+	must.ErrorContains(t, err, "unknown client state_store")
+}

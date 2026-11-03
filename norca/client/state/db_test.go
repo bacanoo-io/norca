@@ -26,6 +26,7 @@ import (
 // assert each implementation satisfies StateDB interface
 var (
 	_ StateDB = (*BadgerStateDB)(nil)
+	_ StateDB = (*BoltStateDB)(nil)
 	_ StateDB = (*MemDB)(nil)
 	_ StateDB = (*NoopDB)(nil)
 	_ StateDB = (*ErrDB)(nil)
@@ -42,9 +43,21 @@ func setupBadgerStateDB(t *testing.T) *BadgerStateDB {
 	return db
 }
 
+func setupBoltStateDB(t *testing.T) *BoltStateDB {
+	db, err := NewBoltStateDB(testlog.HCLogger(t), t.TempDir())
+	must.NoError(t, err)
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("error closing boltdb: %v", closeErr)
+		}
+	})
+	return db.(*BoltStateDB)
+}
+
 func testDB(t *testing.T, f func(*testing.T, StateDB)) {
 	dbs := []StateDB{
 		setupBadgerStateDB(t),
+		setupBoltStateDB(t),
 		NewMemDB(testlog.HCLogger(t)),
 	}
 

@@ -369,7 +369,7 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 	}
 
 	if cfg.StateDBFactory == nil {
-		cfg.StateDBFactory = state.GetStateDBFactory(cfg.DevMode, cfg.StateBadger)
+		cfg.StateDBFactory = state.GetStateDBFactory(cfg.DevMode, cfg.StateStore, cfg.StateBadger)
 	}
 
 	// The pool of dynamic users for drivers that run tasks without a user

@@ -11,6 +11,8 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/raftbadger"
+	"github.com/hashicorp/raft"
+	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,9 +59,8 @@ func TestRaftStateInfo_InUse(t *testing.T) {
 	}
 }
 
-// TestFindRaftFile finds the Badger store from a data directory, a raft
-// directory or the store itself, and reports the BoltDB file of an older
-// Norca instead of reading it.
+// TestFindRaftFile finds the Badger store and the BoltDB raft.db from a data
+// directory, a raft directory or the store itself.
 func TestFindRaftFile(t *testing.T) {
 	ci.Parallel(t)
 
@@ -78,11 +79,35 @@ func TestFindRaftFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, filepath.Join(data, "server", "raft"), dir)
 
-	old := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(old, "server", "raft"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(old, "server", "raft", "raft.db"), []byte("bolt"), 0o600))
-	_, err = FindRaftFile(old)
-	require.ErrorContains(t, err, "BoltDB raft store of an older Norca")
+	// a server with raft_store = "boltdb"
+	bdata := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(bdata, "server", "raft"), 0o755))
+	bfile := filepath.Join(bdata, "server", "raft", raftBoltFile)
+	b, err := raftboltdb.New(raftboltdb.Options{Path: bfile})
+	require.NoError(t, err)
+	require.NoError(t, b.StoreLogs([]*raft.Log{{Index: 1, Term: 1}, {Index: 2, Term: 1}}))
+	require.NoError(t, b.Close())
+	for _, p := range []string{bdata, filepath.Join(bdata, "server", "raft"), bfile} {
+		got, err := FindRaftFile(p)
+		require.NoError(t, err, p)
+		require.Equal(t, bfile, got, p)
+	}
+	bs, first, last, err := RaftStateInfo(bfile)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), first)
+	require.Equal(t, uint64(2), last)
+	require.NoError(t, bs.Close())
+
+	// both stores in one raft directory: the store has to be named
+	both := filepath.Join(bdata, "server", "raft", raftStoreDir)
+	s, err = raftbadger.Open(raftbadger.Options{Path: both, MemTableSizeMB: 4})
+	require.NoError(t, err)
+	require.NoError(t, s.Close())
+	_, err = FindRaftFile(bdata)
+	require.ErrorContains(t, err, "both a Badger")
+	got, err := FindRaftFile(bfile)
+	require.NoError(t, err)
+	require.Equal(t, bfile, got)
 
 	_, err = FindRaftFile(t.TempDir())
 	require.ErrorContains(t, err, "no raft store found")

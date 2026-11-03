@@ -7,10 +7,8 @@ package raftutil
 import (
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 
-	"github.com/bacanoo-io/norca/norca/helper/raftbadger"
 	"github.com/bacanoo-io/norca/norca/norca"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/hashicorp/go-hclog"
@@ -33,7 +31,7 @@ type FSMHelper struct {
 	logger hclog.Logger
 
 	// nomad state
-	store *raftbadger.Store
+	store Store
 	fsm   nomadFSM
 	snaps *raft.FileSnapshotStore
 
@@ -44,7 +42,11 @@ type FSMHelper struct {
 }
 
 func NewFSM(p string) (*FSMHelper, error) {
-	store, firstIdx, lastIdx, err := RaftStateInfo(filepath.Join(p, raftStoreDir))
+	storePath, err := FindRaftFile(p)
+	if err != nil {
+		return nil, err
+	}
+	store, firstIdx, lastIdx, err := RaftStateInfo(storePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open raft database %v: %v", p, err)
 	}
