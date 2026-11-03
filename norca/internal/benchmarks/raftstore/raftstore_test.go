@@ -40,14 +40,25 @@ var stores = map[string]newStore{
 		b.Cleanup(func() { _ = s.Close() })
 		return s
 	},
-	"badger": func(b *testing.B) store {
-		s, err := raftbadger.Open(raftbadger.Options{Path: filepath.Join(b.TempDir(), "badger")})
+	"badger":       badgerStore(0),
+	"badger-vt4k":  badgerStore(4),
+	"badger-vt64k": badgerStore(64),
+}
+
+// badgerStore opens the Badger store with values above thresholdKB in the
+// value log (0: the default).
+func badgerStore(thresholdKB int) newStore {
+	return func(b *testing.B) store {
+		s, err := raftbadger.Open(raftbadger.Options{
+			Path:             filepath.Join(b.TempDir(), "badger"),
+			ValueThresholdKB: thresholdKB,
+		})
 		if err != nil {
 			b.Fatal(err)
 		}
 		b.Cleanup(func() { _ = s.Close() })
 		return s
-	},
+	}
 }
 
 func run(b *testing.B, fn func(*testing.B, store)) {
