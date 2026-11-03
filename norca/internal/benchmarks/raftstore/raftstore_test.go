@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package raftstore benchmarks the raft log and stable store of the servers
-// (B1 of the storage and RPC plan). The same functions run against every
+// (B1 of the storage update plan). The same functions run against every
 // store implementation, so the results of the stores can be compared:
 //
 //	go test -run '^$' -bench . -benchmem -count 10 ./internal/benchmarks/raftstore/

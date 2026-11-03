@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
-// Package badgerdb opens the Badger databases of Norca (storage and RPC
+// Package badgerdb opens the Badger databases of Norca (storage update
 // plan): the raft log of the servers (helper/raftbadger) and the state of
 // the clients (client/state). It holds what both share: the options with
 // their defaults, durable writes, and the background loops for the value

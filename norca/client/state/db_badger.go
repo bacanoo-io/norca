@@ -30,7 +30,7 @@ import (
 
 /*
 The client keeps its state in a Badger database in <data_dir>/client/state
-(storage and RPC plan, phase 3). The keys are paths, their parts separated
+(storage update plan, phase 3). The keys are paths, their parts separated
 by a zero byte (shown as /); values are MessagePack encoded:
 
 	m/version                         format version (8 bytes big endian)
