@@ -44,6 +44,11 @@ type Options struct {
 	ValueLogFileSizeMB      int
 	ValueLogGCInterval      time.Duration
 
+	// ValueThresholdKB is the size above which a value goes to the value
+	// log instead of the LSM tree; zero keeps values up to 1 MB in the
+	// tree. Badger allows at most 15% of a memtable.
+	ValueThresholdKB int
+
 	// InMemory keeps everything in memory (tests and -dev agents).
 	InMemory bool
 
@@ -114,11 +119,15 @@ func (o Options) WithDefaults(d Options) Options {
 	return o
 }
 
-// valueThreshold keeps values up to 1 MB in the LSM tree; Badger allows at
+// valueThreshold is ValueThresholdKB, or 1 MB when unset; Badger allows at
 // most 15% of a memtable, so a small memtable lowers it.
 func (o Options) valueThreshold() int64 {
 	limit := int64(o.MemTableSizeMB) << 20 * 15 / 100
-	return min(int64(1<<20), limit)
+	v := int64(1 << 20)
+	if o.ValueThresholdKB > 0 {
+		v = int64(o.ValueThresholdKB) << 10
+	}
+	return min(v, limit)
 }
 
 func (o Options) badgerOptions(logger hclog.Logger) badger.Options {
