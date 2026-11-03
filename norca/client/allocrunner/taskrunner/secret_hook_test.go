@@ -527,7 +527,7 @@ func TestTaskRunner_SecretDelivery(t *testing.T) {
 	var logLock sync.Mutex
 	conf.Logger = hclog.New(&hclog.LoggerOptions{Level: hclog.Trace, Output: &lockedWriter{w: logs, lock: &logLock}})
 	stateDir := t.TempDir()
-	db, err := cstate.NewBoltStateDB(conf.Logger, stateDir)
+	db, err := cstate.NewBadgerStateDB(conf.Logger, stateDir)
 	must.NoError(t, err)
 	conf.StateDB = db
 	conf.SecretProviders = secrets.NewRegistry(p, nil, nil)

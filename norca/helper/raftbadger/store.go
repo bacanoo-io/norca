@@ -22,15 +22,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/helper/badgerdb"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/dgraph-io/badger/v4/options"
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/raft"
 )
@@ -53,86 +49,41 @@ var (
 	_ raft.CommitTrackingLogStore = (*Store)(nil)
 )
 
+// Options configures the store; zero values take ServerDefaults.
+type Options = badgerdb.Options
+
+// ServerDefaults are the starting values for the raft store of a server.
+var ServerDefaults = badgerdb.ServerDefaults
+
 // Store is a raft log store and stable store on Badger.
 type Store struct {
-	db     *badger.DB
-	opts   Options
-	logger hclog.Logger
+	db *badgerdb.DB
 
 	commitLock   sync.Mutex
 	stagedCommit uint64 // written with the next StoreLogs
-
-	stop      chan struct{}
-	closeOnce sync.Once
-	done      sync.WaitGroup
 }
 
 // Open opens or creates the store in opts.Path.
 func Open(opts Options) (*Store, error) {
-	opts = opts.withDefaults()
-	if opts.Path == "" {
-		return nil, errors.New("raftbadger: no path")
-	}
-	logger := opts.Logger
-	if logger == nil {
-		logger = hclog.NewNullLogger()
-	}
-	db, err := badger.Open(opts.badgerOptions(logger))
+	db, err := badgerdb.Open(opts, ServerDefaults)
 	if err != nil {
-		return nil, fmt.Errorf("raftbadger: opening %s: %w", opts.Path, err)
+		return nil, fmt.Errorf("raftbadger: %w", err)
 	}
-	s := &Store{db: db, opts: opts, logger: logger, stop: make(chan struct{})}
-	if err := s.checkVersion(); err != nil {
+	if err := db.CheckVersion(keyVersion, formatVersion, "raft store"); err != nil {
 		_ = db.Close()
-		return nil, err
+		return nil, fmt.Errorf("raftbadger: %w", err)
 	}
-	if opts.ReadOnly {
-		return s, nil
-	}
-	s.done.Add(2)
-	go s.gcLoop()
-	go s.metricsLoop()
-	return s, nil
+	return &Store{db: db}, nil
 }
 
 // Close stops the background loops and closes the database.
 func (s *Store) Close() error {
-	s.closeOnce.Do(func() { close(s.stop) })
-	s.done.Wait()
 	return s.db.Close()
 }
 
 // IsStore reports whether dir holds a Badger database (its MANIFEST file).
 func IsStore(dir string) bool {
-	st, err := os.Stat(filepath.Join(dir, "MANIFEST"))
-	return err == nil && st.Mode().IsRegular()
-}
-
-func (s *Store) checkVersion() error {
-	check := s.db.Update
-	if s.opts.ReadOnly {
-		check = s.db.View
-	}
-	return check(func(txn *badger.Txn) error {
-		item, err := txn.Get(keyVersion)
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			if s.opts.ReadOnly {
-				return fmt.Errorf("raftbadger: %s is not a raft store", s.opts.Path)
-			}
-			return txn.Set(keyVersion, uint64Bytes(formatVersion))
-		}
-		if err != nil {
-			return err
-		}
-		v, err := item.ValueCopy(nil)
-		if err != nil {
-			return err
-		}
-		if len(v) != 8 || binary.BigEndian.Uint64(v) != formatVersion {
-			return fmt.Errorf("raftbadger: %s has an unknown format version", s.opts.Path)
-		}
-		return nil
-	})
+	return badgerdb.IsDB(dir)
 }
 
 func logKey(idx uint64) []byte {
@@ -142,11 +93,7 @@ func logKey(idx uint64) []byte {
 	return k
 }
 
-func uint64Bytes(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
-}
+func uint64Bytes(v uint64) []byte { return badgerdb.Uint64Bytes(v) }
 
 // --- LogStore -----------------------------------------------------------------
 
@@ -201,7 +148,7 @@ func (s *Store) StoreLog(log *raft.Log) error {
 // transaction (one sync); a batch too big for one transaction is split.
 func (s *Store) StoreLogs(logs []*raft.Log) error {
 	start := time.Now()
-	defer func() { s.measureSince("store_logs", start) }()
+	defer func() { s.db.MeasureSince("store_logs", start) }()
 
 	s.commitLock.Lock()
 	commit := s.stagedCommit
@@ -241,7 +188,7 @@ func (s *Store) StoreLogs(logs []*raft.Log) error {
 // transactions of the size Badger allows (no DropPrefix: it blocks writes).
 func (s *Store) DeleteRange(min, max uint64) error {
 	start := time.Now()
-	defer func() { s.measureSince("delete_range", start) }()
+	defer func() { s.db.MeasureSince("delete_range", start) }()
 
 	txn := s.db.NewTransaction(true)
 	defer func() { txn.Discard() }()
@@ -360,118 +307,4 @@ func encode(l *raft.Log) ([]byte, error) {
 
 func decode(v []byte, l *raft.Log) error {
 	return codec.NewDecoderBytes(v, handle).Decode(l)
-}
-
-// --- options ---------------------------------------------------------------------------
-
-// Options configures the store. Zero values take the defaults below, the
-// starting values of the storage and RPC plan for servers.
-type Options struct {
-	Path   string
-	Logger hclog.Logger
-
-	// MetricsName names the store in the metrics (nomad.badger.<name>.*).
-	MetricsName string
-
-	MemTableSizeMB          int
-	NumMemtables            int
-	NumLevelZeroTables      int
-	NumLevelZeroTablesStall int
-	NumCompactors           int
-	BaseTableSizeMB         int
-	BaseLevelSizeMB         int
-	BlockCacheSizeMB        int
-	IndexCacheSizeMB        int
-	ValueLogFileSizeMB      int
-	ValueLogGCInterval      time.Duration
-
-	// InMemory keeps everything in memory (tests and -dev agents).
-	InMemory bool
-
-	// ReadOnly opens an existing store without writing to it (the operator
-	// raft commands); it fails while a server holds the store.
-	ReadOnly bool
-}
-
-// ServerDefaults are the starting values for the raft store of a server.
-var ServerDefaults = Options{
-	MetricsName:             "raft",
-	MemTableSizeMB:          64,
-	NumMemtables:            3,
-	NumLevelZeroTables:      8,
-	NumLevelZeroTablesStall: 24,
-	NumCompactors:           4,
-	BaseTableSizeMB:         4,
-	BaseLevelSizeMB:         64,
-	BlockCacheSizeMB:        128,
-	IndexCacheSizeMB:        64,
-	ValueLogFileSizeMB:      256,
-	ValueLogGCInterval:      10 * time.Minute,
-}
-
-func (o Options) withDefaults() Options {
-	d := ServerDefaults
-	pick := func(v *int, def int) {
-		if *v <= 0 {
-			*v = def
-		}
-	}
-	pick(&o.MemTableSizeMB, d.MemTableSizeMB)
-	pick(&o.NumMemtables, d.NumMemtables)
-	pick(&o.NumLevelZeroTables, d.NumLevelZeroTables)
-	pick(&o.NumLevelZeroTablesStall, d.NumLevelZeroTablesStall)
-	pick(&o.NumCompactors, d.NumCompactors)
-	pick(&o.BaseTableSizeMB, d.BaseTableSizeMB)
-	pick(&o.BaseLevelSizeMB, d.BaseLevelSizeMB)
-	pick(&o.BlockCacheSizeMB, d.BlockCacheSizeMB)
-	pick(&o.IndexCacheSizeMB, d.IndexCacheSizeMB)
-	pick(&o.ValueLogFileSizeMB, d.ValueLogFileSizeMB)
-	if o.ValueLogGCInterval <= 0 {
-		o.ValueLogGCInterval = d.ValueLogGCInterval
-	}
-	if o.MetricsName == "" {
-		o.MetricsName = d.MetricsName
-	}
-	if o.NumLevelZeroTablesStall <= o.NumLevelZeroTables {
-		o.NumLevelZeroTablesStall = o.NumLevelZeroTables + 1
-	}
-	return o
-}
-
-// valueThreshold keeps values up to 1 MB in the LSM tree; Badger allows at
-// most 15% of a memtable, so a small memtable lowers it.
-func (o Options) valueThreshold() int64 {
-	limit := int64(o.MemTableSizeMB) << 20 * 15 / 100
-	return min(int64(1<<20), limit)
-}
-
-func (o Options) badgerOptions(logger hclog.Logger) badger.Options {
-	const mb = 1 << 20
-	b := badger.DefaultOptions(o.Path).
-		WithInMemory(o.InMemory).
-		// Badger has no read-only mode on Windows; there the store is opened
-		// normally, which takes the directory lock just the same, and
-		// ReadOnly only keeps Norca from writing to it.
-		WithReadOnly(o.ReadOnly && runtime.GOOS != "windows").
-		WithSyncWrites(!o.InMemory).
-		WithDetectConflicts(false).
-		WithNumVersionsToKeep(1).
-		WithMemTableSize(int64(o.MemTableSizeMB) * mb).
-		WithNumMemtables(o.NumMemtables).
-		WithNumLevelZeroTables(o.NumLevelZeroTables).
-		WithNumLevelZeroTablesStall(o.NumLevelZeroTablesStall).
-		WithNumCompactors(o.NumCompactors).
-		WithBaseTableSize(int64(o.BaseTableSizeMB) * mb).
-		WithBaseLevelSize(int64(o.BaseLevelSizeMB) * mb).
-		WithBlockCacheSize(int64(o.BlockCacheSizeMB) * mb).
-		WithIndexCacheSize(int64(o.IndexCacheSizeMB) * mb).
-		WithValueLogFileSize(int64(o.ValueLogFileSizeMB) * mb).
-		WithValueThreshold(o.valueThreshold()).
-		WithCompression(options.Snappy).
-		WithCompactL0OnClose(false).
-		WithLogger(badgerLogger{logger.Named("badger")})
-	if o.InMemory {
-		b = b.WithDir("").WithValueDir("")
-	}
-	return b
 }

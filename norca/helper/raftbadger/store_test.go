@@ -151,11 +151,11 @@ func TestStore_inMemory(t *testing.T) {
 }
 
 func TestOptions_defaults(t *testing.T) {
-	o := Options{Path: "x"}.withDefaults()
+	o := Options{Path: "x"}.WithDefaults(ServerDefaults)
 	must.Eq(t, ServerDefaults.NumLevelZeroTablesStall, o.NumLevelZeroTablesStall)
 	must.Eq(t, "raft", o.MetricsName)
 
 	// the stall threshold is always above the compaction threshold
-	o = Options{Path: "x", NumLevelZeroTables: 30, NumLevelZeroTablesStall: 10}.withDefaults()
+	o = Options{Path: "x", NumLevelZeroTables: 30, NumLevelZeroTablesStall: 10}.WithDefaults(ServerDefaults)
 	must.Eq(t, 31, o.NumLevelZeroTablesStall)
 }

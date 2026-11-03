@@ -140,12 +140,10 @@ type StateDB interface {
 // zero/false values for all fields. To provide different values, use With* functions
 // below, like this: statedb.PutAllocation(alloc, WithBatchMode())
 type WriteOptions struct {
-	// In Batch mode, concurrent writes (Put* and Delete* operations above) are
-	// coalesced into a single transaction, increasing write performance. To benefit
-	// from this mode, writes must happen concurrently in goroutines, as every write
-	// request still waits for the shared transaction to commit before returning.
-	// See https://github.com/boltdb/bolt#batch-read-write-transactions for details.
-	// This mode is only supported for BoltDB state backend and is ignored in other backends.
+	// In Batch mode, concurrent writes (Put* and Delete* operations above)
+	// may be committed together. The Badger backend always does this: it
+	// commits concurrent transactions with one sync, so the option changes
+	// nothing there; it is kept for the callers that mark such writes.
 	BatchMode bool
 }
 

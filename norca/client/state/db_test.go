@@ -5,17 +5,16 @@
 package state
 
 import (
-	"os"
 	"reflect"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	trstate "github.com/bacanoo-io/norca/norca/client/allocrunner/taskrunner/state"
 	dmstate "github.com/bacanoo-io/norca/norca/client/devicemanager/state"
 	"github.com/bacanoo-io/norca/norca/client/dynamicplugins"
 	driverstate "github.com/bacanoo-io/norca/norca/client/pluginmanager/drivermanager/state"
+	"github.com/bacanoo-io/norca/norca/helper/badgerdb"
 	"github.com/bacanoo-io/norca/norca/helper/testlog"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -26,35 +25,26 @@ import (
 
 // assert each implementation satisfies StateDB interface
 var (
-	_ StateDB = (*BoltStateDB)(nil)
+	_ StateDB = (*BadgerStateDB)(nil)
 	_ StateDB = (*MemDB)(nil)
 	_ StateDB = (*NoopDB)(nil)
 	_ StateDB = (*ErrDB)(nil)
 )
 
-func setupBoltStateDB(t *testing.T) *BoltStateDB {
-	dir := t.TempDir()
-
-	db, err := NewBoltStateDB(testlog.HCLogger(t), dir)
-	if err != nil {
-		if rmErr := os.RemoveAll(dir); rmErr != nil {
-			t.Logf("error removing boltdb dir: %v", rmErr)
-		}
-		t.Fatalf("error creating boltdb: %v", err)
-	}
-
+func setupBadgerStateDB(t *testing.T) *BadgerStateDB {
+	db, err := OpenBadgerStateDB(testlog.HCLogger(t), t.TempDir(), badgerdb.Options{})
+	must.NoError(t, err)
 	t.Cleanup(func() {
 		if closeErr := db.Close(); closeErr != nil {
-			t.Errorf("error closing boltdb: %v", closeErr)
+			t.Errorf("error closing badger: %v", closeErr)
 		}
 	})
-
-	return db.(*BoltStateDB)
+	return db
 }
 
 func testDB(t *testing.T, f func(*testing.T, StateDB)) {
 	dbs := []StateDB{
-		setupBoltStateDB(t),
+		setupBadgerStateDB(t),
 		NewMemDB(testlog.HCLogger(t)),
 	}
 
@@ -145,11 +135,6 @@ func TestStateDB_Allocations(t *testing.T) {
 	})
 }
 
-// Integer division, rounded up.
-func ceilDiv(a, b int) int {
-	return (a + b - 1) / b
-}
-
 // TestStateDB_Batch asserts the behavior of PutAllocation, PutNetworkStatus and
 // DeleteAllocationBucket in batch mode, for all operational StateDB implementations.
 func TestStateDB_Batch(t *testing.T) {
@@ -158,26 +143,7 @@ func TestStateDB_Batch(t *testing.T) {
 	testDB(t, func(t *testing.T, db StateDB) {
 		require := require.New(t)
 
-		// For BoltDB, get initial tx_id
-		var getTxID func() int
-		var prevTxID int
-		var batchDelay time.Duration
-		var batchSize int
-		if boltStateDB, ok := db.(*BoltStateDB); ok {
-			boltdb := boltStateDB.DB().BoltDB()
-			getTxID = func() int {
-				tx, err := boltdb.Begin(true)
-				require.NoError(err)
-				defer tx.Rollback()
-				return tx.ID()
-			}
-			prevTxID = getTxID()
-			batchDelay = boltdb.MaxBatchDelay
-			batchSize = boltdb.MaxBatchSize
-		}
-
 		// Write 1000 allocations and network statuses in batch mode
-		startTime := time.Now()
 		const numAllocs = 1000
 		var allocs []*structs.Allocation
 		for i := 0; i < numAllocs; i++ {
@@ -193,19 +159,6 @@ func TestStateDB_Batch(t *testing.T) {
 			}(alloc)
 		}
 		wg.Wait()
-
-		// Check BoltDB actually combined PutAllocation calls into much fewer transactions.
-		// The actual number of transactions depends on how fast the goroutines are spawned,
-		// with every batchDelay (10ms by default) period saved in a separate transaction,
-		// plus each transaction is limited to batchSize writes (1000 by default).
-		// See boltdb MaxBatchDelay and MaxBatchSize parameters for more details.
-		if getTxID != nil {
-			numTransactions := getTxID() - prevTxID
-			writeTime := time.Now().Sub(startTime)
-			expectedNumTransactions := ceilDiv(2*numAllocs, batchSize) + ceilDiv(int(writeTime), int(batchDelay))
-			require.LessOrEqual(numTransactions, expectedNumTransactions)
-			prevTxID = getTxID()
-		}
 
 		// Retrieve allocs and make sure they are the same (order can differ)
 		readAllocs, errs, err := db.GetAllAllocations()
@@ -231,7 +184,6 @@ func TestStateDB_Batch(t *testing.T) {
 		}
 
 		// Delete all allocs in batch mode
-		startTime = time.Now()
 		for _, alloc := range allocs {
 			wg.Add(1)
 			go func(alloc *structs.Allocation) {
@@ -240,15 +192,6 @@ func TestStateDB_Batch(t *testing.T) {
 			}(alloc)
 		}
 		wg.Wait()
-
-		// Check BoltDB combined DeleteAllocationBucket calls into much fewer transactions.
-		if getTxID != nil {
-			numTransactions := getTxID() - prevTxID
-			writeTime := time.Now().Sub(startTime)
-			expectedNumTransactions := ceilDiv(numAllocs, batchSize) + ceilDiv(int(writeTime), int(batchDelay))
-			require.LessOrEqual(numTransactions, expectedNumTransactions)
-			prevTxID = getTxID()
-		}
 
 		// Check all allocs were deleted.
 		readAllocs, errs, err = db.GetAllAllocations()

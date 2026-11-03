@@ -608,20 +608,8 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 	}
 
 	// The Badger database of the raft log
-	if b := agentConfig.Server.Badger; b != nil {
-		conf.RaftBadger.MemTableSizeMB = b.MemTableSizeMB
-		conf.RaftBadger.NumLevelZeroTables = b.NumLevelZeroTables
-		conf.RaftBadger.NumLevelZeroTablesStall = b.NumLevelZeroTablesStall
-		conf.RaftBadger.NumCompactors = b.NumCompactors
-		conf.RaftBadger.BlockCacheSizeMB = b.BlockCacheSizeMB
-		conf.RaftBadger.IndexCacheSizeMB = b.IndexCacheSizeMB
-		if b.ValueLogGCInterval != "" {
-			d, err := time.ParseDuration(b.ValueLogGCInterval)
-			if err != nil || d <= 0 {
-				return nil, fmt.Errorf("invalid server badger value_log_gc_interval %q", b.ValueLogGCInterval)
-			}
-			conf.RaftBadger.ValueLogGCInterval = d
-		}
+	if err := agentConfig.Server.Badger.Apply(&conf.RaftBadger, "server"); err != nil {
+		return nil, err
 	}
 
 	// Interpret job_max_source_size as bytes from string value
@@ -767,6 +755,10 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	}
 	if err := conf.DynamicUsers.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid client dynamic_user_min/dynamic_user_max: %w", err)
+	}
+	// The Badger database of the client state
+	if err := agentConfig.Client.Badger.Apply(&conf.StateBadger, "client"); err != nil {
+		return nil, err
 	}
 	if agentConfig.Client.MemoryMB != 0 {
 		conf.MemoryMB = agentConfig.Client.MemoryMB
@@ -1132,7 +1124,7 @@ func (a *Agent) setupClient() error {
 		}
 	}
 	if conf.StateDBFactory == nil {
-		conf.StateDBFactory = state.GetStateDBFactory(conf.DevMode)
+		conf.StateDBFactory = state.GetStateDBFactory(conf.DevMode, conf.StateBadger)
 	}
 
 	// Set up a custom listener and dialer. This is used by Nomad clients when

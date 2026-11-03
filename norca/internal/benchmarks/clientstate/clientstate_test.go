@@ -21,8 +21,8 @@ import (
 
 // stores lists the implementations to compare.
 var stores = map[string]func(b *testing.B) state.StateDB{
-	"bolt": func(b *testing.B) state.StateDB {
-		db, err := state.NewBoltStateDB(testlog.HCLogger(b), b.TempDir())
+	"badger": func(b *testing.B) state.StateDB {
+		db, err := state.NewBadgerStateDB(testlog.HCLogger(b), b.TempDir())
 		if err != nil {
 			b.Fatal(err)
 		}
