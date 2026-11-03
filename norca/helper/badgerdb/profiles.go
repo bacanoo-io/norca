@@ -26,10 +26,17 @@ const (
 // with 2-4 GB of memory, "default" the usual servers and clients, "large"
 // servers with plenty of memory and a busy raft log. Options set in the
 // configuration override the profile's.
+//
+// The raft log keeps values above 4 KB in the value log: large entries in
+// large batches would otherwise fill the memtables and be written again by
+// every compaction; the log is deleted by ranges, so the value log garbage
+// collection reclaims whole files. The client state rewrites the same keys
+// all the time and keeps its values in the LSM tree (up to 1 MB).
 var Profiles = map[string]map[Kind]Options{
 	"small": {
 		Server: {
 			MetricsName:             "raft",
+			ValueThresholdKB:        4,
 			MemTableSizeMB:          16,
 			NumMemtables:            2,
 			NumLevelZeroTables:      5,
@@ -66,6 +73,7 @@ var Profiles = map[string]map[Kind]Options{
 	"large": {
 		Server: {
 			MetricsName:             "raft",
+			ValueThresholdKB:        4,
 			MemTableSizeMB:          128,
 			NumMemtables:            4,
 			NumLevelZeroTables:      10,

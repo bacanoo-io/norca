@@ -75,3 +75,17 @@ func TestValueThreshold_cappedByMemtable(t *testing.T) {
 	o.ValueThresholdKB = 4
 	must.Eq(t, int64(4<<10), o.valueThreshold())
 }
+
+// TestProfiles_valueThreshold asserts the raft log moves values above 4 KB
+// to the value log and the client state keeps them in the tree.
+func TestProfiles_valueThreshold(t *testing.T) {
+	for _, name := range ProfileNames() {
+		s, err := Defaults(Server, name)
+		must.NoError(t, err)
+		must.Eq(t, 4, s.ValueThresholdKB)
+		c, err := Defaults(Client, name)
+		must.NoError(t, err)
+		must.Eq(t, 0, c.ValueThresholdKB)
+		must.Eq(t, int64(1<<20), c.WithDefaults(c).valueThreshold())
+	}
+}

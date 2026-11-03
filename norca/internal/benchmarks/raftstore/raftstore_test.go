@@ -45,9 +45,9 @@ var stores = []struct {
 		return s
 	}},
 	{"badger-small", badgerStore("small", 0)},
-	{"badger-small-vt4k", badgerStore("small", 4)},
+	{"badger-small-vt1m", badgerStore("small", 1024)},
 	{"badger", badgerStore("", 0)},
-	{"badger-vt4k", badgerStore("", 4)},
+	{"badger-vt1m", badgerStore("", 1024)},
 }
 
 // badgerStore opens the Badger store with a profile; values above
