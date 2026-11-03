@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 var (

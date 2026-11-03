@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/client/allocdir"
 	"github.com/bacanoo-io/norca/norca/client/allocrunner"
 	"github.com/bacanoo-io/norca/norca/client/allocrunner/interfaces"
@@ -59,6 +58,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/plugins/device"
 	consulapi "github.com/hashicorp/consul/api"
 	hclog "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 	multierror "github.com/hashicorp/go-multierror"
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/shirou/gopsutil/v3/host"

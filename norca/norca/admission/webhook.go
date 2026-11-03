@@ -17,10 +17,10 @@ import (
 	"os"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/hashicorp/go-cleanhttp"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 const (

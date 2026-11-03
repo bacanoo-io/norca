@@ -7,9 +7,9 @@ package client
 import (
 	"time"
 
-	"github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-set"
 )
 

@@ -12,13 +12,13 @@ import (
 	"slices"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/seal"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/secretstore"
 	"github.com/bacanoo-io/norca/norca/secretstore/ubix/export/barrier"
 	"github.com/bacanoo-io/norca/norca/secretstore/ubix/export/shamir"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 // Recovery of a restored secret store (norca-doc content/docs/design/secrets-plan.md, "Backup

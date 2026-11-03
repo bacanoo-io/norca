@@ -129,9 +129,9 @@ func (p *NorcaProvider) createLease(req *Request) (*Secret, error) {
 		return nil, NewError(p.Name(), KindUnavailable, errors.New("the servers returned no credential"))
 	}
 	return &Secret{
-		Items:           map[string]string(reply.Items.Copy()),
-		Version:         reply.Lease.ID,
-		Lease:           norcaLease(reply.Lease),
+		Items:   map[string]string(reply.Items.Copy()),
+		Version: reply.Lease.ID,
+		Lease:   norcaLease(reply.Lease),
 	}, nil
 }
 

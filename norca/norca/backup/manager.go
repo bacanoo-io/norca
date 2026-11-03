@@ -19,12 +19,12 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/version"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 // Snapshot is a Raft snapshot archive taken for a backup.

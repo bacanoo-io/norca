@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strconv"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 	"github.com/hashicorp/serf/serf"

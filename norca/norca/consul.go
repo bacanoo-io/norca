@@ -12,12 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/command/agent/consul"
 	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-metrics"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-set"
 	"github.com/hashicorp/go-version"

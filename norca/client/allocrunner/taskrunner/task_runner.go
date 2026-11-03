@@ -14,8 +14,8 @@ import (
 
 	"golang.org/x/exp/slices"
 
-	metrics "github.com/hashicorp/go-metrics"
 	log "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl/v2/hcldec"
 

@@ -11,8 +11,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-msgpack/codec"
 
 	"github.com/bacanoo-io/norca/norca/acl"

@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	metrics "github.com/hashicorp/go-metrics"
 
 	"github.com/bacanoo-io/norca/norca/client/dynamicplugins"
 	"github.com/bacanoo-io/norca/norca/client/pluginmanager/csimanager"

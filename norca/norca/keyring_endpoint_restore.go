@@ -9,8 +9,8 @@ import (
 	"slices"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 // maxRestoreKeys bounds the root keys of a single keyring restore.

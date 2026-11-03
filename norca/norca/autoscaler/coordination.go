@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 // EventPublisher publishes the events of the Scaling topic.

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
+	metrics "github.com/hashicorp/go-metrics"
 
 	"github.com/bacanoo-io/norca/norca/norca/secretengine"
 	"github.com/bacanoo-io/norca/norca/norca/structs"

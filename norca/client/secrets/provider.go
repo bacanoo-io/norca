@@ -74,7 +74,6 @@ type Secret struct {
 	// revoked when the task stops.
 	Lease *Lease
 
-
 	// Metadata is the metadata of the secret, if the provider has it. It
 	// is not secret; responses in the shapes of other stores (the Vault KV
 	// v2 metadata) are built from it.

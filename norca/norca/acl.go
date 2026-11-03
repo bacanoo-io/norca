@@ -10,11 +10,11 @@ import (
 	"net"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 // Authenticate extracts an AuthenticatedIdentity from the request context or

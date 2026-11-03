@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	cstructs "github.com/bacanoo-io/norca/norca/client/structs"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	log "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/structs"

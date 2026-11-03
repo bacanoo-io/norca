@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/time/rate"
 

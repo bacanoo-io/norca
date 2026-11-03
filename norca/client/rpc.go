@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/client/servers"
 	"github.com/bacanoo-io/norca/norca/helper"
 	inmem "github.com/bacanoo-io/norca/norca/helper/codec"
 	"github.com/bacanoo-io/norca/norca/helper/pool"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/go-msgpack/codec"
 )
 

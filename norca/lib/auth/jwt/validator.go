@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/cap/jwt"
+	"github.com/hashicorp/go-metrics"
 	"golang.org/x/exp/slices"
 
 	"github.com/bacanoo-io/norca/norca/helper"

@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/ci"
 	client "github.com/bacanoo-io/norca/norca/client/config"
@@ -29,6 +28,7 @@ import (
 	sconfig "github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 // TempDir defines the base dir for temporary directories.

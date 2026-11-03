@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/go-memdb"
+	metrics "github.com/hashicorp/go-metrics"
 )
 
 // maxServiceIntentionsPerRequest bounds the intentions of one write.
