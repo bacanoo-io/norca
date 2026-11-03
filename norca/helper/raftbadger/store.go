@@ -65,7 +65,7 @@ type Store struct {
 
 // Open opens or creates the store in opts.Path.
 func Open(opts Options) (*Store, error) {
-	db, err := badgerdb.Open(opts, ServerDefaults)
+	db, err := badgerdb.Open(opts, badgerdb.Server)
 	if err != nil {
 		return nil, fmt.Errorf("raftbadger: %w", err)
 	}

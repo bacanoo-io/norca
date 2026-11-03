@@ -19,15 +19,18 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/dgraph-io/badger/v4/options"
 	"github.com/hashicorp/go-hclog"
 )
 
-// Options configures a database. Zero values take the defaults given to
-// Open (ServerDefaults or ClientDefaults).
+// Options configures a database. Zero values take the defaults of the
+// profile (Profiles) of the database kind given to Open.
 type Options struct {
 	Path   string
 	Logger hclog.Logger
+
+	// Profile chooses the defaults by the size of the machine: "small",
+	// "default" (also when empty) or "large".
+	Profile string
 
 	// MetricsName names the database in the metrics (nomad.badger.<name>.*).
 	MetricsName string
@@ -49,6 +52,10 @@ type Options struct {
 	// tree. Badger allows at most 15% of a memtable.
 	ValueThresholdKB int
 
+	// Compression of the LSM tables: "snappy", "zstd" or "none"; empty
+	// takes the profile's.
+	Compression string
+
 	// InMemory keeps everything in memory (tests and -dev agents).
 	InMemory bool
 
@@ -57,7 +64,8 @@ type Options struct {
 	ReadOnly bool
 }
 
-// ServerDefaults are the starting values for the raft log of a server.
+// ServerDefaults are the values of the default profile for the raft log of
+// a server.
 var ServerDefaults = Options{
 	MetricsName:             "raft",
 	MemTableSizeMB:          64,
@@ -71,10 +79,12 @@ var ServerDefaults = Options{
 	IndexCacheSizeMB:        64,
 	ValueLogFileSizeMB:      256,
 	ValueLogGCInterval:      10 * time.Minute,
+	Compression:             "snappy",
 }
 
-// ClientDefaults are the starting values for the state of a client: a few
-// megabytes of allocation and task state, written in small transactions.
+// ClientDefaults are the values of the default profile for the state of a
+// client: a few megabytes of allocation and task state, written in small
+// transactions.
 var ClientDefaults = Options{
 	MetricsName:             "client",
 	MemTableSizeMB:          16,
@@ -88,6 +98,7 @@ var ClientDefaults = Options{
 	IndexCacheSizeMB:        8,
 	ValueLogFileSizeMB:      64,
 	ValueLogGCInterval:      10 * time.Minute,
+	Compression:             "snappy",
 }
 
 // WithDefaults fills the zero values of o from d.
@@ -109,6 +120,12 @@ func (o Options) WithDefaults(d Options) Options {
 	pick(&o.ValueLogFileSizeMB, d.ValueLogFileSizeMB)
 	if o.ValueLogGCInterval <= 0 {
 		o.ValueLogGCInterval = d.ValueLogGCInterval
+	}
+	if o.ValueThresholdKB <= 0 {
+		o.ValueThresholdKB = d.ValueThresholdKB
+	}
+	if o.Compression == "" {
+		o.Compression = d.Compression
 	}
 	if o.MetricsName == "" {
 		o.MetricsName = d.MetricsName
@@ -152,7 +169,8 @@ func (o Options) badgerOptions(logger hclog.Logger) badger.Options {
 		WithIndexCacheSize(int64(o.IndexCacheSizeMB) * mb).
 		WithValueLogFileSize(int64(o.ValueLogFileSizeMB) * mb).
 		WithValueThreshold(o.valueThreshold()).
-		WithCompression(options.Snappy).
+		WithCompression(compression(o.Compression)).
+		WithZSTDCompressionLevel(1).
 		WithCompactL0OnClose(false).
 		WithLogger(badgerLogger{logger.Named("badger")})
 	if o.InMemory {
@@ -172,9 +190,16 @@ type DB struct {
 	done      sync.WaitGroup
 }
 
-// Open opens or creates the database in opts.Path; zero options take the
-// values of defaults.
-func Open(opts, defaults Options) (*DB, error) {
+// Open opens or creates the database of the given kind in opts.Path; zero
+// options take the values of the profile chosen in opts.
+func Open(opts Options, kind Kind) (*DB, error) {
+	defaults, err := Defaults(kind, opts.Profile)
+	if err != nil {
+		return nil, err
+	}
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	opts = opts.WithDefaults(defaults)
 	if opts.Path == "" && !opts.InMemory {
 		return nil, errors.New("badgerdb: no path")

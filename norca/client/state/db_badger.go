@@ -157,7 +157,7 @@ func OpenBadgerStateDB(logger hclog.Logger, stateDir string, opts badgerdb.Optio
 	}
 	opts.Path = filepath.Join(stateDir, stateDirName)
 	opts.Logger = logger.Named("state")
-	db, err := badgerdb.Open(opts, badgerdb.ClientDefaults)
+	db, err := badgerdb.Open(opts, badgerdb.Client)
 	if err != nil {
 		if msg := err.Error(); strings.Contains(msg, "Cannot acquire directory lock") || strings.Contains(msg, "Another process is using this Badger database") {
 			return nil, fmt.Errorf("client state in %s is in use, is another norca agent using this data_dir? %w", stateDir, err)

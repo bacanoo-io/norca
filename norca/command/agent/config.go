@@ -789,8 +789,15 @@ func (s *ServerConfig) Copy() *ServerConfig {
 // matter against compaction spikes and for memory. Unset (zero) values take
 // the server or client defaults of helper/badgerdb.
 type BadgerConfig struct {
+	// Profile chooses the defaults by the size of the machine: "small",
+	// "default" or "large".
+	Profile string `hcl:"profile"`
+
 	// MemTableSizeMB is the size of a memtable, the unit flushed to level 0.
 	MemTableSizeMB int `hcl:"mem_table_size_mb"`
+
+	// NumMemtables is the number of memtables kept in memory.
+	NumMemtables int `hcl:"num_memtables"`
 
 	// NumLevelZeroTables is the number of level 0 tables that starts a
 	// compaction of level 0.
@@ -809,6 +816,16 @@ type BadgerConfig struct {
 
 	// ValueLogGCInterval is how often the value log garbage collection runs.
 	ValueLogGCInterval string `hcl:"value_log_gc_interval"`
+
+	// ValueThresholdKB is the size above which values go to the value log
+	// instead of the LSM tree.
+	ValueThresholdKB int `hcl:"value_threshold_kb"`
+
+	// ValueLogFileSizeMB is the size of a value log file.
+	ValueLogFileSizeMB int `hcl:"value_log_file_size_mb"`
+
+	// Compression of the LSM tables: snappy, zstd or none.
+	Compression string `hcl:"compression"`
 }
 
 func (b *BadgerConfig) Copy() *BadgerConfig {
@@ -824,7 +841,12 @@ func (b *BadgerConfig) Apply(o *badgerdb.Options, block string) error {
 	if b == nil {
 		return nil
 	}
+	o.Profile = b.Profile
 	o.MemTableSizeMB = b.MemTableSizeMB
+	o.NumMemtables = b.NumMemtables
+	o.ValueThresholdKB = b.ValueThresholdKB
+	o.ValueLogFileSizeMB = b.ValueLogFileSizeMB
+	o.Compression = b.Compression
 	o.NumLevelZeroTables = b.NumLevelZeroTables
 	o.NumLevelZeroTablesStall = b.NumLevelZeroTablesStall
 	o.NumCompactors = b.NumCompactors
@@ -836,6 +858,9 @@ func (b *BadgerConfig) Apply(o *badgerdb.Options, block string) error {
 			return fmt.Errorf("invalid %s badger value_log_gc_interval %q", block, b.ValueLogGCInterval)
 		}
 		o.ValueLogGCInterval = d
+	}
+	if err := o.Validate(); err != nil {
+		return fmt.Errorf("invalid %s badger block: %w", block, err)
 	}
 	return nil
 }
@@ -851,6 +876,9 @@ func (b *BadgerConfig) Merge(o *BadgerConfig) *BadgerConfig {
 	}
 	for _, f := range []struct{ dst, src *int }{
 		{&r.MemTableSizeMB, &o.MemTableSizeMB},
+		{&r.NumMemtables, &o.NumMemtables},
+		{&r.ValueThresholdKB, &o.ValueThresholdKB},
+		{&r.ValueLogFileSizeMB, &o.ValueLogFileSizeMB},
 		{&r.NumLevelZeroTables, &o.NumLevelZeroTables},
 		{&r.NumLevelZeroTablesStall, &o.NumLevelZeroTablesStall},
 		{&r.NumCompactors, &o.NumCompactors},
@@ -861,8 +889,14 @@ func (b *BadgerConfig) Merge(o *BadgerConfig) *BadgerConfig {
 			*f.dst = *f.src
 		}
 	}
-	if o.ValueLogGCInterval != "" {
-		r.ValueLogGCInterval = o.ValueLogGCInterval
+	for _, f := range []struct{ dst, src *string }{
+		{&r.ValueLogGCInterval, &o.ValueLogGCInterval},
+		{&r.Profile, &o.Profile},
+		{&r.Compression, &o.Compression},
+	} {
+		if *f.src != "" {
+			*f.dst = *f.src
+		}
 	}
 	return r
 }
