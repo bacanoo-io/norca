@@ -79,6 +79,7 @@ var ServerDefaults = Options{
 	IndexCacheSizeMB:        64,
 	ValueLogFileSizeMB:      256,
 	ValueLogGCInterval:      10 * time.Minute,
+	ValueThresholdKB:        4,
 	Compression:             "snappy",
 }
 
