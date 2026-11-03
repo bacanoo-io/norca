@@ -263,6 +263,10 @@ type ClientConfig struct {
 	DynamicUserMin int `hcl:"dynamic_user_min"`
 	DynamicUserMax int `hcl:"dynamic_user_max"`
 
+	// StateStore is the store of the client state: "badger" (default) or
+	// "boltdb".
+	StateStore string `hcl:"state_store"`
+
 	// Badger configures the Badger database of the client state.
 	Badger *BadgerConfig `hcl:"badger"`
 
@@ -678,8 +682,15 @@ type ServerConfig struct {
 	// DeploymentWatcher to throttle the amount of simultaneously deployments
 	DeploymentQueryRateLimit float64 `hcl:"deploy_query_rate_limit"`
 
+	// RaftStore is the store of the raft log: "badger" (default) or
+	// "boltdb".
+	RaftStore string `hcl:"raft_store"`
+
 	// Badger configures the Badger database of the raft log.
 	Badger *BadgerConfig `hcl:"badger"`
+
+	// RaftBoltConfig configures the BoltDB raft log (raft_store = "boltdb").
+	RaftBoltConfig *RaftBoltConfig `hcl:"raft_boltdb"`
 
 	// RaftSnapshotThreshold controls how many outstanding logs there must be
 	// before we perform a snapshot. This is to prevent excessive snapshotting by
@@ -766,6 +777,7 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.ExtraKeysHCL = slices.Clone(s.ExtraKeysHCL)
 	ns.Search = s.Search.Copy()
 	ns.Badger = s.Badger.Copy()
+	ns.RaftBoltConfig = s.RaftBoltConfig.Copy()
 	ns.RaftSnapshotInterval = pointer.Copy(s.RaftSnapshotInterval)
 	ns.RaftSnapshotThreshold = pointer.Copy(s.RaftSnapshotThreshold)
 	ns.RaftTrailingLogs = pointer.Copy(s.RaftTrailingLogs)
@@ -782,6 +794,26 @@ func (s *ServerConfig) Copy() *ServerConfig {
 	ns.Keyring = s.Keyring.Copy()
 	ns.NativeServiceDiscovery = s.NativeServiceDiscovery.Copy()
 	return &ns
+}
+
+// RaftBoltConfig is used in servers to configure parameters of the boltdb
+// used for raft consensus.
+type RaftBoltConfig struct {
+	// NoFreelistSync toggles whether the underlying raft storage should sync its
+	// freelist to disk within the bolt .db file. When disabled, IO performance
+	// will be improved but at the expense of longer startup times.
+	//
+	// Default: false.
+	NoFreelistSync bool `hcl:"no_freelist_sync"`
+}
+
+func (r *RaftBoltConfig) Copy() *RaftBoltConfig {
+	if r == nil {
+		return nil
+	}
+
+	nr := *r
+	return &nr
 }
 
 // BadgerConfig tunes a Badger database: the raft log of a server (server
@@ -2235,6 +2267,14 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 	if b.Badger != nil {
 		result.Badger = result.Badger.Merge(b.Badger)
 	}
+	if b.RaftStore != "" {
+		result.RaftStore = b.RaftStore
+	}
+	if b.RaftBoltConfig != nil {
+		result.RaftBoltConfig = &RaftBoltConfig{
+			NoFreelistSync: b.RaftBoltConfig.NoFreelistSync,
+		}
+	}
 
 	if b.RaftSnapshotThreshold != nil {
 		result.RaftSnapshotThreshold = pointer.Of(*b.RaftSnapshotThreshold)
@@ -2318,6 +2358,9 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	}
 	if b.Badger != nil {
 		result.Badger = result.Badger.Merge(b.Badger)
+	}
+	if b.StateStore != "" {
+		result.StateStore = b.StateStore
 	}
 	if b.MemoryMB != 0 {
 		result.MemoryMB = b.MemoryMB

@@ -259,8 +259,12 @@ type Config struct {
 	// instances of the plugins.
 	PluginSingletonLoader loader.PluginCatalog
 
+	// StateStore is the store of the client state: "badger" (default) or
+	// "boltdb".
+	StateStore string
+
 	// StateBadger tunes the Badger database of the client state; zero
-	// values take badgerdb.ClientDefaults.
+	// values take the client values of its profile.
 	StateBadger badgerdb.Options
 
 	// StateDBFactory is used to override stateDB implementations,

@@ -147,7 +147,7 @@ func TestBadgerStateDB_boltState(t *testing.T) {
 	dir := t.TempDir()
 	must.NoError(t, os.WriteFile(filepath.Join(dir, "state.db"), []byte("bolt"), 0o600))
 	_, err := OpenBadgerStateDB(testlog.HCLogger(t), dir, badgerdb.Options{})
-	must.ErrorContains(t, err, "BoltDB client state")
+	must.ErrorContains(t, err, "BoltDB client state (state.db)")
 }
 
 // TestGetStateDBFactory asserts -dev agents keep no state and the others
@@ -155,14 +155,41 @@ func TestBadgerStateDB_boltState(t *testing.T) {
 func TestGetStateDBFactory(t *testing.T) {
 	ci.Parallel(t)
 
-	db, err := GetStateDBFactory(true, badgerdb.Options{})(testlog.HCLogger(t), t.TempDir())
+	db, err := GetStateDBFactory(true, "", badgerdb.Options{})(testlog.HCLogger(t), t.TempDir())
 	must.NoError(t, err)
 	must.Eq(t, "noopdb", db.Name())
 
-	db, err = GetStateDBFactory(false, badgerdb.Options{MemTableSizeMB: 8})(testlog.HCLogger(t), t.TempDir())
+	db, err = GetStateDBFactory(false, "", badgerdb.Options{MemTableSizeMB: 8})(testlog.HCLogger(t), t.TempDir())
 	must.NoError(t, err)
 	defer db.Close()
 	must.Eq(t, "badger", db.Name())
 	must.Eq(t, 8, db.(*BadgerStateDB).db.Opts.MemTableSizeMB)
 	must.Eq(t, badgerdb.ClientDefaults.NumCompactors, db.(*BadgerStateDB).db.Opts.NumCompactors)
+}
+
+// TestStateStores_otherStoreData asserts neither store starts next to the
+// data of the other one, and that the factory picks the configured store.
+func TestStateStores_otherStoreData(t *testing.T) {
+	ci.Parallel(t)
+	log := testlog.HCLogger(t)
+
+	dir := t.TempDir()
+	db, err := OpenBadgerStateDB(log, dir, badgerdb.Options{})
+	must.NoError(t, err)
+	must.NoError(t, db.Close())
+	_, err = NewBoltStateDB(log, dir)
+	must.ErrorContains(t, err, `set state_store = "badger"`)
+
+	dir = t.TempDir()
+	bdb, err := GetStateDBFactory(false, StoreBoltDB, badgerdb.Options{})(log, dir)
+	must.NoError(t, err)
+	must.Eq(t, "boltdb", bdb.Name())
+	must.NoError(t, bdb.Upgrade())
+	must.NoError(t, bdb.Close())
+	_, err = OpenBadgerStateDB(log, dir, badgerdb.Options{})
+	must.ErrorContains(t, err, `set state_store = "boltdb"`)
+
+	must.NoError(t, ValidateStore(""))
+	must.NoError(t, ValidateStore(StoreBoltDB))
+	must.ErrorContains(t, ValidateStore("sqlite"), "unknown client state_store")
 }

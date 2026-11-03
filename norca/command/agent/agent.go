@@ -607,9 +607,16 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 		}
 	}
 
-	// The Badger database of the raft log
+	// The store of the raft log: Badger (default) or BoltDB
+	if err := norca.ValidateRaftStore(agentConfig.Server.RaftStore); err != nil {
+		return nil, err
+	}
+	conf.RaftStore = agentConfig.Server.RaftStore
 	if err := agentConfig.Server.Badger.Apply(&conf.RaftBadger, "server"); err != nil {
 		return nil, err
+	}
+	if bolt := agentConfig.Server.RaftBoltConfig; bolt != nil {
+		conf.RaftBoltNoFreelistSync = bolt.NoFreelistSync
 	}
 
 	// Interpret job_max_source_size as bytes from string value
@@ -635,6 +642,22 @@ func (a *Agent) serverConfig() (*norca.Config, error) {
 
 	a.finalizeServerConfig(c)
 	return c, nil
+}
+
+// warnUnusedStoreBlocks logs a configuration block of a store that is not
+// the one chosen: it has no effect, which is easy to miss.
+func (a *Agent) warnUnusedStoreBlocks(server bool) {
+	if s := a.config.Server; server && s != nil {
+		if s.RaftStore == norca.RaftStoreBoltDB && s.Badger != nil {
+			a.logger.Warn("server badger block has no effect with raft_store = \"boltdb\"")
+		}
+		if s.RaftStore != norca.RaftStoreBoltDB && s.RaftBoltConfig != nil {
+			a.logger.Warn("server raft_boltdb block has no effect with the badger raft_store")
+		}
+	}
+	if c := a.config.Client; !server && c != nil && c.StateStore == state.StoreBoltDB && c.Badger != nil {
+		a.logger.Warn("client badger block has no effect with state_store = \"boltdb\"")
+	}
 }
 
 // finalizeServerConfig sets configuration fields on the server config that are
@@ -756,7 +779,11 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	if err := conf.DynamicUsers.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid client dynamic_user_min/dynamic_user_max: %w", err)
 	}
-	// The Badger database of the client state
+	// The store of the client state: Badger (default) or BoltDB
+	if err := state.ValidateStore(agentConfig.Client.StateStore); err != nil {
+		return nil, err
+	}
+	conf.StateStore = agentConfig.Client.StateStore
 	if err := agentConfig.Client.Badger.Apply(&conf.StateBadger, "client"); err != nil {
 		return nil, err
 	}
@@ -934,6 +961,7 @@ func (a *Agent) setupServer() error {
 	if err != nil {
 		return fmt.Errorf("server config setup failed: %s", err)
 	}
+	a.warnUnusedStoreBlocks(true)
 
 	// Generate a node ID and persist it if it is the first instance, otherwise
 	// read the persisted node ID.
@@ -1116,6 +1144,7 @@ func (a *Agent) setupClient() error {
 	if err != nil {
 		return fmt.Errorf("client setup failed: %v", err)
 	}
+	a.warnUnusedStoreBlocks(false)
 
 	// Reserve some ports for the plugins if we are on Windows
 	if runtime.GOOS == "windows" {
@@ -1124,7 +1153,7 @@ func (a *Agent) setupClient() error {
 		}
 	}
 	if conf.StateDBFactory == nil {
-		conf.StateDBFactory = state.GetStateDBFactory(conf.DevMode, conf.StateBadger)
+		conf.StateDBFactory = state.GetStateDBFactory(conf.DevMode, conf.StateStore, conf.StateBadger)
 	}
 
 	// Set up a custom listener and dialer. This is used by Nomad clients when

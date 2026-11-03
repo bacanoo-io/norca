@@ -7,6 +7,8 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	trstate "github.com/bacanoo-io/norca/norca/client/allocrunner/taskrunner/state"
@@ -23,8 +25,10 @@ func (c *OperatorClientStateCommand) Help() string {
 	helpText := `
 Usage: norca operator client-state <data_dir>/client
 
-  Emits a representation of the stored client state in JSON format. The
-  state can only be read while no agent uses the data directory.
+  Emits a representation of the stored client state in JSON format, from the
+  Badger state (state/) or the BoltDB state (state.db, state_store =
+  "boltdb"). The state can only be read while no agent uses the data
+  directory.
 `
 	return strings.TrimSpace(helpText)
 }
@@ -50,7 +54,12 @@ func (c *OperatorClientStateCommand) Run(args []string) int {
 	}
 
 	logger := hclog.L()
-	db, err := state.NewBadgerStateDB(logger, args[0])
+	// state.db is the BoltDB state of a client with state_store = "boltdb"
+	newDB := state.NewBadgerStateDB
+	if _, err := os.Stat(filepath.Join(args[0], "state.db")); err == nil {
+		newDB = state.NewBoltStateDB
+	}
+	db, err := newDB(logger, args[0])
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("failed to open client state: %v", err))
 		return 1

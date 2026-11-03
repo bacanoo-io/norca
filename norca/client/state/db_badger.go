@@ -108,13 +108,32 @@ func keyForCheck(allocID string, checkID structs.CheckID) []byte {
 // NewStateDBFunc creates a StateDB given a state directory.
 type NewStateDBFunc func(logger hclog.Logger, stateDir string) (StateDB, error)
 
+// The client state stores (client { state_store = ... }).
+const (
+	StoreBadger = "badger"
+	StoreBoltDB = "boltdb"
+)
+
+// ValidateStore checks a state_store value; empty is the default (Badger).
+func ValidateStore(store string) error {
+	switch store {
+	case "", StoreBadger, StoreBoltDB:
+		return nil
+	}
+	return fmt.Errorf("unknown client state_store %q (badger or boltdb)", store)
+}
+
 // GetStateDBFactory returns a func for creating a StateDB: a no-op one in
-// -dev mode, else Badger with opts (zero values take the client defaults).
-func GetStateDBFactory(devMode bool, opts badgerdb.Options) NewStateDBFunc {
+// -dev mode, else the chosen store, Badger with opts (zero values take the
+// client profile) by default.
+func GetStateDBFactory(devMode bool, store string, opts badgerdb.Options) NewStateDBFunc {
 	if devMode {
 		return func(hclog.Logger, string) (StateDB, error) {
 			return NoopDB{}, nil
 		}
+	}
+	if store == StoreBoltDB {
+		return NewBoltStateDB
 	}
 	return func(logger hclog.Logger, stateDir string) (StateDB, error) {
 		return OpenBadgerStateDB(logger, stateDir, opts)
@@ -149,8 +168,8 @@ func NewBadgerStateDB(logger hclog.Logger, stateDir string) (StateDB, error) {
 // <stateDir>/state; opts.Path is ignored.
 func OpenBadgerStateDB(logger hclog.Logger, stateDir string, opts badgerdb.Options) (*BadgerStateDB, error) {
 	if _, err := os.Stat(filepath.Join(stateDir, "state.db")); err == nil {
-		return nil, fmt.Errorf("%s holds the BoltDB client state of an older Norca (state.db); "+
-			"Norca keeps the client state in Badger now: drain the node and remove state.db", stateDir)
+		return nil, fmt.Errorf("%s holds the BoltDB client state (state.db) and state_store is \"badger\": "+
+			"set state_store = \"boltdb\", or drain the node and remove state.db", stateDir)
 	}
 	if logger == nil {
 		logger = hclog.NewNullLogger()

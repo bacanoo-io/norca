@@ -411,9 +411,17 @@ type Config struct {
 	// SearchConfig provides knobs for Search API.
 	SearchConfig *structs.SearchConfig
 
+	// RaftStore is the store of the raft log: "badger" (default) or
+	// "boltdb".
+	RaftStore string
+
 	// RaftBadger configures the Badger database of the raft log; the server
-	// sets the path. Zero values take raftbadger.ServerDefaults.
+	// sets the path. Zero values take the server values of its profile.
 	RaftBadger raftbadger.Options
+
+	// RaftBoltNoFreelistSync configures whether freelist syncing is enabled
+	// in the BoltDB raft log (RaftStore "boltdb").
+	RaftBoltNoFreelistSync bool
 
 	// AgentShutdown is used to call agent.Shutdown from the context of a Server
 	// It is used primarily for licensing
