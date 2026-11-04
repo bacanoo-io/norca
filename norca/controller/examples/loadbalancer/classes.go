@@ -6,12 +6,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -177,6 +180,52 @@ func newClassRegistry(b controller.Backend, tokenNamespace string, ttl time.Dura
 		now:            time.Now,
 		client:         &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// setCAFile makes the calls to the providers trust the certificates of the
+// PEM file in addition to the system roots, for providers with a certificate
+// of a private CA (the CA of the cluster, for example). A file without a
+// certificate is an error.
+//
+// The certificate of a provider is verified against the system roots first and
+// then against the file. The verification is done here, not by adding the
+// file to the system pool: on Windows and macOS the platform verifier ignores
+// what is added to that pool.
+func (g *classRegistry) setCAFile(path string) error {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("class CA file: %w", err)
+	}
+	extra := x509.NewCertPool()
+	if !extra.AppendCertsFromPEM(raw) {
+		return fmt.Errorf("class CA file %s: no certificate found", path)
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		// Verification is done in VerifyConnection, with the system roots and
+		// the extra CA; the handshake itself does not verify.
+		InsecureSkipVerify: true, //nolint:gosec // verified by VerifyConnection below
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			if len(cs.PeerCertificates) == 0 {
+				return errors.New("the provider presented no certificate")
+			}
+			intermediates := x509.NewCertPool()
+			for _, c := range cs.PeerCertificates[1:] {
+				intermediates.AddCert(c)
+			}
+			opts := x509.VerifyOptions{DNSName: cs.ServerName, Intermediates: intermediates}
+			leaf := cs.PeerCertificates[0]
+			if _, err := leaf.Verify(opts); err == nil {
+				return nil // a certificate the system trusts
+			}
+			opts.Roots = extra
+			_, err := leaf.Verify(opts)
+			return err
+		},
+	}
+	g.client = &http.Client{Timeout: g.client.Timeout, Transport: transport}
+	return nil
 }
 
 func (g *classRegistry) list(ctx context.Context) (map[string]*classInfo, error) {

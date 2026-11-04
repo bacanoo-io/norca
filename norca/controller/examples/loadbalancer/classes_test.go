@@ -5,11 +5,21 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"io"
+	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +27,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/controller"
+	"github.com/bacanoo-io/norca/norca/controller/fake"
 	"github.com/shoenig/test/must"
 )
 
@@ -34,7 +45,14 @@ type fakeProvider struct {
 
 func newFakeProvider(t *testing.T) *fakeProvider {
 	p := &fakeProvider{ready: true}
-	p.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	p.srv = httptest.NewServer(p.handler())
+	t.Cleanup(p.srv.Close)
+	return p
+}
+
+// handler is the API of the provider.
+func (p *fakeProvider) handler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 		p.auth = append(p.auth, r.Header.Get("Authorization"))
@@ -60,9 +78,7 @@ func newFakeProvider(t *testing.T) *fakeProvider {
 		default:
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 		}
-	}))
-	t.Cleanup(p.srv.Close)
-	return p
+	}
 }
 
 func (p *fakeProvider) putCount() int {
@@ -313,4 +329,111 @@ func TestLoadBalancerClass_KindFiles(t *testing.T) {
 	must.StrContains(t, string(kind), `group       = "`+ClassKind.Group+`"`)
 	must.StrContains(t, string(kind), `kind "`+ClassKind.Kind+`"`)
 	must.StrContains(t, string(kind), "namespaced  = false")
+}
+
+// newFakeProviderTLS is a provider with an https endpoint whose certificate
+// is signed by nobody the system trusts.
+func newFakeProviderTLS(t *testing.T) (*fakeProvider, string) {
+	t.Helper()
+	p := &fakeProvider{ready: true}
+	p.srv = httptest.NewTLSServer(p.handler())
+	t.Cleanup(p.srv.Close)
+
+	// The CA file holds the certificate the server really presents, taken from a
+	// handshake (the certificate httptest reports is not the one it sends).
+	conn, err := tls.Dial("tcp", p.srv.Listener.Addr().String(), &tls.Config{InsecureSkipVerify: true})
+	must.NoError(t, err)
+	defer conn.Close()
+	caFile := filepath.Join(t.TempDir(), "ca.pem")
+	block := &pem.Block{Type: "CERTIFICATE", Bytes: conn.ConnectionState().PeerCertificates[0].Raw}
+	must.NoError(t, os.WriteFile(caFile, pem.EncodeToMemory(block), 0o600))
+	return p, caFile
+}
+
+func TestClassRegistry_PrivateCA(t *testing.T) {
+	prov, caFile := newFakeProviderTLS(t)
+	obj := &controller.Object{Key: controller.ObjectKey{Namespace: "default", Name: "web"}}
+	targets := []Target{{Address: "10.0.0.1", Port: 8001}}
+	info := &classInfo{Name: "secure", Spec: ClassSpec{Endpoint: prov.srv.URL}}
+	must.NoError(t, info.validate(false)) // https needs no -class-allow-http
+
+	// Without the CA the certificate is not trusted.
+	reg := newClassRegistry(fake.New(), "default", time.Minute)
+	_, err := reg.provider(info).Ensure(context.Background(), obj, Spec{Service: "web", Port: 443}, targets)
+	must.Error(t, err)
+	must.StrContains(t, err.Error(), "certificate")
+
+	// With the CA of the provider it is.
+	must.NoError(t, reg.setCAFile(caFile))
+	res, err := reg.provider(info).Ensure(context.Background(), obj, Spec{Service: "web", Port: 443}, targets)
+	must.NoError(t, err)
+	must.True(t, res.Ready)
+	must.NoError(t, reg.provider(info).Delete(context.Background(), obj.Key))
+	must.Eq(t, []string{"/v1/loadbalancers/default/web"}, prov.deleted())
+
+	// A file that is not a certificate, and a missing one, are errors at start.
+	bad := filepath.Join(t.TempDir(), "bad.pem")
+	must.NoError(t, os.WriteFile(bad, []byte("not a certificate"), 0o600))
+	must.ErrorContains(t, reg.setCAFile(bad), "no certificate found")
+	must.Error(t, reg.setCAFile(filepath.Join(t.TempDir(), "missing.pem")))
+
+	// The CA only adds trust: the certificate of another provider is still
+	// refused, and plain http stays refused without the flag.
+	other := &fakeProvider{ready: true}
+	other.srv = httptest.NewUnstartedServer(other.handler())
+	other.srv.TLS = &tls.Config{Certificates: []tls.Certificate{selfSignedCert(t)}}
+	other.srv.StartTLS()
+	t.Cleanup(other.srv.Close)
+	otherInfo := &classInfo{Name: "other", Spec: ClassSpec{Endpoint: other.srv.URL}}
+	_, err = reg.provider(otherInfo).Ensure(context.Background(), obj, Spec{Service: "web", Port: 443}, targets)
+	must.Error(t, err)
+	must.StrContains(t, err.Error(), "certificate")
+	must.Error(t, (&classInfo{Name: "x", Spec: ClassSpec{Endpoint: "http://127.0.0.1:1"}}).validate(false))
+}
+
+// TestLoadBalancerClass_HTTPSProviderWithCA runs the whole chain with an https
+// provider and an operator that has no -class-allow-http: only the CA file
+// makes the provider usable.
+func TestLoadBalancerClass_HTTPSProviderWithCA(t *testing.T) {
+	prov, caFile := newFakeProviderTLS(t)
+	b := fake.New()
+	cluster := newFakeCluster()
+	e := startOperatorTuned(t, b, cluster, false, controller.StorageNative, func(r *reconciler) {
+		r.classes.allowHTTP = false
+		must.NoError(t, r.classes.setCAFile(caFile))
+	})
+	e.putClass("secure-lb", map[string]any{"endpoint": prov.srv.URL})
+	e.cluster.setTargets("default", "web", Target{Address: "10.0.0.1", Port: 8001})
+	e.putNativeLB("web", map[string]any{"service": "web", "port": 443, "class": "secure-lb"})
+
+	waitFor(t, "ready over https", func() bool { return e.nativeStatus(t, "web").IsTrue(controller.ConditionReady) })
+	must.Eq(t, "web", prov.lastPut().Name)
+
+	// An http provider is refused without -class-allow-http, with a reason.
+	plain := newFakeProvider(t)
+	e.putClass("plain-lb", map[string]any{"endpoint": plain.srv.URL})
+	e.putNativeLB("web2", map[string]any{"service": "web", "port": 444, "class": "plain-lb"})
+	msg := e.waitReason(t, "web2", "InvalidClass")
+	must.StrContains(t, msg, "https")
+	must.Eq(t, 0, plain.putCount())
+}
+
+// selfSignedCert is a certificate of its own for 127.0.0.1: nobody has signed
+// it and it is not the certificate of httptest.
+func selfSignedCert(t *testing.T) tls.Certificate {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	must.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(42),
+		Subject:      pkix.Name{CommonName: "other provider"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	must.NoError(t, err)
+	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
 }
