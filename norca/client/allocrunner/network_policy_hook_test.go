@@ -271,3 +271,74 @@ func TestNetworkPolicyHook_Counters(t *testing.T) {
 	h.mu.Unlock()
 	must.NoError(t, h.Postrun())
 }
+
+// blockingNetPolicyRPC answers like a real blocking query: it only returns
+// when it is released (the real wait is up to five minutes), and it cannot be
+// cancelled, because the RPC interface has no context.
+type blockingNetPolicyRPC struct {
+	release chan struct{}
+	started chan struct{}
+}
+
+func (b *blockingNetPolicyRPC) RPC(method string, args, reply interface{}) error {
+	req := args.(*structs.NetworkPolicyAllocRequest)
+	select {
+	case b.started <- struct{}{}:
+	default:
+	}
+	<-b.release
+	r := reply.(*structs.NetworkPolicyAllocResponse)
+	r.Rules = nil
+	r.Index = req.MinQueryIndex
+	return nil
+}
+
+// TestNetworkPolicyHook_StopDoesNotWaitForTheBlockingQuery: stopping the hook
+// is part of killing the allocation (PreKill runs before the tasks are killed,
+// Postrun and Destroy follow), so it must not wait for a blocking query that
+// takes minutes to end. Before this was fixed, stopping a job with a
+// bridge-mode allocation left its tasks running for up to five minutes.
+func TestNetworkPolicyHook_StopDoesNotWaitForTheBlockingQuery(t *testing.T) {
+	ci.Parallel(t)
+
+	rpc := &blockingNetPolicyRPC{release: make(chan struct{}), started: make(chan struct{}, 1)}
+	// The query is released at the end of the test, not before.
+	t.Cleanup(func() { close(rpc.release) })
+
+	cfg := &config.Config{Region: "global", Node: mock.Node()}
+	h := newNetworkPolicyHook(testlog.HCLogger(t), testNetPolicyAlloc("bridge"), rpc, cfg,
+		fakeNetSpec{path: "/var/run/netns/test"}, &fakeTaskEvents{})
+	h.backend = &fakeNetPolicyBackend{}
+
+	// The first fetch of Prerun blocks too in this fake: run it in the
+	// background and wait for the watch to be in its blocking query.
+	prerun := make(chan error, 1)
+	go func() { prerun <- h.Prerun() }()
+	select {
+	case <-rpc.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the rules were not requested")
+	}
+	rpc.release <- struct{}{} // the first query of Prerun returns
+	must.NoError(t, <-prerun)
+	select {
+	case <-rpc.started: // the watch is now blocked in its query
+	case <-time.After(5 * time.Second):
+		t.Fatal("the watch did not start its blocking query")
+	}
+
+	for name, stop := range map[string]func(){
+		"PreKill":  h.PreKill,
+		"Shutdown": h.Shutdown,
+	} {
+		t.Run(name, func(t *testing.T) {
+			done := make(chan struct{})
+			go func() { stop(); close(done) }()
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+				t.Fatalf("%s waited for the blocking query of the rules", name)
+			}
+		})
+	}
+}
