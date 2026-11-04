@@ -20,6 +20,9 @@ import (
 	"github.com/bacanoo-io/norca/norca/controller"
 )
 
+// eventJobDeregistered is the type of the job event of a stop or a purge.
+const eventJobDeregistered = "JobDeregistered"
+
 // Service meta keys that mark a service for a load balancer. The servers
 // write the jobspec block
 //
@@ -117,6 +120,32 @@ func (m *markIndex) set(namespace, jobID string, ms map[string]mark) (changed []
 	return changed
 }
 
+// reset forgets all marks and returns the marked services it had.
+func (m *markIndex) reset() []controller.ObjectKey {
+	keys := m.services()
+	m.mu.Lock()
+	m.byJob = map[string]map[string]mark{}
+	m.mu.Unlock()
+	return keys
+}
+
+// services returns the marked services (the keys of their objects).
+func (m *markIndex) services() []controller.ObjectKey {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var keys []controller.ObjectKey
+	for jobKey, marks := range m.byJob {
+		ns, _, _ := strings.Cut(jobKey, "/")
+		for service := range marks {
+			key := controller.ObjectKey{Namespace: ns, Name: service}
+			if !slices.Contains(keys, key) {
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
+}
+
 // lookup returns the mark of a service; if several jobs mark it, the job
 // with the lowest ID wins.
 func (m *markIndex) lookup(namespace, service string) (mark, bool) {
@@ -151,9 +180,9 @@ func (s *markSource) Run(ctx context.Context, sc *controller.SourceContext) {
 		if err != nil {
 			return 0, err
 		}
-		s.index.mu.Lock()
-		s.index.byJob = map[string]map[string]mark{}
-		s.index.mu.Unlock()
+		// A service that was marked and is not in the listing any more (its
+		// job was purged) is reconciled too: its object must go.
+		previous := s.index.reset()
 		for _, stub := range stubs {
 			if stub.Stop {
 				continue
@@ -166,6 +195,12 @@ func (s *markSource) Run(ctx context.Context, sc *controller.SourceContext) {
 			}
 			for _, name := range s.index.set(stub.Namespace, stub.ID, marks(job)) {
 				sc.Enqueue(controller.ObjectKey{Namespace: stub.Namespace, Name: name})
+			}
+		}
+		current := s.index.services()
+		for _, key := range previous {
+			if !slices.Contains(current, key) {
+				sc.Enqueue(key)
 			}
 		}
 		// The Job topic is covered by the job listing, but the restored
@@ -181,7 +216,14 @@ func (s *markSource) Run(ctx context.Context, sc *controller.SourceContext) {
 		if job.Namespace != nil {
 			ns = *job.Namespace
 		}
-		for _, name := range s.index.set(ns, *job.ID, marks(job)) {
+		// A deregistration ends the marks of the job, whether it only stops
+		// it or purges it: the event of a purge carries the last known job,
+		// which is not stopped, so its marks must not be read from it.
+		var jobMarks map[string]mark
+		if ev.Type != eventJobDeregistered {
+			jobMarks = marks(job)
+		}
+		for _, name := range s.index.set(ns, *job.ID, jobMarks) {
 			sc.Enqueue(controller.ObjectKey{Namespace: ns, Name: name})
 		}
 		return nil
