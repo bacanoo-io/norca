@@ -254,6 +254,31 @@ module('Acceptance | endpoints and domains', function (hooks) {
     assert.dom('[data-test-endpoint-address]').hasValue('10.20.0.5');
   });
 
+  test('the HCL view can be opened on an empty form and written directly', async function (assert) {
+    useToken(null, 'management');
+    seedNetwork(server);
+    await visit('/endpoints');
+
+    await click('[data-test-add-endpoint]');
+    await click('[data-test-endpoint-views] [data-test-tab="hcl"]');
+    assert.dom('[data-test-endpoint-hcl]').exists();
+    assert.dom('[data-test-endpoint-save-error]').doesNotExist();
+    const text = document
+      .querySelector('[data-test-unified-editor] .CodeMirror')
+      .CodeMirror.getValue();
+    assert.ok(text.includes('external_service "my-service"'), text);
+
+    await setEditorText(
+      'external_service "reports-db" {\n  address = "10.0.0.20"\n  port = 5432\n}\n'
+    );
+    await click('[data-test-editor-review-button]');
+    await click('[data-test-editor-submit]');
+    const body = lastBody('PUT', '/v1/service/external/reports-db');
+    assert.true(body.Declared);
+    assert.strictEqual(body.Address, '10.0.0.20');
+    assert.dom(ROWS).exists({ count: 2 });
+  });
+
   test('a token without register-external-service only reads', async function (assert) {
     useToken({
       Namespaces: [{ Name: '*', Capabilities: ['read-job', 'list-jobs'] }],
