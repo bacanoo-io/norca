@@ -39,7 +39,8 @@ ingress {
 
 egress {
   to {
-    cidr = ["10.20.0.0/16"]
+    cidr   = ["10.20.0.0/16"]
+    except = ["10.20.1.0/24"]
   }
   ports = ["443/tcp"]
 }
@@ -57,11 +58,20 @@ enforcement = "required"   # or "best_effort"
 			Ports: []string{"5432/tcp"},
 		}},
 		Egress: []*api.NetworkPolicyRule{{
-			Peers: []*api.NetworkPolicyPeer{{CIDR: []string{"10.20.0.0/16"}}},
+			Peers: []*api.NetworkPolicyPeer{{CIDR: []string{"10.20.0.0/16"}, Except: []string{"10.20.1.0/24"}}},
 			Ports: []string{"443/tcp"},
 		}},
 		Enforcement: "required",
 	}, policy)
+}
+
+func TestFormatNetworkPolicyRules_Except(t *testing.T) {
+	ci.Parallel(t)
+
+	out := formatNetworkPolicyRules("egress", []*api.NetworkPolicyRule{{
+		Peers: []*api.NetworkPolicyPeer{{CIDR: []string{"0.0.0.0/0"}, Except: []string{"10.0.0.0/8", "169.254.169.254/32"}}},
+	}})
+	must.Eq(t, []string{"egress|#0|allow|0.0.0.0/0 except 10.0.0.0/8,169.254.169.254/32|<any>"}, out)
 }
 
 func TestParseNetworkPolicy_Errors(t *testing.T) {

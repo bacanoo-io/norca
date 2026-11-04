@@ -78,6 +78,10 @@ func TestNetworkPolicy_Validate(t *testing.T) {
 		"action in namespace":  func(p *NetworkPolicy) { p.Ingress[0].Action = NetworkPolicyActionDeny },
 		"bad cidr":             func(p *NetworkPolicy) { p.Egress[0].Peers[0].CIDR = []string{"10.0.0.0/33"} },
 		"cidr with selector":   func(p *NetworkPolicy) { p.Egress[0].Peers[0].Selector = map[string]string{"a": "b"} },
+		"except without cidr":  func(p *NetworkPolicy) { p.Ingress[0].Peers[0].Except = []string{"10.0.0.0/8"} },
+		"bad except":           func(p *NetworkPolicy) { p.Egress[0].Peers[0].Except = []string{"nope"} },
+		"except outside cidr":  func(p *NetworkPolicy) { p.Egress[0].Peers[0].Except = []string{"192.168.0.0/16"} },
+		"except larger":        func(p *NetworkPolicy) { p.Egress[0].Peers[0].Except = []string{"10.0.0.0/8"} },
 		"bad port":             func(p *NetworkPolicy) { p.Ingress[0].Ports = []string{"99999"} },
 		"egress port label":    func(p *NetworkPolicy) { p.Egress[0].Ports = []string{"db/tcp"} },
 		"bad peer namespace":   func(p *NetworkPolicy) { p.Ingress[0].Peers[0].Namespace = "no spaces" },
@@ -92,6 +96,15 @@ func TestNetworkPolicy_Validate(t *testing.T) {
 			must.Error(t, p.Validate())
 		})
 	}
+
+	// except prefixes inside the cidr blocks are valid, and survive a copy
+	ex := validNetworkPolicy()
+	ex.Canonicalize()
+	ex.Egress[0].Peers[0].Except = []string{"10.20.1.0/24", "10.20.2.0/24"}
+	must.NoError(t, ex.Validate())
+	c := ex.Copy()
+	c.Egress[0].Peers[0].Except[0] = "x"
+	must.Eq(t, "10.20.1.0/24", ex.Egress[0].Peers[0].Except[0])
 
 	// default_deny alone is a valid policy.
 	deny := &NetworkPolicy{Name: "deny", Namespace: "prod", DefaultDeny: []string{NetworkPolicyDirectionIngress}}
