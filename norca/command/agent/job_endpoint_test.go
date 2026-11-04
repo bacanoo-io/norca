@@ -4081,3 +4081,25 @@ func TestConversion_ApiConsulConnectToStructs(t *testing.T) {
 		}))
 	})
 }
+
+func TestApiServicesToStructs_ExposeLoadBalancer(t *testing.T) {
+	ci.Parallel(t)
+
+	out := ApiServicesToStructs([]*api.Service{
+		{
+			Name: "api-public",
+			// the block wins over the same keys set by hand
+			Meta: map[string]string{"norca_lb_class": "old", "owner": "web"},
+			Expose: &api.ServiceExpose{
+				LoadBalancer: &api.ServiceLoadBalancer{Class: "aws-nlb", Port: 443, Internal: true},
+			},
+		},
+		{Name: "plain", Meta: map[string]string{"a": "b"}, Expose: &api.ServiceExpose{}},
+		{Name: "none"},
+	}, true)
+	must.Eq(t, map[string]string{
+		"norca_lb_class": "aws-nlb", "norca_lb_port": "443", "norca_lb_internal": "true", "owner": "web",
+	}, out[0].Meta)
+	must.Eq(t, map[string]string{"a": "b"}, out[1].Meta)
+	must.Nil(t, out[2].Meta)
+}

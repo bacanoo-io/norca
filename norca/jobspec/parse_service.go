@@ -59,6 +59,7 @@ func parseService(o *ast.ObjectItem) (*api.Service, error) {
 		"provider",
 		"discovery",
 		"mtls",
+		"expose",
 	}
 	if err := checkHCLKeys(o.Val, valid); err != nil {
 		return nil, err
@@ -72,6 +73,7 @@ func parseService(o *ast.ObjectItem) (*api.Service, error) {
 
 	delete(m, "discovery")
 	delete(m, "mtls")
+	delete(m, "expose")
 	delete(m, "check")
 	delete(m, "check_restart")
 	delete(m, "connect")
@@ -120,6 +122,18 @@ func parseService(o *ast.ObjectItem) (*api.Service, error) {
 			return nil, multierror.Prefix(err, fmt.Sprintf("'%s',", service.Name))
 		}
 		service.Discovery = d
+	}
+
+	// Filter expose
+	if eo := listVal.Filter("expose"); len(eo.Items) > 0 {
+		if len(eo.Items) > 1 {
+			return nil, fmt.Errorf("expose '%s': cannot have more than 1 expose block", service.Name)
+		}
+		expose, err := parseServiceExpose(eo.Items[0])
+		if err != nil {
+			return nil, multierror.Prefix(err, fmt.Sprintf("'%s',", service.Name))
+		}
+		service.Expose = expose
 	}
 
 	// Filter mtls
@@ -1139,6 +1153,35 @@ func parseChecks(service *api.Service, checkObjs *ast.ObjectList) error {
 	}
 
 	return nil
+}
+
+func parseServiceExpose(o *ast.ObjectItem) (*api.ServiceExpose, error) {
+	if err := checkHCLKeys(o.Val, []string{"load_balancer"}); err != nil {
+		return nil, multierror.Prefix(err, "expose ->")
+	}
+	var expose api.ServiceExpose
+	obj, ok := o.Val.(*ast.ObjectType)
+	if !ok {
+		return nil, fmt.Errorf("expose: should be an object")
+	}
+	if lo := obj.List.Filter("load_balancer"); len(lo.Items) > 0 {
+		if len(lo.Items) > 1 {
+			return nil, fmt.Errorf("expose: cannot have more than 1 load_balancer block")
+		}
+		if err := checkHCLKeys(lo.Items[0].Val, []string{"class", "port", "internal"}); err != nil {
+			return nil, multierror.Prefix(err, "expose -> load_balancer ->")
+		}
+		var m map[string]interface{}
+		if err := hcl.DecodeObject(&m, lo.Items[0].Val); err != nil {
+			return nil, err
+		}
+		var lb api.ServiceLoadBalancer
+		if err := mapstructure.WeakDecode(m, &lb); err != nil {
+			return nil, err
+		}
+		expose.LoadBalancer = &lb
+	}
+	return &expose, nil
 }
 
 func parseServiceDiscovery(o *ast.ObjectItem) (*api.ServiceDiscovery, error) {

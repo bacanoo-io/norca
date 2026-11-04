@@ -20,12 +20,12 @@ import (
 	"github.com/bacanoo-io/norca/norca/controller"
 )
 
-// Service meta keys that mark a service for a load balancer. They stand in
-// for the planned jobspec block
+// Service meta keys that mark a service for a load balancer. The servers
+// write the jobspec block
 //
 //	service { expose { load_balancer { class = "..." port = 443 internal = false } } }
 //
-// until the jobspec gets it:
+// to them, and a service can also be marked by hand:
 //
 //	service {
 //	  name = "api-public"
