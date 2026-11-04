@@ -198,3 +198,19 @@ func TestLoadBalancer_KindFiles(t *testing.T) {
 	must.StrContains(t, string(kind), `group       = "`+Kind.Group+`"`)
 	must.StrContains(t, string(kind), `kind "`+Kind.Kind+`"`)
 }
+
+// TestLoadBalancer_PurgedJobDeletesObject: purging a job publishes its last
+// known state, which is not stopped, so the marks of the job cannot be read
+// from that event; the object of its service must still go.
+func TestLoadBalancer_PurgedJobDeletesObject(t *testing.T) {
+	e := startOperatorWith(t, true, controller.StorageNative)
+	e.cluster.setTargets("default", "api.public", Target{Address: "10.0.0.9", Port: 443})
+
+	e.b.PutJob(markedJob("api", "api.public", "nomad", "8443"))
+	waitFor(t, "object created from the mark", func() bool { return e.nativeObject(t, "api.public") != nil })
+	waitFor(t, "proxy job", func() bool { return e.b.GetJob("default", "lb-api.public") != nil })
+
+	e.b.RemoveJob("default", "api", true)
+	waitFor(t, "object deleted", func() bool { return e.nativeObject(t, "api.public") == nil })
+	waitFor(t, "proxy deleted", func() bool { return e.b.GetJob("default", "lb-api.public") == nil })
+}
