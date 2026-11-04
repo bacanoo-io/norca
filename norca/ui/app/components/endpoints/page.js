@@ -23,6 +23,13 @@ import {
 
 const CAPABILITY = 'register-external-service';
 
+// The text a new service starts from in the HCL view.
+const HCL_TEMPLATE = `external_service "my-service" {
+  address = "10.0.0.5"
+  port    = 5432
+}
+`;
+
 const UNITS = { ns: 1, us: 1e3, µs: 1e3, ms: 1e6, s: 1e9, m: 60e9, h: 3600e9 };
 
 // parseDuration reads a Go duration ("30s", "1h30m"); null when invalid.
@@ -472,6 +479,15 @@ export default class EndpointsPage extends Component {
     if (view === this.view) return;
     this.saveError = null;
     if (view === 'hcl') {
+      // A new service whose form is still empty starts from a template, so
+      // the text can be written directly.
+      if (this.editing.isNew && !this.editing.Name.trim()) {
+        this.hclText = HCL_TEMPLATE;
+        this.hclOriginal = '';
+        this.hclLanguage = 'hcl';
+        this.view = 'hcl';
+        return;
+      }
       let svc;
       try {
         svc = this.body();
