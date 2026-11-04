@@ -85,6 +85,7 @@ const (
 	BackupContentNetworkPolicies      = "network-policies"
 	BackupContentAdminNetworkPolicies = "admin-network-policies"
 	BackupContentServiceIntentions    = "service-intentions"
+	BackupContentExternalServices     = "external-services"
 	BackupContentObjectKinds          = "object-kinds"
 	BackupContentCustomObjects        = "custom-objects"
 	BackupContentSecretEngines        = "secret-engines"
@@ -112,6 +113,7 @@ var BackupContentTypes = []string{
 	BackupContentNetworkPolicies,
 	BackupContentAdminNetworkPolicies,
 	BackupContentServiceIntentions,
+	BackupContentExternalServices,
 	BackupContentObjectKinds,
 	BackupContentCustomObjects,
 	BackupContentSecretEngines,
@@ -156,6 +158,7 @@ const (
 	BackupRestoreItemNetworkPolicy      = "network-policy"
 	BackupRestoreItemAdminNetworkPolicy = "admin-network-policy"
 	BackupRestoreItemServiceIntention   = "service-intention"
+	BackupRestoreItemExternalService    = "external-service"
 	BackupRestoreItemCustomObject       = "custom-object"
 )
 

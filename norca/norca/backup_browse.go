@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/acl"
@@ -452,6 +454,17 @@ func backupObjects(store *state.StateStore, contentType string, f *backupContent
 			}
 		}
 
+	case structs.BackupContentExternalServices:
+		iter, iterErr := store.GetServiceRegistrations(ws)
+		err = each(iter, iterErr, func(raw any) {
+			reg := raw.(*structs.ServiceRegistration)
+			if reg.IsExternal() && namespaced(reg.Namespace, reg.ID) && f.allowed(func(a *acl.ACL) bool {
+				return a.AllowNsOp(reg.Namespace, acl.NamespaceCapabilityReadJob)
+			}) {
+				add(reg.Namespace, reg.ID, externalServiceDetail(reg), reg.ModifyIndex)
+			}
+		})
+
 	case structs.BackupContentObjectKinds:
 		iter, iterErr := store.ObjectKinds(ws, "", state.SortDefault)
 		err = each(iter, iterErr, func(raw any) {
@@ -550,6 +563,18 @@ func backupObjects(store *state.StateStore, contentType string, f *backupContent
 		return nil, true, err
 	}
 	return out, ok, nil
+}
+
+// externalServiceDetail describes an external service in the lists of a
+// backup: where it points to, and where it comes from.
+func externalServiceDetail(reg *structs.ServiceRegistration) string {
+	target := reg.Address
+	if reg.External.Kind == structs.ExternalServiceKindAlias {
+		target = "alias " + target
+	} else if reg.Port > 0 {
+		target = net.JoinHostPort(reg.Address, strconv.Itoa(reg.Port))
+	}
+	return target + " (" + reg.External.Source + ")"
 }
 
 // customObjectReadable applies the read rules of CustomObject.List: release

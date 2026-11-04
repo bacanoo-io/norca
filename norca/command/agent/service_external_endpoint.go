@@ -4,12 +4,15 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/api"
+	"github.com/bacanoo-io/norca/norca/helper/externalspec"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
@@ -27,6 +30,10 @@ func (s *HTTPServer) externalServiceRequest(resp http.ResponseWriter, req *http.
 
 	parts := strings.Split(rest, "/")
 	switch {
+	case len(parts) == 1 && (parts[0] == "parse" || parts[0] == "format") && req.Method == http.MethodPost:
+		out, err := s.externalServiceFile(resp, req, parts[0])
+		return out, true, err
+
 	case len(parts) == 1 && parts[0] != "" && req.Method == http.MethodPut:
 		out, err := s.externalServiceRegister(resp, req, parts[0])
 		return out, true, err
@@ -53,6 +60,72 @@ func (s *HTTPServer) externalServiceRequest(resp http.ResponseWriter, req *http.
 	return nil, false, nil
 }
 
+// externalServiceFile serves POST /v1/service/external/parse and
+// /v1/service/external/format: the conversion between the file form (HCL or
+// JSON) of external services and the API form. A file with errors is answered
+// with its problems, not with an error.
+func (s *HTTPServer) externalServiceFile(resp http.ResponseWriter, req *http.Request, op string) (any, error) {
+	var namespace string
+	parseNamespace(req, &namespace)
+
+	aclObj, err := s.ResolveToken(req)
+	if err != nil {
+		return nil, err
+	}
+	if aclObj != nil && !aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityRegisterExternalService) &&
+		!aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityReadJob) {
+		return nil, structs.ErrPermissionDenied
+	}
+
+	if op == "format" {
+		var in api.ExternalServiceFormatRequest
+		if err := decodeBody(req, &in); err != nil {
+			return nil, CodedError(http.StatusBadRequest, err.Error())
+		}
+		items := make([]*externalspec.Item, 0, len(in.Items))
+		for _, it := range in.Items {
+			if it == nil || it.Service == nil || it.Service.Name == "" {
+				return nil, CodedError(http.StatusBadRequest, "every item needs a service with a name")
+			}
+			items = append(items, &externalspec.Item{Namespace: it.Namespace, Service: it.Service})
+		}
+		return &api.ExternalServiceFormatResponse{Text: string(externalspec.Format(items))}, nil
+	}
+
+	var in api.ExternalServiceParseRequest
+	if err := decodeBody(req, &in); err != nil {
+		return nil, CodedError(http.StatusBadRequest, err.Error())
+	}
+	out := &api.ExternalServiceParseResponse{}
+	items, err := externalspec.Parse("input", []byte(in.Text), in.JSON)
+	if err != nil {
+		var pe *externalspec.Error
+		if !errors.As(err, &pe) {
+			return nil, CodedError(http.StatusBadRequest, err.Error())
+		}
+		for _, p := range pe.Problems {
+			out.Problems = append(out.Problems, &api.ExternalServiceProblem{Message: p.Message, Line: p.Line})
+		}
+		return out, nil
+	}
+	for _, it := range items {
+		reg, err := ApiExternalServiceToStructs(it.Service)
+		if err == nil {
+			for _, check := range reg.External.Checks {
+				check.Canonicalize()
+			}
+			err = reg.ValidateExternal()
+		}
+		if err != nil {
+			out.Problems = append(out.Problems, &api.ExternalServiceProblem{
+				Message: fmt.Sprintf("external service %q: %v", it.Service.Name, err)})
+			continue
+		}
+		out.Items = append(out.Items, &api.ExternalServiceItem{Namespace: it.Namespace, Service: it.Service})
+	}
+	return out, nil
+}
+
 // externalServiceRegister serves PUT /v1/service/external/:name.
 func (s *HTTPServer) externalServiceRegister(resp http.ResponseWriter, req *http.Request,
 	name string) (any, error) {
@@ -77,7 +150,8 @@ func (s *HTTPServer) externalServiceRegister(resp http.ResponseWriter, req *http
 	s.parseWriteRequest(req, &args.WriteRequest)
 
 	var reply structs.ExternalServiceUpsertResponse
-	if client := s.agent.Client(); client != nil && reg.External.HasNodeChecks() && in.NodeID == "" {
+	if client := s.agent.Client(); client != nil && reg.External.HasNodeChecks() && in.NodeID == "" &&
+		reg.External.CheckedBy == nil {
 		// the client node of this agent runs the http and tcp checks
 		err = client.RegisterExternalService(&args, &reply)
 	} else {
@@ -179,6 +253,22 @@ func ApiExternalServiceToStructs(in *api.ExternalService) (*structs.ServiceRegis
 		Source:                  structs.ExternalServiceSourceAPI,
 		DeregisterCriticalAfter: structs.DefaultExternalDeregisterCriticalAfter,
 	}
+	if in.Declared {
+		ext.Source = structs.ExternalServiceSourceApply
+		ext.DeregisterCriticalAfter = 0
+	}
+	if in.CheckedBy != nil {
+		if in.NodeID != "" {
+			return nil, fmt.Errorf("checked_by cannot be combined with a node")
+		}
+		ext.CheckedBy = &structs.ExternalCheckedBy{
+			NodePool:    in.CheckedBy.NodePool,
+			Datacenters: in.CheckedBy.Datacenters,
+		}
+	}
+	if in.Declared && in.NodeID != "" {
+		return nil, fmt.Errorf("a declared service cannot be bound to a node: use checked_by")
+	}
 	if in.DeregisterCriticalAfter != nil {
 		ext.DeregisterCriticalAfter = *in.DeregisterCriticalAfter
 	}
@@ -221,7 +311,7 @@ func ApiExternalServiceToStructs(in *api.ExternalService) (*structs.ServiceRegis
 		ext.Checks = append(ext.Checks, check)
 	}
 
-	return &structs.ServiceRegistration{
+	reg := &structs.ServiceRegistration{
 		ID:          id,
 		ServiceName: in.Name,
 		Datacenter:  in.Datacenter,
@@ -230,5 +320,9 @@ func ApiExternalServiceToStructs(in *api.ExternalService) (*structs.ServiceRegis
 		Port:        in.Port,
 		Meta:        in.Meta,
 		External:    ext,
-	}, nil
+	}
+	if in.Declared && ext.HasNodeChecks() && ext.CheckedBy == nil {
+		return nil, fmt.Errorf("the http and tcp checks of a declared service need checked_by")
+	}
+	return reg, nil
 }

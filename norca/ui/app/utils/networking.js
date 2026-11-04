@@ -75,6 +75,25 @@ export function saveExternalService(token, region, namespace, svc) {
   );
 }
 
+// The file form (HCL or JSON) of external services: parseExternalServices
+// returns { Items, Problems } (a file with errors is not an HTTP error), and
+// formatExternalServices the HCL text of items.
+export function parseExternalServices(token, region, namespace, text, json) {
+  return apiRequest(token, '/v1/service/external/parse', {
+    method: 'POST',
+    params: { region, namespace },
+    data: { Text: text, JSON: json || undefined },
+  });
+}
+
+export function formatExternalServices(token, region, namespace, items) {
+  return apiRequest(token, '/v1/service/external/format', {
+    method: 'POST',
+    params: { region, namespace },
+    data: { Items: items },
+  });
+}
+
 export function deleteExternalService(token, region, namespace, id) {
   return apiRequest(token, `/v1/service/external/${encodeURIComponent(id)}`, {
     method: 'DELETE',

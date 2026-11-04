@@ -40,6 +40,12 @@ func backupObjectsStore(t *testing.T) *state.StateStore {
 		ID: "7a1c2f4e-0000-4000-8000-000000000001", Group: "example.com", Kind: "Widget",
 		Namespace: "default", Name: "one"}, 0))
 	must.NoError(t, store.UpsertNodePools(m, 17, []*structs.NodePool{{Name: "edge"}}))
+	must.NoError(t, store.UpsertServiceRegistrations(m, 19, []*structs.ServiceRegistration{
+		{ID: "billing-db", ServiceName: "billing-db", Namespace: "default", Address: "billing.example.com", Port: 0,
+			External: &structs.ServiceExternal{Kind: structs.ExternalServiceKindAlias, Source: structs.ExternalServiceSourceApply}},
+		// the registration of an allocation is not an external service
+		{ID: "_nomad-task-1", ServiceName: "web", Namespace: "default", AllocID: "a1", JobID: "web", Address: "10.0.0.1", Port: 80},
+	}))
 	token := mock.ACLToken()
 	must.NoError(t, store.UpsertACLTokens(m, 18, []*structs.ACLToken{token}))
 	return store
@@ -87,6 +93,7 @@ func TestBackupDiff_NorcaObjects(t *testing.T) {
 		"object-kinds/example.com/Widget":         "",
 		"custom-objects/example.com/Widget/one":   "default",
 		"node-pools/edge":                         "",
+		"external-services/billing-db":            "default",
 	} {
 		actual, ok := got[key]
 		must.True(t, ok, must.Sprintf("%s is not in the diff: %v", key, got))
@@ -119,6 +126,7 @@ func TestBackupObjects_ACL(t *testing.T) {
 
 	reader := aclFor(`namespace "default" { policy = "read" }`)
 	must.Eq(t, []string{"default/probe -> api"}, ids(structs.BackupContentServiceIntentions, reader))
+	must.Eq(t, []string{"billing-db"}, ids(structs.BackupContentExternalServices, reader))
 	must.SliceEmpty(t, ids(structs.BackupContentQuotas, reader))
 	must.SliceEmpty(t, ids(structs.BackupContentAdmissionPolicies, reader))
 	must.SliceEmpty(t, ids(structs.BackupContentAdminNetworkPolicies, reader))
@@ -127,6 +135,7 @@ func TestBackupObjects_ACL(t *testing.T) {
 
 	other := aclFor(`namespace "other" { policy = "read" }`)
 	must.SliceEmpty(t, ids(structs.BackupContentServiceIntentions, other))
+	must.SliceEmpty(t, ids(structs.BackupContentExternalServices, other))
 
 	must.Eq(t, []string{"apps"}, ids(structs.BackupContentQuotas, aclFor(`quota { policy = "read" }`)))
 	must.Len(t, 1, ids(structs.BackupContentACLTokens, acl.ManagementACL))
@@ -316,12 +325,35 @@ func TestBackupEndpoint_RestoreObjects(t *testing.T) {
 		Object:       testPGObject("prod", "one", map[string]any{"version": "16"}),
 		WriteRequest: intentionWrite}, &objectResp)
 
+	// external services: one whose checking node the servers choose, a
+	// static alias, and one that an application registered through the
+	// Consul-compatible API
+	extStore := srv.fsm.State()
+	extIndex, _ := extStore.LatestIndex()
+	node := mock.Node()
+	node.Datacenter = "dc1"
+	must.NoError(t, extStore.UpsertNode(structs.MsgTypeTestSetup, extIndex+1, node))
+	var extResp structs.ExternalServiceUpsertResponse
+	call(structs.ServiceRegistrationUpsertExternalRPCMethod, &structs.ExternalServiceUpsertRequest{
+		Service:      declaredHTTPService("orders-db", &structs.ExternalCheckedBy{NodePool: "default"}),
+		WriteRequest: intentionWrite}, &extResp)
+	call(structs.ServiceRegistrationUpsertExternalRPCMethod, &structs.ExternalServiceUpsertRequest{
+		Service: &structs.ServiceRegistration{ID: "billing-db", ServiceName: "billing-db", Address: "billing.example.com",
+			External: &structs.ServiceExternal{Kind: structs.ExternalServiceKindAlias, Source: structs.ExternalServiceSourceAPI}},
+		WriteRequest: intentionWrite}, &extResp)
+	must.NoError(t, extStore.UpsertServiceRegistrations(structs.MsgTypeTestSetup, extIndex+2, []*structs.ServiceRegistration{{
+		ID: "spring-app", ServiceName: "spring-app", Namespace: "prod", NodeID: node.ID, Address: "10.0.0.8", Port: 8080,
+		External: &structs.ServiceExternal{Kind: structs.ExternalServiceKindAddress, Source: structs.ExternalServiceSourceConsul}}}))
+
 	must.NoError(t, srv.backup.SetConfig(testBackupConfig(s3, identity, true)))
 	record := waitForBackup(t, srv, 1)
 
 	store := srv.fsm.State()
 	index, _ := store.LatestIndex()
 	m := structs.MsgTypeTestSetup
+	for i, id := range []string{"orders-db", "billing-db", "spring-app"} {
+		must.NoError(t, store.DeleteServiceRegistrationByID(m, index+10+uint64(i), "prod", id))
+	}
 	must.NoError(t, store.DeleteCustomObject(m, index+1, "db.example.com", "PostgresCluster", "prod", "one", 0))
 	must.NoError(t, store.DeleteServiceIntentions(m, index+2, []*structs.ServiceIntention{intention}))
 	must.NoError(t, store.DeleteAdminNetworkPolicies(m, index+3, []string{"no-metadata"}))
@@ -358,8 +390,22 @@ func TestBackupEndpoint_RestoreObjects(t *testing.T) {
 		{Type: structs.BackupRestoreItemNetworkPolicy, Namespace: "prod", ID: "web"},
 		{Type: structs.BackupRestoreItemAdminNetworkPolicy, ID: "no-metadata"},
 		{Type: structs.BackupRestoreItemServiceIntention, Namespace: "prod", ID: "prod/probe -> api"},
+		{Type: structs.BackupRestoreItemExternalService, Namespace: "prod", ID: "orders-db"},
+		{Type: structs.BackupRestoreItemExternalService, Namespace: "prod", ID: "billing-db"},
 		{Type: structs.BackupRestoreItemCustomObject, Namespace: "prod", ID: "db.example.com/PostgresCluster/one"},
 	}
+
+	// A service that an application registered through the Consul-compatible
+	// API registers itself again; one that is not in the backup is refused.
+	results = restore(false, &structs.BackupRestoreItem{Type: structs.BackupRestoreItemExternalService,
+		Namespace: "prod", ID: "spring-app"})
+	must.StrContains(t, results[0].Error, "Consul-compatible API")
+	results = restore(false, &structs.BackupRestoreItem{Type: structs.BackupRestoreItemExternalService,
+		Namespace: "prod", ID: "nothing"})
+	must.StrContains(t, results[0].Error, "not found in the backup")
+	reg, err := store.GetServiceRegistrationByID(nil, "prod", "orders-db")
+	must.NoError(t, err)
+	must.Nil(t, reg)
 	for _, r := range restore(true, items...) {
 		must.Eq(t, "", r.Error, must.Sprint(r.Item.Type))
 		must.Eq(t, "create", r.Action, must.Sprint(r.Item.Type))
@@ -389,6 +435,21 @@ func TestBackupEndpoint_RestoreObjects(t *testing.T) {
 	must.NoError(t, err)
 	must.NotNil(t, obj)
 	must.Eq(t, "16", obj.Spec["version"].(string))
+
+	// The services are back: the one with checked_by has a checking node
+	// again, chosen by the servers.
+	orders, err := store.GetServiceRegistrationByID(nil, "prod", "orders-db")
+	must.NoError(t, err)
+	must.NotNil(t, orders)
+	must.Eq(t, structs.ExternalServiceSourceApply, orders.External.Source)
+	must.Eq(t, node.ID, orders.NodeID)
+	billing, err := store.GetServiceRegistrationByID(nil, "prod", "billing-db")
+	must.NoError(t, err)
+	must.NotNil(t, billing)
+	must.Eq(t, "billing.example.com", billing.Address)
+	spring, err := store.GetServiceRegistrationByID(nil, "prod", "spring-app")
+	must.NoError(t, err)
+	must.Nil(t, spring)
 }
 
 func mustQuota(t *testing.T, store *state.StateStore, name string) *structs.QuotaSpec {

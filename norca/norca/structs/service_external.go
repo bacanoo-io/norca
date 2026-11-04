@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -62,6 +63,11 @@ const (
 	// endpoints of the Consul-compatible API.
 	ExternalServiceSourceConsul = "consul"
 
+	// ExternalServiceSourceApply marks registrations declared in a file
+	// ("norca service apply") or edited as HCL. They are kept until they are
+	// deregistered, and a node chosen by the servers runs their checks.
+	ExternalServiceSourceApply = "apply"
+
 	// ExternalCheckTypeTTL is a check whose status the registrant reports;
 	// it turns critical when it is not renewed within its TTL.
 	ExternalCheckTypeTTL = "ttl"
@@ -107,8 +113,14 @@ type ServiceExternal struct {
 	// is the target DNS name.
 	Kind string
 
-	// Source is where the registration came from: api or consul.
+	// Source is where the registration came from: api, apply or consul.
 	Source string
+
+	// CheckedBy, if set, lets the servers choose the client node that runs
+	// the http and tcp checks: the node of the registration is the eligible
+	// ready node of the pool and datacenters with the highest rendezvous
+	// hash, and moves to another node when that one goes away.
+	CheckedBy *ExternalCheckedBy
 
 	// LocalID is the ID given to the registration at the client agent it was
 	// registered with through the Consul-compatible API; the registration ID
@@ -122,6 +134,43 @@ type ServiceExternal struct {
 	// DeregisterCriticalAfter is how long the registration may stay critical
 	// before it is deregistered; zero keeps it.
 	DeregisterCriticalAfter time.Duration
+}
+
+// ExternalCheckedBy selects the client nodes that may run the checks of an
+// external service.
+type ExternalCheckedBy struct {
+	// NodePool limits the nodes to a node pool; empty means every pool.
+	NodePool string
+
+	// Datacenters limits the nodes to datacenters (glob patterns); empty
+	// means every datacenter.
+	Datacenters []string
+}
+
+// Copy returns a deep copy of c.
+func (c *ExternalCheckedBy) Copy() *ExternalCheckedBy {
+	if c == nil {
+		return nil
+	}
+	nc := *c
+	nc.Datacenters = append([]string(nil), c.Datacenters...)
+	return &nc
+}
+
+// Equal returns whether c and o are equal.
+func (c *ExternalCheckedBy) Equal(o *ExternalCheckedBy) bool {
+	if c == nil || o == nil {
+		return c == o
+	}
+	if c.NodePool != o.NodePool || len(c.Datacenters) != len(o.Datacenters) {
+		return false
+	}
+	for i := range c.Datacenters {
+		if c.Datacenters[i] != o.Datacenters[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // ExternalServiceCheck is the definition of a check of an external service.
@@ -171,6 +220,7 @@ func (e *ServiceExternal) Copy() *ServiceExternal {
 		return nil
 	}
 	ne := *e
+	ne.CheckedBy = e.CheckedBy.Copy()
 	if e.Checks != nil {
 		ne.Checks = make([]*ExternalServiceCheck, len(e.Checks))
 		for i, c := range e.Checks {
@@ -186,7 +236,8 @@ func (e *ServiceExternal) Equal(o *ServiceExternal) bool {
 		return e == o
 	}
 	if e.Kind != o.Kind || e.Source != o.Source || e.LocalID != o.LocalID ||
-		e.DeregisterCriticalAfter != o.DeregisterCriticalAfter || len(e.Checks) != len(o.Checks) {
+		e.DeregisterCriticalAfter != o.DeregisterCriticalAfter || len(e.Checks) != len(o.Checks) ||
+		!e.CheckedBy.Equal(o.CheckedBy) {
 		return false
 	}
 	for i := range e.Checks {
@@ -384,6 +435,23 @@ func (s *ServiceRegistration) ValidateExternal() error {
 	}
 	if s.External.DeregisterCriticalAfter < 0 {
 		mErr.Errors = append(mErr.Errors, errors.New("deregister_critical_after cannot be negative"))
+	}
+	switch s.External.Source {
+	case "", ExternalServiceSourceAPI, ExternalServiceSourceApply, ExternalServiceSourceConsul:
+	default:
+		mErr.Errors = append(mErr.Errors, fmt.Errorf("invalid source %q", s.External.Source))
+	}
+	if cb := s.External.CheckedBy; cb != nil {
+		if !s.External.HasNodeChecks() {
+			mErr.Errors = append(mErr.Errors, errors.New("checked_by needs an http or tcp check"))
+		}
+		for _, dc := range cb.Datacenters {
+			if dc == "" {
+				mErr.Errors = append(mErr.Errors, errors.New("checked_by: empty datacenter"))
+			} else if _, err := path.Match(dc, ""); err != nil {
+				mErr.Errors = append(mErr.Errors, fmt.Errorf("checked_by: invalid datacenter pattern %q", dc))
+			}
+		}
 	}
 
 	seen := make(map[string]bool)

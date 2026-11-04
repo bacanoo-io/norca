@@ -74,8 +74,16 @@ export default function registerNetworkRoutes(server) {
       return error(400, 'service name does not match the URL');
     if (kind === 'alias' ? !svc.Target : !svc.Address)
       return error(400, 'invalid external service: missing address');
-    const checks = (svc.Checks || []).map((c) => ({ ID: c.ID || c.Type, ...c }));
-    if (checks.some((c) => c.Type !== 'ttl') && !svc.NodeID)
+    const checks = (svc.Checks || []).map((c) => ({
+      ID: c.ID || c.Type,
+      ...c,
+    }));
+    if (svc.Declared && checks.some((c) => c.Type !== 'ttl') && !svc.CheckedBy)
+      return error(
+        400,
+        'the http and tcp checks of a declared service need checked_by'
+      );
+    if (checks.some((c) => c.Type !== 'ttl') && !svc.NodeID && !svc.CheckedBy)
       return error(
         400,
         'http and tcp checks are run by a client node: register the service through a client agent'
@@ -90,7 +98,7 @@ export default function registerNetworkRoutes(server) {
       Tags: svc.Tags || [],
       Meta: svc.Meta || null,
       Datacenter: svc.Datacenter || '',
-      NodeID: svc.NodeID || '',
+      NodeID: svc.CheckedBy ? db.nodes[0]?.id || '' : svc.NodeID || '',
       JobID: '',
       AllocID: '',
       Ready: true,
@@ -98,10 +106,12 @@ export default function registerNetworkRoutes(server) {
       Checks: checks.map((c) => ({ ID: c.ID, Name: c.ID, Status: 'passing' })),
       External: {
         Kind: kind,
-        Source: 'api',
+        Source: svc.Declared ? 'apply' : 'api',
         LocalID: '',
+        CheckedBy: svc.CheckedBy || null,
         Checks: checks,
-        DeregisterCriticalAfter: svc.DeregisterCriticalAfter ?? 3600e9,
+        DeregisterCriticalAfter:
+          svc.DeregisterCriticalAfter ?? (svc.Declared ? 0 : 3600e9),
       },
     };
     const services = collection(db, 'norcaServices');
@@ -114,10 +124,110 @@ export default function registerNetworkRoutes(server) {
   server.delete('/service/external/:id', function ({ db }, request) {
     const namespace = request.queryParams.namespace || 'default';
     const services = collection(db, 'norcaServices');
-    const existing = services.findBy({ ID: request.params.id, Namespace: namespace });
-    if (!existing || !existing.External) return error(404, 'external service not found');
+    const existing = services.findBy({
+      ID: request.params.id,
+      Namespace: namespace,
+    });
+    if (!existing || !existing.External)
+      return error(404, 'external service not found');
     services.remove(existing.id);
     return json(null);
+  });
+
+  // The file form of external services. The real servers parse HCL; the
+  // mock reads the few attributes the tests use.
+  server.post('/service/external/parse', function (_schema, request) {
+    const { Text: text, JSON: isJson } = body(request);
+    if (isJson) {
+      try {
+        const doc = JSON.parse(text);
+        const list = Array.isArray(doc) ? doc : [doc];
+        return json({
+          Items: list.map(({ Namespace, ...Service }) => ({
+            Namespace: Namespace || '',
+            Service: { ...Service, Declared: true },
+          })),
+          Problems: [],
+        });
+      } catch (e) {
+        return json({ Items: [], Problems: [{ Message: e.message }] });
+      }
+    }
+    const lines = text.split('\n');
+    const problems = [];
+    lines.forEach((line, i) => {
+      if (/^\s*nope\s*=/.test(line))
+        problems.push({ Message: 'Unsupported argument: nope', Line: i + 1 });
+    });
+    if (problems.length) return json({ Items: [], Problems: problems });
+    const items = [];
+    const re = /external_service\s+"([^"]+)"\s*\{([\s\S]*?)\n\}/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const [, name, inner] = m;
+      const attr = (key) => {
+        const a = new RegExp(`^\\s*${key}\\s*=\\s*"([^"]*)"`, 'm').exec(inner);
+        return a ? a[1] : '';
+      };
+      const port = /^\s*port\s*=\s*(\d+)/m.exec(inner);
+      const alias = attr('type') === 'alias';
+      const service = {
+        Name: name,
+        Kind: alias ? 'alias' : 'address',
+        Declared: true,
+      };
+      if (alias) service.Target = attr('target');
+      else service.Address = attr('address');
+      if (port) service.Port = Number(port[1]);
+      if (/^\s*check\s*\{/m.test(inner)) {
+        service.Checks = [
+          { Type: 'tcp', TCP: attr('tcp'), Interval: 10e9, Timeout: 2e9 },
+        ];
+      }
+      if (/checked_by\s*\{/.test(inner)) {
+        const pool = /checked_by\s*\{[^}]*node_pool\s*=\s*"([^"]*)"/.exec(
+          inner
+        );
+        service.CheckedBy = { NodePool: pool ? pool[1] : '' };
+      }
+      items.push({ Namespace: attr('namespace'), Service: service });
+    }
+    if (!items.length)
+      return json({
+        Items: [],
+        Problems: [{ Message: 'no external service found' }],
+      });
+    return json({ Items: items, Problems: [] });
+  });
+
+  server.post('/service/external/format', function (_schema, request) {
+    const { Items: items } = body(request);
+    const text = items
+      .map(({ Namespace, Service: s }) => {
+        const out = [`external_service "${s.Name}" {`];
+        if (Namespace) out.push(`  namespace = "${Namespace}"`);
+        if (s.Kind === 'alias') {
+          out.push('  type      = "alias"', `  target    = "${s.Target}"`);
+        } else {
+          out.push(`  address = "${s.Address}"`);
+        }
+        if (s.Port) out.push(`  port = ${s.Port}`);
+        (s.Checks || []).forEach((c) => {
+          out.push('', '  check {', `    type = "${c.Type}"`);
+          if (c.TCP) out.push(`    tcp  = "${c.TCP}"`);
+          out.push('  }');
+        });
+        if (s.CheckedBy) {
+          out.push('', '  checked_by {');
+          if (s.CheckedBy.NodePool)
+            out.push(`    node_pool = "${s.CheckedBy.NodePool}"`);
+          out.push('  }');
+        }
+        out.push('}');
+        return out.join('\n');
+      })
+      .join('\n\n');
+    return json({ Text: text + '\n' });
   });
 
   // Intentions

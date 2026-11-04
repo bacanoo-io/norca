@@ -215,6 +215,55 @@ func (r *backupRestorer) restoreServiceIntention(item *structs.BackupRestoreItem
 	return nil
 }
 
+// restoreExternalService registers an external service of the backup again,
+// through the endpoint that registers them, so that its permissions apply: the
+// register-external-service capability, and operator write for a service
+// without checks. A service registered through the Consul-compatible API is
+// not restored: its application registers it again. A service owned by a
+// client node goes back to that node, which must exist and needs node write;
+// a service with a checked_by selector gets its checking node from the
+// servers. The states of the checks start again from their initial status.
+func (r *backupRestorer) restoreExternalService(item *structs.BackupRestoreItem, result *structs.BackupRestoreItemResult) error {
+	reg, err := r.loaded.State.GetServiceRegistrationByID(nil, item.Namespace, item.ID)
+	if err != nil {
+		return err
+	}
+	if reg == nil || !reg.IsExternal() {
+		return fmt.Errorf("external service %q not found in the backup", item.ID)
+	}
+	if reg.External.Source == structs.ExternalServiceSourceConsul {
+		return fmt.Errorf("external service %q was registered through the Consul-compatible API: its application registers it again", item.ID)
+	}
+
+	current, err := r.b.srv.State().GetServiceRegistrationByID(nil, item.Namespace, item.ID)
+	if err != nil {
+		return err
+	}
+	if current != nil && !current.IsExternal() {
+		return fmt.Errorf("service ID %q is used by a registration of allocation %s", item.ID, current.AllocID)
+	}
+	r.describe(result, "external service", item.ID, current != nil, func() uint64 { return current.ModifyIndex })
+	if r.args.DryRun {
+		return nil
+	}
+
+	restored := reg.Copy()
+	restored.CreateIndex, restored.ModifyIndex = 0, 0
+	req := &structs.ExternalServiceUpsertRequest{
+		Service:      restored,
+		WriteRequest: r.writeRequest(item.Namespace),
+	}
+	if reg.External.CheckedBy == nil {
+		req.NodeID = reg.NodeID
+	}
+	var resp structs.ExternalServiceUpsertResponse
+	if err := r.b.srv.RPC(structs.ServiceRegistrationUpsertExternalRPCMethod, req, &resp); err != nil {
+		return err
+	}
+	result.Index = resp.Index
+	return nil
+}
+
 // restoreCustomObject applies the spec, labels and owners of an object of the
 // backup; its status is left to its controller. The objects of the package
 // manager are not restored one by one: a release owns jobs and other

@@ -15,6 +15,8 @@ import {
   healthSummary,
   listExternalServices,
   saveExternalService,
+  parseExternalServices,
+  formatExternalServices,
   deleteExternalService,
   listNodes,
 } from 'nomad-ui/utils/networking';
@@ -91,6 +93,10 @@ export default class EndpointsPage extends Component {
   @tracked isLoading = true;
   @tracked error = null;
   @tracked editing = null;
+  @tracked view = 'form';
+  @tracked hclText = '';
+  @tracked hclOriginal = '';
+  @tracked hclLanguage = 'hcl';
   @tracked isSaving = false;
   @tracked saveError = null;
   @tracked deleting = null;
@@ -156,6 +162,8 @@ export default class EndpointsPage extends Component {
           health: healthSummary([s]),
           checkTypes: checks.map((c) => c.Type).join(', ') || 'static',
           owner: s.NodeID ? this.nodeName(s.NodeID) : '',
+          declared: s.External?.Source === 'apply',
+          chosenByServers: Boolean(s.External?.CheckedBy),
           fromConsul: s.External?.Source === 'consul',
           canWrite:
             s.External?.Source !== 'consul' &&
@@ -232,15 +240,21 @@ export default class EndpointsPage extends Component {
       Tags: '',
       Meta: '',
       NodeID: '',
+      Declared: false,
+      CheckerMode: 'node',
+      CheckerPool: '',
+      CheckerDatacenters: '',
       DeregisterCriticalAfter: '1h',
       Checks: [],
     };
+    this.view = 'form';
   }
 
   @action
   edit(row) {
     this.saveError = null;
     const ext = row.External || {};
+    this.view = 'form';
     this.editing = {
       isNew: false,
       ID: row.ID,
@@ -256,6 +270,10 @@ export default class EndpointsPage extends Component {
         .map(([k, v]) => `${k}=${v}`)
         .join('\n'),
       NodeID: row.NodeID || '',
+      Declared: ext.Source === 'apply',
+      CheckerMode: ext.CheckedBy ? 'pool' : 'node',
+      CheckerPool: ext.CheckedBy?.NodePool || '',
+      CheckerDatacenters: (ext.CheckedBy?.Datacenters || []).join(', '),
       DeregisterCriticalAfter: formatDuration(ext.DeregisterCriticalAfter),
       Checks: (ext.Checks || []).map((c) => ({
         ID: c.ID,
@@ -300,7 +318,36 @@ export default class EndpointsPage extends Component {
   }
 
   get needsNode() {
+    return (
+      this.editing?.CheckerMode !== 'pool' &&
+      (this.editing?.Checks || []).some((c) => c.Type !== 'ttl')
+    );
+  }
+
+  get hasNodeChecks() {
     return (this.editing?.Checks || []).some((c) => c.Type !== 'ttl');
+  }
+
+  get isPoolMode() {
+    return this.editing?.CheckerMode === 'pool';
+  }
+
+  get checkerModeOptions() {
+    return [
+      { value: 'node', label: 'A client node I choose' },
+      { value: 'pool', label: 'A node the servers choose' },
+    ];
+  }
+
+  get viewTabs() {
+    return [
+      { id: 'form', label: 'Form' },
+      { id: 'hcl', label: 'HCL' },
+    ];
+  }
+
+  get hclLanguages() {
+    return ['hcl', 'json'];
   }
 
   get kindOptions() {
@@ -330,8 +377,18 @@ export default class EndpointsPage extends Component {
       Name: name,
       Kind: e.Kind,
       Datacenter: e.Datacenter.trim() || undefined,
-      NodeID: e.NodeID || undefined,
+      NodeID: e.CheckerMode === 'pool' ? undefined : e.NodeID || undefined,
     };
+    if (e.Declared) svc.Declared = true;
+    if (e.CheckerMode === 'pool') {
+      const datacenters = e.CheckerDatacenters.split(',')
+        .map((d) => d.trim())
+        .filter(Boolean);
+      svc.CheckedBy = {
+        NodePool: e.CheckerPool.trim() || undefined,
+        Datacenters: datacenters.length ? datacenters : undefined,
+      };
+    }
     if (!e.isNew) svc.ID = e.ID;
     if (e.Kind === 'alias') {
       if (!e.Target.trim()) throw 'A domain needs the DNS name it points to.';
@@ -394,12 +451,203 @@ export default class EndpointsPage extends Component {
     if (this.needsNode && !e.NodeID) {
       throw 'HTTP and TCP checks run on a client node: choose the node.';
     }
+    if (e.CheckerMode === 'pool' && !this.hasNodeChecks) {
+      throw 'A node chosen by the servers needs an HTTP or TCP check.';
+    }
+    if (e.Declared && this.hasNodeChecks && e.CheckerMode !== 'pool') {
+      throw 'The HTTP and TCP checks of a declared service need a node chosen by the servers.';
+    }
     return svc;
   }
 
   @action
   closeEditor() {
     if (!this.isSaving) this.editing = null;
+  }
+
+  // --- the HCL view: the same service as text, converted by the servers
+
+  @action
+  async selectView(view) {
+    if (view === this.view) return;
+    this.saveError = null;
+    if (view === 'hcl') {
+      let svc;
+      try {
+        svc = this.body();
+      } catch (message) {
+        this.saveError = String(message);
+        return;
+      }
+      if (this.hasNodeChecks && !this.isPoolMode) {
+        this.saveError =
+          'The HTTP and TCP checks of the text form run on a node chosen by the servers: change "Checks run on" first.';
+        return;
+      }
+      try {
+        const { body } = await formatExternalServices(
+          this.token,
+          this.region,
+          this.editing.Namespace,
+          [
+            {
+              Namespace: this.editing.Namespace,
+              Service: { ...svc, Declared: true },
+            },
+          ]
+        );
+        this.hclText = body.Text;
+        this.hclOriginal = this.editing.isNew ? '' : body.Text;
+        this.hclLanguage = 'hcl';
+        this.view = 'hcl';
+      } catch (e) {
+        this.saveError = errorMessage(e);
+      }
+      return;
+    }
+    // back to the form: the text must be exactly one valid service
+    const items = await this.parseText(this.hclText, this.hclLanguage);
+    if (!items) return;
+    if (items.length !== 1) {
+      this.saveError =
+        'The form edits one service; the text has ' + items.length + '.';
+      return;
+    }
+    this.editing = this.fromItem(items[0]);
+    this.view = 'form';
+  }
+
+  // parseText returns the items of the text, or sets saveError.
+  async parseText(text, language) {
+    try {
+      const { body } = await parseExternalServices(
+        this.token,
+        this.region,
+        this.editing.Namespace,
+        text,
+        language === 'json'
+      );
+      if (body.Problems?.length) {
+        this.saveError = body.Problems.map((p) =>
+          p.Line ? `line ${p.Line}: ${p.Message}` : p.Message
+        ).join('; ');
+        return null;
+      }
+      return body.Items || [];
+    } catch (e) {
+      this.saveError = errorMessage(e);
+      return null;
+    }
+  }
+
+  // fromItem builds the form state of a service of a file.
+  fromItem(item) {
+    const s = item.Service;
+    const alias = s.Kind === 'alias';
+    const ext = this.editing;
+    return {
+      isNew: ext.isNew,
+      ID: s.ID || ext.ID,
+      Namespace: item.Namespace || ext.Namespace,
+      Name: s.Name,
+      Kind: s.Kind || 'address',
+      Address: alias ? '' : s.Address || '',
+      Port: s.Port ? String(s.Port) : '',
+      Target: alias ? s.Target || '' : '',
+      Datacenter: s.Datacenter || '',
+      Tags: (s.Tags || []).join(', '),
+      Meta: Object.entries(s.Meta || {})
+        .map(([k, v]) => `${k}=${v}`)
+        .join('\n'),
+      NodeID: '',
+      Declared: true,
+      CheckerMode: s.CheckedBy ? 'pool' : 'node',
+      CheckerPool: s.CheckedBy?.NodePool || '',
+      CheckerDatacenters: (s.CheckedBy?.Datacenters || []).join(', '),
+      DeregisterCriticalAfter:
+        s.DeregisterCriticalAfter === undefined ||
+        s.DeregisterCriticalAfter === null
+          ? ''
+          : formatDuration(s.DeregisterCriticalAfter) || '0',
+      Checks: (s.Checks || []).map((c) => ({
+        ID: c.ID,
+        Type: c.Type,
+        TTL: formatDuration(c.TTL) || '30s',
+        HTTP: c.HTTP || '',
+        Method: c.Method || 'GET',
+        TCP: c.TCP || '',
+        Interval: formatDuration(c.Interval) || '10s',
+        Timeout: formatDuration(c.Timeout) || '2s',
+      })),
+    };
+  }
+
+  @action
+  setHclText(text) {
+    this.hclText = text;
+  }
+
+  // The language switch converts the text through the servers.
+  @action
+  async setHclLanguage(language) {
+    if (language === this.hclLanguage) return;
+    this.saveError = null;
+    const items = await this.parseText(this.hclText, this.hclLanguage);
+    if (!items) return;
+    if (language === 'json') {
+      this.hclText = JSON.stringify(
+        items.map((i) => ({ Namespace: i.Namespace, ...i.Service })),
+        null,
+        2
+      );
+    } else {
+      const { body } = await formatExternalServices(
+        this.token,
+        this.region,
+        this.editing.Namespace,
+        items
+      );
+      this.hclText = body.Text;
+    }
+    this.hclLanguage = language;
+  }
+
+  // validate is the check of the editor: the problems with their lines.
+  @action
+  async validateHcl(text, language) {
+    const { body } = await parseExternalServices(
+      this.token,
+      this.region,
+      this.editing.Namespace,
+      text,
+      language === 'json'
+    );
+    return (body.Problems || []).map((p) => ({
+      message: p.Message,
+      line: p.Line || undefined,
+    }));
+  }
+
+  @action
+  async saveHcl(text, language) {
+    const { body } = await parseExternalServices(
+      this.token,
+      this.region,
+      this.editing.Namespace,
+      text,
+      language === 'json'
+    );
+    if (body.Problems?.length) throw new Error(body.Problems[0].Message);
+    for (const item of body.Items) {
+      await saveExternalService(
+        this.token,
+        this.region,
+        item.Namespace || this.editing.Namespace,
+        item.Service
+      );
+    }
+    this.editing = null;
+    await this.load();
   }
 
   @action

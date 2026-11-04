@@ -124,6 +124,7 @@ const (
 	ReleaseResourceVariable        = "variable"
 	ReleaseResourceObjectKind      = "object-kind"
 	ReleaseResourceAdmissionPolicy = "admission-policy"
+	ReleaseResourceExternalService = "external-service"
 	ReleaseResourceObject          = "object"
 	ReleaseResourceJob             = "job"
 )
@@ -147,8 +148,9 @@ var releaseResourceOrder = map[string]int{
 	ReleaseResourceVariable:        4,
 	ReleaseResourceObjectKind:      5,
 	ReleaseResourceAdmissionPolicy: 6,
-	ReleaseResourceObject:          7,
-	ReleaseResourceJob:             8,
+	ReleaseResourceExternalService: 7,
+	ReleaseResourceObject:          8,
+	ReleaseResourceJob:             9,
 }
 
 // Job meta keys of releases. The pack.release keys mark the jobs a release
@@ -641,6 +643,7 @@ type ReleaseResource struct {
 	Variable        *VariableDecrypted
 	ObjectKind      *ObjectKind
 	AdmissionPolicy *AdmissionPolicy
+	ExternalService *ReleaseExternalService
 	Object          *CustomObject
 	Job             *Job
 
@@ -694,6 +697,14 @@ func (r *ReleaseResource) Ref() *ReleaseResourceRef {
 	case ReleaseResourceAdmissionPolicy:
 		if r.AdmissionPolicy != nil {
 			ref.Name = r.AdmissionPolicy.Name
+		}
+	case ReleaseResourceExternalService:
+		if r.ExternalService != nil && r.ExternalService.Service != nil {
+			ref.Namespace = r.ExternalService.Namespace
+			ref.Name = r.ExternalService.Service.ID
+			if ref.Name == "" {
+				ref.Name = r.ExternalService.Service.Name
+			}
 		}
 	case ReleaseResourceObject:
 		if r.Object != nil {
@@ -774,7 +785,7 @@ func (r *ReleaseResource) Validate() error {
 	payloads := 0
 	for _, set := range []bool{
 		r.Namespace != nil, r.Quota != nil, r.ACLPolicy != nil, r.Variable != nil,
-		r.ObjectKind != nil, r.AdmissionPolicy != nil, r.Object != nil, r.Job != nil,
+		r.ObjectKind != nil, r.AdmissionPolicy != nil, r.ExternalService != nil, r.Object != nil, r.Job != nil,
 	} {
 		if set {
 			payloads++
@@ -798,6 +809,13 @@ func (r *ReleaseResource) Validate() error {
 		missing = r.ObjectKind == nil || r.ObjectKind.Group == "" || r.ObjectKind.Kind == ""
 	case ReleaseResourceAdmissionPolicy:
 		missing = r.AdmissionPolicy == nil || r.AdmissionPolicy.Name == ""
+	case ReleaseResourceExternalService:
+		missing = r.ExternalService == nil || r.ExternalService.Service == nil || r.ExternalService.Service.Name == ""
+		if !missing {
+			if _, err := r.ExternalService.Service.Registration(); err != nil {
+				return fmt.Errorf("external service %q: %w", r.ExternalService.Service.Name, err)
+			}
+		}
 	case ReleaseResourceObject:
 		missing = r.Object == nil || r.Object.Group == "" || r.Object.Kind == "" || r.Object.Name == ""
 	case ReleaseResourceJob:
@@ -877,6 +895,9 @@ func (r *ReleaseResource) Copy() *ReleaseResource {
 	}
 	if r.AdmissionPolicy != nil {
 		nr.AdmissionPolicy = r.AdmissionPolicy.Copy()
+	}
+	if r.ExternalService != nil {
+		nr.ExternalService = r.ExternalService.Copy()
 	}
 	if r.Object != nil {
 		nr.Object = r.Object.Copy()

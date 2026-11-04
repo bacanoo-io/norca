@@ -34,8 +34,12 @@ type ServiceExternal struct {
 	// Kind is address or alias.
 	Kind string
 
-	// Source is api (native API) or consul (Consul-compatible agent API).
+	// Source is api (native API), apply (declared in a file or edited as
+	// HCL) or consul (Consul-compatible agent API).
 	Source string
+
+	// CheckedBy selects the client nodes that may run the checks.
+	CheckedBy *ExternalCheckedBy
 
 	// LocalID is the ID given at the client agent for registrations made
 	// through the Consul-compatible API.
@@ -47,6 +51,18 @@ type ServiceExternal struct {
 	// DeregisterCriticalAfter is how long the registration may stay critical
 	// before it is deregistered; zero keeps it.
 	DeregisterCriticalAfter time.Duration
+}
+
+// ExternalCheckedBy selects the client nodes that may run the http and tcp
+// checks of an external service. The servers choose one of them and move the
+// checks to another when it goes away.
+type ExternalCheckedBy struct {
+	// NodePool limits the nodes to a node pool; empty means every pool.
+	NodePool string `json:",omitempty"`
+
+	// Datacenters limits the nodes to datacenters (glob patterns); empty
+	// means every datacenter.
+	Datacenters []string `json:",omitempty"`
 }
 
 // ExternalService is the registration of a service that is not tied to an
@@ -82,6 +98,14 @@ type ExternalService struct {
 	// tcp checks (requires node write). Empty: the client agent the request
 	// is sent to, if it has a client.
 	NodeID string `json:",omitempty"`
+
+	// Declared marks a service declared in a file or edited as HCL: it
+	// is kept until deregistered (DeregisterCriticalAfter defaults to 0).
+	Declared bool `json:",omitempty"`
+
+	// CheckedBy lets the servers choose the client node that runs the http
+	// and tcp checks; it excludes NodeID.
+	CheckedBy *ExternalCheckedBy `json:",omitempty"`
 
 	// Checks of the service. Without a TTL check, and unless it has http or
 	// tcp checks run by a client agent, the registration is static and
@@ -178,4 +202,60 @@ func (s *Services) ListExternal(q *QueryOptions) ([]*ServiceRegistration, *Query
 		return nil, qm, err
 	}
 	return resp, qm, nil
+}
+
+// ExternalServiceItem is an external service of a file with the namespace it
+// is declared in (empty: the namespace of the request).
+type ExternalServiceItem struct {
+	Namespace string `json:",omitempty"`
+	Service   *ExternalService
+}
+
+// ExternalServiceProblem is an error of a file with its line (0 if unknown).
+type ExternalServiceProblem struct {
+	Message string
+	Line    int `json:",omitempty"`
+}
+
+// ExternalServiceParseRequest is the text of a file of external services.
+type ExternalServiceParseRequest struct {
+	// Text is the HCL form of the file, or the JSON form if JSON is set.
+	Text string
+	JSON bool `json:",omitempty"`
+}
+
+// ExternalServiceParseResponse is the content of a file, or its problems.
+type ExternalServiceParseResponse struct {
+	Items    []*ExternalServiceItem
+	Problems []*ExternalServiceProblem
+}
+
+// ExternalServiceFormatRequest asks for the HCL form of services.
+type ExternalServiceFormatRequest struct {
+	Items []*ExternalServiceItem
+}
+
+// ExternalServiceFormatResponse is the HCL form of services.
+type ExternalServiceFormatResponse struct {
+	Text string
+}
+
+// ParseExternal parses the text of a file of external services; a file with
+// errors is not an error of the call but is returned as Problems.
+func (s *Services) ParseExternal(req *ExternalServiceParseRequest, q *WriteOptions) (*ExternalServiceParseResponse, error) {
+	var resp ExternalServiceParseResponse
+	if _, err := s.client.post("/v1/service/external/parse", req, &resp, q); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// FormatExternal returns the HCL form of external services.
+func (s *Services) FormatExternal(items []*ExternalServiceItem, q *WriteOptions) (string, error) {
+	var resp ExternalServiceFormatResponse
+	if _, err := s.client.post("/v1/service/external/format",
+		&ExternalServiceFormatRequest{Items: items}, &resp, q); err != nil {
+		return "", err
+	}
+	return resp.Text, nil
 }

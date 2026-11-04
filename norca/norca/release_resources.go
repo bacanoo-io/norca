@@ -105,6 +105,20 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 		}
 		res.AdmissionPolicy = p.Copy()
 		live.modifyIndex = p.ModifyIndex
+	case structs.ReleaseResourceExternalService:
+		reg, err := snap.GetServiceRegistrationByID(nil, ref.Namespace, ref.Name)
+		if err != nil || reg == nil {
+			return live, err
+		}
+		if !reg.IsExternal() {
+			return nil, fmt.Errorf("service ID %q in namespace %q is used by a registration of an allocation",
+				ref.Name, ref.Namespace)
+		}
+		res.ExternalService = &structs.ReleaseExternalService{
+			Namespace: reg.Namespace,
+			Service:   structs.ExternalServiceSpecFromRegistration(reg),
+		}
+		live.modifyIndex = reg.ModifyIndex
 	case structs.ReleaseResourceObject:
 		group, kind, name, err := splitObjectRefName(ref.Name)
 		if err != nil {
@@ -167,6 +181,12 @@ func releaseResourceHash(res *structs.ReleaseResource) string {
 		p := res.AdmissionPolicy.Copy()
 		p.CreateIndex, p.ModifyIndex = 0, 0
 		v = p
+	case structs.ReleaseResourceExternalService:
+		spec, err := res.ExternalService.Service.Normalized()
+		if err != nil {
+			spec = res.ExternalService.Service
+		}
+		v = map[string]any{"namespace": res.ExternalService.Namespace, "service": spec}
 	case structs.ReleaseResourceObject:
 		v = map[string]any{
 			"spec":      res.Object.Spec,
@@ -253,6 +273,19 @@ func (op *releaseOp) applyResource(res *structs.ReleaseResource) (*applyResult, 
 		return out, srv.RPC("AdmissionPolicy.UpsertAdmissionPolicies", &structs.AdmissionPolicyUpsertRequest{
 			AdmissionPolicies: []*structs.AdmissionPolicy{p}, WriteRequest: op.writeRequest(""),
 		}, &generic)
+	case structs.ReleaseResourceExternalService:
+		reg, err := res.ExternalService.Service.Registration()
+		if err != nil {
+			return out, err
+		}
+		ns := res.ExternalService.Namespace
+		if ns == "" {
+			ns = op.namespace
+		}
+		var reply structs.ExternalServiceUpsertResponse
+		return out, srv.RPC(structs.ServiceRegistrationUpsertExternalRPCMethod, &structs.ExternalServiceUpsertRequest{
+			Service: reg, WriteRequest: op.writeRequest(ns),
+		}, &reply)
 	case structs.ReleaseResourceObject:
 		o := res.Object.Copy()
 		ns := o.Namespace
@@ -323,6 +356,15 @@ func (op *releaseOp) deleteResource(ref *structs.ReleaseResourceRef) error {
 		err = srv.RPC("AdmissionPolicy.DeleteAdmissionPolicies", &structs.AdmissionPolicyDeleteRequest{
 			Names: []string{ref.Name}, WriteRequest: op.writeRequest(""),
 		}, &generic)
+	case structs.ReleaseResourceExternalService:
+		ns := ref.Namespace
+		if ns == "" {
+			ns = op.namespace
+		}
+		var reply structs.ExternalServiceDeleteResponse
+		err = srv.RPC(structs.ServiceRegistrationDeleteExternalRPCMethod, &structs.ExternalServiceDeleteRequest{
+			ID: ref.Name, WriteRequest: op.writeRequest(ns),
+		}, &reply)
 	case structs.ReleaseResourceObject:
 		group, kind, name, perr := splitObjectRefName(ref.Name)
 		if perr != nil {
@@ -385,6 +427,12 @@ func resourceChanged(res *structs.ReleaseResource, live *liveResource) bool {
 		}
 	case structs.ReleaseResourceNamespace:
 		normalizeNamespace(desired.Namespace, live.res.Namespace)
+	case structs.ReleaseResourceExternalService:
+		// the datacenter of a service without one is the one of the node
+		// that runs its checks
+		if desired.ExternalService.Service.Datacenter == "" {
+			desired.ExternalService.Service.Datacenter = live.res.ExternalService.Service.Datacenter
+		}
 	}
 	return releaseResourceHash(desired) != live.hash
 }

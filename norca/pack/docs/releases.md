@@ -84,12 +84,19 @@ their extension. The format of each file is that of the corresponding `norca ...
 | `*.var.hcl.tpl` | Variables entry | `norca var put` file, plus `secret_items = [...]` | 4 |
 | `*.kind.hcl.tpl` | Object kind | `norca object-kind apply` | 5 |
 | `*.admission.hcl.tpl` | Admission policy | `norca admission-policy apply` | 6 |
-| `*.object.hcl.tpl` | Custom object | `norca object apply` | 7 |
-| `*.nomad.tpl` | Job | job specification | 8 |
+| `*.external.hcl.tpl` | External service | one `external_service` block of `norca service apply` | 7 |
+| `*.object.hcl.tpl` | Custom object | `norca object apply` | 8 |
+| `*.nomad.tpl` | Job | job specification | 9 |
 
 Deletion uses the reverse order. A namespace that references a quota of the same pack is created
 first and attached to the quota once it exists. `*.netpol.hcl.tpl` (network rules) is reserved and
 rejected until the servers support network rules.
+
+**External services:** a `*.external.hcl.tpl` file holds one `external_service` block (the format of
+[`norca service apply`](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/commands/service/apply.md)). The release registers the service before its
+jobs start, so the built-in DNS name exists when they do, and deregisters it on uninstall or when an
+upgrade drops the file. The `http` and `tcp` checks of the service need `checked_by`: the servers choose
+the node that runs them. Without a `namespace` the service is registered in the namespace of the release.
 
 **Secrets:** a Variables template lists the names of secret items in `secret_items` and must not
 give them values. Their values come from `--var-secret=<variable path>:<item>=<value>` (repeatable)

@@ -134,6 +134,13 @@ Restore Options:
     Restore a service intention of the namespace, named as in the
     service-intentions content type. Can be given several times.
 
+  -external-service <id>
+    Restore an external service of the namespace, named as in the
+    external-services content type. It is registered again like by
+    "norca service apply": the servers choose the node that runs its checks,
+    and a service that an application registered through the Consul-compatible
+    API is left to that application. Can be given several times.
+
   -custom-object <group>/<kind>/<name>
     Restore a custom object of the namespace: its spec, labels and owners.
     Its type definition must exist. The objects of packs.norca.io can't be
@@ -175,6 +182,7 @@ func (c *OperatorBackupRestoreCommand) AutocompleteFlags() complete.Flags {
 			"-network-policy":       complete.PredictAnything,
 			"-admin-network-policy": complete.PredictAnything,
 			"-intention":            complete.PredictAnything,
+			"-external-service":     complete.PredictAnything,
 			"-custom-object":        complete.PredictAnything,
 			"-page":                 complete.PredictAnything,
 			"-per-page":             complete.PredictAnything,
@@ -208,7 +216,7 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	var page, perPage int
-	var quotas, admissionPolicies, networkPolicies, adminNetworkPolicies, intentions, customObjects flaghelper.StringFlag
+	var quotas, admissionPolicies, networkPolicies, adminNetworkPolicies, intentions, externalServices, customObjects flaghelper.StringFlag
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.StringVar(&identityPath, "age-identity", "", "")
 	flags.BoolVar(&full, "full", false, "")
@@ -227,6 +235,7 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 	flags.Var(&networkPolicies, "network-policy", "")
 	flags.Var(&adminNetworkPolicies, "admin-network-policy", "")
 	flags.Var(&intentions, "intention", "")
+	flags.Var(&externalServices, "external-service", "")
 	flags.Var(&customObjects, "custom-object", "")
 	flags.BoolVar(&dryRun, "dry-run", false, "")
 	flags.IntVar(&page, "page", 1, "")
@@ -335,6 +344,7 @@ func (c *OperatorBackupRestoreCommand) Run(args []string) int {
 		{api.BackupRestoreItemNetworkPolicy, namespace, networkPolicies},
 		{api.BackupRestoreItemAdminNetworkPolicy, "", adminNetworkPolicies},
 		{api.BackupRestoreItemServiceIntention, namespace, intentions},
+		{api.BackupRestoreItemExternalService, namespace, externalServices},
 		{api.BackupRestoreItemCustomObject, namespace, customObjects},
 	} {
 		for _, name := range group.names {

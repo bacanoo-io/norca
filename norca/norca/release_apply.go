@@ -212,6 +212,10 @@ func (m *releaseManager) prepareResources(snap *state.StateSnapshot, op *release
 			for _, k := range res.SecretKeys {
 				delete(res.Variable.Items, k)
 			}
+		case structs.ReleaseResourceExternalService:
+			if res.ExternalService.Namespace == "" {
+				res.ExternalService.Namespace = op.namespace
+			}
 		case structs.ReleaseResourceObject:
 			obj := res.Object
 			namespaced, ok := kinds[obj.KindRef()]
@@ -890,6 +894,8 @@ func allowReleaseResourceWrite(aclObj *acl.ACL, res *structs.ReleaseResource) bo
 		return aclObj.AllowObjectKindWrite()
 	case structs.ReleaseResourceAdmissionPolicy:
 		return aclObj.AllowAdmissionWrite()
+	case structs.ReleaseResourceExternalService:
+		return aclObj.AllowNsOp(res.ExternalService.Namespace, acl.NamespaceCapabilityRegisterExternalService)
 	case structs.ReleaseResourceObject:
 		ns := res.Object.Namespace
 		if ns == "" {
@@ -922,6 +928,8 @@ func allowReleaseResourceRead(aclObj *acl.ACL, res *structs.ReleaseResource) boo
 		return aclObj.AllowObjectKindRead(res.ObjectKind.KindRef())
 	case structs.ReleaseResourceAdmissionPolicy:
 		return aclObj.AllowAdmissionRead()
+	case structs.ReleaseResourceExternalService:
+		return aclObj.AllowNsOp(res.ExternalService.Namespace, acl.NamespaceCapabilityReadJob)
 	case structs.ReleaseResourceObject:
 		ns := res.Object.Namespace
 		if ns == "" {
