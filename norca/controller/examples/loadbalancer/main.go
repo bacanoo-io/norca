@@ -141,6 +141,9 @@ type controllerFlags struct {
 	logLevel       string
 	resync         time.Duration
 	provider       NomadProviderConfig
+	classTTL       time.Duration
+	classTokenNS   string
+	classAllowHTTP bool
 }
 
 func runController(ctx context.Context, args []string) error {
@@ -157,6 +160,9 @@ func runController(ctx context.Context, args []string) error {
 	fs.StringVar(&f.metricsAddr, "metrics-addr", "", "address of the /metrics endpoint (disabled if empty)")
 	fs.StringVar(&f.logLevel, "log-level", "info", "log level")
 	fs.DurationVar(&f.resync, "resync", 10*time.Minute, "period of full resynchronization")
+	fs.DurationVar(&f.classTTL, "class-ttl", 3*time.Minute, "how old the heartbeat of a registered LoadBalancerClass provider may be (native objects)")
+	fs.BoolVar(&f.classAllowHTTP, "class-allow-http", false, "accept http endpoints of registered providers (development only)")
+	fs.StringVar(&f.classTokenNS, "class-token-namespace", "default", "namespace of the Variables holding the tokens of registered providers")
 	fs.StringVar(&f.provider.JobPrefix, "job-prefix", "lb-", "prefix of the proxy job IDs")
 	fs.StringVar(&f.provider.Driver, "proxy-driver", "raw_exec", "task driver of the proxy jobs: raw_exec, exec or docker")
 	fs.StringVar(&f.provider.Command, "proxy-command", self, "path of this binary on the nodes (raw_exec, exec)")
@@ -221,6 +227,13 @@ func runController(ctx context.Context, args []string) error {
 
 		requeueNotReady: 15 * time.Second,
 		requeueReady:    time.Minute,
+	}
+	if storage == controller.StorageNative {
+		// Providers registered by LoadBalancerClass objects need the native
+		// objects: they are called back for the load balancers of their
+		// class, and cleaned up through the finalizer.
+		lb.classes = newClassRegistry(backend, f.classTokenNS, f.classTTL)
+		lb.classes.allowHTTP = f.classAllowHTTP
 	}
 	lbCtrl, err := controller.New(backend, lb, controller.Options{
 		Name:           "loadbalancer",
