@@ -1215,6 +1215,11 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"service apply": func() (cli.Command, error) {
+			return &ServiceApplyCommand{
+				Meta: meta,
+			}, nil
+		},
 		"service deregister": func() (cli.Command, error) {
 			return &ServiceDeregisterCommand{
 				Meta: meta,

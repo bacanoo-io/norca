@@ -29,6 +29,7 @@ const (
 	ReleaseResourceVariable        = "variable"
 	ReleaseResourceObjectKind      = "object-kind"
 	ReleaseResourceAdmissionPolicy = "admission-policy"
+	ReleaseResourceExternalService = "external-service"
 	ReleaseResourceObject          = "object"
 	ReleaseResourceJob             = "job"
 
@@ -249,15 +250,16 @@ type ReleaseResource struct {
 	Type   string
 	Source string `json:",omitempty"`
 
-	Namespace       *Namespace       `json:",omitempty"`
-	Quota           *QuotaSpec       `json:",omitempty"`
-	ACLPolicy       *ACLPolicy       `json:",omitempty"`
-	Variable        *Variable        `json:",omitempty"`
-	ObjectKind      *ObjectKind      `json:",omitempty"`
-	AdmissionPolicy *AdmissionPolicy `json:",omitempty"`
-	Object          *CustomObject    `json:",omitempty"`
-	Job             *Job             `json:",omitempty"`
-	Submission      *JobSubmission   `json:",omitempty"`
+	Namespace       *Namespace           `json:",omitempty"`
+	Quota           *QuotaSpec           `json:",omitempty"`
+	ACLPolicy       *ACLPolicy           `json:",omitempty"`
+	Variable        *Variable            `json:",omitempty"`
+	ObjectKind      *ObjectKind          `json:",omitempty"`
+	AdmissionPolicy *AdmissionPolicy     `json:",omitempty"`
+	ExternalService *ExternalServiceItem `json:",omitempty"`
+	Object          *CustomObject        `json:",omitempty"`
+	Job             *Job                 `json:",omitempty"`
+	Submission      *JobSubmission       `json:",omitempty"`
 
 	// SecretKeys are Variables items whose values are not stored in the
 	// release; supply them with ReleaseApplyRequest.Secrets.

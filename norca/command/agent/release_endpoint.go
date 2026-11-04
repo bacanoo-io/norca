@@ -45,6 +45,7 @@ type releaseResourceBody struct {
 	Variable        *structs.VariableDecrypted
 	ObjectKind      *structs.ObjectKind
 	AdmissionPolicy *structs.AdmissionPolicy
+	ExternalService *structs.ReleaseExternalService
 	Object          *structs.CustomObject
 	Job             *api.Job
 	Submission      *api.JobSubmission
@@ -236,6 +237,7 @@ func releaseRequestFromBody(name string, body *releaseApplyBody, namespace strin
 			Variable:        r.Variable,
 			ObjectKind:      r.ObjectKind,
 			AdmissionPolicy: r.AdmissionPolicy,
+			ExternalService: r.ExternalService,
 			Object:          r.Object,
 			SecretKeys:      r.SecretKeys,
 		}

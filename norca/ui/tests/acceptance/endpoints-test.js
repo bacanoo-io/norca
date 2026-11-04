@@ -10,7 +10,12 @@ import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import a11yAudit, { STRICT } from 'nomad-ui/tests/helpers/a11y-audit';
 import { seedNetwork } from 'nomad-ui/mirage/norca/network';
-import { useToken, lastBody, lastRequest } from 'nomad-ui/tests/helpers/norca';
+import {
+  useToken,
+  lastBody,
+  lastRequest,
+  setEditorText,
+} from 'nomad-ui/tests/helpers/norca';
 import {
   parseDuration,
   formatDuration,
@@ -128,6 +133,125 @@ module('Acceptance | endpoints and domains', function (hooks) {
     await click('[data-test-confirm-submit]');
     assert.ok(lastRequest('DELETE', '/v1/service/external/portal'));
     assert.dom(ROWS).exists({ count: 2 });
+  });
+
+  test('a declared service: the servers choose the node that runs the checks', async function (assert) {
+    useToken(null, 'management');
+    seedNetwork(server);
+    await visit('/endpoints');
+
+    await click('[data-test-add-endpoint]');
+    await fillIn('[data-test-endpoint-name-input]', 'orders-db');
+    await fillIn('[data-test-endpoint-address]', '10.20.0.5');
+    await fillIn('[data-test-endpoint-port]', '5432');
+    await click('[data-test-add-check]');
+    await select('[data-test-check-type]', 'tcp');
+    await fillIn('[data-test-check-tcp]', '10.20.0.5:5432');
+
+    // a node chosen by the servers needs the pool, not a node; declared
+    // services with node checks need it
+    await click('[data-test-endpoint-declared-switch] input');
+    await click('[data-test-endpoint-save]');
+    assert
+      .dom('[data-test-endpoint-save-error]')
+      .includesText('chosen by the servers');
+    await select('[data-test-endpoint-checker-mode]', 'pool');
+    assert.dom('[data-test-endpoint-node]').doesNotExist();
+    await fillIn('[data-test-endpoint-checker-pool]', 'default');
+    await fillIn('[data-test-endpoint-checker-datacenters]', 'dc1, eu-*');
+    await a11yAudit(assert, STRICT);
+    await click('[data-test-endpoint-save]');
+
+    const body = lastBody('PUT', '/v1/service/external/orders-db');
+    assert.true(body.Declared);
+    assert.strictEqual(body.NodeID, undefined);
+    assert.deepEqual(body.CheckedBy, {
+      NodePool: 'default',
+      Datacenters: ['dc1', 'eu-*'],
+    });
+    assert.dom('[data-test-endpoint-declared]').exists({ count: 1 });
+    assert.dom('[data-test-endpoint-chosen]').exists({ count: 1 });
+
+    // change: the choice of the servers is kept
+    await click('[data-test-edit-endpoint="default/orders-db"]');
+    assert.dom('[data-test-endpoint-checker-mode]').hasValue('pool');
+    assert.dom('[data-test-endpoint-checker-pool]').hasValue('default');
+    assert
+      .dom('[data-test-endpoint-checker-datacenters]')
+      .hasValue('dc1, eu-*');
+  });
+
+  test('the HCL view: the form as text, checked by the servers', async function (assert) {
+    useToken(null, 'management');
+    seedNetwork(server);
+    await visit('/endpoints');
+
+    await click('[data-test-add-endpoint]');
+    await fillIn('[data-test-endpoint-name-input]', 'cache');
+    await fillIn('[data-test-endpoint-address]', '10.0.0.9');
+    await fillIn('[data-test-endpoint-port]', '6379');
+    await click('[data-test-endpoint-views] [data-test-tab="hcl"]');
+    assert.dom('[data-test-endpoint-hcl]').exists();
+    assert.dom('[data-test-endpoint-save]').doesNotExist();
+    const text = document
+      .querySelector('[data-test-unified-editor] .CodeMirror')
+      .CodeMirror.getValue();
+    assert.ok(text.includes('external_service "cache"'), text);
+    assert.ok(text.includes('address = "10.0.0.9"'), text);
+    await a11yAudit(assert, STRICT);
+
+    // a text with an error: the problem names the line, nothing is written
+    await setEditorText(
+      'external_service "cache" {\n  address = "10.0.0.9"\n  nope = 1\n}\n'
+    );
+    await click('[data-test-editor-review-button]');
+    assert.dom('[data-test-editor-problem]').includesText('nope');
+    assert.notOk(lastRequest('PUT', '/v1/service/external/cache'));
+
+    // two services in one text, one with node checks chosen by the servers
+    await setEditorText(
+      [
+        'external_service "cache" {',
+        '  namespace = "default"',
+        '  address = "10.0.0.9"',
+        '  port = 6379',
+        '}',
+        '',
+        'external_service "orders-db" {',
+        '  address = "10.20.0.5"',
+        '  check {',
+        '    type = "tcp"',
+        '    tcp = "10.20.0.5:5432"',
+        '  }',
+        '  checked_by {',
+        '    node_pool = "default"',
+        '  }',
+        '}',
+        '',
+      ].join('\n')
+    );
+    await click('[data-test-editor-review-button]');
+    await click('[data-test-editor-submit]');
+    assert.notOk(document.querySelector('[data-test-endpoint-editor]'));
+
+    let body = lastBody('PUT', '/v1/service/external/cache');
+    assert.true(body.Declared);
+    assert.strictEqual(body.Port, 6379);
+    body = lastBody('PUT', '/v1/service/external/orders-db');
+    assert.deepEqual(body.CheckedBy, { NodePool: 'default' });
+    assert.dom(ROWS).exists({ count: 3 });
+    assert.dom('[data-test-endpoint-declared]').exists({ count: 2 });
+
+    // an existing service opens as text, and the text goes back to the form
+    await click('[data-test-edit-endpoint="default/orders-db"]');
+    await click('[data-test-endpoint-views] [data-test-tab="hcl"]');
+    const hcl = document
+      .querySelector('[data-test-unified-editor] .CodeMirror')
+      .CodeMirror.getValue();
+    assert.ok(hcl.includes('node_pool = "default"'), hcl);
+    await click('[data-test-endpoint-views] [data-test-tab="form"]');
+    assert.dom('[data-test-endpoint-checker-mode]').hasValue('pool');
+    assert.dom('[data-test-endpoint-address]').hasValue('10.20.0.5');
   });
 
   test('a token without register-external-service only reads', async function (assert) {

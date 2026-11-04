@@ -32,6 +32,7 @@ var templateTypes = []struct {
 	{".var.hcl.tpl", api.ReleaseResourceVariable},
 	{".kind.hcl.tpl", api.ReleaseResourceObjectKind},
 	{".admission.hcl.tpl", api.ReleaseResourceAdmissionPolicy},
+	{".external.hcl.tpl", api.ReleaseResourceExternalService},
 	{".netpol.hcl.tpl", resourceNetworkRule},
 	{".object.hcl.tpl", api.ReleaseResourceObject},
 	{".nomad.tpl", api.ReleaseResourceJob},
@@ -79,6 +80,8 @@ func ParseResource(name, content string) (*api.ReleaseResource, error) {
 		res.ObjectKind, err = resourcespec.ParseObjectKind(file, b, false)
 	case api.ReleaseResourceAdmissionPolicy:
 		res.AdmissionPolicy, err = resourcespec.ParseAdmissionPolicy(file, b)
+	case api.ReleaseResourceExternalService:
+		res.ExternalService, err = resourcespec.ParseExternalService(file, b)
 	case api.ReleaseResourceObject:
 		res.Object, err = resourcespec.ParseCustomObject(file, b, false)
 	case resourceNetworkRule:

@@ -22,6 +22,10 @@ const (
 	// the external services that stayed critical for too long, and arms the
 	// TTL checks it does not track yet.
 	externalServiceReconcileInterval = 30 * time.Second
+
+	// externalServiceCheckerInterval is how often the leader gives the
+	// external services with a checked_by selector their checking node.
+	externalServiceCheckerInterval = 5 * time.Second
 )
 
 // externalServices maintains the external service registrations on the
@@ -39,11 +43,18 @@ type externalServices struct {
 	now    func() time.Time
 
 	reconcileInterval time.Duration
+	checkerInterval   time.Duration
 
 	lock      sync.Mutex
 	deadlines map[externalCheckKey]time.Time
 	leader    bool
 	reconcile time.Time
+	checker   time.Time
+
+	// reported is when the node last reported the node checks of a
+	// registration with a checked_by selector (the check field of the key is
+	// empty), or was given them.
+	reported map[externalCheckKey]time.Time
 }
 
 // externalCheckKey identifies a TTL check of an external registration.
@@ -59,7 +70,9 @@ func newExternalServices(srv *Server) *externalServices {
 		logger:            srv.logger.Named("external_services"),
 		now:               time.Now,
 		reconcileInterval: externalServiceReconcileInterval,
+		checkerInterval:   externalServiceCheckerInterval,
 		deadlines:         make(map[externalCheckKey]time.Time),
+		reported:          make(map[externalCheckKey]time.Time),
 	}
 }
 
@@ -99,7 +112,17 @@ func (e *externalServices) tick() {
 		// a new leader: give every TTL check a full TTL
 		e.leader = true
 		e.deadlines = make(map[externalCheckKey]time.Time)
+		e.reported = make(map[externalCheckKey]time.Time)
 		e.reconcile = time.Time{}
+		e.checker = time.Time{}
+	}
+	if now.After(e.checker) {
+		e.checker = now.Add(e.checkerInterval)
+		if regs, err := externalRegistrations(e.srv.fsm.State()); err != nil {
+			e.logger.Warn("failed to list external services", "error", err)
+		} else if err := e.assignCheckersLocked(regs); err != nil {
+			e.logger.Warn("failed to assign the checking nodes of external services", "error", err)
+		}
 	}
 	if now.After(e.reconcile) {
 		e.reconcile = now.Add(e.reconcileInterval)
@@ -262,7 +285,7 @@ func (e *externalServices) upsert(reg *structs.ServiceRegistration) (uint64, err
 		return 0, structs.NewErrRPCCodedf(http.StatusConflict,
 			"service ID %q is used by a registration of allocation %s", reg.ID, existing.AllocID)
 	}
-	if existing != nil && existing.NodeID != reg.NodeID {
+	if existing != nil && existing.NodeID != reg.NodeID && reg.External.CheckedBy == nil {
 		return 0, structs.NewErrRPCCodedf(http.StatusConflict,
 			"external service %q is owned by another node; deregister it first", reg.ID)
 	}
@@ -291,6 +314,10 @@ func (e *externalServices) upsert(reg *structs.ServiceRegistration) (uint64, err
 		reg.Checks = nil
 	}
 	reg.SetExternalHealth(existing, now)
+	if reg.External.CheckedBy != nil && reg.NodeID == "" {
+		setNodeChecksCritical(reg, externalCheckerOutputNoNode)
+		reg.SetExternalHealth(existing, now)
+	}
 
 	index := uint64(0)
 	if existing != nil && existing.Equal(reg) {
@@ -302,6 +329,9 @@ func (e *externalServices) upsert(reg *structs.ServiceRegistration) (uint64, err
 	}
 	if e.leader {
 		e.armLocked(reg, now)
+		if reg.External.CheckedBy != nil && (existing == nil || existing.NodeID != reg.NodeID) {
+			e.reported[externalCheckKey{reg.Namespace, reg.ID, ""}] = now
+		}
 	}
 	return index, nil
 }
@@ -338,6 +368,7 @@ func (e *externalServices) deleteLocked(namespace, id string) (uint64, error) {
 			delete(e.deadlines, key)
 		}
 	}
+	delete(e.reported, externalCheckKey{namespace, id, ""})
 	return index, nil
 }
 
@@ -372,6 +403,9 @@ func (e *externalServices) updateChecks(namespace, id string, updates []*structs
 	now := e.now()
 	reg := current.Copy()
 	renewed := make(map[string]bool)
+	if nodeID != "" && e.leader {
+		e.reported[externalCheckKey{namespace, id, ""}] = now
+	}
 
 	for _, u := range updates {
 		switch u.Status {

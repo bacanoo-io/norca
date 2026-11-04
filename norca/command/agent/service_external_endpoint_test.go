@@ -125,3 +125,83 @@ func TestHTTP_ExternalServices(t *testing.T) {
 		must.ErrorContains(t, err, "not found")
 	})
 }
+
+// TestHTTP_ExternalServices_ParseFormat exercises the conversion between the
+// HCL form and the API form of external services.
+func TestHTTP_ExternalServices_ParseFormat(t *testing.T) {
+	ci.Parallel(t)
+
+	httpTest(t, nil, func(s *TestAgent) {
+		services := s.Client().Services()
+
+		const text = `
+external_service "orders-db" {
+  namespace = "prod"
+  address   = "10.20.0.5"
+  port      = 5432
+
+  check {
+    type = "tcp"
+    tcp  = "10.20.0.5:5432"
+  }
+
+  checked_by {
+    node_pool = "edge"
+  }
+}
+`
+		parsed, err := services.ParseExternal(&api.ExternalServiceParseRequest{Text: text}, nil)
+		must.NoError(t, err)
+		must.Len(t, 0, parsed.Problems)
+		must.Len(t, 1, parsed.Items)
+		must.Eq(t, "prod", parsed.Items[0].Namespace)
+		must.True(t, parsed.Items[0].Service.Declared)
+		must.Eq(t, "edge", parsed.Items[0].Service.CheckedBy.NodePool)
+
+		// the formatted text parses back to the same item
+		formatted, err := services.FormatExternal(parsed.Items, nil)
+		must.NoError(t, err)
+		again, err := services.ParseExternal(&api.ExternalServiceParseRequest{Text: formatted}, nil)
+		must.NoError(t, err)
+		must.Eq(t, parsed.Items, again.Items)
+
+		// problems are returned with their line, not as an error
+		parsed, err = services.ParseExternal(&api.ExternalServiceParseRequest{
+			Text: `external_service "a" {
+  address = "x"
+  nope = 1
+}
+`}, nil)
+		must.NoError(t, err)
+		must.Len(t, 0, parsed.Items)
+		must.Len(t, 1, parsed.Problems)
+		must.Eq(t, 3, parsed.Problems[0].Line)
+
+		// semantic errors name the service
+		parsed, err = services.ParseExternal(&api.ExternalServiceParseRequest{
+			Text: `external_service "a" {
+  port = 70000
+}
+`}, nil)
+		must.NoError(t, err)
+		must.Len(t, 1, parsed.Problems)
+		must.StrContains(t, parsed.Problems[0].Message, `"a"`)
+
+		// the JSON form
+		parsed, err = services.ParseExternal(&api.ExternalServiceParseRequest{
+			Text: `{"Name":"cache","Address":"10.0.0.9"}`, JSON: true}, nil)
+		must.NoError(t, err)
+		must.Len(t, 1, parsed.Items)
+
+		// a declared service with node checks needs checked_by
+		_, _, err = services.RegisterExternal(&api.ExternalService{
+			Name: "x", Address: "10.0.0.1", Declared: true,
+			Checks: []*api.ExternalServiceCheck{{Type: api.ExternalCheckTypeTCP, TCP: "10.0.0.1:80"}},
+		}, nil)
+		must.ErrorContains(t, err, "need checked_by")
+
+		// a service can still be named "parse": only POST converts
+		_, _, err = services.RegisterExternal(&api.ExternalService{Name: "parse", Address: "10.0.0.1"}, nil)
+		must.NoError(t, err)
+	})
+}

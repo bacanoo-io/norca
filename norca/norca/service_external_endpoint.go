@@ -81,6 +81,17 @@ func (s *ServiceRegistration) UpsertExternal(
 	reg.Namespace = args.RequestNamespace()
 	reg.NodeID = ""
 
+	// The servers choose the node that runs the checks.
+	if reg.External.CheckedBy != nil {
+		if args.NodeSecretID != "" || args.NodeID != "" {
+			return structs.NewErrRPCCoded(http.StatusBadRequest,
+				"checked_by cannot be combined with a node: the servers choose the node that runs the checks")
+		}
+		if reg.External.Source == structs.ExternalServiceSourceConsul {
+			return structs.NewErrRPCCoded(http.StatusBadRequest, "invalid source \"consul\"")
+		}
+	}
+
 	// Bind the registration to the client node it was registered through.
 	if args.NodeSecretID != "" {
 		node, err := s.srv.fsm.State().NodeBySecretID(nil, args.NodeSecretID)
@@ -122,13 +133,25 @@ func (s *ServiceRegistration) UpsertExternal(
 	if err := reg.ValidateExternal(); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid external service: %v", err)
 	}
-	if reg.External.HasNodeChecks() && reg.NodeID == "" {
+	if reg.External.CheckedBy != nil {
+		node, err := pickCheckerNode(s.srv.fsm.State(), reg.ID, reg.External.CheckedBy)
+		if err != nil {
+			return err
+		}
+		if node != nil {
+			reg.NodeID = node.ID
+			if reg.Datacenter == "" {
+				reg.Datacenter = node.Datacenter
+			}
+		}
+	}
+	if reg.External.HasNodeChecks() && reg.NodeID == "" && reg.External.CheckedBy == nil {
 		return structs.NewErrRPCCoded(http.StatusBadRequest,
 			"http and tcp checks are run by a client node: register the service through a client agent")
 	}
 
 	// A registration without TTL checks that no node owns never expires.
-	if reg.NodeID == "" && !reg.External.HasTTLChecks() && aclObj != nil && !aclObj.AllowOperatorWrite() {
+	if reg.NodeID == "" && reg.External.CheckedBy == nil && !reg.External.HasTTLChecks() && aclObj != nil && !aclObj.AllowOperatorWrite() {
 		return structs.NewErrRPCCoded(http.StatusForbidden,
 			"Permission denied: external services without TTL checks require operator write")
 	}

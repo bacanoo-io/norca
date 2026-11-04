@@ -122,28 +122,49 @@ func (s *StateStore) deleteServiceRegistrationByIDTxn(
 }
 
 // DeleteServiceRegistrationByNodeID deletes all service registrations that
-// belong on a single node. If there are no registrations tied to the nodeID,
-// the call will noop without an error.
+// belong on a single node. External services declared with a checked_by
+// selector are kept: they lose the node, and the leader gives them another
+// one. If there are no registrations tied to the nodeID, the call will noop
+// without an error.
 func (s *StateStore) DeleteServiceRegistrationByNodeID(
 	msgType structs.MessageType, index uint64, nodeID string) error {
 
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
 
-	num, err := txn.DeleteAll(TableServiceRegistrations, indexNodeID, nodeID)
+	iter, err := txn.Get(TableServiceRegistrations, indexNodeID, nodeID)
 	if err != nil {
-		return fmt.Errorf("deleting service registrations failed: %v", err)
+		return fmt.Errorf("service registration lookup failed: %v", err)
+	}
+	var del, release []*structs.ServiceRegistration
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		reg := raw.(*structs.ServiceRegistration)
+		if reg.IsExternal() && reg.External.CheckedBy != nil {
+			release = append(release, reg)
+		} else {
+			del = append(del, reg)
+		}
 	}
 
-	// If we did not delete any entries, do not update the index table.
-	// Otherwise, update the table with the latest index.
-	switch num {
-	case 0:
+	// If we did not change any entries, do not update the index table.
+	if len(del) == 0 && len(release) == 0 {
 		return nil
-	default:
-		if err := txn.Insert(tableIndex, &IndexEntry{TableServiceRegistrations, index}); err != nil {
-			return fmt.Errorf("index update failed: %v", err)
+	}
+	for _, reg := range del {
+		if err := txn.Delete(TableServiceRegistrations, reg); err != nil {
+			return fmt.Errorf("deleting service registrations failed: %v", err)
 		}
+	}
+	for _, reg := range release {
+		nr := reg.Copy()
+		nr.NodeID = ""
+		nr.ModifyIndex = index
+		if err := txn.Insert(TableServiceRegistrations, nr); err != nil {
+			return fmt.Errorf("releasing service registrations failed: %v", err)
+		}
+	}
+	if err := txn.Insert(tableIndex, &IndexEntry{TableServiceRegistrations, index}); err != nil {
+		return fmt.Errorf("index update failed: %v", err)
 	}
 
 	return txn.Commit()

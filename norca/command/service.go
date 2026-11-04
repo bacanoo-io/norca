@@ -38,6 +38,10 @@ Usage: norca service <subcommand> [options]
       $ norca service ttl <service_id>
       $ norca service deregister <service_id>
 
+  Declare external services in a file (HCL), kept in version control:
+
+      $ norca service apply -f services.hcl
+
   Please see the individual subcommand help for detailed usage information.
 `
 	return strings.TrimSpace(helpText)

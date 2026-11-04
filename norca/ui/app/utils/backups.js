@@ -70,6 +70,12 @@ export const CONTENT_TYPES = [
     key: 'Objects',
     restoreType: 'service-intention',
   },
+  {
+    id: 'external-services',
+    label: 'External services',
+    key: 'Objects',
+    restoreType: 'external-service',
+  },
   { id: 'object-kinds', label: 'Type definitions', key: 'Objects' },
   {
     id: 'custom-objects',
@@ -93,6 +99,7 @@ export const RESTORE_TYPE_LABELS = {
   'network-policy': 'Network policy',
   'admin-network-policy': 'Admin network policy',
   'service-intention': 'Intention',
+  'external-service': 'External service',
   'custom-object': 'Object',
 };
 

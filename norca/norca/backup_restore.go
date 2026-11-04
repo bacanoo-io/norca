@@ -148,7 +148,7 @@ func validateBackupRestoreItem(item *structs.BackupRestoreItem) error {
 	switch item.Type {
 	case structs.BackupRestoreItemJob, structs.BackupRestoreItemVariable, structs.BackupRestoreItemSecret,
 		structs.BackupRestoreItemNetworkPolicy, structs.BackupRestoreItemServiceIntention,
-		structs.BackupRestoreItemCustomObject:
+		structs.BackupRestoreItemExternalService, structs.BackupRestoreItemCustomObject:
 		if item.Namespace == "" {
 			item.Namespace = structs.DefaultNamespace
 		}
@@ -219,6 +219,8 @@ func (r *backupRestorer) restore(item *structs.BackupRestoreItem) *structs.Backu
 		err = r.restoreAdminNetworkPolicy(item, result)
 	case structs.BackupRestoreItemServiceIntention:
 		err = r.restoreServiceIntention(item, result)
+	case structs.BackupRestoreItemExternalService:
+		err = r.restoreExternalService(item, result)
 	case structs.BackupRestoreItemCustomObject:
 		err = r.restoreCustomObject(item, result)
 	}
