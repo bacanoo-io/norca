@@ -240,14 +240,33 @@ func (h *networkPolicyHook) fetch(minIndex uint64) (*structs.NetworkPolicyAllocR
 			AuthToken:     h.nodeSecret,
 		},
 	}
-	var resp structs.NetworkPolicyAllocResponse
-	if err := h.rpc.RPC("NetworkPolicy.GetAllocRules", &req, &resp); err != nil {
-		if isUnknownRPCMethod(err) {
-			return &structs.NetworkPolicyAllocRules{}, minIndex, nil
-		}
-		return nil, minIndex, err
+	// The blocking query cannot be cancelled (the RPC has no context) and lasts
+	// up to networkPolicyQueryWait. Stopping the hook is part of killing the
+	// allocation: PreKill runs before the tasks are killed. So the query runs
+	// on a goroutine of its own, and a stopped hook does not wait for it; the
+	// goroutine ends with the query, and nobody reads its result then.
+	type result struct {
+		resp structs.NetworkPolicyAllocResponse
+		err  error
 	}
-	return resp.Rules, resp.Index, nil
+	done := make(chan *result, 1)
+	go func() {
+		r := &result{}
+		r.err = h.rpc.RPC("NetworkPolicy.GetAllocRules", &req, &r.resp)
+		done <- r
+	}()
+	select {
+	case r := <-done:
+		if r.err != nil {
+			if isUnknownRPCMethod(r.err) {
+				return &structs.NetworkPolicyAllocRules{}, minIndex, nil
+			}
+			return nil, minIndex, r.err
+		}
+		return r.resp.Rules, r.resp.Index, nil
+	case <-h.ctx.Done():
+		return nil, minIndex, h.ctx.Err()
+	}
 }
 
 func isUnknownRPCMethod(err error) bool {
