@@ -193,6 +193,7 @@ export function ruleRows(policy) {
             .map((p) => {
               const parts = [];
               if (p.CIDR?.length) parts.push(p.CIDR.join(', '));
+              if (p.Except?.length) parts.push(`except ${p.Except.join(', ')}`);
               if (p.Namespace) parts.push(`namespace ${p.Namespace}`);
               if (p.Selector && Object.keys(p.Selector).length)
                 parts.push(selectorText(p.Selector));

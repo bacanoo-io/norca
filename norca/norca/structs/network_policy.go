@@ -165,6 +165,10 @@ type NetworkPolicyPeer struct {
 	// CIDR lists IPv4 or IPv6 prefixes.
 	CIDR []string
 
+	// Except lists prefixes excluded from the CIDR blocks of the peer. Each
+	// one must lie inside one of the CIDR prefixes. Only valid with CIDR.
+	Except []string
+
 	// Namespace selects the namespace of peer allocations: empty means the
 	// namespace of the policy (every namespace for admin policies), "*"
 	// every namespace. Must be empty for CIDR peers.
@@ -554,9 +558,32 @@ func validateNetworkPolicyRules(mErr *multierror.Error, direction string, rules 
 			if len(peer.CIDR) > maxNetworkPolicyCIDRs {
 				mErr = multierror.Append(mErr, fmt.Errorf("%s peer %d: at most %d CIDRs are allowed", prefix, j, maxNetworkPolicyCIDRs))
 			}
+			var blocks []netip.Prefix
 			for _, cidr := range peer.CIDR {
-				if _, err := netip.ParsePrefix(cidr); err != nil {
+				p, err := netip.ParsePrefix(cidr)
+				if err != nil {
 					mErr = multierror.Append(mErr, fmt.Errorf("%s peer %d: invalid CIDR %q", prefix, j, cidr))
+					continue
+				}
+				blocks = append(blocks, p.Masked())
+			}
+			if len(peer.Except) > 0 && len(peer.CIDR) == 0 {
+				mErr = multierror.Append(mErr, fmt.Errorf("%s peer %d: except needs cidr", prefix, j))
+			}
+			if len(peer.Except) > maxNetworkPolicyCIDRs {
+				mErr = multierror.Append(mErr, fmt.Errorf("%s peer %d: at most %d except prefixes are allowed", prefix, j, maxNetworkPolicyCIDRs))
+			}
+			for _, ex := range peer.Except {
+				p, err := netip.ParsePrefix(ex)
+				if err != nil {
+					mErr = multierror.Append(mErr, fmt.Errorf("%s peer %d: invalid except prefix %q", prefix, j, ex))
+					continue
+				}
+				p = p.Masked()
+				if len(blocks) > 0 && !slices.ContainsFunc(blocks, func(b netip.Prefix) bool {
+					return b.Bits() <= p.Bits() && b.Contains(p.Addr())
+				}) {
+					mErr = multierror.Append(mErr, fmt.Errorf("%s peer %d: except prefix %q is not inside any cidr of the peer", prefix, j, ex))
 				}
 			}
 			if peer.Namespace != "" && peer.Namespace != "*" && !validNamespaceName.MatchString(peer.Namespace) {
@@ -602,6 +629,7 @@ func copyNetworkPolicyRules(rules []*NetworkPolicyRule) []*NetworkPolicyRule {
 				}
 				nr.Peers[j] = &NetworkPolicyPeer{
 					CIDR:      slices.Clone(p.CIDR),
+					Except:    slices.Clone(p.Except),
 					Namespace: p.Namespace,
 					Selector:  maps.Clone(p.Selector),
 				}

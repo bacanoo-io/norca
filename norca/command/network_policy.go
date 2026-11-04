@@ -92,6 +92,7 @@ type networkPolicyFileRule struct {
 
 type networkPolicyFilePeer struct {
 	CIDR      []string              `hcl:"cidr,optional"`
+	Except    []string              `hcl:"except,optional"`
 	Namespace string                `hcl:"namespace,optional"`
 	Selector  *networkPolicyFileMap `hcl:"selector,block"`
 }
@@ -147,6 +148,7 @@ func (r *networkPolicyFileRule) toAPI(direction string) (*api.NetworkPolicyRule,
 		}
 		rule.Peers = append(rule.Peers, &api.NetworkPolicyPeer{
 			CIDR:      p.CIDR,
+			Except:    p.Except,
 			Namespace: p.Namespace,
 			Selector:  selector,
 		})
@@ -294,7 +296,11 @@ func formatNetworkPolicyRules(direction string, rules []*api.NetworkPolicyRule) 
 		for _, p := range rule.Peers {
 			switch {
 			case len(p.CIDR) > 0:
-				peers = append(peers, strings.Join(p.CIDR, ","))
+				text := strings.Join(p.CIDR, ",")
+				if len(p.Except) > 0 {
+					text += " except " + strings.Join(p.Except, ",")
+				}
+				peers = append(peers, text)
 			default:
 				ns := p.Namespace
 				if ns == "" {

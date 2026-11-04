@@ -345,3 +345,97 @@ func TestCompile_Deterministic(t *testing.T) {
 	// Duplicate addresses are merged.
 	must.Len(t, 2, first.Ingress.Allow[0].Prefixes)
 }
+
+func TestCompile_CIDRExcept(t *testing.T) {
+	ci.Parallel(t)
+
+	compile := func(peer *structs.NetworkPolicyPeer) *Ruleset {
+		p := &structs.NetworkPolicy{
+			Name:      "ext",
+			Namespace: "prod",
+			Egress:    []*structs.NetworkPolicyRule{{Peers: []*structs.NetworkPolicyPeer{peer}}},
+		}
+		rs, err := Compile(&Input{Namespace: "prod", Rules: &structs.NetworkPolicyAllocRules{Policies: []*structs.NetworkPolicy{p}}})
+		must.NoError(t, err)
+		return rs
+	}
+	prefixes := func(rs *Ruleset) []string {
+		var out []string
+		for _, p := range rs.Egress.Allow[0].Prefixes {
+			out = append(out, p.String())
+		}
+		return out
+	}
+
+	// an except prefix inside the block: the rest of the block, as prefixes
+	rs := compile(&structs.NetworkPolicyPeer{CIDR: []string{"10.0.0.0/8"}, Except: []string{"10.1.0.0/16"}})
+	got := prefixes(rs)
+	must.Len(t, 8, got)
+	covered := func(addr string) bool {
+		a := netip.MustParseAddr(addr)
+		for _, p := range rs.Egress.Allow[0].Prefixes {
+			if p.Contains(a) {
+				return true
+			}
+		}
+		return false
+	}
+	must.True(t, covered("10.0.255.255"))
+	must.True(t, covered("10.2.0.0"))
+	must.True(t, covered("10.255.255.255"))
+	must.False(t, covered("10.1.0.0"))
+	must.False(t, covered("10.1.200.3"))
+	must.False(t, covered("10.1.255.255"))
+	must.False(t, covered("11.0.0.1"))
+
+	// the classic: everything but the private ranges and metadata
+	rs = compile(&structs.NetworkPolicyPeer{
+		CIDR:   []string{"0.0.0.0/0"},
+		Except: []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.169.254/32"},
+	})
+	covered = func(addr string) bool {
+		a := netip.MustParseAddr(addr)
+		for _, p := range rs.Egress.Allow[0].Prefixes {
+			if p.Contains(a) {
+				return true
+			}
+		}
+		return false
+	}
+	must.True(t, covered("8.8.8.8"))
+	must.True(t, covered("169.254.169.253"))
+	must.True(t, covered("172.32.0.1"))
+	must.False(t, covered("169.254.169.254"))
+	must.False(t, covered("172.20.1.1"))
+	must.False(t, covered("192.168.1.1"))
+	must.False(t, covered("10.9.9.9"))
+
+	// an except prefix of another family or outside the block changes nothing
+	rs = compile(&structs.NetworkPolicyPeer{CIDR: []string{"10.0.0.0/8"}, Except: []string{"fd00::/8", "11.0.0.0/8"}})
+	must.Eq(t, []string{"10.0.0.0/8"}, prefixes(rs))
+
+	// IPv6
+	rs = compile(&structs.NetworkPolicyPeer{CIDR: []string{"fd00::/8"}, Except: []string{"fd00:1::/32"}})
+	covered = func(addr string) bool {
+		a := netip.MustParseAddr(addr)
+		for _, p := range rs.Egress.Allow[0].Prefixes {
+			if p.Contains(a) {
+				return true
+			}
+		}
+		return false
+	}
+	must.True(t, covered("fd00::1"))
+	must.False(t, covered("fd00:1::5"))
+	must.True(t, covered("fd00:2::5"))
+
+	// excepting the whole block leaves the rule without a match: the
+	// direction stays isolated but nothing is allowed
+	rs = compile(&structs.NetworkPolicyPeer{CIDR: []string{"10.0.0.0/8"}, Except: []string{"10.0.0.0/8"}})
+	must.True(t, rs.Egress.Isolated)
+	must.Len(t, 0, rs.Egress.Allow)
+
+	// the rendered rules never contain the excepted address space
+	rs = compile(&structs.NetworkPolicyPeer{CIDR: []string{"10.0.0.0/30"}, Except: []string{"10.0.0.1/32"}})
+	must.Eq(t, []string{"10.0.0.0/32", "10.0.0.2/31"}, prefixes(rs))
+}

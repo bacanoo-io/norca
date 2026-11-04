@@ -69,6 +69,7 @@ type NetworkPolicyRule struct {
 // node.
 type NetworkPolicyPeer struct {
 	CIDR      []string
+	Except    []string
 	Namespace string
 	Selector  map[string]string
 }

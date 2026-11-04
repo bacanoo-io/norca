@@ -287,13 +287,22 @@ func compileRule(in *Input, policyNamespace, direction string, rule *structs.Net
 				continue
 			}
 			if len(peer.CIDR) > 0 {
+				var blocks, excepts []netip.Prefix
 				for _, cidr := range peer.CIDR {
 					prefix, err := netip.ParsePrefix(cidr)
 					if err != nil {
 						return nil, false, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
 					}
-					out.Prefixes = append(out.Prefixes, prefix.Masked())
+					blocks = append(blocks, prefix.Masked())
 				}
+				for _, ex := range peer.Except {
+					prefix, err := netip.ParsePrefix(ex)
+					if err != nil {
+						return nil, false, fmt.Errorf("invalid except prefix %q: %w", ex, err)
+					}
+					excepts = append(excepts, prefix.Masked())
+				}
+				out.Prefixes = append(out.Prefixes, subtractPrefixes(blocks, excepts)...)
 				continue
 			}
 			for _, alloc := range in.Rules.Peers {
@@ -367,6 +376,57 @@ func protoName(proto uint8) string {
 	default:
 		return "tcp"
 	}
+}
+
+// subtractPrefixes removes the except prefixes from the blocks and returns
+// the prefixes covering what is left. Blocks that no except prefix touches
+// stay as they are.
+func subtractPrefixes(blocks, excepts []netip.Prefix) []netip.Prefix {
+	out := blocks
+	for _, ex := range excepts {
+		next := make([]netip.Prefix, 0, len(out))
+		for _, b := range out {
+			next = append(next, subtractPrefix(b, ex)...)
+		}
+		out = next
+	}
+	return out
+}
+
+// subtractPrefix returns the prefixes covering block without ex.
+func subtractPrefix(block, ex netip.Prefix) []netip.Prefix {
+	if block.Addr().Is4() != ex.Addr().Is4() || !prefixesOverlap(block, ex) {
+		return []netip.Prefix{block}
+	}
+	if ex.Bits() <= block.Bits() {
+		// ex covers the whole block
+		return nil
+	}
+	// ex is strictly inside block: split the block in halves and continue
+	// with the half that holds ex; the other half stays whole.
+	bits := block.Bits() + 1
+	left := netip.PrefixFrom(block.Addr(), bits)
+	right := netip.PrefixFrom(setBit(block.Addr(), block.Bits()), bits)
+	if left.Contains(ex.Addr()) {
+		return append(subtractPrefix(left, ex), right)
+	}
+	return append([]netip.Prefix{left}, subtractPrefix(right, ex)...)
+}
+
+func prefixesOverlap(a, b netip.Prefix) bool {
+	if a.Bits() > b.Bits() {
+		a, b = b, a
+	}
+	return a.Contains(b.Addr())
+}
+
+// setBit returns addr with the bit at the position (0 is the most
+// significant) set to one.
+func setBit(addr netip.Addr, pos int) netip.Addr {
+	raw := addr.AsSlice()
+	raw[pos/8] |= 0x80 >> (pos % 8)
+	out, _ := netip.AddrFromSlice(raw)
+	return out
 }
 
 func dedupPrefixes(prefixes []netip.Prefix) []netip.Prefix {
