@@ -25,8 +25,12 @@ type reconciler struct {
 	ctrl      *controller.Controller
 	cluster   Cluster
 	providers map[string]Provider
-	logger    *slog.Logger
-	now       func() time.Time
+
+	// classes holds the providers registered by LoadBalancerClass objects
+	// (with native objects only); nil disables them.
+	classes *classRegistry
+	logger  *slog.Logger
+	now     func() time.Time
 
 	// requeueNotReady and requeueReady bound how long a health change of a
 	// target that produces no event (for example a deployment marking an
@@ -42,7 +46,7 @@ func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (t
 		// With native objects the finalizer normally did this before the
 		// object disappeared; with Variables this is the only cleanup.
 		r.ctrl.Recorder().Forget(key)
-		return 0, r.cleanup(ctx, key)
+		return 0, r.cleanup(ctx, key, "", false)
 	}
 
 	native := r.ctrl.Objects().Storage() == controller.StorageNative
@@ -52,7 +56,9 @@ func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (t
 		if !obj.HasFinalizer(Finalizer) {
 			return 0, nil
 		}
-		if err := r.cleanup(ctx, key); err != nil {
+		var last Status
+		_ = obj.DecodeStatus(&last)
+		if err := r.cleanup(ctx, key, last.Class, true); err != nil {
 			r.ctrl.Recorder().Event(ctx, key, controller.EventTypeWarning, "CleanupFailed", err.Error())
 			return 0, err
 		}
@@ -83,10 +89,14 @@ func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (t
 	if err := spec.Validate(); err != nil {
 		return 0, r.fail(ctx, obj, &status, "InvalidSpec", err.Error())
 	}
-	provider, ok := r.providers[spec.Class]
-	if !ok {
-		return 0, r.fail(ctx, obj, &status, "UnknownClass",
-			fmt.Sprintf("no provider for class %q in this region", spec.Class))
+	provider, problem, err := r.resolve(ctx, native, spec)
+	if err != nil {
+		return 0, err
+	}
+	if provider == nil {
+		// With registered classes a provider may appear, come back or
+		// change its capabilities, so the problem is checked again.
+		return r.failRetry(ctx, obj, &status, problem.reason, problem.message, problem.retry)
 	}
 
 	// A changed class leaves resources of the previous provider behind.
@@ -95,6 +105,11 @@ func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (t
 			if err := p.Delete(ctx, key); err != nil {
 				return 0, err
 			}
+		}
+	}
+	if status.Class != "" && status.Class != spec.Class {
+		if err := r.deleteRemote(ctx, key, status.Class, false); err != nil {
+			return 0, err
 		}
 	}
 
@@ -164,13 +179,105 @@ func cond(conditionType string, ok bool, reason, message string) controller.Cond
 	return controller.Condition{Type: conditionType, Status: status, Reason: reason, Message: message}
 }
 
-// cleanup removes what every provider created for the object.
-func (r *reconciler) cleanup(ctx context.Context, key controller.ObjectKey) error {
+// cleanup removes what every built-in provider created for the object, and
+// what the registered provider of class created. With strict, a registered
+// provider that cannot be reached (or is gone) is an error, so that the
+// finalizer keeps the object until the load balancer is removed.
+func (r *reconciler) cleanup(ctx context.Context, key controller.ObjectKey, class string, strict bool) error {
 	var errs []error
 	for _, p := range r.providers {
 		errs = append(errs, p.Delete(ctx, key))
 	}
+	errs = append(errs, r.deleteRemote(ctx, key, class, strict))
 	return errors.Join(errs...)
+}
+
+// deleteRemote removes the load balancer a registered provider created. A
+// class that is no longer registered is an error only when strict is set;
+// otherwise what it created is left behind.
+func (r *reconciler) deleteRemote(ctx context.Context, key controller.ObjectKey, class string, strict bool) error {
+	if class == "" || r.classes == nil {
+		return nil
+	}
+	if _, builtin := r.providers[class]; builtin {
+		return nil
+	}
+	info, err := r.classes.lookup(ctx, class)
+	if err != nil {
+		return fmt.Errorf("reading the LoadBalancerClass objects: %w", err)
+	}
+	if info == nil {
+		if strict {
+			return fmt.Errorf("cannot remove the load balancer of class %q: %w", class, errClassNotRegistered)
+		}
+		r.logger.Warn("the class of a load balancer is not registered, what it created is left behind",
+			"object", key.String(), "class", class)
+		return nil
+	}
+	return r.classes.provider(info).Delete(ctx, key)
+}
+
+// classProblem describes why a class cannot implement a load balancer now.
+type classProblem struct {
+	reason  string
+	message string
+	retry   bool
+}
+
+// resolve returns the provider of the class of the spec: a built-in one, or
+// one registered by a LoadBalancerClass object. It returns a nil provider and
+// the problem when there is none that can implement the spec.
+func (r *reconciler) resolve(ctx context.Context, native bool, spec Spec) (Provider, classProblem, error) {
+	if p, ok := r.providers[spec.Class]; ok {
+		return p, classProblem{}, nil
+	}
+	known := func() string {
+		names := make([]string, 0, len(r.providers))
+		for class := range r.providers {
+			names = append(names, class)
+		}
+		if r.classes != nil && native {
+			names = append(names, r.classes.names(ctx)...)
+		}
+		slices.Sort(names)
+		return strings.Join(slices.Compact(names), ", ")
+	}
+	if r.classes == nil || !native {
+		return nil, classProblem{reason: "UnknownClass",
+			message: fmt.Sprintf("no provider for class %q in this region (known: %s)", spec.Class, known())}, nil
+	}
+
+	info, err := r.classes.lookup(ctx, spec.Class)
+	if err != nil {
+		return nil, classProblem{}, fmt.Errorf("reading the LoadBalancerClass objects: %w", err)
+	}
+	if info == nil {
+		return nil, classProblem{reason: "UnknownClass", retry: true,
+			message: fmt.Sprintf("no provider for class %q in this region (known: %s)", spec.Class, known())}, nil
+	}
+	if err := info.validate(r.classes.allowHTTP); err != nil {
+		return nil, classProblem{reason: "InvalidClass", retry: true, message: err.Error()}, nil
+	}
+	if ok, why := info.available(r.now(), r.classes.ttl); !ok {
+		return nil, classProblem{reason: "ProviderUnavailable", retry: true,
+			message: fmt.Sprintf("provider of class %q is unavailable: %s", spec.Class, why)}, nil
+	}
+	if why := info.unsupported(spec); why != "" {
+		return nil, classProblem{reason: "Unsupported", retry: true, message: why}, nil
+	}
+	return r.classes.provider(info), classProblem{}, nil
+}
+
+// failRetry is fail for a problem that may go away without a spec change: it
+// asks for another reconcile when retry is set.
+func (r *reconciler) failRetry(ctx context.Context, obj *controller.Object, status *Status, reason, message string, retry bool) (time.Duration, error) {
+	if err := r.fail(ctx, obj, status, reason, message); err != nil {
+		return 0, err
+	}
+	if retry {
+		return r.requeueNotReady, nil
+	}
+	return 0, nil
 }
 
 // fail records a problem of the spec in the status and the event log. Such

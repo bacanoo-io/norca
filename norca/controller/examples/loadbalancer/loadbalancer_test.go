@@ -98,6 +98,11 @@ func startOperatorOn(t *testing.T, b *fake.Backend, cluster *fakeCluster, discov
 		requeueNotReady: 50 * time.Millisecond,
 		requeueReady:    time.Minute,
 	}
+	if storage == controller.StorageNative {
+		r.classes = newClassRegistry(b, "default", 3*time.Minute)
+		r.classes.allowHTTP = true
+		r.classes.cacheFor = 10 * time.Millisecond
+	}
 	c, err := controller.New(b, r, controller.Options{
 		Name:        "loadbalancer",
 		Storage:     storage,

@@ -42,3 +42,30 @@ namespace "default" {
     capabilities = ["read", "write", "write-status", "write-events", "manage-finalizers"]
   }
 }
+
+# With -objects=native and registered providers (LoadBalancerClass): the kind
+# is cluster-scoped, so its rules are in the namespace "*". The operator only
+# reads the registrations; the providers write their own (see the policy of a
+# provider below).
+namespace "*" {
+  object "norca.io/LoadBalancerClass" {
+    capabilities = ["read"]
+  }
+}
+
+# The tokens the operator sends to the providers are Variables of the
+# namespace -class-token-namespace (default "default"). Add to the
+# namespace "default" block above:
+#
+#   variables {
+#     path "lb-provider/*" { capabilities = ["read"] }
+#   }
+#
+# A provider application needs only its own registration and heartbeat, for
+# example (bind it to the job of the provider):
+#
+#   namespace "*" {
+#     object "norca.io/LoadBalancerClass" {
+#       capabilities = ["read", "write", "write-status"]
+#     }
+#   }
