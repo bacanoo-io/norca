@@ -1472,6 +1472,24 @@ func ApiPortToStructs(in api.Port) structs.Port {
 	}
 }
 
+// apiServiceMeta returns the meta of a service. The load_balancer block of
+// the expose block is written to the norca_lb_* meta keys, where a load
+// balancer operator finds it; it wins over the same keys set by hand.
+func apiServiceMeta(s *api.Service) map[string]string {
+	meta := maps.Clone(s.Meta)
+	if s.Expose == nil || s.Expose.LoadBalancer == nil {
+		return meta
+	}
+	if meta == nil {
+		meta = make(map[string]string, 3)
+	}
+	lb := s.Expose.LoadBalancer
+	meta[api.ServiceMetaLBClass] = lb.Class
+	meta[api.ServiceMetaLBPort] = strconv.Itoa(lb.Port)
+	meta[api.ServiceMetaLBInternal] = strconv.FormatBool(lb.Internal)
+	return meta
+}
+
 func ApiServicesToStructs(in []*api.Service, group bool) []*structs.Service {
 	if len(in) == 0 {
 		return nil
@@ -1488,7 +1506,7 @@ func ApiServicesToStructs(in []*api.Service, group bool) []*structs.Service {
 			EnableTagOverride: s.EnableTagOverride,
 			AddressMode:       s.AddressMode,
 			Address:           s.Address,
-			Meta:              maps.Clone(s.Meta),
+			Meta:              apiServiceMeta(s),
 			CanaryMeta:        maps.Clone(s.CanaryMeta),
 			TaggedAddresses:   maps.Clone(s.TaggedAddresses),
 			OnUpdate:          s.OnUpdate,

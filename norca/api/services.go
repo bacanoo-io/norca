@@ -358,7 +358,42 @@ type Service struct {
 	// MTLS is the native mTLS configuration of a service using the Nomad
 	// provider.
 	MTLS *ServiceMTLS `hcl:"mtls,block"`
+
+	// Expose declares how the service is made reachable from outside the
+	// cluster. The servers turn a load_balancer block into the
+	// norca_lb_* service meta keys, which a load balancer operator (an
+	// external application) reads.
+	Expose *ServiceExpose `hcl:"expose,block"`
 }
+
+// ServiceExpose is the expose block of a service.
+type ServiceExpose struct {
+	LoadBalancer *ServiceLoadBalancer `mapstructure:"load_balancer" hcl:"load_balancer,block"`
+}
+
+// ServiceLoadBalancer asks a load balancer operator for a load balancer in
+// front of the service. The load balancer itself is created by the operator
+// that handles the class, not by Norca.
+type ServiceLoadBalancer struct {
+	// Class names the provider the operator uses, e.g. "nomad" for the
+	// self-hosted proxy or the class of a cloud operator.
+	Class string `mapstructure:"class" hcl:"class"`
+
+	// Port is the port of the load balancer.
+	Port int `mapstructure:"port" hcl:"port"`
+
+	// Internal asks for a load balancer that is not reachable from the
+	// internet.
+	Internal bool `mapstructure:"internal" hcl:"internal,optional"`
+}
+
+// Service meta keys the load_balancer block is written to. A load balancer
+// operator may also read them from services marked by hand.
+const (
+	ServiceMetaLBClass    = "norca_lb_class"
+	ServiceMetaLBPort     = "norca_lb_port"
+	ServiceMetaLBInternal = "norca_lb_internal"
+)
 
 const (
 	OnUpdateRequireHealthy = "require_healthy"
