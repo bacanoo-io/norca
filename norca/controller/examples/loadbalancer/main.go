@@ -144,6 +144,7 @@ type controllerFlags struct {
 	classTTL       time.Duration
 	classTokenNS   string
 	classAllowHTTP bool
+	classCAFile    string
 }
 
 func runController(ctx context.Context, args []string) error {
@@ -161,6 +162,7 @@ func runController(ctx context.Context, args []string) error {
 	fs.StringVar(&f.logLevel, "log-level", "info", "log level")
 	fs.DurationVar(&f.resync, "resync", 10*time.Minute, "period of full resynchronization")
 	fs.DurationVar(&f.classTTL, "class-ttl", 3*time.Minute, "how old the heartbeat of a registered LoadBalancerClass provider may be (native objects)")
+	fs.StringVar(&f.classCAFile, "class-ca-file", "", "PEM file with the CA (or certificate) that signed the https certificates of registered providers, in addition to the system roots")
 	fs.BoolVar(&f.classAllowHTTP, "class-allow-http", false, "accept http endpoints of registered providers (development only)")
 	fs.StringVar(&f.classTokenNS, "class-token-namespace", "default", "namespace of the Variables holding the tokens of registered providers")
 	fs.StringVar(&f.provider.JobPrefix, "job-prefix", "lb-", "prefix of the proxy job IDs")
@@ -234,6 +236,11 @@ func runController(ctx context.Context, args []string) error {
 		// class, and cleaned up through the finalizer.
 		lb.classes = newClassRegistry(backend, f.classTokenNS, f.classTTL)
 		lb.classes.allowHTTP = f.classAllowHTTP
+		if f.classCAFile != "" {
+			if err := lb.classes.setCAFile(f.classCAFile); err != nil {
+				return err
+			}
+		}
 	}
 	lbCtrl, err := controller.New(backend, lb, controller.Options{
 		Name:           "loadbalancer",

@@ -87,6 +87,13 @@ func startOperatorWith(t *testing.T, discover bool, storage controller.Storage) 
 // restarted operator.
 func startOperatorOn(t *testing.T, b *fake.Backend, cluster *fakeCluster, discover bool, storage controller.Storage) *env {
 	t.Helper()
+	return startOperatorTuned(t, b, cluster, discover, storage, nil)
+}
+
+// startOperatorTuned is startOperatorOn with a function that adjusts the
+// reconciler before the controllers start.
+func startOperatorTuned(t *testing.T, b *fake.Backend, cluster *fakeCluster, discover bool, storage controller.Storage, tune func(*reconciler)) *env {
+	t.Helper()
 	prov, err := newNomadProvider(NomadProviderConfig{Command: "/usr/local/bin/loadbalancer"}, b, cluster)
 	must.NoError(t, err)
 
@@ -102,6 +109,9 @@ func startOperatorOn(t *testing.T, b *fake.Backend, cluster *fakeCluster, discov
 		r.classes = newClassRegistry(b, "default", 3*time.Minute)
 		r.classes.allowHTTP = true
 		r.classes.cacheFor = 10 * time.Millisecond
+	}
+	if tune != nil {
+		tune(r)
 	}
 	c, err := controller.New(b, r, controller.Options{
 		Name:        "loadbalancer",
