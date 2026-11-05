@@ -56,7 +56,8 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 				Group:     name,
 				Count:     1 + metric.CoalescedFailures,
 				Exclusive: hasConstraint(job.Constraints, structs.ConstraintDistinctHosts) ||
-					hasConstraint(tg.Constraints, structs.ConstraintDistinctHosts),
+					hasConstraint(tg.Constraints, structs.ConstraintDistinctHosts) ||
+					hasStaticPort(tg),
 			}
 			u.Distinct, u.Unverifiable = distinctProperties(snap, job, tg)
 			for _, task := range tg.Tasks {
@@ -202,6 +203,35 @@ func blockedDatacenters(job *structs.Job, metric *structs.AllocMetric) []string 
 	}
 	slices.Sort(dcs)
 	return dcs
+}
+
+// hasStaticPort reports whether the task group asks for a port by number on
+// the host: two of its allocations cannot share a node, whatever their size,
+// and a node that has the port taken by other work cannot take it either. A
+// proxy on ports 80 and 443 is blocked this way.
+func hasStaticPort(tg *structs.TaskGroup) bool {
+	static := func(networks structs.Networks) bool {
+		for _, n := range networks {
+			if n == nil {
+				continue
+			}
+			for _, p := range n.ReservedPorts {
+				if p.Value > 0 {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if static(tg.Networks) {
+		return true
+	}
+	for _, task := range tg.Tasks {
+		if task.Resources != nil && static(task.Resources.Networks) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasConstraint reports whether one of the constraints has the operand.

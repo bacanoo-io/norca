@@ -140,3 +140,60 @@ func TestMetricsStore_BlockedDistinctProperty(t *testing.T) {
 	}
 	must.Eq(t, 1.0, unverifiable)
 }
+
+// TestMetricsStore_BlockedStaticPort checks that a task group with a port by
+// number needs a node for each of its allocations, however small they are,
+// and that a dynamic port does not.
+func TestMetricsStore_BlockedStaticPort(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, enableMetricsStore(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+	st := s.fsm.State()
+
+	node := mock.Node()
+	node.NodePool = "default"
+	must.NoError(t, st.UpsertNode(structs.MsgTypeTestSetup, 1000, node))
+
+	blocked := func(index uint64, ports ...structs.Port) *structs.Job {
+		job := mock.Job()
+		job.NodePool = "default"
+		job.TaskGroups[0].Networks = []*structs.NetworkResource{{Mode: "host", ReservedPorts: ports}}
+		job.TaskGroups[0].Tasks[0].Resources.CPU = 50
+		job.TaskGroups[0].Tasks[0].Resources.MemoryMB = 32
+		must.NoError(t, st.UpsertJob(structs.MsgTypeTestSetup, index, nil, job))
+		eval := mock.BlockedEval()
+		eval.JobID, eval.Namespace = job.ID, job.Namespace
+		eval.FailedTGAllocs = map[string]*structs.AllocMetric{
+			job.TaskGroups[0].Name: {NodesAvailable: map[string]int{node.Datacenter: 1}, CoalescedFailures: 2},
+		}
+		s.blockedEvals.Block(eval)
+		return job
+	}
+	proxy := blocked(1001, structs.Port{Label: "http", Value: 80}, structs.Port{Label: "https", Value: 443})
+	dynamic := blocked(1002, structs.Port{Label: "dyn"})
+
+	snap, err := st.Snapshot()
+	must.NoError(t, err)
+	d := collectBlocked(snap, s.blockedEvals.Evals())[[2]string{node.Datacenter, "default"}]
+	must.NotNil(t, d)
+	must.Len(t, 2, d.unplaced)
+	for _, u := range d.unplaced {
+		must.Eq(t, u.Job == proxy.ID, u.Exclusive, must.Sprintf("job %s (dynamic is %s)", u.Job, dynamic.ID))
+	}
+
+	// Three tiny proxies fill three nodes; three tiny dynamic ones share one.
+	size := autoscaler.NodeSize{CPU: 4000, Memory: 8000, Disk: 10000}
+	var proxies, others []autoscaler.Unplaced
+	for _, u := range d.unplaced {
+		u.Disk = 0
+		if u.Exclusive {
+			proxies = append(proxies, u)
+		} else {
+			others = append(others, u)
+		}
+	}
+	must.Eq(t, 3, autoscaler.PackNodes(proxies, size).Nodes)
+	must.Eq(t, 1, autoscaler.PackNodes(others, size).Nodes)
+}
