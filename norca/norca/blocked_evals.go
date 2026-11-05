@@ -709,6 +709,23 @@ func (b *BlockedEvals) Flush() {
 	b.system = newSystemEvals()
 }
 
+// Evals returns the blocked evaluations that wait for capacity: those
+// captured by a computed node class and those that escaped it, without the
+// system evaluations (they wait for a node, not for more nodes).
+func (b *BlockedEvals) Evals() []*structs.Evaluation {
+	b.l.RLock()
+	defer b.l.RUnlock()
+	out := make([]*structs.Evaluation, 0, len(b.captured)+len(b.escaped))
+	for _, group := range []map[string]wrappedEval{b.captured, b.escaped} {
+		for _, w := range group {
+			if w.eval.Type != structs.JobTypeSystem {
+				out = append(out, w.eval)
+			}
+		}
+	}
+	return out
+}
+
 // Stats is used to query the state of the blocked eval tracker.
 func (b *BlockedEvals) Stats() *BlockedStats {
 	// Allocate a new stats struct
