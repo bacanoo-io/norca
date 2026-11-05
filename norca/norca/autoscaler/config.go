@@ -72,6 +72,7 @@ type AdviceGroup struct {
 	Name       string
 	Pool       string
 	Datacenter string
+	Class      string // the node class of the nodes, empty if none
 	Size       NodeSize
 }
 

@@ -395,3 +395,50 @@ func TestDemandSpill_PoolLimitsStayWithThePoolOfTheGroup(t *testing.T) {
 	must.NoError(t, h.runner.scaleForDemand(context.Background()))
 	must.Eq(t, map[string]int64{"edge-a": 2}, scaledTo(objects)) // the step of the pool "edge"
 }
+
+// The constraint of a job on ${node.class}.
+
+func TestDemandClass_OnlyTheGroupOfTheClassGrows(t *testing.T) {
+	ci.Parallel(t)
+	u := Unplaced{Namespace: "default", Job: "g", Group: "g", Count: 2, CPU: 10, Memory: 6000,
+		Classes: []ClassConstraint{{Operand: "=", Value: "gpu"}}}
+	h, objects, _ := demandHarness(t, []testGroup{
+		{name: "plain-a", dc: "dc-a"},
+		{name: "gpu-a", dc: "dc-a", spec: map[string]any{"node_class": "gpu"}},
+	}, workIn("workers", []string{"dc-a"}, u))
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, map[string]int64{"gpu-a": 3}, scaledTo(objects))
+}
+
+func TestDemandClass_NoGroupHasTheClass(t *testing.T) {
+	ci.Parallel(t)
+	u := Unplaced{Namespace: "default", Job: "g", Group: "g", Count: 2, CPU: 10, Memory: 6000,
+		Classes: []ClassConstraint{{Operand: "=", Value: "gpu"}}}
+	h, objects, events := demandHarness(t, []testGroup{{name: "plain-a", dc: "dc-a"}},
+		workIn("workers", []string{"dc-a"}, u))
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Len(t, 0, objects.requests())
+	must.Eq(t, 1, events.count(structs.TypeScalingNodeBlocked))
+}
+
+func TestDemandClass_OperandsAreChecked(t *testing.T) {
+	ci.Parallel(t)
+	for _, tc := range []struct {
+		c     ClassConstraint
+		class string
+		want  bool
+	}{
+		{ClassConstraint{"==", "a"}, "a", true},
+		{ClassConstraint{"=", "a"}, "b", false},
+		{ClassConstraint{"!=", "a"}, "b", true},
+		{ClassConstraint{"not", "a"}, "a", false},
+		{ClassConstraint{"regexp", "^gpu-"}, "gpu-a100", true},
+		{ClassConstraint{"regexp", "^gpu-"}, "cpu", false},
+		{ClassConstraint{"set_contains_any", "a, b"}, "b", true},
+		{ClassConstraint{"set_contains_any", "a,b"}, "c", false},
+		{ClassConstraint{"is_set", ""}, "", false},
+		{ClassConstraint{"is_not_set", ""}, "", true},
+	} {
+		must.Eq(t, tc.want, tc.c.matches(tc.class), must.Sprintf("%+v on %q", tc.c, tc.class))
+	}
+}
