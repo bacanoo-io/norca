@@ -34,6 +34,17 @@ const (
 	// datacenter and node pool (and, with a class, of that node class).
 	MetricClusterNodesReady = "norca.cluster.nodes_ready"
 
+	// The demand that cannot be placed for want of capacity (labels dc,
+	// pool), from the blocked evaluations of the leader: the CPU (MHz) and
+	// memory (MiB) of the unplaced allocations, the number of blocked
+	// evaluations, and the unplaced allocations that need a node of their
+	// own (distinct_hosts). The demand of a job that can use several
+	// datacenters is counted in each of them.
+	MetricClusterBlockedCPU             = "norca.cluster.blocked_cpu_mhz"
+	MetricClusterBlockedMemory          = "norca.cluster.blocked_memory_mb"
+	MetricClusterBlockedEvals           = "norca.cluster.blocked_evals"
+	MetricClusterBlockedAllocsExclusive = "norca.cluster.blocked_allocs_exclusive"
+
 	// MetricAutopilotHealthy (1 healthy, 0 not) and
 	// MetricAutopilotFailureTolerance are the health of the servers; only
 	// the leader has them.
@@ -51,18 +62,23 @@ const (
 
 // gaugeLabels are the labels of the gauge metrics, by metric.
 var gaugeLabels = map[string][]string{
-	MetricClusterCPUAllocated:       {"dc", "pool", "class"},
-	MetricClusterCPUUsed:            {"dc", "pool", "class"},
-	MetricClusterMemoryAllocated:    {"dc", "pool", "class"},
-	MetricClusterMemoryUsed:         {"dc", "pool", "class"},
-	MetricClusterDiskAllocated:      {"dc", "pool", "class"},
-	MetricClusterNodesReady:         {"dc", "pool", "class"},
-	MetricAutopilotHealthy:          {},
-	MetricAutopilotFailureTolerance: {},
-	MetricQuotaCPUAllocated:         {"quota"},
-	MetricQuotaCPUUsed:              {"quota"},
-	MetricQuotaMemoryAllocated:      {"quota"},
-	MetricQuotaMemoryUsed:           {"quota"},
+	MetricClusterCPUAllocated:    {"dc", "pool", "class"},
+	MetricClusterCPUUsed:         {"dc", "pool", "class"},
+	MetricClusterMemoryAllocated: {"dc", "pool", "class"},
+	MetricClusterMemoryUsed:      {"dc", "pool", "class"},
+	MetricClusterDiskAllocated:   {"dc", "pool", "class"},
+	MetricClusterNodesReady:      {"dc", "pool", "class"},
+	MetricClusterBlockedCPU:      {"dc", "pool"},
+	MetricClusterBlockedMemory:   {"dc", "pool"},
+	MetricClusterBlockedEvals:    {"dc", "pool"},
+
+	MetricClusterBlockedAllocsExclusive: {"dc", "pool"},
+	MetricAutopilotHealthy:              {},
+	MetricAutopilotFailureTolerance:     {},
+	MetricQuotaCPUAllocated:             {"quota"},
+	MetricQuotaCPUUsed:                  {"quota"},
+	MetricQuotaMemoryAllocated:          {"quota"},
+	MetricQuotaMemoryUsed:               {"quota"},
 }
 
 // GaugeMetrics are the gauge metrics, sorted.

@@ -87,8 +87,9 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 		)
 	}
 
-	// Only the leader runs autopilot.
+	// Only the leader runs autopilot and has the blocked evaluations.
 	if s.IsLeader() {
+		gauges = append(gauges, blockedGauges(snap, s.blockedEvals.Evals(), cluster)...)
 		if h := s.GetClusterHealth(); h != nil {
 			healthy := 0.0
 			if h.Healthy {

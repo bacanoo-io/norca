@@ -44,6 +44,11 @@ const (
 	MetricsClusterDiskAllocated   = "norca.cluster.disk_allocated"
 	MetricsClusterNodesReady      = "norca.cluster.nodes_ready"
 
+	MetricsClusterBlockedCPU             = "norca.cluster.blocked_cpu_mhz"
+	MetricsClusterBlockedMemory          = "norca.cluster.blocked_memory_mb"
+	MetricsClusterBlockedEvals           = "norca.cluster.blocked_evals"
+	MetricsClusterBlockedAllocsExclusive = "norca.cluster.blocked_allocs_exclusive"
+
 	MetricsAutopilotHealthy          = "norca.cluster.autopilot_healthy"
 	MetricsAutopilotFailureTolerance = "norca.cluster.autopilot_failure_tolerance"
 
