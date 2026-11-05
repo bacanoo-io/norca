@@ -145,6 +145,10 @@ type Config struct {
 	// KeyLoader dynamically reloads TLS configuration.
 	KeyLoader *config.KeyLoader
 
+	// DistrustedCAFile is a path to a PEM file of CAs whose certificates are
+	// refused on incoming connections (see distrust.go).
+	DistrustedCAFile string
+
 	// CipherSuites have a default safe configuration, or operators can override
 	// these values for acceptable safe alternatives.
 	CipherSuites []uint16
@@ -178,6 +182,7 @@ func NewTLSConfiguration(newConf *config.TLSConfig, verifyIncoming, verifyOutgoi
 		CertFile:                 newConf.CertFile,
 		KeyFile:                  newConf.KeyFile,
 		KeyLoader:                newConf.GetKeyLoader(),
+		DistrustedCAFile:         newConf.DistrustedCAFile,
 		CipherSuites:             ciphers,
 		MinVersion:               minVersion,
 		PreferServerCipherSuites: newConf.TLSPreferServerCipherSuites,
@@ -386,6 +391,16 @@ func (c *Config) IncomingTLSConfig() (*tls.Config, error) {
 		if cert == nil {
 			return nil, fmt.Errorf("VerifyIncoming set, and no Cert/Key pair provided!")
 		}
+	}
+
+	// The distrusted CAs: checked on the verified chains of the client
+	// certificates.
+	if c.DistrustedCAFile != "" {
+		list, err := newDistrustList(c.DistrustedCAFile)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.VerifyPeerCertificate = list.verify
 	}
 
 	return tlsConfig, nil
