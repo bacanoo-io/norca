@@ -112,6 +112,10 @@ type demandGroup struct {
 	priority int64
 	weight   int64
 
+	// spill lets work of a job that may run in any node pool ("all") grow
+	// this group, whatever its pool is.
+	spill bool
+
 	size      NodeSize
 	sizeKnown bool
 
@@ -228,6 +232,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 			priority: asInt(spec["priority"]),
 			weight:   max(asInt(spec["weight"]), 1),
 		}
+		g.spill, _ = spec["spill"].(bool)
 
 		// The nodes the group has: as the operator reports them, or, when
 		// none does, the ready nodes of the cluster gauges.
@@ -429,7 +434,14 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		var candidates []*demandGroup
 		var rejected []string
 		for _, g := range groups {
-			if g.pool != item.pool || !slices.Contains(item.dcs, g.dc) {
+			if !slices.Contains(item.dcs, g.dc) {
+				continue
+			}
+			// A job of a node pool uses the groups of that pool. A job
+			// that may run in any pool ("all") uses the groups that allow
+			// it with spill: by default work does not grow the groups of
+			// pools it was not meant for.
+			if g.pool != item.pool && !(item.pool == structs.NodePoolAll && g.spill) {
 				continue
 			}
 			if !g.sizeKnown {
@@ -450,6 +462,10 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			candidates = append(candidates, g)
 		}
 		if len(candidates) == 0 {
+			if item.pool == structs.NodePoolAll && len(rejected) == 0 {
+				blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group] =
+					"the job may use any node pool; no node group allows it (spill = true) in its datacenters"
+			}
 			if len(rejected) > 0 {
 				blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group] = strings.Join(rejected, "; ")
 			}
