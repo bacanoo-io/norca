@@ -55,6 +55,11 @@ type Deps struct {
 	// error.
 	GaugeHistory func(metric string, labels map[string]string, from, to time.Time) (avg, max float64, samples int, err error)
 
+	// BlockedDemand returns the demand of the blocked evaluations by
+	// datacenter and node pool ([2]string{dc, pool}). Optional; the advice
+	// mode needs it.
+	BlockedDemand func() map[[2]string][]Unplaced
+
 	// PublishEvent publishes the events of the Scaling topic. Optional.
 	PublishEvent EventPublisher
 
@@ -249,6 +254,9 @@ func (a *Autoscaler) run(ctx context.Context, cfg *Config, doneCh chan struct{})
 
 	a.logger.Info("starting built-in autoscaler", "default_engine", cfg.DefaultEngine,
 		"eval_workers", cfg.EvalWorkers)
+	if len(cfg.Advice) > 0 && a.deps.BlockedDemand != nil {
+		go a.advise(ctx, cfg)
+	}
 	r := newRunner(a.logger, cfg, a.deps, a.now, host)
 	r.usage = a.usage
 	r.run(ctx)
@@ -273,8 +281,15 @@ func configEqual(a, b *Config) bool {
 		a.OscillationThreshold != b.OscillationThreshold ||
 		a.OscillationSuspend != b.OscillationSuspend ||
 		len(a.APMs) != len(b.APMs) ||
-		len(a.Strategies) != len(b.Strategies) {
+		len(a.Strategies) != len(b.Strategies) ||
+		len(a.Advice) != len(b.Advice) ||
+		a.AdviceInterval != b.AdviceInterval {
 		return false
+	}
+	for i := range a.Advice {
+		if !a.Advice[i].equal(b.Advice[i]) {
+			return false
+		}
 	}
 	for i := range a.APMs {
 		if !a.APMs[i].equal(b.APMs[i]) {

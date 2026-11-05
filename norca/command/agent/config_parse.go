@@ -288,6 +288,10 @@ func extraKeys(c *Config) error {
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, p.Name)
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "strategy")
 		}
+		for _, g := range c.Server.Autoscaler.Advice {
+			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, g.Name)
+			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "advice")
+		}
 	}
 
 	// Remove the labels of the backup destination blocks
