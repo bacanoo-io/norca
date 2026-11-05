@@ -280,6 +280,9 @@ func (k *ObjectKind) UpsertObjectKind(args *structs.ObjectKindUpsertRequest, rep
 	if isBuiltinObjectGroup(kind.Group) {
 		return errBuiltinObjectGroup(kind.Group)
 	}
+	if isManagedObjectKind(kind.Group, kind.Kind) {
+		return errManagedObjectKind(kind.Group, kind.Kind)
+	}
 	kind.CreateIndex, kind.ModifyIndex = 0, 0
 	kind.Canonicalize()
 	if err := kind.Validate(); err != nil {
@@ -378,6 +381,9 @@ func (k *ObjectKind) DeleteObjectKind(args *structs.ObjectKindDeleteRequest, rep
 
 	if isBuiltinObjectGroup(args.Group) {
 		return errBuiltinObjectGroup(args.Group)
+	}
+	if isManagedObjectKind(args.Group, args.Kind) {
+		return errManagedObjectKind(args.Group, args.Kind)
 	}
 	ref := structs.ObjectKindRef(args.Group, args.Kind)
 	snap, err := k.srv.State().Snapshot()

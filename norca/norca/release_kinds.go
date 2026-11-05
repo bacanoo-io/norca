@@ -278,33 +278,8 @@ func (m *releaseManager) ensureKinds() error {
 	if ready {
 		return nil
 	}
-	if !ServersMeetMinimumNorcaVersion(m.srv.serf.Members(), m.srv.Region(), false) {
-		return fmt.Errorf("all servers must be running Norca %v or later to use releases", minNorcaFeaturesVersion)
-	}
-
-	snap, err := m.srv.State().Snapshot()
-	if err != nil {
+	if err := m.srv.registerKinds(builtinReleaseKinds()); err != nil {
 		return err
-	}
-	for _, kind := range builtinReleaseKinds() {
-		existing, err := snap.ObjectKindByName(nil, kind.Group, kind.Kind)
-		if err != nil {
-			return err
-		}
-		if existing != nil && objectKindDefinitionEqual(existing, kind) {
-			continue
-		}
-		if err := m.srv.objects.compile(kind); err != nil {
-			return fmt.Errorf("built-in kind %s does not compile: %v", kind.KindRef(), err)
-		}
-		req := &structs.ObjectKindUpsertRequest{
-			ObjectKind:   kind,
-			WriteRequest: structs.WriteRequest{Region: m.srv.Region()},
-		}
-		if _, _, err := m.srv.raftApply(structs.ObjectKindUpsertRequestType|structs.IgnoreUnknownTypeFlag, req); err != nil {
-			return err
-		}
-		m.srv.objects.forget(kind.KindRef())
 	}
 
 	m.lock.Lock()
