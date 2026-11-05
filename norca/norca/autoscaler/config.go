@@ -174,6 +174,10 @@ type Config struct {
 	// when the list is not empty.
 	Advice         []*AdviceGroup
 	AdviceInterval time.Duration
+
+	// NodeScaling are the settings of node scaling that concern the groups
+	// of a pool together, or the whole region.
+	NodeScaling *NodeScalingConfig
 }
 
 // DefaultConfig returns the default configuration. The built-in autoscaler
@@ -212,6 +216,15 @@ func (c *Config) Copy() *Config {
 	nc.Strategies = nil
 	for _, s := range c.Strategies {
 		nc.Strategies = append(nc.Strategies, s.Copy())
+	}
+	if c.NodeScaling != nil {
+		ns := *c.NodeScaling
+		ns.Pools = map[string]*NodePoolScaling{}
+		for name, p := range c.NodeScaling.Pools {
+			np := *p
+			ns.Pools[name] = &np
+		}
+		nc.NodeScaling = &ns
 	}
 	nc.Advice = nil
 	for _, g := range c.Advice {
@@ -262,6 +275,22 @@ func (c *Config) Validate() error {
 		mErr = multierror.Append(mErr, fmt.Errorf("metrics_window must not be shorter than client_metrics_interval"))
 	}
 
+	if ns := c.NodeScaling; ns != nil {
+		if !validExpander(ns.Expander) {
+			mErr = multierror.Append(mErr, fmt.Errorf("node_scaling.expander must be spread, fill, priority or weighted, got %q", ns.Expander))
+		}
+		if ns.Interval < 0 {
+			mErr = multierror.Append(mErr, fmt.Errorf("node_scaling.interval must not be negative"))
+		}
+		for name, p := range ns.Pools {
+			if !validExpander(p.Expander) {
+				mErr = multierror.Append(mErr, fmt.Errorf("node_scaling.pool %q: expander must be spread, fill, priority or weighted, got %q", name, p.Expander))
+			}
+			if p.MaxNodes < 0 || p.MaxStep < 0 {
+				mErr = multierror.Append(mErr, fmt.Errorf("node_scaling.pool %q: max_nodes and max_step must not be negative", name))
+			}
+		}
+	}
 	if len(c.Advice) > 0 && c.AdviceInterval <= 0 {
 		mErr = multierror.Append(mErr, fmt.Errorf("advice_interval must be greater than 0"))
 	}

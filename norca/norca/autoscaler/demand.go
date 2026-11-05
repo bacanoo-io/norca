@@ -1,0 +1,540 @@
+// SPDX-FileCopyrightText: 2026 Norca contributors
+// SPDX-License-Identifier: MPL-2.0
+
+package autoscaler
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
+	"github.com/bacanoo-io/norca/norca/norca/metricsstore"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
+)
+
+// The blocked work trigger of node scaling. Work that cannot be placed for
+// want of capacity (the blocked evaluations of the leader) is packed into
+// virtual nodes of the node groups that could take it, and spec.replicas of
+// those groups is raised by the number of nodes the work needs, less the
+// nodes that were already asked for and have not joined yet. Which group of a
+// pool gets a piece of the work is the expander's choice. The work is not
+// held back by the cooldown of a group (the cooldown holds the ahead-of-time
+// checks); the rate limit and the oscillation guard of the executor apply.
+
+const (
+	// DefaultNodeScalingInterval is how often the blocked work is looked at.
+	DefaultNodeScalingInterval = 30 * time.Second
+
+	ExpanderSpread   = "spread"
+	ExpanderFill     = "fill"
+	ExpanderPriority = "priority"
+	ExpanderWeighted = "weighted"
+
+	// maxDemandUnits bounds the allocations placed one by one in a cycle.
+	maxDemandUnits = 5000
+
+	checkBlockedDemand = "blocked-demand"
+)
+
+// NodeScalingConfig are the settings of node scaling that concern the groups
+// of a pool together, or the whole region.
+type NodeScalingConfig struct {
+	// Expander chooses the group of a pool that grows for work that can go
+	// to several: spread (default), fill, priority or weighted.
+	Expander string
+
+	// Interval is how often the blocked work is looked at.
+	Interval time.Duration
+
+	// Pools overrides the settings of a node pool.
+	Pools map[string]*NodePoolScaling
+}
+
+// NodePoolScaling are the settings of one node pool.
+type NodePoolScaling struct {
+	Expander string
+	// MaxNodes is the largest sum of spec.replicas over the groups of the
+	// pool (0: no limit), MaxStep the nodes added to the pool by one
+	// decision (0: no limit).
+	MaxNodes int
+	MaxStep  int
+}
+
+func validExpander(s string) bool {
+	switch s {
+	case "", ExpanderSpread, ExpanderFill, ExpanderPriority, ExpanderWeighted:
+		return true
+	}
+	return false
+}
+
+// pool returns the settings of a pool with the defaults of the region.
+func (c *NodeScalingConfig) pool(name string) NodePoolScaling {
+	res := NodePoolScaling{Expander: ExpanderSpread}
+	if c != nil {
+		if c.Expander != "" {
+			res.Expander = c.Expander
+		}
+		if p := c.Pools[name]; p != nil {
+			if p.Expander != "" {
+				res.Expander = p.Expander
+			}
+			res.MaxNodes, res.MaxStep = p.MaxNodes, p.MaxStep
+		}
+	}
+	return res
+}
+
+func (c *NodeScalingConfig) interval() time.Duration {
+	if c != nil && c.Interval > 0 {
+		return c.Interval
+	}
+	return DefaultNodeScalingInterval
+}
+
+// demandGroup is a NodeGroup as the blocked work trigger sees it.
+type demandGroup struct {
+	policy *structs.ScalingPolicy
+	name   string
+	pool   string
+	dc     string
+
+	spec     int64 // spec.replicas
+	ready    int64
+	pending  int64 // asked for and not joined yet
+	min, max int64
+	priority int64
+	weight   int64
+
+	size      NodeSize
+	sizeKnown bool
+
+	bucket []Unplaced // the work given to the group
+	// projected is the number of nodes the group would have with the work
+	// of the bucket.
+	projected int64
+}
+
+// readDemandGroups returns the enabled NodeGroups of the built-in engine.
+func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
+	store := r.deps.State()
+	policies, _, err := nodeGroupPolicies(nil, store)
+	if err != nil {
+		return nil, err
+	}
+	var groups []*demandGroup
+	for _, p := range policies {
+		if !r.isBuiltinPolicy(p) {
+			continue
+		}
+		name := p.Target[structs.ScalingTargetNodeGroup]
+		obj, err := store.CustomObjectByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind, "", name)
+		if err != nil || obj == nil {
+			continue
+		}
+		spec, status := obj.Spec, obj.Status
+		g := &demandGroup{
+			policy:   p,
+			name:     name,
+			pool:     asString(spec["pool"]),
+			dc:       asString(spec["datacenter"]),
+			spec:     asInt(spec["replicas"]),
+			min:      asInt(spec["min"]),
+			max:      asInt(spec["max"]),
+			priority: asInt(spec["priority"]),
+			weight:   max(asInt(spec["weight"]), 1),
+		}
+
+		// The nodes the group has: as the operator reports them, or, when
+		// none does, the ready nodes of the cluster gauges.
+		if v, ok := status["replicas"]; ok {
+			g.ready = asInt(v)
+		} else {
+			g.ready = r.readyNodes(p, now, g.spec)
+		}
+		if v, ok := status["joining"]; ok {
+			g.pending = asInt(v)
+		} else {
+			g.pending = max(g.spec-g.ready, 0)
+		}
+
+		// The size of a node: what the operator reports, or what the spec
+		// says by hand, less the reserved resources.
+		if alloc := asMap(status["allocatable"]); asInt(alloc["cpu"]) > 0 && asInt(alloc["memory"]) > 0 {
+			g.size = NodeSize{CPU: float64(asInt(alloc["cpu"])), Memory: float64(asInt(alloc["memory"])), Disk: float64(asInt(alloc["disk"]))}
+			g.sizeKnown = true
+		} else if node := asMap(spec["node"]); node != nil {
+			if capc := asMap(node["capacity"]); asInt(capc["cpu"]) > 0 && asInt(capc["memory"]) > 0 {
+				res := asMap(node["reserved"])
+				g.size = NodeSize{
+					CPU:    float64(asInt(capc["cpu"]) - asInt(res["cpu"])),
+					Memory: float64(asInt(capc["memory"]) - asInt(res["memory"])),
+					Disk:   float64(asInt(capc["disk"]) - asInt(res["disk"])),
+				}
+				g.sizeKnown = g.size.CPU > 0 && g.size.Memory > 0
+			}
+		}
+		g.projected = g.spec
+		groups = append(groups, g)
+	}
+	sort.Slice(groups, func(i, j int) bool { return groups[i].name < groups[j].name })
+	return groups, nil
+}
+
+// readyNodes reads the ready nodes of the group's datacenter, pool and class
+// from the cluster gauges; spec is the answer when they can't be read.
+func (r *runner) readyNodes(p *structs.ScalingPolicy, now time.Time, spec int64) int64 {
+	if r.deps.GaugeHistory == nil {
+		return spec
+	}
+	labels := map[string]string{
+		"dc":    p.Target[TargetConfigKeyDatacenter],
+		"pool":  p.Target[TargetConfigKeyPool],
+		"class": p.Target[TargetConfigKeyNodeClass],
+	}
+	avg, _, samples, err := r.deps.GaugeHistory(metricsstore.MetricClusterNodesReady, labels, now.Add(-clusterQueryWindow), now)
+	if err != nil || samples == 0 {
+		return spec
+	}
+	return int64(avg + 0.5)
+}
+
+// demandItem is the blocked work of one task group, with the datacenters it
+// could go to.
+type demandItem struct {
+	Unplaced
+	pool string
+	dcs  []string
+}
+
+// collectDemandItems merges the demand by datacenter and pool into one item
+// per task group: the same work is reported in each datacenter it could use,
+// but it is placed once.
+func collectDemandItems(demand map[[2]string][]Unplaced) []*demandItem {
+	byKey := map[string]*demandItem{}
+	var keys []string
+	for k, list := range demand {
+		for _, u := range list {
+			id := strings.Join([]string{k[1], u.Namespace, u.Job, u.Group}, "\x00")
+			item := byKey[id]
+			if item == nil {
+				item = &demandItem{Unplaced: u, pool: k[1]}
+				byKey[id] = item
+				keys = append(keys, id)
+			}
+			if !slices.Contains(item.dcs, k[0]) {
+				item.dcs = append(item.dcs, k[0])
+			}
+		}
+	}
+	slices.Sort(keys)
+	items := make([]*demandItem, 0, len(keys))
+	for _, id := range keys {
+		slices.Sort(byKey[id].dcs)
+		items = append(items, byKey[id])
+	}
+	return items
+}
+
+// demandRun is one look at the blocked work.
+type demandRun struct {
+	r      *runner
+	now    time.Time
+	groups []*demandGroup
+	cfg    *NodeScalingConfig
+}
+
+// expand picks the group that grows for one allocation of the work.
+func (d *demandRun) expand(pool string, candidates []*demandGroup) *demandGroup {
+	best := candidates[0]
+	var better func(a, b *demandGroup) bool
+	switch d.cfg.pool(pool).Expander {
+	case ExpanderFill:
+		// The fullest group that is below its maximum.
+		better = func(a, b *demandGroup) bool {
+			return float64(a.projected)/float64(max(a.max, 1)) > float64(b.projected)/float64(max(b.max, 1))
+		}
+	case ExpanderPriority:
+		better = func(a, b *demandGroup) bool { return a.priority < b.priority }
+	case ExpanderWeighted:
+		better = func(a, b *demandGroup) bool {
+			return float64(a.weight)/float64(a.projected+1) > float64(b.weight)/float64(b.projected+1)
+		}
+	default: // spread
+		better = func(a, b *demandGroup) bool { return a.projected < b.projected }
+	}
+	for _, g := range candidates[1:] {
+		if better(g, best) {
+			best = g
+		}
+	}
+	return best
+}
+
+// scaleForDemand looks at the blocked work once.
+func (r *runner) scaleForDemand(ctx context.Context) error {
+	if r.deps.BlockedDemand == nil {
+		return nil
+	}
+	now := r.now()
+	groups, err := r.readDemandGroups(now)
+	if err != nil || len(groups) == 0 {
+		return err
+	}
+	d := &demandRun{r: r, now: now, groups: groups, cfg: r.cfg.NodeScaling}
+	items := collectDemandItems(r.deps.BlockedDemand())
+
+	// The largest allocations first, so the packing of a bucket does not
+	// depend on the order the work was found in.
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].CPU+items[i].Memory > items[j].CPU+items[j].Memory
+	})
+
+	blocked := map[string]string{} // reasons to tell, by id
+	units := 0
+	for _, item := range items {
+		if item.Unverifiable != "" {
+			blocked["unverifiable/"+item.Namespace+"/"+item.Job+"/"+item.Group] = item.Unverifiable
+			continue
+		}
+		var candidates []*demandGroup
+		var rejected []string
+		for _, g := range groups {
+			if g.pool != item.pool || !slices.Contains(item.dcs, g.dc) {
+				continue
+			}
+			if !g.sizeKnown {
+				rejected = append(rejected, g.name+": the size of a node is unknown (CapacityUnknown)")
+				continue
+			}
+			restricted, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc})
+			if !ok {
+				continue
+			}
+			if !restricted.fits(g.size) {
+				rejected = append(rejected, g.name+": allocation too large for a node")
+				blocked["toolarge/"+g.name+"/"+item.Namespace+"/"+item.Job+"/"+item.Group] = fmt.Sprintf(
+					"an allocation of %.0f MHz, %.0f MB memory, %.0f MB disk does not fit an empty node of %s (%.0f MHz, %.0f MB, %.0f MB)",
+					item.CPU, item.Memory, item.Disk, g.name, g.size.CPU, g.size.Memory, g.size.Disk)
+				continue
+			}
+			candidates = append(candidates, g)
+		}
+		if len(candidates) == 0 {
+			if len(rejected) > 0 {
+				blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group] = strings.Join(rejected, "; ")
+			}
+			continue
+		}
+
+		// Count the allocations the work still has room for in the groups
+		// (a distinct_property may cap it) and give them out one by one.
+		count := item.Count
+		for _, g := range candidates {
+			if rc, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc}); ok {
+				count = min(count, rc.Count)
+			}
+		}
+		unit := item.Unplaced
+		unit.Count = 1
+		for i := 0; i < count && units < maxDemandUnits; i++ {
+			units++
+			open := candidates[:0:0]
+			for _, g := range candidates {
+				if g.projected < g.max {
+					open = append(open, g)
+				}
+			}
+			if len(open) == 0 {
+				blocked["atmax/"+item.pool+"/"+item.Job+"/"+item.Group] = "every group that could take the work is at its maximum"
+				break
+			}
+			g := d.expand(item.pool, open)
+			g.bucket = append(g.bucket, unit)
+			// An exclusive allocation takes a node of its own, the others
+			// share: the nodes are what the bucket packs into, less those
+			// that are already on their way.
+			g.projected = g.spec + max(int64(PackNodes(g.bucket, g.size).Nodes)-g.pending, 0)
+		}
+	}
+
+	d.apply(ctx, blocked)
+	return nil
+}
+
+// apply raises the scale of the groups that got work, within the limits of
+// the group and of its pool, and tells what could not be done.
+func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
+	r := d.r
+	poolTotal := map[string]int64{}
+	for _, g := range d.groups {
+		poolTotal[g.pool] += g.spec
+	}
+	poolAdded := map[string]int64{}
+	touched := map[string]bool{}
+
+	for _, g := range d.groups {
+		if len(g.bucket) == 0 {
+			continue
+		}
+		need := int64(PackNodes(g.bucket, g.size).Nodes)
+		add := max(need-g.pending, 0)
+		add = min(add, g.max-g.spec)
+		ps := d.cfg.pool(g.pool)
+		if ps.MaxStep > 0 {
+			add = min(add, int64(ps.MaxStep)-poolAdded[g.pool])
+		}
+		if ps.MaxNodes > 0 {
+			add = min(add, int64(ps.MaxNodes)-poolTotal[g.pool]-poolAdded[g.pool])
+		}
+		if add < need-g.pending {
+			blocked["limit/"+g.name] = fmt.Sprintf("%s needs %d more nodes and may add %d (maximum of the group %d, of the pool %d, step %d)",
+				g.name, need-g.pending, max(add, 0), g.max, ps.MaxNodes, ps.MaxStep)
+		}
+		if add <= 0 {
+			continue
+		}
+		poolAdded[g.pool] += add
+		touched[g.name] = true
+
+		desired := g.spec + add
+		if r.lastDemand[g.name] == desired && g.policy.Target["dry-run"] == "true" {
+			continue
+		}
+		jobs := demandJobs(g.bucket)
+		if err := r.scaleGroupUp(g, desired, need, jobs); err != nil {
+			r.logger.Warn("failed to raise the scale of a node group for blocked work", "group", g.name, "error", err)
+			continue
+		}
+		r.lastDemand[g.name] = desired
+	}
+	for name := range r.lastDemand {
+		if !touched[name] {
+			delete(r.lastDemand, name)
+		}
+	}
+
+	// Tell what is not done, once per reason.
+	seen := map[string]bool{}
+	for id, reason := range blocked {
+		seen[id] = true
+		if r.told[id] == reason {
+			continue
+		}
+		r.told[id] = reason
+		typ, ev := d.event(id, reason)
+		if r.deps.PublishEvent != nil {
+			ev.Time = d.now.UnixNano()
+			r.deps.PublishEvent(typ, ev)
+		}
+	}
+	for id := range r.told {
+		if !seen[id] {
+			delete(r.told, id)
+		}
+	}
+}
+
+// event builds the event that tells a reason why work is not helped.
+func (d *demandRun) event(id, reason string) (string, *structs.ScalingDecisionEvent) {
+	kind, rest, _ := strings.Cut(id, "/")
+	ev := &structs.ScalingDecisionEvent{Direction: "up", Reason: reason}
+	typ := structs.TypeScalingNodeBlocked
+	switch kind {
+	case "unverifiable":
+		typ = structs.TypeScalingNodeUnverifiable
+		ev.Reason = "the constraint " + reason + " cannot be checked against a node that does not exist yet, so no node is added for it"
+		fillWork(ev, rest)
+	case "toolarge":
+		typ = structs.TypeScalingNodeAllocationTooLarge
+		parts := strings.SplitN(rest, "/", 2)
+		if len(parts) == 2 {
+			fillWork(ev, parts[1])
+		}
+	case "nogroup":
+		fillWork(ev, rest)
+	case "atmax":
+		parts := strings.SplitN(rest, "/", 2)
+		if len(parts) == 2 {
+			ev.Group = parts[0]
+		}
+	case "limit":
+		ev.Group = rest
+	}
+	return typ, ev
+}
+
+// fillWork sets the job of an event from "namespace/job/group".
+func fillWork(ev *structs.ScalingDecisionEvent, id string) {
+	parts := strings.SplitN(id, "/", 3)
+	if len(parts) == 3 {
+		ev.Namespace, ev.JobID, ev.Group = parts[0], parts[1], parts[2]
+	}
+}
+
+// demandJobs lists the jobs of the work of a bucket for the reason of a
+// decision.
+func demandJobs(bucket []Unplaced) string {
+	seen := map[string]bool{}
+	var jobs []string
+	for _, u := range bucket {
+		id := u.Namespace + "/" + u.Job
+		if !seen[id] {
+			seen[id] = true
+			jobs = append(jobs, id)
+		}
+	}
+	slices.Sort(jobs)
+	if len(jobs) > 5 {
+		jobs = append(jobs[:5], fmt.Sprintf("and %d more", len(jobs)-5))
+	}
+	return strings.Join(jobs, ", ")
+}
+
+// scaleGroupUp hands the decision to the executor, which applies the rate
+// limit, the oscillation guard and the dry run of the group.
+func (r *runner) scaleGroupUp(g *demandGroup, desired, need int64, jobs string) error {
+	store := r.deps.State()
+	key, _ := targetKeyFromPolicy(g.policy)
+	object, err := objectTargetFromPolicy(g.policy)
+	if err != nil || object == nil {
+		return fmt.Errorf("no object target: %v", err)
+	}
+	t, err := readObjectTarget(store, key, object)
+	if err != nil || t == nil {
+		return fmt.Errorf("reading the group: %v", err)
+	}
+
+	sp := parsePolicy(g.policy)
+	sp.Target = parseTarget(nil, g.policy.Target)
+	sp.Target.Name = "nomad"
+	r.proc.canonicalizePolicy(&sp)
+	c := &compiledPolicy{policy: &sp, key: key, object: object}
+
+	action := sdk.ScalingAction{
+		Count:     desired,
+		Direction: sdk.ScaleDirectionUp,
+		Reason:    fmt.Sprintf("blocked work needs %d nodes (%d already asked for): %s", need, g.pending, jobs),
+	}
+	return r.exec.execute(c, t, action, checkBlockedDemand, r.now())
+}
+
+// demandLoop looks at the blocked work every interval until ctx is canceled.
+func (r *runner) demandLoop(ctx context.Context) {
+	ticker := time.NewTicker(r.cfg.NodeScaling.interval())
+	defer ticker.Stop()
+	for {
+		if err := r.scaleForDemand(ctx); err != nil {
+			r.logger.Warn("looking at the blocked work failed", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
