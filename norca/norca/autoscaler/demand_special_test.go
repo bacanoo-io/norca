@@ -444,7 +444,9 @@ func TestDemandClass_OperandsAreChecked(t *testing.T) {
 		{ClassConstraint{"is_not_set", ""}, "gpu", false},
 		{ClassConstraint{"is_not_set", ""}, "", false},
 	} {
-		must.Eq(t, tc.want, tc.c.matches(tc.class), must.Sprintf("%+v on %q", tc.c, tc.class))
+		got, known := tc.c.check(tc.class)
+		must.True(t, known)
+		must.Eq(t, tc.want, got, must.Sprintf("%+v on %q", tc.c, tc.class))
 	}
 }
 

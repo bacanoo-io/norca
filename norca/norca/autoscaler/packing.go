@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
 // Unplaced is the demand of one task group of a blocked evaluation: Count
@@ -51,71 +53,71 @@ type ClassConstraint struct {
 }
 
 // ClassConstraintSupported reports whether a constraint on the node class can
-// be checked against the class of a node group: the operand is one of those
-// below and the value is a literal, not the property of a node.
+// be checked against the class of a node group: the scheduler's operand is one
+// that check knows and the value is a literal, not the property of a node.
 func ClassConstraintSupported(operand, value string) bool {
 	if strings.Contains(value, "${") {
 		return false
 	}
-	switch operand {
-	case "=", "==", "is", "!=", "not", "regexp", "set_contains", "set_contains_all",
-		"set_contains_any", "is_set", "is_not_set":
-		return true
-	}
-	return false
+	_, known := ClassConstraint{Operand: operand, Value: value}.check("")
+	return known
 }
 
 // classAllowed reports whether a node class passes all the constraints.
 func classAllowed(cs []ClassConstraint, class string) bool {
 	for _, c := range cs {
-		if !c.matches(class) {
+		if ok, _ := c.check(class); !ok {
 			return false
 		}
 	}
 	return true
 }
 
-// matches reports whether a node class passes the constraint, as the
-// scheduler checks it: the class of a node is always set (it may be empty),
-// and a set operand reads the class as a list separated by commas.
-func (c ClassConstraint) matches(class string) bool {
-	set := func(s string) map[string]bool {
-		out := map[string]bool{}
-		for _, v := range strings.Split(s, ",") {
-			out[strings.TrimSpace(v)] = true
-		}
-		return out
-	}
+// check reports whether a node class passes the constraint, as the scheduler
+// checks it: the class of a node is always set (it may be empty), and a set
+// operand reads the class as a list separated by commas. known is false for an
+// operand it does not handle.
+func (c ClassConstraint) check(class string) (ok, known bool) {
 	switch c.Operand {
 	case "=", "==", "is":
-		return class == c.Value
+		return class == c.Value, true
 	case "!=", "not":
-		return class != c.Value
-	case "regexp":
+		return class != c.Value, true
+	case structs.ConstraintRegex:
 		re, err := regexp.Compile(c.Value)
-		return err == nil && re.MatchString(class)
-	case "set_contains", "set_contains_all":
-		have := set(class)
-		for v := range set(c.Value) {
+		return err == nil && re.MatchString(class), true
+	case structs.ConstraintSetContains, structs.ConstraintSetContainsAll:
+		have := splitSet(class)
+		for v := range splitSet(c.Value) {
 			if !have[v] {
-				return false
+				return false, true
 			}
 		}
-		return true
-	case "set_contains_any":
-		have := set(class)
-		for v := range set(c.Value) {
+		return true, true
+	case structs.ConstraintSetContainsAny:
+		have := splitSet(class)
+		for v := range splitSet(c.Value) {
 			if have[v] {
-				return true
+				return true, true
 			}
 		}
-		return false
-	case "is_set":
-		return true
-	case "is_not_set":
-		return false
+		return false, true
+	case structs.ConstraintAttributeIsSet:
+		return true, true
+	case structs.ConstraintAttributeIsNotSet:
+		return false, true
 	}
-	return false
+	return false, false
+}
+
+// splitSet reads a list separated by commas, as the set operands of the
+// scheduler do.
+func splitSet(s string) map[string]bool {
+	out := map[string]bool{}
+	for v := range strings.SplitSeq(s, ",") {
+		out[strings.TrimSpace(v)] = true
+	}
+	return out
 }
 
 // NodeSize is the allocatable size of one node of a node group.
@@ -222,10 +224,8 @@ func (u Unplaced) Restrict(g *AdviceGroup) (Unplaced, bool) {
 	if u.Unverifiable != "" {
 		return u, false
 	}
-	for _, c := range u.Classes {
-		if !c.matches(g.Class) {
-			return u, false
-		}
+	if !classAllowed(u.Classes, g.Class) {
+		return u, false
 	}
 	for _, d := range u.Distinct {
 		var value string
