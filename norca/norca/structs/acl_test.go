@@ -1156,6 +1156,11 @@ func TestACLAuthMethod_TokenLocalityIsGlobal(t *testing.T) {
 func TestACLBindingRule_Canonicalize(t *testing.T) {
 	ci.Parallel(t)
 
+	// The times of the existing rule are in the past: Canonicalize writes the
+	// time it runs at, which on a clock of coarse resolution (Windows) can be
+	// the very time.Now of the test case.
+	past := time.Now().UTC().Add(-time.Hour)
+
 	testCases := []struct {
 		name                string
 		inputACLBindingRule *ACLBindingRule
@@ -1168,8 +1173,8 @@ func TestACLBindingRule_Canonicalize(t *testing.T) {
 			name: "existing binding rule",
 			inputACLBindingRule: &ACLBindingRule{
 				ID:         "some-random-uuid",
-				CreateTime: time.Now().UTC(),
-				ModifyTime: time.Now().UTC(),
+				CreateTime: past,
+				ModifyTime: past,
 			},
 		},
 	}
