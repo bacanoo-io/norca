@@ -87,6 +87,8 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 		)
 	}
 
+	gauges = append(gauges, emptyGroupGauges(snap, cluster)...)
+
 	// Only the leader runs autopilot and has the blocked evaluations.
 	if s.IsLeader() {
 		gauges = append(gauges, blockedGauges(snap, s.blockedEvals.Evals(), cluster)...)
@@ -212,4 +214,33 @@ func (s *Server) sampleQuotas(snap *state.StateSnapshot, live *metricsstore.Live
 			metricsstore.Gauge{Metric: metricsstore.MetricQuotaMemoryUsed, Labels: labels, Value: u.MemoryMB})
 	}
 	return gauges, nil
+}
+
+// emptyGroupGauges returns nodes_ready = 0 for the node groups whose
+// datacenter, pool and class have no node yet. Without it a group that starts
+// from nothing (a class that no node has) has no series, and its ready nodes
+// can not be told from a gauge that can not be read.
+func emptyGroupGauges(snap *state.StateSnapshot, cluster map[[3]string]*capacity) []metricsstore.Gauge {
+	iter, err := snap.CustomObjects(nil, structs.NodeScalingGroup, structs.NodeGroupKind, structs.AllNamespacesSentinel, state.SortDefault)
+	if err != nil {
+		return nil
+	}
+	seen := map[[3]string]bool{}
+	var gauges []metricsstore.Gauge
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		obj := raw.(*structs.CustomObject)
+		spec := obj.Spec
+		str := func(k string) string { v, _ := spec[k].(string); return v }
+		key := [3]string{str("datacenter"), str("pool"), str("node_class")}
+		if cluster[key] != nil || seen[key] || key[0] == "" || key[1] == "" {
+			continue
+		}
+		seen[key] = true
+		gauges = append(gauges, metricsstore.Gauge{
+			Metric: metricsstore.MetricClusterNodesReady,
+			Labels: map[string]string{"dc": key[0], "pool": key[1], "class": key[2]},
+			Value:  0,
+		})
+	}
+	return gauges
 }

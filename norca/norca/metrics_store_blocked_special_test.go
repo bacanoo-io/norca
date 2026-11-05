@@ -160,3 +160,33 @@ func TestClassConstraints(t *testing.T) {
 	must.Len(t, 1, got)
 	must.NotEq(t, "", u.Unverifiable)
 }
+
+// TestEmptyGroupGauges checks that a node group without a node in its
+// datacenter, pool and class gets nodes_ready = 0, and one with nodes does not
+// get a second value.
+func TestEmptyGroupGauges(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, enableMetricsStore(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+	st := s.fsm.State()
+
+	group := func(id, name, class string) *structs.CustomObject {
+		spec := map[string]any{"datacenter": "dc1", "pool": "default"}
+		if class != "" {
+			spec["node_class"] = class
+		}
+		return &structs.CustomObject{ID: id, Group: structs.NodeScalingGroup, Kind: structs.NodeGroupKind, Name: name, Spec: spec}
+	}
+	must.NoError(t, st.UpsertCustomObject(structs.MsgTypeTestSetup, 2000, group("7a1c2f4e-0000-4000-8000-0000000000a1", "plain", ""), 0))
+	must.NoError(t, st.UpsertCustomObject(structs.MsgTypeTestSetup, 2001, group("7a1c2f4e-0000-4000-8000-0000000000a2", "gpu", "gpu"), 0))
+
+	snap, err := st.Snapshot()
+	must.NoError(t, err)
+	cluster := map[[3]string]*capacity{{"dc1", "default", ""}: {ready: 1}}
+	got := emptyGroupGauges(snap, cluster)
+	must.Len(t, 1, got)
+	must.Eq(t, map[string]string{"dc": "dc1", "pool": "default", "class": "gpu"}, got[0].Labels)
+	must.Eq(t, 0.0, got[0].Value)
+}
