@@ -6,6 +6,7 @@ package norca
 import (
 	"cmp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
@@ -57,6 +58,7 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 				Exclusive: hasConstraint(job.Constraints, structs.ConstraintDistinctHosts) ||
 					hasConstraint(tg.Constraints, structs.ConstraintDistinctHosts),
 			}
+			u.Distinct, u.Unverifiable = distinctProperties(snap, job, tg)
 			for _, task := range tg.Tasks {
 				if task.Resources != nil {
 					u.CPU += float64(task.Resources.CPU)
@@ -107,8 +109,11 @@ func blockedGauges(snap *state.StateSnapshot, evals []*structs.Evaluation, clust
 	for _, k := range keys {
 		d := demand[k]
 		var cpu, memory float64
-		exclusive := 0
+		exclusive, unverifiable := 0, 0
 		for _, u := range d.unplaced {
+			if u.Unverifiable != "" {
+				unverifiable += u.Count
+			}
 			cpu += u.CPU * float64(u.Count)
 			memory += u.Memory * float64(u.Count)
 			if u.Exclusive {
@@ -120,25 +125,79 @@ func blockedGauges(snap *state.StateSnapshot, evals []*structs.Evaluation, clust
 			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedCPU, Labels: labels, Value: cpu},
 			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedMemory, Labels: labels, Value: memory},
 			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedEvals, Labels: labels, Value: float64(d.evals)},
-			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedAllocsExclusive, Labels: labels, Value: float64(exclusive)})
+			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedAllocsExclusive, Labels: labels, Value: float64(exclusive)},
+			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedUnverifiable, Labels: labels, Value: float64(unverifiable)})
 	}
 	return gauges
 }
 
+// distinctProperties returns the distinct_property constraints of a task
+// group (its own and those of the job) with the live allocations that count
+// against them, by the value of the property. A constraint on a property
+// other than the datacenter or the node pool is returned as unverifiable:
+// what a node that does not exist yet would have is not known.
+func distinctProperties(snap *state.StateSnapshot, job *structs.Job, tg *structs.TaskGroup) (out []autoscaler.DistinctProperty, unverifiable string) {
+	type source struct {
+		c        *structs.Constraint
+		jobLevel bool
+	}
+	var sources []source
+	for _, c := range job.Constraints {
+		if c.Operand == structs.ConstraintDistinctProperty {
+			sources = append(sources, source{c, true})
+		}
+	}
+	for _, c := range tg.Constraints {
+		if c.Operand == structs.ConstraintDistinctProperty {
+			sources = append(sources, source{c, false})
+		}
+	}
+	if len(sources) == 0 {
+		return nil, ""
+	}
+
+	allocs, _ := snap.AllocsByJob(nil, job.Namespace, job.ID, false)
+	for _, src := range sources {
+		target := src.c.LTarget
+		if target != "${node.datacenter}" && target != "${node.pool}" {
+			return nil, src.c.String()
+		}
+		limit := 1
+		if n, err := strconv.Atoi(src.c.RTarget); err == nil && n > 0 {
+			limit = n
+		}
+		used := map[string]int{}
+		for _, alloc := range allocs {
+			if alloc.TerminalStatus() || (!src.jobLevel && alloc.TaskGroup != tg.Name) {
+				continue
+			}
+			node, _ := snap.NodeByID(nil, alloc.NodeID)
+			if node == nil {
+				continue
+			}
+			if target == "${node.datacenter}" {
+				used[node.Datacenter]++
+			} else {
+				used[node.NodePool]++
+			}
+		}
+		out = append(out, autoscaler.DistinctProperty{Target: target, Limit: limit, Used: used})
+	}
+	return out, ""
+}
+
 // blockedDatacenters are the datacenters the blocked demand of a task group
-// could be placed in: those with nodes the scheduler looked at, and, when it
-// found none (a group scaled down to zero nodes), the datacenters the job
-// names without a wildcard.
+// could be placed in: those with nodes the scheduler looked at and the
+// datacenters the job names without a wildcard (one without nodes yet, in a
+// group scaled down to zero, is not among the first).
 func blockedDatacenters(job *structs.Job, metric *structs.AllocMetric) []string {
 	var dcs []string
 	for dc := range metric.NodesAvailable {
 		dcs = append(dcs, dc)
 	}
-	if len(dcs) == 0 {
-		for _, dc := range job.Datacenters {
-			if dc != "" && !strings.Contains(dc, "*") {
-				dcs = append(dcs, dc)
-			}
+	for _, dc := range job.Datacenters {
+		if dc != "" && !strings.Contains(dc, "*") && !slices.Contains(dcs, dc) {
+			dcs = append(dcs, dc)
 		}
 	}
 	slices.Sort(dcs)
