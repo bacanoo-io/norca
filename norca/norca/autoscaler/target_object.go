@@ -77,6 +77,9 @@ func (o *objectTarget) String() string {
 // if the policy scales its task group, or an error if the target block is
 // invalid.
 func objectTargetFromPolicy(p *structs.ScalingPolicy) (*objectTarget, error) {
+	if name := p.Target[structs.ScalingTargetNodeGroup]; name != "" {
+		return &objectTarget{group: structs.NodeScalingGroup, kind: structs.NodeGroupKind, name: name}, nil
+	}
 	raw, ok := p.Policy[keyTarget]
 	if !ok {
 		return nil, nil
@@ -154,9 +157,11 @@ func readObjectTarget(store *state.StateStore, key targetKey, o *objectTarget) (
 		status: &sdk.TargetStatus{Ready: !obj.Deleting(), Count: count, Meta: map[string]string{}},
 	}
 
-	if job, err := store.JobByID(nil, key.namespace, key.job); err == nil && job != nil {
-		t.job = job
-		t.group = job.LookupTaskGroup(key.group)
+	if key.kind == "" {
+		if job, err := store.JobByID(nil, key.namespace, key.job); err == nil && job != nil {
+			t.job = job
+			t.group = job.LookupTaskGroup(key.group)
+		}
 	}
 
 	log, err := store.ObjectEventLog(nil, o.group, o.kind, namespace, o.name)
