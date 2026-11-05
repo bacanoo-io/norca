@@ -12,6 +12,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"net"
 	"os"
@@ -242,4 +243,23 @@ func TestDistrustedCA_Checksum(t *testing.T) {
 	must.NoError(t, err)
 	must.False(t, equal)
 	must.Eq(t, with.DistrustedCAFile, base.Copy().Merge(with).DistrustedCAFile)
+}
+
+func TestChainPeerVerifiers(t *testing.T) {
+	ci.Parallel(t)
+	var calls []string
+	ok := func(name string) PeerVerifier {
+		return func([][]byte, [][]*x509.Certificate) error { calls = append(calls, name); return nil }
+	}
+	fail := func([][]byte, [][]*x509.Certificate) error {
+		calls = append(calls, "fail")
+		return errors.New("refused")
+	}
+
+	must.NoError(t, ChainPeerVerifiers(nil, ok("a"), ok("b"))(nil, nil))
+	must.Eq(t, []string{"a", "b"}, calls)
+
+	calls = nil
+	must.ErrorContains(t, ChainPeerVerifiers(ok("a"), fail, ok("b"))(nil, nil), "refused")
+	must.Eq(t, []string{"a", "fail"}, calls) // stops at the first error
 }

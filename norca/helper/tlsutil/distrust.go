@@ -106,3 +106,25 @@ func (d *distrustList) verify(_ [][]byte, chains [][]*x509.Certificate) error {
 	}
 	return nil
 }
+
+// PeerVerifier is the type of tls.Config.VerifyPeerCertificate.
+type PeerVerifier func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error
+
+// ChainPeerVerifiers returns a VerifyPeerCertificate that runs the checks in
+// order and fails with the first error; nil checks are skipped. A user of
+// IncomingTLSConfig that adds a check of its own (the name and region of an
+// RPC peer, for example) must chain it with the check that is there, the
+// distrusted CAs, instead of replacing it.
+func ChainPeerVerifiers(checks ...PeerVerifier) PeerVerifier {
+	return func(raw [][]byte, chains [][]*x509.Certificate) error {
+		for _, check := range checks {
+			if check == nil {
+				continue
+			}
+			if err := check(raw, chains); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
