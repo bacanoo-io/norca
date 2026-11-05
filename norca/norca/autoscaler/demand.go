@@ -435,7 +435,8 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		}
 		var candidates []*demandGroup
 		var rejected []string
-		classOut := 0 // groups of a class the job's constraint does not allow
+		inPool := 0   // groups of the job's datacenters and pool (or spill)
+		classOut := 0 // of those, groups of a class the job's constraint does not allow
 		for _, g := range groups {
 			if !slices.Contains(item.dcs, g.dc) {
 				continue
@@ -447,12 +448,13 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			if g.pool != item.pool && !(item.pool == structs.NodePoolAll && g.spill) {
 				continue
 			}
-			if !g.sizeKnown {
-				rejected = append(rejected, g.name+": the size of a node is unknown (CapacityUnknown)")
-				continue
-			}
+			inPool++
 			if !classAllowed(item.Classes, g.class) {
 				classOut++
+				continue
+			}
+			if !g.sizeKnown {
+				rejected = append(rejected, g.name+": the size of a node is unknown (CapacityUnknown)")
 				continue
 			}
 			restricted, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc, Class: g.class})
@@ -469,11 +471,11 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			candidates = append(candidates, g)
 		}
 		if len(candidates) == 0 {
-			if item.pool == structs.NodePoolAll && len(rejected) == 0 {
+			if item.pool == structs.NodePoolAll && inPool == 0 {
 				blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group] =
 					"the job may use any node pool; no node group allows it (spill = true) in its datacenters"
 			}
-			if len(rejected) == 0 && classOut > 0 {
+			if len(rejected) == 0 && classOut > 0 && classOut == inPool {
 				blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group] =
 					"the node class of every node group of the job's pool and datacenters fails its constraint on ${node.class}"
 			}
