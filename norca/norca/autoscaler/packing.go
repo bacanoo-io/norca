@@ -50,11 +50,16 @@ type ClassConstraint struct {
 	Value   string
 }
 
-// ClassConstraintSupported reports whether the operand can be checked against
-// the class of a node group.
-func ClassConstraintSupported(operand string) bool {
+// ClassConstraintSupported reports whether a constraint on the node class can
+// be checked against the class of a node group: the operand is one of those
+// below and the value is a literal, not the property of a node.
+func ClassConstraintSupported(operand, value string) bool {
+	if strings.Contains(value, "${") {
+		return false
+	}
 	switch operand {
-	case "=", "==", "is", "!=", "not", "regexp", "set_contains_any", "is_set", "is_not_set":
+	case "=", "==", "is", "!=", "not", "regexp", "set_contains", "set_contains_all",
+		"set_contains_any", "is_set", "is_not_set":
 		return true
 	}
 	return false
@@ -70,8 +75,17 @@ func classAllowed(cs []ClassConstraint, class string) bool {
 	return true
 }
 
-// matches reports whether a node class passes the constraint.
+// matches reports whether a node class passes the constraint, as the
+// scheduler checks it: the class of a node is always set (it may be empty),
+// and a set operand reads the class as a list separated by commas.
 func (c ClassConstraint) matches(class string) bool {
+	set := func(s string) map[string]bool {
+		out := map[string]bool{}
+		for _, v := range strings.Split(s, ",") {
+			out[strings.TrimSpace(v)] = true
+		}
+		return out
+	}
 	switch c.Operand {
 	case "=", "==", "is":
 		return class == c.Value
@@ -80,17 +94,26 @@ func (c ClassConstraint) matches(class string) bool {
 	case "regexp":
 		re, err := regexp.Compile(c.Value)
 		return err == nil && re.MatchString(class)
+	case "set_contains", "set_contains_all":
+		have := set(class)
+		for v := range set(c.Value) {
+			if !have[v] {
+				return false
+			}
+		}
+		return true
 	case "set_contains_any":
-		for _, v := range strings.Split(c.Value, ",") {
-			if strings.TrimSpace(v) == class {
+		have := set(class)
+		for v := range set(c.Value) {
+			if have[v] {
 				return true
 			}
 		}
 		return false
 	case "is_set":
-		return class != ""
+		return true
 	case "is_not_set":
-		return class == ""
+		return false
 	}
 	return false
 }

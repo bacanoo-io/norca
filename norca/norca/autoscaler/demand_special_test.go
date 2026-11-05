@@ -436,9 +436,73 @@ func TestDemandClass_OperandsAreChecked(t *testing.T) {
 		{ClassConstraint{"regexp", "^gpu-"}, "cpu", false},
 		{ClassConstraint{"set_contains_any", "a, b"}, "b", true},
 		{ClassConstraint{"set_contains_any", "a,b"}, "c", false},
-		{ClassConstraint{"is_set", ""}, "", false},
-		{ClassConstraint{"is_not_set", ""}, "", true},
+		{ClassConstraint{"set_contains_any", "b"}, "a, b", true}, // the class is a list too
+		{ClassConstraint{"set_contains", "a,b"}, "b,a,c", true},
+		{ClassConstraint{"set_contains_all", "a,b"}, "a", false},
+		// As in the scheduler, the class of a node is always set, even empty.
+		{ClassConstraint{"is_set", ""}, "", true},
+		{ClassConstraint{"is_not_set", ""}, "gpu", false},
+		{ClassConstraint{"is_not_set", ""}, "", false},
 	} {
 		must.Eq(t, tc.want, tc.c.matches(tc.class), must.Sprintf("%+v on %q", tc.c, tc.class))
 	}
+}
+
+func TestDemandClass_ClassComesBeforeTheSize(t *testing.T) {
+	ci.Parallel(t)
+	// The group of another class has no known size: the reason is the class,
+	// not the size of a node it could never get the work for.
+	u := Unplaced{Namespace: "default", Job: "g", Group: "g", Count: 1, CPU: 10, Memory: 6000,
+		Classes: []ClassConstraint{{Operand: "=", Value: "gpu"}}}
+	h, objects, events := demandHarness(t, []testGroup{{name: "plain-a", dc: "dc-a",
+		status: map[string]any{"allocatable": nil}}}, workIn("workers", []string{"dc-a"}, u))
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Len(t, 0, objects.requests())
+	must.Eq(t, 1, events.count(structs.TypeScalingNodeBlocked))
+	must.StrContains(t, events.events[0].Reason, "${node.class}")
+}
+
+func TestDemandSpill_UsedUpIsNotNoGroup(t *testing.T) {
+	ci.Parallel(t)
+	// A group allows spill, but the distinct_property of the job is used up in
+	// its datacenter: no node helps, and the event must not say that no group
+	// allows the job.
+	u := Unplaced{Namespace: "default", Job: "any", Group: "g", Count: 1, CPU: 10, Memory: 100,
+		Distinct: []DistinctProperty{{Target: "${node.datacenter}", Limit: 1, Used: map[string]int{"dc-a": 1}}}}
+	h, objects, events := demandHarness(t,
+		[]testGroup{{name: "edge-a", dc: "dc-a", spec: map[string]any{"pool": "edge", "spill": true}}},
+		workIn("all", []string{"dc-a"}, u))
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Len(t, 0, objects.requests())
+	for _, e := range events.events {
+		must.StrNotContains(t, e.Reason, "spill")
+	}
+}
+
+func TestDemandClass_EmptyGroupGrowsFromNothing(t *testing.T) {
+	ci.Parallel(t)
+	// A group of a class no node has: the gauges say zero ready (not unknown),
+	// so the one node asked for is on its way and two more are needed.
+	u := Unplaced{Namespace: "default", Job: "g", Group: "g", Count: 3, CPU: 10, Memory: 6000,
+		Classes: []ClassConstraint{{Operand: "=", Value: "gpu"}}}
+	h, objects, _ := demandHarness(t, []testGroup{{name: "gpu-a", dc: "dc-a",
+		spec:   map[string]any{"node_class": "gpu"},
+		status: map[string]any{"replicas": nil, "joining": nil}}}, workIn("workers", []string{"dc-a"}, u))
+	h.deps.GaugeHistory = gaugeFunc(0, 0, 0)
+	h.newRunner()
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, map[string]int64{"gpu-a": 3}, scaledTo(objects))
+}
+
+func TestHeadroomSpecial_EmptyGroupGetsItsHeadroom(t *testing.T) {
+	ci.Parallel(t)
+	// No node ready, nothing allocated, nothing on its way: a headroom of one
+	// node asks for one.
+	h, objects, _ := demandHarness(t, []testGroup{{name: "workers-a", dc: "dc-a",
+		spec:   map[string]any{"replicas": float64(0), "headroom_nodes": float64(1)},
+		status: map[string]any{"replicas": nil, "joining": nil}}}, nil)
+	h.deps.GaugeHistory = gaugeFunc(0, 0, 0)
+	h.newRunner()
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, map[string]int64{"workers-a": 1}, scaledTo(objects))
 }

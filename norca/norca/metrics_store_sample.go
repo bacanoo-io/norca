@@ -216,10 +216,11 @@ func (s *Server) sampleQuotas(snap *state.StateSnapshot, live *metricsstore.Live
 	return gauges, nil
 }
 
-// emptyGroupGauges returns nodes_ready = 0 for the node groups whose
-// datacenter, pool and class have no node yet. Without it a group that starts
-// from nothing (a class that no node has) has no series, and its ready nodes
-// can not be told from a gauge that can not be read.
+// emptyGroupGauges returns the gauges of the node groups whose datacenter,
+// pool and class have no ready node: nodes_ready = 0, and nothing allocated.
+// Without them a group that starts from nothing (a class that no node has) or
+// whose nodes are all down has no series, its ready nodes can not be told
+// from a gauge that can not be read, and its headroom is not known.
 func emptyGroupGauges(snap *state.StateSnapshot, cluster map[[3]string]*capacity) []metricsstore.Gauge {
 	iter, err := snap.CustomObjects(nil, structs.NodeScalingGroup, structs.NodeGroupKind, structs.AllNamespacesSentinel, state.SortDefault)
 	if err != nil {
@@ -229,6 +230,9 @@ func emptyGroupGauges(snap *state.StateSnapshot, cluster map[[3]string]*capacity
 	var gauges []metricsstore.Gauge
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		obj := raw.(*structs.CustomObject)
+		if obj.Deleting() {
+			continue
+		}
 		spec := obj.Spec
 		str := func(k string) string { v, _ := spec[k].(string); return v }
 		key := [3]string{str("datacenter"), str("pool"), str("node_class")}
@@ -236,11 +240,14 @@ func emptyGroupGauges(snap *state.StateSnapshot, cluster map[[3]string]*capacity
 			continue
 		}
 		seen[key] = true
-		gauges = append(gauges, metricsstore.Gauge{
-			Metric: metricsstore.MetricClusterNodesReady,
-			Labels: map[string]string{"dc": key[0], "pool": key[1], "class": key[2]},
-			Value:  0,
-		})
+		labels := map[string]string{"dc": key[0], "pool": key[1], "class": key[2]}
+		for _, metric := range []string{
+			metricsstore.MetricClusterNodesReady,
+			metricsstore.MetricClusterCPUAllocated,
+			metricsstore.MetricClusterMemoryAllocated,
+		} {
+			gauges = append(gauges, metricsstore.Gauge{Metric: metric, Labels: labels, Value: 0})
+		}
 	}
 	return gauges
 }

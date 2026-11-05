@@ -159,6 +159,12 @@ func TestClassConstraints(t *testing.T) {
 	got = classConstraints(job, tg, &u)
 	must.Len(t, 1, got)
 	must.NotEq(t, "", u.Unverifiable)
+
+	// A value that is the property of a node can not be known ahead of time.
+	tg.Constraints = []*structs.Constraint{{LTarget: "${node.class}", Operand: "=", RTarget: "${meta.class}"}}
+	u = autoscaler.Unplaced{}
+	classConstraints(job, tg, &u)
+	must.NotEq(t, "", u.Unverifiable)
 }
 
 // TestEmptyGroupGauges checks that a node group without a node in its
@@ -186,7 +192,9 @@ func TestEmptyGroupGauges(t *testing.T) {
 	must.NoError(t, err)
 	cluster := map[[3]string]*capacity{{"dc1", "default", ""}: {ready: 1}}
 	got := emptyGroupGauges(snap, cluster)
-	must.Len(t, 1, got)
-	must.Eq(t, map[string]string{"dc": "dc1", "pool": "default", "class": "gpu"}, got[0].Labels)
-	must.Eq(t, 0.0, got[0].Value)
+	must.Len(t, 3, got) // nodes_ready, cpu and memory allocated
+	for _, g := range got {
+		must.Eq(t, map[string]string{"dc": "dc1", "pool": "default", "class": "gpu"}, g.Labels)
+		must.Eq(t, 0.0, g.Value)
+	}
 }

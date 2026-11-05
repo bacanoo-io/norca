@@ -259,7 +259,7 @@ func classConstraints(job *structs.Job, tg *structs.TaskGroup, u *autoscaler.Unp
 		if c.LTarget != "${node.class}" {
 			continue
 		}
-		if !autoscaler.ClassConstraintSupported(c.Operand) {
+		if !autoscaler.ClassConstraintSupported(c.Operand, c.RTarget) {
 			if u.Unverifiable == "" {
 				u.Unverifiable = c.String()
 			}
