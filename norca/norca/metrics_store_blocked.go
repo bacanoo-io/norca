@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
 	"github.com/bacanoo-io/norca/norca/norca/metricsstore"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -16,34 +17,20 @@ import (
 // blockedDemand is the demand of the blocked evaluations in one datacenter
 // and node pool.
 type blockedDemand struct {
-	cpu, memory float64
-	evals       int
-	exclusive   int // unplaced allocations that need a node of their own
+	evals    int                   // blocked evaluations
+	unplaced []autoscaler.Unplaced // by task group
 }
 
-// blockedGauges returns the blocked demand gauges per datacenter and node
-// pool. Every datacenter and pool of the capacity gets a value, zero when
-// nothing is blocked, so the series do not end when the demand does.
+// collectBlocked returns the demand of the blocked evaluations by datacenter
+// and node pool.
 //
 // An evaluation counts when it waits for capacity: one blocked by the quota
 // of its namespace would not be helped by more nodes, so it does not. The
 // unplaced allocations of a task group are the one that failed and those
-// coalesced into it.
-func blockedGauges(snap *state.StateSnapshot, evals []*structs.Evaluation, cluster map[[3]string]*capacity) []metricsstore.Gauge {
+// coalesced into it. The demand of a job that can use several datacenters is
+// counted in each of them.
+func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[[2]string]*blockedDemand {
 	demand := map[[2]string]*blockedDemand{}
-	for key := range cluster {
-		demand[[2]string{key[0], key[1]}] = &blockedDemand{}
-	}
-	get := func(dc, pool string) *blockedDemand {
-		k := [2]string{dc, pool}
-		d := demand[k]
-		if d == nil {
-			d = &blockedDemand{}
-			demand[k] = d
-		}
-		return d
-	}
-
 	for _, eval := range evals {
 		if eval.QuotaLimitReached != "" {
 			continue
@@ -56,34 +43,56 @@ func blockedGauges(snap *state.StateSnapshot, evals []*structs.Evaluation, clust
 		if pool == "" {
 			pool = structs.NodePoolDefault
 		}
-		counted := map[string]bool{} // the datacenters this evaluation is counted in
+		counted := map[[2]string]bool{} // where this evaluation is counted
 		for name, metric := range eval.FailedTGAllocs {
 			tg := job.LookupTaskGroup(name)
 			if tg == nil || metric == nil {
 				continue
 			}
-			unplaced := 1 + metric.CoalescedFailures
-			var cpu, memory float64
+			u := autoscaler.Unplaced{
+				Namespace: job.Namespace,
+				Job:       job.ID,
+				Group:     name,
+				Count:     1 + metric.CoalescedFailures,
+				Exclusive: hasConstraint(job.Constraints, structs.ConstraintDistinctHosts) ||
+					hasConstraint(tg.Constraints, structs.ConstraintDistinctHosts),
+			}
 			for _, task := range tg.Tasks {
 				if task.Resources != nil {
-					cpu += float64(task.Resources.CPU)
-					memory += float64(task.Resources.MemoryMB)
+					u.CPU += float64(task.Resources.CPU)
+					u.Memory += float64(task.Resources.MemoryMB)
 				}
 			}
-			exclusive := hasConstraint(job.Constraints, structs.ConstraintDistinctHosts) ||
-				hasConstraint(tg.Constraints, structs.ConstraintDistinctHosts)
+			if tg.EphemeralDisk != nil {
+				u.Disk = float64(tg.EphemeralDisk.SizeMB)
+			}
 			for _, dc := range blockedDatacenters(job, metric) {
-				d := get(dc, pool)
-				d.cpu += cpu * float64(unplaced)
-				d.memory += memory * float64(unplaced)
-				if exclusive {
-					d.exclusive += unplaced
+				k := [2]string{dc, pool}
+				d := demand[k]
+				if d == nil {
+					d = &blockedDemand{}
+					demand[k] = d
 				}
-				if !counted[dc] {
-					counted[dc] = true
+				d.unplaced = append(d.unplaced, u)
+				if !counted[k] {
+					counted[k] = true
 					d.evals++
 				}
 			}
+		}
+	}
+	return demand
+}
+
+// blockedGauges returns the blocked demand gauges per datacenter and node
+// pool. Every datacenter and pool of the capacity gets a value, zero when
+// nothing is blocked, so the series do not end when the demand does.
+func blockedGauges(snap *state.StateSnapshot, evals []*structs.Evaluation, cluster map[[3]string]*capacity) []metricsstore.Gauge {
+	demand := collectBlocked(snap, evals)
+	for key := range cluster {
+		k := [2]string{key[0], key[1]}
+		if demand[k] == nil {
+			demand[k] = &blockedDemand{}
 		}
 	}
 
@@ -97,12 +106,21 @@ func blockedGauges(snap *state.StateSnapshot, evals []*structs.Evaluation, clust
 	var gauges []metricsstore.Gauge
 	for _, k := range keys {
 		d := demand[k]
+		var cpu, memory float64
+		exclusive := 0
+		for _, u := range d.unplaced {
+			cpu += u.CPU * float64(u.Count)
+			memory += u.Memory * float64(u.Count)
+			if u.Exclusive {
+				exclusive += u.Count
+			}
+		}
 		labels := map[string]string{"dc": k[0], "pool": k[1]}
 		gauges = append(gauges,
-			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedCPU, Labels: labels, Value: d.cpu},
-			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedMemory, Labels: labels, Value: d.memory},
+			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedCPU, Labels: labels, Value: cpu},
+			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedMemory, Labels: labels, Value: memory},
 			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedEvals, Labels: labels, Value: float64(d.evals)},
-			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedAllocsExclusive, Labels: labels, Value: float64(d.exclusive)})
+			metricsstore.Gauge{Metric: metricsstore.MetricClusterBlockedAllocsExclusive, Labels: labels, Value: float64(exclusive)})
 	}
 	return gauges
 }
