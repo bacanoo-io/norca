@@ -136,6 +136,10 @@ type demandGroup struct {
 	bucket []Unplaced
 	// projected is the number of nodes the group would have with the work.
 	projected int64
+
+	// decision is status.decision of the group: what the last raise of the
+	// scale was made for, until its nodes are ready.
+	decision map[string]any
 }
 
 // vnode is a virtual node: the room that is left on it, whether any work was
@@ -240,6 +244,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		}
 		g.spill, _ = spec["spill"].(bool)
 		g.class = asString(spec["node_class"])
+		g.decision = asMap(status[decisionKey])
 
 		// The nodes the group has: as the operator reports them, or, when
 		// none does, the ready nodes of the cluster gauges.
@@ -551,6 +556,8 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 	touched := map[string]bool{}
 
 	for _, g := range d.groups {
+		r.settleDecision(g)
+
 		// The work that is blocked: the nodes it needs, less those on their
 		// way. What is left of the nodes on their way is free capacity for
 		// the headroom.
@@ -612,10 +619,12 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		if blockedAdd == 0 {
 			check = checkHeadroom
 		}
-		if err := r.scaleGroupUp(g, desired, strings.Join(reasons, "; ")+fmt.Sprintf(" [%d ready, spec %d]", g.ready, g.spec), check); err != nil {
+		reason := strings.Join(reasons, "; ") + fmt.Sprintf(" [%d ready, spec %d]", g.ready, g.spec)
+		if err := r.scaleGroupUp(g, desired, reason, check); err != nil {
 			r.logger.Warn("failed to raise the scale of a node group", "group", g.name, "error", err)
 			continue
 		}
+		r.recordDecision(g, desired, check, reason)
 		r.lastDemand[g.name] = desired
 	}
 	for name := range r.lastDemand {

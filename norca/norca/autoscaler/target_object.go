@@ -59,6 +59,10 @@ const (
 type ObjectScaler interface {
 	ScaleObject(args *structs.CustomObjectScaleRequest) (*structs.CustomObjectScaleResponse, error)
 	RecordObjectEvents(args *structs.CustomObjectEventsRequest) error
+
+	// UpdateObjectStatus replaces the status of an object; the autoscaler
+	// writes status.decision of a node group this way.
+	UpdateObjectStatus(args *structs.CustomObjectStatusRequest) error
 }
 
 // objectTarget is a custom object scaled by a policy.

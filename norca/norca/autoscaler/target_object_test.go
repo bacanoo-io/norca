@@ -4,6 +4,7 @@
 package autoscaler
 
 import (
+	"fmt"
 	"strconv"
 	"sync"
 	"testing"
@@ -24,6 +25,8 @@ type fakeObjectScaler struct {
 	clock *fakeClock
 	index uint64
 	reqs  []*structs.CustomObjectScaleRequest
+
+	statusWrites int
 }
 
 func (f *fakeObjectScaler) object(group, kind, ns, name string) (*structs.ObjectKind, *structs.CustomObject) {
@@ -61,6 +64,20 @@ func (f *fakeObjectScaler) ScaleObject(args *structs.CustomObjectScaleRequest) (
 		Time:   f.clock.Now().UnixNano(),
 	}))
 	return &structs.CustomObjectScaleResponse{}, nil
+}
+
+func (f *fakeObjectScaler) UpdateObjectStatus(args *structs.CustomObjectStatusRequest) error {
+	f.l.Lock()
+	defer f.l.Unlock()
+	_, obj := f.object(args.Group, args.Kind, args.Namespace, args.Name)
+	if args.CAS != nil && *args.CAS != obj.ModifyIndex {
+		return fmt.Errorf("cas: object was changed")
+	}
+	f.statusWrites++
+	next := obj.Copy()
+	next.Status = structs.CopyObjectMap(args.Status)
+	f.index++
+	return f.store.UpsertCustomObject(structs.MsgTypeTestSetup, f.index, next, obj.ModifyIndex)
 }
 
 func (f *fakeObjectScaler) RecordObjectEvents(args *structs.CustomObjectEventsRequest) error {

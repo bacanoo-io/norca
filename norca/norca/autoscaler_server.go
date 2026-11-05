@@ -12,11 +12,13 @@ import (
 )
 
 // autoscalerACLPolicy is the only permission of the built-in autoscaler's
-// system identity: it may scale jobs in any namespace, and write the scale
-// subresource and the event log of custom objects, nothing else.
+// system identity: it may scale jobs in any namespace, write the scale
+// subresource and the event log of custom objects, and write the status of
+// node groups (status.decision), nothing else.
 const autoscalerACLPolicy = `namespace "*" {
   capabilities = ["scale-job"]
   object "*" { capabilities = ["write", "write-events"] }
+  object "norca.io/NodeGroup" { capabilities = ["write", "write-events", "write-status"] }
 }`
 
 var (
@@ -144,6 +146,21 @@ func (a *autoscalerJobScaler) ScaleObject(args *structs.CustomObjectScaleRequest
 		return nil, err
 	}
 	return &reply, nil
+}
+
+// UpdateObjectStatus replaces the status of a custom object, as an internal
+// call with the autoscaler's identity (which may write the status of node
+// groups only).
+func (a *autoscalerJobScaler) UpdateObjectStatus(args *structs.CustomObjectStatusRequest) error {
+	secret := a.srv.getAutoscalerSecret()
+	if secret == "" {
+		return fmt.Errorf("not the leader")
+	}
+	args.Region = a.srv.Region()
+	args.AuthToken = secret
+
+	var reply structs.CustomObjectWriteResponse
+	return a.srv.RPC("CustomObject.UpdateStatus", args, &reply)
 }
 
 // RecordObjectEvents writes events of the autoscaler to the event log of a
