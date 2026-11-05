@@ -16,9 +16,24 @@ type Unplaced struct {
 	// The size of one allocation: CPU in MHz, memory and disk in MB.
 	CPU, Memory, Disk float64
 
+	// Distinct are the distinct_property constraints the allocations are
+	// under. Unverifiable is the text of a constraint on a property of the
+	// new node that cannot be known ahead of time; the work then waits.
+	Distinct     []DistinctProperty
+	Unverifiable string
+
 	// Exclusive is set when every allocation needs a node of its own
 	// (distinct_hosts, a static port that every node has taken).
 	Exclusive bool
+}
+
+// DistinctProperty is a distinct_property constraint: at most Limit
+// allocations of the job (or group) may have the same value of Target. Used
+// counts the live allocations by value.
+type DistinctProperty struct {
+	Target string
+	Limit  int
+	Used   map[string]int
 }
 
 // NodeSize is the allocatable size of one node of a node group.
@@ -110,4 +125,35 @@ func PackNodes(demands []Unplaced, node NodeSize) PackResult {
 	}
 	res.Nodes = len(free)
 	return res
+}
+
+// Restrict returns the part of the demand that a new node of the group could
+// take, and false when there is none. A distinct_property constraint on the
+// datacenter or the node pool is checked against the value the new node would
+// have: when the allocations that are already there use up the limit of that
+// value, a node of this group does not help (the node must go to a group with
+// another value), and otherwise the count is capped at what is left. A
+// constraint on anything else is not known about a node that does not exist
+// yet, so the demand is left out (see Unverifiable).
+func (u Unplaced) Restrict(g *AdviceGroup) (Unplaced, bool) {
+	if u.Unverifiable != "" {
+		return u, false
+	}
+	for _, d := range u.Distinct {
+		var value string
+		switch d.Target {
+		case "${node.datacenter}":
+			value = g.Datacenter
+		case "${node.pool}":
+			value = g.Pool
+		default:
+			return u, false
+		}
+		left := d.Limit - d.Used[value]
+		if left <= 0 {
+			return u, false
+		}
+		u.Count = min(u.Count, left)
+	}
+	return u, true
 }

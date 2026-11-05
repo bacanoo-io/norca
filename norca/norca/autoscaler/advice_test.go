@@ -4,6 +4,7 @@
 package autoscaler
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ func TestAdvice_Events(t *testing.T) {
 	cfg.Advice = []*AdviceGroup{{Name: "workers-a", Pool: "default", Datacenter: "dc-a",
 		Size: NodeSize{CPU: 4000, Memory: 8000, Disk: 10000}}}
 	must.NoError(t, cfg.Validate())
-	st := &advice{nodes: map[[2]string]int{}, tooLarge: map[string]bool{}}
+	st := newAdvice()
 
 	// Nothing blocked: nothing is said.
 	a.adviseOnce(cfg, st)
@@ -81,4 +82,59 @@ func TestConfig_ValidateAdvice(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Advice = []*AdviceGroup{good}
 	must.NoError(t, cfg.Validate())
+}
+
+// TestAdvice_DistinctProperty checks that a distinct_property on the
+// datacenter is advised in the datacenter that still has room, and that a
+// constraint on a property of the node is reported, not guessed.
+func TestAdvice_DistinctProperty(t *testing.T) {
+	ci.Parallel(t)
+
+	type event struct {
+		typ string
+		ev  structs.ScalingDecisionEvent
+	}
+	var events []event
+	// The job is blocked in both datacenters; dc-a already holds one of its
+	// allocations and the limit is one per datacenter.
+	work := []Unplaced{{Namespace: "ns", Job: "ha", Group: "g", Count: 2, CPU: 100, Memory: 100,
+		Distinct: []DistinctProperty{{Target: "${node.datacenter}", Limit: 1, Used: map[string]int{"dc-a": 1}}}}}
+	odd := []Unplaced{{Namespace: "ns", Job: "gpu", Group: "g", Count: 1, CPU: 100, Memory: 100,
+		Unverifiable: `${attr.kernel.name} distinct_property`}}
+	demand := map[[2]string][]Unplaced{
+		{"dc-a", "default"}: append(slices.Clone(work), odd...),
+		{"dc-b", "default"}: work,
+	}
+	a := New(hclog.NewNullLogger(), DefaultConfig(), &Deps{
+		BlockedDemand: func() map[[2]string][]Unplaced { return demand },
+		PublishEvent: func(typ string, ev *structs.ScalingDecisionEvent) {
+			events = append(events, event{typ, *ev})
+		},
+		Now: time.Now,
+	})
+	size := NodeSize{CPU: 4000, Memory: 8000}
+	cfg := DefaultConfig()
+	cfg.Advice = []*AdviceGroup{
+		{Name: "a", Pool: "default", Datacenter: "dc-a", Size: size},
+		{Name: "b", Pool: "default", Datacenter: "dc-b", Size: size},
+	}
+	st := newAdvice()
+	a.adviseOnce(cfg, st)
+
+	got := map[string]int64{}
+	var unverifiable int
+	for _, e := range events {
+		switch e.typ {
+		case structs.TypeScalingNodeAdvice:
+			got[e.ev.Group] = e.ev.Count
+		case structs.TypeScalingNodeUnverifiable:
+			unverifiable++
+			must.Eq(t, "gpu", e.ev.JobID)
+		}
+	}
+	// dc-a is used up for the job: no node there. dc-b takes one (the
+	// limit is one per datacenter, so one of the two allocations only).
+	must.Eq(t, int64(0), got["default/dc-a"])
+	must.Eq(t, int64(1), got["default/dc-b"])
+	must.Eq(t, 1, unverifiable)
 }

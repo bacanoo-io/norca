@@ -48,6 +48,7 @@ const (
 	MetricsClusterBlockedMemory          = "norca.cluster.blocked_memory_mb"
 	MetricsClusterBlockedEvals           = "norca.cluster.blocked_evals"
 	MetricsClusterBlockedAllocsExclusive = "norca.cluster.blocked_allocs_exclusive"
+	MetricsClusterBlockedUnverifiable    = "norca.cluster.blocked_unverifiable"
 
 	MetricsAutopilotHealthy          = "norca.cluster.autopilot_healthy"
 	MetricsAutopilotFailureTolerance = "norca.cluster.autopilot_failure_tolerance"

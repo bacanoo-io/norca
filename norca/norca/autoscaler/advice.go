@@ -17,13 +17,18 @@ import (
 type advice struct {
 	nodes    map[[2]string]int // advised nodes by {pool, datacenter}
 	tooLarge map[string]bool   // the allocations reported as too large
+	unverif  map[string]bool   // the constraints reported as unverifiable
+}
+
+func newAdvice() *advice {
+	return &advice{nodes: map[[2]string]int{}, tooLarge: map[string]bool{}, unverif: map[string]bool{}}
 }
 
 // advise runs the read-only advice mode until ctx is canceled: it packs the
 // work that cannot be placed into nodes of the configured size and raises an
 // event with the number of nodes that would be added. It changes nothing.
 func (a *Autoscaler) advise(ctx context.Context, cfg *Config) {
-	st := &advice{nodes: map[[2]string]int{}, tooLarge: map[string]bool{}}
+	st := newAdvice()
 	ticker := time.NewTicker(cfg.AdviceInterval)
 	defer ticker.Stop()
 	for {
@@ -48,8 +53,31 @@ func (a *Autoscaler) adviseOnce(cfg *Config, st *advice) {
 	}
 
 	stillTooLarge := map[string]bool{}
+	stillUnverif := map[string]bool{}
 	for _, g := range cfg.Advice {
-		res := PackNodes(demand[[2]string{g.Datacenter, g.Pool}], g.Size)
+		// Only the part of the work a new node of this group could take.
+		var usable []Unplaced
+		for _, u := range demand[[2]string{g.Datacenter, g.Pool}] {
+			if u.Unverifiable != "" {
+				id := fmt.Sprintf("%s/%s/%s/%s/%s", g.Pool, g.Datacenter, u.Namespace, u.Job, u.Group)
+				stillUnverif[id] = true
+				if !st.unverif[id] {
+					st.unverif[id] = true
+					publish(structs.TypeScalingNodeUnverifiable, &structs.ScalingDecisionEvent{
+						Namespace: u.Namespace,
+						JobID:     u.Job,
+						Group:     u.Group,
+						Direction: "up",
+						Reason:    "the constraint " + u.Unverifiable + " cannot be checked against a node that does not exist yet, so no node is advised for it",
+					})
+				}
+				continue
+			}
+			if r, ok := u.Restrict(g); ok {
+				usable = append(usable, r)
+			}
+		}
+		res := PackNodes(usable, g.Size)
 		key := [2]string{g.Pool, g.Datacenter}
 
 		for _, u := range res.TooLarge {
@@ -92,6 +120,11 @@ func (a *Autoscaler) adviseOnce(cfg *Config, st *advice) {
 	for id := range st.tooLarge {
 		if !stillTooLarge[id] {
 			delete(st.tooLarge, id)
+		}
+	}
+	for id := range st.unverif {
+		if !stillUnverif[id] {
+			delete(st.unverif, id)
 		}
 	}
 }

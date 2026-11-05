@@ -44,6 +44,11 @@ const (
 	MetricClusterBlockedMemory          = "norca.cluster.blocked_memory_mb"
 	MetricClusterBlockedEvals           = "norca.cluster.blocked_evals"
 	MetricClusterBlockedAllocsExclusive = "norca.cluster.blocked_allocs_exclusive"
+	// MetricClusterBlockedUnverifiable counts the unplaced allocations whose
+	// constraint cannot be checked ahead of time against a new node (a
+	// distinct_property on a property other than the datacenter or the
+	// pool): the work waits.
+	MetricClusterBlockedUnverifiable = "norca.cluster.blocked_unverifiable"
 
 	// MetricAutopilotHealthy (1 healthy, 0 not) and
 	// MetricAutopilotFailureTolerance are the health of the servers; only
@@ -73,6 +78,7 @@ var gaugeLabels = map[string][]string{
 	MetricClusterBlockedEvals:    {"dc", "pool"},
 
 	MetricClusterBlockedAllocsExclusive: {"dc", "pool"},
+	MetricClusterBlockedUnverifiable:    {"dc", "pool"},
 	MetricAutopilotHealthy:              {},
 	MetricAutopilotFailureTolerance:     {},
 	MetricQuotaCPUAllocated:             {"quota"},

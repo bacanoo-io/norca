@@ -27,6 +27,12 @@ const (
 	// an allocation does not fit an empty node of the configured size. JobID
 	// and Group name the task group, Reason the size.
 	TypeScalingNodeAllocationTooLarge = "ScalingNodeAllocationTooLarge"
+
+	// TypeScalingNodeUnverifiable is published by the advice mode when work
+	// is blocked by a constraint that cannot be checked against a node that
+	// does not exist yet. No node is advised for it; the fix is in the job
+	// or in the node template. Reason names the constraint.
+	TypeScalingNodeUnverifiable = "ScalingNodeUnverifiable"
 )
 
 // ScalingDecisionEvent is the payload of the events of the Scaling topic.
