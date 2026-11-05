@@ -124,10 +124,79 @@ type demandGroup struct {
 	freeNodes   float64 // ready, eligible nodes the free capacity is in
 	freeKnown   bool
 
-	bucket []Unplaced // the work given to the group
-	// projected is the number of nodes the group would have with the work
-	// of the bucket.
+	// nodes are the virtual nodes of the work: the nodes already on their
+	// way come first, empty, and a node is opened when the work does not
+	// fit the ones there are. bucket is the work given to the group.
+	nodes  []vnode
+	bucket []Unplaced
+	// projected is the number of nodes the group would have with the work.
 	projected int64
+}
+
+// vnode is a virtual node: the room that is left on it, whether any work was
+// put on it, and whether it holds work that can't share a node with its own
+// kind (distinct_hosts, a static port).
+type vnode struct {
+	free      NodeSize
+	used      bool
+	exclusive bool
+}
+
+// openNodes opens a virtual node for each of the nodes on their way, once
+// the size of a node is known: the work is placed on them first, so it is not
+// asked for twice when it is split in another way than in the last look.
+func (g *demandGroup) openNodes() {
+	g.nodes = nil
+	if !g.sizeKnown {
+		return
+	}
+	for range g.pending {
+		g.nodes = append(g.nodes, vnode{free: g.size})
+	}
+}
+
+// fitIndex returns the virtual node the allocation fits, -1 if none.
+func (g *demandGroup) fitIndex(u Unplaced) int {
+	for i, n := range g.nodes {
+		if u.Exclusive && n.exclusive {
+			continue
+		}
+		if u.CPU <= n.free.CPU && u.Memory <= n.free.Memory && u.Disk <= n.free.Disk {
+			return i
+		}
+	}
+	return -1
+}
+
+// place puts the allocation on a virtual node, a new one when i is -1.
+func (g *demandGroup) place(u Unplaced) {
+	i := g.fitIndex(u)
+	if i < 0 {
+		g.nodes = append(g.nodes, vnode{free: g.size})
+		i = len(g.nodes) - 1
+	}
+	n := &g.nodes[i]
+	n.free = NodeSize{n.free.CPU - u.CPU, n.free.Memory - u.Memory, n.free.Disk - u.Disk}
+	n.used = true
+	n.exclusive = n.exclusive || u.Exclusive
+	g.bucket = append(g.bucket, u)
+	g.projected = g.spec + g.opened()
+}
+
+// opened is the number of nodes the work opened beyond those on their way.
+func (g *demandGroup) opened() int64 {
+	return max(int64(len(g.nodes))-g.pending, 0)
+}
+
+// pendingFree is the number of nodes on their way that no work was put on.
+func (g *demandGroup) pendingFree() int64 {
+	var n int64
+	for i := int64(0); i < g.pending && i < int64(len(g.nodes)); i++ {
+		if !g.nodes[i].used {
+			n++
+		}
+	}
+	return n
 }
 
 // readDemandGroups returns the enabled NodeGroups of the built-in engine.
@@ -197,6 +266,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 			g.freeNodes, g.free, g.freeKnown = r.freeCapacity(p, now)
 		}
 		g.projected = g.spec
+		g.openNodes()
 		groups = append(groups, g)
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].name < groups[j].name })
@@ -389,22 +459,26 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		unit.Count = 1
 		for i := 0; i < count && units < maxDemandUnits; i++ {
 			units++
-			open := candidates[:0:0]
+			// Work that fits a node that is already on its way (or one the
+			// work opened) needs no new node, whatever the group is at.
+			var room, open []*demandGroup
 			for _, g := range candidates {
+				if g.fitIndex(unit) >= 0 {
+					room = append(room, g)
+				}
 				if g.projected < g.max {
 					open = append(open, g)
 				}
 			}
-			if len(open) == 0 {
+			pick := room
+			if len(pick) == 0 {
+				pick = open
+			}
+			if len(pick) == 0 {
 				blocked["atmax/"+item.pool+"/"+item.Job+"/"+item.Group] = "every group that could take the work is at its maximum"
 				break
 			}
-			g := d.expand(item.pool, open)
-			g.bucket = append(g.bucket, unit)
-			// An exclusive allocation takes a node of its own, the others
-			// share: the nodes are what the bucket packs into, less those
-			// that are already on their way.
-			g.projected = g.spec + max(int64(PackNodes(g.bucket, g.size).Nodes)-g.pending, 0)
+			d.expand(item.pool, pick).place(unit)
 		}
 	}
 
@@ -427,9 +501,9 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		// The work that is blocked: the nodes it needs, less those on their
 		// way. What is left of the nodes on their way is free capacity for
 		// the headroom.
-		need := int64(PackNodes(g.bucket, g.size).Nodes)
-		blockedAdd := max(need-g.pending, 0)
-		pendingLeft := max(g.pending-need, 0)
+		need := int64(len(g.nodes))
+		blockedAdd := g.opened()
+		pendingLeft := g.pendingFree()
 
 		// The headroom: free capacity worth a number of nodes ahead of the
 		// work. It is an ahead-of-time trigger, so it waits for the cooldown
