@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package escapingio
@@ -320,7 +321,7 @@ func checkEquivalenceToNaive(t *testing.T, input string) bool {
 
 func TestEscapingReader_Generated_EquivalentToReadOnce(t *testing.T) {
 	f := func(v readingInput) bool {
-		return checkEquivalenceToNaive(t, string(v))
+		return checkEquivalenceToReadOnce(t, string(v))
 	}
 
 	require.NoError(t, quick.Check(f, &quick.Config{
