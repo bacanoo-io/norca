@@ -283,9 +283,10 @@ func isBuiltinStrategyDriver(driver string) bool {
 }
 
 // KnownSources returns the names of the APMs a check may use as source: the
-// built-in nomad-apm and the configured (built-in or external) APMs.
+// built-in nomad-apm and norca, and the configured (built-in or external)
+// APMs.
 func (c *Config) KnownSources() []string {
-	names := []string{plugins.InternalAPMNomad}
+	names := []string{plugins.InternalAPMNomad, plugins.InternalAPMNorca}
 	for _, a := range c.APMs {
 		if !slices.Contains(names, a.Name) {
 			names = append(names, a.Name)

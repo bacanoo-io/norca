@@ -461,6 +461,9 @@ func (r *runner) loadCheckRunners(policy *sdk.ScalingPolicy) ([]checker, error) 
 		case r.usage != nil && r.proc.isNomadAPMQuery(check.Source):
 			// Nomad's own metrics come from the usage pushed by clients.
 			mg = r.usageLooker(policy)
+		case check.Source == plugins.InternalAPMNorca:
+			// The capacity of the cluster comes from the gauges of the servers.
+			mg = r.clusterLooker(policy)
 		default:
 			mg, err = r.host.getAPMLooker(check.Source)
 			if err != nil {

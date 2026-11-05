@@ -415,3 +415,41 @@ func TestMetricsStore_SampleGaugesByNodeClass(t *testing.T) {
 	}
 	must.Eq(t, map[string]bool{"": true, "a": true, "b": true}, classes)
 }
+
+// TestMetricsStore_AutoscalerGaugeHistory checks the adapter of the source
+// "norca" of the autoscaler: the mean and the maximum of a cluster gauge over a
+// range, per series (the class selects the node class).
+func TestMetricsStore_AutoscalerGaugeHistory(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, enableMetricsStore(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+
+	all := map[string]string{"dc": "dc1", "pool": "default", "class": ""}
+	gpu := map[string]string{"dc": "dc1", "pool": "default", "class": "gpu"}
+	at := time.Now().Add(-time.Minute)
+	s.metricsStore.RecordGauges(at, []metricsstore.Gauge{
+		{Metric: metricsstore.MetricClusterCPUAllocated, Labels: all, Value: 40},
+		{Metric: metricsstore.MetricClusterCPUAllocated, Labels: gpu, Value: 90},
+	})
+
+	from, to := at.Add(-time.Minute), time.Now()
+	waitBus(t, func() (bool, error) {
+		avg, max, n, err := s.autoscalerGaugeHistory(metricsstore.MetricClusterCPUAllocated, all, from, to)
+		return err == nil && n == 1 && avg == 40 && max == 40, err
+	})
+	avg, max, n, err := s.autoscalerGaugeHistory(metricsstore.MetricClusterCPUAllocated, gpu, from, to)
+	must.NoError(t, err)
+	must.Eq(t, 1, n)
+	must.Eq(t, 90.0, avg)
+	must.Eq(t, 90.0, max)
+
+	// A series without samples is not an error: the source reports it.
+	_, _, n, err = s.autoscalerGaugeHistory(metricsstore.MetricClusterCPUAllocated, map[string]string{"dc": "dc9", "pool": "x", "class": ""}, from, to)
+	must.NoError(t, err)
+	must.Eq(t, 0, n)
+
+	_, _, _, err = s.autoscalerGaugeHistory("norca.cluster.no_such_gauge", all, from, to)
+	must.Error(t, err)
+}
