@@ -54,6 +54,7 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 				Namespace: job.Namespace,
 				Job:       job.ID,
 				Group:     name,
+				EvalID:    eval.ID,
 				Count:     1 + metric.CoalescedFailures,
 				Exclusive: hasConstraint(job.Constraints, structs.ConstraintDistinctHosts) ||
 					hasConstraint(tg.Constraints, structs.ConstraintDistinctHosts) ||

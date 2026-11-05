@@ -18,6 +18,9 @@ type Unplaced struct {
 	Group     string
 	Count     int
 
+	// EvalID is the blocked evaluation the demand comes from.
+	EvalID string
+
 	// The size of one allocation: CPU in MHz, memory and disk in MB.
 	CPU, Memory, Disk float64
 

@@ -265,3 +265,58 @@ func TestScalingEndpoint_ListPolicies_EngineFilter(t *testing.T) {
 	must.NoError(t, err)
 	must.SliceContainsAll(t, []string{pBuiltin.ID, pDefault.ID}, ids)
 }
+
+// TestAutoscaler_WritesTheStatusOfNodeGroups checks that the system identity
+// of the autoscaler may write the status of a node group (status.decision)
+// through the real UpdateStatus path with ACLs, with the index it read the
+// object at, and the status of no other kind.
+func TestAutoscaler_WritesTheStatusOfNodeGroups(t *testing.T) {
+	ci.Parallel(t)
+
+	s, root, cleanup := TestACLServer(t, testAutoscalerConfig)
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+	c := &objectClient{t: t, codec: rpcClient(t, s)}
+	testutil.WaitForResult(func() (bool, error) {
+		g, err := s.State().ObjectKindByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind)
+		if err != nil || g == nil || s.getAutoscalerSecret() == "" {
+			return false, fmt.Errorf("the kinds or the autoscaler are not ready: %v", err)
+		}
+		return true, nil
+	}, func(err error) { must.NoError(t, err) })
+
+	spec := validNodeGroupSpec()
+	spec["engine"] = "external" // the autoscaler leaves it alone in this test
+	_, err := c.apply(nodeGroupObject("workers-dc-a", spec), nil, false, root.SecretID)
+	must.NoError(t, err)
+	obj, err := s.State().CustomObjectByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind, "", "workers-dc-a")
+	must.NoError(t, err)
+
+	a := &autoscalerJobScaler{srv: s}
+	cas := obj.ModifyIndex
+	decision := map[string]any{"replicas": 3, "check": "blocked-demand", "evaluations": []any{"e1"}}
+	must.NoError(t, a.UpdateObjectStatus(&structs.CustomObjectStatusRequest{
+		Group: structs.NodeScalingGroup, Kind: structs.NodeGroupKind, Name: "workers-dc-a",
+		Status: map[string]any{"replicas": 1, "decision": decision}, CAS: &cas,
+	}))
+	obj, err = s.State().CustomObjectByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind, "", "workers-dc-a")
+	must.NoError(t, err)
+	must.NotNil(t, obj.Status["decision"])
+
+	// A write with the index of an older read loses.
+	must.Error(t, a.UpdateObjectStatus(&structs.CustomObjectStatusRequest{
+		Group: structs.NodeScalingGroup, Kind: structs.NodeGroupKind, Name: "workers-dc-a",
+		Status: map[string]any{}, CAS: &cas,
+	}))
+
+	// The status of another kind is not the autoscaler's to write.
+	_, err = c.upsertKind(testPGKind(false), false, root.SecretID)
+	must.NoError(t, err)
+	_, err = c.apply(testPGObject("", "pg", map[string]any{"replicas": 1, "version": "16", "storage": "1Gi"}), nil, false, root.SecretID)
+	must.NoError(t, err)
+	err = a.UpdateObjectStatus(&structs.CustomObjectStatusRequest{
+		Group: "db.example.com", Kind: "PostgresCluster", Name: "pg",
+		Status: map[string]any{"readyReplicas": 1},
+	})
+	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+}
