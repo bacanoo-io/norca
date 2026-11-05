@@ -94,6 +94,13 @@ type runner struct {
 	handles map[string]*policyHandle
 	queue   []string
 
+	// lastDemand is the scale last decided for blocked work, by node group,
+	// so that a dry run says it once. told is what the blocked work trigger
+	// has told about work it can't help, by reason. Both belong to the
+	// demand loop.
+	lastDemand map[string]int64
+	told       map[string]string
+
 	workCh   chan *compiledPolicy
 	resultCh chan evalResult
 }
@@ -111,10 +118,13 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 			minEvaluationInterval:     cfg.MinEvalInterval,
 			nomadAPMs:                 host.nomadAPMs,
 		},
-		exec:     newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
-		handles:  map[string]*policyHandle{},
-		workCh:   make(chan *compiledPolicy),
-		resultCh: make(chan evalResult),
+		exec:    newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
+		handles: map[string]*policyHandle{},
+
+		lastDemand: map[string]int64{},
+		told:       map[string]string{},
+		workCh:     make(chan *compiledPolicy),
+		resultCh:   make(chan evalResult),
 	}
 }
 
@@ -126,6 +136,9 @@ func (r *runner) run(ctx context.Context) {
 
 	updatesCh := make(chan *policyList, 1)
 	go r.watchPolicies(ctx, updatesCh)
+	if r.deps.BlockedDemand != nil {
+		go r.demandLoop(ctx)
+	}
 
 	timer := time.NewTimer(0)
 	defer timer.Stop()

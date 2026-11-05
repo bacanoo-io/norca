@@ -33,6 +33,12 @@ const (
 	// does not exist yet. No node is advised for it; the fix is in the job
 	// or in the node template. Reason names the constraint.
 	TypeScalingNodeUnverifiable = "ScalingNodeUnverifiable"
+
+	// TypeScalingNodeBlocked is published by the blocked work trigger when
+	// work that cannot be placed is not helped by more nodes: the groups
+	// that could take it are at their maximum or the limit of the pool, the
+	// size of their node is unknown, or no group fits. Reason says which.
+	TypeScalingNodeBlocked = "ScalingNodeBlocked"
 )
 
 // ScalingDecisionEvent is the payload of the events of the Scaling topic.

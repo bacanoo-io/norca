@@ -9,6 +9,7 @@ package autoscaler
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"time"
 
@@ -283,7 +284,8 @@ func configEqual(a, b *Config) bool {
 		len(a.APMs) != len(b.APMs) ||
 		len(a.Strategies) != len(b.Strategies) ||
 		len(a.Advice) != len(b.Advice) ||
-		a.AdviceInterval != b.AdviceInterval {
+		a.AdviceInterval != b.AdviceInterval ||
+		!reflect.DeepEqual(a.NodeScaling, b.NodeScaling) {
 		return false
 	}
 	for i := range a.Advice {

@@ -288,6 +288,13 @@ func extraKeys(c *Config) error {
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, p.Name)
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "strategy")
 		}
+		if ns := c.Server.Autoscaler.NodeScaling; ns != nil {
+			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "node_scaling")
+			for _, p := range ns.Pools {
+				helper.RemoveEqualFold(&ns.ExtraKeysHCL, p.Name)
+				helper.RemoveEqualFold(&ns.ExtraKeysHCL, "pool")
+			}
+		}
 		for _, g := range c.Server.Autoscaler.Advice {
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, g.Name)
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "advice")

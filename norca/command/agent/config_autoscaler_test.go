@@ -53,6 +53,16 @@ server {
       driver = "pid-strategy"
     }
 
+    node_scaling {
+      expander = "priority"
+      interval = "20s"
+      pool "edge" {
+        expander  = "spread"
+        max_nodes = 12
+        max_step  = 3
+      }
+    }
+
     advice_interval = "1m"
     advice "workers-a" {
       pool       = "workers"
@@ -85,6 +95,10 @@ server {
 	must.Eq(t, 20, cfg.RateLimitBurst)
 	must.Eq(t, 10*time.Minute, cfg.MetricsWindow)
 	must.Eq(t, 15*time.Second, cfg.ClientMetricsInterval)
+	must.Eq(t, &autoscaler.NodeScalingConfig{
+		Expander: "priority", Interval: 20 * time.Second,
+		Pools: map[string]*autoscaler.NodePoolScaling{"edge": {Expander: "spread", MaxNodes: 12, MaxStep: 3}},
+	}, cfg.NodeScaling)
 	must.Eq(t, time.Minute, cfg.AdviceInterval)
 	must.Eq(t, []*autoscaler.AdviceGroup{{
 		Name: "workers-a", Pool: "workers", Datacenter: "dc-a",
