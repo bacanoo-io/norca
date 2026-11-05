@@ -30,14 +30,24 @@ type targetKey struct {
 	namespace string
 	job       string
 	group     string
+
+	// kind is empty for a task group; targetKindNodeGroup for a node group,
+	// whose name is in job.
+	kind string
 }
 
 func (k targetKey) String() string {
+	if k.kind != "" {
+		return fmt.Sprintf("%s/%s", k.kind, k.job)
+	}
 	return fmt.Sprintf("%s/%s/%s", k.namespace, k.job, k.group)
 }
 
 // targetKeyFromPolicy returns the task group targeted by a policy.
 func targetKeyFromPolicy(p *structs.ScalingPolicy) (targetKey, bool) {
+	if name := p.Target[structs.ScalingTargetNodeGroup]; name != "" {
+		return targetKey{kind: targetKindNodeGroup, job: name}, true
+	}
 	k := targetKey{
 		namespace: p.Target[structs.ScalingTargetNamespace],
 		job:       p.Target[structs.ScalingTargetJob],

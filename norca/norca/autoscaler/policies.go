@@ -91,6 +91,18 @@ func (r *runner) builtinPolicies(ws memdb.WatchSet, store *state.StateStore) (*p
 	if err != nil {
 		return nil, err
 	}
+
+	// The node groups, derived from their objects.
+	groups, objectsIndex, err := nodeGroupPolicies(ws, store)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range groups {
+		if r.isBuiltinPolicy(p) {
+			list.policies = append(list.policies, p)
+		}
+	}
+	list.index = max(list.index, objectsIndex)
 	return list, nil
 }
 
@@ -113,6 +125,14 @@ func (r *runner) isBuiltinPolicy(p *structs.ScalingPolicy) bool {
 // policyStillActive re-reads the policy from the state store right before a
 // scaling action.
 func (r *runner) policyStillActive(c *compiledPolicy) bool {
+	if c.key.kind == targetKindNodeGroup {
+		obj, err := r.deps.State().CustomObjectByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind, "", c.key.job)
+		if err != nil || obj == nil || obj.Deleting() {
+			return false
+		}
+		p, err := nodeGroupPolicy(obj)
+		return err == nil && r.isBuiltinPolicy(p)
+	}
 	p, err := r.deps.State().ScalingPolicyByID(nil, c.policy.ID)
 	if err != nil {
 		return false

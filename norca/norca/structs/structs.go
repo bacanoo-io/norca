@@ -6216,6 +6216,10 @@ const (
 	ScalingTargetGroup     = "Group"
 	ScalingTargetTask      = "Task"
 
+	// ScalingTargetNodeGroup names the NodeGroup object a derived policy
+	// scales (see the autoscaler); such a policy has no job.
+	ScalingTargetNodeGroup = "NodeGroup"
+
 	ScalingPolicyTypeHorizontal = "horizontal"
 
 	// ScalingPolicyEngineBuiltin and ScalingPolicyEngineExternal are the
