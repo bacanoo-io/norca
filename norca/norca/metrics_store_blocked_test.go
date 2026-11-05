@@ -126,7 +126,7 @@ func TestMetricsStore_BlockedDistinctProperty(t *testing.T) {
 		must.Len(t, 1, u.Distinct)
 		must.Eq(t, 2, u.Distinct[0].Limit)
 		must.Eq(t, 1, u.Distinct[0].Used[node.Datacenter])
-		got, ok := u.Restrict(&autoscaler.AdviceGroup{Pool: "default", Datacenter: node.Datacenter})
+		got, ok := u.Restrict(autoscaler.NodeGroupKey{Pool: "default", Datacenter: node.Datacenter})
 		must.True(t, ok)
 		must.Eq(t, 1, got.Count) // one more fits under the limit of two
 	}
@@ -182,18 +182,4 @@ func TestMetricsStore_BlockedStaticPort(t *testing.T) {
 	for _, u := range d.unplaced {
 		must.Eq(t, u.Job == proxy.ID, u.Exclusive, must.Sprintf("job %s (dynamic is %s)", u.Job, dynamic.ID))
 	}
-
-	// Three tiny proxies fill three nodes; three tiny dynamic ones share one.
-	size := autoscaler.NodeSize{CPU: 4000, Memory: 8000, Disk: 10000}
-	var proxies, others []autoscaler.Unplaced
-	for _, u := range d.unplaced {
-		u.Disk = 0
-		if u.Exclusive {
-			proxies = append(proxies, u)
-		} else {
-			others = append(others, u)
-		}
-	}
-	must.Eq(t, 3, autoscaler.PackNodes(proxies, size).Nodes)
-	must.Eq(t, 1, autoscaler.PackNodes(others, size).Nodes)
 }

@@ -160,6 +160,11 @@ func (g *demandGroup) openNodes() {
 	}
 }
 
+// key is what a new node of the group would be.
+func (g *demandGroup) key() NodeGroupKey {
+	return NodeGroupKey{Pool: g.pool, Datacenter: g.dc, Class: g.class}
+}
+
 // fitIndex returns the virtual node the allocation fits, -1 if none.
 func (g *demandGroup) fitIndex(u Unplaced) int {
 	for i, n := range g.nodes {
@@ -457,7 +462,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 				rejected = append(rejected, g.name+": the size of a node is unknown (CapacityUnknown)")
 				continue
 			}
-			restricted, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc, Class: g.class})
+			restricted, ok := item.Unplaced.Restrict(g.key())
 			if !ok {
 				continue
 			}
@@ -492,7 +497,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		left := map[*demandGroup]int{}
 		total := 0
 		for _, g := range candidates {
-			if rc, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc, Class: g.class}); ok {
+			if rc, ok := item.Unplaced.Restrict(g.key()); ok {
 				left[g] = rc.Count
 				total += rc.Count
 			}

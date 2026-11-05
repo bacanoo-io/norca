@@ -62,15 +62,6 @@ server {
         max_step  = 3
       }
     }
-
-    advice_interval = "1m"
-    advice "workers-a" {
-      pool       = "workers"
-      datacenter = "dc-a"
-      cpu        = 4000
-      memory     = 8192
-      disk       = 20000
-    }
   }
 }
 `
@@ -99,11 +90,6 @@ server {
 		Expander: "priority", Interval: 20 * time.Second,
 		Pools: map[string]*autoscaler.NodePoolScaling{"edge": {Expander: "spread", MaxNodes: 12, MaxStep: 3}},
 	}, cfg.NodeScaling)
-	must.Eq(t, time.Minute, cfg.AdviceInterval)
-	must.Eq(t, []*autoscaler.AdviceGroup{{
-		Name: "workers-a", Pool: "workers", Datacenter: "dc-a",
-		Size: autoscaler.NodeSize{CPU: 4000, Memory: 8192, Disk: 20000},
-	}}, cfg.Advice)
 	must.Len(t, 2, cfg.APMs)
 	must.Eq(t, &autoscaler.PluginConfig{
 		Name:   "prom",
@@ -154,5 +140,27 @@ func TestConfig_Autoscaler_Invalid(t *testing.T) {
 	for _, c := range cases {
 		_, err := c.toServerConfig()
 		must.Error(t, err)
+	}
+}
+
+// TestConfig_Autoscaler_NoAdvice checks that the advice mode is gone: its
+// blocks are unknown keys of the autoscaler block.
+func TestConfig_Autoscaler_NoAdvice(t *testing.T) {
+	ci.Parallel(t)
+
+	for _, body := range []string{
+		`advice "workers-a" {
+      pool       = "workers"
+      datacenter = "dc-a"
+      cpu        = 4000
+      memory     = 8192
+    }`,
+		`advice_interval = "1m"`,
+	} {
+		hcl := "server {\n  enabled = true\n  autoscaler {\n    " + body + "\n  }\n}\n"
+		path := filepath.Join(t.TempDir(), "server.hcl")
+		must.NoError(t, os.WriteFile(path, []byte(hcl), 0o600))
+		_, err := ParseConfigFile(path)
+		must.ErrorContains(t, err, "advice")
 	}
 }
