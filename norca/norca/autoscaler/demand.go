@@ -456,14 +456,19 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			continue
 		}
 
-		// Count the allocations the work still has room for in the groups
-		// (a distinct_property may cap it) and give them out one by one.
-		count := item.Count
+		// How many allocations each group could take of this work: a
+		// distinct_property caps it by the value the group's nodes would have
+		// (one more in each datacenter that has room), and the work as a
+		// whole by the allocations that are blocked.
+		left := map[*demandGroup]int{}
+		total := 0
 		for _, g := range candidates {
 			if rc, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc}); ok {
-				count = min(count, rc.Count)
+				left[g] = rc.Count
+				total += rc.Count
 			}
 		}
+		count := min(item.Count, total)
 		unit := item.Unplaced
 		unit.Count = 1
 		for i := 0; i < count && units < maxDemandUnits; i++ {
@@ -472,6 +477,9 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			// work opened) needs no new node, whatever the group is at.
 			var room, open []*demandGroup
 			for _, g := range candidates {
+				if left[g] <= 0 {
+					continue
+				}
 				if g.fitIndex(unit) >= 0 {
 					room = append(room, g)
 				}
@@ -487,7 +495,9 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 				blocked["atmax/"+item.pool+"/"+item.Job+"/"+item.Group] = "every group that could take the work is at its maximum"
 				break
 			}
-			d.expand(item.pool, pick).place(unit)
+			g := d.expand(item.pool, pick)
+			g.place(unit)
+			left[g]--
 		}
 	}
 
