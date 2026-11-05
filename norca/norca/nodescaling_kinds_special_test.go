@@ -160,3 +160,45 @@ func TestNodeScalingKinds_SpecialCases(t *testing.T) {
 	}, nil, true, "")
 	must.Error(t, err)
 }
+
+// TestNodeScalingKinds_OperatorStatus checks that the status the node scaling
+// operator writes passes the schema of the kind, and that a negative count is
+// refused.
+func TestNodeScalingKinds_OperatorStatus(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, nil)
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+	c := &objectClient{t: t, codec: rpcClient(t, s)}
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		g, _ := s.State().ObjectKindByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind)
+		return g != nil
+	}), wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
+	_, err := c.apply(nodeGroupObject("workers-dc-a", validNodeGroupSpec()), nil, false, "")
+	must.NoError(t, err)
+
+	write := func(status map[string]any) error {
+		req := &structs.CustomObjectStatusRequest{
+			Group: structs.NodeScalingGroup, Kind: structs.NodeGroupKind, Name: "workers-dc-a",
+			Status: status, WriteRequest: structs.WriteRequest{Region: "global"},
+		}
+		var resp structs.CustomObjectWriteResponse
+		return msgpackrpc.CallWithCodec(c.codec, "CustomObject.UpdateStatus", req, &resp)
+	}
+	must.NoError(t, write(map[string]any{
+		"replicas": 1, "joining": 2, "failed": 0, "lastRequest": 3,
+		"capacity":    map[string]any{"cpu": 4000, "memory": 8192, "disk": 40000},
+		"allocatable": map[string]any{"cpu": 3900, "memory": 8000, "disk": 40000},
+		"nodes": []any{
+			map[string]any{"instance": "i-1", "state": "running", "request": "eu/workers-dc-a/3", "created": "2026-11-05T12:00:00Z", "node": "n1", "ready": true},
+			map[string]any{"instance": "i-2", "state": "creating", "request": "eu/workers-dc-a/3", "created": "2026-11-05T12:00:00Z"},
+		},
+		"conditions": []any{
+			map[string]any{"type": "ProviderAvailable", "status": "True", "reason": "Available", "lastTransitionTime": "2026-11-05T12:00:00Z"},
+			map[string]any{"type": "Provisioned", "status": "False", "reason": "Quota", "message": "quota"},
+		},
+		"decision": map[string]any{"replicas": 3},
+	}))
+	must.Error(t, write(map[string]any{"lastRequest": -1}))
+}
