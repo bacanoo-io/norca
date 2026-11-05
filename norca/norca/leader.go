@@ -414,6 +414,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Start the scheduled backups.
 	s.backup.SetLeader(true)
 
+	// Register the kinds of node groups and node providers.
+	go s.nodeScalingKindsLoop(stopCh)
+
 	// Register the built-in release kinds and check releases for drift.
 	go s.releaseLeaderLoop(stopCh)
 

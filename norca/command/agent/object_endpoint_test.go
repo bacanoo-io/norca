@@ -65,7 +65,14 @@ func TestHTTP_Objects(t *testing.T) {
 		must.Eq(t, "spec.version", info.Columns[0].Path)
 		kinds, _, err := client.ObjectKinds().List(nil)
 		must.NoError(t, err)
-		must.Len(t, 1, kinds)
+		// The core registers NodeGroup and NodeProvider; count the others.
+		var own int
+		for _, k := range kinds {
+			if k.Group != "norca.io" {
+				own++
+			}
+		}
+		must.Eq(t, 1, own)
 
 		// Objects: create with defaults, read, list with labels.
 		obj := &api.CustomObject{

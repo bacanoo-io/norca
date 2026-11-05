@@ -182,7 +182,8 @@ func TestObjectKindEndpoint_CRUD(t *testing.T) {
 	listReq := &structs.ObjectKindListRequest{QueryOptions: structs.QueryOptions{Region: "global"}}
 	var listResp structs.ObjectKindListResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "ObjectKind.List", listReq, &listResp))
-	must.Len(t, 2, listResp.ObjectKinds)
+	// The two kinds above and the built-in NodeGroup and NodeProvider.
+	must.Len(t, 4, listResp.ObjectKinds)
 	listReq.Prefix = "lb."
 	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "ObjectKind.List", listReq, &listResp))
 	must.Len(t, 1, listResp.ObjectKinds)
