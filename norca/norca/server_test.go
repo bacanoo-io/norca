@@ -280,8 +280,12 @@ func TestServer_Reload_Vault(t *testing.T) {
 	}
 }
 
+// connectionReset reports whether the error of an RPC says the server closed
+// the connection: EOF, or a reset (on Windows, a reset or an abort).
 func connectionReset(msg string) bool {
-	return strings.Contains(msg, "EOF") || strings.Contains(msg, "connection reset by peer")
+	return strings.Contains(msg, "EOF") || strings.Contains(msg, "connection reset by peer") ||
+		strings.Contains(msg, "forcibly closed by the remote host") ||
+		strings.Contains(msg, "established connection was aborted")
 }
 
 // Tests that the server will successfully reload its network connections,
