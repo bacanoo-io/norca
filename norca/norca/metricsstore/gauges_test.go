@@ -21,7 +21,7 @@ func TestStore_Gauges(t *testing.T) {
 	s := openTest(t, cfg)
 
 	base := time.Now().Add(-time.Hour).Truncate(30 * time.Second)
-	dc1 := map[string]string{"dc": "dc1", "pool": "default"}
+	dc1 := map[string]string{"dc": "dc1", "pool": "default", "class": ""}
 	s.RecordGauges(base.Add(time.Second), []Gauge{
 		{Metric: MetricClusterCPUUsed, Labels: dc1, Value: 10},
 		{Metric: MetricQuotaCPUUsed, Labels: map[string]string{"quota": "team"}, Value: 500},

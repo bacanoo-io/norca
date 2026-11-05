@@ -82,7 +82,7 @@ export default class MetricsClusterHistory extends Component {
         return;
       }
       const scopes = (series.Gauges || [])
-        .filter((g) => g.Metric === METRICS.cpuUsed)
+        .filter((g) => g.Metric === METRICS.cpuUsed && !g.Labels.class)
         .map((g) => ({
           key: `${g.Labels.dc}/${g.Labels.pool}`,
           dc: g.Labels.dc,

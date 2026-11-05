@@ -48,6 +48,14 @@ type capacity struct {
 	ready                            int
 }
 
+// add adds the sums of another node (or group of nodes) to c.
+func (c *capacity) add(o *capacity) {
+	c.cpu, c.memory, c.disk = c.cpu+o.cpu, c.memory+o.memory, c.disk+o.disk
+	c.allocCPU, c.allocMemory, c.allocDisk = c.allocCPU+o.allocCPU, c.allocMemory+o.allocMemory, c.allocDisk+o.allocDisk
+	c.usedCPU, c.usedMemory = c.usedCPU+o.usedCPU, c.usedMemory+o.usedMemory
+	c.ready += o.ready
+}
+
 // sampleGauges returns the cluster, server health and quota gauges.
 func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 	snap, err := s.fsm.State().Snapshot()
@@ -68,7 +76,7 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 		return part / whole * 100
 	}
 	for key, c := range cluster {
-		labels := map[string]string{"dc": key[0], "pool": key[1]}
+		labels := map[string]string{"dc": key[0], "pool": key[1], "class": key[2]}
 		gauges = append(gauges,
 			metricsstore.Gauge{Metric: metricsstore.MetricClusterCPUAllocated, Labels: labels, Value: percent(c.allocCPU, c.cpu)},
 			metricsstore.Gauge{Metric: metricsstore.MetricClusterCPUUsed, Labels: labels, Value: percent(c.usedCPU, c.cpu)},
@@ -100,25 +108,21 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 }
 
 // sampleCapacity sums the capacity, the allocated and the used resources of
-// the ready, eligible nodes by datacenter and node pool.
-func (s *Server) sampleCapacity(snap *state.StateSnapshot, live *metricsstore.LiveUsage) (map[[2]string]*capacity, error) {
+// the ready, eligible nodes by datacenter, node pool and node class. The key
+// {dc, pool, ""} is every node of the datacenter and pool; a node with a node
+// class is also in {dc, pool, class}.
+func (s *Server) sampleCapacity(snap *state.StateSnapshot, live *metricsstore.LiveUsage) (map[[3]string]*capacity, error) {
 	iter, err := snap.Nodes(nil)
 	if err != nil {
 		return nil, err
 	}
-	out := map[[2]string]*capacity{}
+	out := map[[3]string]*capacity{}
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		node := raw.(*structs.Node)
 		if node.Status != structs.NodeStatusReady || node.SchedulingEligibility != structs.NodeSchedulingEligible {
 			continue
 		}
-		key := [2]string{node.Datacenter, node.NodePool}
-		c := out[key]
-		if c == nil {
-			c = &capacity{}
-			out[key] = c
-		}
-		c.ready++
+		c := &capacity{ready: 1} // this node alone
 		if total := node.ComparableResources(); total != nil {
 			reserved := node.ComparableReservedResources()
 			if reserved == nil {
@@ -145,6 +149,19 @@ func (s *Server) sampleCapacity(snap *state.StateSnapshot, live *metricsstore.Li
 		if u, ok := live.Nodes[node.ID]; ok {
 			c.usedCPU += u.CPUMHz
 			c.usedMemory += u.MemoryMB
+		}
+
+		keys := [][3]string{{node.Datacenter, node.NodePool, ""}}
+		if node.NodeClass != "" {
+			keys = append(keys, [3]string{node.Datacenter, node.NodePool, node.NodeClass})
+		}
+		for _, key := range keys {
+			sum := out[key]
+			if sum == nil {
+				sum = &capacity{}
+				out[key] = sum
+			}
+			sum.add(c)
 		}
 	}
 	return out, nil
