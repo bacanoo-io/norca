@@ -3,7 +3,11 @@
 
 package autoscaler
 
-import "slices"
+import (
+	"regexp"
+	"slices"
+	"strings"
+)
 
 // Unplaced is the demand of one task group of a blocked evaluation: Count
 // allocations of the same size that the scheduler could not place.
@@ -22,6 +26,10 @@ type Unplaced struct {
 	Distinct     []DistinctProperty
 	Unverifiable string
 
+	// Classes are the constraints on ${node.class}: a node group helps only if
+	// the class of its nodes passes all of them.
+	Classes []ClassConstraint
+
 	// Exclusive is set when every allocation needs a node of its own
 	// (distinct_hosts, a static port that every node has taken).
 	Exclusive bool
@@ -34,6 +42,57 @@ type DistinctProperty struct {
 	Target string
 	Limit  int
 	Used   map[string]int
+}
+
+// ClassConstraint is a constraint on the class of a node.
+type ClassConstraint struct {
+	Operand string
+	Value   string
+}
+
+// ClassConstraintSupported reports whether the operand can be checked against
+// the class of a node group.
+func ClassConstraintSupported(operand string) bool {
+	switch operand {
+	case "=", "==", "is", "!=", "not", "regexp", "set_contains_any", "is_set", "is_not_set":
+		return true
+	}
+	return false
+}
+
+// classAllowed reports whether a node class passes all the constraints.
+func classAllowed(cs []ClassConstraint, class string) bool {
+	for _, c := range cs {
+		if !c.matches(class) {
+			return false
+		}
+	}
+	return true
+}
+
+// matches reports whether a node class passes the constraint.
+func (c ClassConstraint) matches(class string) bool {
+	switch c.Operand {
+	case "=", "==", "is":
+		return class == c.Value
+	case "!=", "not":
+		return class != c.Value
+	case "regexp":
+		re, err := regexp.Compile(c.Value)
+		return err == nil && re.MatchString(class)
+	case "set_contains_any":
+		for _, v := range strings.Split(c.Value, ",") {
+			if strings.TrimSpace(v) == class {
+				return true
+			}
+		}
+		return false
+	case "is_set":
+		return class != ""
+	case "is_not_set":
+		return class == ""
+	}
+	return false
 }
 
 // NodeSize is the allocatable size of one node of a node group.
@@ -134,10 +193,16 @@ func PackNodes(demands []Unplaced, node NodeSize) PackResult {
 // value, a node of this group does not help (the node must go to a group with
 // another value), and otherwise the count is capped at what is left. A
 // constraint on anything else is not known about a node that does not exist
-// yet, so the demand is left out (see Unverifiable).
+// yet, so the demand is left out (see Unverifiable). A constraint on the node
+// class is checked against the class of the group.
 func (u Unplaced) Restrict(g *AdviceGroup) (Unplaced, bool) {
 	if u.Unverifiable != "" {
 		return u, false
+	}
+	for _, c := range u.Classes {
+		if !c.matches(g.Class) {
+			return u, false
+		}
 	}
 	for _, d := range u.Distinct {
 		var value string

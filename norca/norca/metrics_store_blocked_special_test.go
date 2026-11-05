@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
@@ -134,4 +135,28 @@ func TestBlockedDemand_SpecialCases(t *testing.T) {
 	must.NoError(t, err)
 	props, _ := distinctProperties(snap, job, job.TaskGroups[0])
 	must.Eq(t, 5, props[0].Limit)
+}
+
+// TestClassConstraints checks the constraints on the node class a blocked
+// task group carries: the job's, the group's and its tasks'.
+func TestClassConstraints(t *testing.T) {
+	ci.Parallel(t)
+
+	job := mock.Job()
+	tg := job.TaskGroups[0]
+	job.Constraints = []*structs.Constraint{{LTarget: "${node.class}", Operand: "=", RTarget: "gpu"}}
+	tg.Constraints = []*structs.Constraint{{LTarget: "${node.class}", Operand: "regexp", RTarget: "^g"}}
+	tg.Tasks[0].Constraints = []*structs.Constraint{{LTarget: "${attr.kernel.name}", Operand: "=", RTarget: "linux"}}
+
+	var u autoscaler.Unplaced
+	got := classConstraints(job, tg, &u)
+	must.Eq(t, []autoscaler.ClassConstraint{{Operand: "=", Value: "gpu"}, {Operand: "regexp", Value: "^g"}}, got)
+	must.Eq(t, "", u.Unverifiable)
+
+	// An operand that can not be checked ahead of time: the work waits.
+	tg.Constraints = []*structs.Constraint{{LTarget: "${node.class}", Operand: "version", RTarget: ">= 1"}}
+	u = autoscaler.Unplaced{}
+	got = classConstraints(job, tg, &u)
+	must.Len(t, 1, got)
+	must.NotEq(t, "", u.Unverifiable)
 }

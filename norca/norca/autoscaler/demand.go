@@ -115,6 +115,7 @@ type demandGroup struct {
 	// spill lets work of a job that may run in any node pool ("all") grow
 	// this group, whatever its pool is.
 	spill bool
+	class string // node_class
 
 	size      NodeSize
 	sizeKnown bool
@@ -233,6 +234,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 			weight:   max(asInt(spec["weight"]), 1),
 		}
 		g.spill, _ = spec["spill"].(bool)
+		g.class = asString(spec["node_class"])
 
 		// The nodes the group has: as the operator reports them, or, when
 		// none does, the ready nodes of the cluster gauges.
@@ -433,6 +435,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		}
 		var candidates []*demandGroup
 		var rejected []string
+		classOut := 0 // groups of a class the job's constraint does not allow
 		for _, g := range groups {
 			if !slices.Contains(item.dcs, g.dc) {
 				continue
@@ -448,7 +451,11 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 				rejected = append(rejected, g.name+": the size of a node is unknown (CapacityUnknown)")
 				continue
 			}
-			restricted, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc})
+			if !classAllowed(item.Classes, g.class) {
+				classOut++
+				continue
+			}
+			restricted, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc, Class: g.class})
 			if !ok {
 				continue
 			}
@@ -466,6 +473,10 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 				blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group] =
 					"the job may use any node pool; no node group allows it (spill = true) in its datacenters"
 			}
+			if len(rejected) == 0 && classOut > 0 {
+				blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group] =
+					"the node class of every node group of the job's pool and datacenters fails its constraint on ${node.class}"
+			}
 			if len(rejected) > 0 {
 				blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group] = strings.Join(rejected, "; ")
 			}
@@ -479,7 +490,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		left := map[*demandGroup]int{}
 		total := 0
 		for _, g := range candidates {
-			if rc, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc}); ok {
+			if rc, ok := item.Unplaced.Restrict(&AdviceGroup{Pool: g.pool, Datacenter: g.dc, Class: g.class}); ok {
 				left[g] = rc.Count
 				total += rc.Count
 			}

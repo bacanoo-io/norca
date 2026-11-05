@@ -60,6 +60,7 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 					hasStaticPort(tg),
 			}
 			u.Distinct, u.Unverifiable = distinctProperties(snap, job, tg)
+			u.Classes = classConstraints(job, tg, &u)
 			for _, task := range tg.Tasks {
 				if task.Resources != nil {
 					u.CPU += float64(task.Resources.CPU)
@@ -242,4 +243,29 @@ func hasConstraint(constraints []*structs.Constraint, operand string) bool {
 		}
 	}
 	return false
+}
+
+// classConstraints returns the constraints of a task group on the class of
+// the node (its own, those of the job and of its tasks). One with an operand
+// that cannot be checked against a group makes the demand unverifiable.
+func classConstraints(job *structs.Job, tg *structs.TaskGroup, u *autoscaler.Unplaced) []autoscaler.ClassConstraint {
+	all := append([]*structs.Constraint{}, job.Constraints...)
+	all = append(all, tg.Constraints...)
+	for _, task := range tg.Tasks {
+		all = append(all, task.Constraints...)
+	}
+	var out []autoscaler.ClassConstraint
+	for _, c := range all {
+		if c.LTarget != "${node.class}" {
+			continue
+		}
+		if !autoscaler.ClassConstraintSupported(c.Operand) {
+			if u.Unverifiable == "" {
+				u.Unverifiable = c.String()
+			}
+			continue
+		}
+		out = append(out, autoscaler.ClassConstraint{Operand: c.Operand, Value: c.RTarget})
+	}
+	return out
 }
