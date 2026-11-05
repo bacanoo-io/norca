@@ -338,3 +338,60 @@ func TestDemandSpecial_DistinctPropertyRoomIsPerDatacenter(t *testing.T) {
 	must.NoError(t, h.runner.scaleForDemand(context.Background()))
 	must.Eq(t, map[string]int64{"workers-b": 2}, scaledTo(objects))
 }
+
+// Spill: work of a job that may run in any node pool.
+
+func TestDemandSpill_AnyPoolNeedsAGroupThatAllowsIt(t *testing.T) {
+	ci.Parallel(t)
+	u := Unplaced{Namespace: "default", Job: "any", Group: "g", Count: 2, CPU: 10, Memory: 6000}
+	work := workIn("all", []string{"dc-a", "dc-b"}, u)
+
+	// No group allows it: nothing grows, and the event says why.
+	h, objects, events := demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a"}, {name: "edge-b", dc: "dc-b", spec: map[string]any{"pool": "edge"}}}, work)
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Len(t, 0, objects.requests())
+	must.Eq(t, 1, events.count(structs.TypeScalingNodeBlocked))
+
+	// One group allows it, in a pool the job does not name: only that one grows.
+	h, objects, _ = demandHarness(t,
+		[]testGroup{
+			{name: "workers-a", dc: "dc-a"},
+			{name: "edge-b", dc: "dc-b", spec: map[string]any{"pool": "edge", "spill": true}},
+		}, work)
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, map[string]int64{"edge-b": 3}, scaledTo(objects))
+
+	// Both allow it: the expander splits the work between the pools.
+	h, objects, _ = demandHarness(t,
+		[]testGroup{
+			{name: "workers-a", dc: "dc-a", spec: map[string]any{"spill": true}},
+			{name: "edge-b", dc: "dc-b", spec: map[string]any{"pool": "edge", "spill": true}},
+		}, work)
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, map[string]int64{"workers-a": 2, "edge-b": 2}, scaledTo(objects))
+}
+
+func TestDemandSpill_AJobOfAPoolDoesNotSpill(t *testing.T) {
+	ci.Parallel(t)
+	// The job is in the pool "workers"; the group of "edge" allows spill, but
+	// the job can not run on its nodes, so it must not grow.
+	u := Unplaced{Namespace: "default", Job: "w", Group: "g", Count: 2, CPU: 10, Memory: 6000}
+	h, objects, _ := demandHarness(t,
+		[]testGroup{{name: "edge-a", dc: "dc-a", spec: map[string]any{"pool": "edge", "spill": true}}},
+		workIn("workers", []string{"dc-a"}, u))
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Len(t, 0, objects.requests())
+}
+
+func TestDemandSpill_PoolLimitsStayWithThePoolOfTheGroup(t *testing.T) {
+	ci.Parallel(t)
+	u := Unplaced{Namespace: "default", Job: "any", Group: "g", Count: 3, CPU: 10, Memory: 6000}
+	h, objects, _ := demandHarness(t,
+		[]testGroup{{name: "edge-a", dc: "dc-a", spec: map[string]any{"pool": "edge", "spill": true}}},
+		workIn("all", []string{"dc-a"}, u))
+	h.cfg.NodeScaling = &NodeScalingConfig{Pools: map[string]*NodePoolScaling{"edge": {MaxStep: 1}}}
+	h.newRunner()
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, map[string]int64{"edge-a": 2}, scaledTo(objects)) // the step of the pool "edge"
+}
