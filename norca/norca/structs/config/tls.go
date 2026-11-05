@@ -38,6 +38,13 @@ type TLSConfig struct {
 	// Must be provided to serve TLS connections.
 	CertFile string `hcl:"cert_file"`
 
+	// DistrustedCAFile is a path to a PEM file of CA certificates that are no
+	// longer trusted, such as a node CA whose key was stolen. An incoming
+	// connection whose client certificate chains through a certificate with
+	// the public key of one of them is refused. The file is read again when
+	// it changes.
+	DistrustedCAFile string `hcl:"distrusted_ca_file"`
+
 	// KeyLoader is a helper to dynamically reload TLS configuration
 	KeyLoader *KeyLoader
 
@@ -154,6 +161,7 @@ func (t *TLSConfig) Copy() *TLSConfig {
 	new.VerifyServerHostname = t.VerifyServerHostname
 	new.CAFile = t.CAFile
 	new.CertFile = t.CertFile
+	new.DistrustedCAFile = t.DistrustedCAFile
 
 	// Shallow copy the key loader as its GetOutgoingCertificate method is what
 	// is used by the HTTP server to retrieve the certificate. If we create a new
@@ -209,6 +217,9 @@ func (t *TLSConfig) Merge(b *TLSConfig) *TLSConfig {
 	}
 	if b.CertFile != "" {
 		result.CertFile = b.CertFile
+	}
+	if b.DistrustedCAFile != "" {
+		result.DistrustedCAFile = b.DistrustedCAFile
 	}
 	if b.KeyFile != "" {
 		result.KeyFile = b.KeyFile
@@ -268,7 +279,11 @@ func (t *TLSConfig) CertificateInfoIsEqual(newConfig *TLSConfig) (bool, error) {
 
 // SetChecksum generates and sets the checksum for a TLS configuration
 func (t *TLSConfig) SetChecksum() error {
-	newCertChecksum, err := createChecksumOfFiles(t.CAFile, t.CertFile, t.KeyFile)
+	files := []string{t.CAFile, t.CertFile, t.KeyFile}
+	if t.DistrustedCAFile != "" {
+		files = append(files, t.DistrustedCAFile)
+	}
+	newCertChecksum, err := createChecksumOfFiles(files...)
 	if err != nil {
 		return err
 	}
