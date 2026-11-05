@@ -22,6 +22,11 @@ const (
 	// InternalAPMNomad is the Nomad APM internal plugin name.
 	InternalAPMNomad = "nomad-apm"
 
+	// InternalAPMNorca is the source of the capacity of the cluster: the
+	// gauges the servers sample (norca.cluster.cpu_allocated, ...). It needs
+	// no configuration and is always available.
+	InternalAPMNorca = "norca"
+
 	// InternalTargetNomad is the Nomad Target internal plugin name.
 	InternalTargetNomad = "nomad-target"
 

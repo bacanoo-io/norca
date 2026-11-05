@@ -48,6 +48,13 @@ type Deps struct {
 	// the time after a leader change before the window is full.
 	UsageHistory func(namespace, job, group, metric string, from, to time.Time) (avg, max float64, samples int, err error)
 
+	// GaugeHistory reads a cluster gauge (norca.cluster.cpu_allocated, ...) of
+	// the series with the labels over a range from the metrics store: the mean
+	// of the interval averages, the largest maximum and the number of
+	// intervals. Optional; without it the source "norca" answers with an
+	// error.
+	GaugeHistory func(metric string, labels map[string]string, from, to time.Time) (avg, max float64, samples int, err error)
+
 	// PublishEvent publishes the events of the Scaling topic. Optional.
 	PublishEvent EventPublisher
 

@@ -148,6 +148,30 @@ func (s *Server) autoscalerUsageHistory(namespace, job, group, metric string, fr
 	return sum.Avg, sum.Max, sum.Samples, nil
 }
 
+// autoscalerGaugeHistory serves the source "norca" of the autoscaler: a
+// cluster gauge over a range, the mean of the interval averages and the
+// largest maximum.
+func (s *Server) autoscalerGaugeHistory(metric string, labels map[string]string, from, to time.Time) (float64, float64, int, error) {
+	if s.metricsStore == nil {
+		return 0, 0, 0, nil
+	}
+	points, _, err := s.metricsStore.QueryGauge(metric, labels, from, to, 0)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	var sum, largest float64
+	for i, p := range points {
+		sum += p.Avg
+		if i == 0 || p.Max > largest {
+			largest = p.Max
+		}
+	}
+	if len(points) == 0 {
+		return 0, 0, 0, nil
+	}
+	return sum / float64(len(points)), largest, len(points), nil
+}
+
 // seedAutoscalerUsage fills the usage window of the built-in autoscaler of a
 // new leader from its metrics store, so that the built-in metrics need not
 // wait one window after a leader change.
