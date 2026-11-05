@@ -94,7 +94,7 @@ TttDu+g2VdbcBwVDZ49X2Md6OY2N3G8Irdlj+n+mCQJaHwVt52DRzz0=
 -----END CERTIFICATE-----
 `
 
-	tmpCAFile, err := os.CreateTemp("/tmp", "test_ca_file")
+	tmpCAFile, err := os.CreateTemp(t.TempDir(), "test_ca_file")
 	require.NoError(err)
 	defer os.Remove(tmpCAFile.Name())
 
@@ -172,7 +172,7 @@ TttDu+g2VdbcBwVDZ49X2Md6OY2N3G8Irdlj+n+mCQJaHwVt52DRzz0=
 ...outside of -----XXX----- blocks?
 `
 
-	tmpCAFile, err := os.CreateTemp("/tmp", "test_ca_file_extra")
+	tmpCAFile, err := os.CreateTemp(t.TempDir(), "test_ca_file_extra")
 	require.NoError(err)
 	defer os.Remove(tmpCAFile.Name())
 	_, err = tmpCAFile.Write([]byte(certs))
@@ -215,7 +215,7 @@ Ln2ZUe8CIDsQswBQS7URbqnKYDye2Y4befJkr4fmhhmMQb2ex9A4
 Invalid
 -----END CERTIFICATE-----`
 
-	tmpCAFile, err := os.CreateTemp("/tmp", "test_ca_file")
+	tmpCAFile, err := os.CreateTemp(t.TempDir(), "test_ca_file")
 	require.NoError(err)
 	defer os.Remove(tmpCAFile.Name())
 	_, err = tmpCAFile.Write([]byte(certs))
@@ -247,11 +247,12 @@ func TestConfig_AppendCA_Invalid(t *testing.T) {
 	}
 
 	{
-		tmpFile, err := os.CreateTemp("/tmp", "test_ca_file")
+		tmpFile, err := os.CreateTemp(t.TempDir(), "test_ca_file")
 		require.Nil(err)
 		defer os.Remove(tmpFile.Name())
 		_, err = tmpFile.Write([]byte("Invalid CA Content!"))
 		require.Nil(err)
+		tmpFile.Close() // a file that is open can't be removed on Windows
 
 		conf := &Config{
 			CAFile: tmpFile.Name(),
@@ -1070,6 +1071,28 @@ func TestConfig_ShouldReloadRPCConnections(t *testing.T) {
 			new:          nil,
 			shouldReload: true,
 			errorStr:     "Downgrading RPC connections should force reload",
+		},
+		{
+			old:          nil,
+			new:          nil,
+			shouldReload: false,
+			errorStr:     "No TLS before and after should not reload",
+		},
+		{
+			old: &config.TLSConfig{
+				CAFile:    cacert,
+				CertFile:  badcert,
+				KeyFile:   badkey,
+				EnableRPC: true,
+			},
+			new: &config.TLSConfig{
+				CAFile:    cacert,
+				CertFile:  badcert,
+				KeyFile:   badkey,
+				EnableRPC: true,
+			},
+			shouldReload: false,
+			errorStr:     "The same RPC TLS should not reload",
 		},
 	}
 
