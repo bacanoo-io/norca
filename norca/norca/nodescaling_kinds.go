@@ -35,7 +35,7 @@ const (
 // nodeGroupKindSchema is the JSON Schema of node groups. The settings are in
 // the spec; the status is written by the operator that creates the nodes
 // (replicas, joining, failed, nodes, capacity, allocatable, rollout,
-// lastRequest, join, conditions) and by the autoscaler (decision).
+// lastRequest, join, strayNodes, conditions) and by the autoscaler (decision).
 const nodeGroupKindSchema = `{
   "type": "object",
   "properties": {
@@ -149,6 +149,7 @@ const nodeGroupKindSchema = `{
         "rollout": {"type": "object"},
         "decision": {"type": "object"},
         "lastRequest": {"type": "integer", "minimum": 0},
+        "strayNodes": {"type": "array", "items": {"type": "object"}},
         "join": {
           "type": "object",
           "properties": {
