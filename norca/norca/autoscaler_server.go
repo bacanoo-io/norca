@@ -57,6 +57,17 @@ func (s *Server) setupAutoscaler() {
 		Scaler:       &autoscalerJobScaler{srv: s},
 		ObjectScaler: &autoscalerJobScaler{srv: s},
 		PublishEvent: s.publishScalingEvent,
+		BlockedDemand: func() map[[2]string][]autoscaler.Unplaced {
+			snap, err := s.fsm.State().Snapshot()
+			if err != nil {
+				return nil
+			}
+			out := map[[2]string][]autoscaler.Unplaced{}
+			for k, d := range collectBlocked(snap, s.blockedEvals.Evals()) {
+				out[k] = d.unplaced
+			}
+			return out
+		},
 		UsageHistory: s.autoscalerUsageHistory,
 		GaugeHistory: s.autoscalerGaugeHistory,
 		ServersReady: func() bool {

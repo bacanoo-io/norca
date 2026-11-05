@@ -52,6 +52,15 @@ server {
     strategy "pid" {
       driver = "pid-strategy"
     }
+
+    advice_interval = "1m"
+    advice "workers-a" {
+      pool       = "workers"
+      datacenter = "dc-a"
+      cpu        = 4000
+      memory     = 8192
+      disk       = 20000
+    }
   }
 }
 `
@@ -76,6 +85,11 @@ server {
 	must.Eq(t, 20, cfg.RateLimitBurst)
 	must.Eq(t, 10*time.Minute, cfg.MetricsWindow)
 	must.Eq(t, 15*time.Second, cfg.ClientMetricsInterval)
+	must.Eq(t, time.Minute, cfg.AdviceInterval)
+	must.Eq(t, []*autoscaler.AdviceGroup{{
+		Name: "workers-a", Pool: "workers", Datacenter: "dc-a",
+		Size: autoscaler.NodeSize{CPU: 4000, Memory: 8192, Disk: 20000},
+	}}, cfg.Advice)
 	must.Len(t, 2, cfg.APMs)
 	must.Eq(t, &autoscaler.PluginConfig{
 		Name:   "prom",
