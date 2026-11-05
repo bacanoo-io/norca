@@ -316,3 +316,25 @@ func TestNodeGroupPolicySpecial_RenamedGroupIsAnotherPolicy(t *testing.T) {
 	must.NotEq(t, ka, kb)
 	must.Eq(t, "nodegroup/a", ka.String())
 }
+
+func TestDemandSpecial_DistinctPropertyRoomIsPerDatacenter(t *testing.T) {
+	ci.Parallel(t)
+	// Two datacenters, a limit of two per datacenter, one allocation in each:
+	// each can take one more, so one node is asked for in each group, not one
+	// in total and not three.
+	u := Unplaced{Namespace: "default", Job: "ha", Group: "g", Count: 3, CPU: 10, Memory: 10, Exclusive: true,
+		Distinct: []DistinctProperty{{Target: "${node.datacenter}", Limit: 2, Used: map[string]int{"dc-a": 1, "dc-b": 1}}}}
+	h, objects, _ := demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a"}, {name: "workers-b", dc: "dc-b"}},
+		workIn("workers", []string{"dc-a", "dc-b"}, u))
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, map[string]int64{"workers-a": 2, "workers-b": 2}, scaledTo(objects))
+
+	// With one datacenter used up, the other takes what it has room for.
+	u.Distinct = []DistinctProperty{{Target: "${node.datacenter}", Limit: 2, Used: map[string]int{"dc-a": 2, "dc-b": 1}}}
+	h, objects, _ = demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a"}, {name: "workers-b", dc: "dc-b"}},
+		workIn("workers", []string{"dc-a", "dc-b"}, u))
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, map[string]int64{"workers-b": 2}, scaledTo(objects))
+}
