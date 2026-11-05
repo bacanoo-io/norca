@@ -199,6 +199,8 @@ func TestNodeScalingKinds_OperatorStatus(t *testing.T) {
 			map[string]any{"type": "Provisioned", "status": "False", "reason": "Quota", "message": "quota"},
 		},
 		"decision": map[string]any{"replicas": 3},
+		"join":     map[string]any{"failures": 1, "revision": "a1b2c3d4e5f6", "resumed": 0, "lastFailure": "did not join"},
 	}))
+	must.Error(t, write(map[string]any{"join": map[string]any{"failures": -1}}))
 	must.Error(t, write(map[string]any{"lastRequest": -1}))
 }
