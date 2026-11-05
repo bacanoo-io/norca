@@ -136,7 +136,7 @@ func (r *runner) run(ctx context.Context) {
 
 	updatesCh := make(chan *policyList, 1)
 	go r.watchPolicies(ctx, updatesCh)
-	if r.deps.BlockedDemand != nil {
+	if r.deps.BlockedDemand != nil || r.deps.GaugeHistory != nil {
 		go r.demandLoop(ctx)
 	}
 

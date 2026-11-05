@@ -7,8 +7,10 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/norca/metricsstore"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/shoenig/test/must"
 )
@@ -255,4 +257,96 @@ func TestDemand_Rules(t *testing.T) {
 	must.Eq(t, 1, events.count(structs.TypeScalingNodeUnverifiable))
 	must.Eq(t, 1, events.count(structs.TypeScalingNodeAllocationTooLarge))
 	must.Eq(t, 2, events.count(structs.TypeScalingNodeBlocked)) // huge: no group fits; lost: size unknown
+}
+
+// gauges makes the cluster gauges of the harness answer: ready nodes and the
+// allocated share of CPU and memory.
+func gauges(h *harness, ready, allocated float64) {
+	h.deps.GaugeHistory = func(metric string, _ map[string]string, _, _ time.Time) (float64, float64, int, error) {
+		switch metric {
+		case metricsstore.MetricClusterNodesReady:
+			return ready, ready, 1, nil
+		case metricsstore.MetricClusterCPUAllocated, metricsstore.MetricClusterMemoryAllocated:
+			return allocated, allocated, 1, nil
+		}
+		return 0, 0, 0, nil
+	}
+	h.newRunner()
+}
+
+func TestDemand_Headroom(t *testing.T) {
+	ci.Parallel(t)
+	ctx := context.Background()
+
+	// Four nodes, 75% allocated: one node free; two wanted.
+	h, objects, _ := demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a", spec: map[string]any{"headroom_nodes": float64(2)}}}, nil)
+	gauges(h, 4, 75)
+	must.NoError(t, h.runner.scaleForDemand(ctx))
+	must.Eq(t, map[string]int64{"workers-a": 2}, scaledTo(objects))
+
+	// The cooldown of the group holds the headroom (the nodes asked for do
+	// not show in the gauges yet, so it would ask again) until it is over.
+	h.clock.Advance(time.Minute)
+	must.NoError(t, h.runner.scaleForDemand(ctx))
+	must.Len(t, 1, objects.requests())
+	h.clock.Advance(10 * time.Minute)
+	must.NoError(t, h.runner.scaleForDemand(ctx))
+	must.Len(t, 2, objects.requests())
+
+	// A share of the nodes of the group: half of four is two.
+	h, objects, _ = demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a", spec: map[string]any{"headroom_percent": float64(50)}}}, nil)
+	gauges(h, 4, 75)
+	must.NoError(t, h.runner.scaleForDemand(ctx))
+	must.Eq(t, map[string]int64{"workers-a": 2}, scaledTo(objects))
+
+	// The larger of the two applies.
+	h, objects, _ = demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a", spec: map[string]any{"headroom_percent": float64(50), "headroom_nodes": float64(3)}}}, nil)
+	gauges(h, 4, 75)
+	must.NoError(t, h.runner.scaleForDemand(ctx))
+	must.Eq(t, map[string]int64{"workers-a": 3}, scaledTo(objects)) // 3 wanted, 1 free: 2 more
+
+	// Nodes on their way count as free capacity.
+	h, objects, _ = demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a", spec: map[string]any{"headroom_nodes": float64(2), "replicas": float64(2)},
+			status: map[string]any{"joining": float64(1)}}}, nil)
+	gauges(h, 4, 75)
+	must.NoError(t, h.runner.scaleForDemand(ctx))
+	must.Len(t, 0, objects.requests())
+
+	// Enough free capacity, and gauges that can't be read: nothing.
+	h, objects, _ = demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a", spec: map[string]any{"headroom_nodes": float64(2)}}}, nil)
+	gauges(h, 4, 25)
+	must.NoError(t, h.runner.scaleForDemand(ctx))
+	must.Len(t, 0, objects.requests())
+	h.deps.GaugeHistory = func(string, map[string]string, time.Time, time.Time) (float64, float64, int, error) {
+		return 0, 0, 0, nil
+	}
+	h.newRunner()
+	must.NoError(t, h.runner.scaleForDemand(ctx))
+	must.Len(t, 0, objects.requests())
+
+	// A group with no node at all (min = 0) gets the headroom.
+	h, objects, _ = demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a", spec: map[string]any{"headroom_nodes": float64(1), "replicas": float64(0)},
+			status: map[string]any{"replicas": float64(0)}}}, nil)
+	gauges(h, 0, 0)
+	must.NoError(t, h.runner.scaleForDemand(ctx))
+	must.Eq(t, map[string]int64{"workers-a": 1}, scaledTo(objects))
+}
+
+func TestDemand_HeadroomOnTopOfBlockedWork(t *testing.T) {
+	ci.Parallel(t)
+	// The work needs two nodes (4 x 6 GB split over... one group: four
+	// nodes); the nodes it uses are not free capacity, so the headroom of
+	// one node comes on top.
+	h, objects, _ := demandHarness(t,
+		[]testGroup{{name: "workers-a", dc: "dc-a", spec: map[string]any{"headroom_nodes": float64(1)}}},
+		bigWork(2, "dc-a"))
+	gauges(h, 1, 100)
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, map[string]int64{"workers-a": 4}, scaledTo(objects)) // 1 + 2 for the work + 1 free
 }

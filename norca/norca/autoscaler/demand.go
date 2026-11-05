@@ -6,6 +6,7 @@ package autoscaler
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"sort"
 	"strings"
@@ -38,6 +39,7 @@ const (
 	maxDemandUnits = 5000
 
 	checkBlockedDemand = "blocked-demand"
+	checkHeadroom      = "headroom"
 )
 
 // NodeScalingConfig are the settings of node scaling that concern the groups
@@ -113,6 +115,15 @@ type demandGroup struct {
 	size      NodeSize
 	sizeKnown bool
 
+	// The headroom: free capacity worth this many nodes of the group, or
+	// this share of the nodes it has (the larger applies), and the free
+	// capacity the cluster gauges show, in nodes.
+	headNodes   int64
+	headPercent float64
+	free        float64
+	freeNodes   float64 // ready, eligible nodes the free capacity is in
+	freeKnown   bool
+
 	bucket []Unplaced // the work given to the group
 	// projected is the number of nodes the group would have with the work
 	// of the bucket.
@@ -178,6 +189,13 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 				g.sizeKnown = g.size.CPU > 0 && g.size.Memory > 0
 			}
 		}
+		g.headNodes = asInt(spec["headroom_nodes"])
+		if v, ok := spec["headroom_percent"].(float64); ok {
+			g.headPercent = v
+		}
+		if g.headNodes > 0 || g.headPercent > 0 {
+			g.freeNodes, g.free, g.freeKnown = r.freeCapacity(p, now)
+		}
 		g.projected = g.spec
 		groups = append(groups, g)
 	}
@@ -201,6 +219,34 @@ func (r *runner) readyNodes(p *structs.ScalingPolicy, now time.Time, spec int64)
 		return spec
 	}
 	return int64(avg + 0.5)
+}
+
+// freeCapacity reads the free capacity of the group from the cluster gauges:
+// the ready, eligible nodes of its datacenter, pool and class, and how many
+// of them are free, in nodes (the scarcer of CPU and memory, as the share of
+// the capacity that is not allocated). It is false when the gauges can't be
+// read.
+func (r *runner) freeCapacity(p *structs.ScalingPolicy, now time.Time) (ready, free float64, ok bool) {
+	if r.deps.GaugeHistory == nil {
+		return 0, 0, false
+	}
+	labels := map[string]string{
+		"dc":    p.Target[TargetConfigKeyDatacenter],
+		"pool":  p.Target[TargetConfigKeyPool],
+		"class": p.Target[TargetConfigKeyNodeClass],
+	}
+	read := func(metric string) (float64, bool) {
+		avg, _, samples, err := r.deps.GaugeHistory(metric, labels, now.Add(-clusterQueryWindow), now)
+		return avg, err == nil && samples > 0
+	}
+	nodes, ok1 := read(metricsstore.MetricClusterNodesReady)
+	cpu, ok2 := read(metricsstore.MetricClusterCPUAllocated)
+	memory, ok3 := read(metricsstore.MetricClusterMemoryAllocated)
+	if !ok1 || !ok2 || !ok3 {
+		return 0, 0, false
+	}
+	allocated := max(cpu, memory) / 100
+	return nodes, nodes * (1 - min(allocated, 1)), true
 }
 
 // demandItem is the blocked work of one task group, with the datacenters it
@@ -277,16 +323,16 @@ func (d *demandRun) expand(pool string, candidates []*demandGroup) *demandGroup 
 
 // scaleForDemand looks at the blocked work once.
 func (r *runner) scaleForDemand(ctx context.Context) error {
-	if r.deps.BlockedDemand == nil {
-		return nil
-	}
 	now := r.now()
 	groups, err := r.readDemandGroups(now)
 	if err != nil || len(groups) == 0 {
 		return err
 	}
 	d := &demandRun{r: r, now: now, groups: groups, cfg: r.cfg.NodeScaling}
-	items := collectDemandItems(r.deps.BlockedDemand())
+	var items []*demandItem
+	if r.deps.BlockedDemand != nil {
+		items = collectDemandItems(r.deps.BlockedDemand())
+	}
 
 	// The largest allocations first, so the packing of a bucket does not
 	// depend on the order the work was found in.
@@ -378,12 +424,35 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 	touched := map[string]bool{}
 
 	for _, g := range d.groups {
-		if len(g.bucket) == 0 {
-			continue
-		}
+		// The work that is blocked: the nodes it needs, less those on their
+		// way. What is left of the nodes on their way is free capacity for
+		// the headroom.
 		need := int64(PackNodes(g.bucket, g.size).Nodes)
-		add := max(need-g.pending, 0)
-		add = min(add, g.max-g.spec)
+		blockedAdd := max(need-g.pending, 0)
+		pendingLeft := max(g.pending-need, 0)
+
+		// The headroom: free capacity worth a number of nodes ahead of the
+		// work. It is an ahead-of-time trigger, so it waits for the cooldown
+		// of the group; the blocked work does not.
+		var headAdd int64
+		var headReason string
+		if g.headNodes > 0 || g.headPercent > 0 {
+			wanted := max(float64(g.headNodes), g.headPercent/100*g.freeNodes)
+			have := g.free + float64(pendingLeft)
+			switch {
+			case !g.freeKnown:
+				// The gauges can't be read: no guess.
+			case have < wanted:
+				headAdd = int64(math.Ceil(wanted - have))
+				headReason = fmt.Sprintf("headroom: %.1f nodes free (and %d on their way), %.1f wanted", g.free, pendingLeft, wanted)
+			}
+		}
+		if headAdd > 0 && r.cooling(g) {
+			headAdd = 0
+		}
+
+		total := blockedAdd + headAdd
+		add := min(total, g.max-g.spec)
 		ps := d.cfg.pool(g.pool)
 		if ps.MaxStep > 0 {
 			add = min(add, int64(ps.MaxStep)-poolAdded[g.pool])
@@ -391,9 +460,9 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		if ps.MaxNodes > 0 {
 			add = min(add, int64(ps.MaxNodes)-poolTotal[g.pool]-poolAdded[g.pool])
 		}
-		if add < need-g.pending {
+		if add < total {
 			blocked["limit/"+g.name] = fmt.Sprintf("%s needs %d more nodes and may add %d (maximum of the group %d, of the pool %d, step %d)",
-				g.name, need-g.pending, max(add, 0), g.max, ps.MaxNodes, ps.MaxStep)
+				g.name, total, max(add, 0), g.max, ps.MaxNodes, ps.MaxStep)
 		}
 		if add <= 0 {
 			continue
@@ -405,9 +474,19 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		if r.lastDemand[g.name] == desired && g.policy.Target["dry-run"] == "true" {
 			continue
 		}
-		jobs := demandJobs(g.bucket)
-		if err := r.scaleGroupUp(g, desired, need, jobs); err != nil {
-			r.logger.Warn("failed to raise the scale of a node group for blocked work", "group", g.name, "error", err)
+		var reasons []string
+		if blockedAdd > 0 {
+			reasons = append(reasons, fmt.Sprintf("blocked work needs %d nodes (%d already asked for): %s", need, g.pending, demandJobs(g.bucket)))
+		}
+		if headAdd > 0 {
+			reasons = append(reasons, headReason)
+		}
+		check := checkBlockedDemand
+		if blockedAdd == 0 {
+			check = checkHeadroom
+		}
+		if err := r.scaleGroupUp(g, desired, strings.Join(reasons, "; "), check); err != nil {
+			r.logger.Warn("failed to raise the scale of a node group", "group", g.name, "error", err)
 			continue
 		}
 		r.lastDemand[g.name] = desired
@@ -497,30 +576,48 @@ func demandJobs(bucket []Unplaced) string {
 
 // scaleGroupUp hands the decision to the executor, which applies the rate
 // limit, the oscillation guard and the dry run of the group.
-func (r *runner) scaleGroupUp(g *demandGroup, desired, need int64, jobs string) error {
-	store := r.deps.State()
+func (r *runner) scaleGroupUp(g *demandGroup, desired int64, reason, check string) error {
+	c, t, err := r.groupTarget(g)
+	if err != nil {
+		return err
+	}
+	action := sdk.ScalingAction{
+		Count:     desired,
+		Direction: sdk.ScaleDirectionUp,
+		Reason:    reason,
+	}
+	return r.exec.execute(c, t, action, check, r.now())
+}
+
+// groupTarget returns what the executor needs to scale a node group: its
+// policy and the state of the object.
+func (r *runner) groupTarget(g *demandGroup) (*compiledPolicy, *targetState, error) {
 	key, _ := targetKeyFromPolicy(g.policy)
 	object, err := objectTargetFromPolicy(g.policy)
 	if err != nil || object == nil {
-		return fmt.Errorf("no object target: %v", err)
+		return nil, nil, fmt.Errorf("no object target: %v", err)
 	}
-	t, err := readObjectTarget(store, key, object)
+	t, err := readObjectTarget(r.deps.State(), key, object)
 	if err != nil || t == nil {
-		return fmt.Errorf("reading the group: %v", err)
+		return nil, nil, fmt.Errorf("reading the group: %v", err)
 	}
 
 	sp := parsePolicy(g.policy)
 	sp.Target = parseTarget(nil, g.policy.Target)
 	sp.Target.Name = "nomad"
 	r.proc.canonicalizePolicy(&sp)
-	c := &compiledPolicy{policy: &sp, key: key, object: object}
+	return &compiledPolicy{policy: &sp, key: key, object: object}, t, nil
+}
 
-	action := sdk.ScalingAction{
-		Count:     desired,
-		Direction: sdk.ScaleDirectionUp,
-		Reason:    fmt.Sprintf("blocked work needs %d nodes (%d already asked for): %s", need, g.pending, jobs),
+// cooling reports whether the group is in its cooldown or suspended, which
+// holds the ahead-of-time triggers.
+func (r *runner) cooling(g *demandGroup) bool {
+	c, t, err := r.groupTarget(g)
+	if err != nil {
+		return true
 	}
-	return r.exec.execute(c, t, action, checkBlockedDemand, r.now())
+	until, _ := r.exec.blockedUntil(c.key, c.policy, t)
+	return r.now().Before(until)
 }
 
 // demandLoop looks at the blocked work every interval until ctx is canceled.
