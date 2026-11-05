@@ -684,7 +684,9 @@ func getTLSConf(enableRPC bool, tlsConf *tlsutil.Config, region string) (*tls.Co
 
 	if tlsConf.VerifyServerHostname {
 		incomingTLS = itls.Clone()
-		incomingTLS.VerifyPeerCertificate = rpcNameAndRegionValidator(region)
+		// After the check of the TLS configuration (the distrusted CAs), not
+		// instead of it.
+		incomingTLS.VerifyPeerCertificate = tlsutil.ChainPeerVerifiers(itls.VerifyPeerCertificate, rpcNameAndRegionValidator(region))
 	} else {
 		incomingTLS = itls
 	}
