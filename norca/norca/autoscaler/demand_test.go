@@ -350,3 +350,34 @@ func TestDemand_HeadroomOnTopOfBlockedWork(t *testing.T) {
 	must.NoError(t, h.runner.scaleForDemand(context.Background()))
 	must.Eq(t, map[string]int64{"workers-a": 4}, scaledTo(objects)) // 1 + 2 for the work + 1 free
 }
+
+// TestDemand_ResplitKeepsPendingNodes checks that work which the expander
+// would split in another way than it did the last time does not ask for more
+// nodes: the nodes on their way are empty room, filled first.
+func TestDemand_ResplitKeepsPendingNodes(t *testing.T) {
+	ci.Parallel(t)
+	work := map[[2]string][]Unplaced{}
+	for _, dc := range []string{"dc-a", "dc-b"} {
+		work[[2]string{dc, "workers"}] = []Unplaced{{
+			Namespace: "default", Job: "proxy", Group: "g", Count: 3, CPU: 50, Memory: 32, Exclusive: true,
+		}}
+	}
+	// Three nodes were asked for before: two for a, one for b. The spread
+	// would give the work two to b and one to a.
+	h, objects, _ := demandHarness(t, []testGroup{
+		{name: "workers-a", dc: "dc-a", spec: map[string]any{"replicas": float64(3)}, status: map[string]any{"joining": float64(2)}},
+		{name: "workers-b", dc: "dc-b", spec: map[string]any{"replicas": float64(2)}, status: map[string]any{"joining": float64(1)}},
+	}, work)
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Len(t, 0, objects.requests())
+
+	// A fourth instance needs one node more, in either group.
+	for dc := range work {
+		work[dc][0].Count = 4
+	}
+	must.NoError(t, h.runner.scaleForDemand(context.Background()))
+	must.Eq(t, 1, len(objects.requests()))
+	// One group is raised by one: a from 3 to 4, or b from 2 to 3.
+	got := scaledTo(objects)
+	must.True(t, got["workers-a"] == 4 || got["workers-b"] == 3, must.Sprint(got))
+}
