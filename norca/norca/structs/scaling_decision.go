@@ -17,21 +17,15 @@ const (
 	// the quota of the job's namespace.
 	TypeScalingQuotaCapped = "ScalingQuotaCapped"
 
-	// TypeScalingNodeAdvice is published by the advice mode: the number of
-	// nodes a node pool and datacenter would need for the work that cannot
-	// be placed. Nothing is changed. Group is "pool/datacenter", Count the
-	// number of nodes, PreviousCount the number advised before (0 if none).
-	TypeScalingNodeAdvice = "ScalingNodeAdvice"
-
-	// TypeScalingNodeAllocationTooLarge is published by the advice mode when
-	// an allocation does not fit an empty node of the configured size. JobID
-	// and Group name the task group, Reason the size.
+	// TypeScalingNodeAllocationTooLarge is published by the blocked work
+	// trigger when an allocation does not fit an empty node of a node group.
+	// JobID and Group name the task group, Reason the size and the group.
 	TypeScalingNodeAllocationTooLarge = "ScalingNodeAllocationTooLarge"
 
-	// TypeScalingNodeUnverifiable is published by the advice mode when work
-	// is blocked by a constraint that cannot be checked against a node that
-	// does not exist yet. No node is advised for it; the fix is in the job
-	// or in the node template. Reason names the constraint.
+	// TypeScalingNodeUnverifiable is published by the blocked work trigger
+	// when work is blocked by a constraint that cannot be checked against a
+	// node that does not exist yet. No node is added for it; the fix is in
+	// the job or in the node template. Reason names the constraint.
 	TypeScalingNodeUnverifiable = "ScalingNodeUnverifiable"
 
 	// TypeScalingNodeBlocked is published by the blocked work trigger when

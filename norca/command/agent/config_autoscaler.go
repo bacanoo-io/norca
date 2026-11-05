@@ -63,16 +63,9 @@ type AutoscalerConfig struct {
 	// strategy plugins.
 	Strategies []*AutoscalerPluginConfig `hcl:"strategy"`
 
-	// AdviceInterval is how often the advice mode looks at the blocked work.
-	AdviceInterval string `hcl:"advice_interval"`
-
 	// NodeScaling are the settings of node scaling that concern the groups
 	// of a pool together, or the whole region.
 	NodeScaling *AutoscalerNodeScalingConfig `hcl:"node_scaling"`
-
-	// Advice lists the node groups of the read-only advice mode, which
-	// raises events with the number of nodes the blocked work would need.
-	Advice []*AutoscalerAdviceConfig `hcl:"advice"`
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
@@ -99,22 +92,6 @@ type AutoscalerNodePoolConfig struct {
 	Expander string `hcl:"expander"`
 	MaxNodes int    `hcl:"max_nodes"`
 	MaxStep  int    `hcl:"max_step"`
-
-	// ExtraKeysHCL is used by hcl to surface unexpected keys
-	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
-}
-
-// AutoscalerAdviceConfig is a node group of the advice mode: the nodes of a
-// node pool in a datacenter and the allocatable size of one of them.
-type AutoscalerAdviceConfig struct {
-	Name       string `hcl:",key"`
-	Pool       string `hcl:"pool"`
-	Datacenter string `hcl:"datacenter"`
-
-	// CPU is in MHz, Memory and Disk in MB, after the reserved resources.
-	CPU    float64 `hcl:"cpu"`
-	Memory float64 `hcl:"memory"`
-	Disk   float64 `hcl:"disk"`
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
@@ -175,12 +152,6 @@ func (a *AutoscalerConfig) Copy() *AutoscalerConfig {
 		ns.ExtraKeysHCL = slices.Clone(a.NodeScaling.ExtraKeysHCL)
 		na.NodeScaling = &ns
 	}
-	na.Advice = nil
-	for _, g := range a.Advice {
-		ng := *g
-		ng.ExtraKeysHCL = slices.Clone(g.ExtraKeysHCL)
-		na.Advice = append(na.Advice, &ng)
-	}
 	na.ExtraKeysHCL = slices.Clone(a.ExtraKeysHCL)
 	return &na
 }
@@ -232,9 +203,6 @@ func (a *AutoscalerConfig) Merge(b *AutoscalerConfig) *AutoscalerConfig {
 	if b.ClientMetricsInterval != "" {
 		result.ClientMetricsInterval = b.ClientMetricsInterval
 	}
-	if b.AdviceInterval != "" {
-		result.AdviceInterval = b.AdviceInterval
-	}
 	if b.NodeScaling != nil {
 		// The block of b replaces the one of a, pool blocks of the same
 		// name included.
@@ -245,20 +213,6 @@ func (a *AutoscalerConfig) Merge(b *AutoscalerConfig) *AutoscalerConfig {
 			ns.Pools = append(ns.Pools, &np)
 		}
 		result.NodeScaling = &ns
-	}
-	for _, g := range b.Advice {
-		ng := *g
-		replaced := false
-		for i, rg := range result.Advice {
-			if rg.Name == g.Name {
-				result.Advice[i] = &ng
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
-			result.Advice = append(result.Advice, &ng)
-		}
 	}
 	result.APMs = mergePluginConfigs(result.APMs, b.APMs)
 	result.Strategies = mergePluginConfigs(result.Strategies, b.Strategies)
@@ -310,7 +264,6 @@ func (a *AutoscalerConfig) toServerConfig() (*autoscaler.Config, error) {
 		{"default_cooldown", a.DefaultCooldown, &cfg.DefaultCooldown},
 		{"metrics_window", a.MetricsWindow, &cfg.MetricsWindow},
 		{"client_metrics_interval", a.ClientMetricsInterval, &cfg.ClientMetricsInterval},
-		{"advice_interval", a.AdviceInterval, &cfg.AdviceInterval},
 	}
 	for _, d := range durations {
 		if d.value == "" {
@@ -351,12 +304,6 @@ func (a *AutoscalerConfig) toServerConfig() (*autoscaler.Config, error) {
 		for _, p := range ns.Pools {
 			cfg.NodeScaling.Pools[p.Name] = &autoscaler.NodePoolScaling{Expander: p.Expander, MaxNodes: p.MaxNodes, MaxStep: p.MaxStep}
 		}
-	}
-	for _, g := range a.Advice {
-		cfg.Advice = append(cfg.Advice, &autoscaler.AdviceGroup{
-			Name: g.Name, Pool: g.Pool, Datacenter: g.Datacenter,
-			Size: autoscaler.NodeSize{CPU: g.CPU, Memory: g.Memory, Disk: g.Disk},
-		})
 	}
 	for _, p := range a.APMs {
 		cfg.APMs = append(cfg.APMs, p.toServerConfig())

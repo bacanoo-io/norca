@@ -61,26 +61,6 @@ const (
 	minClientMetricsInterval = time.Second
 )
 
-// DefaultAdviceInterval is how often the advice mode looks at the blocked
-// work.
-const DefaultAdviceInterval = 30 * time.Second
-
-// AdviceGroup is a pool of nodes in a datacenter that the advice mode may
-// advise to grow, with the allocatable size of one of its nodes (CPU in MHz,
-// memory and disk in MB, after the reserved resources).
-type AdviceGroup struct {
-	Name       string
-	Pool       string
-	Datacenter string
-	Class      string // the node class of the nodes, empty if none
-	Size       NodeSize
-}
-
-// equal reports whether two advice groups are the same.
-func (g *AdviceGroup) equal(o *AdviceGroup) bool {
-	return *g == *o
-}
-
 // PluginConfig configures a plugin instance, such as an APM.
 type PluginConfig struct {
 	// Name is the name used by policies to reference the plugin (the source
@@ -170,12 +150,6 @@ type Config struct {
 	// the always available built-in strategies.
 	Strategies []*PluginConfig
 
-	// Advice lists the node groups the read-only advice mode looks at. The
-	// mode raises events ("would add 2 nodes") and changes nothing. It runs
-	// when the list is not empty.
-	Advice         []*AdviceGroup
-	AdviceInterval time.Duration
-
 	// NodeScaling are the settings of node scaling that concern the groups
 	// of a pool together, or the whole region.
 	NodeScaling *NodeScalingConfig
@@ -200,7 +174,6 @@ func DefaultConfig() *Config {
 		OscillationSuspend:        DefaultOscillationSuspend,
 		MetricsWindow:             DefaultMetricsWindow,
 		ClientMetricsInterval:     DefaultClientMetricsInterval,
-		AdviceInterval:            DefaultAdviceInterval,
 	}
 }
 
@@ -226,11 +199,6 @@ func (c *Config) Copy() *Config {
 			ns.Pools[name] = &np
 		}
 		nc.NodeScaling = &ns
-	}
-	nc.Advice = nil
-	for _, g := range c.Advice {
-		ng := *g
-		nc.Advice = append(nc.Advice, &ng)
 	}
 	return &nc
 }
@@ -291,23 +259,6 @@ func (c *Config) Validate() error {
 				mErr = multierror.Append(mErr, fmt.Errorf("node_scaling.pool %q: max_nodes and max_step must not be negative", name))
 			}
 		}
-	}
-	if len(c.Advice) > 0 && c.AdviceInterval <= 0 {
-		mErr = multierror.Append(mErr, fmt.Errorf("advice_interval must be greater than 0"))
-	}
-	seen := map[[2]string]bool{}
-	for _, g := range c.Advice {
-		switch {
-		case g.Pool == "" || g.Datacenter == "":
-			mErr = multierror.Append(mErr, fmt.Errorf("advice %q: pool and datacenter are required", g.Name))
-		case g.Size.CPU <= 0 || g.Size.Memory <= 0:
-			mErr = multierror.Append(mErr, fmt.Errorf("advice %q: cpu and memory must be greater than 0", g.Name))
-		case g.Size.Disk < 0:
-			mErr = multierror.Append(mErr, fmt.Errorf("advice %q: disk must not be negative", g.Name))
-		case seen[[2]string{g.Pool, g.Datacenter}]:
-			mErr = multierror.Append(mErr, fmt.Errorf("advice %q: pool %q in datacenter %q is listed twice", g.Name, g.Pool, g.Datacenter))
-		}
-		seen[[2]string{g.Pool, g.Datacenter}] = true
 	}
 
 	names := map[string]bool{plugins.InternalAPMNomad: true}
