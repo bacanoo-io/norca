@@ -125,6 +125,13 @@ func (r *reader) processBuf(bw io.Writer, buf []byte, n int, s lookState) lookSt
 	wi := 0
 
 START:
+	if i >= n {
+		// The buffer ended right after `~\n`: the next one starts a line, so
+		// keep looking for the escape character there (and never look past
+		// n into what an earlier read left in buf).
+		bw.Write(buf[wi:n])
+		return s
+	}
 	if s == sLookEscapeChar && buf[i] == r.escapeChar {
 		if i+1 >= n {
 			// buf terminates with ~ - write all before

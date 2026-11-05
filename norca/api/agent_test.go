@@ -195,12 +195,14 @@ func TestAgent_ForceLeavePrune(t *testing.T) {
 		}
 		return nil
 	}
+	// serf v0.11 erases a pruned member that was still alive (it is
+	// "leaving" now) only after its BroadcastTimeout and LeavePropagateDelay
+	// (5s + 1s), so the leave reaches the other members first.
 	must.Wait(t, wait.InitialSuccess(
 		wait.ErrorFunc(f),
-		wait.Timeout(5*time.Second),
+		wait.Timeout(20*time.Second),
 		wait.Gap(100*time.Millisecond),
 	))
-
 }
 
 func (a *AgentMember) String() string {

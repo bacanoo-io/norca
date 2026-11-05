@@ -320,7 +320,7 @@ func checkEquivalenceToNaive(t *testing.T, input string) bool {
 
 func TestEscapingReader_Generated_EquivalentToReadOnce(t *testing.T) {
 	f := func(v readingInput) bool {
-		return checkEquivalenceToNaive(t, string(v))
+		return checkEquivalenceToReadOnce(t, string(v))
 	}
 
 	require.NoError(t, quick.Check(f, &quick.Config{
