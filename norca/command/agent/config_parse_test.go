@@ -815,11 +815,11 @@ func TestConfig_ParseDir(t *testing.T) {
 	require.Empty(t, c.HTTPAPIResponseHeaders)
 	c.HTTPAPIResponseHeaders = nil
 
-	// LoadDir lists the config files
+	// LoadDir lists the config files, with the separator of the system
 	expectedFiles := []string{
-		"testdata/sample1/sample0.json",
-		"testdata/sample1/sample1.json",
-		"testdata/sample1/sample2.hcl",
+		filepath.FromSlash("testdata/sample1/sample0.json"),
+		filepath.FromSlash("testdata/sample1/sample1.json"),
+		filepath.FromSlash("testdata/sample1/sample2.hcl"),
 	}
 	require.Equal(t, expectedFiles, c.Files)
 	c.Files = nil
