@@ -17,16 +17,21 @@ import (
 // <name>.max with the same value, the last sampled in the interval.
 const (
 	// The capacity of the ready nodes of a datacenter and node pool
-	// (labels dc, pool), in percent of the capacity left after the reserved
-	// resources: allocated by the running allocations, and actually used
-	// as the clients report it.
+	// (labels dc, pool, class), in percent of the capacity left after the
+	// reserved resources: allocated by the running allocations, and actually
+	// used as the clients report it.
+	//
+	// The label class is the node class. The series with class "" covers all
+	// the nodes of the datacenter and pool, whatever their class, and is what
+	// a query without a class gets; for every node class that is set there is
+	// a series of its own with the nodes of that class only.
 	MetricClusterCPUAllocated    = "norca.cluster.cpu_allocated"
 	MetricClusterCPUUsed         = "norca.cluster.cpu_used"
 	MetricClusterMemoryAllocated = "norca.cluster.memory_allocated"
 	MetricClusterMemoryUsed      = "norca.cluster.memory_used"
 	MetricClusterDiskAllocated   = "norca.cluster.disk_allocated"
 	// MetricClusterNodesReady is the number of ready, eligible nodes of a
-	// datacenter and node pool.
+	// datacenter and node pool (and, with a class, of that node class).
 	MetricClusterNodesReady = "norca.cluster.nodes_ready"
 
 	// MetricAutopilotHealthy (1 healthy, 0 not) and
@@ -46,12 +51,12 @@ const (
 
 // gaugeLabels are the labels of the gauge metrics, by metric.
 var gaugeLabels = map[string][]string{
-	MetricClusterCPUAllocated:       {"dc", "pool"},
-	MetricClusterCPUUsed:            {"dc", "pool"},
-	MetricClusterMemoryAllocated:    {"dc", "pool"},
-	MetricClusterMemoryUsed:         {"dc", "pool"},
-	MetricClusterDiskAllocated:      {"dc", "pool"},
-	MetricClusterNodesReady:         {"dc", "pool"},
+	MetricClusterCPUAllocated:       {"dc", "pool", "class"},
+	MetricClusterCPUUsed:            {"dc", "pool", "class"},
+	MetricClusterMemoryAllocated:    {"dc", "pool", "class"},
+	MetricClusterMemoryUsed:         {"dc", "pool", "class"},
+	MetricClusterDiskAllocated:      {"dc", "pool", "class"},
+	MetricClusterNodesReady:         {"dc", "pool", "class"},
 	MetricAutopilotHealthy:          {},
 	MetricAutopilotFailureTolerance: {},
 	MetricQuotaCPUAllocated:         {"quota"},

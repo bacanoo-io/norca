@@ -68,8 +68,10 @@ type MetricsHistoryOptions struct {
 	// Metric is one of the MetricsGroup* metrics; empty is MetricsGroupCPU.
 	Metric string
 
-	// Labels select the series of a gauge metric (dc and pool, or quota);
-	// the job and the group are ignored then.
+	// Labels select the series of a gauge metric (dc, pool and class, or
+	// quota); the job and the group are ignored then. A cluster gauge
+	// without a class is the series of all the nodes of the datacenter and
+	// pool.
 	Labels map[string]string
 
 	// From and To bound the history (To exclusive); zero To is now, zero

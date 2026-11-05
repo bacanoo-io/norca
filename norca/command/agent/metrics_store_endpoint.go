@@ -17,7 +17,7 @@ import (
 // from the metrics store.
 //
 //	GET /v1/metrics/history?job=<id>&group=<name>&metric=norca.group.cpu&from=<time>&to=<time>&max_points=360
-//	GET /v1/metrics/history?metric=norca.cluster.cpu_used&dc=<dc>&pool=<pool>
+//	GET /v1/metrics/history?metric=norca.cluster.cpu_used&dc=<dc>&pool=<pool>[&class=<node class>]
 //	GET /v1/metrics/history?metric=norca.quota.cpu_mhz_used&quota=<name>
 func (s *HTTPServer) MetricsHistoryRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	if req.Method != http.MethodGet {

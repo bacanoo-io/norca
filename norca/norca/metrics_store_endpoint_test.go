@@ -231,6 +231,9 @@ func TestMetricsStore_SampleGauges(t *testing.T) {
 	must.NoError(t, err)
 	values := map[string]float64{}
 	for _, g := range gauges {
+		if g.Labels["class"] != "" {
+			continue // the series of a node class: see TestMetricsStore_SampleGaugesByNodeClass
+		}
 		values[g.Metric+"/"+g.Labels["dc"]+g.Labels["quota"]] = g.Value
 	}
 	reserved := node.ComparableReservedResources()
@@ -353,4 +356,62 @@ func TestMetricsStore_AutoscalerHistory(t *testing.T) {
 	_, _, n, err := s2.autoscalerUsageHistory("default", "api", "web", metricsstore.MetricCPU, at, time.Now())
 	must.NoError(t, err)
 	must.Eq(t, 0, n)
+}
+
+// TestMetricsStore_SampleGaugesByNodeClass checks the label class of the
+// cluster gauges: the series with class "" covers every node of the datacenter
+// and pool, a node class has a series of its own, and nodes that are not ready
+// and eligible count in none.
+func TestMetricsStore_SampleGaugesByNodeClass(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, enableMetricsStore(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+	st := s.fsm.State()
+
+	newNode := func(class string) *structs.Node {
+		n := mock.Node()
+		n.NodePool = "default"
+		n.NodeClass = class
+		return n
+	}
+	a1, a2, b1, plain := newNode("a"), newNode("a"), newNode("b"), newNode("")
+	drained := newNode("a")
+	drained.SchedulingEligibility = structs.NodeSchedulingIneligible
+	for i, n := range []*structs.Node{a1, a2, b1, plain, drained} {
+		must.NoError(t, st.UpsertNode(structs.MsgTypeTestSetup, uint64(1000+i), n))
+	}
+	alloc := mock.Alloc() // 500 MHz
+	alloc.NodeID = a1.ID
+	must.NoError(t, st.UpsertAllocs(structs.MsgTypeTestSetup, 1010, []*structs.Allocation{alloc}))
+
+	gauges, err := s.sampleGauges(time.Now())
+	must.NoError(t, err)
+	values := map[string]float64{}
+	for _, g := range gauges {
+		if g.Labels["dc"] == "" {
+			continue
+		}
+		values[g.Metric+"/"+g.Labels["class"]] = g.Value
+	}
+
+	must.Eq(t, 4.0, values[metricsstore.MetricClusterNodesReady+"/"])
+	must.Eq(t, 2.0, values[metricsstore.MetricClusterNodesReady+"/a"])
+	must.Eq(t, 1.0, values[metricsstore.MetricClusterNodesReady+"/b"])
+
+	reserved := a1.ComparableReservedResources()
+	one := float64(a1.NodeResources.Cpu.CpuShares - reserved.Flattened.Cpu.CpuShares)
+	must.Eq(t, 500/(4*one)*100, values[metricsstore.MetricClusterCPUAllocated+"/"])
+	must.Eq(t, 500/(2*one)*100, values[metricsstore.MetricClusterCPUAllocated+"/a"])
+	must.Eq(t, 0.0, values[metricsstore.MetricClusterCPUAllocated+"/b"])
+
+	// A node without a class has no series of its own beyond class "".
+	classes := map[string]bool{}
+	for _, g := range gauges {
+		if g.Metric == metricsstore.MetricClusterNodesReady {
+			classes[g.Labels["class"]] = true
+		}
+	}
+	must.Eq(t, map[string]bool{"": true, "a": true, "b": true}, classes)
 }
