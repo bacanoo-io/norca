@@ -100,6 +100,7 @@ type runner struct {
 	// demand loop.
 	lastDemand map[string]int64
 	told       map[string]string
+	readySeen  map[string]int64
 
 	workCh   chan *compiledPolicy
 	resultCh chan evalResult
@@ -123,6 +124,7 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 
 		lastDemand: map[string]int64{},
 		told:       map[string]string{},
+		readySeen:  map[string]int64{},
 		workCh:     make(chan *compiledPolicy),
 		resultCh:   make(chan evalResult),
 	}

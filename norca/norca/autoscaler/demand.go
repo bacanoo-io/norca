@@ -233,8 +233,11 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		// none does, the ready nodes of the cluster gauges.
 		if v, ok := status["replicas"]; ok {
 			g.ready = asInt(v)
+		} else if n, ok := r.readyNodes(p, now); ok {
+			g.ready = n
 		} else {
-			g.ready = r.readyNodes(p, now, g.spec)
+			r.logger.Debug("node group left alone, its ready nodes are not known", "group", name)
+			continue
 		}
 		if v, ok := status["joining"]; ok {
 			g.pending = asInt(v)
@@ -274,21 +277,27 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 }
 
 // readyNodes reads the ready nodes of the group's datacenter, pool and class
-// from the cluster gauges; spec is the answer when they can't be read.
-func (r *runner) readyNodes(p *structs.ScalingPolicy, now time.Time, spec int64) int64 {
-	if r.deps.GaugeHistory == nil {
-		return spec
+// from the cluster gauges. When they can't be read the last count that could
+// be is used; it is false when there is none, and the group is left alone:
+// without the nodes the group has, the nodes on their way can't be told, and
+// the same work would be asked for again.
+func (r *runner) readyNodes(p *structs.ScalingPolicy, now time.Time) (int64, bool) {
+	name := p.Target[structs.ScalingTargetNodeGroup]
+	if r.deps.GaugeHistory != nil {
+		labels := map[string]string{
+			"dc":    p.Target[TargetConfigKeyDatacenter],
+			"pool":  p.Target[TargetConfigKeyPool],
+			"class": p.Target[TargetConfigKeyNodeClass],
+		}
+		avg, _, samples, err := r.deps.GaugeHistory(metricsstore.MetricClusterNodesReady, labels, now.Add(-clusterQueryWindow), now)
+		if err == nil && samples > 0 {
+			n := int64(avg + 0.5)
+			r.readySeen[name] = n
+			return n, true
+		}
 	}
-	labels := map[string]string{
-		"dc":    p.Target[TargetConfigKeyDatacenter],
-		"pool":  p.Target[TargetConfigKeyPool],
-		"class": p.Target[TargetConfigKeyNodeClass],
-	}
-	avg, _, samples, err := r.deps.GaugeHistory(metricsstore.MetricClusterNodesReady, labels, now.Add(-clusterQueryWindow), now)
-	if err != nil || samples == 0 {
-		return spec
-	}
-	return int64(avg + 0.5)
+	n, ok := r.readySeen[name]
+	return n, ok
 }
 
 // freeCapacity reads the free capacity of the group from the cluster gauges:
@@ -559,7 +568,7 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		if blockedAdd == 0 {
 			check = checkHeadroom
 		}
-		if err := r.scaleGroupUp(g, desired, strings.Join(reasons, "; "), check); err != nil {
+		if err := r.scaleGroupUp(g, desired, strings.Join(reasons, "; ")+fmt.Sprintf(" [%d ready, spec %d]", g.ready, g.spec), check); err != nil {
 			r.logger.Warn("failed to raise the scale of a node group", "group", g.name, "error", err)
 			continue
 		}
