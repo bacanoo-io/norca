@@ -103,6 +103,12 @@ export default class ObjectsDetail extends Component {
     return `${this.args.group}/${this.args.kind}`;
   }
 
+  // A node group of the node scaling operator gets its own panel: the
+  // instances with their nodes, the scale down, the rolling replacement.
+  get isNodeGroup() {
+    return this.kindId === 'norca.io/NodeGroup';
+  }
+
   get health() {
     return this.object ? objectHealth(this.object) : null;
   }

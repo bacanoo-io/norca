@@ -16,7 +16,7 @@
   <@r.Cell @key="id" class="font-monospace" data-test-client-id>
     <LinkTo @route="clients.client" @model={{@node.id}}>{{@node.shortId}}</LinkTo>
   </@r.Cell>
-  <@r.Cell @key="name" class="text-truncate norca-cell-name" title={{@node.name}} data-test-client-name>{{@node.name}}</@r.Cell>
+  <@r.Cell @key="name" class="text-truncate norca-cell-name" title={{@node.name}} data-test-client-name>{{@node.name}}<Clients::NodeScalingBadges @node={{@node}} /></@r.Cell>
   <@r.Cell @key="compositeStatus" data-test-client-composite-status>
     <Ui::Tooltip @text="{{@node.status}} / {{if @node.isDraining 'draining' 'not draining'}} / {{if @node.isEligible 'eligible' 'not eligible'}}">
       <span tabindex="0" data-test-composite-status={{@node.compositeStatus}}>

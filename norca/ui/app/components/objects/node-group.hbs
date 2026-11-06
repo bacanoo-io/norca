@@ -1,0 +1,100 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="row row-cards mb-3" data-test-node-group>
+  <div class="col-lg-4">
+    <Ui::Card @title="Node group" @subtitle="The scale and what the node scaling operator reports">
+      <Ui::Datagrid @items={{this.summary}} data-test-node-group-summary />
+    </Ui::Card>
+  </div>
+  <div class="col-lg-8">
+    <Ui::Card @title="Instances" @subtitle="The machines of the provider and their nodes; a joining instance has no node yet" @flush={{true}} data-test-node-group-instances>
+      <Ui::Table
+        @inCard={{true}}
+        @caption="Instances"
+        @columns={{array (hash key="instance" label="Instance") (hash key="node" label="Node") (hash key="state" label="State") (hash key="created" label="Created") (hash key="notes" label="")}}
+        @rows={{this.instances}}
+        @emptyMessage="The provider has no instance of this group."
+        as |i|
+      >
+        <td class="font-monospace" data-test-instance={{i.instance}}>{{i.instance}}</td>
+        <td class="font-monospace">
+          {{#if i.node}}
+            <LinkTo @route="clients.client" @model={{i.node}} data-test-instance-node>{{i.shortNode}}</LinkTo>
+          {{else}}
+            <span class="text-secondary">–</span>
+          {{/if}}
+        </td>
+        <td><Ui::StatusIndicator @tone={{i.tone}} @label={{i.label}} /></td>
+        <td>{{i.created}}</td>
+        <td class="small text-secondary">{{i.notes}}</td>
+      </Ui::Table>
+    </Ui::Card>
+  </div>
+</div>
+
+{{#if this.removal}}
+  <Ui::Alert @tone="info" @title="Scale down in progress" class="mb-3" data-test-node-group-removal>
+    Instance <span class="font-monospace">{{this.removal.name}}</span>{{#if this.removal.node}} (node <LinkTo @route="clients.client" @model={{this.removal.node}}>{{this.removal.node}}</LinkTo>){{/if}}:
+    {{this.removal.phaseLabel}}, since {{this.removal.since}} (selector {{this.removal.selector}}).
+  </Ui::Alert>
+{{/if}}
+
+{{#if this.rollout}}
+  <Ui::Card @title="Rolling replacement" @subtitle="Nodes replaced for their age, a new template or generation, or a mark" class="mb-3" data-test-node-group-rollout>
+    {{#if this.rollout.replacing.length}}
+      <Ui::Table
+        @caption="Replacements"
+        @columns={{array (hash key="node" label="Node") (hash key="reason" label="Reason") (hash key="phase" label="Phase") (hash key="since" label="Since")}}
+        @rows={{this.rollout.replacing}}
+        as |r|
+      >
+        <td>
+          {{#if r.node}}<LinkTo @route="clients.client" @model={{r.node}}>{{or r.nodeName r.node}}</LinkTo>{{else}}{{r.name}}{{/if}}
+        </td>
+        <td>{{r.reason}}</td>
+        <td>{{r.phaseLabel}} <span class="small text-secondary">({{r.how}})</span></td>
+        <td>{{r.since}}</td>
+      </Ui::Table>
+    {{/if}}
+    {{#if this.rollout.outdated.length}}
+      <p class="mt-2 mb-1">Outdated, not replaced yet:</p>
+      {{#each this.rollout.outdated as |name|}}<Ui::Badge @color="yellow" class="me-1">{{name}}</Ui::Badge>{{/each}}
+    {{/if}}
+    {{#if this.rollout.backoff}}
+      <Ui::Alert @tone="warning" class="mt-3 mb-0" data-test-node-group-backoff>
+        {{this.rollout.backoff.message}}{{#if this.rollout.retry}} The next try is {{this.rollout.retry}}.{{/if}}
+      </Ui::Alert>
+    {{/if}}
+  </Ui::Card>
+{{/if}}
+
+{{#if this.deletion}}
+  <Ui::Alert @tone="warning" @title="Deleting the node group (policy {{this.deletion.policy}})" class="mb-3" data-test-node-group-deletion>
+    {{#if this.deletion.waiting.length}}
+      Waiting for:
+      <ul class="mb-0">
+        {{#each this.deletion.waiting as |w|}}<li>{{w}}</li>{{/each}}
+      </ul>
+    {{else}}
+      Nothing left to wait for.
+    {{/if}}
+  </Ui::Alert>
+{{/if}}
+
+{{#if this.strays.length}}
+  <Ui::Card @title="Nodes without an instance" @flush={{true}} class="mb-3" data-test-node-group-strays>
+    <Ui::Table
+      @inCard={{true}}
+      @caption="Nodes without an instance"
+      @columns={{array (hash key="node" label="Node") (hash key="instance" label="Instance") (hash key="kind" label="State")}}
+      @rows={{this.strays}}
+      as |s|
+    >
+      <td><LinkTo @route="clients.client" @model={{s.node}}>{{or s.name s.shortNode}}</LinkTo></td>
+      <td class="font-monospace">{{s.instance}}</td>
+      <td><Ui::StatusIndicator @tone={{s.tone}} @label={{s.label}} /></td>
+    </Ui::Table>
+  </Ui::Card>
+{{/if}}

@@ -47,6 +47,9 @@
           If this lasts, check that the controller of {{this.kindId}} is running.
         </Ui::Alert>
       {{/if}}
+      {{#if this.isNodeGroup}}
+        <Objects::NodeGroup @object={{this.object}} />
+      {{/if}}
       <div class="row row-cards">
         <div class="col-lg-6">
           <Ui::Card @title="Spec" @subtitle="Set by the user">

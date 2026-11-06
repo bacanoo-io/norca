@@ -54,6 +54,15 @@
           @onSelect={{fn this.setFilter "qpNodePool"}}
           data-test-node-pool-facet
         />
+        {{#if this.optionsNodeGroup.length}}
+          <Ui::FilterDropdown
+            @label="Node Group"
+            @options={{this.optionsNodeGroup}}
+            @selection={{this.selectionNodeGroup}}
+            @onSelect={{fn this.setFilter "qpNodeGroup"}}
+            data-test-node-group-facet
+          />
+        {{/if}}
         <Ui::FilterDropdown
           @label="Class"
           @options={{this.optionsClass}}

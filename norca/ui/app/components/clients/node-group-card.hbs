@@ -1,0 +1,25 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.groupName}}
+  <Ui::Card @title="Node group" @subtitle="Created by the node scaling operator" class="mb-3" data-test-node-group-card>
+    <:actions>
+      <Ui::Button
+        @size="sm"
+        @icon="server"
+        @route="objects.object"
+        @models={{array "norca.io" "NodeGroup" this.groupName}}
+        data-test-node-group-link
+      >{{this.groupName}}</Ui::Button>
+    </:actions>
+    <:default>
+      <div class="mb-2">
+        {{#each this.badges as |b|}}
+          <Ui::Badge @color={{b.color}} class="me-1" title={{b.title}} data-test-node-scaling-badge={{b.label}}>{{b.label}}</Ui::Badge>
+        {{/each}}
+      </div>
+      <Ui::Datagrid @items={{this.items}} data-test-node-group-items />
+    </:default>
+  </Ui::Card>
+{{/if}}
