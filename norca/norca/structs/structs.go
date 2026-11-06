@@ -720,6 +720,11 @@ type NodeUpdateDrainRequest struct {
 	// Meta is user-provided metadata relating to the drain operation
 	Meta map[string]string
 
+	// UpdatedBy is who made the request (see DrainMetadata.AccessorID). The
+	// endpoint sets it from the authenticated identity, so the raft log
+	// carries neither the token nor a lookup of it.
+	UpdatedBy string
+
 	WriteRequest
 }
 
@@ -2135,7 +2140,9 @@ type DrainMetadata struct {
 	// Status reflects the status of the drain operation.
 	Status DrainStatus
 
-	// AccessorID is the accessor ID of the ACL token used in the most recent API operation against this drain
+	// AccessorID is who made the most recent API operation against this
+	// drain: the accessor ID of an ACL token, the ID of the node itself
+	// (drain_on_shutdown), or "alloc:<ID>" for a workload identity.
 	AccessorID string
 
 	// Meta includes the operator-submitted metadata about this drain operation

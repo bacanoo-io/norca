@@ -1836,6 +1836,71 @@ func TestClientEndpoint_UpdateDrain_ACL(t *testing.T) {
 	}
 }
 
+// TestClientEndpoint_UpdateDrain_WorkloadIdentity asserts that a workload
+// identity with node write (a policy bound to its job) drains a node, and that
+// the raft log carries who did it, not the token.
+func TestClientEndpoint_UpdateDrain_WorkloadIdentity(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, _, cleanupS1 := TestACLServer(t, nil)
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+	store := s1.fsm.State()
+
+	node := mock.Node()
+	must.NoError(t, store.UpsertNode(structs.MsgTypeTestSetup, 1000, node))
+
+	job := mock.Job()
+	alloc := mock.Alloc()
+	alloc.Job = job
+	alloc.JobID = job.ID
+	alloc.ClientStatus = structs.AllocClientStatusRunning
+	must.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, 1001, nil, job))
+	must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, 1002, []*structs.Allocation{alloc}))
+	policy := &structs.ACLPolicy{
+		Name:   "node-operator",
+		Rules:  mock.NodePolicy(acl.PolicyWrite),
+		JobACL: &structs.JobACL{Namespace: job.Namespace, JobID: job.ID},
+	}
+	policy.SetHash()
+	must.NoError(t, store.UpsertACLPolicies(structs.MsgTypeTestSetup, 1003, []*structs.ACLPolicy{policy}))
+
+	testutil.WaitForResult(func() (bool, error) {
+		_, err := s1.encrypter.activeKeySet()
+		return err == nil, err
+	}, func(err error) { t.Fatalf("keyring not ready: %v", err) })
+	token, _, err := s1.encrypter.SignClaims(alloc.ToTaskIdentityClaims(job, job.TaskGroups[0].Tasks[0].Name))
+	must.NoError(t, err)
+
+	req := &structs.NodeUpdateDrainRequest{
+		NodeID: node.ID,
+		DrainStrategy: &structs.DrainStrategy{
+			DrainSpec: structs.DrainSpec{Deadline: 10 * time.Second},
+		},
+		Meta:         map[string]string{"reason": "scale-down"},
+		WriteRequest: structs.WriteRequest{Region: "global", AuthToken: token},
+	}
+	var resp structs.NodeDrainUpdateResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.UpdateDrain", req, &resp))
+
+	out, err := store.NodeByID(nil, node.ID)
+	must.NoError(t, err)
+	must.NotNil(t, out.DrainStrategy)
+	must.NotNil(t, out.LastDrain)
+	must.Eq(t, "alloc:"+alloc.ID, out.LastDrain.AccessorID)
+	must.Eq(t, "scale-down", out.LastDrain.Meta["reason"])
+
+	// And the drain is canceled with the same identity.
+	req.DrainStrategy = nil
+	req.MarkEligible = true
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.UpdateDrain", req, &resp))
+	out, err = store.NodeByID(nil, node.ID)
+	must.NoError(t, err)
+	must.Nil(t, out.DrainStrategy)
+	must.Eq(t, structs.NodeSchedulingEligible, out.SchedulingEligibility)
+}
+
 // This test ensures that Nomad marks client state of allocations which are in
 // pending/running state to lost when a node is marked as down.
 func TestClientEndpoint_Drain_Down(t *testing.T) {
