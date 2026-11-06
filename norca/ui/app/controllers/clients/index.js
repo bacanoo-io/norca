@@ -36,6 +36,7 @@ export default class IndexController extends Controller.extend(
     'qpVersion',
     'qpVolume',
     'qpNodePool',
+    'qpNodeGroup',
     'searchTerm',
     'sortProperty',
     'sortDescending',
@@ -59,6 +60,7 @@ export default class IndexController extends Controller.extend(
   ];
 
   @service userSettings;
+  @service nodeScaling;
   @controller('clients') clientsController;
 
   @alias('model.nodes') nodes;
@@ -95,6 +97,9 @@ export default class IndexController extends Controller.extend(
     {
       qpNodePool: 'nodePool',
     },
+    {
+      qpNodeGroup: 'nodeGroup',
+    },
   ];
 
   currentPage = 1;
@@ -114,6 +119,7 @@ export default class IndexController extends Controller.extend(
   qpVersion = '';
   qpVolume = '';
   qpNodePool = '';
+  qpNodeGroup = '';
 
   @selection('qpClass') selectionClass;
   @selection('qpState') selectionState;
@@ -121,6 +127,7 @@ export default class IndexController extends Controller.extend(
   @selection('qpVersion') selectionVersion;
   @selection('qpVolume') selectionVolume;
   @selection('qpNodePool') selectionNodePool;
+  @selection('qpNodeGroup') selectionNodeGroup;
 
   @computed('nodes.[]', 'selectionClass')
   get optionsClass() {
@@ -229,14 +236,26 @@ export default class IndexController extends Controller.extend(
     }));
   }
 
+  // The node groups of the node scaling operator (their NodeGroup objects):
+  // a client belongs to a group when the status of the group lists it.
+  @computed('nodeScaling.index.groups')
+  get optionsNodeGroup() {
+    return this.nodeScaling.index.groups.map((g) => ({
+      key: g.name,
+      label: g.joining ? `${g.name} (${g.joining} joining)` : g.name,
+    }));
+  }
+
   @computed(
     'nodes.[]',
     'selectionClass',
     'selectionState',
     'selectionDatacenter',
     'selectionNodePool',
+    'selectionNodeGroup',
     'selectionVersion',
-    'selectionVolume'
+    'selectionVolume',
+    'nodeScaling.index.byNode'
   )
   get filteredNodes() {
     const {
@@ -244,9 +263,11 @@ export default class IndexController extends Controller.extend(
       selectionState: states,
       selectionDatacenter: datacenters,
       selectionNodePool: nodePools,
+      selectionNodeGroup: nodeGroups,
       selectionVersion: versions,
       selectionVolume: volumes,
     } = this;
+    const byNode = this.nodeScaling.index.byNode;
 
     const onlyIneligible = states.includes('ineligible');
     const onlyDraining = states.includes('draining');
@@ -269,6 +290,12 @@ export default class IndexController extends Controller.extend(
       )
         return false;
       if (nodePools.length && !nodePools.includes(node.get('nodePool'))) {
+        return false;
+      }
+      if (
+        nodeGroups.length &&
+        !nodeGroups.includes(byNode.get(node.get('id'))?.group)
+      ) {
         return false;
       }
 

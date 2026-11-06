@@ -1,0 +1,7 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#each this.badges as |b|}}
+  <Ui::Badge @color={{b.color}} class="ms-1" title={{b.title}} data-test-node-scaling-badge={{b.label}}>{{b.label}}</Ui::Badge>
+{{/each}}

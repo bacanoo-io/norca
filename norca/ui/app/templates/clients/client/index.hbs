@@ -111,6 +111,8 @@
     </Ui::Datagrid>
   </Ui::Card>
 
+  <Clients::NodeGroupCard @node={{this.model}} />
+
   {{#if this.model.drainStrategy}}
     <Clients::DrainDetails @client={{this.model}} @onForce={{perform this.forceDrain}} @isForcing={{this.forceDrain.isRunning}} />
   {{/if}}
