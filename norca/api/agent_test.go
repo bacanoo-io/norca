@@ -116,45 +116,49 @@ func TestAgent_ForceLeave(t *testing.T) {
 	err := a.ForceLeave("nope")
 	must.NoError(t, err)
 
-	// Force-leave on an existing node
+	// Force-leave on an existing node. The node is stopped first, as
+	// force-leave is meant for a node that is gone: a running node
+	// refutes a leave intent about itself (serf broadcasts a newer join
+	// intent), and its status turns back to "alive".
+	nodeName := "bar"
 	_, s2 := makeClient(t, nil, func(c *testutil.TestServerConfig) {
+		c.NodeName = nodeName
 		c.Server.BootstrapExpect = 0
 	})
 	defer s2.Stop()
-	// Create a new node to join
 	n, err := a.Join(s2.SerfAddr)
 	must.NoError(t, err)
 	must.One(t, n)
 
-	membersBefore, err := a.MembersOpts(&QueryOptions{})
+	s2.Stop()
+
+	nodeName = nodeName + ".global"
+	err = a.ForceLeave(nodeName)
 	must.NoError(t, err)
-	must.Eq(t, membersBefore.Members[1].Status, "alive")
 
-	err = a.ForceLeave(membersBefore.Members[1].Name)
-	must.NoError(t, err)
-
-	time.Sleep(3 * time.Second)
-
+	// "leaving" until the failure detector notices the node is gone,
+	// "left" after it.
 	f := func() error {
 		membersAfter, err := a.MembersOpts(&QueryOptions{})
 		if err != nil {
 			return err
 		}
 		for _, node := range membersAfter.Members {
-			if node.Name == membersBefore.Members[1].Name {
-				if node.Status != "leaving" {
-					return fmt.Errorf("node did not leave")
-				}
+			if node.Name != nodeName {
+				continue
 			}
+			if node.Status != "leaving" && node.Status != "left" {
+				return fmt.Errorf("node did not leave: %s", node.Status)
+			}
+			return nil
 		}
-		return nil
+		return fmt.Errorf("node %s is not a member", nodeName)
 	}
 	must.Wait(t, wait.InitialSuccess(
 		wait.ErrorFunc(f),
-		wait.Timeout(3*time.Second),
+		wait.Timeout(10*time.Second),
 		wait.Gap(100*time.Millisecond),
 	))
-
 }
 
 func TestAgent_ForceLeavePrune(t *testing.T) {
