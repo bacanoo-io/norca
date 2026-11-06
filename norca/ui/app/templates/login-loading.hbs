@@ -1,0 +1,12 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The loading substate of the sign-in page, outside the frame: the generic
+  loading template has the frame, which would show the menu to a visitor
+  without a token while the sign-in methods load.
+~}}
+{{page-title "Sign In"}}
+<main class="norca-login-page" data-test-login-loading>
+  <Ui::Spinner @showLabel={{true}} @label="Loading" />
+</main>

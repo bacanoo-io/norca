@@ -80,6 +80,7 @@ export default class FrameTopbar extends Component {
     // Clear out all data to ensure only data the anonymous token may see is shown.
     this.store.unloadAll();
     this.token.reset();
-    this.router.transitionTo('jobs.index');
+    // On a cluster with ACLs only the sign-in page is left.
+    this.router.transitionTo(this.token.aclEnabled ? 'login' : 'jobs.index');
   }
 }

@@ -270,6 +270,26 @@
   text-align: center;
 }
 
+// The sign-in page of a cluster with ACLs, outside the frame.
+.norca-login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  background: var(--tblr-bg-surface-secondary);
+}
+
+.norca-login {
+  width: 100%;
+  max-width: 28rem;
+}
+
+.norca-login-logo {
+  display: inline-block;
+  border-radius: var(--tblr-border-radius);
+}
+
 // The mock identity provider of the Mirage OIDC flow, outside the frame.
 .norca-oidc-mock {
   width: 100%;
