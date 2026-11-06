@@ -69,6 +69,7 @@ func TestNodeScalingKinds(t *testing.T) {
 		"bad network":           func(sp map[string]any) { sp["network"] = "10.0.0.0/33" },
 		"bad duration":          func(sp map[string]any) { sp["join"] = map[string]any{"deadline": "soon"} },
 		"unknown rolling field": func(sp map[string]any) { sp["rolling"] = map[string]any{"fast": true} },
+		"bad deletion policy":   func(sp map[string]any) { sp["deletion"] = map[string]any{"policy": "explode"} },
 		"two strategies in check": func(sp map[string]any) {
 			sp["policy"] = nodePolicySpec(map[string]any{"a": map[string]any{}, "b": map[string]any{}})
 		},
