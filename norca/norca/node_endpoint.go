@@ -837,6 +837,10 @@ func (n *Node) UpdateDrain(args *structs.NodeUpdateDrainRequest,
 		args.NodeEvent = nil
 	}
 
+	// Record who made the request, and keep the token out of the raft log.
+	args.UpdatedBy = drainUpdatedBy(args.GetIdentity())
+	args.AuthToken = ""
+
 	// Commit this update via Raft
 	_, index, err := n.srv.raftApply(structs.NodeUpdateDrainRequestType, args)
 	if err != nil {
@@ -861,6 +865,25 @@ func (n *Node) UpdateDrain(args *structs.NodeUpdateDrainRequest,
 	// Set the reply index
 	reply.Index = index
 	return nil
+}
+
+// drainUpdatedBy is who made a drain update, for Node.LastDrain.AccessorID:
+// the accessor ID of an ACL token, the ID of a client node draining itself, or
+// "alloc:<ID>" for a workload identity. Empty without ACLs.
+func drainUpdatedBy(identity *structs.AuthenticatedIdentity) string {
+	switch {
+	case identity == nil:
+		return ""
+	case identity.ACLToken != nil:
+		if identity.ACLToken == structs.AnonymousACLToken {
+			return ""
+		}
+		return identity.ACLToken.AccessorID
+	case identity.Claims != nil:
+		return "alloc:" + identity.Claims.AllocationID
+	default:
+		return identity.ClientID
+	}
 }
 
 // UpdateEligibility is used to update the scheduling eligibility of a node
