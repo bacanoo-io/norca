@@ -6,6 +6,7 @@ package pool
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -191,9 +192,9 @@ type ConnPool struct {
 
 	// limiter is used to throttle the number of connect attempts
 	// to a given address. The first thread will attempt a connection
-	// and put a channel in here, which all other threads will wait
-	// on to close.
-	limiter map[string]chan struct{}
+	// and put an attempt in here, whose channel all other threads will
+	// wait on to close; the attempt keeps the error of the first thread.
+	limiter map[string]*dialAttempt
 
 	// TLS wrapper
 	tlsWrap tlsutil.RegionWrapper
@@ -218,7 +219,7 @@ func NewPool(logger hclog.Logger, maxTime time.Duration, maxStreams int, tlsWrap
 		maxTime:    maxTime,
 		maxStreams: maxStreams,
 		pool:       make(map[string]*Conn),
-		limiter:    make(map[string]chan struct{}),
+		limiter:    make(map[string]*dialAttempt),
 		tlsWrap:    tlsWrap,
 		shutdownCh: make(chan struct{}),
 	}
@@ -297,11 +298,10 @@ func (p *ConnPool) acquire(region string, addr net.Addr) (*Conn, error) {
 	// If not (while we are still locked), set up the throttling structure
 	// for this address, which will make everyone else wait until our
 	// attempt is done.
-	var wait chan struct{}
-	var ok bool
-	if wait, ok = p.limiter[addr.String()]; !ok {
-		wait = make(chan struct{})
-		p.limiter[addr.String()] = wait
+	attempt, ok := p.limiter[addr.String()]
+	if !ok {
+		attempt = &dialAttempt{done: make(chan struct{})}
+		p.limiter[addr.String()] = attempt
 	}
 	isLeadThread := !ok
 	p.Unlock()
@@ -312,7 +312,8 @@ func (p *ConnPool) acquire(region string, addr net.Addr) (*Conn, error) {
 		c, err := p.getNewConn(region, addr)
 		p.Lock()
 		delete(p.limiter, addr.String())
-		close(wait)
+		attempt.err = err
+		close(attempt.done)
 		if err != nil {
 			p.Unlock()
 			return nil, err
@@ -337,7 +338,7 @@ func (p *ConnPool) acquire(region string, addr net.Addr) (*Conn, error) {
 	select {
 	case <-p.shutdownCh:
 		return nil, fmt.Errorf("rpc error: shutdown")
-	case <-wait:
+	case <-attempt.done:
 	}
 
 	// See if the lead thread was able to get us a connection.
@@ -349,7 +350,25 @@ func (p *ConnPool) acquire(region string, addr net.Addr) (*Conn, error) {
 	}
 
 	p.Unlock()
-	return nil, fmt.Errorf("rpc error: lead thread didn't get connection")
+	return nil, attempt.waiterError()
+}
+
+// dialAttempt is the connection attempt of the lead thread to an address,
+// which the other threads wait for.
+type dialAttempt struct {
+	done chan struct{}
+	err  error // of the lead thread; read once done is closed
+}
+
+// waiterError is the error of a thread that waited for the attempt and found
+// no connection: the error of the lead thread, so that the cause is not lost.
+// Without one the lead thread got a connection, and it was cleared again (an
+// error on it) before the waiting thread could use it.
+func (a *dialAttempt) waiterError() error {
+	if a.err != nil {
+		return fmt.Errorf("rpc error: lead thread didn't get connection: %w", a.err)
+	}
+	return errors.New("rpc error: lead thread got a connection, but it was closed before it could be used")
 }
 
 // getNewConn is used to return a new connection
