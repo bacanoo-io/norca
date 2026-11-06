@@ -5,6 +5,7 @@
 package pool
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"testing"
@@ -64,4 +65,53 @@ func TestConnPool_ConnListener(t *testing.T) {
 
 	_, ok := <-c
 	must.False(t, ok)
+}
+
+// A thread that waits for the connection attempt of another thread gets the
+// error of that attempt, not only that there is no connection.
+func TestConnPool_WaiterGetsTheErrorOfTheLead(t *testing.T) {
+	addr := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 4647}
+	for _, tc := range []struct {
+		name     string
+		leadErr  error
+		contains []string
+	}{
+		{"the dial failed", errors.New("dial tcp 127.0.0.1:4647: connect: connection refused"),
+			[]string{"lead thread didn't get connection", "connection refused"}},
+		{"the connection was cleared", nil,
+			[]string{"lead thread got a connection, but it was closed before it could be used"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := newTestPool(t)
+			// A lead thread is dialing: acquire waits for it, and reads its
+			// error once it is done.
+			attempt := &dialAttempt{done: make(chan struct{})}
+			pool.Lock()
+			pool.limiter[addr.String()] = attempt
+			pool.Unlock()
+
+			// The attempt ends; it stays in the limiter until the waiter is
+			// done, so that the waiter finds it whenever it starts.
+			pool.Lock()
+			attempt.err = tc.leadErr
+			close(attempt.done)
+			pool.Unlock()
+			errCh := make(chan error, 1)
+			go func() {
+				_, err := pool.acquire("test", addr)
+				errCh <- err
+			}()
+			err := <-errCh
+			pool.Lock()
+			delete(pool.limiter, addr.String())
+			pool.Unlock()
+			must.Error(t, err)
+			for _, s := range tc.contains {
+				must.StrContains(t, err.Error(), s)
+			}
+			if tc.leadErr != nil {
+				must.ErrorIs(t, err, tc.leadErr)
+			}
+		})
+	}
 }
