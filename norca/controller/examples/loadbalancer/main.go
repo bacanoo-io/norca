@@ -251,7 +251,7 @@ func runController(ctx context.Context, args []string) error {
 		ResyncPeriod:   f.resync,
 		WatchMode:      controller.WatchMode(f.watchMode),
 		OwnsJobs:       true,
-		Sources:        []controller.Source{serviceSource()},
+		Sources:        []controller.Source{serviceSource(), nodeSource()},
 		LeaderElection: election(),
 		Metrics:        metrics,
 		Logger:         logger,

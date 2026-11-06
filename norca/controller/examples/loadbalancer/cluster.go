@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -18,7 +19,8 @@ import (
 type Cluster interface {
 	// ServiceTargets returns the healthy instances of a service: the
 	// registrations of running allocations that are not marked unhealthy
-	// by their deployment.
+	// by their deployment. An instance on a node marked as leaving
+	// (MetaLeaving) has Leaving set.
 	ServiceTargets(ctx context.Context, namespace, service string) ([]Target, error)
 
 	// JobEndpoints returns the "ip:port" addresses of the port with the
@@ -66,11 +68,21 @@ func (c *nomadCluster) ServiceTargets(ctx context.Context, namespace, service st
 	}
 
 	var out []Target
+	leaving := map[string]bool{}
 	for _, reg := range regs {
 		if stub, ok := allocs[reg.AllocID]; !ok || !healthy(stub) {
 			continue
 		}
-		out = append(out, Target{Address: reg.Address, Port: reg.Port, AllocID: reg.AllocID})
+		l, seen := leaving[reg.NodeID]
+		if !seen && reg.NodeID != "" {
+			node, _, err := c.client.Nodes().Info(reg.NodeID, q)
+			if err != nil {
+				return nil, fmt.Errorf("reading node %s: %w", reg.NodeID, err)
+			}
+			l = node.Meta[MetaLeaving] == "true"
+			leaving[reg.NodeID] = l
+		}
+		out = append(out, Target{Address: reg.Address, Port: reg.Port, AllocID: reg.AllocID, NodeID: reg.NodeID, Leaving: l})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
 	return out, nil

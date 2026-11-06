@@ -118,7 +118,7 @@ func startOperatorTuned(t *testing.T, b *fake.Backend, cluster *fakeCluster, dis
 		Storage:     storage,
 		Kind:        Kind,
 		OwnsJobs:    true,
-		Sources:     []controller.Source{serviceSource()},
+		Sources:     []controller.Source{serviceSource(), nodeSource()},
 		Logger:      testLogger(),
 		RateLimiter: controller.NewExponentialBackoff[controller.ObjectKey](10*time.Millisecond, 100*time.Millisecond),
 	})
@@ -380,4 +380,37 @@ func TestProxy_Forwards(t *testing.T) {
 	must.NoError(t, os.WriteFile(targets, []byte(b+"\n"), 0o600))
 	waitFor(t, "targets reloaded", func() bool { return len(p.pick()) == 1 })
 	must.Eq(t, "b:hi\n", call())
+}
+
+// TestLoadBalancer_LeavingNode checks that the instances on a node marked as
+// leaving are no longer targets, that the node is listed in
+// status.leavingNodes once they are dropped, and that a node event is
+// enough to see the mark.
+func TestLoadBalancer_LeavingNode(t *testing.T) {
+	e := startOperator(t, false)
+	e.cluster.setTargets("default", "web",
+		Target{Address: "10.0.0.1", Port: 8001, NodeID: "n1"}, Target{Address: "10.0.0.2", Port: 8002, NodeID: "n2"})
+	e.putLB("web", `{"service":"web","port":8080}`)
+	waitFor(t, "targets", func() bool { return e.targetsVar("lb-web") == "10.0.0.1:8001\n10.0.0.2:8002" })
+	must.Nil(t, e.status(t, "web").LeavingNodes)
+
+	// Node n2 is marked as leaving: a node event reconciles the load balancer.
+	e.cluster.setTargets("default", "web",
+		Target{Address: "10.0.0.1", Port: 8001, NodeID: "n1"}, Target{Address: "10.0.0.2", Port: 8002, NodeID: "n2", Leaving: true})
+	e.b.Publish(api.Event{Topic: api.TopicNode, Type: "NodeRegistration", Key: "n2",
+		Payload: map[string]any{"Node": map[string]any{"ID": "n2"}}})
+	waitFor(t, "leaving node listed", func() bool {
+		st := e.status(t, "web")
+		return len(st.LeavingNodes) == 1 && st.LeavingNodes[0] == "n2"
+	})
+	must.Eq(t, "10.0.0.1:8001", e.targetsVar("lb-web"))
+	must.Eq(t, []string{"10.0.0.1:8001"}, e.status(t, "web").Targets)
+
+	// The mark is removed: the instance is a target again.
+	e.cluster.setTargets("default", "web",
+		Target{Address: "10.0.0.1", Port: 8001, NodeID: "n1"}, Target{Address: "10.0.0.2", Port: 8002, NodeID: "n2"})
+	e.b.Publish(api.Event{Topic: api.TopicNode, Type: "NodeRegistration", Key: "n2",
+		Payload: map[string]any{"Node": map[string]any{"ID": "n2"}}})
+	waitFor(t, "target back", func() bool { return e.targetsVar("lb-web") == "10.0.0.1:8001\n10.0.0.2:8002" })
+	must.Nil(t, e.status(t, "web").LeavingNodes)
 }

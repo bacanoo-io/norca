@@ -70,6 +70,13 @@ const nodeGroupKindSchema = `{
           },
           "additionalProperties": false
         },
+        "edge": {
+          "type": "object",
+          "properties": {
+            "min_shutdown_delay": {"type": "string", ` + nodeDuration + `}
+          },
+          "additionalProperties": false
+        },
         "deletion": {
           "type": "object",
           "properties": {
@@ -162,7 +169,7 @@ const nodeGroupKindSchema = `{
                   "reason": {"type": "string", "enum": ["marked", "revision", "generation", "age", "expiry"]},
                   "surge": {"type": "boolean"},
                   "drain": {"type": "boolean"},
-                  "phase": {"type": "string", "enum": ["surging", "emptying", "draining", "deleted"]},
+                  "phase": {"type": "string", "enum": ["surging", "leaving", "emptying", "draining", "deleted"]},
                   "since": {"type": "string"},
                   "started": {"type": "string"},
                   "expires": {"type": "string"}
@@ -191,7 +198,7 @@ const nodeGroupKindSchema = `{
             "name": {"type": "string"},
             "node": {"type": "string"},
             "selector": {"type": "string", "enum": ["least_busy", "empty"]},
-            "phase": {"type": "string", "enum": ["draining", "settling", "deleting", "deleted"]},
+            "phase": {"type": "string", "enum": ["leaving", "draining", "settling", "deleting", "deleted"]},
             "started": {"type": "string"},
             "settleUntil": {"type": "string"}
           }
