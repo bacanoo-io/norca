@@ -147,7 +147,40 @@ const nodeGroupKindSchema = `{
         "nodes": {"type": "array", "items": {"type": "object"}},
         "capacity": ` + nodeResource + `,
         "allocatable": ` + nodeResource + `,
-        "rollout": {"type": "object"},
+        "rollout": {
+          "type": "object",
+          "properties": {
+            "replacing": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "instance": {"type": "string"},
+                  "name": {"type": "string"},
+                  "node": {"type": "string"},
+                  "nodeName": {"type": "string"},
+                  "reason": {"type": "string", "enum": ["marked", "revision", "generation", "age", "expiry"]},
+                  "surge": {"type": "boolean"},
+                  "drain": {"type": "boolean"},
+                  "phase": {"type": "string", "enum": ["surging", "emptying", "draining", "deleted"]},
+                  "since": {"type": "string"},
+                  "started": {"type": "string"},
+                  "expires": {"type": "string"}
+                }
+              }
+            },
+            "outdated": {"type": "array", "items": {"type": "string"}},
+            "backoff": {
+              "type": "object",
+              "properties": {
+                "vetoes": {"type": "integer", "minimum": 0},
+                "retryAfter": {"type": "string"},
+                "reason": {"type": "string"},
+                "message": {"type": "string"}
+              }
+            }
+          }
+        },
         "decision": {"type": "object"},
         "lastRequest": {"type": "integer", "minimum": 0},
         "strayNodes": {"type": "array", "items": {"type": "object"}},
