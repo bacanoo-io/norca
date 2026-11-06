@@ -43,6 +43,13 @@ namespace "default" {
   }
 }
 
+# The nodes of the instances: an instance on a node marked as leaving (the
+# meta norca.lb.leaving, set by the node scaling operator before a drain) is
+# not a target, and node events reconcile the load balancers.
+node {
+  policy = "read"
+}
+
 # With -objects=native and registered providers (LoadBalancerClass): the kind
 # is cluster-scoped, so its rules are in the namespace "*". The operator only
 # reads the registrations; the providers write their own (see the policy of a
