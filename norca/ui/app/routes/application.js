@@ -27,6 +27,42 @@ export default class ApplicationRoute extends Route {
     },
   };
 
+  // The routes a visitor without a token may open on a cluster with ACLs:
+  // the sign-in page, the return of an SSO sign-in (the tokens page with
+  // the code and state of the provider) and the mock provider of the tests.
+  // The substates (loading, error) of a transition are not pages.
+  isOpen(transition) {
+    const name = transition.to?.name || '';
+    if (!name || /(^|[._-])(loading|error)$/.test(name)) return true;
+    const to = transition.to;
+    if (to.name === 'login' || to.name === 'oidc-mock') return true;
+    return (
+      to.name === 'settings.tokens' &&
+      !!to.queryParams?.code &&
+      !!to.queryParams?.state
+    );
+  }
+
+  // Sends a visitor without a token to the sign-in page, and remembers the
+  // page asked for. Returns whether it did.
+  gate(transition) {
+    if (!this.token.needsSignIn || this.isOpen(transition)) return false;
+    const url = transition.intent?.url;
+    if (url && !url.startsWith('/login')) this.token.loginRedirect = url;
+    transition.abort();
+    this.router.transitionTo('login');
+    return true;
+  }
+
+  init() {
+    super.init(...arguments);
+    // Every transition after the start is checked too: a sign-out, an
+    // expired token, a link followed without a token.
+    this.router.on('routeWillChange', (transition) => {
+      if (!transition.queryParamsOnly) this.gate(transition);
+    });
+  }
+
   resetController(controller, isExiting) {
     if (isExiting) {
       controller.set('error', null);
@@ -75,6 +111,11 @@ export default class ApplicationRoute extends Route {
         fetchSelfTokenAndPolicies,
         checkFuzzySearchPresence,
       ]);
+
+      // The token is known now: without one, a cluster with ACLs shows only
+      // the sign-in page.
+      this.token.set('checked', true);
+      if (this.gate(transition)) return promises;
     }
 
     if (!this.get('system.shouldShowRegions')) return promises;
@@ -151,7 +192,8 @@ export default class ApplicationRoute extends Route {
             e.detail === 'ACL token not found'
         )
       ) {
-        this.router.transitionTo('settings.tokens');
+        this.token.reset();
+        this.router.transitionTo('login');
       } else {
         this.controllerFor('application').set('error', error);
       }

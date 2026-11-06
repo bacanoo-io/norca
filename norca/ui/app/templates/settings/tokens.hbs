@@ -9,7 +9,7 @@
   <:actions>
     {{#if this.shouldShowPolicies}}
       {{#unless this.tokenRecord.isExpired}}
-        <Ui::Button @icon="logout" data-test-token-clear {{on "click" this.clearTokenProperties}}>Sign Out</Ui::Button>
+        <Ui::Button @icon="logout" data-test-token-clear {{on "click" this.signOut}}>Sign Out</Ui::Button>
       {{/unless}}
     {{/if}}
   </:actions>
@@ -34,7 +34,7 @@
       {{#if this.tokenRecord.isExpired}}
         <Ui::Alert @tone="danger" @title="Your authentication has expired" data-test-token-expired>
           <p>Expired {{moment-from-now this.tokenRecord.expirationTime interval=1000}} ({{this.tokenRecord.expirationTime}})</p>
-          <Ui::Button data-test-token-clear {{on "click" this.clearTokenProperties}}>Sign In Again</Ui::Button>
+          <Ui::Button data-test-token-clear {{on "click" this.signOut}}>Sign In Again</Ui::Button>
         </Ui::Alert>
       {{else if (eq this.signInStatus "success")}}
         <Ui::Alert @tone="success" @title="Token Authenticated!" data-test-token-success>

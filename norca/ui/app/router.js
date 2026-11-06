@@ -88,6 +88,9 @@ Router.map(function () {
     });
   });
 
+  // The sign-in page of a cluster with ACLs, outside the frame.
+  this.route('login');
+
   this.route('settings', function () {
     this.route('tokens');
   });

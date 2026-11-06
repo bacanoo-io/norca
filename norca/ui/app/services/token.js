@@ -27,6 +27,28 @@ export default class TokenService extends Service {
 
   tokenNotFound = false;
 
+  // Set once the token of the page was looked up at the start: until then
+  // the sign-in gate (routes/application) does not know whether ACLs are on.
+  checked = false;
+
+  // The page asked for before the sign-in page, opened after the sign-in.
+  get loginRedirect() {
+    return window.sessionStorage.getItem('norcaLoginRedirect');
+  }
+
+  set loginRedirect(url) {
+    if (url) {
+      window.sessionStorage.setItem('norcaLoginRedirect', url);
+    } else {
+      window.sessionStorage.removeItem('norcaLoginRedirect');
+    }
+  }
+
+  // A cluster with ACLs and no valid token: the UI shows the sign-in page.
+  get needsSignIn() {
+    return this.checked && this.aclEnabled && !this.selfToken;
+  }
+
   @computed
   get secret() {
     return window.localStorage.nomadTokenSecret;

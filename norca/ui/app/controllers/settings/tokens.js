@@ -42,6 +42,36 @@ export default class Tokens extends Controller {
     this.store.unloadAll();
   }
 
+  // After a sign-in: the token and its policies are loaded, then the page
+  // asked for before the sign-in page is opened, if there is one. Returns
+  // whether it was.
+  async afterSignIn() {
+    await this.token
+      .get('fetchSelfTokenAndPolicies')
+      .perform()
+      .catch(() => {});
+    const url = this.token.loginRedirect;
+    if (!url || !this.token.selfToken) return false;
+    this.token.loginRedirect = null;
+    this.router.transitionTo(url);
+    return true;
+  }
+
+  // Signs out; on a cluster with ACLs only the sign-in page is left.
+  @action
+  signOut() {
+    this.clearTokenProperties();
+    if (this.token.aclEnabled) this.router.transitionTo('login');
+  }
+
+  // Where the identity provider sends the browser back: this page.
+  ssoRedirectURL() {
+    if (isTesting()) return this.router.currentURL;
+    const url = new URL(window.location.toString());
+    url.search = '';
+    return url.href;
+  }
+
   @action
   clearTokenProperties() {
     this.token.setProperties({
@@ -159,10 +189,8 @@ export default class Tokens extends Controller {
           // Clear out all data to ensure only data the new token is privileged to see is shown
           this.resetStore();
 
-          // Refetch the token and associated policies
-          this.token.get('fetchSelfTokenAndPolicies').perform().catch();
-
           this.signInStatus = 'success';
+          this.afterSignIn();
         },
         () => {
           this.token.set('secret', undefined);
@@ -179,10 +207,8 @@ export default class Tokens extends Controller {
           // Clear out all data to ensure only data the new token is privileged to see is shown
           this.resetStore();
 
-          // Refetch the token and associated policies
-          this.token.get('fetchSelfTokenAndPolicies').perform().catch();
-
           this.signInStatus = 'success';
+          this.afterSignIn();
           this.token.set('tokenNotFound', false);
         },
         () => {
@@ -208,14 +234,7 @@ export default class Tokens extends Controller {
     window.localStorage.setItem('nomadOIDCNonce', nonce);
     window.localStorage.setItem('nomadOIDCAuthMethod', provider);
 
-    let redirectURL;
-    if (isTesting()) {
-      redirectURL = this.router.currentURL;
-    } else {
-      redirectURL = new URL(window.location.toString());
-      redirectURL.search = '';
-      redirectURL = redirectURL.href;
-    }
+    const redirectURL = this.ssoRedirectURL();
 
     method
       .getAuthURL({
@@ -275,10 +294,8 @@ export default class Tokens extends Controller {
       this.state = null;
       this.code = null;
 
-      // Refetch the token and associated policies
-      this.token.get('fetchSelfTokenAndPolicies').perform().catch();
-
       this.signInStatus = 'success';
+      this.afterSignIn();
       this.token.set('tokenNotFound', false);
     } else {
       this.state = 'failure';

@@ -1,0 +1,92 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+
+  The sign-in page of a cluster with ACLs, outside the frame: nothing of the
+  cluster is shown before the sign-in.
+~}}
+{{page-title "Sign In"}}
+<main class="norca-login-page" data-test-login>
+  <div class="norca-login">
+    <div class="text-center mb-4">
+      <img src={{this.logoURL}} alt="" role="presentation" class="norca-login-logo mb-2" width="56" height="56" />
+      <h1 class="h2 mb-1" data-test-login-title>Norca</h1>
+      <p class="text-secondary mb-0">Sign in to continue</p>
+    </div>
+
+    {{#if (eq this.signInStatus "failure")}}
+      <Ui::Alert @tone="danger" @title="Token Failed to Authenticate" class="mb-3" data-test-token-error>
+        The token secret you have provided does not match an existing token, or has expired.
+      </Ui::Alert>
+    {{/if}}
+    {{#if (eq this.signInStatus "jwtFailure")}}
+      <Ui::Alert @tone="danger" @title="JWT Failed to Authenticate" class="mb-3" data-test-token-error>
+        You passed in a JWT, but no JWT auth methods were found.
+      </Ui::Alert>
+    {{/if}}
+    {{#if this.token.tokenNotFound}}
+      <Ui::Alert @tone="danger" @title="Your token was not found" class="mb-3" data-test-token-not-found>
+        It may have expired, or been entered incorrectly.
+      </Ui::Alert>
+    {{/if}}
+
+    {{#if this.nonTokenAuthMethods.length}}
+      <Ui::Card @title="Sign in with SSO" class="mb-3" data-test-login-sso>
+        <div class="d-grid gap-2">
+          {{#each this.nonTokenAuthMethods as |method|}}
+            <Ui::Button
+              @variant="primary"
+              data-test-auth-method
+              {{on "click" (fn this.redirectToSSO method)}}
+            >Sign in with {{method.name}}</Ui::Button>
+          {{/each}}
+        </div>
+      </Ui::Card>
+    {{/if}}
+
+    <Ui::Card @title="Sign in with token" data-test-login-token>
+      <form {{on "submit" this.submitSecret}}>
+        <Ui::Field
+          @id="login-token-input"
+          @label={{if this.hasJWTAuthMethods "Secret ID or JWT" "Secret ID"}}
+          @help="The secret of your ACL token; it is kept in this browser and sent with every request"
+          as |f|
+        >
+          <Ui::Input
+            @id={{f.id}}
+            @describedBy={{f.describedBy}}
+            @type="password"
+            @autocomplete="off"
+            @monospace={{true}}
+            @value={{this.secret}}
+            @onInput={{fn (mut this.secret)}}
+            @placeholder={{if this.hasJWTAuthMethods "36-character token secret or JWT" "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"}}
+            {{autofocus}}
+            data-test-token-secret
+          />
+        </Ui::Field>
+
+        {{#if this.currentSecretIsJWT}}
+          {{did-insert this.setCurrentAuthMethod}}
+          {{#if (gt this.JWTAuthMethods.length 1)}}
+            <Ui::Field @label="Sign-in method" as |f|>
+              <Ui::Select
+                @id={{f.id}}
+                @options={{this.JWTAuthMethodOptions}}
+                @value={{this.jwtAuthMethod}}
+                @onChange={{fn (mut this.jwtAuthMethod)}}
+                data-test-select-jwt
+              />
+            </Ui::Field>
+          {{/if}}
+        {{/if}}
+
+        <div class="d-grid">
+          <Ui::Button @type="submit" @variant="primary" @disabled={{not this.secret}} data-test-token-submit>
+            {{#if this.currentSecretIsJWT}}Sign in with JWT{{else}}Sign in{{/if}}
+          </Ui::Button>
+        </div>
+      </form>
+    </Ui::Card>
+  </div>
+</main>
