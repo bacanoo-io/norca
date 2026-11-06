@@ -36,6 +36,7 @@
         "class":     {"type": "string"},
         "addresses": {"type": "array", "items": {"type": "string"}},
         "targets":   {"type": "array", "items": {"type": "string"}},
+        "leavingNodes": {"type": "array", "items": {"type": "string"}},
         "resource":  {"type": "string"}
       }
     }

@@ -113,10 +113,24 @@ func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (t
 		}
 	}
 
-	targets, err := r.cluster.ServiceTargets(ctx, key.Namespace, spec.Service)
+	all, err := r.cluster.ServiceTargets(ctx, key.Namespace, spec.Service)
 	if err != nil {
 		return 0, fmt.Errorf("reading the instances of service %q: %w", spec.Service, err)
 	}
+	// The instances on a node that is leaving are not targets; the node is
+	// listed once the provider has dropped them.
+	var targets []Target
+	var leaving []string
+	for _, t := range all {
+		if t.Leaving {
+			if !slices.Contains(leaving, t.NodeID) {
+				leaving = append(leaving, t.NodeID)
+			}
+			continue
+		}
+		targets = append(targets, t)
+	}
+	slices.Sort(leaving)
 	res, err := provider.Ensure(ctx, obj, spec, targets)
 	if err != nil {
 		r.ctrl.Recorder().Event(ctx, key, controller.EventTypeWarning, "ProvisioningFailed", err.Error())
@@ -130,6 +144,7 @@ func (r *reconciler) Reconcile(ctx context.Context, key controller.ObjectKey) (t
 	for i, t := range targets {
 		status.Targets[i] = t.String()
 	}
+	status.LeavingNodes = leaving
 	now := r.now()
 	ready := res.Ready && len(targets) > 0
 	switch {
@@ -296,6 +311,23 @@ func (r *reconciler) fail(ctx context.Context, obj *controller.Object, status *S
 
 // serviceSource reconciles the load balancers of a service when its
 // registrations change.
+// nodeSource reconciles every load balancer when a node changes: a node
+// marked as leaving (or no longer) changes the targets at once, without the
+// periodic look.
+func nodeSource() controller.Source {
+	return &controller.EventSource{
+		SourceName: "nodes",
+		Topics:     map[api.Topic][]string{api.TopicNode: {"*"}},
+		Map: func(_ *api.Event, sc *controller.SourceContext) []controller.ObjectKey {
+			var keys []controller.ObjectKey
+			for _, obj := range sc.Objects() {
+				keys = append(keys, obj.Key)
+			}
+			return slices.Clip(keys)
+		},
+	}
+}
+
 func serviceSource() controller.Source {
 	return &controller.EventSource{
 		SourceName: "services",

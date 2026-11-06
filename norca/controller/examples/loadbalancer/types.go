@@ -90,6 +90,13 @@ type Status struct {
 	// Targets are the healthy instances of the service ("ip:port").
 	Targets []string `json:"targets,omitempty"`
 
+	// LeavingNodes are the nodes marked as leaving (the node meta
+	// norca.lb.leaving = "true") whose instances of the service are no
+	// longer targets. An operator that removes a node waits for its ID here
+	// before it drains the node, so the load balancer drops the targets
+	// before the proxy stops.
+	LeavingNodes []string `json:"leavingNodes,omitempty"`
+
 	// Resource identifies what the provider created (for the nomad class,
 	// the job ID).
 	Resource string `json:"resource,omitempty"`
@@ -100,6 +107,16 @@ type Target struct {
 	Address string
 	Port    int
 	AllocID string
+
+	// NodeID is the node of the instance; Leaving is set when the node is
+	// marked as leaving (MetaLeaving): the instance is not a target any more.
+	NodeID  string
+	Leaving bool
 }
+
+// MetaLeaving is the node meta key that marks a node as leaving: an operator
+// that removes the node (the node scaling operator) sets it to "true" before
+// the drain, and the load balancers drop the instances on the node.
+const MetaLeaving = "norca.lb.leaving"
 
 func (t Target) String() string { return net.JoinHostPort(t.Address, strconv.Itoa(t.Port)) }
