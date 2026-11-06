@@ -159,6 +159,15 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 				serverInitializationErrors = multierror.Append(serverInitializationErrors, err)
 				continue
 			}
+			// HTTP/2: the requests of a client share one connection. A
+			// browser opens at most six HTTP/1.1 connections to a host,
+			// and the blocking queries and event streams of the web UI
+			// hold them for minutes, so the requests behind them waited.
+			// WebSocket upgrades (exec) still come over HTTP/1.1: extended
+			// CONNECT is not offered.
+			if http2CipherSuites(tlsConfig.CipherSuites) {
+				tlsConfig.NextProtos = []string{"h2", "http/1.1"}
+			}
 			ln = tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, tlsConfig)
 		}
 
@@ -235,6 +244,28 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 	}
 
 	return srvs, nil
+}
+
+// http2CipherSuites reports whether HTTP/2 may be offered with the configured
+// cipher suites: HTTP/2 refuses the TLS 1.2 suites without forward secrecy
+// or AEAD (RFC 7540, appendix A), so it is offered only when every
+// configured suite is an ECDHE suite with AES-GCM or ChaCha20-Poly1305, as
+// the default suites of the agent are. An empty list (the defaults of Go)
+// qualifies too.
+func http2CipherSuites(suites []uint16) bool {
+	for _, s := range suites {
+		switch s {
+		case tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // makeConnState returns a ConnState func for use in an http.Server. If
