@@ -98,6 +98,18 @@ func (m *TextMetrics) set(key string, v float64) {
 	m.mu.Unlock()
 }
 
+// SetGauge sets a gauge of the controller's own, such as the number of
+// things it found in a sweep. The labels are name and value pairs.
+func (m *TextMetrics) SetGauge(name string, v float64, labels ...string) {
+	m.set(series(name, labels...), v)
+}
+
+// AddCounter adds to a counter of the controller's own. The labels are name
+// and value pairs.
+func (m *TextMetrics) AddCounter(name string, v float64, labels ...string) {
+	m.add(series(name, labels...), v)
+}
+
 func (m *TextMetrics) ReconcileDone(controller string, d time.Duration, result string) {
 	m.add(series("norca_controller_reconcile_total", "controller", controller, "result", result), 1)
 	m.add(series("norca_controller_reconcile_seconds_sum", "controller", controller), d.Seconds())
