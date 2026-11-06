@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins"
@@ -102,6 +103,13 @@ type runner struct {
 	told       map[string]string
 	readySeen  map[string]int64
 
+	// unneededSince is when a node group was first seen with a node it
+	// does not need, by group; lastDown is the scale last decided down, so
+	// that a dry run says it once (scaledown.go). A leader change starts the
+	// wait again.
+	unneededSince map[string]time.Time
+	lastDown      map[string]int64
+
 	workCh   chan *compiledPolicy
 	resultCh chan evalResult
 }
@@ -125,8 +133,11 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 		lastDemand: map[string]int64{},
 		told:       map[string]string{},
 		readySeen:  map[string]int64{},
-		workCh:     make(chan *compiledPolicy),
-		resultCh:   make(chan evalResult),
+
+		unneededSince: map[string]time.Time{},
+		lastDown:      map[string]int64{},
+		workCh:        make(chan *compiledPolicy),
+		resultCh:      make(chan evalResult),
 	}
 }
 
@@ -322,6 +333,13 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 
 	if upOnly && action.Direction != sdk.ScaleDirectionUp {
 		logger.Debug("skipping scaling, only scaling up is allowed during the deployment")
+		return nil
+	}
+
+	// A node group is lowered only by its scale_down block (scaledown.go),
+	// which keeps the protections of a scale down; its checks only raise it.
+	if action.Direction == sdk.ScaleDirectionDown && strings.HasPrefix(c.policy.ID, nodeGroupPolicyPrefix) {
+		logger.Debug("skipping scaling, a node group is lowered by its scale_down block only")
 		return nil
 	}
 
