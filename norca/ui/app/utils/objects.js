@@ -4,6 +4,7 @@
  */
 
 import { apiRequest } from 'nomad-ui/utils/norca-api';
+import { conditionTone, worstCondition } from 'nomad-ui/utils/conditions';
 
 // Object kinds (type definitions) and custom objects (K8s item 8). A kind
 // defines the schema, CEL rules, list columns, the scale subresource and
@@ -411,8 +412,10 @@ export function conditions(object) {
 }
 
 // The health of an object from its conditions and generations: degraded,
-// not ready, waiting for the controller (observedGeneration behind) or
-// ready.
+// not ready, a condition that is a problem (JoinFailing, RollBlocked, a
+// ProviderAvailable that is False...; utils/conditions), waiting for the
+// controller (observedGeneration behind), ready, or ok when it has no Ready
+// condition and its conditions are good.
 export function objectHealth(object) {
   const list = conditions(object);
   const get = (type) => list.find((c) => (c.type || c.Type) === type);
@@ -426,9 +429,16 @@ export function objectHealth(object) {
     return { tone: 'danger', label: 'degraded', behind };
   if (status(get('Ready')) === 'False')
     return { tone: 'warning', label: 'not ready', behind };
+  const worst = worstCondition(list);
+  if (worst)
+    return { tone: worst.tone, label: `${worst.type} ${worst.status}`, behind };
   if (behind) return { tone: 'info', label: 'reconciling', behind };
   if (status(get('Ready')) === 'True')
     return { tone: 'success', label: 'ready', behind };
+  const good = list.some(
+    (c) => conditionTone(c.type || c.Type, c.status ?? c.Status) === 'success'
+  );
+  if (good) return { tone: 'success', label: 'ok', behind };
   return { tone: 'neutral', label: 'unknown', behind };
 }
 

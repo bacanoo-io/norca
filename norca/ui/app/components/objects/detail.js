@@ -12,6 +12,7 @@ import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import moment from 'moment';
 import { errorMessage } from 'nomad-ui/utils/norca-api';
+import { conditionTone } from 'nomad-ui/utils/conditions';
 import {
   getObject,
   getKind,
@@ -198,7 +199,6 @@ export default class ObjectsDetail extends Component {
     return conditions(this.object).map((c) => {
       const status = String(c.status ?? c.Status);
       const type = c.type || c.Type;
-      const bad = type === 'Degraded' ? status === 'True' : status === 'False';
       return {
         type,
         status,
@@ -207,7 +207,7 @@ export default class ObjectsDetail extends Component {
         since: c.lastTransitionTime
           ? moment(c.lastTransitionTime).fromNow()
           : '',
-        tone: bad ? 'danger' : status === 'True' ? 'success' : 'neutral',
+        tone: conditionTone(type, status),
       };
     });
   }
