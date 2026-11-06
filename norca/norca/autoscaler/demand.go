@@ -140,6 +140,17 @@ type demandGroup struct {
 	// decision is status.decision of the group: what the last raise of the
 	// scale was made for, until its nodes are ready.
 	decision map[string]any
+
+	// The scale down (scaledown.go): the scale_down block, the veto of the
+	// operator, whether blocked work could use the group or raised it in
+	// this look, and whether the operator reports the ready nodes.
+	down           scaleDownSpec
+	veto           bool
+	vetoUntil      time.Time
+	vetoMsg        string
+	demanded       bool
+	raised         bool
+	statusReplicas bool
 }
 
 // vnode is a virtual node: the room that is left on it, whether any work was
@@ -248,8 +259,16 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 
 		// The nodes the group has: as the operator reports them, or, when
 		// none does, the ready nodes of the cluster gauges.
+		down, err := scaleDownOf(spec)
+		if err != nil {
+			r.logger.Debug("node group not lowered, its scale_down block can't be read", "group", name, "error", err)
+		}
+		g.down = down
+		g.veto, g.vetoUntil, g.vetoMsg = scaleDownVeto(status)
+
 		if v, ok := status["replicas"]; ok {
 			g.ready = asInt(v)
+			g.statusReplicas = true
 		} else if n, ok := r.readyNodes(p, now); ok {
 			g.ready = n
 		} else {
@@ -319,10 +338,16 @@ func (r *runner) readyNodes(p *structs.ScalingPolicy, now time.Time) (int64, boo
 
 // freeCapacity reads the free capacity of the group from the cluster gauges:
 // the ready, eligible nodes of its datacenter, pool and class, and how many
-// of them are free, in nodes (the scarcer of CPU and memory, as the share of
-// the capacity that is not allocated). It is false when the gauges can't be
-// read.
+// of them are free, in nodes. It is false when the gauges can't be read.
 func (r *runner) freeCapacity(p *structs.ScalingPolicy, now time.Time) (ready, free float64, ok bool) {
+	nodes, share, ok := r.groupUsage(p, now)
+	return nodes, nodes * (1 - share), ok
+}
+
+// groupUsage reads the ready, eligible nodes of the group's datacenter, pool and
+// class from the cluster gauges, and their allocated share (the scarcer of
+// CPU and memory, 0 to 1). It is false when the gauges can't be read.
+func (r *runner) groupUsage(p *structs.ScalingPolicy, now time.Time) (nodes, share float64, ok bool) {
 	if r.deps.GaugeHistory == nil {
 		return 0, 0, false
 	}
@@ -341,8 +366,7 @@ func (r *runner) freeCapacity(p *structs.ScalingPolicy, now time.Time) (ready, f
 	if !ok1 || !ok2 || !ok3 {
 		return 0, 0, false
 	}
-	allocated := max(cpu, memory) / 100
-	return nodes, nodes * (1 - min(allocated, 1)), true
+	return nodes, min(max(cpu, memory)/100, 1), true
 }
 
 // demandItem is the blocked work of one task group, with the datacenters it
@@ -479,6 +503,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 				continue
 			}
 			candidates = append(candidates, g)
+			g.demanded = true
 		}
 		if len(candidates) == 0 {
 			if item.pool == structs.NodePoolAll && inPool == 0 {
@@ -541,6 +566,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 	}
 
 	d.apply(ctx, blocked)
+	d.scaleDown()
 	return nil
 }
 
@@ -603,6 +629,7 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		}
 		poolAdded[g.pool] += add
 		touched[g.name] = true
+		g.raised = true
 
 		desired := g.spec + add
 		if r.lastDemand[g.name] == desired && g.policy.Target["dry-run"] == "true" {
@@ -710,16 +737,21 @@ func demandJobs(bucket []Unplaced) string {
 	return strings.Join(jobs, ", ")
 }
 
-// scaleGroupUp hands the decision to the executor, which applies the rate
-// limit, the oscillation guard and the dry run of the group.
+// scaleGroupUp raises the scale of a group.
 func (r *runner) scaleGroupUp(g *demandGroup, desired int64, reason, check string) error {
+	return r.scaleGroup(g, desired, sdk.ScaleDirectionUp, reason, check)
+}
+
+// scaleGroup hands a decision to the executor, which applies the rate limit,
+// the oscillation guard and the dry run of the group.
+func (r *runner) scaleGroup(g *demandGroup, desired int64, dir sdk.ScaleDirection, reason, check string) error {
 	c, t, err := r.groupTarget(g)
 	if err != nil {
 		return err
 	}
 	action := sdk.ScalingAction{
 		Count:     desired,
-		Direction: sdk.ScaleDirectionUp,
+		Direction: dir,
 		Reason:    reason,
 	}
 	return r.exec.execute(c, t, action, check, r.now())
