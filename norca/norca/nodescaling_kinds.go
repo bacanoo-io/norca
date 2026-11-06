@@ -177,6 +177,8 @@ const nodeGroupKindSchema = `{
               }
             },
             "outdated": {"type": "array", "items": {"type": "string"}},
+            "warned": {"type": "array", "items": {"type": "string"}},
+            "took": {"type": "string"},
             "backoff": {
               "type": "object",
               "properties": {
