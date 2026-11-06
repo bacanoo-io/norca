@@ -35,7 +35,8 @@ const (
 // nodeGroupKindSchema is the JSON Schema of node groups. The settings are in
 // the spec; the status is written by the operator that creates the nodes
 // (replicas, joining, failed, nodes, capacity, allocatable, rollout,
-// lastRequest, join, strayNodes, conditions) and by the autoscaler (decision).
+// lastRequest, join, strayNodes, removal, scaleDown, conditions) and by the
+// autoscaler (decision).
 const nodeGroupKindSchema = `{
   "type": "object",
   "properties": {
@@ -150,6 +151,27 @@ const nodeGroupKindSchema = `{
         "decision": {"type": "object"},
         "lastRequest": {"type": "integer", "minimum": 0},
         "strayNodes": {"type": "array", "items": {"type": "object"}},
+        "removal": {
+          "type": "object",
+          "properties": {
+            "instance": {"type": "string"},
+            "name": {"type": "string"},
+            "node": {"type": "string"},
+            "selector": {"type": "string", "enum": ["least_busy", "empty"]},
+            "phase": {"type": "string", "enum": ["draining", "settling", "deleting", "deleted"]},
+            "started": {"type": "string"},
+            "settleUntil": {"type": "string"}
+          }
+        },
+        "scaleDown": {
+          "type": "object",
+          "properties": {
+            "vetoes": {"type": "integer", "minimum": 0},
+            "retryAfter": {"type": "string"},
+            "reason": {"type": "string"},
+            "message": {"type": "string"}
+          }
+        },
         "join": {
           "type": "object",
           "properties": {
