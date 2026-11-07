@@ -3,15 +3,10 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
-import { action } from '@ember/object';
-import { inject as service } from '@ember/service';
 import { task } from 'ember-concurrency';
+import MetricsComponent from 'nomad-ui/utils/metrics-component';
 import {
-  RANGES,
-  rangeById,
-  fetchMetrics,
   points,
   recommend,
   MetricsForbidden,
@@ -38,9 +33,7 @@ const METRICS = {
  *   <Metrics::TaskGroupHistory @namespace="default" @job="api" @group="web"
  *     @reservedCPU={{500}} @reservedMemory={{256}} />
  */
-export default class MetricsTaskGroupHistory extends Component {
-  @service token;
-
+export default class MetricsTaskGroupHistory extends MetricsComponent {
   @tracked range = '1h';
   @tracked history = {};
   @tracked summary = null;
@@ -52,19 +45,9 @@ export default class MetricsTaskGroupHistory extends Component {
     this.load.perform();
   }
 
-  get tabs() {
-    return RANGES.map((r) => ({ id: r.id, label: r.label }));
-  }
-
-  @action
-  selectRange(id) {
-    this.range = id;
-    this.load.perform();
-  }
-
   @task({ restartable: true })
   *load() {
-    const range = rangeById(this.range);
+    const range = this.selectedRange;
     const base = {
       namespace: this.args.namespace,
       job: this.args.job,
@@ -76,7 +59,7 @@ export default class MetricsTaskGroupHistory extends Component {
       const names = Object.keys(METRICS);
       const results = yield Promise.all(
         names.map((name) =>
-          fetchMetrics(this.token, 'history', {
+          this.fetch('history', {
             ...base,
             metric: METRICS[name],
           })
@@ -89,7 +72,7 @@ export default class MetricsTaskGroupHistory extends Component {
       const history = {};
       names.forEach((name, i) => (history[name] = results[i]));
       this.history = history;
-      this.summary = yield fetchMetrics(this.token, 'summary', {
+      this.summary = yield this.fetch('summary', {
         namespace: this.args.namespace,
         job: this.args.job,
         group: this.args.group,

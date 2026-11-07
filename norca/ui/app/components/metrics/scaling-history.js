@@ -3,18 +3,10 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
-import { action } from '@ember/object';
-import { inject as service } from '@ember/service';
 import { task } from 'ember-concurrency';
-import {
-  RANGES,
-  rangeById,
-  fetchMetrics,
-  points,
-  MetricsForbidden,
-} from 'nomad-ui/utils/metrics-history';
+import MetricsComponent from 'nomad-ui/utils/metrics-component';
+import { points, MetricsForbidden } from 'nomad-ui/utils/metrics-history';
 
 /**
  * The CPU and memory use of the target group of a scaling policy, in percent
@@ -23,10 +15,7 @@ import {
  *
  *   <Metrics::ScalingHistory @namespace="default" @job="api" @group="web" />
  */
-export default class MetricsScalingHistory extends Component {
-  @service token;
-
-  @tracked range = '24h';
+export default class MetricsScalingHistory extends MetricsComponent {
   @tracked history = {};
   @tracked state = 'loading'; // loading, ready, disabled, forbidden, error
   @tracked error = null;
@@ -36,23 +25,13 @@ export default class MetricsScalingHistory extends Component {
     this.load.perform();
   }
 
-  get tabs() {
-    return RANGES.map((r) => ({ id: r.id, label: r.label }));
-  }
-
-  @action
-  selectRange(id) {
-    this.range = id;
-    this.load.perform();
-  }
-
   @task({ restartable: true })
   *load() {
     const base = {
       namespace: this.args.namespace,
       job: this.args.job,
       group: this.args.group,
-      from: rangeById(this.range).from,
+      from: this.selectedRange.from,
       max_points: 240,
     };
     try {
@@ -61,9 +40,7 @@ export default class MetricsScalingHistory extends Component {
           'norca.group.cpu',
           'norca.group.memory',
           'norca.group.allocs_running',
-        ].map((metric) =>
-          fetchMetrics(this.token, 'history', { ...base, metric })
-        )
+        ].map((metric) => this.fetch('history', { ...base, metric }))
       );
       if (!cpu.Enabled) {
         this.state = 'disabled';

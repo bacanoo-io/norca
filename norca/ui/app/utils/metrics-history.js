@@ -19,6 +19,26 @@ export function rangeById(id) {
   return RANGES.find((r) => r.id === id) || RANGES[0];
 }
 
+/**
+ * rangesFor returns the ranges a store with the retention (nanoseconds, as
+ * the API returns a duration) holds: none longer than the retention. Without
+ * a retention (not known yet, or an older server) all ranges.
+ */
+export function rangesFor(retention) {
+  if (!(retention > 0)) return RANGES;
+  const seconds = retention / 1e9;
+  const ranges = RANGES.filter((r) => r.seconds <= seconds);
+  return ranges.length ? ranges : [RANGES[0]];
+}
+
+/**
+ * clampRange returns the range of the id among the ranges, or the longest of
+ * them when the id is not one (a range longer than the retention).
+ */
+export function clampRange(id, ranges) {
+  return ranges.find((r) => r.id === id) || ranges[ranges.length - 1];
+}
+
 // MetricsForbidden is thrown when the token may not read the metrics.
 export class MetricsForbidden extends Error {}
 
@@ -31,7 +51,15 @@ async function errorText(response) {
  * fetchMetrics GETs /v1/metrics/<path> with the given query parameters
  * (empty values are left out) and returns the decoded body.
  */
-export async function fetchMetrics(token, path, params = {}) {
+export function fetchMetrics(token, path, params = {}) {
+  return fetchJSON(token, `/v1/metrics/${path}`, params);
+}
+
+/**
+ * fetchJSON GETs the URL with the given query parameters (empty values are
+ * left out) and returns the decoded body; MetricsForbidden on a 403.
+ */
+export async function fetchJSON(token, url, params = {}) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
@@ -39,9 +67,7 @@ export async function fetchMetrics(token, path, params = {}) {
     }
   });
   const qs = query.toString();
-  const response = await token.authorizedRequest(
-    `/v1/metrics/${path}${qs ? `?${qs}` : ''}`
-  );
+  const response = await token.authorizedRequest(`${url}${qs ? `?${qs}` : ''}`);
   if (response.status === 403) {
     throw new MetricsForbidden('Permission denied');
   }

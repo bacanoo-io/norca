@@ -3,18 +3,11 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { action } from '@ember/object';
-import { inject as service } from '@ember/service';
 import { task } from 'ember-concurrency';
-import {
-  RANGES,
-  rangeById,
-  fetchMetrics,
-  points,
-  MetricsForbidden,
-} from 'nomad-ui/utils/metrics-history';
+import MetricsComponent from 'nomad-ui/utils/metrics-component';
+import { points, MetricsForbidden } from 'nomad-ui/utils/metrics-history';
 
 const METRICS = {
   cpuAllocated: 'norca.cluster.cpu_allocated',
@@ -32,10 +25,7 @@ const METRICS = {
  *
  *   <Metrics::ClusterHistory />
  */
-export default class MetricsClusterHistory extends Component {
-  @service token;
-
-  @tracked range = '24h';
+export default class MetricsClusterHistory extends MetricsComponent {
   @tracked scopes = [];
   @tracked scope = null;
   @tracked history = {};
@@ -53,18 +43,8 @@ export default class MetricsClusterHistory extends Component {
     return this.state !== 'none';
   }
 
-  get tabs() {
-    return RANGES.map((r) => ({ id: r.id, label: r.label }));
-  }
-
   get scopeOptions() {
     return this.scopes.map((s) => ({ value: s.key, label: s.label }));
-  }
-
-  @action
-  selectRange(id) {
-    this.range = id;
-    this.load.perform();
   }
 
   @action
@@ -76,7 +56,7 @@ export default class MetricsClusterHistory extends Component {
   @task({ restartable: true })
   *loadScopes() {
     try {
-      const series = yield fetchMetrics(this.token, 'series');
+      const series = yield this.fetch('series');
       if (!series.Enabled) {
         this.state = 'disabled';
         return;
@@ -110,14 +90,14 @@ export default class MetricsClusterHistory extends Component {
     const base = {
       dc: this.scope.dc,
       pool: this.scope.pool,
-      from: rangeById(this.range).from,
+      from: this.selectedRange.from,
       max_points: 240,
     };
     try {
       const names = Object.keys(METRICS);
       const results = yield Promise.all(
         names.map((name) =>
-          fetchMetrics(this.token, 'history', {
+          this.fetch('history', {
             ...base,
             metric: METRICS[name],
           })
