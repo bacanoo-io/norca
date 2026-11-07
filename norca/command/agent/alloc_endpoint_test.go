@@ -725,6 +725,7 @@ func TestHTTP_AllocSnapshot_WithMigrateToken(t *testing.T) {
 // snapshotting a valid tar is not returned.
 func TestHTTP_AllocSnapshot_Atomic(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	httpTest(t, func(c *Config) {
 		// Disable the schedulers
 		c.Server.NumSchedulers = pointer.Of(0)

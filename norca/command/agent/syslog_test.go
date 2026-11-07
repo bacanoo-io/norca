@@ -22,6 +22,10 @@ func TestSyslogFilter(t *testing.T) {
 	if os.Getenv("TRAVIS") == "true" {
 		t.Skip("Syslog not supported on travis-ci")
 	}
+	// The local syslog socket go-syslog dials; a container has none (Norca).
+	if !hasSyslogSocket() {
+		t.Skip("no local syslog socket (/dev/log, /var/run/syslog, /var/run/log)")
+	}
 
 	l, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "LOCAL0", "consul")
 	if err != nil {
@@ -47,4 +51,14 @@ func TestSyslogFilter(t *testing.T) {
 	if n != 0 {
 		t.Fatalf("should not have logged")
 	}
+}
+
+// hasSyslogSocket reports whether one of the sockets go-syslog dials exists.
+func hasSyslogSocket() bool {
+	for _, p := range []string{"/dev/log", "/var/run/syslog", "/var/run/log"} {
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
+	}
+	return false
 }

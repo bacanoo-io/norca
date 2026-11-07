@@ -309,6 +309,7 @@ func TestHTTP_FS_Stat(t *testing.T) {
 
 func TestHTTP_FS_ReadAt(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	require := require.New(t)
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), nil)
@@ -335,6 +336,7 @@ func TestHTTP_FS_ReadAt(t *testing.T) {
 // TestHTTP_FS_ReadAt_XSS asserts that the readat API is safe from XSS.
 func TestHTTP_FS_ReadAt_XSS(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), xssLoggerMockDriver)
 		addAllocToClient(s, a, terminalClientAlloc)
@@ -359,6 +361,7 @@ func TestHTTP_FS_ReadAt_XSS(t *testing.T) {
 
 func TestHTTP_FS_Cat(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	require := require.New(t)
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), nil)
@@ -381,6 +384,7 @@ func TestHTTP_FS_Cat(t *testing.T) {
 // TestHTTP_FS_Cat_XSS asserts that the cat API is safe from XSS.
 func TestHTTP_FS_Cat_XSS(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), xssLoggerMockDriver)
 		addAllocToClient(s, a, terminalClientAlloc)
@@ -404,6 +408,7 @@ func TestHTTP_FS_Cat_XSS(t *testing.T) {
 
 func TestHTTP_FS_Stream_NoFollow(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	require := require.New(t)
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), nil)
@@ -449,6 +454,7 @@ func TestHTTP_FS_Stream_NoFollow(t *testing.T) {
 // TestHTTP_FS_Stream_NoFollow_XSS asserts that the stream API is safe from XSS.
 func TestHTTP_FS_Stream_NoFollow_XSS(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), xssLoggerMockDriver)
 		addAllocToClient(s, a, terminalClientAlloc)
@@ -468,6 +474,7 @@ func TestHTTP_FS_Stream_NoFollow_XSS(t *testing.T) {
 
 func TestHTTP_FS_Stream_Follow(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	require := require.New(t)
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), nil)
@@ -512,6 +519,7 @@ func TestHTTP_FS_Stream_Follow(t *testing.T) {
 
 func TestHTTP_FS_Logs(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	require := require.New(t)
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), nil)
@@ -550,6 +558,7 @@ func TestHTTP_FS_Logs(t *testing.T) {
 // HTML+Javascript or not.
 func TestHTTP_FS_Logs_XSS(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), xssLoggerMockDriver)
 		addAllocToClient(s, a, terminalClientAlloc)
@@ -571,6 +580,7 @@ func TestHTTP_FS_Logs_XSS(t *testing.T) {
 
 func TestHTTP_FS_Logs_Follow(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	require := require.New(t)
 	httpTest(t, nil, func(s *TestAgent) {
 		a := mockFSAlloc(s.client.NodeID(), nil)

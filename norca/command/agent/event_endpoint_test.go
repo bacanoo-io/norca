@@ -211,6 +211,7 @@ func TestEventStream_QueryParse(t *testing.T) {
 
 func TestHTTP_Alloc_Port_Response(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 
 	httpTest(t, nil, func(srv *TestAgent) {
 		client := srv.Client()

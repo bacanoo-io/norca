@@ -60,6 +60,7 @@ func releaseHookJob(id, hook string, exitCode int) *api.Job {
 
 func TestHTTP_Release_AtomicDeploymentFailure(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	httpTest(t, nil, func(s *TestAgent) {
 		client := s.Client()
 		releases := client.Releases()
@@ -133,6 +134,7 @@ func TestHTTP_Release_AtomicDeploymentFailure(t *testing.T) {
 
 func TestHTTP_Release_HooksAndTests(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // its task must run
 	httpTest(t, nil, func(s *TestAgent) {
 		client := s.Client()
 		releases := client.Releases()

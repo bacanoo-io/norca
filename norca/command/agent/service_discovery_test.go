@@ -49,6 +49,7 @@ func TestApiServicesToStructs_Discovery(t *testing.T) {
 // fraction unset, and explicit values, including 0, are kept.
 func TestHTTP_JobRegister_DiscoveryDefaultOverflowFraction(t *testing.T) {
 	ci.Parallel(t)
+	ci.SkipWithoutMount(t) // the task must run to register its services
 
 	httpTest(t, func(c *Config) {
 		c.Server.NativeServiceDiscovery = &config.ServerNativeServiceDiscoveryConfig{

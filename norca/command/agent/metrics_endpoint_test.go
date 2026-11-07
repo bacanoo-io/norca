@@ -104,10 +104,11 @@ func TestHTTP_Metrics(t *testing.T) {
 // When emitting metrics, the client should use the local copy of the allocs with
 // updated task states (not the copy submitted by the server).
 //
-// **Cannot** be run in parallel as metrics are global.
+// **Cannot** be run in parallel as metrics are global: every test agent
+// makes its own sink the global one (testagent.go), so an agent of a parallel
+// test started later takes the gauges of this client, and they never reach
+// the sink this test reads.
 func TestHTTP_FreshClientAllocMetrics(t *testing.T) {
-	ci.Parallel(t)
-
 	require := require.New(t)
 	numTasks := 10
 

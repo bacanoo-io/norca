@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -732,6 +733,15 @@ func TestConfig_DevModeFlag(t *testing.T) {
 			{true, false, &devModeConfig{defaultMode: true, connectMode: false}, ""},
 			{true, true, &devModeConfig{defaultMode: true, connectMode: true}, ""},
 			{false, true, &devModeConfig{defaultMode: false, connectMode: true}, ""},
+		}
+		// -dev-connect needs a consul binary on the PATH: without one (a
+		// container) it is refused (Norca).
+		if _, err := exec.LookPath("consul"); err != nil {
+			for i := range cases {
+				if cases[i].connect {
+					cases[i].expected, cases[i].expectedErr = nil, "requires a 'consul' binary"
+				}
+			}
 		}
 	}
 	for _, c := range cases {
