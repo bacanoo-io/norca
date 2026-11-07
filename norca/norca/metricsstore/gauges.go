@@ -141,8 +141,9 @@ const (
 	MetricAutoscalerPolicies  = "norca.autoscaler.policies"
 	MetricAutoscalerSuspended = "norca.autoscaler.oscillation_suspended"
 
-	// The metrics store of the sampling server: its disk use in bytes, its
-	// series, and the reports it dropped in the interval.
+	// The metrics store of the sampling server: its disk use in bytes (of
+	// the main and the hosts store together), its series, and the reports it
+	// dropped in the interval.
 	MetricStoreDiskBytes      = "norca.store.disk_bytes"
 	MetricStoreSeries         = "norca.store.series"
 	MetricStoreDroppedReports = "norca.store.dropped_reports"
@@ -213,6 +214,18 @@ const (
 	MetricNodeDiskTotalMB       = "norca.node.disk_total_mb"
 	MetricNodeInodesUsedPercent = "norca.node.inodes_used_percent"
 )
+
+// HostMetric reports whether a metric (with or without the .avg or .max of
+// its series) is a host metric, kept in the hosts store with its own
+// retention (host_retention) and disk cap (host_max_disk_size): the host
+// statistics of the client nodes (norca.node.*), and the internals of the
+// server (norca.server.*) and of its system bus (norca.bus.*). Every other
+// metric is kept in the main store.
+func HostMetric(name string) bool {
+	return strings.HasPrefix(name, "norca.node.") ||
+		strings.HasPrefix(name, "norca.server.") ||
+		strings.HasPrefix(name, "norca.bus.")
+}
 
 // The custom objects and their operators (family 9), read from the state by
 // every server.

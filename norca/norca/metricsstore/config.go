@@ -5,7 +5,9 @@
 // publish on the system bus: every server stores every report in an embedded
 // time-series store (tstorage) in its data directory, apart from Raft, the
 // state store and the backups. The reports are coalesced into one point per
-// sample interval and task group before they are written.
+// sample interval and task group before they are written. The host metrics
+// (see HostMetric) are kept in a second store beside the first, with their
+// own retention and disk cap.
 package metricsstore
 
 import (
@@ -20,6 +22,10 @@ const (
 	// DefaultRetention is how long the points are kept.
 	DefaultRetention = 30 * 24 * time.Hour
 
+	// DefaultHostRetention is how long the points of the host metrics (see
+	// HostMetric) are kept.
+	DefaultHostRetention = 7 * 24 * time.Hour
+
 	// MinRetention and MaxRetention bound the retention.
 	MinRetention = time.Hour
 	MaxRetention = 30 * 24 * time.Hour
@@ -32,9 +38,12 @@ const (
 	// DefaultSampleInterval is the resolution of the stored points.
 	DefaultSampleInterval = 30 * time.Second
 
-	// DefaultMaxDiskSize bounds the disk use; the oldest partitions are
-	// removed first.
-	DefaultMaxDiskSize = 5 << 30
+	// DefaultMaxDiskSize bounds the disk use of the main store; the oldest
+	// partitions are removed first.
+	DefaultMaxDiskSize = 4 << 30
+
+	// DefaultHostMaxDiskSize bounds the disk use of the hosts store.
+	DefaultHostMaxDiskSize = 1 << 30
 
 	// DefaultMaxSeries bounds the number of series.
 	DefaultMaxSeries = 50000
@@ -53,12 +62,22 @@ type Config struct {
 	// only (dev mode without a data directory).
 	Dir string
 
+	// HostDir is the directory of the hosts store, which keeps the host
+	// metrics (see HostMetric) with their own retention and disk cap; empty
+	// is Dir with "-hosts" added, beside it.
+	HostDir string
+
 	Retention         time.Duration
 	PartitionDuration time.Duration
 	SampleInterval    time.Duration
 
-	// MaxDiskSize is the disk cap in bytes.
-	MaxDiskSize int64
+	// HostRetention is the retention of the hosts store.
+	HostRetention time.Duration
+
+	// MaxDiskSize is the disk cap of the main store in bytes,
+	// HostMaxDiskSize that of the hosts store.
+	MaxDiskSize     int64
+	HostMaxDiskSize int64
 
 	// MaxSeries is the cap of the number of series.
 	MaxSeries int
@@ -73,9 +92,11 @@ func DefaultConfig() *Config {
 	return &Config{
 		Enabled:           true,
 		Retention:         DefaultRetention,
+		HostRetention:     DefaultHostRetention,
 		PartitionDuration: DefaultPartitionDuration,
 		SampleInterval:    DefaultSampleInterval,
 		MaxDiskSize:       DefaultMaxDiskSize,
+		HostMaxDiskSize:   DefaultHostMaxDiskSize,
 		MaxSeries:         DefaultMaxSeries,
 		WALBufferedSize:   DefaultWALBufferedSize,
 	}
@@ -103,8 +124,14 @@ func (c *Config) Merge(b *Config) *Config {
 	if b.Dir != "" {
 		out.Dir = b.Dir
 	}
+	if b.HostDir != "" {
+		out.HostDir = b.HostDir
+	}
 	if b.Retention != 0 {
 		out.Retention = b.Retention
+	}
+	if b.HostRetention != 0 {
+		out.HostRetention = b.HostRetention
 	}
 	if b.PartitionDuration != 0 {
 		out.PartitionDuration = b.PartitionDuration
@@ -114,6 +141,9 @@ func (c *Config) Merge(b *Config) *Config {
 	}
 	if b.MaxDiskSize != 0 {
 		out.MaxDiskSize = b.MaxDiskSize
+	}
+	if b.HostMaxDiskSize != 0 {
+		out.HostMaxDiskSize = b.HostMaxDiskSize
 	}
 	if b.MaxSeries != 0 {
 		out.MaxSeries = b.MaxSeries
@@ -130,8 +160,11 @@ func (c *Config) Validate() error {
 		return nil
 	}
 	var errs []error
-	if c.Retention < MinRetention || c.Retention > MaxRetention {
-		errs = append(errs, fmt.Errorf("retention must be between 1h and 720h (30d), not %s", FormatRetention(c.Retention)))
+	if err := checkRetention("retention", c.Retention); err != nil {
+		errs = append(errs, err)
+	}
+	if err := checkRetention("host_retention", c.HostRetention); err != nil {
+		errs = append(errs, err)
 	}
 	if c.SampleInterval < time.Second {
 		errs = append(errs, errors.New("sample_interval must be at least 1s"))
@@ -142,8 +175,14 @@ func (c *Config) Validate() error {
 	if c.PartitionDuration > c.Retention {
 		errs = append(errs, errors.New("partition_duration must not be longer than retention"))
 	}
+	if c.PartitionDuration > c.HostRetention {
+		errs = append(errs, errors.New("partition_duration must not be longer than host_retention"))
+	}
 	if c.MaxDiskSize < 0 {
 		errs = append(errs, errors.New("max_disk_size must not be negative"))
+	}
+	if c.HostMaxDiskSize < 0 {
+		errs = append(errs, errors.New("host_max_disk_size must not be negative"))
 	}
 	if c.MaxSeries < 0 {
 		errs = append(errs, errors.New("max_series must not be negative"))
@@ -152,6 +191,15 @@ func (c *Config) Validate() error {
 		errs = append(errs, errors.New("wal_buffered_size must be -1 or more"))
 	}
 	return errors.Join(errs...)
+}
+
+// checkRetention checks that the retention of the setting name is between
+// MinRetention and MaxRetention.
+func checkRetention(name string, retention time.Duration) error {
+	if retention < MinRetention || retention > MaxRetention {
+		return fmt.Errorf("%s must be between 1h and 720h (30d), not %s", name, FormatRetention(retention))
+	}
+	return nil
 }
 
 // retentionDays matches a retention that starts with whole days: "7d",

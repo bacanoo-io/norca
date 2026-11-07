@@ -18,6 +18,7 @@ func testConfig(dir string) *Config {
 	cfg.Dir = dir
 	cfg.PartitionDuration = 2 * time.Hour
 	cfg.Retention = 24 * time.Hour
+	cfg.HostRetention = 24 * time.Hour
 	return cfg
 }
 
@@ -269,7 +270,7 @@ func TestStore_Reopen(t *testing.T) {
 	must.Eq(t, base.UTC(), st.Oldest)
 
 	// Above the disk cap the oldest partitions go first.
-	s.maxDiskSize.Store(st.DiskBytes / 2)
+	s.main.maxDiskSize.Store(st.DiskBytes / 2)
 	s.maintain()
 	after := s.Status()
 	must.LessEq(t, st.DiskBytes/2, after.DiskBytes)
@@ -311,6 +312,37 @@ func TestConfig_Validate(t *testing.T) {
 	cfg = DefaultConfig()
 	cfg.Retention = time.Hour
 	must.ErrorContains(t, cfg.Validate(), "partition_duration must not be longer than retention")
+
+	// The hosts store: 7 days and 1 GiB beside 30 days and 4 GiB by
+	// default, the same range of the retention.
+	cfg = DefaultConfig()
+	must.Eq(t, 7*24*time.Hour, cfg.HostRetention)
+	must.Eq(t, int64(1<<30), cfg.HostMaxDiskSize)
+	must.Eq(t, int64(4<<30), cfg.MaxDiskSize)
+	for retention, ok := range map[time.Duration]bool{
+		time.Hour: true, MaxRetention: true, 30 * time.Minute: false, 31 * 24 * time.Hour: false,
+	} {
+		cfg = DefaultConfig()
+		cfg.HostRetention = retention
+		cfg.PartitionDuration = min(cfg.PartitionDuration, retention)
+		if ok {
+			must.NoError(t, cfg.Validate(), must.Sprint(retention))
+		} else {
+			must.ErrorContains(t, cfg.Validate(), "host_retention must be between 1h and 720h (30d)", must.Sprint(retention))
+		}
+	}
+	cfg = DefaultConfig()
+	cfg.HostRetention = time.Hour
+	must.ErrorContains(t, cfg.Validate(), "partition_duration must not be longer than host_retention")
+	cfg = DefaultConfig()
+	cfg.HostMaxDiskSize = -1
+	must.ErrorContains(t, cfg.Validate(), "host_max_disk_size must not be negative")
+
+	merged := DefaultConfig().Merge(&Config{Enabled: true, HostRetention: time.Hour, HostMaxDiskSize: 1 << 20, HostDir: "h"})
+	must.Eq(t, time.Hour, merged.HostRetention)
+	must.Eq(t, int64(1<<20), merged.HostMaxDiskSize)
+	must.Eq(t, "h", merged.HostDir)
+	must.Eq(t, DefaultRetention, merged.Retention)
 }
 
 // TestParseRetention checks the durations and days a retention takes.
@@ -349,7 +381,9 @@ func TestStore_Reload(t *testing.T) {
 	next := cfg.Copy()
 	next.Dir = ""
 	next.Retention = 7 * 24 * time.Hour
+	next.HostRetention = 3 * 24 * time.Hour
 	next.MaxDiskSize = 1 << 20
+	next.HostMaxDiskSize = 1 << 19
 	next.MaxSeries = 10
 	next.SampleInterval = time.Minute      // needs a restart
 	next.PartitionDuration = 3 * time.Hour // needs a restart
@@ -357,19 +391,33 @@ func TestStore_Reload(t *testing.T) {
 	st := s.Status()
 	must.Eq(t, 7*24*time.Hour, st.Retention)
 	must.Eq(t, int64(1<<20), st.MaxDiskSize)
+	must.Eq(t, 3*24*time.Hour, st.Hosts.Retention)
+	must.Eq(t, int64(1<<19), st.Hosts.MaxDiskSize)
 	must.Eq(t, 10, st.MaxSeries)
 	must.Eq(t, DefaultSampleInterval, st.SampleInterval)
 	must.Eq(t, 2*time.Hour, s.cfg.PartitionDuration)
 
-	// Shorter, down to the minimum.
+	// Shorter, down to the minimum; each store on its own.
 	next.Retention = time.Hour
 	next.PartitionDuration = time.Hour
 	must.NoError(t, s.Reload(next))
 	must.Eq(t, time.Hour, s.Status().Retention)
+	must.Eq(t, 3*24*time.Hour, s.Status().Hosts.Retention)
+	next.Retention = 2 * time.Hour
+	next.HostRetention = time.Hour
+	must.NoError(t, s.Reload(next))
+	must.Eq(t, 2*time.Hour, s.Status().Retention)
+	must.Eq(t, time.Hour, s.HostRetention())
 
 	next.Retention = 31 * 24 * time.Hour
 	must.ErrorContains(t, s.Reload(next), "retention")
-	must.Eq(t, time.Hour, s.Status().Retention)
+	must.Eq(t, 2*time.Hour, s.Status().Retention)
+	next.Retention = time.Hour
+	next.HostRetention = 31 * 24 * time.Hour
+	must.ErrorContains(t, s.Reload(next), "host_retention must be between 1h and 720h (30d)")
+	must.Eq(t, 2*time.Hour, s.Status().Retention) // nothing changed
+	must.Eq(t, time.Hour, s.HostRetention())
 	must.Error(t, s.SetRetention(30*time.Minute))
+	must.ErrorContains(t, s.SetHostRetention(30*time.Minute), "host_retention")
 	must.NoError(t, s.Reload(nil))
 }

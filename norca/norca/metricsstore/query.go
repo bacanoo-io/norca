@@ -169,9 +169,10 @@ func (s *Store) Summarize(key GroupKey, metric string, from, to time.Time) (*Sum
 	return out, nil
 }
 
-// selectPoints reads a series; none is no error.
+// selectPoints reads a series from the database that keeps it; none is no
+// error.
 func (s *Store) selectPoints(metric string, labels []tstorage.Label, start, end int64) ([]*tstorage.DataPoint, error) {
-	points, err := s.db.Select(metric, labels, start, end)
+	points, err := s.db(metric).db.Select(metric, labels, start, end)
 	if errors.Is(err, tstorage.ErrNoDataPoints) {
 		return nil, nil
 	}

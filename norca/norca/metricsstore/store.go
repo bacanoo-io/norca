@@ -42,18 +42,86 @@ func (k GroupKey) labels() []tstorage.Label {
 	return []tstorage.Label{{Name: "ns", Value: k.Namespace}, {Name: "job", Value: k.Job}, {Name: "group", Value: k.Group}}
 }
 
-// Store is the metrics store of a server.
-type Store struct {
-	logger hclog.Logger
-	// cfg is the configuration the store was opened with; a reload changes
-	// cfg.MaxSeries (under mu), retention and maxDiskSize.
-	cfg *Config
-	db  tstorage.Storage
+// database is one of the two tstorage databases of the store, with its own
+// retention, disk cap, WAL and partitions.
+type database struct {
+	db tstorage.Storage
 
 	// retention and maxDiskSize are the effective limits, which a reload
 	// changes (nanoseconds, bytes).
 	retention   atomic.Int64
 	maxDiskSize atomic.Int64
+
+	// retentionName and diskName are the settings of the limits, for the
+	// messages.
+	retentionName string
+	diskName      string
+}
+
+// openDatabase opens a database in dir (in memory when empty).
+func openDatabase(cfg *Config, dir string, retention time.Duration, maxDiskSize int64, retentionName, diskName string) (*database, error) {
+	opts := []tstorage.Option{
+		tstorage.WithTimestampPrecision(tstorage.Seconds),
+		tstorage.WithPartitionDuration(cfg.PartitionDuration),
+		tstorage.WithRetention(retention),
+		tstorage.WithWALBufferedSize(cfg.WALBufferedSize),
+	}
+	if dir != "" {
+		opts = append(opts, tstorage.WithDataPath(dir))
+	}
+	db, err := tstorage.NewStorage(opts...)
+	if err != nil {
+		return nil, err
+	}
+	d := &database{db: db, retentionName: retentionName, diskName: diskName}
+	d.retention.Store(int64(retention))
+	d.maxDiskSize.Store(maxDiskSize)
+	return d, nil
+}
+
+// insert writes rows sorted by time.
+func (d *database) insert(rows []tstorage.Row) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	return d.db.InsertRows(rows)
+}
+
+// status returns the state of the database; series is the number of its
+// series.
+func (d *database) status(series int) DatabaseStatus {
+	st := d.db.Stats()
+	out := DatabaseStatus{
+		Partitions:     st.Partitions,
+		DiskPartitions: st.DiskPartitions,
+		DiskBytes:      st.DiskBytes,
+		MaxDiskSize:    d.maxDiskSize.Load(),
+		Series:         series,
+		Retention:      time.Duration(d.retention.Load()),
+	}
+	if st.MinTimestamp > 0 {
+		out.Oldest = time.Unix(st.MinTimestamp, 0).UTC()
+	}
+	if st.MaxTimestamp > 0 {
+		out.Newest = time.Unix(st.MaxTimestamp, 0).UTC()
+	}
+	return out
+}
+
+// Store is the metrics store of a server. It keeps its points in two
+// databases: the host metrics (see HostMetric) in the hosts store, with their
+// own retention and disk cap, and every other metric in the main store. The
+// index of the series, the limit max_series and the series file (in the
+// directory of the main store) cover both.
+type Store struct {
+	logger hclog.Logger
+	// cfg is the configuration the store was opened with; a reload changes
+	// cfg.MaxSeries (under mu), and the retention and the disk cap of the
+	// databases.
+	cfg *Config
+
+	main  *database
+	hosts *database
 
 	mu sync.Mutex
 	// pending are the windows not written yet, by their start (Unix
@@ -105,23 +173,24 @@ func Open(cfg *Config, logger hclog.Logger) (*Store, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	opts := []tstorage.Option{
-		tstorage.WithTimestampPrecision(tstorage.Seconds),
-		tstorage.WithPartitionDuration(cfg.PartitionDuration),
-		tstorage.WithRetention(cfg.Retention),
-		tstorage.WithWALBufferedSize(cfg.WALBufferedSize),
+	cfg = cfg.Copy()
+	if cfg.HostDir == "" && cfg.Dir != "" {
+		cfg.HostDir = cfg.Dir + "-hosts"
 	}
-	if cfg.Dir != "" {
-		opts = append(opts, tstorage.WithDataPath(cfg.Dir))
-	}
-	db, err := tstorage.NewStorage(opts...)
+	main, err := openDatabase(cfg, cfg.Dir, cfg.Retention, cfg.MaxDiskSize, "retention", "max_disk_size")
 	if err != nil {
 		return nil, fmt.Errorf("opening the metrics store: %w", err)
 	}
+	hosts, err := openDatabase(cfg, cfg.HostDir, cfg.HostRetention, cfg.HostMaxDiskSize, "host_retention", "host_max_disk_size")
+	if err != nil {
+		_ = main.db.Close()
+		return nil, fmt.Errorf("opening the hosts store of the metrics store: %w", err)
+	}
 	s := &Store{
 		logger:       logger.Named("metrics_store"),
-		cfg:          cfg.Copy(),
-		db:           db,
+		cfg:          cfg,
+		main:         main,
+		hosts:        hosts,
 		pending:      map[int64]map[GroupKey]*window{},
 		series:       map[GroupKey]struct{}{},
 		gauges:       map[string]GaugeSeries{},
@@ -132,8 +201,6 @@ func Open(cfg *Config, logger hclog.Logger) (*Store, error) {
 		stopCh:       make(chan struct{}),
 		doneCh:       make(chan struct{}),
 	}
-	s.retention.Store(int64(cfg.Retention))
-	s.maxDiskSize.Store(cfg.MaxDiskSize)
 	if err := s.loadSeries(); err != nil {
 		s.logger.Warn("the list of the task groups with series is lost; they appear again with their next report", "error", err)
 	}
@@ -349,43 +416,72 @@ func (s *Store) flush(until time.Time) error {
 	}
 	// tstorage finds the points of a series in memory only in time order.
 	slices.SortStableFunc(rows, func(a, b tstorage.Row) int { return cmp.Compare(a.Timestamp, b.Timestamp) })
-	return s.db.InsertRows(rows)
+	var mainRows, hostRows []tstorage.Row
+	for _, r := range rows {
+		if HostMetric(r.Metric) {
+			hostRows = append(hostRows, r)
+		} else {
+			mainRows = append(mainRows, r)
+		}
+	}
+	return errors.Join(s.main.insert(mainRows), s.hosts.insert(hostRows))
 }
 
-// maintain removes the oldest partitions above the disk cap, forgets the
-// series without a point within the retention and saves the series.
+// db returns the database that keeps a metric (with or without the .avg or
+// .max of its series).
+func (s *Store) db(metric string) *database {
+	if HostMetric(metric) {
+		return s.hosts
+	}
+	return s.main
+}
+
+// maintain removes the oldest partitions above the disk cap of each
+// database, forgets the series without a point within the retention and
+// saves the series.
 func (s *Store) maintain() {
 	if n := s.forget(time.Now()); n > 0 {
 		s.logger.Debug("forgot the series without a point within the retention", "series", n)
 	}
-	if maxDisk := s.maxDiskSize.Load(); maxDisk > 0 {
-		for s.db.Stats().DiskBytes > maxDisk {
-			removed, err := s.db.RemoveOldestDiskPartition()
-			if err != nil {
-				s.logger.Warn("removing the oldest partition above max_disk_size failed", "error", err)
-				break
-			}
-			if !removed {
-				break
-			}
-			s.logger.Info("removed the oldest partition above max_disk_size", "max_disk_size", maxDisk)
-		}
-	}
+	s.enforceDiskCap(s.main)
+	s.enforceDiskCap(s.hosts)
 	if err := s.saveSeries(); err != nil {
 		s.logger.Warn("saving the list of the task groups with series failed", "error", err)
 	}
 }
 
+// enforceDiskCap removes the oldest partitions of a database while it is
+// above its disk cap.
+func (s *Store) enforceDiskCap(d *database) {
+	maxDisk := d.maxDiskSize.Load()
+	if maxDisk <= 0 {
+		return
+	}
+	for d.db.Stats().DiskBytes > maxDisk {
+		removed, err := d.db.RemoveOldestDiskPartition()
+		if err != nil {
+			s.logger.Warn("removing the oldest partition above "+d.diskName+" failed", "error", err)
+			return
+		}
+		if !removed {
+			return
+		}
+		s.logger.Info("removed the oldest partition above "+d.diskName, d.diskName, maxDisk)
+	}
+}
+
 // forget removes the task groups and the gauge series without a point within
-// the retention before now from the index of the series, and returns how many
-// series that are (as counted toward max_series). They no longer count toward
-// max_series nor appear in the list of series; a forgotten series that gets a
-// point again starts again. Their points stay until their partition expires.
-// A series with a point in a window not written yet is kept: the index and
-// the windows change under s.mu only, so a point that comes meanwhile either
-// keeps the series or starts it again.
+// the retention of their database before now from the index of the series,
+// and returns how many series that are (as counted toward max_series): a host
+// series is forgotten after host_retention, any other after retention. They
+// no longer count toward max_series nor appear in the list of series; a
+// forgotten series that gets a point again starts again. Their points stay
+// until their partition expires. A series with a point in a window not
+// written yet is kept: the index and the windows change under s.mu only, so a
+// point that comes meanwhile either keeps the series or starts it again.
 func (s *Store) forget(now time.Time) int {
-	cutoff := now.Add(-time.Duration(s.retention.Load())).Unix()
+	cutoff := now.Add(-s.Retention()).Unix()
+	hostCutoff := now.Add(-s.HostRetention()).Unix()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n := 0
@@ -402,13 +498,17 @@ func (s *Store) forget(now time.Time) int {
 		delete(s.groupLast, key)
 		n += seriesPerGroup
 	}
-	for key := range s.gauges {
+	for key, g := range s.gauges {
 		last, ok := s.gaugeLast[key]
 		if !ok {
 			s.gaugeLast[key] = now.Unix()
 			continue
 		}
-		if last >= cutoff || s.gaugePendingLocked(key) {
+		limit := cutoff
+		if HostMetric(g.Metric) {
+			limit = hostCutoff
+		}
+		if last >= limit || s.gaugePendingLocked(key) {
 			continue
 		}
 		delete(s.gauges, key)
@@ -453,39 +553,63 @@ func (s *Store) Close() error {
 		err = errors.Join(
 			s.flush(time.Unix(1<<62, 0)),
 			s.saveSeries(),
-			s.db.Close(),
+			s.main.db.Close(),
+			s.hosts.db.Close(),
 		)
 	})
 	return err
 }
 
-// SetRetention changes the retention at run time. A shorter retention
-// removes the partitions now past it at once; a longer one keeps what is
-// still on disk longer, and what was removed does not come back.
+// SetRetention changes the retention of the main store at run time. A
+// shorter retention removes the partitions now past it at once; a longer one
+// keeps what is still on disk longer, and what was removed does not come
+// back.
 func (s *Store) SetRetention(retention time.Duration) error {
-	if retention < MinRetention || retention > MaxRetention {
-		return fmt.Errorf("retention must be between 1h and 720h (30d), not %s", FormatRetention(retention))
+	return s.setRetention(s.main, retention)
+}
+
+// SetHostRetention changes the retention of the hosts store at run time,
+// like SetRetention.
+func (s *Store) SetHostRetention(retention time.Duration) error {
+	return s.setRetention(s.hosts, retention)
+}
+
+func (s *Store) setRetention(d *database, retention time.Duration) error {
+	if err := checkRetention(d.retentionName, retention); err != nil {
+		return err
 	}
 	select {
 	case <-s.stopCh:
 		return errors.New("the metrics store is closed")
 	default:
 	}
-	if err := s.db.SetRetention(retention); err != nil {
-		return fmt.Errorf("setting the retention of the metrics store: %w", err)
+	if err := d.db.SetRetention(retention); err != nil {
+		return fmt.Errorf("setting the %s of the metrics store: %w", d.retentionName, err)
 	}
-	s.retention.Store(int64(retention))
+	d.retention.Store(int64(retention))
 	return nil
 }
 
-// Retention returns the retention in effect.
+// Retention returns the retention of the main store in effect.
 func (s *Store) Retention() time.Duration {
-	return time.Duration(s.retention.Load())
+	return time.Duration(s.main.retention.Load())
 }
 
-// Reload applies a reloaded configuration. The retention, max_disk_size and
-// max_series apply at once: max_disk_size at the next maintenance (within a
-// minute), max_series to new series only. partition_duration,
+// HostRetention returns the retention of the hosts store in effect.
+func (s *Store) HostRetention() time.Duration {
+	return time.Duration(s.hosts.retention.Load())
+}
+
+// RetentionOf returns the retention in effect of the database that keeps a
+// metric: HostRetention for a host metric, Retention for any other.
+func (s *Store) RetentionOf(metric string) time.Duration {
+	return time.Duration(s.db(metric).retention.Load())
+}
+
+// Reload applies a reloaded configuration. The retention, host_retention,
+// max_disk_size, host_max_disk_size and max_series apply at once: the disk
+// caps at the next maintenance (within a minute), max_series to new series
+// only. partition_duration,
 // sample_interval and wal_buffered_size shape the files and the sampling and
 // need a restart: a change of them is logged and ignored.
 func (s *Store) Reload(cfg *Config) error {
@@ -510,14 +634,23 @@ func (s *Store) Reload(cfg *Config) error {
 			"partition_duration", s.cfg.PartitionDuration, "sample_interval", s.cfg.SampleInterval)
 	}
 
-	if old := time.Duration(s.retention.Load()); old != cfg.Retention {
-		if err := s.SetRetention(cfg.Retention); err != nil {
-			return err
+	for _, l := range []struct {
+		d           *database
+		retention   time.Duration
+		maxDiskSize int64
+	}{
+		{s.main, cfg.Retention, cfg.MaxDiskSize},
+		{s.hosts, cfg.HostRetention, cfg.HostMaxDiskSize},
+	} {
+		if old := time.Duration(l.d.retention.Load()); old != l.retention {
+			if err := s.setRetention(l.d, l.retention); err != nil {
+				return err
+			}
+			s.logger.Info("metrics store "+l.d.retentionName+" changed", "from", FormatRetention(old), "to", FormatRetention(l.retention))
 		}
-		s.logger.Info("metrics store retention changed", "from", FormatRetention(old), "to", FormatRetention(cfg.Retention))
-	}
-	if old := s.maxDiskSize.Swap(cfg.MaxDiskSize); old != cfg.MaxDiskSize {
-		s.logger.Info("metrics store max_disk_size changed", "from", old, "to", cfg.MaxDiskSize)
+		if old := l.d.maxDiskSize.Swap(l.maxDiskSize); old != l.maxDiskSize {
+			s.logger.Info("metrics store "+l.d.diskName+" changed", "from", old, "to", l.maxDiskSize)
+		}
 	}
 	s.mu.Lock()
 	old := s.cfg.MaxSeries
@@ -745,14 +878,31 @@ func (s *Store) saveSeries() error {
 	return err
 }
 
-// Status is the state of the store.
+// DatabaseStatus is the state of one of the databases of the store.
+type DatabaseStatus struct {
+	Partitions     int
+	DiskPartitions int
+	DiskBytes      int64
+	MaxDiskSize    int64
+	// Series is the number of the series of the database.
+	Series int
+	// Oldest and Newest are the times of the oldest and the newest point.
+	Oldest    time.Time
+	Newest    time.Time
+	Retention time.Duration
+}
+
+// Status is the state of the store: the fields of the main store, and the
+// hosts store in Hosts.
 type Status struct {
 	Partitions     int
 	DiskPartitions int
 	DiskBytes      int64
 	MaxDiskSize    int64
-	Series         int
-	MaxSeries      int
+	// Series is the number of the series of both databases, which
+	// MaxSeries limits.
+	Series    int
+	MaxSeries int
 	// Oldest and Newest are the times of the oldest and the newest point.
 	Oldest time.Time
 	Newest time.Time
@@ -768,34 +918,39 @@ type Status struct {
 	ForgottenSeries uint64
 	Retention       time.Duration
 	SampleInterval  time.Duration
+
+	// Hosts is the state of the hosts store.
+	Hosts DatabaseStatus
 }
 
 // Status returns the state of the store.
 func (s *Store) Status() *Status {
-	st := s.db.Stats()
 	s.mu.Lock()
 	series := s.seriesCountLocked()
+	hostSeries := 0
+	for _, g := range s.gauges {
+		if HostMetric(g.Metric) {
+			hostSeries += 2
+		}
+	}
 	maxSeries := s.cfg.MaxSeries
 	s.mu.Unlock()
-	out := &Status{
-		Partitions:       st.Partitions,
-		DiskPartitions:   st.DiskPartitions,
-		DiskBytes:        st.DiskBytes,
-		MaxDiskSize:      s.maxDiskSize.Load(),
+	main := s.main.status(series - hostSeries)
+	return &Status{
+		Partitions:       main.Partitions,
+		DiskPartitions:   main.DiskPartitions,
+		DiskBytes:        main.DiskBytes,
+		MaxDiskSize:      main.MaxDiskSize,
 		Series:           series,
 		MaxSeries:        maxSeries,
+		Oldest:           main.Oldest,
+		Newest:           main.Newest,
 		DroppedReports:   s.droppedReports.Load(),
 		DroppedGroups:    s.droppedGroups.Load(),
 		DuplicateReports: s.duplicateReports.Load(),
 		ForgottenSeries:  s.forgottenSeries.Load(),
-		Retention:        time.Duration(s.retention.Load()),
+		Retention:        main.Retention,
 		SampleInterval:   s.cfg.SampleInterval,
+		Hosts:            s.hosts.status(hostSeries),
 	}
-	if st.MinTimestamp > 0 {
-		out.Oldest = time.Unix(st.MinTimestamp, 0).UTC()
-	}
-	if st.MaxTimestamp > 0 {
-		out.Newest = time.Unix(st.MaxTimestamp, 0).UTC()
-	}
-	return out
 }
