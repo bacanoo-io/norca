@@ -21,14 +21,29 @@ const METRICS = {
   throttled: 'norca.group.cpu_throttled',
   memory: 'norca.group.memory_mb',
   cache: 'norca.group.memory_cache_mb',
+  swap: 'norca.group.memory_swap_mb',
   oom: 'norca.group.oom_kills',
+  restarts: 'norca.group.restarts',
+  running: 'norca.group.allocs_running',
+  starting: 'norca.group.allocs_starting',
+  failed: 'norca.group.allocs_failed',
+  lost: 'norca.group.allocs_lost',
 };
+
+const ALLOC_STATES = [
+  ['running', 'Running'],
+  ['starting', 'Starting'],
+  ['failed', 'Failed'],
+  ['lost', 'Lost'],
+];
 
 /**
  * The usage history of a task group from the metrics store of the servers:
- * CPU (average, peak, throttling), memory (average, peak, page cache, OOM
- * kills) per allocation, and the right-sizing view (the 95th percentile of
- * the CPU peaks and the memory peak of the range against the allocation).
+ * CPU (average, peak, throttling), memory (average, peak, page cache, swap
+ * where the driver measures it, OOM kills) per allocation, the allocations
+ * by state with the task restarts, and the right-sizing view (the 95th
+ * percentile of the CPU peaks and the memory peak of the range against the
+ * allocation).
  *
  *   <Metrics::TaskGroupHistory @namespace="default" @job="api" @group="web"
  *     @reservedCPU={{500}} @reservedMemory={{256}} />
@@ -85,8 +100,74 @@ export default class MetricsTaskGroupHistory extends MetricsComponent {
     }
   }
 
+  // The servers sample the allocations also of task groups whose clients
+  // report no usage: either kind of history fills the card.
+  get hasUsage() {
+    return (this.history.cpu?.Points || []).length > 0;
+  }
+
+  get hasAllocations() {
+    return ['running', 'starting', 'failed', 'lost', 'restarts'].some(
+      (name) => (this.history[name]?.Points || []).length
+    );
+  }
+
   get isEmpty() {
-    return !(this.history.cpu?.Points || []).length;
+    return !this.hasUsage && !this.hasAllocations;
+  }
+
+  // Swap only from the drivers that measure it: no points, no line.
+  get hasSwap() {
+    return (this.history.swap?.Points || []).length > 0;
+  }
+
+  get restartCount() {
+    return (this.history.restarts?.Points || []).reduce(
+      (sum, p) => sum + p.Avg,
+      0
+    );
+  }
+
+  get allocationsOption() {
+    const h = this.history;
+    return this.axisOption(
+      [
+        ...ALLOC_STATES.map(([name, label]) => ({
+          name: label,
+          type: 'line',
+          step: 'end',
+          showSymbol: false,
+          lineStyle: { width: name === 'running' ? 2 : 1.5 },
+          data: points(h[name]),
+        })),
+        {
+          name: 'Restarts',
+          type: 'bar',
+          yAxisIndex: 1,
+          barMaxWidth: 6,
+          data: points(h.restarts).filter((p) => p[1] > 0),
+        },
+      ],
+      [
+        { type: 'value', min: 0, minInterval: 1 },
+        {
+          type: 'value',
+          min: 0,
+          minInterval: 1,
+          splitLine: { show: false },
+        },
+      ]
+    );
+  }
+
+  get allocationsSummary() {
+    const last = (list) => (list.length ? list[list.length - 1][1] : 0);
+    const h = this.history;
+    return `Latest: ${ALLOC_STATES.map(
+      ([name, label]) => `${label.toLowerCase()} ${last(points(h[name]))}`
+    ).join(', ')} allocations. ${
+      this.restartCount
+    } task restarts in the range.`;
   }
 
   get oomTimes() {
@@ -201,6 +282,17 @@ export default class MetricsTaskGroupHistory extends MetricsComponent {
               }
             : undefined,
         },
+        ...(this.hasSwap
+          ? [
+              {
+                name: 'Swap',
+                type: 'line',
+                showSymbol: false,
+                lineStyle: { width: 1.5, type: 'dashed' },
+                data: points(h.swap),
+              },
+            ]
+          : []),
       ],
       { type: 'value', axisLabel: { formatter: '{value} MiB' } }
     );

@@ -89,6 +89,56 @@ module('Integration | Component | Metrics history', function (hooks) {
     );
   });
 
+  test('the task group history shows the allocations by state and the restarts', async function (assert) {
+    assert.expect(7);
+    await render(taskGroup);
+    await waitFor('[data-test-usage-allocations]');
+
+    assert.dom('[data-test-usage-restarts]').hasText('2 restarts');
+    assert
+      .dom('[data-test-usage-allocations] [data-test-chart-summary]')
+      .includesText('running 3')
+      .includesText('failed 1');
+    for (const metric of [
+      'allocs_starting',
+      'allocs_failed',
+      'allocs_lost',
+      'restarts',
+    ]) {
+      assert.ok(
+        requests(this.server, '/v1/metrics/history').some((url) =>
+          url.includes(`metric=norca.group.${metric}`)
+        ),
+        `${metric} is read`
+      );
+    }
+  });
+
+  test('the swap is drawn only when it has points', async function (assert) {
+    await render(taskGroup);
+    await waitFor('[data-test-usage-memory]');
+    assert
+      .dom('[data-test-usage-memory]')
+      .doesNotHaveAttribute('data-test-usage-swap', 'no swap points: no line');
+
+    this.server.metricsWithoutPoints = [];
+    await click('[data-test-tab="24h"]');
+    assert.dom('[data-test-usage-memory]').hasAttribute('data-test-usage-swap');
+  });
+
+  test('allocations without usage still fill the card', async function (assert) {
+    this.server.metricsWithoutPoints = [
+      'norca.group.cpu_mhz',
+      'norca.group.memory_mb',
+      'norca.group.memory_swap_mb',
+    ];
+    await render(taskGroup);
+    await waitFor('[data-test-usage-allocations]');
+    assert.dom('[data-test-usage-no-usage]').exists();
+    assert.dom('[data-test-usage-cpu]').doesNotExist();
+    assert.dom('[data-test-usage-empty]').doesNotExist();
+  });
+
   test('the ranges are limited to the retention of the store', async function (assert) {
     this.server.metricsRetention = 7 * 86400e9;
     await render(taskGroup);

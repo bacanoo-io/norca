@@ -21,20 +21,32 @@
     {{else if this.isEmpty}}
       <Ui::EmptyState @compact={{true}} @icon="chart-line" @title="No usage in this range" @message="The history fills as the clients report the usage of the running allocations." data-test-usage-empty />
     {{else}}
-      <div class="row row-cards">
-        <div class="col-lg-6">
-          <h3 class="h4 mb-2">CPU</h3>
-          <Ui::Chart @label="CPU use of {{@group}} over time" @option={{this.cpuOption}} @height={{220}} data-test-usage-cpu>
-            {{this.summaryText}}
-          </Ui::Chart>
+      {{#if this.hasUsage}}
+        <div class="row row-cards">
+          <div class="col-lg-6">
+            <h3 class="h4 mb-2">CPU</h3>
+            <Ui::Chart @label="CPU use of {{@group}} over time" @option={{this.cpuOption}} @height={{220}} data-test-usage-cpu>
+              {{this.summaryText}}
+            </Ui::Chart>
+          </div>
+          <div class="col-lg-6">
+            <h3 class="h4 mb-2">Memory{{#if this.oomKills}} <Ui::Badge @color="red" data-test-usage-oom>{{this.oomKills}} OOM kills</Ui::Badge>{{/if}}</h3>
+            <Ui::Chart @label="Memory use of {{@group}} over time" @option={{this.memoryOption}} @height={{220}} data-test-usage-memory data-test-usage-swap={{this.hasSwap}}>
+              {{this.summaryText}}
+            </Ui::Chart>
+          </div>
         </div>
-        <div class="col-lg-6">
-          <h3 class="h4 mb-2">Memory{{#if this.oomKills}} <Ui::Badge @color="red" data-test-usage-oom>{{this.oomKills}} OOM kills</Ui::Badge>{{/if}}</h3>
-          <Ui::Chart @label="Memory use of {{@group}} over time" @option={{this.memoryOption}} @height={{220}} data-test-usage-memory>
-            {{this.summaryText}}
-          </Ui::Chart>
-        </div>
-      </div>
+      {{else}}
+        <p class="text-secondary small mb-0" data-test-usage-no-usage>No usage in this range: the clients report the usage of the running allocations.</p>
+      {{/if}}
+      {{#if this.hasAllocations}}
+        <h3 class="h4 mt-3 mb-2">
+          Allocations{{#if this.restartCount}} <Ui::Badge @color="orange" data-test-usage-restarts>{{this.restartCount}} restarts</Ui::Badge>{{/if}}
+        </h3>
+        <Ui::Chart @label="Allocations of {{@group}} by state over time" @option={{this.allocationsOption}} @height={{200}} data-test-usage-allocations>
+          {{this.allocationsSummary}}
+        </Ui::Chart>
+      {{/if}}
       {{#if this.rightSizing}}
         <h3 class="h4 mt-3 mb-2">Right-sizing</h3>
         <Ui::Table
