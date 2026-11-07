@@ -49,6 +49,10 @@
       {{/if}}
       {{#if this.isNodeGroup}}
         <Objects::NodeGroup @object={{this.object}} />
+        <Metrics::NodeGroupHistory @name={{this.object.Name}} class="mb-3" />
+      {{/if}}
+      {{#if this.isLoadBalancer}}
+        <Metrics::LoadBalancerHistory @namespace={{this.object.Namespace}} @name={{this.object.Name}} class="mb-3" />
       {{/if}}
       <div class="row row-cards">
         <div class="col-lg-6">

@@ -1,0 +1,16 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.loadConditions.last.isFinished}}
+  <Metrics::GaugeHistory
+    @id="node-group"
+    @title="Scale history"
+    @subtitle="Of the node group, from the metrics store of the servers"
+    @charts={{this.charts}}
+    @columnClass={{if this.conditionTypes.length "col-lg-4" "col-lg-6"}}
+    @emptyMessage="The servers sample the status of the node group every sample interval."
+    data-test-node-group-history
+    ...attributes
+  />
+{{/if}}

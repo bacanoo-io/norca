@@ -137,6 +137,51 @@ module('Integration | Component | Metrics gauge history', function (hooks) {
       .doesNotExist('the retention of that server limits the ranges');
   });
 
+  test('the node group history shows the nodes, the rollout and the conditions', async function (assert) {
+    await render(hbs`<Metrics::NodeGroupHistory @name="workers" />`);
+    await waitFor('[data-test-gauge-chart="conditions"] [data-test-chart]');
+
+    assert.dom('[data-test-gauge-chart]').exists({ count: 3 });
+    const urls = history(this.server);
+    assert.ok(
+      urls.some(
+        (url) =>
+          url.includes('metric=norca.nodegroup.condition') &&
+          url.includes('group=workers') &&
+          url.includes('type=RollBlocked')
+      ),
+      'a condition type of the series list is read'
+    );
+    assert
+      .dom('[data-test-gauge-chart="conditions"] [data-test-chart-summary]')
+      .includesText('RollBlocked')
+      .doesNotIncludeText('JoinFailing');
+    assert
+      .dom('[data-test-gauge-chart="nodes"] [data-test-chart-summary]')
+      .includesText('Wanted 3')
+      .includesText('Ready 3');
+  });
+
+  test('the load balancer history shows its targets and readiness', async function (assert) {
+    await render(
+      hbs`<Metrics::LoadBalancerHistory @namespace="infra" @name="ingress" />`
+    );
+    await waitFor('[data-test-gauge-chart="ready"] [data-test-chart]');
+
+    assert.dom('[data-test-gauge-chart]').exists({ count: 2 });
+    assert.ok(
+      history(this.server).some(
+        (url) =>
+          url.includes('metric=norca.lb.targets') &&
+          url.includes('ns=infra') &&
+          url.includes('name=ingress')
+      )
+    );
+    assert
+      .dom('[data-test-gauge-chart="ready"] [data-test-chart-summary]')
+      .includesText('Ready 100%');
+  });
+
   test('the helpers', function (assert) {
     const t1 = '2026-11-07T10:00:00Z';
     const t2 = '2026-11-07T10:00:30Z';

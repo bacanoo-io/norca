@@ -110,6 +110,12 @@ export default class ObjectsDetail extends Component {
     return this.kindId === 'norca.io/NodeGroup';
   }
 
+  // The servers keep the health history of the load balancers of the
+  // LoadBalancer operator.
+  get isLoadBalancer() {
+    return this.kindId === 'norca.io/LoadBalancer';
+  }
+
   get health() {
     return this.object ? objectHealth(this.object) : null;
   }
