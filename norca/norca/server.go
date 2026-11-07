@@ -255,6 +255,14 @@ type Server struct {
 	// nil when it or the bus is disabled.
 	metricsStore *metricsstore.Store
 
+	// metricsCounters count the security events of this server and
+	// metricsCounterLast keeps their values at the last sample: the metrics
+	// store keeps their increase per sample interval. secretsGauges are the
+	// numbers of the secrets watchers of the leader.
+	metricsCounters    serverEventCounters
+	metricsCounterLast counterSampler
+	secretsGauges      secretsGaugeValues
+
 	// consulKV is the connection of the ConsulKV endpoint to the bucket of
 	// the Consul KV on the bus.
 	consulKV consulKVConn
@@ -1016,6 +1024,13 @@ func (s *Server) Reload(newConfig *Config) error {
 			s.logger.Error("invalid backup configuration", "error", err)
 			_ = multierror.Append(&mErr, err)
 		}
+	}
+
+	// Apply the limits of the metrics store: the retention, max_disk_size and
+	// max_series.
+	if err := s.reloadMetricsStore(newConfig.MetricsStore); err != nil {
+		s.logger.Error("reloading the metrics store configuration failed", "error", err)
+		_ = multierror.Append(&mErr, err)
 	}
 
 	// Apply the default overflow fraction of service discovery blocks to the

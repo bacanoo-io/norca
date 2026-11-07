@@ -70,10 +70,14 @@ func (m *MetricsStore) local(method, serverID string, args metricsStoreRequest, 
 	return aclObj, false, nil
 }
 
-// allowGauge reports whether aclObj (nil: ACLs disabled) may read a gauge
-// metric: node read for the cluster, quota read for the quotas, operator
-// read for the health of the servers.
-func allowGauge(aclObj *acl.ACL, metric string) bool {
+// allowGauge reports whether aclObj (nil: ACLs disabled) may read a series
+// of a gauge metric with the labels: node read for the cluster, quota read
+// for the quotas, operator read for the health of the servers, the scheduler,
+// the secret store, the security events, the autoscaler, the metrics store
+// and the object counts, list-jobs in the namespace (label ns) for the jobs,
+// backup read for the backups, and read on the objects of the kind for the
+// node groups and the load balancers (in the namespace of label ns).
+func allowGauge(aclObj *acl.ACL, metric string, labels map[string]string) bool {
 	if aclObj == nil {
 		return true
 	}
@@ -84,6 +88,22 @@ func allowGauge(aclObj *acl.ACL, metric string) bool {
 		return aclObj.AllowNodeRead()
 	case strings.HasPrefix(metric, "norca.quota."):
 		return aclObj.AllowQuotaRead()
+	case strings.HasPrefix(metric, "norca.sched."),
+		strings.HasPrefix(metric, "norca.secrets."),
+		strings.HasPrefix(metric, "norca.security."),
+		strings.HasPrefix(metric, "norca.autoscaler."),
+		strings.HasPrefix(metric, "norca.store."),
+		strings.HasPrefix(metric, "norca.objects."):
+		return aclObj.AllowOperatorRead()
+	case strings.HasPrefix(metric, "norca.jobs."):
+		return labels["ns"] != "" && aclObj.AllowNsOp(labels["ns"], acl.NamespaceCapabilityListJobs)
+	case strings.HasPrefix(metric, "norca.backup."):
+		return aclObj.AllowBackupRead()
+	case strings.HasPrefix(metric, "norca.nodegroup."):
+		return aclObj.AllowObjectOperation(acl.ObjectClusterNamespace,
+			structs.ObjectKindRef(structs.NodeScalingGroup, structs.NodeGroupKind), acl.ObjectCapabilityRead)
+	case strings.HasPrefix(metric, "norca.lb."):
+		return labels["ns"] != "" && aclObj.AllowObjectOperation(labels["ns"], loadBalancerKindRef, acl.ObjectCapabilityRead)
 	}
 	return false
 }
@@ -104,7 +124,7 @@ func (m *MetricsStore) History(args *structs.MetricsHistoryRequest, reply *struc
 	}
 	_, gauge := metricsstore.GaugeLabels(args.Metric)
 	if gauge {
-		if !allowGauge(aclObj, args.Metric) {
+		if !allowGauge(aclObj, args.Metric, args.Labels) {
 			return structs.ErrPermissionDenied
 		}
 	} else {
@@ -170,7 +190,7 @@ func (m *MetricsStore) Series(args *structs.MetricsSeriesRequest, reply *structs
 		}
 	}
 	for _, g := range store.Gauges() {
-		if allowGauge(aclObj, g.Metric) {
+		if allowGauge(aclObj, g.Metric, g.Labels) {
 			reply.Gauges = append(reply.Gauges, &structs.MetricsGaugeSeries{Metric: g.Metric, Labels: g.Labels})
 		}
 	}

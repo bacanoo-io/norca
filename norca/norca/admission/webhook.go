@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -164,6 +165,16 @@ func (r *ReviewResponse) PatchOperations() ([]byte, error) {
 type Webhook struct {
 	cfg    *config.AdmissionWebhookConfig
 	client *http.Client
+
+	// calls and failures count the reviews sent and those that failed.
+	calls    atomic.Uint64
+	failures atomic.Uint64
+}
+
+// Counts returns the number of reviews sent to the webhook and of those
+// that failed.
+func (w *Webhook) Counts() (calls, failures uint64) {
+	return w.calls.Load(), w.failures.Load()
 }
 
 // NewWebhook builds a webhook client from its configuration. The
@@ -307,8 +318,10 @@ func (w *Webhook) Review(ctx context.Context, req *ReviewRequest) (resp *ReviewR
 	labels := []metrics.Label{{Name: "webhook", Value: w.cfg.Name}}
 	defer metrics.MeasureSinceWithLabels([]string{"nomad", "admission", "webhook", "latency"}, time.Now(), labels)
 	metrics.IncrCounterWithLabels([]string{"nomad", "admission", "webhook", "calls"}, 1, labels)
+	w.calls.Add(1)
 	defer func() {
 		if err != nil {
+			w.failures.Add(1)
 			metrics.IncrCounterWithLabels([]string{"nomad", "admission", "webhook", "errors"}, 1, labels)
 		}
 	}()

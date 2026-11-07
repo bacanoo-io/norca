@@ -241,6 +241,8 @@ type MetricsStoreStatus struct {
 	DuplicateReports uint64
 	DroppedGroups    uint64
 
+	// Retention is the retention in effect; a reload of the server
+	// configuration changes it, MaxDiskSize and MaxSeries.
 	Retention      time.Duration
 	SampleInterval time.Duration
 }

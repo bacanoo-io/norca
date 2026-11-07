@@ -177,6 +177,11 @@ func TestEmptyGroupGauges(t *testing.T) {
 	defer cleanup()
 	testutil.WaitForLeader(t, s.RPC)
 	st := s.fsm.State()
+	// The leader registers the kind of node groups after it is elected.
+	testutil.WaitForResult(func() (bool, error) {
+		kind, err := st.ObjectKindByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind)
+		return kind != nil, err
+	}, func(err error) { t.Fatalf("the NodeGroup kind is not registered: %v", err) })
 
 	group := func(id, name, class string) *structs.CustomObject {
 		spec := map[string]any{"datacenter": "dc1", "pool": "default"}

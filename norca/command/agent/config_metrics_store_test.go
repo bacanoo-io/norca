@@ -22,7 +22,7 @@ func TestConfig_MetricsStore_Parse(t *testing.T) {
 server {
   enabled = true
   metrics_store {
-    retention          = "168h"
+    retention          = "7d"
     partition_duration = "2h"
     sample_interval    = "60s"
     max_disk_size      = "512MiB"
@@ -69,11 +69,49 @@ func TestConfig_MetricsStore_Defaults(t *testing.T) {
 	must.Eq(t, 24*time.Hour, cfg.Retention)
 }
 
+// TestConfig_MetricsStore_Retention checks the range of the retention, its
+// days, and the partition that follows a short retention.
+func TestConfig_MetricsStore_Retention(t *testing.T) {
+	ci.Parallel(t)
+
+	for in, want := range map[string]struct{ retention, partition time.Duration }{
+		"1h":    {time.Hour, time.Hour},
+		"4h":    {4 * time.Hour, 4 * time.Hour},
+		"7d":    {7 * 24 * time.Hour, 6 * time.Hour},
+		"168h":  {168 * time.Hour, 6 * time.Hour},
+		"720h":  {720 * time.Hour, 6 * time.Hour},
+		"30d":   {720 * time.Hour, 6 * time.Hour},
+		"1d12h": {36 * time.Hour, 6 * time.Hour},
+	} {
+		cfg, err := (&MetricsStoreConfig{Retention: in}).toServerConfig()
+		must.NoError(t, err, must.Sprint(in))
+		must.Eq(t, want.retention, cfg.Retention, must.Sprint(in))
+		must.Eq(t, want.partition, cfg.PartitionDuration, must.Sprint(in))
+	}
+
+	// A partition_duration that is set is kept.
+	cfg, err := (&MetricsStoreConfig{Retention: "2h", PartitionDuration: "30m"}).toServerConfig()
+	must.NoError(t, err)
+	must.Eq(t, 30*time.Minute, cfg.PartitionDuration)
+
+	// Out of range: below an hour, above 30 days.
+	for _, in := range []string{"30m", "31d", "721h"} {
+		_, err := (&MetricsStoreConfig{Retention: in}).toServerConfig()
+		must.ErrorContains(t, err, "retention must be between 1h and 720h (30d)", must.Sprint(in))
+	}
+	_, err = (&MetricsStoreConfig{Retention: "2h", PartitionDuration: "6h"}).toServerConfig()
+	must.ErrorContains(t, err, "partition_duration must not be longer than retention")
+}
+
 func TestConfig_MetricsStore_Invalid(t *testing.T) {
 	ci.Parallel(t)
 
 	for name, m := range map[string]*MetricsStoreConfig{
 		"retention":  {Retention: "1000h"},
+		"31 days":    {Retention: "31d"},
+		"30 minutes": {Retention: "30m"},
+		"days":       {Retention: "7 days"},
+		"partition":  {Retention: "2h", PartitionDuration: "6h"},
 		"duration":   {SampleInterval: "soon"},
 		"disk":       {MaxDiskSize: "lots"},
 		"partitions": {PartitionDuration: "10s", SampleInterval: "30s"},

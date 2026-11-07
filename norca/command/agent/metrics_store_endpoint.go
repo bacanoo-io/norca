@@ -19,6 +19,11 @@ import (
 //	GET /v1/metrics/history?job=<id>&group=<name>&metric=norca.group.cpu&from=<time>&to=<time>&max_points=360
 //	GET /v1/metrics/history?metric=norca.cluster.cpu_used&dc=<dc>&pool=<pool>[&class=<node class>]
 //	GET /v1/metrics/history?metric=norca.quota.cpu_mhz_used&quota=<name>
+//	GET /v1/metrics/history?metric=norca.sched.broker_ready
+//	GET /v1/metrics/history?metric=norca.jobs.running&ns=<namespace>
+//	GET /v1/metrics/history?metric=norca.nodegroup.condition&group=<name>&type=<condition>
+//
+// The labels of a gauge are query parameters of the same name.
 func (s *HTTPServer) MetricsHistoryRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	if req.Method != http.MethodGet {
 		return nil, CodedError(405, ErrInvalidMethod)

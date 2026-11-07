@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins"
@@ -94,6 +95,11 @@ type runner struct {
 	// handles is owned by the loop goroutine.
 	handles map[string]*policyHandle
 	queue   []string
+
+	// queueLen and policyCount are the lengths of queue and handles, for
+	// Autoscaler.Stats.
+	queueLen    atomic.Int64
+	policyCount atomic.Int64
 
 	// lastDemand is the scale last decided for blocked work, by node group,
 	// so that a dry run says it once. told is what the blocked work trigger
@@ -185,6 +191,7 @@ func (r *runner) run(ctx context.Context) {
 			h.queued = false
 			h.inFlight = true
 			r.queue = r.queue[1:]
+			r.queueLen.Store(int64(len(r.queue)))
 
 		case res := <-r.resultCh:
 			if res.err != nil {
@@ -239,6 +246,7 @@ func (r *runner) enqueueDue(now time.Time) {
 		h.queued = true
 		r.queue = append(r.queue, id)
 	}
+	r.queueLen.Store(int64(len(r.queue)))
 	metrics.SetGauge([]string{"nomad", "autoscaler", "queue"}, float32(len(r.queue)))
 }
 

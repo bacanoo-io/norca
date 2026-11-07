@@ -12,9 +12,11 @@ import (
 )
 
 // metricsStoreSampleLoop samples the allocations of the task groups, the
-// capacity of the datacenters and node pools, the health of the servers and
-// the quotas into the metrics store, every interval. Every server has the
-// state and the live usage of the nodes, so each samples its own store.
+// capacity of the datacenters and node pools, the health of the servers, the
+// quotas, the scheduler and the control plane, and the custom objects into
+// the metrics store, every interval. Every server has the state and the live
+// usage of the nodes, so each samples its own store; what only the leader
+// has, only the leader samples.
 func (s *Server) metricsStoreSampleLoop(interval time.Duration) {
 	tick := time.NewTicker(interval)
 	defer tick.Stop()
@@ -56,7 +58,8 @@ func (c *capacity) add(o *capacity) {
 	c.ready += o.ready
 }
 
-// sampleGauges returns the cluster, server health and quota gauges.
+// sampleGauges returns the cluster, server health, quota, control plane and
+// object gauges.
 func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 	snap, err := s.fsm.State().Snapshot()
 	if err != nil {
@@ -107,7 +110,28 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(gauges, quotas...), nil
+	gauges = append(gauges, quotas...)
+
+	// The scheduler and the control plane: the leader's own values (see
+	// controlPlaneValues), the counters and the metrics store of this server,
+	// and the jobs and the backups of the state.
+	gauges = append(gauges, controlPlaneGauges(s.controlPlaneValues(), &s.metricsCounterLast)...)
+	jobs, err := jobStatusGauges(snap)
+	if err != nil {
+		return nil, err
+	}
+	backups, err := backupGauges(snap, now)
+	if err != nil {
+		return nil, err
+	}
+	// The custom objects of the state.
+	objects, err := objectGauges(snap)
+	if err != nil {
+		return nil, err
+	}
+	gauges = append(gauges, jobs...)
+	gauges = append(gauges, backups...)
+	return append(gauges, objects...), nil
 }
 
 // sampleCapacity sums the capacity, the allocated and the used resources of

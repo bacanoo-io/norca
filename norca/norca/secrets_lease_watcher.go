@@ -97,6 +97,7 @@ func (s *Server) runSecretLeaseWatcher(stopCh chan struct{}) {
 }
 
 func (w *secretLeaseWatcher) run(stopCh <-chan struct{}) {
+	defer w.srv.secretsGauges.leasesActive.Store(0)
 	defer metrics.SetGauge([]string{"nomad", "secrets", "leases", "active"}, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -178,6 +179,7 @@ func (w *secretLeaseWatcher) evaluate(ctx context.Context, ws memdb.WatchSet) ti
 			soon(time.Unix(0, l.ExpireTime))
 		}
 	}
+	w.srv.secretsGauges.leasesActive.Store(int64(active))
 	metrics.SetGauge([]string{"nomad", "secrets", "leases", "active"}, float32(active))
 
 	if len(revoke) > 0 {
