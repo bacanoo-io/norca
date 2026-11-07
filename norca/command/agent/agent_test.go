@@ -24,6 +24,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/bacanoo-io/norca/norca/testutil"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/hashicorp/raft"
 )
 
@@ -36,6 +37,23 @@ func TestAgent_RPC_Ping(t *testing.T) {
 	if err := agent.RPC("Status.Ping", &structs.GenericRequest{}, &out); err != nil {
 		t.Fatalf("err: %v", err)
 	}
+}
+
+// TestAgent_ServerConfig_TelemetrySink checks that the server gets the
+// in-memory sink of the agent's telemetry, from which the metrics store reads
+// the Raft times.
+func TestAgent_ServerConfig_TelemetrySink(t *testing.T) {
+	ci.Parallel(t)
+	conf := DefaultConfig()
+	conf.DevMode = true
+	conf.Server.Enabled = true
+	must.NoError(t, conf.normalizeAddrs())
+	inm := metrics.NewInmemSink(10*time.Second, time.Minute)
+	a := &Agent{config: conf, inmemSink: inm}
+
+	out, err := a.serverConfig()
+	must.NoError(t, err)
+	must.True(t, out.TelemetrySink == inm)
 }
 
 func TestAgent_ServerConfig(t *testing.T) {

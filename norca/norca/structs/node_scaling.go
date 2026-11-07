@@ -11,3 +11,14 @@ const (
 	NodeGroupKind    = "NodeGroup"
 	NodeProviderKind = "NodeProvider"
 )
+
+const (
+	// NodeMetaNodeGroup is the meta key of a node with the name of the
+	// NodeGroup the node scaling operator created it for.
+	NodeMetaNodeGroup = "norca.node_group"
+	// NodeMetaCertExpires is the meta key of a node with the expiry of its
+	// certificate (RFC 3339), which the bootstrap of the node scaling
+	// operator writes; a node that renews its certificate itself (norca-join)
+	// has none.
+	NodeMetaCertExpires = "norca.cert_expires"
+)

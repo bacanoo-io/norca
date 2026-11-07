@@ -24,10 +24,25 @@ import (
 // LoadBalancer operator pack installs.
 const loadBalancerKindRef = "norca.io/LoadBalancer"
 
-// serverEventCounters count the security events of this server.
+// serverEventCounters count the security events and the RPC requests of this
+// server.
 type serverEventCounters struct {
 	admissionDenied    atomic.Uint64
 	certificatesIssued atomic.Uint64
+
+	// rpcRequests are the RPC requests the server handled, from the network
+	// and in process; rpcErrors those of them answered with an error or that
+	// failed on the connection.
+	rpcRequests atomic.Uint64
+	rpcErrors   atomic.Uint64
+}
+
+// countRPC counts an RPC request this server handled, and its error.
+func (c *serverEventCounters) countRPC(failed bool) {
+	c.rpcRequests.Add(1)
+	if failed {
+		c.rpcErrors.Add(1)
+	}
 }
 
 // secretsGaugeValues are the numbers the secrets watchers of the leader
@@ -349,6 +364,62 @@ func nodeGroupGauges(obj *structs.CustomObject, conditions map[string]bool) []me
 			Labels: map[string]string{"group": obj.Name, "type": typ}, Value: boolValue(conditions[typ])})
 	}
 	return gauges
+}
+
+// nodeGroupCertGauges returns the hours until the earliest certificate expiry
+// among the nodes of every node group at now: the nodes that name the group
+// in their meta (norca.node_group) and carry the expiry of their certificate
+// (norca.cert_expires). Down nodes are left out: they no longer use their
+// certificate, and the state keeps them until they are garbage collected. A
+// certificate that has expired counts as 0. Only the node groups in the
+// state count, so a node cannot add a series by naming a group of its own;
+// a group without such nodes has no point.
+func nodeGroupCertGauges(snap *state.StateSnapshot, now time.Time) ([]metricsstore.Gauge, error) {
+	groups, err := snap.CustomObjects(nil, structs.NodeScalingGroup, structs.NodeGroupKind, structs.AllNamespacesSentinel, state.SortDefault)
+	if err != nil {
+		return nil, err
+	}
+	earliest := map[string]time.Time{}
+	for raw := groups.Next(); raw != nil; raw = groups.Next() {
+		earliest[raw.(*structs.CustomObject).Name] = time.Time{}
+	}
+	if len(earliest) == 0 {
+		return nil, nil
+	}
+	nodes, err := snap.Nodes(nil)
+	if err != nil {
+		return nil, err
+	}
+	for raw := nodes.Next(); raw != nil; raw = nodes.Next() {
+		node := raw.(*structs.Node)
+		if node.Status == structs.NodeStatusDown {
+			continue
+		}
+		group := node.Meta[structs.NodeMetaNodeGroup]
+		cur, ok := earliest[group]
+		if !ok {
+			continue
+		}
+		expires, err := time.Parse(time.RFC3339, node.Meta[structs.NodeMetaCertExpires])
+		if err != nil {
+			continue
+		}
+		if cur.IsZero() || expires.Before(cur) {
+			earliest[group] = expires
+		}
+	}
+	var gauges []metricsstore.Gauge
+	for group, expires := range earliest {
+		if expires.IsZero() {
+			continue
+		}
+		gauges = append(gauges, metricsstore.Gauge{
+			Metric: metricsstore.MetricNodeGroupCertExpiresMinHours,
+			Labels: map[string]string{"group": group},
+			Value:  max(expires.Sub(now).Hours(), 0),
+		})
+	}
+	return gauges, nil
 }
 
 // objectConditions returns the conditions of the status of an object by

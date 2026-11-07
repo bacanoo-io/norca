@@ -667,6 +667,7 @@ func (a *Agent) finalizeServerConfig(c *norca.Config) {
 	c.Logger = a.logger
 	c.LogOutput = a.logOutput
 	c.AgentShutdown = func() error { return a.Shutdown() }
+	c.TelemetrySink = a.inmemSink
 }
 
 // clientConfig is used to generate a new client configuration struct for

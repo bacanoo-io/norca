@@ -443,7 +443,7 @@ func (r *rpcHandler) handleMultiplex(ctx context.Context, conn net.Conn, rpcCtx 
 // handleNomadConn is used to service a single Nomad RPC connection
 func (r *rpcHandler) handleNomadConn(ctx context.Context, conn net.Conn, server *rpc.Server) {
 	defer conn.Close()
-	rpcCodec := pool.NewServerCodec(conn)
+	rpcCodec := &errorNotingCodec{ServerCodec: pool.NewServerCodec(conn)}
 	for {
 		select {
 		case <-ctx.Done():
@@ -454,15 +454,33 @@ func (r *rpcHandler) handleNomadConn(ctx context.Context, conn net.Conn, server 
 		default:
 		}
 
+		rpcCodec.answeredError = false
 		if err := server.ServeRequest(rpcCodec); err != nil {
 			if err != io.EOF && !strings.Contains(err.Error(), "closed") {
 				r.logger.Error("RPC error", "error", err, "connection", conn)
 				metrics.IncrCounter([]string{"nomad", "rpc", "request_error"}, 1)
+				r.srv.metricsCounters.countRPC(true)
 			}
 			return
 		}
 		metrics.IncrCounter([]string{"nomad", "rpc", "request"}, 1)
+		r.srv.metricsCounters.countRPC(rpcCodec.answeredError)
 	}
+}
+
+// errorNotingCodec notes whether the server answered the request it serves
+// with an error, for the RPC errors of the metrics store. ServeRequest
+// answers a request before it returns, on the goroutine of the connection.
+type errorNotingCodec struct {
+	rpc.ServerCodec
+	answeredError bool
+}
+
+func (c *errorNotingCodec) WriteResponse(resp *rpc.Response, body any) error {
+	if resp.Error != "" {
+		c.answeredError = true
+	}
+	return c.ServerCodec.WriteResponse(resp, body)
 }
 
 // handleStreamingConn is used to handle a single Streaming Nomad RPC connection.

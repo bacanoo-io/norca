@@ -243,6 +243,61 @@ func TestMetricsStore_ObjectGauges(t *testing.T) {
 	}, gaugeValues(gauges))
 }
 
+// TestMetricsStore_NodeGroupCertGauges checks the hours until the earliest
+// node certificate expiry of every node group: the earliest of the nodes
+// that are not down, 0 once expired, and no point for a group without such
+// nodes or for a group that is not in the state.
+func TestMetricsStore_NodeGroupCertGauges(t *testing.T) {
+	ci.Parallel(t)
+	st := state.TestStateStore(t)
+	now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+
+	must.NoError(t, st.UpsertObjectKind(structs.MsgTypeTestSetup, 1000,
+		&structs.ObjectKind{Group: structs.NodeScalingGroup, Kind: structs.NodeGroupKind, Schema: `{"type":"object"}`}))
+	snap, err := st.Snapshot()
+	must.NoError(t, err)
+	gauges, err := nodeGroupCertGauges(snap, now)
+	must.NoError(t, err)
+	must.SliceEmpty(t, gauges)
+
+	for i, name := range []string{"workers", "expired", "joined", "empty"} {
+		obj := &structs.CustomObject{Group: structs.NodeScalingGroup, Kind: structs.NodeGroupKind, Name: name, ID: name}
+		must.NoError(t, st.UpsertCustomObject(structs.MsgTypeTestSetup, uint64(1100+i), obj, 0))
+	}
+	for i, n := range []struct {
+		group, expires, status string
+	}{
+		{"workers", now.Add(30 * time.Hour).Format(time.RFC3339), structs.NodeStatusReady},
+		{"workers", now.Add(12 * time.Hour).Format(time.RFC3339), structs.NodeStatusReady},
+		// A down node and an unreadable expiry do not count.
+		{"workers", now.Add(time.Hour).Format(time.RFC3339), structs.NodeStatusDown},
+		{"workers", "soon", structs.NodeStatusReady},
+		{"expired", now.Add(-2 * time.Hour).Format(time.RFC3339), structs.NodeStatusReady},
+		{"expired", now.Add(5 * time.Hour).Format(time.RFC3339), structs.NodeStatusDisconnected},
+		// A node with a certificate it renews itself has no expiry.
+		{"joined", "", structs.NodeStatusReady},
+		// A group that is not in the state gets no series.
+		{"unknown", now.Add(time.Hour).Format(time.RFC3339), structs.NodeStatusReady},
+	} {
+		node := mock.Node()
+		node.Status = n.status
+		node.Meta[structs.NodeMetaNodeGroup] = n.group
+		if n.expires != "" {
+			node.Meta[structs.NodeMetaCertExpires] = n.expires
+		}
+		must.NoError(t, st.UpsertNode(structs.MsgTypeTestSetup, uint64(1200+i), node))
+	}
+
+	snap, err = st.Snapshot()
+	must.NoError(t, err)
+	gauges, err = nodeGroupCertGauges(snap, now)
+	must.NoError(t, err)
+	must.Eq(t, map[string]float64{
+		metricsstore.MetricNodeGroupCertExpiresMinHours + "/workers": 12,
+		metricsstore.MetricNodeGroupCertExpiresMinHours + "/expired": 0,
+	}, gaugeValues(gauges))
+}
+
 // TestMetricsStore_ControlPlaneACL checks the ACL of the series of the
 // scheduler, the control plane and the objects.
 func TestMetricsStore_ControlPlaneACL(t *testing.T) {
@@ -274,6 +329,11 @@ namespace "web" { object "norca.io/LoadBalancer" { policy = "read" } }`)
 		{metricsstore.MetricStoreSeries, nil, []*acl.ACL{operator}},
 		{metricsstore.MetricServerRaftDBBytes, nil, []*acl.ACL{operator}},
 		{metricsstore.MetricServerRaftCommitLag, nil, []*acl.ACL{operator}},
+		{metricsstore.MetricServerRaftCommit, nil, []*acl.ACL{operator}},
+		{metricsstore.MetricServerRaftAppendEntries, map[string]string{"peer": "server-2"}, []*acl.ACL{operator}},
+		{metricsstore.MetricServerRPCRequests, nil, []*acl.ACL{operator}},
+		{metricsstore.MetricServerRPCErrors, nil, []*acl.ACL{operator}},
+		{metricsstore.MetricNodeGroupCertExpiresMinHours, map[string]string{"group": "g"}, []*acl.ACL{objects}},
 		{metricsstore.MetricBusJetStreamBytes, nil, []*acl.ACL{operator}},
 		{metricsstore.MetricBusRoutes, nil, []*acl.ACL{operator}},
 		{metricsstore.MetricObjectsCount, map[string]string{"kind": "norca.io/NodeGroup"}, []*acl.ACL{operator}},
