@@ -191,3 +191,30 @@ func TestTaskGroupUsageAggregator_ThrottleCacheOOM(t *testing.T) {
 	must.Nil(t, agg.Flush())
 	must.MapEmpty(t, agg.allocs)
 }
+
+// TestTaskGroupUsageAggregator_MemoryPeak checks the peak memory: from the
+// measurements that have it only.
+func TestTaskGroupUsageAggregator_MemoryPeak(t *testing.T) {
+	ci.Parallel(t)
+
+	agg := NewTaskGroupUsageAggregator()
+	a := usageAlloc("api", "web")
+	measure := func(peakMiB uint64) *cstructs.AllocResourceUsage {
+		u := fakeUsage(100, 64)
+		u.ResourceUsage.MemoryStats.MaxUsage = peakMiB * 1024 * 1024
+		return u
+	}
+	agg.Observe(a, measure(100))
+	agg.Observe(a, measure(0)) // not measured
+	agg.Observe(a, measure(200))
+	g := agg.Flush()[0]
+	must.Eq(t, 3, g.Samples)
+	must.Eq(t, 2, g.MemoryPeakSamples)
+	must.Eq(t, structs.TaskGroupUsageValue{Avg: 150, Max: 200}, g.MemoryPeakMB)
+
+	// A driver that does not measure it reports none.
+	agg.Observe(a, measure(0))
+	g = agg.Flush()[0]
+	must.Eq(t, 0, g.MemoryPeakSamples)
+	must.Eq(t, structs.TaskGroupUsageValue{}, g.MemoryPeakMB)
+}

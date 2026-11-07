@@ -11,8 +11,9 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
-// metricsStoreSampleLoop samples the allocations of the task groups, the
-// capacity of the datacenters and node pools, the health of the servers, the
+// metricsStoreSampleLoop samples the allocations and the task restarts of the
+// task groups, the capacity and the nodes by state of the datacenters and
+// node pools, the health of the servers, the
 // quotas, the scheduler and the control plane, and the custom objects into
 // the metrics store, every interval. Every server has the state and the live
 // usage of the nodes, so each samples its own store; what only the leader
@@ -58,8 +59,8 @@ func (c *capacity) add(o *capacity) {
 	c.ready += o.ready
 }
 
-// sampleGauges returns the cluster, server health, quota, control plane and
-// object gauges.
+// sampleGauges returns the cluster, nodes by state, server health, quota,
+// control plane and object gauges.
 func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 	snap, err := s.fsm.State().Snapshot()
 	if err != nil {
@@ -91,6 +92,11 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 	}
 
 	gauges = append(gauges, emptyGroupGauges(snap, cluster)...)
+	nodes, err := nodeStateGauges(snap)
+	if err != nil {
+		return nil, err
+	}
+	gauges = append(gauges, nodes...)
 
 	// Only the leader runs autopilot and has the blocked evaluations.
 	if s.IsLeader() {

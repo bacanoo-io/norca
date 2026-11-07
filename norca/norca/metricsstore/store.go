@@ -76,7 +76,7 @@ type Store struct {
 	// gauges are the gauge series by gaugeKey, gaugePending their values
 	// not written yet by window start.
 	gauges       map[string]GaugeSeries
-	gaugePending map[int64]map[string]float64
+	gaugePending map[int64]map[string]gaugeValue
 
 	// live is the latest usage report of each node.
 	live map[string]*nodeLive
@@ -118,7 +118,7 @@ func Open(cfg *Config, logger hclog.Logger) (*Store, error) {
 		pending:      map[int64]map[GroupKey]*window{},
 		series:       map[GroupKey]struct{}{},
 		gauges:       map[string]GaugeSeries{},
-		gaugePending: map[int64]map[string]float64{},
+		gaugePending: map[int64]map[string]gaugeValue{},
 		live:         map[string]*nodeLive{},
 		stopCh:       make(chan struct{}),
 		doneCh:       make(chan struct{}),
@@ -211,20 +211,34 @@ func (s *Store) ingestLocked(report *structs.TaskGroupUsageReport, at time.Time)
 	}
 }
 
-// AllocCounts are the running and the queued allocations of a task group.
+// AllocCounts are the allocations of a task group by status, and the task
+// restarts of its allocations since the previous sample.
 type AllocCounts struct {
-	Running int
-	Queued  int
+	Running  int
+	Queued   int
+	Starting int
+	Failed   int
+	Lost     int
+	Restarts int
+}
+
+// active reports whether the group has work: allocations running, queued or
+// starting, or restarts. Failed and lost allocations alone do not make a
+// series: the summaries of old jobs keep them.
+func (c AllocCounts) active() bool {
+	return c.Running > 0 || c.Queued > 0 || c.Starting > 0 || c.Restarts > 0
 }
 
 // RecordAllocs stores the allocations of the task groups sampled by the
-// server at the time at. Task groups without series that have neither
-// running nor queued allocations are left out.
+// server at the time at. Task groups without series and without work (see
+// AllocCounts.active) are left out.
 func (s *Store) RecordAllocs(at time.Time, groups map[GroupKey]AllocCounts) {
 	interval := int64(s.cfg.SampleInterval / time.Second)
 	ts := at.Unix()
 	start := ts - ts%interval
 	running, queued := metricIndex(MetricAllocsRunning), metricIndex(MetricAllocsQueued)
+	starting, failed, lost := metricIndex(MetricAllocsStarting), metricIndex(MetricAllocsFailed), metricIndex(MetricAllocsLost)
+	restarts := metricIndex(MetricRestarts)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -239,7 +253,7 @@ func (s *Store) RecordAllocs(at time.Time, groups map[GroupKey]AllocCounts) {
 	}
 	for key, n := range groups {
 		if _, ok := s.series[key]; !ok {
-			if n.Running == 0 && n.Queued == 0 {
+			if !n.active() {
 				continue
 			}
 			if s.cfg.MaxSeries > 0 && s.seriesCountLocked()+seriesPerGroup > s.cfg.MaxSeries {
@@ -256,6 +270,10 @@ func (s *Store) RecordAllocs(at time.Time, groups map[GroupKey]AllocCounts) {
 		}
 		w.setState(running, float64(n.Running))
 		w.setState(queued, float64(n.Queued))
+		w.setState(starting, float64(n.Starting))
+		w.setState(failed, float64(n.Failed))
+		w.setState(lost, float64(n.Lost))
+		w.addCount(restarts, float64(n.Restarts))
 	}
 }
 

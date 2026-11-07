@@ -71,8 +71,9 @@ func (m *MetricsStore) local(method, serverID string, args metricsStoreRequest, 
 }
 
 // allowGauge reports whether aclObj (nil: ACLs disabled) may read a series
-// of a gauge metric with the labels: node read for the cluster, quota read
-// for the quotas, operator read for the health of the servers, the scheduler,
+// of a gauge metric with the labels: node read for the cluster and the nodes
+// (by state, and the host statistics of each node), quota read for the
+// quotas, operator read for the health of the servers, the scheduler,
 // the secret store, the security events, the autoscaler, the metrics store
 // and the object counts, list-jobs in the namespace (label ns) for the jobs,
 // backup read for the backups, and read on the objects of the kind for the
@@ -84,7 +85,9 @@ func allowGauge(aclObj *acl.ACL, metric string, labels map[string]string) bool {
 	switch {
 	case strings.HasPrefix(metric, "norca.cluster.autopilot_"):
 		return aclObj.AllowOperatorRead()
-	case strings.HasPrefix(metric, "norca.cluster."):
+	case strings.HasPrefix(metric, "norca.cluster."),
+		strings.HasPrefix(metric, "norca.nodes."),
+		strings.HasPrefix(metric, "norca.node."):
 		return aclObj.AllowNodeRead()
 	case strings.HasPrefix(metric, "norca.quota."):
 		return aclObj.AllowQuotaRead()
