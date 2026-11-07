@@ -149,6 +149,7 @@ func (m *MetricsStore) History(args *structs.MetricsHistoryRequest, reply *struc
 		return nil
 	}
 	reply.Enabled = true
+	reply.Retention = store.Retention()
 
 	to := args.To
 	if to.IsZero() {
@@ -190,6 +191,7 @@ func (m *MetricsStore) Series(args *structs.MetricsSeriesRequest, reply *structs
 		return nil
 	}
 	reply.Enabled = true
+	reply.Retention = store.Retention()
 	for _, g := range store.Groups() {
 		if aclObj == nil || aclObj.AllowNsOp(g.Namespace, acl.NamespaceCapabilityReadJob) {
 			reply.Groups = append(reply.Groups, &structs.MetricsGroup{Namespace: g.Namespace, JobID: g.Job, Group: g.Group})

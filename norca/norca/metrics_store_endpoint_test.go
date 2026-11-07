@@ -91,6 +91,7 @@ func TestMetricsStore_History(t *testing.T) {
 	resp, err := history(root.SecretID, "default")
 	must.NoError(t, err)
 	must.True(t, resp.Enabled)
+	must.Eq(t, 2*time.Hour, resp.Retention)
 	must.Eq(t, 25.0, resp.Points[0].Avg)
 	must.Eq(t, 40.0, resp.Points[0].Max)
 
@@ -347,6 +348,7 @@ func TestMetricsStore_GaugesSeriesSummaryACL(t *testing.T) {
 	// The series list shows what the token may read.
 	var series structs.MetricsSeriesResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.MetricsStoreSeriesRPCMethod, &structs.MetricsSeriesRequest{QueryOptions: q(jobs)}, &series))
+	must.Eq(t, 2*time.Hour, series.Retention)
 	must.Len(t, 1, series.Groups)
 	// Of the gauges, read-job in a namespace shows the jobs of that
 	// namespace only (sampled by the server meanwhile).

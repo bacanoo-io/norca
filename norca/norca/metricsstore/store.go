@@ -478,6 +478,11 @@ func (s *Store) SetRetention(retention time.Duration) error {
 	return nil
 }
 
+// Retention returns the retention in effect.
+func (s *Store) Retention() time.Duration {
+	return time.Duration(s.retention.Load())
+}
+
 // Reload applies a reloaded configuration. The retention, max_disk_size and
 // max_series apply at once: max_disk_size at the next maintenance (within a
 // minute), max_series to new series only. partition_duration,
