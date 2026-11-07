@@ -407,9 +407,10 @@ func (sc *ServiceCheck) validateNomad() error {
 		return errors.New("tls_server_name may only be set for Consul service checks")
 	}
 
-	// tls_skip_verify is consul only
-	if sc.TLSSkipVerify {
-		return errors.New("tls_skip_verify may only be set for Consul service checks")
+	// tls_skip_verify applies to an https check (Norca): the client does not
+	// verify the certificate of the service, which may come from a private CA
+	if sc.TLSSkipVerify && (sc.Type != ServiceCheckHTTP || sc.Protocol != "https") {
+		return errors.New(`tls_skip_verify needs an http check with protocol = "https"`)
 	}
 
 	return nil

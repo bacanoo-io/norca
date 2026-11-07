@@ -133,3 +133,10 @@ func TestChecks_ClientResults_Insert(t *testing.T) {
 	}
 	must.Eq(t, exp, cr)
 }
+
+func TestChecks_GetCheckQuery_TLSSkipVerify(t *testing.T) {
+	q := GetCheckQuery(&structs.ServiceCheck{Type: "http", Protocol: "https", TLSSkipVerify: true})
+	must.True(t, q.TLSSkipVerify)
+	q = GetCheckQuery(&structs.ServiceCheck{Type: "http", Protocol: "https"})
+	must.False(t, q.TLSSkipVerify)
+}

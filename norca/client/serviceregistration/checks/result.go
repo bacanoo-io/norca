@@ -29,6 +29,8 @@ func GetCheckQuery(c *structs.ServiceCheck) *Query {
 		Method:      c.Method,
 		Headers:     maps.Clone(c.Header),
 		Body:        c.Body,
+
+		TLSSkipVerify: c.TLSSkipVerify,
 	}
 }
 
@@ -48,6 +50,10 @@ type Query struct {
 	Method   string      // http checks only
 	Headers  http.Header // http checks only
 	Body     string      // http checks only
+
+	// TLSSkipVerify skips the verification of the certificate of an https
+	// check (Norca).
+	TLSSkipVerify bool
 }
 
 // A QueryContext contains allocation and service parameters necessary for

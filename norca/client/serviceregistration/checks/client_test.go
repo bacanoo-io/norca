@@ -539,3 +539,51 @@ func tcpServer(t *testing.T, ctx context.Context, port int) {
 		}
 	}()
 }
+
+func TestChecker_Do_HTTPS_TLSSkipVerify(t *testing.T) {
+	ci.Parallel(t)
+
+	// A service whose certificate no CA of the client knows, as one issued by
+	// a private CA (Norca).
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	addr, port := splitURL(ts.URL)
+
+	qc := &QueryContext{
+		ID:               "abc123",
+		CustomAddress:    addr,
+		ServicePortLabel: port,
+		NetworkStatus:    mock.NewNetworkStatus(addr),
+	}
+	query := func(skip bool) *Query {
+		return &Query{
+			Mode:          structs.Healthiness,
+			Type:          "http",
+			Timeout:       time.Second,
+			AddressMode:   "auto",
+			PortLabel:     port,
+			Protocol:      "https",
+			Path:          "/",
+			Method:        "GET",
+			TLSSkipVerify: skip,
+		}
+	}
+
+	c := New(testlog.HCLogger(t))
+	ctx := context.Background()
+
+	// Verified: the certificate is refused.
+	result := c.Do(ctx, qc, query(false))
+	must.Eq(t, structs.CheckFailure, result.Status)
+	must.StrContains(t, result.Output, "certificate")
+
+	// tls_skip_verify: the check passes.
+	result = c.Do(ctx, qc, query(true))
+	must.Eq(t, structs.CheckSuccess, result.Status)
+
+	// The verifying client is not changed by the other one.
+	result = c.Do(ctx, qc, query(false))
+	must.Eq(t, structs.CheckFailure, result.Status)
+}

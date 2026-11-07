@@ -7,6 +7,7 @@ package checks
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -40,10 +41,19 @@ type Checker interface {
 func New(log hclog.Logger) Checker {
 	httpClient := cleanhttp.DefaultPooledClient()
 	httpClient.Timeout = maxTimeoutHTTP
+
+	// The client of the checks with tls_skip_verify (Norca): a pool of its
+	// own, so no connection is shared with the verifying client.
+	insecure := cleanhttp.DefaultPooledTransport()
+	insecure.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402 -- asked for by tls_skip_verify
 	return &checker{
 		log:        log.Named("checks"),
 		httpClient: httpClient,
-		clock:      libtime.SystemClock(),
+		insecureHTTPClient: &http.Client{
+			Transport: insecure,
+			Timeout:   maxTimeoutHTTP,
+		},
+		clock: libtime.SystemClock(),
 	}
 }
 
@@ -51,6 +61,9 @@ type checker struct {
 	log        hclog.Logger
 	clock      libtime.Clock
 	httpClient *http.Client
+
+	// insecureHTTPClient runs the https checks with tls_skip_verify.
+	insecureHTTPClient *http.Client
 }
 
 func (c *checker) now() int64 {
@@ -190,7 +203,11 @@ func (c *checker) checkHTTP(ctx context.Context, qc *QueryContext, q *Query) *st
 	request.Body = io.NopCloser(strings.NewReader(q.Body))
 	request = request.WithContext(ctx)
 
-	result, err := c.httpClient.Do(request)
+	client := c.httpClient
+	if q.TLSSkipVerify && c.insecureHTTPClient != nil {
+		client = c.insecureHTTPClient
+	}
+	result, err := client.Do(request)
 	if err != nil {
 		qr.Output = fmt.Sprintf("nomad: %s", err.Error())
 		qr.Status = structs.CheckFailure
