@@ -172,7 +172,8 @@ const nodeGroupKindSchema = `{
                   "phase": {"type": "string", "enum": ["surging", "leaving", "emptying", "draining", "deleted"]},
                   "since": {"type": "string"},
                   "started": {"type": "string"},
-                  "expires": {"type": "string"}
+                  "expires": {"type": "string"},
+                  "held": {"type": "boolean"}
                 }
               }
             },
@@ -202,7 +203,8 @@ const nodeGroupKindSchema = `{
             "selector": {"type": "string", "enum": ["least_busy", "empty"]},
             "phase": {"type": "string", "enum": ["leaving", "draining", "settling", "deleting", "deleted"]},
             "started": {"type": "string"},
-            "settleUntil": {"type": "string"}
+            "settleUntil": {"type": "string"},
+            "held": {"type": "boolean"}
           }
         },
         "scaleDown": {
