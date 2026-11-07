@@ -125,6 +125,15 @@ func TestBus_SingleServer(t *testing.T) {
 	must.Eq(t, 1, sd.Replicas)
 	must.Eq(t, "s1", sd.Leader)
 	must.Eq(t, 1, st.Connections.Internal)
+
+	// The sample has the totals of the streams and no routes.
+	sample, err := s.Sample()
+	must.NoError(t, err)
+	must.True(t, sample.JetStream)
+	must.Eq(t, uint64(1), sample.Messages)
+	must.Eq(t, sd.Bytes, sample.Bytes)
+	must.Positive(t, sample.Bytes)
+	must.Eq(t, 0, sample.RouteServers)
 }
 
 func TestBus_Authentication(t *testing.T) {
@@ -260,6 +269,20 @@ func TestBus_Cluster(t *testing.T) {
 			}
 			if st.JetStream == nil || st.JetStream.MetaLeader == "" || st.JetStream.ClusterSize != 3 {
 				return false, fmt.Errorf("%s: JetStream %+v", st.Server, st.JetStream)
+			}
+		}
+		return true, nil
+	}, func(err error) { t.Fatal(err) })
+
+	// The routes are counted by server, not by the connections of the pool.
+	testutil.WaitForResult(func() (bool, error) {
+		for i, s := range servers {
+			sample, err := s.Sample()
+			if err != nil {
+				return false, err
+			}
+			if sample.RouteServers != 2 {
+				return false, fmt.Errorf("s%d has routes to %d servers", i+1, sample.RouteServers)
 			}
 		}
 		return true, nil

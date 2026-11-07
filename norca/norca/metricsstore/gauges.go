@@ -148,6 +148,35 @@ const (
 	MetricStoreDroppedReports = "norca.store.dropped_reports"
 )
 
+// The internals of the sampling server (family 8). Every server samples its
+// own values into its own store, so the series carry no server label: the
+// history of a server is read from that server.
+const (
+	// MetricServerRaftDBBytes is the space the Raft log store takes on disk
+	// in bytes: the files of the Badger database, or the file of BoltDB
+	// (raft_store).
+	MetricServerRaftDBBytes = "norca.server.raft_db_bytes"
+	// MetricServerRaftLastContact is the time since the server last heard
+	// from the leader in seconds; 0 on the leader, no point on a server
+	// that never heard from one.
+	MetricServerRaftLastContact = "norca.server.raft_last_contact_seconds"
+	// MetricServerRaftCommitLag is the commit index less the applied index:
+	// the committed entries the server has not applied yet.
+	MetricServerRaftCommitLag = "norca.server.raft_commit_lag"
+	// MetricServerRaftFSMPending is the number of batches of entries waiting
+	// for the state machine.
+	MetricServerRaftFSMPending = "norca.server.raft_fsm_pending"
+	// MetricServerRaftTerm is the current Raft term; a rise is an election.
+	MetricServerRaftTerm = "norca.server.raft_term"
+
+	// The system bus of the server: the bytes and messages of the JetStream
+	// streams it stores a replica of, and the other servers of the region
+	// it has a route to.
+	MetricBusJetStreamBytes    = "norca.bus.jetstream_bytes"
+	MetricBusJetStreamMessages = "norca.bus.jetstream_messages"
+	MetricBusRoutes            = "norca.bus.routes"
+)
+
 // The host statistics of a client node (family 7; labels node, dc, pool,
 // class), from the usage reports of the clients: the mean of the
 // measurements of the sample interval and the largest one. The node label is
@@ -259,6 +288,15 @@ var gaugeLabels = map[string][]string{
 	MetricStoreDiskBytes:             {},
 	MetricStoreSeries:                {},
 	MetricStoreDroppedReports:        {},
+
+	MetricServerRaftDBBytes:     {},
+	MetricServerRaftLastContact: {},
+	MetricServerRaftCommitLag:   {},
+	MetricServerRaftFSMPending:  {},
+	MetricServerRaftTerm:        {},
+	MetricBusJetStreamBytes:     {},
+	MetricBusJetStreamMessages:  {},
+	MetricBusRoutes:             {},
 
 	MetricNodeGroupReplicas:         {"group"},
 	MetricNodeGroupReady:            {"group"},

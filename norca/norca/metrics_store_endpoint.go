@@ -74,8 +74,9 @@ func (m *MetricsStore) local(method, serverID string, args metricsStoreRequest, 
 // of a gauge metric with the labels: node read for the cluster and the nodes
 // (by state, and the host statistics of each node), quota read for the
 // quotas, operator read for the health of the servers, the scheduler,
-// the secret store, the security events, the autoscaler, the metrics store
-// and the object counts, list-jobs in the namespace (label ns) for the jobs,
+// the secret store, the security events, the autoscaler, the metrics store,
+// the internals of the server (Raft and the system bus) and the object
+// counts, list-jobs in the namespace (label ns) for the jobs,
 // backup read for the backups, and read on the objects of the kind for the
 // node groups and the load balancers (in the namespace of label ns).
 func allowGauge(aclObj *acl.ACL, metric string, labels map[string]string) bool {
@@ -96,6 +97,8 @@ func allowGauge(aclObj *acl.ACL, metric string, labels map[string]string) bool {
 		strings.HasPrefix(metric, "norca.security."),
 		strings.HasPrefix(metric, "norca.autoscaler."),
 		strings.HasPrefix(metric, "norca.store."),
+		strings.HasPrefix(metric, "norca.server."),
+		strings.HasPrefix(metric, "norca.bus."),
 		strings.HasPrefix(metric, "norca.objects."):
 		return aclObj.AllowOperatorRead()
 	case strings.HasPrefix(metric, "norca.jobs."):

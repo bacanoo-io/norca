@@ -31,7 +31,7 @@ func TestServer_RaftStore_BoltDB(t *testing.T) {
 	defer cleanup()
 	testutil.WaitForLeader(t, s.RPC)
 
-	_, ok := s.raftStore.(*raftboltdb.BoltStore)
+	_, ok := s.raftStore.(*boltRaftStore)
 	must.True(t, ok)
 	raftDir := filepath.Join(dir, raftState)
 	_, err := os.Stat(filepath.Join(raftDir, raftBoltFile))
