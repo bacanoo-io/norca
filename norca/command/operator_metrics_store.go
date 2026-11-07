@@ -61,8 +61,10 @@ Usage: norca operator metrics-store status [options]
 
   Displays the state of the metrics store of one server: its partitions, the
   disk use, the series, the time range of the stored points and the
-  effective retention (which a reload of the server configuration changes).
-  Without -server, the server answering the request reports.
+  effective retention (which a reload of the server configuration changes),
+  of the main store and of the hosts store, which keeps the host metrics
+  (norca.node.*, norca.server.* and norca.bus.*) with their own retention
+  and disk cap. Without -server, the server answering the request reports.
 
   If ACLs are enabled, this command requires a token with the 'operator:read'
   capability.
@@ -164,14 +166,17 @@ func formatMetricsStoreStatus(st *api.MetricsStoreStatus) string {
 	if st.MaxSeries > 0 {
 		maxSeries = fmt.Sprint(st.MaxSeries)
 	}
-	maxDisk := "unlimited"
-	if st.MaxDiskSize > 0 {
-		maxDisk = humanize.IBytes(uint64(st.MaxDiskSize))
+	disk := func(bytes, maxDisk int64) string {
+		limit := "unlimited"
+		if maxDisk > 0 {
+			limit = humanize.IBytes(uint64(maxDisk))
+		}
+		return humanize.IBytes(uint64(bytes)) + " of " + limit
 	}
-	return formatKV([]string{
+	out := formatKV([]string{
 		fmt.Sprintf("Server|%s", st.Server),
 		fmt.Sprintf("Partitions|%d (%d on disk)", st.Partitions, st.DiskPartitions),
-		fmt.Sprintf("Disk|%s of %s", humanize.IBytes(uint64(st.DiskBytes)), maxDisk),
+		fmt.Sprintf("Disk|%s", disk(st.DiskBytes, st.MaxDiskSize)),
 		fmt.Sprintf("Series|%d of %s", st.Series, maxSeries),
 		fmt.Sprintf("Oldest Point|%s", timeOrNone(st.Oldest, formatTime(st.Oldest))),
 		fmt.Sprintf("Newest Point|%s", timeOrNone(st.Newest, formatTime(st.Newest))),
@@ -182,4 +187,15 @@ func formatMetricsStoreStatus(st *api.MetricsStoreStatus) string {
 		fmt.Sprintf("Dropped Groups|%d", st.DroppedGroups),
 		fmt.Sprintf("Forgotten Series|%d", st.ForgottenSeries),
 	})
+	if h := st.Hosts; h != nil {
+		out += "\n\nHosts Store (norca.node.*, norca.server.*, norca.bus.*)\n" + formatKV([]string{
+			fmt.Sprintf("Partitions|%d (%d on disk)", h.Partitions, h.DiskPartitions),
+			fmt.Sprintf("Disk|%s", disk(h.DiskBytes, h.MaxDiskSize)),
+			fmt.Sprintf("Series|%d", h.Series),
+			fmt.Sprintf("Oldest Point|%s", timeOrNone(h.Oldest, formatTime(h.Oldest))),
+			fmt.Sprintf("Newest Point|%s", timeOrNone(h.Newest, formatTime(h.Newest))),
+			fmt.Sprintf("Retention|%s", formatMetricsRetention(h.Retention)),
+		})
+	}
+	return out
 }

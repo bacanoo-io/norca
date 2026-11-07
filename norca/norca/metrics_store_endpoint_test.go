@@ -30,6 +30,7 @@ func enableMetricsStore(t *testing.T) func(*Config) {
 		c.MetricsStore.SampleInterval = time.Second
 		c.MetricsStore.PartitionDuration = time.Hour
 		c.MetricsStore.Retention = 2 * time.Hour
+		c.MetricsStore.HostRetention = time.Hour
 	}
 }
 
@@ -116,6 +117,8 @@ func TestMetricsStore_History(t *testing.T) {
 	must.SliceNotEmpty(t, resp.Points)
 	must.Eq(t, 30.0, resp.Points[0].Avg)
 	must.Eq(t, 50.0, resp.Points[0].Max)
+	// The retention is that of the hosts store, which keeps the node series.
+	must.Eq(t, time.Hour, resp.Retention)
 	resp, err = nodeHistory(metricsstore.MetricNodeMemoryTotalMB)
 	must.NoError(t, err)
 	must.Eq(t, 8192.0, resp.Points[0].Avg)
@@ -163,6 +166,17 @@ func TestMetricsStore_History(t *testing.T) {
 	must.True(t, status.Status.Enabled)
 	must.GreaterEq(t, 18, status.Status.Series) // and the gauges of the cluster
 	must.False(t, status.Status.Newest.IsZero())
+	must.Eq(t, 2*time.Hour, status.Status.Retention)
+	must.Eq(t, metricsstore.DefaultMaxDiskSize, status.Status.MaxDiskSize)
+	// The hosts store: the node series (CPU, memory used and total) and the
+	// series of the server.
+	hosts := status.Status.Hosts
+	must.NotNil(t, hosts)
+	must.Eq(t, time.Hour, hosts.Retention)
+	must.Eq(t, metricsstore.DefaultHostMaxDiskSize, hosts.MaxDiskSize)
+	must.GreaterEq(t, 6, hosts.Series)
+	must.Less(t, status.Status.Series, hosts.Series)
+	must.False(t, hosts.Newest.IsZero())
 
 	// The servers sample the allocations by status from the job summaries.
 	must.NoError(t, st.UpsertJobSummary(1100, &structs.JobSummary{
@@ -214,6 +228,7 @@ func TestMetricsStore_Disabled(t *testing.T) {
 	}, &status))
 	must.False(t, status.Status.Enabled)
 	must.NotEq(t, "", status.Status.Server)
+	must.Nil(t, status.Status.Hosts)
 }
 
 // TestMetricsStore_SeedAutoscaler checks that a new leader fills the usage
@@ -349,6 +364,7 @@ func TestMetricsStore_GaugesSeriesSummaryACL(t *testing.T) {
 	var series structs.MetricsSeriesResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.MetricsStoreSeriesRPCMethod, &structs.MetricsSeriesRequest{QueryOptions: q(jobs)}, &series))
 	must.Eq(t, 2*time.Hour, series.Retention)
+	must.Eq(t, time.Hour, series.HostRetention)
 	must.Len(t, 1, series.Groups)
 	// Of the gauges, read-job in a namespace shows the jobs of that
 	// namespace only (sampled by the server meanwhile).

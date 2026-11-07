@@ -392,17 +392,26 @@ func TestServer_Reload_MetricsStore(t *testing.T) {
 	cfg.MetricsStore = cfg.MetricsStore.Copy()
 	cfg.MetricsStore.Retention = 7 * 24 * time.Hour
 	cfg.MetricsStore.MaxDiskSize = 64 << 20
+	cfg.MetricsStore.HostRetention = 2 * 24 * time.Hour
+	cfg.MetricsStore.HostMaxDiskSize = 16 << 20
 	cfg.MetricsStore.PartitionDuration = 2 * time.Hour // needs a restart
 	must.NoError(t, s.Reload(cfg))
 	st := s.metricsStore.Status()
 	must.Eq(t, 7*24*time.Hour, st.Retention)
 	must.Eq(t, int64(64<<20), st.MaxDiskSize)
+	must.Eq(t, 2*24*time.Hour, st.Hosts.Retention)
+	must.Eq(t, int64(16<<20), st.Hosts.MaxDiskSize)
 
 	// An invalid retention is refused and changes nothing.
 	cfg.MetricsStore = cfg.MetricsStore.Copy()
 	cfg.MetricsStore.Retention = 31 * 24 * time.Hour
 	must.ErrorContains(t, s.Reload(cfg), "retention")
 	must.Eq(t, 7*24*time.Hour, s.metricsStore.Status().Retention)
+	cfg.MetricsStore = cfg.MetricsStore.Copy()
+	cfg.MetricsStore.Retention = 7 * 24 * time.Hour
+	cfg.MetricsStore.HostRetention = 30 * time.Minute
+	must.ErrorContains(t, s.Reload(cfg), "host_retention")
+	must.Eq(t, 2*24*time.Hour, s.metricsStore.HostRetention())
 
 	// Turning the store off needs a restart.
 	cfg.MetricsStore = cfg.MetricsStore.Copy()

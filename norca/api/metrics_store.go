@@ -128,8 +128,9 @@ type MetricsHistory struct {
 	Enabled bool
 	Metric  string
 
-	// Retention is the retention in effect on the server that answers: the
-	// longest range it holds.
+	// Retention is the retention in effect on the server that answers for
+	// the store that keeps the metric (the hosts store for norca.node.*,
+	// norca.server.* and norca.bus.*): the longest range it holds.
 	Retention time.Duration
 
 	// Step is the time range of one point.
@@ -183,8 +184,11 @@ func (m *MetricsStore) History(jobID, group string, opts *MetricsHistoryOptions,
 type MetricsSeries struct {
 	Enabled bool
 
-	// Retention is the retention in effect on the server that answers.
-	Retention time.Duration
+	// Retention is the retention in effect on the server that answers,
+	// HostRetention that of its hosts store (norca.node.*, norca.server.*
+	// and norca.bus.*).
+	Retention     time.Duration
+	HostRetention time.Duration
 
 	Groups []*MetricsGroup
 	Gauges []*MetricsGaugeSeries
@@ -253,7 +257,8 @@ func (m *MetricsStore) Summary(jobID, group string, window time.Duration, q *Que
 	return &out, qm, nil
 }
 
-// MetricsStoreStatus is the state of the metrics store of a server.
+// MetricsStoreStatus is the state of the metrics store of a server: the
+// main store, and the hosts store in Hosts.
 type MetricsStoreStatus struct {
 	// Enabled is false when the server keeps no history.
 	Enabled bool
@@ -263,8 +268,11 @@ type MetricsStoreStatus struct {
 	DiskPartitions int
 	DiskBytes      int64
 	MaxDiskSize    int64
-	Series         int
-	MaxSeries      int
+
+	// Series is the number of the series of both stores, which MaxSeries
+	// limits.
+	Series    int
+	MaxSeries int
 
 	// Oldest and Newest are the times of the oldest and the newest point.
 	Oldest time.Time
@@ -286,6 +294,31 @@ type MetricsStoreStatus struct {
 	// configuration changes it, MaxDiskSize and MaxSeries.
 	Retention      time.Duration
 	SampleInterval time.Duration
+
+	// Hosts is the state of the hosts store, which keeps the host metrics
+	// (norca.node.*, norca.server.* and norca.bus.*) with their own
+	// retention and disk cap; nil when the store is disabled.
+	Hosts *MetricsStoreDatabaseStatus
+}
+
+// MetricsStoreDatabaseStatus is the state of one database of the metrics
+// store of a server.
+type MetricsStoreDatabaseStatus struct {
+	Partitions     int
+	DiskPartitions int
+	DiskBytes      int64
+	MaxDiskSize    int64
+
+	// Series is the number of the series of the database.
+	Series int
+
+	// Oldest and Newest are the times of the oldest and the newest point.
+	Oldest time.Time
+	Newest time.Time
+
+	// Retention is the retention in effect; a reload of the server
+	// configuration changes it and MaxDiskSize.
+	Retention time.Duration
 }
 
 // MetricsStoreStatus returns the state of the metrics store of the server

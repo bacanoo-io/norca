@@ -16,16 +16,20 @@ import (
 
 // MetricsStoreConfig is the server's metrics_store block: the history of the
 // task group usage the clients publish on the system bus, kept in
-// <data_dir>/server/tsdb. The retention (1h to 30d, "168h" or "7d"),
-// max_disk_size and max_series apply at a reload (SIGHUP); the other fields
-// need a restart.
+// <data_dir>/server/tsdb, and of the host metrics (norca.node.*,
+// norca.server.*, norca.bus.*), kept in <data_dir>/server/tsdb-hosts with
+// their own retention and disk cap. The retentions (1h to 30d, "168h" or
+// "7d"), the disk caps and max_series apply at a reload (SIGHUP); the other
+// fields need a restart.
 //
 //	metrics_store {
 //	  enabled            = true
 //	  retention          = "30d"
+//	  host_retention     = "7d"
 //	  partition_duration = "6h"
 //	  sample_interval    = "30s"
-//	  max_disk_size      = "5GiB"
+//	  max_disk_size      = "4GiB"
+//	  host_max_disk_size = "1GiB"
 //	  max_series         = 50000
 //	  wal_buffered_size  = 4096
 //	}
@@ -34,9 +38,11 @@ type MetricsStoreConfig struct {
 	Enabled *bool `hcl:"enabled"`
 
 	Retention         string `hcl:"retention"`
+	HostRetention     string `hcl:"host_retention"`
 	PartitionDuration string `hcl:"partition_duration"`
 	SampleInterval    string `hcl:"sample_interval"`
 	MaxDiskSize       string `hcl:"max_disk_size"`
+	HostMaxDiskSize   string `hcl:"host_max_disk_size"`
 	MaxSeries         int    `hcl:"max_series"`
 	WALBufferedSize   *int   `hcl:"wal_buffered_size"`
 
@@ -70,6 +76,9 @@ func (a *MetricsStoreConfig) Merge(b *MetricsStoreConfig) *MetricsStoreConfig {
 	if b.Retention != "" {
 		result.Retention = b.Retention
 	}
+	if b.HostRetention != "" {
+		result.HostRetention = b.HostRetention
+	}
 	if b.PartitionDuration != "" {
 		result.PartitionDuration = b.PartitionDuration
 	}
@@ -78,6 +87,9 @@ func (a *MetricsStoreConfig) Merge(b *MetricsStoreConfig) *MetricsStoreConfig {
 	}
 	if b.MaxDiskSize != "" {
 		result.MaxDiskSize = b.MaxDiskSize
+	}
+	if b.HostMaxDiskSize != "" {
+		result.HostMaxDiskSize = b.HostMaxDiskSize
 	}
 	if b.MaxSeries != 0 {
 		result.MaxSeries = b.MaxSeries
@@ -104,6 +116,7 @@ func (m *MetricsStoreConfig) toServerConfig() (*metricsstore.Config, error) {
 		field *time.Duration
 	}{
 		{"retention", m.Retention, &cfg.Retention},
+		{"host_retention", m.HostRetention, &cfg.HostRetention},
 		{"partition_duration", m.PartitionDuration, &cfg.PartitionDuration},
 		{"sample_interval", m.SampleInterval, &cfg.SampleInterval},
 	}
@@ -118,18 +131,29 @@ func (m *MetricsStoreConfig) toServerConfig() (*metricsstore.Config, error) {
 		}
 		*d.field = v
 	}
-	// A partition is not longer than the retention: without a
+	// A partition is not longer than either retention: without a
 	// partition_duration, a retention below the default partition shortens
 	// it.
 	if m.PartitionDuration == "" {
-		cfg.PartitionDuration = min(metricsstore.DefaultPartitionDuration, cfg.Retention)
+		cfg.PartitionDuration = min(metricsstore.DefaultPartitionDuration, cfg.Retention, cfg.HostRetention)
 	}
-	if m.MaxDiskSize != "" {
-		v, err := humanize.ParseBytes(m.MaxDiskSize)
-		if err != nil || v > math.MaxInt64 {
-			return nil, fmt.Errorf("metrics_store.max_disk_size can't parse size %s", m.MaxDiskSize)
+	sizes := []struct {
+		name  string
+		value string
+		field *int64
+	}{
+		{"max_disk_size", m.MaxDiskSize, &cfg.MaxDiskSize},
+		{"host_max_disk_size", m.HostMaxDiskSize, &cfg.HostMaxDiskSize},
+	}
+	for _, sz := range sizes {
+		if sz.value == "" {
+			continue
 		}
-		cfg.MaxDiskSize = int64(v)
+		v, err := humanize.ParseBytes(sz.value)
+		if err != nil || v > math.MaxInt64 {
+			return nil, fmt.Errorf("metrics_store.%s can't parse size %s", sz.name, sz.value)
+		}
+		*sz.field = int64(v)
 	}
 	if m.MaxSeries != 0 {
 		cfg.MaxSeries = m.MaxSeries

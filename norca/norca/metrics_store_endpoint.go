@@ -149,7 +149,7 @@ func (m *MetricsStore) History(args *structs.MetricsHistoryRequest, reply *struc
 		return nil
 	}
 	reply.Enabled = true
-	reply.Retention = store.Retention()
+	reply.Retention = store.RetentionOf(args.Metric)
 
 	to := args.To
 	if to.IsZero() {
@@ -192,6 +192,7 @@ func (m *MetricsStore) Series(args *structs.MetricsSeriesRequest, reply *structs
 	}
 	reply.Enabled = true
 	reply.Retention = store.Retention()
+	reply.HostRetention = store.HostRetention()
 	for _, g := range store.Groups() {
 		if aclObj == nil || aclObj.AllowNsOp(g.Namespace, acl.NamespaceCapabilityReadJob) {
 			reply.Groups = append(reply.Groups, &structs.MetricsGroup{Namespace: g.Namespace, JobID: g.Job, Group: g.Group})
@@ -319,5 +320,16 @@ func (op *Operator) MetricsStoreStatus(args *structs.MetricsStoreStatusRequest, 
 	status.ForgottenSeries = st.ForgottenSeries
 	status.Retention = st.Retention
 	status.SampleInterval = st.SampleInterval
+	h := st.Hosts
+	status.Hosts = &structs.MetricsStoreDatabaseStatus{
+		Partitions:     h.Partitions,
+		DiskPartitions: h.DiskPartitions,
+		DiskBytes:      h.DiskBytes,
+		MaxDiskSize:    h.MaxDiskSize,
+		Series:         h.Series,
+		Oldest:         h.Oldest,
+		Newest:         h.Newest,
+		Retention:      h.Retention,
+	}
 	return nil
 }

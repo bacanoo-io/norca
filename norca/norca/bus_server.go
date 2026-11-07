@@ -84,6 +84,7 @@ func (s *Server) setupBus() error {
 	if msCfg := s.config.MetricsStore.Copy(); msCfg != nil && msCfg.Enabled {
 		if msCfg.Dir == "" && s.config.DataDir != "" {
 			msCfg.Dir = filepath.Join(s.config.DataDir, "tsdb")
+			msCfg.HostDir = filepath.Join(s.config.DataDir, "tsdb-hosts")
 		}
 		store, err := metricsstore.Open(msCfg, s.logger)
 		if err != nil {

@@ -203,7 +203,7 @@ func controlPlaneGauges(v controlPlaneValues, counters *counterSampler) []metric
 	}
 
 	if st := v.store; st != nil {
-		add(metricsstore.MetricStoreDiskBytes, float64(st.DiskBytes))
+		add(metricsstore.MetricStoreDiskBytes, float64(st.DiskBytes+st.Hosts.DiskBytes))
 		add(metricsstore.MetricStoreSeries, float64(st.Series))
 		add(metricsstore.MetricStoreDroppedReports,
 			counters.increase(metricsstore.MetricStoreDroppedReports, st.DroppedReports))

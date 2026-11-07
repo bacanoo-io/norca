@@ -23,9 +23,11 @@ server {
   enabled = true
   metrics_store {
     retention          = "7d"
+    host_retention     = "2d"
     partition_duration = "2h"
     sample_interval    = "60s"
     max_disk_size      = "512MiB"
+    host_max_disk_size = "128MiB"
     max_series         = 1000
     wal_buffered_size  = 0
   }
@@ -44,6 +46,8 @@ server {
 	must.Eq(t, 2*time.Hour, cfg.PartitionDuration)
 	must.Eq(t, time.Minute, cfg.SampleInterval)
 	must.Eq(t, int64(512<<20), cfg.MaxDiskSize)
+	must.Eq(t, 48*time.Hour, cfg.HostRetention)
+	must.Eq(t, int64(128<<20), cfg.HostMaxDiskSize)
 	must.Eq(t, 1000, cfg.MaxSeries)
 	must.Eq(t, 0, cfg.WALBufferedSize)
 
@@ -60,6 +64,9 @@ func TestConfig_MetricsStore_Defaults(t *testing.T) {
 	blocks, err := convertNorcaServerBlocks(DefaultConfig().Server, nil)
 	must.NoError(t, err)
 	must.Eq(t, metricsstore.DefaultConfig(), blocks.metricsStore)
+	must.Eq(t, 7*24*time.Hour, blocks.metricsStore.HostRetention)
+	must.Eq(t, int64(1<<30), blocks.metricsStore.HostMaxDiskSize)
+	must.Eq(t, int64(4<<30), blocks.metricsStore.MaxDiskSize)
 
 	// enabled = false turns it off; a later file merges field by field.
 	off := (&MetricsStoreConfig{Enabled: pointer.Of(false)}).Merge(&MetricsStoreConfig{Retention: "24h"})
@@ -101,6 +108,26 @@ func TestConfig_MetricsStore_Retention(t *testing.T) {
 	}
 	_, err = (&MetricsStoreConfig{Retention: "2h", PartitionDuration: "6h"}).toServerConfig()
 	must.ErrorContains(t, err, "partition_duration must not be longer than retention")
+
+	// host_retention: the same range and days; a short one shortens the
+	// default partition too.
+	for in, want := range map[string]struct{ retention, partition time.Duration }{
+		"1h":  {time.Hour, time.Hour},
+		"2d":  {48 * time.Hour, 6 * time.Hour},
+		"30d": {720 * time.Hour, 6 * time.Hour},
+	} {
+		cfg, err := (&MetricsStoreConfig{HostRetention: in}).toServerConfig()
+		must.NoError(t, err, must.Sprint(in))
+		must.Eq(t, want.retention, cfg.HostRetention, must.Sprint(in))
+		must.Eq(t, metricsstore.DefaultRetention, cfg.Retention, must.Sprint(in))
+		must.Eq(t, want.partition, cfg.PartitionDuration, must.Sprint(in))
+	}
+	for _, in := range []string{"30m", "31d"} {
+		_, err := (&MetricsStoreConfig{HostRetention: in}).toServerConfig()
+		must.ErrorContains(t, err, "host_retention must be between 1h and 720h (30d)", must.Sprint(in))
+	}
+	_, err = (&MetricsStoreConfig{HostRetention: "2h", PartitionDuration: "6h"}).toServerConfig()
+	must.ErrorContains(t, err, "partition_duration must not be longer than host_retention")
 }
 
 func TestConfig_MetricsStore_Invalid(t *testing.T) {
@@ -114,6 +141,8 @@ func TestConfig_MetricsStore_Invalid(t *testing.T) {
 		"partition":  {Retention: "2h", PartitionDuration: "6h"},
 		"duration":   {SampleInterval: "soon"},
 		"disk":       {MaxDiskSize: "lots"},
+		"host disk":  {HostMaxDiskSize: "lots"},
+		"host days":  {HostRetention: "7 days"},
 		"partitions": {PartitionDuration: "10s", SampleInterval: "30s"},
 		"wal":        {WALBufferedSize: pointer.Of(-2)},
 	} {
