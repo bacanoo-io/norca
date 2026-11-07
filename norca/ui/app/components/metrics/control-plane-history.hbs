@@ -1,0 +1,17 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.prepare.last.isFinished}}
+  <Metrics::GaugeHistory
+    @id="control-plane"
+    @title="Control plane"
+    @subtitle="Evaluations and jobs, from the metrics store of the servers"
+    @charts={{this.charts}}
+    @serverId={{this.leader}}
+    @chartHeight={{160}}
+    @emptyMessage="The servers sample the scheduler and the jobs every sample interval."
+    data-test-control-plane-history
+    ...attributes
+  />
+{{/if}}
