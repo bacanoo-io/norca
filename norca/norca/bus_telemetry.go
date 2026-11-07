@@ -193,10 +193,14 @@ func (s *Server) seedAutoscalerUsage() {
 	}
 }
 
-// allocCounts returns the running and the queued allocations of every task
-// group, from the job summaries.
+// allocCounts returns the allocations of every task group by status, from
+// the job summaries, and the task restarts since the previous call.
 func (s *Server) allocCounts() (map[metricsstore.GroupKey]metricsstore.AllocCounts, error) {
-	iter, err := s.fsm.State().JobSummaries(nil)
+	snap, err := s.fsm.State().Snapshot()
+	if err != nil {
+		return nil, err
+	}
+	iter, err := snap.JobSummaries(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -205,10 +209,41 @@ func (s *Server) allocCounts() (map[metricsstore.GroupKey]metricsstore.AllocCoun
 		summary := raw.(*structs.JobSummary)
 		for group, tg := range summary.Summary {
 			key := metricsstore.GroupKey{Namespace: summary.Namespace, Job: summary.JobID, Group: group}
-			out[key] = metricsstore.AllocCounts{Running: tg.Running, Queued: tg.Queued}
+			out[key] = metricsstore.AllocCounts{
+				Running:  tg.Running,
+				Queued:   tg.Queued,
+				Starting: tg.Starting,
+				Failed:   tg.Failed,
+				Lost:     tg.Lost,
+			}
 		}
 	}
+	restarts, err := s.metricsRestartsLast.increase(snap)
+	if err != nil {
+		return nil, err
+	}
+	for key, n := range restarts {
+		c := out[key]
+		c.Restarts = n
+		out[key] = c
+	}
 	return out, nil
+}
+
+// recordNodeHost stores the usage of the node of a report, with the
+// datacenter, node pool and node class of the node in the state: a report
+// can not claim another pool. A node the state does not know is left out.
+func (s *Server) recordNodeHost(report *structs.TaskGroupUsageReport, at time.Time) {
+	node, err := s.fsm.State().NodeByID(nil, report.NodeID)
+	if err != nil || node == nil {
+		return
+	}
+	s.metricsStore.RecordNodeHost(map[string]string{
+		"node":  node.ID,
+		"dc":    node.Datacenter,
+		"pool":  node.NodePool,
+		"class": node.NodeClass,
+	}, report.Host, at)
 }
 
 // handleTelemetry stores a usage report of the bus in the metrics store and
@@ -237,8 +272,13 @@ func (s *Server) handleTelemetry(m jetstream.Msg) {
 		published = meta.Timestamp
 		sequence = meta.Sequence.Stream
 	}
-	if s.metricsStore != nil && !s.metricsStore.IngestStream(&report, published, sequence) {
-		return // delivered again: the autoscaler has it too
+	if s.metricsStore != nil {
+		if !s.metricsStore.IngestStream(&report, published, sequence) {
+			return // delivered again: the autoscaler has it too
+		}
+		if report.Host != nil {
+			s.recordNodeHost(&report, published)
+		}
 	}
 	if s.autoscaler == nil || time.Since(published) > report.Window+telemetryFreshness {
 		return

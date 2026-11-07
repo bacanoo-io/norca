@@ -10,11 +10,14 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/internal/tstorage"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
 // The metrics the servers sample from their state and from the live usage
 // of the nodes, apart from the task groups. Each is stored as <name>.avg and
-// <name>.max with the same value, the last sampled in the interval.
+// <name>.max with the same value, the last sampled in the interval; the
+// node metrics (norca.node.*) come from the reports of the clients and have
+// the mean and the largest measurement of the interval.
 const (
 	// The capacity of the ready nodes of a datacenter and node pool
 	// (labels dc, pool, class), in percent of the capacity left after the
@@ -33,6 +36,15 @@ const (
 	// MetricClusterNodesReady is the number of ready, eligible nodes of a
 	// datacenter and node pool (and, with a class, of that node class).
 	MetricClusterNodesReady = "norca.cluster.nodes_ready"
+
+	// The nodes of a datacenter and node pool (labels dc, pool) that are
+	// down, disconnected, ready and being drained, and ready but not
+	// eligible for scheduling (draining ones included): beside nodes_ready,
+	// ready + ineligible are the ready nodes.
+	MetricNodesDown         = "norca.nodes.down"
+	MetricNodesDisconnected = "norca.nodes.disconnected"
+	MetricNodesDraining     = "norca.nodes.draining"
+	MetricNodesIneligible   = "norca.nodes.ineligible"
 
 	// The demand that cannot be placed for want of capacity (labels dc,
 	// pool), from the blocked evaluations of the leader: the CPU (MHz) and
@@ -136,6 +148,27 @@ const (
 	MetricStoreDroppedReports = "norca.store.dropped_reports"
 )
 
+// The host statistics of a client node (family 7; labels node, dc, pool,
+// class), from the usage reports of the clients: the mean of the
+// measurements of the sample interval and the largest one. The node label is
+// the node ID; dc, pool and class are those of the node in the state of the
+// server, not what the report says.
+const (
+	// MetricNodeCPUUsed is the CPU time in user and system mode in percent
+	// of the CPU of the node, MetricNodeCPUMHz the same in MHz (only when
+	// the client knows the CPU of the node).
+	MetricNodeCPUUsed = "norca.node.cpu_used"
+	MetricNodeCPUMHz  = "norca.node.cpu_mhz"
+	// The memory in use and of the node in MiB.
+	MetricNodeMemoryUsedMB  = "norca.node.memory_used_mb"
+	MetricNodeMemoryTotalMB = "norca.node.memory_total_mb"
+	// The space in use and the size in MiB, and the inodes in use in
+	// percent, of the file system of the allocation directory.
+	MetricNodeDiskUsedMB        = "norca.node.disk_used_mb"
+	MetricNodeDiskTotalMB       = "norca.node.disk_total_mb"
+	MetricNodeInodesUsedPercent = "norca.node.inodes_used_percent"
+)
+
 // The custom objects and their operators (family 9), read from the state by
 // every server.
 const (
@@ -183,6 +216,18 @@ var gaugeLabels = map[string][]string{
 	MetricQuotaCPUUsed:                  {"quota"},
 	MetricQuotaMemoryAllocated:          {"quota"},
 	MetricQuotaMemoryUsed:               {"quota"},
+	MetricNodesDown:                     {"dc", "pool"},
+	MetricNodesDisconnected:             {"dc", "pool"},
+	MetricNodesDraining:                 {"dc", "pool"},
+	MetricNodesIneligible:               {"dc", "pool"},
+
+	MetricNodeCPUUsed:           {"node", "dc", "pool", "class"},
+	MetricNodeCPUMHz:            {"node", "dc", "pool", "class"},
+	MetricNodeMemoryUsedMB:      {"node", "dc", "pool", "class"},
+	MetricNodeMemoryTotalMB:     {"node", "dc", "pool", "class"},
+	MetricNodeDiskUsedMB:        {"node", "dc", "pool", "class"},
+	MetricNodeDiskTotalMB:       {"node", "dc", "pool", "class"},
+	MetricNodeInodesUsedPercent: {"node", "dc", "pool", "class"},
 
 	MetricSchedBrokerReady:           {},
 	MetricSchedBrokerUnacked:         {},
@@ -271,43 +316,125 @@ func gaugeTSLabels(metric string, labels map[string]string) []tstorage.Label {
 	return out
 }
 
-// RecordGauges stores values sampled by the server at the time at: the last
-// value of an interval counts. Unknown metrics are ignored; new series
-// beyond max_series are left out.
-func (s *Store) RecordGauges(at time.Time, gauges []Gauge) {
-	interval := int64(s.cfg.SampleInterval / time.Second)
-	ts := at.Unix()
-	start := ts - ts%interval
+// gaugeValue is the value of a gauge series in one sample interval: the
+// weighted sum and the weight of the average, and the maximum.
+type gaugeValue struct {
+	sum, weight, max float64
+}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// gaugeWindowLocked returns the pending values of the sample interval of ts,
+// nil when the interval is written already; s.mu is held.
+func (s *Store) gaugeWindowLocked(ts int64) map[string]gaugeValue {
+	interval := int64(s.cfg.SampleInterval / time.Second)
+	start := ts - ts%interval
 	if start+interval <= s.written {
-		return
+		return nil
 	}
 	s.newest = max(s.newest, ts)
 	pending := s.gaugePending[start]
 	if pending == nil {
-		pending = map[string]float64{}
+		pending = map[string]gaugeValue{}
 		s.gaugePending[start] = pending
 	}
+	return pending
+}
+
+// gaugeSeriesLocked returns the key of the series of a gauge metric with the
+// labels, and adds the series if it is new; false for an unknown metric or a
+// new series beyond max_series. s.mu is held.
+func (s *Store) gaugeSeriesLocked(metric string, labels map[string]string) (string, bool) {
+	names, ok := gaugeLabels[metric]
+	if !ok {
+		return "", false
+	}
+	key := gaugeKey(metric, labels)
+	if _, ok := s.gauges[key]; !ok {
+		if s.cfg.MaxSeries > 0 && s.seriesCountLocked()+2 > s.cfg.MaxSeries {
+			s.droppedGroups.Add(1)
+			return "", false
+		}
+		own := make(map[string]string, len(names))
+		for _, name := range names {
+			own[name] = labels[name]
+		}
+		s.gauges[key] = GaugeSeries{Metric: metric, Labels: own}
+		s.seriesDirty = true
+	}
+	return key, true
+}
+
+// RecordGauges stores values sampled by the server at the time at: the last
+// value of an interval counts. Unknown metrics are ignored; new series
+// beyond max_series are left out.
+func (s *Store) RecordGauges(at time.Time, gauges []Gauge) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending := s.gaugeWindowLocked(at.Unix())
+	if pending == nil {
+		return
+	}
 	for _, g := range gauges {
-		if _, ok := gaugeLabels[g.Metric]; !ok {
+		if key, ok := s.gaugeSeriesLocked(g.Metric, g.Labels); ok {
+			pending[key] = gaugeValue{sum: g.Value, weight: 1, max: g.Value}
+		}
+	}
+}
+
+// RecordNodeHost adds the usage of a node from a usage report published at
+// the time at to the window of its sample interval: the measurements of the
+// reports of an interval are averaged, and the largest one is the maximum.
+// labels are those of the node metrics (node, dc, pool, class). A value the
+// client does not know (a total of zero) is left out.
+func (s *Store) RecordNodeHost(labels map[string]string, host *structs.NodeHostUsage, at time.Time) {
+	if host == nil || host.Samples <= 0 || labels["node"] == "" {
+		return
+	}
+	type value struct {
+		metric string
+		v      structs.TaskGroupUsageValue
+	}
+	total := func(v float64) structs.TaskGroupUsageValue { return structs.TaskGroupUsageValue{Avg: v, Max: v} }
+	values := []value{{MetricNodeCPUUsed, host.CPUPercent}}
+	if host.CPUTotalMHz > 0 {
+		values = append(values, value{MetricNodeCPUMHz, host.CPUMHz})
+	}
+	if host.MemoryTotalMB > 0 {
+		values = append(values,
+			value{MetricNodeMemoryUsedMB, host.MemoryUsedMB},
+			value{MetricNodeMemoryTotalMB, total(host.MemoryTotalMB)})
+	}
+	if host.DiskTotalMB > 0 {
+		values = append(values,
+			value{MetricNodeDiskUsedMB, host.DiskUsedMB},
+			value{MetricNodeDiskTotalMB, total(host.DiskTotalMB)},
+			value{MetricNodeInodesUsedPercent, host.InodesUsedPercent})
+	}
+	ts := at.Unix()
+	weight := float64(host.Samples)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Like the task groups: a report more than a partition older than the
+	// newest is not stored.
+	if ts < s.newest-int64(s.cfg.PartitionDuration/time.Second) {
+		return
+	}
+	pending := s.gaugeWindowLocked(ts)
+	if pending == nil {
+		return
+	}
+	for _, v := range values {
+		key, ok := s.gaugeSeriesLocked(v.metric, labels)
+		if !ok {
 			continue
 		}
-		key := gaugeKey(g.Metric, g.Labels)
-		if _, ok := s.gauges[key]; !ok {
-			if s.cfg.MaxSeries > 0 && s.seriesCountLocked()+2 > s.cfg.MaxSeries {
-				s.droppedGroups.Add(1)
-				continue
-			}
-			labels := map[string]string{}
-			for _, name := range gaugeLabels[g.Metric] {
-				labels[name] = g.Labels[name]
-			}
-			s.gauges[key] = GaugeSeries{Metric: g.Metric, Labels: labels}
-			s.seriesDirty = true
+		cur := pending[key]
+		if cur.weight == 0 || v.v.Max > cur.max {
+			cur.max = v.v.Max
 		}
-		pending[key] = g.Value
+		cur.sum += v.v.Avg * weight
+		cur.weight += weight
+		pending[key] = cur
 	}
 }
 
@@ -321,13 +448,13 @@ func (s *Store) gaugeRowsLocked(limit, interval int64) []tstorage.Row {
 		}
 		for key, v := range values {
 			series, ok := s.gauges[key]
-			if !ok {
+			if !ok || v.weight <= 0 {
 				continue
 			}
 			labels := gaugeTSLabels(series.Metric, series.Labels)
 			rows = append(rows,
-				tstorage.Row{Metric: series.Metric + ".avg", Labels: labels, DataPoint: tstorage.DataPoint{Timestamp: start, Value: v}},
-				tstorage.Row{Metric: series.Metric + ".max", Labels: labels, DataPoint: tstorage.DataPoint{Timestamp: start, Value: v}})
+				tstorage.Row{Metric: series.Metric + ".avg", Labels: labels, DataPoint: tstorage.DataPoint{Timestamp: start, Value: v.sum / v.weight}},
+				tstorage.Row{Metric: series.Metric + ".max", Labels: labels, DataPoint: tstorage.DataPoint{Timestamp: start, Value: v.max}})
 		}
 		delete(s.gaugePending, start)
 	}

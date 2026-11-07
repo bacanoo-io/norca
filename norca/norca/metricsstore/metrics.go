@@ -25,13 +25,25 @@ const (
 	MetricMemoryMB = "norca.group.memory_mb"
 	// MetricMemoryCacheMB is the page cache in MiB, per allocation.
 	MetricMemoryCacheMB = "norca.group.memory_cache_mb"
+	// MetricMemoryPeakMB is the highest memory usage of the tasks since
+	// they started in MiB, per allocation, where the driver measures it.
+	MetricMemoryPeakMB = "norca.group.memory_peak_mb"
 	// MetricOOMKills is the number of tasks of the group killed for running
 	// out of memory.
 	MetricOOMKills = "norca.group.oom_kills"
+	// MetricRestarts is the number of task restarts of the group's
+	// allocations in the interval, from the state of the servers.
+	MetricRestarts = "norca.group.restarts"
 	// MetricAllocsRunning and MetricAllocsQueued are the running and the
 	// queued allocations of the group, from the state of the servers.
 	MetricAllocsRunning = "norca.group.allocs_running"
 	MetricAllocsQueued  = "norca.group.allocs_queued"
+	// MetricAllocsStarting, MetricAllocsFailed and MetricAllocsLost are the
+	// starting, the failed and the lost allocations of the group (those the
+	// servers still keep), from the job summaries.
+	MetricAllocsStarting = "norca.group.allocs_starting"
+	MetricAllocsFailed   = "norca.group.allocs_failed"
+	MetricAllocsLost     = "norca.group.allocs_lost"
 )
 
 // metricKind is how the values of a metric in one sample interval combine.
@@ -41,8 +53,8 @@ const (
 	// kindUsage: the averages of the reports weighted by their samples, the
 	// largest maximum.
 	kindUsage metricKind = iota
-	// kindCounter: the sum of the reports; in a query step the sum of the
-	// stored points.
+	// kindCounter: the sum of the reports (or of the increases sampled by
+	// the server); in a query step the sum of the stored points.
 	kindCounter
 	// kindState: the last value sampled by the server.
 	kindState
@@ -52,23 +64,33 @@ const (
 type metricDef struct {
 	name string
 	kind metricKind
-	// usage returns the value of a report; nil for kindState.
+	// usage returns the value of a report; nil for the values the server
+	// samples.
 	usage func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue
+	// samples returns the number of measurements of the value in a report,
+	// which weight its average; nil is all of them (Samples).
+	samples func(g *structs.TaskGroupUsage) int
 }
 
 var groupMetricDefs = []metricDef{
-	{MetricCPU, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.CPUPercent }},
-	{MetricCPUMHz, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.CPUMHz }},
-	{MetricCPUThrottled, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.CPUThrottledPercent }},
-	{MetricMemory, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryPercent }},
-	{MetricMemoryMB, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryMB }},
-	{MetricMemoryCacheMB, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryCacheMB }},
+	{MetricCPU, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.CPUPercent }, nil},
+	{MetricCPUMHz, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.CPUMHz }, nil},
+	{MetricCPUThrottled, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.CPUThrottledPercent }, nil},
+	{MetricMemory, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryPercent }, nil},
+	{MetricMemoryMB, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryMB }, nil},
+	{MetricMemoryCacheMB, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryCacheMB }, nil},
+	{MetricMemoryPeakMB, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryPeakMB },
+		func(g *structs.TaskGroupUsage) int { return g.MemoryPeakSamples }},
 	{MetricOOMKills, kindCounter, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue {
 		v := float64(g.OOMKills)
 		return structs.TaskGroupUsageValue{Avg: v, Max: v}
-	}},
-	{MetricAllocsRunning, kindState, nil},
-	{MetricAllocsQueued, kindState, nil},
+	}, nil},
+	{MetricRestarts, kindCounter, nil, nil},
+	{MetricAllocsRunning, kindState, nil, nil},
+	{MetricAllocsQueued, kindState, nil, nil},
+	{MetricAllocsStarting, kindState, nil, nil},
+	{MetricAllocsFailed, kindState, nil, nil},
+	{MetricAllocsLost, kindState, nil, nil},
 }
 
 // GroupMetrics are the metrics of a task group.
@@ -102,7 +124,7 @@ type window struct {
 }
 
 // numGroupMetrics is the number of entries of groupMetricDefs.
-const numGroupMetrics = 9
+const numGroupMetrics = 14
 
 func init() {
 	if len(groupMetricDefs) != numGroupMetrics {
@@ -112,10 +134,15 @@ func init() {
 
 // addUsage adds a report of the group.
 func (w *window) addUsage(g *structs.TaskGroupUsage) {
-	s := float64(g.Samples)
 	for i, d := range groupMetricDefs {
-		if d.kind == kindState {
+		if d.usage == nil {
 			continue
+		}
+		s := float64(g.Samples)
+		if d.samples != nil {
+			if s = float64(d.samples(g)); s <= 0 {
+				continue // not measured
+			}
 		}
 		v := d.usage(g)
 		switch d.kind {
@@ -137,6 +164,16 @@ func (w *window) addUsage(g *structs.TaskGroupUsage) {
 func (w *window) setState(i int, v float64) {
 	w.has[i] = true
 	w.sum[i], w.weight[i], w.max[i] = v, 1, v
+}
+
+// addCount adds an increase of a counter sampled by the server.
+func (w *window) addCount(i int, v float64) {
+	if !w.has[i] || v > w.max[i] {
+		w.max[i] = v
+	}
+	w.has[i] = true
+	w.sum[i] += v
+	w.weight[i] = 1
 }
 
 // value returns the average (the sum of a counter) and the maximum of a

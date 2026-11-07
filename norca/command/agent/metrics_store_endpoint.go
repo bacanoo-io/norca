@@ -22,6 +22,8 @@ import (
 //	GET /v1/metrics/history?metric=norca.sched.broker_ready
 //	GET /v1/metrics/history?metric=norca.jobs.running&ns=<namespace>
 //	GET /v1/metrics/history?metric=norca.nodegroup.condition&group=<name>&type=<condition>
+//	GET /v1/metrics/history?metric=norca.node.cpu_used&node=<node id>&dc=<dc>&pool=<pool>&class=<node class>
+//	GET /v1/metrics/history?metric=norca.nodes.down&dc=<dc>&pool=<pool>
 //
 // The labels of a gauge are query parameters of the same name.
 func (s *HTTPServer) MetricsHistoryRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {

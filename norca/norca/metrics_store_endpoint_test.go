@@ -65,7 +65,11 @@ func TestMetricsStore_History(t *testing.T) {
 		Groups: []*structs.TaskGroupUsage{{
 			Namespace: "default", JobID: "api", TaskGroup: "web", Allocs: 1, Samples: 5,
 			CPUPercent: structs.TaskGroupUsageValue{Avg: 25, Max: 40},
-		}}})
+		}},
+		Host: &structs.NodeHostUsage{Samples: 10,
+			CPUPercent:   structs.TaskGroupUsageValue{Avg: 30, Max: 50},
+			MemoryUsedMB: structs.TaskGroupUsageValue{Avg: 1000, Max: 1200}, MemoryTotalMB: 8192,
+		}})
 	must.NoError(t, err)
 
 	history := func(token, namespace string) (*structs.MetricsHistoryResponse, error) {
@@ -89,6 +93,37 @@ func TestMetricsStore_History(t *testing.T) {
 	must.True(t, resp.Enabled)
 	must.Eq(t, 25.0, resp.Points[0].Avg)
 	must.Eq(t, 40.0, resp.Points[0].Max)
+
+	// The usage of the node is stored with the datacenter, the pool and the
+	// class of the node in the state. Without a CPU or disk total the client
+	// did not measure them: no series.
+	nodeHistory := func(metric string) (*structs.MetricsHistoryResponse, error) {
+		var resp structs.MetricsHistoryResponse
+		err := msgpackrpc.CallWithCodec(codec, structs.MetricsStoreHistoryRPCMethod, &structs.MetricsHistoryRequest{
+			Metric:       metric,
+			Labels:       map[string]string{"node": node.ID, "dc": node.Datacenter, "pool": node.NodePool, "class": node.NodeClass},
+			QueryOptions: structs.QueryOptions{Region: "global", AuthToken: root.SecretID},
+		}, &resp)
+		return &resp, err
+	}
+	waitBus(t, func() (bool, error) {
+		resp, err := nodeHistory(metricsstore.MetricNodeMemoryUsedMB)
+		return err == nil && len(resp.Points) > 0, err
+	})
+	resp, err = nodeHistory(metricsstore.MetricNodeCPUUsed)
+	must.NoError(t, err)
+	must.SliceNotEmpty(t, resp.Points)
+	must.Eq(t, 30.0, resp.Points[0].Avg)
+	must.Eq(t, 50.0, resp.Points[0].Max)
+	resp, err = nodeHistory(metricsstore.MetricNodeMemoryTotalMB)
+	must.NoError(t, err)
+	must.Eq(t, 8192.0, resp.Points[0].Avg)
+	resp, err = nodeHistory(metricsstore.MetricNodeDiskUsedMB)
+	must.NoError(t, err)
+	must.SliceEmpty(t, resp.Points)
+	resp, err = nodeHistory(metricsstore.MetricNodeCPUMHz)
+	must.NoError(t, err)
+	must.SliceEmpty(t, resp.Points)
 
 	// read-job in the namespace is required.
 	policy := func(name, rules string) *structs.ACLPolicy {
@@ -128,20 +163,26 @@ func TestMetricsStore_History(t *testing.T) {
 	must.GreaterEq(t, 18, status.Status.Series) // and the gauges of the cluster
 	must.False(t, status.Status.Newest.IsZero())
 
-	// The servers sample the running and the queued allocations from the
-	// job summaries.
+	// The servers sample the allocations by status from the job summaries.
 	must.NoError(t, st.UpsertJobSummary(1100, &structs.JobSummary{
 		JobID: "batch", Namespace: "default",
-		Summary: map[string]structs.TaskGroupSummary{"work": {Running: 2, Queued: 3}},
+		Summary: map[string]structs.TaskGroupSummary{"work": {Running: 2, Queued: 3, Starting: 1, Failed: 4, Lost: 5}},
 	}))
-	waitBus(t, func() (bool, error) {
-		var resp structs.MetricsHistoryResponse
-		err := msgpackrpc.CallWithCodec(codec, structs.MetricsStoreHistoryRPCMethod, &structs.MetricsHistoryRequest{
-			JobID: "batch", Group: "work", Metric: metricsstore.MetricAllocsQueued,
-			QueryOptions: structs.QueryOptions{Region: "global", AuthToken: root.SecretID},
-		}, &resp)
-		return err == nil && len(resp.Points) > 0 && resp.Points[0].Avg == 3, err
-	})
+	for metric, want := range map[string]float64{
+		metricsstore.MetricAllocsQueued:   3,
+		metricsstore.MetricAllocsStarting: 1,
+		metricsstore.MetricAllocsFailed:   4,
+		metricsstore.MetricAllocsLost:     5,
+	} {
+		waitBus(t, func() (bool, error) {
+			var resp structs.MetricsHistoryResponse
+			err := msgpackrpc.CallWithCodec(codec, structs.MetricsStoreHistoryRPCMethod, &structs.MetricsHistoryRequest{
+				JobID: "batch", Group: "work", Metric: metric,
+				QueryOptions: structs.QueryOptions{Region: "global", AuthToken: root.SecretID},
+			}, &resp)
+			return err == nil && len(resp.Points) > 0 && resp.Points[0].Avg == want, err
+		})
+	}
 }
 
 // TestMetricsStore_Disabled checks the answers of a server without the

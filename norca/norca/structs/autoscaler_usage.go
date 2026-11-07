@@ -23,6 +23,41 @@ type TaskGroupUsageReport struct {
 	// Groups is the usage of each task group with running allocations on
 	// the node.
 	Groups []*TaskGroupUsage
+
+	// Host is the usage of the node itself in the window; nil when the
+	// client did not measure it. A report split into several messages has
+	// it in the first one only.
+	Host *NodeHostUsage `json:",omitempty"`
+}
+
+// NodeHostUsage is the usage of a client node as a whole (its host
+// statistics) over one aggregation window: Avg is the mean of the
+// measurements in the window, Max the largest one. The totals are those of
+// the newest measurement.
+type NodeHostUsage struct {
+	// Samples is the number of host measurements in the window.
+	Samples int
+
+	// CPUPercent is the CPU time in user and system mode, in percent of the
+	// CPU of the node (the mean over its cores).
+	CPUPercent TaskGroupUsageValue
+
+	// CPUMHz is the same in MHz, and CPUTotalMHz the CPU of the node in MHz;
+	// both zero when the client does not know the CPU of the node.
+	CPUMHz      TaskGroupUsageValue
+	CPUTotalMHz float64
+
+	// MemoryUsedMB is the memory in use in MiB, MemoryTotalMB the memory of
+	// the node.
+	MemoryUsedMB  TaskGroupUsageValue
+	MemoryTotalMB float64
+
+	// DiskUsedMB is the space in use in MiB on the file system of the
+	// allocation directory, DiskTotalMB its size, and InodesUsedPercent its
+	// inodes in use in percent.
+	DiskUsedMB        TaskGroupUsageValue
+	DiskTotalMB       float64
+	InodesUsedPercent TaskGroupUsageValue
 }
 
 // TaskGroupUsage is the resource usage of the allocations of one task group
@@ -57,6 +92,14 @@ type TaskGroupUsage struct {
 	// MemoryCacheMB is the page cache in MiB (reclaimable; part of the
 	// memory usage when the driver measures the cgroup usage).
 	MemoryCacheMB TaskGroupUsageValue
+
+	// MemoryPeakMB is the highest memory usage the tasks of an allocation
+	// reached since they started, in MiB (the sum over the tasks), from the
+	// MemoryPeakSamples measurements that had it: drivers that do not
+	// measure it (docker and raw_exec on cgroups v2, for example) report
+	// none.
+	MemoryPeakMB      TaskGroupUsageValue
+	MemoryPeakSamples int
 
 	// CPUThrottledPercent is the time the tasks were throttled by their CPU
 	// limit (CFS quota), as a percentage of the time between two

@@ -9,11 +9,14 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/client/allocrunner"
+	"github.com/bacanoo-io/norca/norca/client/stats"
+	hstats "github.com/bacanoo-io/norca/norca/helper/stats"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
 // taskGroupUsageReporter aggregates the resource usage of the client's task
-// groups for the built-in autoscaler of the servers, and holds the finished
+// groups and of the node itself (its host statistics) for the built-in
+// autoscaler and the metrics store of the servers, and holds the finished
 // report until it is published on the system bus.
 //
 // The servers enable it through the heartbeat response
@@ -26,6 +29,98 @@ type taskGroupUsageReporter struct {
 	interval    time.Duration
 	windowStart time.Time
 	pending     *structs.TaskGroupUsageReport
+	host        hostUsageAcc
+}
+
+// hostUsageAcc accumulates the host measurements of a window.
+type hostUsageAcc struct {
+	samples int
+	// last is the timestamp of the newest measurement, which is counted
+	// once.
+	last int64
+
+	cpuPercent, cpuMHz, memoryUsedMB, diskUsedMB, inodesUsedPercent usageAcc
+	cpuTotalMHz, memoryTotalMB, diskTotalMB                         float64
+}
+
+// usageAcc accumulates the sum and the maximum of a value.
+type usageAcc struct {
+	sum, max float64
+}
+
+func (u *usageAcc) add(v float64) {
+	if v > u.max {
+		u.max = v
+	}
+	u.sum += v
+}
+
+func (u *usageAcc) value(samples int) structs.TaskGroupUsageValue {
+	if samples == 0 {
+		return structs.TaskGroupUsageValue{}
+	}
+	return structs.TaskGroupUsageValue{Avg: u.sum / float64(samples), Max: u.max}
+}
+
+// observe adds a host measurement; one without memory, CPU or allocation
+// directory statistics, or seen before, is left out. cpuTotalMHz is the CPU
+// of the node in MHz, zero if unknown.
+func (h *hostUsageAcc) observe(hs *stats.HostStats, cpuTotalMHz float64) {
+	if hs == nil || hs.Memory == nil || hs.AllocDirStats == nil || len(hs.CPU) == 0 || hs.Timestamp <= h.last {
+		return
+	}
+	h.last = hs.Timestamp
+
+	var busy float64
+	for _, c := range hs.CPU {
+		if c != nil {
+			busy += c.User + c.System
+		}
+	}
+	cpu := busy / float64(len(hs.CPU))
+	const mib = 1024 * 1024
+
+	h.samples++
+	h.cpuPercent.add(cpu)
+	h.cpuTotalMHz = max(cpuTotalMHz, 0)
+	h.cpuMHz.add(cpu / 100 * h.cpuTotalMHz)
+	h.memoryUsedMB.add(float64(hs.Memory.Used) / mib)
+	h.memoryTotalMB = float64(hs.Memory.Total) / mib
+	h.diskUsedMB.add(float64(hs.AllocDirStats.Used) / mib)
+	h.diskTotalMB = float64(hs.AllocDirStats.Size) / mib
+	h.inodesUsedPercent.add(hs.AllocDirStats.InodesUsedPercent)
+}
+
+// flush returns the host usage of the window, nil without measurements, and
+// starts a new window.
+func (h *hostUsageAcc) flush() *structs.NodeHostUsage {
+	if h.samples == 0 {
+		return nil
+	}
+	n := h.samples
+	out := &structs.NodeHostUsage{
+		Samples:           n,
+		CPUPercent:        h.cpuPercent.value(n),
+		CPUMHz:            h.cpuMHz.value(n),
+		CPUTotalMHz:       h.cpuTotalMHz,
+		MemoryUsedMB:      h.memoryUsedMB.value(n),
+		MemoryTotalMB:     h.memoryTotalMB,
+		DiskUsedMB:        h.diskUsedMB.value(n),
+		DiskTotalMB:       h.diskTotalMB,
+		InodesUsedPercent: h.inodesUsedPercent.value(n),
+	}
+	*h = hostUsageAcc{last: h.last}
+	return out
+}
+
+// observeHost adds a host measurement to the window while the reporter is
+// enabled.
+func (r *taskGroupUsageReporter) observeHost(hs *stats.HostStats, cpuTotalMHz float64) {
+	r.l.Lock()
+	defer r.l.Unlock()
+	if r.interval > 0 {
+		r.host.observe(hs, cpuTotalMHz)
+	}
 }
 
 func newTaskGroupUsageReporter() *taskGroupUsageReporter {
@@ -48,6 +143,7 @@ func (r *taskGroupUsageReporter) setInterval(interval time.Duration, now time.Ti
 	r.interval = interval
 	r.windowStart = now
 	r.pending = nil
+	r.host = hostUsageAcc{}
 	r.agg.Reset()
 }
 
@@ -72,13 +168,15 @@ func (r *taskGroupUsageReporter) windowDone(nodeID string, now time.Time) {
 	r.windowStart = now
 
 	groups := r.agg.Flush()
-	if len(groups) == 0 {
+	host := r.host.flush()
+	if len(groups) == 0 && host == nil {
 		return
 	}
 	r.pending = &structs.TaskGroupUsageReport{
 		NodeID: nodeID,
 		Window: window,
 		Groups: groups,
+		Host:   host,
 	}
 }
 
@@ -93,8 +191,9 @@ func (r *taskGroupUsageReporter) take() *structs.TaskGroupUsageReport {
 }
 
 // collectTaskGroupUsage samples the resource usage of the running
-// allocations every stats collection interval while the servers ask for
-// task group usage, and closes an aggregation window when it has elapsed.
+// allocations and of the node every stats collection interval while the
+// servers ask for task group usage, and closes an aggregation window when it
+// has elapsed.
 func (c *Client) collectTaskGroupUsage() {
 	timer := time.NewTimer(0)
 	defer timer.Stop()
@@ -132,6 +231,9 @@ func (c *Client) collectTaskGroupUsage() {
 			}
 			c.taskGroupUsage.agg.Observe(ar.Alloc(), usage)
 		}
+		if c.hostStatsCollector != nil {
+			c.taskGroupUsage.observeHost(c.hostStatsCollector.Stats(), float64(hstats.CpuTotalTicks()))
+		}
 		c.taskGroupUsage.windowDone(c.NodeID(), time.Now())
 		if report := c.taskGroupUsage.take(); report != nil {
 			if err := c.publishTaskGroupUsage(report); err != nil {
@@ -166,12 +268,13 @@ func (c *Client) publishTaskGroupUsage(report *structs.TaskGroupUsageReport) err
 }
 
 // splitTaskGroupUsage encodes a report as JSON messages of at most limit
-// bytes, each with a part of the groups.
+// bytes, each with a part of the groups; the first one has the usage of the
+// node.
 func splitTaskGroupUsage(report *structs.TaskGroupUsageReport, limit int) ([][]byte, error) {
 	var msgs [][]byte
-	part := &structs.TaskGroupUsageReport{NodeID: report.NodeID, Window: report.Window}
+	part := &structs.TaskGroupUsageReport{NodeID: report.NodeID, Window: report.Window, Host: report.Host}
 	flush := func() error {
-		if len(part.Groups) == 0 {
+		if len(part.Groups) == 0 && part.Host == nil {
 			return nil
 		}
 		b, err := json.Marshal(part)
@@ -182,7 +285,8 @@ func splitTaskGroupUsage(report *structs.TaskGroupUsageReport, limit int) ([][]b
 		part = &structs.TaskGroupUsageReport{NodeID: report.NodeID, Window: report.Window}
 		return nil
 	}
-	// The report without groups, and a margin for the separators.
+	// The report without groups (with the usage of the node, which only the
+	// first part has), and a margin for the separators.
 	base, err := json.Marshal(part)
 	if err != nil {
 		return nil, err

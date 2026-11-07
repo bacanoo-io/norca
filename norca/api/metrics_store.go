@@ -32,6 +32,35 @@ const (
 	// and the queued allocations of the group.
 	MetricsGroupAllocsRunning = "norca.group.allocs_running"
 	MetricsGroupAllocsQueued  = "norca.group.allocs_queued"
+	// MetricsGroupAllocsStarting, MetricsGroupAllocsFailed and
+	// MetricsGroupAllocsLost are the starting, the failed and the lost
+	// allocations of the group.
+	MetricsGroupAllocsStarting = "norca.group.allocs_starting"
+	MetricsGroupAllocsFailed   = "norca.group.allocs_failed"
+	MetricsGroupAllocsLost     = "norca.group.allocs_lost"
+	// MetricsGroupRestarts is the number of task restarts; Avg is the sum in
+	// the step.
+	MetricsGroupRestarts = "norca.group.restarts"
+	// MetricsGroupMemoryPeakMB is the highest memory usage of the tasks since
+	// they started in MiB, where the driver measures it.
+	MetricsGroupMemoryPeakMB = "norca.group.memory_peak_mb"
+)
+
+// The host statistics of a client node (labels node, dc, pool and class),
+// and the nodes of a datacenter and node pool by state (labels dc and pool).
+const (
+	MetricsNodeCPUUsed           = "norca.node.cpu_used"
+	MetricsNodeCPUMHz            = "norca.node.cpu_mhz"
+	MetricsNodeMemoryUsedMB      = "norca.node.memory_used_mb"
+	MetricsNodeMemoryTotalMB     = "norca.node.memory_total_mb"
+	MetricsNodeDiskUsedMB        = "norca.node.disk_used_mb"
+	MetricsNodeDiskTotalMB       = "norca.node.disk_total_mb"
+	MetricsNodeInodesUsedPercent = "norca.node.inodes_used_percent"
+
+	MetricsNodesDown         = "norca.nodes.down"
+	MetricsNodesDisconnected = "norca.nodes.disconnected"
+	MetricsNodesDraining     = "norca.nodes.draining"
+	MetricsNodesIneligible   = "norca.nodes.ineligible"
 )
 
 // The gauge metrics the servers sample. The cluster metrics have the labels

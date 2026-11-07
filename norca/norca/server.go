@@ -258,10 +258,12 @@ type Server struct {
 	// metricsCounters count the security events of this server and
 	// metricsCounterLast keeps their values at the last sample: the metrics
 	// store keeps their increase per sample interval. secretsGauges are the
-	// numbers of the secrets watchers of the leader.
-	metricsCounters    serverEventCounters
-	metricsCounterLast counterSampler
-	secretsGauges      secretsGaugeValues
+	// numbers of the secrets watchers of the leader. metricsRestartsLast
+	// keeps the task restarts of the allocations at the last sample.
+	metricsCounters     serverEventCounters
+	metricsCounterLast  counterSampler
+	metricsRestartsLast restartSampler
+	secretsGauges       secretsGaugeValues
 
 	// consulKV is the connection of the ConsulKV endpoint to the bucket of
 	// the Consul KV on the bus.
