@@ -322,13 +322,13 @@ type gaugeValue struct {
 	sum, weight, max float64
 }
 
-// gaugeWindowLocked returns the pending values of the sample interval of ts,
-// nil when the interval is written already; s.mu is held.
-func (s *Store) gaugeWindowLocked(ts int64) map[string]gaugeValue {
+// gaugeWindowLocked returns the pending values of the sample interval of ts
+// and its start, nil when the interval is written already; s.mu is held.
+func (s *Store) gaugeWindowLocked(ts int64) (map[string]gaugeValue, int64) {
 	interval := int64(s.cfg.SampleInterval / time.Second)
 	start := ts - ts%interval
 	if start+interval <= s.written {
-		return nil
+		return nil, 0
 	}
 	s.newest = max(s.newest, ts)
 	pending := s.gaugePending[start]
@@ -336,13 +336,14 @@ func (s *Store) gaugeWindowLocked(ts int64) map[string]gaugeValue {
 		pending = map[string]gaugeValue{}
 		s.gaugePending[start] = pending
 	}
-	return pending
+	return pending, start
 }
 
 // gaugeSeriesLocked returns the key of the series of a gauge metric with the
-// labels, and adds the series if it is new; false for an unknown metric or a
-// new series beyond max_series. s.mu is held.
-func (s *Store) gaugeSeriesLocked(metric string, labels map[string]string) (string, bool) {
+// labels, adds the series if it is new, and notes a point in the window that
+// starts at start; false for an unknown metric or a new series beyond
+// max_series. s.mu is held.
+func (s *Store) gaugeSeriesLocked(metric string, labels map[string]string, start int64) (string, bool) {
 	names, ok := gaugeLabels[metric]
 	if !ok {
 		return "", false
@@ -360,6 +361,7 @@ func (s *Store) gaugeSeriesLocked(metric string, labels map[string]string) (stri
 		s.gauges[key] = GaugeSeries{Metric: metric, Labels: own}
 		s.seriesDirty = true
 	}
+	s.gaugeLast[key] = max(s.gaugeLast[key], start)
 	return key, true
 }
 
@@ -369,12 +371,12 @@ func (s *Store) gaugeSeriesLocked(metric string, labels map[string]string) (stri
 func (s *Store) RecordGauges(at time.Time, gauges []Gauge) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	pending := s.gaugeWindowLocked(at.Unix())
+	pending, start := s.gaugeWindowLocked(at.Unix())
 	if pending == nil {
 		return
 	}
 	for _, g := range gauges {
-		if key, ok := s.gaugeSeriesLocked(g.Metric, g.Labels); ok {
+		if key, ok := s.gaugeSeriesLocked(g.Metric, g.Labels, start); ok {
 			pending[key] = gaugeValue{sum: g.Value, weight: 1, max: g.Value}
 		}
 	}
@@ -419,12 +421,12 @@ func (s *Store) RecordNodeHost(labels map[string]string, host *structs.NodeHostU
 	if ts < s.newest-int64(s.cfg.PartitionDuration/time.Second) {
 		return
 	}
-	pending := s.gaugeWindowLocked(ts)
+	pending, start := s.gaugeWindowLocked(ts)
 	if pending == nil {
 		return
 	}
 	for _, v := range values {
-		key, ok := s.gaugeSeriesLocked(v.metric, labels)
+		key, ok := s.gaugeSeriesLocked(v.metric, labels, start)
 		if !ok {
 			continue
 		}

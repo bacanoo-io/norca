@@ -34,7 +34,7 @@ const (
 
 	// DefaultMaxDiskSize bounds the disk use; the oldest partitions are
 	// removed first.
-	DefaultMaxDiskSize = 2 << 30
+	DefaultMaxDiskSize = 5 << 30
 
 	// DefaultMaxSeries bounds the number of series.
 	DefaultMaxSeries = 50000

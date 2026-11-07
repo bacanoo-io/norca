@@ -183,6 +183,10 @@ type MetricsStoreStatus struct {
 	DuplicateReports uint64
 	DroppedGroups    uint64
 
+	// ForgottenSeries counts the series the store forgot for having no point
+	// within the retention, as they counted toward MaxSeries.
+	ForgottenSeries uint64
+
 	// Retention is the retention in effect; a reload of the server
 	// configuration changes it, MaxDiskSize and MaxSeries.
 	Retention      time.Duration

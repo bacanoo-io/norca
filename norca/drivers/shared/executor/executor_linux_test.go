@@ -887,3 +887,29 @@ func TestUniversalExecutor_NoCgroup(t *testing.T) {
 	})
 
 }
+
+// TestSwapOnly checks that the swap of a task is the swap alone: libcontainer
+// counts memory plus swap in SwapUsage on cgroups v1 and v2.
+func TestSwapOnly(t *testing.T) {
+	ci.Parallel(t)
+
+	const mib = 1 << 20
+	// cgroups v2: memory.swap.current.
+	must.Eq(t, 3*mib, swapOnly(&cgroups.MemoryStats{
+		Usage:         cgroups.MemoryData{Usage: 100 * mib},
+		SwapUsage:     cgroups.MemoryData{Usage: 103 * mib},
+		SwapOnlyUsage: cgroups.MemoryData{Usage: 3 * mib},
+	}))
+	// No swap accounting.
+	must.Eq(t, 0, swapOnly(&cgroups.MemoryStats{
+		Usage:     cgroups.MemoryData{Usage: 100 * mib},
+		SwapUsage: cgroups.MemoryData{Usage: 100 * mib},
+	}))
+	// cgroups v1: memsw read before the memory grew wraps around.
+	var memory, memsw uint64 = 101 * mib, 100 * mib
+	must.Eq(t, 0, swapOnly(&cgroups.MemoryStats{
+		Usage:         cgroups.MemoryData{Usage: memory},
+		SwapUsage:     cgroups.MemoryData{Usage: memsw},
+		SwapOnlyUsage: cgroups.MemoryData{Usage: memsw - memory},
+	}))
+}

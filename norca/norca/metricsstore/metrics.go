@@ -25,9 +25,9 @@ const (
 	MetricMemoryMB = "norca.group.memory_mb"
 	// MetricMemoryCacheMB is the page cache in MiB, per allocation.
 	MetricMemoryCacheMB = "norca.group.memory_cache_mb"
-	// MetricMemoryPeakMB is the highest memory usage of the tasks since
-	// they started in MiB, per allocation, where the driver measures it.
-	MetricMemoryPeakMB = "norca.group.memory_peak_mb"
+	// MetricMemorySwapMB is the swap in use in MiB, per allocation, where
+	// the driver measures it.
+	MetricMemorySwapMB = "norca.group.memory_swap_mb"
 	// MetricOOMKills is the number of tasks of the group killed for running
 	// out of memory.
 	MetricOOMKills = "norca.group.oom_kills"
@@ -79,8 +79,8 @@ var groupMetricDefs = []metricDef{
 	{MetricMemory, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryPercent }, nil},
 	{MetricMemoryMB, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryMB }, nil},
 	{MetricMemoryCacheMB, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryCacheMB }, nil},
-	{MetricMemoryPeakMB, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemoryPeakMB },
-		func(g *structs.TaskGroupUsage) int { return g.MemoryPeakSamples }},
+	{MetricMemorySwapMB, kindUsage, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue { return g.MemorySwapMB },
+		func(g *structs.TaskGroupUsage) int { return g.MemorySwapSamples }},
 	{MetricOOMKills, kindCounter, func(g *structs.TaskGroupUsage) structs.TaskGroupUsageValue {
 		v := float64(g.OOMKills)
 		return structs.TaskGroupUsageValue{Avg: v, Max: v}

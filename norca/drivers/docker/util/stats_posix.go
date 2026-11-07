@@ -19,7 +19,7 @@ var (
 
 	// cgroup-v2 only exposes a subset of memory stats
 	DockerCgroupV1MeasuredMemStats = []string{"RSS", "Cache", "Swap", "Usage", "Max Usage"}
-	DockerCgroupV2MeasuredMemStats = []string{"Cache", "Swap", "Usage"}
+	DockerCgroupV2MeasuredMemStats = []string{"Cache", "Usage"}
 )
 
 func DockerStatsToTaskResourceUsage(s *docker.Stats) *cstructs.TaskResourceUsage {

@@ -180,5 +180,6 @@ func formatMetricsStoreStatus(st *api.MetricsStoreStatus) string {
 		fmt.Sprintf("Dropped Reports|%d", st.DroppedReports),
 		fmt.Sprintf("Duplicate Reports|%d", st.DuplicateReports),
 		fmt.Sprintf("Dropped Groups|%d", st.DroppedGroups),
+		fmt.Sprintf("Forgotten Series|%d", st.ForgottenSeries),
 	})
 }

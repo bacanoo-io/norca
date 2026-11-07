@@ -192,29 +192,32 @@ func TestTaskGroupUsageAggregator_ThrottleCacheOOM(t *testing.T) {
 	must.MapEmpty(t, agg.allocs)
 }
 
-// TestTaskGroupUsageAggregator_MemoryPeak checks the peak memory: from the
-// measurements that have it only.
-func TestTaskGroupUsageAggregator_MemoryPeak(t *testing.T) {
+// TestTaskGroupUsageAggregator_MemorySwap checks the swap: from the
+// measurements of drivers that measure it only, zero included.
+func TestTaskGroupUsageAggregator_MemorySwap(t *testing.T) {
 	ci.Parallel(t)
 
 	agg := NewTaskGroupUsageAggregator()
 	a := usageAlloc("api", "web")
-	measure := func(peakMiB uint64) *cstructs.AllocResourceUsage {
+	measure := func(measured bool, swapMiB uint64) *cstructs.AllocResourceUsage {
 		u := fakeUsage(100, 64)
-		u.ResourceUsage.MemoryStats.MaxUsage = peakMiB * 1024 * 1024
+		u.ResourceUsage.MemoryStats.Swap = swapMiB * 1024 * 1024
+		if measured {
+			u.ResourceUsage.MemoryStats.Measured = []string{"Usage", "Swap"}
+		}
 		return u
 	}
-	agg.Observe(a, measure(100))
-	agg.Observe(a, measure(0)) // not measured
-	agg.Observe(a, measure(200))
+	agg.Observe(a, measure(true, 100))
+	agg.Observe(a, measure(false, 999)) // not measured
+	agg.Observe(a, measure(true, 0))
 	g := agg.Flush()[0]
 	must.Eq(t, 3, g.Samples)
-	must.Eq(t, 2, g.MemoryPeakSamples)
-	must.Eq(t, structs.TaskGroupUsageValue{Avg: 150, Max: 200}, g.MemoryPeakMB)
+	must.Eq(t, 2, g.MemorySwapSamples)
+	must.Eq(t, structs.TaskGroupUsageValue{Avg: 50, Max: 100}, g.MemorySwapMB)
 
-	// A driver that does not measure it reports none.
-	agg.Observe(a, measure(0))
+	// A driver that does not measure it (docker on cgroups v2) reports none.
+	agg.Observe(a, measure(false, 0))
 	g = agg.Flush()[0]
-	must.Eq(t, 0, g.MemoryPeakSamples)
-	must.Eq(t, structs.TaskGroupUsageValue{}, g.MemoryPeakMB)
+	must.Eq(t, 0, g.MemorySwapSamples)
+	must.Eq(t, structs.TaskGroupUsageValue{}, g.MemorySwapMB)
 }
