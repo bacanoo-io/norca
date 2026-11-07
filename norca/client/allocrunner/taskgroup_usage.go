@@ -4,6 +4,7 @@
 package allocrunner
 
 import (
+	"slices"
 	"sort"
 	"sync"
 
@@ -56,9 +57,9 @@ type taskGroupUsageAcc struct {
 	throttled        usageAcc
 	throttledSamples int
 
-	// memoryPeak has its own samples: not every driver measures it.
-	memoryPeak        usageAcc
-	memoryPeakSamples int
+	// memorySwap has its own samples: not every driver measures it.
+	memorySwap        usageAcc
+	memorySwapSamples int
 
 	oomKills int
 }
@@ -153,11 +154,16 @@ func (a *TaskGroupUsageAggregator) Observe(alloc *structs.Allocation, usage *cst
 
 	cpuMHz, memoryMB := allocUsage(usage.ResourceUsage)
 	allocCPU, allocMemory := allocatedCPUAndMemory(alloc)
-	var cacheMB, peakMB float64
+	var cacheMB, swapMB float64
+	var swapMeasured bool
 	var throttledTime uint64
 	if ms := usage.ResourceUsage.MemoryStats; ms != nil {
 		cacheMB = float64(ms.Cache) / (1024 * 1024)
-		peakMB = float64(ms.MaxUsage) / (1024 * 1024)
+		// Docker on cgroups v2 does not measure the swap: no value rather
+		// than zero.
+		if swapMeasured = slices.Contains(ms.Measured, "Swap"); swapMeasured {
+			swapMB = float64(ms.Swap) / (1024 * 1024)
+		}
 	}
 	if cs := usage.ResourceUsage.CpuStats; cs != nil {
 		throttledTime = cs.ThrottledTime
@@ -174,11 +180,9 @@ func (a *TaskGroupUsageAggregator) Observe(alloc *structs.Allocation, usage *cst
 	acc.memoryCacheMB.add(cacheMB)
 	acc.cpuPercent.add(percentOf(cpuMHz, allocCPU))
 	acc.memoryPercent.add(percentOf(memoryMB, allocMemory))
-	// Zero: the driver does not measure the peak (MaxUsage), e.g. docker on
-	// cgroups v2 or a kernel before 5.19 (memory.peak).
-	if peakMB > 0 {
-		acc.memoryPeak.add(peakMB)
-		acc.memoryPeakSamples++
+	if swapMeasured {
+		acc.memorySwap.add(swapMB)
+		acc.memorySwapSamples++
 	}
 
 	// The throttled time is a counter: its increase over the time between
@@ -230,8 +234,8 @@ func (a *TaskGroupUsageAggregator) Flush() []*structs.TaskGroupUsage {
 			MemoryPercent: acc.memoryPercent.value(acc.samples),
 			MemoryCacheMB: acc.memoryCacheMB.value(acc.samples),
 
-			MemoryPeakMB:      acc.memoryPeak.value(acc.memoryPeakSamples),
-			MemoryPeakSamples: acc.memoryPeakSamples,
+			MemorySwapMB:      acc.memorySwap.value(acc.memorySwapSamples),
+			MemorySwapSamples: acc.memorySwapSamples,
 
 			CPUThrottledPercent: acc.throttled.value(acc.throttledSamples),
 			OOMKills:            acc.oomKills,

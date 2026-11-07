@@ -93,13 +93,11 @@ type TaskGroupUsage struct {
 	// memory usage when the driver measures the cgroup usage).
 	MemoryCacheMB TaskGroupUsageValue
 
-	// MemoryPeakMB is the highest memory usage the tasks of an allocation
-	// reached since they started, in MiB (the sum over the tasks), from the
-	// MemoryPeakSamples measurements that had it: drivers that do not
-	// measure it (docker and raw_exec on cgroups v2, for example) report
-	// none.
-	MemoryPeakMB      TaskGroupUsageValue
-	MemoryPeakSamples int
+	// MemorySwapMB is the swap in use in MiB, from the MemorySwapSamples
+	// measurements that had it: drivers that do not measure the swap
+	// (docker on cgroups v2) report none.
+	MemorySwapMB      TaskGroupUsageValue
+	MemorySwapSamples int
 
 	// CPUThrottledPercent is the time the tasks were throttled by their CPU
 	// limit (CFS quota), as a percentage of the time between two

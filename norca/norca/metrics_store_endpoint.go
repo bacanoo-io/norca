@@ -311,6 +311,7 @@ func (op *Operator) MetricsStoreStatus(args *structs.MetricsStoreStatusRequest, 
 	status.DroppedReports = st.DroppedReports
 	status.DuplicateReports = st.DuplicateReports
 	status.DroppedGroups = st.DroppedGroups
+	status.ForgottenSeries = st.ForgottenSeries
 	status.Retention = st.Retention
 	status.SampleInterval = st.SampleInterval
 	return nil

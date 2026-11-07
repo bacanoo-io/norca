@@ -25,7 +25,7 @@ import (
 //	  retention          = "30d"
 //	  partition_duration = "6h"
 //	  sample_interval    = "30s"
-//	  max_disk_size      = "2GiB"
+//	  max_disk_size      = "5GiB"
 //	  max_series         = 50000
 //	  wal_buffered_size  = 4096
 //	}

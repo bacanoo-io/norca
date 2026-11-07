@@ -42,6 +42,19 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// swapOnly returns the swap in use of the cgroup in bytes, without the
+// memory. libcontainer's SwapUsage is memory plus swap on cgroups v1
+// (memory.memsw) and, for compatibility, on v2 as well; SwapOnlyUsage is the
+// swap alone (memory.swap.current on v2, memsw minus memory on v1). On v1 the
+// two values are read one after the other, so the difference can wrap
+// around when the memory grew in between: that counts as no swap.
+func swapOnly(ms *cgroups.MemoryStats) uint64 {
+	if s := ms.SwapOnlyUsage.Usage; s <= ms.SwapUsage.Usage {
+		return s
+	}
+	return 0
+}
+
 var (
 	// ExecutorCgroupV1MeasuredMemStats is the list of memory stats captured by the executor with cgroup-v1
 	ExecutorCgroupV1MeasuredMemStats = []string{"RSS", "Cache", "Swap", "Usage", "Max Usage", "Kernel Usage", "Kernel Max Usage"}
@@ -349,7 +362,6 @@ func (l *LibcontainerExecutor) handleStats(ch chan *cstructs.TaskResourceUsage, 
 		stats := lstats.CgroupStats
 
 		// Memory Related Stats
-		swap := stats.MemoryStats.SwapUsage
 		maxUsage := stats.MemoryStats.Usage.MaxUsage
 		rss := stats.MemoryStats.Stats["rss"]
 		cache := stats.MemoryStats.Stats["cache"]
@@ -357,7 +369,7 @@ func (l *LibcontainerExecutor) handleStats(ch chan *cstructs.TaskResourceUsage, 
 		ms := &cstructs.MemoryStats{
 			RSS:            rss,
 			Cache:          cache,
-			Swap:           swap.Usage,
+			Swap:           swapOnly(&stats.MemoryStats),
 			MappedFile:     mapped_file,
 			Usage:          stats.MemoryStats.Usage.Usage,
 			MaxUsage:       maxUsage,

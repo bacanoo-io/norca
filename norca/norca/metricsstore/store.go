@@ -78,9 +78,16 @@ type Store struct {
 	gauges       map[string]GaugeSeries
 	gaugePending map[int64]map[string]gaugeValue
 
+	// groupLast and gaugeLast are the start of the newest window with a
+	// point of each task group and gauge series (Unix seconds): a series
+	// without a point within the retention is forgotten (see forget).
+	groupLast map[GroupKey]int64
+	gaugeLast map[string]int64
+
 	// live is the latest usage report of each node.
 	live map[string]*nodeLive
 
+	forgottenSeries  atomic.Uint64
 	droppedReports   atomic.Uint64
 	droppedGroups    atomic.Uint64
 	duplicateReports atomic.Uint64
@@ -119,6 +126,8 @@ func Open(cfg *Config, logger hclog.Logger) (*Store, error) {
 		series:       map[GroupKey]struct{}{},
 		gauges:       map[string]GaugeSeries{},
 		gaugePending: map[int64]map[string]gaugeValue{},
+		groupLast:    map[GroupKey]int64{},
+		gaugeLast:    map[string]int64{},
 		live:         map[string]*nodeLive{},
 		stopCh:       make(chan struct{}),
 		doneCh:       make(chan struct{}),
@@ -202,6 +211,7 @@ func (s *Store) ingestLocked(report *structs.TaskGroupUsageReport, at time.Time)
 			s.series[key] = struct{}{}
 			s.seriesDirty = true
 		}
+		s.groupLast[key] = max(s.groupLast[key], start)
 		w := groups[key]
 		if w == nil {
 			w = &window{}
@@ -263,6 +273,7 @@ func (s *Store) RecordAllocs(at time.Time, groups map[GroupKey]AllocCounts) {
 			s.series[key] = struct{}{}
 			s.seriesDirty = true
 		}
+		s.groupLast[key] = max(s.groupLast[key], start)
 		w := windows[key]
 		if w == nil {
 			w = &window{}
@@ -341,9 +352,12 @@ func (s *Store) flush(until time.Time) error {
 	return s.db.InsertRows(rows)
 }
 
-// maintain removes the oldest partitions above the disk cap and saves the
-// series.
+// maintain removes the oldest partitions above the disk cap, forgets the
+// series without a point within the retention and saves the series.
 func (s *Store) maintain() {
+	if n := s.forget(time.Now()); n > 0 {
+		s.logger.Debug("forgot the series without a point within the retention", "series", n)
+	}
 	if maxDisk := s.maxDiskSize.Load(); maxDisk > 0 {
 		for s.db.Stats().DiskBytes > maxDisk {
 			removed, err := s.db.RemoveOldestDiskPartition()
@@ -360,6 +374,74 @@ func (s *Store) maintain() {
 	if err := s.saveSeries(); err != nil {
 		s.logger.Warn("saving the list of the task groups with series failed", "error", err)
 	}
+}
+
+// forget removes the task groups and the gauge series without a point within
+// the retention before now from the index of the series, and returns how many
+// series that are (as counted toward max_series). They no longer count toward
+// max_series nor appear in the list of series; a forgotten series that gets a
+// point again starts again. Their points stay until their partition expires.
+// A series with a point in a window not written yet is kept: the index and
+// the windows change under s.mu only, so a point that comes meanwhile either
+// keeps the series or starts it again.
+func (s *Store) forget(now time.Time) int {
+	cutoff := now.Add(-time.Duration(s.retention.Load())).Unix()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for key := range s.series {
+		last, ok := s.groupLast[key]
+		if !ok {
+			s.groupLast[key] = now.Unix() // not known: a full retention from now
+			continue
+		}
+		if last >= cutoff || s.groupPendingLocked(key) {
+			continue
+		}
+		delete(s.series, key)
+		delete(s.groupLast, key)
+		n += seriesPerGroup
+	}
+	for key := range s.gauges {
+		last, ok := s.gaugeLast[key]
+		if !ok {
+			s.gaugeLast[key] = now.Unix()
+			continue
+		}
+		if last >= cutoff || s.gaugePendingLocked(key) {
+			continue
+		}
+		delete(s.gauges, key)
+		delete(s.gaugeLast, key)
+		n += 2
+	}
+	if n > 0 {
+		s.seriesDirty = true
+		s.forgottenSeries.Add(uint64(n))
+	}
+	return n
+}
+
+// groupPendingLocked reports whether a task group has a window not written
+// yet; s.mu is held.
+func (s *Store) groupPendingLocked(key GroupKey) bool {
+	for _, groups := range s.pending {
+		if _, ok := groups[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// gaugePendingLocked reports whether a gauge series has a window not written
+// yet; s.mu is held.
+func (s *Store) gaugePendingLocked(key string) bool {
+	for _, values := range s.gaugePending {
+		if _, ok := values[key]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // Close writes the pending windows and closes the store.
@@ -556,15 +638,46 @@ func (s *Store) loadSeries() error {
 		return err
 	}
 	s.streamAt, s.streamSeq, s.written = saved.StreamAt, saved.StreamSeq, saved.Written
+	// A series without the time of its newest point (a file of an older
+	// version) gets a full retention from now.
+	now := time.Now().Unix()
+	lastOr := func(id string) int64 {
+		if last, ok := saved.Last[id]; ok {
+			return last
+		}
+		return now
+	}
 	for _, k := range saved.Groups {
 		s.series[k] = struct{}{}
+		s.groupLast[k] = lastOr(groupLastID(k))
 	}
 	for _, g := range saved.Gauges {
 		if _, ok := gaugeLabels[g.Metric]; ok {
-			s.gauges[gaugeKey(g.Metric, g.Labels)] = g
+			key := gaugeKey(g.Metric, g.Labels)
+			s.gauges[key] = g
+			s.gaugeLast[key] = lastOr(key)
 		}
 	}
 	return nil
+}
+
+// groupLastID is the key of a task group in savedSeries.Last; the keys of
+// the gauge series (gaugeKey) start with the metric name instead.
+func groupLastID(k GroupKey) string {
+	return "\x00" + k.Namespace + "\x00" + k.Job + "\x00" + k.Group
+}
+
+// lastLocked returns the times of the newest points by savedSeries.Last
+// key; s.mu is held.
+func (s *Store) lastLocked() map[string]int64 {
+	out := make(map[string]int64, len(s.groupLast)+len(s.gaugeLast))
+	for k, v := range s.groupLast {
+		out[groupLastID(k)] = v
+	}
+	for k, v := range s.gaugeLast {
+		out[k] = v
+	}
+	return out
 }
 
 // savedSeries is the content of the series file.
@@ -578,6 +691,11 @@ type savedSeries struct {
 	StreamAt  int64
 	StreamSeq uint64
 	Written   int64
+
+	// Last is the start of the newest window with a point of each series
+	// (Unix seconds), by groupLastID for the task groups and gaugeKey for the
+	// gauges.
+	Last map[string]int64 `json:",omitempty"`
 }
 
 // seriesCountLocked is the number of series; s.mu is held.
@@ -597,6 +715,7 @@ func (s *Store) saveSeries() error {
 	}
 	s.seriesDirty = false
 	streamAt, streamSeq := s.streamAt, s.streamSeq
+	last := s.lastLocked()
 	// Close flushes with a limit in the far future: what is written ends
 	// with the window of the newest report.
 	interval := int64(s.cfg.SampleInterval / time.Second)
@@ -604,7 +723,7 @@ func (s *Store) saveSeries() error {
 	s.mu.Unlock()
 
 	b, err := json.Marshal(savedSeries{Groups: s.Groups(), Gauges: s.Gauges(),
-		StreamAt: streamAt, StreamSeq: streamSeq, Written: written})
+		StreamAt: streamAt, StreamSeq: streamSeq, Written: written, Last: last})
 	if err != nil {
 		return err
 	}
@@ -639,8 +758,11 @@ type Status struct {
 	DroppedGroups  uint64
 	// DuplicateReports counts the reports a stream delivered again.
 	DuplicateReports uint64
-	Retention        time.Duration
-	SampleInterval   time.Duration
+	// ForgottenSeries counts the series removed from the index for having no
+	// point within the retention (as counted toward max_series).
+	ForgottenSeries uint64
+	Retention       time.Duration
+	SampleInterval  time.Duration
 }
 
 // Status returns the state of the store.
@@ -660,6 +782,7 @@ func (s *Store) Status() *Status {
 		DroppedReports:   s.droppedReports.Load(),
 		DroppedGroups:    s.droppedGroups.Load(),
 		DuplicateReports: s.duplicateReports.Load(),
+		ForgottenSeries:  s.forgottenSeries.Load(),
 		Retention:        time.Duration(s.retention.Load()),
 		SampleInterval:   s.cfg.SampleInterval,
 	}

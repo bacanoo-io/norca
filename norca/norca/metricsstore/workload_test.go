@@ -71,7 +71,7 @@ func TestStore_NodeHost(t *testing.T) {
 }
 
 // TestStore_WorkloadState checks the allocations by status and the task
-// restarts the server samples, and the peak memory of the reports, which
+// restarts the server samples, and the swap of the reports, which
 // only the measurements that have it make.
 func TestStore_WorkloadState(t *testing.T) {
 	ci.Parallel(t)
@@ -91,15 +91,15 @@ func TestStore_WorkloadState(t *testing.T) {
 	s.RecordAllocs(base.Add(2*time.Second), map[GroupKey]AllocCounts{web: {Running: 1, Starting: 1, Restarts: 3}})
 	s.RecordAllocs(base.Add(31*time.Second), map[GroupKey]AllocCounts{web: {Running: 1}})
 
-	peak := func(peakSamples int, avg, mx float64) *structs.TaskGroupUsageReport {
+	swap := func(swapSamples int, avg, mx float64) *structs.TaskGroupUsageReport {
 		r := usage("api", 4, 10, 10)
-		r.Groups[0].MemoryPeakMB = structs.TaskGroupUsageValue{Avg: avg, Max: mx}
-		r.Groups[0].MemoryPeakSamples = peakSamples
+		r.Groups[0].MemorySwapMB = structs.TaskGroupUsageValue{Avg: avg, Max: mx}
+		r.Groups[0].MemorySwapSamples = swapSamples
 		return r
 	}
-	s.Ingest(peak(1, 100, 100), base.Add(3*time.Second))
-	s.Ingest(peak(3, 300, 400), base.Add(4*time.Second))
-	s.Ingest(peak(0, 0, 0), base.Add(32*time.Second)) // not measured
+	s.Ingest(swap(1, 100, 100), base.Add(3*time.Second))
+	s.Ingest(swap(3, 300, 400), base.Add(4*time.Second))
+	s.Ingest(swap(0, 0, 0), base.Add(32*time.Second)) // not measured
 	must.NoError(t, s.flush(base.Add(time.Minute)))
 
 	query := func(key GroupKey, metric string, maxPoints int) []Point {
@@ -118,12 +118,66 @@ func TestStore_WorkloadState(t *testing.T) {
 	must.Eq(t, 0.0, query(web, MetricAllocsLost, 0)[0].Avg)
 	must.Eq(t, 1.0, query(restarting, MetricRestarts, 0)[0].Avg)
 
-	memPeak := query(web, MetricMemoryPeakMB, 0)
-	must.Len(t, 1, memPeak)
-	must.Eq(t, 250.0, memPeak[0].Avg) // (100*1 + 300*3) / 4
-	must.Eq(t, 400.0, memPeak[0].Max)
+	memSwap := query(web, MetricMemorySwapMB, 0)
+	must.Len(t, 1, memSwap)
+	must.Eq(t, 250.0, memSwap[0].Avg) // (100*1 + 300*3) / 4
+	must.Eq(t, 400.0, memSwap[0].Max)
 	must.Len(t, 2, query(web, MetricMemoryMB, 0))
 
 	// Failed allocations alone make no series: old jobs keep them.
 	must.Eq(t, []GroupKey{web, restarting}, s.Groups())
+}
+
+// TestStore_Forget checks that the series without a point within the
+// retention leave the index, also after a restart, so that new series fit
+// under max_series again; that a series with a point not written yet stays;
+// and that a forgotten series that reports again starts again.
+func TestStore_Forget(t *testing.T) {
+	ci.Parallel(t)
+	cfg := testConfig(t.TempDir()) // retention 24h
+	cfg.MaxSeries = 2*2 + seriesPerGroup
+	s := openTest(t, cfg)
+
+	now := time.Now()
+	old := now.Add(-2 * time.Hour)
+	node := func(id string) map[string]string {
+		return map[string]string{"node": id, "dc": "dc1", "pool": "default", "class": ""}
+	}
+	host := &structs.NodeHostUsage{Samples: 1, CPUPercent: structs.TaskGroupUsageValue{Avg: 1, Max: 1}}
+	s.Ingest(usage("api", 1, 1, 1), old)
+	s.RecordNodeHost(node("n1"), host, old)
+	s.RecordNodeHost(node("n2"), host, now)
+	s.RecordNodeHost(node("n3"), host, now) // beyond max_series
+	must.Len(t, 2, s.Gauges())
+	must.Eq(t, 1, s.Status().DroppedGroups)
+
+	// 23 hours later the points of two hours ago are past the retention, but
+	// they are not written yet: kept.
+	later := now.Add(23 * time.Hour)
+	must.Eq(t, 0, s.forget(later))
+
+	// Close writes them; the times of the newest points survive the restart.
+	must.NoError(t, s.Close())
+	s = openTest(t, cfg)
+	defer func() { must.NoError(t, s.Close()) }()
+	must.Eq(t, 2+seriesPerGroup, s.forget(later))
+	st := s.Status()
+	must.Eq(t, uint64(2+seriesPerGroup), st.ForgottenSeries)
+	must.Eq(t, 2, st.Series)
+	must.SliceEmpty(t, s.Groups())
+	must.Eq(t, []GaugeSeries{{Metric: MetricNodeCPUUsed, Labels: node("n2")}}, s.Gauges())
+
+	// A new node fits now, and the forgotten task group starts again.
+	next := now.Add(time.Minute)
+	s.RecordNodeHost(node("n3"), host, next)
+	s.Ingest(usage("api", 1, 1, 1), next)
+	must.Eq(t, []GroupKey{web}, s.Groups())
+	must.Len(t, 2, s.Gauges())
+	must.Eq(t, 0, s.Status().DroppedGroups) // counted since the restart
+
+	// Live series are not forgotten.
+	must.Eq(t, 0, s.forget(later))
+	must.NoError(t, s.flush(next.Add(time.Minute)))
+	must.Eq(t, 0, s.forget(later))
+	must.Len(t, 2, s.Gauges())
 }

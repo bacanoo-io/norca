@@ -41,9 +41,9 @@ const (
 	// MetricsGroupRestarts is the number of task restarts; Avg is the sum in
 	// the step.
 	MetricsGroupRestarts = "norca.group.restarts"
-	// MetricsGroupMemoryPeakMB is the highest memory usage of the tasks since
-	// they started in MiB, where the driver measures it.
-	MetricsGroupMemoryPeakMB = "norca.group.memory_peak_mb"
+	// MetricsGroupMemorySwapMB is the swap in use in MiB, where the driver
+	// measures it.
+	MetricsGroupMemorySwapMB = "norca.group.memory_swap_mb"
 )
 
 // The host statistics of a client node (labels node, dc, pool and class),
@@ -269,6 +269,10 @@ type MetricsStoreStatus struct {
 	// DuplicateReports counts the reports the bus delivered again.
 	DuplicateReports uint64
 	DroppedGroups    uint64
+
+	// ForgottenSeries counts the series the store forgot for having no point
+	// within the retention, as they counted toward MaxSeries.
+	ForgottenSeries uint64
 
 	// Retention is the retention in effect; a reload of the server
 	// configuration changes it, MaxDiskSize and MaxSeries.
