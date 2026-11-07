@@ -256,13 +256,18 @@ func (h *nodeHeartbeater) heartbeatStats() {
 	for {
 		select {
 		case <-time.After(5 * time.Second):
-			h.heartbeatTimersLock.Lock()
-			num := len(h.heartbeatTimers)
-			h.heartbeatTimersLock.Unlock()
-			metrics.SetGauge([]string{"nomad", "heartbeat", "active"}, float32(num))
+			metrics.SetGauge([]string{"nomad", "heartbeat", "active"}, float32(h.activeHeartbeats()))
 
 		case <-h.srv.shutdownCh:
 			return
 		}
 	}
+}
+
+// activeHeartbeats returns the number of nodes whose heartbeat is tracked
+// (on the leader; none elsewhere).
+func (h *nodeHeartbeater) activeHeartbeats() int {
+	h.heartbeatTimersLock.Lock()
+	defer h.heartbeatTimersLock.Unlock()
+	return len(h.heartbeatTimers)
 }

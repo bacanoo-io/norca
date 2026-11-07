@@ -1,7 +1,9 @@
 // Modified by Norca contributors: no cgroup package (the worker limit is
 // GOMAXPROCS); flushes are serialized; Close releases the mappings of the
 // disk partitions; Stats and RemoveOldestDiskPartition for the disk cap of
-// the metrics store.
+// the metrics store; SetRetention changes the retention of the storage and of
+// its open disk partitions at run time, and the expiry sweep and
+// RemoveOldestDiskPartition are serialized.
 
 package tstorage
 
@@ -17,6 +19,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/internal/tstorage/internal/timerpool"
@@ -68,6 +71,11 @@ type Storage interface {
 	// RemoveOldestDiskPartition removes the oldest disk partition and
 	// reports whether there was one.
 	RemoveOldestDiskPartition() (bool, error)
+	// SetRetention changes the retention of the storage and of every disk
+	// partition, and removes the partitions now past it. A longer retention
+	// keeps what is still on disk longer; what was removed does not come
+	// back.
+	SetRetention(retention time.Duration) error
 }
 
 // Stats are the partitions and the disk use of a storage.
@@ -143,7 +151,7 @@ func WithPartitionDuration(duration time.Duration) Option {
 // Defaults to 14d.
 func WithRetention(retention time.Duration) Option {
 	return func(s *storage) {
-		s.retention = retention
+		s.retention.Store(int64(retention))
 	}
 }
 
@@ -198,7 +206,6 @@ func NewStorage(opts ...Option) (Storage, error) {
 		partitionList:      newPartitionList(),
 		workersLimitCh:     make(chan struct{}, defaultWorkersLimit),
 		partitionDuration:  defaultPartitionDuration,
-		retention:          defaultRetention,
 		timestampPrecision: defaultTimestampPrecision,
 		writeTimeout:       defaultWriteTimeout,
 		walBufferedSize:    defaultWALBufferedSize,
@@ -206,6 +213,7 @@ func NewStorage(opts ...Option) (Storage, error) {
 		logger:             &nopLogger{},
 		doneCh:             make(chan struct{}, 0),
 	}
+	s.retention.Store(int64(defaultRetention))
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -246,7 +254,7 @@ func NewStorage(opts ...Option) (Storage, error) {
 			continue
 		}
 		path := filepath.Join(s.dataPath, e.Name())
-		part, err := openDiskPartition(path, s.retention)
+		part, err := openDiskPartition(path, s.getRetention())
 		if errors.Is(err, ErrNoDataPoints) {
 			continue
 		}
@@ -293,10 +301,12 @@ func NewStorage(opts ...Option) (Storage, error) {
 type storage struct {
 	partitionList partitionList
 
-	walBufferedSize    int
-	wal                wal
-	partitionDuration  time.Duration
-	retention          time.Duration
+	walBufferedSize   int
+	wal               wal
+	partitionDuration time.Duration
+	// retention is in nanoseconds: SetRetention changes it while flushes
+	// read it.
+	retention          atomic.Int64
 	timestampPrecision TimestampPrecision
 	dataPath           string
 	writeTimeout       time.Duration
@@ -310,7 +320,37 @@ type storage struct {
 	// the background after a new head partition, another one in Close.
 	flushMu sync.Mutex
 
+	// expiryMu serializes the removals of disk partitions: the expiry sweep,
+	// RemoveOldestDiskPartition and SetRetention.
+	expiryMu sync.Mutex
+
 	doneCh chan struct{}
+}
+
+func (s *storage) getRetention() time.Duration {
+	return time.Duration(s.retention.Load())
+}
+
+func (s *storage) SetRetention(retention time.Duration) error {
+	if retention <= 0 {
+		return fmt.Errorf("retention must be positive")
+	}
+	s.expiryMu.Lock()
+	defer s.expiryMu.Unlock()
+	s.retention.Store(int64(retention))
+
+	// A flush opens its disk partitions with the retention of the storage:
+	// wait for a running one, so that what it opened gets the new retention
+	// here.
+	s.flushMu.Lock()
+	iterator := s.partitionList.newIterator()
+	for iterator.next() {
+		if d, ok := iterator.value().(*diskPartition); ok {
+			d.setRetention(retention)
+		}
+	}
+	s.flushMu.Unlock()
+	return s.removeExpiredPartitionsLocked()
 }
 
 func (s *storage) InsertRows(rows []Row) error {
@@ -496,6 +536,8 @@ func (s *storage) Stats() Stats {
 }
 
 func (s *storage) RemoveOldestDiskPartition() (bool, error) {
+	s.expiryMu.Lock()
+	defer s.expiryMu.Unlock()
 	var oldest *diskPartition
 	iterator := s.partitionList.newIterator()
 	for iterator.next() {
@@ -561,7 +603,7 @@ func (s *storage) flushPartitions() error {
 		if err := s.flush(dir, memPart); err != nil {
 			return fmt.Errorf("failed to compact memory partition into %s: %w", dir, err)
 		}
-		newPart, err := openDiskPartition(dir, s.retention)
+		newPart, err := openDiskPartition(dir, s.getRetention())
 		if errors.Is(err, ErrNoDataPoints) {
 			if err := s.partitionList.remove(part); err != nil {
 				return fmt.Errorf("failed to remove partition: %w", err)
@@ -653,6 +695,14 @@ func (s *storage) flush(dirPath string, m *memoryPartition) error {
 }
 
 func (s *storage) removeExpiredPartitions() error {
+	s.expiryMu.Lock()
+	defer s.expiryMu.Unlock()
+	return s.removeExpiredPartitionsLocked()
+}
+
+// removeExpiredPartitionsLocked removes the expired partitions; s.expiryMu is
+// held.
+func (s *storage) removeExpiredPartitionsLocked() error {
 	expiredList := make([]partition, 0)
 	iterator := s.partitionList.newIterator()
 	for iterator.next() {

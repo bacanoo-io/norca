@@ -45,8 +45,15 @@ func (k GroupKey) labels() []tstorage.Label {
 // Store is the metrics store of a server.
 type Store struct {
 	logger hclog.Logger
-	cfg    *Config
-	db     tstorage.Storage
+	// cfg is the configuration the store was opened with; a reload changes
+	// cfg.MaxSeries (under mu), retention and maxDiskSize.
+	cfg *Config
+	db  tstorage.Storage
+
+	// retention and maxDiskSize are the effective limits, which a reload
+	// changes (nanoseconds, bytes).
+	retention   atomic.Int64
+	maxDiskSize atomic.Int64
 
 	mu sync.Mutex
 	// pending are the windows not written yet, by their start (Unix
@@ -116,6 +123,8 @@ func Open(cfg *Config, logger hclog.Logger) (*Store, error) {
 		stopCh:       make(chan struct{}),
 		doneCh:       make(chan struct{}),
 	}
+	s.retention.Store(int64(cfg.Retention))
+	s.maxDiskSize.Store(cfg.MaxDiskSize)
 	if err := s.loadSeries(); err != nil {
 		s.logger.Warn("the list of the task groups with series is lost; they appear again with their next report", "error", err)
 	}
@@ -317,8 +326,8 @@ func (s *Store) flush(until time.Time) error {
 // maintain removes the oldest partitions above the disk cap and saves the
 // series.
 func (s *Store) maintain() {
-	if s.cfg.MaxDiskSize > 0 {
-		for s.db.Stats().DiskBytes > s.cfg.MaxDiskSize {
+	if maxDisk := s.maxDiskSize.Load(); maxDisk > 0 {
+		for s.db.Stats().DiskBytes > maxDisk {
 			removed, err := s.db.RemoveOldestDiskPartition()
 			if err != nil {
 				s.logger.Warn("removing the oldest partition above max_disk_size failed", "error", err)
@@ -327,7 +336,7 @@ func (s *Store) maintain() {
 			if !removed {
 				break
 			}
-			s.logger.Info("removed the oldest partition above max_disk_size", "max_disk_size", s.cfg.MaxDiskSize)
+			s.logger.Info("removed the oldest partition above max_disk_size", "max_disk_size", maxDisk)
 		}
 	}
 	if err := s.saveSeries(); err != nil {
@@ -348,6 +357,71 @@ func (s *Store) Close() error {
 		)
 	})
 	return err
+}
+
+// SetRetention changes the retention at run time. A shorter retention
+// removes the partitions now past it at once; a longer one keeps what is
+// still on disk longer, and what was removed does not come back.
+func (s *Store) SetRetention(retention time.Duration) error {
+	if retention < MinRetention || retention > MaxRetention {
+		return fmt.Errorf("retention must be between 1h and 720h (30d), not %s", FormatRetention(retention))
+	}
+	select {
+	case <-s.stopCh:
+		return errors.New("the metrics store is closed")
+	default:
+	}
+	if err := s.db.SetRetention(retention); err != nil {
+		return fmt.Errorf("setting the retention of the metrics store: %w", err)
+	}
+	s.retention.Store(int64(retention))
+	return nil
+}
+
+// Reload applies a reloaded configuration. The retention, max_disk_size and
+// max_series apply at once: max_disk_size at the next maintenance (within a
+// minute), max_series to new series only. partition_duration,
+// sample_interval and wal_buffered_size shape the files and the sampling and
+// need a restart: a change of them is logged and ignored.
+func (s *Store) Reload(cfg *Config) error {
+	if cfg == nil {
+		return nil
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	var restart []string
+	if cfg.PartitionDuration != s.cfg.PartitionDuration {
+		restart = append(restart, "partition_duration")
+	}
+	if cfg.SampleInterval != s.cfg.SampleInterval {
+		restart = append(restart, "sample_interval")
+	}
+	if cfg.WALBufferedSize != s.cfg.WALBufferedSize {
+		restart = append(restart, "wal_buffered_size")
+	}
+	if len(restart) > 0 {
+		s.logger.Warn("changed metrics_store settings apply only after a restart", "settings", restart,
+			"partition_duration", s.cfg.PartitionDuration, "sample_interval", s.cfg.SampleInterval)
+	}
+
+	if old := time.Duration(s.retention.Load()); old != cfg.Retention {
+		if err := s.SetRetention(cfg.Retention); err != nil {
+			return err
+		}
+		s.logger.Info("metrics store retention changed", "from", FormatRetention(old), "to", FormatRetention(cfg.Retention))
+	}
+	if old := s.maxDiskSize.Swap(cfg.MaxDiskSize); old != cfg.MaxDiskSize {
+		s.logger.Info("metrics store max_disk_size changed", "from", old, "to", cfg.MaxDiskSize)
+	}
+	s.mu.Lock()
+	old := s.cfg.MaxSeries
+	s.cfg.MaxSeries = cfg.MaxSeries
+	s.mu.Unlock()
+	if old != cfg.MaxSeries {
+		s.logger.Info("metrics store max_series changed", "from", old, "to", cfg.MaxSeries)
+	}
+	return nil
 }
 
 // UsageWindow is the usage of a task group in one sample interval, as the
@@ -556,18 +630,19 @@ func (s *Store) Status() *Status {
 	st := s.db.Stats()
 	s.mu.Lock()
 	series := s.seriesCountLocked()
+	maxSeries := s.cfg.MaxSeries
 	s.mu.Unlock()
 	out := &Status{
 		Partitions:       st.Partitions,
 		DiskPartitions:   st.DiskPartitions,
 		DiskBytes:        st.DiskBytes,
-		MaxDiskSize:      s.cfg.MaxDiskSize,
+		MaxDiskSize:      s.maxDiskSize.Load(),
 		Series:           series,
-		MaxSeries:        s.cfg.MaxSeries,
+		MaxSeries:        maxSeries,
 		DroppedReports:   s.droppedReports.Load(),
 		DroppedGroups:    s.droppedGroups.Load(),
 		DuplicateReports: s.duplicateReports.Load(),
-		Retention:        s.cfg.Retention,
+		Retention:        time.Duration(s.retention.Load()),
 		SampleInterval:   s.cfg.SampleInterval,
 	}
 	if st.MinTimestamp > 0 {

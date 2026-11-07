@@ -11,6 +11,8 @@ package metricsstore
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 )
 
@@ -18,11 +20,13 @@ const (
 	// DefaultRetention is how long the points are kept.
 	DefaultRetention = 30 * 24 * time.Hour
 
-	// MaxRetention is the largest retention.
+	// MinRetention and MaxRetention bound the retention.
+	MinRetention = time.Hour
 	MaxRetention = 30 * 24 * time.Hour
 
 	// DefaultPartitionDuration is the time range of a partition: the
 	// points of the newest two partitions are in memory (and in the WAL).
+	// A shorter retention shortens the default partition to the retention.
 	DefaultPartitionDuration = 6 * time.Hour
 
 	// DefaultSampleInterval is the resolution of the stored points.
@@ -126,8 +130,8 @@ func (c *Config) Validate() error {
 		return nil
 	}
 	var errs []error
-	if c.Retention <= 0 || c.Retention > MaxRetention {
-		errs = append(errs, fmt.Errorf("retention must be between 1s and %s", MaxRetention))
+	if c.Retention < MinRetention || c.Retention > MaxRetention {
+		errs = append(errs, fmt.Errorf("retention must be between 1h and 720h (30d), not %s", FormatRetention(c.Retention)))
 	}
 	if c.SampleInterval < time.Second {
 		errs = append(errs, errors.New("sample_interval must be at least 1s"))
@@ -148,4 +152,40 @@ func (c *Config) Validate() error {
 		errs = append(errs, errors.New("wal_buffered_size must be -1 or more"))
 	}
 	return errors.Join(errs...)
+}
+
+// retentionDays matches a retention that starts with whole days: "7d",
+// "1d12h".
+var retentionDays = regexp.MustCompile(`^([0-9]+)d(.*)$`)
+
+// ParseRetention parses a retention: a Go duration ("168h", "90m") or whole
+// days, optionally followed by a Go duration ("7d", "1d12h").
+func ParseRetention(s string) (time.Duration, error) {
+	m := retentionDays.FindStringSubmatch(s)
+	if m == nil {
+		return time.ParseDuration(s)
+	}
+	days, err := strconv.ParseInt(m[1], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration %q", s)
+	}
+	d := time.Duration(days) * 24 * time.Hour
+	if m[2] != "" {
+		rest, err := time.ParseDuration(m[2])
+		if err != nil || rest < 0 {
+			return 0, fmt.Errorf("invalid duration %q", s)
+		}
+		d += rest
+	}
+	return d, nil
+}
+
+// FormatRetention formats a retention of whole days as days ("7d"), any
+// other as a Go duration.
+func FormatRetention(d time.Duration) string {
+	const day = 24 * time.Hour
+	if d > 0 && d%day == 0 {
+		return strconv.FormatInt(int64(d/day), 10) + "d"
+	}
+	return d.String()
 }

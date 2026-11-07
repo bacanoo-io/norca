@@ -90,6 +90,20 @@ func (e *executor) blockedUntil(key targetKey, p *sdk.ScalingPolicy, t *targetSt
 	return until, reason
 }
 
+// suspendedCount returns the number of targets this leader suspended for
+// oscillating whose suspension has not ended at now.
+func (e *executor) suspendedCount(now time.Time) int {
+	e.l.Lock()
+	defer e.l.Unlock()
+	n := 0
+	for _, until := range e.suspended {
+		if until.After(now) {
+			n++
+		}
+	}
+	return n
+}
+
 // forget drops the state of a target that is no longer scaled.
 func (e *executor) forget(key targetKey) {
 	e.l.Lock()

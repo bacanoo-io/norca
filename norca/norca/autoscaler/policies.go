@@ -202,6 +202,8 @@ func (r *runner) reconcile(list *policyList, now time.Time) {
 		}
 	}
 
+	r.policyCount.Store(int64(len(r.handles)))
+	r.queueLen.Store(int64(len(r.queue)))
 	metrics.SetGauge([]string{"nomad", "autoscaler", "policies"}, float32(len(r.handles)))
 }
 

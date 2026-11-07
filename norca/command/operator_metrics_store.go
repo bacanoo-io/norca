@@ -6,6 +6,7 @@ package command
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/dustin/go-humanize"
@@ -59,8 +60,9 @@ func (c *OperatorMetricsStoreStatusCommand) Help() string {
 Usage: norca operator metrics-store status [options]
 
   Displays the state of the metrics store of one server: its partitions, the
-  disk use, the series and the time range of the stored points. Without
-  -server, the server answering the request reports.
+  disk use, the series, the time range of the stored points and the
+  effective retention (which a reload of the server configuration changes).
+  Without -server, the server answering the request reports.
 
   If ACLs are enabled, this command requires a token with the 'operator:read'
   capability.
@@ -138,6 +140,16 @@ func (c *OperatorMetricsStoreStatusCommand) Run(args []string) int {
 	return 0
 }
 
+// formatMetricsRetention formats a retention of whole days as days ("7d"),
+// any other as a duration.
+func formatMetricsRetention(d time.Duration) string {
+	const day = 24 * time.Hour
+	if d > 0 && d%day == 0 {
+		return fmt.Sprintf("%dd", d/day)
+	}
+	return d.String()
+}
+
 func formatMetricsStoreStatus(st *api.MetricsStoreStatus) string {
 	if !st.Enabled {
 		return fmt.Sprintf("The metrics store is disabled on server %s", st.Server)
@@ -163,7 +175,7 @@ func formatMetricsStoreStatus(st *api.MetricsStoreStatus) string {
 		fmt.Sprintf("Series|%d of %s", st.Series, maxSeries),
 		fmt.Sprintf("Oldest Point|%s", timeOrNone(st.Oldest, formatTime(st.Oldest))),
 		fmt.Sprintf("Newest Point|%s", timeOrNone(st.Newest, formatTime(st.Newest))),
-		fmt.Sprintf("Retention|%s", st.Retention),
+		fmt.Sprintf("Retention|%s", formatMetricsRetention(st.Retention)),
 		fmt.Sprintf("Sample Interval|%s", st.SampleInterval),
 		fmt.Sprintf("Dropped Reports|%d", st.DroppedReports),
 		fmt.Sprintf("Duplicate Reports|%d", st.DuplicateReports),

@@ -11,6 +11,7 @@ import (
 	"context"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins/apm/nomadapm"
@@ -98,6 +99,34 @@ type Autoscaler struct {
 	// usage keeps the task group usage reported by clients while the
 	// autoscaler runs.
 	usage *usageCollector
+
+	// runner is the runner of the current run, nil while not running; Stats
+	// reads it.
+	runner atomic.Pointer[runner]
+}
+
+// Stats are the activity of the autoscaler: the policies waiting for an
+// evaluation, the policies, and the targets suspended for oscillating.
+// They are zero while it does not run.
+type Stats struct {
+	Running   bool
+	Queue     int
+	Policies  int
+	Suspended int
+}
+
+// Stats returns the activity of the autoscaler.
+func (a *Autoscaler) Stats() Stats {
+	r := a.runner.Load()
+	if r == nil {
+		return Stats{}
+	}
+	return Stats{
+		Running:   true,
+		Queue:     int(r.queueLen.Load()),
+		Policies:  int(r.policyCount.Load()),
+		Suspended: r.exec.suspendedCount(a.now()),
+	}
 }
 
 // New returns a new, stopped autoscaler.
@@ -257,6 +286,8 @@ func (a *Autoscaler) run(ctx context.Context, cfg *Config, doneCh chan struct{})
 		"eval_workers", cfg.EvalWorkers)
 	r := newRunner(a.logger, cfg, a.deps, a.now, host)
 	r.usage = a.usage
+	a.runner.Store(r)
+	defer a.runner.CompareAndSwap(r, nil)
 	r.run(ctx)
 }
 

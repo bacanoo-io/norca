@@ -132,3 +132,55 @@ func TestStorage_SelectWhileRemoving(t *testing.T) {
 	_, err := os.Stat(dir)
 	must.NoError(t, err)
 }
+
+// TestStorage_SetRetention checks that a longer retention keeps the disk
+// partitions, that a shorter one removes those now past it at once, and that
+// the partitions flushed later get the new retention.
+func TestStorage_SetRetention(t *testing.T) {
+	dir := t.TempDir()
+	s := openTestStorage(t, dir)
+	labels := []Label{{Name: "group", Value: "web"}}
+	insert := func(from, to int64) {
+		for ts := from; ts <= to; ts++ {
+			must.NoError(t, s.InsertRows([]Row{{Metric: "cpu", Labels: labels, DataPoint: DataPoint{Timestamp: ts, Value: 1}}}))
+		}
+	}
+	insert(1, 60)
+	must.NoError(t, s.Close())
+	s = openTestStorage(t, dir)
+	defer func() { must.NoError(t, s.Close()) }()
+	before := s.Stats().DiskPartitions
+	must.Positive(t, before)
+
+	must.Error(t, s.SetRetention(0))
+
+	// Longer: nothing goes.
+	must.NoError(t, s.SetRetention(30*24*time.Hour))
+	must.Eq(t, before, s.Stats().DiskPartitions)
+	must.Len(t, before, diskPartitionDirs(t, dir))
+
+	// Shorter than the age of the partitions (written above): they go at
+	// once, with their files.
+	time.Sleep(20 * time.Millisecond)
+	must.NoError(t, s.SetRetention(10*time.Millisecond))
+	must.Eq(t, 0, s.Stats().DiskPartitions)
+	must.SliceEmpty(t, diskPartitionDirs(t, dir))
+
+	// A partition flushed from now on has the new retention.
+	insert(61, 120)
+	impl := s.(*storage)
+	must.NoError(t, impl.flushPartitions())
+	must.Eq(t, 10*time.Millisecond, impl.getRetention())
+	iterator := impl.partitionList.newIterator()
+	flushed := 0
+	for iterator.next() {
+		if d, ok := iterator.value().(*diskPartition); ok {
+			flushed++
+			must.Eq(t, int64(10*time.Millisecond), d.retention.Load())
+		}
+	}
+	must.Positive(t, flushed)
+	time.Sleep(20 * time.Millisecond)
+	must.NoError(t, impl.removeExpiredPartitions())
+	must.Eq(t, 0, s.Stats().DiskPartitions)
+}

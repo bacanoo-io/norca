@@ -307,7 +307,12 @@ func TestMetricsStore_GaugesSeriesSummaryACL(t *testing.T) {
 	var series structs.MetricsSeriesResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.MetricsStoreSeriesRPCMethod, &structs.MetricsSeriesRequest{QueryOptions: q(jobs)}, &series))
 	must.Len(t, 1, series.Groups)
-	must.SliceEmpty(t, series.Gauges)
+	// Of the gauges, read-job in a namespace shows the jobs of that
+	// namespace only (sampled by the server meanwhile).
+	for _, g := range series.Gauges {
+		must.StrHasPrefix(t, "norca.jobs.", g.Metric)
+		must.Eq(t, "default", g.Labels["ns"])
+	}
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.MetricsStoreSeriesRPCMethod, &structs.MetricsSeriesRequest{QueryOptions: q(nodes)}, &series))
 	must.SliceEmpty(t, series.Groups)
 	must.Len(t, 1, series.Gauges)

@@ -113,6 +113,26 @@ func (s *Server) raftServers() int {
 	return len(future.Configuration().Servers)
 }
 
+// reloadMetricsStore applies a reloaded metrics_store block to the open
+// store (see metricsstore.Store.Reload). Turning the store on or off needs a
+// restart.
+func (s *Server) reloadMetricsStore(cfg *metricsstore.Config) error {
+	if cfg == nil {
+		return nil
+	}
+	if s.metricsStore == nil {
+		if cfg.Enabled && s.config.MetricsStore != nil && !s.config.MetricsStore.Enabled {
+			s.logger.Warn("metrics_store.enabled applies only after a restart")
+		}
+		return nil
+	}
+	if !cfg.Enabled {
+		s.logger.Warn("metrics_store.enabled applies only after a restart; the store keeps running")
+		return nil
+	}
+	return s.metricsStore.Reload(cfg)
+}
+
 // shutdownBus stops the system bus and the metrics store it feeds.
 func (s *Server) shutdownBus() {
 	if s.bus != nil {

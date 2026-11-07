@@ -16,11 +16,13 @@ import (
 
 // MetricsStoreConfig is the server's metrics_store block: the history of the
 // task group usage the clients publish on the system bus, kept in
-// <data_dir>/server/tsdb.
+// <data_dir>/server/tsdb. The retention (1h to 30d, "168h" or "7d"),
+// max_disk_size and max_series apply at a reload (SIGHUP); the other fields
+// need a restart.
 //
 //	metrics_store {
 //	  enabled            = true
-//	  retention          = "720h"
+//	  retention          = "30d"
 //	  partition_duration = "6h"
 //	  sample_interval    = "30s"
 //	  max_disk_size      = "2GiB"
@@ -109,11 +111,18 @@ func (m *MetricsStoreConfig) toServerConfig() (*metricsstore.Config, error) {
 		if d.value == "" {
 			continue
 		}
-		v, err := time.ParseDuration(d.value)
+		// Every duration takes whole days as well ("7d").
+		v, err := metricsstore.ParseRetention(d.value)
 		if err != nil {
 			return nil, fmt.Errorf("metrics_store.%s can't parse duration %s", d.name, d.value)
 		}
 		*d.field = v
+	}
+	// A partition is not longer than the retention: without a
+	// partition_duration, a retention below the default partition shortens
+	// it.
+	if m.PartitionDuration == "" {
+		cfg.PartitionDuration = min(metricsstore.DefaultPartitionDuration, cfg.Retention)
 	}
 	if m.MaxDiskSize != "" {
 		v, err := humanize.ParseBytes(m.MaxDiskSize)

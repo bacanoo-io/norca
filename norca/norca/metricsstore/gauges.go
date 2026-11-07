@@ -65,6 +65,104 @@ const (
 	MetricQuotaMemoryUsed      = "norca.quota.memory_mb_used"
 )
 
+// The scheduler and the control plane (family 5). The values of the eval
+// broker, the plan queue, the blocked evaluations, the heartbeats, the
+// secrets watchers and the autoscaler exist only on the leader, which alone
+// samples them. The jobs and the backups are read from the state by every
+// server; the security counters and the store's own values are those of the
+// server that samples them.
+const (
+	// The evaluations of the eval broker: ready for a scheduler, handed to
+	// one and not acknowledged yet, pending behind another evaluation of the
+	// same job, waiting for their wait time, and delayed until a time
+	// (reschedules).
+	MetricSchedBrokerReady   = "norca.sched.broker_ready"
+	MetricSchedBrokerUnacked = "norca.sched.broker_unacked"
+	MetricSchedBrokerPending = "norca.sched.broker_pending"
+	MetricSchedBrokerWaiting = "norca.sched.broker_waiting"
+	MetricSchedBrokerDelayed = "norca.sched.broker_delayed"
+	// MetricSchedPlanQueueDepth is the number of plans waiting to be
+	// applied.
+	MetricSchedPlanQueueDepth = "norca.sched.plan_queue_depth"
+	// The blocked evaluations: all of them, those that escaped the node
+	// classes, and those blocked by a quota.
+	MetricSchedBlockedTotal      = "norca.sched.blocked_total"
+	MetricSchedBlockedEscaped    = "norca.sched.blocked_escaped"
+	MetricSchedBlockedQuotaLimit = "norca.sched.blocked_quota_limit"
+	// MetricSchedHeartbeatsActive is the number of nodes whose heartbeat
+	// the leader tracks.
+	MetricSchedHeartbeatsActive = "norca.sched.heartbeats_active"
+
+	// The jobs of a namespace (label ns) by status.
+	MetricJobsPending = "norca.jobs.pending"
+	MetricJobsRunning = "norca.jobs.running"
+	MetricJobsDead    = "norca.jobs.dead"
+
+	// The secret store: the active leases, the secrets about to expire and
+	// expired, and those whose rotation is due.
+	MetricSecretsLeasesActive = "norca.secrets.leases_active"
+	MetricSecretsExpiring     = "norca.secrets.expiring"
+	MetricSecretsExpired      = "norca.secrets.expired"
+	MetricSecretsRotationDue  = "norca.secrets.rotation_due"
+
+	// The backups: the age of the newest usable backup in seconds (no
+	// series before the first one), and the size of its state object in
+	// bytes and its upload time in seconds on each destination (label
+	// destination).
+	MetricBackupLastSuccessAge = "norca.backup.last_success_age_seconds"
+	MetricBackupSize           = "norca.backup.size_bytes"
+	MetricBackupDuration       = "norca.backup.duration_seconds"
+
+	// Security events, as the increase in the sample interval on the
+	// sampling server: workload certificates issued by the mTLS
+	// certificate authority, jobs and variables denied by admission
+	// control, and the calls and failed calls of each admission webhook
+	// (label webhook).
+	MetricSecurityCertificatesIssued = "norca.security.certificates_issued"
+	MetricSecurityAdmissionDenied    = "norca.security.admission_denied"
+	MetricSecurityWebhookCalls       = "norca.security.webhook_calls"
+	MetricSecurityWebhookErrors      = "norca.security.webhook_errors"
+
+	// The built-in autoscaler: the policies waiting for an evaluation, the
+	// policies, and the targets suspended for oscillating.
+	MetricAutoscalerQueue     = "norca.autoscaler.queue"
+	MetricAutoscalerPolicies  = "norca.autoscaler.policies"
+	MetricAutoscalerSuspended = "norca.autoscaler.oscillation_suspended"
+
+	// The metrics store of the sampling server: its disk use in bytes, its
+	// series, and the reports it dropped in the interval.
+	MetricStoreDiskBytes      = "norca.store.disk_bytes"
+	MetricStoreSeries         = "norca.store.series"
+	MetricStoreDroppedReports = "norca.store.dropped_reports"
+)
+
+// The custom objects and their operators (family 9), read from the state by
+// every server.
+const (
+	// A node group (label group, the name of the NodeGroup object): the
+	// replicas wanted (spec.replicas), ready (status.replicas), joining and
+	// failed, the nodes being replaced and outdated in a rollout.
+	MetricNodeGroupReplicas         = "norca.nodegroup.replicas"
+	MetricNodeGroupReady            = "norca.nodegroup.ready"
+	MetricNodeGroupJoining          = "norca.nodegroup.joining"
+	MetricNodeGroupFailed           = "norca.nodegroup.failed"
+	MetricNodeGroupRolloutReplacing = "norca.nodegroup.rollout_replacing"
+	MetricNodeGroupRolloutOutdated  = "norca.nodegroup.rollout_outdated"
+	// MetricNodeGroupCondition is 1 while a condition of the status of a
+	// node group (labels group, type) is True, 0 otherwise.
+	MetricNodeGroupCondition = "norca.nodegroup.condition"
+
+	// A load balancer (labels ns, name): the healthy targets, and 1 while
+	// its Ready condition is True.
+	MetricLBTargets = "norca.lb.targets"
+	MetricLBReady   = "norca.lb.ready"
+
+	// The custom objects of a kind (label kind, "group/Kind"), and those
+	// whose Degraded condition is True.
+	MetricObjectsCount    = "norca.objects.count"
+	MetricObjectsDegraded = "norca.objects.degraded"
+)
+
 // gaugeLabels are the labels of the gauge metrics, by metric.
 var gaugeLabels = map[string][]string{
 	MetricClusterCPUAllocated:    {"dc", "pool", "class"},
@@ -85,6 +183,49 @@ var gaugeLabels = map[string][]string{
 	MetricQuotaCPUUsed:                  {"quota"},
 	MetricQuotaMemoryAllocated:          {"quota"},
 	MetricQuotaMemoryUsed:               {"quota"},
+
+	MetricSchedBrokerReady:           {},
+	MetricSchedBrokerUnacked:         {},
+	MetricSchedBrokerPending:         {},
+	MetricSchedBrokerWaiting:         {},
+	MetricSchedBrokerDelayed:         {},
+	MetricSchedPlanQueueDepth:        {},
+	MetricSchedBlockedTotal:          {},
+	MetricSchedBlockedEscaped:        {},
+	MetricSchedBlockedQuotaLimit:     {},
+	MetricSchedHeartbeatsActive:      {},
+	MetricJobsPending:                {"ns"},
+	MetricJobsRunning:                {"ns"},
+	MetricJobsDead:                   {"ns"},
+	MetricSecretsLeasesActive:        {},
+	MetricSecretsExpiring:            {},
+	MetricSecretsExpired:             {},
+	MetricSecretsRotationDue:         {},
+	MetricBackupLastSuccessAge:       {},
+	MetricBackupSize:                 {"destination"},
+	MetricBackupDuration:             {"destination"},
+	MetricSecurityCertificatesIssued: {},
+	MetricSecurityAdmissionDenied:    {},
+	MetricSecurityWebhookCalls:       {"webhook"},
+	MetricSecurityWebhookErrors:      {"webhook"},
+	MetricAutoscalerQueue:            {},
+	MetricAutoscalerPolicies:         {},
+	MetricAutoscalerSuspended:        {},
+	MetricStoreDiskBytes:             {},
+	MetricStoreSeries:                {},
+	MetricStoreDroppedReports:        {},
+
+	MetricNodeGroupReplicas:         {"group"},
+	MetricNodeGroupReady:            {"group"},
+	MetricNodeGroupJoining:          {"group"},
+	MetricNodeGroupFailed:           {"group"},
+	MetricNodeGroupRolloutReplacing: {"group"},
+	MetricNodeGroupRolloutOutdated:  {"group"},
+	MetricNodeGroupCondition:        {"group", "type"},
+	MetricLBTargets:                 {"ns", "name"},
+	MetricLBReady:                   {"ns", "name"},
+	MetricObjectsCount:              {"kind"},
+	MetricObjectsDegraded:           {"kind"},
 }
 
 // GaugeMetrics are the gauge metrics, sorted.

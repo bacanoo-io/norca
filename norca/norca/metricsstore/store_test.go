@@ -269,10 +269,10 @@ func TestStore_Reopen(t *testing.T) {
 	must.Eq(t, base.UTC(), st.Oldest)
 
 	// Above the disk cap the oldest partitions go first.
-	s.cfg.MaxDiskSize = st.DiskBytes / 2
+	s.maxDiskSize.Store(st.DiskBytes / 2)
 	s.maintain()
 	after := s.Status()
-	must.LessEq(t, s.cfg.MaxDiskSize, after.DiskBytes)
+	must.LessEq(t, st.DiskBytes/2, after.DiskBytes)
 	must.True(t, after.Oldest.After(st.Oldest))
 	points, _, err = s.Query(web, MetricCPU, base, base.Add(time.Hour), 120)
 	must.NoError(t, err)
@@ -293,4 +293,83 @@ func TestConfig_Validate(t *testing.T) {
 	must.ErrorContains(t, cfg.Validate(), "partition_duration")
 	cfg.Enabled = false
 	must.NoError(t, cfg.Validate())
+
+	// The retention is between 1h and 30d; the partition is not longer.
+	for retention, ok := range map[time.Duration]bool{
+		time.Hour: true, 7 * 24 * time.Hour: true, MaxRetention: true,
+		30 * time.Minute: false, 31 * 24 * time.Hour: false,
+	} {
+		cfg = DefaultConfig()
+		cfg.Retention = retention
+		cfg.PartitionDuration = min(cfg.PartitionDuration, retention)
+		if ok {
+			must.NoError(t, cfg.Validate(), must.Sprint(retention))
+		} else {
+			must.ErrorContains(t, cfg.Validate(), "retention must be between 1h and 720h (30d)", must.Sprint(retention))
+		}
+	}
+	cfg = DefaultConfig()
+	cfg.Retention = time.Hour
+	must.ErrorContains(t, cfg.Validate(), "partition_duration must not be longer than retention")
+}
+
+// TestParseRetention checks the durations and days a retention takes.
+func TestParseRetention(t *testing.T) {
+	ci.Parallel(t)
+	for in, want := range map[string]time.Duration{
+		"168h":  168 * time.Hour,
+		"90m":   90 * time.Minute,
+		"7d":    7 * 24 * time.Hour,
+		"30d":   MaxRetention,
+		"1d12h": 36 * time.Hour,
+		"0d":    0,
+	} {
+		got, err := ParseRetention(in)
+		must.NoError(t, err, must.Sprint(in))
+		must.Eq(t, want, got, must.Sprint(in))
+	}
+	for _, in := range []string{"", "d", "7days", "1.5d", "1d-1h", "week", "7d7d"} {
+		_, err := ParseRetention(in)
+		must.Error(t, err, must.Sprint(in))
+	}
+	must.Eq(t, "7d", FormatRetention(7*24*time.Hour))
+	must.Eq(t, "36h0m0s", FormatRetention(36*time.Hour))
+}
+
+// TestStore_Reload checks that a reload sets the retention, max_disk_size
+// and max_series at once, keeps the settings that need a restart, and
+// refuses an invalid configuration.
+func TestStore_Reload(t *testing.T) {
+	ci.Parallel(t)
+	cfg := testConfig(t.TempDir())
+	s := openTest(t, cfg)
+	defer func() { must.NoError(t, s.Close()) }()
+	must.Eq(t, 24*time.Hour, s.Status().Retention)
+
+	next := cfg.Copy()
+	next.Dir = ""
+	next.Retention = 7 * 24 * time.Hour
+	next.MaxDiskSize = 1 << 20
+	next.MaxSeries = 10
+	next.SampleInterval = time.Minute      // needs a restart
+	next.PartitionDuration = 3 * time.Hour // needs a restart
+	must.NoError(t, s.Reload(next))
+	st := s.Status()
+	must.Eq(t, 7*24*time.Hour, st.Retention)
+	must.Eq(t, int64(1<<20), st.MaxDiskSize)
+	must.Eq(t, 10, st.MaxSeries)
+	must.Eq(t, DefaultSampleInterval, st.SampleInterval)
+	must.Eq(t, 2*time.Hour, s.cfg.PartitionDuration)
+
+	// Shorter, down to the minimum.
+	next.Retention = time.Hour
+	next.PartitionDuration = time.Hour
+	must.NoError(t, s.Reload(next))
+	must.Eq(t, time.Hour, s.Status().Retention)
+
+	next.Retention = 31 * 24 * time.Hour
+	must.ErrorContains(t, s.Reload(next), "retention")
+	must.Eq(t, time.Hour, s.Status().Retention)
+	must.Error(t, s.SetRetention(30*time.Minute))
+	must.NoError(t, s.Reload(nil))
 }

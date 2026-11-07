@@ -195,6 +195,7 @@ func (m *MTLS) SignCertificate(args *structs.MTLSSignRequest, reply *structs.MTL
 	if err != nil {
 		return err
 	}
+	m.srv.metricsCounters.certificatesIssued.Add(1)
 	metrics.IncrCounter([]string{"nomad", "mtls", "certificates_issued"}, 1)
 
 	reply.CertPEM = certPEM

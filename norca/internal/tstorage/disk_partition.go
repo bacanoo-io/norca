@@ -1,6 +1,7 @@
 // Modified by Norca contributors: the mapping of a partition is released
 // before its files are removed and when the storage closes; selects hold a
-// read lock against that.
+// read lock against that. The retention of a partition can be changed while
+// it is open (setRetention).
 
 package tstorage
 
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/internal/tstorage/internal/syscall"
@@ -40,8 +42,8 @@ type diskPartition struct {
 	mu sync.RWMutex
 	// memory-mapped file backed by f; nil once released
 	mappedFile []byte
-	// duration to store data
-	retention time.Duration
+	// duration to store data, in nanoseconds; changed by setRetention
+	retention atomic.Int64
 }
 
 // meta is a mapper for a meta file, which is put for each partition.
@@ -104,13 +106,19 @@ func openDiskPartition(dirPath string, retention time.Duration) (partition, erro
 	if err := decoder.Decode(&m); err != nil {
 		return nil, fmt.Errorf("failed to decode metadata: %w", err)
 	}
-	return &diskPartition{
+	d := &diskPartition{
 		dirPath:    dirPath,
 		meta:       m,
 		f:          f,
 		mappedFile: mapped,
-		retention:  retention,
-	}, nil
+	}
+	d.setRetention(retention)
+	return d, nil
+}
+
+// setRetention sets how long the partition is kept after it was created.
+func (d *diskPartition) setRetention(retention time.Duration) {
+	d.retention.Store(int64(retention))
 }
 
 func (d *diskPartition) insertRows(_ []Row) ([]Row, error) {
@@ -208,9 +216,5 @@ func (d *diskPartition) clean() error {
 }
 
 func (d *diskPartition) expired() bool {
-	diff := time.Since(d.meta.CreatedAt)
-	if diff > d.retention {
-		return true
-	}
-	return false
+	return time.Since(d.meta.CreatedAt) > time.Duration(d.retention.Load())
 }
