@@ -21,6 +21,7 @@ import (
 
 func TestFS_Logs(t *testing.T) {
 	testutil.RequireRoot(t)
+	testutil.RequireMount(t)
 	testutil.Parallel(t)
 
 	c, s := makeClient(t, nil, func(c *testutil.TestServerConfig) {
