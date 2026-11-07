@@ -1,0 +1,93 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.isShown}}
+  <Ui::Card
+    @title="Metrics store"
+    @subtitle="The history each server keeps for itself: its retention decides the ranges the charts offer"
+    @flush={{true}}
+    data-test-store-status
+    ...attributes
+  >
+    {{#if (eq this.state "loading")}}
+      <div class="card-body">
+        <Ui::Spinner @showLabel={{true}} @label="Loading the state of the metrics stores" />
+      </div>
+    {{else}}
+      {{#if this.differing.length}}
+        <div class="card-body pb-0">
+          <Ui::Alert @tone="warning" @title="The servers keep different histories" data-test-store-status-differs>
+            {{#each this.differing as |row|}}
+              <div>
+                {{row.name}}:
+                {{#if row.retentionDiffers}}retention {{row.retention}}, the other servers {{row.commonRetention}}.{{/if}}
+                {{#if row.diskDiffers}}max_disk_size {{row.maxDisk}}, the other servers {{row.commonMaxDisk}}.{{/if}}
+              </div>
+            {{/each}}
+            The same query answers with a different range depending on the server it reaches. Give the servers of a region the same
+            <code>metrics_store</code> retention and max_disk_size.
+          </Ui::Alert>
+        </div>
+      {{/if}}
+      {{#if this.dropping.length}}
+        <div class="card-body pb-0">
+          <Ui::Alert @tone="warning" @title="Series are not stored" data-test-store-status-dropping>
+            {{#each this.dropping as |row|}}
+              <div>{{row.name}}: {{row.series}} of {{row.maxSeries}} series, {{row.droppedGroups}} task groups left out.</div>
+            {{/each}}
+            Raise <code>max_series</code> (a reload applies it to new series).
+          </Ui::Alert>
+        </div>
+      {{/if}}
+      <Ui::Table
+        @inCard={{true}}
+        @caption="Metrics store per server"
+        @columns={{array
+          (hash key="name" label="Server")
+          (hash key="retention" label="Retention")
+          (hash key="oldest" label="Oldest point")
+          (hash key="disk" label="Disk of max_disk_size")
+          (hash key="series" label="Series of max_series")
+          (hash key="dropped" label="Dropped reports / groups")
+          (hash key="forgotten" label="Forgotten series")
+        }}
+        @rows={{this.rows}}
+        as |row|
+      >
+        <td data-test-store-status-server={{row.name}}>
+          {{row.name}}
+          {{#if row.region}}<div class="small text-secondary">{{row.region}}</div>{{/if}}
+        </td>
+        {{#if row.error}}
+          <td colspan="6" class="text-secondary" data-test-store-status-error>{{row.error}}</td>
+        {{else if (not row.enabled)}}
+          <td colspan="6" class="text-secondary" data-test-store-status-disabled>The metrics store is disabled.</td>
+        {{else}}
+          <td data-test-store-status-retention>
+            {{#if row.retentionDiffers}}
+              <Ui::Badge @color="orange" title="The other servers keep {{row.commonRetention}}">{{row.retention}}</Ui::Badge>
+            {{else}}
+              {{row.retention}}
+            {{/if}}
+          </td>
+          <td title={{row.oldestTitle}}>{{row.oldest}}</td>
+          <td style="min-width: 10rem">
+            <Ui::Progress @value={{row.diskValue}} @max={{row.diskMax}} @color={{row.diskColor}} @size="sm" @label="Disk use of {{row.name}}" class="mb-1" />
+            <span class="small" data-test-store-status-disk>
+              {{row.disk}} of
+              {{#if row.diskDiffers}}
+                <Ui::Badge @color="orange" title="The other servers allow {{row.commonMaxDisk}}">{{row.maxDisk}}</Ui::Badge>
+              {{else}}
+                {{row.maxDisk}}
+              {{/if}}
+            </span>
+          </td>
+          <td class={{if row.seriesFull "text-warning"}}>{{row.series}} of {{row.maxSeries}}</td>
+          <td>{{row.droppedReports}} / {{row.droppedGroups}}</td>
+          <td>{{row.forgotten}}</td>
+        {{/if}}
+      </Ui::Table>
+    {{/if}}
+  </Ui::Card>
+{{/if}}
