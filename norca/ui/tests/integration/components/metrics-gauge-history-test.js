@@ -112,6 +112,31 @@ module('Integration | Component | Metrics gauge history', function (hooks) {
     assert.dom('[data-test-gauge-history-disabled]').exists();
   });
 
+  test('the history of a server is read from that server', async function (assert) {
+    this.server.metricsRetention = 7 * 86400e9;
+    this.agent = { name: 'server-2.global', region: 'global' };
+    await render(hbs`<Metrics::ServerHistory @server={{this.agent}} />`);
+    await waitFor('[data-test-gauge-chart="bus-streams"] [data-test-chart]');
+
+    assert.dom('[data-test-gauge-chart]').exists({ count: 4 });
+    const urls = history(this.server);
+    const named = urls.filter(
+      (url) =>
+        url.includes('server_id=server-2.global') &&
+        url.includes('region=global')
+    );
+    assert.ok(urls.length > 0, 'the history is read');
+    assert.strictEqual(
+      named.length,
+      urls.length,
+      'every history request names the server'
+    );
+    assert.ok(urls.some((url) => url.includes('metric=norca.bus.routes')));
+    assert
+      .dom('[data-test-tab="30d"]')
+      .doesNotExist('the retention of that server limits the ranges');
+  });
+
   test('the helpers', function (assert) {
     const t1 = '2026-11-07T10:00:00Z';
     const t2 = '2026-11-07T10:00:30Z';
