@@ -4,7 +4,7 @@
 ~}}
 <Ui::Card @title="Usage history" @subtitle="Per allocation, from the metrics store of the servers" class="mb-3" data-test-usage-history ...attributes>
   <:actions>
-    <Ui::Tabs @label="Range" @tabs={{this.tabs}} @selected={{this.range}} @onSelect={{this.selectRange}} data-test-usage-range />
+    <Ui::Tabs @label="Range" @tabs={{this.tabs}} @selected={{this.rangeId}} @onSelect={{this.selectRange}} data-test-usage-range />
   </:actions>
   <:default>
     {{#if (eq this.state "loading")}}

@@ -4,7 +4,7 @@
 ~}}
 <Ui::Card @title="Usage and allocations" @subtitle="Of the group, from the metrics store of the servers" data-test-scaling-history ...attributes>
   <:actions>
-    <Ui::Tabs @label="Range" @tabs={{this.tabs}} @selected={{this.range}} @onSelect={{this.selectRange}} />
+    <Ui::Tabs @label="Range" @tabs={{this.tabs}} @selected={{this.rangeId}} @onSelect={{this.selectRange}} />
   </:actions>
   <:default>
     {{#if (eq this.state "loading")}}

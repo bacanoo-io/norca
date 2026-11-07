@@ -518,13 +518,47 @@ function routes() {
   });
 
   // The metrics store of the servers: a synthetic, deterministic history.
-  // Fixtures turn it off (metricsStoreEnabled: false) or deny it.
+  // Fixtures turn it off (metricsStoreEnabled: false), deny it, set the
+  // retention (metricsRetention, nanoseconds), list the metrics without
+  // points (metricsWithoutPoints) or the status of a server's store
+  // (metricsStoreStatusOf(serverName)).
   const metricsStep = 30;
-  const metricsValue = (metric, i) => {
+  const metricsRetention = () => server.metricsRetention ?? 720 * 3600e9;
+  const metricsWithoutPoints = () =>
+    server.metricsWithoutPoints ?? ['norca.group.memory_swap_mb'];
+  const metricsValue = (metric, i, queryParams = {}) => {
     if (metric.endsWith('oom_kills')) return i === 3 ? 1 : 0;
     if (metric.endsWith('allocs_running')) return i < 10 ? 2 : 3;
     if (metric.endsWith('allocs_queued')) return 0;
+    if (metric.endsWith('allocs_starting')) return i === 9 ? 1 : 0;
+    if (metric.endsWith('allocs_failed')) return i < 12 ? 0 : 1;
+    if (metric.endsWith('allocs_lost')) return 0;
+    if (metric.endsWith('restarts')) return i === 12 ? 2 : 0;
     if (metric.endsWith('cpu_throttled')) return 2;
+    if (metric === 'norca.node.memory_total_mb') return 8192;
+    if (metric === 'norca.node.memory_used_mb') return 4000 + (i % 4) * 100;
+    if (metric === 'norca.node.disk_total_mb') return 51200;
+    if (metric === 'norca.node.disk_used_mb') return 20480 + i * 10;
+    if (metric === 'norca.node.inodes_used_percent') return 12;
+    if (metric === 'norca.nodegroup.condition') {
+      return queryParams.type === 'RollBlocked' && i >= 5 && i < 9 ? 1 : 0;
+    }
+    if (metric === 'norca.nodegroup.replicas') return 3;
+    if (metric === 'norca.nodegroup.ready') return i < 8 ? 2 : 3;
+    if (metric === 'norca.nodegroup.joining') return i < 8 ? 1 : 0;
+    if (metric.startsWith('norca.nodegroup.')) return 0;
+    if (metric === 'norca.lb.targets') return i < 4 ? 1 : 2;
+    if (metric === 'norca.lb.ready') return 1;
+    if (metric === 'norca.server.raft_db_bytes') return 64e6 + i * 1e5;
+    if (metric === 'norca.server.raft_last_contact_seconds') return 0.05;
+    if (metric === 'norca.server.raft_term') return 3;
+    if (metric.startsWith('norca.server.')) return 0;
+    if (metric === 'norca.bus.jetstream_bytes') return 2e6 + i * 1e3;
+    if (metric === 'norca.bus.jetstream_messages') return 1000 + i;
+    if (metric === 'norca.bus.routes') return 2;
+    if (metric.startsWith('norca.sched.')) return i % 3;
+    if (metric === 'norca.jobs.running') return 4;
+    if (metric.startsWith('norca.jobs.')) return 1;
     if (metric.endsWith('cpu_mhz')) return 200 + (i % 5) * 20;
     if (metric.endsWith('memory_cache_mb')) return 32;
     if (metric.endsWith('memory_mb')) return 120 + (i % 3) * 10;
@@ -535,16 +569,31 @@ function routes() {
     if (server.metricsStoreEnabled === false) {
       return { Enabled: false, Metric: metric, Step: 0, Points: [] };
     }
+    if (metricsWithoutPoints().includes(metric)) {
+      return {
+        Enabled: true,
+        Metric: metric,
+        Retention: metricsRetention(),
+        Step: metricsStep * 1e9,
+        Points: [],
+      };
+    }
     const now = Math.floor(Date.now() / 1000 / metricsStep) * metricsStep;
     const Points = Array.from({ length: 20 }, (_, i) => {
-      const value = metricsValue(metric, i);
+      const value = metricsValue(metric, i, queryParams);
       return {
         Time: new Date((now - (19 - i) * metricsStep) * 1000).toISOString(),
         Avg: value,
         Max: value * 1.5,
       };
     });
-    return { Enabled: true, Metric: metric, Step: metricsStep * 1e9, Points };
+    return {
+      Enabled: true,
+      Metric: metric,
+      Retention: metricsRetention(),
+      Step: metricsStep * 1e9,
+      Points,
+    };
   });
   this.get('/metrics/summary', function () {
     if (server.metricsStoreEnabled === false) {
@@ -567,11 +616,51 @@ function routes() {
     }
     return {
       Enabled: true,
+      Retention: metricsRetention(),
       Groups: [],
-      Gauges: ['dc1', 'dc2'].map((dc) => ({
-        Metric: 'norca.cluster.cpu_used',
-        Labels: { dc, pool: 'default' },
-      })),
+      Gauges: [
+        ...['dc1', 'dc2'].map((dc) => ({
+          Metric: 'norca.cluster.cpu_used',
+          Labels: { dc, pool: 'default' },
+        })),
+        ...['RollBlocked', 'JoinFailing'].map((type) => ({
+          Metric: 'norca.nodegroup.condition',
+          Labels: { group: 'workers', type },
+        })),
+        ...['pending', 'running', 'dead'].flatMap((state) =>
+          ['default', 'prod'].map((ns) => ({
+            Metric: `norca.jobs.${state}`,
+            Labels: { ns },
+          }))
+        ),
+      ],
+    };
+  });
+  this.get('/operator/metrics-store', function (schema, { queryParams }) {
+    const name = queryParams.server_id || schema.agents.first()?.name;
+    const custom = server.metricsStoreStatusOf?.(name);
+    if (custom instanceof Response) return custom;
+    const now = Date.now();
+    return {
+      Status: {
+        Enabled: server.metricsStoreEnabled !== false,
+        Server: name,
+        Partitions: 4,
+        DiskPartitions: 2,
+        DiskBytes: 300 * 1024 * 1024,
+        MaxDiskSize: 5 * 1024 * 1024 * 1024,
+        Series: 1200,
+        MaxSeries: 50000,
+        Oldest: new Date(now - 6 * 86400e3).toISOString(),
+        Newest: new Date(now - 30e3).toISOString(),
+        DroppedReports: 0,
+        DuplicateReports: 0,
+        DroppedGroups: 0,
+        ForgottenSeries: 12,
+        Retention: metricsRetention(),
+        SampleInterval: 30e9,
+        ...custom,
+      },
     };
   });
 

@@ -9,7 +9,12 @@ import { click, render, waitFor } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
 import startMirage from 'ember-cli-mirage/start-mirage';
 import { Response } from 'miragejs';
-import { recommend, points } from 'nomad-ui/utils/metrics-history';
+import {
+  recommend,
+  points,
+  rangesFor,
+  clampRange,
+} from 'nomad-ui/utils/metrics-history';
 import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
 
 module('Integration | Component | Metrics history', function (hooks) {
@@ -82,6 +87,54 @@ module('Integration | Component | Metrics history', function (hooks) {
       ),
       'the right-sizing covers the range'
     );
+  });
+
+  test('the ranges are limited to the retention of the store', async function (assert) {
+    this.server.metricsRetention = 7 * 86400e9;
+    await render(taskGroup);
+    await waitFor('[data-test-usage-cpu]');
+
+    assert.dom('[data-test-tab="1h"]').exists();
+    assert.dom('[data-test-tab="24h"]').exists();
+    assert.dom('[data-test-tab="7d"]').exists('7 days fit a retention of 7d');
+    assert
+      .dom('[data-test-tab="30d"]')
+      .doesNotExist('30 days are not offered with a retention of 7d');
+  });
+
+  test('a selected range longer than the retention falls back to the longest held', async function (assert) {
+    this.server.metricsRetention = 2 * 3600e9;
+    await render(
+      hbs`<Metrics::ScalingHistory @namespace="default" @job="api" @group="web" />`
+    );
+    await waitFor('[data-test-scaling-history-chart]');
+
+    assert.dom('[data-test-tab]').exists({ count: 1 });
+    assert.dom('[data-test-tab="1h"]').hasAttribute('aria-selected', 'true');
+  });
+
+  test('without a retention in the answer all ranges are offered', async function (assert) {
+    this.server.metricsRetention = 0;
+    await render(taskGroup);
+    await waitFor('[data-test-usage-cpu]');
+    assert.dom('[data-test-tab="30d"]').exists();
+  });
+
+  test('the ranges helpers', function (assert) {
+    assert.deepEqual(
+      rangesFor(7 * 86400e9).map((r) => r.id),
+      ['1h', '24h', '7d']
+    );
+    assert.deepEqual(
+      rangesFor(720 * 3600e9).map((r) => r.id),
+      ['1h', '24h', '7d', '30d']
+    );
+    assert.deepEqual(
+      rangesFor(3600e9).map((r) => r.id),
+      ['1h']
+    );
+    assert.strictEqual(rangesFor(null).length, 4);
+    assert.strictEqual(clampRange('30d', rangesFor(86400e9)).id, '24h');
   });
 
   test('the task group history explains a disabled store', async function (assert) {
