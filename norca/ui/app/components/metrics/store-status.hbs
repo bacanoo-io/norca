@@ -23,10 +23,12 @@
                 {{row.name}}:
                 {{#if row.retentionDiffers}}retention {{row.retention}}, the other servers {{row.commonRetention}}.{{/if}}
                 {{#if row.diskDiffers}}max_disk_size {{row.maxDisk}}, the other servers {{row.commonMaxDisk}}.{{/if}}
+                {{#if row.hostRetentionDiffers}}host_retention {{row.hostRetention}}, the other servers {{row.commonHostRetention}}.{{/if}}
+                {{#if row.hostDiskDiffers}}host_max_disk_size {{row.hostMaxDisk}}, the other servers {{row.commonHostMaxDisk}}.{{/if}}
               </div>
             {{/each}}
             The same query answers with a different range depending on the server it reaches. Give the servers of a region the same
-            <code>metrics_store</code> retention and max_disk_size.
+            <code>metrics_store</code> retentions and disk caps.
           </Ui::Alert>
         </div>
       {{/if}}
@@ -48,6 +50,7 @@
           (hash key="retention" label="Retention")
           (hash key="oldest" label="Oldest point")
           (hash key="disk" label="Disk of max_disk_size")
+          (hash key="hosts" label="Hosts store: retention, disk")
           (hash key="series" label="Series of max_series")
           (hash key="dropped" label="Dropped reports / groups")
           (hash key="forgotten" label="Forgotten series")
@@ -60,9 +63,9 @@
           {{#if row.region}}<div class="small text-secondary">{{row.region}}</div>{{/if}}
         </td>
         {{#if row.error}}
-          <td colspan="6" class="text-secondary" data-test-store-status-error>{{row.error}}</td>
+          <td colspan="7" class="text-secondary" data-test-store-status-error>{{row.error}}</td>
         {{else if (not row.enabled)}}
-          <td colspan="6" class="text-secondary" data-test-store-status-disabled>The metrics store is disabled.</td>
+          <td colspan="7" class="text-secondary" data-test-store-status-disabled>The metrics store is disabled.</td>
         {{else}}
           <td data-test-store-status-retention>
             {{#if row.retentionDiffers}}
@@ -82,6 +85,25 @@
                 {{row.maxDisk}}
               {{/if}}
             </span>
+          </td>
+          <td data-test-store-status-hosts>
+            {{#if row.hosts}}
+              {{#if row.hostRetentionDiffers}}
+                <Ui::Badge @color="orange" title="The other servers keep {{row.commonHostRetention}}">{{row.hostRetention}}</Ui::Badge>
+              {{else}}
+                {{row.hostRetention}}
+              {{/if}}
+              <div class="small">
+                {{row.hostDisk}} of
+                {{#if row.hostDiskDiffers}}
+                  <Ui::Badge @color="orange" title="The other servers allow {{row.commonHostMaxDisk}}">{{row.hostMaxDisk}}</Ui::Badge>
+                {{else}}
+                  {{row.hostMaxDisk}}
+                {{/if}}
+              </div>
+            {{else}}
+              –
+            {{/if}}
           </td>
           <td class={{if row.seriesFull "text-warning"}}>{{row.series}} of {{row.maxSeries}}</td>
           <td>{{row.droppedReports}} / {{row.droppedGroups}}</td>

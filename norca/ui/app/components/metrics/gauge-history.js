@@ -6,7 +6,11 @@
 import { tracked } from '@glimmer/tracking';
 import { task } from 'ember-concurrency';
 import MetricsComponent from 'nomad-ui/utils/metrics-component';
-import { points, MetricsForbidden } from 'nomad-ui/utils/metrics-history';
+import {
+  points,
+  MetricsForbidden,
+  isHostMetric,
+} from 'nomad-ui/utils/metrics-history';
 import { formatMetric } from 'nomad-ui/utils/metrics-format';
 
 // sumHistories adds up histories of the same range point by point (the
@@ -93,6 +97,13 @@ export default class MetricsGaugeHistory extends MetricsComponent {
 
   get charts() {
     return this.args.charts || [];
+  }
+
+  // A card of host metrics only (the host history of a client, the Raft and
+  // bus history of a server) offers the ranges of the hosts store.
+  get hostStore() {
+    const series = this.charts.flatMap((c) => c.series || []);
+    return series.length > 0 && series.every((s) => isHostMetric(s.metric));
   }
 
   get isShown() {

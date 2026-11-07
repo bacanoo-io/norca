@@ -33,7 +33,7 @@ module('Integration | Component | Metrics store status', function (hooks) {
       .filter((url) => url.includes('/v1/operator/metrics-store'));
 
   test('every server is asked for its store and shown', async function (assert) {
-    assert.expect(7);
+    assert.expect(9);
     await render(hbs`<Metrics::StoreStatus @servers={{this.servers}} />`);
 
     assert.dom('[data-test-store-status]').exists();
@@ -43,7 +43,11 @@ module('Integration | Component | Metrics store status', function (hooks) {
       .hasText('30d', 'the retention in days');
     assert
       .dom('[data-test-store-status-disk]')
-      .includesText('300 MiB of 5 GiB');
+      .includesText('300 MiB of 4 GiB');
+    assert
+      .dom('[data-test-store-status-hosts]')
+      .includesText('7d')
+      .includesText('40 MiB of 1 GiB');
     assert.dom('[data-test-store-status-differs]').doesNotExist();
     const urls = requests(this.server);
     assert.ok(
@@ -68,7 +72,27 @@ module('Integration | Component | Metrics store status', function (hooks) {
       .dom('[data-test-store-status-differs]')
       .includesText('server-2.global')
       .includesText('retention 7d, the other servers 30d')
-      .includesText('max_disk_size 2 GiB, the other servers 5 GiB');
+      .includesText('max_disk_size 2 GiB, the other servers 4 GiB');
+  });
+
+  test('a server with another hosts store is marked', async function (assert) {
+    this.server.metricsStoreStatusOf = (name) =>
+      name === 'server-3.global'
+        ? {
+            Hosts: {
+              Retention: 86400e9,
+              MaxDiskSize: 512 * 1024 ** 2,
+              DiskBytes: 0,
+            },
+          }
+        : {};
+    await render(hbs`<Metrics::StoreStatus @servers={{this.servers}} />`);
+
+    assert
+      .dom('[data-test-store-status-differs]')
+      .includesText('server-3.global')
+      .includesText('host_retention 1d, the other servers 7d')
+      .includesText('host_max_disk_size 512 MiB, the other servers 1 GiB');
   });
 
   test('a store dropping task groups is reported', async function (assert) {

@@ -32,9 +32,11 @@ function mostCommon(values) {
 /**
  * The metrics store of every server (each keeps its own history): the
  * retention in effect, the oldest point, the disk use against max_disk_size,
- * the series against max_series, and what it dropped or forgot. A server
- * whose retention or disk cap differs from the other servers of its region
- * is marked: the same query answers with a different range depending on the
+ * the series against max_series, and what it dropped or forgot; and its hosts
+ * store (the host metrics, norca.node.*, norca.server.*, norca.bus.*): the
+ * retention and the disk use against host_max_disk_size. A server whose
+ * retentions or disk caps differ from the other servers of its region is
+ * marked: the same query answers with a different range depending on the
  * server it reaches. Needs operator read; without it the card is left out.
  *
  *   <Metrics::StoreStatus @servers={{this.agents}} />
@@ -105,6 +107,8 @@ export default class MetricsStoreStatus extends Component {
       common.set(region, {
         retention: mostCommon(list.map((s) => s.Retention)),
         maxDiskSize: mostCommon(list.map((s) => s.MaxDiskSize)),
+        hostRetention: mostCommon(list.map((s) => s.Hosts?.Retention)),
+        hostMaxDiskSize: mostCommon(list.map((s) => s.Hosts?.MaxDiskSize)),
         count: list.length,
       })
     );
@@ -121,6 +125,7 @@ export default class MetricsStoreStatus extends Component {
       const c = common.get(server.region || '') || {};
       const several = c.count > 1;
       const oldest = status.Oldest && moment(status.Oldest);
+      const hosts = status.Hosts;
       return {
         ...row,
         retention: formatDuration(status.Retention),
@@ -147,12 +152,28 @@ export default class MetricsStoreStatus extends Component {
         droppedReports: status.DroppedReports || 0,
         droppedGroups: status.DroppedGroups || 0,
         forgotten: status.ForgottenSeries || 0,
+        hosts: !!hosts,
+        hostRetention: hosts ? formatDuration(hosts.Retention) : '',
+        hostRetentionDiffers:
+          !!hosts && several && hosts.Retention !== c.hostRetention,
+        commonHostRetention: formatDuration(c.hostRetention),
+        hostDisk: hosts ? formatBytesValue(hosts.DiskBytes) : '',
+        hostMaxDisk: hosts ? formatBytesValue(hosts.MaxDiskSize) : '',
+        hostDiskDiffers:
+          !!hosts && several && hosts.MaxDiskSize !== c.hostMaxDiskSize,
+        commonHostMaxDisk: formatBytesValue(c.hostMaxDiskSize),
       };
     });
   }
 
   get differing() {
-    return this.rows.filter((r) => r.retentionDiffers || r.diskDiffers);
+    return this.rows.filter(
+      (r) =>
+        r.retentionDiffers ||
+        r.diskDiffers ||
+        r.hostRetentionDiffers ||
+        r.hostDiskDiffers
+    );
   }
 
   get dropping() {

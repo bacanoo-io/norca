@@ -113,7 +113,9 @@ module('Integration | Component | Metrics gauge history', function (hooks) {
   });
 
   test('the history of a server is read from that server', async function (assert) {
-    this.server.metricsRetention = 7 * 86400e9;
+    // The Raft and bus series are kept in the hosts store.
+    this.server.metricsRetention = 30 * 86400e9;
+    this.server.metricsHostRetention = 7 * 86400e9;
     this.agent = { name: 'server-2.global', region: 'global' };
     await render(hbs`<Metrics::ServerHistory @server={{this.agent}} />`);
     await waitFor('[data-test-gauge-chart="bus-streams"] [data-test-chart]');
@@ -135,6 +137,27 @@ module('Integration | Component | Metrics gauge history', function (hooks) {
     assert
       .dom('[data-test-tab="30d"]')
       .doesNotExist('the retention of that server limits the ranges');
+  });
+
+  test('the host history of a node offers the ranges of the hosts store', async function (assert) {
+    this.server.metricsRetention = 30 * 86400e9;
+    this.server.metricsHostRetention = 86400e9;
+    await render(hbs`<Metrics::NodeHistory @node={{this.node}} />`);
+    await waitFor('[data-test-gauge-chart="disk"] [data-test-chart]');
+
+    assert
+      .dom('[data-test-node-history] [data-test-tab="24h"]')
+      .exists('a day fits host_retention');
+    assert
+      .dom('[data-test-node-history] [data-test-tab="7d"]')
+      .doesNotExist('7 days are not offered with a host_retention of 1d');
+    const service = this.owner.lookup('service:metrics-retention');
+    assert.strictEqual(service.hostRetention, 86400e9);
+    assert.strictEqual(
+      service.retention,
+      null,
+      'the node series do not set the retention of the main store'
+    );
   });
 
   test('the node group history shows the nodes, the rollout and the conditions', async function (assert) {

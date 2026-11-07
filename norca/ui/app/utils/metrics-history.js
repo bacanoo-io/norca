@@ -39,6 +39,15 @@ export function clampRange(id, ranges) {
   return ranges.find((r) => r.id === id) || ranges[ranges.length - 1];
 }
 
+/**
+ * isHostMetric tells whether a metric is kept in the hosts store of the
+ * servers, with its own retention (host_retention): the host statistics of
+ * the clients and the internals of the servers and their system bus.
+ */
+export function isHostMetric(metric) {
+  return /^norca\.(node|server|bus)\./.test(metric || '');
+}
+
 // MetricsForbidden is thrown when the token may not read the metrics.
 export class MetricsForbidden extends Error {}
 

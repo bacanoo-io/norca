@@ -519,11 +519,17 @@ function routes() {
 
   // The metrics store of the servers: a synthetic, deterministic history.
   // Fixtures turn it off (metricsStoreEnabled: false), deny it, set the
-  // retention (metricsRetention, nanoseconds), list the metrics without
-  // points (metricsWithoutPoints) or the status of a server's store
-  // (metricsStoreStatusOf(serverName)).
+  // retention (metricsRetention, metricsHostRetention for the hosts store,
+  // nanoseconds), list the metrics without points (metricsWithoutPoints) or
+  // the status of a server's store (metricsStoreStatusOf(serverName)).
   const metricsStep = 30;
   const metricsRetention = () => server.metricsRetention ?? 720 * 3600e9;
+  const metricsHostRetention = () =>
+    server.metricsHostRetention ?? 168 * 3600e9;
+  const retentionOf = (metric) =>
+    /^norca\.(node|server|bus)\./.test(metric)
+      ? metricsHostRetention()
+      : metricsRetention();
   const metricsWithoutPoints = () =>
     server.metricsWithoutPoints ?? ['norca.group.memory_swap_mb'];
   const metricsValue = (metric, i, queryParams = {}) => {
@@ -573,7 +579,7 @@ function routes() {
       return {
         Enabled: true,
         Metric: metric,
-        Retention: metricsRetention(),
+        Retention: retentionOf(metric),
         Step: metricsStep * 1e9,
         Points: [],
       };
@@ -590,7 +596,7 @@ function routes() {
     return {
       Enabled: true,
       Metric: metric,
-      Retention: metricsRetention(),
+      Retention: retentionOf(metric),
       Step: metricsStep * 1e9,
       Points,
     };
@@ -617,6 +623,7 @@ function routes() {
     return {
       Enabled: true,
       Retention: metricsRetention(),
+      HostRetention: metricsHostRetention(),
       Groups: [],
       Gauges: [
         ...['dc1', 'dc2'].map((dc) => ({
@@ -648,7 +655,7 @@ function routes() {
         Partitions: 4,
         DiskPartitions: 2,
         DiskBytes: 300 * 1024 * 1024,
-        MaxDiskSize: 5 * 1024 * 1024 * 1024,
+        MaxDiskSize: 4 * 1024 * 1024 * 1024,
         Series: 1200,
         MaxSeries: 50000,
         Oldest: new Date(now - 6 * 86400e3).toISOString(),
@@ -659,6 +666,16 @@ function routes() {
         ForgottenSeries: 12,
         Retention: metricsRetention(),
         SampleInterval: 30e9,
+        Hosts: {
+          Partitions: 3,
+          DiskPartitions: 1,
+          DiskBytes: 40 * 1024 * 1024,
+          MaxDiskSize: 1024 * 1024 * 1024,
+          Series: 140,
+          Oldest: new Date(now - 6 * 86400e3).toISOString(),
+          Newest: new Date(now - 30e3).toISOString(),
+          Retention: metricsHostRetention(),
+        },
         ...custom,
       },
     };

@@ -19,7 +19,9 @@ import {
  *
  * With @serverId the requests go to that server (`server_id`) and its own
  * retention limits the ranges; without it, the retention of the server the UI
- * reads (shared by all charts through the metrics-retention service).
+ * reads (shared by all charts through the metrics-retention service). A
+ * component whose metrics the hosts store keeps (`hostStore`) is limited by
+ * the retention of that store instead.
  * A subclass sets `range` (the default range id) and a `load` task, which
  * reads the history of `this.selectedRange` with `this.fetch`.
  */
@@ -34,9 +36,16 @@ export default class MetricsComponent extends Component {
     return this.args.serverId;
   }
 
+  // hostStore tells whether the metrics of the component are host metrics
+  // (see isHostMetric), kept for the retention of the hosts store.
+  get hostStore() {
+    return false;
+  }
+
   get retention() {
-    return this.serverId
-      ? this.serverRetention
+    if (this.serverId) return this.serverRetention;
+    return this.hostStore
+      ? this.metricsRetention.hostRetention
       : this.metricsRetention.retention;
   }
 
