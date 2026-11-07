@@ -1,0 +1,48 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+{{#if this.isShown}}
+  <Ui::Card @title={{@title}} @subtitle={{@subtitle}} data-test-gauge-history={{@id}} ...attributes>
+    <:actions>
+      <Ui::Tabs @label="Range" @tabs={{this.tabs}} @selected={{this.rangeId}} @onSelect={{this.selectRange}} />
+    </:actions>
+    <:default>
+      {{#if (eq this.state "loading")}}
+        <Ui::Spinner @showLabel={{true}} @label={{concat "Loading the history: " @title}} />
+      {{else if (eq this.state "disabled")}}
+        <p class="text-secondary mb-0" data-test-gauge-history-disabled>
+          The servers keep no history: the metrics store is disabled.
+        </p>
+      {{else if (eq this.state "error")}}
+        <Ui::Alert @tone="danger" @title="The history could not be loaded" data-test-gauge-history-error>{{this.error}}</Ui::Alert>
+      {{else if this.isEmpty}}
+        <Ui::EmptyState
+          @compact={{true}}
+          @icon="chart-line"
+          @title="No points in this range"
+          @message={{or @emptyMessage "The servers have stored no value of these series in the range."}}
+          data-test-gauge-history-empty
+        />
+      {{else}}
+        <div class="row row-cards">
+          {{#each this.views as |chart|}}
+            <div class={{this.columnClass}} data-test-gauge-chart={{chart.id}}>
+              <h3 class="h4 mb-2">{{chart.title}}</h3>
+              {{#if chart.error}}
+                <Ui::Alert @tone="danger" @title="Could not be loaded">{{chart.error}}</Ui::Alert>
+              {{else if chart.empty}}
+                <p class="text-secondary small mb-0" data-test-gauge-chart-empty>No points in this range.</p>
+              {{else}}
+                <Ui::Chart @label={{concat chart.title " over time"}} @option={{chart.option}} @height={{this.chartHeight}}>
+                  {{chart.summary}}
+                </Ui::Chart>
+              {{/if}}
+            </div>
+          {{/each}}
+        </div>
+        {{yield}}
+      {{/if}}
+    </:default>
+  </Ui::Card>
+{{/if}}

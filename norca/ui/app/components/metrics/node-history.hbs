@@ -1,0 +1,14 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Metrics::GaugeHistory
+  @id="node"
+  @title="Host history"
+  @subtitle="Reported by the client, from the metrics store of the servers"
+  @charts={{this.charts}}
+  @columnClass="col-lg-4"
+  @emptyMessage="The history fills as the client reports the statistics of its host (it needs the system bus and usage reporting)."
+  data-test-node-history
+  ...attributes
+/>

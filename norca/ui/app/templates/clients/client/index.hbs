@@ -128,6 +128,8 @@
     </div>
   </Ui::Card>
 
+  <Metrics::NodeHistory @node={{this.model}} class="mb-3" />
+
   <h2 class="h3 mb-2">Allocations</h2>
   <Allocations::Table
     @id="client-allocations"

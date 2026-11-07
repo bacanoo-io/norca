@@ -20,6 +20,7 @@ export function loadECharts() {
         charts.LineChart,
         charts.PieChart,
         charts.GraphChart,
+        charts.CustomChart,
         components.GridComponent,
         components.TooltipComponent,
         components.LegendComponent,
