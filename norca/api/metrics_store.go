@@ -128,6 +128,10 @@ type MetricsHistory struct {
 	Enabled bool
 	Metric  string
 
+	// Retention is the retention in effect on the server that answers: the
+	// longest range it holds.
+	Retention time.Duration
+
 	// Step is the time range of one point.
 	Step   time.Duration
 	Points []*MetricsPoint
@@ -178,8 +182,12 @@ func (m *MetricsStore) History(jobID, group string, opts *MetricsHistoryOptions,
 // MetricsSeries lists the series of the metrics store the token may read.
 type MetricsSeries struct {
 	Enabled bool
-	Groups  []*MetricsGroup
-	Gauges  []*MetricsGaugeSeries
+
+	// Retention is the retention in effect on the server that answers.
+	Retention time.Duration
+
+	Groups []*MetricsGroup
+	Gauges []*MetricsGaugeSeries
 }
 
 // MetricsGroup is a task group with series.

@@ -65,6 +65,10 @@ type MetricsHistoryResponse struct {
 	Enabled bool
 	Metric  string
 
+	// Retention is the retention in effect on the server that answers: the
+	// longest range it holds.
+	Retention time.Duration
+
 	// Step is the time range of one point.
 	Step   time.Duration
 	Points []*MetricsPoint
@@ -90,8 +94,12 @@ type MetricsSeriesRequest struct {
 // the token may read jobs of, and the gauge series it may read.
 type MetricsSeriesResponse struct {
 	Enabled bool
-	Groups  []*MetricsGroup
-	Gauges  []*MetricsGaugeSeries
+
+	// Retention is the retention in effect on the server that answers.
+	Retention time.Duration
+
+	Groups []*MetricsGroup
+	Gauges []*MetricsGaugeSeries
 	QueryMeta
 }
 
