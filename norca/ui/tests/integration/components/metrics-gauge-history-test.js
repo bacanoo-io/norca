@@ -182,6 +182,53 @@ module('Integration | Component | Metrics gauge history', function (hooks) {
       .includesText('Ready 100%');
   });
 
+  test('the control plane reads the leader and adds up the namespaces', async function (assert) {
+    const leader = this.server.create('agent');
+    await render(hbs`<Metrics::ControlPlaneHistory />`);
+    await waitFor('[data-test-gauge-chart="jobs"] [data-test-chart]');
+
+    assert.dom('[data-test-gauge-chart="scheduler"]').exists();
+    const urls = history(this.server);
+    assert.ok(
+      urls.some(
+        (url) =>
+          url.includes('metric=norca.sched.broker_ready') &&
+          url.includes(`server_id=${encodeURIComponent(leader.name)}`)
+      ),
+      'the scheduler series are read from the leader'
+    );
+    assert.ok(
+      urls.some(
+        (url) =>
+          url.includes('metric=norca.jobs.running') && url.includes('ns=prod')
+      )
+    );
+    assert
+      .dom('[data-test-gauge-chart="jobs"]')
+      .includesText('Jobs in 2 namespaces');
+    assert
+      .dom('[data-test-gauge-chart="jobs"] [data-test-chart-summary]')
+      .includesText('Running 8', 'the running jobs of both namespaces');
+  });
+
+  test('a part the token may not read is left out', async function (assert) {
+    this.server.get('/metrics/history', function (schema, { queryParams }) {
+      if (queryParams.metric.startsWith('norca.sched.')) {
+        return new Response(403, {}, 'Permission denied');
+      }
+      return {
+        Enabled: true,
+        Metric: queryParams.metric,
+        Points: [{ Time: new Date().toISOString(), Avg: 1, Max: 1 }],
+      };
+    });
+    await render(hbs`<Metrics::ControlPlaneHistory />`);
+    await waitFor('[data-test-gauge-chart="jobs"]');
+
+    assert.dom('[data-test-gauge-chart="scheduler"]').doesNotExist();
+    assert.dom('[data-test-gauge-chart="jobs"]').exists();
+  });
+
   test('the helpers', function (assert) {
     const t1 = '2026-11-07T10:00:00Z';
     const t2 = '2026-11-07T10:00:30Z';
