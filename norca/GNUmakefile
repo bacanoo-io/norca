@@ -143,7 +143,7 @@ deps:  ## Install build and development dependencies
 .PHONY: lint-deps
 lint-deps: ## Install linter dependencies
 	@echo "==> Updating linter dependencies..."
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.0
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 	go install github.com/client9/misspell/cmd/misspell@v0.3.4
 	go install github.com/hashicorp/go-hclog/hclogvet@v0.1.6
 
@@ -156,8 +156,8 @@ $(git-dir)/hooks/%: dev/hooks/%
 
 .PHONY: check
 check: ## Lint the source code
-	@echo "==> Linting source code..."
-	@golangci-lint run
+	@echo "==> Linting source code (what changed since main; all of it: golangci-lint run)..."
+	@golangci-lint run --new-from-merge-base=main
 
 	@echo "==> Linting hclog statements..."
 	@hclogvet .
