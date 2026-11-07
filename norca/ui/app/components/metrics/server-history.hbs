@@ -1,0 +1,15 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Metrics::GaugeHistory
+  @id="server"
+  @title="Raft and system bus history"
+  @subtitle="Of this server, from its own metrics store"
+  @charts={{this.charts}}
+  @serverId={{@server.name}}
+  @region={{@server.region}}
+  @emptyMessage="The server samples its Raft log and its system bus every sample interval; a server in dev mode has no Raft log on disk."
+  data-test-server-history
+  ...attributes
+/>
