@@ -1,0 +1,14 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<Metrics::GaugeHistory
+  @id="load-balancer"
+  @title="Health history"
+  @subtitle="Of the load balancer, from the metrics store of the servers"
+  @charts={{this.charts}}
+  @chartHeight={{160}}
+  @emptyMessage="The servers sample the status the LoadBalancer operator reports every sample interval."
+  data-test-load-balancer-history
+  ...attributes
+/>
