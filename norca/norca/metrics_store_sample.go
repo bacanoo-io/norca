@@ -14,7 +14,8 @@ import (
 // metricsStoreSampleLoop samples the allocations and the task restarts of the
 // task groups, the capacity and the nodes by state of the datacenters and
 // node pools, the health of the servers, the
-// quotas, the scheduler and the control plane, and the custom objects into
+// quotas, the scheduler and the control plane, the internals of the server
+// (Raft and the system bus), and the custom objects into
 // the metrics store, every interval. Every server has the state and the live
 // usage of the nodes, so each samples its own store; what only the leader
 // has, only the leader samples.
@@ -60,7 +61,7 @@ func (c *capacity) add(o *capacity) {
 }
 
 // sampleGauges returns the cluster, nodes by state, server health, quota,
-// control plane and object gauges.
+// control plane, server internals and object gauges.
 func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 	snap, err := s.fsm.State().Snapshot()
 	if err != nil {
@@ -122,6 +123,9 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 	// controlPlaneValues), the counters and the metrics store of this server,
 	// and the jobs and the backups of the state.
 	gauges = append(gauges, controlPlaneGauges(s.controlPlaneValues(), &s.metricsCounterLast)...)
+	// The internals of this server: its Raft log store and replication, and
+	// its system bus.
+	gauges = append(gauges, serverGauges(s.serverValues())...)
 	jobs, err := jobStatusGauges(snap)
 	if err != nil {
 		return nil, err

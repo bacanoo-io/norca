@@ -100,6 +100,47 @@ func (s *Server) Status() (*structs.BusStatus, error) {
 	return st, nil
 }
 
+// Sample is what the metrics store samples of the embedded server.
+type Sample struct {
+	// JetStream is false while JetStream does not run on the server;
+	// Bytes and Messages are zero then.
+	JetStream bool
+	// Bytes and Messages are those of the streams the server stores a
+	// replica of.
+	Bytes    uint64
+	Messages uint64
+	// RouteServers is the number of other servers of the region the server
+	// has a route to. NATS keeps several connections (a pool) to each, so
+	// they are counted by server, not by connection.
+	RouteServers int
+}
+
+// Sample reads the JetStream totals and the routes of the embedded server.
+// Unlike Status it lists neither the streams nor the connections.
+func (s *Server) Sample() (*Sample, error) {
+	ns := s.server()
+	out := &Sample{}
+	jsz, err := ns.Jsz(&natsserver.JSzOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if !jsz.Disabled {
+		out.JetStream = true
+		out.Bytes = jsz.Bytes
+		out.Messages = jsz.Messages
+	}
+	routez, err := ns.Routez(nil)
+	if err != nil {
+		return nil, err
+	}
+	servers := map[string]bool{}
+	for _, r := range routez.Routes {
+		servers[r.RemoteID] = true
+	}
+	out.RouteServers = len(servers)
+	return out, nil
+}
+
 // busStream converts the monitoring detail of a stream.
 func busStream(sd *natsserver.StreamDetail, self string) *structs.BusStream {
 	out := &structs.BusStream{

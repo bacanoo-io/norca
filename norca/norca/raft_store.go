@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/bacanoo-io/norca/norca/helper/diskusage"
 	"github.com/bacanoo-io/norca/norca/helper/raftbadger"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
@@ -30,6 +31,30 @@ type raftLogStore interface {
 	raft.LogStore
 	raft.StableStore
 	Close() error
+}
+
+// raftStoreSizer is a raft log store that knows its size on disk. Both
+// stores do; one that cannot tell its size returns an error, and the metrics
+// store has no point then.
+type raftStoreSizer interface {
+	DiskSize() (int64, error)
+}
+
+var (
+	_ raftStoreSizer = (*raftbadger.Store)(nil)
+	_ raftStoreSizer = (*boltRaftStore)(nil)
+)
+
+// boltRaftStore is the BoltDB raft log store with the path of its file.
+type boltRaftStore struct {
+	*raftboltdb.BoltStore
+	path string
+}
+
+// DiskSize returns the bytes the BoltDB file takes on disk, its free pages
+// included.
+func (b *boltRaftStore) DiskSize() (int64, error) {
+	return diskusage.Path(b.path)
 }
 
 // ValidateRaftStore checks a raft_store value; empty is the default
@@ -73,7 +98,7 @@ func (s *Server) openRaftStore(raftDir string) (raftLogStore, error) {
 			"no_freelist_sync", s.config.RaftBoltNoFreelistSync)
 		// publish the bbolt metrics (nomad.raft.boltdb.*)
 		go store.RunMetrics(s.shutdownCtx, 0)
-		return store, nil
+		return &boltRaftStore{BoltStore: store, path: boltPath}, nil
 
 	default:
 		if hasBolt && !hasBadger {

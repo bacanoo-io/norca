@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/helper/badgerdb"
+	"github.com/bacanoo-io/norca/norca/helper/diskusage"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/raft"
@@ -79,6 +80,20 @@ func Open(opts Options) (*Store, error) {
 // Close stops the background loops and closes the database.
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// DiskSize returns the bytes the store takes on disk: every file of the
+// database, that is the tables of the LSM tree, the value log and the logs of
+// the memtables. It is measured at the call. Badger's own Size is not used:
+// it is measured when the database opens, before the value log exists, and
+// then once a minute; it takes the length of the value log, which Badger
+// extends far ahead of the data; and it leaves out the memtables, which hold
+// the newest entries. A store in memory has no size on disk: an error.
+func (s *Store) DiskSize() (int64, error) {
+	if s.db.Opts.InMemory {
+		return 0, errors.New("raftbadger: the store is in memory")
+	}
+	return diskusage.Path(s.db.Opts.Path)
 }
 
 // IsStore reports whether dir holds a Badger database (its MANIFEST file).

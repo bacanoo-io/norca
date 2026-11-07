@@ -6,6 +6,7 @@ package raftbadger
 import (
 	"bytes"
 	"errors"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -148,6 +149,43 @@ func TestStore_inMemory(t *testing.T) {
 	must.NoError(t, s.StoreLog(entry(1, "a")))
 	var got raft.Log
 	must.NoError(t, s.GetLog(1, &got))
+
+	// A database in memory has no size on disk.
+	_, err = s.DiskSize()
+	must.Error(t, err)
+}
+
+// TestStore_DiskSize checks that the size on disk is known from the start
+// and follows the entries written, before and after they reach a table.
+func TestStore_DiskSize(t *testing.T) {
+	dir := t.TempDir()
+	s := open(t, dir)
+	empty, err := s.DiskSize()
+	must.NoError(t, err)
+	must.Positive(t, empty)
+
+	// 100 entries of 64 KiB that do not compress: 6.4 MB.
+	rng := rand.New(rand.NewPCG(1, 2))
+	var logs []*raft.Log
+	for i := uint64(1); i <= 100; i++ {
+		data := make([]byte, 64<<10)
+		for j := range data {
+			data[j] = byte(rng.Uint32())
+		}
+		logs = append(logs, entry(i, string(data)))
+	}
+	must.NoError(t, s.StoreLogs(logs))
+	written, err := s.DiskSize()
+	must.NoError(t, err)
+	must.Greater(t, empty+5<<20, written)
+	must.NoError(t, s.Close())
+
+	// Closed, the memtable is flushed into a table.
+	s = open(t, dir)
+	defer s.Close()
+	reopened, err := s.DiskSize()
+	must.NoError(t, err)
+	must.Greater(t, int64(5<<20), reopened)
 }
 
 func TestOptions_defaults(t *testing.T) {
