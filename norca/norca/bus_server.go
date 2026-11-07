@@ -89,8 +89,8 @@ func (s *Server) setupBus() error {
 		if err != nil {
 			return err
 		}
+		// NewServer starts the sample loop once the server is set up.
 		s.metricsStore = store
-		go s.metricsStoreSampleLoop(msCfg.SampleInterval)
 	}
 
 	s.busRoutesCh = make(chan struct{}, 1)

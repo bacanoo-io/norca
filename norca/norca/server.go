@@ -606,6 +606,12 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		return nil, err
 	}
 
+	// Sample into the metrics store. Not before setupEnterprise: a sample on
+	// the leader reads autopilot.
+	if s.metricsStore != nil {
+		go s.metricsStoreSampleLoop(s.metricsStore.Status().SampleInterval)
+	}
+
 	// Monitor leadership changes
 	go s.monitorLeadership()
 
