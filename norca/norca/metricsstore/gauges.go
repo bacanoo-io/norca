@@ -150,7 +150,8 @@ const (
 
 // The internals of the sampling server (family 8). Every server samples its
 // own values into its own store, so the series carry no server label: the
-// history of a server is read from that server.
+// history of a server is read from that server. Only the AppendEntries time
+// has a label, the follower it was sent to.
 const (
 	// MetricServerRaftDBBytes is the space the Raft log store takes on disk
 	// in bytes: the files of the Badger database, or the file of BoltDB
@@ -168,6 +169,21 @@ const (
 	MetricServerRaftFSMPending = "norca.server.raft_fsm_pending"
 	// MetricServerRaftTerm is the current Raft term; a rise is an election.
 	MetricServerRaftTerm = "norca.server.raft_term"
+	// MetricServerRaftCommit is the mean time in seconds from the moment the
+	// leader appends an entry until a quorum stores it (committed), over the
+	// sample interval; only the leader has it, and no point in an interval
+	// without a commit.
+	MetricServerRaftCommit = "norca.server.raft_commit_seconds"
+	// MetricServerRaftAppendEntries is the mean time in seconds of the
+	// AppendEntries requests of the leader to a follower (label peer, the
+	// Raft server ID of the follower) over the sample interval; only the
+	// leader has it.
+	MetricServerRaftAppendEntries = "norca.server.raft_append_entries_seconds"
+	// The RPC requests the server handled in the sample interval, from the
+	// network and in process, and those answered with an error or that
+	// failed on the connection.
+	MetricServerRPCRequests = "norca.server.rpc_requests"
+	MetricServerRPCErrors   = "norca.server.rpc_errors"
 
 	// The system bus of the server: the bytes and messages of the JetStream
 	// streams it stores a replica of, and the other servers of the region
@@ -213,6 +229,11 @@ const (
 	// MetricNodeGroupCondition is 1 while a condition of the status of a
 	// node group (labels group, type) is True, 0 otherwise.
 	MetricNodeGroupCondition = "norca.nodegroup.condition"
+	// MetricNodeGroupCertExpiresMinHours is the time in hours until the
+	// earliest certificate expiry among the nodes of a node group (label
+	// group) that are not down, from the node meta norca.cert_expires; 0 once
+	// a certificate has expired. No point for a group without such nodes.
+	MetricNodeGroupCertExpiresMinHours = "norca.nodegroup.cert_expires_min_hours"
 
 	// A load balancer (labels ns, name): the healthy targets, and 1 while
 	// its Ready condition is True.
@@ -289,26 +310,31 @@ var gaugeLabels = map[string][]string{
 	MetricStoreSeries:                {},
 	MetricStoreDroppedReports:        {},
 
-	MetricServerRaftDBBytes:     {},
-	MetricServerRaftLastContact: {},
-	MetricServerRaftCommitLag:   {},
-	MetricServerRaftFSMPending:  {},
-	MetricServerRaftTerm:        {},
-	MetricBusJetStreamBytes:     {},
-	MetricBusJetStreamMessages:  {},
-	MetricBusRoutes:             {},
+	MetricServerRaftDBBytes:       {},
+	MetricServerRaftLastContact:   {},
+	MetricServerRaftCommitLag:     {},
+	MetricServerRaftFSMPending:    {},
+	MetricServerRaftTerm:          {},
+	MetricServerRaftCommit:        {},
+	MetricServerRaftAppendEntries: {"peer"},
+	MetricServerRPCRequests:       {},
+	MetricServerRPCErrors:         {},
+	MetricBusJetStreamBytes:       {},
+	MetricBusJetStreamMessages:    {},
+	MetricBusRoutes:               {},
 
-	MetricNodeGroupReplicas:         {"group"},
-	MetricNodeGroupReady:            {"group"},
-	MetricNodeGroupJoining:          {"group"},
-	MetricNodeGroupFailed:           {"group"},
-	MetricNodeGroupRolloutReplacing: {"group"},
-	MetricNodeGroupRolloutOutdated:  {"group"},
-	MetricNodeGroupCondition:        {"group", "type"},
-	MetricLBTargets:                 {"ns", "name"},
-	MetricLBReady:                   {"ns", "name"},
-	MetricObjectsCount:              {"kind"},
-	MetricObjectsDegraded:           {"kind"},
+	MetricNodeGroupReplicas:            {"group"},
+	MetricNodeGroupReady:               {"group"},
+	MetricNodeGroupJoining:             {"group"},
+	MetricNodeGroupFailed:              {"group"},
+	MetricNodeGroupRolloutReplacing:    {"group"},
+	MetricNodeGroupRolloutOutdated:     {"group"},
+	MetricNodeGroupCondition:           {"group", "type"},
+	MetricNodeGroupCertExpiresMinHours: {"group"},
+	MetricLBTargets:                    {"ns", "name"},
+	MetricLBReady:                      {"ns", "name"},
+	MetricObjectsCount:                 {"kind"},
+	MetricObjectsDegraded:              {"kind"},
 }
 
 // GaugeMetrics are the gauge metrics, sorted.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	log "github.com/hashicorp/go-hclog"
+	metrics "github.com/hashicorp/go-metrics"
 	"golang.org/x/exp/slices"
 
 	"github.com/bacanoo-io/norca/norca/api"
@@ -446,6 +447,11 @@ type Config struct {
 	// clients publish on the bus, kept in <DataDir>/tsdb. nil (the default
 	// here) disables it; the agent enables it on servers.
 	MetricsStore *metricsstore.Config
+
+	// TelemetrySink is the in-memory sink of the agent's telemetry (what
+	// /v1/metrics shows). The metrics store reads the Raft commit and
+	// AppendEntries times from it; nil leaves them out.
+	TelemetrySink *metrics.InmemSink
 
 	// SecretsAudit configures the append-only audit file of the built-in
 	// secret store on this server; nil disables the file (the SecretAccess

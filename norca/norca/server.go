@@ -255,14 +255,17 @@ type Server struct {
 	// nil when it or the bus is disabled.
 	metricsStore *metricsstore.Store
 
-	// metricsCounters count the security events of this server and
+	// metricsCounters count the security events and the RPC requests of
+	// this server and
 	// metricsCounterLast keeps their values at the last sample: the metrics
 	// store keeps their increase per sample interval. secretsGauges are the
 	// numbers of the secrets watchers of the leader. metricsRestartsLast
 	// keeps the task restarts of the allocations at the last sample.
+	// metricsTelemetry reads the Raft times from the agent's telemetry.
 	metricsCounters     serverEventCounters
 	metricsCounterLast  counterSampler
 	metricsRestartsLast restartSampler
+	metricsTelemetry    telemetryReader
 	secretsGauges       secretsGaugeValues
 
 	// consulKV is the connection of the ConsulKV endpoint to the bucket of
@@ -2124,10 +2127,12 @@ func (s *Server) RPC(method string, args interface{}, reply interface{}) error {
 		Args:   args,
 		Reply:  reply,
 	}
-	if err := s.rpcServer.ServeRequest(codec); err != nil {
-		return err
+	err := s.rpcServer.ServeRequest(codec)
+	if err == nil {
+		err = codec.Err
 	}
-	return codec.Err
+	s.metricsCounters.countRPC(err != nil)
+	return err
 }
 
 // StreamingRpcHandler is used to make a streaming RPC call.

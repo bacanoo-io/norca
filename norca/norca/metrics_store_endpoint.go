@@ -75,7 +75,7 @@ func (m *MetricsStore) local(method, serverID string, args metricsStoreRequest, 
 // (by state, and the host statistics of each node), quota read for the
 // quotas, operator read for the health of the servers, the scheduler,
 // the secret store, the security events, the autoscaler, the metrics store,
-// the internals of the server (Raft and the system bus) and the object
+// the internals of the server (Raft, RPC and the system bus) and the object
 // counts, list-jobs in the namespace (label ns) for the jobs,
 // backup read for the backups, and read on the objects of the kind for the
 // node groups and the load balancers (in the namespace of label ns).
