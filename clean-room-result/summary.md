@@ -3,18 +3,18 @@
 | Property | Value |
 | --- | --- |
 | norca_ref | `main` |
-| norca_commit | `e98a2f58b22603b00458ef7e2002ff67d0b14ade` |
+| norca_commit | `a72e8768535ff764fbad15f247466f0bf0334956` |
 | base_tag | `v1.6.5` |
 | bsl_tag | `v1.11.3` |
 | bsl_commit | `173ab08a0210789da531847c4ce3c3518f7fb34b` |
 | dolos | `2.10.0` |
 | sets | `busl,bugfix` |
 | threshold | `0.4` |
-| date | `2026-11-02T15:56:23Z` |
+| date | `2026-11-08T16:20:08Z` |
 
 ## busl
 
-18906 cross pairs, 103 at or above 0.4; 0 candidates for the auditor: Norca-added files at or above the threshold and above the MPL baseline (the highest similarity of HashiCorp's own MPL files to the same BUSL file).
+19621 cross pairs, 102 at or above 0.4; 0 candidates for the auditor: Norca-added files at or above the threshold and above the MPL baseline (the highest similarity of HashiCorp's own MPL files to the same BUSL file).
 
 ### Candidates
 
@@ -73,7 +73,7 @@ Not in the v1.6.5 tree, but the MPL anchor (the import's second parent) has the 
 
 ## bugfix
 
-1221 cross pairs, 2 at or above 0.4; same-path pairs: 37.
+2346 cross pairs, 2 at or above 0.4; same-path pairs: 51.
 
 | Norca commit and file | HashiCorp file | Similarity | Longest fragment | Total overlap |
 | --- | --- | --- | --- | --- |
@@ -81,24 +81,24 @@ Not in the v1.6.5 tree, but the MPL anchor (the import's second parent) has the 
 | 32e5db0980b2 nomad/structs/structs.generated.go | nomad/structs/structs.generated.go | 0.427 | 346 | 168467 |
 | 32e5db0980b2 command/commands.go | command/commands.go | 0.261 | 3 | 121 |
 | 8aa389f276a1 nomad/structs/structs.generated.go | nomad/structs/structs.generated.go | 0.226 | 138 | 88552 |
+| 7e699b9f3c91 plugins/drivers/driver.go | plugins/drivers/driver.go | 0.099 | 2 | 20 |
 | 4e4b1eaa35e4 nomad/node_endpoint_test.go | nomad/node_endpoint_test.go | 0.093 | 9 | 792 |
-| cc4d34a8fec4 plugins/drivers/client.go | plugins/drivers/client.go | 0.070 | 5 | 22 |
-| 4e4b1eaa35e4 nomad/drainer_int_test.go | nomad/drainer_int_test.go | 0.037 | 3 | 9 |
+| cc4d34a8fec4 plugins/drivers/client.go | plugins/drivers/client.go | 0.069 | 5 | 22 |
+| 4e4b1eaa35e4 nomad/drainer_int_test.go | nomad/drainer_int_test.go | 0.036 | 3 | 9 |
+| 7e699b9f3c91 client/allocrunner/taskrunner/task_runner_hooks.go | client/allocrunner/taskrunner/task_runner_hooks.go | 0.034 | 3 | 13 |
 | 4e4b1eaa35e4 nomad/node_endpoint_test.go | nomad/heartbeat_test.go | 0.033 | 4 | 29 |
+| 7e699b9f3c91 plugins/base/base.go | plugins/base/base.go | 0.031 | 4 | 16 |
 | 4e4b1eaa35e4 nomad/drainer_int_test.go | nomad/node_endpoint_test.go | 0.028 | 5 | 224 |
-| 4e4b1eaa35e4 nomad/heartbeat_test.go | plugins/shared/structs/attribute_test.go | 0.025 | 1 | 2 |
 | d2529f1c96ba nomad/volumewatcher/volumes_watcher_test.go | nomad/volumewatcher/volumes_watcher_test.go | 0.023 | 3 | 28 |
-| 4e4b1eaa35e4 nomad/heartbeat_test.go | nomad/heartbeat_test.go | 0.022 | 1 | 8 |
-| 4e4b1eaa35e4 nomad/heartbeat.go | nomad/heartbeat.go | 0.020 | 1 | 2 |
+| 4e4b1eaa35e4 nomad/heartbeat_test.go | plugins/shared/structs/attribute_test.go | 0.022 | 1 | 2 |
+| 4e4b1eaa35e4 nomad/heartbeat_test.go | nomad/heartbeat_test.go | 0.021 | 1 | 8 |
+| 4e4b1eaa35e4 nomad/heartbeat.go | nomad/heartbeat.go | 0.019 | 1 | 2 |
 | 4e4b1eaa35e4 nomad/node_endpoint_test.go | nomad/drainer_int_test.go | 0.018 | 3 | 14 |
-| d25baac9831c drivers/docker/coordinator.go | drivers/docker/coordinator.go | 0.018 | 2 | 10 |
+| d25baac9831c drivers/docker/coordinator.go | drivers/docker/coordinator.go | 0.017 | 2 | 10 |
 | 4e4b1eaa35e4 nomad/heartbeat_test.go | drivers/docker/driver_linux_test.go | 0.017 | 2 | 5 |
 | 4e4b1eaa35e4 nomad/node_endpoint.go | nomad/node_endpoint.go | 0.016 | 4 | 32 |
 | 4e4b1eaa35e4 nomad/node_endpoint_test.go | plugins/csi/client_test.go | 0.016 | 2 | 13 |
+| 7e699b9f3c91 plugins/drivers/driver.go | plugins/drivers/server.go | 0.015 | 1 | 2 |
+| 7e699b9f3c91 plugins/drivers/driver.go | client/allocrunner/taskrunner/task_dir_hook.go | 0.013 | 1 | 2 |
 | 4e4b1eaa35e4 nomad/heartbeat_test.go | nomad/node_endpoint_test.go | 0.013 | 4 | 106 |
-| 4e4b1eaa35e4 nomad/node_endpoint_test.go | nomad/volumewatcher/volumes_watcher_test.go | 0.011 | 2 | 11 |
-| 4e4b1eaa35e4 nomad/node_endpoint_test.go | plugins/shared/structs/attribute_test.go | 0.010 | 2 | 6 |
-| 32e5db0980b2 command/agent/http.go | command/agent/http.go | 0.009 | 1 | 3 |
-| 32e5db0980b2 command/commands.go | command/agent/http.go | 0.008 | 1 | 3 |
-| 4e4b1eaa35e4 nomad/node_endpoint_test.go | drivers/docker/coordinator_test.go | 0.008 | 2 | 9 |
-| d2529f1c96ba nomad/volumewatcher/volumes_watcher_test.go | nomad/heartbeat_test.go | 0.008 | 2 | 8 |
+| 7e699b9f3c91 plugins/drivers/driver.go | plugins/drivers/client.go | 0.011 | 1 | 2 |
