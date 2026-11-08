@@ -705,7 +705,7 @@ func builtinLoadBalancerOperatorPack() map[string]string {
 # SPDX-License-Identifier: MPL-2.0
 
 app {
-  url = "https://github.com/bacanoo-io/norca/tree/main/norca/controller/examples/loadbalancer"
+  url = "https://github.com/bacanoo-io/norca-platform/tree/main/loadbalancer/operator"
 }
 
 pack {

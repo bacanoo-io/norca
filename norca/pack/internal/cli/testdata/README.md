@@ -10,7 +10,9 @@ the [Norca pack registry](https://github.com/bacanoo-io/norca-registry), the
 canonical source of the operations packs, without their READMEs. They are
 used by the pack CLI tests of this directory (`consul_pack_test.go`,
 `loadbalancer_operator_pack_test.go`) and by the end-to-end test of the
-LoadBalancer operator (`norca/controller/examples/loadbalancer/e2e_test.go`).
+LoadBalancer operator, which lives in the norca-platform repository
+(`loadbalancer/operator/e2e_test.go`) and installs the pack of the registry
+itself.
 
 Change a pack in the registry first, then copy the changed files here
 (`packs/<name>` of the registry, without `README.md`), so that the tests keep

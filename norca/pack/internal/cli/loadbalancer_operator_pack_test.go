@@ -25,7 +25,8 @@ import (
 // on a test agent with the mock driver: the kind with its limits and
 // webhooks, the ACL policy bound to the controller job, the admission policy
 // and the controller job. The controller itself runs in the end-to-end test
-// of the controller module (examples/loadbalancer).
+// of the operator in the norca-platform repository
+// (loadbalancer/operator/e2e_test.go).
 
 var lbPackVars = []string{"--var=driver=mock_driver", "--var=proxy_driver=mock_driver", "--name=lb", "--detach"}
 
