@@ -232,6 +232,19 @@ module('Unit | Utility | objects and secrets', function () {
       accessorLabel({ AccessorID: '12345678-aaaa' }),
       'token 12345678'
     );
+    assert.strictEqual(
+      accessorLabel({ System: 'secret-rotation' }),
+      'system secret-rotation'
+    );
+    assert.strictEqual(
+      accessorLabel({
+        System: 'secret-engine',
+        JobID: 'web',
+        TaskGroup: 'g',
+        Task: 't',
+      }),
+      'system secret-engine for task web/g/t'
+    );
   });
 
   test('secret paths, item keys, hashes and intervals', function (assert) {

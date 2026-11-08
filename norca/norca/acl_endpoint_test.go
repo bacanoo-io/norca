@@ -1912,6 +1912,18 @@ func TestACLEndpoint_ResolveToken(t *testing.T) {
 	}
 	assert.Equal(t, uint64(1000), resp.Index)
 	assert.Nil(t, resp.Token)
+
+	// A secret that is not a UUID (none, or a workload identity) belongs to
+	// no token; it is not an error.
+	for _, secret := range []string{"", "eyJhbGciOiJSUzI1NiJ9.e30.c2ln"} {
+		get.SecretID = secret
+		resp = structs.ResolveACLTokenResponse{}
+		if err := msgpackrpc.CallWithCodec(codec, "ACL.ResolveToken", get, &resp); err != nil {
+			t.Fatalf("secret %q: err: %v", secret, err)
+		}
+		assert.Equal(t, uint64(1000), resp.Index)
+		assert.Nil(t, resp.Token)
+	}
 }
 
 func TestACLEndpoint_OneTimeToken(t *testing.T) {

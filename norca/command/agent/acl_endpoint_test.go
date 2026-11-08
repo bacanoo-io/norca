@@ -2037,3 +2037,20 @@ func TestHTTPServer_ACLLoginRequest(t *testing.T) {
 		})
 	}
 }
+
+// Without a token, the token of the request is not found: 404, not a server
+// error.
+func TestHTTP_ACLTokenSelf_NoToken(t *testing.T) {
+	ci.Parallel(t)
+	httpACLTest(t, nil, func(s *TestAgent) {
+		req, err := http.NewRequest(http.MethodGet, "/v1/acl/token/self", nil)
+		must.NoError(t, err)
+		respW := httptest.NewRecorder()
+
+		_, err = s.Server.ACLTokenSpecificRequest(respW, req)
+		must.Error(t, err)
+		codedErr, ok := err.(HTTPCodedError)
+		must.True(t, ok, must.Sprintf("not a coded error: %v", err))
+		must.Eq(t, http.StatusNotFound, codedErr.Code())
+	})
+}

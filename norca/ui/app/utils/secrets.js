@@ -166,12 +166,21 @@ export function formatInterval(ns) {
 // Who accessed a secret, from the accessor of an audit record.
 export function accessorLabel(accessor) {
   if (!accessor) return 'unknown';
-  if (accessor.JobID) {
-    const task = [accessor.JobID, accessor.TaskGroup, accessor.Task]
-      .filter(Boolean)
-      .join('/');
-    return `task ${task}`;
+  const task = accessor.JobID
+    ? [accessor.JobID, accessor.TaskGroup, accessor.Task]
+        .filter(Boolean)
+        .join('/')
+    : '';
+  // clean room bugfix: System (a server component acting on its own
+  // authority: secret-rotation, secret-replication, secret-engine) was
+  // ignored, so these records read "anonymous", or named the task of a
+  // revoked lease as if the task had acted.
+  if (accessor.System) {
+    return task
+      ? `system ${accessor.System} for task ${task}`
+      : `system ${accessor.System}`;
   }
+  if (task) return `task ${task}`;
   if (accessor.AccessorID) return `token ${accessor.AccessorID.slice(0, 8)}`;
   if (accessor.NodeID) return `client ${accessor.NodeID.slice(0, 8)}`;
   return 'anonymous';

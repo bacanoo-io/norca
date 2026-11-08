@@ -17,5 +17,8 @@ export default class RescheduleEvent extends Fragment {
   @attr('string') delay;
 
   @shortUUIDProperty('previousAllocationId') previousAllocationShortId;
-  @shortUUIDProperty('previousNodeShortId') previousNodeShortId;
+  // clean room bugfix: this was computed from previousNodeShortId, the
+  // property itself, instead of previousNodeId, so reading it recursed into
+  // its own getter. No template reads it yet.
+  @shortUUIDProperty('previousNodeId') previousNodeShortId;
 }

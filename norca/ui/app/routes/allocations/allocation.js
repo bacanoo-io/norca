@@ -44,7 +44,7 @@ export default class AllocationRoute extends Route.extend(WithWatchers) {
     }
   }
 
-  async model(params) {
+  async model(params, transition) {
     // Preload the job for the allocation since it's required for the breadcrumb trail
     try {
       const [allocation] = await Promise.all([
@@ -58,8 +58,12 @@ export default class AllocationRoute extends Route.extend(WithWatchers) {
       await this.store.findRecord('job', jobId);
       return allocation;
     } catch (e) {
-      const [allocId, transition] = arguments;
-      if (e?.errors[0]?.detail === 'alloc not found' && !!transition.from) {
+      // clean room bugfix: the ID came from arguments[0], the params object,
+      // so the message read "[object Object]"; and an error without an
+      // errors array (not an adapter error) threw here instead of being
+      // reported.
+      const allocId = params.allocation_id;
+      if (e?.errors?.[0]?.detail === 'alloc not found' && !!transition?.from) {
         this.notifications.add({
           title: `Error:  Not Found`,
           message: `Allocation of id:  ${allocId} was not found.`,

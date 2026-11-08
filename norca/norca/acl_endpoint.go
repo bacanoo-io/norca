@@ -1081,10 +1081,17 @@ func (a *ACL) ResolveToken(args *structs.ResolveACLTokenRequest, reply *structs.
 		return err
 	}
 
-	// Look for the token
-	out, err := state.ACLTokenBySecretID(nil, args.SecretID)
-	if err != nil {
-		return err
+	// Look for the token. clean room bugfix: the lookup fails on an empty
+	// secret ("missing secret id") and on one that is not a UUID (the index
+	// is a UUID index), so a request without a token, or with a workload
+	// identity, ended in an error and /v1/acl/token/self answered 500. A
+	// secret that is not a UUID belongs to no token.
+	var out *structs.ACLToken
+	if helper.IsUUID(args.SecretID) {
+		out, err = state.ACLTokenBySecretID(nil, args.SecretID)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Setup the output
