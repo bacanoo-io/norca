@@ -208,10 +208,23 @@ func (w *drainingJobWatcher) watch() {
 				continue
 			}
 
-			// Ignore purged jobs
+			// A purged job: nothing is migrated for it any more, but its
+			// allocations still stop on the draining nodes. They are
+			// watched until they do, and reported as migrated, so the
+			// drainer checks their nodes again: without it a node whose
+			// last allocation stopped after its job was purged stayed
+			// draining until its deadline.
 			if job == nil {
-				w.logger.Trace("ignoring garbage collected job", "job", jns)
-				w.deregisterJob(jns.ID, jns.Namespace)
+				result, err := handlePurgedJob(snap, allocs, lastHandled)
+				if err != nil {
+					w.logger.Error("handling drain for purged job failed", "job", jns, "error", err)
+					continue
+				}
+				allMigrated = append(allMigrated, result.migrated...)
+				if result.done {
+					w.logger.Trace("purged job has no allocation left on a draining node", "job", jns)
+					w.deregisterJob(jns.ID, jns.Namespace)
+				}
 				continue
 			}
 
@@ -336,6 +349,43 @@ func handleJob(snap *state.StateSnapshot, job *structs.Job, allocs []*structs.Al
 		}
 	}
 
+	return r, nil
+}
+
+// handlePurgedJob takes the allocations of a job that is no longer in the state
+// store. Nothing is drained for it: its allocations were stopped with the job.
+// Those that are terminal on the client on a draining node, and changed since
+// the last handled index, are migrated; the job is done once none of them
+// still runs on a draining node.
+func handlePurgedJob(snap *state.StateSnapshot, allocs []*structs.Allocation, lastHandledIndex uint64) (*jobResult, error) {
+	r := newJobResult()
+	drainingNodes := make(map[string]bool, 4)
+	for _, alloc := range allocs {
+		// System and plugin allocations do not hold up a drain (see
+		// drainingNode.IsDone).
+		if alloc.Job != nil && (alloc.Job.Type == structs.JobTypeSystem || alloc.Job.IsPlugin()) {
+			continue
+		}
+		onDrainingNode, ok := drainingNodes[alloc.NodeID]
+		if !ok {
+			node, err := snap.NodeByID(nil, alloc.NodeID)
+			if err != nil {
+				return nil, err
+			}
+			onDrainingNode = node != nil && node.DrainStrategy != nil
+			drainingNodes[alloc.NodeID] = onDrainingNode
+		}
+		if !onDrainingNode {
+			continue
+		}
+		if !alloc.ClientTerminalStatus() {
+			r.done = false
+			continue
+		}
+		if alloc.ModifyIndex > lastHandledIndex {
+			r.migrated = append(r.migrated, alloc)
+		}
+	}
 	return r, nil
 }
 

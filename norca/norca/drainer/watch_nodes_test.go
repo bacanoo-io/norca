@@ -171,12 +171,22 @@ func TestNodeDrainWatcher_Update_IsDone(t *testing.T) {
 
 	// There are no jobs on this node so the drain should immediately
 	// complete. we should no longer be tracking the node and its drain strategy
-	// should be cleared
+	// should be cleared. The completion in the state store is waited for
+	// first: before the watcher picks the node up the tracker is empty too,
+	// and settling on "no node" then passed at once and failed when the node
+	// was tracked a moment later (1 run in 4 with -race).
+	must.Wait(t, wait.InitialSuccess(
+		wait.Timeout(5*time.Second),
+		wait.Gap(time.Millisecond),
+		wait.BoolFunc(func() bool {
+			stored, err := store.NodeByID(nil, n.ID)
+			must.NoError(t, err)
+			return stored.DrainStrategy == nil
+		}),
+	))
 	assertTrackerSettled(t, tracker, []string{})
 	must.MapEmpty(t, tracker.jobWatcher.(*MockJobWatcher).jobs)
 	must.MapEmpty(t, tracker.deadlineNotifier.(*MockDeadlineNotifier).nodes)
-	n, _ = store.NodeByID(nil, n.ID)
-	must.Nil(t, n.DrainStrategy)
 }
 
 // TestNodeDrainWatcher_Update_DrainComplete tests that allocation updates that

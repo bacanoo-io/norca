@@ -306,6 +306,84 @@ func TestDrainer_DrainEmptyNode(t *testing.T) {
 	waitForNodeDrainComplete(t, store, n1.ID, nil, 3, "")
 }
 
+// TestDrainer_PurgedJob drains a node whose last allocation belongs to a job
+// that is purged during the drain, and stops on the client only afterwards:
+// the drain is complete as soon as it stopped, not at the deadline. (The job
+// watcher used to drop a purged job at once, and nothing checked the node
+// again until its deadline.)
+func TestDrainer_PurgedJob(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, cleanupSrv := TestServer(t, nil)
+	defer cleanupSrv()
+	codec := rpcClient(t, srv)
+	testutil.WaitForLeader(t, srv.RPC)
+	store := srv.State()
+
+	n1 := mock.Node()
+	var nodeResp structs.NodeUpdateResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.Register", &structs.NodeRegisterRequest{
+		Node: n1, WriteRequest: structs.WriteRequest{Region: "global"},
+	}, &nodeResp))
+
+	job := mock.Job()
+	job.TaskGroups[0].Count = 1
+	var regResp structs.JobRegisterResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Job.Register", &structs.JobRegisterRequest{
+		Job:          job,
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace},
+	}, &regResp))
+	waitForPlacedAllocs(t, store, n1.ID, 1)
+
+	// The allocation runs on the client.
+	allocs, err := store.AllocsByNode(nil, n1.ID)
+	must.NoError(t, err)
+	running := allocs[0].Copy()
+	running.ClientStatus = structs.AllocClientStatusRunning
+	var genResp structs.GenericResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.UpdateAlloc", &structs.AllocUpdateRequest{
+		Alloc: []*structs.Allocation{running}, WriteRequest: structs.WriteRequest{Region: "global"},
+	}, &genResp))
+
+	// Drain the node with a deadline far beyond the test.
+	var drainResp structs.NodeDrainUpdateResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.UpdateDrain", &structs.NodeUpdateDrainRequest{
+		NodeID: n1.ID,
+		DrainStrategy: &structs.DrainStrategy{
+			DrainSpec: structs.DrainSpec{Deadline: time.Hour},
+		},
+		WriteRequest: structs.WriteRequest{Region: "global"},
+	}, &drainResp))
+
+	// Purge the job while its allocation still runs.
+	var deregResp structs.JobDeregisterResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Job.Deregister", &structs.JobDeregisterRequest{
+		JobID:        job.ID,
+		Purge:        true,
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace},
+	}, &deregResp))
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool {
+			j, err := store.JobByID(nil, job.Namespace, job.ID)
+			must.NoError(t, err)
+			return j == nil
+		}),
+		wait.Timeout(10*time.Second),
+		wait.Gap(50*time.Millisecond),
+	))
+	node, err := store.NodeByID(nil, n1.ID)
+	must.NoError(t, err)
+	must.NotNil(t, node.DrainStrategy, must.Sprint("the drain ended while the allocation ran"))
+
+	// The client stops the allocation: the drain is complete.
+	complete := running.Copy()
+	complete.ClientStatus = structs.AllocClientStatusComplete
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Node.UpdateAlloc", &structs.AllocUpdateRequest{
+		Alloc: []*structs.Allocation{complete}, WriteRequest: structs.WriteRequest{Region: "global"},
+	}, &genResp))
+	waitForNodeDrainComplete(t, store, n1.ID, nil, 3, "")
+}
+
 func TestDrainer_AllTypes_Deadline(t *testing.T) {
 	ci.Parallel(t)
 
