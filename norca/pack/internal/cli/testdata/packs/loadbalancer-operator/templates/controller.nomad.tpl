@@ -50,9 +50,26 @@ job [[ $v.job_name | quote ]] {
           "-proxy-command", [[ $v.binary | quote ]],
 [[- end ]]
           "-metrics-addr", "${NORCA_ADDR_metrics}",
+          "-class-ttl", [[ $v.class_ttl | quote ]],
+          "-class-token-namespace", [[ $v.class_token_namespace | quote ]],
+          "-class-allow-http=[[ $v.class_allow_http ]]",
+[[- if ne $v.class_ca_cert "" ]]
+          "-class-ca-file", "${NORCA_TASK_DIR}/class-ca.pem",
+[[- end ]]
         ]
 [[- end ]]
       }
+[[- if and (ne $v.class_ca_cert "") (ne $v.driver "mock_driver") ]]
+
+      # The CA of the providers' https certificates.
+      template {
+        data        = <<EOT
+[[ $v.class_ca_cert | trim ]]
+EOT
+        destination = "local/class-ca.pem"
+        change_mode = "restart"
+      }
+[[- end ]]
 
       # The controller calls the API on the task API socket with its
       # workload identity; the ACL policy of the pack is bound to this job.

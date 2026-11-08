@@ -22,6 +22,13 @@ namespace "[[ $v.namespace ]]" {
     path "nomad/jobs/lb-*" {
       capabilities = ["list", "read", "write", "destroy"]
     }
+[[- if eq $v.class_token_namespace $v.namespace ]]
+
+    # The tokens of the registered classes.
+    path [[ $v.class_token_path | quote ]] {
+      capabilities = ["read"]
+    }
+[[- end ]]
   }
 
   # The LoadBalancer objects: status, event log and the cleanup finalizer;
@@ -29,6 +36,33 @@ namespace "[[ $v.namespace ]]" {
   object "norca.io/LoadBalancer" {
     capabilities = ["read", "write", "write-status", "write-events", "manage-finalizers"]
   }
+}
+
+[[- if ne $v.class_token_namespace $v.namespace ]]
+
+# The tokens of the registered classes.
+namespace "[[ $v.class_token_namespace ]]" {
+  variables {
+    path [[ $v.class_token_path | quote ]] {
+      capabilities = ["read"]
+    }
+  }
+}
+[[- end ]]
+
+# The registered load balancer classes are cluster-scoped: their rule is in
+# the namespace "*".
+namespace "*" {
+  object "norca.io/LoadBalancerClass" {
+    capabilities = ["read"]
+  }
+}
+
+# The nodes of the instances: an instance on a node marked as leaving
+# (norca.lb.leaving, set by the node scaling operator before a drain) is not
+# a target; node events reconcile the load balancers.
+node {
+  policy = "read"
 }
 EOT
 
