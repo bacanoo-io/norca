@@ -69,6 +69,37 @@ func TestBackend_VariablesCAS(t *testing.T) {
 	must.True(t, errors.Is(err, controller.ErrNotFound))
 }
 
+// TestBackend_ListEmptyThenStream lists a kind with no object, writes one, and
+// starts the stream the way a watch does (from the list index + 1, exact): the
+// object written between the list and the stream is delivered. A list of an
+// empty table used to answer 0, so the watch streamed "from now" and missed
+// it (about one run in 40 of the LoadBalancer operator tests with -race).
+func TestBackend_ListEmptyThenStream(t *testing.T) {
+	b := New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	kind := controller.Kind{Group: "example.io", Kind: "Widget"}
+
+	objs, idx, err := b.ListObjects(ctx, kind, "*", 0)
+	must.NoError(t, err)
+	must.SliceEmpty(t, objs)
+	must.Positive(t, idx)
+
+	o := b.PutObject(&api.CustomObject{Group: kind.Group, Kind: kind.Kind, Name: "a", Spec: map[string]any{}})
+	ch, err := b.Stream(ctx, "*", map[api.Topic][]string{api.TopicCustomObject: {"*"}}, idx+1, true)
+	must.NoError(t, err)
+	evs := recv(t, ch)
+	must.Eq(t, o.ModifyIndex, evs.Index)
+
+	// The same for Variables and jobs.
+	_, vidx, err := b.ListVariables(ctx, "*", "", 0)
+	must.NoError(t, err)
+	must.Positive(t, vidx)
+	_, jidx, err := b.ListJobs(ctx, "*", 0)
+	must.NoError(t, err)
+	must.Positive(t, jidx)
+}
+
 func TestBackend_StreamFuture(t *testing.T) {
 	b := New()
 	ctx, cancel := context.WithCancel(context.Background())

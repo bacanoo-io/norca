@@ -70,7 +70,7 @@ func (b *Backend) ListObjects(ctx context.Context, kind controller.Kind, namespa
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Namespace+"/"+out[i].Name < out[j].Namespace+"/"+out[j].Name
 	})
-	return out, b.objsIdx, nil
+	return out, b.listIndexLocked(b.objsIdx), nil
 }
 
 func (b *Backend) ReadObject(_ context.Context, kind controller.Kind, namespace, name string) (*api.CustomObject, error) {

@@ -92,6 +92,18 @@ func (b *Backend) nextIndexLocked() uint64 {
 	return b.index
 }
 
+// listIndexLocked is the index a list answers with: the index of its table,
+// or, for a table never written, the current index. A list never answers 0:
+// a watch that lists at 0 streams "from now", and an object written between
+// the list and the start of the stream was never seen (a real server answers
+// a list with an index of 1 at least, and the stream replays what came after).
+func (b *Backend) listIndexLocked(table uint64) uint64 {
+	if table == 0 {
+		return b.index
+	}
+	return table
+}
+
 // call records a call and returns an injected error, if any.
 func (b *Backend) callLocked(op string) error {
 	b.callCounts[op]++
@@ -202,7 +214,7 @@ func (b *Backend) ListVariables(ctx context.Context, namespace, prefix string, w
 		case <-ch:
 		case <-time.After(5 * time.Second):
 			b.mu.Lock()
-			idx := b.varsIdx
+			idx := b.listIndexLocked(b.varsIdx)
 			b.mu.Unlock()
 			out, _, err := b.ListVariables(ctx, namespace, prefix, 0)
 			return out, idx, err
@@ -217,7 +229,7 @@ func (b *Backend) ListVariables(ctx context.Context, namespace, prefix string, w
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
-	return out, b.varsIdx, nil
+	return out, b.listIndexLocked(b.varsIdx), nil
 }
 
 func (b *Backend) ReadVariable(_ context.Context, namespace, path string) (*api.Variable, error) {
@@ -466,7 +478,7 @@ func (b *Backend) ListJobs(ctx context.Context, namespace string, waitIndex uint
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, b.jobsIdx, nil
+	return out, b.listIndexLocked(b.jobsIdx), nil
 }
 
 func copyJob(j *api.Job) *api.Job {
