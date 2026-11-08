@@ -16,6 +16,8 @@
       data-test-packages-tabs
     />
 
+    {{! the panel the tabs control (aria-controls) }}
+    <div id="packages-panel" role="tabpanel">
     {{#if (eq this.activeSection "catalog")}}
       <Packages::Catalog />
     {{else if (eq this.activeSection "registries")}}
@@ -84,5 +86,6 @@
         </Ui::DataTable>
       {{/if}}
     {{/if}}
+    </div>
   </Ui::PageBody>
 </div>

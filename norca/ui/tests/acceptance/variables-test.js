@@ -38,8 +38,13 @@ module('Acceptance | variables', function (hooks) {
   });
 
   test('it redirects to jobs and hides the gutter link when the token lacks permissions', async function (assert) {
+    // A token without variable rules; without any token a cluster with ACLs
+    // shows the sign-in page.
+    allScenarios.variableTestCluster(server);
+    window.localStorage.nomadTokenSecret =
+      server.db.tokens.find('n0-v4r5-4cc355').secretId;
     await Variables.visit();
-    assert.equal(currentURL(), '/jobs');
+    assert.equal(currentRouteName(), 'jobs.index');
     assert.ok(Layout.gutter.variables.isHidden);
   });
 

@@ -48,7 +48,9 @@ export default class MetricsControlPlaneHistory extends Component {
         fetchJSON(this.token, '/v1/status/leader'),
         fetchJSON(this.token, '/v1/agent/members'),
       ]);
-      const [host, port] = String(address).split(/:(?=\d+$)/);
+      const [bracketed, port] = String(address).split(/:(?=\d+$)/);
+      // An IPv6 leader comes as [addr]:port; the members list it bare.
+      const host = bracketed.replace(/^\[(.*)\]$/, '$1');
       const leader = (members.Members || []).find(
         (m) => (m.Addr || m.Address) === host && String(m.Tags?.port) === port
       );

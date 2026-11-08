@@ -769,6 +769,14 @@ function routes() {
 
   this.get('/acl/token/self', function ({ tokens }, req) {
     const secret = req.requestHeaders['X-Nomad-Token'];
+
+    // A test without a token runs against a cluster without ACLs, as the
+    // tests from before the sign-in page expect: with ACLs and no token the
+    // UI sends every visit to the sign-in page.
+    if (!secret) {
+      return new Response(500, {}, 'ACL support disabled');
+    }
+
     const tokenForSecret = tokens.findBy({ secretId: secret });
 
     // Return the token if it exists

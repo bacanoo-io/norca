@@ -455,14 +455,16 @@ export default class EndpointsPage extends Component {
       }
       return check;
     });
+    // A declared service cannot take a node of its own: say so before asking
+    // for a node.
+    if (e.Declared && this.hasNodeChecks && e.CheckerMode !== 'pool') {
+      throw 'The HTTP and TCP checks of a declared service need a node chosen by the servers.';
+    }
     if (this.needsNode && !e.NodeID) {
       throw 'HTTP and TCP checks run on a client node: choose the node.';
     }
     if (e.CheckerMode === 'pool' && !this.hasNodeChecks) {
       throw 'A node chosen by the servers needs an HTTP or TCP check.';
-    }
-    if (e.Declared && this.hasNodeChecks && e.CheckerMode !== 'pool') {
-      throw 'The HTTP and TCP checks of a declared service need a node chosen by the servers.';
     }
     return svc;
   }

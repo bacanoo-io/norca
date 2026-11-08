@@ -3,7 +3,8 @@
   SPDX-License-Identifier: MPL-2.0
 ~}}
 {{! template-lint-disable no-down-event-binding }}
-<div class="table-responsive">
+{{! keyboard users can scroll a wide table (axe: scrollable-region-focusable) }}
+<div class="table-responsive" tabindex="0" role={{if @caption "region"}} aria-label={{@caption}}>
   <table
     class="table table-vcenter {{if @inCard 'card-table'}} {{if @striped 'table-striped'}}"
     data-test-ui-table

@@ -5,6 +5,9 @@
 
 import { usageRows, limitFor, usedFor } from 'nomad-ui/utils/quotas';
 import { normalize as normalizeRelease } from 'nomad-ui/utils/releases';
+// The leader by its member name, as on the servers page; the copy that was
+// here did not find an IPv6 leader ([addr]:port).
+import { leaderName } from 'nomad-ui/utils/servers-data';
 
 // Data of the dashboard: one summary per region, built from the list APIs
 // (status/leader, agent/members, nodes, jobs with summaries, deployments,
@@ -100,19 +103,6 @@ export function summarizeServers(members = [], region) {
     alive: own.filter((m) => m.Status === 'alive').length,
     members: own,
   };
-}
-
-export function leaderName(leader, servers) {
-  if (!leader) return null;
-  const [address, port] = String(leader).split(/:(?=\d+$)/);
-  const member = servers.members.find(
-    (m) =>
-      (m.Addr || m.Address) === address &&
-      (!port || String(m.Tags?.port) === port)
-  );
-  return member
-    ? member.Name.replace(new RegExp(`\\.${member.Tags?.region}$`), '')
-    : leader;
 }
 
 // The latest deployment of every job, keyed by namespace and job.

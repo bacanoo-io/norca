@@ -439,27 +439,32 @@ module('Acceptance | topology', function (hooks) {
     const eventStream = this.owner.lookup('service:event-stream');
     const urls = [];
     eventStream.enabled = true;
-    // The first connection that asks for the clients gets one event; every
-    // other request stays open.
+    // The first connection that asks for the clients gets one event once
+    // the page shows (the notifications of the frame open that connection
+    // before the topology subscribes); every other request stays open.
     let served = false;
+    let release;
+    const shown = new Promise((resolve) => (release = resolve));
     eventStream.request = (url) => {
       urls.push(url);
       if (served || !url.includes('topic=Node')) return new Promise(() => {});
       served = true;
-      return streamResponse([
-        {
-          Index: 100,
-          Events: [
-            {
-              Topic: 'Node',
-              Type: 'NodeRegistration',
-              Key: server.db.nodes[0].id,
-              Index: 100,
-              Payload: { Node: { ID: server.db.nodes[0].id } },
-            },
-          ],
-        },
-      ]);
+      return shown.then(() =>
+        streamResponse([
+          {
+            Index: 100,
+            Events: [
+              {
+                Topic: 'Node',
+                Type: 'NodeRegistration',
+                Key: server.db.nodes[0].id,
+                Index: 100,
+                Payload: { Node: { ID: server.db.nodes[0].id } },
+              },
+            ],
+          },
+        ])
+      );
     };
 
     await Topology.visit();
@@ -470,6 +475,7 @@ module('Acceptance | topology', function (hooks) {
     await waitUntil(() => urls.some((url) => url.includes('topic=Node')), {
       timeout: 3000,
     });
+    release();
     // The first load, then the reload after the event.
     await waitUntil(() => nodeRequests() >= 2, { timeout: 3000 });
     const streamURL = urls.find((url) => url.includes('topic=Node'));

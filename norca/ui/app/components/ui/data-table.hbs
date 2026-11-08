@@ -41,7 +41,8 @@
   {{#if (and (not this.allRows.length) (has-block "empty"))}}
     <div data-test-data-table-empty>{{yield to="empty"}}</div>
   {{else}}
-    <div class="table-responsive">
+    {{! keyboard users can scroll a wide table (axe: scrollable-region-focusable) }}
+    <div class="table-responsive" tabindex="0" role={{if @caption "region"}} aria-label={{@caption}}>
       <table class="table table-vcenter card-table {{if @compact 'table-sm'}}" data-test-ui-table>
         {{#if @caption}}<caption class="norca-table-caption">{{@caption}}</caption>{{/if}}
         <thead>

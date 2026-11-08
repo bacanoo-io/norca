@@ -273,10 +273,11 @@ module('Acceptance | tokens', function (hooks) {
     });
 
     await Jobs.visit();
+    // since the sign-in page: an expired token sends to it
     assert.equal(
       currentURL(),
-      '/settings/tokens',
-      'Redirected to tokens page due to an expired token'
+      '/login',
+      'Redirected to the sign-in page due to an expired token'
     );
   });
 
@@ -299,10 +300,11 @@ module('Acceptance | tokens', function (hooks) {
     });
 
     await Jobs.visit();
+    // since the sign-in page: a token not found sends to it
     assert.equal(
       currentURL(),
-      '/settings/tokens',
-      'Redirected to tokens page due to a token not being found'
+      '/login',
+      'Redirected to the sign-in page due to a token not being found'
     );
   });
 
@@ -821,14 +823,21 @@ module('Acceptance | tokens', function (hooks) {
     });
 
     test('Token priveleges are derived from role', async function (assert) {
-      // First, check that a node reader can read nodes if the policy to do so only exists at their role level
+      // First, check that a node reader can read nodes if the policy to do so
+      // only exists at their role level (the reader role of this token). The
+      // test signs in first: without a token a cluster with ACLs shows only
+      // the sign-in page.
+      window.localStorage.nomadTokenSecret = server.db.tokens.findBy(
+        (t) => t.name === 'Policy And Role Token'
+      ).secretId;
       await visit('/clients');
       // Expect to see some nodes
       let nodes = server.db.nodes;
       assert.dom('[data-test-client-node-row]').exists({ count: nodes.length });
 
-      // Head back and sign in as Clientless Role Token
+      // Head back, sign out and sign in as Clientless Role Token
       await Tokens.visit();
+      await Tokens.clear();
       let token = server.db.tokens.findBy(
         (t) => t.name === 'Clientless Role Token'
       );

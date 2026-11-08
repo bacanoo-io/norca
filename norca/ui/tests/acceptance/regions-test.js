@@ -211,7 +211,9 @@ module('Acceptance | regions (many)', function (hooks) {
       if (
         req.url === '/v1/agent/self' ||
         req.url === '/v1/acl/token/self' ||
-        req.url === '/v1/agent/members'
+        req.url === '/v1/agent/members' ||
+        // the feature detection of the start, before the region is known
+        req.url === '/v1/search/fuzzy'
       ) {
         assert.notOk(req.url.includes('region='), `(no region) ${req.url}`);
       } else if (

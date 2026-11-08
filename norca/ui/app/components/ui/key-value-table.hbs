@@ -2,7 +2,8 @@
   SPDX-FileCopyrightText: 2026 Norca contributors
   SPDX-License-Identifier: MPL-2.0
 ~}}
-<div class="table-responsive">
+{{! keyboard users can scroll a wide table (axe: scrollable-region-focusable) }}
+<div class="table-responsive" tabindex="0" role={{if @caption "region"}} aria-label={{@caption}}>
   <table class="table table-sm table-vcenter card-table norca-kv-table" data-test-key-value-table ...attributes>
     {{#if @caption}}<caption class="visually-hidden">{{@caption}}</caption>{{/if}}
     <thead>

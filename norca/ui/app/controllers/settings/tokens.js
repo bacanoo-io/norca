@@ -14,6 +14,7 @@ import classic from 'ember-classic-decorator';
 import { tracked } from '@glimmer/tracking';
 import { isTesting } from '@ember/debug';
 import { schedule } from '@ember/runloop';
+import { waitForPromise } from '@ember/test-waiters';
 
 /**
  * @type {RegExp}
@@ -44,8 +45,13 @@ export default class Tokens extends Controller {
 
   // After a sign-in: the token and its policies are loaded, then the page
   // asked for before the sign-in page is opened, if there is one. Returns
-  // whether it was.
-  async afterSignIn() {
+  // whether it was. The callers do not wait for it: the test waiter does,
+  // so that a test sees the loaded policies and roles.
+  afterSignIn() {
+    return waitForPromise(this.loadAfterSignIn());
+  }
+
+  async loadAfterSignIn() {
     await this.token
       .get('fetchSelfTokenAndPolicies')
       .perform()

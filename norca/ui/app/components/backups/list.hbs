@@ -160,7 +160,7 @@
                   @icon={{if row.Pinned "lock" "lock-open"}}
                   @isLoading={{eq this.pinning row.ID}}
                   aria-pressed={{if row.Pinned "true" "false"}}
-                  aria-label={{if row.Pinned (concat "Unpin " row.ID) (concat "Pin " row.ID)}}
+                  aria-label={{concat (if row.Pinned "Pinned " "Pin ") row.ID}}
                   title={{if row.Pinned "Pinned: retention never deletes it. Select to unpin." "Pin: keep it regardless of retention."}}
                   data-test-pin={{row.ID}}
                   {{on "click" (fn this.togglePin row)}}

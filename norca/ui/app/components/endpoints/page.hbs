@@ -177,8 +177,10 @@
             data-test-endpoint-save-error
           >{{this.saveError}}</Ui::Alert>
         {{/if}}
+        {{! the panel the view tabs control (aria-controls) }}
+        <div id="norca-endpoint-panel" role="tabpanel">
         {{#if (eq this.view "hcl")}}
-          <div id="norca-endpoint-panel" data-test-endpoint-hcl>
+          <div data-test-endpoint-hcl>
             <p class="text-secondary small">
               The service as the file of norca service apply. Saving makes it a
               declared service: the servers choose the node that runs its HTTP
@@ -541,6 +543,7 @@
             </div>
           </form>
         {{/if}}
+        </div>
       </:default>
       <:footer>
         {{#if (eq this.view "form")}}

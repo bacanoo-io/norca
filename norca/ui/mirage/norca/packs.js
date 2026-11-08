@@ -255,7 +255,6 @@ function atomicOf(db, ns) {
 
 function uploadsOf(db, registry) {
   return collection(db, 'norcaPackUploads')
-    .all()
     .filter((u) => u.registry === registry);
 }
 
@@ -337,7 +336,7 @@ const NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
 export default function registerPackRoutes(server) {
   server.get('/pack-registries', function ({ db }) {
-    return json(collection(db, 'norcaPackRegistries').all().map(view));
+    return json(collection(db, 'norcaPackRegistries').map(view));
   });
 
   server.post('/pack-registry', function ({ db }, request) {
@@ -431,9 +430,7 @@ export default function registerPackRoutes(server) {
     const { registry } = request.params;
     const digest = decodeURIComponent(request.params.digest);
     const uploads = collection(db, 'norcaPackUploads');
-    const found = uploads
-      .all()
-      .filter((u) => u.registry === registry && u.digest === digest);
+    const found = uploads.filter((u) => u.registry === registry && u.digest === digest);
     if (!found.length)
       return error(404, `registry "${registry}" has no upload ${digest}`);
     found.forEach((u) => uploads.remove(u.id));
@@ -457,7 +454,7 @@ export default function registerPackRoutes(server) {
   server.get('/packs', function ({ db }, request) {
     const filter = request.queryParams.registry;
     const out = [];
-    for (const reg of collection(db, 'norcaPackRegistries').all()) {
+    for (const reg of collection(db, 'norcaPackRegistries')) {
       if (filter && reg.Name !== filter) continue;
       out.push(...(reg.Status?.packs || []));
     }

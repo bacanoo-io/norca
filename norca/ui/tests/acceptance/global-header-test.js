@@ -95,7 +95,8 @@ module('Acceptance | global header', function (hooks) {
     await Layout.navbar.end.profileDropdown.open();
     await click('[data-test-profile-dropdown-sign-out-link]');
     assert.equal(window.localStorage.nomadTokenSecret, null, 'Token is wiped');
-    assert.equal(currentURL(), '/jobs', 'After signout, back on the jobs page');
+    // a cluster with ACLs shows only the sign-in page without a token
+    assert.equal(currentURL(), '/login', 'After signout, on the sign-in page');
   });
 
   test('the theme toggle switches between light and dark mode', async function (assert) {

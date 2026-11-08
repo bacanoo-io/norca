@@ -80,7 +80,7 @@ export default class PackagesSchemaForm extends Component {
 
   constructor() {
     super(...arguments);
-    if (this.detail) this.reset(this.args.initialValues);
+    if (this.detail) this.reset(this.args.initialValues, { initial: true });
     else this.load(this.version);
   }
 
@@ -272,7 +272,10 @@ export default class PackagesSchemaForm extends Component {
     );
   }
 
-  reset(initialValues) {
+  // initial: from the constructor, which runs while the form renders: the
+  // first tab is set without reading activeTab, as reading and then setting
+  // it in the same render is an error.
+  reset(initialValues, { initial = false } = {}) {
     const { values, redacted } = initialState(this.form, initialValues);
     this.values = values;
     this.redacted = redacted;
@@ -281,7 +284,7 @@ export default class PackagesSchemaForm extends Component {
     this.errors = {};
     this.plan = null;
     this.actionError = null;
-    if (!this.form.tabs.some((t) => t.id === this.activeTab)) {
+    if (initial || !this.form.tabs.some((t) => t.id === this.activeTab)) {
       this.activeTab = this.form.tabs[0]?.id || 'cli';
     }
   }

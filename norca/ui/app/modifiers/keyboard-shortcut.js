@@ -1,5 +1,6 @@
 /**
  * Copyright (c) HashiCorp, Inc.
+ * Modifications Copyright (c) 2026 Norca contributors
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -23,6 +24,10 @@ export default class KeyboardShortcutModifier extends Modifier {
       exclusive = false,
     }
   ) {
+    // Norca: a menu item without a shortcut registers nothing; it showed an
+    // empty hint. Enumerated commands get their pattern from the service.
+    if (!enumerated && !pattern?.length) return;
+
     let commands = [
       {
         label,
