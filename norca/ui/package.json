@@ -181,6 +181,10 @@
   "resolutions": {
     "**/@ember-data/private-build-infra/glob": "^7.2.0",
     "**/babel-plugin-module-resolver/glob": "^7.2.0",
-    "**/@ember/test-waiters": "^4.1.2"
+    "**/@ember/test-waiters": "^4.1.2",
+    "**/@babel/runtime": "^7.26.10",
+    "**/ansi-html": "^0.0.9",
+    "**/nomnom/underscore": "^1.13.8",
+    "**/core-js-compat": "^3.36.0"
   }
 }
