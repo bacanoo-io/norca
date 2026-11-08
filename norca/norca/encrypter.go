@@ -391,7 +391,7 @@ func (e *Encrypter) RemoveKey(keyID string) error {
 
 // saveKeyToStore serializes a root key to the on-disk keystore. The root
 // key is encrypted with a new key-encrypting key (KEK), which is wrapped by
-// the seals of the region (Norca, see nomad/seal): the aead seal stores it in
+// the seals of the region (Norca, see norca/seal): the aead seal stores it in
 // the clear in Nomad's format, the other seals wrap it.
 func (e *Encrypter) saveKeyToStore(rootKey *structs.RootKey) error {
 	e.storeLock.Lock()

@@ -22,7 +22,7 @@ import (
 	"github.com/hashicorp/serf/serf"
 )
 
-// sealManager is the keyring seal of this server (see nomad/seal for what
+// sealManager is the keyring seal of this server (see norca/seal for what
 // the seal protects and how).
 //
 // The seals of the region are recorded in Raft (structs.SealConfig); without

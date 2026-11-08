@@ -19,7 +19,7 @@ import (
 // region does not send it on. Every region stores the same job version and,
 // for jobs that use deployments, a multiregion deployment that waits in the
 // pending state. The deployment watchers of the regions then coordinate the
-// rollout over the cross-region RPC: see nomad/deploymentwatcher/multiregion.go.
+// rollout over the cross-region RPC: see norca/deploymentwatcher/multiregion.go.
 
 // multiregionRegistration carries the state of the registration of a
 // multiregion job through Job.Register.

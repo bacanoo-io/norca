@@ -168,7 +168,7 @@ type KeyEncryptionKeyWrapper struct {
 	KeyEncryptionKey []byte `json:"KEK"`
 
 	// SealedKEKs (Norca) is the key-encrypting key wrapped by each seal
-	// other than aead (see nomad/seal); any of them unwraps it.
+	// other than aead (see norca/seal); any of them unwraps it.
 	SealedKEKs []*SealWrappedKey `json:",omitempty"`
 
 	// PublicKey (Norca) is the public key of the root key's signing key. It

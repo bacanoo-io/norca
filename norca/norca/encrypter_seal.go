@@ -15,7 +15,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
-// The keystore and the seal (see nomad/seal): every key file holds the root
+// The keystore and the seal (see norca/seal): every key file holds the root
 // key encrypted with a key-encrypting key (KEK), and the KEK wrapped by each
 // seal of the region. A key whose wraps can't be unwrapped at start (the
 // server is sealed) is kept in sealedKeys until the server is unsealed.

@@ -9,7 +9,7 @@ import (
 	"slices"
 )
 
-// Keyring seal types of the configuration (see nomad/seal).
+// Keyring seal types of the configuration (see norca/seal).
 const (
 	KeyringSealAEAD   = "aead"
 	KeyringSealShares = "shares"
