@@ -108,7 +108,12 @@ func (c *Client) pollServerForDrainStatus(ctx context.Context, interval time.Dur
 			if err != nil {
 				return err
 			}
-			if &statusResp != nil && statusResp.Node.DrainStrategy == nil {
+			// clean room bugfix: this checked &statusResp != nil, which is
+			// always true, and then read the node, which is nil when the
+			// server no longer has it (with ACLs off the secret of a purged
+			// node is not refused), a nil dereference. A node the server
+			// forgot has no drain left to wait for.
+			if statusResp.Node == nil || statusResp.Node.DrainStrategy == nil {
 				return nil
 			}
 			timer.Reset(interval)

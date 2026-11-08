@@ -7,6 +7,7 @@ package norca
 import (
 	"fmt"
 	"net/rpc"
+	"slices"
 	"testing"
 	"time"
 
@@ -453,6 +454,42 @@ func TestClientCSI_NodeForControllerPlugin(t *testing.T) {
 	require.Equal(t, 1, len(nodeIDs))
 	// only node1 has both the controller and a recent Nomad version
 	require.Equal(t, nodeIDs[0], node1.ID)
+}
+
+// The client IDs of the controllers come sorted, so that the requests prefer
+// the same controller.
+func TestClientCSI_NodeForControllerPlugin_Sorted(t *testing.T) {
+	ci.Parallel(t)
+	srv, shutdown := TestServer(t, func(c *Config) {})
+	testutil.WaitForLeader(t, srv.RPC)
+	defer shutdown()
+
+	plugins := map[string]*structs.CSIInfo{
+		"minnie": {PluginID: "minnie",
+			Healthy:                  true,
+			ControllerInfo:           &structs.CSIControllerInfo{},
+			NodeInfo:                 &structs.CSINodeInfo{},
+			RequiresControllerPlugin: true,
+		},
+	}
+	state := srv.fsm.State()
+	for i := 0; i < 8; i++ {
+		node := mock.Node()
+		node.ID = uuid.Generate()
+		node.Attributes["nomad.version"] = "0.11.0" // client RPCs not supported on early versions
+		node.CSIControllerPlugins = plugins
+		require.NoError(t, state.UpsertNode(structs.MsgTypeTestSetup, uint64(1002+i), node))
+	}
+
+	clientCSI := NewClientCSIEndpoint(srv, nil)
+	// The controllers are a map in the plugin: repeat to see more than one
+	// iteration order.
+	for i := 0; i < 20; i++ {
+		nodeIDs, err := clientCSI.clientIDsForController("minnie")
+		require.NoError(t, err)
+		require.Len(t, nodeIDs, 8)
+		require.True(t, slices.IsSorted(nodeIDs), "not sorted: %v", nodeIDs)
+	}
 }
 
 // sets up a pair of servers, each with one client, and registers a plugin to the clients.

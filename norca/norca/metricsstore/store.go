@@ -867,7 +867,11 @@ func (s *Store) saveSeries() error {
 	}
 	path := filepath.Join(s.cfg.Dir, seriesFile)
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err == nil {
+	// clean room bugfix: this was `if err := os.WriteFile(...); err == nil`,
+	// whose err shadowed the one below, so a failed write or rename returned
+	// nil and left the series marked as saved.
+	err = os.WriteFile(tmp, b, 0o600)
+	if err == nil {
 		err = os.Rename(tmp, path)
 	}
 	if err != nil {

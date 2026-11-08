@@ -284,7 +284,7 @@ func (a *ClientCSI) sendCSINodeRPC(nodeID, method, fwdMethod, op string, args an
 	return nil
 }
 
-// clientIDsForController returns a shuffled list of client IDs where the
+// clientIDsForController returns the sorted list of client IDs where the
 // controller plugin is expected to be running.
 func (a *ClientCSI) clientIDsForController(pluginID string) ([]string, error) {
 
@@ -358,7 +358,11 @@ func (a *ClientCSI) clientIDsForController(pluginID string) ([]string, error) {
 	// and have undocumented expectations of using k8s-specific sidecars to
 	// leader elect. Sort the client IDs so that we prefer sending requests to
 	// the same controller to hack around this.
-	clientIDs = sort.StringSlice(clientIDs)
+	//
+	// clean room bugfix: this was sort.StringSlice(clientIDs), a type
+	// conversion that keeps the random order of the map iteration above, so
+	// the requests did not prefer the same controller.
+	sort.Strings(clientIDs)
 
 	return clientIDs, nil
 }
