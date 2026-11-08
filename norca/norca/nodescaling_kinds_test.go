@@ -70,6 +70,7 @@ func TestNodeScalingKinds(t *testing.T) {
 		"bad duration":          func(sp map[string]any) { sp["join"] = map[string]any{"deadline": "soon"} },
 		"unknown rolling field": func(sp map[string]any) { sp["rolling"] = map[string]any{"fast": true} },
 		"bad deletion policy":   func(sp map[string]any) { sp["deletion"] = map[string]any{"policy": "explode"} },
+		"bad key store":         func(sp map[string]any) { sp["join"] = map[string]any{"key_store": "hsm"} },
 		"two strategies in check": func(sp map[string]any) {
 			sp["policy"] = nodePolicySpec(map[string]any{"a": map[string]any{}, "b": map[string]any{}})
 		},
@@ -86,6 +87,12 @@ func TestNodeScalingKinds(t *testing.T) {
 	delete(spec, "provider")
 	spec["engine"] = "external"
 	_, err = c.apply(nodeGroupObject("external", spec), nil, true, "")
+	must.NoError(t, err)
+
+	// The nodes of a group may keep their keys in their TPMs.
+	spec = validNodeGroupSpec()
+	spec["join"] = map[string]any{"key_store": "tpm"}
+	_, err = c.apply(nodeGroupObject("tpm", spec), nil, true, "")
 	must.NoError(t, err)
 
 	// A valid check.

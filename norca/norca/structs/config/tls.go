@@ -12,6 +12,8 @@ import (
 	"io"
 	"os"
 	"sync"
+
+	"github.com/bacanoo-io/norca/norca/helper/tpmkey"
 )
 
 // TLSConfig provides TLS related configuration
@@ -102,6 +104,16 @@ func (k *KeyLoader) LoadKeyPair(certFile, keyFile string) (*tls.Certificate, err
 		return nil, nil
 	}
 
+	keyPEM, err := os.ReadFile(keyFile)
+	if err == nil && tpmkey.IsPEM(keyPEM) {
+		cert, err := loadTPMKeyPair(certFile, keyPEM)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to load cert/TPM key pair: %v", err)
+		}
+		k.certificate = &cert
+		return k.certificate, nil
+	}
+
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load cert/key pair: %v", err)
@@ -109,6 +121,29 @@ func (k *KeyLoader) LoadKeyPair(certFile, keyFile string) (*tls.Certificate, err
 
 	k.certificate = &cert
 	return k.certificate, nil
+}
+
+// openTPM opens the TPM of a TPM key file; tests replace it.
+var openTPM = tpmkey.DeviceOpener("")
+
+// loadTPMKeyPair loads a certificate whose key is in the TPM of the machine
+// (a TSS2 PEM key file, as norca-join writes it with the key store tpm):
+// the private key of the certificate signs with the TPM. The key is loaded
+// into the TPM at once, so a key this TPM can not use (another machine, no
+// TPM, not Linux) fails here and not at the first handshake.
+func loadTPMKeyPair(certFile string, keyPEM []byte) (tls.Certificate, error) {
+	certPEM, err := os.ReadFile(certFile)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	cert, err := tpmkey.X509KeyPair(certPEM, keyPEM, openTPM)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	if err := cert.PrivateKey.(*tpmkey.Signer).Check(); err != nil {
+		return tls.Certificate{}, err
+	}
+	return cert, nil
 }
 
 func (k *KeyLoader) GetCertificate() *tls.Certificate {

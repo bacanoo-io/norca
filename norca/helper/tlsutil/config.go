@@ -5,6 +5,7 @@
 package tlsutil
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/tls"
@@ -468,11 +469,20 @@ func ParseCiphers(tlsConfig *config.TLSConfig) ([]uint16, error) {
 // type
 func getSignatureAlgorithm(tlsCert *tls.Certificate) (signatureAlgorithm, error) {
 	privKey := tlsCert.PrivateKey
-	switch privKey.(type) {
+	switch signer := privKey.(type) {
 	case *rsa.PrivateKey:
 		return rsaStringRepr, nil
 	case *ecdsa.PrivateKey:
 		return ecdsaStringRepr, nil
+	case crypto.Signer:
+		// A key that signs elsewhere: in the TPM (helper/tpmkey).
+		switch signer.Public().(type) {
+		case *rsa.PublicKey:
+			return rsaStringRepr, nil
+		case *ecdsa.PublicKey:
+			return ecdsaStringRepr, nil
+		}
+		return "", fmt.Errorf("Unsupported signature algorithm %T; RSA and ECDSA only are supported.", privKey)
 	default:
 		return "", fmt.Errorf("Unsupported signature algorithm %T; RSA and ECDSA only are supported.", privKey)
 	}

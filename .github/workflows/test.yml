@@ -107,6 +107,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bin"
           go -C norca build -o "$RUNNER_TEMP/bin/norca" .
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Software TPM
+        # The tests of TPM keys (helper/tpmkey, structs/config) run against
+        # swtpm; without it they skip.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends swtpm
       - name: norca module
         working-directory: norca
         run: |

@@ -528,6 +528,10 @@ func (p *remotePrevAlloc) migrateAllocDir(ctx context.Context, nodeAddr string) 
 		ClientKey:     p.config.TLSConfig.KeyFile,
 		TLSServerName: fmt.Sprintf("client.%s.norca", p.config.Region),
 	}
+	if err := useTPMKey(apiConfig, p.config.TLSConfig); err != nil {
+		prevAllocDir.Destroy()
+		return nil, err
+	}
 	apiClient, err := nomadapi.NewClient(apiConfig)
 	if err != nil {
 		return nil, err

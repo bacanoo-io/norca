@@ -91,7 +91,8 @@ const nodeGroupKindSchema = `{
             "deadline": {"type": "string", ` + nodeDuration + `},
             "slow_after": {"type": "string", ` + nodeDuration + `},
             "max_failures": {"type": "integer", "minimum": 1},
-            "resume_generation": {"type": "integer", "minimum": 0}
+            "resume_generation": {"type": "integer", "minimum": 0},
+            "key_store": {"type": "string", "enum": ["file", "tpm", "auto"]}
           },
           "additionalProperties": false
         },
