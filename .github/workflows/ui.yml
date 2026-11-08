@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 Norca contributors
+# SPDX-License-Identifier: MPL-2.0
+#
+# Lints the web UI (norca/ui) and runs its whole Ember test suite (unit,
+# integration and acceptance, against Mirage) in the Chrome of the runner.
+# Runs when the UI or this file changes. ember test does not run on Windows;
+# locally the lab runs the same suite in a container (build.ps1 UiTest).
+#
+# Actions are pinned by commit (as in the other workflows):
+#   actions/checkout v7.0.1, actions/setup-node v7.1.0.
+name: UI
+
+on:
+  pull_request:
+    paths:
+      - "norca/ui/**"
+      - ".github/workflows/ui.yml"
+  push:
+    branches: [main]
+    paths:
+      - "norca/ui/**"
+      - ".github/workflows/ui.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+    working-directory: norca/ui
+
+env:
+  # husky would install git hooks; the job needs none.
+  HUSKY_SKIP_INSTALL: "1"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: yarn
+          cache-dependency-path: norca/ui/yarn.lock
+      - name: yarn install
+        run: yarn install --frozen-lockfile --ignore-engines
+      - name: eslint
+        run: yarn lint:js
+      - name: ember-template-lint
+        run: yarn lint:hbs
+      - name: Template classes
+        run: yarn lint:classes
+
+  test:
+    name: Ember tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: yarn
+          cache-dependency-path: norca/ui/yarn.lock
+      - name: yarn install
+        run: yarn install --frozen-lockfile --ignore-engines
+      # The runner has Chrome; testem starts it headless, with --no-sandbox
+      # because CI is set (testem.js). Percy (test:ember) is not used.
+      - name: ember test
+        run: yarn ember test

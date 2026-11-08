@@ -38,6 +38,27 @@
       ...attributes
     />
   </div>
+{{else if @suffix}}
+  {{! a unit or other text after the input }}
+  <div class="input-group flex-nowrap">
+    <input
+      id={{@id}}
+      type={{this.type}}
+      class="form-control {{if @invalid 'is-invalid'}} {{if @monospace 'font-monospace'}}"
+      placeholder={{@placeholder}}
+      disabled={{@disabled}}
+      readonly={{@readonly}}
+      required={{@required}}
+      autocomplete={{@autocomplete}}
+      aria-describedby={{@describedBy}}
+      aria-invalid={{if @invalid "true"}}
+      value={{@value}}
+      data-test-input
+      {{on "input" this.input}}
+      ...attributes
+    />
+    <span class="input-group-text">{{@suffix}}</span>
+  </div>
 {{else}}
   <input
     id={{@id}}

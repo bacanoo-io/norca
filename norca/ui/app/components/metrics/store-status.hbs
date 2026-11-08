@@ -11,12 +11,12 @@
     ...attributes
   >
     {{#if (eq this.state "loading")}}
-      <div class="card-body">
+      <div class="p-3">
         <Ui::Spinner @showLabel={{true}} @label="Loading the state of the metrics stores" />
       </div>
     {{else}}
       {{#if this.differing.length}}
-        <div class="card-body pb-0">
+        <div class="p-3 pb-0">
           <Ui::Alert @tone="warning" @title="The servers keep different histories" data-test-store-status-differs>
             {{#each this.differing as |row|}}
               <div>
@@ -33,7 +33,7 @@
         </div>
       {{/if}}
       {{#if this.dropping.length}}
-        <div class="card-body pb-0">
+        <div class="p-3 pb-0">
           <Ui::Alert @tone="warning" @title="Series are not stored" data-test-store-status-dropping>
             {{#each this.dropping as |row|}}
               <div>{{row.name}}: {{row.series}} of {{row.maxSeries}} series, {{row.droppedGroups}} task groups left out.</div>
@@ -102,7 +102,7 @@
                 {{/if}}
               </div>
             {{else}}
-              –
+              â€“
             {{/if}}
           </td>
           <td class={{if row.seriesFull "text-warning"}}>{{row.series}} of {{row.maxSeries}}</td>
