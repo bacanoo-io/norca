@@ -79,6 +79,11 @@ type networkHook struct {
 	// taskEnv is used to perform interpolation within the network blocks.
 	taskEnv *taskenv.TaskEnv
 
+	// namespaceConfigured reports whether the network namespace at a path
+	// has an interface besides the loopback one (namespaceConfigured of the
+	// platform; replaced in tests).
+	namespaceConfigured func(path string) (bool, error)
+
 	logger hclog.Logger
 }
 
@@ -97,6 +102,7 @@ func newNetworkHook(logger hclog.Logger,
 		manager:             netManager,
 		networkConfigurator: netConfigurator,
 		taskEnv:             taskEnv,
+		namespaceConfigured: namespaceConfigured,
 		logger:              logger,
 	}
 }
@@ -141,6 +147,26 @@ func (h *networkHook) Prerun() error {
 	if spec != nil {
 		h.spec = spec
 		h.isolationSetter.SetNetworkIsolation(spec)
+	}
+
+	// clean room bugfix: a network that already existed (the restore after a
+	// client restart) was taken as configured. When the machine restarted,
+	// dockerd restarts the pause container (restart policy unless-stopped)
+	// with a new, empty namespace: the tasks ran without an address and the
+	// checks of their ports were refused. A namespace without any interface
+	// but the loopback one is configured again, after the CNI state of its
+	// earlier incarnation (address reservation, port mappings) is released.
+	if !created && spec != nil && spec.Path != "" {
+		configured, err := h.namespaceConfigured(spec.Path)
+		if err != nil {
+			h.logger.Warn("failed to check the network namespace of the alloc", "path", spec.Path, "error", err)
+		} else if !configured {
+			h.logger.Info("network namespace of the alloc has no interface, configuring it again", "path", spec.Path)
+			if err := h.networkConfigurator.Teardown(context.TODO(), h.alloc, spec); err != nil {
+				h.logger.Debug("releasing the earlier network configuration failed", "error", err)
+			}
+			created = true
+		}
 	}
 
 	if created {
