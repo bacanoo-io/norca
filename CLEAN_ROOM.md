@@ -93,3 +93,47 @@ The auditor records a verdict for every candidate (independent,
 interface-bound, or to be rewritten). The record for the clean room pages is:
 date, Dolos version, Norca commit, BSL tag, threshold, the candidates and their
 verdicts.
+
+## Multiregion deployments
+
+Nomad v1.6.5 (MPL 2.0) contains the public side of multiregion jobs: the
+`multiregion` block of the jobspec (`jobspec/parse_multiregion.go`), the
+structures `Multiregion`, `MultiregionStrategy` and `MultiregionRegion` with
+their copy, canonicalization and plan diff code, the HTTP API, the CLI
+commands (`deployment run`, `deployment unblock` and the multiregion output of
+`job run`, `job plan` and `job status`) and the region forwarding of the RPC
+layer. The behaviour itself was Enterprise only, and HashiCorp never published
+it. The MPL tree has stubs in its place, built with the `!ent` tag, that do
+nothing or return an error:
+
+- `job_endpoint_oss.go`: `multiregionRegister`, `multiregionStart`,
+  `multiregionDrop`, `multiregionStop`, `multiregionCreateDeployment`,
+  `interpolateMultiregionFields`, `multiregionSpecChanged`;
+- `structs/structs_oss.go`: `Multiregion.Validate`;
+- `deploymentwatcher/multiregion_oss.go`: `nextRegion`, `RunDeployment`,
+  `UnblockDeployment`, `CancelDeployment`.
+
+Norca replaced these stubs with its own implementation in the import commit
+`18349e4ef` (paths relative to `norca/`, the `nomad/` directory before
+2026-11-02):
+
+| File | Content |
+| --- | --- |
+| `norca/job_endpoint_multiregion.go` | Registration in every listed region: per-region interpolation, peer registrations, deployments that wait in the pending state, stop and drop |
+| `norca/structs/multiregion.go` | Validation of the `multiregion` block |
+| `norca/deploymentwatcher/multiregion.go` | The rollout across regions: pending, running, blocked and unblocked deployments, `max_parallel`, `on_failure`, retries after a partition, `Deployment.Run`, `Unblock` and `Fail` by hand |
+| `norca/release_multiregion.go` | Multiregion pack releases, a Norca feature with no Nomad counterpart |
+| `ui/app/components/jobs/multiregion-timeline.*` | The region timeline of the UI |
+
+The tests are next to each file (`*_multiregion_test.go`,
+`multiregion_test.go`). `norca/deploymentwatcher/multiregion.go` keeps the
+HashiCorp copyright line of the MPL stub it replaced, because it keeps that
+stub's function signatures and doc comments; the other files are new and
+carry only the Norca header.
+
+What the audit covers: the UI timeline is in the `busl` set (the directory of
+the ACL UI files). In the 2026-11-08 run its highest pair is 0.108, and it is
+not a candidate. The Go files are in neither set. Their directories hold none
+of the 45 BUSL files, and HashiCorp's implementation is not public, so there
+is no file to compare them with. The import commit is not in the `bugfix`
+set.
