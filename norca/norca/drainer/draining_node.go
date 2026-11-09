@@ -143,8 +143,23 @@ func (n *drainingNode) DrainingJobs() ([]structs.NamespacedID, error) {
 	jobIDs := make(map[structs.NamespacedID]struct{})
 	var jobs []structs.NamespacedID
 	for _, alloc := range allocs {
-		if alloc.TerminalStatus() || alloc.Job.Type == structs.JobTypeSystem || alloc.Job.IsPlugin() {
+		if alloc.ClientTerminalStatus() || alloc.Job.Type == structs.JobTypeSystem || alloc.Job.IsPlugin() {
 			continue
+		}
+
+		// An allocation the server stopped but the client still runs holds
+		// up the drain (IsDone waits for the client). Its job is watched
+		// only when it is gone (purged): the watcher then reports the
+		// allocation once the client stopped it, and the node is checked
+		// again. A job that still exists stops its allocations itself.
+		if alloc.TerminalStatus() {
+			job, err := n.state.JobByID(nil, alloc.Namespace, alloc.JobID)
+			if err != nil {
+				return nil, err
+			}
+			if job != nil {
+				continue
+			}
 		}
 
 		jns := structs.NamespacedID{Namespace: alloc.Namespace, ID: alloc.JobID}
