@@ -298,10 +298,15 @@ func (w WorkerInfo) String() string {
 func (w *Worker) Info() WorkerInfo {
 	w.pauseLock.Lock()
 	defer w.pauseLock.Unlock()
+	// the statuses are guarded by statusLock (taken after pauseLock, as in
+	// maybeWait), the worker goroutine changes them
+	w.statusLock.RLock()
+	status, workloadStatus := w.status, w.workloadStatus
+	w.statusLock.RUnlock()
 	out := WorkerInfo{
 		ID:                w.id,
-		Status:            w.status.String(),
-		WorkloadStatus:    w.workloadStatus.String(),
+		Status:            status.String(),
+		WorkloadStatus:    workloadStatus.String(),
 		EnabledSchedulers: make([]string, len(w.enabledSchedulers)),
 	}
 	out.Started = w.start

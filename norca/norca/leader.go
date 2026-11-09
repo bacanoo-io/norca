@@ -593,8 +593,18 @@ ERR_WAIT:
 	}
 }
 
+// handlePausableWorkers pauses (leader) or resumes the pausable workers. It
+// takes the worker lock, as a reload may replace the workers meanwhile.
 func (s *Server) handlePausableWorkers(isLeader bool) {
-	for _, w := range s.pausableWorkers() {
+	s.workerLock.RLock()
+	defer s.workerLock.RUnlock()
+	s.handlePausableWorkersLocked(isLeader)
+}
+
+// handlePausableWorkersLocked is handlePausableWorkers for a caller that
+// holds the worker lock (the reload, which pauses its new workers).
+func (s *Server) handlePausableWorkersLocked(isLeader bool) {
+	for _, w := range s.pausableWorkersLocked() {
 		if isLeader {
 			w.Pause()
 		} else {
@@ -1538,12 +1548,12 @@ func (s *Server) revokeLeadership() error {
 	return nil
 }
 
-// pausableWorkers returns a slice of the workers
-// to pause on leader transitions.
+// pausableWorkersLocked returns a slice of the workers
+// to pause on leader transitions. The caller holds the worker lock.
 //
 // Upon leadership establishment, pause workers to free half
 // the cores for use in the plan queue and evaluation broker
-func (s *Server) pausableWorkers() []*Worker {
+func (s *Server) pausableWorkersLocked() []*Worker {
 	n := len(s.workers)
 	if n <= 1 {
 		return []*Worker{}

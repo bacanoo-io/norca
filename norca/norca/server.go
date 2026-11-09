@@ -1967,7 +1967,7 @@ func (s *Server) setupNewWorkersLocked() error {
 	}
 
 	// if we're the leader, we need to pause all of the pausable workers.
-	s.handlePausableWorkers(s.IsLeader())
+	s.handlePausableWorkersLocked(s.IsLeader())
 
 	return nil
 }
