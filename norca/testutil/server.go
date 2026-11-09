@@ -80,7 +80,6 @@ type PortsConfig struct {
 type ServerConfig struct {
 	Enabled         bool `json:"enabled"`
 	BootstrapExpect int  `json:"bootstrap_expect"`
-	RaftProtocol    int  `json:"raft_protocol,omitempty"`
 }
 
 // ClientConfig is used to configure the client

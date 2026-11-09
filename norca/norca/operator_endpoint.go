@@ -126,6 +126,8 @@ func (op *Operator) RaftRemovePeerByAddress(args *structs.RaftPeerByAddressReque
 	// Since this is an operation designed for humans to use, we will return
 	// an error if the supplied address isn't among the peers since it's
 	// likely they screwed up.
+	// The servers are known by ID: find the ID of the address.
+	var id raft.ServerID
 	{
 		future := op.srv.raft.GetConfiguration()
 		if err := future.Error(); err != nil {
@@ -133,6 +135,7 @@ func (op *Operator) RaftRemovePeerByAddress(args *structs.RaftPeerByAddressReque
 		}
 		for _, s := range future.Configuration().Servers {
 			if s.Address == args.Address {
+				id = s.ID
 				goto REMOVE
 			}
 		}
@@ -149,13 +152,13 @@ REMOVE:
 	// doing if you are calling this. If you remove a peer that's known to
 	// Serf, for example, it will come back when the leader does a reconcile
 	// pass.
-	future := op.srv.raft.RemovePeer(args.Address)
+	future := op.srv.raft.RemoveServer(id, 0, 0)
 	if err := future.Error(); err != nil {
-		op.logger.Warn("failed to remove Raft peer", "peer", args.Address, "error", err)
+		op.logger.Warn("failed to remove Raft peer", "peer", args.Address, "peer_id", id, "error", err)
 		return err
 	}
 
-	op.logger.Warn("removed Raft peer", "peer", args.Address)
+	op.logger.Warn("removed Raft peer", "peer", args.Address, "peer_id", id)
 	return nil
 }
 
@@ -184,7 +187,6 @@ func (op *Operator) RaftRemovePeerByID(args *structs.RaftPeerByIDRequest, reply 
 	// Since this is an operation designed for humans to use, we will return
 	// an error if the supplied id isn't among the peers since it's
 	// likely they screwed up.
-	var address raft.ServerAddress
 	{
 		future := op.srv.raft.GetConfiguration()
 		if err := future.Error(); err != nil {
@@ -192,7 +194,6 @@ func (op *Operator) RaftRemovePeerByID(args *structs.RaftPeerByIDRequest, reply 
 		}
 		for _, s := range future.Configuration().Servers {
 			if s.ID == args.ID {
-				address = s.Address
 				goto REMOVE
 			}
 		}
@@ -209,17 +210,7 @@ REMOVE:
 	// doing if you are calling this. If you remove a peer that's known to
 	// Serf, for example, it will come back when the leader does a reconcile
 	// pass.
-	minRaftProtocol, err := op.srv.MinRaftProtocol()
-	if err != nil {
-		return err
-	}
-
-	var future raft.Future
-	if minRaftProtocol >= 2 {
-		future = op.srv.raft.RemoveServer(args.ID, 0, 0)
-	} else {
-		future = op.srv.raft.RemovePeer(address)
-	}
+	future := op.srv.raft.RemoveServer(args.ID, 0, 0)
 	if err := future.Error(); err != nil {
 		op.logger.Warn("failed to remove Raft peer", "peer_id", args.ID, "error", err)
 		return err
@@ -333,16 +324,10 @@ func (op *Operator) ServerHealth(args *structs.GenericRequest, reply *structs.Op
 		return structs.ErrPermissionDenied
 	}
 
-	// Exit early if the min Raft version is too low
-	minRaftProtocol, err := op.srv.MinRaftProtocol()
-	if err != nil {
-		return fmt.Errorf("error getting server raft protocol versions: %s", err)
+	// nil before autopilot's first health check: an empty reply
+	if health := op.srv.GetClusterHealth(); health != nil {
+		*reply = *health
 	}
-	if minRaftProtocol < 3 {
-		return fmt.Errorf("all servers must have raft_protocol set to 3 or higher to use this endpoint")
-	}
-
-	*reply = *op.srv.GetClusterHealth()
 
 	return nil
 }

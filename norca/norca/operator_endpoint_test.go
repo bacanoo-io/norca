@@ -143,9 +143,7 @@ func TestOperator_RaftGetConfiguration_ACL(t *testing.T) {
 func TestOperator_RaftRemovePeerByAddress(t *testing.T) {
 	ci.Parallel(t)
 
-	s1, cleanupS1 := TestServer(t, func(c *Config) {
-		c.RaftConfig.ProtocolVersion = raft.ProtocolVersion(2)
-	})
+	s1, cleanupS1 := TestServer(t, nil)
 	defer cleanupS1()
 	codec := rpcClient(t, s1)
 	testutil.WaitForLeader(t, s1.RPC)
@@ -165,7 +163,7 @@ func TestOperator_RaftRemovePeerByAddress(t *testing.T) {
 
 	// Add it manually to Raft.
 	{
-		future := s1.raft.AddPeer(arg.Address)
+		future := s1.raft.AddNonvoter(raft.ServerID("peer-by-address"), arg.Address, 0, 0)
 		if err := future.Error(); err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -204,9 +202,7 @@ func TestOperator_RaftRemovePeerByAddress(t *testing.T) {
 func TestOperator_RaftRemovePeerByAddress_ACL(t *testing.T) {
 	ci.Parallel(t)
 
-	s1, root, cleanupS1 := TestACLServer(t, func(c *Config) {
-		c.RaftConfig.ProtocolVersion = raft.ProtocolVersion(2)
-	})
+	s1, root, cleanupS1 := TestACLServer(t, nil)
 
 	defer cleanupS1()
 	codec := rpcClient(t, s1)
@@ -226,7 +222,7 @@ func TestOperator_RaftRemovePeerByAddress_ACL(t *testing.T) {
 
 	// Add peer manually to Raft.
 	{
-		future := s1.raft.AddPeer(arg.Address)
+		future := s1.raft.AddNonvoter(raft.ServerID("peer-by-address"), arg.Address, 0, 0)
 		assert.Nil(future.Error())
 	}
 

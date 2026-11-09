@@ -6,8 +6,6 @@ package norca
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	metrics "github.com/hashicorp/go-metrics"
@@ -97,12 +95,6 @@ func (d *AutopilotDelegate) RemoveFailedServer(failedSrv *autopilot.Server) {
 	}()
 }
 
-// MinRaftProtocol returns the lowest supported Raft protocol among alive
-// servers
-func (s *Server) MinRaftProtocol() (int, error) {
-	return minRaftProtocol(s.serf.Members(), isNomadServer)
-}
-
 // GetClusterHealth is used to get the current health of the servers, as known
 // by the leader.
 func (s *Server) GetClusterHealth() *structs.OperatorHealthReply {
@@ -149,45 +141,6 @@ func (s *Server) GetClusterHealth() *structs.OperatorHealthReply {
 	}
 
 	return health
-}
-
-// -------------------
-// helper functions
-
-func minRaftProtocol(members []serf.Member, serverFunc func(serf.Member) (bool, *serverParts)) (int, error) {
-	minVersion := -1
-	for _, m := range members {
-		if m.Status != serf.StatusAlive {
-			continue
-		}
-
-		ok, server := serverFunc(m)
-		if !ok {
-			return -1, fmt.Errorf("not a Nomad server")
-		}
-		if server == nil {
-			continue
-		}
-
-		vsn, ok := m.Tags["raft_vsn"]
-		if !ok {
-			vsn = "1"
-		}
-		raftVsn, err := strconv.Atoi(vsn)
-		if err != nil {
-			return -1, err
-		}
-
-		if minVersion == -1 || raftVsn < minVersion {
-			minVersion = raftVsn
-		}
-	}
-
-	if minVersion == -1 {
-		return minVersion, fmt.Errorf("No servers found")
-	}
-
-	return minVersion, nil
 }
 
 func (s *Server) autopilotServers() map[raft.ServerID]*autopilot.Server {

@@ -672,31 +672,6 @@ func TestAgent_ServerConfig_RaftSnapshotThreshold(t *testing.T) {
 	}
 }
 
-func TestAgent_ServerConfig_RaftProtocol_3(t *testing.T) {
-	ci.Parallel(t)
-
-	cases := []int{
-		0, 1, 2, 3, 4,
-	}
-
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("protocol_version %d", tc), func(t *testing.T) {
-			conf := DevConfig(nil)
-			conf.Server.RaftProtocol = tc
-			must.NoError(t, conf.normalizeAddrs())
-			_, err := convertServerConfig(conf)
-
-			switch tc {
-			case 0, 3: // 0 defers to default
-				must.NoError(t, err)
-			default:
-				exp := fmt.Sprintf("raft_protocol must be 3 in Nomad v1.4 and later, got %d", tc)
-				must.EqError(t, err, exp)
-			}
-		})
-	}
-}
-
 func TestAgent_ClientConfig_discovery(t *testing.T) {
 	ci.Parallel(t)
 	conf := DefaultConfig()

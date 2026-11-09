@@ -95,7 +95,6 @@ func (c *Command) readConfig() *Config {
 	// Server-only options
 	flags.IntVar(&cmdConfig.Server.BootstrapExpect, "bootstrap-expect", 0, "")
 	flags.StringVar(&cmdConfig.Server.EncryptKey, "encrypt", "", "gossip encryption key")
-	flags.IntVar(&cmdConfig.Server.RaftProtocol, "raft-protocol", 0, "")
 	flags.BoolVar(&cmdConfig.Server.RejoinAfterLeave, "rejoin", false, "")
 	flags.Var((*flaghelper.StringFlag)(&cmdConfig.Server.ServerJoin.StartJoin), "join", "")
 	flags.Var((*flaghelper.StringFlag)(&cmdConfig.Server.ServerJoin.RetryJoin), "retry-join", "")
@@ -616,7 +615,6 @@ func (c *Command) AutocompleteFlags() complete.Flags {
 		"-client":                        complete.PredictNothing,
 		"-bootstrap-expect":              complete.PredictAnything,
 		"-encrypt":                       complete.PredictAnything,
-		"-raft-protocol":                 complete.PredictAnything,
 		"-rejoin":                        complete.PredictNothing,
 		"-join":                          complete.PredictAnything,
 		"-retry-join":                    complete.PredictAnything,
@@ -1364,10 +1362,6 @@ Server Options:
   -join=<address>
     Address of an agent to join at start time. Can be specified
     multiple times.
-
-  -raft-protocol=<num>
-    The Raft protocol version to use. Used for enabling certain Autopilot
-    features. Defaults to 2.
 
   -retry-join=<address>
     Address of an agent to join at start time with retries enabled.

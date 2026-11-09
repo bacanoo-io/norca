@@ -507,9 +507,6 @@ type ServerConfig struct {
 	// Deprecated: This has never been used and will emit a warning if nonzero.
 	ProtocolVersion int `hcl:"protocol_version" json:"-"`
 
-	// RaftProtocol is the Raft protocol version to speak. This must be from [1-3].
-	RaftProtocol int `hcl:"raft_protocol"`
-
 	// RaftMultiplier scales the Raft timing parameters
 	RaftMultiplier *int `hcl:"raft_multiplier"`
 
@@ -1526,7 +1523,6 @@ func DefaultConfig() *Config {
 			Enabled:           false,
 			EnableEventBroker: pointer.Of(true),
 			EventBufferSize:   pointer.Of(1000),
-			RaftProtocol:      3,
 			StartJoin:         []string{},
 			PlanRejectionTracker: &PlanRejectionTracker{
 				Enabled:       pointer.Of(false),
@@ -2100,9 +2096,6 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 	}
 	if b.ProtocolVersion != 0 {
 		result.ProtocolVersion = b.ProtocolVersion
-	}
-	if b.RaftProtocol != 0 {
-		result.RaftProtocol = b.RaftProtocol
 	}
 	if b.RaftMultiplier != nil {
 		c := *b.RaftMultiplier

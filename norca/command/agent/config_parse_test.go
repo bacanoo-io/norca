@@ -101,7 +101,6 @@ var basicConfig = &Config{
 		AuthoritativeRegion:       "foobar",
 		BootstrapExpect:           5,
 		DataDir:                   "/tmp/data",
-		RaftProtocol:              3,
 		RaftMultiplier:            pointer.Of(4),
 		NumSchedulers:             pointer.Of(2),
 		EnabledSchedulers:         []string{"test"},

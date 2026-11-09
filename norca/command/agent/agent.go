@@ -39,7 +39,6 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	metrics "github.com/hashicorp/go-metrics"
 	uuidparse "github.com/hashicorp/go-uuid"
-	"github.com/hashicorp/raft"
 )
 
 const (
@@ -209,12 +208,6 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 	}
 	if agentConfig.Server.DataDir != "" {
 		conf.DataDir = agentConfig.Server.DataDir
-	}
-	if agentConfig.Server.RaftProtocol != 0 {
-		conf.RaftConfig.ProtocolVersion = raft.ProtocolVersion(agentConfig.Server.RaftProtocol)
-	}
-	if v := conf.RaftConfig.ProtocolVersion; v != 3 {
-		return nil, fmt.Errorf("raft_protocol must be 3 in Nomad v1.4 and later, got %d", v)
 	}
 	raftMultiplier := int(DefaultRaftMultiplier)
 	if agentConfig.Server.RaftMultiplier != nil && *agentConfig.Server.RaftMultiplier != 0 {

@@ -711,26 +711,18 @@ func TestServer_ReloadSchedulers_InvalidSchedulers(t *testing.T) {
 	require.Equal(t, origWC, currentWC)
 }
 
-func TestServer_PreventRaftDowngrade(t *testing.T) {
+// Norca speaks Raft protocol 3 only: a server configured otherwise does not
+// start.
+func TestServer_RaftProtocolMustBe3(t *testing.T) {
 	ci.Parallel(t)
 
-	dir := t.TempDir()
-	_, cleanupv3 := TestServer(t, func(c *Config) {
+	_, cleanup, err := TestServerErr(t, func(c *Config) {
 		c.DevMode = false
-		c.DataDir = dir
-		c.RaftConfig.ProtocolVersion = 3
-	})
-	cleanupv3()
-
-	_, cleanupv2, err := TestServerErr(t, func(c *Config) {
-		c.DevMode = false
-		c.DataDir = dir
+		c.DataDir = t.TempDir()
 		c.RaftConfig.ProtocolVersion = 2
 	})
-	if cleanupv2 != nil {
-		defer cleanupv2()
+	if cleanup != nil {
+		cleanup()
 	}
-
-	// Downgrading Raft should prevent the server from starting.
-	require.Error(t, err)
+	must.ErrorContains(t, err, "raft protocol version must be 3, got 2")
 }

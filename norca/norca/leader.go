@@ -1636,16 +1636,7 @@ func (s *Server) addRaftPeer(m serf.Member, parts *serverParts) error {
 	// but we want to avoid doing that if possible to prevent useless Raft
 	// log entries. If the address is the same but the ID changed, remove the
 	// old server before adding the new one.
-	minRaftProtocol, err := s.MinRaftProtocol()
-	if err != nil {
-		return err
-	}
 	for _, server := range configFuture.Configuration().Servers {
-		// No-op if the raft version is too low
-		if server.Address == raft.ServerAddress(addr) && (minRaftProtocol < 2 || parts.RaftVersion < 3) {
-			return nil
-		}
-
 		// If the address or ID matches an existing server, see if we need to remove the old one first
 		if server.Address == raft.ServerAddress(addr) || server.ID == raft.ServerID(parts.ID) {
 			// Exit with no-op if this is being called on an existing server and both the ID and address match
@@ -1667,28 +1658,12 @@ func (s *Server) addRaftPeer(m serf.Member, parts *serverParts) error {
 		}
 	}
 
-	// Attempt to add as a peer
-	switch {
-	case minRaftProtocol >= 3:
-		addFuture := s.raft.AddNonvoter(raft.ServerID(parts.ID), raft.ServerAddress(addr), 0, 0)
-		if err := addFuture.Error(); err != nil {
-			s.logger.Error("failed to add raft peer", "error", err)
-			return err
-		}
-	case minRaftProtocol == 2 && parts.RaftVersion >= 3:
-		addFuture := s.raft.AddVoter(raft.ServerID(parts.ID), raft.ServerAddress(addr), 0, 0)
-		if err := addFuture.Error(); err != nil {
-			s.logger.Error("failed to add raft peer", "error", err)
-			return err
-		}
-	default:
-		addFuture := s.raft.AddPeer(raft.ServerAddress(addr))
-		if err := addFuture.Error(); err != nil {
-			s.logger.Error("failed to add raft peer", "error", err)
-			return err
-		}
+	// Add as a non-voter; autopilot promotes it once it is stable.
+	addFuture := s.raft.AddNonvoter(raft.ServerID(parts.ID), raft.ServerAddress(addr), 0, 0)
+	if err := addFuture.Error(); err != nil {
+		s.logger.Error("failed to add raft peer", "error", err)
+		return err
 	}
-
 	return nil
 }
 
@@ -1706,33 +1681,13 @@ func (s *Server) removeRaftPeer(m serf.Member, parts *serverParts) error {
 		return err
 	}
 
-	minRaftProtocol, err := s.MinRaftProtocol()
-	if err != nil {
-		return err
-	}
-
-	// Pick which remove API to use based on how the server was added.
 	for _, server := range configFuture.Configuration().Servers {
-		// Check if this is the server to remove based on how it was registered.
-		// Raft v2 servers are registered by address.
-		// Raft v3 servers are registered by ID.
 		if server.ID == raft.ServerID(parts.ID) || server.Address == raft.ServerAddress(addr) {
-			// Use the new add/remove APIs if we understand them.
-			if minRaftProtocol >= 2 {
-				s.logger.Info("removing server by ID", "id", server.ID)
-				future := s.raft.RemoveServer(server.ID, 0, 0)
-				if err := future.Error(); err != nil {
-					s.logger.Error("failed to remove raft peer", "id", server.ID, "error", err)
-					return err
-				}
-			} else {
-				// If not, use the old remove API
-				s.logger.Info("removing server by address", "address", server.Address)
-				future := s.raft.RemovePeer(raft.ServerAddress(addr))
-				if err := future.Error(); err != nil {
-					s.logger.Error("failed to remove raft peer", "address", addr, "error", err)
-					return err
-				}
+			s.logger.Info("removing server by ID", "id", server.ID)
+			future := s.raft.RemoveServer(server.ID, 0, 0)
+			if err := future.Error(); err != nil {
+				s.logger.Error("failed to remove raft peer", "id", server.ID, "error", err)
+				return err
 			}
 			break
 		}

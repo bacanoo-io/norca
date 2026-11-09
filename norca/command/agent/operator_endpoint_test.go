@@ -216,7 +216,6 @@ func TestOperator_ServerHealth(t *testing.T) {
 	ci.Parallel(t)
 
 	httpTest(t, func(c *Config) {
-		c.Server.RaftProtocol = 3
 	}, func(s *TestAgent) {
 		body := bytes.NewBuffer(nil)
 		req, _ := http.NewRequest(http.MethodGet, "/v1/operator/autopilot/health", body)
@@ -256,7 +255,6 @@ func TestOperator_ServerHealth(t *testing.T) {
 func TestOperator_ServerHealth_Unhealthy(t *testing.T) {
 	ci.Parallel(t)
 	httpTest(t, func(c *Config) {
-		c.Server.RaftProtocol = 3
 		c.Autopilot.LastContactThreshold = -1 * time.Second
 	}, func(s *TestAgent) {
 		body := bytes.NewBuffer(nil)

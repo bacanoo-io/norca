@@ -916,26 +916,14 @@ func (s *Server) Leave() error {
 	addr := s.raftTransport.LocalAddr()
 
 	// If we are the current leader, and we have any other peers (cluster has multiple
-	// servers), we should do a RemovePeer to safely reduce the quorum size. If we are
+	// servers), we should remove ourselves to safely reduce the quorum size. If we are
 	// not the leader, then we should issue our leave intention and wait to be removed
 	// for some sane period of time.
 	isLeader := s.IsLeader()
 	if isLeader && numPeers > 1 {
-		minRaftProtocol, err := s.MinRaftProtocol()
-		if err != nil {
-			return err
-		}
-
-		if minRaftProtocol >= 2 && s.config.RaftConfig.ProtocolVersion >= 3 {
-			future := s.raft.RemoveServer(raft.ServerID(s.config.NodeID), 0, 0)
-			if err := future.Error(); err != nil {
-				s.logger.Error("failed to remove ourself as raft peer", "error", err)
-			}
-		} else {
-			future := s.raft.RemovePeer(addr)
-			if err := future.Error(); err != nil {
-				s.logger.Error("failed to remove ourself as raft peer", "error", err)
-			}
+		future := s.raft.RemoveServer(raft.ServerID(s.config.NodeID), 0, 0)
+		if err := future.Error(); err != nil {
+			s.logger.Error("failed to remove ourself as raft peer", "error", err)
 		}
 	}
 
@@ -1521,12 +1509,12 @@ func (s *Server) setupRaft() error {
 	s.config.RaftConfig.Logger = s.logger.Named("raft")
 	s.config.RaftConfig.LogOutput = nil
 
-	// Our version of Raft protocol 2 requires the LocalID to match the network
-	// address of the transport. Raft protocol 3 uses permanent ids.
-	s.config.RaftConfig.LocalID = raft.ServerID(trans.LocalAddr())
-	if s.config.RaftConfig.ProtocolVersion >= 3 {
-		s.config.RaftConfig.LocalID = raft.ServerID(s.config.NodeID)
+	// Norca speaks Raft protocol 3 only: servers are known by their
+	// permanent node IDs, not by their addresses.
+	if v := s.config.RaftConfig.ProtocolVersion; v != 3 {
+		return fmt.Errorf("raft protocol version must be 3, got %d", v)
 	}
+	s.config.RaftConfig.LocalID = raft.ServerID(s.config.NodeID)
 
 	// Build an all in-memory setup for dev mode, otherwise prepare a full
 	// disk-based setup.
@@ -1545,16 +1533,6 @@ func (s *Server) setupRaft() error {
 		path := filepath.Join(s.config.DataDir, raftState)
 		if err := ensurePath(path, true); err != nil {
 			return err
-		}
-
-		// Check Raft version and update the version file.
-		raftVersionFilePath := filepath.Join(path, "version")
-		raftVersionFileContent := strconv.Itoa(int(s.config.RaftConfig.ProtocolVersion))
-		if err := s.checkRaftVersionFile(raftVersionFilePath); err != nil {
-			return err
-		}
-		if err := os.WriteFile(raftVersionFilePath, []byte(raftVersionFileContent), 0644); err != nil {
-			return fmt.Errorf("failed to write Raft version file: %v", err)
 		}
 
 		// The raft log in Badger (default) or BoltDB (raft_store)
@@ -1607,12 +1585,7 @@ func (s *Server) setupRaft() error {
 			}
 		} else if _, err := os.Stat(peersFile); err == nil {
 			s.logger.Info("found peers.json file, recovering Raft configuration...")
-			var configuration raft.Configuration
-			if s.config.RaftConfig.ProtocolVersion < 3 {
-				configuration, err = raft.ReadPeersJSON(peersFile)
-			} else {
-				configuration, err = raft.ReadConfigJSON(peersFile)
-			}
+			configuration, err := raft.ReadConfigJSON(peersFile)
 			if err != nil {
 				return fmt.Errorf("recovery failed to parse peers.json: %v", err)
 			}
@@ -1659,42 +1632,6 @@ func (s *Server) setupRaft() error {
 	if err != nil {
 		return err
 	}
-	return nil
-}
-
-// checkRaftVersionFile reads the Raft version file and returns an error if
-// the Raft version is incompatible with the current version configured.
-// Provide best-effort check if the file cannot be read.
-func (s *Server) checkRaftVersionFile(path string) error {
-	raftVersion := s.config.RaftConfig.ProtocolVersion
-	baseWarning := "use the 'nomad operator raft list-peers' command to make sure the Raft protocol versions are consistent"
-
-	_, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-
-		s.logger.Warn(fmt.Sprintf("unable to read Raft version file, %s", baseWarning), "error", err)
-		return nil
-	}
-
-	v, err := os.ReadFile(path)
-	if err != nil {
-		s.logger.Warn(fmt.Sprintf("unable to read Raft version file, %s", baseWarning), "error", err)
-		return nil
-	}
-
-	previousVersion, err := strconv.Atoi(strings.TrimSpace(string(v)))
-	if err != nil {
-		s.logger.Warn(fmt.Sprintf("invalid Raft protocol version in Raft version file, %s", baseWarning), "error", err)
-		return nil
-	}
-
-	if raft.ProtocolVersion(previousVersion) > raftVersion {
-		return fmt.Errorf("downgrading Raft is not supported, current version is %d, previous version was %d", raftVersion, previousVersion)
-	}
-
 	return nil
 }
 
@@ -2306,19 +2243,7 @@ func (s *Server) isSingleServerCluster() bool {
 // peers.json file. This is written to a file called peers.info in the same
 // location.
 const peersInfoContent = `
-As of Nomad 0.5.5, the peers.json file is only used for recovery
-after an outage. The format of this file depends on what the server has
-configured for its Raft protocol version, set by the raft_protocol parameter
-of the server block in the agent configuration.
-For Raft protocol version 2 and earlier, this should be formatted as a JSON
-array containing the address and port of each Nomad server in the cluster, like
-this:
-[
-  "10.1.0.1:4647",
-  "10.1.0.2:4647",
-  "10.1.0.3:4647"
-]
-For Raft protocol version 3 and later, this should be formatted as a JSON
+The peers.json file is only used for recovery after an outage. It is a JSON
 array containing the node ID, address:port, and suffrage information of each
 Nomad server in the cluster, like this:
 [

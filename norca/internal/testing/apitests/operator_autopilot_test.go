@@ -86,7 +86,6 @@ func TestAPI_OperatorAutopilotCASConfiguration(t *testing.T) {
 func TestAPI_OperatorAutopilotServerHealth(t *testing.T) {
 	ci.Parallel(t)
 	c, s := makeClient(t, nil, func(c *testutil.TestServerConfig) {
-		c.Server.RaftProtocol = 3
 	})
 	defer s.Stop()
 
