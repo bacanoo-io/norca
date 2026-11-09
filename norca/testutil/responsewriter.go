@@ -41,19 +41,11 @@ func (r *ResponseRecorder) Flushed() bool {
 	return r.rr.Flushed
 }
 
-// Header returns the response headers. Readers should call HeaderMap() to
-// avoid races due to the server concurrently mutating headers.
+// Header returns the response headers.
 func (r *ResponseRecorder) Header() http.Header {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.rr.Header()
-}
-
-// HeaderMap returns the HTTP headers written before WriteHeader was called.
-func (r *ResponseRecorder) HeaderMap() http.Header {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.rr.HeaderMap
 }
 
 // Write to the underlying response buffer. Safe to call concurrent with Read.
@@ -63,8 +55,7 @@ func (r *ResponseRecorder) Write(p []byte) (int, error) {
 	return r.rr.Body.Write(p)
 }
 
-// WriteHeader sets the response code and freezes the headers returned by
-// HeaderMap. Safe to call concurrent with Read and HeaderMap.
+// WriteHeader sets the response code. Safe to call concurrent with Read.
 func (r *ResponseRecorder) WriteHeader(statusCode int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

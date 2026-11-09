@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/bacanoo-io/norca/norca/api/contexts"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
@@ -187,7 +190,7 @@ func (c *StatusCommand) logMultiMatchError(id string, matches map[contexts.Conte
 			continue
 		}
 
-		c.Ui.Error(fmt.Sprintf("\n%s:", strings.Title(string(ctx))))
+		c.Ui.Error(fmt.Sprintf("\n%s:", cases.Title(language.Und, cases.NoLower).String(string(ctx))))
 		c.Ui.Error(strings.Join(vers, ", "))
 	}
 }

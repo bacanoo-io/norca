@@ -15,6 +15,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/plugins/drivers"
 	hclog "github.com/hashicorp/go-hclog"
 	ps "github.com/mitchellh/go-ps"
+	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/process"
 )
 
@@ -155,7 +156,7 @@ func (c *pidCollector) pidStats() (map[string]*drivers.ResourceUsage, error) {
 			cs.Measured = ExecutorBasicMeasuredCpuStats
 
 			// calculate cpu usage percent
-			cs.Percent = np.StatsTotalCPU.Percent(cpuStats.Total() * float64(time.Second))
+			cs.Percent = np.StatsTotalCPU.Percent(cpuTimesTotal(*cpuStats) * float64(time.Second))
 		}
 		stats[strconv.Itoa(pid)] = &drivers.ResourceUsage{MemoryStats: ms, CpuStats: cs}
 	}
@@ -212,4 +213,11 @@ func getAllPidsByScanning() (resources.PIDs, error) {
 		return nil, err
 	}
 	return scanPids(os.Getpid(), allProcesses)
+}
+
+// cpuTimesTotal is the sum of all the CPU times of a process (gopsutil's
+// TimesStat.Total, which is deprecated as an internal function).
+func cpuTimesTotal(t cpu.TimesStat) float64 {
+	return t.User + t.System + t.Idle + t.Nice + t.Iowait + t.Irq +
+		t.Softirq + t.Steal + t.Guest + t.GuestNice
 }

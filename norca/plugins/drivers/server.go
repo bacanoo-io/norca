@@ -10,10 +10,10 @@ import (
 	"io"
 	"math"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/plugins/drivers/proto"
@@ -185,13 +185,12 @@ func (b *driverPluginServer) WaitTask(ctx context.Context, req *proto.WaitTaskRe
 }
 
 func (b *driverPluginServer) StopTask(ctx context.Context, req *proto.StopTaskRequest) (*proto.StopTaskResponse, error) {
-	timeout, err := ptypes.Duration(req.Timeout)
-	if err != nil {
+	timeout := req.Timeout.AsDuration()
+	if err := req.Timeout.CheckValid(); err != nil {
 		return nil, err
 	}
 
-	err = b.impl.StopTask(req.TaskId, timeout, req.Signal)
-	if err != nil {
+	if err := b.impl.StopTask(req.TaskId, timeout, req.Signal); err != nil {
 		return nil, err
 	}
 	return &proto.StopTaskResponse{}, nil
@@ -240,8 +239,8 @@ func (b *driverPluginServer) InspectTask(ctx context.Context, req *proto.Inspect
 }
 
 func (b *driverPluginServer) TaskStats(req *proto.TaskStatsRequest, srv proto.Driver_TaskStatsServer) error {
-	interval, err := ptypes.Duration(req.CollectionInterval)
-	if err != nil {
+	interval := req.CollectionInterval.AsDuration()
+	if err := req.CollectionInterval.CheckValid(); err != nil {
 		return fmt.Errorf("failed to parse collection interval: %v", err)
 	}
 
@@ -277,8 +276,8 @@ func (b *driverPluginServer) TaskStats(req *proto.TaskStatsRequest, srv proto.Dr
 }
 
 func (b *driverPluginServer) ExecTask(ctx context.Context, req *proto.ExecTaskRequest) (*proto.ExecTaskResponse, error) {
-	timeout, err := ptypes.Duration(req.Timeout)
-	if err != nil {
+	timeout := req.Timeout.AsDuration()
+	if err := req.Timeout.CheckValid(); err != nil {
 		return nil, err
 	}
 
@@ -379,8 +378,8 @@ func (b *driverPluginServer) TaskEvents(req *proto.TaskEventsRequest, srv proto.
 		if event == nil {
 			break
 		}
-		pbTimestamp, err := ptypes.TimestampProto(event.Timestamp)
-		if err != nil {
+		pbTimestamp := timestamppb.New(event.Timestamp)
+		if err := pbTimestamp.CheckValid(); err != nil {
 			return err
 		}
 

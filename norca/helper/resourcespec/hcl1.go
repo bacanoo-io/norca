@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/hashicorp/go-multierror"
@@ -324,7 +327,7 @@ func parseVariableSpecImpl(result *api.Variable, list *ast.ObjectList) error {
 				return fmt.Errorf("%s must be integer; got (%T) %[2]v", index, value)
 			}
 			idx := uint64(vInt)
-			n := strings.ReplaceAll(strings.Title(strings.ReplaceAll(index, "_", " ")), " ", "")
+			n := strings.ReplaceAll(cases.Title(language.Und, cases.NoLower).String(strings.ReplaceAll(index, "_", " ")), " ", "")
 			m[n] = idx
 			delete(m, index)
 		}
@@ -336,7 +339,7 @@ func parseVariableSpecImpl(result *api.Variable, list *ast.ObjectList) error {
 			if !ok {
 				return fmt.Errorf("%s must be a int64; got a (%T) %[2]v", index, value)
 			}
-			n := strings.ReplaceAll(strings.Title(strings.ReplaceAll(index, "_", " ")), " ", "")
+			n := strings.ReplaceAll(cases.Title(language.Und, cases.NoLower).String(strings.ReplaceAll(index, "_", " ")), " ", "")
 			m[n] = vInt
 			delete(m, index)
 		}

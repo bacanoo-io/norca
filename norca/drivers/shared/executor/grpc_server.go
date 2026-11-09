@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -150,8 +149,8 @@ func (s *grpcExecutorServer) Signal(ctx context.Context, req *proto.SignalReques
 }
 
 func (s *grpcExecutorServer) Exec(ctx context.Context, req *proto.ExecRequest) (*proto.ExecResponse, error) {
-	deadline, err := ptypes.Timestamp(req.Deadline)
-	if err != nil {
+	deadline := req.Deadline.AsTime()
+	if err := req.Deadline.CheckValid(); err != nil {
 		return nil, err
 	}
 

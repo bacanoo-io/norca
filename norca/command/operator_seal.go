@@ -13,7 +13,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/posener/complete"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 // OperatorSealStatusCommand shows the keyring seal status of the servers.
@@ -337,7 +337,7 @@ func (c *OperatorUnsealCommand) readShare() (string, error) {
 	var in io.Reader = os.Stdin
 	if c.testStdin != nil {
 		in = c.testStdin
-	} else if terminal.IsTerminal(int(os.Stdin.Fd())) {
+	} else if term.IsTerminal(int(os.Stdin.Fd())) {
 		share, err := c.Ui.AskSecret("Unseal share (will be hidden):")
 		if err != nil {
 			return "", err

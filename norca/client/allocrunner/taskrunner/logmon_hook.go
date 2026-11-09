@@ -21,8 +21,8 @@ import (
 	pstructs "github.com/bacanoo-io/norca/norca/plugins/shared/structs"
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -123,7 +123,7 @@ func (h *logmonHook) Prestart(ctx context.Context,
 	attempts := 0
 	for {
 		err := h.prestartOneLoop(ctx, req)
-		if err == bstructs.ErrPluginShutdown || grpc.Code(err) == codes.Unavailable {
+		if err == bstructs.ErrPluginShutdown || status.Code(err) == codes.Unavailable {
 			h.logger.Warn("logmon shutdown while making request", "error", err)
 
 			if attempts > 3 {

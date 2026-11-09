@@ -24,6 +24,9 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/api/contexts"
 	"github.com/bacanoo-io/norca/norca/helper"
@@ -1754,7 +1757,7 @@ func parseTopic(input string) (string, string, error) {
 		return "", "", fmt.Errorf("Invalid key value pair for topic: %s", topic)
 	}
 
-	return strings.Title(topic), filter, nil
+	return cases.Title(language.Und, cases.NoLower).String(topic), filter, nil
 }
 
 func allTopics() map[api.Topic][]string {

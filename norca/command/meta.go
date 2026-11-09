@@ -18,7 +18,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/colorstring"
 	"github.com/posener/complete"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 const (
@@ -244,7 +244,7 @@ func (m *Meta) SetupUi(args []string) {
 
 	// Only use colored UI if not disabled and stdout is a tty or colors are
 	// forced.
-	isTerminal := terminal.IsTerminal(int(os.Stdout.Fd()))
+	isTerminal := term.IsTerminal(int(os.Stdout.Fd()))
 	useColor := !noColor && (isTerminal || forceColor)
 	if useColor {
 		m.Ui = &cli.ColoredUi{

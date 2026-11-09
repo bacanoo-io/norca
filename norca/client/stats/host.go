@@ -278,9 +278,9 @@ func (h *HostCpuStatsCalculator) Calculate(times cpu.TimesStat) (idle float64, u
 	currentIdle := times.Idle
 	currentUser := times.User
 	currentSystem := times.System
-	currentTotal := times.Total() // this is Idle + currentBusy
 	currentBusy := times.User + times.System + times.Nice + times.Iowait + times.Irq +
 		times.Softirq + times.Steal + times.Guest + times.GuestNice
+	currentTotal := currentIdle + currentBusy
 
 	deltaTotal := currentTotal - h.prevTotal
 	idle = ((currentIdle - h.prevIdle) / deltaTotal) * 100

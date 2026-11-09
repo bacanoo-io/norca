@@ -7,7 +7,6 @@ package example
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -163,11 +162,20 @@ func (d *FsDevice) fingerprint(ctx context.Context, devices chan *device.Fingerp
 
 		d.logger.Trace("scanning for changes")
 
-		files, err := ioutil.ReadDir(d.deviceDir)
+		entries, err := os.ReadDir(d.deviceDir)
 		if err != nil {
 			d.logger.Error("failed to list device directory", "error", err)
 			devices <- device.NewFingerprintError(err)
 			return
+		}
+		files := make([]os.FileInfo, 0, len(entries))
+		for _, e := range entries {
+			info, err := e.Info()
+			if err != nil {
+				// removed since the listing
+				continue
+			}
+			files = append(files, info)
 		}
 
 		detected := d.diffFiles(files)

@@ -118,7 +118,7 @@ func minimumRootControllers() error {
 	}
 
 	sb := new(strings.Builder)
-	for _, controller := range needed.List() {
+	for _, controller := range needed.Slice() {
 		sb.WriteString("+" + controller + " ")
 	}
 

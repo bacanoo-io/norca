@@ -1549,7 +1549,7 @@ func (c *ServiceClient) Shutdown() error {
 
 	// Always attempt to deregister Nomad agent Consul entries, even if
 	// deadline was reached
-	for _, id := range c.agentServices.List() {
+	for _, id := range c.agentServices.Slice() {
 		if err := c.agentAPI.ServiceDeregisterOpts(id, nil); err != nil {
 			c.logger.Error("failed deregistering agent service", "service_id", id, "error", err)
 		}
@@ -1580,7 +1580,7 @@ func (c *ServiceClient) Shutdown() error {
 		return false
 	}
 
-	for _, id := range c.agentChecks.List() {
+	for _, id := range c.agentChecks.Slice() {
 		// if we couldn't populate remainingChecks it is unlikely that CheckDeregister will work, but try anyway
 		// if we could list the remaining checks, verify that the check we store still exists before removing it.
 		if remainingChecks == nil || checkRemains(id) {

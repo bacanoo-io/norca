@@ -10,7 +10,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/plugins/drivers/proto"
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var taskStateToProtoMap = map[TaskState]proto.TaskState{
@@ -396,12 +396,12 @@ func exitResultFromProto(pb *proto.ExitResult) *ExitResult {
 }
 
 func taskStatusToProto(status *TaskStatus) (*proto.TaskStatus, error) {
-	started, err := ptypes.TimestampProto(status.StartedAt)
-	if err != nil {
+	started := timestamppb.New(status.StartedAt)
+	if err := started.CheckValid(); err != nil {
 		return nil, err
 	}
-	completed, err := ptypes.TimestampProto(status.CompletedAt)
-	if err != nil {
+	completed := timestamppb.New(status.CompletedAt)
+	if err := completed.CheckValid(); err != nil {
 		return nil, err
 	}
 	return &proto.TaskStatus{
@@ -420,13 +420,13 @@ func taskStatusFromProto(pb *proto.TaskStatus) (*TaskStatus, error) {
 	if pb == nil {
 		return nil, errors.New("missing task status")
 	}
-	started, err := ptypes.Timestamp(pb.StartedAt)
-	if err != nil {
+	started := pb.StartedAt.AsTime()
+	if err := pb.StartedAt.CheckValid(); err != nil {
 		return nil, err
 	}
 
-	completed, err := ptypes.Timestamp(pb.CompletedAt)
-	if err != nil {
+	completed := pb.CompletedAt.AsTime()
+	if err := pb.CompletedAt.CheckValid(); err != nil {
 		return nil, err
 	}
 
@@ -441,8 +441,8 @@ func taskStatusFromProto(pb *proto.TaskStatus) (*TaskStatus, error) {
 }
 
 func TaskStatsToProto(stats *TaskResourceUsage) (*proto.TaskStats, error) {
-	timestamp, err := ptypes.TimestampProto(time.Unix(0, stats.Timestamp))
-	if err != nil {
+	timestamp := timestamppb.New(time.Unix(0, stats.Timestamp))
+	if err := timestamp.CheckValid(); err != nil {
 		return nil, err
 	}
 
@@ -461,8 +461,8 @@ func TaskStatsToProto(stats *TaskResourceUsage) (*proto.TaskStats, error) {
 func TaskStatsFromProto(pb *proto.TaskStats) (*TaskResourceUsage, error) {
 	// clean room bugfix: pb.Timestamp panicked when an external plugin sent a
 	// response without stats; the getter yields nil, which is an error here.
-	timestamp, err := ptypes.Timestamp(pb.GetTimestamp())
-	if err != nil {
+	timestamp := pb.GetTimestamp().AsTime()
+	if err := pb.GetTimestamp().CheckValid(); err != nil {
 		return nil, err
 	}
 

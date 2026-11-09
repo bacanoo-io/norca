@@ -3769,7 +3769,7 @@ func (s *StateStore) UpdateAllocsFromClient(msgType structs.MessageType, index u
 	}
 
 	// Update the index of when nodes last updated their allocs.
-	for _, nodeID := range nodeIDs.List() {
+	for _, nodeID := range nodeIDs.Slice() {
 		if err := s.updateClientAllocUpdateIndex(txn, index, nodeID); err != nil {
 			return fmt.Errorf("node update failed: %v", err)
 		}

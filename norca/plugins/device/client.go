@@ -13,7 +13,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/grpcutils"
 	"github.com/bacanoo-io/norca/norca/plugins/base"
 	"github.com/bacanoo-io/norca/norca/plugins/device/proto"
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // devicePluginClient implements the client side of a remote device plugin, using
@@ -119,7 +119,7 @@ func (d *devicePluginClient) Stats(ctx context.Context, interval time.Duration) 
 	joinedCtx, _ := joincontext.Join(ctx, d.doneCtx)
 
 	req := proto.StatsRequest{
-		CollectionInterval: ptypes.DurationProto(interval),
+		CollectionInterval: durationpb.New(interval),
 	}
 	stream, err := d.client.Stats(joinedCtx, &req)
 	if err != nil {

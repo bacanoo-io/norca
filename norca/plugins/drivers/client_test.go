@@ -15,10 +15,10 @@ import (
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/testlog"
 	"github.com/bacanoo-io/norca/norca/plugins/drivers/proto"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // fakeDriverClient overrides the proto.DriverClient methods a test needs;
@@ -325,7 +325,7 @@ func TestConvertersMissingMessages(t *testing.T) {
 	must.Error(t, err)
 
 	stats, err := TaskStatsFromProto(&proto.TaskStats{
-		Timestamp:          ptypes.TimestampNow(),
+		Timestamp:          timestamppb.Now(),
 		ResourceUsageByPid: map[string]*proto.TaskResourceUsage{"1": nil},
 	})
 	must.NoError(t, err)

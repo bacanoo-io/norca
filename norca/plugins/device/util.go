@@ -7,7 +7,7 @@ package device
 import (
 	"github.com/bacanoo-io/norca/norca/plugins/device/proto"
 	"github.com/bacanoo-io/norca/norca/plugins/shared/structs"
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // convertProtoDeviceGroups converts between a list of proto and structs DeviceGroup
@@ -324,8 +324,8 @@ func convertProtoDeviceStats(in *proto.DeviceStats) *DeviceStats {
 		return nil
 	}
 
-	ts, err := ptypes.Timestamp(in.Timestamp)
-	if err != nil {
+	ts := in.Timestamp.AsTime()
+	if err := in.Timestamp.CheckValid(); err != nil {
 		return nil
 	}
 
@@ -378,8 +378,8 @@ func convertStructDeviceStats(in *DeviceStats) *proto.DeviceStats {
 		return nil
 	}
 
-	ts, err := ptypes.TimestampProto(in.Timestamp)
-	if err != nil {
+	ts := timestamppb.New(in.Timestamp)
+	if err := ts.CheckValid(); err != nil {
 		return nil
 	}
 

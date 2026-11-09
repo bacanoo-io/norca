@@ -19,6 +19,9 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/bacanoo-io/norca/norca/helper"
 	flaghelper "github.com/bacanoo-io/norca/norca/helper/flags"
 	gatedwriter "github.com/bacanoo-io/norca/norca/helper/gated-writer"
@@ -796,7 +799,7 @@ func (c *Command) Run(args []string) int {
 		c.Ui.Info(fmt.Sprintf(
 			"%s%s: %s",
 			strings.Repeat(" ", padding-len(k)),
-			strings.Title(k),
+			cases.Title(language.Und, cases.NoLower).String(k),
 			info[k]))
 	}
 	c.Ui.Output("")

@@ -19,9 +19,9 @@ import (
 	"github.com/bacanoo-io/norca/norca/plugins/shared/hclspec"
 	pstructs "github.com/bacanoo-io/norca/norca/plugins/shared/structs"
 	sproto "github.com/bacanoo-io/norca/norca/plugins/shared/structs/proto"
-	"github.com/golang/protobuf/ptypes"
 	hclog "github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 var _ DriverPlugin = &driverPluginClient{}
@@ -234,7 +234,7 @@ func (d *driverPluginClient) handleWaitTask(ctx context.Context, id string, ch c
 func (d *driverPluginClient) StopTask(taskID string, timeout time.Duration, signal string) error {
 	req := &proto.StopTaskRequest{
 		TaskId:  taskID,
-		Timeout: ptypes.DurationProto(timeout),
+		Timeout: durationpb.New(timeout),
 		Signal:  signal,
 	}
 
@@ -290,7 +290,7 @@ func (d *driverPluginClient) InspectTask(taskID string) (*TaskStatus, error) {
 func (d *driverPluginClient) TaskStats(ctx context.Context, taskID string, interval time.Duration) (<-chan *cstructs.TaskResourceUsage, error) {
 	req := &proto.TaskStatsRequest{
 		TaskId:             taskID,
-		CollectionInterval: ptypes.DurationProto(interval),
+		CollectionInterval: durationpb.New(interval),
 	}
 	ctx, _ = joincontext.Join(ctx, d.doneCtx)
 	stream, err := d.client.TaskStats(ctx, req)
@@ -387,7 +387,7 @@ func (d *driverPluginClient) handleTaskEvents(reqCtx context.Context, ch chan *T
 			return
 		}
 
-		timestamp, _ := ptypes.Timestamp(ev.Timestamp)
+		timestamp := ev.Timestamp.AsTime()
 		event := &TaskEvent{
 			TaskID:      ev.TaskId,
 			AllocID:     ev.AllocId,
@@ -422,7 +422,7 @@ func (d *driverPluginClient) ExecTask(taskID string, cmd []string, timeout time.
 	req := &proto.ExecTaskRequest{
 		TaskId:  taskID,
 		Command: cmd,
-		Timeout: ptypes.DurationProto(timeout),
+		Timeout: durationpb.New(timeout),
 	}
 
 	resp, err := d.client.ExecTask(d.doneCtx, req)

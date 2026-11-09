@@ -13,9 +13,9 @@ import (
 	"github.com/bacanoo-io/norca/norca/drivers/shared/executor/proto"
 	"github.com/bacanoo-io/norca/norca/helper/stats"
 	"github.com/bacanoo-io/norca/norca/plugins/base"
-	"github.com/golang/protobuf/ptypes"
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -106,8 +106,8 @@ func newExecutorClient(config *plugin.ClientConfig, logger hclog.Logger) (Execut
 }
 
 func processStateToProto(ps *ProcessState) (*proto.ProcessState, error) {
-	timestamp, err := ptypes.TimestampProto(ps.Time)
-	if err != nil {
+	timestamp := timestamppb.New(ps.Time)
+	if err := timestamp.CheckValid(); err != nil {
 		return nil, err
 	}
 	pb := &proto.ProcessState{
@@ -121,8 +121,8 @@ func processStateToProto(ps *ProcessState) (*proto.ProcessState, error) {
 }
 
 func processStateFromProto(pb *proto.ProcessState) (*ProcessState, error) {
-	timestamp, err := ptypes.Timestamp(pb.Time)
-	if err != nil {
+	timestamp := pb.Time.AsTime()
+	if err := pb.Time.CheckValid(); err != nil {
 		return nil, err
 	}
 

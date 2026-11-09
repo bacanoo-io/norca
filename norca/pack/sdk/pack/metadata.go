@@ -105,10 +105,8 @@ type MetadataPack struct {
 	Description string `hcl:"description,optional"`
 
 	// URL is the HTTP(S) url of the pack which is acts as a convenience when
-	// managing packs within a registry.
-	//
-	// Deprecated: Nomad Pack tech preview 4 removes this field, we keep it here for
-	// backwards compatibility only.
+	// managing packs within a registry. A pushed pack carries it in its
+	// config and in the org.opencontainers.image.url annotation.
 	URL string `hcl:"url,optional"`
 
 	// Version is the version of the pack which is acts as a convenience when

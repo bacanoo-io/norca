@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/hashicorp/go-plugin"
 
 	"github.com/bacanoo-io/norca/norca/plugins/device/proto"
@@ -77,8 +76,8 @@ func (d *devicePluginServer) Stats(req *proto.StatsRequest, stream proto.DeviceP
 	ctx := stream.Context()
 
 	// Retrieve the collection interval
-	interval, err := ptypes.Duration(req.CollectionInterval)
-	if err != nil {
+	interval := req.CollectionInterval.AsDuration()
+	if err := req.CollectionInterval.CheckValid(); err != nil {
 		return fmt.Errorf("failed to parse collection interval: %v", err)
 	}
 

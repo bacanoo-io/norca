@@ -73,7 +73,7 @@ func newRpcHandler(s *Server) *rpcHandler {
 		srv:       s,
 		connLimit: s.config.RPCMaxConnsPerClient,
 		logger:    logger,
-		gologger:  logger.StandardLoggerIntercept(&log.StandardLoggerOptions{InferLevels: true}),
+		gologger:  logger.StandardLogger(&log.StandardLoggerOptions{InferLevels: true}),
 	}
 
 	// Setup connection limits

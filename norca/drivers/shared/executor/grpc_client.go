@@ -18,10 +18,10 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/pluginutils/grpcutils"
 	"github.com/bacanoo-io/norca/norca/plugins/drivers"
 	dproto "github.com/bacanoo-io/norca/norca/plugins/drivers/proto"
-	"github.com/golang/protobuf/ptypes"
 	hclog "github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var _ Executor = (*grpcExecutorClient)(nil)
@@ -181,8 +181,8 @@ func (c *grpcExecutorClient) Signal(s os.Signal) error {
 
 func (c *grpcExecutorClient) Exec(deadline time.Time, cmd string, args []string) ([]byte, int, error) {
 	ctx := context.Background()
-	pbDeadline, err := ptypes.TimestampProto(deadline)
-	if err != nil {
+	pbDeadline := timestamppb.New(deadline)
+	if err := pbDeadline.CheckValid(); err != nil {
 		return nil, 0, err
 	}
 	req := &proto.ExecRequest{

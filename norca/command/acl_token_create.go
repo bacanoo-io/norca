@@ -183,10 +183,10 @@ func (c *ACLTokenCreateCommand) Run(args []string) int {
 func generateACLTokenRoleLinks(roleNames, roleIDs []string) []*api.ACLTokenRoleLink {
 	var tokenLinks []*api.ACLTokenRoleLink
 
-	roleNameSet := set.From[string](roleNames).List()
+	roleNameSet := set.From[string](roleNames).Slice()
 	roleNameFn := func(name string) *api.ACLTokenRoleLink { return &api.ACLTokenRoleLink{Name: name} }
 
-	roleIDsSet := set.From[string](roleIDs).List()
+	roleIDsSet := set.From[string](roleIDs).Slice()
 	roleIDFn := func(id string) *api.ACLTokenRoleLink { return &api.ACLTokenRoleLink{ID: id} }
 
 	tokenLinks = append(tokenLinks, helper.ConvertSlice(roleNameSet, roleNameFn)...)

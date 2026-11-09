@@ -51,7 +51,12 @@ func (f *CNIFingerprint) Fingerprint(req *FingerprintRequest, resp *FingerprintR
 			}
 			networks[confList.Name] = struct{}{}
 		} else {
-			conf, err := libcni.ConfFromFile(confFile)
+			// A single plugin configuration (.conf, .json).
+			data, err := os.ReadFile(confFile)
+			if err != nil {
+				return fmt.Errorf("failed to load CNI config file %s: %v", confFile, err)
+			}
+			conf, err := libcni.NetworkPluginConfFromBytes(data)
 			if err != nil {
 				return fmt.Errorf("failed to load CNI config file %s: %v", confFile, err)
 			}

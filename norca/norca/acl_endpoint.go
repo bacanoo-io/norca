@@ -209,7 +209,7 @@ func (a *ACL) ListPolicies(args *structs.ACLPolicyListRequest, reply *structs.AC
 		}
 
 		// Add the token policies which are directly referenced into the set.
-		tokenPolicyNames.InsertAll(token.Policies)
+		tokenPolicyNames.InsertSlice(token.Policies)
 	}
 
 	// Setup the blocking query
@@ -303,7 +303,7 @@ func (a *ACL) GetPolicy(args *structs.ACLPolicySpecificRequest, reply *structs.S
 		}
 
 		// Add the token policies which are directly referenced into the set.
-		tokenPolicyNames.InsertAll(token.Policies)
+		tokenPolicyNames.InsertSlice(token.Policies)
 
 		if !tokenPolicyNames.Contains(args.Name) {
 			return structs.ErrPermissionDenied
@@ -388,7 +388,7 @@ func (a *ACL) GetPolicies(args *structs.ACLPolicySetRequest, reply *structs.ACLP
 	}
 
 	// Add the token policies which are directly referenced into the set.
-	tokenPolicyNames.InsertAll(token.Policies)
+	tokenPolicyNames.InsertSlice(token.Policies)
 
 	// Setup the blocking query
 	opts := blockingOptions{

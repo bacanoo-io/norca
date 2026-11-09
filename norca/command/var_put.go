@@ -519,7 +519,7 @@ func formatInvalidVarKeyChars(invalid []string) string {
 
 	// Sort the characters for output
 	charList := make([]string, 0, chars.Size())
-	for _, k := range chars.List() {
+	for _, k := range chars.Slice() {
 		// Use %s instead of %q to avoid escaping characters.
 		charList = append(charList, fmt.Sprintf(`"%s"`, k))
 	}
