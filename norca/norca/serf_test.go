@@ -42,17 +42,10 @@ func TestNomad_JoinPeer(t *testing.T) {
 	})
 
 	testutil.WaitForResult(func() (bool, error) {
-		if len(s1.peers) != 2 {
-			return false, fmt.Errorf("bad: %#v", s1.peers)
-		}
-		if len(s2.peers) != 2 {
-			return false, fmt.Errorf("bad: %#v", s2.peers)
-		}
-		if len(s1.localPeers) != 1 {
-			return false, fmt.Errorf("bad: %#v", s1.localPeers)
-		}
-		if len(s2.localPeers) != 1 {
-			return false, fmt.Errorf("bad: %#v", s2.localPeers)
+		for _, s := range []*Server{s1, s2} {
+			if p := peerCounts(s, ""); p.regions != 2 || p.local != 1 {
+				return false, fmt.Errorf("bad: %+v", p)
+			}
 		}
 		return true, nil
 	}, func(err error) {
@@ -88,11 +81,10 @@ func TestNomad_RemovePeer(t *testing.T) {
 	s2.Shutdown()
 
 	testutil.WaitForResult(func() (bool, error) {
-		if len(s1.peers) != 1 {
-			return false, fmt.Errorf("bad: %#v", s1.peers)
-		}
-		if len(s2.peers) != 1 {
-			return false, fmt.Errorf("bad: %#v", s2.peers)
+		for _, s := range []*Server{s1, s2} {
+			if p := peerCounts(s, ""); p.regions != 1 {
+				return false, fmt.Errorf("bad: %+v", p)
+			}
 		}
 		return true, nil
 	}, func(err error) {
@@ -168,8 +160,8 @@ func TestNomad_ReapPeer(t *testing.T) {
 	s3.reconcileCh <- s2mem
 
 	testutil.WaitForResult(func() (bool, error) {
-		if len(s1.peers["global"]) != 2 {
-			return false, fmt.Errorf("bad: %#v", s1.peers["global"])
+		if p := peerCounts(s1, "global"); p.inRegion != 2 {
+			return false, fmt.Errorf("bad: %+v", p)
 		}
 		peers, err := s1.numPeers()
 		if err != nil {
@@ -179,8 +171,8 @@ func TestNomad_ReapPeer(t *testing.T) {
 			return false, fmt.Errorf("bad: %#v", peers)
 		}
 
-		if len(s3.peers["global"]) != 2 {
-			return false, fmt.Errorf("bad: %#v", s1.peers["global"])
+		if p := peerCounts(s3, "global"); p.inRegion != 2 {
+			return false, fmt.Errorf("bad: %+v", p)
 		}
 		peers, err = s3.numPeers()
 		if err != nil {
@@ -350,8 +342,8 @@ func TestNomad_BootstrapExpect_NonVoter(t *testing.T) {
 			if peers != expect {
 				return false, fmt.Errorf("expected %d peers, got %d", expect, peers)
 			}
-			if len(s.localPeers) != expect {
-				return false, fmt.Errorf("expected %d local peers, got %d: %#v", expect, len(s.localPeers), s.localPeers)
+			if p := peerCounts(s, ""); p.local != expect {
+				return false, fmt.Errorf("expected %d local peers, got %d", expect, p.local)
 			}
 
 		}
@@ -440,4 +432,19 @@ func TestNomad_NonBootstraping_ShouldntBootstap(t *testing.T) {
 	p, _ := s1.numPeers()
 	require.Zero(t, p, "number of peers in Raft")
 
+}
+
+// peerCount is what a test reads of a server's peer maps.
+type peerCount struct {
+	regions  int // regions in s.peers
+	inRegion int // servers of the asked region in s.peers
+	local    int // s.localPeers
+}
+
+// peerCounts reads the peer maps under the peer lock: the serf event handler
+// writes them while a test waits for them.
+func peerCounts(s *Server, region string) peerCount {
+	s.peerLock.RLock()
+	defer s.peerLock.RUnlock()
+	return peerCount{regions: len(s.peers), inRegion: len(s.peers[region]), local: len(s.localPeers)}
 }
