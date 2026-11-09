@@ -348,6 +348,53 @@ func TestAllocDir_ReadAt_SecretDir(t *testing.T) {
 	require.EqualError(t, err, "Reading secret file prohibited: web/secrets/test_file")
 }
 
+// On a file system that ignores case (Windows, macOS) web/SECRETS is the
+// secrets dir: ReadAt must refuse it too. The old filepath.HasPrefix check
+// ignored case only on Windows; on macOS this read went through.
+func TestAllocDir_ReadAt_SecretDirOtherCase(t *testing.T) {
+	ci.Parallel(t)
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		t.Skip("the file system of this platform is case sensitive")
+	}
+	tmp := t.TempDir()
+
+	d := NewAllocDir(testlog.HCLogger(t), tmp, "test")
+	require.NoError(t, d.Build())
+	defer func() {
+		_ = d.Destroy()
+	}()
+	td := d.NewTaskDir(t1.Name)
+	require.NoError(t, td.Build(false, nil))
+
+	full := filepath.Join(d.AllocDir, t1.Name, TaskSecrets, "test_file")
+	require.NoError(t, os.WriteFile(full, []byte("hi"), 0600))
+
+	target := filepath.Join(t1.Name, strings.ToUpper(TaskSecrets), "test_file")
+	_, err := d.ReadAt(target, 0)
+	require.ErrorContains(t, err, "Reading secret file prohibited")
+}
+
+func TestWithinDir(t *testing.T) {
+	ci.Parallel(t)
+	dir := filepath.Join(string(filepath.Separator)+"alloc", "web", "secrets")
+	foldCase := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{dir, true},
+		{filepath.Join(dir, "token"), true},
+		{filepath.Join(dir, "a", "b"), true},
+		{dir + "2", false},
+		{filepath.Join(dir+"2", "token"), false},
+		{filepath.Dir(dir), false},
+		{filepath.Join(filepath.Dir(dir), "SECRETS", "token"), foldCase},
+	}
+	for _, c := range cases {
+		require.Equal(t, c.want, withinDir(dir, c.path), c.path)
+	}
+}
+
 func TestAllocDir_SplitPath(t *testing.T) {
 	ci.Parallel(t)
 

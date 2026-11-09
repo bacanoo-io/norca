@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -455,11 +456,11 @@ func (d *AllocDir) ReadAt(path string, offset int64) (io.ReadCloser, error) {
 	// Check if it is trying to read into a secret directory
 	d.mu.RLock()
 	for _, dir := range d.TaskDirs {
-		if filepath.HasPrefix(p, dir.SecretsDir) {
+		if withinDir(dir.SecretsDir, p) {
 			d.mu.RUnlock()
 			return nil, fmt.Errorf("Reading secret file prohibited: %s", path)
 		}
-		if filepath.HasPrefix(p, dir.PrivateDir) {
+		if withinDir(dir.PrivateDir, p) {
 			d.mu.RUnlock()
 			return nil, fmt.Errorf("Reading private file prohibited: %s", path)
 		}
@@ -474,6 +475,17 @@ func (d *AllocDir) ReadAt(path string, offset int64) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("can't seek to offset %d: %v", offset, err)
 	}
 	return f, nil
+}
+
+// withinDir reports whether path is dir or below it. It compares whole path
+// elements, and ignores case on the platforms whose file systems usually do
+// (Windows, macOS), where web/SECRETS opens web/secrets.
+func withinDir(dir, path string) bool {
+	dir, path = filepath.Clean(dir), filepath.Clean(path)
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		dir, path = strings.ToLower(dir), strings.ToLower(path)
+	}
+	return path == dir || strings.HasPrefix(path, dir+string(filepath.Separator))
 }
 
 // BlockUntilExists blocks until the passed file relative the allocation
