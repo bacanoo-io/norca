@@ -18,6 +18,8 @@ import (
 	"golang.org/x/exp/maps"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
 	"github.com/bacanoo-io/norca/norca/helper/grpc-middleware/logging"
@@ -157,29 +159,39 @@ func (c *client) ensureConnected(ctx context.Context) error {
 	}
 }
 
+// newGrpcConn connects to the unix socket of a plugin and waits up to a
+// second for the connection to be ready, so that a plugin that does not
+// answer yet is retried by ensureConnected.
 func newGrpcConn(addr string, logger hclog.Logger) (*grpc.ClientConn, error) {
-	// after DialContext returns w/ initial connection, closing this
-	// context is a no-op
-	connectCtx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-	defer cancel()
-	conn, err := grpc.DialContext(
-		connectCtx,
-		addr,
-		grpc.WithBlock(),
-		grpc.WithInsecure(),
+	conn, err := grpc.NewClient(
+		// passthrough: the address is a socket path, not a name to resolve
+		"passthrough:///"+addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(logging.UnaryClientInterceptor(logger)),
 		grpc.WithStreamInterceptor(logging.StreamClientInterceptor(logger)),
 		grpc.WithAuthority("localhost"),
-		grpc.WithDialer(func(target string, timeout time.Duration) (net.Conn, error) {
-			return net.DialTimeout("unix", target, timeout)
+		grpc.WithContextDialer(func(ctx context.Context, target string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", target)
 		}),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to open grpc connection to addr: %s, err: %v", addr, err)
 	}
 
-	return conn, nil
+	connectCtx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+	defer cancel()
+	conn.Connect()
+	for {
+		state := conn.GetState()
+		if state == connectivity.Ready {
+			return conn, nil
+		}
+		if !conn.WaitForStateChange(connectCtx, state) {
+			conn.Close()
+			return nil, fmt.Errorf("failed to open grpc connection to addr: %s, err: %v", addr, connectCtx.Err())
+		}
+	}
 }
 
 // PluginInfo describes the type and version of a plugin as required by the nomad
