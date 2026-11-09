@@ -107,6 +107,9 @@ type runner struct {
 	// demand loop.
 	lastDemand map[string]int64
 	told       map[string]string
+	// badWindows is the error last logged for the windows of a group, so
+	// that a window that cannot be read is logged once, not every look.
+	badWindows map[string]string
 	readySeen  map[string]int64
 
 	// unneededSince is when a node group was first seen with a node it
@@ -138,6 +141,7 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 
 		lastDemand: map[string]int64{},
 		told:       map[string]string{},
+		badWindows: map[string]string{},
 		readySeen:  map[string]int64{},
 
 		unneededSince: map[string]time.Time{},
@@ -281,6 +285,16 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	}
 
 	store := r.deps.State()
+
+	// The checks of a node group are capped by its bounds now: spec.min and
+	// spec.max with the active windows of spec.schedule.
+	if c.key.kind == targetKindNodeGroup {
+		if obj, err := store.CustomObjectByName(nil, structs.NodeScalingGroup, structs.NodeGroupKind, "", c.key.job); err == nil && obj != nil {
+			b, _ := nodeGroupBounds(obj.Spec, now) // a bad window is logged by the demand loop
+			c.policy.Min, c.policy.Max = b.min, b.max
+		}
+	}
+
 	var t *targetState
 	var err error
 	if c.object != nil {

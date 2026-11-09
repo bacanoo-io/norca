@@ -40,6 +40,7 @@ const (
 
 	checkBlockedDemand = "blocked-demand"
 	checkHeadroom      = "headroom"
+	checkSchedule      = "schedule"
 )
 
 // NodeScalingConfig are the settings of node scaling that concern the groups
@@ -107,8 +108,9 @@ type demandGroup struct {
 
 	spec     int64 // spec.replicas
 	ready    int64
-	pending  int64 // asked for and not joined yet
-	min, max int64
+	pending  int64  // asked for and not joined yet
+	min, max int64  // with the active windows of spec.schedule
+	windows  string // the active windows that changed min or max
 	priority int64
 	weight   int64
 
@@ -248,11 +250,18 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 			pool:     asString(spec["pool"]),
 			dc:       asString(spec["datacenter"]),
 			spec:     asInt(spec["replicas"]),
-			min:      asInt(spec["min"]),
-			max:      asInt(spec["max"]),
 			priority: asInt(spec["priority"]),
 			weight:   max(asInt(spec["weight"]), 1),
 		}
+		bounds, err := nodeGroupBounds(spec, now)
+		switch {
+		case err != nil && r.badWindows[name] != err.Error():
+			r.badWindows[name] = err.Error()
+			r.logger.Warn("node group window left out", "group", name, "error", err)
+		case err == nil:
+			delete(r.badWindows, name)
+		}
+		g.min, g.max, g.windows = bounds.min, bounds.max, bounds.windows
 		g.spill, _ = spec["spill"].(bool)
 		g.class = asString(spec["node_class"])
 		g.decision = asMap(status[decisionKey])
@@ -611,7 +620,10 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 			headAdd = 0
 		}
 
-		total := blockedAdd + headAdd
+		// A window of spec.schedule raises the minimum: the group is raised
+		// to it, as the blocked work, without waiting for the cooldown.
+		minAdd := max(g.min-g.spec, 0)
+		total := max(blockedAdd+headAdd, minAdd)
 		add := min(total, g.max-g.spec)
 		ps := d.cfg.pool(g.pool)
 		if ps.MaxStep > 0 {
@@ -642,8 +654,14 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		if headAdd > 0 {
 			reasons = append(reasons, headReason)
 		}
+		if minAdd > 0 && minAdd >= blockedAdd+headAdd {
+			reasons = append(reasons, fmt.Sprintf("minimum %d (%s)", g.min, g.windows))
+		}
 		check := checkBlockedDemand
-		if blockedAdd == 0 {
+		switch {
+		case minAdd > 0 && minAdd >= blockedAdd+headAdd:
+			check = checkSchedule
+		case blockedAdd == 0:
 			check = checkHeadroom
 		}
 		reason := strings.Join(reasons, "; ") + fmt.Sprintf(" [%d ready, spec %d]", g.ready, g.spec)

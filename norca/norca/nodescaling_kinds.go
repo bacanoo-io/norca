@@ -58,6 +58,21 @@ const nodeGroupKindSchema = `{
         "headroom_nodes": {"type": "integer", "minimum": 0, "default": 0},
         "headroom_percent": {"type": "number", "minimum": 0, "maximum": 100},
         "spill": {"type": "boolean", "default": false},
+        "schedule": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["start"],
+            "properties": {
+              "start": {"type": "string", "pattern": "^[^ ]+( +[^ ]+){4}$"},
+              "end": {"type": "string", "pattern": "^[^ ]+( +[^ ]+){4}$"},
+              "duration": {"type": "string", ` + nodeDuration + `},
+              "min": {"type": "integer", "minimum": 0},
+              "max": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        },
         "rolling": {
           "type": "object",
           "properties": {
@@ -313,6 +328,26 @@ func builtinNodeScalingKinds() []*structs.ObjectKind {
 				{
 					Expression: "!has(oldSelf) || (has(self.spec.node_class) ? self.spec.node_class : '') == (has(oldSelf.spec.node_class) ? oldSelf.spec.node_class : '')",
 					Message:    "node_class can't be changed",
+				},
+				{
+					Expression: "!has(self.spec.schedule) || self.spec.schedule.all(k, has(self.spec.schedule[k].end) != has(self.spec.schedule[k].duration))",
+					Message:    "a window of schedule needs exactly one of end and duration",
+				},
+				{
+					Expression: "!has(self.spec.schedule) || self.spec.schedule.all(k, has(self.spec.schedule[k].min) || has(self.spec.schedule[k].max))",
+					Message:    "a window of schedule needs min or max",
+				},
+				{
+					Expression: "!has(self.spec.schedule) || self.spec.schedule.all(k, !has(self.spec.schedule[k].min) || !has(self.spec.schedule[k].max) || self.spec.schedule[k].min <= self.spec.schedule[k].max)",
+					Message:    "the min of a window of schedule must not exceed its max",
+				},
+				{
+					Expression: "!has(self.spec.schedule) || self.spec.schedule.all(k, !has(self.spec.schedule[k].min) || self.spec.schedule[k].min <= self.spec.max)",
+					Message:    "the min of a window of schedule must not exceed max",
+				},
+				{
+					Expression: "!has(self.spec.schedule) || self.spec.schedule.all(k, !has(self.spec.schedule[k].max) || !has(self.spec.min) || self.spec.schedule[k].max >= self.spec.min)",
+					Message:    "the max of a window of schedule must not be below min",
 				},
 			},
 			Columns: []*structs.ObjectKindColumn{

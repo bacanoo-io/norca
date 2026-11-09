@@ -194,6 +194,26 @@ func (d *demandRun) scaleDown() {
 			}
 			continue
 		}
+		// Above the maximum of a window of spec.schedule: lowered a node at a
+		// time, whatever its use and its scale_down block, but not while
+		// nodes join or go, nor against a veto of the operator.
+		if g.spec > g.max {
+			delete(r.unneededSince, g.name)
+			if g.pending > 0 || g.spec != g.ready || g.vetoed(now) {
+				continue
+			}
+			desired := g.spec - 1
+			if r.lastDown[g.name] == desired && g.policy.Target["dry-run"] == "true" {
+				continue
+			}
+			reason := fmt.Sprintf("maximum %d (%s) [%d ready, spec %d]", g.max, g.windows, g.ready, g.spec)
+			if err := r.scaleGroup(g, desired, sdk.ScaleDirectionDown, reason, checkSchedule); err != nil {
+				r.logger.Warn("failed to lower a node group to the maximum of its window", "group", g.name, "error", err)
+				continue
+			}
+			r.lastDown[g.name] = desired
+			continue
+		}
 		reason, ok := d.unneeded(g)
 		if !ok {
 			delete(r.unneededSince, g.name)
