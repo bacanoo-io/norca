@@ -53,11 +53,11 @@ Update Options:
     returned from the auth method during login.
 
   -bind-type
-    Specifies adjusts how this binding rule is applied at login time to internal
+    Adjusts how this binding rule is applied at login time to internal
     Norca objects. Valid options are "role", "policy", or "management".
 
   -bind-name
-    Specifies is the target of the binding used on selector match. This can be
+    Specifies the target of the binding used on selector match. This can be
     lightly templated using HIL ${foo} syntax. If the bind type is set to
     management, this should not be set.
 

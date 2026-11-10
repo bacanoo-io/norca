@@ -40,7 +40,7 @@ General Options:
 Delete Options:
 
   -secret
-    Secrets to pass to the plugin to delete the snapshot. Accepts multiple
+    Secrets to pass to the plugin to delete the volume. Accepts multiple
     flags in the form -secret key=value
 `
 	return strings.TrimSpace(helpText)
@@ -83,7 +83,7 @@ func (c *VolumeDeleteCommand) Run(args []string) int {
 	var secretsArgs flaghelper.StringFlag
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
-	flags.Var(&secretsArgs, "secret", "secrets for snapshot, ex. -secret key=value")
+	flags.Var(&secretsArgs, "secret", "secrets for the volume, ex. -secret key=value")
 
 	if err := flags.Parse(args); err != nil {
 		c.Ui.Error(fmt.Sprintf("Error parsing arguments %s", err))

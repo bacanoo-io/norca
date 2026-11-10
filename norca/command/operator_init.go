@@ -38,7 +38,7 @@ Usage: norca operator init [options] <group>/<Kind> [<directory>]
   pack that installs the kind, the ACL policy of the controller and the
   controller job as one release.
 
-      $ norca operator init -sdk ~/norca/nomad db.example.com/PostgresCluster
+      $ norca operator init -sdk ~/norca/norca db.example.com/PostgresCluster
       $ cd postgres-cluster-operator && go mod tidy && go test ./...
 
 Init Options:
@@ -54,7 +54,7 @@ Init Options:
     Make the kind cluster-scoped instead of namespaced.
 
   -sdk
-    The "nomad" directory of a Norca checkout. go.mod then replaces the SDK
+    The "norca" directory of a Norca checkout. go.mod then replaces the SDK
     and API modules with its controller and api directories; without it the
     replace directives are left for you to fill in.
 

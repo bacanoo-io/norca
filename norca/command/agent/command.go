@@ -1335,8 +1335,7 @@ General Options (clients and servers):
     Start the agent in development mode. This enables a pre-configured
     dual-role agent (client + server) which is useful for developing
     or testing Norca. No other configuration is required to start the
-    agent in this mode, but you may pass an optional comma-separated
-    list of mode configurations:
+    agent in this mode.
 
   -dev-connect
     Start the agent in development mode, but bind to a public network

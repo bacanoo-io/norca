@@ -53,8 +53,8 @@ func (*FormatCommand) Help() string {
 Usage: norca fmt [flags] paths ...
 
   Formats Norca agent configuration and job file to a canonical format.
-  If a path is a directory, it will recursively format all files
-  with .nomad and .hcl extensions in the directory.
+  If a path is a directory, it will format all files with .nomad and .hcl
+  extensions in the directory (and in its subdirectories with -recursive).
 
   If you provide a single dash (-) as argument, fmt will read from standard
   input (STDIN) and output the processed output to standard output (STDOUT).

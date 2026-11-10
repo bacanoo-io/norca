@@ -35,10 +35,10 @@ Metrics Specific Options
     Specify output format (prometheus)
 
   -json
-    Output the allocation in its JSON format.
+    Output the metrics in JSON format.
 
   -t
-    Format and display allocation using a Go template.
+    Format and display the metrics using a Go template.
 
 `
 
