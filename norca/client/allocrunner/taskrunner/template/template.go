@@ -870,12 +870,12 @@ func newRunnerConfig(config *TaskTemplateManagerConfig,
 			}
 			if cc.TemplateConfig.WaitBounds.Min != nil {
 				if tmpl.Wait.Min != nil && *tmpl.Wait.Min < *cc.TemplateConfig.WaitBounds.Min {
-					tmpl.Wait.Min = &*cc.TemplateConfig.WaitBounds.Min
+					tmpl.Wait.Min = pointer.Of(*cc.TemplateConfig.WaitBounds.Min)
 				}
 			}
 			if cc.TemplateConfig.WaitBounds.Max != nil {
 				if tmpl.Wait.Max != nil && *tmpl.Wait.Max > *cc.TemplateConfig.WaitBounds.Max {
-					tmpl.Wait.Max = &*cc.TemplateConfig.WaitBounds.Max
+					tmpl.Wait.Max = pointer.Of(*cc.TemplateConfig.WaitBounds.Max)
 				}
 			}
 		}
