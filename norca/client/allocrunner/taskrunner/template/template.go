@@ -677,7 +677,8 @@ func templateRunner(config *TaskTemplateManagerConfig) (
 	// variable isn't explicitly set in the configuration, so we need
 	// to mask the environment out to ensure only the task env vars are
 	// available.
-	runner.Env = maskProcessEnv(config.EnvBuilder.Build().All())
+	taskEnv := config.EnvBuilder.Build()
+	runner.Env = maskProcessEnv(clientMTLSPaths(taskEnv, taskEnv.All()))
 
 	// Build the lookup
 	idMap := runner.TemplateConfigMapping()
@@ -697,6 +698,25 @@ func templateRunner(config *TaskTemplateManagerConfig) (
 
 // maskProcessEnv masks away any environment variable not found in task env.
 // It manipulates the parameter directly and returns it without copying.
+// mtlsFileEnv are the variables of native mTLS (Norca) that name the files of
+// secrets/mtls.
+var mtlsFileEnv = []string{"NORCA_MTLS_CERT_FILE", "NORCA_MTLS_KEY_FILE", "NORCA_MTLS_CA_FILE"}
+
+// clientMTLSPaths makes the native mTLS file variables of a template name the
+// files on the client: the templates are rendered by the client, and a task
+// in a container sees its secrets directory under another path. A template
+// reads the workload certificate with {{ file (env "NORCA_MTLS_CERT_FILE") }}
+// and is rendered again when the client renews it.
+func clientMTLSPaths(taskEnv *taskenv.TaskEnv, env map[string]string) map[string]string {
+	for _, k := range mtlsFileEnv {
+		if v, ok := env[k]; ok && v != "" {
+			p, _ := taskEnv.ClientPath(v, true)
+			env[k] = p
+		}
+	}
+	return env
+}
+
 func maskProcessEnv(env map[string]string) map[string]string {
 	procEnvs := os.Environ()
 	for _, e := range procEnvs {

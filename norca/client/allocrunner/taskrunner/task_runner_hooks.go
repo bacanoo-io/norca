@@ -134,6 +134,23 @@ func (tr *TaskRunner) initHooks() {
 	// Consul namespace depending on which provider is used.
 	serviceProviderNamespace := tr.alloc.ServiceProviderNamespace()
 
+	// If a service of the task group uses native mTLS, get the workload
+	// certificate (Norca). It runs before the templates, which may read the
+	// files of secrets/mtls (and are rendered again when they are renewed).
+	if tg := alloc.Job.LookupTaskGroup(alloc.TaskGroup); tg.UsesMTLS() && tr.rpcClient != nil {
+		tr.runnerHooks = append(tr.runnerHooks, newMTLSHook(&mtlsHookConfig{
+			alloc:     alloc,
+			task:      task,
+			rpc:       tr.rpcClient,
+			region:    tr.clientConfig.Region,
+			nodeKey:   tr.clientConfig.Node.SecretID,
+			events:    tr,
+			lifecycle: tr,
+			logger:    hookLogger,
+			taskUser:  tr.taskUser,
+		}))
+	}
+
 	// If there are templates is enabled, add the hook
 	if len(task.Templates) != 0 {
 		tr.runnerHooks = append(tr.runnerHooks, newTemplateHook(&templateHookConfig{
@@ -188,21 +205,9 @@ func (tr *TaskRunner) initHooks() {
 		}
 	}
 
-	// If a service of the task group uses native mTLS, get the workload
-	// certificate (Norca).
+	// The Envoy task of a sidecar or gateway mode mtls service gets its
+	// configuration from the client (Norca).
 	if tg := alloc.Job.LookupTaskGroup(alloc.TaskGroup); tg.UsesMTLS() && tr.rpcClient != nil {
-		tr.runnerHooks = append(tr.runnerHooks, newMTLSHook(&mtlsHookConfig{
-			alloc:     alloc,
-			task:      task,
-			rpc:       tr.rpcClient,
-			region:    tr.clientConfig.Region,
-			nodeKey:   tr.clientConfig.Node.SecretID,
-			events:    tr,
-			lifecycle: tr,
-			logger:    hookLogger,
-			taskUser:  tr.taskUser,
-		}))
-
 		// The Envoy task of a sidecar or gateway mode mtls service gets
 		// its configuration from the client.
 		if task.Kind.IsMTLSProxy() || task.Kind.IsMTLSGateway() {
