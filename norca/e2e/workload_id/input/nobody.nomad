@@ -1,4 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
+# Modifications Copyright (c) 2026 Norca contributors
 # SPDX-License-Identifier: MPL-2.0
 
 job "nobodyid" {
@@ -24,7 +25,7 @@ job "nobodyid" {
 
       config {
         image = "bash:5"
-        args  = ["-c", "stat -c 'perms=%#a username=%U' secrets/nomad_token; echo done"]
+        args  = ["-c", "stat -c 'perms=%#a username=%U' secrets/norca_token; echo done"]
       }
       resources {
         cpu    = 16

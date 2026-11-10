@@ -346,9 +346,9 @@ job "example" {
       #   max_file_size = 15
       # }
 
-      # The "identity" block instructs Nomad to expose the task's workload
+      # The "identity" block instructs Norca to expose the task's workload
       # identity token as an environment variable and in the file
-      # secrets/nomad_token.
+      # secrets/norca_token.
       identity {
         env  = true
         file = true

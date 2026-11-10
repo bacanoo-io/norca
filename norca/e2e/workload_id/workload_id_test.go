@@ -134,7 +134,7 @@ func parseEnv(t *testing.T, line string, ps must.Setting) string {
 	return token
 }
 
-// testNobody asserts that when task.user is set, the nomad_token file is owned
+// testNobody asserts that when task.user is set, the norca_token file is owned
 // by that user and has minimal permissions.
 //
 // Test assumes Client is running as root!

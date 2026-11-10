@@ -29,7 +29,7 @@ import (
 //
 //	  events {
 //	    enabled        = true
-//	    subject_prefix = "nomad"
+//	    subject_prefix = "norca"
 //	    max_age        = "72h"
 //	    max_bytes      = "1GiB"
 //	    topics         = ["*"]

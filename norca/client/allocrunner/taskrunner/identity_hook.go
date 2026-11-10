@@ -20,9 +20,9 @@ import (
 // based on the signed identity stored on the Allocation
 
 const (
-	// wiTokenFile is the name of the file holding the Nomad token inside the
-	// task's secret directory
-	wiTokenFile = "nomad_token"
+	// wiTokenFile is the name of the file holding the workload identity token
+	// inside the task's secret directory (the variable is NORCA_TOKEN).
+	wiTokenFile = "norca_token"
 )
 
 type identityHook struct {

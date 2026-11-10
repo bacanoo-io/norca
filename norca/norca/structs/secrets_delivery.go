@@ -87,7 +87,7 @@ var (
 	// reservedSecretFiles are written by other hooks into the secrets
 	// directory.
 	reservedSecretFiles = map[string]struct{}{
-		"secrets/nomad_token": {},
+		"secrets/norca_token": {},
 		"secrets/vault_token": {},
 	}
 )

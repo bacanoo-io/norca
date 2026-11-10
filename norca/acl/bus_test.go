@@ -15,14 +15,14 @@ func TestBusPolicy_Parse(t *testing.T) {
 
 	p, err := Parse(`
 bus {
-  subscribe = ["nomad.*.>", "nomad.global.Job"]
-  publish   = ["nomad.packs.pushed"]
+  subscribe = ["norca.*.>", "norca.global.Job"]
+  publish   = ["norca.packs.pushed"]
   leafnode  = true
 }`)
 	must.NoError(t, err)
 	must.NotNil(t, p.Bus)
-	must.Eq(t, []string{"nomad.*.>", "nomad.global.Job"}, p.Bus.Subscribe)
-	must.Eq(t, []string{"nomad.packs.pushed"}, p.Bus.Publish)
+	must.Eq(t, []string{"norca.*.>", "norca.global.Job"}, p.Bus.Subscribe)
+	must.Eq(t, []string{"norca.packs.pushed"}, p.Bus.Publish)
 	must.True(t, p.Bus.Leafnode)
 	must.False(t, p.IsEmpty())
 
@@ -48,12 +48,12 @@ func TestACL_BusGrant(t *testing.T) {
 	must.True(t, disabled.BusGrant().All)
 	must.True(t, ManagementACL.BusGrant().All)
 
-	p1, err := Parse(`bus { subscribe = ["nomad.*.>"] }`)
+	p1, err := Parse(`bus { subscribe = ["norca.*.>"] }`)
 	must.NoError(t, err)
 	p2, err := Parse(`
 bus {
-  subscribe = ["nomad.*.>", "app.>"]
-  publish   = ["nomad.packs.pushed"]
+  subscribe = ["norca.*.>", "app.>"]
+  publish   = ["norca.packs.pushed"]
 }`)
 	must.NoError(t, err)
 	p3, err := Parse(`namespace "default" { policy = "read" }`)
@@ -64,8 +64,8 @@ bus {
 	g := a.BusGrant()
 	must.False(t, g.All)
 	must.False(t, g.Leafnode)
-	must.Eq(t, []string{"app.>", "nomad.*.>"}, g.Subscribe)
-	must.Eq(t, []string{"nomad.packs.pushed"}, g.Publish)
+	must.Eq(t, []string{"app.>", "norca.*.>"}, g.Subscribe)
+	must.Eq(t, []string{"norca.packs.pushed"}, g.Publish)
 	must.False(t, g.Empty())
 
 	// A token without a bus rule gets nothing.

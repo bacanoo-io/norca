@@ -26,7 +26,7 @@ job "secret" {
 
       config {
         command = "cat"
-        args    = ["${NORCA_SECRETS_DIR}/nomad_token"]
+        args    = ["${NORCA_SECRETS_DIR}/norca_token"]
       }
 
       identity {

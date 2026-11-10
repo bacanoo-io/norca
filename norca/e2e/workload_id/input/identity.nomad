@@ -20,7 +20,7 @@ job "identity" {
         image = "bash:5"
 
         #HACK(schmichael) without the ending `sleep 2` we seem to sometimes miss logs :(
-        args = ["-c", "wc -c < secrets/nomad_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
+        args = ["-c", "wc -c < secrets/norca_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
       }
       resources {
         cpu    = 16
@@ -39,7 +39,7 @@ job "identity" {
         image = "bash:5"
 
         #HACK(schmichael) without the ending `sleep 2` we seem to sometimes miss logs :(
-        args = ["-c", "wc -c < secrets/nomad_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
+        args = ["-c", "wc -c < secrets/norca_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
       }
       resources {
         cpu    = 16
@@ -61,7 +61,7 @@ job "identity" {
         image = "bash:5"
 
         #HACK(schmichael) without the ending `sleep 2` we seem to sometimes miss logs :(
-        args = ["-c", "wc -c < secrets/nomad_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
+        args = ["-c", "wc -c < secrets/norca_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
       }
       resources {
         cpu    = 16
@@ -82,7 +82,7 @@ job "identity" {
         image = "bash:5"
 
         #HACK(schmichael) without the ending `sleep 2` we seem to sometimes miss logs :(
-        args = ["-c", "wc -c < secrets/nomad_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
+        args = ["-c", "wc -c < secrets/norca_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
       }
       resources {
         cpu    = 16
@@ -104,7 +104,7 @@ job "identity" {
         image = "bash:5"
 
         #HACK(schmichael) without the ending `sleep 2` we seem to sometimes miss logs :(
-        args = ["-c", "wc -c < secrets/nomad_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
+        args = ["-c", "wc -c < secrets/norca_token; env | grep NORCA_TOKEN; echo done; sleep 2"]
       }
       resources {
         cpu    = 16

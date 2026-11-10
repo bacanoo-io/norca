@@ -2674,7 +2674,7 @@ func TestTaskRunner_IdentityHook_Enabled(t *testing.T) {
 	testWaitForTaskToDie(t, tr)
 
 	// Assert the token was written to the filesystem
-	tokenBytes, err := os.ReadFile(filepath.Join(tr.taskDir.SecretsDir, "nomad_token"))
+	tokenBytes, err := os.ReadFile(filepath.Join(tr.taskDir.SecretsDir, "norca_token"))
 	must.NoError(t, err)
 	must.Eq(t, "foo", string(tokenBytes))
 
@@ -2703,7 +2703,7 @@ func TestTaskRunner_IdentityHook_Disabled(t *testing.T) {
 	testWaitForTaskToDie(t, tr)
 
 	// Assert the token was written to the filesystem
-	_, err := os.ReadFile(filepath.Join(tr.taskDir.SecretsDir, "nomad_token"))
+	_, err := os.ReadFile(filepath.Join(tr.taskDir.SecretsDir, "norca_token"))
 	must.Error(t, err)
 
 	// Assert the token is built into the task env

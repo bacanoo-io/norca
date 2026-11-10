@@ -41,7 +41,7 @@ func lastJobEvent(t *testing.T, js jetstream.JetStream, jobID string) *jetstream
 		if err != nil {
 			return false, err
 		}
-		m, err := stream.GetLastMsgForSubject(t.Context(), "nomad.global.default.Job")
+		m, err := stream.GetLastMsgForSubject(t.Context(), "norca.global.default.Job")
 		if err != nil {
 			return false, err
 		}
@@ -73,7 +73,7 @@ func TestBusEvents_Publish(t *testing.T) {
 	}, &resp))
 
 	msg := lastJobEvent(t, js, job.ID)
-	must.Eq(t, "nomad.global."+job.Namespace+".Job", msg.Subject)
+	must.Eq(t, "norca.global."+job.Namespace+".Job", msg.Subject)
 	must.Eq(t, "global", msg.Header.Get(bus.HeaderRegion))
 	must.Eq(t, "Job", msg.Header.Get(bus.HeaderTopic))
 	must.Eq(t, "JobRegistered", msg.Header.Get(bus.HeaderType))
@@ -102,7 +102,7 @@ func TestBusEvents_Publish(t *testing.T) {
 	stream, err := js.Stream(t.Context(), bus.EventStreamName("global"))
 	must.NoError(t, err)
 	cfg := stream.CachedInfo().Config
-	must.Eq(t, []string{"nomad.global.>"}, cfg.Subjects)
+	must.Eq(t, []string{"norca.global.>"}, cfg.Subjects)
 	must.Eq(t, bus.DefaultEventsMaxAge, cfg.MaxAge)
 	must.Eq(t, int64(16<<20), cfg.MaxBytes)
 	must.Eq(t, 2*time.Minute, cfg.Duplicates)

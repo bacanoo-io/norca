@@ -51,7 +51,7 @@ func TestTaskSecret_CanonicalizeValidate(t *testing.T) {
 		{"escape", func(s *TaskSecret) { s.Files[0].Destination = "secrets/../local/x" }, "clean relative path"},
 		{"absolute", func(s *TaskSecret) { s.Files[0].Destination = "/secrets/x" }, "clean relative path"},
 		{"dir itself", func(s *TaskSecret) { s.Files[0].Destination = "secrets/" }, "clean relative path"},
-		{"reserved", func(s *TaskSecret) { s.Files[0].Destination = "secrets/nomad_token" }, "is reserved"},
+		{"reserved", func(s *TaskSecret) { s.Files[0].Destination = "secrets/norca_token" }, "is reserved"},
 		{"format", func(s *TaskSecret) { s.Files[0].Format = "yaml" }, "invalid secret file format"},
 		{"raw item", func(s *TaskSecret) { s.Files[0].Format = "raw:" }, "needs an item"},
 		{"template", func(s *TaskSecret) { s.Files[0].Format = "template" }, "requires a template"},

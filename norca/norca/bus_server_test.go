@@ -126,7 +126,7 @@ func TestBusServer_Authentication(t *testing.T) {
 	// A token needs a bus rule.
 	policy := mock.ACLPolicy()
 	policy.Name = "bus-events"
-	policy.Rules = `bus { subscribe = ["nomad.*.>"] }`
+	policy.Rules = `bus { subscribe = ["norca.*.>"] }`
 	policy.SetHash()
 	plain := mock.ACLPolicy()
 	must.NoError(t, st.UpsertACLPolicies(structs.MsgTypeTestSetup, 101, []*structs.ACLPolicy{policy, plain}))
@@ -150,10 +150,10 @@ func TestBusServer_Authentication(t *testing.T) {
 		nats.ClosedHandler(func(*nats.Conn) { close(closed) }))
 	must.NoError(t, err)
 	defer consumer.Close()
-	sub, err := consumer.SubscribeSync("nomad.global.Job")
+	sub, err := consumer.SubscribeSync("norca.global.Job")
 	must.NoError(t, err)
 	must.NoError(t, consumer.Flush())
-	must.NoError(t, mgmt.Publish("nomad.global.Job", []byte("event")))
+	must.NoError(t, mgmt.Publish("norca.global.Job", []byte("event")))
 	_, err = sub.NextMsg(5 * time.Second)
 	must.NoError(t, err)
 

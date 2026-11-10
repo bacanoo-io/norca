@@ -45,7 +45,7 @@ const (
 	PushSubject = "packs.pushed"
 
 	// DefaultSubjectPrefix is the first part of the event subjects.
-	DefaultSubjectPrefix = "nomad"
+	DefaultSubjectPrefix = "norca"
 
 	// ConsulKVBucket is the key-value bucket of the Consul KV of the
 	// Consul-compatible API of the clients.
@@ -88,7 +88,7 @@ func ValidSubjectPrefix(prefix string) error {
 // EventSubject is the subject of the events of a topic of a namespace of a
 // region. clean room bugfix: the namespace is a token of the subject, so
 // a bus subscribe rule can be limited to the events of a namespace
-// ("nomad.*.dev.>"); events without a namespace use "_", which namespace
+// ("norca.*.dev.>"); events without a namespace use "_", which namespace
 // names cannot contain.
 func EventSubject(prefix, region, namespace, topic string) string {
 	return prefix + "." + SubjectToken(region) + "." + SubjectToken(namespace) + "." + SubjectToken(topic)
