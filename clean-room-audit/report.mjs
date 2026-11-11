@@ -14,10 +14,13 @@
 // code that v1.6.5 replaced with a BUSL file, brought back nearly unchanged)
 // are never candidates; they are listed on their own.
 //
-// For the full set (Norca's new and changed files against every file of the
-// BSL release, every file of v1.6.5 as the base side) a Norca file is a
-// candidate only if it is at or above the threshold and above the MPL
-// baseline of the BSL file: the highest similarity of a v1.6.5 file to it.
+// For the full set (Norca's new files against every file of the BSL release,
+// every file of v1.6.5 as the base side) a Norca file is a candidate only if
+// it is at or above the threshold and above the MPL baseline of the BSL file:
+// the highest similarity of a v1.6.5 file to it. For the fullmod set (the
+// lines Norca added to a changed file against the lines HashiCorp added to
+// the same file up to the BSL release, character level) every pair at or
+// above the threshold is a candidate.
 //
 // usage: node report.mjs <result dir> <out dir> <threshold>  (metadata on stdin)
 import { createReadStream, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -60,6 +63,11 @@ async function* csvRows(file) {
   }
 }
 
+// fullmod: a pair whose longest common fragment is shorter than this many
+// k-grams (a shared import line, a closing brace) is counted but is not a
+// candidate.
+const fullmodMinFragment = 10;
+
 // The full set keeps only pairs of at least half the threshold.
 const fullFloor = threshold / 2;
 
@@ -79,6 +87,19 @@ if (existsSync(fullKindsFile)) {
     if (p) fullKinds.set(p, k);
   }
 }
+// fullmod-files.tsv: the v1.6.5 path of a changed Norca file, the number of
+// lines Norca added, the BSL files its lines were compared with.
+const fullmodFiles = [];
+const fullmodFile = join(resultDir, "fullmod-files.tsv");
+if (existsSync(fullmodFile)) {
+  for (const l of readFileSync(fullmodFile, "utf8").split("\n")) {
+    const [p, added, targets] = l.split("\t");
+    if (p) fullmodFiles.push({ path: p, added: Number(added), targets: (targets ?? "").split(" ").filter(Boolean) });
+  }
+}
+
+const fullmodTargets = new Map(fullmodFiles.map((f) => [f.path, new Set(f.targets)]));
+
 // fullBaseline: BSL file of the full set -> the highest similarity of a
 // v1.6.5 file (base side) to it.
 const fullBaseline = new Map();
@@ -130,6 +151,11 @@ for (const f of readdirSync(resultDir).filter((n) => n.endsWith(".pairs.csv"))) 
       continue;
     }
     const [n, u] = a.side === "norca" ? [a, b] : [b, a];
+    // fullmod: only the added lines of a file against the added lines of its
+    // own BSL file (or the files of the same name it moved to); Dolos compares
+    // every file with every other, and short fragments of unrelated files
+    // resemble each other by chance.
+    if (n.set === "fullmod" && !(fullmodTargets.get(n.path)?.has(u.path))) continue;
     const kind = n.set === "busl" ? kinds.get(n.path) ?? "" : n.set === "full" ? fullKinds.get(n.path) ?? "" : "";
     if (n.set !== "busl-char") count(n.set, sim);
     if (n.set === "busl" && kind === "mpl") baseline.set(u.path, Math.max(baseline.get(u.path) ?? 0, sim));
@@ -159,6 +185,9 @@ for (const p of pairs) {
     // baseline counts as 0, and the Norca file is above it anyway.
     p.baseline = fullBaseline.get(p.upstream) ?? 0;
     p.candidate = p.similarity > p.baseline;
+  } else if (p.set === "fullmod") {
+    p.kind = "modified";
+    p.candidate = p.longest >= fullmodMinFragment;
   }
 }
 
@@ -228,7 +257,7 @@ if (counts.has("full") || fullKinds.size) {
   const cands = full.filter((p) => p.candidate);
   const kindCount = (k) => [...fullKinds.values()].filter((v) => v === k).length;
   md.push("## full", "",
-    `${kindCount("new")} new and ${kindCount("modified")} changed Norca files against every file of the BSL release ` +
+    `${kindCount("new")} new Norca files against every file of the BSL release ` +
     `with the same language, whatever its path (Dolos reports pairs of at least ${threshold / 2}). ` +
     `${countLine("full")}; ${cands.length} candidates for the auditor: Norca files at or above the threshold and ` +
     "above the MPL baseline of the BSL file (the highest similarity of a v1.6.5 file to it).", "",
@@ -246,8 +275,28 @@ if (counts.has("full") || fullKinds.size) {
     ...(full.some((p) => !p.candidate) ? [] : [none(6)]), "");
 }
 
+if (counts.has("fullmod") || fullmodFiles.length) {
+  const mod = pairs.filter((p) => p.set === "fullmod" && p.candidate);
+  const short = pairs.filter((p) => p.set === "fullmod" && !p.candidate);
+  const moved = fullmodFiles.filter((f) => !f.targets.includes(f.path));
+  const lines = fullmodFiles.reduce((s, f) => s + f.added, 0);
+  md.push("## fullmod", "",
+    `The lines Norca added to ${fullmodFiles.length} changed files (${lines} lines; module path and Norca header ` +
+    "lines aside) against the lines HashiCorp added to the same file between the base tag and the BSL release, " +
+    `character by character. ${moved.length} files the BSL release no longer has at their path were compared ` +
+    `with its files of the same name. Only the pairs of a file with its own BSL file count: ` +
+    `${countLine("fullmod")}; ${mod.length} candidates for the auditor (at or above the threshold with a common ` +
+    `fragment of at least ${fullmodMinFragment} k-grams). ${short.length} pairs at or above the threshold share ` +
+    "only shorter fragments (an import line, a brace): pairs.csv lists them.", "",
+    "| Norca file (added lines) | BSL file (added lines) | Similarity | Same path | Longest fragment | Total overlap |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...mod.map((p) => `| ${p.norca} | ${p.upstream} | ${fmt(p.similarity)} | ${p.samePath} | ${p.longest} | ${p.overlap} |`),
+    ...(mod.length ? [] : [none(6)]), "");
+}
+
 if (!counts.size) md.push("No cross pairs were found.", "");
 writeFileSync(join(outDir, "summary.md"), md.join("\n"));
 console.log([...counts].map(([set, c]) => `${set}: ${c.pairs} cross pairs, ${c.above} at or above ${threshold}`).join("; ") +
   `; candidates: ${pairs.filter((p) => p.candidate && p.set === "busl").length} busl, ` +
-  `${pairs.filter((p) => p.candidate && p.set === "full").length} full`);
+  `${pairs.filter((p) => p.candidate && p.set === "full").length} full, ` +
+  `${pairs.filter((p) => p.candidate && p.set === "fullmod").length} fullmod`);

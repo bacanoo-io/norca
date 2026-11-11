@@ -105,22 +105,34 @@ For each of the 45 BUSL files:
 ## Step 4b: the full set
 
 Only with `-Sets full`, usually as a run of its own with its own `-OutDir`.
-The Norca side is every Go, JavaScript and TypeScript file of the Nomad code at
-`NorcaRef` that Norca wrote or changed: a file v1.6.5 does not have, or one
-that differs from its v1.6.5 file once the module path, the Norca header lines
-and the server package name (`norca`/`nomad`) are set aside. Unchanged MPL files
-are left out. The HashiCorp side is every file of the same languages of
-`FullTag`, whatever its path. Every file of the same languages of v1.6.5 comes
-along as the base: HashiCorp's own MPL code. Generated files
+It has two parts. Unchanged MPL files (equal to their v1.6.5 file once the
+module path, the Norca header lines and the server package name
+`norca`/`nomad` are set aside) are left out of both. Generated files
 (`*.generated.go`, `*.pb.go`, `bindata_assetfs.go`) are left out on all sides.
 
-The **MPL baseline** of a BSL file is the highest similarity of a v1.6.5 file
-to it. A Norca file, new or changed, is a candidate when it is at or above the
-threshold and above that baseline, as in the busl set: short Ember files and
-table-driven tests resemble each other by their shape, and a changed file
-shares its MPL ancestor with the BSL file. Dolos runs with a 16 GiB heap
+**full: the files Norca wrote.** Every Go, JavaScript and TypeScript file of the
+Nomad code at `NorcaRef` that v1.6.5 does not have, against every file of the
+same languages of `FullTag`, whatever its path. Every file of the same
+languages of v1.6.5 comes along as the base: HashiCorp's own MPL code. The
+**MPL baseline** of a BSL file is the highest similarity of a v1.6.5 file to
+it; a Norca file is a candidate when it is at or above the threshold and above
+that baseline, as in the busl set: short Ember files and table-driven tests
+resemble each other by their shape. Dolos runs with a 16 GiB heap
 (`FULL_HEAP_MB` changes it) and reports pairs of at least half the threshold;
 the report reads its CSV line by line.
+
+**fullmod: the lines Norca added to the files it changed.** A changed file and
+its BSL successor share their v1.6.5 code, so whole files would measure that
+common MPL ancestor. Instead, as in the bugfix set, the lines Norca added to the
+file (against its v1.6.5 file, both normalised as above) are compared, character
+by character, with the lines HashiCorp added to the same file between v1.6.5
+and `FullTag`. A file that `FullTag` no longer has at its path is compared with
+the files of `FullTag` with the same name (HashiCorp moved it), against its
+v1.6.5 file. Only the pairs of a file with its own BSL file count (Dolos
+compares every file with every other). A pair at or above the threshold is a
+candidate when its longest common fragment has at least 10 k-grams; shorter
+ones (a shared import line, a brace) are counted and listed in pairs.csv
+only. `-Sets fullmod` runs this part alone.
 
 ## Step 5: comparison
 

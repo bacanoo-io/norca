@@ -38,7 +38,7 @@ code outside the development environment and records only the conclusion.
 | Set | Norca side | HashiCorp side |
 | --- | --- | --- |
 | `busl` | Every file at `-NorcaRef` with the same extension in the directories of the 45 left-out files (the clean room replacements live there) | The 45 files of Nomad v1.6.5 with a BUSL-1.1 header, as listed in the Norca import commit |
-| `full` | Every file of the Nomad code that Norca wrote or changed (new since the import, or different from its v1.6.5 file), with the v1.6.5 file of a changed one as its base | Every file of the same language of `-FullTag` (default: the newest release of any major version), whatever its path |
+| `full` | Every file of the Nomad code that Norca wrote (new since the import); for a file Norca changed, only the lines it added to its v1.6.5 file | For a new file: every file of the same language of `-FullTag` (default: the newest release of any major version), whatever its path, with the MPL baseline; for the added lines: the lines HashiCorp added to the same file between v1.6.5 and `-FullTag` |
 | `bugfix` | The lines each clean room commit added to a file (`commits.txt`, plus every commit whose message mentions "clean room" or the former "white room") | The lines HashiCorp added to the same file between v1.6.5 and `-BslTag` (default: the newest v1.x.y tag) |
 
 Go, JavaScript and TypeScript files of the `busl` set are compared by syntax
@@ -58,9 +58,11 @@ From the root of a Norca checkout:
 
 The `full` set is run on its own into `clean-room-result-full/`: the published
 `busl` and `bugfix` runs keep comparing with the newest v1 release, the `full`
-run compares with the newest release of any major version. A changed file is a
-candidate there only if it resembles a BSL file more than its own v1.6.5 file
-does.
+run compares with the newest release of any major version. A new file is a
+candidate there only if it resembles a BSL file more than HashiCorp's own
+v1.6.5 code does; a changed file is judged by the lines Norca added to it,
+against the lines HashiCorp added (whole files would measure their common MPL
+ancestor).
 
 Needs Docker and internet access (for the HashiCorp side). The result replaces
 `clean-room-result/` of the checkout, to be committed: `pairs.csv` has every

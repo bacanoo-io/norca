@@ -115,7 +115,7 @@ main() {
 		if [ "$BSL_TAG" = latest ]; then BSL_TAG=$(newest 1) || exit 1; fi
 		tags+=("$BSL_TAG")
 	fi
-	if [[ ",$SETS," == *,full,* ]]; then
+	if [[ ",$SETS," == *,full,* || ",$SETS," == *,fullmod,* ]]; then
 		if [ "$FULL_TAG" = latest ]; then FULL_TAG=$(newest '[0-9]+') || exit 1; fi
 		tags+=("$FULL_TAG")
 	fi
@@ -321,17 +321,30 @@ main() {
 		dolos_set bugfix
 	fi
 
-	# Set full: every Norca file of the Nomad code that Norca wrote or changed
-	# (new since the import, or different from its v1.6.5 file once the module
-	# path, the Norca header lines and the server package name are set aside)
-	# against every file of $FULL_TAG with the same language, whatever its path.
-	# Every file of v1.6.5 of the same languages comes along as the base:
-	# HashiCorp's own MPL code. The MPL baseline of a BSL file is the highest
-	# similarity of a v1.6.5 file to it; a Norca file is a candidate only
-	# above it, as in the busl set (short Ember files and table-driven tests
-	# resemble each other by their shape). Generated files are left out on
-	# both sides. Dolos reports only pairs of at least half the threshold.
-	if [[ ",$SETS," == *,full,* ]]; then
+	# Set full, in two parts.
+	#
+	# full: every Norca file of the Nomad code that Norca wrote (new since the
+	# import) against every file of $FULL_TAG with the same language, whatever
+	# its path. Every file of v1.6.5 of the same languages comes along as the
+	# base: HashiCorp's own MPL code. The MPL baseline of a BSL file is the
+	# highest similarity of a v1.6.5 file to it; a Norca file is a candidate
+	# only above it, as in the busl set (short Ember files and table-driven
+	# tests resemble each other by their shape). Generated files are left out
+	# on both sides. Dolos reports only pairs of at least half the threshold.
+	#
+	# fullmod: for every file Norca changed (different from its v1.6.5 file
+	# once the module path, the Norca header lines and the server package name
+	# are set aside) only the lines Norca added, against the lines HashiCorp
+	# added to the same file between $BASE_TAG and $FULL_TAG, character by
+	# character, as in the bugfix set. A changed file and its BSL successor
+	# share their v1.6.5 code; comparing whole files measures that common
+	# ancestor, comparing the added lines measures what each side wrote. A file
+	# that $FULL_TAG no longer has at its path is compared with the files of
+	# $FULL_TAG with the same name (moved files), against its v1.6.5 file.
+	# -Sets fullmod runs only the second part.
+	if [[ ",$SETS," == *,full,* || ",$SETS," == *,fullmod,* ]]; then
+		want_new=false
+		[[ ",$SETS," == *,full,* ]] && want_new=true
 		L=$(layout "$norca_rev")
 		top=$(top_of "$L")
 		skip='(\.generated\.go|\.pb\.go|bindata_assetfs\.go)$'
@@ -345,28 +358,55 @@ main() {
 					n_same=$((n_same + 1))
 					continue
 				fi
-				k=modified
 				n_mod=$((n_mod + 1))
+				# The lines Norca added (normalised on both sides, so the module
+				# path and the header lines do not count).
+				nf="$W/fullmod/norca/$u.char.src"
+				mkdir -p "$(dirname "$nf")"
+				diff <(git -C "$W/nomad" show "$BASE_TAG:$u" | fnorm) <(git -C "$W/norca" show "$norca_rev:$f" | fnorm) |
+					sed -n 's/^> //p' >"$nf" || true
+				added=$(grep -c . "$nf" || true)
+				[ "$added" -gt 0 ] || { rm -f "$nf"; continue; }
+				# The lines HashiCorp added: to the same path, or, when
+				# $FULL_TAG no longer has it, to the files of the same name.
+				if git -C "$W/nomad" cat-file -e "$FULL_TAG:$u" 2>/dev/null; then
+					targets=("$u")
+				else
+					mapfile -t targets < <(git -C "$W/nomad" ls-tree -r --name-only "$FULL_TAG" | grep -E "(^|/)$(basename "$u" | sed 's/[.]/[.]/g')\$" || true)
+				fi
+				for t in "${targets[@]}"; do
+					uf="$W/fullmod/upstream/$t.char.src"
+					[ -e "$uf" ] && continue
+					mkdir -p "$(dirname "$uf")"
+					diff <(git -C "$W/nomad" show "$BASE_TAG:$u") <(git -C "$W/nomad" show "$FULL_TAG:$t") |
+						sed -n 's/^> //p' >"$uf" || true
+					[ -s "$uf" ] || rm -f "$uf"
+				done
+				printf '%s\t%s\t%s\n' "$u" "$added" "${targets[*]:-}" >>"$W/result/fullmod-files.tsv"
+				continue
 			else
 				k=new
 				n_new=$((n_new + 1))
 			fi
+			$want_new || continue
 			put norca "$norca_rev" "$f" "$W/full/norca/$u.$l.src"
 			printf '%s\t%s\n' "$u" "$k" >>"$W/result/full-kinds.tsv"
 		done < <(git -C "$W/norca" ls-tree -r --name-only "$norca_rev" -- "$top" | grep -E '\.(go|js|ts)$' | grep -v -E "$skip" || true)
-		n_base=0
-		while IFS= read -r u; do
+		n_base=0 n_up=0
+		$want_new && while IFS= read -r u; do
 			put nomad "$BASE_TAG" "$u" "$W/full/base/$u.$(lang_of "$u").src"
 			n_base=$((n_base + 1))
 		done < <(git -C "$W/nomad" ls-tree -r --name-only "$BASE_TAG" | grep -E '\.(go|js|ts)$' | grep -v -E "$skip" || true)
-		n_up=0
-		while IFS= read -r u; do
+		$want_new && while IFS= read -r u; do
 			put nomad "$FULL_TAG" "$u" "$W/full/upstream/$u.$(lang_of "$u").src"
 			n_up=$((n_up + 1))
 		done < <(git -C "$W/nomad" ls-tree -r --name-only "$FULL_TAG" | grep -E '\.(go|js|ts)$' | grep -v -E "$skip" || true)
-		log "full: $n_new new and $n_mod changed Norca files ($n_same unchanged MPL files left out), $n_up files of $FULL_TAG, $n_base files of $BASE_TAG as the MPL baseline"
-		NODE_OPTIONS=--max-old-space-size=${FULL_HEAP_MB:-16384} dolos_set full \
-			-S "$(awk -v t="$THRESHOLD" 'BEGIN { print t / 2 }')"
+		log "full: $n_new new Norca files, $n_up files of $FULL_TAG, $n_base files of $BASE_TAG as the MPL baseline; fullmod: the added lines of $n_mod changed files ($n_same unchanged MPL files left out)"
+		if $want_new; then
+			NODE_OPTIONS=--max-old-space-size=${FULL_HEAP_MB:-16384} dolos_set full \
+				-S "$(awk -v t="$THRESHOLD" 'BEGIN { print t / 2 }')"
+		fi
+		[ -d "$W/fullmod" ] && dolos_set fullmod
 	fi
 
 	node /audit/report.mjs "$W/result" /out "$THRESHOLD" <<-EOF
@@ -374,7 +414,7 @@ main() {
 	norca_commit=$norca_rev
 	base_tag=$BASE_TAG
 	$([[ ",$SETS," == *,bugfix,* ]] && printf 'bsl_tag=%s\nbsl_commit=%s' "$BSL_TAG" "$(git -C "$W/nomad" rev-parse "$BSL_TAG^{commit}")")
-	$([[ ",$SETS," == *,full,* ]] && printf 'full_tag=%s\nfull_commit=%s' "$FULL_TAG" "$(git -C "$W/nomad" rev-parse "$FULL_TAG^{commit}")")
+	$([[ ",$SETS," == *,full,* || ",$SETS," == *,fullmod,* ]] && printf 'full_tag=%s\nfull_commit=%s' "$FULL_TAG" "$(git -C "$W/nomad" rev-parse "$FULL_TAG^{commit}")")
 	dolos=$DOLOS_VERSION
 	sets=$SETS
 	threshold=$THRESHOLD
