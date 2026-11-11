@@ -575,7 +575,7 @@ func (v *CSIVolume) controllerPublishVolume(req *structs.CSIVolumeClaimRequest, 
 		AttachmentMode:  req.AttachmentMode,
 		AccessMode:      req.AccessMode,
 		MountOptions:    csiVolumeMountOptions(vol.MountOptions),
-		ReadOnly:        req.Claim == structs.CSIVolumeClaimRead,
+		ReadOnly:        controllerPublishReadOnly(req.Claim, plug),
 		Secrets:         vol.Secrets,
 		VolumeContext:   vol.Context,
 	}
@@ -1080,6 +1080,9 @@ func (v *CSIVolume) Create(args *structs.CSIVolumeCreateRequest, reply *structs.
 		if !plugin.HasControllerCapability(structs.CSIControllerSupportsCreateDelete) {
 			return fmt.Errorf("plugin does not support creating volumes")
 		}
+		if err := checkCreateSource(vol, plugin); err != nil {
+			return err
+		}
 
 		// if the volume already exists, we'll update it instead
 		snap, err := v.srv.State().Snapshot()
@@ -1291,6 +1294,13 @@ func (v *CSIVolume) nodeExpandVolume(vol *structs.CSIVolume, plugin *structs.CSI
 		if claim == nil {
 			return
 		}
+		// clean room bugfix: the CSI spec calls NodeExpandVolume only on a
+		// node plugin with the EXPAND_VOLUME node capability.
+		if !v.nodePluginCanExpand(claim.NodeID, plugin) {
+			logger.Warn("node plugin does not support EXPAND_VOLUME: the node does not expand the volume",
+				"node_id", claim.NodeID, "alloc_id", claim.AllocationID)
+			return
+		}
 
 		logger.Debug("starting volume expansion on node",
 			"node_id", claim.NodeID, "alloc_id", claim.AllocationID)
@@ -1322,6 +1332,44 @@ func (v *CSIVolume) nodeExpandVolume(vol *structs.CSIVolume, plugin *structs.CSI
 	}
 
 	return mErr.ErrorOrNil()
+}
+
+// controllerPublishReadOnly is the readonly field of ControllerPublishVolume
+// for a claim. clean room bugfix: the CSI spec allows it only for a plugin
+// with the PUBLISH_READONLY controller capability ("The CO MUST set this
+// field to false if SP does not have the PUBLISH_READONLY controller
+// capability"); a read claim was always sent as readonly. The node publish of
+// a read-only volume request still mounts it read-only.
+func controllerPublishReadOnly(claim structs.CSIVolumeClaimMode, plugin *structs.CSIPlugin) bool {
+	return claim == structs.CSIVolumeClaimRead &&
+		plugin.HasControllerCapability(structs.CSIControllerSupportsReadOnlyAttach)
+}
+
+// checkCreateSource checks that the plugin can create the volume from its
+// source. clean room bugfix: a volume from a clone needs CLONE_VOLUME, one
+// from a snapshot CREATE_DELETE_SNAPSHOT; the plugin used to be asked anyway
+// and failed with its own error.
+func checkCreateSource(vol *structs.CSIVolume, plugin *structs.CSIPlugin) error {
+	if vol.CloneID != "" && !plugin.HasControllerCapability(structs.CSIControllerSupportsClone) {
+		return fmt.Errorf("plugin %q does not support cloning volumes (clone_id)", plugin.ID)
+	}
+	if vol.SnapshotID != "" && !plugin.HasControllerCapability(structs.CSIControllerSupportsCreateDeleteSnapshot) {
+		return fmt.Errorf("plugin %q does not support creating volumes from snapshots (snapshot_id)", plugin.ID)
+	}
+	return nil
+}
+
+// nodePluginCanExpand reports whether the node plugin of the node has the
+// EXPAND_VOLUME node capability, from the node's fingerprint; without the
+// node's fingerprint it falls back to the plugin's.
+func (v *CSIVolume) nodePluginCanExpand(nodeID string, plugin *structs.CSIPlugin) bool {
+	node, err := v.srv.State().NodeByID(nil, nodeID)
+	if err == nil && node != nil {
+		if info := node.CSINodePlugins[plugin.ID]; info != nil && info.NodeInfo != nil {
+			return info.NodeInfo.SupportsExpand
+		}
+	}
+	return plugin.HasNodeCapability(structs.CSINodeSupportsExpand)
 }
 
 func (v *CSIVolume) Delete(args *structs.CSIVolumeDeleteRequest, reply *structs.CSIVolumeDeleteResponse) error {
