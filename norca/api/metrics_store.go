@@ -57,6 +57,16 @@ const (
 	MetricsNodeDiskTotalMB       = "norca.node.disk_total_mb"
 	MetricsNodeInodesUsedPercent = "norca.node.inodes_used_percent"
 
+	// A CSI volume on a node (labels ns, volume, plugin, node), as its node
+	// plugin reports it; abnormal is 1 while the plugin reports the volume
+	// abnormal.
+	MetricsVolumeUsedBytes      = "norca.volume.used_bytes"
+	MetricsVolumeAvailableBytes = "norca.volume.available_bytes"
+	MetricsVolumeCapacityBytes  = "norca.volume.capacity_bytes"
+	MetricsVolumeInodesUsed     = "norca.volume.inodes_used"
+	MetricsVolumeInodesFree     = "norca.volume.inodes_free"
+	MetricsVolumeAbnormal       = "norca.volume.abnormal"
+
 	MetricsNodesDown         = "norca.nodes.down"
 	MetricsNodesDisconnected = "norca.nodes.disconnected"
 	MetricsNodesDraining     = "norca.nodes.draining"

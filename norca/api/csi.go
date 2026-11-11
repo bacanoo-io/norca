@@ -348,6 +348,11 @@ type CSIVolume struct {
 	NodesExpected       int
 	ResourceExhausted   time.Time
 
+	// NodeUsage is the latest usage and condition of the volume on the nodes
+	// where it is published, as their node plugins report them (Norca; read
+	// only, from the memory of the servers).
+	NodeUsage []*CSIVolumeNodeUsage `hcl:"-"`
+
 	CreateIndex uint64
 	ModifyIndex uint64
 
@@ -597,4 +602,33 @@ func (v *CSIPlugins) Info(id string, q *QueryOptions) (*CSIPlugin, *QueryMeta, e
 		return nil, nil, err
 	}
 	return resp, qm, nil
+}
+
+// CSIVolumeNodeUsage is the usage and the condition of a CSI volume on a
+// node, as its node plugin reports them (Norca). A unit the plugin does not
+// report has its Known flag false.
+type CSIVolumeNodeUsage struct {
+	Namespace string
+	VolumeID  string
+	PluginID  string
+	NodeID    string
+
+	BytesKnown     bool
+	BytesUsed      int64
+	BytesAvailable int64
+	BytesTotal     int64
+
+	InodesKnown bool
+	InodesUsed  int64
+	InodesFree  int64
+	InodesTotal int64
+
+	ConditionKnown bool
+	Abnormal       bool
+	Message        string
+
+	// Error is why the node could not ask the plugin.
+	Error string
+
+	At time.Time
 }

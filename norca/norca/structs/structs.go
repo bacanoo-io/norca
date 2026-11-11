@@ -8133,6 +8133,10 @@ func (t *Task) Validate(jobType string, tg *TaskGroup) error {
 			mErr.Errors = append(mErr.Errors, fmt.Errorf("CSIPluginConfig StagePublishBaseDir must not be a subdirectory of MountDir, got: StagePublishBaseDir=\"%s\" MountDir=\"%s\"", t.CSIPluginConfig.StagePublishBaseDir, t.CSIPluginConfig.MountDir))
 		}
 
+		if t.CSIPluginConfig.StatsInterval < 0 {
+			mErr.Errors = append(mErr.Errors, fmt.Errorf("CSIPluginConfig StatsInterval must not be negative, got: %v", t.CSIPluginConfig.StatsInterval))
+		}
+
 		// TODO: Investigate validation of the PluginMountDir. Not much we can do apart from check IsAbs until after we understand its execution environment though :(
 	}
 

@@ -225,6 +225,12 @@ func (v *CSIVolume) Get(args *structs.CSIVolumeGetRequest, reply *structs.CSIVol
 			if err != nil {
 				return err
 			}
+			if vol != nil && v.srv.csiVolumeUsage != nil {
+				if usage := v.srv.csiVolumeUsage.forVolume(vol.Namespace, vol.ID); len(usage) > 0 {
+					vol = vol.Copy()
+					vol.NodeUsage = usage
+				}
+			}
 
 			reply.Volume = vol
 			return v.srv.replySetIndex(csiVolumeTable, &reply.QueryMeta)

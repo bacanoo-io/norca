@@ -95,6 +95,7 @@ type CSINodeClient interface {
 	NodePublishVolume(ctx context.Context, in *csipbv1.NodePublishVolumeRequest, opts ...grpc.CallOption) (*csipbv1.NodePublishVolumeResponse, error)
 	NodeUnpublishVolume(ctx context.Context, in *csipbv1.NodeUnpublishVolumeRequest, opts ...grpc.CallOption) (*csipbv1.NodeUnpublishVolumeResponse, error)
 	NodeExpandVolume(ctx context.Context, in *csipbv1.NodeExpandVolumeRequest, opts ...grpc.CallOption) (*csipbv1.NodeExpandVolumeResponse, error)
+	NodeGetVolumeStats(ctx context.Context, in *csipbv1.NodeGetVolumeStatsRequest, opts ...grpc.CallOption) (*csipbv1.NodeGetVolumeStatsResponse, error)
 }
 
 type client struct {
@@ -980,4 +981,46 @@ func (c *client) NodeExpandVolume(ctx context.Context, req *NodeExpandVolumeRequ
 	}
 
 	return &NodeExpandVolumeResponse{resp.GetCapacityBytes()}, nil
+}
+
+// NodeGetVolumeStats returns the usage and the condition of a volume.
+func (c *client) NodeGetVolumeStats(ctx context.Context, req *NodeGetVolumeStatsRequest, opts ...grpc.CallOption) (*NodeGetVolumeStatsResponse, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	if err := c.ensureConnected(ctx); err != nil {
+		return nil, err
+	}
+
+	resp, err := c.nodeClient.NodeGetVolumeStats(ctx, &csipbv1.NodeGetVolumeStatsRequest{
+		VolumeId:          req.ExternalVolumeID,
+		VolumePath:        req.VolumePath,
+		StagingTargetPath: req.StagingPath,
+	}, opts...)
+	if err != nil {
+		switch status.Code(err) {
+		case codes.NotFound:
+			return nil, fmt.Errorf("%w: volume %q is not published at %q: %v",
+				structs.ErrCSIClientRPCIgnorable, req.ExternalVolumeID, req.VolumePath, err)
+		case codes.Unimplemented:
+			return nil, fmt.Errorf("node plugin does not implement NodeGetVolumeStats: %v", err)
+		default:
+			return nil, fmt.Errorf("node plugin returned an error: %v", err)
+		}
+	}
+
+	out := &NodeGetVolumeStatsResponse{}
+	for _, u := range resp.GetUsage() {
+		usage := &VolumeUsage{Available: u.GetAvailable(), Total: u.GetTotal(), Used: u.GetUsed()}
+		switch u.GetUnit() {
+		case csipbv1.VolumeUsage_BYTES:
+			out.Bytes = usage
+		case csipbv1.VolumeUsage_INODES:
+			out.Inodes = usage
+		}
+	}
+	if cond := resp.GetVolumeCondition(); cond != nil {
+		out.Condition = &VolumeCondition{Abnormal: cond.GetAbnormal(), Message: cond.GetMessage()}
+	}
+	return out, nil
 }

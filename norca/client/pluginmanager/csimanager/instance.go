@@ -45,6 +45,9 @@ type instanceManager struct {
 	volumeManagerSetupCh chan struct{}
 
 	client csi.CSIPlugin
+
+	// stats are the latest volume stats of a node plugin (Norca).
+	stats volumeStatsCache
 }
 
 func newInstanceManager(logger hclog.Logger, eventer TriggerNodeEvent, updater UpdateNodeCSIInfoFunc, p *dynamicplugins.PluginInfo) *instanceManager {
@@ -104,6 +107,7 @@ func (i *instanceManager) setupVolumeManager() {
 		i.volumeManager = newVolumeManager(i.logger, i.eventer, i.client, i.mountPoint, i.containerMountPoint, i.fp.requiresStaging, externalID)
 		i.logger.Debug("volume manager setup complete")
 		close(i.volumeManagerSetupCh)
+		go i.runStatsLoop()
 		return
 	}
 }

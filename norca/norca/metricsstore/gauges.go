@@ -266,6 +266,17 @@ const (
 	// whose Degraded condition is True.
 	MetricObjectsCount    = "norca.objects.count"
 	MetricObjectsDegraded = "norca.objects.degraded"
+
+	// A CSI volume on a node (labels ns, volume, plugin, node), as its node
+	// plugin reports it to NodeGetVolumeStats: bytes used, available and in
+	// total, inodes used and free, and 1 while the plugin reports the volume
+	// abnormal (plugins with the VOLUME_CONDITION capability).
+	MetricVolumeUsedBytes      = "norca.volume.used_bytes"
+	MetricVolumeAvailableBytes = "norca.volume.available_bytes"
+	MetricVolumeCapacityBytes  = "norca.volume.capacity_bytes"
+	MetricVolumeInodesUsed     = "norca.volume.inodes_used"
+	MetricVolumeInodesFree     = "norca.volume.inodes_free"
+	MetricVolumeAbnormal       = "norca.volume.abnormal"
 )
 
 // gaugeLabels are the labels of the gauge metrics, by metric.
@@ -361,6 +372,13 @@ var gaugeLabels = map[string][]string{
 	MetricLBReady:                      {"ns", "name"},
 	MetricObjectsCount:                 {"kind"},
 	MetricObjectsDegraded:              {"kind"},
+
+	MetricVolumeUsedBytes:      {"ns", "volume", "plugin", "node"},
+	MetricVolumeAvailableBytes: {"ns", "volume", "plugin", "node"},
+	MetricVolumeCapacityBytes:  {"ns", "volume", "plugin", "node"},
+	MetricVolumeInodesUsed:     {"ns", "volume", "plugin", "node"},
+	MetricVolumeInodesFree:     {"ns", "volume", "plugin", "node"},
+	MetricVolumeAbnormal:       {"ns", "volume", "plugin", "node"},
 }
 
 // GaugeMetrics are the gauge metrics, sorted.

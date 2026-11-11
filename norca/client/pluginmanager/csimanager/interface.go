@@ -75,6 +75,10 @@ type Manager interface {
 	// with the volume.	Returns an error if this plugin isn't registered.
 	ManagerForPlugin(ctx context.Context, pluginID string) (VolumeManager, error)
 
+	// VolumeStats returns the latest usage and condition of the volumes the
+	// node plugins of the node have published (Norca).
+	VolumeStats() []*structs.CSIVolumeNodeUsage
+
 	// Shutdown shuts down the Manager and unmounts any locally attached volumes.
 	Shutdown()
 }

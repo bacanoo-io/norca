@@ -77,8 +77,9 @@ func (m *MetricsStore) local(method, serverID string, args metricsStoreRequest, 
 // the secret store, the security events, the autoscaler, the metrics store,
 // the internals of the server (Raft, RPC and the system bus) and the object
 // counts, list-jobs in the namespace (label ns) for the jobs,
-// backup read for the backups, and read on the objects of the kind for the
-// node groups and the load balancers (in the namespace of label ns).
+// backup read for the backups, read on the objects of the kind for the
+// node groups and the load balancers (in the namespace of label ns), and
+// csi-read-volume in the namespace (label ns) for the CSI volumes.
 func allowGauge(aclObj *acl.ACL, metric string, labels map[string]string) bool {
 	if aclObj == nil {
 		return true
@@ -110,6 +111,8 @@ func allowGauge(aclObj *acl.ACL, metric string, labels map[string]string) bool {
 			structs.ObjectKindRef(structs.NodeScalingGroup, structs.NodeGroupKind), acl.ObjectCapabilityRead)
 	case strings.HasPrefix(metric, "norca.lb."):
 		return labels["ns"] != "" && aclObj.AllowObjectOperation(labels["ns"], loadBalancerKindRef, acl.ObjectCapabilityRead)
+	case strings.HasPrefix(metric, "norca.volume."):
+		return labels["ns"] != "" && aclObj.AllowNsOp(labels["ns"], acl.NamespaceCapabilityCSIReadVolume)
 	}
 	return false
 }

@@ -83,7 +83,16 @@ type TaskCSIPluginConfig struct {
 	// HealthTimeout is the time after which the CSI plugin tasks will be killed
 	// if the CSI Plugin is not healthy.
 	HealthTimeout time.Duration `mapstructure:"health_timeout" hcl:"health_timeout,optional"`
+
+	// StatsInterval is how often the client asks a node plugin with the
+	// GET_VOLUME_STATS capability for the usage and the condition of the
+	// volumes it has published (Norca); 0 turns it off. The api default is
+	// DefaultCSIVolumeStatsInterval.
+	StatsInterval time.Duration
 }
+
+// DefaultCSIVolumeStatsInterval is the default of csi_plugin stats_interval.
+const DefaultCSIVolumeStatsInterval = time.Minute
 
 func (t *TaskCSIPluginConfig) Equal(o *TaskCSIPluginConfig) bool {
 	if t == nil || o == nil {
@@ -99,6 +108,8 @@ func (t *TaskCSIPluginConfig) Equal(o *TaskCSIPluginConfig) bool {
 	case t.StagePublishBaseDir != o.StagePublishBaseDir:
 		return false
 	case t.HealthTimeout != o.HealthTimeout:
+		return false
+	case t.StatsInterval != o.StatsInterval:
 		return false
 	}
 	return true
@@ -311,6 +322,11 @@ type CSIVolume struct {
 	NodesHealthy        int
 	NodesExpected       int
 	ResourceExhausted   time.Time
+
+	// NodeUsage is the latest usage and condition of the volume on the nodes
+	// where it is published, as their node plugins report them (Norca). The
+	// volume API sets it from the memory of the server; it is never stored.
+	NodeUsage []*CSIVolumeNodeUsage `json:",omitempty"`
 
 	CreateIndex uint64
 	ModifyIndex uint64

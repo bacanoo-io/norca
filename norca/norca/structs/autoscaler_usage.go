@@ -28,6 +28,15 @@ type TaskGroupUsageReport struct {
 	// client did not measure it. A report split into several messages has
 	// it in the first one only.
 	Host *NodeHostUsage `json:",omitempty"`
+
+	// Volumes are the latest usage and condition of the CSI volumes the
+	// node plugins of the node have published (Norca); in the first message
+	// of a split report only.
+	Volumes []*CSIVolumeNodeUsage `json:",omitempty"`
+
+	// VolumesReported is true in the message that carries the volumes of the
+	// node: the volumes it leaves out are no longer published on the node.
+	VolumesReported bool `json:",omitempty"`
 }
 
 // NodeHostUsage is the usage of a client node as a whole (its host

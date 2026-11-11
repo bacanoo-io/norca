@@ -12,11 +12,16 @@ type volumeUsageTracker struct {
 	// state is a map of volumeUsageKey to a slice of allocation ids
 	state   map[volumeUsageKey][]string
 	stateMu sync.Mutex
+
+	// refs are the namespace and external ID of the claimed volumes, for
+	// their stats (Norca).
+	refs map[volumeUsageKey]volumeRef
 }
 
 func newVolumeUsageTracker() *volumeUsageTracker {
 	return &volumeUsageTracker{
 		state: make(map[volumeUsageKey][]string),
+		refs:  make(map[volumeUsageKey]volumeRef),
 	}
 }
 
@@ -46,6 +51,7 @@ func (v *volumeUsageTracker) removeAlloc(key volumeUsageKey, needle string) {
 
 	if len(newAllocs) == 0 {
 		delete(v.state, key)
+		delete(v.refs, key)
 	} else {
 		v.state[key] = newAllocs
 	}

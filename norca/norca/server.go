@@ -272,6 +272,10 @@ type Server struct {
 	metricsTelemetry    telemetryReader
 	secretsGauges       secretsGaugeValues
 
+	// csiVolumeUsage is the latest usage and condition of the CSI volumes
+	// on the nodes, from the usage reports of the clients.
+	csiVolumeUsage *csiVolumeUsage
+
 	// consulKV is the connection of the ConsulKV endpoint to the bucket of
 	// the Consul KV on the bus.
 	consulKV consulKVConn
@@ -449,6 +453,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		evalBroker:              evalBroker,
 		reapCancelableEvalsCh:   make(chan struct{}, 1),
 		blockedEvals:            NewBlockedEvals(evalBroker, logger),
+		csiVolumeUsage:          newCSIVolumeUsage(),
 		aclCache:                aclCache,
 		workersEventCh:          make(chan interface{}, 1),
 	}

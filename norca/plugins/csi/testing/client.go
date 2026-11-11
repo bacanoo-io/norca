@@ -151,6 +151,8 @@ type NodeClient struct {
 	NextUnpublishVolumeResponse *csipbv1.NodeUnpublishVolumeResponse
 	NextExpandVolumeResponse    *csipbv1.NodeExpandVolumeResponse
 	LastExpandVolumeRequest     *csipbv1.NodeExpandVolumeRequest
+	NextVolumeStatsResponse     *csipbv1.NodeGetVolumeStatsResponse
+	LastVolumeStatsRequest      *csipbv1.NodeGetVolumeStatsRequest
 }
 
 // NewNodeClient returns a new stub NodeClient
@@ -167,6 +169,7 @@ func (c *NodeClient) Reset() {
 	c.NextPublishVolumeResponse = nil
 	c.NextUnpublishVolumeResponse = nil
 	c.NextExpandVolumeResponse = nil
+	c.NextVolumeStatsResponse = nil
 }
 
 func (c *NodeClient) NodeGetCapabilities(ctx context.Context, in *csipbv1.NodeGetCapabilitiesRequest, opts ...grpc.CallOption) (*csipbv1.NodeGetCapabilitiesResponse, error) {
@@ -196,4 +199,9 @@ func (c *NodeClient) NodeUnpublishVolume(ctx context.Context, in *csipbv1.NodeUn
 func (c *NodeClient) NodeExpandVolume(ctx context.Context, in *csipbv1.NodeExpandVolumeRequest, opts ...grpc.CallOption) (*csipbv1.NodeExpandVolumeResponse, error) {
 	c.LastExpandVolumeRequest = in
 	return c.NextExpandVolumeResponse, c.NextErr
+}
+
+func (c *NodeClient) NodeGetVolumeStats(ctx context.Context, in *csipbv1.NodeGetVolumeStatsRequest, opts ...grpc.CallOption) (*csipbv1.NodeGetVolumeStatsResponse, error) {
+	c.LastVolumeStatsRequest = in
+	return c.NextVolumeStatsResponse, c.NextErr
 }

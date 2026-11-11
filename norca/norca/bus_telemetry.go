@@ -280,6 +280,8 @@ func (s *Server) handleTelemetry(m jetstream.Msg) {
 			s.recordNodeHost(&report, published)
 		}
 	}
+	// The volume usage is in memory: taken again when delivered again.
+	s.recordVolumeUsage(&report, published)
 	if s.autoscaler == nil || time.Since(published) > report.Window+telemetryFreshness {
 		return
 	}

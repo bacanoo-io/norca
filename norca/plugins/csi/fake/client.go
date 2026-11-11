@@ -108,6 +108,11 @@ type Client struct {
 	NextNodeExpandVolumeResponse *csi.NodeExpandVolumeResponse
 	NextNodeExpandVolumeErr      error
 	NodeExpandVolumeCallCount    int64
+
+	NextNodeGetVolumeStatsResponse *csi.NodeGetVolumeStatsResponse
+	NextNodeGetVolumeStatsErr      error
+	NodeGetVolumeStatsCallCount    int64
+	LastNodeGetVolumeStatsRequest  *csi.NodeGetVolumeStatsRequest
 }
 
 // PluginInfo describes the type and version of a plugin.
@@ -315,6 +320,14 @@ func (c *Client) NodeUnpublishVolume(ctx context.Context, volumeID, targetPath s
 	c.NodeUnpublishVolumeCallCount++
 
 	return c.NextNodeUnpublishVolumeErr
+}
+
+func (c *Client) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest, opts ...grpc.CallOption) (*csi.NodeGetVolumeStatsResponse, error) {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	c.NodeGetVolumeStatsCallCount++
+	c.LastNodeGetVolumeStatsRequest = req
+	return c.NextNodeGetVolumeStatsResponse, c.NextNodeGetVolumeStatsErr
 }
 
 func (c *Client) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest, opts ...grpc.CallOption) (*csi.NodeExpandVolumeResponse, error) {

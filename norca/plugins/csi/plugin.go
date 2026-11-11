@@ -111,6 +111,11 @@ type CSIPlugin interface {
 	// that node expansion is required
 	NodeExpandVolume(ctx context.Context, req *NodeExpandVolumeRequest, opts ...grpc.CallOption) (*NodeExpandVolumeResponse, error)
 
+	// NodeGetVolumeStats returns the usage and, for a plugin with the
+	// VOLUME_CONDITION node capability, the condition of a published volume
+	// (Norca). Only for a plugin with the GET_VOLUME_STATS node capability.
+	NodeGetVolumeStats(ctx context.Context, req *NodeGetVolumeStatsRequest, opts ...grpc.CallOption) (*NodeGetVolumeStatsResponse, error)
+
 	// Shutdown the client and ensure any connections are cleaned up.
 	Close() error
 }
@@ -1081,4 +1086,43 @@ func (r *NodeExpandVolumeRequest) ToCSIRepresentation() *csipbv1.NodeExpandVolum
 
 type NodeExpandVolumeResponse struct {
 	CapacityBytes int64
+}
+
+// NodeGetVolumeStatsRequest asks a node plugin for the usage of a volume at a
+// path where it is published (or staged).
+type NodeGetVolumeStatsRequest struct {
+	ExternalVolumeID string
+	// VolumePath is the target path of a publication of the volume.
+	VolumePath string
+	// StagingPath is the staging path, when the plugin stages volumes.
+	StagingPath string
+}
+
+func (r *NodeGetVolumeStatsRequest) Validate() error {
+	var err error
+	if r.ExternalVolumeID == "" {
+		err = errors.Join(err, errors.New("ExternalVolumeID is required"))
+	}
+	if r.VolumePath == "" {
+		err = errors.Join(err, errors.New("VolumePath is required"))
+	}
+	return err
+}
+
+// NodeGetVolumeStatsResponse is the usage of a volume: bytes and inodes, each
+// with what the plugin reported (a value it did not report is 0 and its
+// Known flag false), and its condition.
+type NodeGetVolumeStatsResponse struct {
+	Bytes  *VolumeUsage
+	Inodes *VolumeUsage
+
+	// Condition is nil unless the plugin reports one.
+	Condition *VolumeCondition
+}
+
+// VolumeUsage is one unit (bytes or inodes) of NodeGetVolumeStats.
+type VolumeUsage struct {
+	Available int64
+	Total     int64
+	Used      int64
 }

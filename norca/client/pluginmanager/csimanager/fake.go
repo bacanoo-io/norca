@@ -84,6 +84,8 @@ func (m *FakeManager) ManagerForPlugin(_ context.Context, pluginID string) (Volu
 // Shutdown has nothing to release.
 func (m *FakeManager) Shutdown() {}
 
+func (m *FakeManager) VolumeStats() []*structs.CSIVolumeNodeUsage { return nil }
+
 // ExpandRequest is one ExpandVolume call as the FakeVolumeManager saw it.
 type ExpandRequest struct {
 	VolID     string

@@ -236,6 +236,10 @@ func (c *Client) collectTaskGroupUsage() {
 		}
 		c.taskGroupUsage.windowDone(c.NodeID(), time.Now())
 		if report := c.taskGroupUsage.take(); report != nil {
+			if c.csimanager != nil {
+				report.Volumes = c.csimanager.VolumeStats()
+				report.VolumesReported = true
+			}
 			if err := c.publishTaskGroupUsage(report); err != nil {
 				// The report is dropped; the next window brings a new one.
 				c.logger.Debug("error publishing task group usage", "error", err)
@@ -272,9 +276,9 @@ func (c *Client) publishTaskGroupUsage(report *structs.TaskGroupUsageReport) err
 // node.
 func splitTaskGroupUsage(report *structs.TaskGroupUsageReport, limit int) ([][]byte, error) {
 	var msgs [][]byte
-	part := &structs.TaskGroupUsageReport{NodeID: report.NodeID, Window: report.Window, Host: report.Host}
+	part := &structs.TaskGroupUsageReport{NodeID: report.NodeID, Window: report.Window, Host: report.Host, Volumes: report.Volumes, VolumesReported: report.VolumesReported}
 	flush := func() error {
-		if len(part.Groups) == 0 && part.Host == nil {
+		if len(part.Groups) == 0 && part.Host == nil && !part.VolumesReported {
 			return nil
 		}
 		b, err := json.Marshal(part)

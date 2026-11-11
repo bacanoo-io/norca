@@ -126,6 +126,27 @@ func TestSplitTaskGroupUsage(t *testing.T) {
 	msgs, err = splitTaskGroupUsage(&structs.TaskGroupUsageReport{NodeID: "node", Host: report.Host}, 2048)
 	must.NoError(t, err)
 	must.Len(t, 1, msgs)
+
+	// The volumes of the node are in the first part only; a node without
+	// published volumes still says so, so that the servers forget them.
+	report.Volumes = []*structs.CSIVolumeNodeUsage{{Namespace: "default", VolumeID: "vol", PluginID: "p"}}
+	report.VolumesReported = true
+	msgs, err = splitTaskGroupUsage(report, 2048)
+	must.NoError(t, err)
+	must.Greater(t, 1, len(msgs))
+	for i, m := range msgs {
+		var part structs.TaskGroupUsageReport
+		must.NoError(t, json.Unmarshal(m, &part))
+		must.Eq(t, i == 0, part.VolumesReported)
+		if i == 0 {
+			must.Len(t, 1, part.Volumes)
+		} else {
+			must.SliceEmpty(t, part.Volumes)
+		}
+	}
+	msgs, err = splitTaskGroupUsage(&structs.TaskGroupUsageReport{NodeID: "node", VolumesReported: true}, 2048)
+	must.NoError(t, err)
+	must.Len(t, 1, msgs)
 }
 
 // hostStats returns a host measurement: two cores, memory and the file

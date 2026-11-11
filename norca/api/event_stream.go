@@ -29,6 +29,10 @@ const (
 	TopicService    Topic = "Service"
 	TopicVariables  Topic = "Variables"
 	TopicAll        Topic = "*"
+
+	// TopicCSIVolume: VolumeAbnormal and VolumeRecovered, the changes of the
+	// condition node plugins report for a volume (Norca).
+	TopicCSIVolume Topic = "CSIVolume"
 )
 
 // ErrEventIndexGone is returned by StreamExact when the server can no longer

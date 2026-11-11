@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/api"
+	"github.com/dustin/go-humanize"
 )
 
 func (c *VolumeStatusCommand) csiBanner() {
@@ -245,6 +246,11 @@ func (c *VolumeStatusCommand) formatBasic(vol *api.CSIVolume) (string, error) {
 		full = append(full, topo)
 	}
 
+	if len(vol.NodeUsage) > 0 {
+		full = append(full, c.Colorize().Color("\n[bold]Node Usage[reset]"))
+		full = append(full, c.formatNodeUsage(vol.NodeUsage))
+	}
+
 	// Format the allocs
 	banner := c.Colorize().Color("\n[bold]Allocations[reset]")
 	allocs := formatAllocListStubs(vol.Allocations, c.verbose, c.length)
@@ -311,4 +317,43 @@ func csiVolMountOption(volume, request *api.CSIMountOptions) string {
 	}
 
 	return out
+}
+
+// formatNodeUsage lists the usage and the condition of the volume on its
+// nodes, as their node plugins report them (Norca).
+func (c *VolumeStatusCommand) formatNodeUsage(usage []*api.CSIVolumeNodeUsage) string {
+	rows := []string{"Node ID|Used|Available|Capacity|Inodes Used|Inodes Free|Condition|Reported"}
+	for _, u := range usage {
+		used, avail, capacity := "-", "-", "-"
+		if u.BytesKnown {
+			used = humanize.IBytes(uint64(max(u.BytesUsed, 0)))
+			avail = humanize.IBytes(uint64(max(u.BytesAvailable, 0)))
+			capacity = humanize.IBytes(uint64(max(u.BytesTotal, 0)))
+		}
+		inodesUsed, inodesFree := "-", "-"
+		if u.InodesKnown {
+			inodesUsed = fmt.Sprint(u.InodesUsed)
+			inodesFree = fmt.Sprint(u.InodesFree)
+		}
+		rows = append(rows, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+			limit(u.NodeID, c.length), used, avail, capacity, inodesUsed, inodesFree,
+			volumeConditionText(u), formatTime(u.At)))
+	}
+	return formatList(rows)
+}
+
+// volumeConditionText is the condition column of the node usage.
+func volumeConditionText(u *api.CSIVolumeNodeUsage) string {
+	switch {
+	case u.Error != "":
+		return "error: " + u.Error
+	case u.ConditionKnown && u.Abnormal:
+		if u.Message != "" {
+			return "abnormal: " + u.Message
+		}
+		return "abnormal"
+	case u.ConditionKnown:
+		return "normal"
+	}
+	return "-"
 }

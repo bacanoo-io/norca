@@ -1140,6 +1140,11 @@ type TaskCSIPluginConfig struct {
 	// HealthTimeout is the time after which the CSI plugin tasks will be killed
 	// if the CSI Plugin is not healthy.
 	HealthTimeout time.Duration `mapstructure:"health_timeout" hcl:"health_timeout,optional"`
+
+	// StatsInterval is how often the client asks a node plugin with the
+	// GET_VOLUME_STATS capability for the usage and the condition of the
+	// volumes it has published (Norca). Default 1m; 0 turns it off.
+	StatsInterval *time.Duration `mapstructure:"stats_interval" hcl:"stats_interval,optional"`
 }
 
 func (t *TaskCSIPluginConfig) Canonicalize() {
@@ -1153,6 +1158,10 @@ func (t *TaskCSIPluginConfig) Canonicalize() {
 
 	if t.HealthTimeout == 0 {
 		t.HealthTimeout = 30 * time.Second
+	}
+
+	if t.StatsInterval == nil {
+		t.StatsInterval = pointerOf(time.Minute)
 	}
 }
 

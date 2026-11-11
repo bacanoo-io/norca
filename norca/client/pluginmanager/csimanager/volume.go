@@ -263,6 +263,7 @@ func (v *volumeManager) MountVolume(ctx context.Context, vol *structs.CSIVolume,
 
 	if err == nil {
 		v.usageTracker.Claim(alloc.ID, vol.ID, usage)
+		v.usageTracker.setRef(vol.ID, usage, volumeRef{namespace: vol.Namespace, remoteID: vol.RemoteID()})
 	}
 
 	event := structs.NewNodeEvent().

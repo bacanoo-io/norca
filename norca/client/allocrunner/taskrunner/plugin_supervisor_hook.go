@@ -374,6 +374,7 @@ func (h *csiPluginSupervisorHook) registerPlugin(client csi.CSIPlugin, socketPat
 				"Provider":            info.Name, // vendor name
 				"MountPoint":          h.mountPoint,
 				"ContainerMountPoint": h.task.CSIPluginConfig.StagePublishBaseDir,
+				"StatsInterval":       h.task.CSIPluginConfig.StatsInterval.String(),
 			},
 		}
 	}

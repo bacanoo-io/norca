@@ -7,6 +7,7 @@ package csimanager
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/bacanoo-io/norca/norca/client/dynamicplugins"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -40,6 +41,10 @@ type pluginFingerprinter struct {
 	// is started. Removing this bool will require storing a cache of recent successful
 	// results that can be used by subscribers of the `hadFirstSuccessfulFingerprintCh`.
 	requiresStaging bool
+
+	// nodeCaps are the node capabilities of the latest fingerprint, for the
+	// volume stats loop (Norca).
+	nodeCaps atomic.Pointer[csi.NodeCapabilitySet]
 }
 
 func (p *pluginFingerprinter) fingerprint(ctx context.Context) *structs.CSIInfo {
@@ -171,6 +176,7 @@ func (p *pluginFingerprinter) buildNodeFingerprint(ctx context.Context, base *st
 	if err != nil {
 		return fp, err
 	}
+	p.nodeCaps.Store(caps)
 	fp.NodeInfo.RequiresNodeStageVolume = caps.HasStageUnstageVolume
 	fp.NodeInfo.SupportsStats = caps.HasGetVolumeStats
 	fp.NodeInfo.SupportsExpand = caps.HasExpandVolume

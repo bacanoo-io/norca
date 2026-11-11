@@ -1379,6 +1379,10 @@ func ApiCSIPluginConfigToStructsCSIPluginConfig(apiConfig *api.TaskCSIPluginConf
 	sc.MountDir = apiConfig.MountDir
 	sc.StagePublishBaseDir = apiConfig.StagePublishBaseDir
 	sc.HealthTimeout = apiConfig.HealthTimeout
+	sc.StatsInterval = structs.DefaultCSIVolumeStatsInterval
+	if apiConfig.StatsInterval != nil {
+		sc.StatsInterval = *apiConfig.StatsInterval
+	}
 	return sc
 }
 
