@@ -213,7 +213,7 @@ func formatBackup(b *api.Backup) string {
 		fmt.Sprintf("Norca Version|%s", b.NorcaVersion),
 		fmt.Sprintf("Raft Index|%d", b.RaftIndex),
 		fmt.Sprintf("Raft Term|%d", b.RaftTerm),
-		fmt.Sprintf("Leader|%s", b.LeaderID),
+		fmt.Sprintf("Taken By|%s", b.TakenBy),
 		fmt.Sprintf("Path|%s", b.Path),
 		fmt.Sprintf("Key IDs|%s", strings.Join(b.KeyIDs, ",")),
 		fmt.Sprintf("Pinned|%t", b.Pinned),

@@ -46,9 +46,16 @@ type Deps struct {
 	Region              string
 	AuthoritativeRegion string
 
-	// LeaderID is the name of this server, recorded as the leader that took
-	// the backup.
-	LeaderID string
+	// ServerName is the name of this server, recorded as the server that
+	// took a backup (TakenBy).
+	ServerName string
+
+	// Delegate, if set, asks an observer to take a backup (backup
+	// prefer_observer) and returns its record, which the leader then writes
+	// to Raft. An error wrapping ErrDelegateRefused means that no observer
+	// started anything: the leader takes the backup itself with the same
+	// ID. Any other error leaves it open whether an observer still uploads.
+	Delegate func(ctx context.Context, req *DelegateRequest) (*structs.BackupRecord, error)
 
 	// ServersReady reports whether every server runs a Norca version that
 	// knows the backup Raft messages.
@@ -89,6 +96,10 @@ type SaveOptions struct {
 	// Started, if set, is called with the backup ID once the snapshot is
 	// taken.
 	Started func(id string)
+
+	// ID, if set, is the ID of the backup (given by the leader to a backup
+	// an observer takes); otherwise it is made from the snapshot index.
+	ID string
 }
 
 // Manager takes the scheduled and manual backups of a region on the leader,
@@ -380,7 +391,8 @@ func (m *Manager) emitAgeMetric(records []*structs.BackupRecord, now time.Time) 
 }
 
 // Save takes a backup on the leader and waits for it. With a Started
-// callback the caller learns the ID as soon as the snapshot is taken.
+// callback the caller learns the ID as soon as the snapshot is taken (or, for
+// a backup an observer takes, as soon as it is asked).
 func (m *Manager) Save(opts SaveOptions) (*structs.BackupRecord, error) {
 	ctx, err := m.leaderContext()
 	if err != nil {
@@ -390,6 +402,23 @@ func (m *Manager) Save(opts SaveOptions) (*structs.BackupRecord, error) {
 		opts.Trigger = structs.BackupTriggerManual
 	}
 	return m.save(ctx, opts)
+}
+
+// ErrDelegateRefused is wrapped by the errors of a delegated backup that
+// nothing was started for.
+var ErrDelegateRefused = errors.New("the observer refused the backup")
+
+// DelegateRequest asks an observer to take a backup for the leader.
+type DelegateRequest struct {
+	// ID is the ID the leader gave the backup.
+	ID      string
+	Trigger string
+	Labels  map[string]string
+	Pin     bool
+
+	// Fingerprint is the fingerprint of the leader's backup configuration;
+	// the observer takes the backup only with the same one.
+	Fingerprint string
 }
 
 func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRecord, error) {
@@ -404,9 +433,142 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 	m.runLock.Lock()
 	defer m.runLock.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
-	defer cancel()
+	// The pre-restore backup must hold the last state: the leader takes it.
+	if cfg.PreferObserver && m.deps.Delegate != nil && opts.Trigger != structs.BackupTriggerPreRestore {
+		if record, done, err := m.delegate(ctx, cfg, dests, &opts); done {
+			return record, err
+		}
+	}
 
+	tctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
+	defer cancel()
+	return m.finish(ctx, cfg, dests, m.take(tctx, cfg, dests, opts, ""))
+}
+
+// delegate asks an observer to take the backup. It reports done when the
+// backup is finished (or recorded as failed); otherwise the leader takes it
+// itself, with the ID in opts.ID if one was given to the caller already.
+func (m *Manager) delegate(ctx context.Context, cfg *Config, dests []Destination, opts *SaveOptions) (*structs.BackupRecord, bool, error) {
+	index, _ := m.deps.State().LatestIndex()
+	start := time.Now().UTC()
+	id := NewID(start, index)
+	if opts.Started != nil {
+		opts.Started(id)
+		opts.Started = nil
+	}
+	opts.ID = id
+
+	dctx, cancel := context.WithTimeout(ctx, cfg.Timeout+time.Minute)
+	defer cancel()
+	record, err := m.deps.Delegate(dctx, &DelegateRequest{
+		ID:          id,
+		Trigger:     opts.Trigger,
+		Labels:      maps.Clone(opts.Labels),
+		Pin:         opts.Pin,
+		Fingerprint: cfg.Fingerprint(),
+	})
+	switch {
+	case errors.Is(err, ErrDelegateRefused):
+		m.logger.Info("no observer takes the backup, the leader takes it", "id", id, "reason", err)
+		return nil, false, nil
+	case err != nil:
+		// An observer may still be uploading under this ID: record it as
+		// failed and take the backup under a new one.
+		m.logger.Warn("the observer did not finish the backup, the leader takes a new one", "id", id, "error", err)
+		failed := &structs.BackupRecord{
+			ID: id, Region: m.deps.Region, AuthoritativeRegion: m.deps.AuthoritativeRegion,
+			Trigger: opts.Trigger, StartedAt: start, NorcaVersion: version.NorcaVersion,
+			NomadVersion: version.Version, Labels: maps.Clone(opts.Labels),
+		}
+		failed.Path, _ = PathFor(id)
+		m.finishFailed(failed, fmt.Errorf("the observer did not finish the backup: %w", err))
+		opts.ID = ""
+		return nil, false, nil
+	}
+	if err := m.checkDelegated(record, id, dests); err != nil {
+		m.logger.Warn("invalid record of an observer backup, the leader takes a new one", "id", id, "error", err)
+		opts.ID = ""
+		return nil, false, nil
+	}
+	if record.Status == structs.BackupStatusFailed {
+		// The observer removed what it uploaded: the leader can use the ID.
+		m.logger.Warn("the backup on the observer failed, the leader takes it", "id", id,
+			"observer", record.TakenBy, "error", record.StatusDescription)
+		return nil, false, nil
+	}
+	metrics.IncrCounter([]string{"nomad", "backup", "taken_by_observer"}, 1)
+	record, err = m.finish(ctx, cfg, dests, record)
+	return record, true, err
+}
+
+// checkDelegated checks the record an observer returned.
+func (m *Manager) checkDelegated(record *structs.BackupRecord, id string, dests []Destination) error {
+	if record == nil {
+		return errors.New("no record")
+	}
+	expected, _ := PathFor(id)
+	if record.ID != id || record.Path != expected || record.Region != m.deps.Region {
+		return fmt.Errorf("record %q (path %q, region %q) is not backup %q of region %q",
+			record.ID, record.Path, record.Region, id, m.deps.Region)
+	}
+	for _, st := range record.Destinations {
+		if !slices.ContainsFunc(dests, func(d Destination) bool { return d.Name() == st.Name }) {
+			return fmt.Errorf("unknown destination %q", st.Name)
+		}
+	}
+	return nil
+}
+
+// TakeDelegated takes a backup for the leader on this server (an observer)
+// and returns its record without writing it to Raft; the leader writes it
+// and applies the retention. Errors that wrap ErrDelegateRefused are
+// returned before anything is started.
+func (m *Manager) TakeDelegated(ctx context.Context, req *DelegateRequest) (*structs.BackupRecord, error) {
+	refuse := func(format string, a ...any) error {
+		return fmt.Errorf("%w: %s", ErrDelegateRefused, fmt.Sprintf(format, a...))
+	}
+	cfg, dests, err := m.configAndDestinations()
+	if err != nil {
+		return nil, refuse("%v", err)
+	}
+	if fp := cfg.Fingerprint(); fp != req.Fingerprint {
+		return nil, refuse("its backup configuration differs from the leader's (destinations, encryption or keyring)")
+	}
+	if expected, err := PathFor(req.ID); err != nil || expected == "" {
+		return nil, refuse("invalid backup ID %q", req.ID)
+	}
+	if !m.deps.ServersReady() {
+		return nil, refuse("not all servers run a Norca version that supports backups")
+	}
+	if cfg.IncludeKeyring && m.deps.KeyringReady != nil && !m.deps.KeyringReady() {
+		return nil, refuse("its keyring is not ready")
+	}
+	if !m.runLock.TryLock() {
+		return nil, refuse("it is taking another backup")
+	}
+	defer m.runLock.Unlock()
+
+	tctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
+	defer cancel()
+	opts := SaveOptions{Trigger: req.Trigger, Labels: req.Labels, Pin: req.Pin, ID: req.ID}
+	record := m.take(tctx, cfg, dests, opts, req.ID)
+	if record.Status == structs.BackupStatusFailed {
+		m.logger.Warn("backup for the leader failed", "id", record.ID, "error", record.StatusDescription)
+	} else {
+		m.logger.Info("backup for the leader taken", "id", record.ID, "status", record.Status)
+	}
+	return record, nil
+}
+
+// take takes a backup: the snapshot, the keyring and the other objects,
+// uploaded to every destination and verified, with the manifest written last.
+// It returns the record with its status; what was uploaded to a destination
+// that failed is removed again. It writes nothing to Raft. id, if set, is the
+// ID of the backup; otherwise it is made from the snapshot index.
+func (m *Manager) take(ctx context.Context, cfg *Config, dests []Destination, opts SaveOptions, id string) *structs.BackupRecord {
+	if id == "" {
+		id = opts.ID
+	}
 	start := time.Now().UTC()
 	record := &structs.BackupRecord{
 		Region:              m.deps.Region,
@@ -415,21 +577,33 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 		StartedAt:           start,
 		NorcaVersion:        version.NorcaVersion,
 		NomadVersion:        version.Version,
-		LeaderID:            m.deps.LeaderID,
+		TakenBy:             m.deps.ServerName,
 		Labels:              maps.Clone(opts.Labels),
 		Pinned:              opts.Pin,
+	}
+	failed := func(err error) *structs.BackupRecord {
+		record.Status = structs.BackupStatusFailed
+		record.StatusDescription = err.Error()
+		record.CompletedAt = time.Now().UTC()
+		return record
 	}
 
 	snap, err := m.deps.Snapshot()
 	if err != nil {
-		index, _ := m.deps.State().LatestIndex()
-		record.ID = NewID(start, index)
+		if id == "" {
+			index, _ := m.deps.State().LatestIndex()
+			id = NewID(start, index)
+		}
+		record.ID = id
 		record.Path, _ = PathFor(record.ID)
-		return m.finishFailed(record, fmt.Errorf("failed to take the snapshot: %w", err))
+		return failed(fmt.Errorf("failed to take the snapshot: %w", err))
 	}
 	defer snap.Close()
 
-	record.ID = NewID(start, snap.Index())
+	if id == "" {
+		id = NewID(start, snap.Index())
+	}
+	record.ID = id
 	record.Path, _ = PathFor(record.ID)
 	record.RaftIndex = snap.Index()
 	record.RaftTerm = snap.Term()
@@ -446,7 +620,7 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 			keyring, err = EncodeKeyring(keys)
 		}
 		if err != nil {
-			return m.finishFailed(record, fmt.Errorf("failed to read the keyring: %w", err))
+			return failed(fmt.Errorf("failed to read the keyring: %w", err))
 		}
 		for _, k := range keys {
 			record.KeyIDs = append(record.KeyIDs, k.Meta.KeyID)
@@ -471,7 +645,7 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 	if m.deps.ConsulKV != nil {
 		var err error
 		if consulKV, err = m.deps.ConsulKV(ctx); err != nil {
-			return m.finishFailed(record, fmt.Errorf("failed to export the Consul KV: %w", err))
+			return failed(fmt.Errorf("failed to export the Consul KV: %w", err))
 		}
 	}
 
@@ -504,23 +678,11 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 	var verified int
 	var errs []string
 	for i, st := range statuses {
-		labels := []metrics.Label{{Name: "destination", Value: st.Name}}
 		if st.Status == structs.BackupDestinationStatusVerified {
 			verified++
-			m.failures[st.Name] = 0
-			if obj := st.Objects[structs.BackupObjectState]; obj != nil {
-				metrics.SetGaugeWithLabels([]string{"nomad", "backup", "size_bytes"}, float32(obj.Size), labels)
-			}
-			metrics.SetGaugeWithLabels([]string{"nomad", "backup", "duration_seconds"}, float32(st.Duration.Seconds()), labels)
 			continue
 		}
 		errs = append(errs, fmt.Sprintf("%s: %s", st.Name, st.Error))
-		metrics.IncrCounterWithLabels([]string{"nomad", "backup", "failures_total"}, 1, labels)
-		m.failures[st.Name]++
-		if m.failures[st.Name] >= 3 {
-			m.logger.Error("backups to destination keep failing", "destination", st.Name,
-				"consecutive_failures", m.failures[st.Name])
-		}
 		// Remove what was uploaded; without a manifest it is not a backup.
 		if err := dests[i].DeletePrefix(ctx, record.Path+"/"); err != nil {
 			m.logger.Warn("failed to clean up a failed backup", "destination", st.Name, "error", err)
@@ -534,7 +696,34 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 		record.Status = structs.BackupStatusPartial
 		record.StatusDescription = "failed destinations: " + joinErrors(errs)
 	default:
-		return m.finishFailed(record, errors.New(joinErrors(errs)))
+		return failed(errors.New(joinErrors(errs)))
+	}
+	return record
+}
+
+// finish writes the record of a backup to Raft, counts the outcome per
+// destination and applies the retention. A failed backup is recorded and
+// returned with its error.
+func (m *Manager) finish(ctx context.Context, cfg *Config, dests []Destination, record *structs.BackupRecord) (*structs.BackupRecord, error) {
+	for _, st := range record.Destinations {
+		labels := []metrics.Label{{Name: "destination", Value: st.Name}}
+		if st.Status == structs.BackupDestinationStatusVerified {
+			m.failures[st.Name] = 0
+			if obj := st.Objects[structs.BackupObjectState]; obj != nil {
+				metrics.SetGaugeWithLabels([]string{"nomad", "backup", "size_bytes"}, float32(obj.Size), labels)
+			}
+			metrics.SetGaugeWithLabels([]string{"nomad", "backup", "duration_seconds"}, float32(st.Duration.Seconds()), labels)
+			continue
+		}
+		metrics.IncrCounterWithLabels([]string{"nomad", "backup", "failures_total"}, 1, labels)
+		m.failures[st.Name]++
+		if m.failures[st.Name] >= 3 {
+			m.logger.Error("backups to destination keep failing", "destination", st.Name,
+				"consecutive_failures", m.failures[st.Name])
+		}
+	}
+	if record.Status == structs.BackupStatusFailed {
+		return m.finishFailed(record, errors.New(record.StatusDescription))
 	}
 
 	if _, err := m.deps.Apply(structs.BackupUpsertRequestType|structs.IgnoreUnknownTypeFlag,
@@ -542,10 +731,12 @@ func (m *Manager) save(ctx context.Context, opts SaveOptions) (*structs.BackupRe
 		return nil, fmt.Errorf("backup %s was uploaded but could not be recorded: %w", record.ID, err)
 	}
 	metrics.SetGauge([]string{"nomad", "backup", "last_success_age_seconds"}, 0)
-	m.logger.Info("backup completed", "id", record.ID, "status", record.Status,
-		"destinations", record.VerifiedDestinations(), "duration", record.CompletedAt.Sub(start))
+	m.logger.Info("backup completed", "id", record.ID, "status", record.Status, "taken_by", record.TakenBy,
+		"destinations", record.VerifiedDestinations(), "duration", record.CompletedAt.Sub(record.StartedAt))
 
-	if err := m.prune(ctx, cfg, dests); err != nil {
+	pctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
+	defer cancel()
+	if err := m.prune(pctx, cfg, dests); err != nil {
 		m.logger.Warn("backup retention failed", "error", err)
 	}
 	return record, nil

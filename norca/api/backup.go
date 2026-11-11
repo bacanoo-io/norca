@@ -107,7 +107,7 @@ type Backup struct {
 	NomadVersion        string
 	RaftIndex           uint64
 	RaftTerm            uint64
-	LeaderID            string
+	TakenBy             string
 	Path                string
 	Destinations        []*BackupDestinationStatus
 	KeyIDs              []string

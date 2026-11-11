@@ -65,7 +65,7 @@ func newTestEnv(t *testing.T, snapshotSize int) *testEnv {
 	env.deps = &Deps{
 		Region:              "eu",
 		AuthoritativeRegion: "eu",
-		LeaderID:            "srv-1",
+		ServerName:          "srv-1",
 		ServersReady:        func() bool { return true },
 		Snapshot: func() (Snapshot, error) {
 			return &memSnapshot{data: env.snapshot, index: env.index.Add(1)}, nil

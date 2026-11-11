@@ -351,7 +351,7 @@ func sharedStorageHint(d *dirDestination, record *structs.BackupRecord) string {
 	return fmt.Sprintf("backup %s was written to directory destination %q by server %q, but this server does not find it at %s: "+
 		"a directory destination must be the same shared storage (the same mount at the same path) on every server of the region, "+
 		"or the region must have a single server",
-		record.ID, d.name, record.LeaderID, d.Location(record.Path+"/"))
+		record.ID, d.name, record.TakenBy, d.Location(record.Path+"/"))
 }
 
 // missingError adds the shared storage requirement to a missing object of a

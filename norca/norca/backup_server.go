@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/helper/snapshot"
@@ -27,7 +28,8 @@ func (s *Server) setupBackup() {
 		Logger:              s.logger,
 		Region:              s.config.Region,
 		AuthoritativeRegion: s.config.AuthoritativeRegion,
-		LeaderID:            s.config.NodeName,
+		ServerName:          s.config.NodeName,
+		Delegate:            s.delegateBackup,
 		ServersReady: func() bool {
 			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
 		},
@@ -95,8 +97,21 @@ type backupSnapshot struct {
 func (b *backupSnapshot) Term() uint64 { return b.term }
 
 // backupSnapshot takes a Raft snapshot with the path snapshotSave uses.
+//
+// Raft takes a snapshot at the last index applied to the state and refuses
+// while a newer configuration entry (a server added, promoted or removed) is
+// not covered by it. In a cluster without writes that lasts until the next
+// write, so the leader writes an empty backup update, which changes nothing
+// but the index of the backups, and tries once more.
 func (s *Server) backupSnapshot() (backup.Snapshot, error) {
 	snap, err := snapshot.New(s.logger.Named("snapshot"), s.raft)
+	if err != nil && s.IsLeader() && strings.Contains(err.Error(), "wait until the configuration entry") {
+		s.logger.Debug("raft snapshot waits for a write after a configuration change; writing one", "error", err)
+		if _, _, aerr := s.raftApply(structs.BackupUpsertRequestType|structs.IgnoreUnknownTypeFlag,
+			&structs.BackupUpsertRequest{}); aerr == nil {
+			snap, err = snapshot.New(s.logger.Named("snapshot"), s.raft)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

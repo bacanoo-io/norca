@@ -8,6 +8,9 @@
 package backup
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -87,6 +90,12 @@ type Config struct {
 	// IncludeKeyring adds the encrypted keyring (the keys of Variables and
 	// workload identities) to every backup.
 	IncludeKeyring bool
+
+	// PreferObserver makes the leader ask a healthy observer server to take
+	// the scheduled and manual backups (Norca); the leader takes a backup
+	// itself when no observer can. The pre-restore backup is always taken by
+	// the leader.
+	PreferObserver bool
 
 	// VerifyChecksum downloads every uploaded object again and compares its
 	// SHA-256. Without it only the size is verified.
@@ -451,4 +460,43 @@ func (e *EncryptionConfig) Validate() error {
 	default:
 		return fmt.Errorf("invalid mode %q", e.Mode)
 	}
+}
+
+// Fingerprint identifies what a backup is made of and where it goes: the
+// destinations (without their credentials), the encryption and whether the
+// keyring is included. An observer takes a backup for the leader only with
+// the same fingerprint as the leader's.
+func (c *Config) Fingerprint() string {
+	type enc struct {
+		Mode       string
+		Recipients []string
+		KMSKey     string
+	}
+	encOf := func(e *EncryptionConfig) *enc {
+		if e == nil {
+			return nil
+		}
+		r := slices.Clone(e.Recipients)
+		slices.Sort(r)
+		return &enc{Mode: e.Mode, Recipients: r, KMSKey: e.KMSKey}
+	}
+	type dest struct {
+		Name, Type, Path, Endpoint, Bucket, Prefix, Region string
+		Encryption                                         *enc
+	}
+	v := struct {
+		IncludeKeyring bool
+		Encryption     *enc
+		Destinations   []dest
+	}{IncludeKeyring: c.IncludeKeyring, Encryption: encOf(c.Encryption)}
+	for _, d := range c.Destinations {
+		v.Destinations = append(v.Destinations, dest{
+			Name: d.Name, Type: d.Type, Path: d.Path, Endpoint: d.Endpoint,
+			Bucket: d.Bucket, Prefix: d.Prefix, Region: d.Region, Encryption: encOf(d.Encryption),
+		})
+	}
+	slices.SortFunc(v.Destinations, func(a, b dest) int { return strings.Compare(a.Name, b.Name) })
+	buf, _ := json.Marshal(v)
+	sum := sha256.Sum256(buf)
+	return hex.EncodeToString(sum[:])
 }

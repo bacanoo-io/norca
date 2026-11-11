@@ -59,6 +59,10 @@ type BackupConfig struct {
 	// IncludeKeyring adds the encrypted keyring to the backups.
 	IncludeKeyring *bool `hcl:"include_keyring"`
 
+	// PreferObserver makes the leader ask an observer server to take the
+	// scheduled and manual backups (Norca).
+	PreferObserver *bool `hcl:"prefer_observer"`
+
 	// VerifyChecksum downloads uploaded objects again to verify them.
 	VerifyChecksum *bool `hcl:"verify_checksum"`
 
@@ -184,6 +188,7 @@ func (b *BackupConfig) Copy() *BackupConfig {
 	nb := *b
 	nb.Enabled = pointer.Copy(b.Enabled)
 	nb.IncludeKeyring = pointer.Copy(b.IncludeKeyring)
+	nb.PreferObserver = pointer.Copy(b.PreferObserver)
 	nb.VerifyChecksum = pointer.Copy(b.VerifyChecksum)
 	nb.RequireApproval = pointer.Copy(b.RequireApproval)
 	nb.Destinations = nil
@@ -234,6 +239,9 @@ func (a *BackupConfig) Merge(b *BackupConfig) *BackupConfig {
 	}
 	if b.IncludeKeyring != nil {
 		result.IncludeKeyring = pointer.Copy(b.IncludeKeyring)
+	}
+	if b.PreferObserver != nil {
+		result.PreferObserver = pointer.Copy(b.PreferObserver)
 	}
 	if b.VerifyChecksum != nil {
 		result.VerifyChecksum = pointer.Copy(b.VerifyChecksum)
@@ -377,6 +385,9 @@ func (b *BackupConfig) toServerConfig() (*backup.Config, error) {
 	}
 	if b.IncludeKeyring != nil {
 		cfg.IncludeKeyring = *b.IncludeKeyring
+	}
+	if b.PreferObserver != nil {
+		cfg.PreferObserver = *b.PreferObserver
 	}
 	if b.VerifyChecksum != nil {
 		cfg.VerifyChecksum = *b.VerifyChecksum

@@ -159,11 +159,13 @@ HashiCorp source or documentation of a BSL release was used. The commits say
 | Commit | Content |
 | --- | --- |
 | `8087e57bc` (phase 1) | `server { role = "voter" \| "standby" \| "observer" }` instead of `non_voting_server`, the Serf tag `raft_role`, the role promoter (voters promoted when stable, observers and standbys never), `bootstrap_expect` counting voter-role servers, the role in the API and in `operator raft list-peers` |
-| phase 2 | autopilot `target_voters`, `standby_failover_after` and `standby_cooldown`; standby promotion when a voter fails and demotion when it returns; `operator raft promote-standby`; the `Server` event topic and the standby metrics |
+| `8dd43588b` (phase 2) | autopilot `target_voters`, `standby_failover_after` and `standby_cooldown`; standby promotion when a voter fails and demotion when it returns; `operator raft promote-standby`; the `Server` event topic and the standby metrics |
+| phase 3 | `backup { prefer_observer = true }`: the leader asks a healthy observer to take the scheduled and manual backups (RPC `Backup.TakeForLeader`, server certificate, current leader only, the same backup configuration by fingerprint) and records them; `TakenBy` instead of `LeaderID` in the record and the manifest |
 
 The files (paths relative to `norca/`): `norca/server_role.go`,
 `norca/autopilot_promoter.go`, `norca/server_standby.go`,
 `norca/structs/server_role.go`, `norca/stream/topics_server.go`,
+`norca/backup_observer.go`, `norca/backup/delegate_test.go`,
 `api/server_role.go` and `command/operator_raft_promote_standby.go` are new and
 carry only the Norca header. `norca/autopilot_oss.go` keeps the HashiCorp
 copyright line of the MPL stubs it fills, because it keeps their signatures and

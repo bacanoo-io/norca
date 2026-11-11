@@ -98,7 +98,7 @@ type Manifest struct {
 	NomadVersion        string                     `json:"nomad_version"`
 	RaftIndex           uint64                     `json:"raft_index"`
 	RaftTerm            uint64                     `json:"raft_term"`
-	LeaderID            string                     `json:"leader_id"`
+	TakenBy             string                     `json:"taken_by"`
 	Destination         string                     `json:"destination"`
 	Objects             map[string]*ManifestObject `json:"objects"`
 	Encryption          ManifestEncryption         `json:"encryption"`
@@ -154,7 +154,7 @@ func NewManifest(b *structs.BackupRecord, d *structs.BackupDestinationStatus) *M
 		NomadVersion:        b.NomadVersion,
 		RaftIndex:           b.RaftIndex,
 		RaftTerm:            b.RaftTerm,
-		LeaderID:            b.LeaderID,
+		TakenBy:             b.TakenBy,
 		Destination:         d.Name,
 		Objects:             make(map[string]*ManifestObject, len(d.Objects)),
 		Encryption: ManifestEncryption{
@@ -214,7 +214,7 @@ func (m *Manifest) Record(dest Destination, backupPath string) *structs.BackupRe
 		NomadVersion:        m.NomadVersion,
 		RaftIndex:           m.RaftIndex,
 		RaftTerm:            m.RaftTerm,
-		LeaderID:            m.LeaderID,
+		TakenBy:             m.TakenBy,
 		Path:                backupPath,
 		Destinations:        []*structs.BackupDestinationStatus{ds},
 		KeyIDs:              keyIDs,

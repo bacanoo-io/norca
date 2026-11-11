@@ -186,13 +186,16 @@ type BackupRecord struct {
 	StartedAt   time.Time
 	CompletedAt time.Time
 
-	// Versions of the leader that took the backup.
+	// Versions of the server that took the backup.
 	NorcaVersion string
 	NomadVersion string
 
 	RaftIndex uint64
 	RaftTerm  uint64
-	LeaderID  string
+
+	// TakenBy is the name of the server that took the backup: the leader,
+	// or an observer (backup prefer_observer).
+	TakenBy string
 
 	// Path is the location of the backup objects relative to the prefix of
 	// each destination, for example 2026/10/24/20261024T140000Z-1834567.
@@ -922,4 +925,34 @@ type BackupEvent struct {
 // restore.
 type BackupRestoreEvent struct {
 	Restore *BackupRestore
+}
+
+// BackupTakeForLeaderRequest asks an observer server to take a backup for
+// the leader (backup prefer_observer, Norca). It is sent by the leader only.
+type BackupTakeForLeaderRequest struct {
+	// LeaderID is the Raft ID of the leader that asks; the observer takes
+	// the backup only for the current leader.
+	LeaderID string
+
+	// ID is the ID the leader gave the backup.
+	ID      string
+	Trigger string
+	Labels  map[string]string
+	Pin     bool
+
+	// Fingerprint is the fingerprint of the leader's backup configuration.
+	Fingerprint string
+
+	WriteRequest
+}
+
+// BackupTakeForLeaderResponse is the record of the backup the observer took,
+// not written to Raft yet, or why it refused to take one.
+type BackupTakeForLeaderResponse struct {
+	Backup *BackupRecord
+
+	// Refused says why the observer started nothing.
+	Refused string
+
+	WriteMeta
 }
