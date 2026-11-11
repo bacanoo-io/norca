@@ -67,6 +67,11 @@ type CSIPlugin interface {
 	// the request (Norca). Only for a controller with GET_CAPACITY.
 	ControllerGetCapacity(ctx context.Context, req *ControllerGetCapacityRequest, opts ...grpc.CallOption) (*ControllerGetCapacityResponse, error)
 
+	// ControllerGetVolume returns the state of a volume as the controller
+	// sees it: the nodes it is published on and its condition (Norca). Only
+	// for a controller with GET_VOLUME.
+	ControllerGetVolume(ctx context.Context, req *ControllerGetVolumeRequest, opts ...grpc.CallOption) (*ControllerGetVolumeResponse, error)
+
 	// ControllerExpandVolume is used to expand a volume's size
 	ControllerExpandVolume(ctx context.Context, req *ControllerExpandVolumeRequest, opts ...grpc.CallOption) (*ControllerExpandVolumeResponse, error)
 
@@ -564,6 +569,22 @@ func newVolumeContentSource(src *csipbv1.VolumeContentSource) *VolumeContentSour
 		SnapshotID: src.GetSnapshot().GetSnapshotId(),
 		CloneID:    src.GetVolume().GetVolumeId(),
 	}
+}
+
+// ControllerGetVolumeRequest asks a controller for the state of a volume
+// (CSI ControllerGetVolume).
+type ControllerGetVolumeRequest struct {
+	ExternalVolumeID string
+}
+
+// ControllerGetVolumeResponse is the state of a volume as the controller sees
+// it. PublishedNodeIDs are only reliable for a controller with
+// LIST_VOLUMES_PUBLISHED_NODES and may name nodes the volume is not
+// published to; Condition is nil unless the controller has VOLUME_CONDITION.
+type ControllerGetVolumeResponse struct {
+	Volume           *Volume
+	PublishedNodeIDs []string
+	Condition        *VolumeCondition
 }
 
 // ControllerGetCapacityRequest asks for the capacity of the storage of a

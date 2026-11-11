@@ -70,7 +70,11 @@ func (c *VolumeStatusCommand) csiStatus(client *api.Client, id string) int {
 
 	// Try querying the volume
 	client.SetNamespace(ns)
-	vol, _, err := client.CSIVolumes().Info(id, nil)
+	var q *api.QueryOptions
+	if c.live {
+		q = &api.QueryOptions{Params: map[string]string{"live": "true"}}
+	}
+	vol, _, err := client.CSIVolumes().Info(id, q)
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error querying volume: %s", err))
 		return 1
@@ -246,6 +250,11 @@ func (c *VolumeStatusCommand) formatBasic(vol *api.CSIVolume) (string, error) {
 		full = append(full, topo)
 	}
 
+	if st := vol.ControllerState; st != nil {
+		full = append(full, c.Colorize().Color("\n[bold]Controller State[reset]"))
+		full = append(full, formatControllerState(st))
+	}
+
 	if len(vol.NodeUsage) > 0 {
 		full = append(full, c.Colorize().Color("\n[bold]Node Usage[reset]"))
 		full = append(full, c.formatNodeUsage(vol.NodeUsage))
@@ -356,4 +365,43 @@ func volumeConditionText(u *api.CSIVolumeNodeUsage) string {
 		return "normal"
 	}
 	return "-"
+}
+
+// formatControllerState shows the state of the volume as its controller
+// reports it (Norca).
+func formatControllerState(st *api.CSIVolumeControllerState) string {
+	list := func(ids []string) string {
+		if len(ids) == 0 {
+			return "-"
+		}
+		return strings.Join(ids, ", ")
+	}
+	out := []string{fmt.Sprintf("Reported|%s", formatTime(st.At))}
+	if st.Error != "" {
+		out = append(out, fmt.Sprintf("Error|%s", st.Error))
+		return formatKV(out)
+	}
+	if st.PublishedNodesKnown {
+		out = append(out,
+			fmt.Sprintf("Published On|%s", list(st.PublishedExternalNodeIDs)),
+			fmt.Sprintf("Claimed, Not Published|%s", list(st.MissingExternalNodeIDs)),
+			fmt.Sprintf("Published, Not Claimed|%s", list(st.ExtraExternalNodeIDs)))
+	} else {
+		out = append(out, "Published On|(the controller does not list the published nodes)")
+	}
+	cond := "-"
+	if st.ConditionKnown {
+		cond = "normal"
+		if st.Abnormal {
+			cond = "abnormal"
+			if st.Message != "" {
+				cond += ": " + st.Message
+			}
+		}
+	}
+	out = append(out, fmt.Sprintf("Condition|%s", cond))
+	if st.CapacityBytes > 0 {
+		out = append(out, fmt.Sprintf("Capacity|%s", humanize.IBytes(uint64(st.CapacityBytes))))
+	}
+	return formatKV(out)
 }

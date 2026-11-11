@@ -235,7 +235,11 @@ func (v *CSIVolume) Get(args *structs.CSIVolumeGetRequest, reply *structs.CSIVol
 			reply.Volume = vol
 			return v.srv.replySetIndex(csiVolumeTable, &reply.QueryMeta)
 		}}
-	return v.srv.blockingRPC(&opts)
+	if err := v.srv.blockingRPC(&opts); err != nil {
+		return err
+	}
+	v.setControllerState(args, reply)
+	return nil
 }
 
 func (v *CSIVolume) pluginValidateVolume(vol *structs.CSIVolume) (*structs.CSIPlugin, error) {
@@ -1920,4 +1924,35 @@ func (v *CSIPlugin) Delete(args *structs.CSIPluginDeleteRequest, reply *structs.
 	reply.Index = index
 	v.srv.setQueryMeta(&reply.QueryMeta)
 	return nil
+}
+
+// setControllerState sets the state of the volume as its controller reports
+// it: asked at once for a live request, else the leader's latest check
+// (Norca).
+func (v *CSIVolume) setControllerState(args *structs.CSIVolumeGetRequest, reply *structs.CSIVolumeGetResponse) {
+	if reply.Volume == nil {
+		return
+	}
+	var st *structs.CSIVolumeControllerState
+	if args.Live {
+		plugin, err := v.srv.fsm.State().CSIPluginByID(nil, reply.Volume.PluginID)
+		switch {
+		case err != nil:
+			st = &structs.CSIVolumeControllerState{Error: err.Error(), At: time.Now()}
+		case pluginControllerInfo(plugin, supportsGetVolume) == nil:
+			st = &structs.CSIVolumeControllerState{
+				Error: "the plugin has no healthy controller with the GET_VOLUME capability", At: time.Now()}
+		default:
+			st = v.srv.askVolumeState(reply.Volume, plugin, time.Now())
+		}
+	} else {
+		st = v.srv.csiVolumeStates.get(volumeKey{reply.Volume.Namespace, reply.Volume.ID})
+	}
+	if st == nil {
+		return
+	}
+	vol := reply.Volume.Copy()
+	vol.NodeUsage = reply.Volume.NodeUsage
+	vol.ControllerState = st
+	reply.Volume = vol
 }

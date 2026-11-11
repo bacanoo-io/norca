@@ -54,7 +54,12 @@ type MockClientCSI struct {
 	NextGetCapacityResponse *cstructs.ClientCSIControllerGetCapacityResponse
 	NextGetCapacityError    error
 	GetCapacityRequests     []*cstructs.ClientCSIControllerGetCapacityRequest
-	CreateCalls             int
+
+	// GetVolume (Norca).
+	NextGetVolumeResponse *cstructs.ClientCSIControllerGetVolumeResponse
+	NextGetVolumeError    error
+	GetVolumeCalls        int
+	CreateCalls           int
 }
 
 func newMockClientCSI() *MockClientCSI {
@@ -85,6 +90,14 @@ func (c *MockClientCSI) ControllerCreateVolume(req *cstructs.ClientCSIController
 	c.CreateCalls++
 	*resp = *c.NextCreateResponse
 	return c.NextCreateError
+}
+
+func (c *MockClientCSI) ControllerGetVolume(req *cstructs.ClientCSIControllerGetVolumeRequest, resp *cstructs.ClientCSIControllerGetVolumeResponse) error {
+	c.GetVolumeCalls++
+	if c.NextGetVolumeResponse != nil {
+		*resp = *c.NextGetVolumeResponse
+	}
+	return c.NextGetVolumeError
 }
 
 func (c *MockClientCSI) ControllerGetCapacity(req *cstructs.ClientCSIControllerGetCapacityRequest, resp *cstructs.ClientCSIControllerGetCapacityResponse) error {

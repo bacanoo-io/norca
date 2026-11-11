@@ -66,6 +66,10 @@ type Client struct {
 	NextControllerListVolumesErr      error
 	ControllerListVolumesCallCount    int64
 
+	NextControllerGetVolumeResponse *csi.ControllerGetVolumeResponse
+	NextControllerGetVolumeErr      error
+	ControllerGetVolumeCallCount    int64
+
 	NextControllerGetCapacityResponse *csi.ControllerGetCapacityResponse
 	NextControllerGetCapacityErr      error
 	ControllerGetCapacityCallCount    int64
@@ -225,6 +229,13 @@ func (c *Client) ControllerDeleteVolume(ctx context.Context, req *csi.Controller
 	defer c.Mu.Unlock()
 	c.ControllerDeleteVolumeCallCount++
 	return c.NextControllerDeleteVolumeErr
+}
+
+func (c *Client) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest, opts ...grpc.CallOption) (*csi.ControllerGetVolumeResponse, error) {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	c.ControllerGetVolumeCallCount++
+	return c.NextControllerGetVolumeResponse, c.NextControllerGetVolumeErr
 }
 
 func (c *Client) ControllerGetCapacity(ctx context.Context, req *csi.ControllerGetCapacityRequest, opts ...grpc.CallOption) (*csi.ControllerGetCapacityResponse, error) {

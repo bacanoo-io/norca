@@ -335,6 +335,11 @@ type CSIVolume struct {
 	// volume API sets it from the memory of the server; it is never stored.
 	NodeUsage []*CSIVolumeNodeUsage `json:",omitempty"`
 
+	// ControllerState is the state of the volume as its controller reports
+	// it (Norca): the leader's latest check, or the answer of a live
+	// request. The volume API sets it; it is never stored.
+	ControllerState *CSIVolumeControllerState `json:",omitempty"`
+
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -1021,6 +1026,11 @@ type CSIVolumeExternalStub struct {
 
 type CSIVolumeGetRequest struct {
 	ID string
+
+	// Live asks the controller of the volume for its state at once
+	// (ControllerGetVolume, Norca) instead of the leader's latest check.
+	Live bool
+
 	QueryOptions
 }
 

@@ -353,6 +353,11 @@ type CSIVolume struct {
 	// only, from the memory of the servers).
 	NodeUsage []*CSIVolumeNodeUsage `hcl:"-"`
 
+	// ControllerState is the state of the volume as its controller reports
+	// it (Norca; read only): the leader's latest check, or with the query
+	// parameter live=true the answer of the controller at once.
+	ControllerState *CSIVolumeControllerState `hcl:"-"`
+
 	CreateIndex uint64
 	ModifyIndex uint64
 
@@ -669,4 +674,21 @@ type CSIVolumeNodeUsage struct {
 	Error string
 
 	At time.Time
+}
+
+// CSIVolumeControllerState is the state of a CSI volume as its controller
+// reports it (Norca). MissingExternalNodeIDs are claimed nodes the controller
+// does not list as published (a drift); ExtraExternalNodeIDs nodes it lists
+// without a claim, which the CSI specification allows.
+type CSIVolumeControllerState struct {
+	CapacityBytes            int64
+	PublishedNodesKnown      bool
+	PublishedExternalNodeIDs []string
+	MissingExternalNodeIDs   []string
+	ExtraExternalNodeIDs     []string
+	ConditionKnown           bool
+	Abnormal                 bool
+	Message                  string
+	Error                    string
+	At                       time.Time
 }

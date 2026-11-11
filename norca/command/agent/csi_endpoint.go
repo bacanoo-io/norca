@@ -118,7 +118,8 @@ func (s *HTTPServer) CSIVolumeSpecificRequest(resp http.ResponseWriter, req *htt
 
 func (s *HTTPServer) csiVolumeGet(id string, resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	args := structs.CSIVolumeGetRequest{
-		ID: id,
+		ID:   id,
+		Live: req.URL.Query().Get("live") == "true",
 	}
 	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
 		return nil, nil

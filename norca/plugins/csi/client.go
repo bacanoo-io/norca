@@ -6,6 +6,7 @@ package csi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -84,6 +85,7 @@ type CSIControllerClient interface {
 	DeleteSnapshot(ctx context.Context, in *csipbv1.DeleteSnapshotRequest, opts ...grpc.CallOption) (*csipbv1.DeleteSnapshotResponse, error)
 	ListSnapshots(ctx context.Context, in *csipbv1.ListSnapshotsRequest, opts ...grpc.CallOption) (*csipbv1.ListSnapshotsResponse, error)
 	GetCapacity(ctx context.Context, in *csipbv1.GetCapacityRequest, opts ...grpc.CallOption) (*csipbv1.GetCapacityResponse, error)
+	ControllerGetVolume(ctx context.Context, in *csipbv1.ControllerGetVolumeRequest, opts ...grpc.CallOption) (*csipbv1.ControllerGetVolumeResponse, error)
 }
 
 // CSINodeClient defines the minimal CSI Node Plugin interface used
@@ -526,6 +528,45 @@ func (c *client) ControllerGetCapacity(ctx context.Context, req *ControllerGetCa
 	if v := resp.GetMinimumVolumeSize(); v != nil {
 		min := v.GetValue()
 		out.MinimumVolumeSize = &min
+	}
+	return out, nil
+}
+
+// ControllerGetVolume asks a controller with the GET_VOLUME capability for
+// the state of a volume: where it is published and its condition (Norca).
+func (c *client) ControllerGetVolume(ctx context.Context, req *ControllerGetVolumeRequest, opts ...grpc.CallOption) (*ControllerGetVolumeResponse, error) {
+	if req == nil || req.ExternalVolumeID == "" {
+		return nil, errors.New("missing ExternalVolumeID")
+	}
+	if err := c.ensureConnected(ctx); err != nil {
+		return nil, err
+	}
+	resp, err := c.controllerClient.ControllerGetVolume(ctx,
+		&csipbv1.ControllerGetVolumeRequest{VolumeId: req.ExternalVolumeID}, opts...)
+	if err != nil {
+		switch status.Code(err) {
+		case codes.NotFound:
+			return nil, fmt.Errorf("volume %q not found by the controller: %v", req.ExternalVolumeID, err)
+		case codes.Internal:
+			return nil, fmt.Errorf(
+				"controller plugin returned an internal error, check the plugin allocation logs for more information: %v", err)
+		}
+		return nil, err
+	}
+	out := &ControllerGetVolumeResponse{}
+	if vol := resp.GetVolume(); vol != nil {
+		out.Volume = &Volume{
+			CapacityBytes:      vol.GetCapacityBytes(),
+			ExternalVolumeID:   vol.GetVolumeId(),
+			VolumeContext:      vol.GetVolumeContext(),
+			AccessibleTopology: newTopologies(vol.GetAccessibleTopology()),
+		}
+	}
+	if st := resp.GetStatus(); st != nil {
+		out.PublishedNodeIDs = st.GetPublishedNodeIds()
+		if cond := st.GetVolumeCondition(); cond != nil {
+			out.Condition = &VolumeCondition{Abnormal: cond.GetAbnormal(), Message: cond.GetMessage()}
+		}
 	}
 	return out, nil
 }

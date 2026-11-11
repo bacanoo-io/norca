@@ -363,6 +363,27 @@ type ClientCSIControllerListVolumesResponse struct {
 	NextToken string
 }
 
+// ClientCSIControllerGetVolumeRequest is the RPC made from the server to a
+// client to ask a CSI controller plugin there for the state of a volume
+// (CSI ControllerGetVolume, Norca).
+type ClientCSIControllerGetVolumeRequest struct {
+	ExternalVolumeID string
+
+	CSIControllerQuery
+}
+
+// ClientCSIControllerGetVolumeResponse is the state of the volume as the
+// controller sees it.
+type ClientCSIControllerGetVolumeResponse struct {
+	ExternalVolumeID string
+	CapacityBytes    int64
+	PublishedNodeIDs []string
+	// ConditionKnown is true when the controller reports a condition.
+	ConditionKnown bool
+	Abnormal       bool
+	Message        string
+}
+
 // ClientCSIControllerGetCapacityRequest is the RPC made from the server to a
 // client to ask a CSI controller plugin there for the capacity of its storage
 // (CSI GetCapacity, Norca). Every field is optional.

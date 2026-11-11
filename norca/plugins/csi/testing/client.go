@@ -62,6 +62,7 @@ type ControllerClient struct {
 	NextDeleteSnapshotResponse             *csipbv1.DeleteSnapshotResponse
 	NextListSnapshotsResponse              *csipbv1.ListSnapshotsResponse
 	NextGetCapacityResponse                *csipbv1.GetCapacityResponse
+	NextGetVolumeResponse                  *csipbv1.ControllerGetVolumeResponse
 	LastGetCapacityRequest                 *csipbv1.GetCapacityRequest
 }
 
@@ -85,6 +86,7 @@ func (c *ControllerClient) Reset() {
 	c.NextDeleteSnapshotResponse = nil
 	c.NextListSnapshotsResponse = nil
 	c.NextGetCapacityResponse = nil
+	c.NextGetVolumeResponse = nil
 	c.LastGetCapacityRequest = nil
 }
 
@@ -130,6 +132,10 @@ func (c *ControllerClient) DeleteVolume(ctx context.Context, in *csipbv1.DeleteV
 
 func (c *ControllerClient) ListVolumes(ctx context.Context, in *csipbv1.ListVolumesRequest, opts ...grpc.CallOption) (*csipbv1.ListVolumesResponse, error) {
 	return c.NextListVolumesResponse, c.NextErr
+}
+
+func (c *ControllerClient) ControllerGetVolume(ctx context.Context, in *csipbv1.ControllerGetVolumeRequest, opts ...grpc.CallOption) (*csipbv1.ControllerGetVolumeResponse, error) {
+	return c.NextGetVolumeResponse, c.NextErr
 }
 
 func (c *ControllerClient) GetCapacity(ctx context.Context, in *csipbv1.GetCapacityRequest, opts ...grpc.CallOption) (*csipbv1.GetCapacityResponse, error) {

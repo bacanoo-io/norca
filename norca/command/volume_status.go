@@ -19,6 +19,7 @@ type VolumeStatusCommand struct {
 	verbose  bool
 	json     bool
 	template string
+	live     bool
 }
 
 func (c *VolumeStatusCommand) Help() string {
@@ -53,6 +54,12 @@ Status Options:
 
   -t
     Format and display volumes using a Go template.
+
+  -live
+    Ask the controller of the volume for its state at once (CSI
+    ControllerGetVolume; plugins with the GET_VOLUME controller capability)
+    and show it next to the claims. Without it the state the leader asked
+    last is shown.
 `
 	return strings.TrimSpace(helpText)
 }
@@ -99,6 +106,7 @@ func (c *VolumeStatusCommand) Run(args []string) int {
 	flags.BoolVar(&c.verbose, "verbose", false, "")
 	flags.BoolVar(&c.json, "json", false, "")
 	flags.StringVar(&c.template, "t", "", "")
+	flags.BoolVar(&c.live, "live", false, "")
 
 	if err := flags.Parse(args); err != nil {
 		c.Ui.Error(fmt.Sprintf("Error parsing arguments %s", err))
