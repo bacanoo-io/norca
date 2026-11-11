@@ -58,6 +58,12 @@ type QueryOptions struct {
 	// a read. This allows for lower latency and higher throughput
 	AllowStale bool
 
+	// Consistent asks for a linearizable read: the leader confirms with a
+	// quorum of servers that it is still the leader before it answers, so
+	// the result includes every write acknowledged before the request.
+	// Costs one heartbeat round; cannot be combined with AllowStale.
+	Consistent bool
+
 	// WaitIndex is used to enable a blocking query. Waits
 	// until the timeout or the next index is reached
 	WaitIndex uint64
@@ -614,6 +620,9 @@ func (r *request) setQueryOptions(q *QueryOptions) {
 	}
 	if q.AllowStale {
 		r.params.Set("stale", "")
+	}
+	if q.Consistent {
+		r.params.Set("consistent", "")
 	}
 	if q.WaitIndex != 0 {
 		r.params.Set("index", strconv.FormatUint(q.WaitIndex, 10))

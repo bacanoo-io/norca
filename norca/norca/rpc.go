@@ -617,6 +617,11 @@ func (r *rpcHandler) forward(method string, info structs.RPCInfo, args interface
 
 	// we are the leader
 	if remoteServer == nil {
+		if c, ok := info.(consistentReader); ok && info.IsRead() && c.ConsistentRead() {
+			if err := r.srv.verifyLeaderForRead(); err != nil {
+				return true, err
+			}
+		}
 		return false, nil
 	}
 
@@ -624,6 +629,29 @@ func (r *rpcHandler) forward(method string, info structs.RPCInfo, args interface
 	info.SetForwarded()
 	err = r.forwardLeader(remoteServer, method, args, reply)
 	return true, err
+}
+
+// consistentReader is implemented by the requests that can ask for a
+// consistent (linearizable) read: structs.QueryOptions.
+type consistentReader interface {
+	ConsistentRead() bool
+}
+
+// verifyLeaderForRead confirms with a quorum of servers that this server is
+// still the leader (raft VerifyLeader) before a consistent read is served
+// from its state store. A write is acknowledged only after the leader applied
+// it to its state store, and a new leader serves reads only after the barrier
+// of establishLeadership (isReadyForConsistentReads), so the state of a
+// confirmed leader holds every write acknowledged before the read started.
+func (s *Server) verifyLeaderForRead() error {
+	defer metrics.MeasureSince([]string{"nomad", "rpc", "consistent_read"}, time.Now())
+	if !s.isReadyForConsistentReads() {
+		return structs.ErrNotReadyForConsistentReads
+	}
+	if err := s.raft.VerifyLeader().Error(); err != nil {
+		return fmt.Errorf("consistent read: leadership not confirmed: %w", err)
+	}
+	return nil
 }
 
 // getLeaderForRPC returns the server info of the currently known leader, or

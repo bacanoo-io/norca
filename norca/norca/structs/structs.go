@@ -355,6 +355,13 @@ type QueryOptions struct {
 	// may be arbitrarily stale.
 	AllowStale bool
 
+	// Consistent requests a linearizable read: the leader confirms with a
+	// quorum of servers that it is still the leader before it serves the
+	// request, so the result includes every write acknowledged before the
+	// request started. It costs one heartbeat round to the servers and
+	// overrides AllowStale.
+	Consistent bool
+
 	// If set, used as prefix for resource list searches
 	Prefix string
 
@@ -424,7 +431,13 @@ func (q QueryOptions) IsRead() bool {
 }
 
 func (q QueryOptions) AllowStaleRead() bool {
-	return q.AllowStale
+	return q.AllowStale && !q.Consistent
+}
+
+// ConsistentRead reports whether the read must be served by a leader that
+// has confirmed its leadership with a quorum (see Consistent).
+func (q QueryOptions) ConsistentRead() bool {
+	return q.Consistent
 }
 
 func (q *QueryOptions) GetAuthToken() string {

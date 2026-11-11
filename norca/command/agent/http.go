@@ -979,21 +979,37 @@ func parseWait(resp http.ResponseWriter, req *http.Request, b *structs.QueryOpti
 }
 
 // parseConsistency is used to parse the ?stale query params.
-func parseConsistency(resp http.ResponseWriter, req *http.Request, b *structs.QueryOptions) {
+// parseConsistency parses the ?stale and ?consistent query params. It returns
+// true when it wrote an error response.
+func parseConsistency(resp http.ResponseWriter, req *http.Request, b *structs.QueryOptions) bool {
 	query := req.URL.Query()
-	if staleVal, ok := query["stale"]; ok {
-		if len(staleVal) == 0 || staleVal[0] == "" {
-			b.AllowStale = true
-			return
+	parseFlag := func(name string, dst *bool) bool {
+		val, ok := query[name]
+		if !ok {
+			return false
 		}
-		staleQuery, err := strconv.ParseBool(staleVal[0])
+		if len(val) == 0 || val[0] == "" {
+			*dst = true
+			return false
+		}
+		v, err := strconv.ParseBool(val[0])
 		if err != nil {
 			resp.WriteHeader(http.StatusBadRequest)
-			_, _ = resp.Write([]byte(fmt.Sprintf("Expect `true` or `false` for `stale` query string parameter, got %s", staleVal[0])))
-			return
+			_, _ = resp.Write([]byte(fmt.Sprintf("Expect `true` or `false` for `%s` query string parameter, got %s", name, val[0])))
+			return true
 		}
-		b.AllowStale = staleQuery
+		*dst = v
+		return false
 	}
+	if parseFlag("stale", &b.AllowStale) || parseFlag("consistent", &b.Consistent) {
+		return true
+	}
+	if b.AllowStale && b.Consistent {
+		resp.WriteHeader(http.StatusBadRequest)
+		_, _ = resp.Write([]byte("Cannot specify both `stale` and `consistent` query string parameters"))
+		return true
+	}
+	return false
 }
 
 // parsePrefix is used to parse the ?prefix query param
@@ -1090,7 +1106,9 @@ func (s *HTTPServer) parseToken(req *http.Request, token *string) {
 func (s *HTTPServer) parse(resp http.ResponseWriter, req *http.Request, r *string, b *structs.QueryOptions) bool {
 	s.parseRegion(req, r)
 	s.parseToken(req, &b.AuthToken)
-	parseConsistency(resp, req, b)
+	if parseConsistency(resp, req, b) {
+		return true
+	}
 	parsePrefix(req, b)
 	parseNamespace(req, &b.Namespace)
 	parsePagination(req, b)

@@ -190,6 +190,12 @@ func TestSetQueryOptions(t *testing.T) {
 	try("index", "1000")
 	try("wait", "100000ms")
 	try("reverse", "true")
+	must.False(t, r.params.Has("consistent"))
+
+	r2, _ := c.newRequest("GET", "/v1/jobs")
+	r2.setQueryOptions(&QueryOptions{Consistent: true})
+	must.True(t, r2.params.Has("consistent"))
+	must.False(t, r2.params.Has("stale"))
 }
 
 func TestQueryOptionsContext(t *testing.T) {

@@ -510,8 +510,31 @@ func TestParseConsistency(t *testing.T) {
 	must.NoError(t, err)
 
 	resp = httptest.NewRecorder()
-	parseConsistency(resp, req, &b)
+	must.False(t, parseConsistency(resp, req, &b))
 	must.False(t, b.AllowStale)
+	must.True(t, b.Consistent)
+
+	b = structs.QueryOptions{}
+	req, err = http.NewRequest(http.MethodGet, "/v1/catalog/nodes?consistent=false", nil)
+	must.NoError(t, err)
+	resp = httptest.NewRecorder()
+	must.False(t, parseConsistency(resp, req, &b))
+	must.False(t, b.Consistent)
+
+	b = structs.QueryOptions{}
+	req, err = http.NewRequest(http.MethodGet, "/v1/catalog/nodes?consistent=maybe", nil)
+	must.NoError(t, err)
+	resp = httptest.NewRecorder()
+	must.True(t, parseConsistency(resp, req, &b))
+	must.EqOp(t, 400, resp.Code)
+
+	// stale and consistent contradict each other
+	b = structs.QueryOptions{}
+	req, err = http.NewRequest(http.MethodGet, "/v1/catalog/nodes?stale&consistent", nil)
+	must.NoError(t, err)
+	resp = httptest.NewRecorder()
+	must.True(t, parseConsistency(resp, req, &b))
+	must.EqOp(t, 400, resp.Code)
 }
 
 func TestParseRegion(t *testing.T) {
