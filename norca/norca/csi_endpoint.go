@@ -1080,9 +1080,6 @@ func (v *CSIVolume) Create(args *structs.CSIVolumeCreateRequest, reply *structs.
 		if !plugin.HasControllerCapability(structs.CSIControllerSupportsCreateDelete) {
 			return fmt.Errorf("plugin does not support creating volumes")
 		}
-		if err := checkCreateSource(vol, plugin); err != nil {
-			return err
-		}
 
 		// if the volume already exists, we'll update it instead
 		snap, err := v.srv.State().Snapshot()
@@ -1174,7 +1171,7 @@ func (v *CSIVolume) createVolume(vol *structs.CSIVolume, plugin *structs.CSIPlug
 	cResp := &cstructs.ClientCSIControllerCreateVolumeResponse{}
 	err := v.srv.RPC(method, cReq, cResp)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w%s", err, createSourceHint(vol, plugin))
 	}
 
 	vol.ExternalID = cResp.ExternalVolumeID
@@ -1294,13 +1291,6 @@ func (v *CSIVolume) nodeExpandVolume(vol *structs.CSIVolume, plugin *structs.CSI
 		if claim == nil {
 			return
 		}
-		// clean room bugfix: the CSI spec calls NodeExpandVolume only on a
-		// node plugin with the EXPAND_VOLUME node capability.
-		if !v.nodePluginCanExpand(claim.NodeID, plugin) {
-			logger.Warn("node plugin does not support EXPAND_VOLUME: the node does not expand the volume",
-				"node_id", claim.NodeID, "alloc_id", claim.AllocationID)
-			return
-		}
 
 		logger.Debug("starting volume expansion on node",
 			"node_id", claim.NodeID, "alloc_id", claim.AllocationID)
@@ -1345,31 +1335,19 @@ func controllerPublishReadOnly(claim structs.CSIVolumeClaimMode, plugin *structs
 		plugin.HasControllerCapability(structs.CSIControllerSupportsReadOnlyAttach)
 }
 
-// checkCreateSource checks that the plugin can create the volume from its
-// source. clean room bugfix: a volume from a clone needs CLONE_VOLUME, one
-// from a snapshot CREATE_DELETE_SNAPSHOT; the plugin used to be asked anyway
-// and failed with its own error.
-func checkCreateSource(vol *structs.CSIVolume, plugin *structs.CSIPlugin) error {
-	if vol.CloneID != "" && !plugin.HasControllerCapability(structs.CSIControllerSupportsClone) {
-		return fmt.Errorf("plugin %q does not support cloning volumes (clone_id)", plugin.ID)
+// createSourceHint explains a failed CreateVolume from a clone or a snapshot
+// when the plugin does not report the capability for it (Norca). The volume
+// is not refused beforehand: the CSI spec lets a plugin clone without
+// reporting CLONE_VOLUME ("MAY report this capability"), and binds only
+// plugins with CREATE_DELETE_SNAPSHOT to support creating from snapshots.
+func createSourceHint(vol *structs.CSIVolume, plugin *structs.CSIPlugin) string {
+	switch {
+	case vol.CloneID != "" && !plugin.HasControllerCapability(structs.CSIControllerSupportsClone):
+		return fmt.Sprintf(" (plugin %q does not report the CLONE_VOLUME capability that clone_id needs)", plugin.ID)
+	case vol.SnapshotID != "" && !plugin.HasControllerCapability(structs.CSIControllerSupportsCreateDeleteSnapshot):
+		return fmt.Sprintf(" (plugin %q does not report the CREATE_DELETE_SNAPSHOT capability; snapshot_id may not be supported)", plugin.ID)
 	}
-	if vol.SnapshotID != "" && !plugin.HasControllerCapability(structs.CSIControllerSupportsCreateDeleteSnapshot) {
-		return fmt.Errorf("plugin %q does not support creating volumes from snapshots (snapshot_id)", plugin.ID)
-	}
-	return nil
-}
-
-// nodePluginCanExpand reports whether the node plugin of the node has the
-// EXPAND_VOLUME node capability, from the node's fingerprint; without the
-// node's fingerprint it falls back to the plugin's.
-func (v *CSIVolume) nodePluginCanExpand(nodeID string, plugin *structs.CSIPlugin) bool {
-	node, err := v.srv.State().NodeByID(nil, nodeID)
-	if err == nil && node != nil {
-		if info := node.CSINodePlugins[plugin.ID]; info != nil && info.NodeInfo != nil {
-			return info.NodeInfo.SupportsExpand
-		}
-	}
-	return plugin.HasNodeCapability(structs.CSINodeSupportsExpand)
+	return ""
 }
 
 func (v *CSIVolume) Delete(args *structs.CSIVolumeDeleteRequest, reply *structs.CSIVolumeDeleteResponse) error {
