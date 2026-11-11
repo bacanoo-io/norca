@@ -1159,6 +1159,9 @@ func (v *CSIVolume) Create(args *structs.CSIVolumeCreateRequest, reply *structs.
 }
 
 func (v *CSIVolume) createVolume(vol *structs.CSIVolume, plugin *structs.CSIPlugin) error {
+	if err := v.srv.checkCreateCapacity(vol, plugin); err != nil {
+		return err
+	}
 
 	method := "ClientCSI.ControllerCreateVolume"
 	cReq := &cstructs.ClientCSIControllerCreateVolumeRequest{
@@ -1869,6 +1872,13 @@ func (v *CSIPlugin) Get(args *structs.CSIPluginGetRequest, reply *structs.CSIPlu
 					}
 				}
 				plug.Allocations = as
+			}
+
+			if caps := v.srv.csiCapacity.get(plug.ID); len(caps) > 0 {
+				if !withAllocs {
+					plug = plug.Copy()
+				}
+				plug.Capacity = caps
 			}
 
 			reply.Plugin = plug

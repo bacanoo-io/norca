@@ -1145,6 +1145,11 @@ type TaskCSIPluginConfig struct {
 	// GET_VOLUME_STATS capability for the usage and the condition of the
 	// volumes it has published (Norca). Default 1m; 0 turns it off.
 	StatsInterval *time.Duration `mapstructure:"stats_interval" hcl:"stats_interval,optional"`
+
+	// CapacityInterval is how often the leader asks a controller plugin with
+	// the GET_CAPACITY capability for the capacity of its storage (Norca).
+	// Default 5m; 0 turns it off.
+	CapacityInterval *time.Duration `mapstructure:"capacity_interval" hcl:"capacity_interval,optional"`
 }
 
 func (t *TaskCSIPluginConfig) Canonicalize() {
@@ -1162,6 +1167,10 @@ func (t *TaskCSIPluginConfig) Canonicalize() {
 
 	if t.StatsInterval == nil {
 		t.StatsInterval = pointerOf(time.Minute)
+	}
+
+	if t.CapacityInterval == nil {
+		t.CapacityInterval = pointerOf(5 * time.Minute)
 	}
 }
 

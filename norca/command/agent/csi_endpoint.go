@@ -372,10 +372,6 @@ func (s *HTTPServer) CSIPluginsRequest(resp http.ResponseWriter, req *http.Reque
 
 // CSIPluginSpecificRequest list the job with CSIInfo
 func (s *HTTPServer) CSIPluginSpecificRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	if req.Method != http.MethodGet {
-		return nil, CodedError(405, ErrInvalidMethod)
-	}
-
 	// Tokenize the suffix of the path to get the plugin id
 	reqSuffix := strings.TrimPrefix(req.URL.Path, "/v1/plugin/csi/")
 	tokens := strings.Split(reqSuffix, "/")
@@ -383,6 +379,14 @@ func (s *HTTPServer) CSIPluginSpecificRequest(resp http.ResponseWriter, req *htt
 		return nil, CodedError(404, resourceNotFoundErr)
 	}
 	id := tokens[0]
+
+	// The capacity of the storage of the plugin (Norca).
+	if len(tokens) == 2 && tokens[1] == "capacity" {
+		return s.csiPluginCapacity(resp, req, id)
+	}
+	if req.Method != http.MethodGet {
+		return nil, CodedError(405, ErrInvalidMethod)
+	}
 
 	args := structs.CSIPluginGetRequest{ID: id}
 	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
@@ -421,4 +425,29 @@ func parseCSISecrets(req *http.Request) structs.CSISecrets {
 		return nil
 	}
 	return structs.CSISecrets(secrets)
+}
+
+// csiPluginCapacity asks a controller of the plugin for the capacity of its
+// storage: PUT or POST /v1/plugin/csi/<id>/capacity with the capabilities,
+// parameters and topology of the request in the body (all optional).
+func (s *HTTPServer) csiPluginCapacity(resp http.ResponseWriter, req *http.Request, id string) (interface{}, error) {
+	if req.Method != http.MethodPut && req.Method != http.MethodPost {
+		return nil, CodedError(405, ErrInvalidMethod)
+	}
+	args := structs.CSIPluginCapacityRequest{}
+	if req.ContentLength != 0 {
+		if err := decodeBody(req, &args); err != nil {
+			return nil, CodedError(400, err.Error())
+		}
+	}
+	args.ID = id
+	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
+		return nil, nil
+	}
+	var out structs.CSIPluginCapacityResponse
+	if err := s.agent.RPC("CSIPlugin.Capacity", &args, &out); err != nil {
+		return nil, err
+	}
+	setMeta(resp, &out.QueryMeta)
+	return out.Capacity, nil
 }

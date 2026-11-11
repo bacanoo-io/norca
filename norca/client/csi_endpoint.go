@@ -367,6 +367,44 @@ func (c *CSI) ControllerListVolumes(req *structs.ClientCSIControllerListVolumesR
 	return nil
 }
 
+// ControllerGetCapacity asks a controller plugin for the capacity of its
+// storage (Norca).
+func (c *CSI) ControllerGetCapacity(req *structs.ClientCSIControllerGetCapacityRequest, resp *structs.ClientCSIControllerGetCapacityResponse) error {
+	defer metrics.MeasureSince([]string{"client", "csi_controller", "get_capacity"}, time.Now())
+
+	plugin, err := c.findControllerPlugin(req.PluginID)
+	if err != nil {
+		// the server's view of the plugin health is stale, so let it know it
+		// should retry with another controller instance
+		return fmt.Errorf("CSI.ControllerGetCapacity: %w: %v",
+			nstructs.ErrCSIClientRPCRetryable, err)
+	}
+	defer plugin.Close()
+
+	csiReq, err := req.ToCSIRequest()
+	if err != nil {
+		return fmt.Errorf("CSI.ControllerGetCapacity: %v", err)
+	}
+
+	ctx, cancelFn := c.requestContext()
+	defer cancelFn()
+
+	cresp, err := plugin.ControllerGetCapacity(ctx, csiReq,
+		grpc_retry.WithPerRetryTimeout(CSIPluginRequestTimeout),
+		grpc_retry.WithMax(3),
+		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(100*time.Millisecond)))
+	if err != nil {
+		return fmt.Errorf("CSI.ControllerGetCapacity: %v", err)
+	}
+	if cresp == nil {
+		return fmt.Errorf("CSI.ControllerGetCapacity: plugin did not return error or response")
+	}
+	resp.AvailableCapacity = cresp.AvailableCapacity
+	resp.MaximumVolumeSize = cresp.MaximumVolumeSize
+	resp.MinimumVolumeSize = cresp.MinimumVolumeSize
+	return nil
+}
+
 func (c *CSI) ControllerCreateSnapshot(req *structs.ClientCSIControllerCreateSnapshotRequest, resp *structs.ClientCSIControllerCreateSnapshotResponse) error {
 	defer metrics.MeasureSince([]string{"client", "csi_controller", "create_snapshot"}, time.Now())
 

@@ -276,6 +276,10 @@ type Server struct {
 	// on the nodes, from the usage reports of the clients.
 	csiVolumeUsage *csiVolumeUsage
 
+	// csiCapacity is the latest capacity of the CSI plugins; the leader
+	// asks them (csiCapacityLoop).
+	csiCapacity *csiCapacity
+
 	// consulKV is the connection of the ConsulKV endpoint to the bucket of
 	// the Consul KV on the bus.
 	consulKV consulKVConn
@@ -454,6 +458,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		reapCancelableEvalsCh:   make(chan struct{}, 1),
 		blockedEvals:            NewBlockedEvals(evalBroker, logger),
 		csiVolumeUsage:          newCSIVolumeUsage(),
+		csiCapacity:             newCSICapacity(),
 		aclCache:                aclCache,
 		workersEventCh:          make(chan interface{}, 1),
 	}

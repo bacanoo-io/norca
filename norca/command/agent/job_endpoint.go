@@ -1383,6 +1383,10 @@ func ApiCSIPluginConfigToStructsCSIPluginConfig(apiConfig *api.TaskCSIPluginConf
 	if apiConfig.StatsInterval != nil {
 		sc.StatsInterval = *apiConfig.StatsInterval
 	}
+	sc.CapacityInterval = structs.DefaultCSICapacityInterval
+	if apiConfig.CapacityInterval != nil {
+		sc.CapacityInterval = *apiConfig.CapacityInterval
+	}
 	return sc
 }
 

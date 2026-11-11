@@ -61,6 +61,8 @@ type ControllerClient struct {
 	NextCreateSnapshotResponse             *csipbv1.CreateSnapshotResponse
 	NextDeleteSnapshotResponse             *csipbv1.DeleteSnapshotResponse
 	NextListSnapshotsResponse              *csipbv1.ListSnapshotsResponse
+	NextGetCapacityResponse                *csipbv1.GetCapacityResponse
+	LastGetCapacityRequest                 *csipbv1.GetCapacityRequest
 }
 
 // NewControllerClient returns a new ControllerClient
@@ -82,6 +84,8 @@ func (c *ControllerClient) Reset() {
 	c.NextCreateSnapshotResponse = nil
 	c.NextDeleteSnapshotResponse = nil
 	c.NextListSnapshotsResponse = nil
+	c.NextGetCapacityResponse = nil
+	c.LastGetCapacityRequest = nil
 }
 
 func (c *ControllerClient) ControllerGetCapabilities(ctx context.Context, in *csipbv1.ControllerGetCapabilitiesRequest, opts ...grpc.CallOption) (*csipbv1.ControllerGetCapabilitiesResponse, error) {
@@ -126,6 +130,11 @@ func (c *ControllerClient) DeleteVolume(ctx context.Context, in *csipbv1.DeleteV
 
 func (c *ControllerClient) ListVolumes(ctx context.Context, in *csipbv1.ListVolumesRequest, opts ...grpc.CallOption) (*csipbv1.ListVolumesResponse, error) {
 	return c.NextListVolumesResponse, c.NextErr
+}
+
+func (c *ControllerClient) GetCapacity(ctx context.Context, in *csipbv1.GetCapacityRequest, opts ...grpc.CallOption) (*csipbv1.GetCapacityResponse, error) {
+	c.LastGetCapacityRequest = in
+	return c.NextGetCapacityResponse, c.NextErr
 }
 
 func (c *ControllerClient) CreateSnapshot(ctx context.Context, in *csipbv1.CreateSnapshotRequest, opts ...grpc.CallOption) (*csipbv1.CreateSnapshotResponse, error) {

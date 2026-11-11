@@ -67,6 +67,12 @@ const (
 	MetricsVolumeInodesFree     = "norca.volume.inodes_free"
 	MetricsVolumeAbnormal       = "norca.volume.abnormal"
 
+	// The capacity of the storage of a CSI plugin (labels plugin, topology),
+	// as a controller with GET_CAPACITY reports it to the leader.
+	MetricsCSICapacityAvailable = "norca.csi.capacity_available_bytes"
+	MetricsCSIMaximumVolumeSize = "norca.csi.maximum_volume_size_bytes"
+	MetricsCSIMinimumVolumeSize = "norca.csi.minimum_volume_size_bytes"
+
 	MetricsNodesDown         = "norca.nodes.down"
 	MetricsNodesDisconnected = "norca.nodes.disconnected"
 	MetricsNodesDraining     = "norca.nodes.draining"

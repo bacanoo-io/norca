@@ -546,8 +546,13 @@ type CSIPlugin struct {
 	ControllersExpected int
 	NodesHealthy        int
 	NodesExpected       int
-	CreateIndex         uint64
-	ModifyIndex         uint64
+
+	// Capacity is the latest capacity of the storage of the plugin, as its
+	// controllers report it to the leader (Norca; read only).
+	Capacity []*CSIPluginCapacity
+
+	CreateIndex uint64
+	ModifyIndex uint64
 }
 
 type CSIPluginListStub struct {
@@ -595,6 +600,39 @@ func (v *CSIPlugins) List(q *QueryOptions) ([]*CSIPluginListStub, *QueryMeta, er
 }
 
 // Info is used to retrieve a single CSI Plugin Job
+// CSIPluginCapacity is the capacity of the storage of a CSI plugin, as one of
+// its controllers reports it (Norca): for the whole storage (Topology nil)
+// or for a topology segment.
+type CSIPluginCapacity struct {
+	Topology          *CSITopology
+	AvailableCapacity int64
+	MaximumVolumeSize *int64
+	MinimumVolumeSize *int64
+	Error             string
+	At                time.Time
+}
+
+// CSIPluginCapacityRequest asks a controller of a plugin for the capacity of
+// its storage for volumes with these capabilities, parameters and topology;
+// every field is optional.
+type CSIPluginCapacityRequest struct {
+	Capabilities []*CSIVolumeCapability
+	MountOptions *CSIMountOptions
+	Parameters   map[string]string
+	Topology     *CSITopology
+}
+
+// Capacity asks a controller of the plugin for the capacity of its storage
+// (Norca; the plugin needs the GET_CAPACITY controller capability).
+func (v *CSIPlugins) Capacity(id string, req *CSIPluginCapacityRequest, w *WriteOptions) (*CSIPluginCapacity, error) {
+	if req == nil {
+		req = &CSIPluginCapacityRequest{}
+	}
+	var resp *CSIPluginCapacity
+	_, err := v.client.put("/v1/plugin/csi/"+id+"/capacity", req, &resp, w)
+	return resp, err
+}
+
 func (v *CSIPlugins) Info(id string, q *QueryOptions) (*CSIPlugin, *QueryMeta, error) {
 	var resp *CSIPlugin
 	qm, err := v.client.query("/v1/plugin/csi/"+id, &resp, q)

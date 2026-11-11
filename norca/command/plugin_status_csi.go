@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/api"
+	"github.com/dustin/go-humanize"
 )
 
 func (c *PluginStatusCommand) csiBanner() {
@@ -133,6 +134,11 @@ func (c *PluginStatusCommand) csiFormatPlugin(plug *api.CSIPlugin) (string, erro
 	}
 
 	full := []string{formatKV(output)}
+
+	if len(plug.Capacity) > 0 {
+		full = append(full, c.Colorize().Color("\n[bold]Capacity[reset]"))
+		full = append(full, formatPluginCapacity(plug.Capacity))
+	}
 
 	if c.verbose {
 		controllerCaps := c.formatControllerCaps(plug.Controllers)
@@ -260,6 +266,35 @@ func (c *PluginStatusCommand) formatTopology(nodes map[string]*api.CSIInfo) stri
 	}
 	if len(rows) == 1 {
 		return ""
+	}
+	return formatList(rows)
+}
+
+// formatPluginCapacity lists the capacity of the storage of a plugin, as its
+// controllers report it (Norca).
+func formatPluginCapacity(caps []*api.CSIPluginCapacity) string {
+	rows := []string{"Topology|Available|Max Volume|Min Volume|Reported"}
+	for _, cp := range caps {
+		topo := "(all)"
+		if cp.Topology != nil && len(cp.Topology.Segments) > 0 {
+			pairs := make([]string, 0, len(cp.Topology.Segments))
+			for k, v := range cp.Topology.Segments {
+				pairs = append(pairs, k+"="+v)
+			}
+			sort.Strings(pairs)
+			topo = strings.Join(pairs, ",")
+		}
+		avail, maxSize, minSize := humanize.IBytes(uint64(max(cp.AvailableCapacity, 0))), "-", "-"
+		if cp.Error != "" {
+			avail = "error: " + cp.Error
+		}
+		if cp.MaximumVolumeSize != nil {
+			maxSize = humanize.IBytes(uint64(max(*cp.MaximumVolumeSize, 0)))
+		}
+		if cp.MinimumVolumeSize != nil {
+			minSize = humanize.IBytes(uint64(max(*cp.MinimumVolumeSize, 0)))
+		}
+		rows = append(rows, fmt.Sprintf("%s|%s|%s|%s|%s", topo, avail, maxSize, minSize, formatTime(cp.At)))
 	}
 	return formatList(rows)
 }

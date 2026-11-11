@@ -277,6 +277,15 @@ const (
 	MetricVolumeInodesUsed     = "norca.volume.inodes_used"
 	MetricVolumeInodesFree     = "norca.volume.inodes_free"
 	MetricVolumeAbnormal       = "norca.volume.abnormal"
+
+	// The capacity of the storage of a CSI plugin (labels plugin, topology:
+	// "" for the whole storage, else the sorted key=value segments), as a
+	// controller with GET_CAPACITY reports it to the leader: bytes available,
+	// and the largest and the smallest volume size when the plugin reports
+	// them.
+	MetricCSICapacityAvailable = "norca.csi.capacity_available_bytes"
+	MetricCSIMaximumVolumeSize = "norca.csi.maximum_volume_size_bytes"
+	MetricCSIMinimumVolumeSize = "norca.csi.minimum_volume_size_bytes"
 )
 
 // gaugeLabels are the labels of the gauge metrics, by metric.
@@ -379,6 +388,10 @@ var gaugeLabels = map[string][]string{
 	MetricVolumeInodesUsed:     {"ns", "volume", "plugin", "node"},
 	MetricVolumeInodesFree:     {"ns", "volume", "plugin", "node"},
 	MetricVolumeAbnormal:       {"ns", "volume", "plugin", "node"},
+
+	MetricCSICapacityAvailable: {"plugin", "topology"},
+	MetricCSIMaximumVolumeSize: {"plugin", "topology"},
+	MetricCSIMinimumVolumeSize: {"plugin", "topology"},
 }
 
 // GaugeMetrics are the gauge metrics, sorted.

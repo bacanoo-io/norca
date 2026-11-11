@@ -62,6 +62,11 @@ type CSIPlugin interface {
 	// external storage provider
 	ControllerListVolumes(ctx context.Context, req *ControllerListVolumesRequest, opts ...grpc.CallOption) (*ControllerListVolumesResponse, error)
 
+	// ControllerGetCapacity returns the capacity of the storage of the
+	// controller for volumes with the capabilities, parameters and topology of
+	// the request (Norca). Only for a controller with GET_CAPACITY.
+	ControllerGetCapacity(ctx context.Context, req *ControllerGetCapacityRequest, opts ...grpc.CallOption) (*ControllerGetCapacityResponse, error)
+
 	// ControllerExpandVolume is used to expand a volume's size
 	ControllerExpandVolume(ctx context.Context, req *ControllerExpandVolumeRequest, opts ...grpc.CallOption) (*ControllerExpandVolumeResponse, error)
 
@@ -559,6 +564,41 @@ func newVolumeContentSource(src *csipbv1.VolumeContentSource) *VolumeContentSour
 		SnapshotID: src.GetSnapshot().GetSnapshotId(),
 		CloneID:    src.GetVolume().GetVolumeId(),
 	}
+}
+
+// ControllerGetCapacityRequest asks for the capacity of the storage of a
+// controller (CSI GetCapacity). Every field is optional: without them the
+// answer is the capacity of the whole storage.
+type ControllerGetCapacityRequest struct {
+	Capabilities []*VolumeCapability
+	Parameters   map[string]string
+	// Topology may only be set for a plugin with
+	// VOLUME_ACCESSIBILITY_CONSTRAINTS.
+	Topology *Topology
+}
+
+func (r *ControllerGetCapacityRequest) ToCSIRepresentation() *csipbv1.GetCapacityRequest {
+	out := &csipbv1.GetCapacityRequest{}
+	if r == nil {
+		return out
+	}
+	for _, c := range r.Capabilities {
+		out.VolumeCapabilities = append(out.VolumeCapabilities, c.ToCSIRepresentation())
+	}
+	out.Parameters = r.Parameters
+	if r.Topology != nil && len(r.Topology.Segments) > 0 {
+		out.AccessibleTopology = &csipbv1.Topology{Segments: r.Topology.Segments}
+	}
+	return out
+}
+
+// ControllerGetCapacityResponse is the capacity of the storage: the bytes
+// available, and the largest and the smallest size of a volume when the
+// plugin reports them (nil otherwise).
+type ControllerGetCapacityResponse struct {
+	AvailableCapacity int64
+	MaximumVolumeSize *int64
+	MinimumVolumeSize *int64
 }
 
 type TopologyRequirement struct {

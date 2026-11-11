@@ -394,6 +394,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Reap any failed evaluations
 	go s.reapFailedEvaluations(stopCh)
 
+	// Ask the CSI plugins for the capacity of their storage (Norca).
+	go s.csiCapacityLoop(stopCh)
+
 	// Reap any duplicate blocked evaluations
 	go s.reapDupBlockedEvaluations(stopCh)
 

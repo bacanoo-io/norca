@@ -89,6 +89,11 @@ type TaskCSIPluginConfig struct {
 	// volumes it has published (Norca); 0 turns it off. The api default is
 	// DefaultCSIVolumeStatsInterval.
 	StatsInterval time.Duration
+
+	// CapacityInterval is how often the leader asks a controller plugin with
+	// the GET_CAPACITY capability for the capacity of its storage (Norca); 0
+	// turns it off. The api default is DefaultCSICapacityInterval.
+	CapacityInterval time.Duration
 }
 
 // DefaultCSIVolumeStatsInterval is the default of csi_plugin stats_interval.
@@ -110,6 +115,8 @@ func (t *TaskCSIPluginConfig) Equal(o *TaskCSIPluginConfig) bool {
 	case t.HealthTimeout != o.HealthTimeout:
 		return false
 	case t.StatsInterval != o.StatsInterval:
+		return false
+	case t.CapacityInterval != o.CapacityInterval:
 		return false
 	}
 	return true
@@ -1111,6 +1118,11 @@ type CSIPlugin struct {
 	ControllersExpected int
 	NodesHealthy        int
 	NodesExpected       int
+
+	// Capacity is the latest capacity of the storage of the plugin, as its
+	// controllers report it to the leader (Norca). The plugin API sets it
+	// from the memory of the leader; it is never stored.
+	Capacity []*CSIPluginCapacity `json:",omitempty"`
 
 	CreateIndex uint64
 	ModifyIndex uint64

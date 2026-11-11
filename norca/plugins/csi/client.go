@@ -83,6 +83,7 @@ type CSIControllerClient interface {
 	CreateSnapshot(ctx context.Context, in *csipbv1.CreateSnapshotRequest, opts ...grpc.CallOption) (*csipbv1.CreateSnapshotResponse, error)
 	DeleteSnapshot(ctx context.Context, in *csipbv1.DeleteSnapshotRequest, opts ...grpc.CallOption) (*csipbv1.DeleteSnapshotResponse, error)
 	ListSnapshots(ctx context.Context, in *csipbv1.ListSnapshotsRequest, opts ...grpc.CallOption) (*csipbv1.ListSnapshotsResponse, error)
+	GetCapacity(ctx context.Context, in *csipbv1.GetCapacityRequest, opts ...grpc.CallOption) (*csipbv1.GetCapacityResponse, error)
 }
 
 // CSINodeClient defines the minimal CSI Node Plugin interface used
@@ -501,6 +502,32 @@ func (c *client) ControllerListVolumes(ctx context.Context, req *ControllerListV
 		return nil, err
 	}
 	return NewListVolumesResponse(resp), nil
+}
+
+// ControllerGetCapacity asks a controller with the GET_CAPACITY capability
+// for the capacity of its storage for volumes of the request (Norca).
+func (c *client) ControllerGetCapacity(ctx context.Context, req *ControllerGetCapacityRequest, opts ...grpc.CallOption) (*ControllerGetCapacityResponse, error) {
+	if err := c.ensureConnected(ctx); err != nil {
+		return nil, err
+	}
+	resp, err := c.controllerClient.GetCapacity(ctx, req.ToCSIRepresentation(), opts...)
+	if err != nil {
+		if status.Code(err) == codes.Internal {
+			return nil, fmt.Errorf(
+				"controller plugin returned an internal error, check the plugin allocation logs for more information: %v", err)
+		}
+		return nil, err
+	}
+	out := &ControllerGetCapacityResponse{AvailableCapacity: resp.GetAvailableCapacity()}
+	if v := resp.GetMaximumVolumeSize(); v != nil {
+		max := v.GetValue()
+		out.MaximumVolumeSize = &max
+	}
+	if v := resp.GetMinimumVolumeSize(); v != nil {
+		min := v.GetValue()
+		out.MinimumVolumeSize = &min
+	}
+	return out, nil
 }
 
 func (c *client) ControllerDeleteVolume(ctx context.Context, req *ControllerDeleteVolumeRequest, opts ...grpc.CallOption) error {

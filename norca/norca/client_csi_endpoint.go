@@ -129,6 +129,22 @@ func (a *ClientCSI) ControllerListVolumes(args *cstructs.ClientCSIControllerList
 	return nil
 }
 
+// ControllerGetCapacity asks a controller of the plugin for the capacity of
+// its storage (Norca).
+func (a *ClientCSI) ControllerGetCapacity(args *cstructs.ClientCSIControllerGetCapacityRequest, reply *cstructs.ClientCSIControllerGetCapacityResponse) error {
+	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "get_capacity"}, time.Now())
+
+	err := a.sendCSIControllerRPC(args.PluginID,
+		"CSI.ControllerGetCapacity",
+		"ClientCSI.ControllerGetCapacity",
+		structs.RateMetricRead,
+		args, reply)
+	if err != nil {
+		return fmt.Errorf("controller get capacity: %v", err)
+	}
+	return nil
+}
+
 func (a *ClientCSI) ControllerCreateSnapshot(args *cstructs.ClientCSIControllerCreateSnapshotRequest, reply *cstructs.ClientCSIControllerCreateSnapshotResponse) error {
 	defer metrics.MeasureSince([]string{"nomad", "client_csi_controller", "create_snapshot"}, time.Now())
 

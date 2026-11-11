@@ -1087,6 +1087,11 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"plugin capacity": func() (cli.Command, error) {
+			return &PluginCapacityCommand{
+				Meta: meta,
+			}, nil
+		},
 		"plugin status": func() (cli.Command, error) {
 			return &PluginStatusCommand{
 				Meta: meta,

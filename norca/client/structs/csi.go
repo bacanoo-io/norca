@@ -363,6 +363,44 @@ type ClientCSIControllerListVolumesResponse struct {
 	NextToken string
 }
 
+// ClientCSIControllerGetCapacityRequest is the RPC made from the server to a
+// client to ask a CSI controller plugin there for the capacity of its storage
+// (CSI GetCapacity, Norca). Every field is optional.
+type ClientCSIControllerGetCapacityRequest struct {
+	VolumeCapabilities []*structs.CSIVolumeCapability
+	MountOptions       *structs.CSIMountOptions
+	Parameters         map[string]string
+	// Topology is only sent to a plugin with
+	// VOLUME_ACCESSIBILITY_CONSTRAINTS.
+	Topology *structs.CSITopology
+
+	CSIControllerQuery
+}
+
+func (req *ClientCSIControllerGetCapacityRequest) ToCSIRequest() (*csi.ControllerGetCapacityRequest, error) {
+	creq := &csi.ControllerGetCapacityRequest{Parameters: req.Parameters}
+	for _, cap := range req.VolumeCapabilities {
+		ccap, err := csi.VolumeCapabilityFromStructs(cap.AttachmentMode, cap.AccessMode, req.MountOptions)
+		if err != nil {
+			return nil, err
+		}
+		creq.Capabilities = append(creq.Capabilities, ccap)
+	}
+	if req.Topology != nil && len(req.Topology.Segments) > 0 {
+		creq.Topology = &csi.Topology{Segments: req.Topology.Segments}
+	}
+	return creq, nil
+}
+
+// ClientCSIControllerGetCapacityResponse is the capacity a controller
+// reports: the bytes available, and the largest and smallest size of a volume
+// when the plugin reports them.
+type ClientCSIControllerGetCapacityResponse struct {
+	AvailableCapacity int64
+	MaximumVolumeSize *int64
+	MinimumVolumeSize *int64
+}
+
 // ClientCSIControllerCreateSnapshotRequest the RPC made from the server to a
 // Nomad client to tell a CSI controller plugin on that client to perform
 // CreateSnapshot
