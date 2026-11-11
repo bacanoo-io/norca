@@ -98,6 +98,11 @@ Plan Options:
     has been supplied which is not defined within the root variables. Defaults
     to true, but ignored if "-hcl1" is also defined.
 
+  -dry-run-capacity
+    Run the plan on the server that receives it, on its copy of the state,
+    instead of the leader. The placements may be a little behind the
+    leader's state; the leader is not asked.
+
   -policy-override
     Has no effect: overriding admission policies is not supported. The flag is
     still accepted for compatibility and prints a warning.
@@ -137,16 +142,17 @@ func (c *JobPlanCommand) Synopsis() string {
 func (c *JobPlanCommand) AutocompleteFlags() complete.Flags {
 	return mergeAutocompleteFlags(c.Meta.AutocompleteFlags(FlagSetClient),
 		complete.Flags{
-			"-diff":            complete.PredictNothing,
-			"-policy-override": complete.PredictNothing,
-			"-verbose":         complete.PredictNothing,
-			"-json":            complete.PredictNothing,
-			"-hcl1":            complete.PredictNothing,
-			"-hcl2-strict":     complete.PredictNothing,
-			"-vault-token":     complete.PredictAnything,
-			"-vault-namespace": complete.PredictAnything,
-			"-var":             complete.PredictAnything,
-			"-var-file":        complete.PredictFiles("*.var"),
+			"-diff":             complete.PredictNothing,
+			"-dry-run-capacity": complete.PredictNothing,
+			"-policy-override":  complete.PredictNothing,
+			"-verbose":          complete.PredictNothing,
+			"-json":             complete.PredictNothing,
+			"-hcl1":             complete.PredictNothing,
+			"-hcl2-strict":      complete.PredictNothing,
+			"-vault-token":      complete.PredictAnything,
+			"-vault-namespace":  complete.PredictAnything,
+			"-var":              complete.PredictAnything,
+			"-var-file":         complete.PredictFiles("*.var"),
 		})
 }
 
@@ -160,7 +166,7 @@ func (c *JobPlanCommand) AutocompleteArgs() complete.Predictor {
 
 func (c *JobPlanCommand) Name() string { return "job plan" }
 func (c *JobPlanCommand) Run(args []string) int {
-	var diff, policyOverride, verbose bool
+	var diff, policyOverride, verbose, dryRunCapacity bool
 	var vaultToken, vaultNamespace string
 
 	flagSet := c.Meta.FlagSet(c.Name(), FlagSetClient)
@@ -168,6 +174,7 @@ func (c *JobPlanCommand) Run(args []string) int {
 	flagSet.BoolVar(&diff, "diff", true, "")
 	flagSet.BoolVar(&policyOverride, "policy-override", false, "")
 	flagSet.BoolVar(&verbose, "verbose", false, "")
+	flagSet.BoolVar(&dryRunCapacity, "dry-run-capacity", false, "")
 	flagSet.BoolVar(&c.JobGetter.JSON, "json", false, "")
 	flagSet.BoolVar(&c.JobGetter.HCL1, "hcl1", false, "")
 	flagSet.BoolVar(&c.JobGetter.Strict, "hcl2-strict", true, "")
@@ -245,7 +252,8 @@ func (c *JobPlanCommand) Run(args []string) int {
 	// Setup the options
 	opts := &api.PlanOptions{
 		// Always request the diff so we can tell if there are changes.
-		Diff: true,
+		Diff:           true,
+		DryRunCapacity: dryRunCapacity,
 	}
 	if job.IsMultiregion() {
 		return c.multiregionPlan(client, job, opts, diff, verbose)

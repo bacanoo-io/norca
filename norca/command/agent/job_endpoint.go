@@ -178,6 +178,7 @@ func (s *HTTPServer) jobPlan(resp http.ResponseWriter, req *http.Request,
 		Job:            sJob,
 		Diff:           args.Diff,
 		PolicyOverride: args.PolicyOverride,
+		DryRunCapacity: args.DryRunCapacity || queryBool(req, "dry_run_capacity"),
 		WriteRequest:   *writeReq,
 	}
 
@@ -467,6 +468,7 @@ func (s *HTTPServer) jobUpdate(resp http.ResponseWriter, req *http.Request, jobI
 		PolicyOverride: args.PolicyOverride,
 		PreserveCounts: args.PreserveCounts,
 		EvalPriority:   args.EvalPriority,
+		DryRunCapacity: args.DryRunCapacity || queryBool(req, "dry_run_capacity"),
 		WriteRequest:   *writeReq,
 	}
 
@@ -1979,4 +1981,18 @@ func validateEvalPriorityOpt(priority int) HTTPCodedError {
 		return CodedError(400, "Eval priority must be between 1 and 100 inclusively")
 	}
 	return nil
+}
+
+// queryBool reports whether the query parameter of the request is true
+// ("true", "1"; a bare "?name" counts as true).
+func queryBool(req *http.Request, name string) bool {
+	values, ok := req.URL.Query()[name]
+	if !ok {
+		return false
+	}
+	if len(values) == 0 || values[0] == "" {
+		return true
+	}
+	v, err := strconv.ParseBool(values[0])
+	return err == nil && v
 }

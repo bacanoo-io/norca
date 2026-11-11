@@ -107,9 +107,27 @@ func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegisterResponse) error {
 	authErr := j.srv.Authenticate(j.ctx, args)
 	multiregionRequestRegion(args)
+
+	// The server that receives the job checks it first (Norca): an early
+	// rejection, and the dry run of the placements.
+	var capacity *structs.JobCapacityCheck
+	if authErr == nil && !args.IsForwarded() && args.RequestRegion() == j.srv.config.Region {
+		if j.srv.receivesForLeader(args) {
+			if err := j.edgeValidateRegister(args); err != nil {
+				return err
+			}
+		}
+		if args.DryRunCapacity {
+			capacity = j.capacityCheck(args)
+		}
+	}
 	if done, err := j.srv.forward("Job.Register", args, args, reply); done {
+		if err == nil && capacity != nil {
+			reply.CapacityCheck = capacity
+		}
 		return err
 	}
+	reply.CapacityCheck = capacity
 	j.srv.MeasureRPCRate("job", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -1756,15 +1774,24 @@ func (j *Job) LatestDeployment(args *structs.JobSpecificRequest,
 // with a potential diff containing annotations.
 func (j *Job) Plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse) error {
 	authErr := j.srv.Authenticate(j.ctx, args)
-	if done, err := j.srv.forward("Job.Plan", args, args, reply); done {
-		return err
+	// With DryRunCapacity the server that receives the plan runs it on its
+	// own state (Norca).
+	local := args.DryRunCapacity && !args.IsForwarded() && args.RequestRegion() == j.srv.config.Region
+	if !local {
+		if done, err := j.srv.forward("Job.Plan", args, args, reply); done {
+			return err
+		}
 	}
 	j.srv.MeasureRPCRate("job", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
 	}
 	defer metrics.MeasureSince([]string{"nomad", "job", "plan"}, time.Now())
+	return j.plan(args, reply)
+}
 
+// plan runs the plan of a job on this server's state.
+func (j *Job) plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse) error {
 	// Validate the arguments
 	if args.Job == nil {
 		return fmt.Errorf("Job required for plan")

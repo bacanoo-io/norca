@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -93,6 +94,12 @@ Run Options:
     Return immediately instead of entering monitor mode. After job submission,
     the evaluation ID will be printed to the screen, which can be used to
     examine the evaluation using the eval-status command.
+
+  -dry-run-capacity
+    The server that receives the job runs a dry run of its placements on its
+    copy of the state before the job goes to the leader, and the command
+    prints the task groups that would not be placed now. It does not stop the
+    submission: the leader schedules the job as usual.
 
   -eval-priority
     Override the priority of the evaluations produced as a result of this job
@@ -184,6 +191,7 @@ func (c *JobRunCommand) AutocompleteFlags() complete.Flags {
 			"-var":              complete.PredictAnything,
 			"-var-file":         complete.PredictFiles("*.var"),
 			"-eval-priority":    complete.PredictNothing,
+			"-dry-run-capacity": complete.PredictNothing,
 		})
 }
 
@@ -198,7 +206,7 @@ func (c *JobRunCommand) AutocompleteArgs() complete.Predictor {
 func (c *JobRunCommand) Name() string { return "job run" }
 
 func (c *JobRunCommand) Run(args []string) int {
-	var detach, verbose, output, override, preserveCounts bool
+	var detach, verbose, output, override, preserveCounts, dryRunCapacity bool
 	var checkIndexStr, consulToken, consulNamespace, vaultToken, vaultNamespace string
 	var evalPriority int
 
@@ -209,6 +217,7 @@ func (c *JobRunCommand) Run(args []string) int {
 	flagSet.BoolVar(&output, "output", false, "")
 	flagSet.BoolVar(&override, "policy-override", false, "")
 	flagSet.BoolVar(&preserveCounts, "preserve-counts", false, "")
+	flagSet.BoolVar(&dryRunCapacity, "dry-run-capacity", false, "")
 	flagSet.BoolVar(&c.JobGetter.JSON, "json", false, "")
 	flagSet.BoolVar(&c.JobGetter.HCL1, "hcl1", false, "")
 	flagSet.BoolVar(&c.JobGetter.Strict, "hcl2-strict", true, "")
@@ -337,6 +346,7 @@ func (c *JobRunCommand) Run(args []string) int {
 		PreserveCounts: preserveCounts,
 		EvalPriority:   evalPriority,
 		Submission:     sub,
+		DryRunCapacity: dryRunCapacity,
 	}
 	if enforce {
 		opts.EnforceIndex = true
@@ -365,6 +375,10 @@ func (c *JobRunCommand) Run(args []string) int {
 	if resp.Warnings != "" {
 		c.Ui.Output(
 			c.Colorize().Color(fmt.Sprintf("[bold][yellow]Job Warnings:\n%s[reset]\n", resp.Warnings)))
+	}
+
+	if resp.CapacityCheck != nil {
+		c.Ui.Output(c.Colorize().Color(formatCapacityCheck(resp.CapacityCheck)))
 	}
 
 	evalID := resp.EvalID
@@ -406,4 +420,32 @@ func parseCheckIndex(input string) (uint64, bool, error) {
 
 	u, err := strconv.ParseUint(input, 10, 64)
 	return u, true, err
+}
+
+// formatCapacityCheck formats the dry run of the placements of a job
+// (-dry-run-capacity).
+func formatCapacityCheck(check *api.JobCapacityCheck) string {
+	var out strings.Builder
+	header := fmt.Sprintf("[bold]Capacity check[reset] (server %s, index %d):", check.Server, check.Index)
+	switch {
+	case check.Error != "":
+		out.WriteString(header + "\n")
+		out.WriteString(fmt.Sprintf("[yellow]  The dry run failed: %s[reset]\n", check.Error))
+	case len(check.FailedTGAllocs) == 0:
+		out.WriteString(header + "\n")
+		out.WriteString("[green]  All task groups can be placed now.[reset]\n")
+	default:
+		out.WriteString(header + "\n")
+		groups := make([]string, 0, len(check.FailedTGAllocs))
+		for tg := range check.FailedTGAllocs {
+			groups = append(groups, tg)
+		}
+		sort.Strings(groups)
+		for _, tg := range groups {
+			out.WriteString(fmt.Sprintf("[yellow]  Task Group %q would not be placed now:[reset]\n", tg))
+			out.WriteString(formatAllocMetrics(check.FailedTGAllocs[tg], false, "    "))
+			out.WriteString("\n")
+		}
+	}
+	return out.String()
 }

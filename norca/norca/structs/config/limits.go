@@ -44,6 +44,16 @@ type Limits struct {
 	// RPCMaxConnsPerClient is the maximum number of concurrent RPC
 	// connections from a single IP address. nil/0 means no limit.
 	RPCMaxConnsPerClient *int `hcl:"rpc_max_conns_per_client"`
+
+	// TokenReadRequestsPerSecond and TokenWriteRequestsPerSecond limit the
+	// read (GET, HEAD) and the write requests of one ACL token on the HTTP
+	// API of a server (Norca); requests without a known ACL token share one
+	// limit. TokenReadBurst and TokenWriteBurst are the requests allowed at
+	// once (default: the rate). nil/0 means no limit.
+	TokenReadRequestsPerSecond  *int `hcl:"token_read_requests_per_second"`
+	TokenReadBurst              *int `hcl:"token_read_burst"`
+	TokenWriteRequestsPerSecond *int `hcl:"token_write_requests_per_second"`
+	TokenWriteBurst             *int `hcl:"token_write_burst"`
 }
 
 // DefaultLimits returns the default limits values. User settings should be
@@ -74,6 +84,18 @@ func (l *Limits) Merge(o Limits) Limits {
 	if o.RPCMaxConnsPerClient != nil {
 		m.RPCMaxConnsPerClient = pointer.Of(*o.RPCMaxConnsPerClient)
 	}
+	if o.TokenReadRequestsPerSecond != nil {
+		m.TokenReadRequestsPerSecond = pointer.Of(*o.TokenReadRequestsPerSecond)
+	}
+	if o.TokenReadBurst != nil {
+		m.TokenReadBurst = pointer.Of(*o.TokenReadBurst)
+	}
+	if o.TokenWriteRequestsPerSecond != nil {
+		m.TokenWriteRequestsPerSecond = pointer.Of(*o.TokenWriteRequestsPerSecond)
+	}
+	if o.TokenWriteBurst != nil {
+		m.TokenWriteBurst = pointer.Of(*o.TokenWriteBurst)
+	}
 
 	return m
 }
@@ -87,5 +109,9 @@ func (l *Limits) Copy() Limits {
 	if l.RPCMaxConnsPerClient != nil {
 		c.RPCMaxConnsPerClient = pointer.Of(*l.RPCMaxConnsPerClient)
 	}
+	c.TokenReadRequestsPerSecond = pointer.Copy(l.TokenReadRequestsPerSecond)
+	c.TokenReadBurst = pointer.Copy(l.TokenReadBurst)
+	c.TokenWriteRequestsPerSecond = pointer.Copy(l.TokenWriteRequestsPerSecond)
+	c.TokenWriteBurst = pointer.Copy(l.TokenWriteBurst)
 	return c
 }

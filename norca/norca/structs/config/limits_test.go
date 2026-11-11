@@ -78,8 +78,19 @@ func TestLimits_Merge(t *testing.T) {
 
 	// Use short struct initialization style so it fails to compile if
 	// fields are added
-	expected := Limits{"10s", pointer.Of(100), "5s", pointer.Of(100)}
+	expected := Limits{"10s", pointer.Of(100), "5s", pointer.Of(100), nil, nil, nil, nil}
 	require.Equal(t, expected, m2)
+
+	// The token rate limits (Norca) merge like the other pointers.
+	o.TokenReadRequestsPerSecond = pointer.Of(50)
+	o.TokenWriteBurst = pointer.Of(5)
+	m4 := m2.Merge(o)
+	require.Equal(t, 50, *m4.TokenReadRequestsPerSecond)
+	require.Equal(t, 5, *m4.TokenWriteBurst)
+	require.Nil(t, m4.TokenWriteRequestsPerSecond)
+	c := m4.Copy()
+	*c.TokenReadRequestsPerSecond = 1
+	require.Equal(t, 50, *m4.TokenReadRequestsPerSecond)
 
 	// Mergin in 0 values should not change anything
 	m3 := m2.Merge(Limits{})

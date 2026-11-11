@@ -815,6 +815,11 @@ type JobRegisterRequest struct {
 	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
 
+	// DryRunCapacity (Norca) asks the server that receives the request for
+	// a dry run of the placements on its copy of the state before the job
+	// goes to the leader (JobRegisterResponse.CapacityCheck).
+	DryRunCapacity bool
+
 	// EvalPriority is an optional priority to use on any evaluation created as
 	// a result on this job registration. This value must be between 1-100
 	// inclusively, where a larger value corresponds to a higher priority. This
@@ -954,6 +959,11 @@ type JobPlanRequest struct {
 	// PolicyOverride is ignored: overriding admission policies is not
 	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
+
+	// DryRunCapacity (Norca) runs the plan on the server that receives the
+	// request, on its own copy of the state, instead of the leader: the
+	// placements may be a little behind the leader's state.
+	DryRunCapacity bool
 	WriteRequest
 }
 
@@ -1577,7 +1587,27 @@ type JobRegisterResponse struct {
 	// deprecation warnings.
 	Warnings string
 
+	// CapacityCheck is the dry run of the placements the request asked for
+	// with DryRunCapacity (Norca).
+	CapacityCheck *JobCapacityCheck
+
 	QueryMeta
+}
+
+// JobCapacityCheck is a dry run of the placements of a job, made by the
+// server that received the request on its copy of the state before the job
+// went to the leader (Norca). It does not bind: the leader schedules as
+// usual.
+type JobCapacityCheck struct {
+	// Server is the server that ran it, Index the Raft index of its state.
+	Server string
+	Index  uint64
+
+	// FailedTGAllocs are the task groups that would not be placed now.
+	FailedTGAllocs map[string]*AllocMetric
+
+	// Error says why the dry run could not run.
+	Error string
 }
 
 // JobDeregisterResponse is used to respond to a job deregistration

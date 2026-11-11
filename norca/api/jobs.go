@@ -132,6 +132,11 @@ type RegisterOptions struct {
 	PreserveCounts bool
 	EvalPriority   int
 	Submission     *JobSubmission
+
+	// DryRunCapacity asks the server that receives the job for a dry run
+	// of the placements on its copy of the state (Norca); the result is in
+	// JobRegisterResponse.CapacityCheck.
+	DryRunCapacity bool
 }
 
 // Register is used to register a new job. It returns the ID
@@ -160,6 +165,7 @@ func (j *Jobs) RegisterOpts(job *Job, opts *RegisterOptions, q *WriteOptions) (*
 		req.PreserveCounts = opts.PreserveCounts
 		req.EvalPriority = opts.EvalPriority
 		req.Submission = opts.Submission
+		req.DryRunCapacity = opts.DryRunCapacity
 	}
 
 	var resp JobRegisterResponse
@@ -444,6 +450,10 @@ type PlanOptions struct {
 	// PolicyOverride is ignored by the server: overriding admission policies
 	// is not supported.
 	PolicyOverride bool
+
+	// DryRunCapacity runs the plan on the server that receives it, on its
+	// copy of the state, instead of the leader (Norca).
+	DryRunCapacity bool
 }
 
 func (j *Jobs) Plan(job *Job, diff bool, q *WriteOptions) (*JobPlanResponse, *WriteMeta, error) {
@@ -466,6 +476,7 @@ func (j *Jobs) PlanOpts(job *Job, opts *PlanOptions, q *WriteOptions) (*JobPlanR
 	if opts != nil {
 		req.Diff = opts.Diff
 		req.PolicyOverride = opts.PolicyOverride
+		req.DryRunCapacity = opts.DryRunCapacity
 	}
 
 	var resp JobPlanResponse
@@ -1372,6 +1383,9 @@ type JobRegisterRequest struct {
 	// change the job priority which also impacts preemption.
 	EvalPriority int `json:",omitempty"`
 
+	// DryRunCapacity: see RegisterOptions.DryRunCapacity (Norca).
+	DryRunCapacity bool `json:",omitempty"`
+
 	WriteRequest
 }
 
@@ -1385,7 +1399,27 @@ type JobRegisterResponse struct {
 	// deprecation warnings.
 	Warnings string
 
+	// CapacityCheck is the dry run of the placements asked for with
+	// DryRunCapacity (Norca).
+	CapacityCheck *JobCapacityCheck
+
 	QueryMeta
+}
+
+// JobCapacityCheck is a dry run of the placements of a job, made by the
+// server that received the request on its copy of the state before the job
+// went to the leader (Norca). It does not bind: the leader schedules as
+// usual.
+type JobCapacityCheck struct {
+	// Server is the server that ran it, Index the Raft index of its state.
+	Server string
+	Index  uint64
+
+	// FailedTGAllocs are the task groups that would not be placed now.
+	FailedTGAllocs map[string]*AllocationMetric
+
+	// Error says why the dry run could not run.
+	Error string
 }
 
 // JobDeregisterResponse is used to respond to a job deregistration
@@ -1403,6 +1437,10 @@ type JobPlanRequest struct {
 	// PolicyOverride is ignored by the server: overriding admission policies
 	// is not supported.
 	PolicyOverride bool
+
+	// DryRunCapacity runs the plan on the server that receives it, on its
+	// copy of the state, instead of the leader (Norca).
+	DryRunCapacity bool `json:",omitempty"`
 
 	WriteRequest
 }

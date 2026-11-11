@@ -104,6 +104,10 @@ type HTTPServer struct {
 	Addr       string
 
 	wsUpgrader *websocket.Upgrader
+
+	// rateLimiter limits the requests per ACL token on a server (limits
+	// token_*); nil without limits.
+	rateLimiter *tokenRateLimiter
 }
 
 // NewHTTPServers starts an HTTP server for every address.http configured in
@@ -127,6 +131,21 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 	}
 	if maxConns < 0 {
 		return srvs, fmt.Errorf("http_max_conns_per_client must be >= 0")
+	}
+
+	// Requests per ACL token, on servers only (Norca).
+	var limiter *tokenRateLimiter
+	if srv := agent.Server(); srv != nil {
+		limiter, err = newTokenRateLimiter(config.Limits, func(secret string) string {
+			token, err := srv.State().ACLTokenBySecretID(nil, secret)
+			if err != nil || token == nil || token.IsExpired(time.Now()) {
+				return anonymousBucket
+			}
+			return token.AccessorID
+		})
+		if err != nil {
+			return srvs, err
+		}
 	}
 
 	tlsConf, err := tlsutil.NewTLSConfiguration(config.TLSConfig, config.TLSConfig.VerifyHTTPSClient, true)
@@ -181,6 +200,7 @@ func NewHTTPServers(agent *Agent, config *Config) ([]*HTTPServer, error) {
 			logger:       agent.httpLogger,
 			Addr:         ln.Addr().String(),
 			wsUpgrader:   wsUpgrader,
+			rateLimiter:  limiter,
 		}
 		srv.registerHandlers(config.EnableDebug)
 
@@ -782,6 +802,9 @@ func errCodeFromHandler(err error) (int, string) {
 func (s *HTTPServer) wrap(handler func(resp http.ResponseWriter, req *http.Request) (interface{}, error)) func(resp http.ResponseWriter, req *http.Request) {
 	f := func(resp http.ResponseWriter, req *http.Request) {
 		setHeaders(resp, s.agent.GetConfig().HTTPAPIResponseHeaders)
+		if s.rateLimited(resp, req) {
+			return
+		}
 		// Invoke the handler
 		reqURL := req.URL.String()
 		start := time.Now()
@@ -866,6 +889,9 @@ func (s *HTTPServer) wrap(handler func(resp http.ResponseWriter, req *http.Reque
 func (s *HTTPServer) wrapNonJSON(handler func(resp http.ResponseWriter, req *http.Request) ([]byte, error)) func(resp http.ResponseWriter, req *http.Request) {
 	f := func(resp http.ResponseWriter, req *http.Request) {
 		setHeaders(resp, s.agent.GetConfig().HTTPAPIResponseHeaders)
+		if s.rateLimited(resp, req) {
+			return
+		}
 		// Invoke the handler
 		reqURL := req.URL.String()
 		start := time.Now()
