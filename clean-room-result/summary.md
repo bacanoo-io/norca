@@ -3,14 +3,14 @@
 | Property | Value |
 | --- | --- |
 | norca_ref | `main` |
-| norca_commit | `a72e8768535ff764fbad15f247466f0bf0334956` |
+| norca_commit | `f194f1920c609a9eba22edeaa8a978ddbb7d9323` |
 | base_tag | `v1.6.5` |
 | bsl_tag | `v1.11.3` |
 | bsl_commit | `173ab08a0210789da531847c4ce3c3518f7fb34b` |
 | dolos | `2.10.0` |
 | sets | `busl,bugfix` |
 | threshold | `0.4` |
-| date | `2026-11-08T16:20:08Z` |
+| date | `2026-11-11T12:02:03Z` |
 
 ## busl
 
@@ -73,32 +73,32 @@ Not in the v1.6.5 tree, but the MPL anchor (the import's second parent) has the 
 
 ## bugfix
 
-2346 cross pairs, 2 at or above 0.4; same-path pairs: 51.
+7676 cross pairs, 4 at or above 0.4; same-path pairs: 101.
 
 | Norca commit and file | HashiCorp file | Similarity | Longest fragment | Total overlap |
 | --- | --- | --- | --- | --- |
 | 77aa0af7e00e nomad/structs/structs.generated.go | nomad/structs/structs.generated.go | 0.507 | 361 | 201544 |
 | 32e5db0980b2 nomad/structs/structs.generated.go | nomad/structs/structs.generated.go | 0.427 | 346 | 168467 |
+| 8dd43588bbb7 nomad/structs/structs.generated.go | nomad/structs/structs.generated.go | 0.410 | 346 | 161841 |
+| 2914fa12fb95 nomad/structs/structs.generated.go | nomad/structs/structs.generated.go | 0.406 | 346 | 160008 |
+| 2313592329f0 nomad/structs/structs.generated.go | nomad/structs/structs.generated.go | 0.378 | 72 | 148755 |
 | 32e5db0980b2 command/commands.go | command/commands.go | 0.261 | 3 | 121 |
+| 8dd43588bbb7 command/commands.go | command/commands.go | 0.242 | 3 | 109 |
 | 8aa389f276a1 nomad/structs/structs.generated.go | nomad/structs/structs.generated.go | 0.226 | 138 | 88552 |
+| 8dd43588bbb7 command/agent/operator_endpoint.go | command/agent/operator_endpoint.go | 0.224 | 10 | 136 |
+| 8087e57bc556 nomad/structs/structs.generated.go | nomad/structs/structs.generated.go | 0.209 | 67 | 81997 |
+| 2313592329f0 command/job_plan.go | command/job_run.go | 0.177 | 4 | 65 |
 | 7e699b9f3c91 plugins/drivers/driver.go | plugins/drivers/driver.go | 0.099 | 2 | 20 |
 | 4e4b1eaa35e4 nomad/node_endpoint_test.go | nomad/node_endpoint_test.go | 0.093 | 9 | 792 |
+| 8dd43588bbb7 api/operator.go | api/operator.go | 0.086 | 4 | 55 |
+| 8dd43588bbb7 command/agent/operator_endpoint.go | command/agent/job_endpoint.go | 0.071 | 10 | 134 |
 | cc4d34a8fec4 plugins/drivers/client.go | plugins/drivers/client.go | 0.069 | 5 | 22 |
+| 4e4b1eaa35e4 nomad/node_endpoint_test.go | nomad/operator_endpoint_test.go | 0.068 | 5 | 110 |
+| 8dd43588bbb7 command/agent/operator_endpoint_test.go | command/agent/operator_endpoint_test.go | 0.059 | 5 | 49 |
+| 2313592329f0 command/job_run.go | command/job_run.go | 0.050 | 7 | 23 |
 | 4e4b1eaa35e4 nomad/drainer_int_test.go | nomad/drainer_int_test.go | 0.036 | 3 | 9 |
+| 4e4b1eaa35e4 nomad/drainer_int_test.go | nomad/operator_endpoint_test.go | 0.035 | 2 | 39 |
 | 7e699b9f3c91 client/allocrunner/taskrunner/task_runner_hooks.go | client/allocrunner/taskrunner/task_runner_hooks.go | 0.034 | 3 | 13 |
 | 4e4b1eaa35e4 nomad/node_endpoint_test.go | nomad/heartbeat_test.go | 0.033 | 4 | 29 |
 | 7e699b9f3c91 plugins/base/base.go | plugins/base/base.go | 0.031 | 4 | 16 |
 | 4e4b1eaa35e4 nomad/drainer_int_test.go | nomad/node_endpoint_test.go | 0.028 | 5 | 224 |
-| d2529f1c96ba nomad/volumewatcher/volumes_watcher_test.go | nomad/volumewatcher/volumes_watcher_test.go | 0.023 | 3 | 28 |
-| 4e4b1eaa35e4 nomad/heartbeat_test.go | plugins/shared/structs/attribute_test.go | 0.022 | 1 | 2 |
-| 4e4b1eaa35e4 nomad/heartbeat_test.go | nomad/heartbeat_test.go | 0.021 | 1 | 8 |
-| 4e4b1eaa35e4 nomad/heartbeat.go | nomad/heartbeat.go | 0.019 | 1 | 2 |
-| 4e4b1eaa35e4 nomad/node_endpoint_test.go | nomad/drainer_int_test.go | 0.018 | 3 | 14 |
-| d25baac9831c drivers/docker/coordinator.go | drivers/docker/coordinator.go | 0.017 | 2 | 10 |
-| 4e4b1eaa35e4 nomad/heartbeat_test.go | drivers/docker/driver_linux_test.go | 0.017 | 2 | 5 |
-| 4e4b1eaa35e4 nomad/node_endpoint.go | nomad/node_endpoint.go | 0.016 | 4 | 32 |
-| 4e4b1eaa35e4 nomad/node_endpoint_test.go | plugins/csi/client_test.go | 0.016 | 2 | 13 |
-| 7e699b9f3c91 plugins/drivers/driver.go | plugins/drivers/server.go | 0.015 | 1 | 2 |
-| 7e699b9f3c91 plugins/drivers/driver.go | client/allocrunner/taskrunner/task_dir_hook.go | 0.013 | 1 | 2 |
-| 4e4b1eaa35e4 nomad/heartbeat_test.go | nomad/node_endpoint_test.go | 0.013 | 4 | 106 |
-| 7e699b9f3c91 plugins/drivers/driver.go | plugins/drivers/client.go | 0.011 | 1 | 2 |
