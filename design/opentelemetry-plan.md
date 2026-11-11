@@ -671,6 +671,35 @@ Elsewhere: the otel-collector pack README and variables (`norca-registry`), the 
 (it mentions `prometheus_metrics`, `norca-deployer/design/norca-deployer-design.md`), and the lab
 case. The UI design review needs no change (no UI part).
 
+## Operator audit and event export (open)
+
+Moved here on 2026-11-11 from phase 5 of raft-observers-and-hot-standby.md (8.4 and 8.5), which
+was postponed: with OTLP log export the long-term keeping of logs and events is the backend's job,
+not a history stream on observers. Not decided yet; part of the requirements still to come before
+phase 0.
+
+1. **Audit of operator write calls.** Today the event stream shows state changes, not who caused
+   them (a server gone from the Raft configuration shows, the `operator raft remove-peer` that
+   removed it does not). Proposed: one structured log record at INFO per operator **write** call
+   (`Operator.RaftRemovePeerByID`, `Operator.AutopilotSetConfiguration`,
+   `Operator.SchedulerSetConfiguration`, `Operator.RaftPromoteStandby`, `Keyring.Rotate`,
+   `Backup.Restore`, `Backup.Save`, seal and unseal, `Node.UpdateDrain`, `Node.UpdateEligibility`,
+   the snapshot restore, `System.GarbageCollect`, ...; one table next to the endpoints), with the
+   keys of the convention: `audit = true`, `operation`, the token accessor ID and name or the
+   workload identity, the receiving server, `result` (success or the error), and a parameter summary
+   from an **allow list** per operation. **No secret ever enters a record** (unseal shares, keys,
+   tokens, recovery material, secret values). Reads are not recorded. The records go wherever the
+   logs go (file, syslog, `/v1/agent/monitor`, OTLP in phase 5). Open: whether an `Operator` event
+   topic for live subscribers comes along (ACL: operator read).
+2. **Event stream export.** The events of `NORCA_EVENTS_<region>` (allocation lifecycle, task exit
+   codes, deployments, evaluations, nodes, scaling, backups, `Server`) are kept for 72 hours.
+   Proposed: an optional exporter that subscribes on the leader (or one server, under the event
+   stream ACL of a configured token) and sends each event as an OTLP log record (body: the payload
+   as JSON, attributes: `norca.event.topic`, `norca.event.type`, `norca.event.key`, namespace,
+   index), with a topic filter (default: `Job`, `Allocation`, `Deployment`, `Node`, `Scaling`,
+   `Backup`, `Server`; ACL, `Variables`, `Secret` and `SecretAccess` only when listed) and resumable
+   from the last exported index. Off by default; it needs the log signal (phase 5).
+
 ## Phases and acceptance
 
 | Phase | Content | Acceptance |

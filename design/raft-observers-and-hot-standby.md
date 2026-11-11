@@ -5,7 +5,7 @@ SPDX-License-Identifier: MPL-2.0
 
 # Raft observers and hot standby servers
 
-**Status:** Draft · 2026-11-11 · all questions decided · phase 1 built (norca PR #14, docs PR #23) · phase 2 built (branches feat/raft-standby, deployer feat/server-role, lab case-raft-standby, docs raft-standby; lab run pending) · clean room development (see [Clean room](#1-clean-room))
+**Status:** Draft · 2026-11-11 · all questions decided · phase 1 built (norca PR #14, docs PR #23) · phase 2 built and merged (norca 8dd43588b, lab passed) · phase 3 built and merged (norca 2914fa12f, lab passed) · phase 4 built and merged (norca 231359232) · phase 5 postponed 2026-11-11 (see 8.4) · clean room development (see [Clean room](#1-clean-room))
 · inputs: two Hungarian drafts of the user ("Observer Tier alapok és Hot-Standby failover",
 "Observer Tier rendszerbővítések"), not derived from Enterprise code (user, 2026-11-11), and the
 review of 2026-11-11. Related: [raft-topology-and-cross-region.md](raft-topology-and-cross-region.md),
@@ -219,6 +219,14 @@ stay where they are (every server compacts its own log); what moves is the **bac
 - The manifest records the server that took the backup (`LeaderID` becomes `TakenBy`) and its index;
   restore is unchanged.
 - The seal and the backup recipients are the same on every server, so an observer can encrypt.
+- Built (phase 3): RPC `Backup.TakeForLeader` (server certificate, current leader only, observer role
+  only); the leader gives the ID, so `-detach` keeps answering at once; the observer takes the backup
+  only with the same `backup` configuration (a fingerprint of destinations, encryption and
+  include_keyring, credentials excluded), which is also how an observer is left out; a refusal or a
+  failed observer backup: the leader takes it with the same ID; no answer: the ID is recorded as
+  failed and the leader takes a new one; the pre-restore backup always on the leader. Found on the
+  way: Raft refuses a snapshot after a configuration change until the next state write; the leader
+  then writes an empty backup update and retries.
 
 ### 8.2 Heartbeat relay (later phase)
 
@@ -251,7 +259,27 @@ any follower) can reject bad requests before they reach the leader:
    `limits { token_requests_per_second, token_burst }`, `0` = off; `429` with `Retry-After`. Write and
    read limits separately. No limit per client address.
 
+Built (phase 4, 2026-11-11), with one change against point 1: the receiving server runs the mutators
+without the webhook mutator and then the static job validation only (`Job.Validate`, payload, type,
+priority); it skips the check when a mutating webhook applies to the namespace (it may complete the
+job). The validators that read the state (quotas, node pools, namespaces, secrets), the CEL admission
+policies and the validating webhooks stay with the leader: the state of the receiving server may be
+behind (a false rejection), the `JobAdmissionDenied` events are published by the leader only, and the
+webhooks would be called twice. The dry run is `dry_run_capacity` on register (the result in
+`JobRegisterResponse.CapacityCheck`) and on plan (the plan runs on the receiving server). The limits
+are `limits { token_read_requests_per_second, token_read_burst, token_write_requests_per_second,
+token_write_burst }`, on servers only; requests without a known ACL token (anonymous, unknown,
+workload identities) share one bucket.
+
 ### 8.4 History without a database
+
+> **Postponed (user, 2026-11-11).** The OpenTelemetry plan (opentelemetry-plan.md) brings OTLP log
+> export, and the long-term keeping and searching of logs is left to the backend the user runs there
+> (its goal 7 covers the metrics only). A history stream on observers with its own API would mostly
+> duplicate that backend. Two parts moved to the OpenTelemetry plan as open points: the audit of
+> operator write calls (8.5, as structured audit log records) and an optional export of the event
+> stream as OTLP log records, so the events outlive the 72 hours of `NORCA_EVENTS_<region>`. The
+> text below is kept as the design of record.
 
 There is no database in Norca, and none is added. The history the drafts asked for comes from the
 existing stores:
@@ -270,6 +298,10 @@ existing stores:
   with an observer (another observer has the replicated stream).
 
 ### 8.5 Operator events
+
+> **Moved (2026-11-11)** to the OpenTelemetry plan, "Operator audit and event export (open)": the
+> audit of operator write calls as structured log records. Whether an `Operator` event topic for
+> live subscribers comes along is decided there.
 
 The event stream sees state changes, not who caused them: a server gone from the Raft configuration
 shows, the `operator raft remove-peer` that removed it does not. A new **`Operator`** topic records every
@@ -343,9 +375,9 @@ This is Norca's own design, not modelled on any audit log product (clean room, s
 | --- | --- |
 | 1 | `role` and the Serf tag, the Norca promoter (voter / observer rules), `bootstrap_expect`, list-peers and health output, docs — **built 2026-11-11** (norca `8087e57bc`, PR #14; docs PR #23) |
 | 2 | Standby: `target_voters`, failover and demotion rules, cooldown, `promote-standby`, events and metrics, lab case — **built 2026-11-11** (norca `feat/raft-standby`; deployer `server_settings.role`; lab case `standby`; lab run pending) |
-| 3 | Backups from observers (`prefer_observer`) |
-| 4 | Job checks on the receiving server and API rate limits |
-| 5 | History stream on observers and its API; the `Operator` and `Server` topics |
+| 3 | Backups from observers (`prefer_observer`) — **built 2026-11-11** (norca `feat/observer-backups`; deployer `backup.prefer_observer`; lab step `standby-backup`; lab run pending) |
+| 4 | Job checks on the receiving server and API rate limits — **built 2026-11-11** (norca `feat/edge-checks`; no lab case) |
+| 5 | History stream on observers and its API; the `Operator` and `Server` topics — **postponed 2026-11-11** (8.4): the operator audit and the event export moved to the OpenTelemetry plan; the `Server` topic was built in phase 2 |
 | 6 | Heartbeat relay, only if the measurement of 8.2 asks for it |
 
 Each phase is its own branch and PR; the lab case runs after phases 2, 3 and 5.
