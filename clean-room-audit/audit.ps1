@@ -23,6 +23,7 @@
   .\clean-room-audit\audit.ps1
   .\clean-room-audit\audit.ps1 -Sets bugfix -BslTag v1.10.5 -Threshold 0.3
   .\clean-room-audit\audit.ps1 -NorcaUrl https://github.com/<owner>/norca.git -OutDir out
+  .\clean-room-audit\audit.ps1 -CACert C:\certs\proxy-root.cer
 #>
 param(
     # The Norca revision to audit.
@@ -37,7 +38,11 @@ param(
     # Default: clean-room-result\ of the checkout this script belongs to.
     [string]$OutDir = '',
     [string]$DolosVersion = '2.10.0',
-    [string]$Image = 'node:24-bookworm'
+    [string]$Image = 'node:24-bookworm',
+    # A certificate file (PEM, or DER as Windows exports it) of extra
+    # certificate authorities for npm and git inside the container: the root
+    # certificate of a proxy or an antivirus that intercepts TLS.
+    [string]$CACert = ''
 )
 $ErrorActionPreference = 'Stop'
 
@@ -53,11 +58,33 @@ function DockerPath([string]$Path) { $Path -replace '\\', '/' }
 # A local checkout is mounted read-only and cloned from inside the container.
 if (Test-Path -LiteralPath $NorcaUrl -PathType Container) {
     $Source = (Resolve-Path -LiteralPath $NorcaUrl).Path
+    # A git worktree has a .git file that points to a path of this computer,
+    # which the container does not have.
+    if (Test-Path -LiteralPath (Join-Path $Source '.git') -PathType Leaf) {
+        throw "$Source is a git worktree, which can't be cloned in the container: give -NorcaUrl the main checkout and -NorcaRef the branch"
+    }
     $SourceArgs = @('-v', "$(DockerPath $Source):/norca-src:ro", '-e', 'NORCA_URL=/norca-src')
     $Where = "the local checkout $Source"
 } else {
     $SourceArgs = @('-e', "NORCA_URL=$NorcaUrl")
     $Where = $NorcaUrl
+}
+
+# Extra certificate authorities, mounted read-only as PEM.
+$CAArgs = @()
+if ($CACert) {
+    if (-not (Test-Path -LiteralPath $CACert -PathType Leaf)) { throw "-CACert: no file $CACert" }
+    $CACert = (Resolve-Path -LiteralPath $CACert).Path
+    $text = [System.IO.File]::ReadAllText($CACert)
+    if ($text -notmatch '-----BEGIN CERTIFICATE-----') {
+        # DER: convert to PEM in a temporary file.
+        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 -ArgumentList $CACert
+        $b64 = [Convert]::ToBase64String($cert.RawData, 'InsertLineBreaks')
+        $pem = Join-Path ([System.IO.Path]::GetTempPath()) ("audit-ca-{0}.pem" -f [guid]::NewGuid())
+        [System.IO.File]::WriteAllText($pem, "-----BEGIN CERTIFICATE-----`n$b64`n-----END CERTIFICATE-----`n")
+        $CACert = $pem
+    }
+    $CAArgs = @('-v', "$(DockerPath $CACert):/audit-ca/ca.pem:ro", '-e', 'CA_CERT=/audit-ca/ca.pem')
 }
 
 Write-Host "==> Clean room audit of $NorcaRef ($Where) against Nomad $BslTag (sets: $Sets) into $OutDir" -ForegroundColor Cyan
@@ -66,7 +93,7 @@ Write-Host "==> Clean room audit of $NorcaRef ($Where) against Nomad $BslTag (se
 # ErrorActionPreference 'Stop'. So the docker call runs with 'Continue' and
 # its output is converted to plain text; only the exit code decides.
 $ErrorActionPreference = 'Continue'
-& docker run --rm @SourceArgs `
+& docker run --rm @SourceArgs @CAArgs `
     -v "$(DockerPath $Here):/audit:ro" -v "$(DockerPath $OutDir):/out" `
     -e "NORCA_REF=$NorcaRef" -e "BSL_TAG=$BslTag" -e "SETS=$Sets" `
     -e "THRESHOLD=$Threshold" -e "DOLOS_VERSION=$DolosVersion" `

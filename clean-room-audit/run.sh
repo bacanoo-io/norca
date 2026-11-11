@@ -10,7 +10,9 @@
 # Environment: NORCA_REF, BSL_TAG (a tag or "latest"), SETS (busl,bugfix),
 # THRESHOLD, DOLOS_VERSION; optional NORCA_URL, the repository to clone Norca
 # from (default: GitHub; audit.ps1 mounts the checkout it is part of
-# read-only at /norca-src and passes that path).
+# read-only at /norca-src and passes that path); optional CA_CERT, a PEM file
+# of extra certificate authorities for npm and git (a proxy or an antivirus
+# that intercepts TLS).
 set -euo pipefail
 
 # The whole script is one function, so bash reads it completely before it
@@ -32,6 +34,25 @@ main() {
 	git config --global --add safe.directory '*'
 	git config --global maintenance.auto false
 
+	# Extra certificate authorities: Node adds them to its own, git gets the
+	# system bundle with them appended.
+	if [ -n "${CA_CERT:-}" ]; then
+		[ -r "$CA_CERT" ] || { log "CA_CERT $CA_CERT is not readable"; exit 1; }
+		export NODE_EXTRA_CA_CERTS=$CA_CERT
+		cat /etc/ssl/certs/ca-certificates.crt "$CA_CERT" >/tmp/ca-bundle.crt
+		git config --global http.sslCAInfo /tmp/ca-bundle.crt
+		log "using the extra certificate authorities of $CA_CERT"
+	fi
+
+	# tls_hint explains a failed download when the log shows a certificate
+	# that does not verify.
+	tls_hint() {
+		if grep -qiE 'certificate|UNABLE_TO_VERIFY|SELF_SIGNED|unable to get local issuer' "$1" 2>/dev/null; then
+			log "a certificate did not verify: a proxy or an antivirus may intercept TLS;" \
+				"give its root certificate with -CACert (audit.ps1) or CA_CERT, or turn the interception off for the run"
+		fi
+	}
+
 	# retry runs a network command up to four times: GitHub occasionally drops
 	# a TLS connection ("gnutls_handshake() failed").
 	retry() {
@@ -45,21 +66,37 @@ main() {
 	}
 
 	log "installing Dolos $DOLOS_VERSION"
-	retry npm install -g --silent "@dodona/dolos@$DOLOS_VERSION" >/dev/null 2>&1
+	npm_install() { npm install -g --no-fund --no-audit --loglevel=error "@dodona/dolos@$DOLOS_VERSION" >/tmp/npm-install.log 2>&1; }
+	if ! retry npm_install; then
+		log "installing Dolos failed; the end of the npm log:"
+		tail -n 15 /tmp/npm-install.log >&2
+		tls_hint /tmp/npm-install.log
+		exit 1
+	fi
 
 	# Norca: a full clone (the clean room commits need their parents' trees).
 	# Nomad: only the two tag commits, each fetched once with its whole tree,
 	# so no blob is fetched later on demand.
 	log "cloning Norca ($NORCA_REF)"
-	retry git clone -q --no-checkout "$NORCA_URL" "$W/norca"
+	if ! retry git clone -q --no-checkout "$NORCA_URL" "$W/norca" 2>/tmp/git-clone.log; then
+		tail -n 15 /tmp/git-clone.log >&2
+		tls_hint /tmp/git-clone.log
+		exit 1
+	fi
 	# A clone has a local branch only for the checked-out branch of its source;
 	# other branches are origin/<name>.
 	norca_rev=$(git -C "$W/norca" rev-parse -q --verify "$NORCA_REF^{commit}" ||
 		git -C "$W/norca" rev-parse -q --verify "origin/$NORCA_REF^{commit}") ||
 		{ log "unknown Norca revision $NORCA_REF"; exit 1; }
 	if [ "$BSL_TAG" = latest ]; then
-		BSL_TAG=$(retry git ls-remote --tags --refs "$NOMAD_URL" 'v1.*' | sed 's|.*refs/tags/||' |
-			grep -E '^v1\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+		BSL_TAG=$(retry git ls-remote --tags --refs "$NOMAD_URL" 'v1.*' 2>/tmp/git-tags.log | sed 's|.*refs/tags/||' |
+			grep -E '^v1\.[0-9]+\.[0-9]+$' | sort -V | tail -1) || true
+		if [ -z "$BSL_TAG" ]; then
+			log "could not list the Nomad tags of $NOMAD_URL:"
+			tail -n 15 /tmp/git-tags.log >&2
+			tls_hint /tmp/git-tags.log
+			exit 1
+		fi
 	fi
 	log "fetching Nomad $BASE_TAG and $BSL_TAG"
 	git init -q "$W/nomad"

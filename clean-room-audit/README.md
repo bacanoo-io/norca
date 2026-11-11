@@ -34,6 +34,7 @@ Dolos' own output, which contains code, is removed with the container.
 | `OutDir` | `clean-room-result/` of the checkout | Where the result is written |
 | `DolosVersion` | `2.10.0` | The version of [Dolos](https://github.com/dodona-edu/dolos) |
 | `Image` | `node:24-bookworm` | The container image |
+| `CACert` | none | A certificate file (PEM, or DER as Windows exports it) of extra certificate authorities for npm and git in the container: the root certificate of a proxy or an antivirus that intercepts TLS. Mounted read-only; `CA_CERT` without `audit.ps1` |
 
 The base of the comparison is always Nomad `v1.6.5`, the last MPL release,
 which Norca imported.
@@ -168,6 +169,14 @@ docker run --rm \
   -e THRESHOLD=0.4 -e DOLOS_VERSION=2.10.0 \
   node:24-bookworm bash /audit/run.sh
 ```
+
+A proxy or an antivirus that intercepts TLS (it re-signs the HTTPS
+connections with its own root certificate) makes the downloads of the
+container fail with "unable to verify the first certificate" or "server
+certificate verification failed". The audit then prints the end of the log
+and a hint: give the root certificate with `-CACert` (exported from the
+Windows certificate store, for example from "Trusted Root Certification
+Authorities"), or turn the interception off for the run.
 
 ## Limits
 
