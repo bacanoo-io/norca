@@ -671,12 +671,13 @@ Elsewhere: the otel-collector pack README and variables (`norca-registry`), the 
 (it mentions `prometheus_metrics`, `norca-deployer/design/norca-deployer-design.md`), and the lab
 case. The UI design review needs no change (no UI part).
 
-## Operator audit and event export (open)
+## Operator audit and event export
 
 Moved here on 2026-11-11 from phase 5 of raft-observers-and-hot-standby.md (8.4 and 8.5), which
 was postponed: with OTLP log export the long-term keeping of logs and events is the backend's job,
-not a history stream on observers. Not decided yet; part of the requirements still to come before
-phase 0.
+not a history stream on observers. *Decided 2026-11-11 (user): both accepted as proposed* (decisions
+16 and 17); the audit records come with phase 2, the event export with phase 5. Still open: whether
+an `Operator` event topic for live subscribers comes along with the audit records.
 
 1. **Audit of operator write calls.** Today the event stream shows state changes, not who caused
    them (a server gone from the Raft configuration shows, the `operator raft remove-peer` that
@@ -706,10 +707,10 @@ phase 0.
 | --- | --- | --- |
 | 0 | The removal of the statsd, statsite, DogStatsD and Circonus sinks with their keys and dependencies (its own commit, first). `helper/telemetry`: config structs, parse, merge, validation, `-dev` defaults; resource; gRPC exporter construction (TLS, headers, `headers_file`, gzip, timeout, retry); provider lifecycle and ordered shutdown; error handler with rate limit and `nomad.agent.otlp.*` counters; the in-process OTLP test server. `prometheus { enabled, expiration }` replaces `prometheus_metrics`. | Config tests pass for every key and error case; an agent with `otlp` pointing to a closed port starts in the same time as without and logs one rate-limited warning per signal per minute; shutdown completes within 5 s with the collector down; with the test server up, an empty export round-trips over TLS, mTLS and plaintext with headers and gzip. |
 | 1 | Metrics: the rename to `norca.*` first (naming table, call sites, bridge prefix, internal readers: metrics store, cluster gauges, autoscaler sources, UI charts; metrics reference, packs, dashboards); then the go-metrics → OTel bridge sink in the fanout; histogram buckets; cardinality limit; the otel-collector pack's OTLP mode and `127.0.0.1` listener; docs for `telemetry` and metrics. | No `nomad.*` metric name is left in the code or the docs; with Prometheus off, the lab collector receives the `norca.*` RPC, Raft, allocation and runtime metrics with the resource attributes; series of a stopped allocation disappear after the expiry; `/v1/metrics` JSON, the metrics store and the autoscaler `norca` source behave as before (their tests unchanged); bridge benchmark within 1.5× the Prometheus sink per call. |
-| 2 | Structured logs: final key list, the analyzer, renames package group by package group (server, client, agent, drivers, helpers), `fmt.Sprintf` messages converted, level fixes, context loggers in worker/plan applier/watchers. | The analyzer reports nothing on the `norca` module; `log_json` output of a lab run has only convention keys for IDs; no log line interpolates a value into the message; tests that assert log output updated. |
+| 2 | Structured logs: final key list, the analyzer, renames package group by package group (server, client, agent, drivers, helpers), `fmt.Sprintf` messages converted, level fixes, context loggers in worker/plan applier/watchers. The audit records of operator write calls ([decision 16](#operator-audit-and-event-export)): the operation table with its allow lists, one record per call. | The analyzer reports nothing on the `norca` module; `log_json` output of a lab run has only convention keys for IDs; no log line interpolates a value into the message; tests that assert log output updated. |
 | 3 | Traces, core: TracerProvider and sampler; otelhttp with route names and exclusions; `TraceParent` in `InternalRpcInfo` (codec regenerated); the RPC codec wrapper on servers, in-process RPC and the client RPC server; forwarding and Raft apply spans; FSM apply on the leader; `trace_id` in HTTP/RPC logs; `Norca-Trace-Id` header; `trust_http_parent`. | A `norca job run` against a follower yields one trace: HTTP span → `Job.Register` on the follower → forward → `Job.Register` on the leader → `raft.apply` → `fsm.apply`; excluded methods create no spans; an incoming sampled `traceparent` is a link unless trusted; the request's log lines carry the same `trace_id`; bench soak within budget. |
 | 4 | Traces, scheduling and clients: eval broker span-context map and `Eval.Dequeue` reply field; `eval.process`, scheduler, plan submit/evaluate/apply spans; client phase spans (start, stop, restart, GC, hooks, artifact, image pull); otelgrpc client handler on plugin clients with stream filtering; `trace_id` in the corresponding logs. | The job-run trace continues into `eval.process` → `plan.apply` on the leader; the client's `alloc.start` trace for that allocation has the same `norca.eval.id`; a driver `StartTask` span appears under `task.start`; after a leader change, re-enqueued evals produce root traces without errors; lab `observability` case passes. |
-| 5 | Logs over OTLP: hclog sink, severity and attribute mapping, trace fields, loop guard, `otlp.logs.level` reload; docs for logging. | Log records arrive in the lab collector with severity, `norca.logger`, attributes and trace context matching the spans of phase 3/4; a failing log exporter does not increase the log volume beyond the rate-limited warning; agent with `logs.enabled = false` registers no sink. |
+| 5 | Logs over OTLP: hclog sink, severity and attribute mapping, trace fields, loop guard, `otlp.logs.level` reload; docs for logging. The optional event stream export as OTLP log records ([decision 17](#operator-audit-and-event-export)): topic filter, resume from the last exported index. | Log records arrive in the lab collector with severity, `norca.logger`, attributes and trace context matching the spans of phase 3/4; a failing log exporter does not increase the log volume beyond the rate-limited warning; agent with `logs.enabled = false` registers no sink. |
 
 Phases 1 and 2 are independent and can run in parallel after phase 0; phase 5 needs phase 2 (the keys)
 and phase 3 (trace fields).
@@ -755,3 +756,12 @@ All decided by the user on 2026-11-10 (the earlier open questions, in their orde
 13. **Trace IDs without trace export:** created when an `otlp` block exists, not otherwise.
 14. **Package:** `helper/telemetry`; the go-metrics setup stays in `command/agent`.
 15. **Built-in metrics:** always run, in parallel with the external outputs (goal 7).
+
+Decided by the user on 2026-11-11:
+
+16. **Audit of operator write calls:** accepted as proposed in
+    [Operator audit and event export](#operator-audit-and-event-export): one structured log record
+    per operator write call, allow-listed parameters, never a secret; with phase 2. An `Operator`
+    event topic is not decided.
+17. **Event stream export:** accepted as proposed: optional, off by default, the events as OTLP log
+    records with a topic filter, resumable; with phase 5.

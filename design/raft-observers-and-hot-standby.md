@@ -5,7 +5,7 @@ SPDX-License-Identifier: MPL-2.0
 
 # Raft observers and hot standby servers
 
-**Status:** Draft · 2026-11-11 · all questions decided · phase 1 built (norca PR #14, docs PR #23) · phase 2 built and merged (norca 8dd43588b, lab passed) · phase 3 built and merged (norca 2914fa12f, lab passed) · phase 4 built and merged (norca 231359232) · phase 5 postponed 2026-11-11 (see 8.4) · clean room development (see [Clean room](#1-clean-room))
+**Status:** Draft · 2026-11-11 · all questions decided · phase 1 built (norca PR #14, docs PR #23) · phase 2 built and merged (norca 8dd43588b, lab passed) · phase 3 built and merged (norca 2914fa12f, lab passed) · phase 4 built and merged (norca 231359232) · phases 5 and 6 postponed 2026-11-11 (see 8.4, 8.2) · clean room development (see [Clean room](#1-clean-room))
 · inputs: two Hungarian drafts of the user ("Observer Tier alapok és Hot-Standby failover",
 "Observer Tier rendszerbővítések"), not derived from Enterprise code (user, 2026-11-11), and the
 review of 2026-11-11. Related: [raft-topology-and-cross-region.md](raft-topology-and-cross-region.md),
@@ -228,7 +228,7 @@ stay where they are (every server compacts its own log); what moves is the **bac
   way: Raft refuses a snapshot after a configuration change until the next state write; the leader
   then writes an empty backup update and retries.
 
-### 8.2 Heartbeat relay (later phase)
+### 8.2 Heartbeat relay (later phase, postponed 2026-11-11)
 
 Clients heartbeat to any server; the RPC is forwarded to the leader, which resets the node's TTL timer.
 A relay on observers would answer heartbeats locally and send the leader one batch per interval
@@ -378,7 +378,7 @@ This is Norca's own design, not modelled on any audit log product (clean room, s
 | 3 | Backups from observers (`prefer_observer`) — **built 2026-11-11** (norca `feat/observer-backups`; deployer `backup.prefer_observer`; lab step `standby-backup`; lab run pending) |
 | 4 | Job checks on the receiving server and API rate limits — **built 2026-11-11** (norca `feat/edge-checks`; no lab case) |
 | 5 | History stream on observers and its API; the `Operator` and `Server` topics — **postponed 2026-11-11** (8.4): the operator audit and the event export moved to the OpenTelemetry plan; the `Server` topic was built in phase 2 |
-| 6 | Heartbeat relay, only if the measurement of 8.2 asks for it |
+| 6 | Heartbeat relay, only if the measurement of 8.2 asks for it — **postponed 2026-11-11** (user) |
 
 Each phase is its own branch and PR; the lab case runs after phases 2, 3 and 5.
 
