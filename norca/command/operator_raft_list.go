@@ -87,7 +87,14 @@ func (c *OperatorRaftListCommand) Run(args []string) int {
 		return 1
 	}
 
-	// Format it as a nice table.
+	c.Ui.Output(formatRaftPeers(reply))
+
+	return 0
+}
+
+// formatRaftPeers formats a Raft configuration as the table of list-peers,
+// sorted by node name.
+func formatRaftPeers(reply *api.RaftConfiguration) string {
 	result := []string{"Node|ID|Address|State|Voter|Role|RaftProtocol"}
 	sort.Slice(reply.Servers, func(i, j int) bool {
 		return reply.Servers[i].Node < reply.Servers[j].Node
@@ -105,7 +112,5 @@ func (c *OperatorRaftListCommand) Run(args []string) int {
 		result = append(result, fmt.Sprintf("%s|%s|%s|%s|%v|%s|%s",
 			s.Node, s.ID, s.Address, state, s.Voter, role, s.RaftProtocol))
 	}
-	c.Ui.Output(columnize.SimpleFormat(result))
-
-	return 0
+	return columnize.SimpleFormat(result)
 }

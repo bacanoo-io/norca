@@ -326,6 +326,19 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 		if agentConfig.Autopilot.EnableCustomUpgrades != nil {
 			conf.AutopilotConfig.EnableCustomUpgrades = *agentConfig.Autopilot.EnableCustomUpgrades
 		}
+		if agentConfig.Autopilot.TargetVoters < 0 {
+			return nil, fmt.Errorf("autopilot target_voters must not be negative")
+		}
+		conf.AutopilotConfig.TargetVoters = uint(agentConfig.Autopilot.TargetVoters)
+		if agentConfig.Autopilot.StandbyFailoverAfter != 0 {
+			conf.AutopilotConfig.StandbyFailoverAfter = agentConfig.Autopilot.StandbyFailoverAfter
+		}
+		if agentConfig.Autopilot.StandbyCooldown != 0 {
+			conf.AutopilotConfig.StandbyCooldown = agentConfig.Autopilot.StandbyCooldown
+		}
+		if err := conf.AutopilotConfig.ValidateStandby(); err != nil {
+			return nil, err
+		}
 	}
 
 	jobMaxPriority := structs.JobDefaultMaxPriority

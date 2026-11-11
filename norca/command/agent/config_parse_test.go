@@ -277,6 +277,11 @@ var basicConfig = &Config{
 		EnableRedundancyZones:      &trueValue,
 		DisableUpgradeMigration:    &trueValue,
 		EnableCustomUpgrades:       &trueValue,
+		TargetVoters:               3,
+		StandbyFailoverAfter:       90 * time.Second,
+		StandbyFailoverAfterHCL:    "90s",
+		StandbyCooldown:            10 * time.Minute,
+		StandbyCooldownHCL:         "10m",
 	},
 	Plugins: []*config.PluginConfig{
 		{

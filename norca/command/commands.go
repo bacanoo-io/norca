@@ -907,6 +907,11 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 			}, nil
 		},
 
+		"operator raft promote-standby": func() (cli.Command, error) {
+			return &OperatorRaftPromoteStandbyCommand{
+				Meta: meta,
+			}, nil
+		},
 		"operator raft remove-peer": func() (cli.Command, error) {
 			return &OperatorRaftRemoveCommand{
 				Meta: meta,

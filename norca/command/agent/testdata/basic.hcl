@@ -296,6 +296,9 @@ autopilot {
   enable_redundancy_zones   = true
   server_stabilization_time = "23057s"
   enable_custom_upgrades    = true
+  target_voters             = 3
+  standby_failover_after    = "90s"
+  standby_cooldown          = "10m"
 }
 
 plugin "docker" {

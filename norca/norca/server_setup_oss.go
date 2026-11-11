@@ -20,6 +20,12 @@ func (s *Server) setupEnterprise(config *Config) error {
 	// Set up the OSS version of autopilot
 	apDelegate := &AutopilotDelegate{s}
 
+	if config.Role == ServerRoleStandby && config.AutopilotConfig != nil && config.AutopilotConfig.TargetVoters == 0 {
+		s.logger.Warn("this server has the role standby, but autopilot target_voters is 0 in its configuration: " +
+			"a standby is promoted only when the target is set (the cluster keeps the value of " +
+			"norca operator autopilot set-config -target-voters once it is bootstrapped)")
+	}
+
 	s.autopilot = autopilot.New(
 		s.raft,
 		apDelegate,

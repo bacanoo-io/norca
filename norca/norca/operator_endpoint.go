@@ -56,16 +56,29 @@ func (op *Operator) RaftGetConfiguration(args *structs.GenericRequest, reply *st
 		return structs.ErrPermissionDenied
 	}
 
+	conf, err := op.srv.raftConfiguration()
+	if err != nil {
+		return err
+	}
+	*reply = *conf
+	return nil
+}
+
+// raftConfiguration returns the Raft configuration of this server with the
+// node name, the Raft protocol and the role of every server from Serf.
+func (s *Server) raftConfiguration() (*structs.RaftConfigurationResponse, error) {
+	reply := new(structs.RaftConfigurationResponse)
+
 	// We can't fetch the leader and the configuration atomically with
 	// the current Raft API.
-	future := op.srv.raft.GetConfiguration()
+	future := s.raft.GetConfiguration()
 	if err := future.Error(); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Index the Nomad information about the servers.
 	serverMap := make(map[raft.ServerAddress]serf.Member)
-	for _, member := range op.srv.serf.Members() {
+	for _, member := range s.serf.Members() {
 		valid, parts := isNomadServer(member)
 		if !valid {
 			continue
@@ -76,7 +89,7 @@ func (op *Operator) RaftGetConfiguration(args *structs.GenericRequest, reply *st
 	}
 
 	// Fill out the reply.
-	leader, _ := op.srv.raft.LeaderWithID()
+	leader, _ := s.raft.LeaderWithID()
 	reply.Index = future.Index()
 	for _, server := range future.Configuration().Servers {
 		node := "(unknown)"
@@ -101,7 +114,7 @@ func (op *Operator) RaftGetConfiguration(args *structs.GenericRequest, reply *st
 		}
 		reply.Servers = append(reply.Servers, entry)
 	}
-	return nil
+	return reply, nil
 }
 
 // RaftRemovePeerByAddress is used to kick a stale peer (one that it in the Raft
@@ -287,6 +300,9 @@ func (op *Operator) AutopilotSetConfiguration(args *structs.AutopilotSetConfigRe
 	// Reject the options the autopilot of this build ignores.
 	if err := validateAutopilotSupported(&args.Config); err != nil {
 		return err
+	}
+	if err := args.Config.ValidateStandby(); err != nil {
+		return structs.NewErrRPCCoded(400, err.Error())
 	}
 
 	// Apply the update

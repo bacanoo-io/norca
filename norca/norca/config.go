@@ -622,6 +622,8 @@ func DefaultConfig() *Config {
 			LastContactThreshold:    200 * time.Millisecond,
 			MaxTrailingLogs:         250,
 			ServerStabilizationTime: 10 * time.Second,
+			StandbyFailoverAfter:    structs.DefaultStandbyFailoverAfter,
+			StandbyCooldown:         structs.DefaultStandbyCooldown,
 		},
 		ServerHealthInterval: 2 * time.Second,
 		AutopilotInterval:    10 * time.Second,

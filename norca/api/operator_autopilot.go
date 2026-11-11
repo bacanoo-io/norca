@@ -47,6 +47,18 @@ type AutopilotConfiguration struct {
 	// upgrade versions when performing migrations.
 	EnableCustomUpgrades bool
 
+	// TargetVoters is the number of voters autopilot keeps with standby
+	// servers; 0: standbys are never promoted.
+	TargetVoters uint
+
+	// StandbyFailoverAfter is how long a voter must be unhealthy before a
+	// standby replaces it (0: the default, 1m).
+	StandbyFailoverAfter time.Duration
+
+	// StandbyCooldown is the minimum time between two changes of the voter
+	// set made for standbys (0: the default, 5m).
+	StandbyCooldown time.Duration
+
 	// CreateIndex holds the index corresponding the creation of this configuration.
 	// This is a read-only field.
 	CreateIndex uint64
@@ -63,10 +75,14 @@ func (u *AutopilotConfiguration) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		LastContactThreshold    string
 		ServerStabilizationTime string
+		StandbyFailoverAfter    string
+		StandbyCooldown         string
 		*Alias
 	}{
 		LastContactThreshold:    u.LastContactThreshold.String(),
 		ServerStabilizationTime: u.ServerStabilizationTime.String(),
+		StandbyFailoverAfter:    u.StandbyFailoverAfter.String(),
+		StandbyCooldown:         u.StandbyCooldown.String(),
 		Alias:                   (*Alias)(u),
 	})
 }
@@ -76,6 +92,8 @@ func (u *AutopilotConfiguration) UnmarshalJSON(data []byte) error {
 	aux := &struct {
 		LastContactThreshold    string
 		ServerStabilizationTime string
+		StandbyFailoverAfter    string
+		StandbyCooldown         string
 		*Alias
 	}{
 		Alias: (*Alias)(u),
@@ -91,6 +109,16 @@ func (u *AutopilotConfiguration) UnmarshalJSON(data []byte) error {
 	}
 	if aux.ServerStabilizationTime != "" {
 		if u.ServerStabilizationTime, err = time.ParseDuration(aux.ServerStabilizationTime); err != nil {
+			return err
+		}
+	}
+	if aux.StandbyFailoverAfter != "" {
+		if u.StandbyFailoverAfter, err = time.ParseDuration(aux.StandbyFailoverAfter); err != nil {
+			return err
+		}
+	}
+	if aux.StandbyCooldown != "" {
+		if u.StandbyCooldown, err = time.ParseDuration(aux.StandbyCooldown); err != nil {
 			return err
 		}
 	}

@@ -82,6 +82,11 @@ const (
 	MetricsAutopilotHealthy          = "norca.cluster.autopilot_healthy"
 	MetricsAutopilotFailureTolerance = "norca.cluster.autopilot_failure_tolerance"
 
+	MetricsAutopilotVoters            = "norca.cluster.autopilot_voters"
+	MetricsAutopilotStandbysReady     = "norca.cluster.autopilot_standbys_ready"
+	MetricsAutopilotStandbyPromotions = "norca.cluster.autopilot_standby_promotions"
+	MetricsAutopilotStandbyDemotions  = "norca.cluster.autopilot_standby_demotions"
+
 	MetricsQuotaCPUAllocated    = "norca.quota.cpu_mhz_allocated"
 	MetricsQuotaCPUUsed         = "norca.quota.cpu_mhz_used"
 	MetricsQuotaMemoryAllocated = "norca.quota.memory_mb_allocated"

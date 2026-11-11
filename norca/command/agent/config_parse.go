@@ -83,6 +83,8 @@ func ParseConfigFile(path string) (*Config, error) {
 		{"consul.timeout", &c.Consul.Timeout, &c.Consul.TimeoutHCL, nil},
 		{"autopilot.server_stabilization_time", &c.Autopilot.ServerStabilizationTime, &c.Autopilot.ServerStabilizationTimeHCL, nil},
 		{"autopilot.last_contact_threshold", &c.Autopilot.LastContactThreshold, &c.Autopilot.LastContactThresholdHCL, nil},
+		{"autopilot.standby_failover_after", &c.Autopilot.StandbyFailoverAfter, &c.Autopilot.StandbyFailoverAfterHCL, nil},
+		{"autopilot.standby_cooldown", &c.Autopilot.StandbyCooldown, &c.Autopilot.StandbyCooldownHCL, nil},
 		{"telemetry.collection_interval", &c.Telemetry.collectionInterval, &c.Telemetry.CollectionInterval, nil},
 		{"client.template.block_query_wait", nil, &c.Client.TemplateConfig.BlockQueryWaitTimeHCL,
 			func(d *time.Duration) {

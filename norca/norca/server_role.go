@@ -16,9 +16,10 @@ const (
 	// stable. The default.
 	ServerRoleVoter ServerRole = "voter"
 
-	// ServerRoleStandby servers replicate without a vote until a voter fails
-	// (the failover rules come with phase 2; until then a standby is never
-	// promoted, as with autopilot target_voters = 0).
+	// ServerRoleStandby servers replicate without a vote until a voter fails;
+	// autopilot promotes them only with a target number of voters
+	// (autopilot target_voters) and demotes them again when a returning
+	// voter makes the voters more than the target.
 	ServerRoleStandby ServerRole = "standby"
 
 	// ServerRoleObserver servers replicate the Raft log and the state store

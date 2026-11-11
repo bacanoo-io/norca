@@ -46,6 +46,20 @@ type AutopilotConfig struct {
 	// upgrade versions when performing migrations.
 	EnableCustomUpgrades *bool `hcl:"enable_custom_upgrades"`
 
+	// TargetVoters is the number of voters autopilot keeps with standby
+	// servers; 0 (the default): standbys are never promoted.
+	TargetVoters int `hcl:"target_voters"`
+
+	// StandbyFailoverAfter is how long a voter must be unhealthy before a
+	// standby replaces it.
+	StandbyFailoverAfter    time.Duration
+	StandbyFailoverAfterHCL string `hcl:"standby_failover_after" json:"-"`
+
+	// StandbyCooldown is the minimum time between two changes of the voter
+	// set made for standbys.
+	StandbyCooldown    time.Duration
+	StandbyCooldownHCL string `hcl:"standby_cooldown" json:"-"`
+
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -92,6 +106,21 @@ func (a *AutopilotConfig) Merge(b *AutopilotConfig) *AutopilotConfig {
 	}
 	if b.EnableCustomUpgrades != nil {
 		result.EnableCustomUpgrades = b.EnableCustomUpgrades
+	}
+	if b.TargetVoters != 0 {
+		result.TargetVoters = b.TargetVoters
+	}
+	if b.StandbyFailoverAfter != 0 {
+		result.StandbyFailoverAfter = b.StandbyFailoverAfter
+	}
+	if b.StandbyFailoverAfterHCL != "" {
+		result.StandbyFailoverAfterHCL = b.StandbyFailoverAfterHCL
+	}
+	if b.StandbyCooldown != 0 {
+		result.StandbyCooldown = b.StandbyCooldown
+	}
+	if b.StandbyCooldownHCL != "" {
+		result.StandbyCooldownHCL = b.StandbyCooldownHCL
 	}
 
 	return result

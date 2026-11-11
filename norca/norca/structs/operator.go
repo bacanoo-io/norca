@@ -128,10 +128,34 @@ type AutopilotConfig struct {
 	// upgrade versions when performing migrations.
 	EnableCustomUpgrades bool
 
+	// TargetVoters is the number of voters autopilot keeps with standby
+	// servers (Norca, clean room): when the healthy voters are fewer, a
+	// standby is promoted; when a returning voter makes them more, a
+	// promoted standby steps back. 0 (the default): every voter-role server
+	// votes and standbys are never promoted.
+	TargetVoters uint
+
+	// StandbyFailoverAfter is how long a voter must be unhealthy before a
+	// standby replaces it. 0 is DefaultStandbyFailoverAfter.
+	StandbyFailoverAfter time.Duration
+
+	// StandbyCooldown is the minimum time between two changes of the voter
+	// set made for standbys. 0 is DefaultStandbyCooldown.
+	StandbyCooldown time.Duration
+
 	// CreateIndex/ModifyIndex store the create/modify indexes of this configuration.
 	CreateIndex uint64
 	ModifyIndex uint64
 }
+
+const (
+	// DefaultStandbyFailoverAfter is the default of
+	// AutopilotConfig.StandbyFailoverAfter.
+	DefaultStandbyFailoverAfter = time.Minute
+
+	// DefaultStandbyCooldown is the default of AutopilotConfig.StandbyCooldown.
+	DefaultStandbyCooldown = 5 * time.Minute
+)
 
 func (a *AutopilotConfig) Copy() *AutopilotConfig {
 	if a == nil {
@@ -140,6 +164,41 @@ func (a *AutopilotConfig) Copy() *AutopilotConfig {
 
 	na := *a
 	return &na
+}
+
+// ValidateStandby checks the standby settings: the target is an odd number
+// of voters up to 7 (or 0, no target) and the durations are not negative.
+func (a *AutopilotConfig) ValidateStandby() error {
+	switch a.TargetVoters {
+	case 0, 1, 3, 5, 7:
+	default:
+		return fmt.Errorf("autopilot target_voters must be 0, 1, 3, 5 or 7, not %d", a.TargetVoters)
+	}
+	if a.StandbyFailoverAfter < 0 {
+		return fmt.Errorf("autopilot standby_failover_after must not be negative")
+	}
+	if a.StandbyCooldown < 0 {
+		return fmt.Errorf("autopilot standby_cooldown must not be negative")
+	}
+	return nil
+}
+
+// StandbyFailoverAfterOrDefault returns StandbyFailoverAfter, or its default
+// when it is 0.
+func (a *AutopilotConfig) StandbyFailoverAfterOrDefault() time.Duration {
+	if a.StandbyFailoverAfter > 0 {
+		return a.StandbyFailoverAfter
+	}
+	return DefaultStandbyFailoverAfter
+}
+
+// StandbyCooldownOrDefault returns StandbyCooldown, or its default when it
+// is 0.
+func (a *AutopilotConfig) StandbyCooldownOrDefault() time.Duration {
+	if a.StandbyCooldown > 0 {
+		return a.StandbyCooldown
+	}
+	return DefaultStandbyCooldown
 }
 
 // SchedulerAlgorithm is an enum string that encapsulates the valid options for a

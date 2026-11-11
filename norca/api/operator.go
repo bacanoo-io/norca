@@ -100,6 +100,52 @@ func (op *Operator) RaftRemovePeerByAddress(address string, q *WriteOptions) err
 	return nil
 }
 
+// RaftPromoteStandbyOptions are the options of RaftPromoteStandby.
+type RaftPromoteStandbyOptions struct {
+	// Replace is the ID of the failed voter removed from the Raft
+	// configuration before the promotion; empty when no voter is removed.
+	Replace string
+
+	// Force replaces the voter even when autopilot reports it healthy.
+	Force bool
+}
+
+// RaftPromoteStandby is the manual failover to the standby server with the
+// ID: the leader checks the standby (and the voter it replaces), removes
+// that voter from the Raft configuration and waits until autopilot promotes
+// the standby. It returns the Raft configuration after the promotion.
+func (op *Operator) RaftPromoteStandby(id string, opts *RaftPromoteStandbyOptions, q *WriteOptions) (*RaftConfiguration, *WriteMeta, error) {
+	r, err := op.c.newRequest("PUT", "/v1/operator/raft/promote-standby")
+	if err != nil {
+		return nil, nil, err
+	}
+	r.setWriteOptions(q)
+	r.params.Set("id", id)
+	if opts != nil {
+		if opts.Replace != "" {
+			r.params.Set("replace", opts.Replace)
+		}
+		if opts.Force {
+			r.params.Set("force", "true")
+		}
+	}
+
+	rtt, resp, err := requireOK(op.c.doRequest(r))
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+
+	wm := &WriteMeta{RequestTime: rtt}
+	parseWriteMeta(resp, wm)
+
+	var out RaftConfiguration
+	if err := decodeBody(resp, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, wm, nil
+}
+
 // RaftRemovePeerByID is used to kick a stale peer (one that is in the Raft
 // quorum but no longer known to Serf or the catalog) by ID.
 func (op *Operator) RaftRemovePeerByID(id string, q *WriteOptions) error {

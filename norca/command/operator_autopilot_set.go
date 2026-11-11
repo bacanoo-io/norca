@@ -26,6 +26,9 @@ func (c *OperatorAutopilotSetCommand) AutocompleteFlags() complete.Flags {
 			"-enable-redundancy-zones":   complete.PredictNothing,
 			"-disable-upgrade-migration": complete.PredictNothing,
 			"-enable-custom-upgrades":    complete.PredictNothing,
+			"-target-voters":             complete.PredictAnything,
+			"-standby-failover-after":    complete.PredictAnything,
+			"-standby-cooldown":          complete.PredictAnything,
 		})
 }
 
@@ -50,6 +53,9 @@ func (c *OperatorAutopilotSetCommand) Run(args []string) int {
 	var enableRedundancyZones flaghelper.BoolValue
 	var disableUpgradeMigration flaghelper.BoolValue
 	var enableCustomUpgrades flaghelper.BoolValue
+	var targetVoters flaghelper.UintValue
+	var standbyFailoverAfter flaghelper.DurationValue
+	var standbyCooldown flaghelper.DurationValue
 
 	flagSet := c.Meta.FlagSet("autopilot", FlagSetClient)
 	flagSet.Usage = func() { c.Ui.Output(c.Help()) }
@@ -62,6 +68,9 @@ func (c *OperatorAutopilotSetCommand) Run(args []string) int {
 	flagSet.Var(&disableUpgradeMigration, "disable-upgrade-migration", "")
 	flagSet.Var(&enableCustomUpgrades, "enable-custom-upgrades", "")
 	flagSet.Var(&minQuorum, "min-quorum", "")
+	flagSet.Var(&targetVoters, "target-voters", "")
+	flagSet.Var(&standbyFailoverAfter, "standby-failover-after", "")
+	flagSet.Var(&standbyCooldown, "standby-cooldown", "")
 
 	if err := flagSet.Parse(args); err != nil {
 		c.Ui.Error(fmt.Sprintf("Failed to parse args: %v", err))
@@ -98,6 +107,10 @@ func (c *OperatorAutopilotSetCommand) Run(args []string) int {
 	lastContactThreshold.Merge(&conf.LastContactThreshold)
 
 	serverStabilizationTime.Merge(&conf.ServerStabilizationTime)
+
+	targetVoters.Merge(&conf.TargetVoters)
+	standbyFailoverAfter.Merge(&conf.StandbyFailoverAfter)
+	standbyCooldown.Merge(&conf.StandbyCooldown)
 
 	// Check-and-set the new configuration.
 	result, _, err := operator.AutopilotCASConfiguration(conf, nil)
@@ -162,6 +175,19 @@ Set Config Options:
      the 'healthy' state before being added to the cluster. Only takes
      effect if all servers are running Raft protocol version 3 or
      higher. Must be a duration value such as "10s".
+
+  -standby-cooldown=<5m>
+     The minimum time between two changes of the voter set made for
+     standby servers. 0 is the default, 5m.
+
+  -standby-failover-after=<1m>
+     How long a voter must be unhealthy before a standby server replaces
+     it. 0 is the default, 1m.
+
+  -target-voters=<value>
+     The number of voters autopilot keeps with standby servers: 0, 1, 3,
+     5 or 7. 0 (the default): every server with the role "voter" votes
+     and standby servers are never promoted.
 
   -upgrade-version-tag=<value>
      Not supported: custom upgrade migrations are not available, the value

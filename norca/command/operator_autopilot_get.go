@@ -54,6 +54,9 @@ func (c *OperatorAutopilotGetCommand) Run(args []string) int {
 	c.Ui.Output(fmt.Sprintf("EnableRedundancyZones = %v", config.EnableRedundancyZones))
 	c.Ui.Output(fmt.Sprintf("DisableUpgradeMigration = %v", config.DisableUpgradeMigration))
 	c.Ui.Output(fmt.Sprintf("EnableCustomUpgrades = %v", config.EnableCustomUpgrades))
+	c.Ui.Output(fmt.Sprintf("TargetVoters = %v", config.TargetVoters))
+	c.Ui.Output(fmt.Sprintf("StandbyFailoverAfter = %v", config.StandbyFailoverAfter.String()))
+	c.Ui.Output(fmt.Sprintf("StandbyCooldown = %v", config.StandbyCooldown.String()))
 
 	return 0
 }

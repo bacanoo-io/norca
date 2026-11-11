@@ -226,6 +226,9 @@ func TestConfig_Merge(t *testing.T) {
 			EnableRedundancyZones:   &falseValue,
 			DisableUpgradeMigration: &falseValue,
 			EnableCustomUpgrades:    &falseValue,
+			TargetVoters:            1,
+			StandbyFailoverAfter:    1 * time.Second,
+			StandbyCooldown:         1 * time.Second,
 		},
 		Plugins: []*config.PluginConfig{
 			{
@@ -439,6 +442,9 @@ func TestConfig_Merge(t *testing.T) {
 			EnableRedundancyZones:   &trueValue,
 			DisableUpgradeMigration: &trueValue,
 			EnableCustomUpgrades:    &trueValue,
+			TargetVoters:            3,
+			StandbyFailoverAfter:    2 * time.Second,
+			StandbyCooldown:         2 * time.Second,
 		},
 		Plugins: []*config.PluginConfig{
 			{

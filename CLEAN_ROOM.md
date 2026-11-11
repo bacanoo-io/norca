@@ -137,3 +137,38 @@ not a candidate. The Go files are in neither set. Their directories hold none
 of the 45 BUSL files, and HashiCorp's implementation is not public, so there
 is no file to compare them with. The import commit is not in the `bugfix`
 set.
+
+## Server roles and standby servers
+
+Nomad v1.6.5 (MPL 2.0) contains only the public side of non-voting servers:
+the `non_voting_server` agent option, the `nonvoter` Serf tag, the bootstrap
+that counts voters only, and the `!ent` stubs of `nomad/autopilot_oss.go`
+(`autopilotPromoter`, `autopilotServerExt`, `autopilotConfigExt`), which return
+autopilot's default promoter and nothing. Nomad Enterprise had non-voting
+servers, redundancy zones and an enterprise autopilot; HashiCorp never
+published that code.
+
+Norca designed server roles, standby failover and observers from its own
+requirements (design document `raft-observers-and-hot-standby.md`). The sources
+were the Norca tree, `hashicorp/raft` (the `bacanoo-io/raft` fork) and
+`hashicorp/raft-autopilot` v0.1.6 (MPL 2.0: the `Promoter` interface and the
+`StablePromoter`). No Enterprise code, binary or documentation, and no
+HashiCorp source or documentation of a BSL release was used. The commits say
+"clean room":
+
+| Commit | Content |
+| --- | --- |
+| `8087e57bc` (phase 1) | `server { role = "voter" \| "standby" \| "observer" }` instead of `non_voting_server`, the Serf tag `raft_role`, the role promoter (voters promoted when stable, observers and standbys never), `bootstrap_expect` counting voter-role servers, the role in the API and in `operator raft list-peers` |
+| phase 2 | autopilot `target_voters`, `standby_failover_after` and `standby_cooldown`; standby promotion when a voter fails and demotion when it returns; `operator raft promote-standby`; the `Server` event topic and the standby metrics |
+
+The files (paths relative to `norca/`): `norca/server_role.go`,
+`norca/autopilot_promoter.go`, `norca/server_standby.go`,
+`norca/structs/server_role.go`, `norca/stream/topics_server.go`,
+`api/server_role.go` and `command/operator_raft_promote_standby.go` are new and
+carry only the Norca header. `norca/autopilot_oss.go` keeps the HashiCorp
+copyright line of the MPL stubs it fills, because it keeps their signatures and
+doc comments.
+
+What the audit covers: the Go files are in neither set. Their directories hold
+none of the 45 BUSL files, and HashiCorp's implementation is not public, so
+there is no file to compare them with.

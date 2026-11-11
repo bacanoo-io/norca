@@ -68,6 +68,15 @@ const (
 	MetricAutopilotHealthy          = "norca.cluster.autopilot_healthy"
 	MetricAutopilotFailureTolerance = "norca.cluster.autopilot_failure_tolerance"
 
+	// The voters of the Raft configuration, the standby servers ready for a
+	// promotion (healthy non-voters with the role standby), and the standby
+	// promotions and demotions seen by the leader since it became the
+	// leader; only the leader has them.
+	MetricAutopilotVoters            = "norca.cluster.autopilot_voters"
+	MetricAutopilotStandbysReady     = "norca.cluster.autopilot_standbys_ready"
+	MetricAutopilotStandbyPromotions = "norca.cluster.autopilot_standby_promotions"
+	MetricAutopilotStandbyDemotions  = "norca.cluster.autopilot_standby_demotions"
+
 	// The resources of the namespaces of a quota (label quota) in the
 	// region: allocated to their allocations (MHz, MiB), and actually used
 	// as the clients report it.
@@ -275,6 +284,10 @@ var gaugeLabels = map[string][]string{
 	MetricClusterBlockedUnverifiable:    {"dc", "pool"},
 	MetricAutopilotHealthy:              {},
 	MetricAutopilotFailureTolerance:     {},
+	MetricAutopilotVoters:               {},
+	MetricAutopilotStandbysReady:        {},
+	MetricAutopilotStandbyPromotions:    {},
+	MetricAutopilotStandbyDemotions:     {},
 	MetricQuotaCPUAllocated:             {"quota"},
 	MetricQuotaCPUUsed:                  {"quota"},
 	MetricQuotaMemoryAllocated:          {"quota"},

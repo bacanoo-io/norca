@@ -131,7 +131,7 @@ func TestRolePromoter_CalculatePromotionsAndDemotions(t *testing.T) {
 func TestRolePromoter_GetNodeTypes(t *testing.T) {
 	ci.Parallel(t)
 
-	p := newRolePromoter()
+	p := newRolePromoter(nil)
 	types := p.GetNodeTypes(&autopilot.Config{}, promoterState("a",
 		promoterServer("a", autopilot.RaftLeader, "", true),
 		promoterServer("b", autopilot.RaftNonVoter, "observer", true),

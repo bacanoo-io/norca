@@ -70,6 +70,10 @@ func (d *AutopilotDelegate) KnownServers() map[raft.ServerID]*autopilot.Server {
 // method is required to implement the ApplicationIntegration interface
 func (d *AutopilotDelegate) NotifyState(state *autopilot.State) {
 	if d.server.raft.State() == raft.Leader {
+		if d.server.rolePromoter != nil {
+			// The standby promotions and demotions since the last state.
+			d.server.rolePromoter.observe(state)
+		}
 		metrics.SetGauge([]string{"nomad", "autopilot", "failure_tolerance"}, float32(state.FailureTolerance))
 		if state.Healthy {
 			metrics.SetGauge([]string{"nomad", "autopilot", "healthy"}, 1)

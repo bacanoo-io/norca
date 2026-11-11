@@ -111,6 +111,12 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 				metricsstore.Gauge{Metric: metricsstore.MetricAutopilotHealthy, Value: healthy},
 				metricsstore.Gauge{Metric: metricsstore.MetricAutopilotFailureTolerance, Value: float64(h.FailureTolerance)})
 		}
+		voters, ready, promotions, demotions := s.standbyGauges()
+		gauges = append(gauges,
+			metricsstore.Gauge{Metric: metricsstore.MetricAutopilotVoters, Value: float64(voters)},
+			metricsstore.Gauge{Metric: metricsstore.MetricAutopilotStandbysReady, Value: float64(ready)},
+			metricsstore.Gauge{Metric: metricsstore.MetricAutopilotStandbyPromotions, Value: float64(promotions)},
+			metricsstore.Gauge{Metric: metricsstore.MetricAutopilotStandbyDemotions, Value: float64(demotions)})
 	}
 
 	quotas, err := s.sampleQuotas(snap, live)

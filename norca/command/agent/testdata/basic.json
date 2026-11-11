@@ -60,7 +60,10 @@
       "last_contact_threshold": "12705s",
       "max_trailing_logs": 17849,
       "min_quorum": 3,
-      "server_stabilization_time": "23057s"
+      "server_stabilization_time": "23057s",
+      "standby_cooldown": "10m",
+      "standby_failover_after": "90s",
+      "target_voters": 3
     }
   ],
   "bind_addr": "192.168.0.1",

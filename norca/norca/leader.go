@@ -319,6 +319,10 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 
 	// Initialize and start the autopilot routine
 	s.getOrCreateAutopilotConfig()
+	if s.rolePromoter != nil {
+		// A new leadership observes the standbys from a new baseline.
+		s.rolePromoter.reset()
+	}
 	s.autopilot.Start(s.shutdownCtx)
 
 	// Initialize scheduler configuration.

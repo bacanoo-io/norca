@@ -31,6 +31,8 @@ func (s *HTTPServer) OperatorRequest(resp http.ResponseWriter, req *http.Request
 		return s.OperatorRaftConfiguration(resp, req)
 	case strings.HasPrefix(path, "peer"):
 		return s.OperatorRaftPeer(resp, req)
+	case strings.HasPrefix(path, "promote-standby"):
+		return s.OperatorRaftPromoteStandby(resp, req)
 	default:
 		return nil, CodedError(404, ErrInvalidMethod)
 	}
@@ -98,6 +100,39 @@ func (s *HTTPServer) OperatorRaftPeer(resp http.ResponseWriter, req *http.Reques
 	return nil, nil
 }
 
+// OperatorRaftPromoteStandby is the manual failover to a standby server:
+// PUT /v1/operator/raft/promote-standby?id=<standby>[&replace=<voter>][&force=true].
+// It answers with the Raft configuration after the promotion.
+func (s *HTTPServer) OperatorRaftPromoteStandby(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if req.Method != http.MethodPut && req.Method != http.MethodPost {
+		return nil, CodedError(http.StatusMethodNotAllowed, ErrInvalidMethod)
+	}
+
+	params := req.URL.Query()
+	args := structs.RaftPromoteStandbyRequest{
+		ID:      raft.ServerID(params.Get("id")),
+		Replace: raft.ServerID(params.Get("replace")),
+	}
+	if args.ID == "" {
+		return nil, CodedError(http.StatusBadRequest, "Must specify ?id with the ID of the standby server")
+	}
+	if v := params.Get("force"); v != "" {
+		force, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, CodedError(http.StatusBadRequest, fmt.Sprintf("Error parsing force value: %v", err))
+		}
+		args.Force = force
+	}
+	s.parseWriteRequest(req, &args.WriteRequest)
+
+	var reply structs.RaftPromoteStandbyResponse
+	if err := s.agent.RPC("Operator.RaftPromoteStandby", &args, &reply); err != nil {
+		return nil, err
+	}
+	setIndex(resp, reply.Index)
+	return reply.Configuration, nil
+}
+
 // OperatorAutopilotConfiguration is used to inspect the current Autopilot configuration.
 // This supports the stale query mode in case the cluster doesn't have a leader.
 func (s *HTTPServer) OperatorAutopilotConfiguration(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
@@ -123,6 +158,9 @@ func (s *HTTPServer) OperatorAutopilotConfiguration(resp http.ResponseWriter, re
 			EnableRedundancyZones:   reply.EnableRedundancyZones,
 			DisableUpgradeMigration: reply.DisableUpgradeMigration,
 			EnableCustomUpgrades:    reply.EnableCustomUpgrades,
+			TargetVoters:            reply.TargetVoters,
+			StandbyFailoverAfter:    reply.StandbyFailoverAfter,
+			StandbyCooldown:         reply.StandbyCooldown,
 			CreateIndex:             reply.CreateIndex,
 			ModifyIndex:             reply.ModifyIndex,
 		}
@@ -147,6 +185,9 @@ func (s *HTTPServer) OperatorAutopilotConfiguration(resp http.ResponseWriter, re
 			EnableRedundancyZones:   conf.EnableRedundancyZones,
 			DisableUpgradeMigration: conf.DisableUpgradeMigration,
 			EnableCustomUpgrades:    conf.EnableCustomUpgrades,
+			TargetVoters:            conf.TargetVoters,
+			StandbyFailoverAfter:    conf.StandbyFailoverAfter,
+			StandbyCooldown:         conf.StandbyCooldown,
 		}
 
 		// Check for cas value
@@ -215,6 +256,7 @@ func (s *HTTPServer) OperatorServerHealth(resp http.ResponseWriter, req *http.Re
 			Healthy:     server.Healthy,
 			Voter:       server.Voter,
 			StableSince: server.StableSince.Round(time.Second).UTC(),
+			Role:        server.Role,
 		})
 	}
 

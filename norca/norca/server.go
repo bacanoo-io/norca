@@ -131,6 +131,10 @@ type Server struct {
 	// autopilot is the Autopilot instance for this server.
 	autopilot *autopilot.Autopilot
 
+	// rolePromoter is the promoter of autopilot (autopilot_promoter.go); it
+	// decides the suffrage from the server roles.
+	rolePromoter *rolePromoter
+
 	// fsm is the state machine used with Raft
 	fsm *nomadFSM
 

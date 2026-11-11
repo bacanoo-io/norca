@@ -242,6 +242,9 @@ func TestOperator_ServerHealth(t *testing.T) {
 			if out.FailureTolerance != 0 {
 				return fmt.Errorf("expected failure tolerance of 0, got: %d", out.FailureTolerance)
 			}
+			if out.Servers[0].Role != "voter" {
+				return fmt.Errorf("expected the role voter, got: %q", out.Servers[0].Role)
+			}
 			return nil
 		}
 		must.Wait(t, wait.InitialSuccess(
@@ -518,5 +521,32 @@ func TestOperator_SnapshotRequests(t *testing.T) {
 		require.Equal(t, 200, resp.Code)
 
 		require.True(t, jobExists())
+	})
+}
+
+// TestOperator_RaftPromoteStandby checks the HTTP side of the manual
+// failover: the method, the required id, and that the checks of the leader
+// come back (an agent whose server is not a standby, without target_voters).
+func TestOperator_RaftPromoteStandby(t *testing.T) {
+	ci.Parallel(t)
+
+	httpTest(t, nil, func(s *TestAgent) {
+		resp := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/v1/operator/raft/promote-standby?id=x", nil)
+		_, err := s.Server.OperatorRequest(resp, req)
+		must.ErrorContains(t, err, ErrInvalidMethod)
+
+		req, _ = http.NewRequest(http.MethodPut, "/v1/operator/raft/promote-standby", nil)
+		_, err = s.Server.OperatorRequest(resp, req)
+		must.ErrorContains(t, err, "Must specify ?id")
+
+		req, _ = http.NewRequest(http.MethodPut, "/v1/operator/raft/promote-standby?id=x&force=maybe", nil)
+		_, err = s.Server.OperatorRequest(resp, req)
+		must.ErrorContains(t, err, "Error parsing force value")
+
+		id := s.server.LocalMember().Tags["id"]
+		req, _ = http.NewRequest(http.MethodPut, "/v1/operator/raft/promote-standby?id="+id, nil)
+		_, err = s.Server.OperatorRequest(resp, req)
+		must.ErrorContains(t, err, "target_voters is 0")
 	})
 }
