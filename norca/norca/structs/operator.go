@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package structs
@@ -35,6 +36,10 @@ type RaftServer struct {
 
 	// RaftProtocol is the version of the Raft protocol spoken by this server.
 	RaftProtocol string
+
+	// Role is the role the server is configured with: voter, standby or
+	// observer ("unknown" when the server is not in the gossip pool).
+	Role string
 }
 
 // RaftConfigurationResponse is returned when querying for the current Raft

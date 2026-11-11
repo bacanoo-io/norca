@@ -126,7 +126,7 @@ var basicConfig = &Config{
 		RetryIntervalHCL:          "15s",
 		RejoinAfterLeave:          true,
 		RetryMaxAttempts:          3,
-		NonVotingServer:           true,
+		Role:                      "observer",
 		RedundancyZone:            "foo",
 		UpgradeVersion:            "0.8.0",
 		EncryptKey:                "abc",

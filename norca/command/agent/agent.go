@@ -278,9 +278,14 @@ func convertServerConfig(agentConfig *Config) (*norca.Config, error) {
 	if agentConfig.ACL.TokenMaxExpirationTTL != 0 {
 		conf.ACLTokenMaxExpirationTTL = agentConfig.ACL.TokenMaxExpirationTTL
 	}
-	if agentConfig.Server.NonVotingServer {
-		conf.NonVoter = true
+	role, err := norca.ParseServerRole(agentConfig.Server.Role)
+	if err != nil {
+		return nil, fmt.Errorf("server: %w", err)
 	}
+	if !role.Votes() && agentConfig.Server.BootstrapExpect == 1 {
+		return nil, fmt.Errorf("server: a server with role %q cannot bootstrap a cluster alone (bootstrap_expect = 1)", role)
+	}
+	conf.Role = role
 	if agentConfig.Server.RedundancyZone != "" {
 		conf.RedundancyZone = agentConfig.Server.RedundancyZone
 	}

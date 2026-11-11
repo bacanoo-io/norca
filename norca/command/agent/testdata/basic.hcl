@@ -132,7 +132,7 @@ server {
   retry_max                     = 3
   retry_interval                = "15s"
   rejoin_after_leave            = true
-  non_voting_server             = true
+  role                          = "observer"
   redundancy_zone               = "foo"
   upgrade_version               = "0.8.0"
   encrypt                       = "abc"

@@ -630,9 +630,10 @@ type ServerConfig struct {
 	// true, we ignore the leave, and rejoin the cluster on start.
 	RejoinAfterLeave bool `hcl:"rejoin_after_leave"`
 
-	// (Enterprise-only) NonVotingServer is whether this server will act as a
-	// non-voting member of the cluster to help provide read scalability.
-	NonVotingServer bool `hcl:"non_voting_server"`
+	// Role is the role of this server in the Raft cluster of its region:
+	// "voter" (default), "standby" or "observer". Standbys and observers
+	// replicate the state without a vote; autopilot never promotes them.
+	Role string `hcl:"role"`
 
 	// (Enterprise-only) RedundancyZone is the redundancy zone to use for this server.
 	RedundancyZone string `hcl:"redundancy_zone"`
@@ -2182,8 +2183,8 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 	if b.RejoinAfterLeave {
 		result.RejoinAfterLeave = true
 	}
-	if b.NonVotingServer {
-		result.NonVotingServer = true
+	if b.Role != "" {
+		result.Role = b.Role
 	}
 	if b.RedundancyZone != "" {
 		result.RedundancyZone = b.RedundancyZone

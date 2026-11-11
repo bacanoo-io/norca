@@ -282,7 +282,7 @@
       "min_heartbeat_ttl": "33s",
       "failover_heartbeat_ttl": "330s",
       "node_gc_threshold": "12h",
-      "non_voting_server": true,
+      "role": "observer",
       "num_schedulers": 2,
       "plan_rejection_tracker": {
         "enabled": true,

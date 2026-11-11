@@ -13,8 +13,12 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
+// autopilotPromoter returns the promoter autopilot uses to decide the
+// suffrage of the servers. Norca: the role promoter (autopilot_promoter.go,
+// clean room) instead of the default promoter, which promotes every stable
+// non-voter.
 func (s *Server) autopilotPromoter() autopilot.Promoter {
-	return autopilot.DefaultPromoter()
+	return newRolePromoter()
 }
 
 // autopilotServerExt returns the autopilot-enterprise.Server extensions needed

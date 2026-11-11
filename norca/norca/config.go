@@ -111,9 +111,10 @@ type Config struct {
 	// RaftTimeout is applied to any network traffic for raft. Defaults to 10s.
 	RaftTimeout time.Duration
 
-	// (Enterprise-only) NonVoter is used to prevent this server from being added
-	// as a voting member of the Raft cluster.
-	NonVoter bool
+	// Role is the role of this server in the Raft cluster of its region:
+	// voter (default), standby or observer (see ServerRole). Standbys and
+	// observers are never promoted to voters by autopilot.
+	Role ServerRole
 
 	// (Enterprise-only) RedundancyZone is the redundancy zone to use for this server.
 	RedundancyZone string

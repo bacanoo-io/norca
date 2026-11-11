@@ -28987,9 +28987,9 @@ func (x *ServerHealth) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(12)
+				r.WriteArrayStart(13)
 			} else {
-				r.WriteMapStart(12)
+				r.WriteMapStart(13)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -29276,6 +29276,33 @@ func (x *ServerHealth) CodecEncodeSelf(e *codec1978.Encoder) {
 				}
 			}
 			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Role)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Role))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"Role\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `Role`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Role)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Role))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
 				r.WriteArrayEnd()
 			} else {
 				r.WriteMapEnd()
@@ -29425,6 +29452,12 @@ func (x *ServerHealth) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 					z.DecFallback(&x.StableSince, false)
 				}
 			}
+		case "Role":
+			if r.TryDecodeAsNil() {
+				x.Role = ""
+			} else {
+				x.Role = (string)(r.DecodeString())
+			}
 		default:
 			z.DecStructFieldNotFound(-1, yys3)
 		} // end switch yys3
@@ -29436,16 +29469,16 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj19 int
-	var yyb19 bool
-	var yyhl19 bool = l >= 0
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	var yyj20 int
+	var yyb20 bool
+	var yyhl20 bool = l >= 0
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29455,13 +29488,13 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.ID = (string)(r.DecodeString())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29471,13 +29504,13 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Name = (string)(r.DecodeString())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29487,13 +29520,13 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Address = (string)(r.DecodeString())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29502,19 +29535,19 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		x.SerfStatus = 0
 	} else {
 		if false {
-		} else if yyxt24 := z.Extension(z.I2Rtid(x.SerfStatus)); yyxt24 != nil {
-			z.DecExtension(x.SerfStatus, yyxt24)
+		} else if yyxt25 := z.Extension(z.I2Rtid(x.SerfStatus)); yyxt25 != nil {
+			z.DecExtension(x.SerfStatus, yyxt25)
 		} else {
 			x.SerfStatus = (pkg2_serf.MemberStatus)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 		}
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29524,13 +29557,13 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Version = (string)(r.DecodeString())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29540,13 +29573,13 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Leader = (bool)(r.DecodeBool())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29555,19 +29588,19 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		x.LastContact = 0
 	} else {
 		if false {
-		} else if yyxt28 := z.Extension(z.I2Rtid(x.LastContact)); yyxt28 != nil {
-			z.DecExtension(x.LastContact, yyxt28)
+		} else if yyxt29 := z.Extension(z.I2Rtid(x.LastContact)); yyxt29 != nil {
+			z.DecExtension(x.LastContact, yyxt29)
 		} else {
 			x.LastContact = (time.Duration)(r.DecodeInt64())
 		}
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29577,13 +29610,13 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.LastTerm = (uint64)(r.DecodeUint64())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29593,13 +29626,13 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.LastIndex = (uint64)(r.DecodeUint64())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29609,13 +29642,13 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Healthy = (bool)(r.DecodeBool())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29625,13 +29658,13 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Voter = (bool)(r.DecodeBool())
 	}
-	yyj19++
-	if yyhl19 {
-		yyb19 = yyj19 > l
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
 	} else {
-		yyb19 = r.CheckBreak()
+		yyb20 = r.CheckBreak()
 	}
-	if yyb19 {
+	if yyb20 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -29642,8 +29675,8 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		if false {
 		} else if !z.DecBasicHandle().TimeNotBuiltin {
 			x.StableSince = r.DecodeTime()
-		} else if yyxt34 := z.Extension(z.I2Rtid(x.StableSince)); yyxt34 != nil {
-			z.DecExtension(x.StableSince, yyxt34)
+		} else if yyxt35 := z.Extension(z.I2Rtid(x.StableSince)); yyxt35 != nil {
+			z.DecExtension(x.StableSince, yyxt35)
 		} else if z.DecBinary() {
 			z.DecBinaryUnmarshal(&x.StableSince)
 		} else if !z.DecBinary() && z.IsJSONHandle() {
@@ -29652,18 +29685,34 @@ func (x *ServerHealth) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 			z.DecFallback(&x.StableSince, false)
 		}
 	}
+	yyj20++
+	if yyhl20 {
+		yyb20 = yyj20 > l
+	} else {
+		yyb20 = r.CheckBreak()
+	}
+	if yyb20 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.Role = ""
+	} else {
+		x.Role = (string)(r.DecodeString())
+	}
 	for {
-		yyj19++
-		if yyhl19 {
-			yyb19 = yyj19 > l
+		yyj20++
+		if yyhl20 {
+			yyb20 = yyj20 > l
 		} else {
-			yyb19 = r.CheckBreak()
+			yyb20 = r.CheckBreak()
 		}
-		if yyb19 {
+		if yyb20 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj19-1, "")
+		z.DecStructFieldNotFound(yyj20-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -165180,9 +165229,9 @@ func (x *RaftServer) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(6)
+				r.WriteArrayStart(7)
 			} else {
-				r.WriteMapStart(6)
+				r.WriteMapStart(7)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -165339,6 +165388,33 @@ func (x *RaftServer) CodecEncodeSelf(e *codec1978.Encoder) {
 				}
 			}
 			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Role)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Role))
+					}
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"Role\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `Role`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					if z.EncBasicHandle().StringToRaw {
+						r.EncodeStringBytesRaw(z.BytesView(string(x.Role)))
+					} else {
+						r.EncodeStringEnc(codecSelferCcUTF8100, string(x.Role))
+					}
+				}
+			}
+			if yyr2 || yy2arr2 {
 				r.WriteArrayEnd()
 			} else {
 				r.WriteMapEnd()
@@ -165441,6 +165517,12 @@ func (x *RaftServer) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 			} else {
 				x.RaftProtocol = (string)(r.DecodeString())
 			}
+		case "Role":
+			if r.TryDecodeAsNil() {
+				x.Role = ""
+			} else {
+				x.Role = (string)(r.DecodeString())
+			}
 		default:
 			z.DecStructFieldNotFound(-1, yys3)
 		} // end switch yys3
@@ -165452,16 +165534,16 @@ func (x *RaftServer) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj12 int
-	var yyb12 bool
-	var yyhl12 bool = l >= 0
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	var yyj13 int
+	var yyb13 bool
+	var yyhl13 bool = l >= 0
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -165470,19 +165552,19 @@ func (x *RaftServer) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		x.ID = ""
 	} else {
 		if false {
-		} else if yyxt14 := z.Extension(z.I2Rtid(x.ID)); yyxt14 != nil {
-			z.DecExtension(x.ID, yyxt14)
+		} else if yyxt15 := z.Extension(z.I2Rtid(x.ID)); yyxt15 != nil {
+			z.DecExtension(x.ID, yyxt15)
 		} else {
 			x.ID = (pkg6_raft.ServerID)(r.DecodeString())
 		}
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -165492,13 +165574,13 @@ func (x *RaftServer) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Node = (string)(r.DecodeString())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -165507,19 +165589,19 @@ func (x *RaftServer) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		x.Address = ""
 	} else {
 		if false {
-		} else if yyxt17 := z.Extension(z.I2Rtid(x.Address)); yyxt17 != nil {
-			z.DecExtension(x.Address, yyxt17)
+		} else if yyxt18 := z.Extension(z.I2Rtid(x.Address)); yyxt18 != nil {
+			z.DecExtension(x.Address, yyxt18)
 		} else {
 			x.Address = (pkg6_raft.ServerAddress)(r.DecodeString())
 		}
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -165529,13 +165611,13 @@ func (x *RaftServer) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Leader = (bool)(r.DecodeBool())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -165545,13 +165627,13 @@ func (x *RaftServer) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Voter = (bool)(r.DecodeBool())
 	}
-	yyj12++
-	if yyhl12 {
-		yyb12 = yyj12 > l
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
 	} else {
-		yyb12 = r.CheckBreak()
+		yyb13 = r.CheckBreak()
 	}
-	if yyb12 {
+	if yyb13 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -165561,18 +165643,34 @@ func (x *RaftServer) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.RaftProtocol = (string)(r.DecodeString())
 	}
+	yyj13++
+	if yyhl13 {
+		yyb13 = yyj13 > l
+	} else {
+		yyb13 = r.CheckBreak()
+	}
+	if yyb13 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.Role = ""
+	} else {
+		x.Role = (string)(r.DecodeString())
+	}
 	for {
-		yyj12++
-		if yyhl12 {
-			yyb12 = yyj12 > l
+		yyj13++
+		if yyhl13 {
+			yyb13 = yyj13 > l
 		} else {
-			yyb12 = r.CheckBreak()
+			yyb13 = r.CheckBreak()
 		}
-		if yyb12 {
+		if yyb13 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj12-1, "")
+		z.DecStructFieldNotFound(yyj13-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -401975,7 +402073,7 @@ func (x codecSelfer100) decSliceServerHealth(v *[]ServerHealth, d *codec1978.Dec
 		_ = yyrl1
 		if yyhl1 {
 			if yyl1 > cap(yyv1) {
-				yyrl1 = z.DecInferLen(yyl1, z.DecBasicHandle().MaxInitLen, 136)
+				yyrl1 = z.DecInferLen(yyl1, z.DecBasicHandle().MaxInitLen, 152)
 				if yyrl1 <= cap(yyv1) {
 					yyv1 = yyv1[:yyrl1]
 				} else {
@@ -401992,7 +402090,7 @@ func (x codecSelfer100) decSliceServerHealth(v *[]ServerHealth, d *codec1978.Dec
 		for yyj1 = 0; (yyhl1 && yyj1 < yyl1) || !(yyhl1 || r.CheckBreak()); yyj1++ { // bounds-check-elimination
 			if yyj1 == 0 && yyv1 == nil {
 				if yyhl1 {
-					yyrl1 = z.DecInferLen(yyl1, z.DecBasicHandle().MaxInitLen, 136)
+					yyrl1 = z.DecInferLen(yyl1, z.DecBasicHandle().MaxInitLen, 152)
 				} else {
 					yyrl1 = 8
 				}

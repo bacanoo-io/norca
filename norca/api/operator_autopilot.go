@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 package api
@@ -134,6 +135,9 @@ type ServerHealth struct {
 
 	// StableSince is the last time this server's Healthy value changed.
 	StableSince time.Time
+
+	// Role is the configured role of the server: voter, standby or observer.
+	Role string
 }
 
 func (u *ServerHealth) MarshalJSON() ([]byte, error) {

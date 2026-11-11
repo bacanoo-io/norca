@@ -124,6 +124,7 @@ func (s *Server) GetClusterHealth() *structs.OperatorHealthReply {
 			LastIndex:   srv.Stats.LastIndex,
 			Healthy:     srv.Health.Healthy,
 			StableSince: srv.Health.StableSince,
+			Role:        string(serverRoleFromTag(srv.Server.Meta)),
 		}
 
 		switch srv.Server.NodeStatus {

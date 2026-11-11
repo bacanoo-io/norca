@@ -23,15 +23,15 @@ func TestIsNomadServer(t *testing.T) {
 		Addr:   net.IP([]byte{127, 0, 0, 1}),
 		Status: serf.StatusAlive,
 		Tags: map[string]string{
-			"role":     "nomad",
-			"region":   "aws",
-			"dc":       "east-aws",
-			"rpc_addr": "1.1.1.1",
-			"port":     "10000",
-			"vsn":      "1",
-			"raft_vsn": "2",
-			"build":    "0.7.0+ent",
-			"nonvoter": "1",
+			"role":      "nomad",
+			"region":    "aws",
+			"dc":        "east-aws",
+			"rpc_addr":  "1.1.1.1",
+			"port":      "10000",
+			"vsn":       "1",
+			"raft_vsn":  "2",
+			"build":     "0.7.0+ent",
+			"raft_role": "observer",
 		},
 	}
 	valid, parts := isNomadServer(m)
@@ -63,8 +63,8 @@ func TestIsNomadServer(t *testing.T) {
 	} else if seg[0] != 0 && seg[1] != 7 && seg[2] != 0 {
 		t.Fatalf("bad: %v", parts.Build)
 	}
-	if !parts.NonVoter {
-		t.Fatalf("should be nonvoter")
+	if parts.Role != ServerRoleObserver {
+		t.Fatalf("should be an observer: %q", parts.Role)
 	}
 
 	m.Tags["bootstrap"] = "1"
@@ -83,10 +83,17 @@ func TestIsNomadServer(t *testing.T) {
 		t.Fatalf("bad: %v", parts.Expect)
 	}
 
-	delete(m.Tags, "nonvoter")
+	delete(m.Tags, "raft_role")
 	valid, parts = isNomadServer(m)
-	if !valid || parts.NonVoter {
+	if !valid || parts.Role != ServerRoleVoter {
 		t.Fatalf("should be a voter")
+	}
+
+	// An unknown role never takes the vote away.
+	m.Tags["raft_role"] = "witness"
+	valid, parts = isNomadServer(m)
+	if !valid || parts.Role != ServerRoleVoter {
+		t.Fatalf("unknown role should be a voter")
 	}
 }
 

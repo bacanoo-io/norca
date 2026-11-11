@@ -149,7 +149,7 @@ func (s *Server) maybeBootstrap() {
 			s.logger.Error("peer has bootstrap mode. Expect disabled", "member", member)
 			return
 		}
-		if !p.NonVoter {
+		if p.Role.Votes() {
 			voters++
 		}
 
@@ -211,7 +211,7 @@ func (s *Server) maybeBootstrap() {
 		addrs = append(addrs, addr)
 		id := raft.ServerID(server.ID)
 		suffrage := raft.Voter
-		if server.NonVoter {
+		if !server.Role.Votes() {
 			suffrage = raft.Nonvoter
 		}
 		peer := raft.Server{

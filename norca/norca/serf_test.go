@@ -263,7 +263,7 @@ func TestNomad_BootstrapExpect(t *testing.T) {
 	require.Equal(t, termBefore, termAfter, "expected no election")
 }
 
-func TestNomad_BootstrapExpect_NonVoter(t *testing.T) {
+func TestNomad_BootstrapExpect_Observer(t *testing.T) {
 	ci.Parallel(t)
 
 	dir := t.TempDir()
@@ -274,7 +274,7 @@ func TestNomad_BootstrapExpect_NonVoter(t *testing.T) {
 		c.DevMode = false
 		c.DataDir = path.Join(dir, "node1")
 		c.NumSchedulers = 0
-		c.NonVoter = true
+		c.Role = ServerRoleObserver
 	})
 	defer cleanupS1()
 
@@ -284,7 +284,7 @@ func TestNomad_BootstrapExpect_NonVoter(t *testing.T) {
 		c.DevMode = false
 		c.DataDir = path.Join(dir, "node2")
 		c.NumSchedulers = 0
-		c.NonVoter = true
+		c.Role = ServerRoleObserver
 	})
 	defer cleanupS2()
 
@@ -294,7 +294,7 @@ func TestNomad_BootstrapExpect_NonVoter(t *testing.T) {
 		c.DevMode = false
 		c.DataDir = path.Join(dir, "node3")
 		c.NumSchedulers = 0
-		c.NonVoter = false
+		c.Role = ServerRoleVoter
 	})
 	defer cleanupS3()
 
@@ -318,7 +318,7 @@ func TestNomad_BootstrapExpect_NonVoter(t *testing.T) {
 		c.DevMode = false
 		c.DataDir = path.Join(dir, "node4")
 		c.NumSchedulers = 0
-		c.NonVoter = false
+		c.Role = ServerRoleVoter
 	})
 	defer cleanupS4()
 

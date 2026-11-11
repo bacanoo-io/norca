@@ -81,11 +81,13 @@ func (op *Operator) RaftGetConfiguration(args *structs.GenericRequest, reply *st
 	for _, server := range future.Configuration().Servers {
 		node := "(unknown)"
 		raftProtocolVersion := "unknown"
+		role := "unknown"
 		if member, ok := serverMap[server.Address]; ok {
 			node = member.Name
 			if raftVsn, ok := member.Tags["raft_vsn"]; ok {
 				raftProtocolVersion = raftVsn
 			}
+			role = string(serverRoleFromTag(member.Tags))
 		}
 
 		entry := &structs.RaftServer{
@@ -95,6 +97,7 @@ func (op *Operator) RaftGetConfiguration(args *structs.GenericRequest, reply *st
 			Leader:       server.Address == leader,
 			Voter:        server.Suffrage == raft.Voter,
 			RaftProtocol: raftProtocolVersion,
+			Role:         role,
 		}
 		reply.Servers = append(reply.Servers, entry)
 	}

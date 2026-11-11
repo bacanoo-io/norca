@@ -1661,9 +1661,11 @@ func (s *Server) setupSerf(conf *serf.Config, ch chan serf.Event, path string) (
 	if bootstrapExpect != 0 {
 		conf.Tags["expect"] = fmt.Sprintf("%d", bootstrapExpect)
 	}
-	if s.config.NonVoter {
-		conf.Tags["nonvoter"] = "1"
+	role := s.config.Role
+	if role == "" {
+		role = ServerRoleVoter
 	}
+	conf.Tags[serverRoleTag] = string(role)
 	if s.config.RedundancyZone != "" {
 		conf.Tags[AutopilotRZTag] = s.config.RedundancyZone
 	}

@@ -359,7 +359,7 @@ func TestConfig_Merge(t *testing.T) {
 			StartJoin:              []string{"1.1.1.1"},
 			RetryJoin:              []string{"1.1.1.1"},
 			RetryInterval:          time.Second * 10,
-			NonVotingServer:        true,
+			Role:                   "standby",
 			RedundancyZone:         "bar",
 			UpgradeVersion:         "bar",
 			EnableEventBroker:      pointer.Of(true),

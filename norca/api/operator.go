@@ -44,6 +44,10 @@ type RaftServer struct {
 
 	// RaftProtocol is the version of the Raft protocol spoken by this server.
 	RaftProtocol string
+
+	// Role is the configured role of the server: voter, standby or observer
+	// ("unknown" when the server is not in the gossip pool).
+	Role string
 }
 
 // RaftConfiguration is returned when querying for the current Raft configuration.

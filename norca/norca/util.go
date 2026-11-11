@@ -55,7 +55,10 @@ type serverParts struct {
 	Addr        net.Addr
 	RPCAddr     net.Addr
 	Status      serf.MemberStatus
-	NonVoter    bool
+
+	// Role is the role the server advertises (Serf tag "raft_role"); servers
+	// without the tag are voters.
+	Role ServerRole
 
 	// Deprecated: Functionally unused but needs to always be set by 1 for
 	// compatibility with v1.2.x and earlier.
@@ -136,9 +139,6 @@ func isNomadServer(m serf.Member) (bool, *serverParts) {
 	// not make the member invalid
 	norcaVersion, _ := version.NewVersion(m.Tags[norcaVersionTag])
 
-	// Check if the server is a non voter
-	_, nonVoter := m.Tags["nonvoter"]
-
 	addr := &net.TCPAddr{IP: m.Addr, Port: port}
 	rpcAddr := &net.TCPAddr{IP: rpcIP, Port: port}
 	parts := &serverParts{
@@ -155,7 +155,7 @@ func isNomadServer(m serf.Member) (bool, *serverParts) {
 		RaftVersion:  raftVsn,
 		NorcaVersion: norcaVersion,
 		Status:       m.Status,
-		NonVoter:     nonVoter,
+		Role:         serverRoleFromTag(m.Tags),
 		MajorVersion: deprecatedAPIMajorVersion,
 	}
 	if busPort, err := strconv.Atoi(m.Tags[busTag]); err == nil && busPort > 0 {

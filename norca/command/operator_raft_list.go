@@ -88,7 +88,7 @@ func (c *OperatorRaftListCommand) Run(args []string) int {
 	}
 
 	// Format it as a nice table.
-	result := []string{"Node|ID|Address|State|Voter|RaftProtocol"}
+	result := []string{"Node|ID|Address|State|Voter|Role|RaftProtocol"}
 	sort.Slice(reply.Servers, func(i, j int) bool {
 		return reply.Servers[i].Node < reply.Servers[j].Node
 	})
@@ -98,8 +98,12 @@ func (c *OperatorRaftListCommand) Run(args []string) int {
 		if s.Leader {
 			state = "leader"
 		}
-		result = append(result, fmt.Sprintf("%s|%s|%s|%s|%v|%s",
-			s.Node, s.ID, s.Address, state, s.Voter, s.RaftProtocol))
+		role := s.Role
+		if role == "" {
+			role = "unknown"
+		}
+		result = append(result, fmt.Sprintf("%s|%s|%s|%s|%v|%s|%s",
+			s.Node, s.ID, s.Address, state, s.Voter, role, s.RaftProtocol))
 	}
 	c.Ui.Output(columnize.SimpleFormat(result))
 
