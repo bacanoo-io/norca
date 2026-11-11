@@ -11,7 +11,7 @@ SPDX-License-Identifier = "MPL-2.0"
 # The audit itself (clean-room-audit/): the scripts carry SPDX headers, the
 # README falls under this annotation.
 [[annotations]]
-path = ["clean-room-result/**", "clean-room-audit/**"]
+path = ["clean-room-result/**", "clean-room-result-full/**", "clean-room-audit/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"
