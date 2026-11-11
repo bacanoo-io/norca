@@ -160,6 +160,12 @@ const (
 	CSIVolumeAccessModeSingleNodeReader CSIVolumeAccessMode = "single-node-reader-only"
 	CSIVolumeAccessModeSingleNodeWriter CSIVolumeAccessMode = "single-node-writer"
 
+	// The single-node modes of CSI 1.5 (Norca): one writing allocation, or
+	// several writing allocations on one node. Only for plugins with the
+	// SINGLE_NODE_MULTI_WRITER capability.
+	CSIVolumeAccessModeSingleNodeSingleWriter CSIVolumeAccessMode = "single-node-single-writer"
+	CSIVolumeAccessModeSingleNodeMultiWriter  CSIVolumeAccessMode = "single-node-multi-writer"
+
 	CSIVolumeAccessModeMultiNodeReader       CSIVolumeAccessMode = "multi-node-reader-only"
 	CSIVolumeAccessModeMultiNodeSingleWriter CSIVolumeAccessMode = "multi-node-single-writer"
 	CSIVolumeAccessModeMultiNodeMultiWriter  CSIVolumeAccessMode = "multi-node-multi-writer"
@@ -176,6 +182,11 @@ type CSIMountOptions struct {
 	// volume by the plugin. This may contain sensitive data and should not be
 	// leaked.
 	MountFlags []string
+
+	// MountGroup is the group (a GID) the node plugin makes the volume
+	// accessible to (CSI volume_mount_group, Norca). Only in the volume block
+	// of a job, for node plugins with VOLUME_MOUNT_GROUP.
+	MountGroup string
 }
 
 func (o *CSIMountOptions) Copy() *CSIMountOptions {
@@ -198,6 +209,9 @@ func (o *CSIMountOptions) Merge(p *CSIMountOptions) {
 	if p.MountFlags != nil {
 		o.MountFlags = p.MountFlags
 	}
+	if p.MountGroup != "" {
+		o.MountGroup = p.MountGroup
+	}
 }
 
 func (o *CSIMountOptions) Equal(p *CSIMountOptions) bool {
@@ -207,7 +221,7 @@ func (o *CSIMountOptions) Equal(p *CSIMountOptions) bool {
 	if o == nil || p == nil {
 		return false
 	}
-	if o.FSType != p.FSType {
+	if o.FSType != p.FSType || o.MountGroup != p.MountGroup {
 		return false
 	}
 	return helper.SliceSetEq(o.MountFlags, p.MountFlags)
@@ -474,6 +488,8 @@ func (v *CSIVolume) WriteSchedulable() bool {
 
 	switch v.AccessMode {
 	case CSIVolumeAccessModeSingleNodeWriter,
+		CSIVolumeAccessModeSingleNodeSingleWriter,
+		CSIVolumeAccessModeSingleNodeMultiWriter,
 		CSIVolumeAccessModeMultiNodeSingleWriter,
 		CSIVolumeAccessModeMultiNodeMultiWriter:
 		return v.ResourceExhausted == time.Time{}
@@ -484,6 +500,8 @@ func (v *CSIVolume) WriteSchedulable() bool {
 		for _, cap := range v.RequestedCapabilities {
 			switch cap.AccessMode {
 			case CSIVolumeAccessModeSingleNodeWriter,
+				CSIVolumeAccessModeSingleNodeSingleWriter,
+				CSIVolumeAccessModeSingleNodeMultiWriter,
 				CSIVolumeAccessModeMultiNodeSingleWriter,
 				CSIVolumeAccessModeMultiNodeMultiWriter:
 				return v.ResourceExhausted == time.Time{}
@@ -498,8 +516,11 @@ func (v *CSIVolume) HasFreeReadClaims() bool {
 	switch v.AccessMode {
 	case CSIVolumeAccessModeSingleNodeReader:
 		return len(v.ReadClaims) == 0
-	case CSIVolumeAccessModeSingleNodeWriter:
+	case CSIVolumeAccessModeSingleNodeWriter, CSIVolumeAccessModeSingleNodeSingleWriter:
 		return len(v.ReadClaims) == 0 && len(v.WriteClaims) == 0
+	case CSIVolumeAccessModeSingleNodeMultiWriter:
+		// Any number on the node of the claims (HasFreeReadClaimsOnNode).
+		return true
 	case CSIVolumeAccessModeUnknown:
 		// This volume was created but not yet claimed, so its
 		// capabilities have been checked in ReadSchedulable
@@ -516,8 +537,12 @@ func (v *CSIVolume) HasFreeReadClaims() bool {
 // HasFreeWriteClaims determines if there are any free write claims available
 func (v *CSIVolume) HasFreeWriteClaims() bool {
 	switch v.AccessMode {
-	case CSIVolumeAccessModeSingleNodeWriter, CSIVolumeAccessModeMultiNodeSingleWriter:
+	case CSIVolumeAccessModeSingleNodeWriter, CSIVolumeAccessModeSingleNodeSingleWriter,
+		CSIVolumeAccessModeMultiNodeSingleWriter:
 		return len(v.WriteClaims) == 0
+	case CSIVolumeAccessModeSingleNodeMultiWriter:
+		// Any number on the node of the claims (HasFreeWriteClaimsOnNode).
+		return true
 	case CSIVolumeAccessModeMultiNodeMultiWriter:
 		// the CSI spec doesn't allow for setting a max number of writers.
 		// we track node resource exhaustion through v.ResourceExhausted
@@ -531,6 +556,42 @@ func (v *CSIVolume) HasFreeWriteClaims() bool {
 		// Reader modes never have free write claims
 		return false
 	}
+}
+
+// ClaimedOnOtherNode reports whether the volume is in the single-node-multi-
+// writer mode and has a claim of a node other than nodeID: all its
+// allocations must run on one node (Norca).
+func (v *CSIVolume) ClaimedOnOtherNode(nodeID string) bool {
+	if v.AccessMode != CSIVolumeAccessModeSingleNodeMultiWriter {
+		return false
+	}
+	for _, claims := range []map[string]*CSIVolumeClaim{v.ReadClaims, v.WriteClaims} {
+		for _, c := range claims {
+			if c != nil && c.NodeID != "" && c.NodeID != nodeID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// HasFreeReadClaimsOnNode is HasFreeReadClaims for a claim of a node: a
+// single-node-multi-writer volume claimed on another node has none.
+func (v *CSIVolume) HasFreeReadClaimsOnNode(nodeID string) bool {
+	return v.HasFreeReadClaims() && !v.ClaimedOnOtherNode(nodeID)
+}
+
+// HasFreeWriteClaimsOnNode is HasFreeWriteClaims for a claim of a node: a
+// single-node-multi-writer volume claimed on another node has none.
+func (v *CSIVolume) HasFreeWriteClaimsOnNode(nodeID string) bool {
+	return v.HasFreeWriteClaims() && !v.ClaimedOnOtherNode(nodeID)
+}
+
+// IsSingleNodeMultiWriterMode reports whether an access mode is one of the
+// single-node modes of CSI 1.5, which need the SINGLE_NODE_MULTI_WRITER
+// capability of the plugin (Norca).
+func IsSingleNodeMultiWriterMode(m CSIVolumeAccessMode) bool {
+	return m == CSIVolumeAccessModeSingleNodeSingleWriter || m == CSIVolumeAccessModeSingleNodeMultiWriter
 }
 
 // InUse tests whether any allocations are actively using the volume
@@ -629,7 +690,7 @@ func (v *CSIVolume) claimRead(claim *CSIVolumeClaim, alloc *Allocation) error {
 		return ErrCSIVolumeUnschedulable
 	}
 
-	if !v.HasFreeReadClaims() {
+	if !v.HasFreeReadClaimsOnNode(claim.NodeID) {
 		return ErrCSIVolumeMaxClaims
 	}
 
@@ -659,7 +720,7 @@ func (v *CSIVolume) claimWrite(claim *CSIVolumeClaim, alloc *Allocation) error {
 		return ErrCSIVolumeUnschedulable
 	}
 
-	if !v.HasFreeWriteClaims() {
+	if !v.HasFreeWriteClaimsOnNode(claim.NodeID) {
 		return ErrCSIVolumeMaxClaims
 	}
 
@@ -760,6 +821,9 @@ func (v *CSIVolume) Validate() error {
 	}
 	if len(v.RequestedCapabilities) == 0 {
 		errs = append(errs, "must include at least one capability block")
+	}
+	if v.MountOptions != nil && v.MountOptions.MountGroup != "" {
+		errs = append(errs, "mount_group belongs in the volume block of the job, not in the volume specification")
 	}
 	if v.RequestedTopologies != nil {
 		for _, t := range v.RequestedTopologies.Required {

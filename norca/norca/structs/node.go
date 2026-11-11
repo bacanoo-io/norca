@@ -153,6 +153,15 @@ type CSINodeInfo struct {
 
 	// SupportsCondition indicates plugin support for VOLUME_CONDITION
 	SupportsCondition bool
+
+	// SupportsSingleNodeMultiWriter indicates plugin support for
+	// SINGLE_NODE_MULTI_WRITER: the access modes single-node-single-writer
+	// and single-node-multi-writer (Norca).
+	SupportsSingleNodeMultiWriter bool
+
+	// SupportsVolumeMountGroup indicates plugin support for
+	// VOLUME_MOUNT_GROUP: mount_options { mount_group } (Norca).
+	SupportsVolumeMountGroup bool
 }
 
 func (n *CSINodeInfo) Copy() *CSINodeInfo {
@@ -214,6 +223,10 @@ type CSIControllerInfo struct {
 
 	// SupportsGet indicates plugin support for GET_VOLUME
 	SupportsGet bool
+
+	// SupportsSingleNodeMultiWriter indicates plugin support for
+	// SINGLE_NODE_MULTI_WRITER (Norca).
+	SupportsSingleNodeMultiWriter bool
 }
 
 func (c *CSIControllerInfo) Copy() *CSIControllerInfo {

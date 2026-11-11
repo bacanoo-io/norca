@@ -187,11 +187,14 @@ func (v *VolumeRequest) Validate(jobType string, taskGroupCount, canaries int) e
 			if taskGroupCount > 1 && !v.PerAlloc {
 				addErr("volume with %s access mode allows only one reader", v.AccessMode)
 			}
-		case CSIVolumeAccessModeSingleNodeWriter:
+		case CSIVolumeAccessModeSingleNodeWriter, CSIVolumeAccessModeSingleNodeSingleWriter:
 			// note: we allow read-only mount of this volume, but only one
 			if taskGroupCount > 1 && !v.PerAlloc {
 				addErr("volume with %s access mode allows only one reader or writer", v.AccessMode)
 			}
+		case CSIVolumeAccessModeSingleNodeMultiWriter:
+			// Any number of allocations, all on one node (the scheduler
+			// places them there).
 		case CSIVolumeAccessModeMultiNodeReader:
 			if !v.ReadOnly {
 				addErr("%s volumes must be read-only", v.AccessMode)
@@ -202,6 +205,9 @@ func (v *VolumeRequest) Validate(jobType string, taskGroupCount, canaries int) e
 			}
 		case CSIVolumeAccessModeMultiNodeMultiWriter:
 			// note: we intentionally allow read-only mount of this mode
+		}
+		if v.MountOptions != nil && v.MountOptions.MountGroup != "" && v.AttachmentMode == CSIVolumeAttachmentModeBlockDevice {
+			addErr("mount_group needs attachment mode %s", CSIVolumeAttachmentModeFilesystem)
 		}
 	}
 

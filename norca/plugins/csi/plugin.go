@@ -332,6 +332,7 @@ type ControllerCapabilitySet struct {
 	HasListVolumesPublishedNodes bool
 	HasVolumeCondition           bool
 	HasGetVolume                 bool
+	HasSingleNodeMultiWriter     bool
 }
 
 func NewControllerCapabilitySet(resp *csipbv1.ControllerGetCapabilitiesResponse) *ControllerCapabilitySet {
@@ -365,6 +366,8 @@ func NewControllerCapabilitySet(resp *csipbv1.ControllerGetCapabilitiesResponse)
 				cs.HasVolumeCondition = true
 			case csipbv1.ControllerServiceCapability_RPC_GET_VOLUME:
 				cs.HasGetVolume = true
+			case csipbv1.ControllerServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER:
+				cs.HasSingleNodeMultiWriter = true
 			default:
 				continue
 			}
@@ -933,10 +936,12 @@ type ListSnapshotsResponse_Entry struct {
 }
 
 type NodeCapabilitySet struct {
-	HasStageUnstageVolume bool
-	HasGetVolumeStats     bool
-	HasExpandVolume       bool
-	HasVolumeCondition    bool
+	HasStageUnstageVolume    bool
+	HasGetVolumeStats        bool
+	HasExpandVolume          bool
+	HasVolumeCondition       bool
+	HasSingleNodeMultiWriter bool
+	HasVolumeMountGroup      bool
 }
 
 func NewNodeCapabilitySet(resp *csipbv1.NodeGetCapabilitiesResponse) *NodeCapabilitySet {
@@ -953,6 +958,10 @@ func NewNodeCapabilitySet(resp *csipbv1.NodeGetCapabilitiesResponse) *NodeCapabi
 				cs.HasExpandVolume = true
 			case csipbv1.NodeServiceCapability_RPC_VOLUME_CONDITION:
 				cs.HasVolumeCondition = true
+			case csipbv1.NodeServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER:
+				cs.HasSingleNodeMultiWriter = true
+			case csipbv1.NodeServiceCapability_RPC_VOLUME_MOUNT_GROUP:
+				cs.HasVolumeMountGroup = true
 			default:
 				continue
 			}
@@ -974,6 +983,10 @@ var (
 	VolumeAccessModeMultiNodeReaderOnly   = VolumeAccessMode(csipbv1.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY)
 	VolumeAccessModeMultiNodeSingleWriter = VolumeAccessMode(csipbv1.VolumeCapability_AccessMode_MULTI_NODE_SINGLE_WRITER)
 	VolumeAccessModeMultiNodeMultiWriter  = VolumeAccessMode(csipbv1.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER)
+
+	// The single-node modes of CSI 1.5 (Norca).
+	VolumeAccessModeSingleNodeSingleWriter = VolumeAccessMode(csipbv1.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER)
+	VolumeAccessModeSingleNodeMultiWriter  = VolumeAccessMode(csipbv1.VolumeCapability_AccessMode_SINGLE_NODE_MULTI_WRITER)
 )
 
 func (a VolumeAccessMode) String() string {
@@ -1036,6 +1049,10 @@ func VolumeCapabilityFromStructs(sAccessType structs.CSIVolumeAttachmentMode, sA
 		accessMode = VolumeAccessModeSingleNodeReaderOnly
 	case structs.CSIVolumeAccessModeSingleNodeWriter:
 		accessMode = VolumeAccessModeSingleNodeWriter
+	case structs.CSIVolumeAccessModeSingleNodeSingleWriter:
+		accessMode = VolumeAccessModeSingleNodeSingleWriter
+	case structs.CSIVolumeAccessModeSingleNodeMultiWriter:
+		accessMode = VolumeAccessModeSingleNodeMultiWriter
 	case structs.CSIVolumeAccessModeMultiNodeMultiWriter:
 		accessMode = VolumeAccessModeMultiNodeMultiWriter
 	case structs.CSIVolumeAccessModeMultiNodeSingleWriter:
@@ -1073,6 +1090,7 @@ func (c *VolumeCapability) ToCSIRepresentation() *csipbv1.VolumeCapability {
 		if c.MountVolume != nil {
 			opts.FsType = c.MountVolume.FSType
 			opts.MountFlags = c.MountVolume.MountFlags
+			opts.VolumeMountGroup = c.MountVolume.MountGroup
 		}
 		vc.AccessType = &csipbv1.VolumeCapability_Mount{Mount: opts}
 	} else {

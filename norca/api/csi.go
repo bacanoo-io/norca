@@ -224,12 +224,17 @@ const (
 type CSIVolumeAccessMode string
 
 const (
-	CSIVolumeAccessModeUnknown               CSIVolumeAccessMode = ""
-	CSIVolumeAccessModeSingleNodeReader      CSIVolumeAccessMode = "single-node-reader-only"
-	CSIVolumeAccessModeSingleNodeWriter      CSIVolumeAccessMode = "single-node-writer"
-	CSIVolumeAccessModeMultiNodeReader       CSIVolumeAccessMode = "multi-node-reader-only"
-	CSIVolumeAccessModeMultiNodeSingleWriter CSIVolumeAccessMode = "multi-node-single-writer"
-	CSIVolumeAccessModeMultiNodeMultiWriter  CSIVolumeAccessMode = "multi-node-multi-writer"
+	CSIVolumeAccessModeUnknown          CSIVolumeAccessMode = ""
+	CSIVolumeAccessModeSingleNodeReader CSIVolumeAccessMode = "single-node-reader-only"
+	CSIVolumeAccessModeSingleNodeWriter CSIVolumeAccessMode = "single-node-writer"
+	CSIVolumeAccessModeMultiNodeReader  CSIVolumeAccessMode = "multi-node-reader-only"
+
+	// The single-node modes of CSI 1.5 (Norca; plugins with the
+	// SINGLE_NODE_MULTI_WRITER capability).
+	CSIVolumeAccessModeSingleNodeSingleWriter CSIVolumeAccessMode = "single-node-single-writer"
+	CSIVolumeAccessModeSingleNodeMultiWriter  CSIVolumeAccessMode = "single-node-multi-writer"
+	CSIVolumeAccessModeMultiNodeSingleWriter  CSIVolumeAccessMode = "multi-node-single-writer"
+	CSIVolumeAccessModeMultiNodeMultiWriter   CSIVolumeAccessMode = "multi-node-multi-writer"
 )
 
 const (
@@ -249,6 +254,11 @@ type CSIMountOptions struct {
 	// leaked.
 	MountFlags []string `hcl:"mount_flags,optional"`
 
+	// MountGroup is the group (a GID) the node plugin makes the volume
+	// accessible to (CSI volume_mount_group, Norca). Only in the volume block
+	// of a job, for node plugins with VOLUME_MOUNT_GROUP.
+	MountGroup string `hcl:"mount_group,optional"`
+
 	ExtraKeysHCL []string `hcl1:",unusedKeys" json:"-"` // report unexpected keys
 }
 
@@ -261,6 +271,9 @@ func (o *CSIMountOptions) Merge(p *CSIMountOptions) {
 	}
 	if p.MountFlags != nil {
 		o.MountFlags = p.MountFlags
+	}
+	if p.MountGroup != "" {
+		o.MountGroup = p.MountGroup
 	}
 }
 

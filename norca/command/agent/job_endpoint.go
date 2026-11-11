@@ -1161,6 +1161,7 @@ func ApiTgToStructsTG(job *structs.Job, taskGroup *api.TaskGroup, tg *structs.Ta
 				vol.MountOptions = &structs.CSIMountOptions{
 					FSType:     v.MountOptions.FSType,
 					MountFlags: v.MountOptions.MountFlags,
+					MountGroup: v.MountOptions.MountGroup,
 				}
 			}
 

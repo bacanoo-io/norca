@@ -29,6 +29,9 @@ const (
 	FilterConstraintCSIVolumeNoReadTemplate        = "CSI volume %s is unschedulable or has exhausted its available reader claims"
 	FilterConstraintCSIVolumeNoWriteTemplate       = "CSI volume %s is unschedulable or is read-only"
 	FilterConstraintCSIVolumeInUseTemplate         = "CSI volume %s has exhausted its available writer claims"
+	FilterConstraintCSIVolumeOtherNodeTemplate     = "CSI volume %s is single-node-multi-writer and claimed on another node"
+	FilterConstraintCSIPluginAccessModeTemplate    = "CSI plugin %s on client %s does not support access mode %s (SINGLE_NODE_MULTI_WRITER)"
+	FilterConstraintCSIPluginMountGroupTemplate    = "CSI plugin %s on client %s does not support mount_group (VOLUME_MOUNT_GROUP)"
 	FilterConstraintCSIVolumeGCdAllocationTemplate = "CSI volume %s has exhausted its available writer claims and is claimed by a garbage collected allocation %s; waiting for claim to be released"
 	FilterConstraintDrivers                        = "missing drivers"
 	FilterConstraintDevices                        = "missing devices"
@@ -333,6 +336,21 @@ func (c *CSIVolumeChecker) isFeasible(n *structs.Node) (bool, string) {
 			if !plugin.NodeInfo.AccessibleTopology.MatchFound(vol.Topologies) {
 				return false, FilterConstraintsCSIPluginTopology
 			}
+		}
+
+		// The single-node modes of CSI 1.5 and the mount group need
+		// capabilities of the node plugin (Norca).
+		if structs.IsSingleNodeMultiWriterMode(req.AccessMode) &&
+			(plugin.NodeInfo == nil || !plugin.NodeInfo.SupportsSingleNodeMultiWriter) {
+			return false, fmt.Sprintf(FilterConstraintCSIPluginAccessModeTemplate, vol.PluginID, n.ID, req.AccessMode)
+		}
+		if req.MountOptions != nil && req.MountOptions.MountGroup != "" &&
+			(plugin.NodeInfo == nil || !plugin.NodeInfo.SupportsVolumeMountGroup) {
+			return false, fmt.Sprintf(FilterConstraintCSIPluginMountGroupTemplate, vol.PluginID, n.ID)
+		}
+		// A single-node-multi-writer volume stays on the node of its claims.
+		if vol.ClaimedOnOtherNode(n.ID) {
+			return false, fmt.Sprintf(FilterConstraintCSIVolumeOtherNodeTemplate, vol.ID)
 		}
 
 		if req.ReadOnly {

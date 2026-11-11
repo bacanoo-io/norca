@@ -143,6 +143,7 @@ func applyCapabilitySetToControllerInfo(cs *csi.ControllerCapabilitySet, info *s
 	info.SupportsListVolumesAttachedNodes = cs.HasListVolumesPublishedNodes
 	info.SupportsCondition = cs.HasVolumeCondition
 	info.SupportsGet = cs.HasGetVolume
+	info.SupportsSingleNodeMultiWriter = cs.HasSingleNodeMultiWriter
 }
 
 func (p *pluginFingerprinter) buildControllerFingerprint(ctx context.Context, base *structs.CSIInfo) (*structs.CSIInfo, error) {
@@ -181,6 +182,8 @@ func (p *pluginFingerprinter) buildNodeFingerprint(ctx context.Context, base *st
 	fp.NodeInfo.SupportsStats = caps.HasGetVolumeStats
 	fp.NodeInfo.SupportsExpand = caps.HasExpandVolume
 	fp.NodeInfo.SupportsCondition = caps.HasVolumeCondition
+	fp.NodeInfo.SupportsSingleNodeMultiWriter = caps.HasSingleNodeMultiWriter
+	fp.NodeInfo.SupportsVolumeMountGroup = caps.HasVolumeMountGroup
 
 	return fp, nil
 }

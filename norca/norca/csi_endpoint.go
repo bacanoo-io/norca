@@ -256,6 +256,9 @@ func (v *CSIVolume) pluginValidateVolume(vol *structs.CSIVolume) (*structs.CSIPl
 	if plugin.ControllerRequired && plugin.ControllersHealthy < 1 {
 		return nil, fmt.Errorf("no healthy controllers for CSI plugin: %s", vol.PluginID)
 	}
+	if err := pluginSupportsAccessModes(plugin, vol); err != nil {
+		return nil, err
+	}
 
 	vol.Provider = plugin.Provider
 	vol.ProviderVersion = plugin.Version
@@ -1955,4 +1958,40 @@ func (v *CSIVolume) setControllerState(args *structs.CSIVolumeGetRequest, reply 
 	vol.NodeUsage = reply.Volume.NodeUsage
 	vol.ControllerState = st
 	reply.Volume = vol
+}
+
+// pluginSupportsAccessModes refuses the single-node modes of CSI 1.5
+// (single-node-single-writer, single-node-multi-writer) for a plugin without
+// the SINGLE_NODE_MULTI_WRITER capability: on a node plugin, and on its
+// controller when it has one (Norca). The specification lets a CO use these
+// modes only with that capability.
+func pluginSupportsAccessModes(plugin *structs.CSIPlugin, vol *structs.CSIVolume) error {
+	var mode structs.CSIVolumeAccessMode
+	for _, c := range vol.RequestedCapabilities {
+		if c != nil && structs.IsSingleNodeMultiWriterMode(c.AccessMode) {
+			mode = c.AccessMode
+			break
+		}
+	}
+	if mode == "" {
+		return nil
+	}
+	nodeOK := false
+	for _, info := range plugin.Nodes {
+		if info != nil && info.NodeInfo != nil && info.NodeInfo.SupportsSingleNodeMultiWriter {
+			nodeOK = true
+			break
+		}
+	}
+	if !nodeOK {
+		return fmt.Errorf("CSI plugin %s does not support access mode %s: no node plugin has the SINGLE_NODE_MULTI_WRITER capability", plugin.ID, mode)
+	}
+	if plugin.ControllerRequired {
+		for _, info := range plugin.Controllers {
+			if info != nil && info.Healthy && info.ControllerInfo != nil && !info.ControllerInfo.SupportsSingleNodeMultiWriter {
+				return fmt.Errorf("CSI plugin %s does not support access mode %s: its controller lacks the SINGLE_NODE_MULTI_WRITER capability", plugin.ID, mode)
+			}
+		}
+	}
+	return nil
 }
