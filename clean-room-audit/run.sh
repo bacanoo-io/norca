@@ -7,8 +7,10 @@
 # into /work, runs Dolos and writes only file pairs and scores to /out. /work
 # (the only place with HashiCorp code) disappears with the container.
 #
-# Environment: NORCA_REF, BSL_TAG (a tag or "latest"), SETS (busl, bugfix,
-# full; default busl,bugfix),
+# Environment: NORCA_REF, BSL_TAG (the release of the bugfix set: a tag, or
+# "latest" for the newest v1.x.y), FULL_TAG (the release of the full set: a
+# tag, or "latest" for the newest release of any major version), SETS (busl,
+# bugfix, full; default busl,bugfix),
 # THRESHOLD, DOLOS_VERSION; optional NORCA_URL, the repository to clone Norca
 # from (default: GitHub; audit.ps1 mounts the checkout it is part of
 # read-only at /norca-src and passes that path); optional CA_CERT, a PEM file
@@ -89,23 +91,43 @@ main() {
 	norca_rev=$(git -C "$W/norca" rev-parse -q --verify "$NORCA_REF^{commit}" ||
 		git -C "$W/norca" rev-parse -q --verify "origin/$NORCA_REF^{commit}") ||
 		{ log "unknown Norca revision $NORCA_REF"; exit 1; }
-	if [ "$BSL_TAG" = latest ]; then
-		# The highest release tag of any major version (v2.1.1 is after
-		# v1.11.3); pre-releases (-beta, -rc) do not count.
-		BSL_TAG=$(retry git ls-remote --tags --refs "$NOMAD_URL" 'v*' 2>/tmp/git-tags.log | sed 's|.*refs/tags/||' |
-			grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1) || true
-		if [ -z "$BSL_TAG" ]; then
+	# newest <pattern>: the highest release tag vX.Y.Z of Nomad whose major
+	# version matches the pattern; pre-releases (-beta, -rc) do not count.
+	newest() {
+		local tag
+		tag=$(retry git ls-remote --tags --refs "$NOMAD_URL" 'v*' 2>/tmp/git-tags.log | sed 's|.*refs/tags/||' |
+			grep -E "^v$1\.[0-9]+\.[0-9]+\$" | sort -V | tail -1) || true
+		if [ -z "$tag" ]; then
 			log "could not list the Nomad tags of $NOMAD_URL:"
 			tail -n 15 /tmp/git-tags.log >&2
 			tls_hint /tmp/git-tags.log
 			exit 1
 		fi
+		echo "$tag"
+	}
+	# The bugfix set keeps the v1 line (the method of the published runs);
+	# the full set compares with the newest release of any major version.
+	# Only the tags of the selected sets are fetched: busl needs only the base,
+	# bugfix the BSL tag, full its own tag.
+	FULL_TAG=${FULL_TAG:-latest}
+	tags=("$BASE_TAG")
+	if [[ ",$SETS," == *,bugfix,* ]]; then
+		if [ "$BSL_TAG" = latest ]; then BSL_TAG=$(newest 1) || exit 1; fi
+		tags+=("$BSL_TAG")
 	fi
-	log "fetching Nomad $BASE_TAG and $BSL_TAG"
+	if [[ ",$SETS," == *,full,* ]]; then
+		if [ "$FULL_TAG" = latest ]; then FULL_TAG=$(newest '[0-9]+') || exit 1; fi
+		tags+=("$FULL_TAG")
+	fi
+	mapfile -t tags < <(printf '%s\n' "${tags[@]}" | sort -u)
+	log "fetching Nomad ${tags[*]}"
 	git init -q "$W/nomad"
-	retry git -C "$W/nomad" fetch -q --depth=1 --no-tags "$NOMAD_URL" \
-		"refs/tags/$BASE_TAG:refs/tags/$BASE_TAG" "refs/tags/$BSL_TAG:refs/tags/$BSL_TAG"
-	git -C "$W/nomad" rev-parse -q --verify "$BSL_TAG^{commit}" >/dev/null || { log "no tag $BSL_TAG"; exit 1; }
+	refspecs=()
+	for t in "${tags[@]}"; do refspecs+=("refs/tags/$t:refs/tags/$t"); done
+	retry git -C "$W/nomad" fetch -q --depth=1 --no-tags "$NOMAD_URL" "${refspecs[@]}"
+	for t in "${tags[@]}"; do
+		git -C "$W/nomad" rev-parse -q --verify "$t^{commit}" >/dev/null || { log "no tag $t"; exit 1; }
+	done
 
 	# put <repo> <rev> <path> <dest>: writes a file of a revision to dest.
 	put() {
@@ -302,12 +324,13 @@ main() {
 	# Set full: every Norca file of the Nomad code that Norca wrote or changed
 	# (new since the import, or different from its v1.6.5 file once the module
 	# path, the Norca header lines and the server package name are set aside)
-	# against every file of $BSL_TAG with the same language, whatever its path.
-	# The v1.6.5 file of a changed Norca file comes along as its base: the
-	# similarity of HashiCorp's own MPL code to a BSL file, which a changed
-	# Norca file may reach without copying anything. Generated files are left
-	# out on both sides. Dolos reports only pairs of at least half the
-	# threshold.
+	# against every file of $FULL_TAG with the same language, whatever its path.
+	# Every file of v1.6.5 of the same languages comes along as the base:
+	# HashiCorp's own MPL code. The MPL baseline of a BSL file is the highest
+	# similarity of a v1.6.5 file to it; a Norca file is a candidate only
+	# above it, as in the busl set (short Ember files and table-driven tests
+	# resemble each other by their shape). Generated files are left out on
+	# both sides. Dolos reports only pairs of at least half the threshold.
 	if [[ ",$SETS," == *,full,* ]]; then
 		L=$(layout "$norca_rev")
 		top=$(top_of "$L")
@@ -324,7 +347,6 @@ main() {
 				fi
 				k=modified
 				n_mod=$((n_mod + 1))
-				put nomad "$BASE_TAG" "$u" "$W/full/base/$u.$l.src"
 			else
 				k=new
 				n_new=$((n_new + 1))
@@ -332,12 +354,17 @@ main() {
 			put norca "$norca_rev" "$f" "$W/full/norca/$u.$l.src"
 			printf '%s\t%s\n' "$u" "$k" >>"$W/result/full-kinds.tsv"
 		done < <(git -C "$W/norca" ls-tree -r --name-only "$norca_rev" -- "$top" | grep -E '\.(go|js|ts)$' | grep -v -E "$skip" || true)
+		n_base=0
+		while IFS= read -r u; do
+			put nomad "$BASE_TAG" "$u" "$W/full/base/$u.$(lang_of "$u").src"
+			n_base=$((n_base + 1))
+		done < <(git -C "$W/nomad" ls-tree -r --name-only "$BASE_TAG" | grep -E '\.(go|js|ts)$' | grep -v -E "$skip" || true)
 		n_up=0
 		while IFS= read -r u; do
-			put nomad "$BSL_TAG" "$u" "$W/full/upstream/$u.$(lang_of "$u").src"
+			put nomad "$FULL_TAG" "$u" "$W/full/upstream/$u.$(lang_of "$u").src"
 			n_up=$((n_up + 1))
-		done < <(git -C "$W/nomad" ls-tree -r --name-only "$BSL_TAG" | grep -E '\.(go|js|ts)$' | grep -v -E "$skip" || true)
-		log "full: $n_new new and $n_mod changed Norca files ($n_same unchanged MPL files left out), $n_up files of $BSL_TAG"
+		done < <(git -C "$W/nomad" ls-tree -r --name-only "$FULL_TAG" | grep -E '\.(go|js|ts)$' | grep -v -E "$skip" || true)
+		log "full: $n_new new and $n_mod changed Norca files ($n_same unchanged MPL files left out), $n_up files of $FULL_TAG, $n_base files of $BASE_TAG as the MPL baseline"
 		NODE_OPTIONS=--max-old-space-size=${FULL_HEAP_MB:-16384} dolos_set full \
 			-S "$(awk -v t="$THRESHOLD" 'BEGIN { print t / 2 }')"
 	fi
@@ -346,8 +373,8 @@ main() {
 	norca_ref=$NORCA_REF
 	norca_commit=$norca_rev
 	base_tag=$BASE_TAG
-	bsl_tag=$BSL_TAG
-	bsl_commit=$(git -C "$W/nomad" rev-parse "$BSL_TAG^{commit}")
+	$([[ ",$SETS," == *,bugfix,* ]] && printf 'bsl_tag=%s\nbsl_commit=%s' "$BSL_TAG" "$(git -C "$W/nomad" rev-parse "$BSL_TAG^{commit}")")
+	$([[ ",$SETS," == *,full,* ]] && printf 'full_tag=%s\nfull_commit=%s' "$FULL_TAG" "$(git -C "$W/nomad" rev-parse "$FULL_TAG^{commit}")")
 	dolos=$DOLOS_VERSION
 	sets=$SETS
 	threshold=$THRESHOLD

@@ -31,9 +31,12 @@ param(
     # Where Norca is cloned from: the path of a local checkout (mounted
     # read-only), or a URL. Default: the checkout this script belongs to.
     [string]$NorcaUrl = (Split-Path $PSScriptRoot -Parent),
-    # A Nomad tag, or 'latest' for the newest release tag (any major version,
-    # no pre-release).
+    # The Nomad release of the bugfix set: a tag, or 'latest' for the newest
+    # v1.x.y release tag (the method of the published runs).
     [string]$BslTag = 'latest',
+    # The Nomad release of the full set: a tag, or 'latest' for the newest
+    # release tag of any major version (no pre-release).
+    [string]$FullTag = 'latest',
     [string]$Sets = 'busl,bugfix',
     [double]$Threshold = 0.4,
     # Default: clean-room-result\ of the checkout this script belongs to.
@@ -88,7 +91,7 @@ if ($CACert) {
     $CAArgs = @('-v', "$(DockerPath $CACert):/audit-ca/ca.pem:ro", '-e', 'CA_CERT=/audit-ca/ca.pem')
 }
 
-Write-Host "==> Clean room audit of $NorcaRef ($Where) against Nomad $BslTag (sets: $Sets) into $OutDir" -ForegroundColor Cyan
+Write-Host "==> Clean room audit of $NorcaRef ($Where), sets $Sets (bugfix: Nomad $BslTag, full: Nomad $FullTag) into $OutDir" -ForegroundColor Cyan
 # run.sh logs its progress to stderr. Windows PowerShell 5.1 turns every
 # stderr line of a native command into an error record, which is fatal under
 # ErrorActionPreference 'Stop'. So the docker call runs with 'Continue' and
@@ -96,7 +99,7 @@ Write-Host "==> Clean room audit of $NorcaRef ($Where) against Nomad $BslTag (se
 $ErrorActionPreference = 'Continue'
 & docker run --rm @SourceArgs @CAArgs `
     -v "$(DockerPath $Here):/audit:ro" -v "$(DockerPath $OutDir):/out" `
-    -e "NORCA_REF=$NorcaRef" -e "BSL_TAG=$BslTag" -e "SETS=$Sets" `
+    -e "NORCA_REF=$NorcaRef" -e "BSL_TAG=$BslTag" -e "FULL_TAG=$FullTag" -e "SETS=$Sets" `
     -e "THRESHOLD=$Threshold" -e "DOLOS_VERSION=$DolosVersion" `
     $Image bash /audit/run.sh 2>&1 | ForEach-Object { Write-Host "$_" }
 $ExitCode = $LASTEXITCODE

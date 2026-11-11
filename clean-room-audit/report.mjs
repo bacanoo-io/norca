@@ -15,9 +15,9 @@
 // are never candidates; they are listed on their own.
 //
 // For the full set (Norca's new and changed files against every file of the
-// BSL release) a changed file is a candidate only if it is at or above the
-// threshold and more similar to the BSL file than its own v1.6.5 file (the
-// base side) is; a new file if it is at or above the threshold.
+// BSL release, every file of v1.6.5 as the base side) a Norca file is a
+// candidate only if it is at or above the threshold and above the MPL
+// baseline of the BSL file: the highest similarity of a v1.6.5 file to it.
 //
 // usage: node report.mjs <result dir> <out dir> <threshold>  (metadata on stdin)
 import { createReadStream, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -26,7 +26,8 @@ import { createInterface } from "node:readline";
 
 const [resultDir, outDir, thresholdArg] = process.argv.slice(2);
 const threshold = Number(thresholdArg);
-const meta = readFileSync(0, "utf8").trim().split("\n").map((l) => l.split(/=(.*)/s).slice(0, 2));
+// Lines without "=" (the metadata of a set that did not run) are dropped.
+const meta = readFileSync(0, "utf8").trim().split("\n").filter((l) => l.includes("=")).map((l) => l.split(/=(.*)/s).slice(0, 2));
 
 // parseLine splits one CSV line (Dolos quotes the paths; no field holds a
 // line break).
@@ -78,8 +79,9 @@ if (existsSync(fullKindsFile)) {
     if (p) fullKinds.set(p, k);
   }
 }
-// baseSim: the similarity of a v1.6.5 file (base side) to a BSL file.
-const baseSim = new Map();
+// fullBaseline: BSL file of the full set -> the highest similarity of a
+// v1.6.5 file (base side) to it.
+const fullBaseline = new Map();
 
 const kinds = new Map();
 const kindsFile = join(resultDir, "busl-kinds.tsv");
@@ -100,6 +102,19 @@ if (existsSync(restoredFile)) {
   }
 }
 
+// Every cross pair is counted, but only the pairs at or above the threshold
+// are kept and reported (and the character-level pairs of busl, which add a
+// column to them). The baselines are taken from all pairs while reading: a
+// pair at or above the threshold whose baseline is below it is above the
+// baseline anyway, so dropping the lower pairs changes no candidate.
+const counts = new Map(); // set -> { pairs, above }
+const count = (set, sim) => {
+  const c = counts.get(set) ?? { pairs: 0, above: 0 };
+  c.pairs++;
+  if (sim >= threshold) c.above++;
+  counts.set(set, c);
+};
+const baseline = new Map(); // busl: BUSL file -> highest similarity of an imported MPL file
 const all = [];
 for (const f of readdirSync(resultDir).filter((n) => n.endsWith(".pairs.csv"))) {
   const name = f.replace(/\.pairs\.csv$/, "");
@@ -107,21 +122,24 @@ for (const f of readdirSync(resultDir).filter((n) => n.endsWith(".pairs.csv"))) 
   for await (const r of csvRows(join(resultDir, f))) {
     const a = side(r.leftFilePath), b = side(r.rightFilePath);
     if (!a || !b || a.side === b.side) continue;
-    if (a.set === "full" && Number(r.similarity) < fullFloor) continue;
+    const sim = Number(r.similarity);
     if (a.side === "base" || b.side === "base") {
       // Only base against upstream counts: the baseline of a changed file.
       const [x, u] = a.side === "base" ? [a, b] : [b, a];
-      if (u.side === "upstream") baseSim.set(`${x.path}\t${u.path}`, Number(r.similarity));
+      if (u.side === "upstream") fullBaseline.set(u.path, Math.max(fullBaseline.get(u.path) ?? 0, sim));
       continue;
     }
     const [n, u] = a.side === "norca" ? [a, b] : [b, a];
+    const kind = n.set === "busl" ? kinds.get(n.path) ?? "" : n.set === "full" ? fullKinds.get(n.path) ?? "" : "";
+    if (n.set !== "busl-char") count(n.set, sim);
+    if (n.set === "busl" && kind === "mpl") baseline.set(u.path, Math.max(baseline.get(u.path) ?? 0, sim));
+    if (n.set !== "busl-char" && sim < threshold) continue;
     // bugfix paths start with the 12-character commit prefix.
     const norcaPath = n.set === "bugfix" ? n.path.replace(/^([0-9a-f]{12})\//, "$1 ") : n.path;
     const samePath = n.set === "bugfix" ? n.path.slice(13) === u.path : n.path === u.path;
     all.push({
       set: n.set, language: lang, norca: norcaPath, upstream: u.path, samePath,
-      similarity: Number(r.similarity), longest: Number(r.longestFragment), overlap: Number(r.totalOverlap),
-      kind: n.set === "busl" ? kinds.get(n.path) ?? "" : n.set === "full" ? fullKinds.get(n.path) ?? "" : "",
+      similarity: sim, longest: Number(r.longestFragment), overlap: Number(r.totalOverlap), kind,
     });
   }
 }
@@ -131,21 +149,17 @@ const charSim = new Map(all.filter((p) => p.set === "busl-char" && p.samePath).m
 const pairs = all.filter((p) => p.set !== "busl-char");
 pairs.sort((x, y) => y.similarity - x.similarity);
 
-const baseline = new Map();
 for (const p of pairs) {
-  if (p.set === "busl" && p.kind === "mpl") baseline.set(p.upstream, Math.max(baseline.get(p.upstream) ?? 0, p.similarity));
-}
-for (const p of pairs) {
-  if (p.set !== "busl") continue;
-  p.baseline = baseline.get(p.upstream) ?? 0;
-  p.charSimilarity = p.samePath ? charSim.get(p.upstream) : undefined;
-  p.candidate = p.kind === "new" && p.similarity >= threshold && p.similarity > p.baseline;
-}
-
-for (const p of pairs) {
-  if (p.set !== "full") continue;
-  if (p.kind === "modified") p.baseline = baseSim.get(`${p.norca}\t${p.upstream}`) ?? 0;
-  p.candidate = p.similarity >= threshold && (p.kind === "new" || p.similarity > p.baseline);
+  if (p.set === "busl") {
+    p.baseline = baseline.get(p.upstream) ?? 0;
+    p.charSimilarity = p.samePath ? charSim.get(p.upstream) : undefined;
+    p.candidate = p.kind === "new" && p.similarity > p.baseline;
+  } else if (p.set === "full") {
+    // Base pairs below half the threshold are not reported by Dolos: such a
+    // baseline counts as 0, and the Norca file is above it anyway.
+    p.baseline = fullBaseline.get(p.upstream) ?? 0;
+    p.candidate = p.similarity > p.baseline;
+  }
 }
 
 const q = (s) => `"${String(s).replaceAll('"', '""')}"`;
@@ -153,24 +167,29 @@ const num = (v) => (v === undefined ? "" : v.toFixed(4));
 writeFileSync(join(outDir, "pairs.csv"),
   "set,language,norca_file,upstream_file,similarity,longest_fragment,total_overlap,same_path,norca_kind,mpl_baseline,char_similarity,candidate\n" +
   pairs.map((p) => [p.set, p.language, q(p.norca), q(p.upstream), p.similarity.toFixed(4), p.longest, p.overlap, p.samePath,
-    p.kind, num(p.baseline), num(p.charSimilarity), p.candidate ?? ""].join(",")).join("\n") + "\n");
+    p.kind, num(p.baseline), num(p.charSimilarity), p.candidate ?? ""].join(",")).join("\n") + (pairs.length ? "\n" : ""));
 
 const md = ["# Clean room similarity audit", "", "| Property | Value |", "| --- | --- |",
-  ...meta.map(([k, v]) => `| ${k} | \`${v}\` |`), ""];
+  ...meta.map(([k, v]) => `| ${k} | \`${v}\` |`), "",
+  `Only pairs at or above the threshold (${threshold}) are listed, here and in pairs.csv; the counts cover every pair.`, ""];
 const fmt = (v) => (v === undefined ? "–" : v.toFixed(3));
+const countLine = (set) => {
+  const c = counts.get(set) ?? { pairs: 0, above: 0 };
+  return `${c.pairs} cross pairs, ${c.above} at or above ${threshold}`;
+};
+const none = (n) => `| ${Array(n).fill("–").join(" | ")} |`;
 
-const busl = pairs.filter((p) => p.set === "busl");
-if (busl.length) {
+if (counts.has("busl")) {
+  const busl = pairs.filter((p) => p.set === "busl");
   const cands = busl.filter((p) => p.candidate);
   md.push("## busl", "",
-    `${busl.length} cross pairs, ${busl.filter((p) => p.similarity >= threshold).length} at or above ${threshold}; ` +
-    `${cands.length} candidates for the auditor: Norca-added files at or above the threshold and above the MPL baseline ` +
-    "(the highest similarity of HashiCorp's own MPL files to the same BUSL file).", "",
+    `${countLine("busl")}; ${cands.length} candidates for the auditor: Norca-added files at or above the threshold ` +
+    "and above the MPL baseline (the highest similarity of HashiCorp's own MPL files to the same BUSL file).", "",
     "### Candidates", "",
     "| Norca file | BUSL file | Similarity | MPL baseline | Character level | Longest fragment | Total overlap |",
     "| --- | --- | --- | --- | --- | --- | --- |",
     ...cands.map((p) => `| ${p.norca} | ${p.upstream} | ${fmt(p.similarity)} | ${fmt(p.baseline)} | ${fmt(p.charSimilarity)} | ${p.longest} | ${p.overlap} |`),
-    ...(cands.length ? [] : ["| – | – | – | – | – | – | – |"]), "");
+    ...(cands.length ? [] : [none(7)]), "");
   // The highest pair of every restored file.
   const best = new Map();
   for (const p of busl.filter((p) => p.kind === "restored")) {
@@ -185,41 +204,50 @@ if (busl.length) {
       const r = restored.get(p.norca) ?? {};
       return `| ${p.norca} | ${p.upstream} | ${fmt(p.similarity)} | ${r.lines ?? "–"} | ${r.changed ?? "–"} |`;
     }),
-    ...(best.size ? [] : ["| – | – | – | – | – |"]), "",
-    "### Same-path pairs (clean room replacements)", "",
-    "| File | Similarity | MPL baseline | Character level | Longest fragment |", "| --- | --- | --- | --- | --- |",
-    ...busl.filter((p) => p.samePath).map((p) => `| ${p.norca} | ${fmt(p.similarity)} | ${fmt(p.baseline)} | ${fmt(p.charSimilarity)} | ${p.longest} |`), "");
+    ...(best.size ? [] : [none(5)]), "",
+    "### Other pairs at or above the threshold", "",
+    "Not candidates: HashiCorp's own MPL files of v1.6.5, or Norca files at or below the MPL baseline.", "",
+    "| Norca file | Kind | BUSL file | Similarity | MPL baseline | Character level | Same path |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...busl.filter((p) => !p.candidate && p.kind !== "restored").map((p) =>
+      `| ${p.norca} | ${p.kind} | ${p.upstream} | ${fmt(p.similarity)} | ${fmt(p.baseline)} | ${fmt(p.charSimilarity)} | ${p.samePath} |`),
+    ...(busl.some((p) => !p.candidate && p.kind !== "restored") ? [] : [none(7)]), "");
 }
 
-const bugfix = pairs.filter((p) => p.set === "bugfix");
-if (bugfix.length) {
-  md.push("## bugfix", "",
-    `${bugfix.length} cross pairs, ${bugfix.filter((p) => p.similarity >= threshold).length} at or above ${threshold}; same-path pairs: ${bugfix.filter((p) => p.samePath).length}.`, "",
-    "| Norca commit and file | HashiCorp file | Similarity | Longest fragment | Total overlap |", "| --- | --- | --- | --- | --- |",
-    ...bugfix.filter((p) => p.similarity > 0).slice(0, 25).map((p) => `| ${p.norca} | ${p.upstream} | ${fmt(p.similarity)} | ${p.longest} | ${p.overlap} |`), "");
+if (counts.has("bugfix")) {
+  const bugfix = pairs.filter((p) => p.set === "bugfix");
+  md.push("## bugfix", "", `${countLine("bugfix")}.`, "",
+    "| Norca commit and file | HashiCorp file | Similarity | Same path | Longest fragment | Total overlap |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...bugfix.map((p) => `| ${p.norca} | ${p.upstream} | ${fmt(p.similarity)} | ${p.samePath} | ${p.longest} | ${p.overlap} |`),
+    ...(bugfix.length ? [] : [none(6)]), "");
 }
-const full = pairs.filter((p) => p.set === "full");
-if (full.length || fullKinds.size) {
+
+if (counts.has("full") || fullKinds.size) {
+  const full = pairs.filter((p) => p.set === "full");
   const cands = full.filter((p) => p.candidate);
   const kindCount = (k) => [...fullKinds.values()].filter((v) => v === k).length;
   md.push("## full", "",
     `${kindCount("new")} new and ${kindCount("modified")} changed Norca files against every file of the BSL release ` +
-    `with the same language, whatever its path; pairs below ${threshold / 2} are not reported. ` +
-    `${full.length} cross pairs, ${full.filter((p) => p.similarity >= threshold).length} at or above ${threshold}; ` +
-    `${cands.length} candidates for the auditor: a new file at or above the threshold, or a changed file at or above ` +
-    "the threshold and more similar to the BSL file than its own v1.6.5 file is.", "",
+    `with the same language, whatever its path (Dolos reports pairs of at least ${threshold / 2}). ` +
+    `${countLine("full")}; ${cands.length} candidates for the auditor: Norca files at or above the threshold and ` +
+    "above the MPL baseline of the BSL file (the highest similarity of a v1.6.5 file to it).", "",
     "### Candidates", "",
-    "| Norca file | Kind | BSL file | Similarity | v1.6.5 base | Longest fragment | Total overlap |",
-    "| --- | --- | --- | --- | --- | --- | --- |",
-    ...cands.map((p) => `| ${p.norca} | ${p.kind} | ${p.upstream} | ${fmt(p.similarity)} | ${fmt(p.baseline)} | ${p.longest} | ${p.overlap} |`),
-    ...(cands.length ? [] : ["| – | – | – | – | – | – | – |"]), "",
-    "### Highest pairs", "",
-    "| Norca file | Kind | BSL file | Similarity | v1.6.5 base | Same path |", "| --- | --- | --- | --- | --- | --- |",
-    ...full.slice(0, 25).map((p) => `| ${p.norca} | ${p.kind} | ${p.upstream} | ${fmt(p.similarity)} | ${fmt(p.baseline)} | ${p.samePath} |`),
-    ...(full.length ? [] : ["| – | – | – | – | – | – |"]), "");
+    "| Norca file | Kind | BSL file | Similarity | MPL baseline | Same path | Longest fragment | Total overlap |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...cands.map((p) => `| ${p.norca} | ${p.kind} | ${p.upstream} | ${fmt(p.similarity)} | ${fmt(p.baseline)} | ${p.samePath} | ${p.longest} | ${p.overlap} |`),
+    ...(cands.length ? [] : [none(8)]), "",
+    "### Other pairs at or above the threshold", "",
+    "Not candidates: HashiCorp's own MPL code resembles the BSL file at least as much. The 50 highest; " +
+    "pairs.csv has all of them.", "",
+    "| Norca file | Kind | BSL file | Similarity | MPL baseline | Same path |", "| --- | --- | --- | --- | --- | --- |",
+    ...full.filter((p) => !p.candidate).slice(0, 50).map((p) =>
+      `| ${p.norca} | ${p.kind} | ${p.upstream} | ${fmt(p.similarity)} | ${fmt(p.baseline)} | ${p.samePath} |`),
+    ...(full.some((p) => !p.candidate) ? [] : [none(6)]), "");
 }
-if (!pairs.length) md.push("No cross pairs were found.", "");
+
+if (!counts.size) md.push("No cross pairs were found.", "");
 writeFileSync(join(outDir, "summary.md"), md.join("\n"));
-console.log(`${pairs.length} cross pairs, ${pairs.filter((p) => p.similarity >= threshold).length} at or above ${threshold}, ` +
-  `${pairs.filter((p) => p.candidate && p.set === "busl").length} busl candidates, ` +
-  `${pairs.filter((p) => p.candidate && p.set === "full").length} full candidates`);
+console.log([...counts].map(([set, c]) => `${set}: ${c.pairs} cross pairs, ${c.above} at or above ${threshold}`).join("; ") +
+  `; candidates: ${pairs.filter((p) => p.candidate && p.set === "busl").length} busl, ` +
+  `${pairs.filter((p) => p.candidate && p.set === "full").length} full`);

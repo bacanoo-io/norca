@@ -28,8 +28,9 @@ Dolos' own output, which contains code, is removed with the container.
 | --- | --- | --- |
 | `NorcaRef` | `main` | The Norca revision to audit |
 | `NorcaUrl` | the checkout `audit.ps1` belongs to | Where Norca is cloned from: a local checkout (mounted read-only) or a URL |
-| `BslTag` | `latest` | The HashiCorp release the bugfix lines are compared with; `latest` is the highest release tag `vX.Y.Z` of `hashicorp/nomad`, of any major version (pre-releases do not count) |
-| `Sets` | `busl,bugfix` | Which comparisons to run |
+| `BslTag` | `latest` | The HashiCorp release the bugfix lines are compared with; `latest` is the highest `v1.x.y` tag of `hashicorp/nomad` |
+| `FullTag` | `latest` | The HashiCorp release of the `full` set; `latest` is the highest release tag `vX.Y.Z` of any major version (pre-releases do not count) |
+| `Sets` | `busl,bugfix` | Which comparisons to run: `busl`, `bugfix`, `full` |
 | `Threshold` | `0.4` | The similarity at which a pair counts as notable |
 | `OutDir` | `clean-room-result/` of the checkout | Where the result is written |
 | `DolosVersion` | `2.10.0` | The version of [Dolos](https://github.com/dodona-edu/dolos) |
@@ -101,6 +102,26 @@ For each of the 45 BUSL files:
 5. Fragments of added lines do not parse as source code, so they are compared
    character by character. Empty sides are skipped.
 
+## Step 4b: the full set
+
+Only with `-Sets full`, usually as a run of its own with its own `-OutDir`.
+The Norca side is every Go, JavaScript and TypeScript file of the Nomad code at
+`NorcaRef` that Norca wrote or changed: a file v1.6.5 does not have, or one
+that differs from its v1.6.5 file once the module path, the Norca header lines
+and the server package name (`norca`/`nomad`) are set aside. Unchanged MPL files
+are left out. The HashiCorp side is every file of the same languages of
+`FullTag`, whatever its path. Every file of the same languages of v1.6.5 comes
+along as the base: HashiCorp's own MPL code. Generated files
+(`*.generated.go`, `*.pb.go`, `bindata_assetfs.go`) are left out on all sides.
+
+The **MPL baseline** of a BSL file is the highest similarity of a v1.6.5 file
+to it. A Norca file, new or changed, is a candidate when it is at or above the
+threshold and above that baseline, as in the busl set: short Ember files and
+table-driven tests resemble each other by their shape, and a changed file
+shares its MPL ancestor with the BSL file. Dolos runs with a 16 GiB heap
+(`FULL_HEAP_MB` changes it) and reports pairs of at least half the threshold;
+the report reads its CSV line by line.
+
 ## Step 5: comparison
 
 Dolos runs once per set and language: Go, JavaScript and TypeScript by syntax
@@ -130,7 +151,9 @@ from 0 to 1. For every pair the longest common fragment and the total overlap
 
 ## Outputs
 
-`pairs.csv` has one row per cross pair:
+`pairs.csv` has one row per cross pair at or above `Threshold`; the pairs
+below it are counted in `summary.md` but not listed (the baselines are taken
+from all pairs before they are dropped, so no candidate depends on them):
 
 | Column | Meaning |
 | --- | --- |

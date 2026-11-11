@@ -38,7 +38,8 @@ code outside the development environment and records only the conclusion.
 | Set | Norca side | HashiCorp side |
 | --- | --- | --- |
 | `busl` | Every file at `-NorcaRef` with the same extension in the directories of the 45 left-out files (the clean room replacements live there) | The 45 files of Nomad v1.6.5 with a BUSL-1.1 header, as listed in the Norca import commit |
-| `bugfix` | The lines each clean room commit added to a file (`commits.txt`, plus every commit whose message mentions "clean room" or the former "white room") | The lines HashiCorp added to the same file between v1.6.5 and `-BslTag` (default: the newest release tag of any major version) |
+| `full` | Every file of the Nomad code that Norca wrote or changed (new since the import, or different from its v1.6.5 file), with the v1.6.5 file of a changed one as its base | Every file of the same language of `-FullTag` (default: the newest release of any major version), whatever its path |
+| `bugfix` | The lines each clean room commit added to a file (`commits.txt`, plus every commit whose message mentions "clean room" or the former "white room") | The lines HashiCorp added to the same file between v1.6.5 and `-BslTag` (default: the newest v1.x.y tag) |
 
 Go, JavaScript and TypeScript files of the `busl` set are compared by syntax
 tree, everything else (Handlebars, SCSS, and all `bugfix` fragments, which do
@@ -52,11 +53,19 @@ From the root of a Norca checkout:
 ```powershell
 .\clean-room-audit\audit.ps1                                   # both sets, newest BSL tag
 .\clean-room-audit\audit.ps1 -Sets bugfix -BslTag v1.10.5 -Threshold 0.3
+.\clean-room-audit\audit.ps1 -Sets full -OutDir clean-room-result-full     # newest release, every path
 ```
+
+The `full` set is run on its own into `clean-room-result-full/`: the published
+`busl` and `bugfix` runs keep comparing with the newest v1 release, the `full`
+run compares with the newest release of any major version. A changed file is a
+candidate there only if it resembles a BSL file more than its own v1.6.5 file
+does.
 
 Needs Docker and internet access (for the HashiCorp side). The result replaces
 `clean-room-result/` of the checkout, to be committed: `pairs.csv` has every
-pair, `summary.md` the commit, tags and candidates of the run.
+pair at or above the threshold, `summary.md` the commit, tags, counts and
+candidates of the run.
 `norca/scripts/compliance-audit.sh` checks that it is in the repository. A mechanics test without any BSL code
 writes elsewhere: `-Sets bugfix -BslTag v1.6.4 -OutDir <dir>` (an MPL release).
 
