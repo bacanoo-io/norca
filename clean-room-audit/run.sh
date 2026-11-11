@@ -7,7 +7,8 @@
 # into /work, runs Dolos and writes only file pairs and scores to /out. /work
 # (the only place with HashiCorp code) disappears with the container.
 #
-# Environment: NORCA_REF, BSL_TAG (a tag or "latest"), SETS (busl,bugfix),
+# Environment: NORCA_REF, BSL_TAG (a tag or "latest"), SETS (busl, bugfix,
+# full; default busl,bugfix),
 # THRESHOLD, DOLOS_VERSION; optional NORCA_URL, the repository to clone Norca
 # from (default: GitHub; audit.ps1 mounts the checkout it is part of
 # read-only at /norca-src and passes that path); optional CA_CERT, a PEM file
@@ -89,8 +90,10 @@ main() {
 		git -C "$W/norca" rev-parse -q --verify "origin/$NORCA_REF^{commit}") ||
 		{ log "unknown Norca revision $NORCA_REF"; exit 1; }
 	if [ "$BSL_TAG" = latest ]; then
-		BSL_TAG=$(retry git ls-remote --tags --refs "$NOMAD_URL" 'v1.*' 2>/tmp/git-tags.log | sed 's|.*refs/tags/||' |
-			grep -E '^v1\.[0-9]+\.[0-9]+$' | sort -V | tail -1) || true
+		# The highest release tag of any major version (v2.1.1 is after
+		# v1.11.3); pre-releases (-beta, -rc) do not count.
+		BSL_TAG=$(retry git ls-remote --tags --refs "$NOMAD_URL" 'v*' 2>/tmp/git-tags.log | sed 's|.*refs/tags/||' |
+			grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1) || true
 		if [ -z "$BSL_TAG" ]; then
 			log "could not list the Nomad tags of $NOMAD_URL:"
 			tail -n 15 /tmp/git-tags.log >&2
@@ -189,15 +192,16 @@ main() {
 		printf '%s\t%s\t%s\n' "$2" "$max" "$d" >>"$W/result/busl-restored.tsv"
 	}
 
-	# dolos_set <set>: runs Dolos per language over $W/<set>/{norca,upstream}
-	# and keeps the pairs.csv files.
+	# dolos_set <set> [dolos options]: runs Dolos per language over
+	# $W/<set>/{norca,upstream,...} and keeps the pairs.csv files.
 	dolos_set() {
 		local set=$1 lang files
+		shift
 		for lang in go javascript typescript char; do
 			mapfile -t files < <(find "$W/$set" -type f -name "*.$lang.src" | sort)
 			[ "${#files[@]}" -ge 2 ] || continue
 			log "$set: Dolos ($lang) over ${#files[@]} files"
-			dolos run -f csv -o "$W/result/$set-$lang" -l "$lang" "${files[@]}" >/dev/null
+			dolos run -f csv -o "$W/result/$set-$lang" -l "$lang" "$@" "${files[@]}" >/dev/null
 			cp "$W/result/$set-$lang/pairs.csv" "$W/result/$set-$lang.pairs.csv"
 		done
 	}
@@ -293,6 +297,49 @@ main() {
 			case "$p" in *.char.src) ;; *) mv "$p" "${p%.*.src}.char.src" ;; esac
 		done
 		dolos_set bugfix
+	fi
+
+	# Set full: every Norca file of the Nomad code that Norca wrote or changed
+	# (new since the import, or different from its v1.6.5 file once the module
+	# path, the Norca header lines and the server package name are set aside)
+	# against every file of $BSL_TAG with the same language, whatever its path.
+	# The v1.6.5 file of a changed Norca file comes along as its base: the
+	# similarity of HashiCorp's own MPL code to a BSL file, which a changed
+	# Norca file may reach without copying anything. Generated files are left
+	# out on both sides. Dolos reports only pairs of at least half the
+	# threshold.
+	if [[ ",$SETS," == *,full,* ]]; then
+		L=$(layout "$norca_rev")
+		top=$(top_of "$L")
+		skip='(\.generated\.go|\.pb\.go|bindata_assetfs\.go)$'
+		fnorm() { norm | grep -v -E '^// Modifications Copyright' | sed -E 's/^package norca$/package nomad/' || true; }
+		n_new=0 n_mod=0 n_same=0
+		while IFS= read -r f; do
+			u=$(up_of "$L" "$f")
+			l=$(lang_of "$f")
+			if git -C "$W/nomad" cat-file -e "$BASE_TAG:$u" 2>/dev/null; then
+				if cmp -s <(git -C "$W/nomad" show "$BASE_TAG:$u" | fnorm) <(git -C "$W/norca" show "$norca_rev:$f" | fnorm); then
+					n_same=$((n_same + 1))
+					continue
+				fi
+				k=modified
+				n_mod=$((n_mod + 1))
+				put nomad "$BASE_TAG" "$u" "$W/full/base/$u.$l.src"
+			else
+				k=new
+				n_new=$((n_new + 1))
+			fi
+			put norca "$norca_rev" "$f" "$W/full/norca/$u.$l.src"
+			printf '%s\t%s\n' "$u" "$k" >>"$W/result/full-kinds.tsv"
+		done < <(git -C "$W/norca" ls-tree -r --name-only "$norca_rev" -- "$top" | grep -E '\.(go|js|ts)$' | grep -v -E "$skip" || true)
+		n_up=0
+		while IFS= read -r u; do
+			put nomad "$BSL_TAG" "$u" "$W/full/upstream/$u.$(lang_of "$u").src"
+			n_up=$((n_up + 1))
+		done < <(git -C "$W/nomad" ls-tree -r --name-only "$BSL_TAG" | grep -E '\.(go|js|ts)$' | grep -v -E "$skip" || true)
+		log "full: $n_new new and $n_mod changed Norca files ($n_same unchanged MPL files left out), $n_up files of $BSL_TAG"
+		NODE_OPTIONS=--max-old-space-size=${FULL_HEAP_MB:-16384} dolos_set full \
+			-S "$(awk -v t="$THRESHOLD" 'BEGIN { print t / 2 }')"
 	fi
 
 	node /audit/report.mjs "$W/result" /out "$THRESHOLD" <<-EOF

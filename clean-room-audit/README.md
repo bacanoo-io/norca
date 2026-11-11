@@ -28,7 +28,7 @@ Dolos' own output, which contains code, is removed with the container.
 | --- | --- | --- |
 | `NorcaRef` | `main` | The Norca revision to audit |
 | `NorcaUrl` | the checkout `audit.ps1` belongs to | Where Norca is cloned from: a local checkout (mounted read-only) or a URL |
-| `BslTag` | `latest` | The HashiCorp release the bugfix lines are compared with; `latest` is the highest `v1.x.y` tag of `hashicorp/nomad` |
+| `BslTag` | `latest` | The HashiCorp release the bugfix lines are compared with; `latest` is the highest release tag `vX.Y.Z` of `hashicorp/nomad`, of any major version (pre-releases do not count) |
 | `Sets` | `busl,bugfix` | Which comparisons to run |
 | `Threshold` | `0.4` | The similarity at which a pair counts as notable |
 | `OutDir` | `clean-room-result/` of the checkout | Where the result is written |

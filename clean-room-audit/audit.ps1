@@ -31,7 +31,8 @@ param(
     # Where Norca is cloned from: the path of a local checkout (mounted
     # read-only), or a URL. Default: the checkout this script belongs to.
     [string]$NorcaUrl = (Split-Path $PSScriptRoot -Parent),
-    # A Nomad tag, or 'latest' for the newest v1.x.y release tag.
+    # A Nomad tag, or 'latest' for the newest release tag (any major version,
+    # no pre-release).
     [string]$BslTag = 'latest',
     [string]$Sets = 'busl,bugfix',
     [double]$Threshold = 0.4,

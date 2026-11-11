@@ -38,7 +38,7 @@ code outside the development environment and records only the conclusion.
 | Set | Norca side | HashiCorp side |
 | --- | --- | --- |
 | `busl` | Every file at `-NorcaRef` with the same extension in the directories of the 45 left-out files (the clean room replacements live there) | The 45 files of Nomad v1.6.5 with a BUSL-1.1 header, as listed in the Norca import commit |
-| `bugfix` | The lines each clean room commit added to a file (`commits.txt`, plus every commit whose message mentions "clean room" or the former "white room") | The lines HashiCorp added to the same file between v1.6.5 and `-BslTag` (default: the newest v1.x.y tag) |
+| `bugfix` | The lines each clean room commit added to a file (`commits.txt`, plus every commit whose message mentions "clean room" or the former "white room") | The lines HashiCorp added to the same file between v1.6.5 and `-BslTag` (default: the newest release tag of any major version) |
 
 Go, JavaScript and TypeScript files of the `busl` set are compared by syntax
 tree, everything else (Handlebars, SCSS, and all `bugfix` fragments, which do
