@@ -92,6 +92,10 @@ type Executor interface {
 		stream drivers.ExecTaskStream) error
 }
 
+// AllDevices is the HostPath of a DeviceConfig that allows every device: the
+// raw_exec setting allowed_devices = ["*"] (Norca).
+const AllDevices = "*"
+
 // ExecCommand holds the user command, args, and other isolation related
 // settings.
 //

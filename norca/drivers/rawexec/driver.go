@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -86,6 +87,7 @@ var (
 			hclspec.NewAttr("no_cgroups", "bool", false),
 			hclspec.NewLiteral("false"),
 		),
+		"allowed_devices": hclspec.NewAttr("allowed_devices", "list(string)", false),
 	})
 
 	// taskConfigSpec is the hcl specification for the driver config section of
@@ -142,6 +144,39 @@ type Config struct {
 
 	// Enabled is set to true to enable the raw_exec driver
 	Enabled bool `codec:"enabled"`
+
+	// AllowedDevices are the devices the tasks may use besides the default
+	// ones (null, zero, random, tty, ...) where cgroups filter devices
+	// (cgroups v2): device paths such as /dev/fuse, or "*" for every device
+	// (Norca).
+	AllowedDevices []string `codec:"allowed_devices"`
+}
+
+// validateAllowedDevices checks allowed_devices: "*" or absolute paths under
+// /dev.
+func validateAllowedDevices(devs []string) error {
+	for _, d := range devs {
+		if d == executor.AllDevices {
+			continue
+		}
+		if !filepath.IsAbs(d) || !strings.HasPrefix(filepath.Clean(d), "/dev/") {
+			return fmt.Errorf("allowed_devices: %q is neither \"*\" nor a device path under /dev", d)
+		}
+	}
+	return nil
+}
+
+// deviceConfigs are the allowed devices as the devices of an exec command.
+func (c *Config) deviceConfigs() []*drivers.DeviceConfig {
+	var out []*drivers.DeviceConfig
+	for _, d := range c.AllowedDevices {
+		p := d
+		if p != executor.AllDevices {
+			p = filepath.Clean(p)
+		}
+		out = append(out, &drivers.DeviceConfig{TaskPath: p, HostPath: p, Permissions: "rwm"})
+	}
+	return out
 }
 
 // TaskConfig is the driver configuration of a task within a job
@@ -186,6 +221,10 @@ func (d *Driver) SetConfig(cfg *base.Config) error {
 		if err := base.MsgPackDecode(cfg.PluginConfig, &config); err != nil {
 			return err
 		}
+	}
+
+	if err := validateAllowedDevices(config.AllowedDevices); err != nil {
+		return err
 	}
 
 	d.config = &config
@@ -342,6 +381,9 @@ func (d *Driver) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drive
 		StdoutPath:         cfg.StdoutPath,
 		StderrPath:         cfg.StderrPath,
 		NetworkIsolation:   cfg.NetworkIsolation,
+	}
+	if useCgroups {
+		execCmd.Devices = d.config.deviceConfigs()
 	}
 
 	ps, err := exec.Launch(execCmd)

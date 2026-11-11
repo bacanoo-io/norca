@@ -101,6 +101,26 @@ func TestRawExecDriver_SetConfig(t *testing.T) {
 	bconfig.PluginConfig = data
 	require.NoError(harness.SetConfig(bconfig))
 	require.Exactly(config, d.(*Driver).config)
+
+	// Allowed devices (Norca): device paths under /dev and "*".
+	config.AllowedDevices = []string{"/dev/fuse", "*"}
+	data = []byte{}
+	require.NoError(basePlug.MsgPackEncode(&data, config))
+	bconfig.PluginConfig = data
+	require.NoError(harness.SetConfig(bconfig))
+	require.Exactly(config, d.(*Driver).config)
+	require.Equal([]*drivers.DeviceConfig{
+		{TaskPath: "/dev/fuse", HostPath: "/dev/fuse", Permissions: "rwm"},
+		{TaskPath: "*", HostPath: "*", Permissions: "rwm"},
+	}, d.(*Driver).config.deviceConfigs())
+
+	for _, bad := range []string{"fuse", "/etc/passwd", "/dev/../etc/passwd"} {
+		config.AllowedDevices = []string{bad}
+		data = []byte{}
+		require.NoError(basePlug.MsgPackEncode(&data, config))
+		bconfig.PluginConfig = data
+		require.Error(harness.SetConfig(bconfig), bad)
+	}
 }
 
 func TestRawExecDriver_Fingerprint(t *testing.T) {

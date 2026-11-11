@@ -84,6 +84,12 @@ func (e *UniversalExecutor) configureResourceContainer(pid int) error {
 	for _, device := range specconv.AllowedDevices {
 		cfg.Cgroups.Resources.Devices = append(cfg.Cgroups.Resources.Devices, &device.Rule)
 	}
+	// The devices the driver allows on top (raw_exec allowed_devices).
+	extra, err := allowedDeviceRules(e.commandCfg.Devices)
+	if err != nil {
+		return err
+	}
+	cfg.Cgroups.Resources.Devices = append(cfg.Cgroups.Resources.Devices, extra...)
 
 	lookup := func(env []string, name string) (result string) {
 		for _, s := range env {
