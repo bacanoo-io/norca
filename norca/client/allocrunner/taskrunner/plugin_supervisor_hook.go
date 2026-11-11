@@ -353,6 +353,19 @@ WAITFORREADY:
 	}
 }
 
+// pluginStagePublishDir is the directory, as the plugin sees it, under
+// which the client asks it to stage and publish volumes: the
+// stage_publish_base_dir of the task, where the plugin directory of the host
+// is mounted. A task that sees the host paths (raw_exec, no filesystem
+// isolation) gets no mounts, so it is the plugin directory of the host itself
+// (Norca).
+func (h *csiPluginSupervisorHook) pluginStagePublishDir() string {
+	if h.caps != nil && h.caps.FSIsolation.HostPaths() {
+		return h.mountPoint
+	}
+	return h.task.CSIPluginConfig.StagePublishBaseDir
+}
+
 func (h *csiPluginSupervisorHook) registerPlugin(client csi.CSIPlugin, socketPath string) (func(), error) {
 	// At this point we know the plugin is ready and we can fingerprint it
 	// to get its vendor name and version
@@ -373,7 +386,7 @@ func (h *csiPluginSupervisorHook) registerPlugin(client csi.CSIPlugin, socketPat
 			Options: map[string]string{
 				"Provider":            info.Name, // vendor name
 				"MountPoint":          h.mountPoint,
-				"ContainerMountPoint": h.task.CSIPluginConfig.StagePublishBaseDir,
+				"ContainerMountPoint": h.pluginStagePublishDir(),
 				"StatsInterval":       h.task.CSIPluginConfig.StatsInterval.String(),
 			},
 		}
