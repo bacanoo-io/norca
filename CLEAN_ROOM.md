@@ -173,6 +173,13 @@ carry only the Norca header. `norca/autopilot_oss.go` keeps the HashiCorp
 copyright line of the MPL stubs it fills, because it keeps their signatures and
 doc comments.
 
-What the audit covers: the Go files are in neither set. Their directories hold
-none of the 45 BUSL files, and HashiCorp's implementation is not public, so
-there is no file to compare them with.
+What the audit covers: the new files are in neither set. Their directories
+(`nomad/`, `nomad/structs/`, `nomad/stream/`, `nomad/backup/`, `api/`,
+`command/`, `command/agent/`) hold none of the 45 BUSL files, and HashiCorp's
+implementation is not public, so there is no file to compare them with. The
+lines these commits added to files that come from v1.6.5 (for example
+`nomad/autopilot.go`, `nomad/leader.go`, `nomad/server.go`,
+`nomad/operator_endpoint.go`, `nomad/job_endpoint.go` and the generated
+`structs.generated.go`) are in the `bugfix` set: the commits say "clean room",
+so `run.sh` compares them with the lines HashiCorp added to the same files up
+to the BSL tag.
