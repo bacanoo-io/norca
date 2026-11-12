@@ -62,7 +62,8 @@ run compares with the newest release of any major version. A new file is a
 candidate there only if it resembles a BSL file more than HashiCorp's own
 v1.6.5 code does; a changed file is judged by the lines Norca added to it,
 against the lines HashiCorp added (whole files would measure their common MPL
-ancestor).
+ancestor). The review of the candidates, with the auditor's verdict for each,
+is kept next to the result as `review.md`.
 
 Needs Docker and internet access (for the HashiCorp side). The result replaces
 `clean-room-result/` of the checkout, to be committed: `pairs.csv` has every
