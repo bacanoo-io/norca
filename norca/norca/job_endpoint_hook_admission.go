@@ -378,7 +378,7 @@ func applyWebhookPatch(job *structs.Job, resp *admission.ReviewResponse) (*struc
 // admission webhooks against the final job. It runs in the slot of
 // enforceSubmitJob, after the submitter has been authorized. It returns the
 // warnings and the rejection error.
-func (j *Job) enforceAdmission(op string, job *structs.Job, token *structs.ACLToken) (error, error) {
+func (j *Job) enforceAdmission(op string, job *structs.Job, user *structs.AdmissionUser) (error, error) {
 	d := j.srv.admission
 	if d == nil {
 		return nil, nil
@@ -397,7 +397,6 @@ func (j *Job) enforceAdmission(op string, job *structs.Job, token *structs.ACLTo
 		return nil, nil
 	}
 
-	user := structs.NewAdmissionUser(token, nil)
 	var warnings *multierror.Error
 
 	// CEL admission policies.
@@ -510,4 +509,25 @@ func matchingAdmissionPolicies(snap *state.StateSnapshot, engine *admission.Poli
 	}
 	engine.Prune(names)
 	return out, nil
+}
+
+// admitScaledJob decides on a new count of a group of a stored job
+// (Job.Scale), which is written without a registration. The job is the
+// stored one with the new count. With a quota that is enforced at submission
+// a higher count is checked against the limit like the counts of a
+// registered job. The admission policies and the validating webhooks see the
+// job with request.operation "scale"; the mutating webhooks do not run, a
+// scale changes nothing else of the job. It returns the warnings and the
+// rejection error.
+func (j *Job) admitScaledJob(args *structs.JobScaleRequest, job *structs.Job, up bool) (error, error) {
+	if up {
+		spec, err := jobQuotaSpec(j.srv, job)
+		if err != nil {
+			return nil, err
+		}
+		if err := quotaSubmitDemand(j.srv.Region(), spec, job); err != nil {
+			return nil, err
+		}
+	}
+	return j.enforceAdmission(structs.AdmissionOperationScale, job, admissionUser(args))
 }

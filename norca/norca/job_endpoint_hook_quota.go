@@ -113,17 +113,29 @@ func (h jobQuotaValidatingHook) Validate(job *structs.Job) ([]error, error) {
 		}
 	}
 
-	if spec.Enforce == structs.QuotaEnforceSubmit {
-		if limit := spec.LimitForRegion(h.srv.Region()); limit != nil {
-			demand := structs.JobQuotaDemand(job)
-			if dims := limit.CheckAdditional(structs.QuotaResources{}, demand); len(dims) > 0 {
-				mErr = multierror.Append(mErr, fmt.Errorf(
-					"job demand exceeds quota %q: %s", spec.Name, strings.Join(dims, ", ")))
-			}
-		}
+	if err := quotaSubmitDemand(h.srv.Region(), spec, job); err != nil {
+		mErr = multierror.Append(mErr, err)
 	}
 
 	return nil, mErr.ErrorOrNil()
+}
+
+// quotaSubmitDemand returns an error if the quota is enforced at submission
+// (enforce = "submit") and the total demand of the job would by itself exceed
+// the limit of the quota in the region.
+func quotaSubmitDemand(region string, spec *structs.QuotaSpec, job *structs.Job) error {
+	if spec == nil || spec.Enforce != structs.QuotaEnforceSubmit {
+		return nil
+	}
+	limit := spec.LimitForRegion(region)
+	if limit == nil {
+		return nil
+	}
+	demand := structs.JobQuotaDemand(job)
+	if dims := limit.CheckAdditional(structs.QuotaResources{}, demand); len(dims) > 0 {
+		return fmt.Errorf("job demand exceeds quota %q: %s", spec.Name, strings.Join(dims, ", "))
+	}
+	return nil
 }
 
 // validateQuotaTaskMax returns an error if the task's resources exceed the

@@ -392,3 +392,106 @@ func TestJobEndpoint_Admission_WebhookACL(t *testing.T) {
 	must.Eq(t, root.AccessorID, review.User.AccessorID)
 	must.Eq(t, structs.ACLManagementToken, review.User.Type)
 }
+
+// A scale writes the job without a registration: the admission policies and
+// the validating webhooks decide on the new count, with the operation
+// "scale".
+func TestJobEndpoint_Admission_Scale(t *testing.T) {
+	ci.Parallel(t)
+
+	var operations atomic.Value
+	hook := newTestWebhook(t, func(req *admission.ReviewRequest) *admission.ReviewResponse {
+		operations.Store(req.Operation)
+		var job structs.Job
+		_ = json.Unmarshal(req.Job, &job)
+		if job.TaskGroups[0].Count > 8 {
+			return &admission.ReviewResponse{Allowed: false, Message: "more than 8 is too many"}
+		}
+		return &admission.ReviewResponse{Allowed: true}
+	})
+
+	s, cleanup := admissionServer(t, &config.AdmissionWebhookConfig{Name: "count-check", URL: hook.URL})
+	defer cleanup()
+	upsertAdmissionPolicies(t, s,
+		testAdmissionPolicy("small-groups", nil, "deny", `job.TaskGroups.all(g, g.Count <= 5)`))
+
+	job := mock.Job()
+	job.TaskGroups[0].Count = 1
+	_, err := admissionRegisterJob(t, s, job, "")
+	must.NoError(t, err)
+
+	scale := func(count int64) error {
+		req := &structs.JobScaleRequest{
+			JobID:        job.ID,
+			Target:       map[string]string{structs.ScalingTargetGroup: job.TaskGroups[0].Name},
+			Count:        &count,
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace},
+		}
+		var resp structs.JobRegisterResponse
+		return msgpackrpc.CallWithCodec(rpcClient(t, s), "Job.Scale", req, &resp)
+	}
+	count := func() int {
+		stored, err := s.State().JobByID(nil, job.Namespace, job.ID)
+		must.NoError(t, err)
+		return stored.TaskGroups[0].Count
+	}
+
+	// The policy denies the count, the job is unchanged.
+	err = scale(6)
+	must.ErrorContains(t, err, "small-groups violated")
+	must.ErrorContains(t, err, "RPC Error:: 403,")
+	must.Eq(t, 1, count())
+
+	// A count the policy and the webhook allow is written.
+	must.NoError(t, scale(3))
+	must.Eq(t, 3, count())
+	must.Eq(t, structs.AdmissionOperationScale, operations.Load().(string))
+
+	// Without the policy the webhook decides.
+	var resp structs.GenericResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(rpcClient(t, s), "AdmissionPolicy.DeleteAdmissionPolicies",
+		&structs.AdmissionPolicyDeleteRequest{
+			Names:        []string{"small-groups"},
+			WriteRequest: structs.WriteRequest{Region: "global"},
+		}, &resp))
+	must.ErrorContains(t, scale(9), "more than 8 is too many")
+	must.Eq(t, 3, count())
+}
+
+// A dispatch makes a job with the meta of the caller: the admission policies
+// decide on the child, with the operation "dispatch".
+func TestJobEndpoint_Admission_Dispatch(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := admissionServer(t)
+	defer cleanup()
+
+	parent := mock.BatchJob()
+	parent.ParameterizedJob = &structs.ParameterizedJobConfig{MetaOptional: []string{"team"}}
+	_, err := admissionRegisterJob(t, s, parent, "")
+	must.NoError(t, err)
+
+	upsertAdmissionPolicies(t, s, testAdmissionPolicy("known-team", nil, "deny",
+		`request.operation != 'dispatch' || (has(job.Meta.team) && job.Meta.team == 'platform')`))
+
+	dispatch := func(team string) (*structs.JobDispatchResponse, error) {
+		req := &structs.JobDispatchRequest{
+			JobID:        parent.ID,
+			Meta:         map[string]string{"team": team},
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: parent.Namespace},
+		}
+		var resp structs.JobDispatchResponse
+		err := msgpackrpc.CallWithCodec(rpcClient(t, s), "Job.Dispatch", req, &resp)
+		return &resp, err
+	}
+
+	_, err = dispatch("mallory")
+	must.ErrorContains(t, err, "known-team violated")
+	must.ErrorContains(t, err, "RPC Error:: 403,")
+
+	resp, err := dispatch("platform")
+	must.NoError(t, err)
+	child, err := s.State().JobByID(nil, parent.Namespace, resp.DispatchedJobID)
+	must.NoError(t, err)
+	must.NotNil(t, child)
+}

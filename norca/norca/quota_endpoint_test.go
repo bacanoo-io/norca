@@ -221,6 +221,24 @@ func TestQuotaEndpoint_JobAdmission(t *testing.T) {
 
 	job3.TaskGroups[0].Count = 3
 	must.NoError(t, register(job3))
+
+	// A scale is checked like the count of a registration: 4 x 300 MHz >
+	// 1000 MHz is refused, a lower count is not.
+	scale := func(count int64) error {
+		req := &structs.JobScaleRequest{
+			JobID:        job3.ID,
+			Target:       map[string]string{structs.ScalingTargetGroup: job3.TaskGroups[0].Name},
+			Count:        &count,
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: ns.Name},
+		}
+		var resp structs.JobRegisterResponse
+		return msgpackrpc.CallWithCodec(codec, "Job.Scale", req, &resp)
+	}
+	must.ErrorContains(t, scale(4), "job demand exceeds quota")
+	must.NoError(t, scale(2))
+	out, err = s1.fsm.State().JobByID(nil, ns.Name, job3.ID)
+	must.NoError(t, err)
+	must.Eq(t, 2, out.TaskGroups[0].Count)
 }
 
 // TestQuota_Integration_BlockAndUnblock registers two jobs that together

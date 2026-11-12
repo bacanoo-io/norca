@@ -1193,8 +1193,24 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 				j.srv.setQueryMeta(&reply.QueryMeta)
 				return nil
 			}
-		} else if err := j.registerScaledJob(args, job, groupName, now, reply, event.ScalingEvent); err != nil {
-			return err
+		} else {
+			// The new count is a change of the job like a registration
+			// of it: the admission policies, the validating webhooks
+			// and the quota decide on it too.
+			admissionWarnings, err := j.admitScaledJob(args, job, *args.Count > prevCount)
+			if err != nil {
+				return err
+			}
+			if err := j.registerScaledJob(args, job, groupName, now, reply, event.ScalingEvent); err != nil {
+				return err
+			}
+			if admissionWarnings != nil {
+				warnings := []error{admissionWarnings}
+				if reply.Warnings != "" {
+					warnings = []error{errors.New(reply.Warnings), admissionWarnings}
+				}
+				reply.Warnings = helper.MergeMultierrorWarnings(warnings...)
+			}
 		}
 	} else {
 		reply.JobModifyIndex = job.ModifyIndex
@@ -2142,6 +2158,12 @@ func (j *Job) Dispatch(args *structs.JobDispatchRequest, reply *structs.JobDispa
 
 	// Compress the payload
 	dispatchJob.Payload = snappy.Encode(nil, args.Payload)
+
+	// The child is a new job with the meta and the payload of the caller:
+	// the admission policies and the validating webhooks decide on it.
+	if _, err := j.enforceAdmission(structs.AdmissionOperationDispatch, dispatchJob, admissionUser(args)); err != nil {
+		return err
+	}
 
 	regReq := &structs.JobRegisterRequest{
 		Job:          dispatchJob,

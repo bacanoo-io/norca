@@ -27,6 +27,14 @@ const (
 	AdmissionOperationRegister = "register"
 	AdmissionOperationPlan     = "plan"
 
+	// AdmissionOperationScale and AdmissionOperationDispatch are the job
+	// operations that change or make a job without a registration: a new
+	// count of a group (Job.Scale) and a child of a parameterized job
+	// (Job.Dispatch). The validating controllers run for them, the
+	// mutating webhooks do not.
+	AdmissionOperationScale    = "scale"
+	AdmissionOperationDispatch = "dispatch"
+
 	// AdmissionOperationSet and AdmissionOperationDelete are the Variables
 	// operations the dynamic admission chain runs for. Check-and-set writes
 	// and deletes use the same operations.

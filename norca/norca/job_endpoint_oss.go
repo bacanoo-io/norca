@@ -18,5 +18,5 @@ import (
 // override (the request's PolicyOverride) is ignored: admission policies
 // cannot be overridden.
 func (j *Job) enforceSubmitJob(op string, override bool, job *structs.Job, nomadACLToken *structs.ACLToken, ns *structs.Namespace) (error, error) {
-	return j.enforceAdmission(op, job, nomadACLToken)
+	return j.enforceAdmission(op, job, structs.NewAdmissionUser(nomadACLToken, nil))
 }
