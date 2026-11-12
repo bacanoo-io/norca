@@ -5,7 +5,7 @@ SPDX-License-Identifier: MPL-2.0
 
 # CSI completion plan
 
-**Status:** Draft · 2026-11-11 · decisions 1–3 taken by the user · phases 1–2 built (PRs norca #19, #20, doc #28) · clean room (see
+**Status:** Draft · 2026-11-11 · decisions 1–3 taken by the user · phases 1–5 built and merged (norca #19–#22, #24; doc #28–#31) · clean room (see
 [Clean room](#clean-room))
 
 Norca speaks CSI spec v1.7.0 (`github.com/container-storage-interface/spec v1.7.0`). The volume
@@ -112,9 +112,9 @@ As in the table. The checks of 7 use the capability flags of the plugin record (
 | --- | --- |
 | 1 | `readonly` of `ControllerPublishVolume` only with `PUBLISH_READONLY` (a spec rule that was broken); a hint in the error of a failed create from `clone_id` / `snapshot_id` when the plugin does not report the capability (the spec does not allow refusing beforehand: `CLONE_VOLUME` is "MAY report"). `NodeExpandVolume` stays as it is: the spec says the CO MUST call it when `node_expansion_required`. 5 exists already. Built 2026-11-11 (norca `feat/csi-plugin-checks`). |
 | 2 | Volume statistics (1) and volume health (2): the `CSIVolume` topic, the `norca.volume.*` gauges, `volume status`. Built 2026-11-11 (norca `feat/csi-volume-stats`, PR #20; doc PR #28). As built: the calls of a plugin run one after the other with a 10 s timeout (no concurrency limit); an error is not logged but shown in the Node Usage of the volume; the conditions come only from node plugins (`NodeGetVolumeStats`), the controller side (`ListVolumes`, `ControllerGetVolume`) goes with phase 4; the usage is in `CSIVolume.NodeUsage` (per node: usage, `Abnormal`, `Message`, `At`), not in a `Conditions` list with `Since`; gauges labelled `ns`, `volume`, `plugin`, `node`. Lab case `csi` (norca-lab `case-csi-volume-stats`) PASS 42/42 on 2026-11-11: own test plugin labcsi, and the SeaweedFS CSI driver (fork bacanoo-io/seaweedfs-csi-driver with VOLUME_CONDITION) through the new registry packs seaweedfs and seaweedfs-csi (raw_exec). Found and fixed on the way: raw_exec CSI plugins get host paths; raw_exec `allowed_devices` for /dev/fuse (cgroups v2 device filter). |
-| 3 | Capacity (3): `GetCapacity` in the plugin client, the periodic metric, `plugin capacity`, the check before `create` |
-| 4 | Live volume state (4): `ControllerGetVolume`, `volume status -live`, `VolumeDrift` |
-| 5 | Access modes and mount group (6) |
+| 3 | Capacity (3): `GetCapacity` in the plugin client, the periodic metric, `plugin capacity`, the check before `create`. Built 2026-11-11 (norca `feat/csi-capacity`, PR #21; doc PR #29; lab step `csi-capacity` 16/16, case `csi` 58/58). As built: answers in the leader's memory (not in the plugin record in Raft), gauges `norca.csi.*` labelled `plugin`, `topology`; the create check also refuses `capacity_min` above `maximum_volume_size`; a failed check does not block the create. |
+| 4 | Live volume state (4): `ControllerGetVolume`, `volume status -live`, `VolumeDrift`. Built 2026-11-11 (norca `feat/csi-live-state`, PR #22; doc PR #30; lab step `csi-state` 16/16, case `csi` 74/74). As built: drift = claimed nodes the controller does not list, published after two checks in a row (the spec allows extra nodes in published_node_ids, they are only shown); controller conditions as VolumeAbnormal/VolumeRecovered without a node; state in the leader's memory. Lab found: taken claims keep no external node ID, taken from the node fingerprint. |
+| 5 | Access modes and mount group (6). Built and merged 2026-11-11 (norca #24, doc #31, lab step `csi-modes` 18/18, case `csi` 92/92). As built: single-node-multi-writer keeps all claims on the node of the first one (claims and scheduler); the modes need SINGLE_NODE_MULTI_WRITER (scheduler filter, register/create refusal); mount_group only in the job volume block, refused in the volume specification and with block-device. |
 | – | CSI spec 1.9+ (8): a separate decision |
 
 Each phase is its own branch and pull request.

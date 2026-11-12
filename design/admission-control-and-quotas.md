@@ -48,7 +48,7 @@ Every state-mutating request in Norca traverses a deterministic, synchronous pip
 |     ├── Strips Job.VaultToken & Job.ConsulToken before serialization              |
 |     ├── POSTs admission.norca.io/v1 AdmissionReview to mode="mutate" webhooks     |
 |     ├── Applies RFC 6902 JSON Patch (verifies ID/Namespace/Region unchanged)      |
-|     └── Re-runs jobCanonicalizer if any webhook patched the job                   |
+|     └── Re-runs the pre-webhook built-in mutators if a webhook patched the job    |
 |                                                                                   |
 |  3. Built-in Post-Webhook Mutators:                                               |
 |     ├── discovery-defaults      (Defaults service discovery on webhook services)  |
@@ -136,14 +136,17 @@ In `NewJobEndpoints` (`norca/norca/job_endpoint.go:66-102`), the server initiali
    - **External Mutating Webhooks (`admissionWebhookMutator`, `job_endpoint_hook_admission.go:240`)**:
      - Runs only for `register` and `plan` operations via `MutateWithRequest`.
      - **Pre-Authorization Guard**: Before contacting any external webhook, the mutator resolves the caller's ACL token (`job_endpoint_hook_admission.go:266-272`) and verifies `acl.NamespaceCapabilitySubmitJob`. Unauthenticated or unauthorized callers cannot trigger outbound webhook traffic.
-     - If any webhook applies an RFC 6902 JSON Patch (`patched == true`), `jobCanonicalizer` is re-executed (`job_endpoint_hook_admission.go:310-318`) so downstream mutators and validators observe a canonical `structs.Job`.
+     - If any webhook applies an RFC 6902 JSON Patch (`patched == true`), all pre-webhook built-in mutators (`jobBuiltinMutators`, the canonicalizer first) are re-executed, so what a webhook injected (a task with a `vault` block, a mesh service, a `secret`, a `scaling` block) gets its sidecars, implied constraints and defaults, and downstream mutators and validators observe a canonical `structs.Job`. A patch that puts a `null` into a list of the job is rejected (it would decode to a nil task group or task).
    - **Post-Webhook Built-in Mutators**:
      - `jobDiscoveryDefaultsHook`: Runs *after* mutating webhooks so that service blocks injected by a webhook receive default service discovery settings.
      - `jobQuotaMutatingHook` (`job_endpoint_hook_quota.go:17`): Runs last in the mutating chain to populate unset task resources (`CPU`, `MemoryMB`, `MemoryMaxMB`) from the namespace quota's `TaskDefaults`.
 
 2. **Validating Phase (`j.validators` & `enforceAdmission`)**:
    - **Built-in Validators (`j.validators`)**: Executed on a defensive deep copy of the mutated job (`origJob.Copy()` in `job_endpoint_hooks.go:120`) to guarantee validators never mutate state. Includes `jobQuotaValidatingHook` (`job_endpoint_hook_quota.go:87`), which checks `TaskMax` and `enforce = "submit"` regional limits.
-   - **Dynamic Validating Controllers (`enforceAdmission`, `job_endpoint_hook_admission.go:359`)**: Invoked via `enforceSubmitJob` (`job_endpoint_oss.go:19`) *after* ACL authorization and Consul/Vault token checks pass. Evaluates all matching Raft-stored CEL `AdmissionPolicy` objects first, followed by all matching `mode = "validate"` webhooks.
+   - **Dynamic Validating Controllers (`enforceAdmission`, `job_endpoint_hook_admission.go:359`)**: Invoked via `enforceSubmitJob` (`job_endpoint_oss.go:19`) *after* ACL authorization and Consul/Vault token checks pass and *before* the gateway configuration entries of the job are written to Consul. Evaluates all matching Raft-stored CEL `AdmissionPolicy` objects first, followed by all matching `mode = "validate"` webhooks. `request.user` is the identity of the request (`admissionUser`) in every phase and for plan as for register.
+   - **Scale and dispatch**: `Job.Scale` and `Job.Dispatch` write a job without a registration. `Job.Scale` runs `enforceAdmission` on the stored job with the new count (`request.operation == "scale"`) and, for a higher count, the `enforce = "submit"` quota check; `Job.Dispatch` runs it on the child job (`"dispatch"`). Mutating webhooks do not run for them. A policy that a stored job does not meet therefore also refuses its scaling (the autoscaler's too). The launches of periodic jobs and the job the deployment watcher writes for a revert are not checked again.
+   - **Status code**: a denial by a policy or a webhook is answered with `403` (coded RPC error); a webhook failure under `failure_policy = "fail"` stays a server error.
+   - **Key rotation**: the server's own re-encryption of the Variables after a full root key rotation (a CAS write with the leader's token) is not sent through the Variables admission.
 
 ---
 
@@ -180,10 +183,10 @@ If any rule fails to compile, exceeds the cost limit, times out, accesses a non-
 
 | Resource Type | Top-Level CEL Variables | `request` Map Fields | Special Functions / Helpers |
 | :--- | :--- | :--- | :--- |
-| **Job** (`resource = "job"`) | `job` (API JSON form with `VaultToken` & `ConsulToken` stripped)<br>`variable = null`<br>`oldVariable = null`<br>`release = null` | `request.resource` (`"job"`)<br>`request.operation` (`"register"` \| `"plan"`)<br>`request.namespace`<br>`request.user` (`accessor_id`, `name`, `type`, `roles`, `policies`)<br>`request.secrets` (List of all secret & Vault references) | Standard CEL + `ext.Strings()`, `ext.Sets()`, `ext.Lists()` |
+| **Job** (`resource = "job"`) | `job` (API JSON form with `VaultToken` & `ConsulToken` stripped)<br>`variable = null`<br>`oldVariable = null`<br>`release = null` | `request.resource` (`"job"`)<br>`request.operation` (`"register"` \| `"plan"` \| `"scale"` \| `"dispatch"`)<br>`request.namespace`<br>`request.user` (`accessor_id`, `name`, `type`, `roles`, `policies`)<br>`request.secrets` (List of all secret & Vault references) | Standard CEL + `ext.Strings()`, `ext.Sets()`, `ext.Lists()` |
 | **Variable** (`resource = "variable"`) | `variable` (`namespace`, `path`, `items`, `create_index`, `modify_index`, `operation`)<br>`oldVariable` (previous decrypted variable or `null`)<br>`job = null`, `release = null` | `request.resource` (`"variable"`)<br>`request.operation` (`"set"` \| `"delete"`)<br>`request.cas` (`bool`)<br>`request.namespace`<br>`request.path`<br>`request.user` | Optional `schema_from = "crd-schema"` Draft 2020-12 JSON Schema validation |
 | **Pack Release** (`resource = "release"`) | `release` (`name`, `namespace`, `action`, `pack`, `resources`)<br>`job = null`, `variable = null`, `oldVariable = null` | `request.operation` (`"apply"`)<br>`request.namespace`<br>`request.dryRun` (`bool`)<br>`request.user` (`name`, `type`) | Built-in cosign signature verification via `trusted_keys` |
-| **Custom Object** (`ObjectKind.Rules`) | `self` (`kind`, `metadata`, `spec`, `status`)<br>`oldSelf` (stored object on update, `null` on create) | `request.operation` (`"create"` \| `"update"` \| `"status"` \| `"delete"` \| `"migrate"`)<br>`request.namespace`<br>`request.dryRun` (`bool`)<br>`request.user` | `has(oldSelf)` macro (`object.go:82`)<br>`quantity(str\|int\|double)` parser (`object.go:102`) |
+| **Custom Object** (`ObjectKind.Rules`) | `self` (`kind`, `metadata`, `spec`, `status`)<br>`oldSelf` (stored object on update, `null` on create) | `request.operation` (`"create"` \| `"update"` \| `"status"` \| `"scale"` \| `"migrate"`; the rules are not evaluated for deletions)<br>`request.namespace`<br>`request.dryRun` (`bool`)<br>`request.user` | `has(oldSelf)` macro (`object.go:82`)<br>`quantity(str\|int\|double)` parser (`object.go:102`) |
 | **Object Migration** (`ObjectKind.Migration`) | `self` (`kind`, `metadata`, `spec`, `status`)<br>`fromVersion` (`int`)<br>`toVersion` (`int`) | *(N/A)* | `quantity()`, `m.merge(other)`, `m.omit(["k1", "k2"])` (`migration.go:93`) |
 
 ---
@@ -243,7 +246,8 @@ For `mode = "mutate"` webhooks (and `mode = "default"` custom object webhooks), 
   1. **Identity & Scope Pinning**: A mutating webhook is strictly forbidden from altering `job.ID`, `job.Namespace`, or `job.Region` (`newJob.ID != job.ID || newJob.Namespace != job.Namespace || newJob.Region != job.Region`). Because ACL pre-authorization is evaluated for the original namespace and region, attempting to move a job across namespaces aborts the mutation.
   2. **Secret Redaction & Restoration**: `EncodeJob` (`admission/job.go:20-30`) clears `job.VaultToken` and `job.ConsulToken` before serializing the job to JSON so external webhooks never see caller tokens. After decoding the patched job, `applyWebhookPatch` restores the original `VaultToken` and `ConsulToken`.
   3. **Custom Object Spec-Only Patching**: For custom objects, `patchObjectSpec` (`object_ecosystem.go:492-531`) verifies via `reflect.DeepEqual` that a defaulting webhook modifies *only* the `/spec` subtree; any modification to `/metadata`, `/kind`, or `/status` is rejected.
-  4. **Validating Webhook Patch Ignore**: If a `mode = "validate"` webhook returns a non-empty `patch`, the patch is ignored and surfaced to the caller as a warning (`job_endpoint_hook_admission.go:442-445`).
+  4. **No `null` list elements**: a job patch that puts a `null` into a list (a task group, a task, a service) is rejected; a `null` *value* for a member is a normal RFC 6902 value.
+  5. **Validating Webhook Patch Ignore**: If a `mode = "validate"` webhook returns a non-empty `patch`, the patch is ignored and surfaced to the caller as a warning (`job_endpoint_hook_admission.go:442-445`).
 
 #### 3.3.3 TLS/mTLS Transport, Redirect Prevention, and Fail-Closed Posture
 Each configured webhook initializes a dedicated pooled HTTP client (`newWebhook` in `norca/norca/admission/webhook.go:210-250`):
@@ -311,7 +315,7 @@ Variables admission (`Variables.enforceAdmission` in `variables_endpoint_admissi
 ### 4.3 Custom Objects & Operator Framework (`norca/norca/admission/object.go`, `migration.go`)
 Norca's native Operator Framework (`ObjectKind` and `CustomObject` in `norca/norca/object_endpoint.go` and `object_ecosystem.go`) integrates three dedicated admission mechanisms:
 1. **CEL Transition & Validation Rules (`ObjectRuleEngine`, `admission/object.go:46`)**:
-   - Each `ObjectKind` can define CEL `rules` evaluated on `create`, `update`, and `status` writes (`object_endpoint.go:860-879`).
+   - Each `ObjectKind` can define CEL `rules` evaluated on `create`, `update`, `status` and `scale` writes (`object_endpoint.go`). They are not evaluated for deletions: a rule that a stored object no longer meets would keep it from being deleted; a deletion can be refused by a validating webhook.
    - Rules access `self` (`{"kind", "metadata", "spec", "status"}`), `oldSelf` (the stored object on update, or `null` on create), and `request`.
    - **Custom `has(oldSelf)` Macro (`object.go:82-98`)**: Extends CEL's standard `has()` macro so `has(oldSelf)` rewrites AST-wise to `oldSelf != null`, enabling clean immutability rules such as `!has(oldSelf) || self.spec.storageClass == oldSelf.spec.storageClass`.
    - **Built-in `quantity()` Function (`object.go:100-168`)**: Parses Kubernetes/SI/binary quantity strings (`"100GiB"`, `"1.5Gi"`, `"500m"`, `"2k"`) into `double` values so rules can enforce storage or resource bounds (e.g., `quantity(self.spec.disk) <= quantity("500GiB")`).
@@ -323,6 +327,8 @@ Norca's native Operator Framework (`ObjectKind` and `CustomObject` in `norca/nor
    - An `ObjectKind` may bundle `webhook` definitions (`mode = "default"` or `mode = "validate"`).
    - Because an `ObjectKind` can be installed by a non-management token with `object-kind:write`, Norca prevents webhook SSRF/exfiltration by requiring **explicit management token approval** (`ObjectKindWebhookApproval`, keyed by the SHA-256 `Digest()` of the webhook's URL, mode, CA cert, server name, operations, timeout, and failure policy).
    - Until an administrator runs `norca object-kind webhook approve <group/Kind> <webhook>` with a management token, `w.Approved()` is `false` and calls to the webhook fail closed (unless `failure_policy = "ignore"`).
+   - The approval is requested by name and covers the configuration the webhook has at that moment. The request can carry the modify index of the kind the approver read (`KindModifyIndex`, `?index=`); the servers refuse it with `409` if the kind was written since. The CLI reads the kind, prints the webhook and approves the kind as read.
+   - A **scale** is a spec write: the validating webhooks that review updates review it with the operation `scale`; defaulting webhooks do not run for it. Deletions are reviewed on every attempt of the write.
 
 ### 4.4 Pack Releases & Cryptographic Signature Verification (`norca/norca/release_admission.go`)
 When a pack release is installed, upgraded, or rolled back (`releaseManager.admitRelease` in `norca/norca/release_admission.go:26`), policies matching `resources = ["release"]` enforce supply-chain security in two stages:
@@ -331,8 +337,9 @@ When a pack release is installed, upgraded, or rolled back (`releaseManager.admi
    - Each key is assigned a deterministic key ID: `sha256:<hex(SHA256(PKIX_DER))>` (`signature.go:60-61`).
    - `VerifyPackSignatures` (`signature.go:74-99`) verifies the base64 signature over the cosign "simple signing" JSON payload and confirms `critical.image.docker-manifest-digest == pack.Digest`.
    - If verified, `pack.TrustedSigner` is set to the matching key ID (`sha256:...`). If no trusted key matches (or the pack lacks an OCI digest), the policy triggers a violation (`release_admission.go:70-80`).
+   - **What the signature covers**: the digest and the signatures bind the applied resources only when the server rendered the pack from its own catalog (`Packs.Deploy`). For a release rendered by the client (`Release.Apply`) they are caller input. `release.pack.serverRendered` (stored as `ReleasePack.ServerRendered`, set by the server only) tells the two apart in rules; it is kept for a rollback and, in a multi-region install, in the region of the server that rendered the pack. The other regions are reached with `Release.ApplyRendered`, which is `Release.Apply` for a caller that is a server of the federation (a TLS connection with a verified certificate for `server.<region>.norca` of a known region, on servers with `verify_server_hostname`, checked on every hop): only then is the release recorded and admitted as server-rendered there. For any other caller, and without verified server names, the pack counts as client-rendered. `release.pack.signed` and `release.pack.signer` are unverified input.
 2. **Release CEL Rules (`EvaluateRelease`, `release_admission.go:83-110`)**:
-   - Evaluates CEL rules against `release` (`name`, `namespace`, `action`, `pack: {name, version, registry, path, digest, signer, signed, trustedSigner}`, and `resources: [{type, namespace, name}]`).
+   - Evaluates CEL rules against `release` (`name`, `namespace`, `action`, `pack: {name, version, registry, path, digest, signer, signed, trustedSigner, serverRendered}`, and `resources: [{type, namespace, name}]`).
 
 ---
 
@@ -374,7 +381,7 @@ A `QuotaSpec` (`norca/norca/structs/quota.go:73-104`) is a global cluster object
 - **`limit < 0`**: Dimension is **completely disallowed** (`value > 0` is rejected; remaining capacity is `0`).
 - **Multi-Region Federation (`norca/norca/leader_quota.go:19-133`)**:
   - `QuotaSpec` writes (`Quota.UpsertQuotaSpecs`, `Quota.DeleteQuotaSpecs`) are automatically forwarded to the `AuthoritativeRegion` (`quota_endpoint.go:34`, `83`).
-  - Non-authoritative region leaders run `replicateQuotaSpecs` (`leader_quota.go:19`), which performs blocking queries against `Quota.ListQuotaSpecs` in the authoritative region and computes a two-way diff using each spec's **BLAKE2b-256** `Hash` (`diffQuotaSpecs`, `leader_quota.go:104`).
+  - Non-authoritative region leaders run `replicateQuotaSpecs` (`leader_quota.go:19`) together with the replication of namespaces, that is when ACLs are enabled (a federation without ACLs has the specs of the authoritative region only). It which performs blocking queries against `Quota.ListQuotaSpecs` in the authoritative region and computes a two-way diff using each spec's **BLAKE2b-256** `Hash` (`diffQuotaSpecs`, `leader_quota.go:104`).
   - **Local Usage Autonomy**: `QuotaUsage` is *never* replicated across regions. Each region tracks the usage of its own local allocations against the `QuotaLimit` matching its local region name (`state_store_quota.go:350`).
 
 ---
@@ -388,7 +395,7 @@ Within a single allocation, tasks do not all execute simultaneously: ephemeral `
 
 $$U_{\text{alloc}}^{(d)} = \sum_{t \in T_{\text{sidecar}}} u_t^{(d)} + \max\!\left( \sum_{t \in T_{\text{ephemeral}}} u_t^{(d)},\; \sum_{t \in T_{\text{main}}} u_t^{(d)},\; \sum_{t \in T_{\text{poststop}}} u_t^{(d)} \right) \quad \forall d \in \{\text{CPU}, \text{MemoryMB}, \text{MemoryMaxMB}\}$$
 
-For any task $t$ that does not specify `MemoryMaxMB` (or sets `MemoryMaxMB == 0`), its effective maximum memory defaults to its reserved memory (`memMax = tr.Memory.MemoryMB`, `structs/quota.go:696-699`). Every non-terminal allocation (`!alloc.TerminalStatus()`) contributes $U_{\text{alloc}}^{(\text{Allocations})} = 1$, while terminal allocations contribute $\vec{0}$ (`AllocQuotaResources`, `structs/quota.go:684-687`).
+With memory oversubscription disabled (scheduler configuration, or the node pool of the job) the scheduler gives an allocation no `MemoryMaxMB`, so it counts with its memory in that dimension; the estimates made from the job (`TaskGroupQuotaResources`, `JobQuotaDemand`) follow the same setting (`QuotaResources.WithMemoryOversubscription`). For any task $t$ that does not specify `MemoryMaxMB` (or sets `MemoryMaxMB == 0`), its effective maximum memory defaults to its reserved memory (`memMax = tr.Memory.MemoryMB`, `structs/quota.go:696-699`). Every non-terminal allocation (`!alloc.TerminalStatus()`) contributes $U_{\text{alloc}}^{(\text{Allocations})} = 1$, while terminal allocations contribute $\vec{0}$ (`AllocQuotaResources`, `structs/quota.go:684-687`).
 
 #### 5.2.2 Reserved CPU Cores to MHz Conversion
 While quotas specify CPU limits in MHz (`RegionLimit.CPU`), tasks may request dedicated CPU cores (`Resources.Cores`). During scheduling on a candidate node $n$, `TaskGroupQuotaResources` (`structs/quota.go:734-750`) and `sharesPerCore` (`scheduler/quota.go:208-213`) convert reserved cores into MHz using the node's hardware ratio:
@@ -464,16 +471,20 @@ $$\text{UsedVariables}_{\text{MiB}} = \left\lceil \frac{\sum_{ns \in NS(q)} \tex
 |  │     If overQuota == true:                                                      |
 |  │       Rejects the entire plan and returns PlanResult{RefreshIndex: index},     |
 |  │       forcing the scheduler worker to refresh its state and re-evaluate.       |
+|  │     A plan that is applied in part is checked again for the part that is       |
+|  │     applied; if that exceeds the quota, nothing of the plan is applied.        |
 |  ├── Preemption Interaction:                                                      |
 |  │     If a plan preempts allocations in the same namespace/quota,                |
 |  │     QuotaPlanDelta subtracts the preempted allocations' resources from the     |
-|  │     plan's net delta, allowing higher-priority jobs to displace lower-priority |
-|  │     allocations within a full quota!                                           |
+|  │     plan's net delta for the later placements of the same plan. A placement    |
+|  │     in a full quota is NOT made by preempting allocations of that quota: the   |
+|  │     QuotaIterator stops before the scheduler looks for victims.                |
 |  └── FSM State Commit & Unblocking (fsm_quota.go & state_store_quota.go):         |
 |        - updateQuotaWithAlloc updates TableQuotaUsage in the same MemDB WriteTxn. |
 |        - unblockQuotasForPlanResults (fsm_quota.go:86) and applyQuotaSpecUpsert   |
 |          (fsm_quota.go:41) call blockedEvals.UnblockQuota(quota, index) to wake   |
-|          blocked evaluations as soon as allocations stop or limits are raised.    |
+|          the evaluations that wait for that quota (escaped ones included) as     |
+|          soon as allocations stop or limits are raised.                          |
 +-----------------------------------------------------------------------------------+
 ```
 
@@ -498,7 +509,7 @@ $$\text{UsedVariables}_{\text{MiB}} = \left\lceil \frac{\sum_{ns \in NS(q)} \tex
 
 ### 6.1 Server Webhook Configuration (`norca.hcl`)
 
-External mutating and validating webhooks are configured in the server's `admission` stanza (`norca/norca/structs/config/admission.go:45-107`):
+External mutating and validating webhooks are configured in the `admission` block inside the `server` block of the agent configuration (`norca/norca/structs/config/admission.go:45-107`; the example shows the inner block). `include_variable_items` needs an `https` URL or a loopback address:
 
 ```hcl
 admission {

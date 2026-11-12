@@ -171,8 +171,39 @@ autopilot {
 5. The voter count stays odd where possible: with 3 healthy voters and a returning fourth, the standby
    is demoted before the count settles at 4.
 
-Removal of the failed voter stays with autopilot's cleanup (`CleanupDeadServers`, `MinQuorum`) or with
-the manual command. Promotion first and removal later is safe: a promoted standby raises the voters by
+**Review of 2026-11-12, fixed on the norca branch `fix/standby-failover-rules` (a99a443c4, not merged):**
+the build differed from the rules above in five places.
+
+1. A manual failover without `-replace` waited for `standby_failover_after` (the request only skipped
+   the cooldown); a manual request now skips both.
+2. A voter demoted for its role (rule 2, and a standby voter without a target) was demoted without a
+   look at the others; it is now demoted only while the voters that are left keep a healthy majority
+   among themselves.
+3. The cooldown started when the promoter asked for a change, not when it was made, so a promotion
+   that Raft did not apply delayed the retry by the cooldown. It now counts from the change as it
+   shows in the state (`observe`), and an unapplied change is asked for again in the next round. The
+   cooldown lives in the leader's promoter, not in `GetStateExt` as the table above says: a new
+   leader starts without one.
+4. `promote-standby -replace` removed the voter before it knew that a promotion would follow; it now
+   asks first (`manualPromotionBlocked`: the healthy voters without the replaced one still meet the
+   target, or a voter-role server waits for its vote) and removes nothing then.
+5. `FilterFailedServerRemovals` left every removal to autopilot. With `cleanup_dead_servers` a voter
+   that Serf reported failed was removed at once, the voters fell below the target, and the standby
+   was promoted without waiting `standby_failover_after`: the first and the third row of section 10
+   did not hold. With a target the promoter now holds the removal of a failed voter back until it
+   has been unhealthy for the failover time.
+
+6. Found by the lab run of these fixes (same branch, 9469d0d5f): **the autopilot configuration was
+   never part of a Raft snapshot.** A server that restored its state from a snapshot had none, and as
+   the leader made a new one from its own agent configuration and wrote it for the region: what
+   `operator autopilot set-config` had set, `target_voters` among it, was lost without a word. The
+   lab step `standby-manual` failed with "target_voters is 0" when the restarted voter led. The
+   configuration is now persisted in the snapshot (`AutopilotConfigSnapshot`); the lab step
+   `standby-backup` checks it on the restarted observer (norca-lab branch
+   `case-standby-autopilot-snapshot`).
+
+Removal of the failed voter stays with autopilot's cleanup (`CleanupDeadServers`, `MinQuorum`; with a
+target only after `standby_failover_after`, point 5 above) or with the manual command. Promotion first and removal later is safe: a promoted standby raises the voters by
 one; with one voter of three failed the quorum becomes 3 of 4 until the cleanup, which the remaining
 healthy voters plus the standby provide.
 
