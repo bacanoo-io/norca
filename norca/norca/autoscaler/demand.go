@@ -79,6 +79,11 @@ type NodePoolScaling struct {
 	// furthest above its share when a group is unneeded
 	// (scaledown_balance.go). Nil is on.
 	Balance *bool
+
+	// ReserveDatacenterLoss makes the groups of the pool keep free what the
+	// work of another datacenter of the pool would need of them, so the pool
+	// holds its work without any one of its datacenters (reserve.go).
+	ReserveDatacenterLoss bool
 }
 
 // The values of NodePoolScaling.MaxNodesCounts.
@@ -123,6 +128,7 @@ func (c *NodeScalingConfig) pool(name string) NodePoolScaling {
 			}
 			res.MaxNodes, res.MaxStep = p.MaxNodes, p.MaxStep
 			res.MaxNodesCounts, res.Balance = p.MaxNodesCounts, p.Balance
+			res.ReserveDatacenterLoss = p.ReserveDatacenterLoss
 		}
 	}
 	return res
@@ -172,6 +178,12 @@ type demandGroup struct {
 	free        float64
 	freeNodes   float64 // ready, eligible nodes the free capacity is in
 	freeKnown   bool
+
+	// reserve is the free capacity the group keeps for the loss of another
+	// datacenter of its pool, in nodes, and reserveFor that datacenter
+	// (reserve.go); zero when the pool keeps none.
+	reserve    float64
+	reserveFor string
 
 	// nodes are the virtual nodes of the work: the nodes already on their
 	// way come first, empty, and a node is opened when the work does not
@@ -354,7 +366,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		if v, ok := spec["headroom_percent"].(float64); ok {
 			g.headPercent = v
 		}
-		if g.headNodes > 0 || g.headPercent > 0 {
+		if g.headNodes > 0 || g.headPercent > 0 || r.cfg.NodeScaling.pool(g.pool).ReserveDatacenterLoss {
 			g.freeNodes, g.free, g.freeKnown = r.freeCapacity(p, now)
 		}
 		g.projected = g.spec
@@ -548,6 +560,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		return err
 	}
 	d := &demandRun{r: r, now: now, groups: groups, cfg: r.cfg.NodeScaling, unhelped: map[targetKey]string{}}
+	d.setReserves()
 	var items []*demandItem
 	if r.deps.BlockedDemand != nil {
 		items = collectDemandItems(r.deps.BlockedDemand())
@@ -727,20 +740,21 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		blockedAdd := g.opened()
 		pendingLeft := g.pendingFree()
 
-		// The headroom: free capacity worth a number of nodes ahead of the
+		// The headroom, and the reserve for the loss of a datacenter
+		// (reserve.go): free capacity worth a number of nodes ahead of the
 		// work. It is an ahead-of-time trigger, so it waits for the cooldown
 		// of the group; the blocked work does not.
 		var headAdd int64
 		var headReason string
-		if g.headNodes > 0 || g.headPercent > 0 {
-			wanted := max(float64(g.headNodes), g.headPercent/100*g.freeNodes)
+		if g.keepsAhead() {
+			wanted := g.aheadWanted(g.freeNodes)
 			have := g.free + float64(pendingLeft)
 			switch {
 			case !g.freeKnown:
 				// The gauges can't be read: no guess.
 			case have < wanted:
 				headAdd = int64(math.Ceil(wanted - have))
-				headReason = fmt.Sprintf("headroom: %.1f nodes free (and %d on their way), %.1f wanted", g.free, pendingLeft, wanted)
+				headReason = g.aheadReason(wanted, pendingLeft)
 			}
 		}
 		if headAdd > 0 && r.cooling(g) {

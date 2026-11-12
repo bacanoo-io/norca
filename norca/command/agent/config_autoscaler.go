@@ -111,6 +111,11 @@ type AutoscalerNodePoolConfig struct {
 	// above its share when a group is unneeded; on when not set.
 	Balance *bool `hcl:"balance"`
 
+	// ReserveDatacenterLoss makes the groups of the pool keep free what the
+	// work of another datacenter of the pool would need of them; off when
+	// not set.
+	ReserveDatacenterLoss bool `hcl:"reserve_datacenter_loss"`
+
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -331,6 +336,7 @@ func (a *AutoscalerConfig) toServerConfig() (*autoscaler.Config, error) {
 			cfg.NodeScaling.Pools[p.Name] = &autoscaler.NodePoolScaling{
 				Expander: p.Expander, MaxNodes: p.MaxNodes, MaxStep: p.MaxStep,
 				MaxNodesCounts: p.MaxNodesCounts, Balance: p.Balance,
+				ReserveDatacenterLoss: p.ReserveDatacenterLoss,
 			}
 		}
 	}

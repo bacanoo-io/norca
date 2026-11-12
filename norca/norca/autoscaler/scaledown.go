@@ -21,7 +21,7 @@ import (
 //   - it has all its nodes (none joining, none being removed) and is above min;
 //   - its allocated share, without one node of the group, is below
 //     utilization_below, and the free capacity without that node still covers
-//     the headroom;
+//     the headroom and the reserve for the loss of a datacenter (reserve.go);
 //   - delay_after_add has passed since the scale was last raised, and the
 //     group is not in its cooldown;
 //   - the operator does not veto it: the condition ScaleDownBlocked, until
@@ -30,8 +30,9 @@ import (
 // When the operator vetoes a scale down that was already decided (no node of
 // the group may go), the scale is set back to the nodes the group has, so the
 // two do not pull the number up and down. One group of a pool at a time is
-// lowered, by one node; the group with the most nodes goes first, which keeps
-// the spread over the datacenters.
+// lowered, by one node: the one furthest above its share of the pool
+// (scaledown_balance.go), or the unneeded group itself, among several the one
+// with the most nodes.
 
 const (
 	checkScaleDown     = "scale-down"
@@ -142,8 +143,8 @@ func (d *demandRun) unneeded(g *demandGroup) (string, bool) {
 	if without >= g.down.utilizationBelow {
 		return "", false
 	}
-	if g.headNodes > 0 || g.headPercent > 0 {
-		wanted := max(float64(g.headNodes), g.headPercent/100*(nodes-1))
+	if g.keepsAhead() {
+		wanted := g.aheadWanted(nodes - 1)
 		if free := nodes - used - 1; free < wanted {
 			return "", false
 		}

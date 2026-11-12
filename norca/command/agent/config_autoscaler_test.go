@@ -66,6 +66,8 @@ server {
 
         max_nodes_counts = "spec"
         balance          = false
+
+        reserve_datacenter_loss = true
       }
     }
   }
@@ -99,6 +101,7 @@ server {
 		Pools: map[string]*autoscaler.NodePoolScaling{"edge": {
 			Expander: "spread", MaxNodes: 12, MaxStep: 3,
 			MaxNodesCounts: autoscaler.MaxNodesCountsSpec, Balance: pointer.Of(false),
+			ReserveDatacenterLoss: true,
 		}},
 	}, cfg.NodeScaling)
 	must.Len(t, 2, cfg.APMs)
