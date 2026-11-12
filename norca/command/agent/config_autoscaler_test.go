@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
 	"github.com/shoenig/test/must"
 )
@@ -62,6 +63,9 @@ server {
         expander  = "spread"
         max_nodes = 12
         max_step  = 3
+
+        max_nodes_counts = "spec"
+        balance          = false
       }
     }
   }
@@ -92,7 +96,10 @@ server {
 	must.Eq(t, 15*time.Second, cfg.ClientMetricsInterval)
 	must.Eq(t, &autoscaler.NodeScalingConfig{
 		Expander: "priority", Interval: 20 * time.Second,
-		Pools: map[string]*autoscaler.NodePoolScaling{"edge": {Expander: "spread", MaxNodes: 12, MaxStep: 3}},
+		Pools: map[string]*autoscaler.NodePoolScaling{"edge": {
+			Expander: "spread", MaxNodes: 12, MaxStep: 3,
+			MaxNodesCounts: autoscaler.MaxNodesCountsSpec, Balance: pointer.Of(false),
+		}},
 	}, cfg.NodeScaling)
 	must.Len(t, 2, cfg.APMs)
 	must.Eq(t, &autoscaler.PluginConfig{

@@ -280,6 +280,12 @@ func (c *Config) Validate() error {
 			if p.MaxNodes < 0 || p.MaxStep < 0 {
 				mErr = multierror.Append(mErr, fmt.Errorf("node_scaling.pool %q: max_nodes and max_step must not be negative", name))
 			}
+			switch p.MaxNodesCounts {
+			case "", MaxNodesCountsReady, MaxNodesCountsSpec:
+			default:
+				mErr = multierror.Append(mErr, fmt.Errorf("node_scaling.pool %q: max_nodes_counts must be %s or %s, got %q",
+					name, MaxNodesCountsReady, MaxNodesCountsSpec, p.MaxNodesCounts))
+			}
 		}
 	}
 

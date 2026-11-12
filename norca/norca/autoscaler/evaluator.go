@@ -124,6 +124,12 @@ type runner struct {
 	unneededSince map[string]time.Time
 	lastDown      map[string]int64
 
+	// balanceLowered is the last lowering of a group for the balance of its
+	// pool, and balanceOffUntil until when the balance of a pool is switched
+	// off, both by pool (scaledown_balance.go).
+	balanceLowered  map[string]balanceMark
+	balanceOffUntil map[string]time.Time
+
 	workCh   chan *compiledPolicy
 	resultCh chan evalResult
 }
@@ -155,8 +161,11 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 
 		unneededSince: map[string]time.Time{},
 		lastDown:      map[string]int64{},
-		workCh:        make(chan *compiledPolicy),
-		resultCh:      make(chan evalResult),
+
+		balanceLowered:  map[string]balanceMark{},
+		balanceOffUntil: map[string]time.Time{},
+		workCh:          make(chan *compiledPolicy),
+		resultCh:        make(chan evalResult),
 	}
 }
 

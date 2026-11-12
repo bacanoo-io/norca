@@ -61,11 +61,45 @@ type NodeScalingConfig struct {
 // NodePoolScaling are the settings of one node pool.
 type NodePoolScaling struct {
 	Expander string
-	// MaxNodes is the largest sum of spec.replicas over the groups of the
-	// pool (0: no limit), MaxStep the nodes added to the pool by one
-	// decision (0: no limit).
+	// MaxNodes is the largest number of nodes of the groups of the pool
+	// (0: no limit), MaxStep the nodes added to the pool by one decision
+	// (0: no limit).
 	MaxNodes int
 	MaxStep  int
+
+	// MaxNodesCounts says what counts against MaxNodes. MaxNodesCountsReady
+	// (the default): spec.replicas of every group, but of a group that is
+	// not healthy only the nodes it has (ready or joining), so that the
+	// nodes of a lost datacenter do not keep the others from growing into
+	// their place. MaxNodesCountsSpec: spec.replicas of every group, always:
+	// a strict cap on what is paid for.
+	MaxNodesCounts string
+
+	// Balance makes the scale down of the pool lower the group that is
+	// furthest above its share when a group is unneeded
+	// (scaledown_balance.go). Nil is on.
+	Balance *bool
+}
+
+// The values of NodePoolScaling.MaxNodesCounts.
+const (
+	MaxNodesCountsReady = "ready"
+	MaxNodesCountsSpec  = "spec"
+)
+
+// balance reports whether the scale down of the pool keeps its balance.
+func (p NodePoolScaling) balance() bool {
+	return p.Balance == nil || *p.Balance
+}
+
+// counted returns the nodes of a group that count against the pool's
+// MaxNodes.
+func (p NodePoolScaling) counted(g *demandGroup) int64 {
+	isHealthy := g.unable == "" && g.degraded == ""
+	if isHealthy || p.MaxNodesCounts == MaxNodesCountsSpec {
+		return g.spec
+	}
+	return min(g.spec, g.ready+g.pending)
 }
 
 func validExpander(s string) bool {
@@ -88,6 +122,7 @@ func (c *NodeScalingConfig) pool(name string) NodePoolScaling {
 				res.Expander = p.Expander
 			}
 			res.MaxNodes, res.MaxStep = p.MaxNodes, p.MaxStep
+			res.MaxNodesCounts, res.Balance = p.MaxNodesCounts, p.Balance
 		}
 	}
 	return res
@@ -631,7 +666,7 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 	r := d.r
 	poolTotal := map[string]int64{}
 	for _, g := range d.groups {
-		poolTotal[g.pool] += g.spec
+		poolTotal[g.pool] += d.cfg.pool(g.pool).counted(g)
 	}
 	poolAdded := map[string]int64{}
 	touched := map[string]bool{}
@@ -688,6 +723,11 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		poolAdded[g.pool] += add
 		touched[g.name] = true
 		g.raised = true
+		if blockedAdd > 0 {
+			if note := d.noteRaised(g); note != "" {
+				blocked["balance/"+g.pool] = note
+			}
+		}
 
 		desired := g.spec + add
 		if r.lastDemand[g.name] == desired && g.policy.Target["dry-run"] == "true" {
@@ -769,6 +809,8 @@ func (d *demandRun) event(id, reason string) (string, *structs.ScalingDecisionEv
 			ev.Group = parts[0]
 		}
 	case "limit":
+		ev.Group = rest
+	case "balance":
 		ev.Group = rest
 	case "unhealthy":
 		ev.Group = rest

@@ -460,3 +460,64 @@ func TestDemand_DatacenterPatterns(t *testing.T) {
 		})
 	}
 }
+
+// setStatus changes fields of the status of a node group, as its operator
+// would report them.
+func (f *fakeObjectScaler) setStatus(name string, fields map[string]any) {
+	f.l.Lock()
+	defer f.l.Unlock()
+	_, obj := f.object(structs.NodeScalingGroup, structs.NodeGroupKind, "", name)
+	must.NotNil(f.t, obj)
+	next := obj.Copy()
+	next.Status = structs.CopyObjectMap(obj.Status)
+	for k, v := range fields {
+		next.Status[k] = v
+	}
+	f.index++
+	must.NoError(f.t, f.store.UpsertCustomObject(structs.MsgTypeTestSetup, f.index, next, obj.ModifyIndex))
+}
+
+// The nodes of a lost datacenter do not keep the other datacenters of the
+// pool from growing into their place: of a group that is not healthy only
+// the nodes it has count against the maximum of the pool, unless the pool
+// counts the scale of every group.
+func TestDemand_PoolMaximumDuringALoss(t *testing.T) {
+	ci.Parallel(t)
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		counts   string
+		expected map[string]int64
+	}{
+		// 12 at most; dc-a has 5, the 5 of dc-b are gone: room for 7, 4 needed.
+		{name: "the missing nodes do not count", counts: "", expected: map[string]int64{"workers-a": 9}},
+		// With the scale of both groups counted: 10 of 12, room for 2.
+		{name: "a strict maximum counts them", counts: MaxNodesCountsSpec, expected: map[string]int64{"workers-a": 7}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			work := map[[2]string][]Unplaced{}
+			h, objects, _ := demandHarness(t, []testGroup{
+				{name: "workers-a", dc: "dc-a", spec: map[string]any{"replicas": float64(5)}, status: map[string]any{"replicas": float64(5)}},
+				{name: "workers-b", dc: "dc-b", spec: map[string]any{"replicas": float64(5)}, status: map[string]any{"replicas": float64(0)}},
+			}, work)
+			h.cfg.NodeScaling = &NodeScalingConfig{Pools: map[string]*NodePoolScaling{
+				"workers": {MaxNodes: 12, MaxNodesCounts: tt.counts},
+			}}
+			h.newRunner()
+
+			// The nodes of dc-b have been missing for two minutes when the
+			// work they ran is blocked.
+			must.NoError(t, h.runner.scaleForDemand(ctx))
+			h.clock.Advance(unreadyAfter)
+			for k, v := range bigWork(4, "dc-a", "dc-b") {
+				work[k] = v
+			}
+
+			must.NoError(t, h.runner.scaleForDemand(ctx))
+			must.Eq(t, tt.expected, scaledTo(objects))
+		})
+	}
+}

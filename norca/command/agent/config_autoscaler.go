@@ -103,6 +103,14 @@ type AutoscalerNodePoolConfig struct {
 	MaxNodes int    `hcl:"max_nodes"`
 	MaxStep  int    `hcl:"max_step"`
 
+	// MaxNodesCounts is what counts against max_nodes: "ready" (default:
+	// of a group that is not healthy only the nodes it has) or "spec".
+	MaxNodesCounts string `hcl:"max_nodes_counts"`
+
+	// Balance makes the scale down of the pool lower the group furthest
+	// above its share when a group is unneeded; on when not set.
+	Balance *bool `hcl:"balance"`
+
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -320,7 +328,10 @@ func (a *AutoscalerConfig) toServerConfig() (*autoscaler.Config, error) {
 			Pools:    map[string]*autoscaler.NodePoolScaling{},
 		}
 		for _, p := range ns.Pools {
-			cfg.NodeScaling.Pools[p.Name] = &autoscaler.NodePoolScaling{Expander: p.Expander, MaxNodes: p.MaxNodes, MaxStep: p.MaxStep}
+			cfg.NodeScaling.Pools[p.Name] = &autoscaler.NodePoolScaling{
+				Expander: p.Expander, MaxNodes: p.MaxNodes, MaxStep: p.MaxStep,
+				MaxNodesCounts: p.MaxNodesCounts, Balance: p.Balance,
+			}
 		}
 	}
 	for _, p := range a.APMs {

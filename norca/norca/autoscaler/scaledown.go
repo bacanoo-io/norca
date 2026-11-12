@@ -123,26 +123,8 @@ func (t *targetState) lastScaleUp() time.Time {
 // reason says what failed when it can't.
 func (d *demandRun) unneeded(g *demandGroup) (string, bool) {
 	r, now := d.r, d.now
-	switch {
-	case !g.down.enabled:
-		return "", false
-	case g.raised || g.demanded:
-		return "blocked work could use the group", false
-	case g.spec <= g.min:
-		return "at its minimum", false
-	case g.pending > 0 || g.spec != g.ready:
-		return "nodes are joining or being removed", false
-	case g.vetoed(now):
-		return "the operator holds the scale down: " + g.vetoMsg, false
-	case r.cooling(g):
-		return "in its cooldown", false
-	}
-	_, t, err := r.groupTarget(g)
-	if err != nil {
-		return "", false
-	}
-	if last := t.lastScaleUp(); !last.IsZero() && now.Sub(last) < g.down.delayAfterAdd {
-		return "raised less than delay_after_add ago", false
+	if reason, ok := d.mayGo(g); !ok {
+		return reason, false
 	}
 
 	nodes, share, ok := r.groupUsage(g.policy, now)
@@ -243,15 +225,30 @@ func (d *demandRun) scaleDown() {
 		}
 		list := byPool[pool]
 		sort.SliceStable(list, func(i, j int) bool { return list[i].ready > list[j].ready })
-		g := list[0]
+		g, reason := list[0], reasons[list[0]]
+
+		// The pool has a node too many; the one that goes is of the group
+		// furthest above its share (scaledown_balance.go).
+		isForBalance := false
+		if d.balanced(pool) {
+			if over := d.overShare(pool, g); over != nil {
+				reason = fmt.Sprintf("to balance the pool %s: %s is unneeded (%s) and %s has %d of the pool's nodes",
+					pool, g.name, reason, over.name, over.ready)
+				g, isForBalance = over, true
+			}
+		}
+
 		desired := g.spec - 1
 		if r.lastDown[g.name] == desired && g.policy.Target["dry-run"] == "true" {
 			continue
 		}
-		if err := r.scaleGroup(g, desired, sdk.ScaleDirectionDown, reasons[g], checkScaleDown); err != nil {
+		if err := r.scaleGroup(g, desired, sdk.ScaleDirectionDown, reason, checkScaleDown); err != nil {
 			r.logger.Warn("failed to lower the scale of a node group", "group", g.name, "error", err)
 			continue
 		}
 		r.lastDown[g.name] = desired
+		if isForBalance {
+			r.balanceLowered[pool] = balanceMark{group: g.name, at: now}
+		}
 	}
 }
