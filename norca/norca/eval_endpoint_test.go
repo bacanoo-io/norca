@@ -166,20 +166,26 @@ func TestEvalEndpoint_GetEval_Blocking(t *testing.T) {
 	eval1 := mock.Eval()
 	eval2 := mock.Eval()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated eval
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.UpsertEvals(structs.MsgTypeTestSetup, 100, []*structs.Evaluation{eval1})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert the eval we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		err := state.UpsertEvals(structs.MsgTypeTestSetup, 200, []*structs.Evaluation{eval2})
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert the eval we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			err := state.UpsertEvals(structs.MsgTypeTestSetup, 200, []*structs.Evaluation{eval2})
+			if err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	// Lookup the eval
@@ -191,7 +197,6 @@ func TestEvalEndpoint_GetEval_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.SingleEvalResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Eval.GetEval", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -207,16 +212,16 @@ func TestEvalEndpoint_GetEval_Blocking(t *testing.T) {
 	}
 
 	// Eval delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.DeleteEval(300, []string{eval2.ID}, []string{}, false)
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.SingleEvalResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Eval.GetEval", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -1265,10 +1270,12 @@ func TestEvalEndpoint_List_Blocking(t *testing.T) {
 	// Create the ieval
 	eval := mock.Eval()
 
-	// Upsert eval triggers watches
+	// Upsert eval triggers watches. The clock starts before the write is
+	// scheduled: on a starved machine the query was sent long after.
+	start := time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.UpsertEvals(structs.MsgTypeTestSetup, 2, []*structs.Evaluation{eval}); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
@@ -1279,7 +1286,6 @@ func TestEvalEndpoint_List_Blocking(t *testing.T) {
 			MinQueryIndex: 1,
 		},
 	}
-	start := time.Now()
 	var resp structs.EvalListResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Eval.List", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
@@ -1296,14 +1302,14 @@ func TestEvalEndpoint_List_Blocking(t *testing.T) {
 	}
 
 	// Eval deletion triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.DeleteEval(3, []string{eval.ID}, nil, false); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.MinQueryIndex = 2
-	start = time.Now()
 	var resp2 structs.EvalListResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Eval.List", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
@@ -1885,22 +1891,29 @@ func TestEvalEndpoint_Allocations_Blocking(t *testing.T) {
 	alloc1 := mock.Alloc()
 	alloc2 := mock.Alloc()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set. Written in the other order, the index of the allocs
+	// table ends at 100 and the query waits for its timeout.
+	start := time.Now()
+
 	// Upsert an unrelated alloc first
 	time.AfterFunc(100*time.Millisecond, func() {
 		state.UpsertJobSummary(99, mock.JobSummary(alloc1.JobID))
 		err := state.UpsertAllocs(structs.MsgTypeTestSetup, 100, []*structs.Allocation{alloc1})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert an alloc which will trigger the watch later
-	time.AfterFunc(200*time.Millisecond, func() {
-		state.UpsertJobSummary(199, mock.JobSummary(alloc2.JobID))
-		err := state.UpsertAllocs(structs.MsgTypeTestSetup, 200, []*structs.Allocation{alloc2})
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert an alloc which will trigger the watch later
+		time.AfterFunc(100*time.Millisecond, func() {
+			state.UpsertJobSummary(199, mock.JobSummary(alloc2.JobID))
+			err := state.UpsertAllocs(structs.MsgTypeTestSetup, 200, []*structs.Allocation{alloc2})
+			if err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	// Lookup the eval
@@ -1912,7 +1925,6 @@ func TestEvalEndpoint_Allocations_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.EvalAllocationsResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Eval.Allocations", get, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
