@@ -6,6 +6,7 @@ package norca
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"slices"
 
 	"github.com/bacanoo-io/norca/norca/acl"
@@ -235,7 +236,7 @@ func (s *Server) webhookDenied(w *admission.Webhook, op string, user *structs.Ad
 		Name:       w.Name(),
 		Message:    msg,
 	})
-	return fmt.Errorf("admission webhook %q denied the job: %s", w.Name(), msg)
+	return structs.NewErrRPCCodedf(http.StatusForbidden, "admission webhook %q denied the job: %s", w.Name(), msg)
 }
 
 // admissionWebhookMutator calls the mutating admission webhooks. It runs after
@@ -439,7 +440,7 @@ func (j *Job) enforceAdmission(op string, job *structs.Job, token *structs.ACLTo
 				Name:       firstDenial.Policy,
 				Message:    firstDenial.Message,
 			})
-			return warnings.ErrorOrNil(), denials.ErrorOrNil()
+			return warnings.ErrorOrNil(), structs.NewErrRPCCoded(http.StatusForbidden, denials.Error())
 		}
 	}
 

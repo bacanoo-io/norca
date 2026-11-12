@@ -136,6 +136,8 @@ func TestJobEndpoint_Admission_Policies(t *testing.T) {
 	job.Meta["owner"] = "mallory"
 	_, err = admissionRegisterJob(t, s, job, "")
 	must.ErrorContains(t, err, "owner violated")
+	// A denial is the answer 403 of the HTTP API, not a server error.
+	must.ErrorContains(t, err, "RPC Error:: 403,")
 	_, err = admissionPlanJob(t, s, job)
 	must.ErrorContains(t, err, "owner violated")
 
@@ -315,6 +317,7 @@ func TestJobEndpoint_Admission_ValidatingWebhook(t *testing.T) {
 	job.Meta["owner"] = "mallory"
 	_, err = admissionRegisterJob(t, s, job, "")
 	must.ErrorContains(t, err, "mallory may not deploy")
+	must.ErrorContains(t, err, "RPC Error:: 403,")
 	_, err = admissionPlanJob(t, s, job)
 	must.ErrorContains(t, err, "mallory may not deploy")
 
