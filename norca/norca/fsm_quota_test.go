@@ -243,3 +243,28 @@ func TestPlanApply_EvaluatePlan_QuotaOfPartialCommit(t *testing.T) {
 	must.MapEmpty(t, result.NodeAllocation)
 	must.MapEmpty(t, result.NodeUpdate)
 }
+
+// The refresh index of a plan that is over its quota covers the binding of a
+// namespace to a quota.
+func TestPlanApply_RefreshIndex_NamespaceQuota(t *testing.T) {
+	ci.Parallel(t)
+	fsm := testFSM(t)
+	state := fsm.State()
+
+	q := mockQuotaSpec()
+	q.Canonicalize()
+	q.SetHash()
+	must.NoError(t, state.UpsertQuotaSpecs(structs.MsgTypeTestSetup, 10, []*structs.QuotaSpec{q}))
+	ns := mock.Namespace()
+	must.NoError(t, state.UpsertNamespaces(11, []*structs.Namespace{ns}))
+
+	bound := ns.Copy()
+	bound.Quota = q.Name
+	must.NoError(t, state.UpsertNamespaces(20, []*structs.Namespace{bound}))
+
+	snap, err := state.Snapshot()
+	must.NoError(t, err)
+	index, err := refreshIndex(snap)
+	must.NoError(t, err)
+	must.Eq(t, 20, index)
+}

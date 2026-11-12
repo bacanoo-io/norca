@@ -12,7 +12,10 @@ import (
 )
 
 // refreshIndex returns the index the scheduler should refresh to as the maximum
-// of the allocation, node and quota specification tables.
+// of the allocation, node, quota specification and namespace tables. A
+// namespace that is bound to a quota (or to another one) changes what a plan
+// may add as much as a new limit does: a scheduler that planned on a state
+// from before the binding must see it, or it sends the same plan again.
 func refreshIndex(snap *state.StateSnapshot) (uint64, error) {
 	allocIndex, err := snap.Index("allocs")
 	if err != nil {
@@ -26,5 +29,9 @@ func refreshIndex(snap *state.StateSnapshot) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return maxUint64(nodeIndex, allocIndex, quotaIndex), nil
+	namespaceIndex, err := snap.Index(state.TableNamespaces)
+	if err != nil {
+		return 0, err
+	}
+	return maxUint64(nodeIndex, allocIndex, quotaIndex, namespaceIndex), nil
 }
