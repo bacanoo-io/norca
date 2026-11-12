@@ -160,11 +160,22 @@ func ParseQuantity(s string) (float64, error) {
 	if !ok || number == "" {
 		return 0, fmt.Errorf("invalid quantity %q", s)
 	}
+	// The number is decimal: ParseFloat would also take the hexadecimal
+	// form ("0x1p4") and digits grouped with "_".
+	if strings.ContainsAny(number, "xXpP_") {
+		return 0, fmt.Errorf("invalid quantity %q", s)
+	}
 	f, err := strconv.ParseFloat(number, 64)
 	if err != nil || math.IsInf(f, 0) || math.IsNaN(f) {
 		return 0, fmt.Errorf("invalid quantity %q", s)
 	}
-	return f * mult, nil
+	// The suffix can take a number that is finite out of range: an
+	// infinite quantity would pass every "at least" or "at most" rule.
+	q := f * mult
+	if math.IsInf(q, 0) {
+		return 0, fmt.Errorf("quantity %q is out of range", s)
+	}
+	return q, nil
 }
 
 // CompileRules compiles all the rules of the kind and returns an error that

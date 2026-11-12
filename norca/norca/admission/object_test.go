@@ -105,7 +105,7 @@ func TestParseQuantity(t *testing.T) {
 		must.NoError(t, err, must.Sprint(in))
 		must.Eq(t, want, got, must.Sprint(in))
 	}
-	for _, in := range []string{"", "Gi", "1.2.3", "10Xi", "5mB", "abc"} {
+	for _, in := range []string{"", "Gi", "1.2.3", "10Xi", "5mB", "abc", "1e308E", "-1e308E", "0x1p4", "1_000"} {
 		_, err := ParseQuantity(in)
 		must.Error(t, err, must.Sprint(in))
 	}
