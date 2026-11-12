@@ -521,3 +521,61 @@ func TestDemand_PoolMaximumDuringALoss(t *testing.T) {
 		})
 	}
 }
+
+// The use of a node group is read from the gauges of its own nodes; the
+// gauges of its datacenter, pool and class, which other groups and nodes no
+// group made share, are for a group none of whose nodes is marked.
+func TestRunner_GroupUsage(t *testing.T) {
+	ci.Parallel(t)
+
+	// own are the gauges of the nodes of workers-a, shared those of its
+	// datacenter and pool.
+	own := map[string]float64{
+		metricsstore.MetricNodeGroupNodesReady:      3,
+		metricsstore.MetricNodeGroupCPUAllocated:    10,
+		metricsstore.MetricNodeGroupMemoryAllocated: 20,
+	}
+	shared := map[string]float64{
+		metricsstore.MetricClusterNodesReady:      8,
+		metricsstore.MetricClusterCPUAllocated:    90,
+		metricsstore.MetricClusterMemoryAllocated: 70,
+	}
+
+	tests := []struct {
+		name           string
+		hasOwn         bool
+		hasShared      bool
+		expectedNodes  float64
+		expectedShare  float64
+		expectedIsRead bool
+	}{
+		{name: "the group's own nodes", hasOwn: true, hasShared: true, expectedNodes: 3, expectedShare: 0.2, expectedIsRead: true},
+		{name: "no node of the group is marked", hasShared: true, expectedNodes: 8, expectedShare: 0.9, expectedIsRead: true},
+		{name: "nothing can be read", expectedIsRead: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _, _ := demandHarness(t, []testGroup{{name: "workers-a", dc: "dc-a"}}, nil)
+			h.deps.GaugeHistory = func(metric string, labels map[string]string, _, _ time.Time) (float64, float64, int, error) {
+				if v, ok := own[metric]; ok && tt.hasOwn && labels["group"] == "workers-a" {
+					return v, v, 1, nil
+				}
+				if v, ok := shared[metric]; ok && tt.hasShared && labels["dc"] == "dc-a" && labels["pool"] == "workers" {
+					return v, v, 1, nil
+				}
+				return 0, 0, 0, nil
+			}
+			h.newRunner()
+
+			groups, err := h.runner.readDemandGroups(h.clock.Now())
+			must.NoError(t, err)
+			must.Len(t, 1, groups)
+
+			nodes, share, ok := h.runner.groupUsage(groups[0].policy, h.clock.Now())
+			must.Eq(t, tt.expectedIsRead, ok)
+			must.Eq(t, tt.expectedNodes, nodes)
+			must.InDelta(t, tt.expectedShare, share, 1e-9)
+		})
+	}
+}

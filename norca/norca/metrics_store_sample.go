@@ -70,7 +70,7 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 	live := s.metricsStore.Live(now, 2*time.Minute)
 
 	var gauges []metricsstore.Gauge
-	cluster, err := s.sampleCapacity(snap, live)
+	cluster, nodeGroups, err := s.sampleCapacity(snap, live)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +89,15 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 			metricsstore.Gauge{Metric: metricsstore.MetricClusterMemoryUsed, Labels: labels, Value: percent(c.usedMemory, c.memory)},
 			metricsstore.Gauge{Metric: metricsstore.MetricClusterDiskAllocated, Labels: labels, Value: percent(c.allocDisk, c.disk)},
 			metricsstore.Gauge{Metric: metricsstore.MetricClusterNodesReady, Labels: labels, Value: float64(c.ready)},
+		)
+	}
+
+	for group, c := range nodeGroups {
+		labels := map[string]string{"group": group}
+		gauges = append(gauges,
+			metricsstore.Gauge{Metric: metricsstore.MetricNodeGroupNodesReady, Labels: labels, Value: float64(c.ready)},
+			metricsstore.Gauge{Metric: metricsstore.MetricNodeGroupCPUAllocated, Labels: labels, Value: percent(c.allocCPU, c.cpu)},
+			metricsstore.Gauge{Metric: metricsstore.MetricNodeGroupMemoryAllocated, Labels: labels, Value: percent(c.allocMemory, c.memory)},
 		)
 	}
 
@@ -159,14 +168,35 @@ func (s *Server) sampleGauges(now time.Time) ([]metricsstore.Gauge, error) {
 // the ready, eligible nodes by datacenter, node pool and node class. The key
 // {dc, pool, ""} is every node of the datacenter and pool; a node with a node
 // class is also in {dc, pool, class}.
-func (s *Server) sampleCapacity(snap *state.StateSnapshot, live *metricsstore.LiveUsage) (map[[3]string]*capacity, error) {
+//
+// The second result is the same by node group: the nodes that name a node
+// group of the state in their meta (norca.node_group). A group has an entry
+// as soon as one node names it, whatever the state of that node, so that a
+// group whose nodes are all down shows no capacity instead of nothing; a
+// group no node names has none. A name that is no node group is left out: a
+// node cannot add a series by naming a group of its own.
+func (s *Server) sampleCapacity(snap *state.StateSnapshot, live *metricsstore.LiveUsage) (map[[3]string]*capacity, map[string]*capacity, error) {
+	groups := map[string]*capacity{}
+	objects, err := snap.CustomObjects(nil, structs.NodeScalingGroup, structs.NodeGroupKind, structs.AllNamespacesSentinel, state.SortDefault)
+	if err != nil {
+		return nil, nil, err
+	}
+	isNodeGroup := map[string]bool{}
+	for raw := objects.Next(); raw != nil; raw = objects.Next() {
+		isNodeGroup[raw.(*structs.CustomObject).Name] = true
+	}
+
 	iter, err := snap.Nodes(nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := map[[3]string]*capacity{}
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		node := raw.(*structs.Node)
+		group := node.Meta[structs.NodeMetaNodeGroup]
+		if isNodeGroup[group] && groups[group] == nil {
+			groups[group] = &capacity{}
+		}
 		if node.Status != structs.NodeStatusReady || node.SchedulingEligibility != structs.NodeSchedulingEligible {
 			continue
 		}
@@ -182,7 +212,7 @@ func (s *Server) sampleCapacity(snap *state.StateSnapshot, live *metricsstore.Li
 		}
 		allocs, err := snap.AllocsByNode(nil, node.ID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, alloc := range allocs {
 			if alloc.ClientTerminalStatus() || alloc.ServerTerminalStatus() {
@@ -211,8 +241,11 @@ func (s *Server) sampleCapacity(snap *state.StateSnapshot, live *metricsstore.Li
 			}
 			sum.add(c)
 		}
+		if isNodeGroup[group] {
+			groups[group].add(c)
+		}
 	}
-	return out, nil
+	return out, groups, nil
 }
 
 // sampleQuotas returns the allocated and the used resources of the

@@ -350,3 +350,80 @@ func TestPreferredDatacenters(t *testing.T) {
 		})
 	}
 }
+
+// TestMetricsStore_NodeGroupCapacity checks the capacity gauges of a node
+// group: they count the nodes that name the group in their meta, not the
+// others of the same datacenter and pool, and a name that is no node group
+// makes no series.
+func TestMetricsStore_NodeGroupCapacity(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, enableMetricsStore(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+	st := s.fsm.State()
+
+	must.NoError(t, st.UpsertObjectKind(structs.MsgTypeTestSetup, 1000, &structs.ObjectKind{
+		Group: structs.NodeScalingGroup, Kind: structs.NodeGroupKind, Schema: `{"type":"object"}`,
+	}))
+	for i, name := range []string{"workers-a", "workers-down", "workers-unmarked"} {
+		must.NoError(t, st.UpsertCustomObject(structs.MsgTypeTestSetup, uint64(1001+i), &structs.CustomObject{
+			ID: "ng-" + name, Group: structs.NodeScalingGroup, Kind: structs.NodeGroupKind, Name: name,
+			Generation: 1, Spec: map[string]any{"pool": "default", "datacenter": "dc1"},
+		}, 0))
+	}
+
+	index := uint64(2000)
+	node := func(group, status string) *structs.Node {
+		n := mock.Node()
+		n.NodePool = "default"
+		n.Status = status
+		if group != "" {
+			n.Meta[structs.NodeMetaNodeGroup] = group
+		}
+		index++
+		must.NoError(t, st.UpsertNode(structs.MsgTypeTestSetup, index, n))
+		return n
+	}
+	// Two nodes of workers-a, one made by no group, one that names a group
+	// that does not exist, and the only node of workers-down, down.
+	a1 := node("workers-a", structs.NodeStatusReady)
+	node("workers-a", structs.NodeStatusReady)
+	node("", structs.NodeStatusReady)
+	node("no-such-group", structs.NodeStatusReady)
+	node("workers-down", structs.NodeStatusDown)
+
+	// One allocation of the mock job on a node of workers-a.
+	alloc := mock.Alloc()
+	alloc.NodeID = a1.ID
+	alloc.ClientStatus = structs.AllocClientStatusRunning
+	index++
+	must.NoError(t, st.UpsertJob(structs.MsgTypeTestSetup, index, nil, alloc.Job))
+	index++
+	must.NoError(t, st.UpsertAllocs(structs.MsgTypeTestSetup, index, []*structs.Allocation{alloc}))
+
+	gauges, err := s.sampleGauges(time.Now())
+	must.NoError(t, err)
+	ready := map[string]float64{}
+	cpu := map[string]float64{}
+	for _, g := range gauges {
+		switch g.Metric {
+		case metricsstore.MetricNodeGroupNodesReady:
+			ready[g.Labels["group"]] = g.Value
+		case metricsstore.MetricNodeGroupCPUAllocated:
+			cpu[g.Labels["group"]] = g.Value
+		}
+	}
+
+	must.Eq(t, map[string]float64{"workers-a": 2, "workers-down": 0}, ready)
+	must.Positive(t, cpu["workers-a"])
+	must.Eq(t, 0, cpu["workers-down"])
+
+	// The datacenter and pool count every ready node: four.
+	for _, g := range gauges {
+		if g.Metric == metricsstore.MetricClusterNodesReady && g.Labels["dc"] == a1.Datacenter &&
+			g.Labels["pool"] == "default" && g.Labels["class"] == "" {
+			must.Eq(t, 4, g.Value)
+		}
+	}
+}

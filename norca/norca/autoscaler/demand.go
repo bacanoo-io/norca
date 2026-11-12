@@ -400,26 +400,41 @@ func (r *runner) freeCapacity(p *structs.ScalingPolicy, now time.Time) (ready, f
 // groupUsage reads the ready, eligible nodes of the group's datacenter, pool and
 // class from the cluster gauges, and their allocated share (the scarcer of
 // CPU and memory, 0 to 1). It is false when the gauges can't be read.
+//
+// The gauges of the group's own nodes (those that name it in their meta) are
+// read first. The gauges of its datacenter, pool and class, which other
+// groups of the same three and nodes no group made share, are for a group
+// none of whose nodes is marked.
 func (r *runner) groupUsage(p *structs.ScalingPolicy, now time.Time) (nodes, share float64, ok bool) {
 	if r.deps.GaugeHistory == nil {
 		return 0, 0, false
 	}
-	labels := map[string]string{
+	read := func(metric string, labels map[string]string) (float64, bool) {
+		avg, _, samples, err := r.deps.GaugeHistory(metric, labels, now.Add(-clusterQueryWindow), now)
+		return avg, err == nil && samples > 0
+	}
+	usage := func(labels map[string]string, nodesMetric, cpuMetric, memoryMetric string) (float64, float64, bool) {
+		nodes, ok1 := read(nodesMetric, labels)
+		cpu, ok2 := read(cpuMetric, labels)
+		memory, ok3 := read(memoryMetric, labels)
+		if !ok1 || !ok2 || !ok3 {
+			return 0, 0, false
+		}
+		return nodes, min(max(cpu, memory)/100, 1), true
+	}
+
+	own := map[string]string{"group": p.Target[structs.ScalingTargetNodeGroup]}
+	if nodes, share, ok := usage(own, metricsstore.MetricNodeGroupNodesReady,
+		metricsstore.MetricNodeGroupCPUAllocated, metricsstore.MetricNodeGroupMemoryAllocated); ok {
+		return nodes, share, true
+	}
+	shared := map[string]string{
 		"dc":    p.Target[TargetConfigKeyDatacenter],
 		"pool":  p.Target[TargetConfigKeyPool],
 		"class": p.Target[TargetConfigKeyNodeClass],
 	}
-	read := func(metric string) (float64, bool) {
-		avg, _, samples, err := r.deps.GaugeHistory(metric, labels, now.Add(-clusterQueryWindow), now)
-		return avg, err == nil && samples > 0
-	}
-	nodes, ok1 := read(metricsstore.MetricClusterNodesReady)
-	cpu, ok2 := read(metricsstore.MetricClusterCPUAllocated)
-	memory, ok3 := read(metricsstore.MetricClusterMemoryAllocated)
-	if !ok1 || !ok2 || !ok3 {
-		return 0, 0, false
-	}
-	return nodes, min(max(cpu, memory)/100, 1), true
+	return usage(shared, metricsstore.MetricClusterNodesReady,
+		metricsstore.MetricClusterCPUAllocated, metricsstore.MetricClusterMemoryAllocated)
 }
 
 // demandItem is the blocked work of one task group, with the datacenters it

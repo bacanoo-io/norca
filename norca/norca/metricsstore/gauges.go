@@ -248,6 +248,16 @@ const (
 	MetricNodeGroupFailed           = "norca.nodegroup.failed"
 	MetricNodeGroupRolloutReplacing = "norca.nodegroup.rollout_replacing"
 	MetricNodeGroupRolloutOutdated  = "norca.nodegroup.rollout_outdated"
+	// The capacity of the nodes of a node group (label group): its ready,
+	// eligible nodes that name the group in their meta (norca.node_group),
+	// and the allocated share of their CPU and memory, in percent. The
+	// cluster gauges of the same names are by datacenter, node pool and
+	// class, which several groups can share and which also count nodes no
+	// group made; node scaling reads these for a group that has them. No
+	// point for a group none of whose nodes is marked.
+	MetricNodeGroupNodesReady      = "norca.nodegroup.nodes_ready"
+	MetricNodeGroupCPUAllocated    = "norca.nodegroup.cpu_allocated"
+	MetricNodeGroupMemoryAllocated = "norca.nodegroup.memory_allocated"
 	// MetricNodeGroupCondition is 1 while a condition of the status of a
 	// node group (labels group, type) is True, 0 otherwise.
 	MetricNodeGroupCondition = "norca.nodegroup.condition"
@@ -375,6 +385,9 @@ var gaugeLabels = map[string][]string{
 	MetricNodeGroupFailed:              {"group"},
 	MetricNodeGroupRolloutReplacing:    {"group"},
 	MetricNodeGroupRolloutOutdated:     {"group"},
+	MetricNodeGroupNodesReady:          {"group"},
+	MetricNodeGroupCPUAllocated:        {"group"},
+	MetricNodeGroupMemoryAllocated:     {"group"},
 	MetricNodeGroupCondition:           {"group", "type"},
 	MetricNodeGroupCertExpiresMinHours: {"group"},
 	MetricLBTargets:                    {"ns", "name"},
