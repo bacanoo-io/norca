@@ -490,7 +490,11 @@ func TestEvalEndpoint_Dequeue_BrokerDisabled(t *testing.T) {
 func TestEvalEndpoint_Ack(t *testing.T) {
 	ci.Parallel(t)
 
-	s1, cleanupS1 := TestServer(t, nil)
+	s1, cleanupS1 := TestServer(t, func(c *Config) {
+		// The test dequeues the evaluation by hand: a scheduler worker of
+		// the server would race it for the evaluation.
+		c.NumSchedulers = 0
+	})
 	defer cleanupS1()
 	codec := rpcClient(t, s1)
 
@@ -585,7 +589,11 @@ func TestEvalEndpoint_Nack(t *testing.T) {
 func TestEvalEndpoint_Update(t *testing.T) {
 	ci.Parallel(t)
 
-	s1, cleanupS1 := TestServer(t, nil)
+	s1, cleanupS1 := TestServer(t, func(c *Config) {
+		// The test dequeues the evaluation by hand: a scheduler worker of
+		// the server would race it for the evaluation.
+		c.NumSchedulers = 0
+	})
 	defer cleanupS1()
 	codec := rpcClient(t, s1)
 

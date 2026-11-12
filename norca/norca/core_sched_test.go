@@ -32,6 +32,23 @@ func resetTimeTable(tt *TimeTable, entries int) {
 	tt.table = make([]TimeTableEntry, entries, 10)
 }
 
+// setTimeTable makes the time table hold one entry: the index was applied at
+// when. The tests use it to make everything up to the index old enough for a
+// garbage collection.
+//
+// TimeTable.Witness does not do that reliably on a running server: it skips
+// an entry that is not newer than the newest one, and the FSM witnesses every
+// Raft log it applies with the current time. A log the leader wrote on its
+// own after the election (it applies between the reset of the table and the
+// Witness of the test) then made Witness drop the entry of the test, and the
+// collection found nothing old enough.
+func setTimeTable(tt *TimeTable, index uint64, when time.Time) {
+	tt.l.Lock()
+	defer tt.l.Unlock()
+	tt.table = make([]TimeTableEntry, 1, 10)
+	tt.table[0] = TimeTableEntry{Index: index, Time: when}
+}
+
 func TestCoreScheduler_EvalGC(t *testing.T) {
 	ci.Parallel(t)
 
@@ -81,7 +98,7 @@ func TestCoreScheduler_EvalGC(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.EvalGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.EvalGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -122,6 +139,22 @@ func TestCoreScheduler_EvalGC(t *testing.T) {
 	if outA2 != nil {
 		t.Fatalf("bad: %v", outA2)
 	}
+}
+
+// waitForActiveRootKey returns the active root key of the keyring. The leader
+// creates the first key on its own after the election, so a test that reads
+// it right after WaitForLeader may find none yet.
+func waitForActiveRootKey(t *testing.T, srv *Server) *structs.RootKeyMeta {
+	t.Helper()
+	var key *structs.RootKeyMeta
+	testutil.WaitForResult(func() (bool, error) {
+		var err error
+		key, err = srv.fsm.State().GetActiveRootKeyMeta(nil)
+		return err == nil && key != nil, err
+	}, func(err error) {
+		t.Fatalf("expected the keyring to be bootstrapped: %v", err)
+	})
+	return key
 }
 
 // Tests GC behavior on allocations being rescheduled
@@ -197,7 +230,7 @@ func TestCoreScheduler_EvalGC_ReschedulingAllocs(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.EvalGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.EvalGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -276,7 +309,7 @@ func TestCoreScheduler_EvalGC_StoppedJob_Reschedulable(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.EvalGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.EvalGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -564,7 +597,7 @@ func TestCoreScheduler_EvalGC_Batch(t *testing.T) {
 	// Update the time tables by half of the BatchEvalGCThreshold which is too
 	// small to GC anything.
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2*jobModifyIdx, time.Now().UTC().Add((-1)*s1.config.BatchEvalGCThreshold/2))
+	setTimeTable(tt, 2*jobModifyIdx, time.Now().UTC().Add((-1)*s1.config.BatchEvalGCThreshold/2))
 
 	gc = s1.coreJobEval(structs.CoreJobEvalGC, jobModifyIdx*2)
 	err = core.Process(gc)
@@ -594,7 +627,7 @@ func TestCoreScheduler_EvalGC_Batch(t *testing.T) {
 	// Update the time tables so that BatchEvalGCThreshold has elapsed.
 	resetTimeTable(s1.fsm.timetable, 2)
 	tt = s1.fsm.TimeTable()
-	tt.Witness(2*jobModifyIdx, time.Now().UTC().Add(-1*s1.config.BatchEvalGCThreshold))
+	setTimeTable(tt, 2*jobModifyIdx, time.Now().UTC().Add(-1*s1.config.BatchEvalGCThreshold))
 
 	gc = s1.coreJobEval(structs.CoreJobEvalGC, jobModifyIdx*2)
 	err = core.Process(gc)
@@ -688,7 +721,7 @@ func TestCoreScheduler_EvalGC_Partial(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.EvalGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.EvalGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -851,7 +884,7 @@ func TestCoreScheduler_NodeGC(t *testing.T) {
 
 			// Update the time tables to make this work
 			tt := server.fsm.TimeTable()
-			tt.Witness(2000, time.Now().UTC().Add(-1*server.config.NodeGCThreshold))
+			setTimeTable(tt, 2000, time.Now().UTC().Add(-1*server.config.NodeGCThreshold))
 
 			// Create a core scheduler
 			snap, err := store.Snapshot()
@@ -909,7 +942,7 @@ func TestCoreScheduler_NodeGC_TerminalAllocs(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.NodeGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.NodeGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -967,7 +1000,7 @@ func TestCoreScheduler_NodeGC_RunningAllocs(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.NodeGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.NodeGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -1073,7 +1106,7 @@ func TestCoreScheduler_JobGC_OutstandingEvals(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.JobGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.JobGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -1217,7 +1250,7 @@ func TestCoreScheduler_JobGC_OutstandingAllocs(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.JobGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.JobGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -1362,7 +1395,7 @@ func TestCoreScheduler_JobGC_OneShot(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.JobGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.JobGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -1471,7 +1504,7 @@ func TestCoreScheduler_JobGC_Stopped(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.JobGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.JobGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -1775,7 +1808,7 @@ func TestCoreScheduler_DeploymentGC(t *testing.T) {
 
 	// Update the time tables to make this work
 	tt := s1.fsm.TimeTable()
-	tt.Witness(2000, time.Now().UTC().Add(-1*s1.config.DeploymentGCThreshold))
+	setTimeTable(tt, 2000, time.Now().UTC().Add(-1*s1.config.DeploymentGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -2212,7 +2245,7 @@ func TestCoreScheduler_CSIPluginGC(t *testing.T) {
 	// Update the time tables to make this work
 	tt := srv.fsm.TimeTable()
 	index := uint64(2000)
-	tt.Witness(index, time.Now().UTC().Add(-1*srv.config.CSIPluginGCThreshold))
+	setTimeTable(tt, index, time.Now().UTC().Add(-1*srv.config.CSIPluginGCThreshold))
 
 	// Create a core scheduler
 	snap, err := store.Snapshot()
@@ -2471,9 +2504,7 @@ func TestCoreScheduler_RootKeyGC(t *testing.T) {
 
 	// active key, will never be GC'd
 	store := srv.fsm.State()
-	key0, err := store.GetActiveRootKeyMeta(nil)
-	require.NotNil(t, key0, "expected keyring to be bootstapped")
-	require.NoError(t, err)
+	key0 := waitForActiveRootKey(t, srv)
 
 	// insert an "old" inactive key
 	key1 := structs.NewRootKeyMeta()
@@ -2521,7 +2552,7 @@ func TestCoreScheduler_RootKeyGC(t *testing.T) {
 
 	// insert a time table index before the last key
 	tt := srv.fsm.TimeTable()
-	tt.Witness(1000, time.Now().UTC().Add(-1*srv.config.RootKeyGCThreshold))
+	setTimeTable(tt, 1000, time.Now().UTC().Add(-1*srv.config.RootKeyGCThreshold))
 
 	// insert a "new" but inactive key
 	key5 := structs.NewRootKeyMeta()
@@ -2572,9 +2603,7 @@ func TestCoreScheduler_VariablesRekey(t *testing.T) {
 	testutil.WaitForLeader(t, srv.RPC)
 
 	store := srv.fsm.State()
-	key0, err := store.GetActiveRootKeyMeta(nil)
-	require.NotNil(t, key0, "expected keyring to be bootstapped")
-	require.NoError(t, err)
+	waitForActiveRootKey(t, srv)
 
 	for i := 0; i < 3; i++ {
 		req := &structs.VariablesApplyRequest{
@@ -2725,7 +2754,7 @@ func TestCoreScheduler_ExpiredACLTokenGC(t *testing.T) {
 	// ACL bootstrapping which makes witnessing a new index at a timestamp in
 	// the past impossible.
 	tt := NewTimeTable(timeTableGranularity, timeTableLimit)
-	tt.Witness(20, time.Now().UTC().Add(-1*testServer.config.ACLTokenExpirationGCThreshold))
+	setTimeTable(tt, 20, time.Now().UTC().Add(-1*testServer.config.ACLTokenExpirationGCThreshold))
 	testServer.fsm.timetable = tt
 
 	// Generate the core scheduler.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bacanoo-io/norca/norca/ci"
@@ -78,8 +79,9 @@ func TestKeyringEndpoint_CRUD(t *testing.T) {
 				MinQueryIndex: getResp.Index,
 			},
 		}
-		err = msgpackrpc.CallWithCodec(codec, "Keyring.List", listReq, &listResp)
-		require.NoError(t, err)
+		// Its own error: the test goroutine writes err at the same time.
+		err := msgpackrpc.CallWithCodec(codec, "Keyring.List", listReq, &listResp)
+		assert.NoError(t, err)
 	}()
 
 	updateReq.RootKey.Meta.CreateTime = time.Now().UTC().UnixNano()
