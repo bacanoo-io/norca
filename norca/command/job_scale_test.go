@@ -61,6 +61,25 @@ func TestJobScaleCommand_SingleGroup(t *testing.T) {
 	}
 }
 
+// Scaling a group to the count it already has creates no evaluation; the
+// command must say so and return instead of waiting for one.
+func TestJobScaleCommand_UnchangedCount(t *testing.T) {
+	ci.Parallel(t)
+	srv, client, url := testServer(t, false, nil)
+	defer srv.Shutdown()
+
+	ui := cli.NewMockUi()
+	cmd := &JobScaleCommand{Meta: Meta{Ui: ui}}
+
+	// The test job has one group with a count of 1.
+	_, _, err := client.Jobs().Register(testJob("scale_cmd_unchanged"), nil)
+	must.NoError(t, err)
+
+	code := cmd.Run([]string{"-address=" + url, "scale_cmd_unchanged", "1"})
+	must.Zero(t, code, must.Sprintf("stderr: %s", ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "No evaluation was created")
+}
+
 func TestJobScaleCommand_MultiGroup(t *testing.T) {
 	ci.Parallel(t)
 	srv, client, url := testServer(t, true, nil)

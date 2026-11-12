@@ -1184,53 +1184,19 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 			return structs.NewErrRPCCoded(400, "job scaling blocked due to active deployment")
 		}
 
-		// Commit the job update
-		_, jobModifyIndex, err := j.srv.raftApply(
-			structs.JobRegisterRequestType,
-			structs.JobRegisterRequest{
-				Job:            job,
-				EnforceIndex:   true,
-				JobModifyIndex: job.ModifyIndex,
-				PolicyOverride: args.PolicyOverride,
-				WriteRequest:   args.WriteRequest,
-			},
-		)
-		if err != nil {
-			j.logger.Error("job register for scale failed", "error", err)
+		// A request for the count the group already has changes nothing: the
+		// job is not registered again and no evaluation is created. The
+		// scaling events are also a log, so the event is still recorded when
+		// the caller sent a message.
+		if *args.Count == prevCount {
+			reply.JobModifyIndex = job.ModifyIndex
+			if args.Message == "" {
+				reply.Index = job.ModifyIndex
+				j.srv.setQueryMeta(&reply.QueryMeta)
+				return nil
+			}
+		} else if err := j.registerScaledJob(args, job, now, reply, event.ScalingEvent); err != nil {
 			return err
-		}
-		reply.JobModifyIndex = jobModifyIndex
-
-		// Create an eval for non-dispatch jobs
-		if !(job.IsPeriodic() || job.IsParameterized()) {
-			eval := &structs.Evaluation{
-				ID:             uuid.Generate(),
-				Namespace:      namespace,
-				Priority:       job.Priority, // Safe as nil check performed above.
-				Type:           job.Type,
-				TriggeredBy:    structs.EvalTriggerScaling,
-				JobID:          args.JobID,
-				JobModifyIndex: reply.JobModifyIndex,
-				Status:         structs.EvalStatusPending,
-				CreateTime:     now,
-				ModifyTime:     now,
-			}
-
-			_, evalIndex, err := j.srv.raftApply(
-				structs.EvalUpdateRequestType,
-				&structs.EvalUpdateRequest{
-					Evals:        []*structs.Evaluation{eval},
-					WriteRequest: structs.WriteRequest{Region: args.Region},
-				},
-			)
-			if err != nil {
-				j.logger.Error("eval create failed", "error", err, "method", "scale")
-				return err
-			}
-
-			reply.EvalID = eval.ID
-			reply.EvalCreateIndex = evalIndex
-			event.ScalingEvent.EvalID = &reply.EvalID
 		}
 	} else {
 		reply.JobModifyIndex = job.ModifyIndex
@@ -1246,6 +1212,64 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 
 	j.srv.setQueryMeta(&reply.QueryMeta)
 
+	return nil
+}
+
+// registerScaledJob commits the job with its new group count and creates the
+// evaluation that makes the scheduler act on it (none for periodic and
+// parameterized jobs). It fills in the indexes of the reply and the evaluation
+// of the scaling event.
+func (j *Job) registerScaledJob(args *structs.JobScaleRequest, job *structs.Job, now int64,
+	reply *structs.JobRegisterResponse, event *structs.ScalingEvent) error {
+
+	// Commit the job update
+	_, jobModifyIndex, err := j.srv.raftApply(
+		structs.JobRegisterRequestType,
+		structs.JobRegisterRequest{
+			Job:            job,
+			EnforceIndex:   true,
+			JobModifyIndex: job.ModifyIndex,
+			PolicyOverride: args.PolicyOverride,
+			WriteRequest:   args.WriteRequest,
+		},
+	)
+	if err != nil {
+		j.logger.Error("job register for scale failed", "error", err)
+		return err
+	}
+	reply.JobModifyIndex = jobModifyIndex
+
+	// Create an eval for non-dispatch jobs
+	if !(job.IsPeriodic() || job.IsParameterized()) {
+		eval := &structs.Evaluation{
+			ID:             uuid.Generate(),
+			Namespace:      job.Namespace,
+			Priority:       job.Priority, // Safe as nil check performed above.
+			Type:           job.Type,
+			TriggeredBy:    structs.EvalTriggerScaling,
+			JobID:          args.JobID,
+			JobModifyIndex: reply.JobModifyIndex,
+			Status:         structs.EvalStatusPending,
+			CreateTime:     now,
+			ModifyTime:     now,
+		}
+
+		_, evalIndex, err := j.srv.raftApply(
+			structs.EvalUpdateRequestType,
+			&structs.EvalUpdateRequest{
+				Evals:        []*structs.Evaluation{eval},
+				WriteRequest: structs.WriteRequest{Region: args.Region},
+			},
+		)
+		if err != nil {
+			j.logger.Error("eval create failed", "error", err, "method", "scale")
+			return err
+		}
+
+		reply.EvalID = eval.ID
+		reply.EvalCreateIndex = evalIndex
+		event.EvalID = &reply.EvalID
+	}
 	return nil
 }
 

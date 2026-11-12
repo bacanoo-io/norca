@@ -153,9 +153,13 @@ func readTarget(store *state.StateStore, key targetKey) (*targetState, error) {
 // autoscaler, an operator or the external autoscaler). Because every scaling
 // action is recorded in the scaling_event table, this also restores the
 // cooldown after a leader change.
+//
+// An event that did not change the count (a scale request for the count the
+// group already has) starts no cooldown: its direction is none, and it would
+// hide the cooldown of the real change before it.
 func (t *targetState) cooldownUntil(p *sdk.ScalingPolicy) time.Time {
 	for _, e := range t.events {
-		if e.Count == nil || e.Error {
+		if e.Count == nil || e.Error || *e.Count == e.PreviousCount {
 			continue
 		}
 		cd := p.Cooldown

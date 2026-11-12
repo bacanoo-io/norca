@@ -7894,6 +7894,85 @@ func TestJobEndpoint_Scale_NoEval(t *testing.T) {
 	require.Equal(int64(originalCount), events[groupName][0].PreviousCount)
 }
 
+// A scale request for the count the group already has changes nothing: the
+// job is not registered again and no evaluation is created. A scaling event
+// is written only when the caller has something to tell.
+func TestJobEndpoint_Scale_UnchangedCount(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, nil)
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+	state := s1.fsm.State()
+
+	tests := []struct {
+		name           string
+		message        string
+		expectedEvents int
+	}{
+		{name: "no message writes nothing", expectedEvents: 0},
+		{name: "a message is recorded", message: "still at the count", expectedEvents: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			job := mock.Job()
+			groupName := job.TaskGroups[0].Name
+			count := int64(job.TaskGroups[0].Count)
+
+			var registered structs.JobRegisterResponse
+			require.NoError(msgpackrpc.CallWithCodec(codec, "Job.Register", &structs.JobRegisterRequest{
+				Job:          job,
+				WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace},
+			}, &registered))
+
+			before, err := state.JobByID(nil, job.Namespace, job.ID)
+			require.NoError(err)
+
+			var resp structs.JobRegisterResponse
+			require.NoError(msgpackrpc.CallWithCodec(codec, "Job.Scale", &structs.JobScaleRequest{
+				JobID:        job.ID,
+				Target:       map[string]string{structs.ScalingTargetGroup: groupName},
+				Count:        pointer.Of(count),
+				Message:      tt.message,
+				WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace},
+			}, &resp))
+
+			require.Empty(resp.EvalID)
+			require.Equal(before.ModifyIndex, resp.JobModifyIndex)
+
+			after, err := state.JobByID(nil, job.Namespace, job.ID)
+			require.NoError(err)
+			require.Equal(before.ModifyIndex, after.ModifyIndex, "the job must not be registered again")
+			require.Equal(before.Version, after.Version)
+
+			// The scheduler makes evaluations of its own for the registered
+			// job; none may come from the scale request.
+			evals, err := state.EvalsByJob(nil, job.Namespace, job.ID)
+			require.NoError(err)
+			for _, eval := range evals {
+				require.NotEqual(structs.EvalTriggerScaling, eval.TriggeredBy, "no evaluation for an unchanged count")
+			}
+
+			events, _, err := state.ScalingEventsByJob(nil, job.Namespace, job.ID)
+			require.NoError(err)
+			require.Len(events[groupName], tt.expectedEvents)
+			if tt.expectedEvents == 0 {
+				return
+			}
+			event := events[groupName][0]
+			require.Equal(count, event.PreviousCount)
+			require.NotNil(event.Count)
+			require.Equal(count, *event.Count)
+			require.Nil(event.EvalID)
+			require.Equal(tt.message, event.Message)
+		})
+	}
+}
+
 func TestJobEndpoint_Scale_Priority(t *testing.T) {
 	ci.Parallel(t)
 	requireAssertion := require.New(t)

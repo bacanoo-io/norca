@@ -156,6 +156,13 @@ func (j *JobScaleCommand) Run(args []string) int {
 			j.Colorize().Color(fmt.Sprintf("[bold][yellow]Job Warnings:\n%s[reset]\n", resp.Warnings)))
 	}
 
+	// Nothing to follow when no evaluation was made: the group already has
+	// the count, or the job is periodic or parameterized.
+	if resp.EvalID == "" {
+		j.Ui.Output(fmt.Sprintf("No evaluation was created: the count of group %q is unchanged or the job is not scheduled now", groupString))
+		return 0
+	}
+
 	// If we are to detach, log the evaluation ID and exit.
 	if detach {
 		j.Ui.Output("Evaluation ID: " + resp.EvalID)
