@@ -531,7 +531,33 @@ func evaluatePlan(pool *EvaluatePool, snap *state.StateSnapshot, plan *structs.P
 		return &structs.PlanResult{RefreshIndex: index}, nil
 	}
 
-	return evaluatePlanPlacements(pool, snap, plan, logger)
+	result, err := evaluatePlanPlacements(pool, snap, plan, logger)
+	if err != nil || result == nil || result.RefreshIndex == 0 {
+		return result, err
+	}
+
+	// The quota was checked for the whole plan. Of a plan that is applied
+	// in part, a node that was refused takes its stops and preemptions
+	// with it: what is left can add to the quota what the whole plan gave
+	// back elsewhere. Check what will be applied, and apply nothing of a
+	// plan whose part would exceed the quota; the scheduler plans again
+	// on a newer state.
+	committed := &structs.Plan{
+		Job:             plan.Job,
+		NodeUpdate:      result.NodeUpdate,
+		NodeAllocation:  result.NodeAllocation,
+		NodePreemptions: result.NodePreemptions,
+	}
+	overQuota, err = evaluatePlanQuota(snap, committed)
+	if err != nil {
+		return nil, err
+	}
+	if overQuota {
+		logger.Debug("the part of the plan that can be applied exceeds quota limit. Forcing state refresh",
+			"eval_id", plan.EvalID, "refresh_index", result.RefreshIndex)
+		return &structs.PlanResult{RefreshIndex: result.RefreshIndex}, nil
+	}
+	return result, nil
 }
 
 // evaluatePlanPlacements is used to determine what portions of a plan can be

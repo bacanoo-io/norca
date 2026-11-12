@@ -8,6 +8,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/helper/testlog"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -162,4 +163,83 @@ func TestLeader_DiffQuotaSpecs(t *testing.T) {
 	must.Len(t, 2, update)
 	names := []string{update[0].Name, update[1].Name}
 	must.SliceContainsAll(t, []string{changed.Name, added.Name}, names)
+}
+
+// A plan that is applied in part is checked against the quota for the part
+// that is applied: a node that is refused takes the stops of the plan on it
+// with it, and what is left may add to the quota.
+func TestPlanApply_EvaluatePlan_QuotaOfPartialCommit(t *testing.T) {
+	ci.Parallel(t)
+	fsm := testFSM(t)
+	state := fsm.State()
+
+	q := mockQuotaSpec()
+	q.Limits[0].RegionLimit = nil
+	q.Limits[0].Allocations = pointer.Of(2)
+	q.Canonicalize()
+	q.SetHash()
+	must.NoError(t, state.UpsertQuotaSpecs(structs.MsgTypeTestSetup, 10, []*structs.QuotaSpec{q}))
+
+	ns := mock.Namespace()
+	ns.Quota = q.Name
+	must.NoError(t, state.UpsertNamespaces(11, []*structs.Namespace{ns}))
+
+	job := mock.Job()
+	job.Namespace = ns.Name
+	must.NoError(t, state.UpsertJob(structs.MsgTypeTestSetup, 12, nil, job))
+
+	full, other := mock.Node(), mock.Node()
+	must.NoError(t, state.UpsertNode(structs.MsgTypeTestSetup, 13, full))
+	must.NoError(t, state.UpsertNode(structs.MsgTypeTestSetup, 14, other))
+
+	newAlloc := func(node *structs.Node) *structs.Allocation {
+		a := mock.Alloc()
+		a.Namespace = ns.Name
+		a.Job = job
+		a.JobID = job.ID
+		a.NodeID = node.ID
+		return a
+	}
+
+	// The quota is full: two allocations run on the first node.
+	a1, a2 := newAlloc(full), newAlloc(full)
+	must.NoError(t, state.UpsertAllocs(structs.MsgTypeTestSetup, 15, []*structs.Allocation{a1, a2}))
+	snap, err := state.Snapshot()
+	must.NoError(t, err)
+
+	stop := func(a *structs.Allocation) *structs.Allocation {
+		s := a.Copy()
+		s.DesiredStatus = structs.AllocDesiredStatusStop
+		return s
+	}
+	// The plan stops both and places two: one that does not fit its node,
+	// and one on the other node. As a whole it adds nothing to the quota.
+	tooBig := newAlloc(full)
+	tooBig.AllocatedResources = structs.NodeResourcesToAllocatedResources(full.NodeResources)
+	tooBig.AllocatedResources.Tasks["web"].Cpu.CpuShares *= 2
+	placed := newAlloc(other)
+	plan := &structs.Plan{
+		Job:        job,
+		NodeUpdate: map[string][]*structs.Allocation{full.ID: {stop(a1), stop(a2)}},
+		NodeAllocation: map[string][]*structs.Allocation{
+			full.ID:  {tooBig},
+			other.ID: {placed},
+		},
+	}
+	over, err := evaluatePlanQuota(snap, plan)
+	must.NoError(t, err)
+	must.False(t, over)
+
+	pool := NewEvaluatePool(workerPoolSize, workerPoolBufferSize)
+	defer pool.Shutdown()
+	result, err := evaluatePlan(pool, snap, plan, testlog.HCLogger(t))
+	must.NoError(t, err)
+	must.NotNil(t, result)
+
+	// The first node is refused with its stops. The placement on the other
+	// node alone would be the third allocation of the quota: nothing of
+	// the plan is applied.
+	must.NonZero(t, result.RefreshIndex)
+	must.MapEmpty(t, result.NodeAllocation)
+	must.MapEmpty(t, result.NodeUpdate)
 }
