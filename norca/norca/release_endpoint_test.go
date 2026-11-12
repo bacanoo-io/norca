@@ -501,6 +501,32 @@ func TestRelease_SignatureAdmission(t *testing.T) {
 	must.StrHasPrefix(t, "sha256:", resp.Release.Spec.Pack.TrustedSigner)
 }
 
+// The release rules see who applies the release: the type of the token, not
+// the type of an empty request.
+func TestRelease_AdmissionUser(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	var out structs.GenericResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "AdmissionPolicy.UpsertAdmissionPolicies", &structs.AdmissionPolicyUpsertRequest{
+		AdmissionPolicies: []*structs.AdmissionPolicy{{
+			Name:  "management-only",
+			Match: &structs.AdmissionPolicyMatch{Namespaces: []string{"default"}, Resources: []string{structs.AdmissionResourceRelease}},
+			Rules: []*structs.AdmissionPolicyRule{{
+				Expression: "request.user.type == 'management'", Message: "only a management token may apply releases",
+			}},
+		}},
+		WriteRequest: structs.WriteRequest{Region: "global", AuthToken: c.token},
+	}, &out))
+
+	_, err := c.apply("default", "app", &structs.ReleaseApplyRequest{
+		Pack:      &structs.ReleasePack{Name: "app"},
+		Resources: []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: testReleaseJob("app")}},
+	})
+	must.NoError(t, err)
+}
+
 func TestRelease_BuiltinGroupIsProtected(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newReleaseTestClient(t)

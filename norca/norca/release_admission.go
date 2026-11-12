@@ -81,7 +81,7 @@ func (m *releaseManager) admitRelease(snap *state.StateSnapshot, op *releaseOp, 
 	}
 
 	if len(withRules) > 0 {
-		user := admissionUser(&structs.GenericRequest{})
+		user := admissionUser(op.args)
 		request := map[string]any{
 			"operation": structs.AdmissionOperationApply,
 			"namespace": op.namespace,
