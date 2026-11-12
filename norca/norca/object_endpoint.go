@@ -760,11 +760,19 @@ func (c *CustomObject) writeObject(w *objectWrite, reply *structs.CustomObjectWr
 		}
 
 		// Type-bound webhooks review spec writes: defaulting webhooks
-		// before the schema and the rules, validating ones after them.
+		// before the schema and the rules, validating ones after them. A
+		// scale is a spec write too (the replicas): the validating
+		// webhooks that review updates review it, with the operation
+		// "scale". The defaulting webhooks do not run for it, a scale
+		// changes nothing else of the object.
 		var review *objectReview
 		var warnings []string
-		if !w.metadataOnly && (operation == objectOperationCreate || operation == objectOperationUpdate) && len(kind.Webhooks) > 0 {
+		reviewed := operation == objectOperationCreate || operation == objectOperationUpdate ||
+			operation == objectOperationScale
+		if !w.metadataOnly && reviewed && len(kind.Webhooks) > 0 {
 			review = &objectReview{kind: kind, operation: operation, obj: obj, existing: existing, args: w.args, dryRun: w.dryRun}
+		}
+		if review != nil && operation != objectOperationScale {
 			warns, err := c.srv.runDefaultingWebhooks(review)
 			warnings = append(warnings, warns...)
 			if err != nil {

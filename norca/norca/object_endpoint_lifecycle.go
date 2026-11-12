@@ -249,8 +249,10 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 			return nil
 		}
 
-		// Validating type-bound webhooks that review deletions.
-		if attempt == 1 && len(kind.Webhooks) > 0 {
+		// Validating type-bound webhooks that review deletions. They
+		// review again after a conflict: the object they are asked about
+		// is the changed one.
+		if len(kind.Webhooks) > 0 {
 			review := &objectReview{kind: kind, operation: objectOperationDelete, obj: existing,
 				existing: existing, args: args, dryRun: args.DryRun}
 			warnings, err := c.srv.runValidatingWebhooks(review)

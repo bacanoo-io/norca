@@ -550,3 +550,51 @@ func TestObjectKindLimits_Watches(t *testing.T) {
 	_, err = c.list("default", nil, "", "")
 	must.NoError(t, err)
 }
+
+// A scale changes the spec of the object: the validating webhooks of the
+// kind that review updates review it, with the operation "scale".
+func TestObjectKindWebhooks_Scale(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanupS := TestServer(t, nil)
+	defer cleanupS()
+	c := &objectClient{t: t, codec: rpcClient(t, s)}
+	testutil.WaitForLeader(t, s.RPC)
+
+	ws := newTestWebhookServer(t, func(path string, req *admission.ReviewRequest) *admission.ReviewResponse {
+		spec, _ := req.Object["spec"].(map[string]any)
+		if replicas, ok := spec["replicas"].(json.Number); ok {
+			if n, _ := replicas.Int64(); n > 5 {
+				return &admission.ReviewResponse{Allowed: false, Message: "more than 5 replicas"}
+			}
+		} else if replicas, ok := spec["replicas"].(float64); ok && replicas > 5 {
+			return &admission.ReviewResponse{Allowed: false, Message: "more than 5 replicas"}
+		}
+		return &admission.ReviewResponse{Allowed: true}
+	})
+
+	kind := testPGKind(true)
+	kind.Scale = &structs.ObjectKindScale{SpecPath: "spec.replicas", StatusPath: "status.readyReplicas"}
+	kind.Webhooks = []*structs.ObjectKindWebhook{{Name: "validate", URL: ws.URL + "/validate", CACert: ws.caPEM()}}
+	_, err := c.upsertKind(kind, false, "")
+	must.NoError(t, err)
+	_, err = c.apply(testPGObject("default", "billing", map[string]any{"version": "16", "replicas": 2}), nil, false, "")
+	must.NoError(t, err)
+	reviews := ws.count()
+
+	// The webhook denies the scale, the object keeps its replicas.
+	_, err = c.scale("default", "billing", 7, "")
+	must.ErrorContains(t, err, "more than 5 replicas")
+	must.Eq(t, reviews+1, ws.count())
+	must.Eq(t, "scale", ws.last().Operation)
+	scale, err := c.getScale("default", "billing", "")
+	must.NoError(t, err)
+	must.Eq(t, int64(2), scale.Replicas)
+
+	// A scale it allows is written.
+	_, err = c.scale("default", "billing", 4, "")
+	must.NoError(t, err)
+	scale, err = c.getScale("default", "billing", "")
+	must.NoError(t, err)
+	must.Eq(t, int64(4), scale.Replicas)
+}

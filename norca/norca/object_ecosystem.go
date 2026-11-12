@@ -28,9 +28,12 @@ import (
 // management of the objects of a kind. See objects_ecosystem.go in structs.
 
 const (
-	// objectOperationDelete and objectOperationMigrate are the operations
-	// CEL rules see in request.operation for reviews of deletions and for
-	// the migration check of stored objects.
+	// objectOperationDelete is the operation the validating webhooks of a
+	// kind see for a deletion. The CEL rules of a kind are not evaluated
+	// for a deletion: a rule that a stored object no longer meets would
+	// keep it from being deleted. objectOperationMigrate is the operation
+	// the rules see in request.operation for the migration check of the
+	// stored objects.
 	objectOperationDelete  = "delete"
 	objectOperationMigrate = "migrate"
 
@@ -376,7 +379,12 @@ func (r *objectReview) webhooks(mode string) []*structs.ObjectKindWebhook {
 		if m == "" {
 			m = structs.ObjectWebhookModeValidate
 		}
-		if m == mode && w.Reviews(r.operation) {
+		// A scale is reviewed by the webhooks that review updates.
+		operation := r.operation
+		if operation == objectOperationScale {
+			operation = structs.ObjectWebhookOperationUpdate
+		}
+		if m == mode && w.Reviews(operation) {
 			out = append(out, w)
 		}
 	}
