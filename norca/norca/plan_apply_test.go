@@ -447,7 +447,9 @@ func TestPlanApply_applyPlanWithNormalizedAllocs(t *testing.T) {
 	updatedStoppedAlloc, err := fsmState.AllocByID(ws, stoppedAlloc.ID)
 	require.NoError(err)
 	require.NotNil(updatedStoppedAlloc)
-	assert.True(updatedStoppedAlloc.ModifyTime > timestampBeforeCommit)
+	// Not before: the clock of Windows often gives two readings that close the
+	// same time.
+	assert.GreaterOrEqual(updatedStoppedAlloc.ModifyTime, timestampBeforeCommit)
 	assert.Equal(updatedStoppedAlloc.DesiredDescription, stoppedAllocDiff.DesiredDescription)
 	assert.Equal(updatedStoppedAlloc.ClientStatus, stoppedAllocDiff.ClientStatus)
 	assert.Equal(updatedStoppedAlloc.DesiredStatus, structs.AllocDesiredStatusStop)
@@ -456,7 +458,7 @@ func TestPlanApply_applyPlanWithNormalizedAllocs(t *testing.T) {
 	updatedPreemptedAlloc, err := fsmState.AllocByID(ws, preemptedAlloc.ID)
 	require.NoError(err)
 	require.NotNil(updatedPreemptedAlloc)
-	assert.True(updatedPreemptedAlloc.ModifyTime > timestampBeforeCommit)
+	assert.GreaterOrEqual(updatedPreemptedAlloc.ModifyTime, timestampBeforeCommit)
 	assert.Equal(updatedPreemptedAlloc.DesiredDescription,
 		"Preempted by alloc ID "+preemptedAllocDiff.PreemptedByAllocation)
 	assert.Equal(updatedPreemptedAlloc.DesiredStatus, structs.AllocDesiredStatusEvict)
