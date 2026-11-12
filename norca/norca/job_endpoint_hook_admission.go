@@ -6,6 +6,7 @@ package norca
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
@@ -333,10 +334,28 @@ func applyWebhookPatch(job *structs.Job, resp *admission.ReviewResponse) (*struc
 	if err != nil {
 		return nil, err
 	}
+	nullsBefore, err := admission.NullListElements(raw)
+	if err != nil {
+		return nil, err
+	}
 	raw, err = admission.ApplyJSONPatch(raw, patch)
 	if err != nil {
 		return nil, err
 	}
+
+	// A null in a list of the job (a task group, a task, a service...)
+	// decodes to a nil element, which the code that reads the job does not
+	// expect: the canonicalizer that runs next would panic on it.
+	nullsAfter, err := admission.NullListElements(raw)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range nullsAfter {
+		if !slices.Contains(nullsBefore, p) {
+			return nil, fmt.Errorf("patch must not put a null into a list of the job (%s)", p)
+		}
+	}
+
 	newJob, err := admission.DecodeJob(raw)
 	if err != nil {
 		return nil, err

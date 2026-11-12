@@ -18,10 +18,48 @@ const maxPatchOperations = 10000
 
 // patchOperation is a single RFC 6902 JSON Patch operation.
 type patchOperation struct {
-	Op    string           `json:"op"`
-	Path  string           `json:"path"`
-	From  string           `json:"from,omitempty"`
-	Value *json.RawMessage `json:"value,omitempty"`
+	Op   string `json:"op"`
+	Path string `json:"path"`
+	From string `json:"from,omitempty"`
+	// Value is the raw JSON of the value. It is empty when the operation
+	// has no value member and "null" when the value is null: null is a
+	// value of RFC 6902 like any other.
+	Value json.RawMessage `json:"value,omitempty"`
+}
+
+// NullListElements returns the JSON pointers of the null elements of the
+// lists in the JSON document doc.
+func NullListElements(doc []byte) ([]string, error) {
+	root, err := decodeJSON(doc)
+	if err != nil {
+		return nil, fmt.Errorf("invalid document: %w", err)
+	}
+	paths := []string{}
+	var walk func(v any, path string)
+	walk = func(v any, path string) {
+		switch t := v.(type) {
+		case map[string]any:
+			for k, e := range t {
+				walk(e, path+"/"+escapePointerToken(k))
+			}
+		case []any:
+			for i, e := range t {
+				p := path + "/" + strconv.Itoa(i)
+				if e == nil {
+					paths = append(paths, p)
+					continue
+				}
+				walk(e, p)
+			}
+		}
+	}
+	walk(root, "")
+	return paths, nil
+}
+
+// escapePointerToken escapes a member name for a JSON pointer (RFC 6901).
+func escapePointerToken(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1")
 }
 
 // ApplyJSONPatch applies an RFC 6902 JSON Patch document to the JSON document
@@ -65,10 +103,10 @@ func decodeJSON(b []byte) (any, error) {
 
 func applyOperation(root any, op patchOperation) (any, error) {
 	value := func() (any, error) {
-		if op.Value == nil {
+		if len(op.Value) == 0 {
 			return nil, errors.New("missing value")
 		}
-		return decodeJSON(*op.Value)
+		return decodeJSON(op.Value)
 	}
 
 	switch op.Op {

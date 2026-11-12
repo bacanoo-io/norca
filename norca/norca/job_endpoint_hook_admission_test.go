@@ -228,6 +228,58 @@ func TestJobEndpoint_Admission_MutatingWebhook_InvalidPatch(t *testing.T) {
 	must.ErrorContains(t, err, "must not change the job ID, namespace or region")
 }
 
+// A patch that puts a null into a list of the job is refused: the nil task
+// group it decodes to made the canonicalizer panic.
+func TestJobEndpoint_Admission_MutatingWebhook_NullListElement(t *testing.T) {
+	ci.Parallel(t)
+
+	patches := map[string]string{
+		"task group": `[{"op":"replace","path":"/TaskGroups/0","value":null}]`,
+		"task":       `[{"op":"add","path":"/TaskGroups/0/Tasks/-","value":null}]`,
+	}
+	for name, patch := range patches {
+		t.Run(name, func(t *testing.T) {
+			hook := newTestWebhook(t, func(req *admission.ReviewRequest) *admission.ReviewResponse {
+				return &admission.ReviewResponse{Allowed: true, Patch: json.RawMessage(patch)}
+			})
+
+			s, cleanup := admissionServer(t, &config.AdmissionWebhookConfig{
+				Name: "nuller", URL: hook.URL, Mode: config.AdmissionWebhookModeMutate,
+			})
+			defer cleanup()
+
+			_, err := admissionRegisterJob(t, s, mock.Job(), "")
+			must.ErrorContains(t, err, "must not put a null into a list of the job")
+		})
+	}
+}
+
+// A null value is a value: a webhook may clear a member of the job with it.
+func TestJobEndpoint_Admission_MutatingWebhook_NullValue(t *testing.T) {
+	ci.Parallel(t)
+
+	hook := newTestWebhook(t, func(req *admission.ReviewRequest) *admission.ReviewResponse {
+		return &admission.ReviewResponse{
+			Allowed: true,
+			Patch:   json.RawMessage(`[{"op":"replace","path":"/Meta","value":null}]`),
+		}
+	})
+
+	s, cleanup := admissionServer(t, &config.AdmissionWebhookConfig{
+		Name: "clearer", URL: hook.URL, Mode: config.AdmissionWebhookModeMutate,
+	})
+	defer cleanup()
+
+	job := mock.Job()
+	job.Meta = map[string]string{"owner": "armon"}
+	_, err := admissionRegisterJob(t, s, job, "")
+	must.NoError(t, err)
+
+	stored, err := s.State().JobByID(nil, job.Namespace, job.ID)
+	must.NoError(t, err)
+	must.MapEmpty(t, stored.Meta)
+}
+
 func TestJobEndpoint_Admission_ValidatingWebhook(t *testing.T) {
 	ci.Parallel(t)
 
