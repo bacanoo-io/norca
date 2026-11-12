@@ -573,21 +573,27 @@ func TestNodePoolEndpoint_GetNodePool_BlockingQuery(t *testing.T) {
 	// Upsert triggers watchers.
 	// Populate state with a node pools.
 	pool1 := mock.NodePool()
+	pool2 := mock.NodePool()
+
+	// Each write is scheduled by the one before it: on a starved machine
+	// independent timers fired late and in either order.
 	time.AfterFunc(100*time.Millisecond, func() {
 		s.fsm.State().UpsertNodePools(structs.MsgTypeTestSetup, 1000, []*structs.NodePool{pool1})
-	})
 
-	// Insert node pool that should not trigger watcher.
-	pool2 := mock.NodePool()
-	time.AfterFunc(200*time.Millisecond, func() {
-		s.fsm.State().UpsertNodePools(structs.MsgTypeTestSetup, 1001, []*structs.NodePool{pool2})
-	})
+		// Insert node pool that should not trigger watcher.
+		time.AfterFunc(100*time.Millisecond, func() {
+			s.fsm.State().UpsertNodePools(structs.MsgTypeTestSetup, 1001, []*structs.NodePool{pool2})
 
-	// Update first node pool to trigger watcher.
-	pool1 = pool1.Copy()
-	pool1.Meta["updated"] = "true"
-	time.AfterFunc(300*time.Millisecond, func() {
-		s.fsm.State().UpsertNodePools(structs.MsgTypeTestSetup, 1002, []*structs.NodePool{pool1})
+			// Update first node pool to trigger watcher. The copy is made
+			// here: made by the test while the first timer was waiting, it
+			// was a data race on pool1, and the state store was given the
+			// object it already held.
+			time.AfterFunc(100*time.Millisecond, func() {
+				updated := pool1.Copy()
+				updated.Meta["updated"] = "true"
+				s.fsm.State().UpsertNodePools(structs.MsgTypeTestSetup, 1002, []*structs.NodePool{updated})
+			})
+		})
 	})
 
 	req := &structs.NodePoolSpecificRequest{
@@ -603,14 +609,15 @@ func TestNodePoolEndpoint_GetNodePool_BlockingQuery(t *testing.T) {
 	must.Eq(t, 1002, resp.Index)
 
 	// Delete triggers watchers.
-	// Delete pool that is not being watched.
+	// Delete pool that is not being watched. The second delete is
+	// scheduled by the first, so their order is fixed.
 	time.AfterFunc(100*time.Millisecond, func() {
 		s.fsm.State().DeleteNodePools(structs.MsgTypeTestSetup, 1003, []string{pool2.Name})
-	})
 
-	// Delete pool that is being watched.
-	time.AfterFunc(200*time.Millisecond, func() {
-		s.fsm.State().DeleteNodePools(structs.MsgTypeTestSetup, 1004, []string{pool1.Name})
+		// Delete pool that is being watched.
+		time.AfterFunc(100*time.Millisecond, func() {
+			s.fsm.State().DeleteNodePools(structs.MsgTypeTestSetup, 1004, []string{pool1.Name})
+		})
 	})
 
 	req.MinQueryIndex = 1002

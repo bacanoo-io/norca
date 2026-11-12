@@ -2292,18 +2292,24 @@ func TestClientEndpoint_GetNode_Blocking(t *testing.T) {
 	node1 := mock.Node()
 	node2 := mock.Node()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated node.
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.UpsertNode(structs.MsgTypeTestSetup, 100, node1); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert the node we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		if err := state.UpsertNode(structs.MsgTypeTestSetup, 200, node2); err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert the node we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			if err := state.UpsertNode(structs.MsgTypeTestSetup, 200, node2); err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	// Lookup the node
@@ -2315,7 +2321,6 @@ func TestClientEndpoint_GetNode_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.SingleNodeResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Node.GetNode", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -2331,18 +2336,18 @@ func TestClientEndpoint_GetNode_Blocking(t *testing.T) {
 	}
 
 	// Node update triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		nodeUpdate := mock.Node()
 		nodeUpdate.ID = node2.ID
 		nodeUpdate.Status = structs.NodeStatusDown
 		if err := state.UpsertNode(structs.MsgTypeTestSetup, 300, nodeUpdate); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.SingleNodeResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Node.GetNode", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -2358,15 +2363,15 @@ func TestClientEndpoint_GetNode_Blocking(t *testing.T) {
 	}
 
 	// Node delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.DeleteNode(structs.MsgTypeTestSetup, 400, []string{node2.ID}); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 350
 	var resp3 structs.SingleNodeResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Node.GetNode", req, &resp3); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -4013,6 +4018,7 @@ func TestClientEndpoint_ListNodes_Blocking(t *testing.T) {
 
 	// Node upsert triggers watches
 	errCh := make(chan error, 1)
+	start := time.Now()
 	timer := time.AfterFunc(100*time.Millisecond, func() {
 		errCh <- state.UpsertNode(structs.MsgTypeTestSetup, 2, node)
 	})
@@ -4024,7 +4030,6 @@ func TestClientEndpoint_ListNodes_Blocking(t *testing.T) {
 			MinQueryIndex: 1,
 		},
 	}
-	start := time.Now()
 	var resp structs.NodeListResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Node.List", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
@@ -4045,6 +4050,7 @@ func TestClientEndpoint_ListNodes_Blocking(t *testing.T) {
 	}
 
 	// Node drain updates trigger watches.
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		s := &structs.DrainStrategy{
 			DrainSpec: structs.DrainSpec{
@@ -4056,7 +4062,6 @@ func TestClientEndpoint_ListNodes_Blocking(t *testing.T) {
 
 	req.MinQueryIndex = 2
 	var resp2 structs.NodeListResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Node.List", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -4076,13 +4081,13 @@ func TestClientEndpoint_ListNodes_Blocking(t *testing.T) {
 	}
 
 	// Node status update triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		errCh <- state.UpdateNodeStatus(structs.MsgTypeTestSetup, 40, node.ID, structs.NodeStatusDown, 0, nil)
 	})
 
 	req.MinQueryIndex = 38
 	var resp3 structs.NodeListResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Node.List", req, &resp3); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -4102,13 +4107,13 @@ func TestClientEndpoint_ListNodes_Blocking(t *testing.T) {
 	}
 
 	// Node delete triggers watches.
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		errCh <- state.DeleteNode(structs.MsgTypeTestSetup, 50, []string{node.ID})
 	})
 
 	req.MinQueryIndex = 45
 	var resp4 structs.NodeListResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Node.List", req, &resp4); err != nil {
 		t.Fatalf("err: %v", err)
 	}

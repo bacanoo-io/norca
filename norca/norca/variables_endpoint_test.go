@@ -809,17 +809,24 @@ func TestVariablesEndpoint_GetVariable_Blocking(t *testing.T) {
 	codec := rpcClient(t, s1)
 	testutil.WaitForLeader(t, s1.RPC)
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated variable.
 	delay := 100 * time.Millisecond
 	time.AfterFunc(delay, func() {
 		writeVar(t, s1, 100, "default", "aaa")
-	})
 
-	// Upsert the variable we are watching later
-	delay = 200 * time.Millisecond
-	time.AfterFunc(delay, func() {
-		writeVar(t, s1, 200, "default", "bbb")
+		// Upsert the variable we are watching later, 200ms after the
+		// start.
+		time.AfterFunc(100*time.Millisecond, func() {
+			writeVar(t, s1, 200, "default", "bbb")
+		})
 	})
+	delay = 200 * time.Millisecond
 
 	// Lookup the variable
 	req := &structs.VariablesReadRequest{
@@ -831,7 +838,6 @@ func TestVariablesEndpoint_GetVariable_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.VariablesReadResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Variables.Read", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -853,13 +859,13 @@ func TestVariablesEndpoint_GetVariable_Blocking(t *testing.T) {
 	// Variable update triggers watches
 	delay = 100 * time.Millisecond
 
+	start = time.Now()
 	time.AfterFunc(delay, func() {
 		writeVar(t, s1, 300, "default", "bbb")
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.VariablesReadResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Variables.Read", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -880,17 +886,17 @@ func TestVariablesEndpoint_GetVariable_Blocking(t *testing.T) {
 
 	// Variable delete triggers watches
 	delay = 100 * time.Millisecond
+	start = time.Now()
 	time.AfterFunc(delay, func() {
 		sv := mock.VariableEncrypted()
 		sv.Path = "bbb"
 		if resp := state.VarDelete(400, &structs.VarApplyStateRequest{Op: structs.VarOpDelete, Var: sv}); !resp.IsOk() {
-			t.Fatalf("err: %v", resp.Error)
+			t.Errorf("err: %v", resp.Error)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 350
 	var resp3 structs.VariablesReadResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Variables.Read", req, &resp3); err != nil {
 		t.Fatalf("err: %v", err)
 	}

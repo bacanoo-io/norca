@@ -122,14 +122,20 @@ func TestNamespaceEndpoint_GetNamespace_Blocking(t *testing.T) {
 	ns1 := mock.Namespace()
 	ns2 := mock.Namespace()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an namespace
 	time.AfterFunc(100*time.Millisecond, func() {
 		assert.Nil(state.UpsertNamespaces(100, []*structs.Namespace{ns1}))
-	})
 
-	// Upsert the namespace we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		assert.Nil(state.UpsertNamespaces(200, []*structs.Namespace{ns2}))
+		// Upsert the namespace we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			assert.Nil(state.UpsertNamespaces(200, []*structs.Namespace{ns2}))
+		})
 	})
 
 	// Lookup the namespace
@@ -141,7 +147,6 @@ func TestNamespaceEndpoint_GetNamespace_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.SingleNamespaceResponse
-	start := time.Now()
 	assert.Nil(msgpackrpc.CallWithCodec(codec, "Namespace.GetNamespace", req, &resp))
 	assert.EqualValues(200, resp.Index)
 	assert.NotNil(resp.Namespace)
@@ -152,13 +157,13 @@ func TestNamespaceEndpoint_GetNamespace_Blocking(t *testing.T) {
 	}
 
 	// Namespace delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		assert.Nil(state.DeleteNamespaces(300, []string{ns2.Name}))
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.SingleNamespaceResponse
-	start = time.Now()
 	assert.Nil(msgpackrpc.CallWithCodec(codec, "Namespace.GetNamespace", req, &resp2))
 	assert.EqualValues(300, resp2.Index)
 	assert.Nil(resp2.Namespace)
@@ -256,14 +261,20 @@ func TestNamespaceEndpoint_GetNamespaces_Blocking(t *testing.T) {
 	ns1 := mock.Namespace()
 	ns2 := mock.Namespace()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an namespace
 	time.AfterFunc(100*time.Millisecond, func() {
 		assert.Nil(state.UpsertNamespaces(100, []*structs.Namespace{ns1}))
-	})
 
-	// Upsert the namespace we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		assert.Nil(state.UpsertNamespaces(200, []*structs.Namespace{ns2}))
+		// Upsert the namespace we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			assert.Nil(state.UpsertNamespaces(200, []*structs.Namespace{ns2}))
+		})
 	})
 
 	// Lookup the namespace
@@ -275,7 +286,6 @@ func TestNamespaceEndpoint_GetNamespaces_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.NamespaceSetResponse
-	start := time.Now()
 	assert.Nil(msgpackrpc.CallWithCodec(codec, "Namespace.GetNamespaces", req, &resp))
 	assert.EqualValues(200, resp.Index)
 	assert.Len(resp.Namespaces, 1)
@@ -286,13 +296,13 @@ func TestNamespaceEndpoint_GetNamespaces_Blocking(t *testing.T) {
 	}
 
 	// Namespace delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		assert.Nil(state.DeleteNamespaces(300, []string{ns2.Name}))
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.NamespaceSetResponse
-	start = time.Now()
 	assert.Nil(msgpackrpc.CallWithCodec(codec, "Namespace.GetNamespaces", req, &resp2))
 	assert.EqualValues(300, resp2.Index)
 	assert.Empty(resp2.Namespaces)
@@ -427,6 +437,7 @@ func TestNamespaceEndpoint_List_Blocking(t *testing.T) {
 	ns := mock.Namespace()
 
 	// Upsert namespace triggers watches
+	start := time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		assert.Nil(state.UpsertNamespaces(200, []*structs.Namespace{ns}))
 	})
@@ -437,7 +448,6 @@ func TestNamespaceEndpoint_List_Blocking(t *testing.T) {
 			MinQueryIndex: 150,
 		},
 	}
-	start := time.Now()
 	var resp structs.NamespaceListResponse
 	assert.Nil(msgpackrpc.CallWithCodec(codec, "Namespace.ListNamespaces", req, &resp))
 
@@ -448,12 +458,12 @@ func TestNamespaceEndpoint_List_Blocking(t *testing.T) {
 	assert.Len(resp.Namespaces, 2)
 
 	// Namespace deletion triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		assert.Nil(state.DeleteNamespaces(300, []string{ns.Name}))
 	})
 
 	req.MinQueryIndex = 200
-	start = time.Now()
 	var resp2 structs.NamespaceListResponse
 	assert.Nil(msgpackrpc.CallWithCodec(codec, "Namespace.ListNamespaces", req, &resp2))
 

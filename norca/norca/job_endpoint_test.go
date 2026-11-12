@@ -4432,18 +4432,24 @@ func TestJobEndpoint_GetJob_Blocking(t *testing.T) {
 	job1 := mock.Job()
 	job2 := mock.Job()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// Upsert a job we are not interested in first.
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.UpsertJob(structs.MsgTypeTestSetup, 100, nil, job1); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert another job later which should trigger the watch.
-	time.AfterFunc(200*time.Millisecond, func() {
-		if err := state.UpsertJob(structs.MsgTypeTestSetup, 200, nil, job2); err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert another job later which should trigger the watch.
+		time.AfterFunc(100*time.Millisecond, func() {
+			if err := state.UpsertJob(structs.MsgTypeTestSetup, 200, nil, job2); err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	req := &structs.JobSpecificRequest{
@@ -4454,7 +4460,6 @@ func TestJobEndpoint_GetJob_Blocking(t *testing.T) {
 			MinQueryIndex: 150,
 		},
 	}
-	start := time.Now()
 	var resp structs.SingleJobResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Job.GetJob", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
@@ -4471,14 +4476,14 @@ func TestJobEndpoint_GetJob_Blocking(t *testing.T) {
 	}
 
 	// Job delete fires watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.DeleteJob(300, job2.Namespace, job2.ID); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
-	start = time.Now()
 
 	var resp2 structs.SingleJobResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Job.GetJob", req, &resp2); err != nil {
@@ -4951,18 +4956,24 @@ func TestJobEndpoint_GetJobVersions_Blocking(t *testing.T) {
 	job3.ID = job2.ID
 	job3.Priority = 1
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// Upsert a job we are not interested in first.
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.UpsertJob(structs.MsgTypeTestSetup, 100, nil, job1); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert another job later which should trigger the watch.
-	time.AfterFunc(200*time.Millisecond, func() {
-		if err := state.UpsertJob(structs.MsgTypeTestSetup, 200, nil, job2); err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert another job later which should trigger the watch.
+		time.AfterFunc(100*time.Millisecond, func() {
+			if err := state.UpsertJob(structs.MsgTypeTestSetup, 200, nil, job2); err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	req := &structs.JobVersionsRequest{
@@ -4973,7 +4984,6 @@ func TestJobEndpoint_GetJobVersions_Blocking(t *testing.T) {
 			MinQueryIndex: 150,
 		},
 	}
-	start := time.Now()
 	var resp structs.JobVersionsResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Job.GetJobVersions", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
@@ -4990,9 +5000,10 @@ func TestJobEndpoint_GetJobVersions_Blocking(t *testing.T) {
 	}
 
 	// Upsert the job again which should trigger the watch.
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.UpsertJob(structs.MsgTypeTestSetup, 300, nil, job3); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
@@ -5005,7 +5016,6 @@ func TestJobEndpoint_GetJobVersions_Blocking(t *testing.T) {
 		},
 	}
 	var resp2 structs.JobVersionsResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Job.GetJobVersions", req2, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -5181,9 +5191,10 @@ func TestJobEndpoint_GetJobSummary_Blocking(t *testing.T) {
 
 	// Create a job and insert it
 	job1 := mock.Job()
+	start := time.Now()
 	time.AfterFunc(200*time.Millisecond, func() {
 		if err := state.UpsertJob(structs.MsgTypeTestSetup, 100, nil, job1); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
@@ -5197,7 +5208,6 @@ func TestJobEndpoint_GetJobSummary_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.JobSummaryResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Job.Summary", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -5206,12 +5216,13 @@ func TestJobEndpoint_GetJobSummary_Blocking(t *testing.T) {
 	}
 
 	// Upsert an allocation for the job which should trigger the watch.
+	start = time.Now()
 	time.AfterFunc(200*time.Millisecond, func() {
 		alloc := mock.Alloc()
 		alloc.JobID = job1.ID
 		alloc.Job = job1
 		if err := state.UpsertAllocs(structs.MsgTypeTestSetup, 200, []*structs.Allocation{alloc}); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 	req = &structs.JobSummaryRequest{
@@ -5222,7 +5233,6 @@ func TestJobEndpoint_GetJobSummary_Blocking(t *testing.T) {
 			MinQueryIndex: 199,
 		},
 	}
-	start = time.Now()
 	var resp1 structs.JobSummaryResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Job.Summary", req, &resp1); err != nil {
 		t.Fatalf("err: %v", err)
@@ -5239,14 +5249,14 @@ func TestJobEndpoint_GetJobSummary_Blocking(t *testing.T) {
 	}
 
 	// Job delete fires watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.DeleteJob(300, job1.Namespace, job1.ID); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
-	start = time.Now()
 
 	var resp2 structs.SingleJobResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Job.Summary", req, &resp2); err != nil {
@@ -5464,9 +5474,10 @@ func TestJobEndpoint_ListJobs_Blocking(t *testing.T) {
 	job := mock.Job()
 
 	// Upsert job triggers watches
+	start := time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.UpsertJob(structs.MsgTypeTestSetup, 100, nil, job); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
@@ -5477,7 +5488,6 @@ func TestJobEndpoint_ListJobs_Blocking(t *testing.T) {
 			MinQueryIndex: 50,
 		},
 	}
-	start := time.Now()
 	var resp structs.JobListResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Job.List", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
@@ -5494,14 +5504,14 @@ func TestJobEndpoint_ListJobs_Blocking(t *testing.T) {
 	}
 
 	// Job deletion triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.DeleteJob(200, job.Namespace, job.ID); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.MinQueryIndex = 150
-	start = time.Now()
 	var resp2 structs.JobListResponse
 	if err := msgpackrpc.CallWithCodec(codec, "Job.List", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
@@ -5813,22 +5823,28 @@ func TestJobEndpoint_Allocations_Blocking(t *testing.T) {
 	alloc2.JobID = "job1"
 	state := s1.fsm.State()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First upsert an unrelated alloc
 	time.AfterFunc(100*time.Millisecond, func() {
 		state.UpsertJobSummary(99, mock.JobSummary(alloc1.JobID))
 		err := state.UpsertAllocs(structs.MsgTypeTestSetup, 100, []*structs.Allocation{alloc1})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert an alloc for the job we are interested in later
-	time.AfterFunc(200*time.Millisecond, func() {
-		state.UpsertJobSummary(199, mock.JobSummary(alloc2.JobID))
-		err := state.UpsertAllocs(structs.MsgTypeTestSetup, 200, []*structs.Allocation{alloc2})
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert an alloc for the job we are interested in later
+		time.AfterFunc(100*time.Millisecond, func() {
+			state.UpsertJobSummary(199, mock.JobSummary(alloc2.JobID))
+			err := state.UpsertAllocs(structs.MsgTypeTestSetup, 200, []*structs.Allocation{alloc2})
+			if err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	// Lookup the jobs
@@ -5841,7 +5857,6 @@ func TestJobEndpoint_Allocations_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.JobAllocationsResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Job.Allocations", get, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -5994,20 +6009,26 @@ func TestJobEndpoint_Evaluations_Blocking(t *testing.T) {
 	eval2.JobID = "job1"
 	state := s1.fsm.State()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First upsert an unrelated eval
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.UpsertEvals(structs.MsgTypeTestSetup, 100, []*structs.Evaluation{eval1})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert an eval for the job we are interested in later
-	time.AfterFunc(200*time.Millisecond, func() {
-		err := state.UpsertEvals(structs.MsgTypeTestSetup, 200, []*structs.Evaluation{eval2})
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert an eval for the job we are interested in later
+		time.AfterFunc(100*time.Millisecond, func() {
+			err := state.UpsertEvals(structs.MsgTypeTestSetup, 200, []*structs.Evaluation{eval2})
+			if err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	// Lookup the jobs
@@ -6020,7 +6041,6 @@ func TestJobEndpoint_Evaluations_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.JobEvaluationsResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "Job.Evaluations", get, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -6154,14 +6174,20 @@ func TestJobEndpoint_Deployments_Blocking(t *testing.T) {
 	d2.JobID = j.ID
 	require.Nil(state.UpsertJob(structs.MsgTypeTestSetup, 50, nil, j), "UpsertJob")
 	d2.JobCreateIndex = j.CreateIndex
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First upsert an unrelated eval
 	time.AfterFunc(100*time.Millisecond, func() {
 		require.Nil(state.UpsertDeployment(100, d1), "UpsertDeployment")
-	})
 
-	// Upsert an eval for the job we are interested in later
-	time.AfterFunc(200*time.Millisecond, func() {
-		require.Nil(state.UpsertDeployment(200, d2), "UpsertDeployment")
+		// Upsert an eval for the job we are interested in later
+		time.AfterFunc(100*time.Millisecond, func() {
+			require.Nil(state.UpsertDeployment(200, d2), "UpsertDeployment")
+		})
 	})
 
 	// Lookup the jobs
@@ -6174,7 +6200,6 @@ func TestJobEndpoint_Deployments_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.DeploymentListResponse
-	start := time.Now()
 	require.Nil(msgpackrpc.CallWithCodec(codec, "Job.Deployments", get, &resp), "RPC")
 	require.EqualValues(200, resp.Index, "response index")
 	require.Len(resp.Deployments, 1, "deployments for job")
@@ -6310,14 +6335,20 @@ func TestJobEndpoint_LatestDeployment_Blocking(t *testing.T) {
 	require.Nil(state.UpsertJob(structs.MsgTypeTestSetup, 50, nil, j), "UpsertJob")
 	d2.JobCreateIndex = j.CreateIndex
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First upsert an unrelated eval
 	time.AfterFunc(100*time.Millisecond, func() {
 		require.Nil(state.UpsertDeployment(100, d1), "UpsertDeployment")
-	})
 
-	// Upsert an eval for the job we are interested in later
-	time.AfterFunc(200*time.Millisecond, func() {
-		require.Nil(state.UpsertDeployment(200, d2), "UpsertDeployment")
+		// Upsert an eval for the job we are interested in later
+		time.AfterFunc(100*time.Millisecond, func() {
+			require.Nil(state.UpsertDeployment(200, d2), "UpsertDeployment")
+		})
 	})
 
 	// Lookup the jobs
@@ -6330,7 +6361,6 @@ func TestJobEndpoint_LatestDeployment_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.SingleDeploymentResponse
-	start := time.Now()
 	require.Nil(msgpackrpc.CallWithCodec(codec, "Job.LatestDeployment", get, &resp), "RPC")
 	require.EqualValues(200, resp.Index, "response index")
 	require.NotNil(resp.Deployment, "deployment for job")

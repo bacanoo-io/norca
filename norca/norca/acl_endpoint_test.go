@@ -154,20 +154,26 @@ func TestACLEndpoint_GetPolicy_Blocking(t *testing.T) {
 	p1 := mock.ACLPolicy()
 	p2 := mock.ACLPolicy()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated policy
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.UpsertACLPolicies(structs.MsgTypeTestSetup, 100, []*structs.ACLPolicy{p1})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert the policy we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		err := state.UpsertACLPolicies(structs.MsgTypeTestSetup, 200, []*structs.ACLPolicy{p2})
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert the policy we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			err := state.UpsertACLPolicies(structs.MsgTypeTestSetup, 200, []*structs.ACLPolicy{p2})
+			if err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	// Lookup the policy
@@ -180,7 +186,6 @@ func TestACLEndpoint_GetPolicy_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.SingleACLPolicyResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.GetPolicy", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -196,16 +201,16 @@ func TestACLEndpoint_GetPolicy_Blocking(t *testing.T) {
 	}
 
 	// Eval delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.DeleteACLPolicies(structs.MsgTypeTestSetup, 300, []string{p2.Name})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.SingleACLPolicyResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.GetPolicy", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -385,20 +390,26 @@ func TestACLEndpoint_GetPolicies_Blocking(t *testing.T) {
 	p1 := mock.ACLPolicy()
 	p2 := mock.ACLPolicy()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated policy
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.UpsertACLPolicies(structs.MsgTypeTestSetup, 100, []*structs.ACLPolicy{p1})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert the policy we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		err := state.UpsertACLPolicies(structs.MsgTypeTestSetup, 200, []*structs.ACLPolicy{p2})
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert the policy we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			err := state.UpsertACLPolicies(structs.MsgTypeTestSetup, 200, []*structs.ACLPolicy{p2})
+			if err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	// Lookup the policy
@@ -411,7 +422,6 @@ func TestACLEndpoint_GetPolicies_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.ACLPolicySetResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.GetPolicies", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -427,16 +437,16 @@ func TestACLEndpoint_GetPolicies_Blocking(t *testing.T) {
 	}
 
 	// Eval delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.DeleteACLPolicies(structs.MsgTypeTestSetup, 300, []string{p2.Name})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.ACLPolicySetResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.GetPolicies", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -615,9 +625,10 @@ func TestACLEndpoint_ListPolicies_Blocking(t *testing.T) {
 	policy := mock.ACLPolicy()
 
 	// Upsert eval triggers watches
+	start := time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.UpsertACLPolicies(structs.MsgTypeTestSetup, 2, []*structs.ACLPolicy{policy}); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
@@ -628,7 +639,6 @@ func TestACLEndpoint_ListPolicies_Blocking(t *testing.T) {
 			AuthToken:     root.SecretID,
 		},
 	}
-	start := time.Now()
 	var resp structs.ACLPolicyListResponse
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.ListPolicies", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
@@ -643,14 +653,14 @@ func TestACLEndpoint_ListPolicies_Blocking(t *testing.T) {
 	}
 
 	// Eval deletion triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.DeleteACLPolicies(structs.MsgTypeTestSetup, 3, []string{policy.Name}); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.MinQueryIndex = 2
-	start = time.Now()
 	var resp2 structs.ACLPolicyListResponse
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.ListPolicies", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
@@ -806,20 +816,26 @@ func TestACLEndpoint_GetToken_Blocking(t *testing.T) {
 	p1 := mock.ACLToken()
 	p2 := mock.ACLToken()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated token
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.UpsertACLTokens(structs.MsgTypeTestSetup, 100, []*structs.ACLToken{p1})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert the token we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		err := state.UpsertACLTokens(structs.MsgTypeTestSetup, 200, []*structs.ACLToken{p2})
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert the token we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			err := state.UpsertACLTokens(structs.MsgTypeTestSetup, 200, []*structs.ACLToken{p2})
+			if err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	// Lookup the token
@@ -832,7 +848,6 @@ func TestACLEndpoint_GetToken_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.SingleACLTokenResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.GetToken", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -848,16 +863,16 @@ func TestACLEndpoint_GetToken_Blocking(t *testing.T) {
 	}
 
 	// Eval delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.DeleteACLTokens(structs.MsgTypeTestSetup, 300, []string{p2.AccessorID})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.SingleACLTokenResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.GetToken", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -925,20 +940,26 @@ func TestACLEndpoint_GetTokens_Blocking(t *testing.T) {
 	p1 := mock.ACLToken()
 	p2 := mock.ACLToken()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated token
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.UpsertACLTokens(structs.MsgTypeTestSetup, 100, []*structs.ACLToken{p1})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
-	})
 
-	// Upsert the token we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		err := state.UpsertACLTokens(structs.MsgTypeTestSetup, 200, []*structs.ACLToken{p2})
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		// Upsert the token we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			err := state.UpsertACLTokens(structs.MsgTypeTestSetup, 200, []*structs.ACLToken{p2})
+			if err != nil {
+				t.Errorf("err: %v", err)
+			}
+		})
 	})
 
 	// Lookup the token
@@ -951,7 +972,6 @@ func TestACLEndpoint_GetTokens_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.ACLTokenSetResponse
-	start := time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.GetTokens", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -967,16 +987,16 @@ func TestACLEndpoint_GetTokens_Blocking(t *testing.T) {
 	}
 
 	// Eval delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.DeleteACLTokens(structs.MsgTypeTestSetup, 300, []string{p2.AccessorID})
 		if err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.ACLTokenSetResponse
-	start = time.Now()
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.GetTokens", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -1347,9 +1367,10 @@ func TestACLEndpoint_ListTokens_Blocking(t *testing.T) {
 	token := mock.ACLToken()
 
 	// Upsert eval triggers watches
+	start := time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.UpsertACLTokens(structs.MsgTypeTestSetup, 3, []*structs.ACLToken{token}); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
@@ -1360,7 +1381,6 @@ func TestACLEndpoint_ListTokens_Blocking(t *testing.T) {
 			AuthToken:     root.SecretID,
 		},
 	}
-	start := time.Now()
 	var resp structs.ACLTokenListResponse
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.ListTokens", req, &resp); err != nil {
 		t.Fatalf("err: %v", err)
@@ -1375,14 +1395,14 @@ func TestACLEndpoint_ListTokens_Blocking(t *testing.T) {
 	}
 
 	// Eval deletion triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		if err := state.DeleteACLTokens(structs.MsgTypeTestSetup, 4, []string{token.AccessorID}); err != nil {
-			t.Fatalf("err: %v", err)
+			t.Errorf("err: %v", err)
 		}
 	})
 
 	req.MinQueryIndex = 3
-	start = time.Now()
 	var resp2 structs.ACLTokenListResponse
 	if err := msgpackrpc.CallWithCodec(codec, "ACL.ListTokens", req, &resp2); err != nil {
 		t.Fatalf("err: %v", err)
@@ -2760,14 +2780,20 @@ func TestACLEndpoint_GetAuthMethod_Blocking(t *testing.T) {
 	am1 := mock.ACLOIDCAuthMethod()
 	am2 := mock.ACLOIDCAuthMethod()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated authMethod
 	time.AfterFunc(100*time.Millisecond, func() {
 		must.NoError(t, state.UpsertACLAuthMethods(100, []*structs.ACLAuthMethod{am1}))
-	})
 
-	// Upsert the authMethod we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		must.NoError(t, state.UpsertACLAuthMethods(200, []*structs.ACLAuthMethod{am2}))
+		// Upsert the authMethod we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			must.NoError(t, state.UpsertACLAuthMethods(200, []*structs.ACLAuthMethod{am2}))
+		})
 	})
 
 	// Lookup the authMethod
@@ -2780,7 +2806,6 @@ func TestACLEndpoint_GetAuthMethod_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.ACLAuthMethodGetResponse
-	start := time.Now()
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.ACLGetAuthMethodRPCMethod, req, &resp))
 
 	if elapsed := time.Since(start); elapsed < 200*time.Millisecond {
@@ -2791,13 +2816,13 @@ func TestACLEndpoint_GetAuthMethod_Blocking(t *testing.T) {
 	must.Eq(t, resp.AuthMethod.Name, am2.Name)
 
 	// Auth method delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		must.NoError(t, state.DeleteACLAuthMethods(300, []string{am2.Name}))
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.ACLAuthMethodGetResponse
-	start = time.Now()
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.ACLGetAuthMethodRPCMethod, req, &resp2))
 
 	if elapsed := time.Since(start); elapsed < 100*time.Millisecond {
@@ -2856,14 +2881,20 @@ func TestACLEndpoint_GetAuthMethods_Blocking(t *testing.T) {
 	am1 := mock.ACLOIDCAuthMethod()
 	am2 := mock.ACLOIDCAuthMethod()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated authMethod
 	time.AfterFunc(100*time.Millisecond, func() {
 		must.NoError(t, state.UpsertACLAuthMethods(100, []*structs.ACLAuthMethod{am1}))
-	})
 
-	// Upsert the authMethod we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		must.NoError(t, state.UpsertACLAuthMethods(200, []*structs.ACLAuthMethod{am2}))
+		// Upsert the authMethod we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			must.NoError(t, state.UpsertACLAuthMethods(200, []*structs.ACLAuthMethod{am2}))
+		})
 	})
 
 	// Lookup the authMethod
@@ -2876,7 +2907,6 @@ func TestACLEndpoint_GetAuthMethods_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.ACLAuthMethodsGetResponse
-	start := time.Now()
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.ACLGetAuthMethodsRPCMethod, req, &resp))
 
 	if elapsed := time.Since(start); elapsed < 200*time.Millisecond {
@@ -2887,13 +2917,13 @@ func TestACLEndpoint_GetAuthMethods_Blocking(t *testing.T) {
 	must.NotNil(t, resp.AuthMethods[am2.Name])
 
 	// Auth method delete triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		must.NoError(t, state.DeleteACLAuthMethods(300, []string{am2.Name}))
 	})
 
 	req.QueryOptions.MinQueryIndex = 250
 	var resp2 structs.ACLAuthMethodsGetResponse
-	start = time.Now()
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.ACLGetAuthMethodsRPCMethod, req, &resp2))
 
 	if elapsed := time.Since(start); elapsed < 100*time.Millisecond {
@@ -2964,6 +2994,7 @@ func TestACLEndpoint_ListAuthMethods_Blocking(t *testing.T) {
 	authMethod := mock.ACLOIDCAuthMethod()
 
 	// Upsert auth method triggers watches
+	start := time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		must.NoError(t, state.UpsertACLAuthMethods(2, []*structs.ACLAuthMethod{authMethod}))
 	})
@@ -2975,7 +3006,6 @@ func TestACLEndpoint_ListAuthMethods_Blocking(t *testing.T) {
 			AuthToken:     root.SecretID,
 		},
 	}
-	start := time.Now()
 	var resp structs.ACLAuthMethodListResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.ACLListAuthMethodsRPCMethod, req, &resp))
 
@@ -2987,12 +3017,12 @@ func TestACLEndpoint_ListAuthMethods_Blocking(t *testing.T) {
 	must.Eq(t, resp.AuthMethods[0].Name, authMethod.Name)
 
 	// Eval deletion triggers watches
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		must.NoError(t, state.DeleteACLAuthMethods(3, []string{authMethod.Name}))
 	})
 
 	req.MinQueryIndex = 2
-	start = time.Now()
 	var resp2 structs.ACLAuthMethodListResponse
 	must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.ACLListAuthMethodsRPCMethod, req, &resp2))
 

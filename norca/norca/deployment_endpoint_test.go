@@ -129,14 +129,20 @@ func TestDeploymentEndpoint_GetDeployment_Blocking(t *testing.T) {
 	assert.Nil(state.UpsertJob(structs.MsgTypeTestSetup, 98, nil, j1), "UpsertJob")
 	assert.Nil(state.UpsertJob(structs.MsgTypeTestSetup, 99, nil, j2), "UpsertJob")
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// Upsert a deployment we are not interested in first.
 	time.AfterFunc(100*time.Millisecond, func() {
 		assert.Nil(state.UpsertDeployment(100, d1), "UpsertDeployment")
-	})
 
-	// Upsert another deployment later which should trigger the watch.
-	time.AfterFunc(200*time.Millisecond, func() {
-		assert.Nil(state.UpsertDeployment(200, d2), "UpsertDeployment")
+		// Upsert another deployment later which should trigger the watch.
+		time.AfterFunc(100*time.Millisecond, func() {
+			assert.Nil(state.UpsertDeployment(200, d2), "UpsertDeployment")
+		})
 	})
 
 	// Lookup the deployments
@@ -148,7 +154,6 @@ func TestDeploymentEndpoint_GetDeployment_Blocking(t *testing.T) {
 			MinQueryIndex: 150,
 		},
 	}
-	start := time.Now()
 	var resp structs.SingleDeploymentResponse
 	assert.Nil(msgpackrpc.CallWithCodec(codec, "Deployment.GetDeployment", get, &resp), "RPC")
 	if elapsed := time.Since(start); elapsed < 200*time.Millisecond {
@@ -1280,6 +1285,7 @@ func TestDeploymentEndpoint_List_Blocking(t *testing.T) {
 	must.Nil(t, state.UpsertJob(structs.MsgTypeTestSetup, 999, nil, j), must.Sprint("UpsertJob"))
 
 	// Upsert alloc triggers watches
+	start := time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		must.Nil(t, state.UpsertDeployment(3, d), must.Sprint("UpsertDeployment"))
 	})
@@ -1291,7 +1297,6 @@ func TestDeploymentEndpoint_List_Blocking(t *testing.T) {
 			MinQueryIndex: 1,
 		},
 	}
-	start := time.Now()
 	var resp structs.DeploymentListResponse
 	must.Nil(t, msgpackrpc.CallWithCodec(codec, "Deployment.List", req, &resp), must.Sprint("RPC"))
 	must.Eq(t, resp.Index, 3, must.Sprint("Wrong Index"))
@@ -1303,12 +1308,12 @@ func TestDeploymentEndpoint_List_Blocking(t *testing.T) {
 	// Deployment updates trigger watches
 	d2 := d.Copy()
 	d2.Status = structs.DeploymentStatusPaused
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		must.Nil(t, state.UpsertDeployment(5, d2), must.Sprint("UpsertDeployment"))
 	})
 
 	req.MinQueryIndex = 3
-	start = time.Now()
 	var resp2 structs.DeploymentListResponse
 	must.Nil(t, msgpackrpc.CallWithCodec(codec, "Deployment.List", req, &resp2), must.Sprint("RPC"))
 	must.Eq(t, 5, resp2.Index, must.Sprint("Wrong Index"))
@@ -1687,6 +1692,7 @@ func TestDeploymentEndpoint_Allocations_Blocking(t *testing.T) {
 	assert.Nil(state.UpsertJobSummary(3, summary), "UpsertJobSummary")
 
 	// Upsert alloc triggers watches
+	start := time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		assert.Nil(state.UpsertAllocs(structs.MsgTypeTestSetup, 4, []*structs.Allocation{a}), "UpsertAllocs")
 	})
@@ -1699,7 +1705,6 @@ func TestDeploymentEndpoint_Allocations_Blocking(t *testing.T) {
 			MinQueryIndex: 1,
 		},
 	}
-	start := time.Now()
 	var resp structs.AllocListResponse
 	assert.Nil(msgpackrpc.CallWithCodec(codec, "Deployment.Allocations", req, &resp), "RPC")
 	assert.EqualValues(4, resp.Index, "Wrong Index")
@@ -1714,13 +1719,13 @@ func TestDeploymentEndpoint_Allocations_Blocking(t *testing.T) {
 	a2.ID = a.ID
 	a2.DeploymentID = a.DeploymentID
 	a2.ClientStatus = structs.AllocClientStatusRunning
+	start = time.Now()
 	time.AfterFunc(100*time.Millisecond, func() {
 		assert.Nil(state.UpsertJobSummary(5, mock.JobSummary(a2.JobID)), "UpsertJobSummary")
 		assert.Nil(state.UpdateAllocsFromClient(structs.MsgTypeTestSetup, 6, []*structs.Allocation{a2}), "updateAllocsFromClient")
 	})
 
 	req.MinQueryIndex = 4
-	start = time.Now()
 	var resp2 structs.AllocListResponse
 	assert.Nil(msgpackrpc.CallWithCodec(codec, "Deployment.Allocations", req, &resp2), "RPC")
 	assert.EqualValues(6, resp2.Index, "Wrong Index")

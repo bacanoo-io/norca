@@ -327,16 +327,22 @@ func TestScalingEndpoint_ListPolicies_Blocking(t *testing.T) {
 	p1 := mock.ScalingPolicy()
 	p2 := mock.ScalingPolicy()
 
+	// The clock starts before the writes are scheduled, and the second
+	// write is scheduled by the first: on a starved machine two timers
+	// fired late and in either order, and the query was sent long after
+	// they were set.
+	start := time.Now()
+
 	// First create an unrelated policy
 	time.AfterFunc(100*time.Millisecond, func() {
 		err := state.UpsertScalingPolicies(100, []*structs.ScalingPolicy{p1})
 		require.NoError(err)
-	})
 
-	// Upsert the policy we are watching later
-	time.AfterFunc(200*time.Millisecond, func() {
-		err := state.UpsertScalingPolicies(200, []*structs.ScalingPolicy{p2})
-		require.NoError(err)
+		// Upsert the policy we are watching later
+		time.AfterFunc(100*time.Millisecond, func() {
+			err := state.UpsertScalingPolicies(200, []*structs.ScalingPolicy{p2})
+			require.NoError(err)
+		})
 	})
 
 	// Lookup the policy
@@ -348,7 +354,6 @@ func TestScalingEndpoint_ListPolicies_Blocking(t *testing.T) {
 		},
 	}
 	var resp structs.ScalingPolicyListResponse
-	start := time.Now()
 	err := msgpackrpc.CallWithCodec(codec, "Scaling.ListPolicies", req, &resp)
 	require.NoError(err)
 
