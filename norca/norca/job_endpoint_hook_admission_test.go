@@ -559,3 +559,43 @@ func TestJobEndpoint_Admission_DeniedBeforeConfigEntries(t *testing.T) {
 	must.NoError(t, err)
 	must.Eq(t, 1, entries.writes.Load())
 }
+
+// What a mutating webhook adds goes through the built-in mutators: a service
+// of the native service discovery it adds gets the constraint on the nodes
+// that every such service implies.
+func TestJobEndpoint_Admission_MutatingWebhook_BuiltinMutatorsRunAgain(t *testing.T) {
+	ci.Parallel(t)
+
+	hook := newTestWebhook(t, func(req *admission.ReviewRequest) *admission.ReviewResponse {
+		return &admission.ReviewResponse{
+			Allowed: true,
+			Patch: json.RawMessage(
+				`[{"op":"add","path":"/TaskGroups/0/Services","value":[{"Name":"injected","Provider":"nomad"}]}]`),
+		}
+	})
+
+	s, cleanup := admissionServer(t, &config.AdmissionWebhookConfig{
+		Name: "add-service", URL: hook.URL, Mode: config.AdmissionWebhookModeMutate,
+	})
+	defer cleanup()
+
+	job := mock.Job()
+	job.TaskGroups[0].Services = nil
+	for _, task := range job.TaskGroups[0].Tasks {
+		task.Services = nil
+	}
+	_, err := admissionRegisterJob(t, s, job, "")
+	must.NoError(t, err)
+
+	stored, err := s.State().JobByID(nil, job.Namespace, job.ID)
+	must.NoError(t, err)
+	must.Len(t, 1, stored.TaskGroups[0].Services)
+
+	found := false
+	for _, c := range stored.TaskGroups[0].Constraints {
+		if c.LTarget == "${attr.nomad.service_discovery}" {
+			found = true
+		}
+	}
+	must.True(t, found, must.Sprintf("constraints: %v", stored.TaskGroups[0].Constraints))
+}

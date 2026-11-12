@@ -63,26 +63,35 @@ type Job struct {
 	validators []jobValidator
 }
 
+// jobBuiltinMutators returns the built-in mutators that run before the
+// mutating admission webhooks, in their order. They run again on a job a
+// webhook patched (admissionWebhookMutator): each of them leaves a job it
+// has already seen as it is, as a job that is registered again shows.
+func jobBuiltinMutators(s *Server) []jobMutator {
+	return []jobMutator{
+		&jobCanonicalizer{srv: s},
+		jobVaultNamespaceDefaulter{},
+		jobScalingHook{srv: s},
+		jobConnectHook{},
+		jobMTLSHook{srv: s},
+		jobExposeCheckHook{},
+		jobImpliedConstraints{srv: s},
+		jobNodePoolMutatingHook{srv: s},
+		jobSecretsHook{srv: s},
+	}
+}
+
 // NewJobEndpoints creates a new job endpoint with builtin admission controllers
 func NewJobEndpoints(s *Server, ctx *RPCContext) *Job {
 	return &Job{
 		srv:    s,
 		ctx:    ctx,
 		logger: s.logger.Named("job"),
-		mutators: []jobMutator{
-			&jobCanonicalizer{srv: s},
-			jobVaultNamespaceDefaulter{},
-			jobScalingHook{srv: s},
-			jobConnectHook{},
-			jobMTLSHook{srv: s},
-			jobExposeCheckHook{},
-			jobImpliedConstraints{srv: s},
-			jobNodePoolMutatingHook{srv: s},
-			jobSecretsHook{srv: s},
+		mutators: append(jobBuiltinMutators(s),
 			admissionWebhookMutator{srv: s},
 			jobDiscoveryDefaultsHook{srv: s}, // after the webhooks, which may add services
 			jobQuotaMutatingHook{srv: s},
-		},
+		),
 		validators: []jobValidator{
 			jobConnectHook{},
 			jobConsulProviderHook{srv: s},

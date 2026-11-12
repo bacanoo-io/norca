@@ -312,12 +312,20 @@ func (m admissionWebhookMutator) MutateWithRequest(areq *admissionRequest, job *
 	}
 
 	if patched {
-		// Bring the patched job back to its canonical form before the
-		// built-in validators see it.
-		var err error
-		job, _, err = (&jobCanonicalizer{srv: m.srv}).Mutate(job)
-		if err != nil {
-			return nil, nil, err
+		// What a webhook added (a task with a vault block, a service of
+		// the mesh, a secret, a scaling block) has not been through the
+		// built-in mutators, which ran before it: without them it was
+		// stored without its sidecar, its implied constraints or its
+		// defaults. Run them again, the canonicalizer first, before the
+		// built-in validators see the job.
+		for _, mutator := range jobBuiltinMutators(m.srv) {
+			var w []error
+			var err error
+			job, w, err = mutator.Mutate(job)
+			if err != nil {
+				return nil, nil, fmt.Errorf("after the patch of an admission webhook: %w", err)
+			}
+			warnings = append(warnings, w...)
 		}
 	}
 	return job, warnings, nil
