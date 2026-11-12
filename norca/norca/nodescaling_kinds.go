@@ -111,6 +111,14 @@ const nodeGroupKindSchema = `{
           },
           "additionalProperties": false
         },
+        "repair": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "after": {"type": "string", ` + nodeDuration + `}
+          },
+          "additionalProperties": false
+        },
         "provider": {"type": "string"},
         "group": {"type": "string"},
         "network": {"type": "string", "pattern": "^[0-9]{1,3}(\\.[0-9]{1,3}){3}/([0-9]|[12][0-9]|3[0-2])$"},

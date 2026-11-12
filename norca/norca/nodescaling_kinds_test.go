@@ -59,6 +59,12 @@ func TestNodeScalingKinds(t *testing.T) {
 	must.Eq[any](t, "builtin", resp.Object.Spec["engine"])
 	must.Eq[any](t, float64(0), resp.Object.Spec["min"])
 
+	// The repair of nodes that are down while their instance runs.
+	withRepair := validNodeGroupSpec()
+	withRepair["repair"] = map[string]any{"enabled": true, "after": "20m"}
+	_, err = c.apply(nodeGroupObject("workers-dc-b", withRepair), nil, false, "")
+	must.NoError(t, err)
+
 	invalid := map[string]func(map[string]any){
 		"min above max":         func(sp map[string]any) { sp["min"] = 11 },
 		"replicas above max":    func(sp map[string]any) { sp["replicas"] = 11 },
@@ -71,6 +77,8 @@ func TestNodeScalingKinds(t *testing.T) {
 		"unknown rolling field": func(sp map[string]any) { sp["rolling"] = map[string]any{"fast": true} },
 		"bad deletion policy":   func(sp map[string]any) { sp["deletion"] = map[string]any{"policy": "explode"} },
 		"bad key store":         func(sp map[string]any) { sp["join"] = map[string]any{"key_store": "hsm"} },
+		"bad repair duration":   func(sp map[string]any) { sp["repair"] = map[string]any{"after": "later"} },
+		"unknown repair field":  func(sp map[string]any) { sp["repair"] = map[string]any{"force": true} },
 		"two strategies in check": func(sp map[string]any) {
 			sp["policy"] = nodePolicySpec(map[string]any{"a": map[string]any{}, "b": map[string]any{}})
 		},
