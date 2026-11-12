@@ -170,6 +170,16 @@ func TestAutoscaler_BuiltinMetricFromClients(t *testing.T) {
 			if n := stored.TaskGroups[0].Count; n != 1 {
 				return fmt.Errorf("task group count is %d", n)
 			}
+			// Job.Scale writes the scaling event after the job and the
+			// evaluation, each in its own Raft write: the new count can
+			// be read before the event is there.
+			events, _, err := s.State().ScalingEventsByJob(nil, job.Namespace, job.ID)
+			if err != nil {
+				return err
+			}
+			if len(events[job.TaskGroups[0].Name]) == 0 {
+				return fmt.Errorf("no scaling event yet")
+			}
 			return nil
 		}),
 		wait.Timeout(60*time.Second),

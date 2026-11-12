@@ -89,6 +89,16 @@ func TestAutoscaler_ScalesThroughJobScale(t *testing.T) {
 		if c := out.TaskGroups[0].Count; c != 3 {
 			return false, fmt.Errorf("expected count 3, got %d", c)
 		}
+		// Job.Scale writes the scaling event after the job and the
+		// evaluation, each in its own Raft write: the new count can be
+		// read before the event is there.
+		events, _, err := state.ScalingEventsByJob(nil, job.Namespace, job.ID)
+		if err != nil {
+			return false, err
+		}
+		if len(events[job.TaskGroups[0].Name]) == 0 {
+			return false, fmt.Errorf("no scaling event yet")
+		}
 		return true, nil
 	}, func(err error) { must.NoError(t, err) })
 
