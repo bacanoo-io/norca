@@ -360,7 +360,9 @@ This is Norca's own design, not modelled on any audit log product (clean room, s
   `norca.cluster.autopilot_standbys_ready`, `norca.cluster.autopilot_standby_promotions` and
   `_demotions` (the `autopilot_` prefix keeps them under operator read); telemetry counters
   `nomad.autopilot.standby_promotions` and `_demotions` until the OpenTelemetry rename. Later phases:
-  `norca.backup.taken_by_observer` (phase 3); a per-server role gauge was not needed (the role is in
+  `norca.backup.taken_by_observer` (phase 3; in the metrics store since 2026-11-12 as the increase per
+  sample interval, the telemetry counter keeps the key `nomad.backup.taken_by_observer` until the
+  rename); a per-server role gauge was not needed (the role is in
   the Raft configuration and the health API).
 - Events: a `Server` topic event (`StandbyPromoted`, `StandbyDemoted`) on every standby promotion or
   demotion, published by the leader that sees the change in the autopilot state (not written to Raft,
