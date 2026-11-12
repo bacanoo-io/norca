@@ -38,8 +38,13 @@ import (
 //     voter-role voter first.
 //
 // The standby changes are at most one per round and keep a cooldown
-// (standby_cooldown) between them. Removal of failed servers is unchanged
-// (autopilot's dead server cleanup with MinQuorum).
+// (standby_cooldown) between them, counted from the change as it shows in
+// the state, not from the request for it: a change that was not applied is
+// asked for again in the next round.
+//
+// With a target, the dead server cleanup of autopilot leaves a failed voter
+// in the configuration until it has been unhealthy for the failover time
+// (FilterFailedServerRemovals); the other removals are unchanged (MinQuorum).
 type rolePromoter struct {
 	// now is time.Now, replaced in tests.
 	now    func() time.Time
@@ -47,14 +52,16 @@ type rolePromoter struct {
 
 	mu sync.Mutex
 
-	// lastStandbyChange is when the promoter last asked for a standby
-	// promotion or demotion (the cooldown).
+	// lastStandbyChange is when a standby promotion or demotion last showed
+	// in the state (the cooldown; observe).
 	lastStandbyChange time.Time
 
-	// skipCooldown makes the next standby promotion ignore the cooldown
-	// (manual failover); preferred names the standby it should choose.
-	skipCooldown bool
-	preferred    raft.ServerID
+	// manual is set by a manual failover until its promotion shows in the
+	// state or the request is withdrawn: the standby promotion does not
+	// wait for the cooldown nor for the failover time; preferred names the
+	// standby it should choose.
+	manual    bool
+	preferred raft.ServerID
 
 	// reasons keeps why the promoter asked for the change of a standby, for
 	// the event written when the change shows in the state (observe).
@@ -65,8 +72,10 @@ type rolePromoter struct {
 	voting map[raft.ServerID]bool
 
 	// lastWait is the last reason a due standby promotion did not happen,
-	// logged once per change.
+	// and lastHold the last reason a voter was not demoted for its role;
+	// each logged once per change.
 	lastWait string
+	lastHold string
 
 	// promotions and demotions count the standby changes seen by this
 	// server while it was the leader.
@@ -138,9 +147,44 @@ func (*rolePromoter) GetNodeTypes(_ *autopilot.Config, s *autopilot.State) map[r
 	return types
 }
 
-// FilterFailedServerRemovals leaves the removals to autopilot's own rules.
-func (*rolePromoter) FilterFailedServerRemovals(_ *autopilot.Config, _ *autopilot.State, failed *autopilot.FailedServers) *autopilot.FailedServers {
-	return failed
+// FilterFailedServerRemovals holds the removal of a failed voter back until
+// the voter has been unhealthy for the failover time, where standbys replace
+// voters (a target). Without it the dead server cleanup takes a voter out of
+// the configuration as soon as Serf reports it failed, the voters fall below
+// the target, and a standby is promoted at once: standby_failover_after
+// would not hold for the commonest failure, and a short outage would change
+// the voter set twice. Non-voters, and everything without a target, are
+// left to autopilot's own rules (MinQuorum).
+func (p *rolePromoter) FilterFailedServerRemovals(c *autopilot.Config, s *autopilot.State, failed *autopilot.FailedServers) *autopilot.FailedServers {
+	sc := standbyConfigOf(c)
+	if failed == nil || s == nil || sc.targetVoters == 0 {
+		return failed
+	}
+	now := p.now()
+	// due: unknown to the state or healthy there (autopilot decides), or
+	// unhealthy for the failover time.
+	due := func(id raft.ServerID) bool {
+		srv, ok := s.Servers[id]
+		if !ok || srv.Health.Healthy {
+			return true
+		}
+		return now.Sub(srv.Health.StableSince) >= sc.failoverAfter
+	}
+
+	out := *failed
+	out.StaleVoters = nil
+	for _, id := range failed.StaleVoters {
+		if due(id) {
+			out.StaleVoters = append(out.StaleVoters, id)
+		}
+	}
+	out.FailedVoters = nil
+	for _, srv := range failed.FailedVoters {
+		if srv == nil || due(srv.ID) {
+			out.FailedVoters = append(out.FailedVoters, srv)
+		}
+	}
+	return &out
 }
 
 // promoterView is the classification of the servers of one autopilot round.
@@ -240,8 +284,21 @@ func (p *rolePromoter) CalculatePromotionsAndDemotions(c *autopilot.Config, s *a
 		if len(v.voterRoleVoters) == 0 {
 			return changes
 		}
-		return demoteOrHandOver(s, &v, v.demote[0], changes)
+		// And keep a quorum: the voters that are left must have a healthy
+		// majority of their own. A voter restarted as an observer while
+		// another voter is down would otherwise leave one healthy voter of
+		// two, and the cluster without a leader.
+		for _, id := range v.demote {
+			if v.quorumWithout(s, id) {
+				p.lastHold = ""
+				return demoteOrHandOver(s, &v, id, changes)
+			}
+		}
+		p.hold(fmt.Sprintf("%d of %d voters are healthy: without %s the others would have no healthy majority",
+			v.healthyVoters, v.voters, v.demote[0]))
+		return changes
 	}
+	p.lastHold = ""
 
 	if sc.targetVoters > 0 {
 		if id, ok := p.standbyDemotion(sc, s, &v); ok {
@@ -249,6 +306,17 @@ func (p *rolePromoter) CalculatePromotionsAndDemotions(c *autopilot.Config, s *a
 		}
 	}
 	return changes
+}
+
+// quorumWithout reports whether the voters keep a healthy majority among
+// themselves when the voter id loses its vote.
+func (v *promoterView) quorumWithout(s *autopilot.State, id raft.ServerID) bool {
+	others := v.voters - 1
+	healthy := v.healthyVoters
+	if srv, ok := s.Servers[id]; ok && srv.Health.Healthy {
+		healthy--
+	}
+	return others > 0 && healthy >= others/2+1
 }
 
 // demoteOrHandOver demotes the voter, or, when it is the leader, moves the
@@ -272,12 +340,22 @@ func demoteOrHandOver(s *autopilot.State, v *promoterView, id raft.ServerID, cha
 // healthy voters are fewer than the target because a voter has been
 // unhealthy for the failover time or a voter is missing from the
 // configuration, no voter-role server is about to be promoted, the cooldown
-// has passed (or a manual failover asked to skip it), and a healthy, stable
-// and caught-up standby exists.
+// has passed, and a healthy, stable and caught-up standby exists. A manual
+// failover waits neither for the failover time nor for the cooldown: a
+// person has decided that the voter is lost.
+//
+// Nothing is noted as done here: the change counts when it shows in the
+// state (observe). Until then every round asks for it again, which is the
+// retry of a promotion that Raft did not apply.
 func (p *rolePromoter) standbyPromotion(sc *standbyConfig, s *autopilot.State, v *promoterView) (raft.ServerID, bool) {
 	if v.healthyVoters >= sc.targetVoters {
 		p.lastWait = ""
 		return "", false
+	}
+
+	failoverAfter := sc.failoverAfter
+	if p.manual {
+		failoverAfter = 0
 	}
 
 	// The voter to replace: the one unhealthy for the longest time beyond
@@ -287,7 +365,7 @@ func (p *rolePromoter) standbyPromotion(sc *standbyConfig, s *autopilot.State, v
 		if !srv.HasVotingRights() || srv.Health.Healthy {
 			continue
 		}
-		if v.now.Sub(srv.Health.StableSince) < sc.failoverAfter {
+		if v.now.Sub(srv.Health.StableSince) < failoverAfter {
 			continue
 		}
 		if failed == nil || srv.Health.StableSince.Before(failed.Health.StableSince) ||
@@ -311,7 +389,7 @@ func (p *rolePromoter) standbyPromotion(sc *standbyConfig, s *autopilot.State, v
 		p.wait("a voter-role server is about to be promoted")
 		return "", false
 	}
-	if !p.skipCooldown && !p.lastStandbyChange.IsZero() && v.now.Sub(p.lastStandbyChange) < sc.cooldown {
+	if !p.manual && !p.lastStandbyChange.IsZero() && v.now.Sub(p.lastStandbyChange) < sc.cooldown {
 		p.wait(fmt.Sprintf("standby cooldown until %s",
 			p.lastStandbyChange.Add(sc.cooldown).UTC().Format(time.RFC3339)))
 		return "", false
@@ -329,12 +407,12 @@ func (p *rolePromoter) standbyPromotion(sc *standbyConfig, s *autopilot.State, v
 		return "", false
 	}
 
-	p.lastStandbyChange = v.now
-	p.skipCooldown = false
-	p.preferred = ""
 	p.lastWait = ""
+	if _, asked := p.reasons[id]; !asked {
+		p.logger.Info("promoting standby", "standby", id, "replaces", replaced, "lag", lag, "reason", reason,
+			"manual", p.manual)
+	}
 	p.setReason(id, standbyReason{reason: reason, replaced: replaced})
-	p.logger.Info("promoting standby", "standby", id, "replaces", replaced, "lag", lag, "reason", reason)
 	return id, true
 }
 
@@ -406,11 +484,13 @@ func (p *rolePromoter) standbyDemotion(sc *standbyConfig, s *autopilot.State, v 
 		return "", false
 	}
 	if pick.Server.ID != s.Leader {
-		// A leader hands over first; the cooldown starts with the demotion.
+		// A leader hands over first; the cooldown starts when the demotion
+		// shows in the state.
 		reason := fmt.Sprintf("%d voters, target %d", v.voters, sc.targetVoters)
-		p.lastStandbyChange = v.now
+		if _, asked := p.reasons[pick.Server.ID]; !asked {
+			p.logger.Info("demoting standby", "standby", pick.Server.ID, "reason", reason)
+		}
 		p.setReason(pick.Server.ID, standbyReason{reason: reason})
-		p.logger.Info("demoting standby", "standby", pick.Server.ID, "reason", reason)
 	}
 	return pick.Server.ID, true
 }
@@ -424,6 +504,15 @@ func (p *rolePromoter) wait(why string) {
 	p.logger.Warn("standby promotion waits", "reason", why)
 }
 
+// hold logs once why a voter is not demoted for its role.
+func (p *rolePromoter) hold(why string) {
+	if p.lastHold == why {
+		return
+	}
+	p.lastHold = why
+	p.logger.Warn("role demotion waits", "reason", why)
+}
+
 func (p *rolePromoter) setReason(id raft.ServerID, r standbyReason) {
 	if p.reasons == nil {
 		p.reasons = make(map[raft.ServerID]standbyReason)
@@ -431,13 +520,14 @@ func (p *rolePromoter) setReason(id raft.ServerID, r standbyReason) {
 	p.reasons[id] = r
 }
 
-// requestManualPromotion makes the next standby promotion skip the cooldown
-// and choose the standby id when it qualifies (operator raft
-// promote-standby).
+// requestManualPromotion makes the standby promotion skip the cooldown and
+// the failover time and choose the standby id when it qualifies (operator
+// raft promote-standby), until the promotion shows in the state or the
+// request is withdrawn.
 func (p *rolePromoter) requestManualPromotion(id raft.ServerID) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.skipCooldown = true
+	p.manual = true
 	p.preferred = id
 }
 
@@ -446,7 +536,7 @@ func (p *rolePromoter) requestManualPromotion(id raft.ServerID) {
 func (p *rolePromoter) clearManualPromotion() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.skipCooldown = false
+	p.manual = false
 	p.preferred = ""
 }
 
@@ -460,7 +550,8 @@ func (p *rolePromoter) standbyCounts() (promotions, demotions uint64) {
 
 // observe compares the suffrage of the standbys with the last observed
 // state and reports every change through onChange. The first state seen in
-// a leadership is the baseline and reports nothing.
+// a leadership is the baseline and reports nothing. A change that shows
+// here starts the cooldown, and a promotion ends a manual request.
 func (p *rolePromoter) observe(s *autopilot.State) {
 	p.mu.Lock()
 	var events []*structs.ServerRoleEvent
@@ -490,9 +581,12 @@ func (p *rolePromoter) observe(s *autopilot.State) {
 			Reason:     r.reason,
 			Replaced:   string(r.replaced),
 		}
+		p.lastStandbyChange = p.now()
 		if votes {
 			p.promotions++
 			ev.Type = structs.TypeStandbyPromoted
+			p.manual = false
+			p.preferred = ""
 		} else {
 			p.demotions++
 			ev.Type = structs.TypeStandbyDemoted
@@ -519,6 +613,7 @@ func (p *rolePromoter) reset() {
 	p.voting = nil
 	p.reasons = nil
 	p.lastWait = ""
-	p.skipCooldown = false
+	p.lastHold = ""
+	p.manual = false
 	p.preferred = ""
 }

@@ -267,8 +267,9 @@ func TestRolePromoter_Standby(t *testing.T) {
 	}
 }
 
-// TestRolePromoter_StandbyCooldownAndManual checks that a promotion starts
-// the cooldown, and that a manual request skips it and chooses its standby.
+// TestRolePromoter_StandbyCooldownAndManual checks that a promotion that
+// shows in the state starts the cooldown, and that a manual request skips it
+// and chooses its standby.
 func TestRolePromoter_StandbyCooldownAndManual(t *testing.T) {
 	ci.Parallel(t)
 
@@ -279,16 +280,22 @@ func TestRolePromoter_StandbyCooldownAndManual(t *testing.T) {
 
 	leader := standbyServer{id: "a", state: autopilot.RaftLeader, role: "voter", index: 100}
 	voter := standbyServer{id: "b", state: autopilot.RaftVoter, role: "voter", index: 100}
-	state := standbyState("a", leader, voter,
-		standbyServer{id: "s1", state: autopilot.RaftNonVoter, role: "standby", index: 100},
-		standbyServer{id: "s2", state: autopilot.RaftNonVoter, role: "standby", index: 90})
+	s1 := standbyServer{id: "s1", state: autopilot.RaftNonVoter, role: "standby", index: 100}
+	s2 := standbyServer{id: "s2", state: autopilot.RaftNonVoter, role: "standby", index: 90}
+	state := standbyState("a", leader, voter, s1, s2)
+	p.observe(state)
 
 	changes := p.CalculatePromotionsAndDemotions(conf, state)
 	must.Eq(t, []raft.ServerID{"s1"}, changes.Promotions)
 
+	// The promotion shows in the state: the cooldown starts.
+	s1.state = autopilot.RaftVoter
+	p.observe(standbyState("a", leader, voter, s1, s2))
+
 	// Say s1 was lost again right away: the cooldown holds the next one.
 	now = now.Add(time.Minute)
-	delete(state.Servers, "s1")
+	state = standbyState("a", leader, voter, s2)
+	p.observe(state)
 	changes = p.CalculatePromotionsAndDemotions(conf, state)
 	must.SliceEmpty(t, changes.Promotions)
 
@@ -297,7 +304,12 @@ func TestRolePromoter_StandbyCooldownAndManual(t *testing.T) {
 	changes = p.CalculatePromotionsAndDemotions(conf, state)
 	must.Eq(t, []raft.ServerID{"s2"}, changes.Promotions)
 
-	// The request is used up: the cooldown applies again.
+	// Its promotion shows: the request is used up, and the cooldown applies
+	// again.
+	s2.state = autopilot.RaftVoter
+	state = standbyState("a", leader, s2,
+		standbyServer{id: "s3", state: autopilot.RaftNonVoter, role: "standby", index: 100})
+	p.observe(state)
 	changes = p.CalculatePromotionsAndDemotions(conf, state)
 	must.SliceEmpty(t, changes.Promotions)
 }

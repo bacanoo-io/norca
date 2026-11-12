@@ -182,7 +182,9 @@ Set Config Options:
 
   -standby-failover-after=<1m>
      How long a voter must be unhealthy before a standby server replaces
-     it. 0 is the default, 1m.
+     it. With target-voters set, the dead server cleanup leaves a failed
+     voter in the Raft configuration for the same time. 0 is the default,
+     1m.
 
   -target-voters=<value>
      The number of voters autopilot keeps with standby servers: 0, 1, 3,

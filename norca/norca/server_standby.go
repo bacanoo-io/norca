@@ -6,6 +6,7 @@ package norca
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	metrics "github.com/hashicorp/go-metrics"
@@ -22,8 +23,10 @@ var promoteStandbyTimeout = 30 * time.Second
 // RaftPromoteStandby is the manual failover to a standby server (clean room,
 // design raft-observers-and-hot-standby.md, section 6): after its checks it
 // removes the failed voter named by Replace from the Raft configuration and
-// lets autopilot promote the standby, without the cooldown. Autopilot stays
-// the only owner of the voter set; the call waits for the promotion.
+// lets autopilot promote the standby, without the cooldown and without the
+// failover time. Autopilot stays the only owner of the voter set; the call
+// waits for the promotion. Nothing is removed unless the promotion can
+// follow (manualPromotionBlocked).
 func (op *Operator) RaftPromoteStandby(args *structs.RaftPromoteStandbyRequest, reply *structs.RaftPromoteStandbyResponse) error {
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if done, err := op.srv.forward("Operator.RaftPromoteStandby", args, args, reply); done {
@@ -108,17 +111,10 @@ func (s *Server) promoteStandby(args *structs.RaftPromoteStandbyRequest) (*struc
 		case failed.Health.Healthy && failed.Server.NodeStatus == autopilot.NodeAlive && !args.Force:
 			return nil, badRequest("voter %q is healthy: use -force to replace it anyway", args.Replace)
 		}
-	} else {
-		healthy := 0
-		for _, srv := range state.Servers {
-			if srv.HasVotingRights() && srv.Health.Healthy {
-				healthy++
-			}
-		}
-		if healthy >= int(apConf.TargetVoters) {
-			return nil, badRequest("%d healthy voters meet target_voters %d: name the failed voter with -replace",
-				healthy, apConf.TargetVoters)
-		}
+	}
+	// Before anything is removed: would autopilot promote the standby?
+	if why := manualPromotionBlocked(state, int(apConf.TargetVoters), args.Replace); why != "" {
+		return nil, badRequest("%s", why)
 	}
 
 	s.rolePromoter.requestManualPromotion(args.ID)
@@ -159,6 +155,42 @@ func (s *Server) promoteStandby(args *structs.RaftPromoteStandbyRequest) (*struc
 			return nil, fmt.Errorf("server shutting down")
 		}
 	}
+}
+
+// manualPromotionBlocked tells why autopilot would not promote a standby
+// after a manual failover, "" when it would. replace, if set, is the voter
+// the failover removes first: it is asked before the removal, which can not
+// be taken back.
+//
+//   - The healthy voters, without the one that is replaced, still meet the
+//     target: the promoter promotes a standby only below it.
+//   - A healthy server with the voter role has no vote yet: the promoter
+//     gives it its vote first, and no standby while it waits.
+func manualPromotionBlocked(state *autopilot.State, target int, replace raft.ServerID) string {
+	healthy := 0
+	var pending []string
+	for id, srv := range state.Servers {
+		switch {
+		case srv.HasVotingRights():
+			if srv.Health.Healthy && id != replace {
+				healthy++
+			}
+		case serverRoleFromTag(srv.Server.Meta).Votes() && srv.Health.Healthy:
+			pending = append(pending, string(id))
+		}
+	}
+	switch {
+	case healthy >= target && replace == "":
+		return fmt.Sprintf("%d healthy voters meet target_voters %d: name the failed voter with -replace", healthy, target)
+	case healthy >= target:
+		return fmt.Sprintf("%d healthy voters without %q still meet target_voters %d, so no standby would be promoted "+
+			"and nothing is removed: take the server out with norca operator raft remove-peer", healthy, replace, target)
+	case len(pending) > 0:
+		sort.Strings(pending)
+		return fmt.Sprintf("server %q has the role voter and is about to get its vote: autopilot promotes it, "+
+			"not a standby; try again when it votes", pending[0])
+	}
+	return ""
 }
 
 // standbyChanged is called for every standby promotion or demotion seen by

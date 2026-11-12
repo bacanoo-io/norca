@@ -26,9 +26,14 @@ Usage: norca operator raft promote-standby -id <standby> [options]
   The leader checks that the server has the role "standby", is healthy and
   caught up, and that autopilot target_voters is set. With -replace it then
   removes the failed voter from the Raft configuration; autopilot promotes the
-  standby without waiting for the standby cooldown. Without -replace the
-  healthy voters must already be fewer than target_voters. The command waits
-  up to 30 seconds for the promotion and prints the new Raft configuration.
+  standby without waiting for the standby cooldown or for
+  standby_failover_after. Without -replace the healthy voters must already be
+  fewer than target_voters. The command waits up to 30 seconds for the
+  promotion and prints the new Raft configuration.
+
+  Nothing is removed unless the promotion can follow: the command refuses
+  when the healthy voters without the replaced one still meet target_voters,
+  and while a server with the role "voter" waits for its vote.
 
   Autopilot also promotes standbys on its own when a voter is unhealthy for
   standby_failover_after; this command is for a failover before that time,
