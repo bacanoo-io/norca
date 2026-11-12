@@ -14,9 +14,13 @@ const (
 	// built-in autoscaler.
 	TopicScaling Topic = "Scaling"
 
-	// ScaleDuringDeploymentUpOnly allows the built-in autoscaler to scale a
-	// group up while a deployment of its job is active.
+	// ScaleDuringDeploymentUpOnly allows scaling a group up while a
+	// deployment of its job is active, and ScaleDuringDeploymentNever holds
+	// every scaling of it until the deployment ends. A policy that sets
+	// neither is up_only for the built-in autoscaler and never for
+	// everything else.
 	ScaleDuringDeploymentUpOnly = "up_only"
+	ScaleDuringDeploymentNever  = "never"
 )
 
 // ScalingCheck is one check of a typed scaling policy of the built-in

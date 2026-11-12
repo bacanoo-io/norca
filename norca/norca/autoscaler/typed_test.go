@@ -143,29 +143,72 @@ func (h *harness) startDeployment(canaries bool) {
 
 func TestAutoscaler_NoScalingDuringDeployment(t *testing.T) {
 	ci.Parallel(t)
-	h := newHarness(t, structs.ScalingPolicyEngineBuiltin, targetValuePolicy(nil), nil)
+	h := newHarness(t, structs.ScalingPolicyEngineBuiltin, targetValuePolicy(map[string]interface{}{
+		"scale_during_deployment": "never",
+	}), nil)
 	h.startDeployment(false)
 
 	must.NoError(t, h.evaluate())
 	must.Len(t, 0, h.scaler.requests())
+	must.Eq(t, HoldDeployment, h.runner.status.get(h.policyID()).HoldReason)
 }
 
+// During a deployment a policy scales up and not down: by default, and when
+// it says so.
 func TestAutoscaler_ScaleUpOnlyDuringDeployment(t *testing.T) {
 	ci.Parallel(t)
-	h := newHarness(t, structs.ScalingPolicyEngineBuiltin, targetValuePolicy(map[string]interface{}{
-		"scale_during_deployment": "up_only",
-	}), nil)
-	h.startDeployment(false)
 
-	// Scaling up is allowed.
-	must.NoError(t, h.evaluate())
-	must.Len(t, 1, h.scaler.requests())
+	tests := []struct {
+		name   string
+		policy map[string]interface{}
+	}{
+		{name: "by default"},
+		{name: "up_only", policy: map[string]interface{}{"scale_during_deployment": "up_only"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, structs.ScalingPolicyEngineBuiltin, targetValuePolicy(tt.policy), nil)
+			h.startDeployment(false)
 
-	// Scaling down is not.
-	h.clock.Advance(2 * time.Minute)
-	h.apm.value = 1
-	must.NoError(t, h.evaluate())
-	must.Len(t, 1, h.scaler.requests())
+			// Scaling up is allowed.
+			must.NoError(t, h.evaluate())
+			must.Len(t, 1, h.scaler.requests())
+
+			// Scaling down is not.
+			h.clock.Advance(2 * time.Minute)
+			h.apm.value = 1
+			must.NoError(t, h.evaluate())
+			must.Len(t, 1, h.scaler.requests())
+			must.Eq(t, HoldDeployment, h.runner.status.get(h.policyID()).HoldReason)
+		})
+	}
+}
+
+func TestScaleDuringDeployment(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name     string
+		policy   *structs.ScalingPolicy
+		isOwn    bool
+		expected string
+	}{
+		{name: "the built-in autoscaler scales up by default", policy: &structs.ScalingPolicy{}, isOwn: true,
+			expected: structs.ScaleDuringDeploymentUpOnly},
+		{name: "nobody else does", policy: &structs.ScalingPolicy{}, expected: structs.ScaleDuringDeploymentNever},
+		{name: "a nil policy sets nothing", isOwn: true, expected: structs.ScaleDuringDeploymentUpOnly},
+		{name: "never holds the built-in autoscaler",
+			policy: &structs.ScalingPolicy{ScaleDuringDeployment: structs.ScaleDuringDeploymentNever}, isOwn: true,
+			expected: structs.ScaleDuringDeploymentNever},
+		{name: "up_only is for everyone",
+			policy:   &structs.ScalingPolicy{ScaleDuringDeployment: structs.ScaleDuringDeploymentUpOnly},
+			expected: structs.ScaleDuringDeploymentUpOnly},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			must.Eq(t, tt.expected, ScaleDuringDeployment(tt.policy, tt.isOwn))
+		})
+	}
 }
 
 func TestAutoscaler_NoScalingWithUnpromotedCanary(t *testing.T) {

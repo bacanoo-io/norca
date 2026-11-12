@@ -176,24 +176,40 @@ func TestScaleBlockedByDeployment(t *testing.T) {
 	}
 
 	// No or an inactive deployment never blocks.
-	must.False(t, scaleBlockedByDeployment(nil, job, tg, 2, 3))
+	must.False(t, scaleBlockedByDeployment(nil, job, tg, 2, 3, false))
 	done := active(false)
 	done.Status = structs.DeploymentStatusSuccessful
-	must.False(t, scaleBlockedByDeployment(done, job, tg, 2, 3))
+	must.False(t, scaleBlockedByDeployment(done, job, tg, 2, 3, false))
 
-	// By default an active deployment blocks scaling.
-	must.True(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3))
+	// By default an active deployment blocks a scale that is not the
+	// built-in autoscaler's own.
+	must.True(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3, false))
 
-	// up_only allows scaling up, but not down and not with canaries.
+	// The built-in autoscaler's own may scale up by default, but not down
+	// and not with canaries.
+	must.False(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3, true))
+	must.True(t, scaleBlockedByDeployment(active(false), job, tg, 2, 1, true))
+	must.True(t, scaleBlockedByDeployment(active(true), job, tg, 2, 3, true))
+
+	// never in the policy holds it too.
+	tg.Scaling.ScaleDuringDeployment = structs.ScaleDuringDeploymentNever
+	must.True(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3, true))
+
+	// up_only allows everyone to scale up, but not down and not with
+	// canaries.
 	tg.Scaling.ScaleDuringDeployment = structs.ScaleDuringDeploymentUpOnly
-	must.False(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3))
-	must.True(t, scaleBlockedByDeployment(active(false), job, tg, 2, 1))
-	must.True(t, scaleBlockedByDeployment(active(true), job, tg, 2, 3))
+	must.False(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3, false))
+	must.True(t, scaleBlockedByDeployment(active(false), job, tg, 2, 1, false))
+	must.True(t, scaleBlockedByDeployment(active(true), job, tg, 2, 3, false))
 
 	// Policies stored with only the document are understood too.
 	tg.Scaling.ScaleDuringDeployment = ""
 	tg.Scaling.Policy = map[string]interface{}{"scale_during_deployment": "up_only"}
-	must.False(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3))
+	must.False(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3, false))
+
+	// A group without a policy is never scaled during a deployment.
+	tg.Scaling = nil
+	must.True(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3, true))
 }
 
 func TestKeepScaledCounts(t *testing.T) {

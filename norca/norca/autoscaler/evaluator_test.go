@@ -614,6 +614,7 @@ func TestRunner_Evaluate_Status(t *testing.T) {
 		},
 		{
 			name:            "held by a deployment",
+			policy:          map[string]interface{}{"scale_during_deployment": "never"},
 			setup:           func(h *harness) { h.startDeployment(false) },
 			expectedOutcome: OutcomeHeld,
 			expectedHold:    HoldDeployment,

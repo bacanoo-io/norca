@@ -80,6 +80,27 @@ func TypedPolicy(p *structs.ScalingPolicy) (*structs.ScalingPolicy, error) {
 	return tp, err
 }
 
+// ScaleDuringDeployment returns what applies to scaling a task group while a
+// deployment of its job is active: what its policy says, and when the policy
+// says nothing, up_only for the built-in autoscaler scaling a policy of its
+// own engine (isOwn) and never for everything else: a policy of the external
+// engine, a scale by hand.
+//
+// The built-in autoscaler may scale up by default because scaling is not a
+// new version of the job (state.ScaleJob): the deployment that runs goes on
+// and takes the allocations that are added. A load that grows during a
+// rollout is the common case, and a group held at its count for the length
+// of the rollout is what the policy is there to prevent.
+func ScaleDuringDeployment(tp *structs.ScalingPolicy, isOwn bool) string {
+	switch {
+	case tp != nil && tp.ScaleDuringDeployment != "":
+		return tp.ScaleDuringDeployment
+	case isOwn:
+		return structs.ScaleDuringDeploymentUpOnly
+	}
+	return structs.ScaleDuringDeploymentNever
+}
+
 // ValidatePolicy validates a task group scaling policy of the builtin engine
 // against the configuration of the built-in autoscaler. It is used at job
 // submission (job plan and job run) and before a policy is evaluated.

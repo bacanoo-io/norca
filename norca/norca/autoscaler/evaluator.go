@@ -458,7 +458,12 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 	// timeout, and for which node scaling says none is coming, is not
 	// scaled up further: the count would only grow away from what runs.
 	// (The same timeout ends the hold of its scale downs above.)
-	if action.Direction == sdk.ScaleDirectionUp && !isSettled && unsettledFor >= r.cfg.SettleTimeout {
+	//
+	// During a deployment there is no wait: the allocations a scale up adds
+	// are part of the deployment, which fails at its progress deadline if
+	// they are never placed. Work of the target that already waits for
+	// capacity nothing adds is reason enough not to add to it.
+	if action.Direction == sdk.ScaleDirectionUp && !isSettled && (unsettledFor >= r.cfg.SettleTimeout || t.deploymentActive) {
 		if reason := r.capacity.unhelped(c.key); reason != "" {
 			metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "capacity"}, 1)
 			logger.Debug("skipping scale up, no capacity is coming for the target", "reason", reason,

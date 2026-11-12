@@ -1177,7 +1177,8 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 			return err
 		}
 
-		if scaleBlockedByDeployment(deployment, job, group, prevCount, *args.Count) {
+		isOwn := isAutoscalerScaling(group, args, j.srv.autoscalerDefaultEngine())
+		if scaleBlockedByDeployment(deployment, job, group, prevCount, *args.Count, isOwn) {
 			return structs.NewErrRPCCoded(400, "job scaling blocked due to active deployment")
 		}
 

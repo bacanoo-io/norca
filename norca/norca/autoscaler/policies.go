@@ -281,6 +281,6 @@ func (r *runner) compile(p *structs.ScalingPolicy) (*compiledPolicy, error) {
 		checkRunners: runners,
 		schedule:     schedule,
 
-		scaleDuringDeployment: tp.ScaleDuringDeployment,
+		scaleDuringDeployment: ScaleDuringDeployment(tp, true),
 	}, nil
 }

@@ -88,13 +88,22 @@ func (s *Server) autoscalerConfig() *autoscaler.Config {
 	return autoscaler.DefaultConfig()
 }
 
+// isAutoscalerScaling reports whether a request to scale the group is the
+// built-in autoscaler's own, for a policy of its engine.
+func isAutoscalerScaling(group *structs.TaskGroup, args *structs.JobScaleRequest, defaultEngine string) bool {
+	return autoscaler.IsOwnScaling(args.Meta) && group.Scaling != nil &&
+		autoscaler.PolicyEngine(group.Scaling, defaultEngine) == structs.ScalingPolicyEngineBuiltin
+}
+
 // scaleBlockedByDeployment reports whether an active deployment of the job
 // blocks scaling the group from prev to count. Scaling is blocked during an
-// active deployment, except scaling up when the group's policy allows it
-// with scale_during_deployment = "up_only" and no canary waits for
-// promotion.
+// active deployment, except scaling up when scale_during_deployment of the
+// group's policy is "up_only" and no canary waits for promotion. A policy
+// that does not set it allows the built-in autoscaler's own scaling of a
+// policy of its engine (isOwn) to scale up, and nothing else
+// (autoscaler.ScaleDuringDeployment).
 func scaleBlockedByDeployment(deployment *structs.Deployment, job *structs.Job,
-	group *structs.TaskGroup, prev, count int64) bool {
+	group *structs.TaskGroup, prev, count int64, isOwn bool) bool {
 
 	if deployment == nil || !deployment.Active() || deployment.JobCreateIndex != job.CreateIndex {
 		return false
@@ -104,7 +113,8 @@ func scaleBlockedByDeployment(deployment *structs.Deployment, job *structs.Job,
 	}
 	// Policies stored before the typed policy existed only have the
 	// untyped document.
-	if p, _ := autoscaler.TypedPolicy(group.Scaling); p.ScaleDuringDeployment != structs.ScaleDuringDeploymentUpOnly {
+	p, _ := autoscaler.TypedPolicy(group.Scaling)
+	if autoscaler.ScaleDuringDeployment(p, isOwn) != structs.ScaleDuringDeploymentUpOnly {
 		return true
 	}
 	for _, ds := range deployment.TaskGroups {

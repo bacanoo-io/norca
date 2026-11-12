@@ -104,6 +104,7 @@ func TestRunner_Evaluate_CapacityHold(t *testing.T) {
 	tests := []struct {
 		name            string
 		isUnhelped      bool
+		isDeploying     bool
 		wait            time.Duration
 		expectedOutcome string
 		expectedHold    string
@@ -113,6 +114,12 @@ func TestRunner_Evaluate_CapacityHold(t *testing.T) {
 		{name: "no capacity is coming, before the settle timeout", isUnhelped: true, wait: time.Minute,
 			expectedOutcome: OutcomeScaled},
 		{name: "capacity is coming", isUnhelped: false, wait: 2 * time.Minute,
+			expectedOutcome: OutcomeScaled},
+		// The allocations a scale up adds to a deployment are part of it,
+		// and the deployment fails if they are never placed: no wait.
+		{name: "no capacity is coming, during a deployment", isUnhelped: true, isDeploying: true, wait: time.Minute,
+			expectedOutcome: OutcomeHeld, expectedHold: HoldCapacity},
+		{name: "capacity is coming, during a deployment", isUnhelped: false, isDeploying: true, wait: time.Minute,
 			expectedOutcome: OutcomeScaled},
 	}
 
@@ -130,6 +137,9 @@ func TestRunner_Evaluate_CapacityHold(t *testing.T) {
 			h.addAlloc(structs.AllocClientStatusPending)
 			if tt.isUnhelped {
 				h.runner.capacity.replace(map[targetKey]string{key: "the pool is at its maximum"})
+			}
+			if tt.isDeploying {
+				h.startDeployment(false)
 			}
 
 			// The group is seen unsettled now; the policy is evaluated

@@ -19,10 +19,12 @@ const (
 	ScalingOnErrorFail   = "fail"
 	ScalingOnErrorIgnore = "ignore"
 
-	// ScaleDuringDeploymentNever (the default) blocks scaling while a
-	// deployment of the job is active. ScaleDuringDeploymentUpOnly allows
-	// scaling up during an active deployment, but not scaling down and not
-	// while canaries wait for promotion.
+	// ScaleDuringDeploymentNever blocks scaling while a deployment of the
+	// job is active. ScaleDuringDeploymentUpOnly allows scaling up during
+	// an active deployment, but not scaling down and not while canaries
+	// wait for promotion. A policy that sets neither is up_only for the
+	// built-in autoscaler and never for everything else
+	// (autoscaler.ScaleDuringDeployment).
 	ScaleDuringDeploymentNever  = "never"
 	ScaleDuringDeploymentUpOnly = "up_only"
 )
