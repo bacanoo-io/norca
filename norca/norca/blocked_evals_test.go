@@ -343,11 +343,18 @@ func TestBlockedEvals_UnblockEligible_IncidentalQuota(t *testing.T) {
 	// but not due to quota.
 	must.Eq(t, 0, blockedStats.TotalQuotaLimit)
 
-	// When unblocking, the quota name from the alloc is passed in,
-	// regardless of the cause of the initial blockage.
-	// Since the initial block in this test was due to something else,
-	// it should be unblocked without regard to quota.
+	// A change of the quota alone makes no room on a node: the eval, which
+	// waits for something else, stays blocked.
 	blocked.UnblockQuota("foo", 1000)
+	time.Sleep(100 * time.Millisecond)
+	must.Eq(t, 0, broker.Stats().TotalReady)
+	must.Eq(t, 1, blocked.Stats().TotalBlocked)
+
+	// When an allocation stops on a node, the class of the node comes with
+	// the quota of the allocation, regardless of the cause of the initial
+	// blockage. Since the initial block in this test was due to something
+	// else, it is unblocked without regard to quota.
+	blocked.UnblockClassAndQuota("v1:123", "foo", 1001)
 	requireBlockedEvalsEnqueued(t, blocked, broker, 1)
 }
 

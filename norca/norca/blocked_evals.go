@@ -585,6 +585,13 @@ func (b *BlockedEvals) unblock(computedClass, quota string, index uint64) {
 			// We are unblocking based on quota and this eval doesn't match
 			continue
 		}
+		if quotaOnly && wrapped.eval.QuotaLimitReached != quota {
+			// A change of the quota alone made no room on a node: an
+			// eval that waits for a node has nothing new to try. Every
+			// plan that stops an allocation in a namespace with a quota
+			// comes here, and ran all of them again.
+			continue
+		}
 		if elig, ok := wrapped.eval.ClassEligibility[computedClass]; ok && !elig {
 			// Can skip because the eval has explicitly marked the node class
 			// as ineligible.
