@@ -23,6 +23,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// resetTimeTable empties the time table of a running server, leaving the
+// given number of zero entries in it. The FSM of the server writes the table
+// on every Raft apply (TimeTable.Witness), so it is changed under its lock.
+func resetTimeTable(tt *TimeTable, entries int) {
+	tt.l.Lock()
+	defer tt.l.Unlock()
+	tt.table = make([]TimeTableEntry, entries, 10)
+}
+
 func TestCoreScheduler_EvalGC(t *testing.T) {
 	ci.Parallel(t)
 
@@ -31,7 +40,7 @@ func TestCoreScheduler_EvalGC(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert "dead" eval
 	store := s1.fsm.State()
@@ -124,7 +133,7 @@ func TestCoreScheduler_EvalGC_ReschedulingAllocs(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert "dead" eval
 	store := s1.fsm.State()
@@ -228,7 +237,7 @@ func TestCoreScheduler_EvalGC_StoppedJob_Reschedulable(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert "dead" eval
 	store := s1.fsm.State()
@@ -308,7 +317,7 @@ func TestCoreScheduler_EvalGC_Batch(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 2, 10)
+	resetTimeTable(s1.fsm.timetable, 2)
 
 	var jobModifyIdx uint64 = 1000
 
@@ -583,7 +592,7 @@ func TestCoreScheduler_EvalGC_Batch(t *testing.T) {
 	)
 
 	// Update the time tables so that BatchEvalGCThreshold has elapsed.
-	s1.fsm.timetable.table = make([]TimeTableEntry, 2, 10)
+	resetTimeTable(s1.fsm.timetable, 2)
 	tt = s1.fsm.TimeTable()
 	tt.Witness(2*jobModifyIdx, time.Now().UTC().Add(-1*s1.config.BatchEvalGCThreshold))
 
@@ -622,7 +631,7 @@ func TestCoreScheduler_EvalGC_Partial(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert "dead" eval
 	store := s1.fsm.State()
@@ -746,7 +755,7 @@ func TestCoreScheduler_EvalGC_Force(t *testing.T) {
 			testutil.WaitForLeader(t, server.RPC)
 
 			// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-			server.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+			resetTimeTable(server.fsm.timetable, 1)
 
 			// Insert "dead" eval
 			store := server.fsm.State()
@@ -829,7 +838,7 @@ func TestCoreScheduler_NodeGC(t *testing.T) {
 			testutil.WaitForLeader(t, server.RPC)
 
 			// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-			server.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+			resetTimeTable(server.fsm.timetable, 1)
 
 			// Insert "dead" node
 			store := server.fsm.State()
@@ -879,7 +888,7 @@ func TestCoreScheduler_NodeGC_TerminalAllocs(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert "dead" node
 	store := s1.fsm.State()
@@ -935,7 +944,7 @@ func TestCoreScheduler_NodeGC_RunningAllocs(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert "dead" node
 	store := s1.fsm.State()
@@ -993,7 +1002,7 @@ func TestCoreScheduler_NodeGC_Force(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert "dead" node
 	store := s1.fsm.State()
@@ -1037,7 +1046,7 @@ func TestCoreScheduler_JobGC_OutstandingEvals(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert job.
 	store := s1.fsm.State()
@@ -1161,7 +1170,7 @@ func TestCoreScheduler_JobGC_OutstandingAllocs(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert job.
 	store := s1.fsm.State()
@@ -1307,7 +1316,7 @@ func TestCoreScheduler_JobGC_OneShot(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert job.
 	store := s1.fsm.State()
@@ -1420,7 +1429,7 @@ func TestCoreScheduler_JobGC_Stopped(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert job.
 	store := s1.fsm.State()
@@ -1528,7 +1537,7 @@ func TestCoreScheduler_JobGC_Force(t *testing.T) {
 			testutil.WaitForLeader(t, server.RPC)
 
 			// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-			server.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+			resetTimeTable(server.fsm.timetable, 1)
 
 			// Insert job.
 			store := server.fsm.State()
@@ -1593,7 +1602,7 @@ func TestCoreScheduler_JobGC_Parameterized(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert a parameterized job.
 	store := s1.fsm.State()
@@ -1673,7 +1682,7 @@ func TestCoreScheduler_JobGC_Periodic(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert a parameterized job.
 	store := s1.fsm.State()
@@ -1748,7 +1757,7 @@ func TestCoreScheduler_DeploymentGC(t *testing.T) {
 	assert := assert.New(t)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Insert an active, terminal, and terminal with allocations deployment
 	store := s1.fsm.State()
@@ -1806,7 +1815,7 @@ func TestCoreScheduler_DeploymentGC_Force(t *testing.T) {
 			assert := assert.New(t)
 
 			// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-			server.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+			resetTimeTable(server.fsm.timetable, 1)
 
 			// Insert terminal and active deployment
 			store := server.fsm.State()
@@ -1844,7 +1853,7 @@ func TestCoreScheduler_PartitionEvalReap(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Create a core scheduler
 	snap, err := s1.fsm.State().Snapshot()
@@ -1886,7 +1895,7 @@ func TestCoreScheduler_PartitionDeploymentReap(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 
 	// COMPAT Remove in 0.6: Reset the FSM time table since we reconcile which sets index 0
-	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(s1.fsm.timetable, 1)
 
 	// Create a core scheduler
 	snap, err := s1.fsm.State().Snapshot()
@@ -2194,7 +2203,7 @@ func TestCoreScheduler_CSIPluginGC(t *testing.T) {
 	defer cleanupSRV()
 	testutil.WaitForLeader(t, srv.RPC)
 
-	srv.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(srv.fsm.timetable, 1)
 
 	deleteNodes := state.CreateTestCSIPlugin(srv.fsm.State(), "foo")
 	defer deleteNodes()
@@ -2458,7 +2467,7 @@ func TestCoreScheduler_RootKeyGC(t *testing.T) {
 	testutil.WaitForLeader(t, srv.RPC)
 
 	// reset the time table
-	srv.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+	resetTimeTable(srv.fsm.timetable, 1)
 
 	// active key, will never be GC'd
 	store := srv.fsm.State()
