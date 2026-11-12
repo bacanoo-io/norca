@@ -24,11 +24,12 @@ import (
 // LoadBalancer operator pack installs.
 const loadBalancerKindRef = "norca.io/LoadBalancer"
 
-// serverEventCounters count the security events and the RPC requests of this
-// server.
+// serverEventCounters count the security events, the backups an observer
+// took for this server and the RPC requests of this server.
 type serverEventCounters struct {
 	admissionDenied    atomic.Uint64
 	certificatesIssued atomic.Uint64
+	backupsByObserver  atomic.Uint64
 
 	// rpcRequests are the RPC requests the server handled, from the network
 	// and in process; rpcErrors those of them answered with an error or that
@@ -101,6 +102,7 @@ type controlPlaneValues struct {
 	// admission webhook by name.
 	certificatesIssued uint64
 	admissionDenied    uint64
+	backupsByObserver  uint64
 	webhooks           map[string][2]uint64
 
 	// store is the status of the metrics store of this server.
@@ -114,6 +116,7 @@ func (s *Server) controlPlaneValues() controlPlaneValues {
 		leader:             s.IsLeader(),
 		certificatesIssued: s.metricsCounters.certificatesIssued.Load(),
 		admissionDenied:    s.metricsCounters.admissionDenied.Load(),
+		backupsByObserver:  s.metricsCounters.backupsByObserver.Load(),
 	}
 	if v.leader {
 		if s.evalBroker != nil {
@@ -187,6 +190,8 @@ func controlPlaneGauges(v controlPlaneValues, counters *counterSampler) []metric
 		counters.increase(metricsstore.MetricSecurityCertificatesIssued, v.certificatesIssued))
 	add(metricsstore.MetricSecurityAdmissionDenied,
 		counters.increase(metricsstore.MetricSecurityAdmissionDenied, v.admissionDenied))
+	add(metricsstore.MetricBackupTakenByObserver,
+		counters.increase(metricsstore.MetricBackupTakenByObserver, v.backupsByObserver))
 	names := make([]string, 0, len(v.webhooks))
 	for name := range v.webhooks {
 		names = append(names, name)

@@ -57,6 +57,10 @@ type Deps struct {
 	// ID. Any other error leaves it open whether an observer still uploads.
 	Delegate func(ctx context.Context, req *DelegateRequest) (*structs.BackupRecord, error)
 
+	// TakenByObserver, if set, is called when the leader finishes a backup
+	// that an observer took.
+	TakenByObserver func()
+
 	// ServersReady reports whether every server runs a Norca version that
 	// knows the backup Raft messages.
 	ServersReady func() bool
@@ -497,6 +501,9 @@ func (m *Manager) delegate(ctx context.Context, cfg *Config, dests []Destination
 		return nil, false, nil
 	}
 	metrics.IncrCounter([]string{"nomad", "backup", "taken_by_observer"}, 1)
+	if m.deps.TakenByObserver != nil {
+		m.deps.TakenByObserver()
+	}
 	record, err = m.finish(ctx, cfg, dests, record)
 	return record, true, err
 }

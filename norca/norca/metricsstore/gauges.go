@@ -129,10 +129,13 @@ const (
 	// The backups: the age of the newest usable backup in seconds (no
 	// series before the first one), and the size of its state object in
 	// bytes and its upload time in seconds on each destination (label
-	// destination).
-	MetricBackupLastSuccessAge = "norca.backup.last_success_age_seconds"
-	MetricBackupSize           = "norca.backup.size_bytes"
-	MetricBackupDuration       = "norca.backup.duration_seconds"
+	// destination); the backups an observer took for the leader (backup
+	// prefer_observer), as the increase in the sample interval on the
+	// sampling server.
+	MetricBackupLastSuccessAge  = "norca.backup.last_success_age_seconds"
+	MetricBackupSize            = "norca.backup.size_bytes"
+	MetricBackupDuration        = "norca.backup.duration_seconds"
+	MetricBackupTakenByObserver = "norca.backup.taken_by_observer"
 
 	// Security events, as the increase in the sample interval on the
 	// sampling server: workload certificates issued by the mTLS
@@ -355,6 +358,7 @@ var gaugeLabels = map[string][]string{
 	MetricBackupLastSuccessAge:       {},
 	MetricBackupSize:                 {"destination"},
 	MetricBackupDuration:             {"destination"},
+	MetricBackupTakenByObserver:      {},
 	MetricSecurityCertificatesIssued: {},
 	MetricSecurityAdmissionDenied:    {},
 	MetricSecurityWebhookCalls:       {"webhook"},

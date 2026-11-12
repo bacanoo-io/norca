@@ -55,6 +55,7 @@ func TestMetricsStore_ControlPlaneGauges(t *testing.T) {
 
 		certificatesIssued: 10,
 		admissionDenied:    4,
+		backupsByObserver:  2,
 		webhooks:           map[string][2]uint64{"policy": {20, 3}},
 		store:              &metricsstore.Status{DiskBytes: 4096, Series: 120, DroppedReports: 5},
 	}
@@ -80,6 +81,7 @@ func TestMetricsStore_ControlPlaneGauges(t *testing.T) {
 		metricsstore.MetricAutoscalerSuspended:               2,
 		metricsstore.MetricSecurityCertificatesIssued:        10,
 		metricsstore.MetricSecurityAdmissionDenied:           4,
+		metricsstore.MetricBackupTakenByObserver:             2,
 		metricsstore.MetricSecurityWebhookCalls + "/policy":  20,
 		metricsstore.MetricSecurityWebhookErrors + "/policy": 3,
 		metricsstore.MetricStoreDiskBytes:                    4096,
@@ -89,11 +91,13 @@ func TestMetricsStore_ControlPlaneGauges(t *testing.T) {
 
 	// The next sample has the increase of the counters since the last one.
 	values.certificatesIssued = 13
+	values.backupsByObserver = 3
 	values.webhooks = map[string][2]uint64{"policy": {21, 3}}
 	values.store = &metricsstore.Status{DiskBytes: 8192, Series: 122, DroppedReports: 5}
 	got = gaugeValues(controlPlaneGauges(values, &counters))
 	must.Eq(t, 3.0, got[metricsstore.MetricSecurityCertificatesIssued])
 	must.Eq(t, 0.0, got[metricsstore.MetricSecurityAdmissionDenied])
+	must.Eq(t, 1.0, got[metricsstore.MetricBackupTakenByObserver])
 	must.Eq(t, 1.0, got[metricsstore.MetricSecurityWebhookCalls+"/policy"])
 	must.Eq(t, 0.0, got[metricsstore.MetricSecurityWebhookErrors+"/policy"])
 	must.Eq(t, 0.0, got[metricsstore.MetricStoreDroppedReports])

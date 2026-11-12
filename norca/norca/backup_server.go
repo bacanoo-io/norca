@@ -30,6 +30,7 @@ func (s *Server) setupBackup() {
 		AuthoritativeRegion: s.config.AuthoritativeRegion,
 		ServerName:          s.config.NodeName,
 		Delegate:            s.delegateBackup,
+		TakenByObserver:     func() { s.metricsCounters.backupsByObserver.Add(1) },
 		ServersReady: func() bool {
 			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
 		},

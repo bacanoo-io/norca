@@ -102,6 +102,7 @@ func TestBackup_TakenByObserver(t *testing.T) {
 
 	record := save()
 	must.Eq(t, s2.config.NodeName, record.TakenBy)
+	must.Eq(t, 1, s1.metricsCounters.backupsByObserver.Load())
 	stored, err := s1.State().BackupByID(nil, record.ID)
 	must.NoError(t, err)
 	must.Eq(t, s2.config.NodeName, stored.TakenBy)
@@ -133,4 +134,5 @@ func TestBackup_TakenByObserver(t *testing.T) {
 	}, func(err error) { must.NoError(t, err) })
 	record = save()
 	must.Eq(t, s1.config.NodeName, record.TakenBy)
+	must.Eq(t, 1, s1.metricsCounters.backupsByObserver.Load())
 }
