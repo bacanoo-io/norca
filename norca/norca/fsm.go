@@ -1965,6 +1965,11 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case AutopilotConfigSnapshot:
+			if err := restoreAutopilotConfigSnapshot(restore, dec); err != nil {
+				return err
+			}
+
 		case SecretSnapshot:
 			if err := restoreSecretSnapshot(restore, dec); err != nil {
 				return err
@@ -2579,6 +2584,10 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistSealConfig(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistAutopilotConfig(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}

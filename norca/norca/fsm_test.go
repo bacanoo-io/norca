@@ -2797,6 +2797,45 @@ func TestFSM_SnapshotRestore_SchedulerConfiguration(t *testing.T) {
 	require.Equal(schedConfig, out)
 }
 
+// The autopilot configuration is in the snapshot: a server that restores
+// one has what was set with operator autopilot set-config, the standby
+// settings among it, and does not make a new one from its agent
+// configuration when it becomes the leader.
+func TestFSM_SnapshotRestore_AutopilotConfig(t *testing.T) {
+	ci.Parallel(t)
+
+	fsm := testFSM(t)
+	state := fsm.State()
+	config := &structs.AutopilotConfig{
+		CleanupDeadServers:      true,
+		LastContactThreshold:    200 * time.Millisecond,
+		MaxTrailingLogs:         250,
+		MinQuorum:               3,
+		ServerStabilizationTime: 10 * time.Second,
+		TargetVoters:            3,
+		StandbyFailoverAfter:    30 * time.Second,
+		StandbyCooldown:         2 * time.Minute,
+	}
+	must.NoError(t, state.AutopilotSetConfig(1000, config))
+	must.NoError(t, state.AutopilotSetConfig(1200, config.Copy()))
+
+	fsm2 := testSnapshotRestore(t, fsm)
+	index, out, err := fsm2.State().AutopilotConfig()
+	must.NoError(t, err)
+	must.Eq(t, uint64(1200), index)
+	must.NotNil(t, out)
+	must.Eq(t, uint(3), out.TargetVoters)
+	must.Eq(t, 30*time.Second, out.StandbyFailoverAfter)
+	must.Eq(t, 2*time.Minute, out.StandbyCooldown)
+	must.Eq(t, uint64(1000), out.CreateIndex)
+	must.Eq(t, uint64(1200), out.ModifyIndex)
+
+	// Without a configuration nothing is written, and nothing restored.
+	_, none, err := testSnapshotRestore(t, testFSM(t)).State().AutopilotConfig()
+	must.NoError(t, err)
+	must.Nil(t, none)
+}
+
 func TestFSM_SnapshotRestore_ClusterMetadata(t *testing.T) {
 	ci.Parallel(t)
 
