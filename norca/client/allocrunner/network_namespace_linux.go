@@ -13,10 +13,12 @@ import (
 	"github.com/vishvananda/netns"
 )
 
-// namespaceConfigured reports whether the network namespace at path has an
-// interface besides the loopback one. A namespace that was configured for an
-// alloc has at least the interface of its network (eth0 of the bridge); a new
-// one has only lo.
+// namespaceConfigured reports whether the network of an alloc was set up in
+// the network namespace at path: whether it has an interface that says so
+// (isConfiguredInterface). A namespace that was configured for an alloc has
+// at least the interface of its network (eth0 of the bridge), up and with
+// its address; a new one has lo, and the fallback tunnel devices of the
+// kernel where their modules are loaded.
 func namespaceConfigured(path string) (bool, error) {
 	ns, err := netns.GetFromPath(path)
 	if err != nil {
@@ -35,7 +37,15 @@ func namespaceConfigured(path string) (bool, error) {
 		return false, fmt.Errorf("listing the interfaces of the namespace: %w", err)
 	}
 	for _, link := range links {
-		if link.Attrs().Flags&net.FlagLoopback == 0 {
+		flags := link.Attrs().Flags
+		if flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := handle.AddrList(link, netlink.FAMILY_ALL)
+		if err != nil {
+			return false, fmt.Errorf("listing the addresses of %s in the namespace: %w", link.Attrs().Name, err)
+		}
+		if isConfiguredInterface(flags, len(addrs)) {
 			return true, nil
 		}
 	}
