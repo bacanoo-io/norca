@@ -122,7 +122,40 @@ func (c *ObjectKindWebhookApproveCommand) Run(args []string) int {
 		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
 		return 1
 	}
-	if _, _, err := client.ObjectKinds().ApproveWebhook(group, kind, args[1], c.revoke, nil); err != nil {
+	if c.revoke {
+		if _, _, err := client.ObjectKinds().ApproveWebhook(group, kind, args[1], true, nil); err != nil {
+			c.Ui.Error(fmt.Sprintf("Error updating the webhook approval: %s", err))
+			return 1
+		}
+		c.Ui.Output(fmt.Sprintf("Revoked the approval of webhook %q of %s", args[1], args[0]))
+		return 0
+	}
+
+	// The approval covers the configuration the webhook has when the
+	// servers get the request. Read the kind, show what is approved, and
+	// approve the kind as it was read: a change in between is refused.
+	stored, _, err := client.ObjectKinds().Info(group, kind, nil)
+	if err != nil {
+		c.Ui.Error(fmt.Sprintf("Error reading the object kind: %s", err))
+		return 1
+	}
+	var webhook *api.ObjectKindWebhook
+	for _, w := range stored.Webhooks {
+		if w != nil && w.Name == args[1] {
+			webhook = w
+		}
+	}
+	if webhook == nil {
+		c.Ui.Error(fmt.Sprintf("Object kind %s has no webhook %q", args[0], args[1]))
+		return 1
+	}
+	c.Ui.Output(formatKV([]string{
+		"URL|" + webhook.URL,
+		"Mode|" + webhook.Mode,
+		"Operations|" + strings.Join(webhook.Operations, ", "),
+		"Failure Policy|" + webhook.FailurePolicy,
+	}))
+	if _, _, err := client.ObjectKinds().ApproveWebhookAt(group, kind, args[1], stored.ModifyIndex, nil); err != nil {
 		c.Ui.Error(fmt.Sprintf("Error updating the webhook approval: %s", err))
 		return 1
 	}

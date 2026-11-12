@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -163,6 +164,19 @@ func (k *ObjectKinds) Plan(kind *ObjectKind, w *WriteOptions) (*ObjectKindPlan, 
 // token is required); revoke removes the approval. It returns the kind as
 // stored.
 func (k *ObjectKinds) ApproveWebhook(group, kind, webhook string, revoke bool, w *WriteOptions) (*ObjectKind, *WriteMeta, error) {
+	return k.approveWebhook(group, kind, webhook, revoke, 0, w)
+}
+
+// ApproveWebhookAt approves a type-bound webhook of a kind as it was read:
+// the approval is refused when the kind was written after the modify index
+// (ObjectKind.ModifyIndex of the kind the approver looked at).
+func (k *ObjectKinds) ApproveWebhookAt(group, kind, webhook string, kindModifyIndex uint64, w *WriteOptions) (*ObjectKind, *WriteMeta, error) {
+	return k.approveWebhook(group, kind, webhook, false, kindModifyIndex, w)
+}
+
+func (k *ObjectKinds) approveWebhook(group, kind, webhook string, revoke bool, kindModifyIndex uint64,
+	w *WriteOptions) (*ObjectKind, *WriteMeta, error) {
+
 	if group == "" || kind == "" || webhook == "" {
 		return nil, nil, errors.New("missing object kind group, name or webhook")
 	}
@@ -173,6 +187,9 @@ func (k *ObjectKinds) ApproveWebhook(group, kind, webhook string, revoke bool, w
 	var resp ObjectKind
 	endpoint := "/v1/object-kind/" + url.PathEscape(group) + "/" + url.PathEscape(kind) +
 		"/webhook/" + url.PathEscape(webhook) + "/" + action
+	if kindModifyIndex != 0 {
+		endpoint += "?index=" + strconv.FormatUint(kindModifyIndex, 10)
+	}
 	wm, err := k.client.put(endpoint, nil, &resp, w)
 	if err != nil {
 		return nil, nil, err

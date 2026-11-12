@@ -253,6 +253,31 @@ namespace "default" {
 	stored, _ = s.State().ObjectKindByName(nil, kind.Group, kind.Kind)
 	must.False(t, stored.Webhooks[0].Approved())
 
+	// An approval of the kind as it was read is refused when the kind was
+	// changed since: the administrator looked at another URL.
+	seen := stored.ModifyIndex
+	kind.Webhooks[0].URL = ws.URL + "/changed-after-the-look"
+	_, err = c.upsertKind(kind, false, operator.SecretID)
+	must.NoError(t, err)
+	stale := &structs.ObjectKindWebhookApprovalRequest{
+		Group: kind.Group, Kind: kind.Kind, Webhook: "validate", KindModifyIndex: seen,
+		WriteRequest: structs.WriteRequest{Region: "global", AuthToken: root.SecretID},
+	}
+	var staleOut structs.ObjectKindUpsertResponse
+	err = msgpackrpc.CallWithCodec(c.codec, "ObjectKind.ApproveWebhook", stale, &staleOut)
+	must.ErrorContains(t, err, "was changed since it was read")
+	must.Eq(t, 409, errCode(t, err))
+	stored, _ = s.State().ObjectKindByName(nil, kind.Group, kind.Kind)
+	must.False(t, stored.Webhooks[0].Approved())
+
+	// With the index of the kind as it is now the approval is given.
+	stale.KindModifyIndex = stored.ModifyIndex
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "ObjectKind.ApproveWebhook", stale, &staleOut))
+	stored, _ = s.State().ObjectKindByName(nil, kind.Group, kind.Kind)
+	must.True(t, stored.Webhooks[0].Approved())
+	_, err = approve(root.SecretID, true)
+	must.NoError(t, err)
+
 	// Revoking an approval.
 	_, err = approve(root.SecretID, false)
 	must.NoError(t, err)

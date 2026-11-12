@@ -802,6 +802,14 @@ func (k *ObjectKind) ApproveWebhook(args *structs.ObjectKindWebhookApprovalReque
 			reply.Index = existing.ModifyIndex
 			return nil
 		}
+		// The approval is given by name but covers the configuration the
+		// webhook has now. An owner of the kind may have changed the URL
+		// after the approver looked at it.
+		if args.KindModifyIndex != 0 && args.KindModifyIndex != existing.ModifyIndex {
+			return structs.NewErrRPCCodedf(http.StatusConflict,
+				"object kind %q was changed since it was read (index %d, now %d): look at webhook %q again",
+				ref, args.KindModifyIndex, existing.ModifyIndex, args.Webhook)
+		}
 		w.Approval = newWebhookApproval(w, admissionUser(args))
 	}
 

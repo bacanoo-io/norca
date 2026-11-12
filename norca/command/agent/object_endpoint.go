@@ -152,6 +152,13 @@ func (s *HTTPServer) objectKindPlan(resp http.ResponseWriter, req *http.Request,
 func (s *HTTPServer) objectKindWebhookApproval(resp http.ResponseWriter, req *http.Request, group, kind, webhook string, revoke bool) (any, error) {
 	args := structs.ObjectKindWebhookApprovalRequest{Group: group, Kind: kind, Webhook: webhook, Revoke: revoke}
 	s.parseWriteRequest(req, &args.WriteRequest)
+	if v := req.URL.Query().Get("index"); v != "" {
+		index, err := strconv.ParseUint(v, 10, 64)
+		if err != nil {
+			return nil, CodedError(http.StatusBadRequest, "index must be a number")
+		}
+		args.KindModifyIndex = index
+	}
 
 	var out structs.ObjectKindUpsertResponse
 	if err := s.agent.RPC("ObjectKind.ApproveWebhook", &args, &out); err != nil {

@@ -402,6 +402,12 @@ type ObjectKindWebhookApprovalRequest struct {
 	// Revoke removes the approval instead.
 	Revoke bool
 
+	// KindModifyIndex is the modify index of the kind the approver read.
+	// If it is set, the approval is refused when the kind was written
+	// since: the approval covers the configuration of the webhook at the
+	// time of the call, and that must be the one the approver looked at.
+	KindModifyIndex uint64
+
 	WriteRequest
 }
 
