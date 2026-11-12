@@ -495,3 +495,67 @@ func TestJobEndpoint_Admission_Dispatch(t *testing.T) {
 	must.NoError(t, err)
 	must.NotNil(t, child)
 }
+
+// A plan is refused when the namespace of the request is not that of the
+// job: the ACL check is made for the first, the admission controllers and
+// the plan work on the second.
+func TestJobEndpoint_Admission_PlanNamespaceMismatch(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := admissionServer(t)
+	defer cleanup()
+
+	job := mock.Job()
+	job.Namespace = "other"
+	req := &structs.JobPlanRequest{
+		Job:          job,
+		Diff:         true,
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace},
+	}
+	var resp structs.JobPlanResponse
+	err := msgpackrpc.CallWithCodec(rpcClient(t, s), "Job.Plan", req, &resp)
+	must.ErrorContains(t, err, "mismatched request namespace")
+}
+
+// recordingConfigEntries counts the configuration entries written to Consul.
+type recordingConfigEntries struct {
+	ConsulConfigsAPI
+	writes atomic.Int64
+}
+
+func (r *recordingConfigEntries) SetIngressCE(context.Context, string, string, *structs.ConsulIngressConfigEntry) error {
+	r.writes.Add(1)
+	return nil
+}
+
+func (r *recordingConfigEntries) SetTerminatingCE(context.Context, string, string, *structs.ConsulTerminatingConfigEntry) error {
+	r.writes.Add(1)
+	return nil
+}
+
+func (r *recordingConfigEntries) Stop() {}
+
+// A job that an admission policy denies leaves nothing behind in Consul: its
+// gateway configuration entry is written after the policies decided.
+func TestJobEndpoint_Admission_DeniedBeforeConfigEntries(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := admissionServer(t)
+	defer cleanup()
+	entries := &recordingConfigEntries{}
+	s.consulConfigEntries = entries
+
+	upsertAdmissionPolicies(t, s, testAdmissionPolicy("no-mallory", nil, "deny",
+		`!has(job.Meta.owner) || job.Meta.owner != 'mallory'`))
+
+	denied := mock.ConnectIngressGatewayJob("host", false)
+	denied.Meta = map[string]string{"owner": "mallory"}
+	_, err := admissionRegisterJob(t, s, denied, "")
+	must.ErrorContains(t, err, "no-mallory violated")
+	must.Eq(t, 0, entries.writes.Load())
+
+	allowed := mock.ConnectIngressGatewayJob("host", false)
+	_, err = admissionRegisterJob(t, s, allowed, "")
+	must.NoError(t, err)
+	must.Eq(t, 1, entries.writes.Load())
+}

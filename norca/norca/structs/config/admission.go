@@ -6,6 +6,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"slices"
 	"time"
@@ -143,8 +144,13 @@ func (a *AdmissionConfig) Validate() error {
 		}
 		seen[w.Name] = struct{}{}
 
-		if u, err := url.Parse(w.URL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		u, err := url.Parse(w.URL)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 			mErr = multierror.Append(mErr, fmt.Errorf("admission webhook %q: url must be an absolute http(s) URL", w.Name))
+		} else if w.IncludeVariableItems && u.Scheme != "https" && !isLoopbackHost(u.Hostname()) {
+			// The items are the decrypted secrets of the Variables.
+			mErr = multierror.Append(mErr, fmt.Errorf(
+				"admission webhook %q: include_variable_items needs an https URL (or a loopback address)", w.Name))
 		}
 		switch w.Mode {
 		case AdmissionWebhookModeValidate, AdmissionWebhookModeMutate:
@@ -233,4 +239,13 @@ func (w *AdmissionWebhookConfig) Copy() *AdmissionWebhookConfig {
 	nw.VariablePaths = slices.Clone(w.VariablePaths)
 	nw.ExtraKeysHCL = slices.Clone(w.ExtraKeysHCL)
 	return nw
+}
+
+// isLoopbackHost reports whether the host of a URL is this machine.
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

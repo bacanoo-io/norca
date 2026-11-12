@@ -309,6 +309,25 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 		return err
 	}
 
+	// The admission policies and the validating webhooks decide before
+	// anything is written outside the cluster state: a job they deny
+	// leaves no configuration entry in Consul.
+	// Enforce the admission policies. Pass a copy of the job to prevent
+	// them from altering it. PolicyOverride is ignored: admission policies
+	// cannot be overridden.
+	ns, err := snap.NamespaceByName(nil, args.RequestNamespace())
+	if err != nil {
+		return err
+	}
+	policyWarnings, err := j.enforceSubmitJob(structs.AdmissionOperationRegister, args.PolicyOverride, args.Job.Copy(), admissionUser(args), ns)
+	if err != nil {
+		return err
+	}
+	if policyWarnings != nil {
+		warnings = append(warnings, policyWarnings)
+		reply.Warnings = helper.MergeMultierrorWarnings(warnings...)
+	}
+
 	// Create or Update Consul Configuration Entries defined in the job. For now
 	// Nomad only supports Configuration Entries types
 	// - "ingress-gateway" for managing Ingress Gateways
@@ -332,22 +351,6 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 				return errCE
 			}
 		}
-	}
-
-	// Enforce the admission policies. Pass a copy of the job to prevent
-	// them from altering it. PolicyOverride is ignored: admission policies
-	// cannot be overridden.
-	ns, err := snap.NamespaceByName(nil, args.RequestNamespace())
-	if err != nil {
-		return err
-	}
-	policyWarnings, err := j.enforceSubmitJob(structs.AdmissionOperationRegister, args.PolicyOverride, args.Job.Copy(), nomadACLToken, ns)
-	if err != nil {
-		return err
-	}
-	if policyWarnings != nil {
-		warnings = append(warnings, policyWarnings)
-		reply.Warnings = helper.MergeMultierrorWarnings(warnings...)
 	}
 
 	// Clear the Vault token
@@ -1837,6 +1840,13 @@ func (j *Job) plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 		return fmt.Errorf("Job required for plan")
 	}
 
+	// The checks below are made for the namespace of the request, the
+	// admission controllers and the plan work on that of the job: they must
+	// be the same, as for a registration.
+	if args.RequestNamespace() != args.Job.Namespace {
+		return fmt.Errorf("mismatched request namespace in request: %q, %q", args.RequestNamespace(), args.Job.Namespace)
+	}
+
 	// Interpolate the job for this region, as Job.Register does before
 	// admission
 	if err := j.interpolateMultiregionFields(args); err != nil {
@@ -1876,15 +1886,11 @@ func (j *Job) plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	}
 
 	// Enforce the admission policies; PolicyOverride is ignored
-	nomadACLToken, err := snap.ACLTokenBySecretID(nil, args.AuthToken)
-	if err != nil && !strings.Contains(err.Error(), "missing secret id") {
-		return err
-	}
 	ns, err := snap.NamespaceByName(nil, args.RequestNamespace())
 	if err != nil {
 		return err
 	}
-	policyWarnings, err := j.enforceSubmitJob(structs.AdmissionOperationPlan, args.PolicyOverride, args.Job, nomadACLToken, ns)
+	policyWarnings, err := j.enforceSubmitJob(structs.AdmissionOperationPlan, args.PolicyOverride, args.Job, admissionUser(args), ns)
 	if err != nil {
 		return err
 	}

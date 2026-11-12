@@ -34,6 +34,20 @@ func TestAdmissionConfig_CanonicalizeValidate(t *testing.T) {
 		must.Error(t, c.Validate())
 	}
 
+	// The decrypted items of Variables are sent over TLS only, or to this
+	// machine.
+	items := func(url string) error {
+		c := &AdmissionConfig{Webhooks: []*AdmissionWebhookConfig{{
+			Name: "a", URL: url, Resources: []string{"variable"}, IncludeVariableItems: true,
+		}}}
+		c.Canonicalize()
+		return c.Validate()
+	}
+	must.ErrorContains(t, items("http://hooks.example:8080/v"), "include_variable_items needs an https URL")
+	must.NoError(t, items("https://hooks.example:8443/v"))
+	must.NoError(t, items("http://127.0.0.1:8080/v"))
+	must.NoError(t, items("http://localhost:8080/v"))
+
 	dup := &AdmissionConfig{Webhooks: []*AdmissionWebhookConfig{
 		{Name: "a", URL: "https://x"}, {Name: "a", URL: "https://y"},
 	}}
