@@ -424,6 +424,13 @@ type ReleasePack struct {
 	// with, while admitting the release.
 	TrustedSigner string `json:"trustedSigner,omitempty"`
 
+	// ServerRendered reports that the server rendered the templates of the
+	// pack from its own catalog, so the digest and the signatures of the
+	// pack are those of what was applied. For a pack the client rendered
+	// they are what the client says. The server sets it; a value in a
+	// request is dropped. A rollback takes it from the revision.
+	ServerRendered bool `json:"serverRendered,omitempty"`
+
 	// Requires are the requirements of the pack on the server.
 	Requires *ReleasePackRequires `json:"requires,omitempty"`
 }

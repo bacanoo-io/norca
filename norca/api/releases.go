@@ -137,7 +137,10 @@ type ReleasePack struct {
 	Signer        string                  `json:"signer,omitempty"`
 	Signatures    []*ReleasePackSignature `json:"signatures,omitempty"`
 	TrustedSigner string                  `json:"trustedSigner,omitempty"`
-	Requires      *ReleasePackRequires    `json:"requires,omitempty"`
+	// ServerRendered reports that the server rendered the pack from its own
+	// catalog. It is set by the server.
+	ServerRendered bool                 `json:"serverRendered,omitempty"`
+	Requires       *ReleasePackRequires `json:"requires,omitempty"`
 }
 
 // ReleasePackSignature is a cosign signature of the pack digest.

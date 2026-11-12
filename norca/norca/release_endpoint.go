@@ -91,7 +91,7 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 	// A multi-region install is coordinated here and applied by every
 	// region, which authorizes it.
 	if len(args.Regions) > 0 {
-		return r.applyMultiregion(args, reply)
+		return r.applyMultiregion(args, reply, serverRendered)
 	}
 
 	namespace := args.RequestNamespace()
@@ -151,6 +151,7 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 	if in.pack != nil {
 		p := *in.pack
 		p.TrustedSigner = ""
+		p.ServerRendered = serverRendered
 		in.pack = &p
 	}
 	if err := r.srv.releases.runApply(op, in, reply); err != nil {
@@ -291,6 +292,9 @@ func (r *Release) Rollback(args *structs.ReleaseRollbackRequest, reply *structs.
 		p := *in.pack
 		p.TrustedSigner = ""
 		in.pack = &p
+		// The resources of the revision are those the server rendered
+		// then; the revisions are written by the servers only.
+		in.serverRendered = p.ServerRendered
 	}
 	if err := r.srv.releases.runApply(op, in, reply); err != nil {
 		return err

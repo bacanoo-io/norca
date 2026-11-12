@@ -527,6 +527,55 @@ func TestRelease_AdmissionUser(t *testing.T) {
 	must.NoError(t, err)
 }
 
+// A rule on release.pack.serverRendered holds for what the server rendered,
+// for a rollback to it, and not for what a client sends, whatever the client
+// says about it.
+func TestRelease_ServerRenderedAdmission(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	var out structs.GenericResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "AdmissionPolicy.UpsertAdmissionPolicies", &structs.AdmissionPolicyUpsertRequest{
+		AdmissionPolicies: []*structs.AdmissionPolicy{{
+			Name:  "server-rendered",
+			Match: &structs.AdmissionPolicyMatch{Namespaces: []string{"default"}, Resources: []string{structs.AdmissionResourceRelease}},
+			Rules: []*structs.AdmissionPolicyRule{{
+				Expression: "release.pack.serverRendered", Message: "only packs the server rendered are allowed",
+			}},
+		}},
+		WriteRequest: structs.WriteRequest{Region: "global", AuthToken: c.token},
+	}, &out))
+
+	request := func(count int) *structs.ReleaseApplyRequest {
+		job := testReleaseJob("app")
+		job.TaskGroups[0].Count = count
+		return &structs.ReleaseApplyRequest{
+			Name:         "app",
+			Pack:         &structs.ReleasePack{Name: "app", ServerRendered: true},
+			Resources:    []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: job}},
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: c.token},
+		}
+	}
+
+	// A client cannot say that the server rendered its pack.
+	_, err := c.apply("default", "app", request(1))
+	must.ErrorContains(t, err, "only packs the server rendered are allowed")
+
+	// What the server rendered (Packs.Deploy) is applied, twice.
+	endpoint := NewReleaseEndpoint(c.srv, nil)
+	for count := 1; count <= 2; count++ {
+		var resp structs.ReleaseApplyResponse
+		must.NoError(t, endpoint.applyInternal(request(count), &resp, true))
+		must.True(t, resp.Release.Spec.Pack.ServerRendered)
+	}
+
+	// The rollback to the first revision is of what the server rendered.
+	resp, err := c.rollback("default", "app", 1)
+	must.NoError(t, err)
+	must.True(t, resp.Release.Spec.Pack.ServerRendered)
+}
+
 func TestRelease_BuiltinGroupIsProtected(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newReleaseTestClient(t)

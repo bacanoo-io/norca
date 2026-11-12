@@ -39,7 +39,7 @@ import (
 var releaseReplicationWait = time.Minute
 
 // applyMultiregion coordinates a multi-region install or plan.
-func (r *Release) applyMultiregion(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse) error {
+func (r *Release) applyMultiregion(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse, serverRendered bool) error {
 	if args.Multiregion != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "regions and multiregion are exclusive")
 	}
@@ -78,7 +78,7 @@ func (r *Release) applyMultiregion(args *structs.ReleaseApplyRequest, reply *str
 		req := multiregionApplyRequest(args, mr, region)
 		var resp structs.ReleaseApplyResponse
 		result := &structs.ReleaseRegionResult{Region: region}
-		if err := r.srv.RPC("Release.Apply", req, &resp); err != nil {
+		if err := r.applyRegion(region, req, &resp, serverRendered); err != nil {
 			result.Error = err.Error()
 			result.Release = r.regionRelease(region, args)
 			failed = append(failed, fmt.Sprintf("region %q: %v", region, err))
@@ -278,4 +278,20 @@ func (op *releaseOp) waitReplicated(global []*structs.ReleaseResource, from stri
 			return
 		}
 	}
+}
+
+// applyRegion applies the request of one region of a multi-region install.
+//
+// What this server rendered from its catalog is applied in its own region
+// as server-rendered, without the RPC that would make it an ordinary
+// request of a client. Another region gets the request over RPC and cannot
+// tell who rendered it: there the pack counts as rendered by the client
+// (release.pack.serverRendered is false in its admission rules).
+func (r *Release) applyRegion(region string, req *structs.ReleaseApplyRequest, resp *structs.ReleaseApplyResponse,
+	serverRendered bool) error {
+
+	if serverRendered && region == r.srv.Region() {
+		return r.applyInternal(req, resp, true)
+	}
+	return r.srv.RPC("Release.Apply", req, resp)
 }
