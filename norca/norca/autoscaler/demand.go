@@ -15,6 +15,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
 	"github.com/bacanoo-io/norca/norca/norca/metricsstore"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	glob "github.com/ryanuber/go-glob"
 )
 
 // The blocked work trigger of node scaling. Work that cannot be placed for
@@ -386,6 +387,22 @@ type demandItem struct {
 	dcs  []string
 }
 
+// mayRunIn reports whether the work may run in a datacenter: one it was
+// reported in, or one the datacenters of its job name or match. The second
+// lets a datacenter without nodes grow for a job that names it by a pattern
+// (the default of a job is "*").
+func (d *demandItem) mayRunIn(dc string) bool {
+	if slices.Contains(d.dcs, dc) {
+		return true
+	}
+	for _, pattern := range d.Datacenters {
+		if glob.Glob(pattern, dc) {
+			return true
+		}
+	}
+	return false
+}
+
 // collectDemandItems merges the demand by datacenter and pool into one item
 // per task group: the same work is reported in each datacenter it could use,
 // but it is placed once.
@@ -401,7 +418,9 @@ func collectDemandItems(demand map[[2]string][]Unplaced) []*demandItem {
 				byKey[id] = item
 				keys = append(keys, id)
 			}
-			if !slices.Contains(item.dcs, k[0]) {
+			// Work no datacenter with nodes could take is reported under
+			// no datacenter; the patterns of its job say where it may go.
+			if k[0] != "" && !slices.Contains(item.dcs, k[0]) {
 				item.dcs = append(item.dcs, k[0])
 			}
 		}
@@ -481,7 +500,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		inPool := 0   // groups of the job's datacenters and pool (or spill)
 		classOut := 0 // of those, groups of a class the job's constraint does not allow
 		for _, g := range groups {
-			if !slices.Contains(item.dcs, g.dc) {
+			if !item.mayRunIn(g.dc) {
 				continue
 			}
 			// A job of a node pool uses the groups of that pool. A job

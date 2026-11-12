@@ -183,3 +183,42 @@ func TestMetricsStore_BlockedStaticPort(t *testing.T) {
 		must.Eq(t, u.Job == proxy.ID, u.Exclusive, must.Sprintf("job %s (dynamic is %s)", u.Job, dynamic.ID))
 	}
 }
+
+// TestMetricsStore_BlockedNoDatacenter checks the work of a job that names
+// its datacenters by a pattern while no datacenter has a node for it: it is
+// kept for node scaling under no datacenter, with the patterns of the job,
+// and makes no gauge series.
+func TestMetricsStore_BlockedNoDatacenter(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, enableMetricsStore(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+	st := s.fsm.State()
+
+	job := mock.Job()
+	job.NodePool = "default"
+	job.Datacenters = []string{"*"}
+	must.NoError(t, st.UpsertJob(structs.MsgTypeTestSetup, 1001, nil, job))
+	eval := mock.BlockedEval()
+	eval.JobID = job.ID
+	eval.Namespace = job.Namespace
+	eval.FailedTGAllocs = map[string]*structs.AllocMetric{
+		job.TaskGroups[0].Name: {NodesAvailable: map[string]int{}, CoalescedFailures: 1},
+	}
+
+	snap, err := st.Snapshot()
+	must.NoError(t, err)
+	demand := collectBlocked(snap, []*structs.Evaluation{eval})
+
+	must.MapLen(t, 1, demand)
+	unplaced := demand[[2]string{"", "default"}]
+	must.NotNil(t, unplaced)
+	must.Len(t, 1, unplaced.unplaced)
+	must.Eq(t, 2, unplaced.unplaced[0].Count)
+	must.Eq(t, []string{"*"}, unplaced.unplaced[0].Datacenters)
+
+	for _, g := range blockedGauges(snap, []*structs.Evaluation{eval}, nil) {
+		must.NotEq(t, "", g.Labels["dc"], must.Sprintf("the series %s has no datacenter", g.Metric))
+	}
+}

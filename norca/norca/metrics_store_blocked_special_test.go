@@ -71,17 +71,24 @@ func TestBlockedDemand_SpecialCases(t *testing.T) {
 	block(quota, here(), func(e *structs.Evaluation) { e.QuotaLimitReached = "q" })
 	must.MapEmpty(t, demand())
 
-	// A job with a wildcard datacenter and no node to name: nowhere to put it.
+	// A job with a wildcard datacenter and no node to name: its work has no
+	// datacenter to be reported in, and is kept under none with the pattern
+	// of the job, by which node scaling finds the node groups for it.
 	wild := newJob(func(j *structs.Job) { j.Datacenters = []string{"dc*"} })
 	block(wild, &structs.AllocMetric{}, nil)
-	must.MapEmpty(t, demand())
+	d := demand()
+	must.MapLen(t, 1, d)
+	nowhere := d[[2]string{"", "default"}]
+	must.NotNil(t, nowhere)
+	must.Len(t, 1, nowhere.unplaced)
+	must.Eq(t, []string{"dc*"}, nowhere.unplaced[0].Datacenters)
 
 	// Without a node pool the job is in "default"; named datacenters are
 	// used when no node is there to look at.
 	named := newJob(func(j *structs.Job) { j.NodePool = ""; j.Datacenters = []string{"dc-x", "dc-y"} })
 	block(named, &structs.AllocMetric{CoalescedFailures: 1}, nil)
-	d := demand()
-	must.MapLen(t, 2, d)
+	d = demand()
+	must.MapLen(t, 3, d) // with the work under no datacenter from above
 	for _, dc := range []string{"dc-x", "dc-y"} {
 		got := d[[2]string{dc, "default"}]
 		must.NotNil(t, got)

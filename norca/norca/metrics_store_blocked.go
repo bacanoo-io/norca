@@ -60,6 +60,7 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 					hasConstraint(tg.Constraints, structs.ConstraintDistinctHosts) ||
 					hasStaticPort(tg),
 			}
+			u.Datacenters = job.Datacenters
 			u.Distinct, u.Unverifiable = distinctProperties(snap, job, tg)
 			u.Classes = classConstraints(job, tg, &u)
 			for _, task := range tg.Tasks {
@@ -71,7 +72,15 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 			if tg.EphemeralDisk != nil {
 				u.Disk = float64(tg.EphemeralDisk.SizeMB)
 			}
-			for _, dc := range blockedDatacenters(job, metric) {
+			// Work that no datacenter with nodes could take, of a job that
+			// names its datacenters by patterns only, has no datacenter to
+			// be reported in. It is kept under no datacenter for node
+			// scaling, which finds the node groups by the patterns.
+			dcs := blockedDatacenters(job, metric)
+			if len(dcs) == 0 {
+				dcs = []string{""}
+			}
+			for _, dc := range dcs {
 				k := [2]string{dc, pool}
 				d := demand[k]
 				if d == nil {
@@ -103,6 +112,10 @@ func blockedGauges(snap *state.StateSnapshot, evals []*structs.Evaluation, clust
 
 	keys := make([][2]string, 0, len(demand))
 	for k := range demand {
+		// The demand under no datacenter has no series to go to.
+		if k[0] == "" {
+			continue
+		}
 		keys = append(keys, k)
 	}
 	slices.SortFunc(keys, func(a, b [2]string) int {

@@ -21,6 +21,12 @@ type Unplaced struct {
 	// EvalID is the blocked evaluation the demand comes from.
 	EvalID string
 
+	// Datacenters are the datacenters of the job as it names them: names
+	// and patterns ("*", "dc-*"). A node group of a datacenter that matches
+	// can take the work also when the datacenter has no node yet, which the
+	// datacenters the work is reported in (those with nodes) do not tell.
+	Datacenters []string
+
 	// The size of one allocation: CPU in MHz, memory and disk in MB.
 	CPU, Memory, Disk float64
 

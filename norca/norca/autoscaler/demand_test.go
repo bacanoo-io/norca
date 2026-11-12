@@ -381,3 +381,69 @@ func TestDemand_ResplitKeepsPendingNodes(t *testing.T) {
 	got := scaledTo(objects)
 	must.True(t, got["workers-a"] == 4 || got["workers-b"] == 3, must.Sprint(got))
 }
+
+// A job that names its datacenters by a pattern (the default is "*") can
+// make the node group of a datacenter without nodes grow: the work is
+// reported only in the datacenters that have nodes, or in none.
+func TestDemand_DatacenterPatterns(t *testing.T) {
+	ci.Parallel(t)
+
+	// work is four allocations of 6 GB, each needing a node of its own,
+	// reported under the given datacenters for a job with the given
+	// datacenter names and patterns.
+	work := func(patterns []string, reported ...string) map[[2]string][]Unplaced {
+		out := map[[2]string][]Unplaced{}
+		for _, dc := range reported {
+			out[[2]string{dc, "workers"}] = []Unplaced{{
+				Namespace: "default", Job: "web", Group: "g", Count: 4, CPU: 100, Memory: 6000,
+				Datacenters: patterns,
+			}}
+		}
+		return out
+	}
+	// empty is a group without nodes, grown is one with its single node.
+	empty := func(name, dc string) testGroup {
+		return testGroup{name: name, dc: dc,
+			spec: map[string]any{"replicas": float64(0)}, status: map[string]any{"replicas": float64(0)}}
+	}
+
+	tests := []struct {
+		name     string
+		groups   []testGroup
+		work     map[[2]string][]Unplaced
+		expected map[string]int64
+	}{
+		{
+			name:     "a wildcard job grows the empty datacenter too",
+			groups:   []testGroup{{name: "workers-a", dc: "dc-a"}, empty("workers-b", "dc-b")},
+			work:     work([]string{"*"}, "dc-a"),
+			expected: map[string]int64{"workers-a": 3, "workers-b": 2},
+		},
+		{
+			name:     "no datacenter has a node",
+			groups:   []testGroup{empty("workers-a", "dc-a"), empty("workers-b", "dc-b")},
+			work:     work([]string{"*"}, ""),
+			expected: map[string]int64{"workers-a": 2, "workers-b": 2},
+		},
+		{
+			name:     "a pattern that leaves a datacenter out",
+			groups:   []testGroup{empty("workers-a", "dc-a"), empty("workers-b", "eu-b")},
+			work:     work([]string{"dc-*"}, ""),
+			expected: map[string]int64{"workers-a": 4},
+		},
+		{
+			name:     "names only: the datacenters the work is reported in",
+			groups:   []testGroup{{name: "workers-a", dc: "dc-a"}, empty("workers-b", "dc-b")},
+			work:     work([]string{"dc-a"}, "dc-a"),
+			expected: map[string]int64{"workers-a": 5},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, objects, _ := demandHarness(t, tt.groups, tt.work)
+			must.NoError(t, h.runner.scaleForDemand(context.Background()))
+			must.Eq(t, tt.expected, scaledTo(objects))
+		})
+	}
+}
