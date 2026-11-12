@@ -56,12 +56,34 @@ func (s *HTTPServer) ScalingPolicySpecificRequest(resp http.ResponseWriter, req 
 
 func (s *HTTPServer) scalingPolicyCRUD(resp http.ResponseWriter, req *http.Request,
 	policyID string) (interface{}, error) {
-	switch req.Method {
-	case http.MethodGet:
-		return s.scalingPolicyQuery(resp, req, policyID)
-	default:
+	if req.Method != http.MethodGet {
 		return nil, CodedError(405, ErrInvalidMethod)
 	}
+	// /v1/scaling/policy/<id>/status is the last evaluation of the policy.
+	if id, ok := strings.CutSuffix(policyID, "/status"); ok {
+		return s.scalingPolicyStatusQuery(resp, req, id)
+	}
+	return s.scalingPolicyQuery(resp, req, policyID)
+}
+
+// scalingPolicyStatusQuery returns the last evaluation of a policy by the
+// built-in autoscaler; null for a policy that has none.
+func (s *HTTPServer) scalingPolicyStatusQuery(resp http.ResponseWriter, req *http.Request,
+	policyID string) (interface{}, error) {
+	args := structs.ScalingPolicySpecificRequest{
+		ID: policyID,
+	}
+	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
+		return nil, nil
+	}
+
+	var out structs.ScalingPolicyStatusResponse
+	if err := s.agent.RPC("Scaling.GetPolicyStatus", &args, &out); err != nil {
+		return nil, err
+	}
+
+	setMeta(resp, &out.QueryMeta)
+	return out.Status, nil
 }
 
 func (s *HTTPServer) scalingPolicyQuery(resp http.ResponseWriter, req *http.Request,

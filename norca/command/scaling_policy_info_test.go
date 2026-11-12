@@ -107,3 +107,61 @@ func TestScalingPolicyInfoCommand_Run(t *testing.T) {
 		t.Fatalf("expected policy ID within output: %v", out)
 	}
 }
+
+func TestFormatScalingPolicyStatus(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name        string
+		status      *api.ScalingPolicyStatus
+		expected    []string
+		notExpected []string
+	}{
+		{
+			name: "scaled on a check",
+			status: &api.ScalingPolicyStatus{
+				Time: 1_700_000_000_000_000_000, Desired: 2, Running: 2,
+				Count: 4, Direction: "up", Outcome: "scaled",
+				Checks: []*api.ScalingCheckStatus{
+					{Name: "cpu", Value: 87.5, HasValue: true, Direction: "up", Count: 4},
+				},
+			},
+			expected: []string{"Desired / Running", "2 / 2", "scaled", "4 (up)", "cpu", "87.5"},
+		},
+		{
+			name: "held while the group settles",
+			status: &api.ScalingPolicyStatus{
+				Time: 1_700_000_000_000_000_000, Desired: 6, Running: 2,
+				Count: 3, Direction: "down", Outcome: "held", HoldReason: "settling",
+				HoldSince: 1_700_000_000_000_000_000, Message: "2 of 6 run, not settled for 30s",
+			},
+			expected: []string{"6 / 2", "held (settling) since", "3 (down)", "2 of 6 run"},
+		},
+		{
+			name: "nothing to do, a check without data",
+			status: &api.ScalingPolicyStatus{
+				Time: 1_700_000_000_000_000_000, Desired: 2, Running: 2,
+				Direction: "none", Outcome: "none",
+				Checks: []*api.ScalingCheckStatus{{Name: "queue", Direction: "no data"}},
+			},
+			expected:    []string{"none", "queue", "no data"},
+			notExpected: []string{"Checks ask for"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := formatScalingPolicyStatus(tt.status)
+			for _, want := range tt.expected {
+				if !strings.Contains(out, want) {
+					t.Errorf("expected %q in the output:\n%s", want, out)
+				}
+			}
+			for _, unwanted := range tt.notExpected {
+				if strings.Contains(out, unwanted) {
+					t.Errorf("did not expect %q in the output:\n%s", unwanted, out)
+				}
+			}
+		})
+	}
+}

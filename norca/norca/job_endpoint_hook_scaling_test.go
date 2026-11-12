@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
@@ -321,4 +322,77 @@ func TestKeepScaledCounts(t *testing.T) {
 		keepScaledCounts(nil, updated, false, false)
 		must.Eq(t, 2, updated.TaskGroups[0].Count)
 	})
+}
+
+func TestHandMadeScalingWarning(t *testing.T) {
+	ci.Parallel(t)
+
+	scaled := func(engine string, enabled bool) *structs.TaskGroup {
+		return &structs.TaskGroup{Name: "web", Count: 2, Scaling: &structs.ScalingPolicy{
+			Type: structs.ScalingPolicyTypeHorizontal, Min: 1, Max: 10, Enabled: enabled, Engine: engine,
+		}}
+	}
+	count := func(meta map[string]interface{}) *structs.JobScaleRequest {
+		return &structs.JobScaleRequest{Count: pointer.Of(int64(5)), Meta: meta}
+	}
+	ownMeta := map[string]interface{}{"nomad_autoscaler.engine": structs.ScalingPolicyEngineBuiltin}
+
+	tests := []struct {
+		name          string
+		group         *structs.TaskGroup
+		args          *structs.JobScaleRequest
+		defaultEngine string
+		expected      string
+	}{
+		{
+			name:     "a change by hand on a group of a built-in policy",
+			group:    scaled(structs.ScalingPolicyEngineBuiltin, true),
+			args:     count(nil),
+			expected: scaledByPolicyWarning,
+		},
+		{
+			name:          "the default engine decides for a policy without one",
+			group:         scaled("", true),
+			args:          count(nil),
+			defaultEngine: structs.ScalingPolicyEngineBuiltin,
+			expected:      scaledByPolicyWarning,
+		},
+		{
+			name:  "the autoscaler's own change",
+			group: scaled(structs.ScalingPolicyEngineBuiltin, true),
+			args:  count(ownMeta),
+		},
+		{
+			name:  "a policy of the external engine",
+			group: scaled(structs.ScalingPolicyEngineExternal, true),
+			args:  count(nil),
+		},
+		{
+			name:          "a policy without an engine while the default is external",
+			group:         scaled("", true),
+			args:          count(nil),
+			defaultEngine: structs.ScalingPolicyEngineExternal,
+		},
+		{
+			name:  "a disabled policy",
+			group: scaled(structs.ScalingPolicyEngineBuiltin, false),
+			args:  count(nil),
+		},
+		{
+			name:  "a group without a policy",
+			group: &structs.TaskGroup{Name: "web", Count: 2},
+			args:  count(nil),
+		},
+		{
+			name:  "an event without a count changes nothing",
+			group: scaled(structs.ScalingPolicyEngineBuiltin, true),
+			args:  &structs.JobScaleRequest{Message: "note"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			must.Eq(t, tt.expected, handMadeScalingWarning(tt.group, tt.args, tt.defaultEngine))
+		})
+	}
 }

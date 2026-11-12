@@ -221,3 +221,39 @@ func (s *Server) publishScalingEvent(eventType string, ev *structs.ScalingDecisi
 		}},
 	})
 }
+
+// scalingPolicyStatus returns the last evaluation of a policy by the
+// built-in autoscaler of this server, nil if it has none.
+func (s *Server) scalingPolicyStatus(policyID string) *structs.ScalingPolicyStatus {
+	if s.autoscaler == nil {
+		return nil
+	}
+	eval := s.autoscaler.PolicyStatus(policyID)
+	if eval == nil {
+		return nil
+	}
+	status := &structs.ScalingPolicyStatus{
+		Time:       eval.Time.UnixNano(),
+		Desired:    eval.Desired,
+		Running:    eval.Running,
+		Checks:     make([]*structs.ScalingCheckStatus, 0, len(eval.Checks)),
+		Count:      eval.Count,
+		Direction:  eval.Direction,
+		Outcome:    eval.Outcome,
+		HoldReason: eval.HoldReason,
+		Message:    eval.Message,
+	}
+	if !eval.HoldSince.IsZero() {
+		status.HoldSince = eval.HoldSince.UnixNano()
+	}
+	for _, check := range eval.Checks {
+		status.Checks = append(status.Checks, &structs.ScalingCheckStatus{
+			Name:      check.Name,
+			Value:     check.Value,
+			HasValue:  check.HasValue,
+			Direction: check.Direction,
+			Count:     check.Count,
+		})
+	}
+	return status
+}

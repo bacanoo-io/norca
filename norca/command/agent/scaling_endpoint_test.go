@@ -138,3 +138,35 @@ func TestHTTP_ScalingPolicyGet(t *testing.T) {
 		require.Equal(p.ID, obj.(*structs.ScalingPolicy).ID)
 	})
 }
+
+// The last evaluation of a policy is read at /v1/scaling/policy/<id>/status;
+// a policy the built-in autoscaler has not evaluated has none.
+func TestHTTP_ScalingPolicyStatus(t *testing.T) {
+	ci.Parallel(t)
+	httpTest(t, nil, func(s *TestAgent) {
+		job, _ := mock.JobWithScalingPolicy()
+		args := structs.JobRegisterRequest{
+			Job:          job,
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace},
+		}
+		var resp structs.JobRegisterResponse
+		require.NoError(t, s.Agent.RPC("Job.Register", &args, &resp))
+
+		stored, err := s.Agent.Server().State().JobByID(nil, job.Namespace, job.ID)
+		require.NoError(t, err)
+		policyID := stored.TaskGroups[0].Scaling.ID
+
+		req, err := http.NewRequest(http.MethodGet, "/v1/scaling/policy/"+policyID+"/status", nil)
+		require.NoError(t, err)
+		respW := httptest.NewRecorder()
+		obj, err := s.Server.ScalingPolicySpecificRequest(respW, req)
+		require.NoError(t, err)
+		require.Nil(t, obj.(*structs.ScalingPolicyStatus))
+		require.NotEmpty(t, respW.Header().Get("X-Nomad-KnownLeader"), "missing known leader")
+
+		req, err = http.NewRequest(http.MethodGet, "/v1/scaling/policy/no-such-policy/status", nil)
+		require.NoError(t, err)
+		_, err = s.Server.ScalingPolicySpecificRequest(httptest.NewRecorder(), req)
+		require.ErrorContains(t, err, "policy not found")
+	})
+}

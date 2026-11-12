@@ -39,6 +39,60 @@ func (s *Scaling) GetPolicy(id string, q *QueryOptions) (*ScalingPolicy, *QueryM
 	return &policy, qm, nil
 }
 
+// GetPolicyStatus returns the last evaluation of a scaling policy by the
+// built-in autoscaler (Norca). It is nil for a policy that has not been
+// evaluated since the leader was elected, and for a policy of another engine.
+func (s *Scaling) GetPolicyStatus(id string, q *QueryOptions) (*ScalingPolicyStatus, *QueryMeta, error) {
+	var status *ScalingPolicyStatus
+	qm, err := s.client.query("/v1/scaling/policy/"+id+"/status", &status, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	return status, qm, nil
+}
+
+// ScalingPolicyStatus is the last evaluation of a scaling policy by the
+// built-in autoscaler.
+type ScalingPolicyStatus struct {
+	// Time is when the policy was evaluated, in Unix nanoseconds.
+	Time int64
+
+	// Desired is the count that was asked for and Running what ran of it.
+	Desired int64
+	Running int64
+
+	Checks []*ScalingCheckStatus
+
+	// Count is the result of the checks and Direction ("up", "down",
+	// "none") where it lies from Desired.
+	Count     int64
+	Direction string
+
+	// Outcome is "scaled", "none", "held" or "error"; HoldReason says why an
+	// evaluation was held, HoldSince since when (Unix nanoseconds), and
+	// Message gives the detail of a hold or an error.
+	Outcome    string
+	HoldReason string
+	HoldSince  int64
+	Message    string
+}
+
+// ScalingCheckStatus is what one check of a policy gave in its last
+// evaluation.
+type ScalingCheckStatus struct {
+	Name string
+
+	// Value is the latest value the check read; HasValue is false for a
+	// check without a measured value or without data.
+	Value    float64
+	HasValue bool
+
+	// Direction is the vote of the check ("up", "down", "none", "no data")
+	// and Count the count it asks for when it votes for a change.
+	Direction string
+	Count     int64
+}
+
 func (p *ScalingPolicy) Canonicalize(taskGroupCount int) {
 	if p.Enabled == nil {
 		p.Enabled = pointerOf(true)

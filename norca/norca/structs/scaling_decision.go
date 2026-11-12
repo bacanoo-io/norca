@@ -17,6 +17,13 @@ const (
 	// the quota of the job's namespace.
 	TypeScalingQuotaCapped = "ScalingQuotaCapped"
 
+	// TypeScalingHeld is published when a policy has been held for the same
+	// reason (a deployment, canaries, a group that does not settle, ...) for
+	// the autoscaler's hold_warn, and once more when that hold ends. Count
+	// is the count the target has, DesiredCount the count the checks ask
+	// for if they were run, and Reason starts with the reason of the hold.
+	TypeScalingHeld = "ScalingHeld"
+
 	// TypeScalingNodeAllocationTooLarge is published by the blocked work
 	// trigger when an allocation does not fit an empty node of a node group.
 	// JobID and Group name the task group, Reason the size and the group.

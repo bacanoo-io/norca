@@ -4,6 +4,7 @@
 package autoscaler
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -559,4 +560,218 @@ func TestRunner_Evaluate_DrainWithinTheWindow(t *testing.T) {
 
 	must.NoError(t, h.evaluate())
 	must.Len(t, 0, h.scaler.requests())
+}
+
+// Every evaluation leaves its status: what the checks read and asked for,
+// and why nothing was done when nothing was.
+func TestRunner_Evaluate_Status(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name string
+		// policy is added to the policy document of the harness, and setup
+		// prepares the harness, whose group asks for 2 and runs 2 at 100
+		// against a target of 50.
+		policy           map[string]interface{}
+		setup            func(h *harness)
+		expectedOutcome  string
+		expectedHold     string
+		expectedCount    int64
+		expectedDir      string
+		expectedDesired  int64
+		expectedRunning  int64
+		expectedCheckDir string
+	}{
+		{
+			name:             "scaled",
+			setup:            func(h *harness) {},
+			expectedOutcome:  OutcomeScaled,
+			expectedCount:    4,
+			expectedDir:      "up",
+			expectedDesired:  2,
+			expectedRunning:  2,
+			expectedCheckDir: "up",
+		},
+		{
+			name:             "nothing to do",
+			setup:            func(h *harness) { h.apm.value = 50 },
+			expectedOutcome:  OutcomeNone,
+			expectedDir:      "none",
+			expectedDesired:  2,
+			expectedRunning:  2,
+			expectedCheckDir: "none",
+		},
+		{
+			name: "held in the cooldown after a change",
+			setup: func(h *harness) {
+				h.addEvent(h.clock.Now().Add(-10*time.Second), 1, pointer.Of(int64(2)), builtinMeta(), false)
+			},
+			expectedOutcome: OutcomeHeld,
+			expectedHold:    HoldCooldown,
+			expectedDir:     "none",
+			expectedDesired: 2,
+			expectedRunning: 2,
+		},
+		{
+			name:            "held by a deployment",
+			setup:           func(h *harness) { h.startDeployment(false) },
+			expectedOutcome: OutcomeHeld,
+			expectedHold:    HoldDeployment,
+			expectedDir:     "none",
+			expectedDesired: 2,
+			expectedRunning: 2,
+		},
+		{
+			name:            "held by canaries",
+			setup:           func(h *harness) { h.startDeployment(true) },
+			expectedOutcome: OutcomeHeld,
+			expectedHold:    HoldCanary,
+			expectedDir:     "none",
+			expectedDesired: 2,
+			expectedRunning: 2,
+		},
+		{
+			name: "scale down held while the group settles",
+			setup: func(h *harness) {
+				// 2 of 6 run at 75: the load needs 3.
+				h.apm.value = 75
+				h.setCount(6)
+				for range 4 {
+					h.addAlloc(structs.AllocClientStatusPending)
+				}
+			},
+			expectedOutcome:  OutcomeHeld,
+			expectedHold:     HoldSettling,
+			expectedCount:    3,
+			expectedDir:      "down",
+			expectedDesired:  6,
+			expectedRunning:  2,
+			expectedCheckDir: "down",
+		},
+		{
+			name: "a stopped job is not ready",
+			setup: func(h *harness) {
+				job, err := h.store.JobByID(nil, h.job.Namespace, h.job.ID)
+				must.NoError(h.t, err)
+				job = job.Copy()
+				job.Stop = true
+				h.index++
+				must.NoError(h.t, h.store.UpsertJob(structs.MsgTypeTestSetup, h.index, nil, job))
+			},
+			expectedOutcome: OutcomeHeld,
+			expectedHold:    HoldNotReady,
+			expectedDir:     "none",
+			expectedDesired: 2,
+			expectedRunning: 2,
+		},
+		{
+			name:            "a check that fails is an error",
+			policy:          map[string]interface{}{"on_check_error": structs.ScalingOnErrorFail},
+			setup:           func(h *harness) { h.apm.err = errors.New("no answer") },
+			expectedOutcome: OutcomeError,
+			expectedDir:     "none",
+			expectedDesired: 2,
+			expectedRunning: 2,
+		},
+		{
+			name:             "a check that is left out on errors leaves nothing to decide on",
+			policy:           map[string]interface{}{"on_check_error": structs.ScalingOnErrorIgnore},
+			setup:            func(h *harness) { h.apm.err = errors.New("no answer") },
+			expectedOutcome:  OutcomeHeld,
+			expectedHold:     HoldNoData,
+			expectedDir:      "none",
+			expectedDesired:  2,
+			expectedRunning:  2,
+			expectedCheckDir: checkNoData,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t, structs.ScalingPolicyEngineBuiltin, targetValuePolicy(tt.policy), nil)
+			tt.setup(h)
+
+			err := h.evaluate()
+			if tt.expectedOutcome != OutcomeError {
+				must.NoError(t, err)
+			}
+
+			status := h.runner.status.get(h.policyID())
+			must.NotNil(t, status)
+			must.Eq(t, tt.expectedOutcome, status.Outcome)
+			must.Eq(t, tt.expectedHold, status.HoldReason)
+			must.Eq(t, tt.expectedCount, status.Count)
+			must.Eq(t, tt.expectedDir, status.Direction)
+			must.Eq(t, tt.expectedDesired, status.Desired)
+			must.Eq(t, tt.expectedRunning, status.Running)
+			must.Eq(t, h.clock.Now(), status.Time)
+
+			if tt.expectedCheckDir == "" {
+				must.Len(t, 0, status.Checks)
+				return
+			}
+			must.Len(t, 1, status.Checks)
+			must.Eq(t, "cpu", status.Checks[0].Name)
+			must.Eq(t, tt.expectedCheckDir, status.Checks[0].Direction)
+			if tt.expectedCheckDir == checkNoData {
+				must.False(t, status.Checks[0].HasValue)
+				return
+			}
+			must.True(t, status.Checks[0].HasValue)
+			must.Eq(t, h.apm.value, status.Checks[0].Value)
+		})
+	}
+}
+
+// A group that does not settle holds its scale down; when the hold has
+// lasted hold_warn a ScalingHeld event tells about it, and another one when
+// it ends.
+func TestRunner_Evaluate_HeldEvent(t *testing.T) {
+	ci.Parallel(t)
+
+	rec := &eventRecorder{}
+	h := newHarness(t, structs.ScalingPolicyEngineBuiltin, targetValuePolicy(nil),
+		func(cfg *Config) { cfg.HoldWarn = time.Minute })
+	h.deps.PublishEvent = rec.publish
+	h.newRunner()
+
+	// 2 of 6 run at 75: the load needs 3, the 4 that start hold the scale down.
+	h.apm.value = 75
+	h.setCount(6)
+	var starting []string
+	for range 4 {
+		starting = append(starting, h.addAlloc(structs.AllocClientStatusPending))
+	}
+
+	for range 6 {
+		must.NoError(t, h.evaluate())
+		h.clock.Advance(simStep)
+	}
+	must.Len(t, 0, rec.list())
+
+	must.NoError(t, h.evaluate())
+	events := rec.list()
+	must.Len(t, 1, events)
+	must.Eq(t, structs.TypeScalingHeld, events[0].typ)
+	must.StrHasPrefix(t, HoldSettling, events[0].ev.Reason)
+	must.Eq(t, int64(6), events[0].ev.Count)
+	must.Eq(t, int64(3), events[0].ev.DesiredCount)
+
+	// The four run: six at 25 need 3, and nothing holds the scale down.
+	for _, id := range starting {
+		h.setClientStatus(id, structs.AllocClientStatusRunning)
+	}
+	h.apm.value = 25
+	h.clock.Advance(simStep)
+	must.NoError(t, h.evaluate())
+
+	// The decision is published as it is made, the end of the hold when
+	// the evaluation is recorded.
+	events = rec.list()
+	must.Len(t, 3, events)
+	must.Eq(t, structs.TypeScalingDecision, events[1].typ)
+	must.Eq(t, int64(3), events[1].ev.Count)
+	must.Eq(t, structs.TypeScalingHeld, events[2].typ)
+	must.StrContains(t, events[2].ev.Reason, "ended")
 }

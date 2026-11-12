@@ -35,7 +35,7 @@ var (
 )
 
 type checker interface {
-	runCheckAndCapCount(ctx context.Context, pop population, cache *queryMetricsCache) (sdk.ScalingAction, error)
+	runCheckAndCapCount(ctx context.Context, pop population, cache *queryMetricsCache) (sdk.ScalingAction, checkReading, error)
 	group() string
 	name() string
 }
@@ -87,6 +87,7 @@ type runner struct {
 	proc   *processor
 	exec   *executor
 	settle *settleTracker
+	status *statusBook
 
 	// usage is the collector of the client pushed task group usage that
 	// serves the checks of the nomad-apm source. Nil in tests that use the
@@ -139,6 +140,7 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 		},
 		exec:    newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
 		settle:  newSettleTracker(),
+		status:  newStatusBook(cfg.HoldWarn, deps.PublishEvent),
 		handles: map[string]*policyHandle{},
 
 		lastDemand: map[string]int64{},
@@ -274,15 +276,39 @@ func (r *runner) worker(ctx context.Context) {
 }
 
 // evaluate runs one evaluation of a policy: check → strategy → proposed
-// count, and hands the decision to the executor.
+// count, hands the decision to the executor, and records what happened in
+// the status book.
 func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	defer metrics.MeasureSince([]string{"nomad", "autoscaler", "evaluate"}, time.Now())
 
+	eval := &Evaluation{Time: r.now()}
+	err := r.evaluatePolicy(ctx, c, eval)
+	switch {
+	case err != nil:
+		eval.Outcome, eval.Message = OutcomeError, err.Error()
+	case eval.Outcome == "":
+		eval.Outcome = OutcomeNone
+	}
+	// A policy whose target is gone has no status: it goes away with it.
+	if eval.Outcome != outcomeTargetGone {
+		r.status.record(c.policy.ID, c.key, eval)
+	}
+	return err
+}
+
+// outcomeTargetGone is the outcome of an evaluation that found no target; it
+// is not recorded.
+const outcomeTargetGone = "target gone"
+
+// evaluatePolicy is the evaluation itself; it fills in eval as it goes. An
+// outcome it leaves empty is OutcomeNone.
+func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Evaluation) error {
 	logger := r.logger.With("policy_id", c.policy.ID, "target", c.key.String())
-	now := r.now()
+	now := eval.Time
 
 	if c.schedule != nil && !c.schedule.activeAt(now) {
 		logger.Debug("skipping evaluation, outside schedule window")
+		eval.held(HoldSchedule, "")
 		return nil
 	}
 
@@ -313,11 +339,14 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	// with it.
 	if t == nil {
 		logger.Debug("skipping evaluation", "reason", errTargetNotFound)
+		eval.Outcome = outcomeTargetGone
 		return nil
 	}
+	eval.Desired, eval.Running = t.desired, t.status.Count
 
 	if !t.status.Ready {
 		logger.Debug("skipping evaluation, target not ready")
+		eval.held(HoldNotReady, "")
 		return nil
 	}
 
@@ -333,6 +362,14 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 		if c.scaleDuringDeployment != structs.ScaleDuringDeploymentUpOnly || t.unpromotedCanary {
 			metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "deployment"}, 1)
 			logger.Debug("skipping evaluation, deployment in progress", "unpromoted_canary", t.unpromotedCanary)
+			switch {
+			case t.unpromotedCanary:
+				eval.held(HoldCanary, "canaries of the deployment wait for promotion")
+			case t.deploymentWaits:
+				eval.held(HoldMultiregion, "the deployment waits for its turn in the multiregion rollout")
+			default:
+				eval.held(HoldDeployment, "a deployment of the job runs")
+			}
 			return nil
 		}
 		upOnly = true
@@ -343,6 +380,11 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	if until, reason := r.exec.blockedUntil(c.key, c.policy, t); now.Before(until) {
 		metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "skipped"}, 1)
 		logger.Debug("skipping evaluation", "reason", reason, "remaining", until.Sub(now))
+		hold := HoldCooldown
+		if reason != "cooldown" {
+			hold = HoldSuspended
+		}
+		eval.held(hold, "until "+until.UTC().Format(time.RFC3339))
 		return nil
 	}
 
@@ -352,7 +394,7 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	// two differ, and a result taken against the running count would ask
 	// again for what is already on its way, or take it back.
 	pop := population{desired: t.desired, running: t.status.Count, average: t.runningAverage}
-	action, check, err := r.calculateNewCount(ctx, c, pop)
+	action, check, err := r.calculateNewCount(ctx, c, pop, eval)
 	if err != nil {
 		return fmt.Errorf("unable to execute policy: %w", err)
 	}
@@ -371,9 +413,11 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	if action.Count < t.desired {
 		action.Direction = sdk.ScaleDirectionDown
 	}
+	eval.Count, eval.Direction = action.Count, action.Direction.String()
 
 	if upOnly && action.Direction != sdk.ScaleDirectionUp {
 		logger.Debug("skipping scaling, only scaling up is allowed during the deployment")
+		eval.held(HoldDeployment, "only scaling up is allowed during the deployment")
 		return nil
 	}
 
@@ -385,6 +429,8 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 		metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "settling"}, 1)
 		logger.Debug("skipping scale down, the target is not settled", "desired", t.desired,
 			"running", t.status.Count, "migrating", t.isMigrating, "for", unsettledFor)
+		eval.held(HoldSettling, fmt.Sprintf("%d of %d run, not settled for %s",
+			t.status.Count, t.desired, unsettledFor.Round(time.Second)))
 		return nil
 	}
 
@@ -392,6 +438,7 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	// which keeps the protections of a scale down; its checks only raise it.
 	if action.Direction == sdk.ScaleDirectionDown && strings.HasPrefix(c.policy.ID, nodeGroupPolicyPrefix) {
 		logger.Debug("skipping scaling, a node group is lowered by its scale_down block only")
+		eval.held(HoldNodeGroup, "")
 		return nil
 	}
 
@@ -404,6 +451,7 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 			return fmt.Errorf("failed to check the quota: %w", err)
 		}
 		if !ok {
+			eval.held(HoldQuota, "the quota of the namespace has no room for one more")
 			return nil
 		}
 	}
@@ -413,10 +461,20 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	// a group by two systems.
 	if !r.policyStillActive(c) {
 		logger.Debug("skipping scaling, policy is no longer active")
+		eval.held(HoldPolicy, "")
 		return nil
 	}
 
-	return r.exec.execute(c, t, action, check, r.now())
+	hold, err := r.exec.execute(c, t, action, check, r.now())
+	switch {
+	case err != nil:
+		return err
+	case hold != "":
+		eval.held(hold, "")
+	default:
+		eval.Outcome, eval.Count = OutcomeScaled, action.Count
+	}
+	return nil
 }
 
 // scalingNeeded determines if the action requires a change from the count
@@ -431,19 +489,30 @@ func scalingNeeded(a sdk.ScalingAction, desired int64) bool {
 // calculateNewCount is the main part of the controller, it
 // gets the metrics and the necessary new count to keep up with the policy
 // and generates a scaling action if needed.
-func (r *runner) calculateNewCount(ctx context.Context, c *compiledPolicy, pop population) (sdk.ScalingAction, string, error) {
+func (r *runner) calculateNewCount(ctx context.Context, c *compiledPolicy, pop population, eval *Evaluation) (sdk.ScalingAction, string, error) {
 	// Store check results by group so we can compare their results together.
 	checkGroups := make(map[string][]checkResult)
 	queryCache := newQueryMetricsCache()
 
 	for _, ch := range c.checkRunners {
-		action, err := ch.runCheckAndCapCount(ctx, pop, queryCache)
-		if err != nil {
-			if errors.Is(err, errCheckOutsideSchedule) || errors.Is(err, errCheckSkipped) {
-				continue
-			}
+		action, reading, err := ch.runCheckAndCapCount(ctx, pop, queryCache)
+		switch {
+		case errors.Is(err, errCheckOutsideSchedule):
+			continue
+		case errors.Is(err, errCheckSkipped):
+			// Its source gave no value and the check is set to be left out.
+			eval.Checks = append(eval.Checks, CheckEvaluation{Name: ch.name(), Direction: checkNoData})
+			continue
+		case err != nil:
 			return sdk.ScalingAction{}, "", fmt.Errorf("failed to run check and cap count: %w", err)
 		}
+		eval.Checks = append(eval.Checks, CheckEvaluation{
+			Name:      ch.name(),
+			Value:     reading.value,
+			HasValue:  reading.isSet,
+			Direction: action.Direction.String(),
+			Count:     action.Count,
+		})
 
 		g := ch.group()
 		checkGroups[g] = append(checkGroups[g], checkResult{
@@ -455,6 +524,14 @@ func (r *runner) calculateNewCount(ctx context.Context, c *compiledPolicy, pop p
 
 	winner := pickWinnerActionFromGroups(checkGroups)
 	if winner.handler == nil || winner.action == nil {
+		// No check voted. When that is because none had a value, the
+		// policy is held, not content.
+		for _, check := range eval.Checks {
+			if check.Direction == checkNoData {
+				eval.held(HoldNoData, "no check has a value")
+				break
+			}
+		}
 		return sdk.ScalingAction{}, "", nil
 	}
 

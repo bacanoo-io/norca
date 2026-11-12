@@ -113,9 +113,10 @@ func (e *executor) forget(key targetKey) {
 }
 
 // execute performs the scaling action on the target. It returns an error if
-// the action failed; skipped actions (rate limit, oscillation, active
-// deployment) are not errors.
-func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.ScalingAction, check string, now time.Time) error {
+// the action failed. A skipped action (rate limit, oscillation, active
+// deployment) is not an error: the reason it was held for is returned, one of
+// the Hold constants, and "" for an action that was made.
+func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.ScalingAction, check string, now time.Time) (string, error) {
 	key := c.key
 	logger := e.logger.With("policy_id", c.policy.ID, "target", key.String())
 
@@ -136,7 +137,7 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 		dirs := append(t.recentDirections(now.Add(-e.cfg.OscillationWindow)), action.Direction)
 		if directionChanges(dirs) >= e.cfg.OscillationThreshold {
 			e.suspend(c, now, logger)
-			return nil
+			return HoldSuspended, nil
 		}
 	}
 
@@ -146,11 +147,11 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 	if !e.limiter.AllowN(now, 1) {
 		metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "rate_limited"}, 1)
 		logger.Debug("scaling action dropped by the rate limit", "count", action.Count)
-		return nil
+		return HoldRateLimit, nil
 	}
 
 	if c.object != nil {
-		return e.executeObject(c, t, action, check, now, dryRun, logger)
+		return "", e.executeObject(c, t, action, check, now, dryRun, logger)
 	}
 
 	meta := make(map[string]interface{}, len(action.Meta)+1)
@@ -188,10 +189,10 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 		if strings.Contains(err.Error(), errActiveDeployment) {
 			metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "noop"}, 1)
 			logger.Debug("skipping scaling due to active deployment")
-			return nil
+			return HoldDeployment, nil
 		}
 		metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "error"}, 1)
-		return fmt.Errorf("failed to scale group %s: %w", key, err)
+		return "", fmt.Errorf("failed to scale group %s: %w", key, err)
 	}
 	metrics.IncrCounter([]string{"nomad", "autoscaler", "scale", "success"}, 1)
 
@@ -226,7 +227,7 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 		ev.Direction = sdk.ScaleDirection(sdk.ScaleDirectionNone).String()
 	}
 	e.publish(structs.TypeScalingDecision, ev)
-	return nil
+	return "", nil
 }
 
 // suspend suspends a task group for OscillationSuspend and records it as an

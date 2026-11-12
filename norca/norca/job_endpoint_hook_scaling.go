@@ -152,3 +152,25 @@ func isScaledGroup(tg *structs.TaskGroup) bool {
 	p := tg.Scaling
 	return p != nil && p.Enabled && (p.Type == "" || p.Type == structs.ScalingPolicyTypeHorizontal)
 }
+
+// scaledByPolicyWarning is the warning of a count changed by someone else
+// than the built-in autoscaler on a group that an enabled policy of the
+// built-in engine scales. The change is made: it may be what an emergency
+// needs. But the policy decides the count again once its cooldown, which the
+// change starts, is over.
+const scaledByPolicyWarning = "the count of this task group is decided by an enabled scaling policy of the " +
+	"built-in autoscaler: the policy will set the count again after its cooldown. Disable the policy " +
+	"or change its bounds to keep a count"
+
+// handMadeScalingWarning returns scaledByPolicyWarning when a request to
+// change the count of the group is not the built-in autoscaler's own and the
+// group is scaled by an enabled policy of the built-in engine; "" otherwise.
+func handMadeScalingWarning(group *structs.TaskGroup, args *structs.JobScaleRequest, defaultEngine string) string {
+	if args.Count == nil || !isScaledGroup(group) || autoscaler.IsOwnScaling(args.Meta) {
+		return ""
+	}
+	if autoscaler.PolicyEngine(group.Scaling, defaultEngine) != structs.ScalingPolicyEngineBuiltin {
+		return ""
+	}
+	return scaledByPolicyWarning
+}

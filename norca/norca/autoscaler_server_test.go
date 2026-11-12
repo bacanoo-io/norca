@@ -330,3 +330,72 @@ func TestAutoscaler_WritesTheStatusOfNodeGroups(t *testing.T) {
 	})
 	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
 }
+
+// TestAutoscaler_PolicyStatus checks that the last evaluation of a policy by
+// the built-in autoscaler can be read from the leader, with the permissions
+// of the policy.
+func TestAutoscaler_PolicyStatus(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, root, cleanupS1 := TestACLServer(t, testAutoscalerConfig)
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+
+	job, policy := mock.JobWithScalingPolicy()
+	job.TaskGroups[0].Count = 1
+	policy.Min, policy.Max = 1, 5
+	policy.Policy = fixedValuePolicy(3)
+
+	var resp structs.JobRegisterResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Job.Register", &structs.JobRegisterRequest{
+		Job:          job,
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: job.Namespace, AuthToken: root.SecretID},
+	}, &resp))
+
+	// The registration gives the policy its ID.
+	stored, err := s1.fsm.State().JobByID(nil, job.Namespace, job.ID)
+	must.NoError(t, err)
+	policyID := stored.TaskGroups[0].Scaling.ID
+
+	status := func(id, namespace, token string) (*structs.ScalingPolicyStatus, error) {
+		var out structs.ScalingPolicyStatusResponse
+		err := msgpackrpc.CallWithCodec(codec, "Scaling.GetPolicyStatus", &structs.ScalingPolicySpecificRequest{
+			ID:           id,
+			QueryOptions: structs.QueryOptions{Region: "global", Namespace: namespace, AuthToken: token},
+		}, &out)
+		return out.Status, err
+	}
+
+	// The policy scales the group from 1 to 3; the evaluations after it are
+	// held by its cooldown of 1h.
+	testutil.WaitForResult(func() (bool, error) {
+		st, err := status(policyID, job.Namespace, root.SecretID)
+		if err != nil {
+			return false, err
+		}
+		if st == nil || st.Outcome != autoscaler.OutcomeHeld {
+			return false, fmt.Errorf("expected a held evaluation, got %+v", st)
+		}
+		must.Eq(t, autoscaler.HoldCooldown, st.HoldReason)
+		must.Eq(t, int64(3), st.Desired)
+		must.Positive(t, st.Time)
+		must.Positive(t, st.HoldSince)
+		return true, nil
+	}, func(err error) { must.NoError(t, err) })
+
+	t.Run("an unknown policy is not found", func(t *testing.T) {
+		_, err := status("no-such-policy", job.Namespace, root.SecretID)
+		must.ErrorContains(t, err, "policy not found")
+	})
+
+	t.Run("a policy of another namespace is not found", func(t *testing.T) {
+		_, err := status(policyID, "other", root.SecretID)
+		must.ErrorContains(t, err, "policy not found")
+	})
+
+	t.Run("the permissions of the policy are needed", func(t *testing.T) {
+		_, err := status(policyID, job.Namespace, "")
+		must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+	})
+}

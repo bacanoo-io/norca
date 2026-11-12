@@ -143,6 +143,10 @@ type Config struct {
 	// no longer holds the target.
 	SettleTimeout time.Duration
 
+	// HoldWarn is how long a policy is held for the same reason (see the
+	// Hold constants) before a ScalingHeld event tells about it.
+	HoldWarn time.Duration
+
 	// MetricsWindow is how long the leader keeps the task group usage
 	// reported by clients. After a leader change the built-in metrics report
 	// insufficient data until one full window has been collected.
@@ -183,6 +187,7 @@ func DefaultConfig() *Config {
 		OscillationThreshold:      DefaultOscillationThreshold,
 		OscillationSuspend:        DefaultOscillationSuspend,
 		SettleTimeout:             DefaultSettleTimeout,
+		HoldWarn:                  DefaultHoldWarn,
 		MetricsWindow:             DefaultMetricsWindow,
 		ClientMetricsInterval:     DefaultClientMetricsInterval,
 	}
@@ -250,6 +255,9 @@ func (c *Config) Validate() error {
 	}
 	if c.SettleTimeout <= 0 {
 		mErr = multierror.Append(mErr, fmt.Errorf("settle_timeout must be greater than 0"))
+	}
+	if c.HoldWarn <= 0 {
+		mErr = multierror.Append(mErr, fmt.Errorf("hold_warn must be greater than 0"))
 	}
 	if c.ClientMetricsInterval < minClientMetricsInterval {
 		mErr = multierror.Append(mErr, fmt.Errorf("client_metrics_interval must be at least %s", minClientMetricsInterval))

@@ -355,20 +355,29 @@ func (ch *checkRunner) name() string {
 	return ch.check.Name
 }
 
-// runCheckAndCapCount evaluates the check and caps the returned action.
+// checkReading is the latest value a check read, as measured; isSet is false
+// for a check without a measured value.
+type checkReading struct {
+	value float64
+	isSet bool
+}
+
+// runCheckAndCapCount evaluates the check and caps the returned action. It
+// also returns the value the check read, for the evaluation status.
 //
 // The method returns errCheckOutsideSchedule when the check is outside its
 // schedule window; the caller should skip this check and continue. Any other
 // error, including context errors, should abort the evaluation.
-func (ch *checkRunner) runCheckAndCapCount(ctx context.Context, pop population, cache *queryMetricsCache) (sdk.ScalingAction, error) {
+func (ch *checkRunner) runCheckAndCapCount(ctx context.Context, pop population, cache *queryMetricsCache) (sdk.ScalingAction, checkReading, error) {
 	ch.log.Debug("received policy check for evaluation")
 
+	var reading checkReading
 	if err := ch.ensureCompiledSchedule(); err != nil {
-		return sdk.ScalingAction{}, fmt.Errorf("failed to compile check schedule: %w", err)
+		return sdk.ScalingAction{}, reading, fmt.Errorf("failed to compile check schedule: %w", err)
 	}
 
 	if ch.schedule != nil && !ch.schedule.activeAt(ch.now()) {
-		return sdk.ScalingAction{}, errCheckOutsideSchedule
+		return sdk.ScalingAction{}, reading, errCheckOutsideSchedule
 	}
 
 	metrics := sdk.TimestampedMetrics{}
@@ -379,26 +388,29 @@ func (ch *checkRunner) runCheckAndCapCount(ctx context.Context, pop population, 
 		if err != nil {
 			if ctx.Err() == nil && !ch.failOnError() {
 				ch.log.Warn("failed to query source, ignoring check", "error", err)
-				return sdk.ScalingAction{}, errCheckSkipped
+				return sdk.ScalingAction{}, reading, errCheckSkipped
 			}
-			return sdk.ScalingAction{}, fmt.Errorf("failed to query source: %w", err)
+			return sdk.ScalingAction{}, reading, fmt.Errorf("failed to query source: %w", err)
+		}
+		if len(metrics) > 0 {
+			reading = checkReading{value: metrics[len(metrics)-1].Value, isSet: true}
 		}
 	}
 
 	metrics, ok := ch.restate(pop, metrics)
 	if !ok {
 		ch.log.Debug("no running instance to lay the value on, the check votes for no change")
-		return sdk.ScalingAction{Direction: sdk.ScaleDirectionNone}, nil
+		return sdk.ScalingAction{Direction: sdk.ScaleDirectionNone}, reading, nil
 	}
 
 	action, err := ch.getNewCountFromStrategy(ctx, pop.desired, metrics)
 	if err != nil {
-		return sdk.ScalingAction{}, fmt.Errorf("failed get count from metrics: %w", err)
+		return sdk.ScalingAction{}, reading, fmt.Errorf("failed get count from metrics: %w", err)
 	}
 
 	action.CapCount(ch.policy.Min, ch.policy.Max)
 
-	return action, nil
+	return action, reading, nil
 }
 
 // failOnError reports whether an error in this check must abort the whole

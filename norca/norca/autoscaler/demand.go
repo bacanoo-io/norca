@@ -772,7 +772,8 @@ func (r *runner) scaleGroup(g *demandGroup, desired int64, dir sdk.ScaleDirectio
 		Direction: dir,
 		Reason:    reason,
 	}
-	return r.exec.execute(c, t, action, check, r.now())
+	_, err = r.exec.execute(c, t, action, check, r.now())
+	return err
 }
 
 // groupTarget returns what the executor needs to scale a node group: its

@@ -25,6 +25,12 @@ const (
 	metaKeySuspendedUntil = "nomad_autoscaler.suspended_until"
 )
 
+// IsOwnScaling reports whether the meta of a scaling request or event is that
+// of an action of the built-in autoscaler.
+func IsOwnScaling(meta map[string]interface{}) bool {
+	return meta[metaKeyEngine] == structs.ScalingPolicyEngineBuiltin
+}
+
 // targetKey identifies a scaled task group.
 type targetKey struct {
 	namespace string
@@ -87,10 +93,12 @@ type targetState struct {
 	group *structs.TaskGroup
 
 	// deploymentActive is set while a deployment of the current job is
-	// active, and unpromotedCanary while it waits for canaries to be
-	// promoted.
+	// active, unpromotedCanary while it waits for canaries to be promoted,
+	// and deploymentWaits while it waits for its turn in a multiregion
+	// rollout.
 	deploymentActive bool
 	unpromotedCanary bool
+	deploymentWaits  bool
 
 	// events are the scaling events of the task group, newest first.
 	events []*structs.ScalingEvent
@@ -167,6 +175,7 @@ func readTarget(store *state.StateStore, key targetKey) (*targetState, error) {
 	}
 	if deployment != nil && deployment.Active() && deployment.JobCreateIndex == job.CreateIndex {
 		t.deploymentActive = true
+		t.deploymentWaits = deployment.IsMultiregion && deployment.Status == structs.DeploymentStatusPending
 		for _, ds := range deployment.TaskGroups {
 			if ds != nil && ds.DesiredCanaries > 0 && !ds.Promoted {
 				t.unpromotedCanary = true

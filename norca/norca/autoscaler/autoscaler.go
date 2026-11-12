@@ -129,6 +129,17 @@ func (a *Autoscaler) Stats() Stats {
 	}
 }
 
+// PolicyStatus returns the last evaluation of a policy by this server: nil
+// while the autoscaler does not run here (it runs on the leader) and for a
+// policy that has not been evaluated since it started.
+func (a *Autoscaler) PolicyStatus(policyID string) *Evaluation {
+	r := a.runner.Load()
+	if r == nil {
+		return nil
+	}
+	return r.status.get(policyID)
+}
+
 // New returns a new, stopped autoscaler.
 func New(logger hclog.Logger, config *Config, deps *Deps) *Autoscaler {
 	if config == nil {

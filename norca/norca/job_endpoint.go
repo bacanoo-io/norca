@@ -1163,6 +1163,9 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 			}
 		}
 
+		// A change that is not the policy's own is made, with a warning.
+		reply.Warnings = handMadeScalingWarning(group, args, j.srv.autoscalerDefaultEngine())
+
 		// Update group count
 		group.Count = int(*args.Count)
 		job.SubmitTime = now

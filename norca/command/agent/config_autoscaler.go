@@ -53,6 +53,11 @@ type AutoscalerConfig struct {
 	// or being replaced) is kept from being scaled down.
 	SettleTimeout string `hcl:"settle_timeout"`
 
+	// HoldWarn is how long a policy is held for the same reason (a
+	// deployment, canaries, a group that does not settle, ...) before a
+	// ScalingHeld event tells about it.
+	HoldWarn string `hcl:"hold_warn"`
+
 	// MetricsWindow is how long the leader keeps the task group usage
 	// reported by clients (nomad.cpu, nomad.memory, ...).
 	MetricsWindow string `hcl:"metrics_window"`
@@ -205,6 +210,9 @@ func (a *AutoscalerConfig) Merge(b *AutoscalerConfig) *AutoscalerConfig {
 	if b.SettleTimeout != "" {
 		result.SettleTimeout = b.SettleTimeout
 	}
+	if b.HoldWarn != "" {
+		result.HoldWarn = b.HoldWarn
+	}
 	if b.MetricsWindow != "" {
 		result.MetricsWindow = b.MetricsWindow
 	}
@@ -271,6 +279,7 @@ func (a *AutoscalerConfig) toServerConfig() (*autoscaler.Config, error) {
 		{"default_evaluation_interval", a.DefaultEvaluationInterval, &cfg.DefaultEvaluationInterval},
 		{"default_cooldown", a.DefaultCooldown, &cfg.DefaultCooldown},
 		{"settle_timeout", a.SettleTimeout, &cfg.SettleTimeout},
+		{"hold_warn", a.HoldWarn, &cfg.HoldWarn},
 		{"metrics_window", a.MetricsWindow, &cfg.MetricsWindow},
 		{"client_metrics_interval", a.ClientMetricsInterval, &cfg.ClientMetricsInterval},
 	}

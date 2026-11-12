@@ -5,6 +5,7 @@
 package norca
 
 import (
+	"net/http"
 	"strings"
 	"time"
 
@@ -160,6 +161,54 @@ func (p *Scaling) GetPolicy(args *structs.ScalingPolicySpecificRequest,
 			return nil
 		}}
 	return p.srv.blockingRPC(&opts)
+}
+
+// GetPolicyStatus returns the last evaluation of a policy by the built-in
+// autoscaler. The status is in the memory of the leader, so the request is
+// always answered there; it is nil for a policy that has not been evaluated
+// since the leader was elected.
+func (p *Scaling) GetPolicyStatus(args *structs.ScalingPolicySpecificRequest,
+	reply *structs.ScalingPolicyStatusResponse) error {
+
+	// Only the leader has it: a stale read of another server has nothing.
+	args.AllowStale = false
+
+	authErr := p.srv.Authenticate(p.ctx, args)
+	if done, err := p.srv.forward("Scaling.GetPolicyStatus", args, args, reply); done {
+		return err
+	}
+	p.srv.MeasureRPCRate("scaling", structs.RateMetricRead, args)
+	if authErr != nil {
+		return structs.ErrPermissionDenied
+	}
+	defer metrics.MeasureSince([]string{"nomad", "scaling", "get_policy_status"}, time.Now())
+
+	// The permissions of GetPolicy: the status says no more than the policy
+	// and the job do.
+	if aclObj, err := p.srv.ResolveACL(args); err != nil {
+		return err
+	} else if aclObj != nil {
+		hasReadScalingPolicy := aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityReadScalingPolicy)
+		hasListAndReadJobs := aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityListJobs) &&
+			aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityReadJob)
+		if !(hasReadScalingPolicy || hasListAndReadJobs) {
+			return structs.ErrPermissionDenied
+		}
+	}
+
+	// The policy must exist in the namespace the permissions were checked
+	// for: a policy ID does not name its namespace.
+	policy, err := p.srv.fsm.State().ScalingPolicyByID(nil, args.ID)
+	if err != nil {
+		return err
+	}
+	if policy == nil || policy.Target[structs.ScalingTargetNamespace] != args.RequestNamespace() {
+		return structs.NewErrRPCCoded(http.StatusNotFound, "policy not found")
+	}
+
+	reply.Status = p.srv.scalingPolicyStatus(args.ID)
+	p.srv.setQueryMeta(&reply.QueryMeta)
+	return nil
 }
 
 func (p *Scaling) listAllNamespaces(args *structs.ScalingPolicyListRequest, reply *structs.ScalingPolicyListResponse) error {

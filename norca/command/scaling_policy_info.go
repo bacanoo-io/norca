@@ -6,6 +6,7 @@ package command
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mitchellh/cli"
@@ -199,5 +200,48 @@ func (s *ScalingPolicyInfoCommand) Run(args []string) int {
 	s.Ui.Output(formatKV(info))
 	s.Ui.Output("\nPolicy:")
 	s.Ui.Output(out)
+
+	// The last evaluation by the built-in autoscaler: not every policy has
+	// one, and servers without the endpoint answer with an error.
+	if status, _, err := client.Scaling().GetPolicyStatus(policy.ID, nil); err == nil && status != nil {
+		s.Ui.Output("\nLast Evaluation:")
+		s.Ui.Output(formatScalingPolicyStatus(status))
+	}
 	return 0
+}
+
+// formatScalingPolicyStatus formats the last evaluation of a policy.
+func formatScalingPolicyStatus(status *api.ScalingPolicyStatus) string {
+	result := status.Outcome
+	if status.Outcome == "held" {
+		result = fmt.Sprintf("held (%s) since %s", status.HoldReason, formatUnixNanoTime(status.HoldSince))
+	}
+	info := []string{
+		fmt.Sprintf("Time|%s", formatUnixNanoTime(status.Time)),
+		fmt.Sprintf("Desired / Running|%d / %d", status.Desired, status.Running),
+		fmt.Sprintf("Result|%s", result),
+	}
+	if status.Direction != "none" && status.Direction != "" {
+		info = append(info, fmt.Sprintf("Checks ask for|%d (%s)", status.Count, status.Direction))
+	}
+	if status.Message != "" {
+		info = append(info, fmt.Sprintf("Detail|%s", status.Message))
+	}
+	out := formatKV(info)
+
+	if len(status.Checks) == 0 {
+		return out
+	}
+	checks := []string{"Check|Value|Vote|Count"}
+	for _, check := range status.Checks {
+		value, count := "-", "-"
+		if check.HasValue {
+			value = strconv.FormatFloat(check.Value, 'f', -1, 64)
+		}
+		if check.Direction == "up" || check.Direction == "down" {
+			count = strconv.FormatInt(check.Count, 10)
+		}
+		checks = append(checks, fmt.Sprintf("%s|%s|%s|%s", check.Name, value, check.Direction, count))
+	}
+	return out + "\n\n" + formatList(checks)
 }
