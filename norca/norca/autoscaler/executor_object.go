@@ -77,7 +77,7 @@ func (e *executor) executeObject(c *compiledPolicy, t *targetState, action sdk.S
 	e.cooldowns[c.key] = now.Add(cd)
 	e.l.Unlock()
 
-	logger.Info("scaled custom object", "from", t.status.Count, "to", action.Count,
+	logger.Info("scaled custom object", "from", t.desired, "to", action.Count,
 		"reason", action.Reason, "cooldown", cd)
 
 	e.publish(structs.TypeScalingDecision, &structs.ScalingDecisionEvent{
@@ -85,7 +85,7 @@ func (e *executor) executeObject(c *compiledPolicy, t *targetState, action sdk.S
 		JobID:         c.key.job,
 		Group:         c.key.group,
 		PolicyID:      c.policy.ID,
-		PreviousCount: t.status.Count,
+		PreviousCount: t.desired,
 		Count:         action.Count,
 		Direction:     action.Direction.String(),
 		Check:         check,

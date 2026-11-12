@@ -47,8 +47,42 @@ type CheckRunnerConfig struct {
 
 	Policy *sdk.ScalingPolicy
 
+	// Scope says what population the value of the check belongs to.
+	Scope valueScope
+
 	// Now returns the current time.
 	Now func() time.Time
+}
+
+// valueScope says what population the value of a check was measured on, so
+// that it can be restated for the count that was asked for.
+type valueScope int
+
+const (
+	// valueScopeUnknown is a value that is not known to be per instance of
+	// the target (a total, a value of something else): it is used as it is.
+	valueScopeUnknown valueScope = iota
+
+	// valueScopeRunning is a value per instance, measured on the instances
+	// that run now.
+	valueScopeRunning
+
+	// valueScopeWindow is a value per instance averaged over the query
+	// window, as the usage the clients report: it was measured on the
+	// average number of running instances of that window.
+	valueScopeWindow
+)
+
+// population is what a check needs to know of the target to lay a measured
+// value on instances.
+type population struct {
+	// desired is the count that was asked for, running what runs now.
+	desired int64
+	running int64
+
+	// average returns the average number of running instances over a time
+	// range; it is false when that cannot be told.
+	average func(from, to time.Time) (float64, bool)
 }
 
 // checkHandler evaluates one of the checks of a policy.
@@ -58,6 +92,7 @@ type checkRunner struct {
 	metricsGetter  plugins.Looker
 	check          *sdk.ScalingPolicyCheck
 	policy         *sdk.ScalingPolicy
+	scope          valueScope
 	schedule       *compiledSchedule
 	scheduleErr    error
 	scheduleOnce   sync.Once
@@ -102,6 +137,7 @@ func newCheckRunner(config *CheckRunnerConfig, c *sdk.ScalingPolicyCheck) *check
 		strategyRunner: config.StrategyRunner,
 		metricsGetter:  config.MetricsGetter,
 		policy:         config.Policy,
+		scope:          config.Scope,
 		now:            config.Now,
 	}
 }
@@ -115,11 +151,11 @@ func (ch *checkRunner) ensureCompiledSchedule() error {
 
 // getNewCountFromStrategy runs the strategy for one check and returns a
 // scaling action, applying check-level and policy-level error handling.
-func (ch *checkRunner) getNewCountFromStrategy(ctx context.Context, currentCount int64,
+func (ch *checkRunner) getNewCountFromStrategy(ctx context.Context, count int64,
 	metrics sdk.TimestampedMetrics) (sdk.ScalingAction, error) {
-	ch.log.Debug("calculating new count", "current count", currentCount)
+	ch.log.Debug("calculating new count", "desired count", count)
 
-	a, err := ch.runStrategy(ctx, currentCount, metrics)
+	a, err := ch.runStrategy(ctx, count, metrics)
 	if err != nil {
 		ch.log.Warn("failed to run check", "check", ch.check.Name,
 			"on_error", ch.check.OnError, "on_check_error",
@@ -139,7 +175,7 @@ func (ch *checkRunner) getNewCountFromStrategy(ctx context.Context, currentCount
 	return a, nil
 }
 
-func (ch *checkRunner) runStrategy(ctx context.Context, currentCount int64, ms sdk.TimestampedMetrics) (sdk.ScalingAction, error) {
+func (ch *checkRunner) runStrategy(ctx context.Context, count int64, ms sdk.TimestampedMetrics) (sdk.ScalingAction, error) {
 	checkEval := &sdk.ScalingCheckEvaluation{
 		Check: ch.check,
 		Action: &sdk.ScalingAction{
@@ -166,7 +202,7 @@ func (ch *checkRunner) runStrategy(ctx context.Context, currentCount int64, ms s
 	strategyRunDoneCh := make(chan interface{})
 	go func() {
 		defer close(strategyRunDoneCh)
-		runResp, err = ch.strategyRunner.Run(checkEval, currentCount)
+		runResp, err = ch.strategyRunner.Run(checkEval, count)
 	}()
 
 	select {
@@ -212,13 +248,7 @@ func (ch *checkRunner) queryMetrics(ctx context.Context, cache *queryMetricsCach
 	defer metrics.MeasureSinceWithLabels([]string{"nomad", "autoscaler", "apm", "query"},
 		time.Now(), labels)
 
-	// Calculate query range from the query window defined in the ch.check.
-	to := ch.now().Add(-ch.check.QueryWindowOffset)
-	from := to.Add(-ch.check.QueryWindow)
-	if ch.check.QueryInstant {
-		from = to
-	}
-	r := sdk.TimeRange{From: from, To: to}
+	r := ch.queryRange()
 
 	var err error
 	ms := sdk.TimestampedMetrics{}
@@ -262,6 +292,61 @@ func (ch *checkRunner) queryMetrics(ctx context.Context, cache *queryMetricsCach
 	return ms, nil
 }
 
+// restateRounding takes a restated value down by a part in a thousand
+// million. A strategy rounds its result up to whole instances; without it the
+// last bit of the division could turn a load that needs exactly 6 instances
+// into 7.
+const restateRounding = 1 - 1e-9
+
+// queryRange returns the time range of the check's query, from its query
+// window and offset.
+func (ch *checkRunner) queryRange() sdk.TimeRange {
+	to := ch.now().Add(-ch.check.QueryWindowOffset)
+	from := to.Add(-ch.check.QueryWindow)
+	if ch.check.QueryInstant {
+		from = to
+	}
+	return sdk.TimeRange{From: from, To: to}
+}
+
+// restate lays the measured values on the count that was asked for: a value
+// per instance, measured on measured instances, is what desired instances
+// would show for the same load, value × measured / desired. The strategy
+// then runs with the desired count, so its result says what the load needs
+// against what was asked for, whatever is starting, migrating or lost
+// meanwhile.
+//
+// It is false when the value is per instance and no instance was there to
+// measure it on: such a value says nothing of the load.
+func (ch *checkRunner) restate(pop population, ms sdk.TimestampedMetrics) (sdk.TimestampedMetrics, bool) {
+	if ch.scope == valueScopeUnknown || pop.desired <= 0 {
+		return ms, true
+	}
+
+	measured := float64(pop.running)
+	if ch.scope == valueScopeWindow && pop.average != nil {
+		r := ch.queryRange()
+		if avg, ok := pop.average(r.From, r.To); ok {
+			measured = avg
+		}
+	}
+	if measured <= 0 {
+		return nil, false
+	}
+
+	factor := measured / float64(pop.desired)
+	if factor == 1 {
+		return ms, true
+	}
+	restated := make(sdk.TimestampedMetrics, len(ms))
+	for i, m := range ms {
+		restated[i] = sdk.TimestampedMetric{Timestamp: m.Timestamp, Value: m.Value * factor * restateRounding}
+	}
+	ch.log.Debug("values restated for the desired count",
+		"measured_on", measured, "desired", pop.desired, "factor", factor)
+	return restated, true
+}
+
 func (ch *checkRunner) group() string {
 	return ch.check.Group
 }
@@ -275,7 +360,7 @@ func (ch *checkRunner) name() string {
 // The method returns errCheckOutsideSchedule when the check is outside its
 // schedule window; the caller should skip this check and continue. Any other
 // error, including context errors, should abort the evaluation.
-func (ch *checkRunner) runCheckAndCapCount(ctx context.Context, currentCount int64, cache *queryMetricsCache) (sdk.ScalingAction, error) {
+func (ch *checkRunner) runCheckAndCapCount(ctx context.Context, pop population, cache *queryMetricsCache) (sdk.ScalingAction, error) {
 	ch.log.Debug("received policy check for evaluation")
 
 	if err := ch.ensureCompiledSchedule(); err != nil {
@@ -300,7 +385,13 @@ func (ch *checkRunner) runCheckAndCapCount(ctx context.Context, currentCount int
 		}
 	}
 
-	action, err := ch.getNewCountFromStrategy(ctx, currentCount, metrics)
+	metrics, ok := ch.restate(pop, metrics)
+	if !ok {
+		ch.log.Debug("no running instance to lay the value on, the check votes for no change")
+		return sdk.ScalingAction{Direction: sdk.ScaleDirectionNone}, nil
+	}
+
+	action, err := ch.getNewCountFromStrategy(ctx, pop.desired, metrics)
 	if err != nil {
 		return sdk.ScalingAction{}, fmt.Errorf("failed get count from metrics: %w", err)
 	}

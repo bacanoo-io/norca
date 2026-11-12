@@ -39,18 +39,23 @@ func (c *fakeClock) Advance(d time.Duration) {
 	c.now = c.now.Add(d)
 }
 
-// fakeAPM returns a fixed metric value.
+// fakeAPM returns a fixed metric value, or the value of valueFn if set.
 type fakeAPM struct {
-	clock *fakeClock
-	value float64
-	err   error
+	clock   *fakeClock
+	value   float64
+	valueFn func() float64
+	err     error
 }
 
 func (f *fakeAPM) Query(_ string, _ sdk.TimeRange) (sdk.TimestampedMetrics, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return sdk.TimestampedMetrics{{Timestamp: f.clock.Now(), Value: f.value}}, nil
+	value := f.value
+	if f.valueFn != nil {
+		value = f.valueFn()
+	}
+	return sdk.TimestampedMetrics{{Timestamp: f.clock.Now(), Value: value}}, nil
 }
 
 func (f *fakeAPM) QueryMultiple(q string, r sdk.TimeRange) ([]sdk.TimestampedMetrics, error) {
@@ -232,6 +237,75 @@ func (h *harness) evaluate() error {
 	return h.runner.evaluate(context.Background(), handle.compiled)
 }
 
+// setCount sets the count of the job's group, as a scaling action or a new
+// job version would.
+func (h *harness) setCount(count int) {
+	h.t.Helper()
+	job, err := h.store.JobByID(nil, h.job.Namespace, h.job.ID)
+	must.NoError(h.t, err)
+	job = job.Copy()
+	job.TaskGroups[0].Count = count
+	h.index++
+	must.NoError(h.t, h.store.UpsertJob(structs.MsgTypeTestSetup, h.index, nil, job))
+}
+
+// addAlloc adds an allocation of the job's group in the given client status
+// and returns its ID.
+func (h *harness) addAlloc(clientStatus string) string {
+	h.t.Helper()
+	a := mock.Alloc()
+	a.Job = h.job
+	a.JobID = h.job.ID
+	a.Namespace = h.job.Namespace
+	a.TaskGroup = h.job.TaskGroups[0].Name
+	a.ClientStatus = clientStatus
+	h.index++
+	must.NoError(h.t, h.store.UpsertAllocs(structs.MsgTypeTestSetup, h.index, []*structs.Allocation{a}))
+	return a.ID
+}
+
+// setClientStatus changes the client status of a stored allocation, as its
+// client would report it.
+func (h *harness) setClientStatus(id, clientStatus string) {
+	h.t.Helper()
+	a, err := h.store.AllocByID(nil, id)
+	must.NoError(h.t, err)
+	must.NotNil(h.t, a)
+	a = a.Copy()
+	a.ClientStatus = clientStatus
+	h.index++
+	must.NoError(h.t, h.store.UpdateAllocsFromClient(structs.MsgTypeTestSetup, h.index, []*structs.Allocation{a}))
+}
+
+// finishAlloc makes a stored allocation complete, as its client reports it
+// when its task, started at startedAt, finished at finishedAt.
+func (h *harness) finishAlloc(id string, startedAt, finishedAt time.Time) {
+	h.t.Helper()
+	a, err := h.store.AllocByID(nil, id)
+	must.NoError(h.t, err)
+	must.NotNil(h.t, a)
+	a = a.Copy()
+	a.ClientStatus = structs.AllocClientStatusComplete
+	a.TaskStates = map[string]*structs.TaskState{
+		"web": {State: structs.TaskStateDead, StartedAt: startedAt, FinishedAt: finishedAt},
+	}
+	h.index++
+	must.NoError(h.t, h.store.UpdateAllocsFromClient(structs.MsgTypeTestSetup, h.index, []*structs.Allocation{a}))
+}
+
+// updateAlloc changes what the servers decide of a stored allocation (the
+// client status and the task states are kept by the store).
+func (h *harness) updateAlloc(id string, change func(*structs.Allocation)) {
+	h.t.Helper()
+	a, err := h.store.AllocByID(nil, id)
+	must.NoError(h.t, err)
+	must.NotNil(h.t, a)
+	a = a.Copy()
+	change(a)
+	h.index++
+	must.NoError(h.t, h.store.UpsertAllocs(structs.MsgTypeTestSetup, h.index, []*structs.Allocation{a}))
+}
+
 // addEvent records a scaling event, as an earlier leader would have.
 func (h *harness) addEvent(at time.Time, prev int64, count *int64, meta map[string]interface{}, isErr bool) {
 	h.index++
@@ -303,10 +377,16 @@ func TestAutoscaler_Cooldown(t *testing.T) {
 	must.NoError(t, h.evaluate())
 	must.Len(t, 1, h.scaler.requests())
 
-	// After the cooldown the policy scales again.
+	// The two allocations that were asked for run, and each of the four
+	// still shows twice the target: after the cooldown the policy scales
+	// again.
+	h.addAlloc(structs.AllocClientStatusRunning)
+	h.addAlloc(structs.AllocClientStatusRunning)
 	h.clock.Advance(31 * time.Second)
 	must.NoError(t, h.evaluate())
-	must.Len(t, 2, h.scaler.requests())
+	reqs := h.scaler.requests()
+	must.Len(t, 2, reqs)
+	must.Eq(t, int64(8), *reqs[1].Count)
 }
 
 func TestAutoscaler_CooldownRestoredAfterLeaderChange(t *testing.T) {

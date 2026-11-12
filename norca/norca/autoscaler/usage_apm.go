@@ -142,6 +142,18 @@ func (u *usageAPM) fromHistory(query *usageQuery, r sdk.TimeRange) (usageAggrega
 	return usageAggregate{avg: avg, max: mx}, nil
 }
 
+// scopeOf says what population the value of a query belongs to. The usage
+// of the policy's own task group is an average per allocation over the query
+// window. A sum is a total, and the usage of another task group says nothing
+// per instance of this one: both are used as they are.
+func (u *usageAPM) scopeOf(q string) valueScope {
+	query, err := u.parseQuery(q)
+	if err != nil || query.op == usageOpSum || query.key != u.target {
+		return valueScopeUnknown
+	}
+	return valueScopeWindow
+}
+
 // QueryMultiple returns the single stream of Query.
 func (u *usageAPM) QueryMultiple(q string, r sdk.TimeRange) ([]sdk.TimestampedMetrics, error) {
 	m, err := u.Query(q, r)
@@ -226,7 +238,7 @@ func (u *usageAPM) runningAllocs(key targetKey) (int, error) {
 // usageLooker returns the usage APM bound to the policy's task group. It is
 // used instead of the plugin host's nomad-apm for checks whose source is a
 // nomad-apm, so evaluations read the client pushed usage.
-func (r *runner) usageLooker(policy *sdk.ScalingPolicy) plugins.Looker {
+func (r *runner) usageLooker(policy *sdk.ScalingPolicy) *usageAPM {
 	key := targetKey{}
 	if policy.Target != nil {
 		key = targetKey{

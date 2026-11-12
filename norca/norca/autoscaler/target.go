@@ -63,7 +63,24 @@ func targetKeyFromPolicy(p *structs.ScalingPolicy) (targetKey, bool) {
 // replaces the status call of the external autoscaler's Nomad target plugin
 // and is read directly from the state store.
 type targetState struct {
+	// status.Count is what runs now: the running allocations of the group
+	// that are not canaries, or the replicas an object's status reports.
 	status *sdk.TargetStatus
+
+	// desired is what was asked for: the count of the group, or the spec
+	// value of an object's scale subresource. It differs from status.Count
+	// while allocations start, wait for capacity, migrate or are replaced.
+	desired int64
+
+	// isMigrating is set while allocations of the group are marked to
+	// migrate (a node drain) and have not stopped yet: the running count is
+	// about to drop.
+	isMigrating bool
+
+	// instances are the allocations of the group that count as instances
+	// (no canaries), terminal ones included, for runningAverage. Nil for an
+	// object target.
+	instances []*structs.Allocation
 
 	// job is the current version of the job and group its task group.
 	job   *structs.Job
@@ -102,15 +119,24 @@ func readTarget(store *state.StateStore, key targetKey) (*targetState, error) {
 	// Count the running allocations the same way Job.ScaleStatus does, which
 	// is what the external autoscaler's Nomad target plugin uses as count.
 	var running int64
+	isMigrating := false
+	instances := make([]*structs.Allocation, 0, len(allocs))
 	for _, alloc := range allocs {
-		if alloc.TaskGroup != key.group || alloc.TerminalStatus() {
+		if alloc.TaskGroup != key.group {
 			continue
 		}
 		if alloc.DeploymentStatus != nil && alloc.DeploymentStatus.Canary {
 			continue
 		}
+		instances = append(instances, alloc)
+		if alloc.TerminalStatus() {
+			continue
+		}
 		if alloc.ClientStatus == structs.AllocClientStatusRunning {
 			running++
+		}
+		if alloc.DesiredTransition.ShouldMigrate() {
+			isMigrating = true
 		}
 	}
 
@@ -125,9 +151,12 @@ func readTarget(store *state.StateStore, key targetKey) (*targetState, error) {
 			Count: running,
 			Meta:  map[string]string{},
 		},
-		job:    job,
-		group:  tg,
-		events: events[key.group],
+		desired:     int64(tg.Count),
+		isMigrating: isMigrating,
+		instances:   instances,
+		job:         job,
+		group:       tg,
+		events:      events[key.group],
 	}
 
 	// Same rule as Job.Scale: a deployment blocks scaling while it is active
@@ -146,6 +175,96 @@ func readTarget(store *state.StateStore, key targetKey) (*targetState, error) {
 	}
 
 	return t, nil
+}
+
+// isSettled reports whether the target runs what was asked for: nothing is
+// starting, waiting for capacity, being replaced or about to migrate. A
+// target that is not settled is not scaled down (see runner.evaluate).
+func (t *targetState) isSettled() bool {
+	return t.status.Count >= t.desired && !t.isMigrating
+}
+
+// maxRunningAverageWindow bounds the range runningAverage looks back on:
+// terminal allocations are removed from the state by the garbage collector,
+// so a long range would miss the instances that ran at its beginning.
+const maxRunningAverageWindow = 15 * time.Minute
+
+// runningAverage returns the average number of running instances of the
+// group over [from, to]: the population a value measured over that range
+// belongs to. It is false when it cannot be told: an object target, an empty
+// range or one longer than maxRunningAverageWindow.
+func (t *targetState) runningAverage(from, to time.Time) (float64, bool) {
+	window := to.Sub(from)
+	if t.instances == nil || window <= 0 || window > maxRunningAverageWindow {
+		return 0, false
+	}
+	var total time.Duration
+	for _, alloc := range t.instances {
+		start, end, ok := runningInterval(alloc, from, to)
+		if !ok {
+			continue
+		}
+		if start.Before(from) {
+			start = from
+		}
+		if end.After(to) {
+			end = to
+		}
+		if end.After(start) {
+			total += end.Sub(start)
+		}
+	}
+	return float64(total) / float64(window), true
+}
+
+// runningInterval returns when an allocation was running, as far as its task
+// states tell; it is false for one that never ran. Where the state does not
+// say, the interval is the longer one: a value is rather laid on too many
+// instances (a larger count results) than on too few.
+//
+//   - A running allocation runs from the latest start of its running tasks
+//     to the end of the range. One whose tasks restarted within the range, or
+//     whose task states have no start time, counts for the whole range.
+//   - One that ran and stopped ran from the first start of its tasks to their
+//     last finish; a lost allocation, whose tasks never reported a finish,
+//     until the server last changed it.
+func runningInterval(alloc *structs.Allocation, from, to time.Time) (start, end time.Time, ok bool) {
+	if alloc.ClientStatus == structs.AllocClientStatusRunning {
+		for _, ts := range alloc.TaskStates {
+			if ts == nil || ts.State != structs.TaskStateRunning {
+				continue
+			}
+			if ts.Restarts > 0 && ts.LastRestart.After(from) {
+				return from, to, true
+			}
+			if ts.StartedAt.After(start) {
+				start = ts.StartedAt
+			}
+		}
+		if start.IsZero() {
+			start = from
+		}
+		return start, to, true
+	}
+
+	for _, ts := range alloc.TaskStates {
+		if ts == nil || ts.StartedAt.IsZero() {
+			continue
+		}
+		if start.IsZero() || ts.StartedAt.Before(start) {
+			start = ts.StartedAt
+		}
+		if ts.FinishedAt.After(end) {
+			end = ts.FinishedAt
+		}
+	}
+	if start.IsZero() {
+		return time.Time{}, time.Time{}, false
+	}
+	if end.IsZero() {
+		end = time.Unix(0, alloc.ModifyTime)
+	}
+	return start, end, true
 }
 
 // cooldownUntil returns the end of the cooldown caused by the last scaling

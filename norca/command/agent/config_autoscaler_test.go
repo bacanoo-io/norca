@@ -31,6 +31,7 @@ server {
     eval_workers                = 4
     rate_limit                  = 5
     rate_limit_burst            = 20
+    settle_timeout              = "7m"
     metrics_window              = "10m"
     client_metrics_interval     = "15s"
 
@@ -84,6 +85,7 @@ server {
 	must.Eq(t, 4, cfg.EvalWorkers)
 	must.Eq(t, 5.0, cfg.RateLimit)
 	must.Eq(t, 20, cfg.RateLimitBurst)
+	must.Eq(t, 7*time.Minute, cfg.SettleTimeout)
 	must.Eq(t, 10*time.Minute, cfg.MetricsWindow)
 	must.Eq(t, 15*time.Second, cfg.ClientMetricsInterval)
 	must.Eq(t, &autoscaler.NodeScalingConfig{

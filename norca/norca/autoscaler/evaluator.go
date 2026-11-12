@@ -35,7 +35,7 @@ var (
 )
 
 type checker interface {
-	runCheckAndCapCount(ctx context.Context, currentCount int64, cache *queryMetricsCache) (sdk.ScalingAction, error)
+	runCheckAndCapCount(ctx context.Context, pop population, cache *queryMetricsCache) (sdk.ScalingAction, error)
 	group() string
 	name() string
 }
@@ -86,6 +86,7 @@ type runner struct {
 	host   *pluginHost
 	proc   *processor
 	exec   *executor
+	settle *settleTracker
 
 	// usage is the collector of the client pushed task group usage that
 	// serves the checks of the nomad-apm source. Nil in tests that use the
@@ -137,6 +138,7 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 			nomadAPMs:                 host.nomadAPMs,
 		},
 		exec:    newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
+		settle:  newSettleTracker(),
 		handles: map[string]*policyHandle{},
 
 		lastDemand: map[string]int64{},
@@ -319,6 +321,11 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 		return nil
 	}
 
+	// Since when the target does not run what was asked for: it holds the
+	// scale downs below.
+	isSettled := t.isSettled()
+	unsettledFor := r.settle.observe(c.key, isSettled, now)
+
 	// No scaling during an active deployment, unless the policy allows
 	// scaling up during deployments and no canary waits for promotion.
 	upOnly := false
@@ -339,22 +346,45 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 		return nil
 	}
 
-	currentCount := t.status.Count
-	action, check, err := r.calculateNewCount(ctx, c, currentCount)
+	// The checks say what the load needs against the count that was asked
+	// for (desired), not against what happens to run at this moment: while
+	// allocations start, wait for capacity, migrate or are replaced, the
+	// two differ, and a result taken against the running count would ask
+	// again for what is already on its way, or take it back.
+	pop := population{desired: t.desired, running: t.status.Count, average: t.runningAverage}
+	action, check, err := r.calculateNewCount(ctx, c, pop)
 	if err != nil {
 		return fmt.Errorf("unable to execute policy: %w", err)
 	}
 
-	logger.Debug("calculated scaling target", "from", currentCount, "to", action.Count,
-		"reason", action.Reason, "meta", action.Meta)
+	logger.Debug("calculated scaling target", "desired", t.desired, "running", t.status.Count,
+		"to", action.Count, "reason", action.Reason, "meta", action.Meta)
 
-	if !scalingNeeded(action, currentCount) {
+	if !scalingNeeded(action, t.desired) {
 		logger.Debug("skipping scaling, no action needed")
 		return nil
 	}
 
+	// The direction is where the result lies from the desired count; the
+	// strategy's own may differ after the count was capped.
+	action.Direction = sdk.ScaleDirectionUp
+	if action.Count < t.desired {
+		action.Direction = sdk.ScaleDirectionDown
+	}
+
 	if upOnly && action.Direction != sdk.ScaleDirectionUp {
 		logger.Debug("skipping scaling, only scaling up is allowed during the deployment")
+		return nil
+	}
+
+	// A target that is not settled is not scaled down: what it shows is the
+	// load on fewer instances than it will have, and the capacity is coming
+	// (back). The hold ends with the settle timeout, so that a count that
+	// can never run does not keep the target large for good.
+	if action.Direction == sdk.ScaleDirectionDown && !isSettled && unsettledFor < r.cfg.SettleTimeout {
+		metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "settling"}, 1)
+		logger.Debug("skipping scale down, the target is not settled", "desired", t.desired,
+			"running", t.status.Count, "migrating", t.isMigrating, "for", unsettledFor)
 		return nil
 	}
 
@@ -389,25 +419,25 @@ func (r *runner) evaluate(ctx context.Context, c *compiledPolicy) error {
 	return r.exec.execute(c, t, action, check, r.now())
 }
 
-// scalingNeeded determines if the action requires a change from the current
-// count.
-func scalingNeeded(a sdk.ScalingAction, currentCount int64) bool {
+// scalingNeeded determines if the action requires a change from the count
+// that was asked for.
+func scalingNeeded(a sdk.ScalingAction, desired int64) bool {
 	if a.Direction == sdk.ScaleDirectionNone || a.Direction == sdk.ScaleDirectionRecommendation {
 		return false
 	}
-	return a.Count != currentCount
+	return a.Count != desired
 }
 
 // calculateNewCount is the main part of the controller, it
 // gets the metrics and the necessary new count to keep up with the policy
 // and generates a scaling action if needed.
-func (r *runner) calculateNewCount(ctx context.Context, c *compiledPolicy, currentCount int64) (sdk.ScalingAction, string, error) {
+func (r *runner) calculateNewCount(ctx context.Context, c *compiledPolicy, pop population) (sdk.ScalingAction, string, error) {
 	// Store check results by group so we can compare their results together.
 	checkGroups := make(map[string][]checkResult)
 	queryCache := newQueryMetricsCache()
 
 	for _, ch := range c.checkRunners {
-		action, err := ch.runCheckAndCapCount(ctx, currentCount, queryCache)
+		action, err := ch.runCheckAndCapCount(ctx, pop, queryCache)
 		if err != nil {
 			if errors.Is(err, errCheckOutsideSchedule) || errors.Is(err, errCheckSkipped) {
 				continue
@@ -509,21 +539,36 @@ func (r *runner) loadCheckRunners(policy *sdk.ScalingPolicy) ([]checker, error) 
 			return nil, fmt.Errorf("failed to get strategy %s: %w", strategyName, err)
 		}
 
+		// A value of an APM is taken as one per instance, measured on what
+		// runs now, as target-value has always done; what is known to be
+		// otherwise is set below.
 		var mg plugins.Looker
+		scope := valueScopeRunning
 		// Fixed-value strategy does not need APM; keep looker nil and skip APM lookup.
 		switch {
 		case strategyName == plugins.InternalStrategyFixedValue:
+			scope = valueScopeUnknown
 		case r.usage != nil && r.proc.isNomadAPMQuery(check.Source):
 			// Nomad's own metrics come from the usage pushed by clients.
-			mg = r.usageLooker(policy)
+			usage := r.usageLooker(policy)
+			mg, scope = usage, usage.scopeOf(check.Query)
 		case check.Source == plugins.InternalAPMNorca:
-			// The capacity of the cluster comes from the gauges of the servers.
+			// The capacity of the cluster comes from the gauges of the
+			// servers. For a node group it is the use of its nodes; for
+			// other targets a value of something else.
 			mg = r.clusterLooker(policy)
+			if !strings.HasPrefix(policy.ID, nodeGroupPolicyPrefix) {
+				scope = valueScopeUnknown
+			}
 		default:
 			mg, err = r.host.getAPMLooker(check.Source)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get APM for strategy %s: %w", strategyName, err)
 			}
+		}
+		// A value handed on as the count is not a value per instance.
+		if strategyName == plugins.InternalStrategyPassThrough {
+			scope = valueScopeUnknown
 		}
 
 		runners = append(runners, newCheckRunner(&CheckRunnerConfig{
@@ -532,6 +577,7 @@ func (r *runner) loadCheckRunners(policy *sdk.ScalingPolicy) ([]checker, error) 
 			StrategyRunner: s,
 			MetricsGetter:  mg,
 			Policy:         policy,
+			Scope:          scope,
 			Now:            r.now,
 		}, check))
 	}

@@ -48,6 +48,11 @@ type AutoscalerConfig struct {
 	RateLimit      float64 `hcl:"rate_limit"`
 	RateLimitBurst int     `hcl:"rate_limit_burst"`
 
+	// SettleTimeout is the longest time a target that does not run what
+	// was asked for (allocations starting, waiting for capacity, migrating
+	// or being replaced) is kept from being scaled down.
+	SettleTimeout string `hcl:"settle_timeout"`
+
 	// MetricsWindow is how long the leader keeps the task group usage
 	// reported by clients (nomad.cpu, nomad.memory, ...).
 	MetricsWindow string `hcl:"metrics_window"`
@@ -197,6 +202,9 @@ func (a *AutoscalerConfig) Merge(b *AutoscalerConfig) *AutoscalerConfig {
 	if b.RateLimitBurst != 0 {
 		result.RateLimitBurst = b.RateLimitBurst
 	}
+	if b.SettleTimeout != "" {
+		result.SettleTimeout = b.SettleTimeout
+	}
 	if b.MetricsWindow != "" {
 		result.MetricsWindow = b.MetricsWindow
 	}
@@ -262,6 +270,7 @@ func (a *AutoscalerConfig) toServerConfig() (*autoscaler.Config, error) {
 		{"min_cooldown", a.MinCooldown, &cfg.MinCooldown},
 		{"default_evaluation_interval", a.DefaultEvaluationInterval, &cfg.DefaultEvaluationInterval},
 		{"default_cooldown", a.DefaultCooldown, &cfg.DefaultCooldown},
+		{"settle_timeout", a.SettleTimeout, &cfg.SettleTimeout},
 		{"metrics_window", a.MetricsWindow, &cfg.MetricsWindow},
 		{"client_metrics_interval", a.ClientMetricsInterval, &cfg.ClientMetricsInterval},
 	}

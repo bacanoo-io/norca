@@ -48,6 +48,11 @@ const (
 	DefaultOscillationThreshold = 3
 	DefaultOscillationSuspend   = 15 * time.Minute
 
+	// DefaultSettleTimeout is the longest time a target that does not run
+	// what was asked for (allocations starting, waiting for capacity,
+	// migrating or being replaced) is kept from being scaled down.
+	DefaultSettleTimeout = 10 * time.Minute
+
 	// DefaultMetricsWindow is how long the leader keeps the task group usage
 	// reported by clients (nomad.cpu, nomad.memory, ...).
 	DefaultMetricsWindow = 5 * time.Minute
@@ -133,6 +138,11 @@ type Config struct {
 	OscillationThreshold int
 	OscillationSuspend   time.Duration
 
+	// SettleTimeout is the longest time a target that is not settled is
+	// kept from being scaled down. After it a count that never came to run
+	// no longer holds the target.
+	SettleTimeout time.Duration
+
 	// MetricsWindow is how long the leader keeps the task group usage
 	// reported by clients. After a leader change the built-in metrics report
 	// insufficient data until one full window has been collected.
@@ -172,6 +182,7 @@ func DefaultConfig() *Config {
 		OscillationWindow:         DefaultOscillationWindow,
 		OscillationThreshold:      DefaultOscillationThreshold,
 		OscillationSuspend:        DefaultOscillationSuspend,
+		SettleTimeout:             DefaultSettleTimeout,
 		MetricsWindow:             DefaultMetricsWindow,
 		ClientMetricsInterval:     DefaultClientMetricsInterval,
 	}
@@ -236,6 +247,9 @@ func (c *Config) Validate() error {
 	}
 	if c.OscillationWindow <= 0 || c.OscillationThreshold <= 0 || c.OscillationSuspend <= 0 {
 		mErr = multierror.Append(mErr, fmt.Errorf("oscillation protection settings must be greater than 0"))
+	}
+	if c.SettleTimeout <= 0 {
+		mErr = multierror.Append(mErr, fmt.Errorf("settle_timeout must be greater than 0"))
 	}
 	if c.ClientMetricsInterval < minClientMetricsInterval {
 		mErr = multierror.Append(mErr, fmt.Errorf("client_metrics_interval must be at least %s", minClientMetricsInterval))

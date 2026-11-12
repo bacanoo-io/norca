@@ -195,6 +195,7 @@ func (r *runner) reconcile(list *policyList, now time.Time) {
 		r.logger.Debug("policy removed", "policy_id", id)
 		if h.compiled != nil {
 			r.exec.forget(h.compiled.key)
+			r.settle.forget(h.compiled.key)
 		}
 		delete(r.handles, id)
 		if h.queued {

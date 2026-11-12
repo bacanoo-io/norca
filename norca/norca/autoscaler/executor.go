@@ -203,7 +203,7 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 	e.cooldowns[key] = now.Add(cd)
 	e.l.Unlock()
 
-	logger.Info("scaled task group", "from", t.status.Count, "to", action.Count,
+	logger.Info("scaled task group", "from", t.desired, "to", action.Count,
 		"reason", action.Reason, "cooldown", cd)
 
 	ev := &structs.ScalingDecisionEvent{
@@ -211,7 +211,7 @@ func (e *executor) execute(c *compiledPolicy, t *targetState, action sdk.Scaling
 		JobID:         key.job,
 		Group:         key.group,
 		PolicyID:      c.policy.ID,
-		PreviousCount: t.status.Count,
+		PreviousCount: t.desired,
 		Count:         action.Count,
 		Direction:     action.Direction.String(),
 		Check:         check,

@@ -35,11 +35,7 @@ func (r *runner) capAtQuota(store *state.StateStore, c *compiledPolicy, t *targe
 		return true, nil
 	}
 
-	base := int64(t.group.Count)
-	if c.object != nil {
-		base = t.status.Count
-	}
-	ceiling := base + fit
+	ceiling := t.desired + fit
 	if action.Count <= ceiling {
 		return true, nil
 	}
@@ -53,7 +49,7 @@ func (r *runner) capAtQuota(store *state.StateStore, c *compiledPolicy, t *targe
 		JobID:         c.key.job,
 		Group:         c.key.group,
 		PolicyID:      c.policy.ID,
-		PreviousCount: t.status.Count,
+		PreviousCount: t.desired,
 		Count:         ceiling,
 		DesiredCount:  action.Count,
 		Direction:     sdk.ScaleDirection(sdk.ScaleDirectionUp).String(),
@@ -63,7 +59,7 @@ func (r *runner) capAtQuota(store *state.StateStore, c *compiledPolicy, t *targe
 		Time:          now.UnixNano(),
 	})
 
-	if ceiling <= t.status.Count || ceiling < c.policy.Min {
+	if ceiling <= t.desired || ceiling < c.policy.Min {
 		return false, nil
 	}
 	action.Reason = fmt.Sprintf("%s (capped from %d to %d by quota %q)",
