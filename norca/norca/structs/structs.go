@@ -821,6 +821,13 @@ type JobRegisterRequest struct {
 	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
 
+	// ScaleGroup (Norca) makes the request a scaling of the stored job, not
+	// a new version of it: only the count of this task group is set, to the
+	// count the group has in Job. The version of the job is kept, and the
+	// desired total of an active deployment follows the count
+	// (state.ScaleJob). Set by Job.Scale only.
+	ScaleGroup string
+
 	// DryRunCapacity (Norca) asks the server that receives the request for
 	// a dry run of the placements on its copy of the state before the job
 	// goes to the leader (JobRegisterResponse.CapacityCheck).

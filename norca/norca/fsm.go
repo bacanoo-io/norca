@@ -630,6 +630,31 @@ func (n *nomadFSM) applyNodePoolDelete(msgType structs.MessageType, buf []byte, 
 	return nil
 }
 
+// applyScaleJob applies a job register request that scales one task group of
+// the stored job (JobRegisterRequest.ScaleGroup).
+func (n *nomadFSM) applyScaleJob(msgType structs.MessageType, req *structs.JobRegisterRequest, index uint64) interface{} {
+	tg := req.Job.LookupTaskGroup(req.ScaleGroup)
+	if tg == nil {
+		return fmt.Errorf("task group %q to scale is not in the job %q of the request", req.ScaleGroup, req.Job.ID)
+	}
+	job, err := n.state.ScaleJob(msgType, index, req.Job.Namespace, req.Job.ID, req.ScaleGroup, tg.Count, req.Job.SubmitTime)
+	if err != nil {
+		n.logger.Error("ScaleJob failed", "error", err)
+		return err
+	}
+	if job == nil {
+		// The job or the group was removed since the request was made.
+		return nil
+	}
+
+	// The periodic dispatcher holds the job it launches from.
+	if err := n.periodicDispatcher.Add(job); err != nil {
+		n.logger.Error("periodicDispatcher.Add failed", "error", err)
+		return fmt.Errorf("failed adding job to periodic dispatcher: %v", err)
+	}
+	return nil
+}
+
 func (n *nomadFSM) applyUpsertJob(msgType structs.MessageType, buf []byte, index uint64) interface{} {
 	defer metrics.MeasureSince([]string{"nomad", "fsm", "register_job"}, time.Now())
 	var req structs.JobRegisterRequest
@@ -645,6 +670,12 @@ func (n *nomadFSM) applyUpsertJob(msgType structs.MessageType, buf []byte, index
 	 * - Migrate from old style upgrade block that used only a stagger.
 	 */
 	req.Job.Canonicalize()
+
+	// A scaling of the job sets a count on the job that is stored: it is
+	// not a new version of it.
+	if req.ScaleGroup != "" {
+		return n.applyScaleJob(msgType, &req, index)
+	}
 
 	if err := n.state.UpsertJob(msgType, index, req.Submission, req.Job); err != nil {
 		n.logger.Error("UpsertJob failed", "error", err)

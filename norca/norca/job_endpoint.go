@@ -1192,7 +1192,7 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 				j.srv.setQueryMeta(&reply.QueryMeta)
 				return nil
 			}
-		} else if err := j.registerScaledJob(args, job, now, reply, event.ScalingEvent); err != nil {
+		} else if err := j.registerScaledJob(args, job, groupName, now, reply, event.ScalingEvent); err != nil {
 			return err
 		}
 	} else {
@@ -1212,11 +1212,12 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 	return nil
 }
 
-// registerScaledJob commits the job with its new group count and creates the
-// evaluation that makes the scheduler act on it (none for periodic and
-// parameterized jobs). It fills in the indexes of the reply and the evaluation
-// of the scaling event.
-func (j *Job) registerScaledJob(args *structs.JobScaleRequest, job *structs.Job, now int64,
+// registerScaledJob commits the new count of a group of the job and creates
+// the evaluation that makes the scheduler act on it (none for periodic and
+// parameterized jobs). The count is set on the stored job: scaling is not a
+// new version of the job (state.ScaleJob). It fills in the indexes of the
+// reply and the evaluation of the scaling event.
+func (j *Job) registerScaledJob(args *structs.JobScaleRequest, job *structs.Job, group string, now int64,
 	reply *structs.JobRegisterResponse, event *structs.ScalingEvent) error {
 
 	// Commit the job update
@@ -1224,6 +1225,7 @@ func (j *Job) registerScaledJob(args *structs.JobScaleRequest, job *structs.Job,
 		structs.JobRegisterRequestType,
 		structs.JobRegisterRequest{
 			Job:            job,
+			ScaleGroup:     group,
 			EnforceIndex:   true,
 			JobModifyIndex: job.ModifyIndex,
 			PolicyOverride: args.PolicyOverride,
