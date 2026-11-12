@@ -92,3 +92,52 @@ func TestNetworkHook_Prerun_RestoredConfiguredNamespace(t *testing.T) {
 	must.SliceEmpty(t, conf.calls)
 	must.Nil(t, status.status)
 }
+
+// noneHook is the network hook of an alloc whose group has a network of the
+// mode "none" and Docker tasks: the spec of the pause container carries the
+// sandbox label, and nothing configures the network.
+func noneHook(t *testing.T, created bool) (*networkHook, *recordingConfigurator, *recordingStatusSetter) {
+	alloc := mock.Alloc()
+	alloc.Job.TaskGroups[0].Networks = []*structs.NetworkResource{{Mode: "none"}}
+	spec := &drivers.NetworkIsolationSpec{
+		Mode:   drivers.NetIsolationModeGroup,
+		Path:   "/var/run/docker/netns/abc",
+		Labels: map[string]string{dockerNetSpecLabelKey: "0123456789abcdef"},
+	}
+	nm := &testutils.MockDriver{MockNetworkManager: testutils.MockNetworkManager{
+		CreateNetworkF: func(string, *drivers.NetworkCreateRequest) (*drivers.NetworkIsolationSpec, bool, error) {
+			return spec, created, nil
+		},
+	}}
+	conf := &recordingConfigurator{} // no status, as the configurator of the host network
+	status := &recordingStatusSetter{status: &structs.AllocNetworkStatus{}}
+	envBuilder := taskenv.NewBuilder(mock.Node(), alloc, nil, alloc.Job.Region)
+	hook := newNetworkHook(testlog.HCLogger(t), noopIsolationSetter{}, alloc, nm, conf, status, envBuilder.Build())
+	hook.namespaceConfigured = func(string) (bool, error) {
+		t.Fatal("the namespace of a network that nothing configures is not looked at")
+		return false, nil
+	}
+	return hook, conf, status
+}
+
+// A network of the mode "none" with a Docker sandbox: no status comes of its
+// setup, and none is read.
+func TestNetworkHook_Prerun_NoneMode(t *testing.T) {
+	ci.Parallel(t)
+	hook, conf, status := noneHook(t, true)
+
+	must.NoError(t, hook.Prerun())
+	must.Eq(t, []string{"setup"}, conf.calls)
+	must.Nil(t, status.status)
+	must.Nil(t, hook.spec.HostsConfig)
+}
+
+// Restored, it is left alone: it has only the loopback interface by design.
+func TestNetworkHook_Prerun_RestoredNoneMode(t *testing.T) {
+	ci.Parallel(t)
+	hook, conf, status := noneHook(t, false)
+
+	must.NoError(t, hook.Prerun())
+	must.SliceEmpty(t, conf.calls)
+	must.NotNil(t, status.status) // not touched
+}

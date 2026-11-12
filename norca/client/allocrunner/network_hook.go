@@ -156,7 +156,11 @@ func (h *networkHook) Prerun() error {
 	// checks of their ports were refused. A namespace without any interface
 	// but the loopback one is configured again, after the CNI state of its
 	// earlier incarnation (address reservation, port mappings) is released.
-	if !created && spec != nil && spec.Path != "" {
+	//
+	// A network of the mode "none" has nothing but the loopback interface
+	// by design, and nothing configures it: it is left alone.
+	isConfigurable := tg.Networks[0].Mode != "none"
+	if !created && isConfigurable && spec != nil && spec.Path != "" {
 		configured, err := h.namespaceConfigured(spec.Path)
 		if err != nil {
 			h.logger.Warn("failed to check the network namespace of the alloc", "path", spec.Path, "error", err)
@@ -173,6 +177,16 @@ func (h *networkHook) Prerun() error {
 		status, err := h.networkConfigurator.Setup(context.TODO(), h.alloc, spec)
 		if err != nil {
 			return fmt.Errorf("failed to configure networking for alloc: %v", err)
+		}
+
+		// clean room bugfix: a network that nothing configures (the mode
+		// "none": the configurator of the host network, which returns no
+		// status) has no address for the hosts file of the tasks. With the
+		// label of a Docker sandbox on its spec the status was read all the
+		// same, and the nil status made the client panic.
+		if status == nil {
+			h.networkStatusSetter.SetNetworkStatus(nil)
+			return nil
 		}
 
 		// If the driver set the sandbox hostname label, then we will use that
