@@ -174,11 +174,15 @@ HashiCorp source or documentation of a BSL release was used. The commits say
 | `8dd43588b` (phase 2) | autopilot `target_voters`, `standby_failover_after` and `standby_cooldown`; standby promotion when a voter fails and demotion when it returns; `operator raft promote-standby`; the `Server` event topic and the standby metrics |
 | `2914fa12f` (phase 3) | `backup { prefer_observer = true }`: the leader asks a healthy observer to take the scheduled and manual backups (RPC `Backup.TakeForLeader`, server certificate, current leader only, the same backup configuration by fingerprint) and records them; `TakenBy` instead of `LeaderID` in the record and the manifest |
 | phase 4 | the server that receives a job registration checks it before forwarding it to the leader (the mutators without webhooks, then the job validation) and runs a dry run of the placements on its own state on request (`dry_run_capacity`, also for plans); `limits { token_read_* , token_write_* }`: request limits per ACL token on the HTTP API of the servers |
+| `a99a443c4` (2026-11-12) | five rules of the standby failover put right after a review: a manual failover without `-replace` does not wait for `standby_failover_after`; a voter is demoted for its role only while the voters that are left keep a healthy majority; the cooldown counts from the change as it shows in the autopilot state; `promote-standby -replace` removes nothing unless a promotion can follow; with a target a failed voter is not removed before the failover time |
+| `9469d0d5f` (2026-11-12) | the autopilot configuration is part of the Raft snapshot, so a server that restored its state from one keeps what `operator autopilot set-config` set |
 
 The files (paths relative to `norca/`): `norca/server_role.go`,
 `norca/autopilot_promoter.go`, `norca/server_standby.go`,
 `norca/structs/server_role.go`, `norca/stream/topics_server.go`,
 `norca/backup_observer.go`, `norca/backup/delegate_test.go`,
+`norca/autopilot_promoter_rules_test.go`, `norca/fsm_autopilot.go`,
+`norca/state/autopilot_restore.go`,
 `norca/job_endpoint_edge.go`, `command/agent/http_ratelimit.go`,
 `api/server_role.go` and `command/operator_raft_promote_standby.go` are new and
 carry only the Norca header. `norca/autopilot_oss.go` keeps the HashiCorp
@@ -186,7 +190,8 @@ copyright line of the MPL stubs it fills, because it keeps their signatures and
 doc comments.
 
 What the audit covers: the new files are in neither set. Their directories
-(`nomad/`, `nomad/structs/`, `nomad/stream/`, `nomad/backup/`, `api/`,
+(`nomad/`, `nomad/structs/`, `nomad/stream/`, `nomad/backup/`, `nomad/state/`,
+`api/`,
 `command/`, `command/agent/`) hold none of the 45 BUSL files, and HashiCorp's
 implementation is not public, so there is no file to compare them with. The
 lines these commits added to files that come from v1.6.5 (for example
