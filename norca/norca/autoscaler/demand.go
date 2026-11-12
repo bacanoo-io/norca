@@ -586,6 +586,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 		count := min(item.Count, total)
 		unit := item.Unplaced
 		unit.Count = 1
+		added := map[string]int{} // allocations given to each datacenter
 		for i := 0; i < count && units < maxDemandUnits; i++ {
 			units++
 			// Work that fits a node that is already on its way (or one the
@@ -610,9 +611,12 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 				blocked["atmax/"+item.pool+"/"+item.Job+"/"+item.Group] = "every group that could take the work is at its maximum"
 				break
 			}
-			g := d.expand(item.pool, pick)
+			// Where the job wants the allocation comes before what the
+			// pool's expander would choose.
+			g := d.expand(item.pool, preferByJob(item, pick, added))
 			g.place(unit)
 			left[g]--
+			added[g.dc]++
 		}
 	}
 

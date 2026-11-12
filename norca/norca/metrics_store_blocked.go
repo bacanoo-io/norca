@@ -61,6 +61,8 @@ func collectBlocked(snap *state.StateSnapshot, evals []*structs.Evaluation) map[
 					hasStaticPort(tg),
 			}
 			u.Datacenters = job.Datacenters
+			u.Spread = datacenterSpread(snap, job, tg)
+			u.PreferredDatacenters = preferredDatacenters(job, tg)
 			u.Distinct, u.Unverifiable = distinctProperties(snap, job, tg)
 			u.Classes = classConstraints(job, tg, &u)
 			for _, task := range tg.Tasks {
@@ -218,6 +220,65 @@ func blockedDatacenters(job *structs.Job, metric *structs.AllocMetric) []string 
 	}
 	slices.Sort(dcs)
 	return dcs
+}
+
+// datacenterAttribute is the node attribute of the datacenter in spreads and
+// affinities.
+const datacenterAttribute = "${node.datacenter}"
+
+// datacenterSpread returns the spread of a task group over the datacenters:
+// its own spread on ${node.datacenter}, or else the job's; nil without one.
+// The live allocations of the group are counted by the datacenter of their
+// node.
+func datacenterSpread(snap *state.StateSnapshot, job *structs.Job, tg *structs.TaskGroup) *autoscaler.DatacenterSpread {
+	var spread *structs.Spread
+	for _, candidates := range [][]*structs.Spread{tg.Spreads, job.Spreads} {
+		for _, s := range candidates {
+			if s != nil && s.Attribute == datacenterAttribute {
+				spread = s
+				break
+			}
+		}
+		if spread != nil {
+			break
+		}
+	}
+	if spread == nil {
+		return nil
+	}
+
+	out := &autoscaler.DatacenterSpread{Total: tg.Count, Targets: map[string]int{}, Placed: map[string]int{}}
+	for _, target := range spread.SpreadTarget {
+		if target != nil {
+			out.Targets[target.Value] = int(target.Percent)
+		}
+	}
+	allocs, _ := snap.AllocsByJob(nil, job.Namespace, job.ID, false)
+	for _, alloc := range allocs {
+		if alloc.TerminalStatus() || alloc.TaskGroup != tg.Name {
+			continue
+		}
+		if node, _ := snap.NodeByID(nil, alloc.NodeID); node != nil {
+			out.Placed[node.Datacenter]++
+		}
+	}
+	return out
+}
+
+// preferredDatacenters returns the datacenters the job or the task group has
+// an affinity for: a positive weight on ${node.datacenter} being equal to a
+// name.
+func preferredDatacenters(job *structs.Job, tg *structs.TaskGroup) []string {
+	var out []string
+	for _, affinities := range [][]*structs.Affinity{job.Affinities, tg.Affinities} {
+		for _, a := range affinities {
+			isEqual := a != nil && (a.Operand == "=" || a.Operand == "==" || a.Operand == "is")
+			if isEqual && a.LTarget == datacenterAttribute && a.Weight > 0 && !slices.Contains(out, a.RTarget) {
+				out = append(out, a.RTarget)
+			}
+		}
+	}
+	return out
 }
 
 // hasStaticPort reports whether the task group asks for a port by number on

@@ -11,6 +11,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
 	"github.com/bacanoo-io/norca/norca/norca/metricsstore"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
+	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/shoenig/test/must"
@@ -220,5 +221,132 @@ func TestMetricsStore_BlockedNoDatacenter(t *testing.T) {
 
 	for _, g := range blockedGauges(snap, []*structs.Evaluation{eval}, nil) {
 		must.NotEq(t, "", g.Labels["dc"], must.Sprintf("the series %s has no datacenter", g.Metric))
+	}
+}
+
+func TestDatacenterSpread(t *testing.T) {
+	ci.Parallel(t)
+
+	st := state.TestStateStore(t)
+	nodeA, nodeB := mock.Node(), mock.Node()
+	nodeA.Datacenter, nodeB.Datacenter = "dc-a", "dc-b"
+	must.NoError(t, st.UpsertNode(structs.MsgTypeTestSetup, 1000, nodeA))
+	must.NoError(t, st.UpsertNode(structs.MsgTypeTestSetup, 1001, nodeB))
+
+	job := mock.Job()
+	tg := job.TaskGroups[0]
+	tg.Count = 10
+	must.NoError(t, st.UpsertJob(structs.MsgTypeTestSetup, 1002, nil, job))
+
+	// Three live allocations in dc-a, one in dc-b, and a stopped one that
+	// does not count.
+	alloc := func(node *structs.Node, clientStatus string) *structs.Allocation {
+		a := mock.Alloc()
+		a.Job, a.JobID, a.Namespace, a.TaskGroup = job, job.ID, job.Namespace, tg.Name
+		a.NodeID, a.ClientStatus = node.ID, clientStatus
+		return a
+	}
+	must.NoError(t, st.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{
+		alloc(nodeA, structs.AllocClientStatusRunning),
+		alloc(nodeA, structs.AllocClientStatusRunning),
+		alloc(nodeA, structs.AllocClientStatusPending),
+		alloc(nodeB, structs.AllocClientStatusRunning),
+		alloc(nodeB, structs.AllocClientStatusComplete),
+	}))
+	snap, err := st.Snapshot()
+	must.NoError(t, err)
+
+	onDatacenter := func(targets ...*structs.SpreadTarget) *structs.Spread {
+		return &structs.Spread{Attribute: "${node.datacenter}", Weight: 100, SpreadTarget: targets}
+	}
+	placed := map[string]int{"dc-a": 3, "dc-b": 1}
+
+	tests := []struct {
+		name         string
+		jobSpreads   []*structs.Spread
+		groupSpreads []*structs.Spread
+		expected     *autoscaler.DatacenterSpread
+	}{
+		{
+			name:     "no spread",
+			expected: nil,
+		},
+		{
+			name:       "a spread on another attribute",
+			jobSpreads: []*structs.Spread{{Attribute: "${meta.rack}", Weight: 100}},
+			expected:   nil,
+		},
+		{
+			name:       "an even spread of the job",
+			jobSpreads: []*structs.Spread{onDatacenter()},
+			expected:   &autoscaler.DatacenterSpread{Total: 10, Targets: map[string]int{}, Placed: placed},
+		},
+		{
+			name:       "the spread of the group comes before the job's",
+			jobSpreads: []*structs.Spread{onDatacenter()},
+			groupSpreads: []*structs.Spread{onDatacenter(
+				&structs.SpreadTarget{Value: "dc-a", Percent: 20},
+				&structs.SpreadTarget{Value: "dc-b", Percent: 80},
+			)},
+			expected: &autoscaler.DatacenterSpread{
+				Total: 10, Targets: map[string]int{"dc-a": 20, "dc-b": 80}, Placed: placed,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			j := job.Copy()
+			j.Spreads = tt.jobSpreads
+			j.TaskGroups[0].Spreads = tt.groupSpreads
+			must.Eq(t, tt.expected, datacenterSpread(snap, j, j.TaskGroups[0]))
+		})
+	}
+}
+
+func TestPreferredDatacenters(t *testing.T) {
+	ci.Parallel(t)
+
+	affinity := func(target, operand, value string, weight int8) *structs.Affinity {
+		return &structs.Affinity{LTarget: target, Operand: operand, RTarget: value, Weight: weight}
+	}
+
+	tests := []struct {
+		name            string
+		jobAffinities   []*structs.Affinity
+		groupAffinities []*structs.Affinity
+		expected        []string
+	}{
+		{name: "no affinity", expected: nil},
+		{
+			name:          "an affinity for a datacenter",
+			jobAffinities: []*structs.Affinity{affinity("${node.datacenter}", "=", "dc-a", 50)},
+			expected:      []string{"dc-a"},
+		},
+		{
+			name:            "of the job and of the group, each once",
+			jobAffinities:   []*structs.Affinity{affinity("${node.datacenter}", "=", "dc-a", 50)},
+			groupAffinities: []*structs.Affinity{affinity("${node.datacenter}", "is", "dc-b", 10), affinity("${node.datacenter}", "==", "dc-a", 10)},
+			expected:        []string{"dc-a", "dc-b"},
+		},
+		{
+			name:          "a datacenter the job avoids is not preferred",
+			jobAffinities: []*structs.Affinity{affinity("${node.datacenter}", "=", "dc-a", -50)},
+			expected:      nil,
+		},
+		{
+			name:          "another attribute or operand says nothing of a datacenter",
+			jobAffinities: []*structs.Affinity{affinity("${node.class}", "=", "gpu", 50), affinity("${node.datacenter}", "!=", "dc-a", 50)},
+			expected:      nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := mock.Job()
+			job.Affinities = tt.jobAffinities
+			job.TaskGroups[0].Affinities = tt.groupAffinities
+			must.Eq(t, tt.expected, preferredDatacenters(job, job.TaskGroups[0]))
+		})
 	}
 }
