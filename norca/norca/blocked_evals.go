@@ -550,8 +550,19 @@ func (b *BlockedEvals) unblock(computedClass, quota string, index uint64) {
 	numEscaped := len(b.escaped)
 	unblocked := make(map[*structs.Evaluation]string, max(uint64(numEscaped), 4))
 
-	if numEscaped != 0 && computedClass != "" {
+	// A change of a quota alone (a raised limit, a stopped allocation, a
+	// namespace taken off the quota) comes without a node class. Of the
+	// evals that escaped the computed classes it frees those that wait for
+	// that quota: without this they stayed blocked until some node changed.
+	quotaOnly := computedClass == "" && quota != ""
+	escapedUnblocked := 0
+
+	if numEscaped != 0 && (computedClass != "" || quotaOnly) {
 		for id, wrapped := range b.escaped {
+			if quotaOnly && wrapped.eval.QuotaLimitReached != quota {
+				continue
+			}
+			escapedUnblocked++
 			unblocked[wrapped.eval] = wrapped.token
 			delete(b.escaped, id)
 			delete(b.jobs, structs.NewNamespacedID(wrapped.eval.JobID, wrapped.eval.Namespace))
@@ -593,7 +604,7 @@ func (b *BlockedEvals) unblock(computedClass, quota string, index uint64) {
 
 	if len(unblocked) != 0 {
 		// Update the counters
-		b.stats.TotalEscaped = 0
+		b.stats.TotalEscaped -= escapedUnblocked
 		b.stats.TotalQuotaLimit -= numQuotaLimit
 		for eval := range unblocked {
 			b.stats.Unblock(eval)

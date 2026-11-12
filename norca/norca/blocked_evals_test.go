@@ -351,6 +351,50 @@ func TestBlockedEvals_UnblockEligible_IncidentalQuota(t *testing.T) {
 	requireBlockedEvalsEnqueued(t, blocked, broker, 1)
 }
 
+// An eval whose constraints escaped the computed node classes and that waits
+// for a quota is unblocked by a change of that quota alone, and only by it.
+func TestBlockedEvals_UnblockEscaped_Quota(t *testing.T) {
+	ci.Parallel(t)
+
+	blocked, broker := testBlockedEvals(t)
+
+	waiting := mock.BlockedEval()
+	waiting.Status = structs.EvalStatusBlocked
+	waiting.EscapedComputedClass = true
+	waiting.QuotaLimitReached = "foo"
+	blocked.Block(waiting)
+
+	other := mock.BlockedEval()
+	other.Status = structs.EvalStatusBlocked
+	other.EscapedComputedClass = true
+	other.QuotaLimitReached = "bar"
+	blocked.Block(other)
+
+	stats := blocked.Stats()
+	must.Eq(t, 2, stats.TotalBlocked)
+	must.Eq(t, 2, stats.TotalEscaped)
+	must.Eq(t, 2, stats.TotalQuotaLimit)
+
+	blocked.UnblockQuota("foo", 1000)
+
+	testutil.WaitForResult(func() (bool, error) {
+		if ready := broker.Stats().TotalReady; ready != 1 {
+			return false, fmt.Errorf("enqueued evals: %d", ready)
+		}
+		stats := blocked.Stats()
+		if stats.TotalBlocked != 1 || stats.TotalEscaped != 1 || stats.TotalQuotaLimit != 1 {
+			return false, fmt.Errorf("blocked stats: %#v", stats)
+		}
+		return true, nil
+	}, func(err error) { must.NoError(t, err) })
+
+	// The one that was enqueued is the one that waited for the quota.
+	out, _, err := broker.Dequeue([]string{waiting.Type}, time.Second)
+	must.NoError(t, err)
+	must.NotNil(t, out)
+	must.Eq(t, waiting.ID, out.ID)
+}
+
 func TestBlockedEvals_UnblockIneligible_Quota(t *testing.T) {
 	ci.Parallel(t)
 	require := require.New(t)
