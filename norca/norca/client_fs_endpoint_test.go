@@ -231,8 +231,8 @@ func TestClientFS_List_Remote(t *testing.T) {
 	state2 := s2.State()
 	require.Nil(state1.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
 	require.Nil(state1.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
-	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
+	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {
@@ -507,8 +507,8 @@ func TestClientFS_Stat_Remote(t *testing.T) {
 	state2 := s2.State()
 	require.Nil(state1.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
 	require.Nil(state1.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
-	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
+	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {
@@ -1059,8 +1059,8 @@ func TestClientFS_Streaming_Remote_Server(t *testing.T) {
 	state2 := s2.State()
 	require.Nil(state1.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
 	require.Nil(state1.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
-	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
+	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {
@@ -1203,8 +1203,8 @@ func TestClientFS_Streaming_Remote_Region(t *testing.T) {
 
 	// Upsert the allocation
 	state2 := s2.State()
-	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
+	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {
@@ -1890,8 +1890,8 @@ func TestClientFS_Logs_Remote_Server(t *testing.T) {
 	state2 := s2.State()
 	require.Nil(state1.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
 	require.Nil(state1.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
-	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
+	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {
@@ -2035,8 +2035,8 @@ func TestClientFS_Logs_Remote_Region(t *testing.T) {
 
 	// Upsert the allocation
 	state2 := s2.State()
-	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a}))
+	require.Nil(state2.UpsertJob(structs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(state2.UpsertAllocs(structs.MsgTypeTestSetup, 1003, []*structs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {

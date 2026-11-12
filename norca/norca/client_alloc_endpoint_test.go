@@ -178,6 +178,8 @@ func TestClientAllocations_GarbageCollectAll_OldNode(t *testing.T) {
 	require.True(nstructs.IsErrNodeLacksRpc(err))
 
 	// Test for a missing version error
+	// A copy: the state store holds the node that was upserted.
+	node = node.Copy()
 	delete(node.Attributes, "nomad.version")
 	require.Nil(state.UpsertNode(nstructs.MsgTypeTestSetup, 1006, node))
 
@@ -278,6 +280,8 @@ func TestClientAllocations_GarbageCollect_OldNode(t *testing.T) {
 	require.True(nstructs.IsErrNodeLacksRpc(err), err.Error())
 
 	// Test for a missing version error
+	// A copy: the state store holds the node that was upserted.
+	node = node.Copy()
 	delete(node.Attributes, "nomad.version")
 	require.Nil(state.UpsertNode(nstructs.MsgTypeTestSetup, 1007, node))
 
@@ -498,8 +502,8 @@ func TestClientAllocations_GarbageCollect_Remote(t *testing.T) {
 	state2 := s2.State()
 	require.Nil(state1.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job))
 	require.Nil(state1.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a}))
-	require.Nil(state2.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(state2.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a}))
+	require.Nil(state2.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(state2.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {
@@ -568,6 +572,8 @@ func TestClientAllocations_Stats_OldNode(t *testing.T) {
 	require.True(nstructs.IsErrNodeLacksRpc(err), err.Error())
 
 	// Test for a missing version error
+	// A copy: the state store holds the node that was upserted.
+	node = node.Copy()
 	delete(node.Attributes, "nomad.version")
 	require.Nil(state.UpsertNode(nstructs.MsgTypeTestSetup, 1007, node))
 
@@ -775,8 +781,8 @@ func TestClientAllocations_Stats_Remote(t *testing.T) {
 	state2 := s2.State()
 	require.Nil(state1.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job))
 	require.Nil(state1.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a}))
-	require.Nil(state2.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(state2.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a}))
+	require.Nil(state2.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(state2.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {
@@ -973,8 +979,8 @@ func TestClientAllocations_Restart_Remote(t *testing.T) {
 	state2 := s2.State()
 	require.Nil(state1.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job))
 	require.Nil(state1.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a}))
-	require.Nil(state2.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(state2.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a}))
+	require.Nil(state2.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(state2.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {
@@ -1143,8 +1149,8 @@ func TestAlloc_ExecStreaming(t *testing.T) {
 	require.Nil(t, localState.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job))
 	require.Nil(t, localState.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a}))
 	remoteState := remoteServer.State()
-	require.Nil(t, remoteState.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job))
-	require.Nil(t, remoteState.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a}))
+	require.Nil(t, remoteState.UpsertJob(nstructs.MsgTypeTestSetup, 999, nil, a.Job.Copy()))
+	require.Nil(t, remoteState.UpsertAllocs(nstructs.MsgTypeTestSetup, 1003, []*nstructs.Allocation{a.Copy()}))
 
 	// Wait for the client to run the allocation
 	testutil.WaitForResult(func() (bool, error) {

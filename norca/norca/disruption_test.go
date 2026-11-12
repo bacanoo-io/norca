@@ -47,7 +47,13 @@ func upsertDisruptionTestJob(t *testing.T, store *state.StateStore, index uint64
 func TestAllocEndpoint_Evict_Parallel(t *testing.T) {
 	ci.Parallel(t)
 
-	s1, cleanupS1 := TestServer(t, nil)
+	s1, cleanupS1 := TestServer(t, func(c *Config) {
+		// No scheduler: it would act on the evaluation of the first
+		// eviction while the other requests are on their way, and what it
+		// does to the allocations (they are on a node that does not exist)
+		// changes how many of them count as healthy.
+		c.NumSchedulers = 0
+	})
 	defer cleanupS1()
 	testutil.WaitForLeader(t, s1.RPC)
 
