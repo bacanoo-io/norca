@@ -120,6 +120,12 @@ type demandGroup struct {
 	spill bool
 	class string // node_class
 
+	// unable says why no machine can be made for the group, and degraded
+	// why its nodes are missing (nodegroup_health.go); "" for a healthy
+	// group.
+	unable   string
+	degraded string
+
 	size      NodeSize
 	sizeKnown bool
 
@@ -290,6 +296,8 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		} else {
 			g.pending = max(g.spec-g.ready, 0)
 		}
+		g.unable = unableReason(status)
+		g.degraded = degradedReason(g, r.unreadySince, now)
 
 		// The size of a node: what the operator reports, or what the spec
 		// says by hand, less the reserved resources.
@@ -515,6 +523,11 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 				classOut++
 				continue
 			}
+			if g.unable != "" {
+				rejected = append(rejected, g.name+": "+g.unable)
+				blocked["unhealthy/"+g.name] = g.unable
+				continue
+			}
 			if !g.sizeKnown {
 				rejected = append(rejected, g.name+": the size of a node is unknown (CapacityUnknown)")
 				continue
@@ -532,6 +545,16 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			}
 			candidates = append(candidates, g)
 			g.demanded = true
+		}
+		// A group whose nodes are missing takes the work only when no
+		// healthy group can.
+		if healthy := healthyGroups(candidates); len(healthy) > 0 && len(healthy) < len(candidates) {
+			for _, g := range candidates {
+				if g.degraded != "" {
+					blocked["unhealthy/"+g.name] = g.degraded
+				}
+			}
+			candidates = healthy
 		}
 		if len(candidates) == 0 {
 			if item.pool == structs.NodePoolAll && inPool == 0 {
@@ -743,8 +766,22 @@ func (d *demandRun) event(id, reason string) (string, *structs.ScalingDecisionEv
 		}
 	case "limit":
 		ev.Group = rest
+	case "unhealthy":
+		ev.Group = rest
+		ev.Reason = "the node group " + rest + " is left out of the blocked work: " + reason
 	}
 	return typ, ev
+}
+
+// healthyGroups returns the groups whose nodes are not missing.
+func healthyGroups(groups []*demandGroup) []*demandGroup {
+	healthy := make([]*demandGroup, 0, len(groups))
+	for _, g := range groups {
+		if g.degraded == "" {
+			healthy = append(healthy, g)
+		}
+	}
+	return healthy
 }
 
 // fillWork sets the job of an event from "namespace/job/group".

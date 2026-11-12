@@ -40,6 +40,19 @@ func (d *demandEvents) count(typ string) int {
 	return n
 }
 
+// countFor counts the events of a type that name a node group.
+func (d *demandEvents) countFor(typ, group string) int {
+	d.l.Lock()
+	defer d.l.Unlock()
+	n := 0
+	for i, t := range d.types {
+		if t == typ && d.events[i].Group == group {
+			n++
+		}
+	}
+	return n
+}
+
 type testGroup struct {
 	name, dc string
 	spec     map[string]any // overrides of the spec

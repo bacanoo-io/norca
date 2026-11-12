@@ -113,6 +113,9 @@ type runner struct {
 	// that a window that cannot be read is logged once, not every look.
 	badWindows map[string]string
 	readySeen  map[string]int64
+	// unreadySince is when a node group was first seen with fewer than
+	// half of its nodes ready, by group (nodegroup_health.go).
+	unreadySince map[string]time.Time
 
 	// unneededSince is when a node group was first seen with a node it
 	// does not need, by group; lastDown is the scale last decided down, so
@@ -147,6 +150,8 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 		told:       map[string]string{},
 		badWindows: map[string]string{},
 		readySeen:  map[string]int64{},
+
+		unreadySince: map[string]time.Time{},
 
 		unneededSince: map[string]time.Time{},
 		lastDown:      map[string]int64{},
