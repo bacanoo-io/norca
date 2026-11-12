@@ -566,7 +566,7 @@ func TestRelease_ServerRenderedAdmission(t *testing.T) {
 	endpoint := NewReleaseEndpoint(c.srv, nil)
 	for count := 1; count <= 2; count++ {
 		var resp structs.ReleaseApplyResponse
-		must.NoError(t, endpoint.applyInternal(request(count), &resp, true))
+		must.NoError(t, endpoint.applyInternal(request(count), &resp, true, ""))
 		must.True(t, resp.Release.Spec.Pack.ServerRendered)
 	}
 
@@ -782,4 +782,66 @@ func TestReleaseResources_Encoding(t *testing.T) {
 	must.Len(t, len(resources), decoded)
 	must.Eq(t, resources[0].Job.ID, decoded[0].Job.ID)
 	must.Eq(t, resources[5].Variable.Items, decoded[5].Variable.Items)
+}
+
+// A region takes the word that a pack was rendered by a server only from a
+// server of the federation: a verified certificate for a server of one of
+// its regions.
+func TestRelease_FederationServerCertificate(t *testing.T) {
+	ci.Parallel(t)
+
+	conn := func(tlsConn bool, names ...string) *RPCContext {
+		ctx := &RPCContext{TLS: tlsConn}
+		if len(names) > 0 {
+			ctx.VerifiedChains = [][]*x509.Certificate{{{DNSNames: names}}}
+		}
+		return ctx
+	}
+	regions := []string{"east", "west"}
+
+	must.True(t, federationServerCertificate(conn(true, "server.east.norca", "localhost"), regions))
+	must.True(t, federationServerCertificate(conn(true, "server.west.norca"), regions))
+
+	// A client node, a server of a region that is not in the federation, a
+	// connection without TLS or without a certificate, and a call that did
+	// not come over a connection.
+	must.False(t, federationServerCertificate(conn(true, "client.east.norca"), regions))
+	must.False(t, federationServerCertificate(conn(true, "server.south.norca"), regions))
+	must.False(t, federationServerCertificate(conn(false, "server.east.norca"), regions))
+	must.False(t, federationServerCertificate(conn(true), regions))
+	must.False(t, federationServerCertificate(nil, regions))
+}
+
+// Release.ApplyRendered is an ordinary Apply for a caller that is not a
+// server of the federation: its release is not recorded as rendered by the
+// server and does not pass a rule that asks for it.
+func TestRelease_ApplyRendered_FromAClient(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newReleaseTestClient(t)
+	defer cleanup()
+
+	req := &structs.ReleaseApplyRequest{
+		Name:         "app",
+		Pack:         &structs.ReleasePack{Name: "app", ServerRendered: true},
+		Resources:    []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: testReleaseJob("app")}},
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default", AuthToken: c.token},
+	}
+	var resp structs.ReleaseApplyResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "Release.ApplyRendered", req, &resp))
+	must.False(t, resp.Release.Spec.Pack.ServerRendered)
+
+	var out structs.GenericResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "AdmissionPolicy.UpsertAdmissionPolicies", &structs.AdmissionPolicyUpsertRequest{
+		AdmissionPolicies: []*structs.AdmissionPolicy{{
+			Name:  "server-rendered",
+			Match: &structs.AdmissionPolicyMatch{Namespaces: []string{"default"}, Resources: []string{structs.AdmissionResourceRelease}},
+			Rules: []*structs.AdmissionPolicyRule{{
+				Expression: "release.pack.serverRendered", Message: "only packs the server rendered are allowed",
+			}},
+		}},
+		WriteRequest: structs.WriteRequest{Region: "global", AuthToken: c.token},
+	}, &out))
+	req.Resources[0].Job.TaskGroups[0].Count = 2
+	err := msgpackrpc.CallWithCodec(c.codec, "Release.ApplyRendered", req, &resp)
+	must.ErrorContains(t, err, "only packs the server rendered are allowed")
 }

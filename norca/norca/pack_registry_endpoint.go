@@ -252,7 +252,7 @@ func (p *Packs) Deploy(args *PackDeployRPCRequest, reply *structs.ReleaseApplyRe
 	}
 	req.DryRun = args.DryRun
 	req.WriteRequest = args.WriteRequest
-	return NewReleaseEndpoint(p.srv, p.ctx).applyInternal(req, reply, true)
+	return NewReleaseEndpoint(p.srv, p.ctx).applyInternal(req, reply, true, "")
 }
 
 // PackPushNoticeRequest announces that packs were pushed to a registry

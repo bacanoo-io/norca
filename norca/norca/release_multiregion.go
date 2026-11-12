@@ -284,14 +284,52 @@ func (op *releaseOp) waitReplicated(global []*structs.ReleaseResource, from stri
 //
 // What this server rendered from its catalog is applied in its own region
 // as server-rendered, without the RPC that would make it an ordinary
-// request of a client. Another region gets the request over RPC and cannot
-// tell who rendered it: there the pack counts as rendered by the client
-// (release.pack.serverRendered is false in its admission rules).
+// request of a client. Another region gets it with Release.ApplyRendered,
+// which takes the word of a server of the federation for it (see
+// sentByFederationServer): where the servers verify each other's names, the
+// pack counts as rendered by the server there too; elsewhere it counts as
+// rendered by the client (release.pack.serverRendered is false in the
+// admission rules of that region).
 func (r *Release) applyRegion(region string, req *structs.ReleaseApplyRequest, resp *structs.ReleaseApplyResponse,
 	serverRendered bool) error {
 
-	if serverRendered && region == r.srv.Region() {
-		return r.applyInternal(req, resp, true)
+	if !serverRendered {
+		return r.srv.RPC("Release.Apply", req, resp)
 	}
-	return r.srv.RPC("Release.Apply", req, resp)
+	if region == r.srv.Region() {
+		return r.applyInternal(req, resp, true, "")
+	}
+	return r.srv.RPC("Release.ApplyRendered", req, resp)
+}
+
+// sentByFederationServer reports whether the RPC came over a connection that
+// a server of one of the regions of the federation made: a TLS connection
+// with a verified certificate for "server.<region>.norca". It is the proof a
+// region asks for before it takes another server's word that a pack was
+// rendered by a server.
+//
+// Without verify_server_hostname the servers do not check each other's
+// names, and the caller could be a client node or anything that reaches the
+// RPC port: the answer is no.
+func sentByFederationServer(srv *Server, ctx *RPCContext) bool {
+	tlsConf := srv.getTLSConfig()
+	if tlsConf == nil || !tlsConf.VerifyServerHostname {
+		return false
+	}
+	return federationServerCertificate(ctx, srv.Regions())
+}
+
+// federationServerCertificate reports whether the connection is a TLS
+// connection whose verified certificate names a server of one of the
+// regions.
+func federationServerCertificate(ctx *RPCContext, regions []string) bool {
+	if ctx == nil || !ctx.TLS || ctx.Certificate() == nil {
+		return false
+	}
+	for _, region := range regions {
+		if ctx.ValidateCertificateForName(fmt.Sprintf("server.%s.norca", region)) == nil {
+			return true
+		}
+	}
+	return false
 }

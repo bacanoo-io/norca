@@ -11,6 +11,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/shoenig/test/must"
@@ -301,4 +302,59 @@ func TestRelease_Multiregion(t *testing.T) {
 	ns, err = f.s1.State().NamespaceByName(nil, "mr-ns")
 	must.NoError(t, err)
 	must.Nil(t, ns)
+}
+
+// A multi-region install of a pack a server rendered is recorded as rendered
+// by the server in the other region too, when the servers verify each
+// other's names: the other region takes the word of a server of the
+// federation for it.
+func TestRelease_Multiregion_ServerRendered(t *testing.T) {
+	ci.Parallel(t)
+
+	const testdata = "../helper/tlsutil/testdata/"
+	tlsConfig := func(region string) *config.TLSConfig {
+		return &config.TLSConfig{
+			EnableRPC:            true,
+			VerifyServerHostname: true,
+			CAFile:               testdata + "norca-agent-ca.pem",
+			CertFile:             testdata + region + "-server-norca.pem",
+			KeyFile:              testdata + region + "-server-norca-key.pem",
+		}
+	}
+	global, cleanupGlobal := TestServer(t, func(c *Config) {
+		c.Region = "global"
+		c.AuthoritativeRegion = "global"
+		c.TLSConfig = tlsConfig("global")
+	})
+	t.Cleanup(cleanupGlobal)
+	foo, cleanupFoo := TestServer(t, func(c *Config) {
+		c.Region = "regionFoo"
+		c.AuthoritativeRegion = "global"
+		c.TLSConfig = tlsConfig("regionFoo")
+	})
+	t.Cleanup(cleanupFoo)
+	TestJoin(t, global, foo)
+	testutil.WaitForLeader(t, global.RPC)
+	testutil.WaitForLeader(t, foo.RPC)
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return len(global.Regions()) == 2 && len(foo.Regions()) == 2 &&
+			global.releases.ensureKinds() == nil && foo.releases.ensureKinds() == nil
+	}), wait.Timeout(20*time.Second), wait.Gap(50*time.Millisecond)))
+
+	// What Packs.Deploy does with a pack the leader of regionFoo rendered.
+	req := &structs.ReleaseApplyRequest{
+		Name:         "app",
+		Pack:         &structs.ReleasePack{Name: "app"},
+		Resources:    []*structs.ReleaseResource{{Type: structs.ReleaseResourceJob, Job: testReleaseJob("app")}},
+		Regions:      []string{"global", "regionFoo"},
+		WriteRequest: structs.WriteRequest{Region: "regionFoo", Namespace: "default"},
+	}
+	var resp structs.ReleaseApplyResponse
+	must.NoError(t, NewReleaseEndpoint(foo, nil).applyInternal(req, &resp, true, ""))
+	must.Len(t, 2, resp.Regions)
+	for _, region := range resp.Regions {
+		must.Eq(t, "", region.Error, must.Sprint(region.Region))
+		must.NotNil(t, region.Release, must.Sprint(region.Region))
+		must.True(t, region.Release.Spec.Pack.ServerRendered, must.Sprint(region.Region))
+	}
 }

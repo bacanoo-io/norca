@@ -72,14 +72,34 @@ func validateTimeout(d time.Duration) error {
 
 // Apply installs or upgrades a release, or plans it with DryRun.
 func (r *Release) Apply(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse) error {
-	return r.applyInternal(args, reply, false)
+	return r.applyInternal(args, reply, false, "Release.Apply")
 }
 
-func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse, serverRendered bool) error {
+// ApplyRendered applies, in this region, a release of a multi-region install
+// whose pack a server of another region rendered from its catalog
+// (Packs.Deploy with regions). It is Apply for a caller that is a server of
+// the federation: the release is then recorded and admitted as rendered by
+// the server (release.pack.serverRendered), as in the region that rendered
+// it. For any other caller it is an ordinary Apply: what a client says about
+// who rendered its pack counts for nothing.
+func (r *Release) ApplyRendered(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse) error {
+	return r.applyInternal(args, reply, true, "Release.ApplyRendered")
+}
+
+// applyInternal applies a release. forwardMethod is the RPC the request is
+// forwarded with to the leader of its region ("" when the caller is the
+// leader already). serverRendered of a forwarded request holds only when a
+// server of the federation sent it.
+func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *structs.ReleaseApplyResponse,
+	serverRendered bool, forwardMethod string) error {
+
 	authErr := r.srv.Authenticate(r.ctx, args)
-	if !serverRendered {
-		if done, err := r.srv.forward("Release.Apply", args, args, reply); done {
+	if forwardMethod != "" {
+		if done, err := r.srv.forward(forwardMethod, args, args, reply); done {
 			return err
+		}
+		if serverRendered && !sentByFederationServer(r.srv, r.ctx) {
+			serverRendered = false
 		}
 	}
 	r.srv.MeasureRPCRate("release", structs.RateMetricWrite, args)
