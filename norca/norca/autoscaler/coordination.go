@@ -10,6 +10,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/hashicorp/go-memdb"
 	metrics "github.com/hashicorp/go-metrics"
 )
 
@@ -43,7 +44,23 @@ func (r *runner) capAtQuota(store *state.StateStore, c *compiledPolicy, t *targe
 		}
 	}
 	oversub := structs.MemoryOversubscriptionEnabled(schedConfig, pool)
-	fit := remaining.MaxAllocs(structs.TaskGroupQuotaResources(t.group, 0).WithMemoryOversubscription(oversub))
+
+	// Reserved cores count against the CPU limit with the MHz of the node
+	// the allocation lands on, which is not known here. The ceiling takes
+	// the fastest core of the ready nodes of the job's node pool: it may
+	// allow fewer allocations than fit on slower nodes, never more than
+	// the scheduler will place.
+	var perCore int64
+	if structs.TaskGroupUsesCores(t.group) {
+		poolName := ""
+		if t.job != nil {
+			poolName = t.job.NodePool
+		}
+		if perCore, err = maxSharesPerCore(store, poolName); err != nil {
+			return false, err
+		}
+	}
+	fit := remaining.MaxAllocs(structs.TaskGroupQuotaResources(t.group, perCore).WithMemoryOversubscription(oversub))
 	if fit < 0 {
 		return true, nil
 	}
@@ -86,4 +103,29 @@ func (e *executor) publish(eventType string, ev *structs.ScalingDecisionEvent) {
 	if e.events != nil {
 		e.events(eventType, ev)
 	}
+}
+
+// maxSharesPerCore returns the MHz of the fastest core of the ready nodes of
+// the node pool (of all node pools for "" or the pool "all"), or zero if
+// there is none.
+func maxSharesPerCore(store *state.StateStore, pool string) (int64, error) {
+	var iter memdb.ResultIterator
+	var err error
+	if pool == "" || pool == structs.NodePoolAll {
+		iter, err = store.Nodes(nil)
+	} else {
+		iter, err = store.NodesByNodePool(nil, pool)
+	}
+	if err != nil {
+		return 0, err
+	}
+	var highest int64
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		node := raw.(*structs.Node)
+		if !node.Ready() || node.NodeResources == nil || node.NodeResources.Cpu.TotalCpuCores == 0 {
+			continue
+		}
+		highest = max(highest, node.NodeResources.Cpu.SharesPerCore())
+	}
+	return highest, nil
 }

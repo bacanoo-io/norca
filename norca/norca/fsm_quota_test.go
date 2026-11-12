@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/bacanoo-io/norca/norca/ci"
@@ -12,6 +13,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/shoenig/test/must"
 )
 
@@ -267,4 +269,60 @@ func TestPlanApply_RefreshIndex_NamespaceQuota(t *testing.T) {
 	index, err := refreshIndex(snap)
 	must.NoError(t, err)
 	must.Eq(t, 20, index)
+}
+
+// An allocation that is deleted with its evaluation while it is not terminal
+// gives its quota back: the evaluations that wait for the quota are woken.
+func TestFSM_DeleteEval_UnblocksQuota(t *testing.T) {
+	ci.Parallel(t)
+	fsm := testFSM(t)
+	fsm.blockedEvals.SetEnabled(true)
+	state := fsm.State()
+
+	q := mockQuotaSpec()
+	q.Canonicalize()
+	q.SetHash()
+	must.NoError(t, state.UpsertQuotaSpecs(structs.MsgTypeTestSetup, 10, []*structs.QuotaSpec{q}))
+	ns := mock.Namespace()
+	ns.Quota = q.Name
+	must.NoError(t, state.UpsertNamespaces(11, []*structs.Namespace{ns}))
+
+	job := mock.Job()
+	job.Namespace = ns.Name
+	must.NoError(t, state.UpsertJob(structs.MsgTypeTestSetup, 12, nil, job))
+	eval := mock.Eval()
+	eval.Namespace = ns.Name
+	eval.JobID = job.ID
+	must.NoError(t, state.UpsertEvals(structs.MsgTypeTestSetup, 13, []*structs.Evaluation{eval}))
+	alloc := mock.Alloc()
+	alloc.Namespace = ns.Name
+	alloc.Job = job
+	alloc.JobID = job.ID
+	alloc.EvalID = eval.ID
+	must.NoError(t, state.UpsertAllocs(structs.MsgTypeTestSetup, 14, []*structs.Allocation{alloc}))
+
+	// An evaluation of another job waits for the quota.
+	waiting := mock.BlockedEval()
+	waiting.Status = structs.EvalStatusBlocked
+	waiting.QuotaLimitReached = q.Name
+	fsm.blockedEvals.Block(waiting)
+	must.Eq(t, 1, fsm.blockedEvals.Stats().TotalBlocked)
+
+	buf, err := structs.Encode(structs.EvalDeleteRequestType, structs.EvalReapRequest{
+		Evals:  []string{eval.ID},
+		Allocs: []string{alloc.ID},
+	})
+	must.NoError(t, err)
+	must.Nil(t, fsm.Apply(makeLog(buf)))
+
+	out, err := state.AllocByID(nil, alloc.ID)
+	must.NoError(t, err)
+	must.Nil(t, out)
+
+	testutil.WaitForResult(func() (bool, error) {
+		if n := fsm.blockedEvals.Stats().TotalBlocked; n != 0 {
+			return false, fmt.Errorf("blocked evaluations: %d", n)
+		}
+		return true, nil
+	}, func(err error) { must.NoError(t, err) })
 }

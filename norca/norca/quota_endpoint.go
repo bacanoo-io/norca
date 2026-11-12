@@ -265,14 +265,35 @@ func (q *Quota) ListQuotaUsages(args *structs.QuotaSpecListRequest, reply *struc
 				reply.Usages = append(reply.Usages, usage)
 			}
 
-			index, err := store.Index(state.TableQuotaUsage)
+			index, err := quotaUsageIndex(store, 0)
 			if err != nil {
 				return err
 			}
-			reply.Index = max(1, index)
+			reply.Index = index
 			return nil
 		}}
 	return q.srv.blockingRPC(&opts)
+}
+
+// quotaUsageIndex returns the index of a reply with quota usage: the newest
+// of the usage table (or of the usage record, if given) and of the Variables
+// table. The usage in a reply includes the size of the Variables, which
+// changes with the Variables writes and has no index of its own: without the
+// index of the Variables a blocking query woke on such a write, found its
+// index unchanged and went on waiting until its time ran out.
+func quotaUsageIndex(store *state.StateStore, usageIndex uint64) (uint64, error) {
+	if usageIndex == 0 {
+		index, err := store.Index(state.TableQuotaUsage)
+		if err != nil {
+			return 0, err
+		}
+		usageIndex = index
+	}
+	variablesIndex, err := store.Index(state.TableVariables)
+	if err != nil {
+		return 0, err
+	}
+	return max(1, usageIndex, variablesIndex), nil
 }
 
 // GetQuotaUsage is used to get the usage of a single quota in this region.
@@ -304,16 +325,15 @@ func (q *Quota) GetQuotaUsage(args *structs.QuotaSpecSpecificRequest, reply *str
 			if err != nil {
 				return err
 			}
+			var usageIndex uint64
 			if usage != nil {
-				reply.Index = usage.ModifyIndex
-				return nil
+				usageIndex = usage.ModifyIndex
 			}
-
-			index, err := store.Index(state.TableQuotaUsage)
+			index, err := quotaUsageIndex(store, usageIndex)
 			if err != nil {
 				return err
 			}
-			reply.Index = max(1, index)
+			reply.Index = index
 			return nil
 		}}
 	return q.srv.blockingRPC(&opts)

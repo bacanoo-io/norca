@@ -988,9 +988,17 @@ func (n *nomadFSM) applyDeleteEval(buf []byte, index uint64) interface{} {
 		return nil
 	}
 
+	// An allocation that is deleted while it is not terminal gives its
+	// quota back (StateStore.DeleteEval). Find the quotas before the
+	// allocations are gone, and wake the evaluations that wait for them.
+	quotas := n.quotasOfLiveAllocs(req.Allocs)
+
 	if err := n.state.DeleteEval(index, req.Evals, req.Allocs, req.UserInitiated); err != nil {
 		n.logger.Error("DeleteEval failed", "error", err)
 		return err
+	}
+	for _, quota := range quotas {
+		n.blockedEvals.UnblockQuota(quota, index)
 	}
 	return nil
 }

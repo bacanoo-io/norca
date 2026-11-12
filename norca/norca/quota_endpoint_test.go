@@ -339,3 +339,53 @@ func quotaUsedForTest(t *testing.T, s *Server, name string) structs.QuotaResourc
 	must.NotNil(t, entry)
 	return entry.UsageResources()
 }
+
+// The usage of a quota includes the size of its Variables: a blocking query
+// for the usage returns when a Variable is written, with a newer index.
+func TestQuotaEndpoint_UsageBlocksOnVariables(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, nil)
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+
+	q := mockQuotaSpec()
+	must.NoError(t, upsertQuotaRPC(t, codec, "", q))
+	ns := mock.Namespace()
+	ns.Quota = q.Name
+	var nsResp structs.GenericResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Namespace.UpsertNamespaces", &structs.NamespaceUpsertRequest{
+		Namespaces:   []*structs.Namespace{ns},
+		WriteRequest: structs.WriteRequest{Region: "global"},
+	}, &nsResp))
+
+	getReq := &structs.QuotaSpecSpecificRequest{Name: q.Name, QueryOptions: structs.QueryOptions{Region: "global"}}
+	var first structs.SingleQuotaUsageResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Quota.GetQuotaUsage", getReq, &first))
+	must.NotNil(t, first.Usage)
+
+	// Write a Variable while a query blocks on the index it was given.
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		req := &structs.VariablesApplyRequest{
+			Op: structs.VarOpSet,
+			Var: &structs.VariableDecrypted{
+				VariableMetadata: structs.VariableMetadata{Namespace: ns.Name, Path: "app/config"},
+				Items:            map[string]string{"k": "v"},
+			},
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: ns.Name},
+		}
+		var resp structs.VariablesApplyResponse
+		_ = msgpackrpc.CallWithCodec(rpcClient(t, s1), structs.VariablesApplyRPCMethod, req, &resp)
+	}()
+
+	blocking := &structs.QuotaSpecSpecificRequest{Name: q.Name, QueryOptions: structs.QueryOptions{
+		Region: "global", MinQueryIndex: first.Index, MaxQueryTime: 10 * time.Second,
+	}}
+	var second structs.SingleQuotaUsageResponse
+	start := time.Now()
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "Quota.GetQuotaUsage", blocking, &second))
+	must.Less(t, 5*time.Second, time.Since(start))
+	must.Greater(t, first.Index, second.Index)
+}

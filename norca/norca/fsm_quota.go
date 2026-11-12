@@ -5,6 +5,7 @@ package norca
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca/state"
@@ -118,6 +119,30 @@ func (n *nomadFSM) unblockQuotasForPlanResults(req *structs.ApplyPlanResultsRequ
 	for quota := range quotas {
 		n.blockedEvals.UnblockQuota(quota, index)
 	}
+}
+
+// quotasOfLiveAllocs returns the quotas of the allocations that are not
+// terminal, that is, of those that still count against a quota.
+func (n *nomadFSM) quotasOfLiveAllocs(allocIDs []string) []string {
+	if !n.blockedEvals.Enabled() {
+		return nil
+	}
+	quotas := []string{}
+	for _, id := range allocIDs {
+		alloc, err := n.state.AllocByID(nil, id)
+		if err != nil || alloc == nil || alloc.TerminalStatus() {
+			continue
+		}
+		quota, err := n.allocQuota(id)
+		if err != nil {
+			n.logger.Error("looking up quota associated with alloc failed", "alloc_id", id, "error", err)
+			continue
+		}
+		if quota != "" && !slices.Contains(quotas, quota) {
+			quotas = append(quotas, quota)
+		}
+	}
+	return quotas
 }
 
 // restoreQuotaSnapshot restores a quota specification or usage record.

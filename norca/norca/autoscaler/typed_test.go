@@ -10,6 +10,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
+	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/shoenig/test/must"
 )
@@ -265,6 +266,59 @@ func TestAutoscaler_ScaleUpCappedAtQuota(t *testing.T) {
 	must.Eq(t, "q", events[0].ev.Quota)
 	must.Eq(t, structs.TypeScalingDecision, events[1].typ)
 	must.Eq(t, int64(3), events[1].ev.Count)
+}
+
+// A group that reserves cores counts against the CPU limit with the MHz of
+// the cores: the ceiling of the autoscaler takes them from the nodes.
+func TestAutoscaler_ScaleUpCappedAtQuota_ReservedCores(t *testing.T) {
+	ci.Parallel(t)
+	h, _ := newEventHarness(t)
+
+	node := mock.Node()
+	node.NodeResources.Cpu.TotalCpuCores = 4
+	h.index++
+	must.NoError(t, h.store.UpsertNode(structs.MsgTypeTestSetup, h.index, node))
+	perCore := node.NodeResources.Cpu.SharesPerCore()
+	must.Positive(t, perCore)
+
+	// The tasks of the group reserve one core each.
+	job := h.job.Copy()
+	for _, task := range job.TaskGroups[0].Tasks {
+		task.Resources.CPU = 0
+		task.Resources.Cores = 1
+	}
+	cores := int64(len(job.TaskGroups[0].Tasks))
+	h.index++
+	must.NoError(t, h.store.UpsertJob(structs.MsgTypeTestSetup, h.index, nil, job))
+
+	// A CPU limit with room for the cores of one more allocation above what
+	// the two running allocations use.
+	setLimit := func(cpu int) *structs.QuotaRemaining {
+		h.index++
+		must.NoError(t, h.store.UpsertQuotaSpecs(structs.MsgTypeTestSetup, h.index, []*structs.QuotaSpec{{
+			Name:   "q",
+			Limits: []*structs.QuotaLimit{{Region: "global", RegionLimit: &structs.Resources{CPU: cpu}}},
+		}}))
+		h.index++
+		must.NoError(t, h.store.UpsertNamespaces(h.index, []*structs.Namespace{{
+			Name: structs.DefaultNamespace, Quota: "q",
+		}}))
+		rem, err := h.store.QuotaRemainingForNamespace(nil, structs.DefaultNamespace)
+		must.NoError(t, err)
+		must.NotNil(t, rem)
+		return rem
+	}
+	const large = 1_000_000
+	used := large - int(*setLimit(large).CPU)
+	setLimit(used + int(cores*perCore))
+
+	// The policy asks for 4, the quota has room for one more than the 2
+	// that run.
+	must.NoError(t, h.evaluate())
+	reqs := h.scaler.requests()
+	must.Len(t, 1, reqs)
+	must.Eq(t, int64(3), *reqs[0].Count)
+	must.StrContains(t, reqs[0].Message, `by quota "q"`)
 }
 
 func TestAutoscaler_QuotaExhausted(t *testing.T) {
