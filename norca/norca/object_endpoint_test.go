@@ -181,9 +181,18 @@ func TestObjectKindEndpoint_CRUD(t *testing.T) {
 
 	listReq := &structs.ObjectKindListRequest{QueryOptions: structs.QueryOptions{Region: "global"}}
 	var listResp structs.ObjectKindListResponse
-	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "ObjectKind.List", listReq, &listResp))
-	// The two kinds above and the built-in NodeGroup and NodeProvider.
-	must.Len(t, 4, listResp.ObjectKinds)
+	// The two kinds above and the built-in NodeGroup and NodeProvider. The
+	// leader registers the built-in kinds after it is elected, on its own
+	// time: wait for them instead of counting on them.
+	testutil.WaitForResult(func() (bool, error) {
+		if err := msgpackrpc.CallWithCodec(c.codec, "ObjectKind.List", listReq, &listResp); err != nil {
+			return false, err
+		}
+		if n := len(listResp.ObjectKinds); n != 4 {
+			return false, fmt.Errorf("object kinds: %d", n)
+		}
+		return true, nil
+	}, func(err error) { must.NoError(t, err) })
 	listReq.Prefix = "lb."
 	must.NoError(t, msgpackrpc.CallWithCodec(c.codec, "ObjectKind.List", listReq, &listResp))
 	must.Len(t, 1, listResp.ObjectKinds)
