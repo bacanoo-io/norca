@@ -74,9 +74,12 @@ func (sv *Variables) Apply(args *structs.VariablesApplyRequest, reply *structs.V
 
 	// Norca: run the dynamic admission controllers that opted into
 	// Variables writes.
-	admissionWarnings, err := sv.enforceAdmission(args)
-	if err != nil {
-		return err
+	var admissionWarnings []string
+	if !sv.isKeyRotationWrite(args) {
+		admissionWarnings, err = sv.enforceAdmission(args)
+		if err != nil {
+			return err
+		}
 	}
 
 	var ev *structs.VariableEncrypted

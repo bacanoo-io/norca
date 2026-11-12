@@ -5,6 +5,7 @@ package norca
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"strings"
 
@@ -93,6 +94,30 @@ func (va *variableAdmission) decryptVariable(path string) (*admission.VariableIn
 		CreateIndex: dv.CreateIndex,
 		ModifyIndex: dv.ModifyIndex,
 	}, nil
+}
+
+// isKeyRotationWrite reports whether the write is the server's own: the
+// re-encryption of a stored variable with the new root key (the core
+// scheduler's rotateVariables), which is sent with the token of the leader.
+//
+// Such a write changes no content, so the admission controllers have nothing
+// to decide. They were asked all the same, and a variable that a policy
+// denied today (a schema made stricter since, a rule on the user or on
+// "create only", a webhook that was down) stopped the rotation there: no
+// later variable got the new key. A webhook with include_variable_items was
+// also sent every secret of the region.
+//
+// The token of the leader is made by the leader and never leaves the
+// servers; a client cannot present it.
+func (sv *Variables) isKeyRotationWrite(args *structs.VariablesApplyRequest) bool {
+	if args.Op != structs.VarOpCAS {
+		return false
+	}
+	leaderACL := sv.srv.getLeaderAcl()
+	if leaderACL == "" || len(args.AuthToken) != len(leaderACL) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(args.AuthToken), []byte(leaderACL)) == 1
 }
 
 // enforceAdmission runs the dynamic admission controllers that opted into

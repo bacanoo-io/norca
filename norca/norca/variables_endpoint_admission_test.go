@@ -285,6 +285,48 @@ func TestVariablesEndpoint_Admission_Webhooks(t *testing.T) {
 	must.Eq(t, 0, mutating.calls.Load())
 }
 
+// The server's own re-encryption of a variable for a key rotation is not a
+// change the admission controllers decide on: a policy that would deny the
+// write today does not stop it.
+func TestVariablesEndpoint_Admission_KeyRotationWrite(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := admissionServer(t)
+	defer cleanup()
+
+	created, err := admissionApplyVariable(t, s, structs.VarOpSet, "app/config", map[string]string{"k": "v"}, 0)
+	must.NoError(t, err)
+
+	// From now on the variables under app/ can only be created.
+	upsertAdmissionPolicies(t, s,
+		testVariablePolicy("create-only", "deny", `oldVariable == null`, "app/*"))
+
+	rewrite := func(token string) error {
+		req := &structs.VariablesApplyRequest{
+			Op: structs.VarOpCAS,
+			Var: &structs.VariableDecrypted{
+				VariableMetadata: structs.VariableMetadata{
+					Namespace:   structs.DefaultNamespace,
+					Path:        "app/config",
+					ModifyIndex: created.Output.ModifyIndex,
+				},
+				Items: map[string]string{"k": "v"},
+			},
+			WriteRequest: structs.WriteRequest{
+				Region: "global", Namespace: structs.DefaultNamespace, AuthToken: token,
+			},
+		}
+		var resp structs.VariablesApplyResponse
+		return msgpackrpc.CallWithCodec(rpcClient(t, s), structs.VariablesApplyRPCMethod, req, &resp)
+	}
+
+	// A writer is denied ...
+	must.ErrorContains(t, rewrite(""), structs.VariableAdmissionDeniedPrefix)
+
+	// ... the rotation, which writes with the token of the leader, is not.
+	must.NoError(t, rewrite(s.getLeaderAcl()))
+}
+
 func TestVariablesEndpoint_Admission_WebhookFailure(t *testing.T) {
 	ci.Parallel(t)
 
