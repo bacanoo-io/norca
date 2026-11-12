@@ -901,6 +901,11 @@ func (s *Server) Shutdown() error {
 	// Stop being able to set Configuration Entries
 	s.consulConfigEntries.Stop()
 
+	// Nothing writes a key file from here on.
+	if s.encrypter != nil {
+		s.encrypter.Close()
+	}
+
 	// Shutdown the OIDC provider cache which contains background resources and
 	// processes.
 	if s.oidcProviderCache != nil {

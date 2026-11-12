@@ -7,6 +7,7 @@ package norca
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -2743,6 +2744,9 @@ func (s *Server) initializeKeyring(stopCh <-chan struct{}) {
 	}
 
 	err = s.encrypter.AddKey(rootKey)
+	if errors.Is(err, errKeystoreClosed) {
+		return // the server was shut down meanwhile
+	}
 	if err != nil {
 		logger.Error("could not add initial key to keyring: %v", err)
 		return

@@ -191,6 +191,9 @@ func (e *Encrypter) rewrapKeystore(add bool) error {
 
 	e.storeLock.Lock()
 	defer e.storeLock.Unlock()
+	if e.closed {
+		return errKeystoreClosed
+	}
 	for _, key := range keys {
 		have := e.storedWrapsOf(key.Meta.KeyID)
 		use := seals

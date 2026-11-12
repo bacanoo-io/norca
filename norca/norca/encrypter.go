@@ -10,6 +10,7 @@ import (
 	"crypto/cipher"
 	"crypto/ed25519"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -57,6 +58,25 @@ type Encrypter struct {
 	storedWraps map[string][]string
 	wrapsLock   sync.Mutex
 	storeLock   sync.Mutex
+
+	// closed (Norca) is set by Close: nothing is written to the keystore
+	// any more; guarded by storeLock.
+	closed bool
+}
+
+// errKeystoreClosed is the error of a write to the keystore of a server that
+// was shut down.
+var errKeystoreClosed = errors.New("the keystore is closed: the server was shut down")
+
+// Close ends the writes to the keystore: one that is under way is waited
+// for, a later one fails with errKeystoreClosed. Server.Shutdown calls it,
+// so that nothing writes a key file once Shutdown returned. Routines of the
+// leader that nothing waits for (initializeKeyring) could otherwise still
+// leave a key file behind, of a key the state never heard of.
+func (e *Encrypter) Close() {
+	e.storeLock.Lock()
+	defer e.storeLock.Unlock()
+	e.closed = true
 }
 
 type keyset struct {
@@ -396,6 +416,9 @@ func (e *Encrypter) RemoveKey(keyID string) error {
 func (e *Encrypter) saveKeyToStore(rootKey *structs.RootKey) error {
 	e.storeLock.Lock()
 	defer e.storeLock.Unlock()
+	if e.closed {
+		return errKeystoreClosed
+	}
 
 	seals, err := e.keystoreSeals()
 	if err != nil {

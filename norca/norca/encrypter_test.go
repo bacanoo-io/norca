@@ -61,6 +61,31 @@ func TestEncrypter_LoadSave(t *testing.T) {
 	}
 }
 
+// A closed keystore takes no more key files: what a routine of a server that
+// was shut down still tries to add is refused and leaves no file behind.
+func TestEncrypter_Close(t *testing.T) {
+	ci.Parallel(t)
+
+	tmpDir := t.TempDir()
+	encrypter, err := NewEncrypter(&Server{shutdownCtx: context.Background()}, tmpDir)
+	must.NoError(t, err)
+
+	before, err := structs.NewRootKey(structs.EncryptionAlgorithmAES256GCM)
+	must.NoError(t, err)
+	must.NoError(t, encrypter.AddKey(before))
+
+	encrypter.Close()
+
+	after, err := structs.NewRootKey(structs.EncryptionAlgorithmAES256GCM)
+	must.NoError(t, err)
+	must.ErrorIs(t, encrypter.AddKey(after), errKeystoreClosed)
+
+	files, err := os.ReadDir(tmpDir)
+	must.NoError(t, err)
+	must.Len(t, 1, files)
+	must.Eq(t, before.Meta.KeyID+nomadKeystoreExtension, files[0].Name())
+}
+
 // TestEncrypter_Restore exercises the entire reload of a keystore,
 // including pairing metadata with key material
 func TestEncrypter_Restore(t *testing.T) {
