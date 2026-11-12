@@ -39,6 +39,7 @@ const (
 	HoldSuspended   = "suspended"   // suspended for oscillating
 	HoldSettling    = "settling"    // scale down held: the target does not run what was asked for
 	HoldNoData      = "no data"     // no check has a value to decide on
+	HoldCapacity    = "capacity"    // scale up held: allocations wait for capacity that is not coming
 	HoldQuota       = "quota"       // the namespace quota has no room
 	HoldRateLimit   = "rate limit"  // dropped by the cluster-wide limit of scaling actions
 	HoldNodeGroup   = "scale_down"  // a node group is lowered by its scale_down block only

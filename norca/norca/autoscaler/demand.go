@@ -498,6 +498,19 @@ type demandRun struct {
 	now    time.Time
 	groups []*demandGroup
 	cfg    *NodeScalingConfig
+
+	// unhelped is the work this look found that more nodes will not help,
+	// by task group, with the reason (capacity.go).
+	unhelped map[targetKey]string
+}
+
+// noHelp notes that more nodes will not help the work of a task group.
+func (d *demandRun) noHelp(u Unplaced, reason string) {
+	ns := u.Namespace
+	if ns == "" {
+		ns = structs.DefaultNamespace
+	}
+	d.unhelped[targetKey{namespace: ns, job: u.Job, group: u.Group}] = reason
 }
 
 // expand picks the group that grows for one allocation of the work.
@@ -531,13 +544,24 @@ func (d *demandRun) expand(pool string, candidates []*demandGroup) *demandGroup 
 func (r *runner) scaleForDemand(ctx context.Context) error {
 	now := r.now()
 	groups, err := r.readDemandGroups(now)
-	if err != nil || len(groups) == 0 {
+	if err != nil {
 		return err
 	}
-	d := &demandRun{r: r, now: now, groups: groups, cfg: r.cfg.NodeScaling}
+	d := &demandRun{r: r, now: now, groups: groups, cfg: r.cfg.NodeScaling, unhelped: map[targetKey]string{}}
 	var items []*demandItem
 	if r.deps.BlockedDemand != nil {
 		items = collectDemandItems(r.deps.BlockedDemand())
+	}
+	// What this look finds unhelped replaces what the last one found.
+	defer func() { r.capacity.replace(d.unhelped) }()
+
+	// Without node groups nothing adds nodes: all the work waits for
+	// capacity that is not coming.
+	if len(groups) == 0 {
+		for _, item := range items {
+			d.noHelp(item.Unplaced, "no node group adds nodes")
+		}
+		return nil
 	}
 
 	// The largest allocations first, so the packing of a bucket does not
@@ -551,6 +575,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 	for _, item := range items {
 		if item.Unverifiable != "" {
 			blocked["unverifiable/"+item.Namespace+"/"+item.Job+"/"+item.Group] = item.Unverifiable
+			d.noHelp(item.Unplaced, "a constraint cannot be checked against a node that does not exist yet: "+item.Unverifiable)
 			continue
 		}
 		var candidates []*demandGroup
@@ -618,6 +643,11 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			if len(rejected) > 0 {
 				blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group] = strings.Join(rejected, "; ")
 			}
+			reason := blocked["nogroup/"+item.Namespace+"/"+item.Job+"/"+item.Group]
+			if reason == "" {
+				reason = "no node group of its datacenters and node pool"
+			}
+			d.noHelp(item.Unplaced, "no node group can take it: "+reason)
 			continue
 		}
 
@@ -659,6 +689,7 @@ func (r *runner) scaleForDemand(ctx context.Context) error {
 			}
 			if len(pick) == 0 {
 				blocked["atmax/"+item.pool+"/"+item.Job+"/"+item.Group] = "every group that could take the work is at its maximum"
+				d.noHelp(item.Unplaced, "every node group that could take it is at its maximum")
 				break
 			}
 			// Where the job wants the allocation comes before what the
@@ -731,6 +762,18 @@ func (d *demandRun) apply(ctx context.Context, blocked map[string]string) {
 		if add < total {
 			blocked["limit/"+g.name] = fmt.Sprintf("%s needs %d more nodes and may add %d (maximum of the group %d, of the pool %d, step %d)",
 				g.name, total, max(add, 0), g.max, ps.MaxNodes, ps.MaxStep)
+		}
+		// The work of the group that the maximum of the group or of the
+		// pool leaves without a node is not helped. A step limit only
+		// spreads the nodes over more looks.
+		withoutStep := min(blockedAdd, g.max-g.spec)
+		if ps.MaxNodes > 0 {
+			withoutStep = min(withoutStep, int64(ps.MaxNodes)-poolTotal[g.pool]-poolAdded[g.pool])
+		}
+		if withoutStep < blockedAdd {
+			for _, u := range g.bucket {
+				d.noHelp(u, fmt.Sprintf("the node group %s or its pool is at its maximum", g.name))
+			}
 		}
 		if add <= 0 {
 			continue

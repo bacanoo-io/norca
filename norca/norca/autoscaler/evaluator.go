@@ -89,6 +89,10 @@ type runner struct {
 	settle *settleTracker
 	status *statusBook
 
+	// capacity is what the blocked work trigger last found of work that
+	// more nodes will not help (capacity.go).
+	capacity *capacityBook
+
 	// usage is the collector of the client pushed task group usage that
 	// serves the checks of the nomad-apm source. Nil in tests that use the
 	// plugin host's APMs only.
@@ -147,10 +151,12 @@ func newRunner(logger hclog.Logger, cfg *Config, deps *Deps, now func() time.Tim
 			minEvaluationInterval:     cfg.MinEvalInterval,
 			nomadAPMs:                 host.nomadAPMs,
 		},
-		exec:    newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
-		settle:  newSettleTracker(),
-		status:  newStatusBook(cfg.HoldWarn, deps.PublishEvent),
-		handles: map[string]*policyHandle{},
+		exec:   newExecutor(logger.Named("executor"), cfg, deps.Scaler, deps.ObjectScaler, deps.PublishEvent),
+		settle: newSettleTracker(),
+		status: newStatusBook(cfg.HoldWarn, deps.PublishEvent),
+
+		capacity: newCapacityBook(),
+		handles:  map[string]*policyHandle{},
 
 		lastDemand: map[string]int64{},
 		told:       map[string]string{},
@@ -446,6 +452,20 @@ func (r *runner) evaluatePolicy(ctx context.Context, c *compiledPolicy, eval *Ev
 		eval.held(HoldSettling, fmt.Sprintf("%d of %d run, not settled for %s",
 			t.status.Count, t.desired, unsettledFor.Round(time.Second)))
 		return nil
+	}
+
+	// A target whose allocations have waited for capacity for the settle
+	// timeout, and for which node scaling says none is coming, is not
+	// scaled up further: the count would only grow away from what runs.
+	// (The same timeout ends the hold of its scale downs above.)
+	if action.Direction == sdk.ScaleDirectionUp && !isSettled && unsettledFor >= r.cfg.SettleTimeout {
+		if reason := r.capacity.unhelped(c.key); reason != "" {
+			metrics.IncrCounter([]string{"nomad", "autoscaler", "evaluate", "capacity"}, 1)
+			logger.Debug("skipping scale up, no capacity is coming for the target", "reason", reason,
+				"desired", t.desired, "running", t.status.Count)
+			eval.held(HoldCapacity, reason)
+			return nil
+		}
 	}
 
 	// A node group is lowered only by its scale_down block (scaledown.go),
