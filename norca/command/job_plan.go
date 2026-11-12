@@ -107,6 +107,11 @@ Plan Options:
     Has no effect: overriding admission policies is not supported. The flag is
     still accepted for compatibility and prints a warning.
 
+  -reset-counts
+    Plan the job as "job run -reset-counts" would store it: with the counts
+    of the job file also for the task groups scaled by an enabled scaling
+    policy, whose count is kept otherwise.
+
   -vault-token
     Used to validate if the user submitting the job has permission to run the job
     according to its Vault policies. A Vault token must be supplied if the vault
@@ -145,6 +150,7 @@ func (c *JobPlanCommand) AutocompleteFlags() complete.Flags {
 			"-diff":             complete.PredictNothing,
 			"-dry-run-capacity": complete.PredictNothing,
 			"-policy-override":  complete.PredictNothing,
+			"-reset-counts":     complete.PredictNothing,
 			"-verbose":          complete.PredictNothing,
 			"-json":             complete.PredictNothing,
 			"-hcl1":             complete.PredictNothing,
@@ -166,7 +172,7 @@ func (c *JobPlanCommand) AutocompleteArgs() complete.Predictor {
 
 func (c *JobPlanCommand) Name() string { return "job plan" }
 func (c *JobPlanCommand) Run(args []string) int {
-	var diff, policyOverride, verbose, dryRunCapacity bool
+	var diff, policyOverride, verbose, dryRunCapacity, resetCounts bool
 	var vaultToken, vaultNamespace string
 
 	flagSet := c.Meta.FlagSet(c.Name(), FlagSetClient)
@@ -175,6 +181,7 @@ func (c *JobPlanCommand) Run(args []string) int {
 	flagSet.BoolVar(&policyOverride, "policy-override", false, "")
 	flagSet.BoolVar(&verbose, "verbose", false, "")
 	flagSet.BoolVar(&dryRunCapacity, "dry-run-capacity", false, "")
+	flagSet.BoolVar(&resetCounts, "reset-counts", false, "")
 	flagSet.BoolVar(&c.JobGetter.JSON, "json", false, "")
 	flagSet.BoolVar(&c.JobGetter.HCL1, "hcl1", false, "")
 	flagSet.BoolVar(&c.JobGetter.Strict, "hcl2-strict", true, "")
@@ -254,6 +261,7 @@ func (c *JobPlanCommand) Run(args []string) int {
 		// Always request the diff so we can tell if there are changes.
 		Diff:           true,
 		DryRunCapacity: dryRunCapacity,
+		ResetCounts:    resetCounts,
 	}
 	if job.IsMultiregion() {
 		return c.multiregionPlan(client, job, opts, diff, verbose)

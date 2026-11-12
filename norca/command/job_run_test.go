@@ -303,6 +303,17 @@ func TestRunCommand_JSON(t *testing.T) {
 
 // TestRunCommand_PolicyOverrideWarning asserts that -policy-override is
 // accepted, has no effect on the registration and prints a warning to stderr.
+func TestRunCommand_CountFlagsConflict(t *testing.T) {
+	ci.Parallel(t)
+
+	ui := cli.NewMockUi()
+	cmd := &JobRunCommand{Meta: Meta{Ui: ui}}
+
+	code := cmd.Run([]string{"-preserve-counts", "-reset-counts", "job.norca.hcl"})
+	require.Equal(t, 1, code)
+	require.Contains(t, ui.ErrorWriter.String(), "can't be used together")
+}
+
 func TestRunCommand_PolicyOverrideWarning(t *testing.T) {
 	ci.Parallel(t)
 

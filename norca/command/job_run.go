@@ -129,6 +129,12 @@ Run Options:
   -preserve-counts
     If set, the existing task group counts will be preserved when updating a job.
 
+  -reset-counts
+    When updating a job, the count of a task group that an enabled scaling
+    policy scales is kept: it is what the policy made of it, not what the job
+    file says. If set, the counts of the job file are taken for those groups
+    too. Can't be used together with -preserve-counts.
+
   -consul-token
     If set, the passed Consul token is stored in the job before sending to the
     Norca servers. This allows passing the Consul token without storing it in
@@ -185,6 +191,7 @@ func (c *JobRunCommand) AutocompleteFlags() complete.Flags {
 			"-output":           complete.PredictNothing,
 			"-policy-override":  complete.PredictNothing,
 			"-preserve-counts":  complete.PredictNothing,
+			"-reset-counts":     complete.PredictNothing,
 			"-json":             complete.PredictNothing,
 			"-hcl1":             complete.PredictNothing,
 			"-hcl2-strict":      complete.PredictNothing,
@@ -206,7 +213,7 @@ func (c *JobRunCommand) AutocompleteArgs() complete.Predictor {
 func (c *JobRunCommand) Name() string { return "job run" }
 
 func (c *JobRunCommand) Run(args []string) int {
-	var detach, verbose, output, override, preserveCounts, dryRunCapacity bool
+	var detach, verbose, output, override, preserveCounts, resetCounts, dryRunCapacity bool
 	var checkIndexStr, consulToken, consulNamespace, vaultToken, vaultNamespace string
 	var evalPriority int
 
@@ -217,6 +224,7 @@ func (c *JobRunCommand) Run(args []string) int {
 	flagSet.BoolVar(&output, "output", false, "")
 	flagSet.BoolVar(&override, "policy-override", false, "")
 	flagSet.BoolVar(&preserveCounts, "preserve-counts", false, "")
+	flagSet.BoolVar(&resetCounts, "reset-counts", false, "")
 	flagSet.BoolVar(&dryRunCapacity, "dry-run-capacity", false, "")
 	flagSet.BoolVar(&c.JobGetter.JSON, "json", false, "")
 	flagSet.BoolVar(&c.JobGetter.HCL1, "hcl1", false, "")
@@ -231,6 +239,11 @@ func (c *JobRunCommand) Run(args []string) int {
 	flagSet.IntVar(&evalPriority, "eval-priority", 0, "")
 
 	if err := flagSet.Parse(args); err != nil {
+		return 1
+	}
+
+	if preserveCounts && resetCounts {
+		c.Ui.Error("-preserve-counts and -reset-counts can't be used together")
 		return 1
 	}
 
@@ -344,6 +357,7 @@ func (c *JobRunCommand) Run(args []string) int {
 	// Set the register options
 	opts := &api.RegisterOptions{
 		PreserveCounts: preserveCounts,
+		ResetCounts:    resetCounts,
 		EvalPriority:   evalPriority,
 		Submission:     sub,
 		DryRunCapacity: dryRunCapacity,

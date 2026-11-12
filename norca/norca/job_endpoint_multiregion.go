@@ -198,6 +198,7 @@ func (j *Job) multiregionRegister(mr *multiregionRegistration, args *structs.Job
 			Submission:              args.Submission,
 			Job:                     job,
 			PreserveCounts:          args.PreserveCounts,
+			ResetCounts:             args.ResetCounts,
 			PolicyOverride:          args.PolicyOverride,
 			EvalPriority:            args.EvalPriority,
 			MultiregionRegistration: structs.MultiregionRegistrationPeer,

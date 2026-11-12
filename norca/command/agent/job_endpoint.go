@@ -179,6 +179,7 @@ func (s *HTTPServer) jobPlan(resp http.ResponseWriter, req *http.Request,
 		Diff:           args.Diff,
 		PolicyOverride: args.PolicyOverride,
 		DryRunCapacity: args.DryRunCapacity || queryBool(req, "dry_run_capacity"),
+		ResetCounts:    args.ResetCounts,
 		WriteRequest:   *writeReq,
 	}
 
@@ -469,6 +470,7 @@ func (s *HTTPServer) jobUpdate(resp http.ResponseWriter, req *http.Request, jobI
 		PreserveCounts: args.PreserveCounts,
 		EvalPriority:   args.EvalPriority,
 		DryRunCapacity: args.DryRunCapacity || queryBool(req, "dry_run_capacity"),
+		ResetCounts:    args.ResetCounts,
 		WriteRequest:   *writeReq,
 	}
 

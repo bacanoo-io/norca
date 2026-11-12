@@ -114,3 +114,41 @@ func scaleBlockedByDeployment(deployment *structs.Deployment, job *structs.Job,
 	}
 	return false
 }
+
+// keepScaledCounts keeps the task group counts of the stored job in a new
+// version of it, before the new version is registered or planned.
+//
+// The count of a group that an enabled scaling policy scales, in the stored
+// job and in the new one, belongs to the policy: the count of the job spec
+// was right when the job was written and is not what the load needs now.
+// Such a group keeps its count, brought within the bounds of the new policy,
+// unless reset says to take the job spec's. Without a policy in both, or
+// with a disabled one, the job spec's count is taken, as it always was.
+//
+// preserveAll keeps the count of every group that exists in both versions,
+// with or without a policy (PreserveCounts).
+func keepScaledCounts(existing, updated *structs.Job, preserveAll, reset bool) {
+	if existing == nil || updated == nil {
+		return
+	}
+	for _, tg := range updated.TaskGroups {
+		old := existing.LookupTaskGroup(tg.Name)
+		if old == nil {
+			continue
+		}
+		switch {
+		case preserveAll:
+			tg.Count = old.Count
+		case !reset && isScaledGroup(old) && isScaledGroup(tg):
+			count := min(max(int64(old.Count), tg.Scaling.Min), tg.Scaling.Max)
+			tg.Count = int(count)
+		}
+	}
+}
+
+// isScaledGroup reports whether an enabled scaling policy scales the count
+// of the task group, whichever engine evaluates it.
+func isScaledGroup(tg *structs.TaskGroup) bool {
+	p := tg.Scaling
+	return p != nil && p.Enabled && (p.Type == "" || p.Type == structs.ScalingPolicyTypeHorizontal)
+}

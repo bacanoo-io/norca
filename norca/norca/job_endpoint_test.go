@@ -343,6 +343,157 @@ func TestJobEndpoint_Register_PreserveCounts(t *testing.T) {
 	require.Equal(2, out.TaskGroups[1].Count)  // should be as in job spec
 }
 
+// A new version of a job keeps the count a scaling policy gave its groups:
+// registering the job file again must not undo the scaling.
+func TestJobEndpoint_Register_KeepsScaledCounts(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, func(c *Config) {
+		c.NumSchedulers = 0 // Prevent automatic dequeue
+	})
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+	state := s1.fsm.State()
+
+	tests := []struct {
+		name           string
+		isScaled       bool
+		preserveCounts bool
+		resetCounts    bool
+		expected       int
+		expectedErr    string
+	}{
+		{name: "a scaled group keeps its count", isScaled: true, expected: 5},
+		{name: "reset takes the count of the job file", isScaled: true, resetCounts: true, expected: 2},
+		{name: "a group without a policy takes the count of the job file", expected: 2},
+		{name: "preserve keeps the count of a group without a policy", preserveCounts: true, expected: 5},
+		{
+			name:           "preserve and reset together are refused",
+			isScaled:       true,
+			preserveCounts: true,
+			resetCounts:    true,
+			expectedErr:    "can't both be set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			// The job file asks for 2.
+			job := mock.Job()
+			if tt.isScaled {
+				var policy *structs.ScalingPolicy
+				job, policy = mock.JobWithScalingPolicy()
+				policy.Min, policy.Max = 1, 10
+			}
+			job.TaskGroups[0].Count = 2
+			write := structs.WriteRequest{Region: "global", Namespace: job.Namespace}
+
+			require.NoError(msgpackrpc.CallWithCodec(codec, "Job.Register",
+				&structs.JobRegisterRequest{Job: job.Copy(), WriteRequest: write}, &structs.JobRegisterResponse{}))
+
+			// The group is scaled to 5.
+			require.NoError(msgpackrpc.CallWithCodec(codec, "Job.Scale", &structs.JobScaleRequest{
+				JobID:        job.ID,
+				Target:       map[string]string{structs.ScalingTargetGroup: job.TaskGroups[0].Name},
+				Count:        pointer.Of(int64(5)),
+				Message:      "scaled",
+				WriteRequest: write,
+			}, &structs.JobRegisterResponse{}))
+
+			// A new version of the job file, still asking for 2.
+			updated := job.Copy()
+			updated.Meta = map[string]string{"version": "2"}
+			err := msgpackrpc.CallWithCodec(codec, "Job.Register", &structs.JobRegisterRequest{
+				Job:            updated,
+				PreserveCounts: tt.preserveCounts,
+				ResetCounts:    tt.resetCounts,
+				WriteRequest:   write,
+			}, &structs.JobRegisterResponse{})
+			if tt.expectedErr != "" {
+				require.ErrorContains(err, tt.expectedErr)
+				return
+			}
+			require.NoError(err)
+
+			out, err := state.JobByID(nil, job.Namespace, job.ID)
+			require.NoError(err)
+			require.Equal("2", out.Meta["version"])
+			require.Equal(tt.expected, out.TaskGroups[0].Count)
+		})
+	}
+}
+
+// The plan of a job shows what registering it would do: the count of a scaled
+// group is not a change.
+func TestJobEndpoint_Plan_KeepsScaledCounts(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, func(c *Config) {
+		c.NumSchedulers = 0 // Prevent automatic dequeue
+	})
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+
+	job, policy := mock.JobWithScalingPolicy()
+	policy.Min, policy.Max = 1, 10
+	job.TaskGroups[0].Count = 2
+	write := structs.WriteRequest{Region: "global", Namespace: job.Namespace}
+
+	require.NoError(t, msgpackrpc.CallWithCodec(codec, "Job.Register",
+		&structs.JobRegisterRequest{Job: job.Copy(), WriteRequest: write}, &structs.JobRegisterResponse{}))
+	require.NoError(t, msgpackrpc.CallWithCodec(codec, "Job.Scale", &structs.JobScaleRequest{
+		JobID:        job.ID,
+		Target:       map[string]string{structs.ScalingTargetGroup: job.TaskGroups[0].Name},
+		Count:        pointer.Of(int64(5)),
+		Message:      "scaled",
+		WriteRequest: write,
+	}, &structs.JobRegisterResponse{}))
+
+	tests := []struct {
+		name          string
+		resetCounts   bool
+		expectedCount string
+	}{
+		// The diff lists the fields that change: none for the count.
+		{name: "the same job file keeps the scaled count", expectedCount: ""},
+		{name: "with reset the count goes back to the job file's", resetCounts: true, expectedCount: "2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			var resp structs.JobPlanResponse
+			require.NoError(msgpackrpc.CallWithCodec(codec, "Job.Plan", &structs.JobPlanRequest{
+				Job:          job.Copy(),
+				Diff:         true,
+				ResetCounts:  tt.resetCounts,
+				WriteRequest: write,
+			}, &resp))
+
+			require.NotNil(resp.Diff)
+			require.Len(resp.Diff.TaskGroups, 1)
+			var count *structs.FieldDiff
+			for _, field := range resp.Diff.TaskGroups[0].Fields {
+				if field.Name == "Count" {
+					count = field
+				}
+			}
+			if tt.expectedCount == "" {
+				require.Nil(count, "the plan changes the count of a scaled group")
+				return
+			}
+			require.NotNil(count, "the plan does not change the count")
+			require.Equal("5", count.Old)
+			require.Equal(tt.expectedCount, count.New)
+		})
+	}
+}
+
 func TestJobEndpoint_Register_EvalPriority(t *testing.T) {
 	ci.Parallel(t)
 	requireAssert := require.New(t)

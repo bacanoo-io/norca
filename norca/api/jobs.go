@@ -130,8 +130,14 @@ type RegisterOptions struct {
 	PolicyOverride bool
 
 	PreserveCounts bool
-	EvalPriority   int
-	Submission     *JobSubmission
+
+	// ResetCounts takes the task group counts of the job also for the
+	// groups scaled by an enabled scaling policy, whose count the server
+	// keeps otherwise (Norca). It can't be set together with PreserveCounts.
+	ResetCounts bool
+
+	EvalPriority int
+	Submission   *JobSubmission
 
 	// DryRunCapacity asks the server that receives the job for a dry run
 	// of the placements on its copy of the state (Norca); the result is in
@@ -163,6 +169,7 @@ func (j *Jobs) RegisterOpts(job *Job, opts *RegisterOptions, q *WriteOptions) (*
 		}
 		req.PolicyOverride = opts.PolicyOverride
 		req.PreserveCounts = opts.PreserveCounts
+		req.ResetCounts = opts.ResetCounts
 		req.EvalPriority = opts.EvalPriority
 		req.Submission = opts.Submission
 		req.DryRunCapacity = opts.DryRunCapacity
@@ -454,6 +461,10 @@ type PlanOptions struct {
 	// DryRunCapacity runs the plan on the server that receives it, on its
 	// copy of the state, instead of the leader (Norca).
 	DryRunCapacity bool
+
+	// ResetCounts plans the job as a registration with ResetCounts would
+	// store it (Norca).
+	ResetCounts bool
 }
 
 func (j *Jobs) Plan(job *Job, diff bool, q *WriteOptions) (*JobPlanResponse, *WriteMeta, error) {
@@ -477,6 +488,7 @@ func (j *Jobs) PlanOpts(job *Job, opts *PlanOptions, q *WriteOptions) (*JobPlanR
 		req.Diff = opts.Diff
 		req.PolicyOverride = opts.PolicyOverride
 		req.DryRunCapacity = opts.DryRunCapacity
+		req.ResetCounts = opts.ResetCounts
 	}
 
 	var resp JobPlanResponse
@@ -1375,6 +1387,10 @@ type JobRegisterRequest struct {
 
 	PreserveCounts bool `json:",omitempty"`
 
+	// ResetCounts takes the task group counts of the job also for the
+	// groups scaled by an enabled scaling policy (Norca).
+	ResetCounts bool `json:",omitempty"`
+
 	// EvalPriority is an optional priority to use on any evaluation created as
 	// a result on this job registration. This value must be between 1-100
 	// inclusively, where a larger value corresponds to a higher priority. This
@@ -1441,6 +1457,10 @@ type JobPlanRequest struct {
 	// DryRunCapacity runs the plan on the server that receives it, on its
 	// copy of the state, instead of the leader (Norca).
 	DryRunCapacity bool `json:",omitempty"`
+
+	// ResetCounts plans the job as a registration with ResetCounts would
+	// store it (Norca).
+	ResetCounts bool `json:",omitempty"`
 
 	WriteRequest
 }

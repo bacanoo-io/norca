@@ -811,6 +811,12 @@ type JobRegisterRequest struct {
 	// PreserveCounts is ignored for newly created jobs.
 	PreserveCounts bool
 
+	// ResetCounts (Norca) makes a job update take the task group counts of
+	// the new job spec also for the groups scaled by an enabled scaling
+	// policy, whose count is kept otherwise. It can't be set together with
+	// PreserveCounts.
+	ResetCounts bool
+
 	// PolicyOverride is ignored: overriding admission policies is not
 	// supported. The field is kept for wire compatibility.
 	PolicyOverride bool
@@ -964,6 +970,11 @@ type JobPlanRequest struct {
 	// request, on its own copy of the state, instead of the leader: the
 	// placements may be a little behind the leader's state.
 	DryRunCapacity bool
+
+	// ResetCounts (Norca) plans the job as Job.Register would with
+	// ResetCounts: with the task group counts of the job spec also for
+	// the groups scaled by an enabled scaling policy.
+	ResetCounts bool
 	WriteRequest
 }
 

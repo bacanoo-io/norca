@@ -194,3 +194,131 @@ func TestScaleBlockedByDeployment(t *testing.T) {
 	tg.Scaling.Policy = map[string]interface{}{"scale_during_deployment": "up_only"}
 	must.False(t, scaleBlockedByDeployment(active(false), job, tg, 2, 3))
 }
+
+func TestKeepScaledCounts(t *testing.T) {
+	ci.Parallel(t)
+
+	// group returns a task group with the count, and a scaling policy of
+	// 1 to 10 if scaled.
+	group := func(name string, count int, scaled bool) *structs.TaskGroup {
+		tg := &structs.TaskGroup{Name: name, Count: count}
+		if scaled {
+			tg.Scaling = &structs.ScalingPolicy{
+				Type: structs.ScalingPolicyTypeHorizontal, Min: 1, Max: 10, Enabled: true,
+			}
+		}
+		return tg
+	}
+	with := func(tg *structs.TaskGroup, change func(*structs.ScalingPolicy)) *structs.TaskGroup {
+		change(tg.Scaling)
+		return tg
+	}
+
+	tests := []struct {
+		name        string
+		existing    *structs.TaskGroup
+		updated     *structs.TaskGroup
+		preserveAll bool
+		reset       bool
+		expected    int
+	}{
+		{
+			name:     "a scaled group keeps its count",
+			existing: group("web", 5, true),
+			updated:  group("web", 2, true),
+			expected: 5,
+		},
+		{
+			name:     "reset takes the count of the job spec",
+			existing: group("web", 5, true),
+			updated:  group("web", 2, true),
+			reset:    true,
+			expected: 2,
+		},
+		{
+			name:     "a group without a policy takes the count of the job spec",
+			existing: group("web", 5, false),
+			updated:  group("web", 2, false),
+			expected: 2,
+		},
+		{
+			name:     "a policy added by the new version does not own the old count",
+			existing: group("web", 5, false),
+			updated:  group("web", 2, true),
+			expected: 2,
+		},
+		{
+			name:     "a policy removed by the new version gives the count back",
+			existing: group("web", 5, true),
+			updated:  group("web", 2, false),
+			expected: 2,
+		},
+		{
+			name:     "a policy disabled by the new version gives the count back",
+			existing: group("web", 5, true),
+			updated:  with(group("web", 2, true), func(p *structs.ScalingPolicy) { p.Enabled = false }),
+			expected: 2,
+		},
+		{
+			name:     "a disabled policy did not scale the old count",
+			existing: with(group("web", 5, true), func(p *structs.ScalingPolicy) { p.Enabled = false }),
+			updated:  group("web", 2, true),
+			expected: 2,
+		},
+		{
+			name:     "the kept count is brought under the new maximum",
+			existing: group("web", 8, true),
+			updated:  with(group("web", 2, true), func(p *structs.ScalingPolicy) { p.Max = 6 }),
+			expected: 6,
+		},
+		{
+			name:     "the kept count is brought over the new minimum",
+			existing: group("web", 2, true),
+			updated:  with(group("web", 4, true), func(p *structs.ScalingPolicy) { p.Min = 3 }),
+			expected: 3,
+		},
+		{
+			name:     "a policy of the external engine keeps the count too",
+			existing: with(group("web", 5, true), func(p *structs.ScalingPolicy) { p.Engine = structs.ScalingPolicyEngineExternal }),
+			updated:  with(group("web", 2, true), func(p *structs.ScalingPolicy) { p.Engine = structs.ScalingPolicyEngineExternal }),
+			expected: 5,
+		},
+		{
+			name:        "preserve keeps the count of a group without a policy",
+			existing:    group("web", 5, false),
+			updated:     group("web", 2, false),
+			preserveAll: true,
+			expected:    5,
+		},
+		{
+			name:        "preserve keeps a count outside the new bounds, as it did",
+			existing:    group("web", 8, true),
+			updated:     with(group("web", 2, true), func(p *structs.ScalingPolicy) { p.Max = 6 }),
+			preserveAll: true,
+			expected:    8,
+		},
+		{
+			name:     "a group the stored job does not have takes the count of the job spec",
+			existing: group("api", 5, true),
+			updated:  group("web", 2, true),
+			expected: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := &structs.Job{TaskGroups: []*structs.TaskGroup{tt.existing}}
+			updated := &structs.Job{TaskGroups: []*structs.TaskGroup{tt.updated}}
+
+			keepScaledCounts(existing, updated, tt.preserveAll, tt.reset)
+
+			must.Eq(t, tt.expected, updated.TaskGroups[0].Count)
+		})
+	}
+
+	t.Run("a new job has nothing to keep", func(t *testing.T) {
+		updated := &structs.Job{TaskGroups: []*structs.TaskGroup{group("web", 2, true)}}
+		keepScaledCounts(nil, updated, false, false)
+		must.Eq(t, 2, updated.TaskGroups[0].Count)
+	})
+}

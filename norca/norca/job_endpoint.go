@@ -356,18 +356,12 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 	// Clear the Consul token
 	args.Job.ConsulToken = ""
 
-	// Preserve the existing task group counts, if so requested
-	if existingJob != nil && args.PreserveCounts {
-		prevCounts := make(map[string]int)
-		for _, tg := range existingJob.TaskGroups {
-			prevCounts[tg.Name] = tg.Count
-		}
-		for _, tg := range args.Job.TaskGroups {
-			if count, ok := prevCounts[tg.Name]; ok {
-				tg.Count = count
-			}
-		}
+	// Keep the task group counts that are not the job spec's to set: those
+	// of the groups an enabled scaling policy scales, or all if so requested.
+	if args.PreserveCounts && args.ResetCounts {
+		return structs.NewErrRPCCoded(http.StatusBadRequest, "PreserveCounts and ResetCounts can't both be set")
 	}
+	keepScaledCounts(existingJob, args.Job, args.PreserveCounts, args.ResetCounts)
 
 	// Submit a multiregion job to its other regions, with the same version.
 	if err := j.multiregionRegister(mr, args, reply, existingJob, nomadACLToken); err != nil {
@@ -1885,6 +1879,9 @@ func (j *Job) plan(args *structs.JobPlanRequest, reply *structs.JobPlanResponse)
 	}
 
 	// Ensure that all scaling policies have an appropriate ID
+	// The counts as Job.Register would store them.
+	keepScaledCounts(oldJob, args.Job, false, args.ResetCounts)
+
 	if err := propagateScalingPolicyIDs(oldJob, args.Job); err != nil {
 		return err
 	}
