@@ -669,7 +669,7 @@ func (s *GenericScheduler) computePlacements(destructive, place []placementResul
 					Metrics:            s.ctx.Metrics(),
 					NodeID:             option.Node.ID,
 					NodeName:           option.Node.Name,
-					DeploymentID:       deploymentID,
+					DeploymentID:       placementDeploymentID(missing, deploymentID),
 					TaskResources:      resources.OldTaskResources(),
 					AllocatedResources: resources,
 					DesiredStatus:      structs.AllocDesiredStatusRun,

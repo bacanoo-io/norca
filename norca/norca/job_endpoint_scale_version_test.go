@@ -62,7 +62,8 @@ func TestJobEndpoint_Scale_KeepsTheVersion(t *testing.T) {
 }
 
 // A scale up that the policy allows during a deployment leaves the deployment
-// running, and the deployment waits for the allocations that were added.
+// running, what it was the rollout of: the allocations that are added are
+// recorded on it, and are not its work.
 func TestJobEndpoint_Scale_KeepsTheDeployment(t *testing.T) {
 	ci.Parallel(t)
 
@@ -91,7 +92,8 @@ func TestJobEndpoint_Scale_KeepsTheDeployment(t *testing.T) {
 	must.NoError(t, err)
 	must.Eq(t, structs.DeploymentStatusRunning, stored.Status)
 	must.Eq(t, job.Version, stored.JobVersion)
-	must.Eq(t, 13, stored.TaskGroups[tg.Name].DesiredTotal)
+	must.Eq(t, 10, stored.TaskGroups[tg.Name].DesiredTotal)
+	must.Eq(t, 3, stored.TaskGroups[tg.Name].ScaleAdded)
 	must.Eq(t, 4, stored.TaskGroups[tg.Name].HealthyAllocs)
 
 	latest, err := state.LatestDeploymentByJobID(nil, job.Namespace, job.ID)

@@ -221,6 +221,11 @@ type DeploymentState struct {
 	PlacedAllocs      int
 	HealthyAllocs     int
 	UnhealthyAllocs   int
+
+	// ScaleAdded (Norca) is the number of allocations that scaling added to
+	// the task group since the deployment was created. They are not part of
+	// the deployment.
+	ScaleAdded int
 }
 
 // DeploymentIndexSort is a wrapper to sort deployments by CreateIndex. We

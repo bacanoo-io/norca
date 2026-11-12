@@ -87,10 +87,10 @@ func TypedPolicy(p *structs.ScalingPolicy) (*structs.ScalingPolicy, error) {
 // engine, a scale by hand.
 //
 // The built-in autoscaler may scale up by default because scaling is not a
-// new version of the job (state.ScaleJob): the deployment that runs goes on
-// and takes the allocations that are added. A load that grows during a
-// rollout is the common case, and a group held at its count for the length
-// of the rollout is what the policy is there to prevent.
+// new version of the job (state.ScaleJob): the deployment that runs goes on,
+// and the allocations that are added are not its work. A load that grows
+// during a rollout is the common case, and a group held at its count for the
+// length of the rollout is what the policy is there to prevent.
 func ScaleDuringDeployment(tp *structs.ScalingPolicy, isOwn bool) string {
 	switch {
 	case tp != nil && tp.ScaleDuringDeployment != "":

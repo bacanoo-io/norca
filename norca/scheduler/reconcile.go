@@ -551,6 +551,11 @@ func (a *allocReconciler) computeGroup(groupName string, all allocSet) bool {
 		place = a.computePlacements(tg, nameIndex, untainted, migrate, rescheduleNow, lost, isCanarying)
 		if !existingDeployment {
 			dstate.DesiredTotal += len(place)
+		} else if dstate.ScaleAdded > 0 {
+			// (Norca) What a scale up added to the group after its
+			// deployment started is not the work of the deployment: the
+			// allocations with the highest indexes of the group.
+			markOutsideDeployment(a.jobID, place, tg.Count-dstate.ScaleAdded)
 		}
 	}
 
@@ -851,10 +856,19 @@ func (a *allocReconciler) computeReplacements(deploymentPlaceReady bool, desired
 
 	// If allocs have been lost, determine the number of replacements that are needed
 	// and add placements to the result for the lost allocs.
+	allowed := 0
 	if len(lost) != 0 {
-		allowed := min(len(lost), len(place))
+		allowed = min(len(lost), len(place))
 		desiredChanges.Place += uint64(allowed)
 		a.result.place = append(a.result.place, place[:allowed]...)
+	}
+
+	// (Norca) A deployment that failed does not hold the allocations a scale
+	// up added to the group (reconcile_scale.go).
+	if a.deploymentFailed {
+		added := outsideDeployment(place, allowed)
+		desiredChanges.Place += uint64(len(added))
+		a.result.place = append(a.result.place, added...)
 	}
 
 	// if no failures or there are no pending placements return.
@@ -963,7 +977,9 @@ func (a *allocReconciler) createDeployment(groupName string, strategy *structs.U
 func (a *allocReconciler) isDeploymentComplete(groupName string, destructive, inplace, migrate, rescheduleNow allocSet,
 	place []allocPlaceResult, rescheduleLater []*delayedRescheduleInfo, requiresCanaries bool) bool {
 
-	complete := len(destructive)+len(inplace)+len(place)+len(migrate)+len(rescheduleNow)+len(rescheduleLater) == 0 &&
+	// (Norca) The deployment does not wait for the allocations a scale up
+	// added to the group after it started (reconcile_scale.go).
+	complete := len(destructive)+len(inplace)+insideDeployment(place)+len(migrate)+len(rescheduleNow)+len(rescheduleLater) == 0 &&
 		!requiresCanaries
 
 	if !complete || a.deployment == nil {

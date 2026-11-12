@@ -115,12 +115,12 @@ func TestRunner_Evaluate_CapacityHold(t *testing.T) {
 			expectedOutcome: OutcomeScaled},
 		{name: "capacity is coming", isUnhelped: false, wait: 2 * time.Minute,
 			expectedOutcome: OutcomeScaled},
-		// The allocations a scale up adds to a deployment are part of it,
-		// and the deployment fails if they are never placed: no wait.
-		{name: "no capacity is coming, during a deployment", isUnhelped: true, isDeploying: true, wait: time.Minute,
-			expectedOutcome: OutcomeHeld, expectedHold: HoldCapacity},
-		{name: "capacity is coming, during a deployment", isUnhelped: false, isDeploying: true, wait: time.Minute,
-			expectedOutcome: OutcomeScaled},
+		// A deployment changes nothing: the allocations a scale up adds are
+		// not its work.
+		{name: "no capacity is coming, during a deployment, after the settle timeout", isUnhelped: true, isDeploying: true,
+			wait: 2 * time.Minute, expectedOutcome: OutcomeHeld, expectedHold: HoldCapacity},
+		{name: "no capacity is coming, during a deployment, before the settle timeout", isUnhelped: true, isDeploying: true,
+			wait: time.Minute, expectedOutcome: OutcomeScaled},
 	}
 
 	for _, tt := range tests {

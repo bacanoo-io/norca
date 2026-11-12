@@ -107,26 +107,33 @@ func TestStateStore_ScaleJob_Gone(t *testing.T) {
 	}
 }
 
-// The desired total of the group in the active deployment of the job's
-// version follows the count; other deployments are left alone.
+// What scaling adds to a group is recorded on the deployment of the job's
+// version while that is the deployment of the group; nothing else of the
+// deployment changes.
 func TestStateStore_ScaleJob_Deployment(t *testing.T) {
 	ci.Parallel(t)
 
 	tests := []struct {
 		name     string
-		count    int
+		counts   []int // the group has 10; scaled to these in turn
 		change   func(d *structs.Deployment)
 		expected int
 	}{
-		{name: "a running deployment waits for the added allocations", count: 13, expected: 13},
-		{name: "and not for those taken away", count: 7, expected: 7},
-		{name: "a paused deployment is active too", count: 13, expected: 13,
+		{name: "a scale up during a running deployment", counts: []int{13}, expected: 3},
+		{name: "two scale ups add up", counts: []int{12, 15}, expected: 5},
+		{name: "a scale down takes away what was added first", counts: []int{13, 11}, expected: 1},
+		{name: "and no more than that", counts: []int{13, 8, 9}, expected: 1},
+		{name: "a paused deployment", counts: []int{13}, expected: 3,
 			change: func(d *structs.Deployment) { d.Status = structs.DeploymentStatusPaused }},
-		{name: "a deployment that ended is left alone", count: 13, expected: 10,
+		{name: "a failed deployment is still the deployment of the group", counts: []int{13}, expected: 3,
+			change: func(d *structs.Deployment) { d.Status = structs.DeploymentStatusFailed }},
+		{name: "a deployment that succeeded is over", counts: []int{13}, expected: 0,
 			change: func(d *structs.Deployment) { d.Status = structs.DeploymentStatusSuccessful }},
-		{name: "a deployment of another version is left alone", count: 13, expected: 10,
+		{name: "a deployment that was cancelled is over", counts: []int{13}, expected: 0,
+			change: func(d *structs.Deployment) { d.Status = structs.DeploymentStatusCancelled }},
+		{name: "a deployment of another version is left alone", counts: []int{13}, expected: 0,
 			change: func(d *structs.Deployment) { d.JobVersion = 7 }},
-		{name: "a deployment without the group is left alone", count: 13, expected: 10,
+		{name: "a deployment without the group is left alone", counts: []int{13}, expected: 0,
 			change: func(d *structs.Deployment) {
 				d.TaskGroups["other"] = d.TaskGroups["web"]
 				delete(d.TaskGroups, "web")
@@ -143,23 +150,25 @@ func TestStateStore_ScaleJob_Deployment(t *testing.T) {
 			if tt.change != nil {
 				tt.change(d)
 			}
+			status := d.Status
 			must.NoError(t, state.UpsertDeployment(11, d))
 
-			_, err := state.ScaleJob(structs.MsgTypeTestSetup, 20, job.Namespace, job.ID, "web", tt.count, 0)
-			must.NoError(t, err)
+			for i, count := range tt.counts {
+				_, err := state.ScaleJob(structs.MsgTypeTestSetup, uint64(20+i), job.Namespace, job.ID, "web", count, 0)
+				must.NoError(t, err)
+			}
 
 			stored, err := state.DeploymentByID(nil, d.ID)
 			must.NoError(t, err)
+			must.Eq(t, status, stored.Status)
 			var dstate *structs.DeploymentState
 			for _, s := range stored.TaskGroups {
 				dstate = s
 			}
-			must.Eq(t, tt.expected, dstate.DesiredTotal)
-			must.Eq(t, 4, dstate.HealthyAllocs)
-			must.Eq(t, 6, dstate.PlacedAllocs)
-			if tt.expected != 10 {
-				must.Eq(t, uint64(20), stored.ModifyIndex)
-			} else {
+			must.Eq(t, &structs.DeploymentState{
+				DesiredTotal: 10, HealthyAllocs: 4, PlacedAllocs: 6, ScaleAdded: tt.expected,
+			}, dstate)
+			if tt.expected == 0 {
 				must.Eq(t, uint64(11), stored.ModifyIndex)
 			}
 		})

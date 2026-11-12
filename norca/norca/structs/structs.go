@@ -10487,6 +10487,15 @@ type DeploymentState struct {
 
 	// UnhealthyAllocs are allocations that have been marked as unhealthy.
 	UnhealthyAllocs int
+
+	// ScaleAdded (Norca) is the number of allocations that scaling added to
+	// the task group since the deployment was created: the group's count is
+	// that many above what the deployment is the rollout of. They are the
+	// allocations with the highest indexes of the group, and they are not
+	// the work of the deployment: placed without it, not waited for by it,
+	// and not held by it when it failed (state.ScaleJob,
+	// scheduler/reconcile_scale.go).
+	ScaleAdded int
 }
 
 func (d *DeploymentState) GoString() string {
@@ -10499,6 +10508,7 @@ func (d *DeploymentState) GoString() string {
 	base += fmt.Sprintf("\n\tUnhealthy: %d", d.UnhealthyAllocs)
 	base += fmt.Sprintf("\n\tAutoRevert: %v", d.AutoRevert)
 	base += fmt.Sprintf("\n\tAutoPromote: %v", d.AutoPromote)
+	base += fmt.Sprintf("\n\tScaleAdded: %d", d.ScaleAdded)
 	return base
 }
 

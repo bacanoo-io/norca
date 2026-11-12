@@ -19,9 +19,10 @@ import (
 //     tracked versions of the job;
 //   - no deployment is started by the change (the scheduler starts none for
 //     allocations added to a version that already runs), and a deployment
-//     of the job that is active goes on: the desired total of the group
-//     follows the count, so the deployment waits for the allocations that
-//     were added to it, and not for those that were taken away.
+//     of the version stays what it was the rollout of. What scaling adds to
+//     the group is recorded on it (DeploymentState.ScaleAdded), in the same
+//     transaction: those allocations are not its work
+//     (scheduler/reconcile_scale.go).
 //
 // The count is set on the job that is stored when the request is applied,
 // whatever version that is, not on the copy the request was made from: a
@@ -52,7 +53,7 @@ func (s *StateStore) ScaleJob(msgType structs.MessageType, index uint64, namespa
 	if err := s.upsertJobImpl(index, nil, job, true, txn); err != nil {
 		return nil, err
 	}
-	if err := s.scaleDeploymentTotal(index, job, group, delta, txn); err != nil {
+	if err := s.recordScaleAdded(index, job, group, delta, txn); err != nil {
 		return nil, err
 	}
 	if err := txn.Commit(); err != nil {
@@ -61,9 +62,12 @@ func (s *StateStore) ScaleJob(msgType structs.MessageType, index uint64, namespa
 	return job, nil
 }
 
-// scaleDeploymentTotal makes the desired total of a task group in the active
-// deployment of the job's version follow a change of the group's count.
-func (s *StateStore) scaleDeploymentTotal(index uint64, job *structs.Job, group string, delta int, txn *txn) error {
+// recordScaleAdded records a change of a group's count by scaling on the
+// deployment of the job's version, while that is the deployment of the
+// group: running, paused, pending or failed. A deployment that succeeded or
+// was cancelled is over, and is left alone. A scale down takes away what a
+// scale up added first.
+func (s *StateStore) recordScaleAdded(index uint64, job *structs.Job, group string, delta int, txn *txn) error {
 	if delta == 0 {
 		return nil
 	}
@@ -77,15 +81,20 @@ func (s *StateStore) scaleDeploymentTotal(index uint64, job *structs.Job, group 
 			latest = d
 		}
 	}
-	if latest == nil || !latest.Active() || latest.JobCreateIndex != job.CreateIndex || latest.JobVersion != job.Version {
+	if latest == nil || latest.JobCreateIndex != job.CreateIndex || latest.JobVersion != job.Version {
 		return nil
 	}
-	if _, ok := latest.TaskGroups[group]; !ok {
+	isOver := latest.Status == structs.DeploymentStatusSuccessful || latest.Status == structs.DeploymentStatusCancelled
+	dstate, ok := latest.TaskGroups[group]
+	if isOver || !ok {
+		return nil
+	}
+	added := max(dstate.ScaleAdded+delta, 0)
+	if added == dstate.ScaleAdded {
 		return nil
 	}
 
 	d := latest.Copy()
-	dstate := d.TaskGroups[group]
-	dstate.DesiredTotal = max(dstate.DesiredTotal+delta, 0)
+	d.TaskGroups[group].ScaleAdded = added
 	return s.upsertDeploymentImpl(index, d, txn)
 }

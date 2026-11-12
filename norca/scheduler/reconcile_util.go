@@ -52,6 +52,11 @@ type placementResult interface {
 	DowngradeNonCanary() bool
 
 	MinJobVersion() uint64
+
+	// OutsideDeployment (Norca) is true for an allocation that a scale up
+	// added to the group after its deployment started: it is placed without
+	// the deployment (reconcile_scale.go).
+	OutsideDeployment() bool
 }
 
 // allocStopResult contains the information required to stop a single allocation
@@ -74,8 +79,13 @@ type allocPlaceResult struct {
 
 	downgradeNonCanary bool
 	minJobVersion      uint64
+
+	// outsideDeployment (Norca): added to the group by a scale up after its
+	// deployment started (reconcile_scale.go).
+	outsideDeployment bool
 }
 
+func (a allocPlaceResult) OutsideDeployment() bool                 { return a.outsideDeployment }
 func (a allocPlaceResult) TaskGroup() *structs.TaskGroup           { return a.taskGroup }
 func (a allocPlaceResult) Name() string                            { return a.name }
 func (a allocPlaceResult) Canary() bool                            { return a.canary }
@@ -107,6 +117,7 @@ func (a allocDestructiveResult) StopPreviousAlloc() (bool, string) {
 func (a allocDestructiveResult) DowngradeNonCanary() bool { return false }
 func (a allocDestructiveResult) MinJobVersion() uint64    { return 0 }
 func (a allocDestructiveResult) PreviousLost() bool       { return false }
+func (a allocDestructiveResult) OutsideDeployment() bool  { return false }
 
 // allocMatrix is a mapping of task groups to their allocation set.
 type allocMatrix map[string]allocSet
