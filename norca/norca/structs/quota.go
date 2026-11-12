@@ -730,6 +730,29 @@ func AllocQuotaResources(alloc *Allocation) QuotaResources {
 	}
 }
 
+// WithMemoryOversubscription returns the estimate as an allocation will be
+// counted with the memory oversubscription setting of the scheduler. The
+// scheduler gives an allocation its memory_max only when oversubscription is
+// enabled; without it the allocation is counted with its memory, and an
+// estimate from the job (TaskGroupQuotaResources, JobQuotaDemand) must not ask
+// for more room in the memory_max dimension than that.
+func (r QuotaResources) WithMemoryOversubscription(enabled bool) QuotaResources {
+	if !enabled {
+		r.MemoryMaxMB = r.MemoryMB
+	}
+	return r
+}
+
+// MemoryOversubscriptionEnabled reports whether the scheduler gives the
+// allocations of a job in the node pool their memory_max: the setting of the
+// scheduler configuration, or that of the node pool if it has one.
+func MemoryOversubscriptionEnabled(config *SchedulerConfiguration, pool *NodePool) bool {
+	if config == nil {
+		return false
+	}
+	return config.WithNodePool(pool).MemoryOversubscriptionEnabled
+}
+
 // TaskGroupQuotaResources estimates the resources one allocation of the task
 // group will count against a quota. sharesPerCore converts reserved cores to
 // MHz; when it is zero reserved cores are not counted.

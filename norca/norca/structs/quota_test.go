@@ -228,6 +228,21 @@ func TestTaskGroupQuotaResources(t *testing.T) {
 	job := &Job{Type: JobTypeService, TaskGroups: []*TaskGroup{tg}}
 	must.Eq(t, QuotaResources{CPU: 600, MemoryMB: 600, MemoryMaxMB: 1200, Allocations: 3}, JobQuotaDemand(job))
 
+	// Without memory oversubscription an allocation is counted with its
+	// memory, and so is the estimate.
+	must.Eq(t, QuotaResources{CPU: 600, MemoryMB: 600, MemoryMaxMB: 600, Allocations: 3},
+		JobQuotaDemand(job).WithMemoryOversubscription(false))
+	must.Eq(t, JobQuotaDemand(job), JobQuotaDemand(job).WithMemoryOversubscription(true))
+
+	enabled, disabled := true, false
+	must.False(t, MemoryOversubscriptionEnabled(nil, nil))
+	must.False(t, MemoryOversubscriptionEnabled(&SchedulerConfiguration{}, nil))
+	must.True(t, MemoryOversubscriptionEnabled(&SchedulerConfiguration{MemoryOversubscriptionEnabled: true}, nil))
+	must.True(t, MemoryOversubscriptionEnabled(&SchedulerConfiguration{},
+		&NodePool{SchedulerConfiguration: &NodePoolSchedulerConfiguration{MemoryOversubscriptionEnabled: &enabled}}))
+	must.False(t, MemoryOversubscriptionEnabled(&SchedulerConfiguration{MemoryOversubscriptionEnabled: true},
+		&NodePool{SchedulerConfiguration: &NodePoolSchedulerConfiguration{MemoryOversubscriptionEnabled: &disabled}}))
+
 	job.Type = JobTypeSystem
 	must.True(t, JobQuotaDemand(job).IsZero())
 }

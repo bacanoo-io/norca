@@ -30,7 +30,20 @@ func (r *runner) capAtQuota(store *state.StateStore, c *compiledPolicy, t *targe
 	if remaining == nil {
 		return true, nil
 	}
-	fit := remaining.MaxAllocs(structs.TaskGroupQuotaResources(t.group, 0))
+	// An allocation is counted with its memory_max only when the scheduler
+	// gives it one.
+	_, schedConfig, err := store.SchedulerConfig()
+	if err != nil {
+		return false, err
+	}
+	var pool *structs.NodePool
+	if t.job != nil {
+		if pool, err = store.NodePoolByName(nil, t.job.NodePool); err != nil {
+			return false, err
+		}
+	}
+	oversub := structs.MemoryOversubscriptionEnabled(schedConfig, pool)
+	fit := remaining.MaxAllocs(structs.TaskGroupQuotaResources(t.group, 0).WithMemoryOversubscription(oversub))
 	if fit < 0 {
 		return true, nil
 	}

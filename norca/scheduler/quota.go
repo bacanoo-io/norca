@@ -33,6 +33,7 @@ type QuotaIterator struct {
 
 	// Set per job
 	quota    string
+	oversub  bool
 	limit    *structs.QuotaLimit
 	used     structs.QuotaResources
 	inQuota  map[string]bool
@@ -92,6 +93,12 @@ func (iter *QuotaIterator) SetJob(job *structs.Job) {
 		iter.used = entry.UsageResources()
 	}
 
+	// An allocation is counted with its memory_max only when the scheduler
+	// gives it one: the estimate of the group follows the same setting.
+	_, schedConfig, _ := iter.ctx.State().SchedulerConfig()
+	pool, _ := iter.ctx.State().NodePoolByName(nil, job.NodePool)
+	iter.oversub = structs.MemoryOversubscriptionEnabled(schedConfig, pool)
+
 	iter.quota = spec.Name
 	iter.limit = limit
 	iter.inQuota = map[string]bool{job.Namespace: true}
@@ -118,7 +125,8 @@ func (iter *QuotaIterator) SetTaskGroup(tg *structs.TaskGroup) {
 
 	iter.usesCores = structs.TaskGroupUsesCores(tg)
 	if !iter.usesCores {
-		iter.exhausted = iter.limit.CheckAdditional(iter.planUsed, structs.TaskGroupQuotaResources(tg, 0))
+		iter.exhausted = iter.limit.CheckAdditional(iter.planUsed,
+			structs.TaskGroupQuotaResources(tg, 0).WithMemoryOversubscription(iter.oversub))
 	}
 }
 
@@ -170,7 +178,7 @@ func (iter *QuotaIterator) Next() *structs.Node {
 			return option
 		}
 
-		demand := structs.TaskGroupQuotaResources(iter.tg, sharesPerCore(option))
+		demand := structs.TaskGroupQuotaResources(iter.tg, sharesPerCore(option)).WithMemoryOversubscription(iter.oversub)
 		dims := iter.limit.CheckAdditional(iter.planUsed, demand)
 		if len(dims) == 0 {
 			return option

@@ -85,6 +85,30 @@ func TestQuotaIterator_PlacesUpToLimit(t *testing.T) {
 	must.Eq(t, []string{"cpu exhausted (2000 > 1500)"}, metrics.QuotaExhausted)
 }
 
+// Without memory oversubscription the scheduler places an allocation with its
+// memory only, and the quota counts it so: the room the iterator asks for in
+// the memory_max dimension is the memory of the group, not its memory_max.
+func TestQuotaIterator_MemoryMaxWithoutOversubscription(t *testing.T) {
+	ci.Parallel(t)
+
+	h, ns := quotaHarness(t, &structs.QuotaLimit{RegionLimit: &structs.Resources{MemoryMaxMB: 1000}})
+
+	job := mock.Job()
+	job.Namespace = ns.Name
+	job.TaskGroups[0].Count = 3
+	job.TaskGroups[0].Tasks[0].Resources.MemoryMB = 256
+	job.TaskGroups[0].Tasks[0].Resources.MemoryMaxMB = 600
+	must.NoError(t, h.State.UpsertJob(structs.MsgTypeTestSetup, h.NextIndex(), nil, job))
+
+	eval := quotaRegisterEval(t, h, job)
+	must.NoError(t, h.Process(NewServiceScheduler, eval))
+
+	// 3 x 256 MiB fit into 1000 MiB; 2 x 600 MiB would not.
+	must.Len(t, 1, h.Plans)
+	must.Len(t, 3, plannedAllocs(h.Plans[0]))
+	must.Len(t, 0, h.CreateEvals)
+}
+
 func TestQuotaIterator_AllocationCount(t *testing.T) {
 	ci.Parallel(t)
 

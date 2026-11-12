@@ -113,7 +113,7 @@ func (h jobQuotaValidatingHook) Validate(job *structs.Job) ([]error, error) {
 		}
 	}
 
-	if err := quotaSubmitDemand(h.srv.Region(), spec, job); err != nil {
+	if err := quotaSubmitDemand(h.srv, spec, job); err != nil {
 		mErr = multierror.Append(mErr, err)
 	}
 
@@ -123,15 +123,19 @@ func (h jobQuotaValidatingHook) Validate(job *structs.Job) ([]error, error) {
 // quotaSubmitDemand returns an error if the quota is enforced at submission
 // (enforce = "submit") and the total demand of the job would by itself exceed
 // the limit of the quota in the region.
-func quotaSubmitDemand(region string, spec *structs.QuotaSpec, job *structs.Job) error {
+func quotaSubmitDemand(srv *Server, spec *structs.QuotaSpec, job *structs.Job) error {
 	if spec == nil || spec.Enforce != structs.QuotaEnforceSubmit {
 		return nil
 	}
-	limit := spec.LimitForRegion(region)
+	limit := spec.LimitForRegion(srv.Region())
 	if limit == nil {
 		return nil
 	}
-	demand := structs.JobQuotaDemand(job)
+	oversub, err := jobMemoryOversubscription(srv, job)
+	if err != nil {
+		return err
+	}
+	demand := structs.JobQuotaDemand(job).WithMemoryOversubscription(oversub)
 	if dims := limit.CheckAdditional(structs.QuotaResources{}, demand); len(dims) > 0 {
 		return fmt.Errorf("job demand exceeds quota %q: %s", spec.Name, strings.Join(dims, ", "))
 	}
@@ -156,4 +160,20 @@ func validateQuotaTaskMax(task *structs.Task, maxRes *structs.Resources) error {
 	check(structs.QuotaDimensionMemory, r.MemoryMB, maxRes.MemoryMB)
 	check(structs.QuotaDimensionMemoryMax, r.MemoryMaxMB, maxRes.MemoryMaxMB)
 	return mErr.ErrorOrNil()
+}
+
+// jobMemoryOversubscription reports whether the scheduler will give the
+// allocations of the job their memory_max (see
+// structs.MemoryOversubscriptionEnabled).
+func jobMemoryOversubscription(srv *Server, job *structs.Job) (bool, error) {
+	store := srv.State()
+	_, config, err := store.SchedulerConfig()
+	if err != nil {
+		return false, err
+	}
+	pool, err := store.NodePoolByName(nil, job.NodePool)
+	if err != nil {
+		return false, err
+	}
+	return structs.MemoryOversubscriptionEnabled(config, pool), nil
 }

@@ -533,7 +533,7 @@ func (j *Job) admitScaledJob(args *structs.JobScaleRequest, job *structs.Job, up
 		if err != nil {
 			return nil, err
 		}
-		if err := quotaSubmitDemand(j.srv.Region(), spec, job); err != nil {
+		if err := quotaSubmitDemand(j.srv, spec, job); err != nil {
 			return nil, err
 		}
 	}
