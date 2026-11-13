@@ -2746,7 +2746,7 @@ func TestClientEndpoint_GetClientAllocs_Blocking(t *testing.T) {
 		QueryOptions: structs.QueryOptions{
 			Region:        "global",
 			MinQueryIndex: 50,
-			MaxQueryTime:  time.Second,
+			MaxQueryTime:  10 * time.Second, // a late write still ends the query; the index checks catch a timeout
 		},
 	}
 	var resp2 structs.NodeClientAllocsResponse
@@ -2864,7 +2864,7 @@ func TestClientEndpoint_GetClientAllocs_Blocking_GC(t *testing.T) {
 		QueryOptions: structs.QueryOptions{
 			Region:        "global",
 			MinQueryIndex: 50,
-			MaxQueryTime:  time.Second,
+			MaxQueryTime:  10 * time.Second, // a late write still ends the query; the index checks catch a timeout
 		},
 	}
 	var resp2 structs.NodeClientAllocsResponse
@@ -2995,7 +2995,7 @@ func TestClientEndpoint_GetAllocs_Blocking(t *testing.T) {
 		QueryOptions: structs.QueryOptions{
 			Region:        "global",
 			MinQueryIndex: 50,
-			MaxQueryTime:  time.Second,
+			MaxQueryTime:  10 * time.Second, // a late write still ends the query; the index checks catch a timeout
 		},
 	}
 	var resp2 structs.NodeAllocsResponse

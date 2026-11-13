@@ -808,6 +808,10 @@ func TestVariablesEndpoint_GetVariable_Blocking(t *testing.T) {
 	state := s1.fsm.State()
 	codec := rpcClient(t, s1)
 	testutil.WaitForLeader(t, s1.RPC)
+	// The writes below encrypt with the root key, which a new leader makes
+	// after it is elected: on a starved machine the first write came before
+	// the key, failed, and the query waited for nothing.
+	waitForKeyring(t, s1)
 
 	// The clock starts before the writes are scheduled, and the second
 	// write is scheduled by the first: on a starved machine two timers
@@ -834,7 +838,10 @@ func TestVariablesEndpoint_GetVariable_Blocking(t *testing.T) {
 		QueryOptions: structs.QueryOptions{
 			Region:        "global",
 			MinQueryIndex: 150,
-			MaxQueryTime:  500 * time.Millisecond,
+			// Long enough that a late write still ends the query: a query
+			// that timed out would return the index before the write, which
+			// the checks of the index below catch.
+			MaxQueryTime: 10 * time.Second,
 		},
 	}
 	var resp structs.VariablesReadResponse

@@ -40,12 +40,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// rpcClientDialTimeout is how long a test waits for a connection to its own
+// server. A server that does not listen refuses at once; the time only
+// passes on a starved machine, where a second was not enough ("dial tcp
+// 127.0.0.1:...: i/o timeout").
+const rpcClientDialTimeout = 10 * time.Second
+
 // rpcClient is a test helper method to return a ClientCodec to use to make rpc
 // calls to the passed server.
 func rpcClient(t *testing.T, s *Server) rpc.ClientCodec {
 	t.Helper()
 	addr := s.config.RPCAddr
-	conn, err := net.DialTimeout("tcp", addr.String(), time.Second)
+	conn, err := net.DialTimeout("tcp", addr.String(), rpcClientDialTimeout)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -67,7 +73,8 @@ func rpcClientWithTLS(t *testing.T, srv *Server, cfg *config.TLSConfig) rpc.Clie
 	outTLSConf.InsecureSkipVerify = true
 
 	// make the TCP connection
-	conn, err := net.DialTimeout("tcp", srv.config.RPCAddr.String(), time.Second)
+	conn, err := net.DialTimeout("tcp", srv.config.RPCAddr.String(), rpcClientDialTimeout)
+	must.NoError(t, err)
 
 	// write the TLS byte to set the mode
 	_, err = conn.Write([]byte{byte(pool.RpcTLS)})
