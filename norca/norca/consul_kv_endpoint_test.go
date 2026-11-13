@@ -4,18 +4,21 @@
 package norca
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/consulkv"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/shoenig/test/must"
 )
 
@@ -64,6 +67,64 @@ func (c *consulKVTest) waitBucket(token string) {
 		_, err := c.get(token, "default", "probe", false, 0)
 		return err == nil, err
 	})
+}
+
+// kvPutOnStatus is a bucket in which a key is written while its status is
+// read: the write that falls between the two reads of a query.
+type kvPutOnStatus struct {
+	jetstream.KeyValue
+	put func()
+}
+
+func (k *kvPutOnStatus) Status(ctx context.Context) (jetstream.KeyValueStatus, error) {
+	k.put()
+	return k.KeyValue.Status(ctx)
+}
+
+// TestConsulKVEndpoint_IndexCoversOnlyTheResult checks that a query for a
+// key that is missing does not answer with an index past a put of that key
+// without the key: the caller would block on that index and see the put
+// only when its wait time is over (found by TestConsulKVEndpoint_Blocking
+// on a starved machine: the blocking query returned no key after the put).
+func TestConsulKVEndpoint_IndexCoversOnlyTheResult(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanup := TestServer(t, enableBus(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	c := &consulKVTest{t: t, srv: s1}
+	c.waitBucket("")
+
+	kv, err := s1.consulKVHandle()
+	must.NoError(t, err)
+	scope := consulkv.ScopePrefix("default", "")
+	ctx := context.Background()
+
+	// Another key first, so that the bucket has a sequence.
+	_, err = consulkv.Put(ctx, kv, scope, "other", []byte("x"), nil)
+	must.NoError(t, err)
+
+	puts := 0
+	racing := &kvPutOnStatus{KeyValue: kv, put: func() {
+		puts++
+		_, err := consulkv.Put(ctx, kv, scope, "late/key", []byte("v"), nil)
+		must.NoError(t, err)
+	}}
+	found, index, err := consulkv.Get(ctx, racing, scope, "late/key", false, 0, 0)
+	must.NoError(t, err)
+	must.Positive(t, puts)
+
+	// What the caller does next: it blocks on the index it got. An answer
+	// without the key must then have an index the put is past (the blocking
+	// index of the key is its revision plus one), or that query only returns
+	// the key when its wait time is over.
+	now, _, err := consulkv.Get(ctx, kv, scope, "late/key", false, 0, 0)
+	must.NoError(t, err)
+	must.Len(t, 1, now)
+	if len(found) == 0 {
+		must.Less(t, now[0].Revision+1, index, must.Sprintf(
+			"no key in the answer, and index %d does not wake on the put (revision %d)", index, now[0].Revision))
+	}
 }
 
 func keysOf(resp *structs.ConsulKVGetResponse) []string {

@@ -35,6 +35,21 @@ func Get(ctx context.Context, kv jetstream.KeyValue, scope, key string, prefix b
 	// markers included), a nil entry, then the changes.
 	ctx, cancel := context.WithTimeout(ctx, wait+Timeout)
 	defer cancel()
+
+	// The last sequence of the bucket, the index of a result without a
+	// matching key, is read before the watch starts: whatever is written
+	// after it is in what the watch delivers. Read after the first values of
+	// the watch, it covered a write the result did not have (a put of the
+	// key between the two): the caller got no key with an index past its
+	// put, and its next blocking query saw the key only when its wait time
+	// was over.
+	var lastSeq uint64
+	if st, err := kv.Status(ctx); err == nil {
+		if bs, ok := st.(*jetstream.KeyValueBucketStatus); ok {
+			lastSeq = bs.StreamInfo().State.LastSeq
+		}
+	}
+
 	w, err := kv.Watch(ctx, scope+Filter(key, prefix))
 	if err != nil {
 		return nil, 0, err
@@ -55,11 +70,7 @@ func Get(ctx context.Context, kv jetstream.KeyValue, scope, key string, prefix b
 				initial = false
 				if highest == 0 {
 					// No matching key: the last sequence of the bucket.
-					if st, err := kv.Status(ctx); err == nil {
-						if bs, ok := st.(*jetstream.KeyValueBucketStatus); ok {
-							highest = bs.StreamInfo().State.LastSeq
-						}
-					}
+					highest = lastSeq
 				}
 				if index == 0 || highest+1 > index {
 					return entries(live), highest + 1, nil
