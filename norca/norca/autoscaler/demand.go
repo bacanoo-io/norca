@@ -14,6 +14,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
 	"github.com/bacanoo-io/norca/norca/norca/metricsstore"
+	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	glob "github.com/ryanuber/go-glob"
 )
@@ -168,7 +169,8 @@ type demandGroup struct {
 	degraded string
 	// isShort says that fewer than half of the nodes the group should have
 	// are ready at this look, for however short a time: degraded is the
-	// same after unreadyAfter.
+	// same after unreadyAfter. It is true as soon as the servers have the
+	// nodes down, before the operator of the group reports it.
 	isShort bool
 
 	size      NodeSize
@@ -291,6 +293,10 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 	if err != nil {
 		return nil, err
 	}
+	marked, err := markedNodes(store)
+	if err != nil {
+		return nil, err
+	}
 	var groups []*demandGroup
 	for _, p := range policies {
 		if !r.isBuiltinPolicy(p) {
@@ -350,6 +356,12 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		g.unable = unableReason(status)
 		g.degraded = degradedReason(g, r.unreadySince, now)
 		_, g.isShort = r.unreadySince[g.name]
+		// The servers know that the nodes of a group went down before its
+		// operator reports fewer of them, and the work of those nodes is
+		// already on its way to the others.
+		if m, ok := marked[g.name]; ok && m.ready*2 < g.spec-g.pending {
+			g.isShort = true
+		}
 
 		// The size of a node: what the operator reports, or what the spec
 		// says by hand, less the reserved resources.
@@ -380,6 +392,37 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].name < groups[j].name })
 	return groups, nil
+}
+
+// markedCount are the nodes that name a node group in their meta.
+type markedCount struct {
+	total, ready int64
+}
+
+// markedNodes counts the nodes of the node groups as the servers have them:
+// the nodes that name their group in their meta (the nodes an operator
+// made), and those of them that are ready. A group none of whose nodes is
+// marked is not in the result.
+func markedNodes(store *state.StateStore) (map[string]markedCount, error) {
+	iter, err := store.Nodes(nil)
+	if err != nil {
+		return nil, err
+	}
+	res := map[string]markedCount{}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		node := raw.(*structs.Node)
+		group := node.Meta[structs.NodeMetaNodeGroup]
+		if group == "" {
+			continue
+		}
+		m := res[group]
+		m.total++
+		if node.Status == structs.NodeStatusReady {
+			m.ready++
+		}
+		res[group] = m
+	}
+	return res, nil
 }
 
 // readyNodes reads the ready nodes of the group's datacenter, pool and class

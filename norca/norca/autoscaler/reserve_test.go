@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/shoenig/test/must"
 )
@@ -201,6 +202,46 @@ func TestDemand_ReserveForDatacenterLoss(t *testing.T) {
 		gaugesByDC(h, map[string]dcUse{"dc-a": {ready: 4, allocated: 75}, "dc-b": {ready: 4, allocated: 100}, "dc-c": {ready: 4, allocated: 100}})
 		must.NoError(t, h.runner.scaleForDemand(ctx))
 		must.Len(t, 0, objects.requests())
+	})
+
+	// Earlier still: the servers have the nodes of the lost datacenter down
+	// and their work is moving, but the operator of the group has not
+	// reported it, so the status still says four nodes.
+	t.Run("none once the servers have the nodes of a group down", func(t *testing.T) {
+		h, objects, _ := demandHarness(t, groups(), nil)
+		h.cfg.NodeScaling = &NodeScalingConfig{Pools: map[string]*NodePoolScaling{"workers": {ReserveDatacenterLoss: true}}}
+		gaugesByDC(h, map[string]dcUse{"dc-a": {ready: 4, allocated: 75}, "dc-b": {ready: 4, allocated: 100}, "dc-c": {ready: 4, allocated: 100}})
+		for _, dc := range []string{"a", "b", "c"} {
+			for range 4 {
+				node := mock.Node()
+				node.Meta[structs.NodeMetaNodeGroup] = "workers-" + dc
+				if dc == "a" {
+					node.Status = structs.NodeStatusDown
+				}
+				h.index++
+				must.NoError(t, h.store.UpsertNode(structs.MsgTypeTestSetup, h.index, node))
+			}
+		}
+		must.NoError(t, h.runner.scaleForDemand(ctx))
+		must.Len(t, 0, objects.requests())
+	})
+
+	// The count of the servers does not get in the way of a pool whose
+	// nodes are all there.
+	t.Run("kept with the nodes of every group ready on the servers", func(t *testing.T) {
+		h, objects, _ := demandHarness(t, groups(), nil)
+		h.cfg.NodeScaling = &NodeScalingConfig{Pools: map[string]*NodePoolScaling{"workers": {ReserveDatacenterLoss: true}}}
+		gaugesByDC(h, use)
+		for _, dc := range []string{"a", "b", "c"} {
+			for range 4 {
+				node := mock.Node()
+				node.Meta[structs.NodeMetaNodeGroup] = "workers-" + dc
+				h.index++
+				must.NoError(t, h.store.UpsertNode(structs.MsgTypeTestSetup, h.index, node))
+			}
+		}
+		must.NoError(t, h.runner.scaleForDemand(ctx))
+		must.Eq(t, map[string]int64{"workers-a": 5, "workers-b": 5, "workers-c": 5}, scaledTo(objects))
 	})
 
 	t.Run("the pool maximum holds the reserve", func(t *testing.T) {
