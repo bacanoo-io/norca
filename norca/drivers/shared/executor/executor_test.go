@@ -21,6 +21,8 @@ import (
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/client/allocdir"
 	"github.com/bacanoo-io/norca/norca/client/lib/cgutil"
+	"github.com/bacanoo-io/norca/norca/client/lib/resources"
+	cstructs "github.com/bacanoo-io/norca/norca/client/structs"
 	"github.com/bacanoo-io/norca/norca/client/taskenv"
 	"github.com/bacanoo-io/norca/norca/client/testutil"
 	"github.com/bacanoo-io/norca/norca/helper/testlog"
@@ -30,6 +32,7 @@ import (
 	tu "github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/hashicorp/go-hclog"
 	ps "github.com/mitchellh/go-ps"
+	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -654,4 +657,64 @@ func TestExecutor_Start_NonExecutableBinaries(t *testing.T) {
 			})
 		})
 	}
+}
+
+// fakeContainment is a containment that accounts for CPU time, or not.
+type fakeContainment struct {
+	user, system time.Duration
+	hasCPUTime   bool
+}
+
+func (f *fakeContainment) Apply(int) error         { return nil }
+func (f *fakeContainment) Cleanup() error          { return nil }
+func (f *fakeContainment) GetPIDs() resources.PIDs { return resources.PIDs{} }
+func (f *fakeContainment) CPUTime() (time.Duration, time.Duration, bool) {
+	return f.user, f.system, f.hasCPUTime
+}
+
+// The CPU usage of a task comes from its containment when that accounts for
+// it: processes that start and exit between two scans of the pid collector
+// are in no sum of processes.
+func TestUniversalExecutor_SetContainmentCPU(t *testing.T) {
+	ci.Parallel(t)
+
+	newUsage := func() *cstructs.CpuStats {
+		return &cstructs.CpuStats{Percent: 1, UserMode: 0.5, SystemMode: 0.5, TotalTicks: 10}
+	}
+
+	t.Run("without a containment the sum of the processes stays", func(t *testing.T) {
+		e := NewExecutor(testlog.HCLogger(t), 0).(*UniversalExecutor)
+		cs := newUsage()
+		e.setContainmentCPU(cs)
+		must.Eq(t, newUsage(), cs)
+	})
+
+	t.Run("a containment that does not account for it leaves the sum", func(t *testing.T) {
+		e := NewExecutor(testlog.HCLogger(t), 0).(*UniversalExecutor)
+		e.containment = &fakeContainment{user: time.Hour}
+		cs := newUsage()
+		e.setContainmentCPU(cs)
+		must.Eq(t, newUsage(), cs)
+	})
+
+	t.Run("the time of the containment replaces the sum", func(t *testing.T) {
+		e := NewExecutor(testlog.HCLogger(t), 0).(*UniversalExecutor)
+		c := &fakeContainment{user: time.Second, system: time.Second, hasCPUTime: true}
+		e.containment = c
+
+		// The first look has nothing to compare with.
+		cs := newUsage()
+		e.setContainmentCPU(cs)
+		must.Eq(t, 0, cs.Percent)
+
+		// Three seconds of user and one of system time in at least 20ms of
+		// the clock: far above the 1% of the sum, three parts user.
+		time.Sleep(20 * time.Millisecond)
+		c.user, c.system = c.user+3*time.Second, c.system+time.Second
+		cs = newUsage()
+		e.setContainmentCPU(cs)
+		must.Greater(t, 100, cs.Percent)
+		must.Greater(t, cs.SystemMode, cs.UserMode)
+		must.InDelta(t, cs.Percent, cs.UserMode+cs.SystemMode, cs.Percent/10)
+	})
 }

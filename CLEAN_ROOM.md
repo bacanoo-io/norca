@@ -200,3 +200,29 @@ lines these commits added to files that come from v1.6.5 (for example
 `structs.generated.go`) are in the `bugfix` set: the commits say "clean room",
 so `run.sh` compares them with the lines HashiCorp added to the same files up
 to the BSL tag.
+
+## CPU usage of raw_exec tasks
+
+In Nomad v1.6.5 (MPL 2.0) the executor without isolation, of the `raw_exec` driver
+(`drivers/shared/executor/executor.go`, `pid_collector.go`) measures the CPU
+of a task as the sum over the processes it finds in a scan every five seconds.
+A task that keeps starting processes shorter than the scan reads as nearly
+idle, which Norca saw in its own lab (2026-11-12, the load generator of the
+step `appscaling-load`) when the autoscaler scaled on that number.
+
+Norca reads the CPU time of the task from the `cpu.stat` file of its v2 cgroup
+instead (2026-11-13, the commit says "clean room"). The sources were the Norca
+tree: the cgroup the executor already makes for the task
+(`executor_universal_linux.go`, `client/lib/resources/containment_linux.go`)
+and the `exec` driver of v1.6.5, which reads the CPU of its cgroup the same
+way (`executor_linux.go`). The format of `cpu.stat` is from the Linux kernel
+documentation (`Documentation/admin-guide/cgroup-v2.rst`). Later Nomad
+releases changed how the executor collects statistics; no HashiCorp source or
+documentation of a BSL release was opened or used.
+
+The change is in lines added to files that come from v1.6.5
+(`client/lib/resources/containment.go`, `containment_linux.go`,
+`drivers/shared/executor/executor.go`), which are in the `bugfix` set of the
+audit, and in the new test file
+`client/lib/resources/containment_linux_test.go`, which carries only the Norca
+header.

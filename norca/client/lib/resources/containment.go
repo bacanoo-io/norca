@@ -3,6 +3,8 @@
 
 package resources
 
+import "time"
+
 // A Containment will cleanup resources created by an executor.
 type Containment interface {
 	// Apply enables containment on pid.
@@ -13,4 +15,9 @@ type Containment interface {
 
 	// GetPIDs will return the processes overseen by the Containment
 	GetPIDs() PIDs
+
+	// CPUTime returns the CPU time all the processes overseen by the
+	// Containment have used since it was applied, those that have exited
+	// included. It is false when the Containment does not account for it.
+	CPUTime() (user, system time.Duration, ok bool)
 }

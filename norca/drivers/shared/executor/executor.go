@@ -257,6 +257,9 @@ type UniversalExecutor struct {
 	totalCpuStats  *stats.CpuStats
 	userCpuStats   *stats.CpuStats
 	systemCpuStats *stats.CpuStats
+	// kernelCpuStats follows the kernel mode time of the containment;
+	// systemCpuStats only turns a percentage into ticks here.
+	kernelCpuStats *stats.CpuStats
 	pidCollector   *pidCollector
 
 	logger hclog.Logger
@@ -273,6 +276,7 @@ func NewExecutor(logger hclog.Logger, cpuTotalTicks uint64) Executor {
 		totalCpuStats:  stats.NewCpuStats(),
 		userCpuStats:   stats.NewCpuStats(),
 		systemCpuStats: stats.NewCpuStats(),
+		kernelCpuStats: stats.NewCpuStats(),
 		pidCollector:   newPidCollector(logger),
 	}
 }
@@ -639,12 +643,35 @@ func (e *UniversalExecutor) handleStats(ch chan *cstructs.TaskResourceUsage, ctx
 			return
 		}
 
+		usage := aggregatedResourceUsage(e.systemCpuStats, pidStats)
+		e.setContainmentCPU(usage.ResourceUsage.CpuStats)
+
 		select {
 		case <-ctx.Done():
 			return
-		case ch <- aggregatedResourceUsage(e.systemCpuStats, pidStats):
+		case ch <- usage:
 		}
 	}
+}
+
+// setContainmentCPU replaces the CPU usage summed over the processes the pid
+// collector found with the usage the containment of the task accounts for,
+// when it does (a v2 cgroup). The sum misses the processes that start and
+// exit between two scans of the collector, so a task that keeps starting
+// short ones reads as nearly idle; the cgroup counts them. The usage by
+// process (Pids) stays what the collector measured.
+func (e *UniversalExecutor) setContainmentCPU(cs *cstructs.CpuStats) {
+	if e.containment == nil {
+		return
+	}
+	user, system, ok := e.containment.CPUTime()
+	if !ok {
+		return
+	}
+	cs.UserMode = e.userCpuStats.Percent(float64(user.Nanoseconds()))
+	cs.SystemMode = e.kernelCpuStats.Percent(float64(system.Nanoseconds()))
+	cs.Percent = e.totalCpuStats.Percent(float64((user + system).Nanoseconds()))
+	cs.TotalTicks = e.systemCpuStats.TicksConsumed(cs.Percent)
 }
 
 // lookupBin looks for path to the binary to run by looking for the binary in

@@ -7,10 +7,14 @@
 package resources
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/client/lib/cgutil"
 	"github.com/hashicorp/go-hclog"
@@ -110,4 +114,48 @@ func (c *containment) GetPIDs() PIDs {
 	}
 
 	return m
+}
+
+// CPUTime returns the CPU time of the cgroup under containment. Only the
+// cgroup of v2 accounts for it: in v1 the containment is a freezer cgroup.
+//
+// The cgroup counts every process that ran in it, so a task that keeps
+// starting processes shorter than the scan of the pid collector is measured
+// in full; the sum of the processes found by the scan misses them.
+func (c *containment) CPUTime() (user, system time.Duration, ok bool) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	if c.cgroup == nil || !cgutil.UseV2 {
+		return 0, 0, false
+	}
+	f, err := os.Open(filepath.Join(cgutil.CgroupRoot, c.cgroup.Path, "cpu.stat"))
+	if err != nil {
+		return 0, 0, false
+	}
+	defer f.Close()
+	return parseCPUStat(bufio.NewScanner(f))
+}
+
+// parseCPUStat reads user_usec and system_usec of the cpu.stat file of a v2
+// cgroup; it is false when either is missing.
+func parseCPUStat(lines *bufio.Scanner) (user, system time.Duration, ok bool) {
+	var hasUser, hasSystem bool
+	for lines.Scan() {
+		key, value, found := strings.Cut(strings.TrimSpace(lines.Text()), " ")
+		if !found {
+			continue
+		}
+		usec, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || usec < 0 {
+			continue
+		}
+		switch key {
+		case "user_usec":
+			user, hasUser = time.Duration(usec)*time.Microsecond, true
+		case "system_usec":
+			system, hasSystem = time.Duration(usec)*time.Microsecond, true
+		}
+	}
+	return user, system, hasUser && hasSystem
 }
