@@ -26,8 +26,12 @@ func (s *Server) setupEnterprise(config *Config) error {
 			"norca operator autopilot set-config -target-voters once it is bootstrapped)")
 	}
 
+	var apRaft autopilot.Raft = s.raft
+	if config.autopilotRaft != nil {
+		apRaft = config.autopilotRaft(apRaft)
+	}
 	s.autopilot = autopilot.New(
-		s.raft,
+		apRaft,
 		apDelegate,
 		autopilot.WithLogger(s.logger),
 		autopilot.WithReconcileInterval(config.AutopilotInterval),

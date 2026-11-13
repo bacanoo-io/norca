@@ -31,6 +31,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/version"
 	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/raft"
+	autopilot "github.com/hashicorp/raft-autopilot"
 	"github.com/hashicorp/serf/serf"
 )
 
@@ -390,6 +391,11 @@ type Config struct {
 	// autopilot tasks, such as promoting eligible non-voters and removing
 	// dead servers.
 	AutopilotInterval time.Duration
+
+	// autopilotRaft, when set, wraps the Raft that autopilot changes the
+	// configuration through. For tests: a Raft that does not apply a
+	// promotion autopilot asked for.
+	autopilotRaft func(autopilot.Raft) autopilot.Raft
 
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)

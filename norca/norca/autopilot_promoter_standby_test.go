@@ -5,7 +5,9 @@ package norca
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -382,6 +384,16 @@ func TestAutopilotConfig_ValidateStandby(t *testing.T) {
 // 3 and returns them; the standby joins after the voters have their votes.
 func standbyTestCluster(t *testing.T, apConf func(*structs.AutopilotConfig)) (servers []*Server, standby *Server) {
 	t.Helper()
+	return standbyTestClusterWith(t, apConf, nil)
+}
+
+// standbyTestClusterWith is standbyTestCluster with a change of the
+// configuration of the three voters.
+func standbyTestClusterWith(t *testing.T, apConf func(*structs.AutopilotConfig), conf func(*Config)) (servers []*Server, standby *Server) {
+	t.Helper()
+	if conf == nil {
+		conf = func(*Config) {}
+	}
 
 	s1, cleanup1 := TestServer(t, func(c *Config) {
 		c.NumSchedulers = 0
@@ -391,6 +403,7 @@ func standbyTestCluster(t *testing.T, apConf func(*structs.AutopilotConfig)) (se
 		if apConf != nil {
 			apConf(c.AutopilotConfig)
 		}
+		conf(c)
 	})
 	t.Cleanup(cleanup1)
 	testutil.WaitForLeader(t, s1.RPC)
@@ -398,11 +411,13 @@ func standbyTestCluster(t *testing.T, apConf func(*structs.AutopilotConfig)) (se
 	s2, cleanup2 := TestServer(t, func(c *Config) {
 		c.NumSchedulers = 0
 		c.BootstrapExpect = 0
+		conf(c)
 	})
 	t.Cleanup(cleanup2)
 	s3, cleanup3 := TestServer(t, func(c *Config) {
 		c.NumSchedulers = 0
 		c.BootstrapExpect = 0
+		conf(c)
 	})
 	t.Cleanup(cleanup3)
 	TestJoin(t, s1, s2, s3)
@@ -518,6 +533,65 @@ func TestAutopilot_StandbyFailover(t *testing.T) {
 		if voters != 3 || ready != 1 || promotions != 1 || demotions != 1 {
 			return false, fmt.Errorf("voters %d, ready %d, promotions %d, demotions %d",
 				voters, ready, promotions, demotions)
+		}
+		return true, nil
+	}, func(err error) { must.NoError(t, err) })
+}
+
+// refusingRaft is a Raft that does not apply the first promotions autopilot
+// asks for: AddVoter answers with an error, as when the leader cannot take
+// a configuration change, and the configuration stays as it was.
+type refusingRaft struct {
+	autopilot.Raft
+	refuse *atomic.Int32 // promotions still to refuse
+	asked  *atomic.Int32 // promotions asked for
+}
+
+func (r *refusingRaft) AddVoter(id raft.ServerID, addr raft.ServerAddress, prev uint64, timeout time.Duration) raft.IndexFuture {
+	r.asked.Add(1)
+	if r.refuse.Add(-1) >= 0 {
+		return refusedFuture{}
+	}
+	return r.Raft.AddVoter(id, addr, prev, timeout)
+}
+
+type refusedFuture struct{}
+
+func (refusedFuture) Error() error  { return errors.New("the test does not apply this promotion") }
+func (refusedFuture) Index() uint64 { return 0 }
+
+// TestAutopilot_StandbyPromotionAskedAgain checks, with real servers, that a
+// promotion Raft did not apply is asked for again: the cooldown starts when
+// the promotion shows in the Raft configuration, not when it is asked for,
+// so an hour of cooldown does not hold the second request, and the promotion
+// counts once.
+func TestAutopilot_StandbyPromotionAskedAgain(t *testing.T) {
+	ci.Parallel(t)
+
+	var refuse, asked atomic.Int32
+	voters, standby := standbyTestClusterWith(t,
+		func(c *structs.AutopilotConfig) { c.StandbyCooldown = time.Hour },
+		func(c *Config) {
+			c.autopilotRaft = func(r autopilot.Raft) autopilot.Raft {
+				return &refusingRaft{Raft: r, refuse: &refuse, asked: &asked}
+			}
+		})
+	s1, s2, s3 := voters[0], voters[1], voters[2]
+	// Only now: the voters may have got their votes through the same Raft.
+	asked.Store(0)
+	refuse.Store(2)
+
+	// Stop s3: autopilot asks for the promotion of the standby, twice in
+	// vain.
+	must.NoError(t, s3.Shutdown())
+	leader := waitForLeaderOf(t, s1, s2)
+	waitForSuffrage(t, leader, map[*Server]raft.ServerSuffrage{standby: raft.Voter})
+	must.GreaterEq(t, 3, asked.Load(), must.Sprint("promotions asked for"))
+
+	testutil.WaitForResultUntil(10*time.Second, func() (bool, error) {
+		voters, _, promotions, demotions := leader.standbyGauges()
+		if voters != 3 || promotions != 1 || demotions != 0 {
+			return false, fmt.Errorf("voters %d, promotions %d, demotions %d", voters, promotions, demotions)
 		}
 		return true, nil
 	}, func(err error) { must.NoError(t, err) })
