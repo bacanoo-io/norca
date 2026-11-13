@@ -208,6 +208,20 @@ func (c *cpusetManagerV2) CgroupPathFor(allocID, task string) CgroupPathGetter {
 				return path, nil
 			}
 
+			// Norca: the cgroup of a task this manager tracks was made by
+			// AddAlloc before the task runner got here. When it is not
+			// there, something removed it, and nothing would make it
+			// again: the task would wait here for ever. That happens when
+			// agents share one cgroup tree (node agents in containers
+			// with the cgroup namespace of their host): cleanup of one
+			// agent removes the scopes it does not track that hold no
+			// process yet, which is what a task between AddAlloc and its
+			// start looks like.
+			if c.restore(makeID(allocID, task)) {
+				c.logger.Warn("the cgroup of a tracked task was missing and is made again; is another agent using the same cgroup parent?",
+					"path", path)
+			}
+
 			select {
 			case <-ctx.Done():
 				return "", ctx.Err()
@@ -216,6 +230,23 @@ func (c *cpusetManagerV2) CgroupPathFor(allocID, task string) CgroupPathGetter {
 			}
 		}
 	}
+}
+
+// restore makes the cgroup of a task again when the manager tracks the task;
+// it is false for a task it does not track.
+func (c *cpusetManagerV2) restore(id identity) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if _, ok := c.sharing[id]; ok {
+		c.write(id, c.pool)
+		return true
+	}
+	if set, ok := c.isolating[id]; ok {
+		c.write(id, c.pool.Union(set))
+		return true
+	}
+	return false
 }
 
 // recalculate the number of cores sharable by non-isolating tasks (and isolating tasks)

@@ -226,3 +226,21 @@ The change is in lines added to files that come from v1.6.5
 audit, and in the new test file
 `client/lib/resources/containment_linux_test.go`, which carries only the Norca
 header.
+
+## Task cgroups removed by another agent
+
+In Nomad v1.6.5 (MPL 2.0) the cpuset manager of cgroups v2
+(`client/lib/cgutil/cpuset_manager_v2.go`) makes the cgroup of a task when its
+allocation is added, and the task runner waits until that cgroup exists. The
+cleanup of the manager removes every scope of the cgroup parent that it does
+not track and that holds no process. Agents that share one cgroup parent (in
+Norca's lab the node agents in containers with the cgroup namespace of their
+host) remove each other's cgroups between the two, and the task waits for
+ever (lab step `nodescaler-dc`, 2026-11-12 and 2026-11-13).
+
+Norca makes the cgroup of a tracked task again when the wait finds it missing
+(2026-11-13, the commit says "clean room"). It was found from the goroutines
+of a client in the lab and written from the Norca tree alone. Later Nomad
+releases replaced this manager; no HashiCorp source or documentation of a BSL
+release was opened or used. The change is in lines added to a file that comes
+from v1.6.5, which is in the `bugfix` set of the audit.
