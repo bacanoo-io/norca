@@ -7,6 +7,7 @@
 package cgutil
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -62,12 +63,17 @@ func TestUtil_CreateCPUSetManager(t *testing.T) {
 
 	t.Run("v1", func(t *testing.T) {
 		testutil.CgroupsCompatibleV1(t)
+		requireWritableCpusetV1(t)
 		parent := "/" + uuid.Short()
 		manager := CreateCPUSetManager(parent, []uint16{0}, logger)
 		manager.Init()
 		_, ok := manager.(*cpusetManagerV1)
 		must.True(t, ok)
-		must.NoError(t, cgroups.RemovePath(filepath.Join(CgroupRoot, parent)))
+		// The cgroups of the manager are in the cpuset hierarchy.
+		parentPath, err := GetCgroupPathHelperV1("cpuset", parent)
+		must.NoError(t, err)
+		must.DirExists(t, parentPath)
+		must.NoError(t, cgroups.RemovePaths(map[string]string{"cpuset": parentPath}))
 	})
 
 	t.Run("v2", func(t *testing.T) {
@@ -134,6 +140,19 @@ func TestUtil_CopyCpuset(t *testing.T) {
 
 func TestUtil_MaybeDisableMemorySwappiness(t *testing.T) {
 	ci.Parallel(t)
+
+	// On cgroups v1 the function writes to the memory cgroup of the agent,
+	// which only exists where an agent has run: the test makes it where it
+	// can (a container needs --privileged for a writable hierarchy).
+	if !UseV2 {
+		parent := filepath.Join(CgroupRoot, "memory", "nomad")
+		if _, err := os.Stat(parent); os.IsNotExist(err) {
+			if err := os.Mkdir(parent, 0o755); err != nil {
+				t.Skipf("the memory cgroup of the agent cannot be made: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Remove(parent) })
+		}
+	}
 
 	// will return 0 on any reasonable kernel (both cgroups v1 and v2)
 	value := MaybeDisableMemorySwappiness()

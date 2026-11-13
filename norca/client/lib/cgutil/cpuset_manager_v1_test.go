@@ -18,13 +18,28 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/opencontainers/cgroups"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
+
+// requireWritableCpusetV1 skips a test where the cpuset hierarchy is
+// read-only (a container without --privileged): the manager could make no
+// cgroup there and would disable itself.
+func requireWritableCpusetV1(t *testing.T) {
+	t.Helper()
+	cpusetMount, err := GetCgroupPathHelperV1("cpuset", "/")
+	require.NoError(t, err)
+	if err := unix.Access(cpusetMount, unix.W_OK); err != nil {
+		t.Skipf("the cpuset hierarchy at %s is not writable: %v", cpusetMount, err)
+	}
+}
 
 func tmpCpusetManagerV1(t *testing.T) (*cpusetManagerV1, func()) {
 	mount, err := FindCgroupMountpointDir()
 	if err != nil || mount == "" {
 		t.Skipf("Failed to find cgroup mount: %v %v", mount, err)
 	}
+
+	requireWritableCpusetV1(t)
 
 	parent := "/gotest-" + uuid.Short()
 	require.NoError(t, cpusetEnsureParentV1(parent))
@@ -34,6 +49,31 @@ func tmpCpusetManagerV1(t *testing.T) (*cpusetManagerV1, func()) {
 
 	manager := NewCpusetManagerV1(parent, nil, testlog.HCLogger(t)).(*cpusetManagerV1)
 	return manager, func() { require.NoError(t, cgroups.RemovePaths(map[string]string{"cpuset": parentPath})) }
+}
+
+func TestCgroupPathV1(t *testing.T) {
+	const mnt = "/sys/fs/cgroup/cpuset"
+	tests := []struct {
+		name     string
+		root     string
+		cgroup   string
+		expected string
+	}{
+		{name: "host root, parent of the agent", root: "/", cgroup: "/nomad", expected: mnt + "/nomad"},
+		{name: "host root, nested cgroup", root: "/", cgroup: "/nomad/shared", expected: mnt + "/nomad/shared"},
+		{name: "container, cgroup of the host under its root", root: "/docker/abc", cgroup: "/docker/abc/init", expected: mnt + "/init"},
+		{name: "container, the root itself", root: "/docker/abc", cgroup: "/docker/abc", expected: mnt},
+		{name: "container, parent of the agent is of the mount", root: "/docker/abc", cgroup: "/nomad", expected: mnt + "/nomad"},
+		{name: "container, the mount root", root: "/docker/abc", cgroup: "/", expected: mnt},
+		{name: "container, name that starts like the root", root: "/docker/abc", cgroup: "/docker/abcd", expected: mnt + "/docker/abcd"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cgroupPathV1(mnt, tt.root, tt.cgroup)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
+		})
+	}
 }
 
 func TestCpusetManager_V1_Init(t *testing.T) {

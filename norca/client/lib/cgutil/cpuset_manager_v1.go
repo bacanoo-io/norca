@@ -416,7 +416,13 @@ func GetCgroupPathHelperV1(subsystem, cgroup string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return cgroupPathV1(mnt, root, cgroup)
+}
 
+// cgroupPathV1 returns the path of a cgroup in a v1 hierarchy mounted at mnt,
+// whose root is the cgroup root of the host ("/") or, in a container, the
+// cgroup of the container on the host.
+func cgroupPathV1(mnt, root, cgroup string) (string, error) {
 	// This is needed for nested containers, because in /proc/self/cgroup we
 	// see paths from host, which don't exist in container.
 	relCgroup, err := filepath.Rel(root, cgroup)
@@ -424,6 +430,14 @@ func GetCgroupPathHelperV1(subsystem, cgroup string) (string, error) {
 		return "", err
 	}
 
-	result := filepath.Join(mnt, relCgroup)
-	return result, nil
+	// Norca: in a container the root of the mount is the cgroup of the
+	// container on the host (e.g. /docker/<id>). A cgroup that is not under
+	// it, like the parent of the agent ("/nomad"), is one of this mount and
+	// not a path of the host: relative to the root it would leave the mount
+	// ("../../nomad" under /sys/fs/cgroup/cpuset is /sys/fs/nomad).
+	if relCgroup == ".." || strings.HasPrefix(relCgroup, "../") {
+		return filepath.Join(mnt, cgroup), nil
+	}
+
+	return filepath.Join(mnt, relCgroup), nil
 }
