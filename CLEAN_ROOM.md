@@ -244,3 +244,22 @@ of a client in the lab and written from the Norca tree alone. Later Nomad
 releases replaced this manager; no HashiCorp source or documentation of a BSL
 release was opened or used. The change is in lines added to a file that comes
 from v1.6.5, which is in the `bugfix` set of the audit.
+
+## The cgroups v1 parent of an agent in a container
+
+In Nomad v1.6.5 (MPL 2.0) the path of a cgroups v1 cgroup
+(`GetCgroupPathHelperV1` in `client/lib/cgutil/cpuset_manager_v1.go`) is made
+relative to the root of the mount of its hierarchy. In a container that root
+is the cgroup of the container on the host, and the parent cgroup of the
+agent (`/nomad`), which is not under it, resolved to a path outside the mount
+(`/sys/fs/nomad`): the agent then ran without cpuset management and said so
+only in a warning (test `TestCpusetManager_V1_Init` in a container,
+2026-11-13).
+
+Norca takes a cgroup that is not under the root of the mount as one of the
+mount (2026-11-13, the commit says "clean room"). It was found from the
+failing test and the mount table of the container and written from the Norca
+tree alone. Later Nomad releases replaced this manager; no HashiCorp source or
+documentation of a BSL release was opened or used. The change is in lines
+added to a file that comes from v1.6.5, which is in the `bugfix` set of the
+audit.
