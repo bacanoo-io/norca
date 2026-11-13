@@ -21,8 +21,12 @@ import "fmt"
 // No reserve is kept while a group of the pool is not healthy: a datacenter
 // is lost then, the reserve is what its work is placed on, and buying
 // another one for the datacenters that are left is not what was asked for.
-// Nor when the use of a group can't be read, or the pool is in one
-// datacenter.
+// That holds from the first look that finds a group short of its nodes, not
+// only once it counts as degraded: until then the gauges of the lost group
+// still show the nodes it had and the others show its work on their free
+// nodes, which reads as every group of the pool, the lost one included,
+// being short of its reserve. Nor is one kept when the use of a group can't
+// be read, or the pool is in one datacenter.
 
 // aheadWanted returns the free capacity the group keeps ahead of the work, in
 // nodes: its headroom (a number of nodes, or a share of the nodes it has) or
@@ -69,7 +73,7 @@ func setPoolReserve(groups []*demandGroup) {
 	// nodes.
 	isSized := true
 	for _, g := range groups {
-		if g.unable != "" || g.degraded != "" || !g.freeKnown {
+		if g.unable != "" || g.degraded != "" || g.isShort || !g.freeKnown {
 			return
 		}
 		isSized = isSized && g.sizeKnown

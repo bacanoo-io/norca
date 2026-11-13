@@ -112,6 +112,15 @@ func TestSetPoolReserve(t *testing.T) {
 			expected: map[string]float64{"a": 0, "b": 0, "c": 0},
 		},
 		{
+			name: "none while a group is short of its nodes, before it counts as not healthy",
+			groups: func() []*demandGroup {
+				a, b, c := reserveGroup("a", "dc-a", 6, 6), reserveGroup("b", "dc-b", 6, 6), reserveGroup("c", "dc-c", 6, 4)
+				c.isShort = true
+				return []*demandGroup{a, b, c}
+			},
+			expected: map[string]float64{"a": 0, "b": 0, "c": 0},
+		},
+		{
 			name: "none when the use of a group can't be read",
 			groups: func() []*demandGroup {
 				a, b := reserveGroup("a", "dc-a", 6, 4), reserveGroup("b", "dc-b", 6, 4)
@@ -178,6 +187,20 @@ func TestDemand_ReserveForDatacenterLoss(t *testing.T) {
 			must.StrContains(t, req.Message, "reserve for the loss of datacenter dc-")
 			must.StrContains(t, req.Message, "1.0 nodes free (and 0 on their way), 1.5 wanted")
 		}
+	})
+
+	// The first looks after a datacenter is lost: its group is not degraded
+	// yet (unreadyAfter), the gauges of its nodes still show the average of
+	// the nodes it had, and the work has moved to the free nodes of the
+	// others. Neither the lost group nor the others buy a reserve.
+	t.Run("none from the first look a group is short of its nodes", func(t *testing.T) {
+		lost := groups()
+		lost[0].status = map[string]any{"replicas": float64(0), "joining": float64(0)}
+		h, objects, _ := demandHarness(t, lost, nil)
+		h.cfg.NodeScaling = &NodeScalingConfig{Pools: map[string]*NodePoolScaling{"workers": {ReserveDatacenterLoss: true}}}
+		gaugesByDC(h, map[string]dcUse{"dc-a": {ready: 4, allocated: 75}, "dc-b": {ready: 4, allocated: 100}, "dc-c": {ready: 4, allocated: 100}})
+		must.NoError(t, h.runner.scaleForDemand(ctx))
+		must.Len(t, 0, objects.requests())
 	})
 
 	t.Run("the pool maximum holds the reserve", func(t *testing.T) {

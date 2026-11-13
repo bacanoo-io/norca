@@ -166,6 +166,10 @@ type demandGroup struct {
 	// group.
 	unable   string
 	degraded string
+	// isShort says that fewer than half of the nodes the group should have
+	// are ready at this look, for however short a time: degraded is the
+	// same after unreadyAfter.
+	isShort bool
 
 	size      NodeSize
 	sizeKnown bool
@@ -345,6 +349,7 @@ func (r *runner) readDemandGroups(now time.Time) ([]*demandGroup, error) {
 		}
 		g.unable = unableReason(status)
 		g.degraded = degradedReason(g, r.unreadySince, now)
+		_, g.isShort = r.unreadySince[g.name]
 
 		// The size of a node: what the operator reports, or what the spec
 		// says by hand, less the reserved resources.
