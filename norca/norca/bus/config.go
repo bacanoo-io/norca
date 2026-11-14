@@ -34,6 +34,15 @@ const (
 	DefaultEventsMaxAge   = 72 * time.Hour
 	DefaultEventsMaxBytes = 1 << 30
 
+	// DefaultEventsMaxConsumers bounds the consumers of each change data
+	// capture stream (events, admin events, Consul KV changes): every
+	// durable consumer holds memory, and a Raft group when clustered.
+	DefaultEventsMaxConsumers = 64
+
+	// EventsConsumerMaxAckPending bounds the messages a consumer of a change
+	// data capture stream may hold unacknowledged.
+	EventsConsumerMaxAckPending = 1000
+
 	// PushStreamMaxBytes bounds the stream of the pack push notices, which
 	// runs with the events: push notices are small and only needed until
 	// the leader handled them.
@@ -110,6 +119,9 @@ type EventsConfig struct {
 	MaxAge        time.Duration
 	MaxBytes      int64
 
+	// MaxConsumers bounds the consumers of each change data capture stream.
+	MaxConsumers int
+
 	// Topics are the published topics; "*" publishes all.
 	Topics []string
 }
@@ -131,6 +143,7 @@ func DefaultConfig() *Config {
 			SubjectPrefix: DefaultSubjectPrefix,
 			MaxAge:        DefaultEventsMaxAge,
 			MaxBytes:      DefaultEventsMaxBytes,
+			MaxConsumers:  DefaultEventsMaxConsumers,
 			Topics:        []string{"*"},
 		},
 	}
@@ -183,6 +196,9 @@ func (c *Config) Validate() error {
 		}
 		if c.Events.MaxAge < 0 || c.Events.MaxBytes < 0 {
 			errs = append(errs, fmt.Errorf("bus.events limits must not be negative"))
+		}
+		if c.Events.MaxConsumers <= 0 {
+			errs = append(errs, fmt.Errorf("bus.events.max_consumers must be positive"))
 		}
 		// JetStream reserves the limits of the streams: the event and push
 		// streams must leave room for the streams without a limit (the

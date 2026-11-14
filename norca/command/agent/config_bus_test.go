@@ -110,6 +110,7 @@ server {
       subject_prefix = "norca.events"
       max_age        = "24h"
       max_bytes      = "2GiB"
+      max_consumers  = 16
       topics         = ["Job", "Allocation"]
     }
   }
@@ -126,6 +127,7 @@ server {
 	must.Eq(t, "norca.events", ev.SubjectPrefix)
 	must.Eq(t, 24*time.Hour, ev.MaxAge)
 	must.Eq(t, int64(2<<30), ev.MaxBytes)
+	must.Eq(t, 16, ev.MaxConsumers)
 	must.Eq(t, []string{"Job", "Allocation"}, ev.Topics)
 
 	// Without events.max_bytes the stream takes at most a quarter of the

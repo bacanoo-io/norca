@@ -206,15 +206,25 @@ func (s *Server) busReplicas() int {
 func (s *Server) ensureEventStream(ctx context.Context, js jetstream.JetStream) error {
 	cfg := s.config.Bus.Events
 	region := s.config.Region
+	// The change data capture streams have many independent readers: the
+	// limits policy (no consumer removes an event for the others), a bound
+	// on the consumers, and consumer limits: a consumer idle longer than the
+	// events are kept has nothing left to catch up and goes.
 	settings := func(maxBytes int64) bus.StreamSettings {
 		return bus.StreamSettings{
-			Replicas:    s.busReplicas(),
-			MaxAge:      cfg.MaxAge,
-			MaxBytes:    maxBytes,
-			MaxMsgSize:  s.config.Bus.MaxPayload,
-			Duplicates:  2 * time.Minute,
-			Storage:     jetstream.FileStorage,
-			Compression: jetstream.S2Compression,
+			Replicas:     s.busReplicas(),
+			MaxAge:       cfg.MaxAge,
+			MaxBytes:     maxBytes,
+			MaxMsgSize:   s.config.Bus.MaxPayload,
+			Duplicates:   2 * time.Minute,
+			Storage:      jetstream.FileStorage,
+			Compression:  jetstream.S2Compression,
+			Retention:    jetstream.LimitsPolicy,
+			MaxConsumers: cfg.MaxConsumers,
+			ConsumerLimits: jetstream.StreamConsumerLimits{
+				InactiveThreshold: cfg.MaxAge,
+				MaxAckPending:     bus.EventsConsumerMaxAckPending,
+			},
 		}
 	}
 	if err := bus.EnsureStream(ctx, js, bus.EventStreamName(region),

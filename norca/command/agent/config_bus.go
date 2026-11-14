@@ -34,6 +34,7 @@ import (
 //	    subject_prefix = "norca"
 //	    max_age        = "72h"
 //	    max_bytes      = "1GiB"
+//	    max_consumers  = 64
 //	    topics         = ["*"]
 //	  }
 //	}
@@ -70,6 +71,7 @@ type BusEventsConfig struct {
 	SubjectPrefix string   `hcl:"subject_prefix"`
 	MaxAge        string   `hcl:"max_age"`
 	MaxBytes      string   `hcl:"max_bytes"`
+	MaxConsumers  int      `hcl:"max_consumers"`
 	Topics        []string `hcl:"topics"`
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
@@ -107,6 +109,9 @@ func (a *BusEventsConfig) Merge(b *BusEventsConfig) *BusEventsConfig {
 	}
 	if b.MaxBytes != "" {
 		result.MaxBytes = b.MaxBytes
+	}
+	if b.MaxConsumers != 0 {
+		result.MaxConsumers = b.MaxConsumers
 	}
 	if b.Topics != nil {
 		result.Topics = slices.Clone(b.Topics)
@@ -255,6 +260,9 @@ func (b *BusConfig) toServerConfig(ports *Ports) (*bus.Config, error) {
 				return nil, fmt.Errorf("bus.events.max_bytes can't parse size %s", e.MaxBytes)
 			}
 			cfg.Events.MaxBytes = int64(v)
+		}
+		if e.MaxConsumers != 0 {
+			cfg.Events.MaxConsumers = e.MaxConsumers
 		}
 		if e.Topics != nil {
 			cfg.Events.Topics = slices.Clone(e.Topics)

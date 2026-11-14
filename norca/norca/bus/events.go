@@ -415,8 +415,19 @@ type StreamSettings struct {
 	// MaxMsgsPerSubject bounds the messages kept of one subject; 0 for no
 	// bound. The oldest of the subject goes first.
 	MaxMsgsPerSubject int64
-	Storage           jetstream.StorageType
-	Compression       jetstream.StoreCompression
+
+	// Retention is the retention policy; the zero value is the limits
+	// policy, under which no consumer removes a message for the others.
+	Retention jetstream.RetentionPolicy
+
+	// MaxConsumers bounds the consumers of the stream; 0 for no bound.
+	MaxConsumers int
+
+	// ConsumerLimits are the defaults and upper bounds of the inactive
+	// threshold and the pending acknowledgements of the consumers.
+	ConsumerLimits jetstream.StreamConsumerLimits
+	Storage        jetstream.StorageType
+	Compression    jetstream.StoreCompression
 }
 
 // EnsureStream creates a stream or updates the settings of an existing one
@@ -440,6 +451,12 @@ func EnsureStream(ctx context.Context, js jetstream.JetStream, name, description
 			cfg.MaxMsgsPerSubject = -1
 		}
 		cfg.Discard = jetstream.DiscardOld
+		cfg.Retention = set.Retention
+		cfg.MaxConsumers = set.MaxConsumers
+		if cfg.MaxConsumers <= 0 {
+			cfg.MaxConsumers = -1
+		}
+		cfg.ConsumerLimits = set.ConsumerLimits
 		if cfg.Storage == jetstream.FileStorage {
 			cfg.Compression = set.Compression
 		}
@@ -473,6 +490,8 @@ func EnsureStream(ctx context.Context, js jetstream.JetStream, name, description
 		cfg.MaxMsgSize == before.MaxMsgSize && cfg.Duplicates == before.Duplicates &&
 		cfg.MaxMsgsPerSubject == before.MaxMsgsPerSubject &&
 		cfg.Discard == before.Discard && cfg.Compression == before.Compression &&
+		cfg.Retention == before.Retention && cfg.MaxConsumers == before.MaxConsumers &&
+		cfg.ConsumerLimits == before.ConsumerLimits &&
 		slices.Equal(cfg.Subjects, before.Subjects) {
 		return nil
 	}

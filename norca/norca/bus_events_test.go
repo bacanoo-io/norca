@@ -233,3 +233,52 @@ func TestBusEvents_PushNotice(t *testing.T) {
 		return false, fmt.Errorf("the registry was not synced on the push notice")
 	})
 }
+
+// TestBusEvents_ConsumerLimits checks the limits of the change data capture
+// streams: the limits policy, a bound on the consumers and the consumer
+// limits (inactive threshold at most max_age, pending acknowledgements).
+func TestBusEvents_ConsumerLimits(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanup := TestServer(t, func(c *Config) {
+		enableBus(t)(c)
+		c.Bus.Events.MaxConsumers = 2
+	})
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	js := busJS(t, s1)
+
+	for _, name := range []string{bus.EventStreamName("global"), bus.AdminEventStreamName("global"), bus.ConsulKVChangesStreamName("global")} {
+		var stream jetstream.Stream
+		waitBus(t, func() (bool, error) {
+			var err error
+			stream, err = js.Stream(t.Context(), name)
+			return err == nil, err
+		})
+		cfg := stream.CachedInfo().Config
+		must.Eq(t, jetstream.LimitsPolicy, cfg.Retention, must.Sprint(name))
+		must.Eq(t, 2, cfg.MaxConsumers, must.Sprint(name))
+		must.Eq(t, bus.DefaultEventsMaxAge, cfg.ConsumerLimits.InactiveThreshold, must.Sprint(name))
+		must.Eq(t, bus.EventsConsumerMaxAckPending, cfg.ConsumerLimits.MaxAckPending, must.Sprint(name))
+	}
+
+	// Two consumers fit, the third is refused.
+	events := bus.EventStreamName("global")
+	for _, name := range []string{"reader-a", "reader-b"} {
+		_, err := js.CreateConsumer(t.Context(), events, jetstream.ConsumerConfig{Durable: name})
+		must.NoError(t, err)
+	}
+	_, err := js.CreateConsumer(t.Context(), events, jetstream.ConsumerConfig{Durable: "reader-c"})
+	must.ErrorContains(t, err, "maximum consumers")
+
+	// A consumer may not stay idle longer than the events are kept.
+	must.NoError(t, js.DeleteConsumer(t.Context(), events, "reader-b"))
+	_, err = js.CreateConsumer(t.Context(), events, jetstream.ConsumerConfig{
+		Durable: "reader-d", InactiveThreshold: bus.DefaultEventsMaxAge + time.Hour,
+	})
+	must.Error(t, err)
+	// Without its own threshold it gets the stream's.
+	c, err := js.CreateConsumer(t.Context(), events, jetstream.ConsumerConfig{Durable: "reader-e"})
+	must.NoError(t, err)
+	must.Eq(t, bus.DefaultEventsMaxAge, c.CachedInfo().Config.InactiveThreshold)
+}
