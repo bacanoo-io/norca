@@ -46,11 +46,13 @@ Maintainer: Joszef Oszlanczi. Commits before 2026-11-14 appear under the name
   by agent sessions from the MPL code that uses those files.
 - For the eight files rewritten on 2026-11-02 the agent was told to write them
   again with a different structure, and nothing about the originals.
-- As the auditor, after the code existed, I ran the similarity audit and looked
-  at the HashiCorp side of the pairs it listed as candidates (for example six
-  pairs of the run of 2026-11-11 against Nomad v2.1.1). I gave the sessions
-  that write code my conclusion about each pair in words, not the code. The
-  verdicts are in [clean-room-result-full/review.md](clean-room-result-full/review.md).
+- As the auditor, after the code existed, I ran the similarity audit. For the
+  pairs it listed as candidates I opened the HashiCorp file of the pair, that
+  is source code, in HashiCorp's public repository on GitHub, and compared it
+  with the Norca file (for example six pairs of the run of 2026-11-11 against
+  Nomad v2.1.1). I gave the sessions that write code my conclusion about each
+  pair in words, not the code. The verdicts are in
+  [clean-room-result-full/review.md](clean-room-result-full/review.md).
 - The audit and the compliance check need the HashiCorp files as the other
   side of the comparison, so they are fetched on my machine when those run
   (for example `refs/audit/nomad-v1.6.5`). The rule of the sessions that write
@@ -61,8 +63,8 @@ Maintainer: Joszef Oszlanczi. Commits before 2026-11-14 appear under the name
 - I have never had access to Nomad Enterprise source code, to binaries under
   an enterprise licence, or to non-public HashiCorp documentation.
 - I have never been employed or contracted by HashiCorp or IBM.
-- Apart from the audit described above, I did not read Nomad source published
-  under BSL 1.1 while working on Norca.
+- Apart from the files I opened as the auditor, described above, I did not
+  read Nomad source code published under BSL 1.1 while working on Norca.
 
 ## Limits of these statements
 
