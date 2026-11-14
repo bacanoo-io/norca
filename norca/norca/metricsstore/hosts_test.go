@@ -4,6 +4,7 @@
 package metricsstore
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -135,6 +136,127 @@ func TestStore_HostStore(t *testing.T) {
 	must.NoError(t, err)
 	must.Len(t, 1, points)
 	must.Eq(t, 4, s.Status().Hosts.Series)
+}
+
+// agePartitions makes the disk partitions of a database older: tstorage
+// counts the retention of a partition from the time it was written to disk
+// (createdAt of its meta.json), not from the times of its points.
+func agePartitions(t *testing.T, dir string, by time.Duration) int {
+	t.Helper()
+	metas, err := filepath.Glob(filepath.Join(dir, "p-*", "meta.json"))
+	must.NoError(t, err)
+	for _, path := range metas {
+		data, err := os.ReadFile(path)
+		must.NoError(t, err)
+		var meta map[string]any
+		must.NoError(t, json.Unmarshal(data, &meta))
+		created, err := time.Parse(time.RFC3339Nano, meta["createdAt"].(string))
+		must.NoError(t, err)
+		meta["createdAt"] = created.Add(-by).Format(time.RFC3339Nano)
+		data, err = json.Marshal(meta)
+		must.NoError(t, err)
+		must.NoError(t, os.WriteFile(path, data, 0o644))
+	}
+	return len(metas)
+}
+
+// partitionsWithPoints returns the disk partitions of a database that hold
+// points.
+func partitionsWithPoints(t *testing.T, dir string) []string {
+	t.Helper()
+	out := []string{}
+	for _, d := range partitionDirs(t, dir) {
+		data, err := os.ReadFile(filepath.Join(d, "meta.json"))
+		must.NoError(t, err)
+		var meta struct {
+			NumDataPoints int `json:"numDataPoints"`
+		}
+		must.NoError(t, json.Unmarshal(data, &meta))
+		if meta.NumDataPoints > 0 {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func partitionDirs(t *testing.T, dir string) []string {
+	t.Helper()
+	dirs, err := filepath.Glob(filepath.Join(dir, "p-*"))
+	must.NoError(t, err)
+	return dirs
+}
+
+// TestStore_HostRetentionRemovesPartitions checks what a shorter
+// host_retention does to what is on disk. A reload removes the partitions of
+// the hosts store that are older than the new value at once, with their
+// files, and leaves the main store alone; a store that is opened with the
+// shorter value removes them as it starts. The age of a partition is the
+// time since it was written to disk.
+func TestStore_HostRetentionRemovesPartitions(t *testing.T) {
+	ci.Parallel(t)
+	dir := t.TempDir()
+	mainDir, hostsDir := filepath.Join(dir, "tsdb"), filepath.Join(dir, "tsdb-hosts")
+	cfg := testConfig(mainDir)
+	cfg.PartitionDuration = time.Hour // not longer than the shortest retention below
+
+	// Points of both stores, written to disk by the close.
+	write := func() time.Time {
+		s := openTest(t, cfg)
+		base := time.Now().Add(-10 * time.Minute).Truncate(30 * time.Second)
+		hostGauges(s, base.Add(time.Second), 3)
+		must.NoError(t, s.flush(base.Add(30*time.Second)))
+		must.NoError(t, s.Close())
+		return base
+	}
+	base := write()
+	must.Positive(t, agePartitions(t, hostsDir, 3*time.Hour))
+	must.Positive(t, agePartitions(t, mainDir, 3*time.Hour))
+
+	s := openTest(t, cfg)
+	st := s.Status()
+	must.Positive(t, st.Hosts.DiskPartitions)
+	must.Positive(t, st.DiskPartitions)
+	mainPartitions := st.DiskPartitions
+	points, _, err := s.QueryGauge(MetricServerRaftCommitLag, nil, base, base.Add(time.Minute), 0)
+	must.NoError(t, err)
+	must.Len(t, 1, points)
+
+	// Longer than their age: nothing goes.
+	next := cfg.Copy()
+	next.HostRetention = 4 * time.Hour
+	must.NoError(t, s.Reload(next))
+	must.Eq(t, st.Hosts.DiskPartitions, s.Status().Hosts.DiskPartitions)
+
+	// One hour, with partitions three hours old: the hosts store is empty
+	// at once, the main store (24 hours) is as it was.
+	next.HostRetention = time.Hour
+	must.NoError(t, s.Reload(next))
+	st = s.Status()
+	must.Eq(t, 0, st.Hosts.DiskPartitions)
+	must.SliceEmpty(t, partitionDirs(t, hostsDir))
+	must.Eq(t, mainPartitions, st.DiskPartitions)
+	must.Len(t, mainPartitions, partitionDirs(t, mainDir))
+	points, _, err = s.QueryGauge(MetricServerRaftCommitLag, nil, base, base.Add(time.Minute), 0)
+	must.NoError(t, err)
+	must.SliceEmpty(t, points)
+	points, _, err = s.QueryGauge(MetricClusterNodesReady, readyLabels, base, base.Add(time.Minute), 0)
+	must.NoError(t, err)
+	must.Len(t, 1, points)
+	must.NoError(t, s.Close())
+
+	// The same through the configuration of a start: new partitions of the
+	// hosts store, made old, are gone once a store with host_retention of
+	// one hour has opened and closed.
+	write()
+	must.Positive(t, agePartitions(t, hostsDir, 3*time.Hour))
+	short := cfg.Copy()
+	short.HostRetention = time.Hour
+	s = openTest(t, short)
+	must.NoError(t, s.Close())
+	// A close writes its empty head partition too (p-0-0, no points, made
+	// now): what must be gone is every partition with points.
+	must.SliceEmpty(t, partitionsWithPoints(t, hostsDir))
+	must.SliceNotEmpty(t, partitionsWithPoints(t, mainDir))
 }
 
 // TestStore_HostForget checks that a host series is forgotten after
