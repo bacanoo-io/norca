@@ -157,7 +157,7 @@ Command-line flags take precedence. The variables injected into workloads (`NORC
 
 Norca starts from Nomad v1.6.5 (December 2023). Fixes that HashiCorp released only in later, BSL-licensed versions are not inherited. Where Norca fixes the same problem, the fix is written independently from the public issue and changelog description (see [CONTRIBUTING.md](CONTRIBUTING.md)). Do not assume that a vulnerability fixed in a later Nomad release is fixed in Norca unless the Norca release notes say so.
 
-Report vulnerabilities privately to <TODO: security email>; see [SECURITY.md](SECURITY.md).
+Report vulnerabilities privately through the repository (Security, "Report a vulnerability"); see [SECURITY.md](SECURITY.md).
 
 ## License
 
@@ -171,8 +171,8 @@ The independent reimplementation of the 45 left-out files and its similarity aud
 
 Norca is maintained by Joszef Oszlanczi (see [AUTHORS](AUTHORS)). There is no company or foundation behind the project.
 
-- Licensing and legal questions: <TODO: legal contact email>. If you believe this repository contains code it should not, please write to this address first.
-- Security reports: <TODO: security email>.
+- Licensing and legal questions: open an issue in this repository, or, if it should not be public, a private report (Security, "Report a vulnerability"), which only the maintainer reads. If you believe this repository contains code it should not, please write there first.
+- Security reports: the same private report; see [SECURITY.md](SECURITY.md).
 
 ## Contributing
 

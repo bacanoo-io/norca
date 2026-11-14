@@ -21,6 +21,9 @@ ANCHOR=8495495badaa598c84a82affa7406bc99ef2c370 # release/1.6.x, 2023-08-09
 NOMAD_TAG=a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f # v1.6.5
 PACK_TAG=cd4d2a41c22adba1350b8d5da63252f2dde33262  # nomad-pack v0.4.2
 SWITCH=2023-08-10
+# The commit that changed the licence of release/1.6.x to BSL 1.1 (upstream
+# pull request 19287, merged 2024-01-02, after the v1.6.5 tag).
+LICENSE_CHANGE=7a2f26e2f8af9b6220b716752a8814ca30f01878
 
 failed=0
 pass() { printf 'PASS  %s\n' "$1"; }
@@ -57,6 +60,11 @@ if git merge-base --is-ancestor "$NOMAD_TAG" HEAD; then
 	fail "the v1.6.5 tag commit is part of the history"
 else
 	pass "the v1.6.5 tag commit (and the release/1.6.x commits after ${ANCHOR:0:12}) is not part of the history"
+fi
+if git cat-file -e "$LICENSE_CHANGE^{commit}" 2>/dev/null && git merge-base --is-ancestor "$LICENSE_CHANGE" HEAD; then
+	fail "the commit that changed release/1.6.x to BSL 1.1 (${LICENSE_CHANGE:0:12}) is part of the history"
+else
+	pass "the commit that changed release/1.6.x to BSL 1.1 (${LICENSE_CHANGE:0:12}) is not part of the history"
 fi
 
 # 2. The import tree is the v1.6.5 tree without the BUSL-1.1 files.

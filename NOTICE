@@ -27,9 +27,35 @@ Mozilla Public License 2.0:
 The source code of these works is available at the addresses above and in
 this project's repository.
 
+This project also contains source code copied from the following works:
+
+  uBixVault v1.5.0 (in norca/secretstore/ubix/)
+  https://github.com/cwolsen7905/ubixvault
+  commit 817554750c2ccd2dd9a8ac072615630ade05b025
+  Copyright (c) 2026, Christopher W. Olsen
+  BSD 3-Clause License, see norca/secretstore/ubix/LICENSE
+
+  tstorage v0.3.6 (in norca/internal/tstorage/)
+  https://github.com/nakabonne/tstorage
+  Copyright (c) The tstorage authors
+  Apache License 2.0, see norca/internal/tstorage/LICENSE and NOTICE.txt
+
+  go-tsz, parts of it in two files of the tstorage copy
+  https://github.com/dgryski/go-tsz
+  Copyright (c) Damian Gryski
+  BSD 2-Clause License, see norca/internal/tstorage/LICENSE-go-tsz
+
+The Raft library is github.com/bacanoo-io/raft, a fork of hashicorp/raft
+v1.8.0 (Mozilla Public License 2.0), used as a Go module.
+
+Most of the code written for Norca was generated with AI coding agents from
+the specifications of the maintainer. The Mozilla Public License 2.0 applies
+to that code to the extent that copyright subsists in it; no claim is made
+beyond that.
+
 This project is not a product of HashiCorp, Inc. or IBM Corp. and is not
-affiliated with them. "Nomad", "Consul" and "HashiCorp" are trademarks of
-their respective owners.
+affiliated with, endorsed by or sponsored by them. "Nomad", "Consul",
+"Vault" and "HashiCorp" are trademarks of their respective owners.
 
 Licenses and notices of third-party dependencies are listed in
 THIRD_PARTY_NOTICES.md.
