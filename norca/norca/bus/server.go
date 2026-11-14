@@ -4,8 +4,11 @@
 // Package bus runs the system bus of a Norca server: an embedded NATS server
 // with JetStream. The servers of a region form one NATS cluster; their
 // routes follow the Serf members of the region. Connections are
-// authenticated by the Norca server (node secrets, ACL tokens) through an
-// Authorizer, never by NATS accounts or JWTs.
+// authenticated by the Norca server (node secrets, ACL tokens, workload
+// identities) through an Authorizer, never by NATS users or JWTs. They
+// connect into the account NORCA (AccountName), where the streams live; a
+// reader of the change streams may get an account of its own that imports
+// from it (ReaderAccount).
 //
 // A clustered JetStream needs a route to another server before it runs, so
 // the bus of a region with a single server runs a standalone JetStream. When
@@ -106,6 +109,11 @@ func New(config *Config, logger hclog.Logger, authz Authorizer) (*Server, error)
 // start creates and starts an embedded server.
 func (s *Server) start(clustered bool, routes []string) (*natsserver.Server, *natsserver.Options, error) {
 	config := s.config
+	accounts, err := newAccounts()
+	if err != nil {
+		return nil, nil, err
+	}
+	auth := &clientAuth{s: s}
 	opts := &natsserver.Options{
 		ServerName:                 config.ServerName,
 		Host:                       config.BindAddr,
@@ -117,7 +125,8 @@ func (s *Server) start(clustered bool, routes []string) (*natsserver.Server, *na
 		JetStreamMaxMemory:         config.MaxMemory,
 		JetStreamMaxStore:          config.MaxStorage,
 		NoSigs:                     true,
-		CustomClientAuthentication: (*clientAuth)(s),
+		Accounts:                   accounts,
+		CustomClientAuthentication: auth,
 	}
 	if config.ClientTLS != nil {
 		opts.TLS = true
@@ -144,6 +153,8 @@ func (s *Server) start(clustered bool, routes []string) (*natsserver.Server, *na
 	if err != nil {
 		return nil, nil, fmt.Errorf("bus: %w", err)
 	}
+	// Set before the server accepts its first connection.
+	auth.ns = ns
 	ns.SetLoggerV2(&natsLogger{logger: s.logger}, false, false, false)
 	go ns.Start()
 	addr := net.JoinHostPort(config.BindAddr, strconv.Itoa(config.Port))

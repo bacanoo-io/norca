@@ -71,6 +71,10 @@ type Grant struct {
 	// share the subjects, so a common "_INBOX.>" would let every connection
 	// read the replies of all the others.
 	Inbox string
+
+	// Account is the NATS account of the connection: a reader account
+	// (ReaderAccount). Empty: the bus account (AccountName).
+	Account string
 }
 
 // InboxPrefix is the first token of the inbox subjects, as in NATS.
@@ -81,7 +85,7 @@ func (g *Grant) Equal(o *Grant) bool {
 	if g == nil || o == nil {
 		return g == o
 	}
-	return g.Kind == o.Kind && g.Name == o.Name && g.All == o.All && g.Inbox == o.Inbox &&
+	return g.Kind == o.Kind && g.Name == o.Name && g.All == o.All && g.Inbox == o.Inbox && g.Account == o.Account &&
 		slices.Equal(g.Publish, o.Publish) && slices.Equal(g.Subscribe, o.Subscribe) &&
 		slices.Equal(g.PublishDeny, o.PublishDeny) && slices.Equal(g.SubscribeDeny, o.SubscribeDeny)
 }
@@ -90,13 +94,18 @@ func (g *Grant) Equal(o *Grant) bool {
 // and an error, which is logged, when the connection is refused.
 type Authorizer func(Credentials) (*Grant, error)
 
-// clientAuth implements the custom client authentication of the embedded
-// server.
-type clientAuth Server
+// clientAuth implements the custom client authentication of one embedded
+// server: a connection is registered in an account of that server, also
+// while a restarted server replaces it.
+type clientAuth struct {
+	s  *Server
+	ns *natsserver.Server
+}
 
-// Check authenticates a client connection and registers its permissions.
+// Check authenticates a client connection and registers its permissions
+// and account.
 func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
-	s := (*Server)(a)
+	s := a.s
 	if c.Kind() != natsserver.CLIENT {
 		return false
 	}
@@ -121,9 +130,20 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 		grant = g
 	}
 
+	accName := grant.Account
+	if accName == "" {
+		accName = AccountName
+	}
+	acc, err := a.ns.LookupAccount(accName)
+	if err != nil {
+		s.logger.Warn("bus connection refused: unknown account", "account", accName,
+			"name", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote), "error", err)
+		return false
+	}
 	c.RegisterUser(&natsserver.User{
 		Username:    grant.Kind + ":" + grant.Name,
 		Permissions: permissions(grant),
+		Account:     acc,
 	})
 	s.l.Lock()
 	s.clients[c.GetID()] = &client{creds: creds, grant: grant}

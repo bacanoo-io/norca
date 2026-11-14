@@ -25,15 +25,19 @@ type KVEntry struct {
 // (StandaloneStoreDir): it starts a temporary standalone server without
 // listeners on the store. A missing store or bucket returns no keys.
 func ReadStoreKV(ctx context.Context, storeDir, bucket string, maxStorage int64, logger hclog.Logger) ([]KVEntry, error) {
-	opts := &natsserver.Options{
-		ServerName:         "norca-bus-store-reader",
-		DontListen:         true,
-		JetStream:          true,
-		StoreDir:           storeDir,
-		JetStreamMaxMemory: 32 << 20,
-		JetStreamMaxStore:  maxStorage,
-		NoSigs:             true,
+	// The streams are in the bus account: the connection without
+	// credentials lands in it.
+	opts := &natsserver.Options{}
+	if err := opts.ProcessConfigString(storeReaderConfig); err != nil {
+		return nil, fmt.Errorf("bus: configuring the store reader: %w", err)
 	}
+	opts.ServerName = "norca-bus-store-reader"
+	opts.DontListen = true
+	opts.JetStream = true
+	opts.StoreDir = storeDir
+	opts.JetStreamMaxMemory = 32 << 20
+	opts.JetStreamMaxStore = maxStorage
+	opts.NoSigs = true
 	ns, err := natsserver.NewServer(opts)
 	if err != nil {
 		return nil, fmt.Errorf("bus: opening the store %s: %w", storeDir, err)
