@@ -70,6 +70,23 @@ func (p *tmplSecretProvider) set(items map[string]string) {
 	p.changed = make(chan struct{})
 }
 
+// TestSecretTriggerContent checks what the re-render of a changed secret
+// rests on: two writes of the trigger file that follow each other never
+// have the same size, and neither has the first write and the file as it is
+// created ("0"). The size is the only thing that tells two writes of one
+// clock tick apart (found by running TestTaskTemplateManager_NomadSecret
+// more than once in a process: the second run did not render the change).
+func TestSecretTriggerContent(t *testing.T) {
+	ci.Parallel(t)
+
+	prev := len("0")
+	for n := uint64(1); n <= 1000; n++ {
+		size := len(secretTriggerContent(n))
+		must.NotEq(t, prev, size, must.Sprintf("write %d has the size of the one before it", n))
+		prev = size
+	}
+}
+
 // TestTaskTemplateManager_NomadSecret renders a template with nomadSecret,
 // re-renders it within 10 seconds after the secret changed and applies the
 // template's change mode.

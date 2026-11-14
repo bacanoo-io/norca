@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"sync/atomic"
 
 	ctconf "github.com/hashicorp/consul-template/config"
 )
@@ -101,19 +99,34 @@ func secretTriggerTemplate(config *TaskTemplateManagerConfig) (*ctconf.TemplateC
 	return ct, nil
 }
 
-var secretTriggerCounter atomic.Uint64
+// secretTriggerContent returns what the n-th write puts into the trigger
+// file. consul-template notices a change of a file by its size and its
+// modification time, read every two seconds. Two writes can fall into one
+// tick of the file system clock, so the size must tell them apart: the
+// number has a fixed width and every second write has one byte more. The
+// file is created with one byte, so the first write differs from it too.
+func secretTriggerContent(n uint64) []byte {
+	content := fmt.Sprintf("%020d", n)
+	if n%2 == 1 {
+		content += "\n"
+	}
+	return []byte(content)
+}
 
 // relaySecretChanges rewrites the trigger file whenever a secret of a
 // nomadSecret call changed.
 func (tm *TaskTemplateManager) relaySecretChanges() {
+	// The writes of this task: a counter of the process would give a task
+	// every second or third number, and two of its writes the same size.
+	var n uint64
 	for {
 		select {
 		case <-tm.shutdownCh:
 			return
 		case <-tm.config.Secrets.Changes():
-			n := secretTriggerCounter.Add(1)
+			n++
 			tmp := tm.secretTrigger + ".tmp"
-			if err := os.WriteFile(tmp, []byte(strconv.FormatUint(n, 10)), 0o600); err == nil {
+			if err := os.WriteFile(tmp, secretTriggerContent(n), 0o600); err == nil {
 				_ = os.Rename(tmp, tm.secretTrigger)
 			}
 		}
