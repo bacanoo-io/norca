@@ -227,6 +227,21 @@ audit, and in the new test file
 `client/lib/resources/containment_linux_test.go`, which carries only the Norca
 header.
 
+What the lab showed (2026-11-13, a `raw_exec` task on a node with cores of
+4983 MHz: a shell that keeps starting children that count for a moment, its
+cgroup at one full core). The use of the cgroup as the node measures it, and
+the CPU column of `norca alloc status -stats`, three readings ten seconds
+apart, before and after the change:
+
+```text
+before  round 1: cgroup used 100% of a core over 10s     0/100 MHz
+        round 2: cgroup used 100% of a core over 10s    48/100 MHz
+        round 3: cgroup used 100% of a core over 10s     0/100 MHz
+after   round 1: cgroup used 100% of a core over 10s  5000/100 MHz
+        round 2: cgroup used 100% of a core over 10s  4982/100 MHz
+        round 3: cgroup used 100% of a core over 10s  4986/100 MHz
+```
+
 ## Task cgroups removed by another agent
 
 In Nomad v1.6.5 (MPL 2.0) the cpuset manager of cgroups v2
@@ -244,6 +259,33 @@ of a client in the lab and written from the Norca tree alone. Later Nomad
 releases replaced this manager; no HashiCorp source or documentation of a BSL
 release was opened or used. The change is in lines added to a file that comes
 from v1.6.5, which is in the `bugfix` set of the audit.
+
+What the lab showed (step `nodescaler-dc`, 2026-11-13, three runs of three
+before the change): the check that failed, the events of the task that did
+not start, and the goroutine of its task runner on the client.
+
+```text
+[FAIL] the work of the drained node moves back to r1-dc1: one allocation there, two in r1-dc3 on two nodes
+
+2026-11-13T08:07:41+01:00  Task Setup  Building Task Directory
+2026-11-13T08:07:41+01:00  Received    Task received by client
+
+goroutine 751 [select, 8 minutes]:
+github.com/bacanoo-io/norca/norca/client/lib/cgutil.(*cpusetManagerV2).CgroupPathFor.func1({0x85de7c8, 0x342131e92820})
+	github.com/bacanoo-io/norca/norca/client/lib/cgutil/cpuset_manager_v2.go:211 +0x231
+github.com/bacanoo-io/norca/norca/client/allocrunner/taskrunner.(*TaskRunner).runDriver(0x34212fc8b188)
+	github.com/bacanoo-io/norca/norca/client/allocrunner/taskrunner/task_runner.go:883 +0x163
+```
+
+With the change the step passed. The docker node provider of the lab has
+since given the agent of every container a cgroup parent of its own, and the
+step checks that no agent had to make a cgroup again (2026-11-13):
+
+```text
+[PASS] each of the three nodes keeps the cgroup of its task under a cgroup parent of its own on the host
+[PASS] the work of the drained node moves back to r1-dc1: one allocation there, two in r1-dc3 on two nodes
+[PASS] no agent of the containers found the cgroup of a task removed
+```
 
 ## The cgroups v1 parent of an agent in a container
 
@@ -263,3 +305,13 @@ tree alone. Later Nomad releases replaced this manager; no HashiCorp source or
 documentation of a BSL release was opened or used. The change is in lines
 added to a file that comes from v1.6.5, which is in the `bugfix` set of the
 audit.
+
+What the test showed (2026-11-13, the tests of `client/lib/cgutil` as root
+in a container on a host with cgroups v1), before and after the change:
+
+```text
+before  mkdir /sys/fs/gotest-<id>/shared: no such file or directory
+        panic: interface conversion: cgutil.CpusetManager is *cgutil.NoopCpusetManager, not *cgutil.cpusetManagerV1
+after   initialized cpuset cgroup manager: parent=/gotest-752e1d51 cpuset=0-31
+        --- PASS: TestCpusetManager_V1_Init (0.00s)
+```
