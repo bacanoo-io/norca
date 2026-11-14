@@ -42,9 +42,48 @@ const busRedacted = "<redacted>"
 // whether it left out anything; events of other topics are returned as
 // they are.
 func busRedactEvent(ev *structs.Event) (structs.Event, bool) {
-	if ev.Topic != structs.TopicJob {
+	switch ev.Topic {
+	case structs.TopicJob:
+		return busRedactJobEvent(ev)
+	case structs.TopicService:
+		return busRedactServiceEvent(ev)
+	}
+	return *ev, false
+}
+
+// busRedactServiceEvent leaves out the outputs of the checks of a service
+// registration: the beginning of what a check returned (e.g. the body of
+// an HTTP check) may hold anything. The name, role and status of each
+// check, Ready and Health stay; the service registration API returns the
+// outputs.
+func busRedactServiceEvent(ev *structs.Event) (structs.Event, bool) {
+	payload, ok := ev.Payload.(*structs.ServiceRegistrationStreamEvent)
+	if !ok || payload == nil || payload.Service == nil {
 		return *ev, false
 	}
+	hasOutput := false
+	for _, c := range payload.Service.Checks {
+		if c != nil && c.Output != "" {
+			hasOutput = true
+		}
+	}
+	if !hasOutput {
+		return *ev, false
+	}
+	service := payload.Service.Copy()
+	for _, c := range service.Checks {
+		if c != nil && c.Output != "" {
+			c.Output = busRedacted
+		}
+	}
+	redacted := *ev
+	redacted.Payload = &structs.ServiceRegistrationStreamEvent{Service: service}
+	return redacted, true
+}
+
+// busRedactJobEvent leaves out of a Job event what may hold a secret
+// (busRedactJob).
+func busRedactJobEvent(ev *structs.Event) (structs.Event, bool) {
 	payload, ok := ev.Payload.(*structs.JobEvent)
 	if !ok || payload == nil || payload.Job == nil {
 		return *ev, false

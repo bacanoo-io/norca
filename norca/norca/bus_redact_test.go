@@ -68,6 +68,35 @@ func TestBusRedactJob(t *testing.T) {
 	}
 }
 
+func TestBusRedactServiceEvent(t *testing.T) {
+	ci.Parallel(t)
+
+	reg := &structs.ServiceRegistration{
+		ID: "s1", ServiceName: "web", Namespace: "default", JobID: "web",
+		Ready: true, Health: structs.ServiceHealthPassing,
+		Checks: []*structs.ServiceRegistrationCheck{
+			{Name: "http", Role: "readiness", Status: structs.ServiceHealthPassing, Output: "HTTP 200: {\"token\":\"s3cret\"}"},
+			{Name: "tcp", Status: structs.ServiceHealthPassing},
+		},
+	}
+	ev := structs.Event{Topic: structs.TopicService, Payload: &structs.ServiceRegistrationStreamEvent{Service: reg}}
+
+	got, redacted := busRedactEvent(&ev)
+	must.True(t, redacted)
+	service := got.Payload.(*structs.ServiceRegistrationStreamEvent).Service
+	must.Eq(t, busRedacted, service.Checks[0].Output)
+	must.Eq(t, "", service.Checks[1].Output)
+	must.Eq(t, structs.ServiceHealthPassing, service.Checks[0].Status)
+	must.Eq(t, "readiness", service.Checks[0].Role)
+	must.True(t, service.Ready)
+	must.StrContains(t, reg.Checks[0].Output, "s3cret") // the state's copy is untouched
+
+	// Without outputs nothing is copied or marked.
+	reg.Checks[0].Output = ""
+	_, redacted = busRedactEvent(&ev)
+	must.False(t, redacted)
+}
+
 func TestBusEventJob(t *testing.T) {
 	ci.Parallel(t)
 
