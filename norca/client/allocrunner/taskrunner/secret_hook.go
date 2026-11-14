@@ -415,7 +415,7 @@ func secretIdentity(alloc *structs.Allocation, task *structs.Task, nomadToken, v
 	return id
 }
 
-// secretTemplateSource returns the source of the task's nomadSecret
+// secretTemplateSource returns the source of the task's norcaSecret
 // template calls.
 func (tr *TaskRunner) secretTemplateSource(logger log.Logger) *secrets.TemplateSource {
 	alloc, task := tr.Alloc(), tr.Task()

@@ -33,7 +33,7 @@ func vaultCompatJob(id string) *structs.Job {
 	task.Vault = &structs.Vault{Policies: []string{"app"}, ChangeMode: structs.VaultChangeModeRestart}
 	task.Templates = []*structs.Template{{
 		EmbeddedTmpl: `{{ with secret "kv/data/app/db?version=2" }}{{ .Data.data.password }}{{ end }}` +
-			`{{ with nomadSecret "jobs/x" }}{{ end }}`,
+			`{{ with norcaSecret "jobs/x" }}{{ end }}`,
 		DestPath:   "local/app.conf",
 		ChangeMode: structs.TemplateChangeModeRestart,
 	}}

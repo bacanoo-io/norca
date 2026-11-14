@@ -298,14 +298,14 @@ func TestJobEndpoint_Admission_Secrets(t *testing.T) {
 	_, err = admissionRegisterJob(t, s, job, "")
 	must.ErrorContains(t, err, "prod-no-env violated")
 
-	// Paths of other jobs, also through nomadSecret calls of templates.
+	// Paths of other jobs, also through norcaSecret calls of templates.
 	job = secretDeliveryJob("web")
 	job.TaskGroups[0].Tasks[0].Secrets[0].Path = "jobs/billing/db"
 	_, err = admissionRegisterJob(t, s, job, "")
 	must.ErrorContains(t, err, "own-paths violated")
 	job = secretDeliveryJob("web")
 	job.TaskGroups[0].Tasks[0].Templates = []*structs.Template{{
-		EmbeddedTmpl: `{{ with nomadSecret "bao:jobs/billing/db" }}{{ .password }}{{ end }}`,
+		EmbeddedTmpl: `{{ with norcaSecret "bao:jobs/billing/db" }}{{ .password }}{{ end }}`,
 		DestPath:     "local/x", ChangeMode: "noop",
 	}}
 	_, err = admissionRegisterJob(t, s, job, "")

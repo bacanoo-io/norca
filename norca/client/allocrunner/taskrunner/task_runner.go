@@ -188,7 +188,7 @@ type TaskRunner struct {
 	rpcClient config.RPCer
 
 	// secretProviders and secretAuditor are used by the secret hook and
-	// the nomadSecret template function (Norca); nil builds the defaults.
+	// the norcaSecret template function (Norca); nil builds the defaults.
 	secretProviders *secrets.Registry
 	secretAuditor   secrets.Auditor
 

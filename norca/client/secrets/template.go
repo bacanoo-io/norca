@@ -16,8 +16,8 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
-// TemplateSource serves the nomadSecret template function of a task:
-// {{ with nomadSecret "prod/db" }}{{ .password }}{{ end }}, optionally with a
+// TemplateSource serves the norcaSecret template function of a task:
+// {{ with norcaSecret "prod/db" }}{{ .password }}{{ end }}, optionally with a
 // "provider:" prefix. Lookups follow the same resolution order as secret
 // blocks. The first call of a path fetches the secret (waiting up to the
 // timeout while the provider is unavailable or the secret is missing);
@@ -57,7 +57,7 @@ type templateEntry struct {
 	err   error
 
 	lock        sync.Mutex
-	value       any // map[string]string (nomadSecret) or *VaultKV (secret)
+	value       any // map[string]string (norcaSecret) or *VaultKV (secret)
 	fingerprint string
 }
 
@@ -79,7 +79,7 @@ type TemplateSourceConfig struct {
 	Timeout time.Duration
 }
 
-// NewTemplateSource returns the source of a task's nomadSecret calls.
+// NewTemplateSource returns the source of a task's norcaSecret calls.
 func NewTemplateSource(c *TemplateSourceConfig) *TemplateSource {
 	ctx, cancel := context.WithCancel(context.Background())
 	timeout := c.Timeout
@@ -143,12 +143,12 @@ func (s *TemplateSource) entry(key string, start func(*templateEntry)) (*templat
 	return e, nil
 }
 
-// Func is the nomadSecret template function: it returns the items of the
+// Func is the norcaSecret template function: it returns the items of the
 // secret. Errors never contain values.
 func (s *TemplateSource) Func(ref string) (map[string]string, error) {
-	e, err := s.entry(ref, func(e *templateEntry) { s.runNomadSecret(ref, e) })
+	e, err := s.entry(ref, func(e *templateEntry) { s.runNorcaSecret(ref, e) })
 	if err != nil {
-		return nil, fmt.Errorf("nomadSecret %q: %v", ref, err)
+		return nil, fmt.Errorf("norcaSecret %q: %v", ref, err)
 	}
 	e.lock.Lock()
 	defer e.lock.Unlock()
@@ -212,8 +212,8 @@ type templateFetch struct {
 	pinned bool
 }
 
-// runNomadSecret fetches and watches the secret of a nomadSecret call.
-func (s *TemplateSource) runNomadSecret(ref string, e *templateEntry) {
+// runNorcaSecret fetches and watches the secret of a norcaSecret call.
+func (s *TemplateSource) runNorcaSecret(ref string, e *templateEntry) {
 	explicit, path := structs.ParseSecretRef(ref)
 	path = s.interpolate(path)
 	res, err := s.registry.Resolve(s.lookup(explicit, path))
@@ -223,7 +223,7 @@ func (s *TemplateSource) runNomadSecret(ref string, e *templateEntry) {
 		return
 	}
 	p := res.Provider
-	s.logger.Debug("nomadSecret provider resolved", "path", path, "provider", p.Name(), "source", res.Source)
+	s.logger.Debug("norcaSecret provider resolved", "path", path, "provider", p.Name(), "source", res.Source)
 	s.run(e, &templateFetch{
 		res:     res,
 		request: func() *Request { return &Request{Path: path, Identity: s.identity()} },

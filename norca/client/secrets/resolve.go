@@ -44,7 +44,7 @@ type Lookup struct {
 
 	// VaultStyle marks a Vault-style lookup (a task vault block or a Vault
 	// "secret" template call): with the agent's Vault integration enabled
-	// it goes to Vault (step 4). Secret blocks and nomadSecret calls are
+	// it goes to Vault (step 4). Secret blocks and norcaSecret calls are
 	// not Vault-style.
 	VaultStyle bool
 }

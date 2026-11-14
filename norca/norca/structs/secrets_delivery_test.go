@@ -213,7 +213,7 @@ func TestJob_SecretRefsAndDefaults(t *testing.T) {
 			Tasks: []*Task{{
 				Name:    "server",
 				Secrets: []*TaskSecret{s},
-				Templates: []*Template{{EmbeddedTmpl: `{{ with nomadSecret "aws:prod/key" }}{{ .key }}{{ end }}
+				Templates: []*Template{{EmbeddedTmpl: `{{ with norcaSecret "aws:prod/key" }}{{ .key }}{{ end }}
 {{ nomadSecret "jobs/${job}/x" }}`}},
 			}},
 		}},

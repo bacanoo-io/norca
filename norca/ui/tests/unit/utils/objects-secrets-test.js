@@ -178,7 +178,7 @@ module('Unit | Utility | objects and secrets', function () {
                 {
                   DestPath: 'local/stripe.env',
                   EmbeddedTmpl:
-                    '{{ with nomadSecret "prod/api/stripe" }}{{ .api_key }}{{ end }}',
+                    '{{ with norcaSecret "prod/api/stripe" }}{{ .api_key }}{{ end }}',
                 },
               ],
             },

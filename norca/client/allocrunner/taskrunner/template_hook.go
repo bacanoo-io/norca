@@ -51,7 +51,7 @@ type templateHookConfig struct {
 	// renderOnTaskRestart is flag to explicitly render templates on task restart
 	renderOnTaskRestart bool
 
-	// secrets serves the nomadSecret template function (Norca)
+	// secrets serves the norcaSecret template function (Norca)
 	secrets *secrets.TemplateSource
 }
 

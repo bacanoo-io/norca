@@ -12,7 +12,7 @@ import (
 	ctconf "github.com/hashicorp/consul-template/config"
 )
 
-// The nomadSecret template function (Norca, norca-doc content/docs/design/secrets-plan.md,
+// The norcaSecret template function (Norca, norca-doc content/docs/design/secrets-plan.md,
 // "Delivery to tasks"). The function is an external function of
 // consul-template served by the task's secrets.TemplateSource. Since
 // external functions have no consul-template dependencies, a change of a
@@ -29,7 +29,11 @@ import (
 
 const (
 	// secretTemplateFunc is the name of the template function.
-	secretTemplateFunc = "nomadSecret"
+	secretTemplateFunc = "norcaSecret"
+
+	// secretTemplateFuncAlias is the name the function had before
+	// 2026-11-14. Templates written with it keep working.
+	secretTemplateFuncAlias = "nomadSecret"
 
 	// vaultSecretTemplateFunc and vaultSecretsTemplateFunc are the Vault
 	// template functions of consul-template.
@@ -46,23 +50,32 @@ func secretTriggerPath(taskDir string) string {
 	return filepath.Join(taskDir, secretTriggerSubdir, secretTriggerFile)
 }
 
-// usesNomadSecret reports whether a template calls nomadSecret, or the Vault
+// usesNorcaSecret reports whether a template calls norcaSecret, or the Vault
 // secret function when the source serves it, from its embedded data or its
 // source file. A false positive only adds the trigger template.
-func usesNomadSecret(config *TaskTemplateManagerConfig) bool {
-	name := secretTemplateFunc
+func usesNorcaSecret(config *TaskTemplateManagerConfig) bool {
+	names := []string{strings.ToLower(secretTemplateFunc), strings.ToLower(secretTemplateFuncAlias)}
 	if config.Secrets.ServesVault() {
-		// "secret" is part of "nomadSecret" too.
-		name = vaultSecretTemplateFunc
+		// "secret" is part of both names too.
+		names = []string{vaultSecretTemplateFunc}
+	}
+	calls := func(text string) bool {
+		text = strings.ToLower(text)
+		for _, name := range names {
+			if strings.Contains(text, name) {
+				return true
+			}
+		}
+		return false
 	}
 	taskEnv := config.EnvBuilder.Build()
 	for _, tmpl := range config.Templates {
-		if strings.Contains(strings.ToLower(tmpl.EmbeddedTmpl), strings.ToLower(name)) {
+		if calls(tmpl.EmbeddedTmpl) {
 			return true
 		}
 		if tmpl.SourcePath != "" {
 			src, _ := taskEnv.ClientPath(tmpl.SourcePath, false)
-			if b, err := os.ReadFile(src); err == nil && strings.Contains(strings.ToLower(string(b)), strings.ToLower(name)) {
+			if b, err := os.ReadFile(src); err == nil && calls(string(b)) {
 				return true
 			}
 		}
@@ -71,9 +84,9 @@ func usesNomadSecret(config *TaskTemplateManagerConfig) bool {
 }
 
 // secretTriggerTemplate returns the internal template watching the trigger
-// file, nil if no template calls nomadSecret. The trigger file is created.
+// file, nil if no template calls norcaSecret. The trigger file is created.
 func secretTriggerTemplate(config *TaskTemplateManagerConfig) (*ctconf.TemplateConfig, error) {
-	if config.Secrets == nil || !usesNomadSecret(config) {
+	if config.Secrets == nil || !usesNorcaSecret(config) {
 		return nil, nil
 	}
 	trigger := secretTriggerPath(config.TaskDir)
@@ -114,7 +127,7 @@ func secretTriggerContent(n uint64) []byte {
 }
 
 // relaySecretChanges rewrites the trigger file whenever a secret of a
-// nomadSecret call changed.
+// norcaSecret call changed.
 func (tm *TaskTemplateManager) relaySecretChanges() {
 	// The writes of this task: a counter of the process would give a task
 	// every second or third number, and two of its writes the same size.

@@ -19,7 +19,7 @@ const (
 )
 
 // vaultSecretCall matches the first argument of the Vault "secret" template
-// calls (not nomadSecret, not secrets).
+// calls (not norcaSecret or nomadSecret, not secrets).
 var vaultSecretCall = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])secret\s+"([^"]+)"`)
 
 // VaultSecretRefs returns the Vault-style lookups of the job: its task vault

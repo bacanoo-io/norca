@@ -74,7 +74,7 @@ func (p *tmplSecretProvider) set(items map[string]string) {
 // rests on: two writes of the trigger file that follow each other never
 // have the same size, and neither has the first write and the file as it is
 // created ("0"). The size is the only thing that tells two writes of one
-// clock tick apart (found by running TestTaskTemplateManager_NomadSecret
+// clock tick apart (found by running TestTaskTemplateManager_NorcaSecret
 // more than once in a process: the second run did not render the change).
 func TestSecretTriggerContent(t *testing.T) {
 	ci.Parallel(t)
@@ -87,12 +87,20 @@ func TestSecretTriggerContent(t *testing.T) {
 	}
 }
 
-// TestTaskTemplateManager_NomadSecret renders a template with nomadSecret,
+// TestTaskTemplateManager_NorcaSecret renders a template with norcaSecret,
 // re-renders it within 10 seconds after the secret changed and applies the
 // template's change mode.
-func TestTaskTemplateManager_NomadSecret(t *testing.T) {
+func TestTaskTemplateManager_NorcaSecret(t *testing.T) {
 	ci.Parallel(t)
 
+	for _, name := range []string{"norcaSecret", "nomadSecret"} {
+		t.Run(name, func(t *testing.T) { testTemplateSecretFunc(t, name) })
+	}
+}
+
+// testTemplateSecretFunc renders a template that calls the secret function
+// by name: its own name, or the one it had before 2026-11-14.
+func testTemplateSecretFunc(t *testing.T, name string) {
 	p := &tmplSecretProvider{items: map[string]string{"password": "one"}, version: 1, changed: make(chan struct{})}
 	src := secrets.NewTemplateSource(&secrets.TemplateSourceConfig{
 		Registry: secrets.NewRegistry(p, nil, nil),
@@ -105,7 +113,7 @@ func TestTaskTemplateManager_NomadSecret(t *testing.T) {
 	defer src.Stop()
 
 	tmpl := &structs.Template{
-		EmbeddedTmpl: `{{ with nomadSecret "jobs/${job}/db" }}pw={{ .password }}{{ end }}`,
+		EmbeddedTmpl: `{{ with ` + name + ` "jobs/${job}/db" }}pw={{ .password }}{{ end }}`,
 		DestPath:     "local/app.conf",
 		ChangeMode:   structs.TemplateChangeModeRestart,
 	}

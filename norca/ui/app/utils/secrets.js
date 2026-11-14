@@ -220,9 +220,9 @@ function expand(path, vars) {
     .replace(/\$\{task\}/g, vars.task || '');
 }
 
-// nomadSecret "path" calls and the Vault-style {{ with secret "..." }} of
+// norcaSecret "path" calls and the Vault-style {{ with secret "..." }} of
 // templates, which the built-in store serves without a Vault.
-const TEMPLATE_CALLS = /(?:nomadSecret|secret)\s+"([^"]+)"/g;
+const TEMPLATE_CALLS = /(?:norcaSecret|nomadSecret|secret)\s+"([^"]+)"/g;
 
 // How a job references the secret path: secret blocks (provider norca or
 // unset), secret_access bindings (path patterns of the group or task) and

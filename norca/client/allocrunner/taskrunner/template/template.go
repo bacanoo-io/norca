@@ -57,11 +57,11 @@ type TaskTemplateManager struct {
 	lookup map[string][]*structs.Template
 
 	// hidden are the IDs of the internal templates of the runner that are
-	// not task templates: the trigger of the nomadSecret re-renders.
+	// not task templates: the trigger of the norcaSecret re-renders.
 	hidden map[string]struct{}
 
 	// secretTrigger is the file whose change makes the templates render
-	// again after a secret of a nomadSecret call changed; "" if there is
+	// again after a secret of a norcaSecret call changed; "" if there is
 	// none.
 	secretTrigger string
 
@@ -127,7 +127,7 @@ type TaskTemplateManagerConfig struct {
 	// NomadToken is the Nomad token or identity claim for the task
 	NomadToken string
 
-	// Secrets serves the nomadSecret template function (Norca); nil
+	// Secrets serves the norcaSecret template function (Norca); nil
 	// leaves the function undefined.
 	Secrets *secrets.TemplateSource
 }
@@ -242,7 +242,7 @@ func (tm *TaskTemplateManager) run() {
 	// Start the runner
 	go tm.runner.Start()
 
-	// Render again when a secret of a nomadSecret call changes (Norca)
+	// Render again when a secret of a norcaSecret call changes (Norca)
 	if tm.secretTrigger != "" && tm.config.Secrets != nil {
 		go tm.relaySecretChanges()
 	}
@@ -654,7 +654,7 @@ func templateRunner(config *TaskTemplateManagerConfig) (
 		return nil, nil, err
 	}
 
-	// Add the trigger of the nomadSecret re-renders (Norca)
+	// Add the trigger of the norcaSecret re-renders (Norca)
 	if trigger, err := secretTriggerTemplate(config); err != nil {
 		return nil, nil, err
 	} else if trigger != nil {
@@ -764,6 +764,7 @@ func parseTemplateConfigs(config *TaskTemplateManagerConfig) (map[*ctconf.Templa
 		ct.FunctionDenylist = config.ClientConfig.TemplateConfig.FunctionDenylist
 		if config.Secrets != nil {
 			ct.ExtFuncMap[secretTemplateFunc] = config.Secrets.Func
+			ct.ExtFuncMap[secretTemplateFuncAlias] = config.Secrets.Func
 			// Without a Vault integration, the Vault functions are served
 			// by the built-in store (Norca, "Vault compatibility").
 			if config.Secrets.ServesVault() {

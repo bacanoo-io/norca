@@ -743,14 +743,14 @@ func (j *Job) UsesSecretDelivery() bool {
 }
 
 // SecretRef is a secret lookup referenced by a job: a secret block or a
-// nomadSecret template call. It is what admission policies see of a job's
+// norcaSecret template call. It is what admission policies see of a job's
 // secrets (the "secrets" list of the CEL request variable).
 type SecretRef struct {
 	Group string
 	Task  string
 
 	// Source is "secret" for a secret block and "template" for a
-	// nomadSecret call in an embedded template.
+	// norcaSecret call in an embedded template.
 	Source string
 
 	// Name is the label of the secret block; empty for templates.
@@ -779,10 +779,12 @@ type SecretRef struct {
 	Optional bool
 }
 
-// nomadSecretCall matches the first argument of nomadSecret template calls.
-var nomadSecretCall = regexp.MustCompile(`nomadSecret\s+"([^"]+)"`)
+// norcaSecretCall matches the first argument of norcaSecret template calls,
+// and of nomadSecret, the name the function had before 2026-11-14: admission
+// policies see the secrets of a template whichever name it uses.
+var norcaSecretCall = regexp.MustCompile(`(?:norca|nomad)Secret\s+"([^"]+)"`)
 
-// ParseSecretRef splits the argument of a nomadSecret template call into the
+// ParseSecretRef splits the argument of a norcaSecret template call into the
 // optional "provider:" prefix and the path.
 func ParseSecretRef(ref string) (provider, p string) {
 	if name, rest, ok := strings.Cut(ref, ":"); ok && rest != "" && validSecretProviderName.MatchString(name) {
@@ -792,7 +794,7 @@ func ParseSecretRef(ref string) (provider, p string) {
 }
 
 // SecretRefs returns the secret lookups of the job: its secret blocks and
-// the nomadSecret calls found in embedded templates (templates read from a
+// the norcaSecret calls found in embedded templates (templates read from a
 // source file can't be inspected at submission).
 func (j *Job) SecretRefs() []*SecretRef {
 	var out []*SecretRef
@@ -844,7 +846,7 @@ func (j *Job) SecretRefs() []*SecretRef {
 				if tmpl == nil {
 					continue
 				}
-				for _, m := range nomadSecretCall.FindAllStringSubmatch(tmpl.EmbeddedTmpl, -1) {
+				for _, m := range norcaSecretCall.FindAllStringSubmatch(tmpl.EmbeddedTmpl, -1) {
 					provider, p := ParseSecretRef(m[1])
 					out = append(out, &SecretRef{
 						Group:           tg.Name,

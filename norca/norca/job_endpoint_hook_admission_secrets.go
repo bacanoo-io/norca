@@ -8,7 +8,7 @@ import "github.com/bacanoo-io/norca/norca/norca/structs"
 // admissionSecretRefsValue is the "secrets" list of the CEL request
 // variable of job admission (Norca, norca-doc content/docs/design/secrets-plan.md, "Delivery
 // to tasks"): every secret the job references, from its secret blocks and
-// the nomadSecret calls of its embedded templates, with the placeholders of
+// the norcaSecret calls of its embedded templates, with the placeholders of
 // the paths replaced, and its Vault-style lookups (phase 4): the task vault
 // blocks and the Vault secret calls of embedded templates. Each entry has:
 //
