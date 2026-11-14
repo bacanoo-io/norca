@@ -44,8 +44,14 @@ Maintainer: Joszef Oszlanczi. Commits before 2026-11-14 appear under the name
 - I did not read any of the 45 files of Nomad v1.6.5 that carry a BUSL-1.1
   header before their replacements were written. The replacements were written
   by agent sessions from the MPL code that uses those files.
-- For the eight files rewritten on 2026-11-02 the agent was told to write them
-  again with a different structure, and nothing about the originals.
+- The eight files rewritten on 2026-11-02: the decision to rewrite them came
+  from the scores of the first runs of the similarity audit, which was still
+  being developed. I did not open the HashiCorp files then. The agent was told
+  to write the files again with a different structure, and nothing about the
+  originals.
+- Those first runs, on 2026-11-01 and 2026-11-02, were started from an agent
+  session at my request. The audit runs in a container that hands back file
+  names and scores only, no code. The later runs I started myself.
 - As the auditor, after the code existed, I ran the similarity audit. For the
   pairs it listed as candidates I opened the HashiCorp file of the pair, that
   is source code, in HashiCorp's public repository on GitHub, and compared it
