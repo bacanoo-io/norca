@@ -402,3 +402,84 @@ piggyback is removed. Next (4b): the metrics store fed by the same consumer.
    region growing from 1 to 3 servers gets its streams scaled up by the
    leader (stream update), shrinking scales them down before a server is
    removed (`server force-leave` warns when that would lose data).
+
+## 11. Review of 2026-11-14 and its fixes
+
+A review of the bus as built (sections 2 to 4) found the items below. One was
+confirmed with a probe, the rest read from the code. The way of each fix was
+decided by the maintainer on 2026-11-14.
+
+### 11.1 Findings
+
+| # | Finding | Where | How found |
+| --- | --- | --- | --- |
+| S1 | **Any connection can read the replies of every other one.** Every grant had `_INBOX.>` in its subscribe list and all connections share one NATS account. A node, which may only publish its telemetry, received the values of the Consul KV the servers read, and every JetStream reply | `bus/auth.go` `permissions()` | probe: 6 messages, 2 with the value |
+| S2 | A usage report may name any namespace, job and group: the server checks only the node ID. A node can move the autoscaler of other jobs and fill `max_series` with made-up groups | `bus_telemetry.go` `handleTelemetry` | code |
+| S3 | The rate limit of section 6 ("the server drops telemetry from a node that publishes faster") was not built: one node can push the reports of the others out of the stream | `ensureTelemetryStream` | code |
+| S4 | The internal token is compared in variable time | `bus/auth.go` | code |
+| L1 | Events of one Raft index can be lost: after a failed batch the publisher resumes after the index of the newest message, so the events of that index not yet stored are skipped | `bus_events.go` `publishBusEvents` | code |
+| L2 | With two servers the streams have two replicas and need both servers | `busReplicas` | code |
+| L3 | A push notice that comes within the cooldown of its registry is acknowledged and dropped | `pushSyncer.handle` | code |
+| L4 | The backoff of the bus loops never goes back: after five failures a loop waits 30 seconds for the rest of its life | `busRetryLoop` | code |
+| L5 | A region named `telemetry` or `packs` (or a subject prefix under `norca.telemetry`) collides with the subjects of the other streams | subjects | code |
+| L6 | Unchecked type assertion on the status of the KV bucket | `ensureConsulKVBucket` | code |
+| C1 | The bus connection of a client keeps the server list of its first connect for ever | `client/bus.go` | code |
+| D1 | The Consul KV bucket has no size limit and the storage budget is checked for two of the four streams only | `bus/config.go` | code |
+| D2 | The Consul KV of the bus is not encrypted at rest; Variables are | `consul_kv_endpoint.go` | code |
+| N1 | Gateways (phase 5) and leaf nodes are not built; the `leafnode` field of the `bus` policy block does nothing | `bus/server.go`, `bus/auth.go` | code |
+
+### 11.2 Decisions
+
+| # | Decision |
+| --- | --- |
+| S1 | A node gets **no subscribe right at all**. An ACL token may subscribe to its own replies only, `_INBOX.<accessor id>.>`: an external consumer sets that inbox prefix in its NATS client (nats.go `CustomInboxPrefix`, `nats --inbox-prefix`). The in-process connections of the servers keep every subject. No separate NATS accounts |
+| S2 | The groups of a report that have no allocation on the reporting node (running or ended, as the state has them) are **dropped and counted**; the connection stays |
+| S3 | The telemetry stream keeps a bounded number of messages per subject (per node), so a node that publishes too fast pushes out its own reports only |
+| S4 | Constant-time comparison |
+| L1 | The publisher resumes at the index of the newest message, that index included, and skips the events of it that are already in the stream (by `Nats-Msg-Id`) |
+| L2 | **Stays at two**, documented: with two servers Raft needs both as well, so the bus is not less available than the control plane, and the data is on both disks |
+| L3 | The notice is delivered again when the cooldown is over |
+| L4 | The backoff starts again after a run that lasted |
+| L5 | The two region names are **refused at start** when the bus is on; the subject prefix is checked against the telemetry and push subjects. The subjects stay as they are |
+| L6 | Checked |
+| C1 | When the client is not connected and a heartbeat brings another server list, the connection is opened again with the new list |
+| D1 | `bus { consul_kv_max_bytes = "256MiB" }`; a write beyond it fails, nothing is dropped. The configuration checks that the events, the push notices, the telemetry and the KV fit into `max_storage`. The deployer plan gets the item |
+| D2 | **Encrypted with the keyring**, as Variables are. Keys that exist are encrypted at their next write; reads understand both forms |
+| N1 | Not in this round |
+
+### 11.3 Order
+
+Two steps. Step 1: S1 to S4, L1 to L6, C1 and D1 on one branch, with tests
+and the lab cases that use the bus. Step 2: D2 on its own branch: the
+envelope of a value, the endpoint, export, import and migration, the key in
+use by the bucket (a root key that encrypts a KV value must not be removed)
+and the rekey of a full rotation.
+
+### 11.4 D2 as built
+
+- **Envelope.** A stored value is a 19-byte marker, the 36-byte ID of the
+  root key, the nonce and the AES-256-GCM ciphertext. The additional data is
+  the key ID and the NATS key of the value, so a sealed value moved under
+  another key in the store files does not open. A value without the marker
+  is a value of before and is returned as it is; one with the marker that
+  does not open is an error. A clear value that began with the marker would
+  be refused, not misread.
+- **Where.** The ConsulKV endpoint seals on Put and opens on Get; the
+  clients and `helper/consulkv` see stored bytes only.
+- **Backups.** The export keeps the stored (sealed) values, next to the
+  keyring, like the Variables. Contents and diff open them with the keyring
+  of the backup, then the one of the server, so the checksum is the one of
+  the value. Single restore, full restore import and the migration from
+  Variables seal with the active key; an import writes nothing when a value
+  does not open. The carry-over from the standalone store copies stored
+  bytes under the same NATS keys.
+- **Key in use.** The state does not know of the bucket. The root key GC
+  reads the key IDs of the bucket once per run, before the first key it
+  would remove, and removes none when the bucket cannot be read.
+  `Keyring.Delete` by hand does not look, as it does not for Variables.
+- **Rekey.** The core job of a full rotation seals the values of the
+  rekeyed keys again, with a check on the revision (a value written
+  meanwhile is left). The revision of a rekeyed value changes.
+- **Not done.** Values of before are not sealed by a sweep: only by their
+  next write (decided). The events, telemetry and push notice streams are
+  not encrypted at rest.
