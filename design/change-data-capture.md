@@ -402,17 +402,23 @@ partition question of C stays.
    `fix/bus-admin-events`): the header `Norca-Job` on the events of the
    topics Job, Evaluation, Allocation, Deployment and Service; no job token
    in the subject.
-9. **Service check status as events (section 6, G3)?** Open; needs the
-   clients to report check changes to the servers.
+9. **Service check status as events (section 6, G3)?** Closed: they are
+   events already. The clients report the state of every check of a native
+   service instance to the servers (health-based catalog); `Ready`,
+   `Health`, `Checks` and `HealthUpdatedAt` are written to Raft, at most
+   every 5 seconds per instance (`norca/service_registration_health.go`), and
+   every recorded change is a `Service` / `ServiceRegistration` event. No new
+   topic. On the bus the outputs of the checks are left out (built
+   2026-11-14, `fix/bus-redact-check-output`).
 10. **Feature name:** decided by the maintainer: **Change Data Capture
     (CDC)**; leaf node is a connection mode of it (section 0).
 11. **Consul KV notices stored?** Decided and built: yes, in
     `NORCA_KV_CHANGES_<region>` (an eighth of `bus.events.max_bytes`).
-12. **The `leafnode` policy field.** Open: keep the technical name, or make
-    the CDC rights a rule of their own (e.g. a `cdc` block: what may be
-    received, by which connection modes) when the leaf mode is built.
-    Recommendation: decide with option B; until then option A (refused when
-    true).
+12. **The `leafnode` policy field.** Decided by the maintainer
+    (2026-11-14): **a `cdc` rule of its own** replaces it: what may be
+    received and by which connection modes (client, workload, leaf). Its
+    shape is designed with option B; until then option A (`leafnode = true`
+    refused).
 13. **Consumers of the CDC streams, step 1:** decided and built (2026-11-14,
     `fix/bus-admin-events`): the limits policy set explicitly, at most
     `bus.events.max_consumers` (64) consumers per stream, consumer limits
@@ -423,6 +429,15 @@ partition question of C stays.
     creates one consumer with all the filters after checking them against
     the reader's rights (section 7.1); one filter may still be created
     through the JetStream API under the reader's name.
+16. **Encryption of the JetStream store at rest:** decided by the maintainer
+    (2026-11-14): **optional**, off by default. It protects the stream files
+    on the servers' disks (events with their full Raft history of the
+    retention, admin events, the audit of the secret store, the KV keys);
+    the KV values stay sealed with the keyring in any case, and a reader with
+    rights still gets clear text. Open when built: where the key comes from
+    (derived from the keyring, or wrapped by the keyring's provider such as a
+    KMS - never a plain key in the agent configuration next to the store),
+    and its rotation (nats-server re-encrypts on a restart with a new key).
 
 ## 6. CDC: Following the Lifecycle of a Job's Allocations
 
@@ -468,10 +483,15 @@ within milliseconds, a pull consumer after its next pull.
   one-way leaf that is the server-owned consumer of section B. On every
   (re)start the controller reconciles once with the API (the job's
   allocations, evaluations), then follows the events.
-- **G3 Service check results are not events.** Native check results stay
-  on the clients (`structs/checks.go`, read through the allocation checks
-  API); readiness by checks needs that API or a deployment's alloc health.
-  Publishing check status changes as events is open (decision 9).
+- **G3 Service check results (corrected 2026-11-14).** The first draft
+  said they are not events; they are, for native services: the
+  health-based catalog writes `Ready`, `Health` and the status of each
+  check of an instance to Raft (at most every 5 seconds per instance), and
+  each recorded change is a `Service` / `ServiceRegistration` event. Ready
+  for a controller is `Ready: true`. Liveness checks are not in `Health`
+  (they restart the task: `Restarting` in the allocation's task events);
+  services of the Consul provider have their health in Consul. The outputs
+  of the checks are left out on the bus (decision 9).
 - **G4 Timeouts are the controller's.** A pending allocation may wait for
   capacity (a blocked evaluation) or for a long download (`Driver` events);
   the events say which state it is in, not how long it will take.
