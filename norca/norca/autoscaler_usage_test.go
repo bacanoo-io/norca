@@ -246,13 +246,32 @@ func TestBusTelemetry_TaskGroupUsage(t *testing.T) {
 	// A report naming another node on the subject of this one is ignored.
 	publish(&structs.TaskGroupUsageReport{NodeID: uuid.Generate(), Window: 5 * time.Second, Groups: group("spoofed")})
 
-	// The leader's collector keeps the usage of the node.
-	publish(&structs.TaskGroupUsageReport{NodeID: node.ID, Window: 5 * time.Second, Groups: group("api")})
+	// The node runs an allocation of the job api and none of the job other.
+	alloc := mock.Alloc()
+	alloc.NodeID, alloc.JobID, alloc.TaskGroup = node.ID, "api", "web"
+	must.NoError(t, s.fsm.State().UpsertAllocs(structs.MsgTypeTestSetup, 1000, []*structs.Allocation{alloc}))
+
+	// The leader's collector keeps the usage of the node, of the groups the
+	// node runs: the group of the other job, in the same report, is left
+	// out and counted.
+	groups := append(group("other"), group("api")...)
+	groups[1].Allocs = 7 // the node has one allocation of it
+	publish(&structs.TaskGroupUsageReport{NodeID: node.ID, Window: 5 * time.Second, Groups: groups})
 	must.Wait(t, wait.InitialSuccess(
 		wait.BoolFunc(func() bool { return s.autoscalerUsageGroupsForTest() == 1 }),
 		wait.Timeout(30*time.Second),
 		wait.Gap(100*time.Millisecond),
 	))
+	must.Eq(t, 1, s.busTelemetryForeign.Load())
+
+	// The same on the report alone.
+	report := &structs.TaskGroupUsageReport{NodeID: node.ID, Groups: append(group("other"), group("api")...)}
+	report.Groups[1].Allocs = 7
+	s.keepOwnTaskGroups(report)
+	must.Len(t, 1, report.Groups)
+	must.Eq(t, "api", report.Groups[0].JobID)
+	must.Eq(t, 1, report.Groups[0].Allocs)
+	must.Eq(t, 2, s.busTelemetryForeign.Load())
 
 	// With the autoscaler disabled clients are not asked for usage.
 	cfg := autoscaler.DefaultConfig()

@@ -54,6 +54,11 @@ func TestMetricsStore_History(t *testing.T) {
 	}, &regResp))
 	must.Eq(t, autoscaler.DefaultClientMetricsInterval, regResp.TaskGroupUsageInterval)
 
+	// The node runs the group it reports.
+	alloc := mock.Alloc()
+	alloc.NodeID, alloc.JobID, alloc.TaskGroup = node.ID, "api", "web"
+	must.NoError(t, st.UpsertAllocs(structs.MsgTypeTestSetup, 1000, []*structs.Allocation{alloc}))
+
 	js := busJS(t, s)
 	waitBus(t, func() (bool, error) {
 		_, err := js.Stream(t.Context(), "NORCA_TELEMETRY_global")

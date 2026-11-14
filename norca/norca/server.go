@@ -255,6 +255,12 @@ type Server struct {
 	bus         *bus.Server
 	busRoutesCh chan struct{}
 
+	// busTelemetryForeign counts the task groups left out of usage reports
+	// because their node has no allocation of them; busTelemetryForeignLogged
+	// is when that was logged last (Unix nanoseconds).
+	busTelemetryForeign       atomic.Uint64
+	busTelemetryForeignLogged atomic.Int64
+
 	// metricsStore keeps the history of the task group usage of the bus;
 	// nil when it or the bus is disabled.
 	metricsStore *metricsstore.Store

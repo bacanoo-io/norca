@@ -14,6 +14,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/bus"
 	"github.com/bacanoo-io/norca/norca/norca/metricsstore"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	metrics "github.com/hashicorp/go-metrics"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -33,6 +34,16 @@ const (
 	// telemetryAckWait is the wait for the acknowledgement of a report
 	// before it is delivered again.
 	telemetryAckWait = 30 * time.Second
+
+	// telemetryMaxPerNode is how many reports of one node the stream keeps:
+	// an hour of reports at the shortest interval, with room for reports
+	// split into several messages. A node that publishes faster pushes out
+	// its own reports, not those of the other nodes.
+	telemetryMaxPerNode = 1024
+
+	// telemetryForeignLogInterval is how often a server logs that reports
+	// named groups their node does not run.
+	telemetryForeignLogInterval = time.Minute
 
 	// telemetryFreshness is how old a report may be beyond its window to
 	// still reach the autoscaler, which takes it as current usage. Older
@@ -72,6 +83,8 @@ func (s *Server) ensureTelemetryStream(ctx context.Context, js jetstream.JetStre
 			MaxMsgSize:  structs.BusTelemetryMaxMsgSize,
 			Storage:     jetstream.FileStorage,
 			Compression: jetstream.S2Compression,
+
+			MaxMsgsPerSubject: telemetryMaxPerNode,
 		})
 }
 
@@ -246,6 +259,56 @@ func (s *Server) recordNodeHost(report *structs.TaskGroupUsageReport, at time.Ti
 	}, report.Host, at)
 }
 
+// keepOwnTaskGroups leaves in a report only the task groups its node has an
+// allocation of, running or ended, as the state of this server has them, and
+// no more allocations of a group than the node has. The node ID of a report
+// is checked against its subject; without this a node could still report the
+// usage of any job, move its autoscaler and fill the metrics store with
+// series of groups that do not exist. What is left out is counted
+// (nomad.bus.telemetry.foreign_groups) and logged once a minute.
+func (s *Server) keepOwnTaskGroups(report *structs.TaskGroupUsageReport) {
+	if len(report.Groups) == 0 {
+		return
+	}
+	allocs, err := s.fsm.State().AllocsByNode(nil, report.NodeID)
+	if err != nil {
+		report.Groups = nil
+		return
+	}
+	type groupKey struct{ namespace, job, group string }
+	own := make(map[groupKey]int, len(allocs))
+	for _, alloc := range allocs {
+		own[groupKey{alloc.Namespace, alloc.JobID, alloc.TaskGroup}]++
+	}
+	kept := report.Groups[:0]
+	for _, g := range report.Groups {
+		if g == nil {
+			continue
+		}
+		n, ok := own[groupKey{g.Namespace, g.JobID, g.TaskGroup}]
+		if !ok {
+			continue
+		}
+		if g.Allocs > n {
+			g.Allocs = n
+		}
+		kept = append(kept, g)
+	}
+	foreign := len(report.Groups) - len(kept)
+	report.Groups = kept
+	if foreign == 0 {
+		return
+	}
+	metrics.IncrCounter([]string{"nomad", "bus", "telemetry", "foreign_groups"}, float32(foreign))
+	total := s.busTelemetryForeign.Add(uint64(foreign))
+	now := time.Now().UnixNano()
+	if last := s.busTelemetryForeignLogged.Load(); now-last > int64(telemetryForeignLogInterval) &&
+		s.busTelemetryForeignLogged.CompareAndSwap(last, now) {
+		s.logger.Warn("system bus: a usage report named task groups its node has no allocation of; they are left out",
+			"node", report.NodeID, "groups", foreign, "total", total)
+	}
+}
+
 // handleTelemetry stores a usage report of the bus in the metrics store and
 // hands it to the autoscaler, which keeps it only on the leader. The node of
 // the report must be the node of the subject, the only subject the node may
@@ -265,6 +328,7 @@ func (s *Server) handleTelemetry(m jetstream.Msg) {
 	}
 	// The report is handled by the time it is acknowledged.
 	defer func() { _ = m.Ack() }()
+	s.keepOwnTaskGroups(&report)
 
 	published := time.Now()
 	var sequence uint64

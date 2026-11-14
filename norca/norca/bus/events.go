@@ -217,13 +217,17 @@ func LastEventIndex(ctx context.Context, stream jetstream.Stream) (index uint64,
 
 // StreamSettings are the limits of a stream the server manages.
 type StreamSettings struct {
-	Replicas    int
-	MaxAge      time.Duration
-	MaxBytes    int64
-	MaxMsgSize  int32
-	Duplicates  time.Duration
-	Storage     jetstream.StorageType
-	Compression jetstream.StoreCompression
+	Replicas   int
+	MaxAge     time.Duration
+	MaxBytes   int64
+	MaxMsgSize int32
+	Duplicates time.Duration
+
+	// MaxMsgsPerSubject bounds the messages kept of one subject; 0 for no
+	// bound. The oldest of the subject goes first.
+	MaxMsgsPerSubject int64
+	Storage           jetstream.StorageType
+	Compression       jetstream.StoreCompression
 }
 
 // EnsureStream creates a stream or updates the settings of an existing one
@@ -242,6 +246,10 @@ func EnsureStream(ctx context.Context, js jetstream.JetStream, name, description
 			cfg.MaxMsgSize = -1
 		}
 		cfg.Duplicates = set.Duplicates
+		cfg.MaxMsgsPerSubject = set.MaxMsgsPerSubject
+		if cfg.MaxMsgsPerSubject <= 0 {
+			cfg.MaxMsgsPerSubject = -1
+		}
 		cfg.Discard = jetstream.DiscardOld
 		if cfg.Storage == jetstream.FileStorage {
 			cfg.Compression = set.Compression
@@ -271,6 +279,7 @@ func EnsureStream(ctx context.Context, js jetstream.JetStream, name, description
 	apply(&cfg)
 	if cfg.Replicas == before.Replicas && cfg.MaxAge == before.MaxAge && cfg.MaxBytes == before.MaxBytes &&
 		cfg.MaxMsgSize == before.MaxMsgSize && cfg.Duplicates == before.Duplicates &&
+		cfg.MaxMsgsPerSubject == before.MaxMsgsPerSubject &&
 		cfg.Discard == before.Discard && cfg.Compression == before.Compression {
 		return nil
 	}
