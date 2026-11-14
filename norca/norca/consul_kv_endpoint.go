@@ -29,7 +29,8 @@ const consulKVMaxValueSize = 512 * 1024
 // clients). The clients have no access to the bucket: they forward the KV
 // requests with the token of the request, and the servers apply the
 // Variables rules of the path of the keys in the namespace of the request.
-// The keys of every namespace and path are kept apart (ScopePrefix).
+// The keys of every namespace and path are kept apart (ScopePrefix). The
+// values are sealed with the keyring in the bucket (consul_kv_seal.go).
 type ConsulKV struct {
 	srv *Server
 	ctx *RPCContext
@@ -73,7 +74,8 @@ func (k *ConsulKV) Get(args *structs.ConsulKVGetRequest, reply *structs.ConsulKV
 	}
 
 	namespace := args.RequestNamespace()
-	found, index, err := consulkv.Get(k.srv.shutdownCtx, kv, consulkv.ScopePrefix(namespace, path),
+	scope := consulkv.ScopePrefix(namespace, path)
+	found, index, err := consulkv.Get(k.srv.shutdownCtx, kv, scope,
 		args.Key, args.Prefix, args.MinQueryIndex, args.TimeToBlock())
 	if err != nil {
 		return consulKVError(err)
@@ -81,9 +83,14 @@ func (k *ConsulKV) Get(args *structs.ConsulKVGetRequest, reply *structs.ConsulKV
 	reply.Entries = make([]*structs.ConsulKVEntry, 0, len(found))
 	for _, e := range found {
 		// clean room bugfix: only the keys the token may read are listed.
-		if consulKVAllowed(aclObj, namespace, path, acl.VariablesCapabilityRead, e.Key) {
-			reply.Entries = append(reply.Entries, &structs.ConsulKVEntry{Key: e.Key, Value: e.Value, Revision: e.Revision})
+		if !consulKVAllowed(aclObj, namespace, path, acl.VariablesCapabilityRead, e.Key) {
+			continue
 		}
+		value, _, err := k.srv.encrypter.openConsulKV(scope+consulkv.EncodeKey(e.Key), e.Value)
+		if err != nil {
+			return fmt.Errorf("key %q: %w", e.Key, err)
+		}
+		reply.Entries = append(reply.Entries, &structs.ConsulKVEntry{Key: e.Key, Value: value, Revision: e.Revision})
 	}
 	reply.Index = index
 	reply.KnownLeader = true
@@ -117,8 +124,12 @@ func (k *ConsulKV) Put(args *structs.ConsulKVPutRequest, reply *structs.ConsulKV
 	if err != nil {
 		return err
 	}
-	ok, err := consulkv.Put(k.srv.shutdownCtx, kv, consulkv.ScopePrefix(args.RequestNamespace(), path),
-		args.Key, args.Value, args.CAS)
+	scope := consulkv.ScopePrefix(args.RequestNamespace(), path)
+	sealed, err := k.srv.encrypter.sealConsulKV(scope+consulkv.EncodeKey(args.Key), args.Value)
+	if err != nil {
+		return fmt.Errorf("encrypting the value: %w", err)
+	}
+	ok, err := consulkv.Put(k.srv.shutdownCtx, kv, scope, args.Key, sealed, args.CAS)
 	if err != nil {
 		return consulKVError(err)
 	}

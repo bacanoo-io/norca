@@ -378,6 +378,7 @@ func (b *Backup) Contents(args *structs.BackupContentsRequest, reply *structs.Ba
 		namespace: args.RequestNamespace(),
 		jobID:     args.JobID,
 		prefix:    args.PathPrefix,
+		keyring:   b.srv.encrypter,
 	})
 	if err != nil {
 		return err
@@ -420,6 +421,7 @@ func (b *Backup) Diff(args *structs.BackupDiffRequest, reply *structs.BackupDiff
 	switch args.Against {
 	case "", "current":
 		to.state = b.srv.fsm.State()
+		to.keyrings = []*Encrypter{b.srv.encrypter}
 		if args.Type == "" || args.Type == structs.BackupContentConsulKV {
 			if to.consulKV, err = b.srv.exportConsulKV(ctx); err != nil {
 				return fmt.Errorf("failed to read the current Consul KV: %w", err)
@@ -432,7 +434,7 @@ func (b *Backup) Diff(args *structs.BackupDiffRequest, reply *structs.BackupDiff
 		if err != nil {
 			return err
 		}
-		to = backupSide{state: other.State, consulKV: other.ConsulKV}
+		to = backupSide{state: other.State, consulKV: other.ConsulKV, keyrings: backupKeyrings(other, b.srv.encrypter)}
 		diff.To = other.Record.ID
 		diff.ToIndex = other.Record.RaftIndex
 	}
@@ -442,7 +444,8 @@ func (b *Backup) Diff(args *structs.BackupDiffRequest, reply *structs.BackupDiff
 		namespace: args.RequestNamespace(),
 		jobID:     args.JobID,
 	}
-	diff.Objects, err = backupDiff(backupSide{state: from.State, consulKV: from.ConsulKV}, to, args.Type, filter)
+	fromSide := backupSide{state: from.State, consulKV: from.ConsulKV, keyrings: backupKeyrings(from, b.srv.encrypter)}
+	diff.Objects, err = backupDiff(fromSide, to, args.Type, filter)
 	if err != nil {
 		return err
 	}

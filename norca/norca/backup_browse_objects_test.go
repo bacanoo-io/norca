@@ -265,7 +265,7 @@ func TestBusKV_RestoreEndpoint(t *testing.T) {
 	must.NoError(t, err)
 	must.Len(t, 1, export.Entries)
 	must.Eq(t, "b", export.Entries[0].Key)
-	must.Eq(t, []byte("3"), export.Entries[0].Value)
+	must.Eq(t, "3", openStoredConsulKV(t, srv, consulKVNATSKey(export.Entries[0]), export.Entries[0].Value))
 }
 
 // Every restorable type goes the whole way: written through its endpoint,

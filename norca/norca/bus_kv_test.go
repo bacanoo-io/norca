@@ -125,7 +125,9 @@ func TestBusKV_Backup(t *testing.T) {
 	must.Eq(t, "create", res.Action)
 	e, err := kv.Get(t.Context(), testConsulKVKey("app/db.url"))
 	must.NoError(t, err)
-	must.Eq(t, "postgres://db", string(e.Value()))
+	must.Eq(t, "postgres://db", openStoredConsulKV(t, srv, e.Key(), e.Value()))
+	_, sealed := consulKVSealKeyID(e.Value())
+	must.True(t, sealed)
 
 	// An existing key needs its current revision as the check index.
 	res = restore(&structs.BackupRestoreItem{Type: structs.BackupRestoreItemConsulKV, ID: "app/config"})
@@ -136,7 +138,7 @@ func TestBusKV_Backup(t *testing.T) {
 	must.Eq(t, "", res.Error)
 	e, err = kv.Get(t.Context(), testConsulKVKey("app/config"))
 	must.NoError(t, err)
-	must.Eq(t, "v1", string(e.Value()))
+	must.Eq(t, "v1", openStoredConsulKV(t, srv, e.Key(), e.Value()))
 
 	// A key under another path is named "<path>:<key>".
 	res = restore(&structs.BackupRestoreItem{Type: structs.BackupRestoreItemConsulKV, ID: "scratch:app/config"})
@@ -144,7 +146,7 @@ func TestBusKV_Backup(t *testing.T) {
 	must.Eq(t, "create", res.Action)
 	e, err = kv.Get(t.Context(), scratchKey)
 	must.NoError(t, err)
-	must.Eq(t, "s", string(e.Value()))
+	must.Eq(t, "s", openStoredConsulKV(t, srv, e.Key(), e.Value()))
 
 	// A key that is not in the backup is an error.
 	res = restore(&structs.BackupRestoreItem{Type: structs.BackupRestoreItemConsulKV, ID: "app/none"})
@@ -231,7 +233,7 @@ func TestBusKV_Migrate(t *testing.T) {
 	must.Eq(t, []string{"app/other"}, res.Conflicts)
 	e, err := kv.Get(t.Context(), testConsulKVKey("app/bin"))
 	must.NoError(t, err)
-	must.Eq(t, []byte{0xff, 0x00}, e.Value())
+	must.Eq(t, string([]byte{0xff, 0x00}), openStoredConsulKV(t, srv, e.Key(), e.Value()))
 	e, err = kv.Get(t.Context(), testConsulKVKey("app/other"))
 	must.NoError(t, err)
 	must.Eq(t, "new", string(e.Value()), must.Sprint("an existing key is not overwritten"))
@@ -352,6 +354,15 @@ func TestBusKV_CarryOver(t *testing.T) {
 	must.Eq(t, "postgres://db", string(export.Entry("default", consulkv.DefaultPath, "app/db.url").Value))
 	_, err = os.Stat(filepath.Join(s1.bus.StandaloneStoreDir(), busCarriedOverMarker))
 	must.NoError(t, err)
+}
+
+// openStoredConsulKV returns the value of a value of the bucket as stored
+// under natsKey, opened with the keyring of the server.
+func openStoredConsulKV(t *testing.T, srv *Server, natsKey string, stored []byte) string {
+	t.Helper()
+	value, _, err := srv.encrypter.openConsulKV(natsKey, stored)
+	must.NoError(t, err)
+	return string(value)
 }
 
 // testConsulKVKey is the NATS key of a key under consul/kv in the default

@@ -501,6 +501,13 @@ func (r *backupRestorer) restoreConsulKV(item *structs.BackupRestoreItem, result
 		return fmt.Errorf("the system bus has no Consul KV bucket")
 	}
 	key := consulKVNATSKey(entry)
+	// The value of the backup is sealed with a root key of its time: opened
+	// with the keyring of the backup or the one of the server, and sealed
+	// with the active key.
+	value, err := openConsulKVWith(key, entry.Value, r.keyring, r.b.srv.encrypter)
+	if err != nil {
+		return fmt.Errorf("Consul KV key %q: %w", item.ID, err)
+	}
 	current, err := kv.Get(ctx, key)
 	switch {
 	case errors.Is(err, jetstream.ErrKeyNotFound):
@@ -510,11 +517,11 @@ func (r *backupRestorer) restoreConsulKV(item *structs.BackupRestoreItem, result
 	}
 	if current == nil {
 		result.Action = "create"
-		result.Description = fmt.Sprintf("re-create Consul KV key %q (%d bytes)", item.ID, len(entry.Value))
+		result.Description = fmt.Sprintf("re-create Consul KV key %q (%d bytes)", item.ID, len(value))
 	} else {
 		result.Action = "update"
 		result.CurrentIndex = current.Revision()
-		result.Description = fmt.Sprintf("overwrite Consul KV key %q (%d bytes) at revision %d", item.ID, len(entry.Value), current.Revision())
+		result.Description = fmt.Sprintf("overwrite Consul KV key %q (%d bytes) at revision %d", item.ID, len(value), current.Revision())
 		if item.CheckIndex == nil || *item.CheckIndex == 0 {
 			msg := fmt.Sprintf("Consul KV key %q exists (revision %d); give that check index to overwrite it", item.ID, current.Revision())
 			if r.args.DryRun {
@@ -527,11 +534,15 @@ func (r *backupRestorer) restoreConsulKV(item *structs.BackupRestoreItem, result
 	if r.args.DryRun {
 		return nil
 	}
+	sealed, err := r.b.srv.encrypter.sealConsulKV(key, value)
+	if err != nil {
+		return fmt.Errorf("encrypting Consul KV key %q: %w", item.ID, err)
+	}
 	var revision uint64
 	if current == nil {
-		revision, err = kv.Create(ctx, key, entry.Value)
+		revision, err = kv.Create(ctx, key, sealed)
 	} else {
-		revision, err = kv.Update(ctx, key, entry.Value, *item.CheckIndex)
+		revision, err = kv.Update(ctx, key, sealed, *item.CheckIndex)
 	}
 	if err != nil {
 		return fmt.Errorf("Consul KV key %q was not restored: %w", item.ID, err)

@@ -53,7 +53,10 @@ func (s *Server) consulKVBucket(ctx context.Context) (jetstream.KeyValue, func()
 }
 
 // exportConsulKV reads every key of the Consul KV bucket of the bus; nil
-// without a bus or bucket.
+// without a bus or bucket. The values are as the bucket stores them, sealed
+// with the keyring: a backup keeps them so, next to the keyring, like the
+// Variables. openConsulKVWith opens the value of an entry
+// (consulKVNATSKey).
 func (s *Server) exportConsulKV(ctx context.Context) (*consulkv.Export, error) {
 	kv, done, err := s.consulKVBucket(ctx)
 	if err != nil {
@@ -106,7 +109,10 @@ func (s *Server) backupConsulKV(ctx context.Context) ([]byte, error) {
 }
 
 // importConsulKV writes keys of the Consul KV bucket of the bus. With replace
-// the bucket is emptied first (a full restore).
+// the bucket is emptied first (a full restore). The values of the entries
+// are sealed (an export) or clear; they are sealed with the active root key
+// here. Nothing is written when a value does not open with the keyring of
+// the server.
 func (s *Server) importConsulKV(ctx context.Context, entries []*consulkv.Entry, replace bool) error {
 	kv, done, err := s.consulKVBucket(ctx)
 	if err != nil {
@@ -115,6 +121,17 @@ func (s *Server) importConsulKV(ctx context.Context, entries []*consulkv.Entry, 
 	defer done()
 	if kv == nil {
 		return errors.New("the system bus has no Consul KV bucket")
+	}
+	sealed := make([][]byte, len(entries))
+	for i, e := range entries {
+		natsKey := consulKVNATSKey(e)
+		value, err := openConsulKVWith(natsKey, e.Value, s.encrypter)
+		if err != nil {
+			return fmt.Errorf("key %q: %w", e.Key, err)
+		}
+		if sealed[i], err = s.encrypter.sealConsulKV(natsKey, value); err != nil {
+			return fmt.Errorf("encrypting key %q: %w", e.Key, err)
+		}
 	}
 	if replace {
 		lister, err := kv.ListKeys(ctx)
@@ -135,8 +152,8 @@ func (s *Server) importConsulKV(ctx context.Context, entries []*consulkv.Entry, 
 			}
 		}
 	}
-	for _, e := range entries {
-		if _, err := kv.Put(ctx, consulKVNATSKey(e), e.Value); err != nil {
+	for i, e := range entries {
+		if _, err := kv.Put(ctx, consulKVNATSKey(e), sealed[i]); err != nil {
 			return fmt.Errorf("writing %q: %w", e.Key, err)
 		}
 	}
@@ -217,7 +234,11 @@ func (s *Server) migrateConsulKV(ctx context.Context, aclObj *acl.ACL, namespace
 
 		natsKey := consulkv.ScopePrefix(namespace, path) + consulkv.EncodeKey(key)
 		if !dryRun {
-			_, err = kv.Create(ctx, natsKey, value)
+			sealed, err := s.encrypter.sealConsulKV(natsKey, value)
+			if err != nil {
+				return nil, fmt.Errorf("encrypting %q: %w", key, err)
+			}
+			_, err = kv.Create(ctx, natsKey, sealed)
 			if err == nil {
 				result.Copied = append(result.Copied, key)
 				continue
@@ -227,14 +248,19 @@ func (s *Server) migrateConsulKV(ctx context.Context, aclObj *acl.ACL, namespace
 			}
 		}
 		existing, err := kv.Get(ctx, natsKey)
-		switch {
-		case errors.Is(err, jetstream.ErrKeyNotFound):
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			result.Copied = append(result.Copied, key)
-		case err != nil:
+			continue
+		}
+		if err != nil {
 			return nil, fmt.Errorf("reading %q: %w", key, err)
-		case bytes.Equal(existing.Value(), value):
+		}
+		// A value of the bucket that does not open is not the value of the
+		// Variable as far as anyone can tell: a conflict.
+		current, _, err := s.encrypter.openConsulKV(natsKey, existing.Value())
+		if err == nil && bytes.Equal(current, value) {
 			result.Unchanged = append(result.Unchanged, key)
-		default:
+		} else {
 			result.Conflicts = append(result.Conflicts, key)
 		}
 	}
@@ -272,7 +298,9 @@ func (s *Server) busCarryOverLoop() {
 
 // carryOverConsulKV copies the keys of the Consul KV bucket of the
 // standalone store into the clustered bucket once the leader created it.
-// Keys written on the cluster meanwhile are kept. done is true when there is
+// Keys written on the cluster meanwhile are kept. The values are copied as
+// stored, under the same NATS keys: a sealed one stays sealed with its root
+// key, a clear one is sealed by its next write. done is true when there is
 // nothing (more) to carry over.
 func (s *Server) carryOverConsulKV(ctx context.Context) (bool, error) {
 	aside := s.bus.StandaloneStoreDir()

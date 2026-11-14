@@ -86,6 +86,10 @@ type backupContentsFilter struct {
 	namespace string
 	jobID     string
 	prefix    string
+
+	// keyring is the keyring of the server, the second one to open the
+	// sealed values of the Consul KV of a backup with.
+	keyring *Encrypter
 }
 
 func (f *backupContentsFilter) job(ns, id string) bool {
@@ -166,20 +170,45 @@ func consulKVNamespace(ns string) string {
 	return ns
 }
 
-// consulKVStub summarizes a key of the Consul KV without its value.
-func consulKVStub(e *consulkv.Entry) *structs.BackupConsulKVStub {
-	sum := sha256.Sum256(e.Value)
+// consulKVStub summarizes a key of the Consul KV without its value. The
+// size and the checksum are those of the value, opened with the first of
+// the keyrings that can; of the sealed value, which differs after every
+// write, when none can.
+func consulKVStub(e *consulkv.Entry, keyrings ...*Encrypter) *structs.BackupConsulKVStub {
+	value, err := openConsulKVWith(consulKVNATSKey(e), e.Value, keyrings...)
+	if err != nil {
+		value = e.Value
+	}
+	sum := sha256.Sum256(value)
 	return &structs.BackupConsulKVStub{
 		Namespace: e.Namespace, Path: e.Path, Key: e.Key,
-		Size: len(e.Value), Revision: e.Revision, Created: e.Created,
+		Size: len(value), Revision: e.Revision, Created: e.Created,
 		SHA256: hex.EncodeToString(sum[:]),
 	}
 }
 
-// backupSide is one side of a diff: a state store and the Consul KV.
+// backupSide is one side of a diff: a state store and the Consul KV, with
+// the keyrings that open its values.
 type backupSide struct {
 	state    *state.StateStore
 	consulKV *consulkv.Export
+	keyrings []*Encrypter
+}
+
+// backupKeyrings returns the keyrings that may open the sealed values of a
+// backup: its own, when it has one that can be read, then the one of the
+// server, which still holds the keys that were not removed since.
+func backupKeyrings(loaded *backup.Loaded, server *Encrypter) []*Encrypter {
+	keyrings := make([]*Encrypter, 0, 2)
+	if loaded != nil && loaded.Keys != nil {
+		if keyring, err := newBackupKeyring(loaded.Keys); err == nil {
+			keyrings = append(keyrings, keyring)
+		}
+	}
+	if server != nil {
+		keyrings = append(keyrings, server)
+	}
+	return keyrings
 }
 
 // backupContents returns the objects of one content type of a backup.
@@ -346,9 +375,10 @@ func backupContents(loaded *backup.Loaded, contentType string, f *backupContents
 
 	case structs.BackupContentConsulKV:
 		if loaded.ConsulKV != nil {
+			keyrings := backupKeyrings(loaded, f.keyring)
 			for _, e := range loaded.ConsulKV.Entries {
 				if f.consulKV(e) {
-					out.ConsulKV = append(out.ConsulKV, consulKVStub(e))
+					out.ConsulKV = append(out.ConsulKV, consulKVStub(e, keyrings...))
 				}
 			}
 		}
@@ -626,7 +656,7 @@ func backupDiffEntries(side backupSide, contentType string, f *backupContentsFil
 			for _, e := range side.consulKV.Entries {
 				if f.consulKV(e) {
 					add(&backupDiffEntry{namespace: e.Namespace, id: consulKVItemID(e.Path, e.Key),
-						status: "sha256:" + consulKVStub(e).SHA256[:12]})
+						status: "sha256:" + consulKVStub(e, side.keyrings...).SHA256[:12]})
 				}
 			}
 		}

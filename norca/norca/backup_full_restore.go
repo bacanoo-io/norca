@@ -172,8 +172,10 @@ func (b *Backup) fullRestorePreview(loaded *backup.Loaded) (*structs.BackupResto
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the current Consul KV: %w", err)
 	}
-	diffs, err := backupDiff(backupSide{state: loaded.State, consulKV: loaded.ConsulKV},
-		backupSide{state: current, consulKV: currentKV}, "", &backupContentsFilter{namespace: "*"})
+	diffs, err := backupDiff(
+		backupSide{state: loaded.State, consulKV: loaded.ConsulKV, keyrings: backupKeyrings(loaded, b.srv.encrypter)},
+		backupSide{state: current, consulKV: currentKV, keyrings: []*Encrypter{b.srv.encrypter}},
+		"", &backupContentsFilter{namespace: "*"})
 	if err != nil {
 		return nil, err
 	}

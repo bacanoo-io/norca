@@ -924,6 +924,11 @@ func (c *CoreScheduler) rootKeyGC(eval *structs.Evaluation) error {
 		return err
 	}
 
+	// Norca: the root keys that seal values of the Consul KV bucket of the
+	// system bus, which the state does not know of; read once, when the
+	// first key comes that nothing else keeps.
+	var consulKVKeys map[string]int
+
 	for {
 		raw := iter.Next()
 		if raw == nil {
@@ -942,6 +947,20 @@ func (c *CoreScheduler) rootKeyGC(eval *structs.Evaluation) error {
 			return err
 		}
 		if inUse {
+			continue
+		}
+		if consulKVKeys == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), c.srv.GetConfig().EvalNackTimeout/2)
+			consulKVKeys, err = c.srv.consulKVKeyIDs(ctx)
+			cancel()
+			if err != nil {
+				// A key that may seal a value there is not removed on a
+				// guess: the next run looks again.
+				c.logger.Warn("root key GC skipped: the Consul KV of the system bus cannot be read", "error", err)
+				return nil
+			}
+		}
+		if consulKVKeys[keyMeta.KeyID] > 0 {
 			continue
 		}
 
@@ -1027,6 +1046,17 @@ func (c *CoreScheduler) variablesRekey(eval *structs.Evaluation) error {
 			return err
 		}
 
+		// Norca: the values of the Consul KV bucket of the system bus
+		// sealed with the key.
+		ctx, cancel := context.WithTimeout(context.Background(), c.srv.GetConfig().EvalNackTimeout/2)
+		rekeyed, err := c.srv.rekeyConsulKV(ctx, keyMeta.KeyID)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("rekeying the Consul KV of the system bus: %w", err)
+		}
+		if rekeyed > 0 {
+			c.logger.Info("rekeyed the Consul KV of the system bus", "key_id", keyMeta.KeyID, "values", rekeyed)
+		}
 	}
 
 	return nil
