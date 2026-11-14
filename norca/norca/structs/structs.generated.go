@@ -162814,9 +162814,9 @@ func (x *ObjectKindWebhookApprovalRequest) CodecEncodeSelf(e *codec1978.Encoder)
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(9)
+				r.WriteArrayStart(10)
 			} else {
-				r.WriteMapStart(9)
+				r.WriteMapStart(10)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -162916,6 +162916,25 @@ func (x *ObjectKindWebhookApprovalRequest) CodecEncodeSelf(e *codec1978.Encoder)
 				if false {
 				} else {
 					r.EncodeBool(bool(x.Revoke))
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					r.EncodeUint(uint64(x.KindModifyIndex))
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"KindModifyIndex\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `KindModifyIndex`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					r.EncodeUint(uint64(x.KindModifyIndex))
 				}
 			}
 			if yyr2 || yy2arr2 {
@@ -163126,6 +163145,12 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromMap(l int, d *code
 			} else {
 				x.Revoke = (bool)(r.DecodeBool())
 			}
+		case "KindModifyIndex":
+			if r.TryDecodeAsNil() {
+				x.KindModifyIndex = 0
+			} else {
+				x.KindModifyIndex = (uint64)(r.DecodeUint64())
+			}
 		case "Region":
 			if r.TryDecodeAsNil() {
 				x.WriteRequest.Region = ""
@@ -163167,16 +163192,16 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj13 int
-	var yyb13 bool
-	var yyhl13 bool = l >= 0
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	var yyj14 int
+	var yyb14 bool
+	var yyhl14 bool = l >= 0
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163186,13 +163211,13 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 	} else {
 		x.Group = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163202,13 +163227,13 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 	} else {
 		x.Kind = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163218,13 +163243,13 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 	} else {
 		x.Webhook = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163234,13 +163259,29 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 	} else {
 		x.Revoke = (bool)(r.DecodeBool())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.KindModifyIndex = 0
+	} else {
+		x.KindModifyIndex = (uint64)(r.DecodeUint64())
+	}
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
+	} else {
+		yyb14 = r.CheckBreak()
+	}
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163250,13 +163291,13 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 	} else {
 		x.Region = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163266,13 +163307,13 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 	} else {
 		x.Namespace = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163282,13 +163323,13 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 	} else {
 		x.AuthToken = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163298,13 +163339,13 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 	} else {
 		x.IdempotencyToken = (string)(r.DecodeString())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -163315,17 +163356,17 @@ func (x *ObjectKindWebhookApprovalRequest) codecDecodeSelfFromArray(l int, d *co
 		x.Forwarded = (bool)(r.DecodeBool())
 	}
 	for {
-		yyj13++
-		if yyhl13 {
-			yyb13 = yyj13 > l
+		yyj14++
+		if yyhl14 {
+			yyb14 = yyj14 > l
 		} else {
-			yyb13 = r.CheckBreak()
+			yyb14 = r.CheckBreak()
 		}
-		if yyb13 {
+		if yyb14 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj13-1, "")
+		z.DecStructFieldNotFound(yyj14-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -185425,9 +185466,9 @@ func (x *ReleasePack) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(11)
+				r.WriteArrayStart(12)
 			} else {
-				r.WriteMapStart(11)
+				r.WriteMapStart(12)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -185699,14 +185740,33 @@ func (x *ReleasePack) CodecEncodeSelf(e *codec1978.Encoder) {
 					}
 				}
 			}
-			var yyn33 bool
-			if x.Requires == nil {
-				yyn33 = true
-				goto LABEL33
-			}
-		LABEL33:
 			if yyr2 || yy2arr2 {
-				if yyn33 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					r.EncodeBool(bool(x.ServerRendered))
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"ServerRendered\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `ServerRendered`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					r.EncodeBool(bool(x.ServerRendered))
+				}
+			}
+			var yyn36 bool
+			if x.Requires == nil {
+				yyn36 = true
+				goto LABEL36
+			}
+		LABEL36:
+			if yyr2 || yy2arr2 {
+				if yyn36 {
 					r.WriteArrayElem()
 					r.EncodeNil()
 				} else {
@@ -185725,7 +185785,7 @@ func (x *ReleasePack) CodecEncodeSelf(e *codec1978.Encoder) {
 					r.EncodeStringEnc(codecSelferCcUTF8100, `Requires`)
 				}
 				r.WriteMapElemValue()
-				if yyn33 {
+				if yyn36 {
 					r.EncodeNil()
 				} else {
 					if x.Requires == nil {
@@ -185855,6 +185915,12 @@ func (x *ReleasePack) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 			} else {
 				x.TrustedSigner = (string)(r.DecodeString())
 			}
+		case "ServerRendered":
+			if r.TryDecodeAsNil() {
+				x.ServerRendered = false
+			} else {
+				x.ServerRendered = (bool)(r.DecodeBool())
+			}
 		case "Requires":
 			if r.TryDecodeAsNil() {
 				if true && x.Requires != nil {
@@ -185878,16 +185944,16 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj16 int
-	var yyb16 bool
-	var yyhl16 bool = l >= 0
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	var yyj17 int
+	var yyb17 bool
+	var yyhl17 bool = l >= 0
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -185897,13 +185963,13 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Name = (string)(r.DecodeString())
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -185913,13 +185979,13 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Version = (string)(r.DecodeString())
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -185929,13 +185995,13 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Registry = (string)(r.DecodeString())
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -185945,13 +186011,13 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Path = (string)(r.DecodeString())
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -185961,13 +186027,13 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Source = (string)(r.DecodeString())
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -185977,13 +186043,13 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Ref = (string)(r.DecodeString())
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -185993,13 +186059,13 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Digest = (string)(r.DecodeString())
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -186009,13 +186075,13 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Signer = (string)(r.DecodeString())
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -186028,13 +186094,13 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 			h.decSlicePtrtoReleasePackSignature((*[]*ReleasePackSignature)(&x.Signatures), d)
 		}
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -186044,13 +186110,29 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.TrustedSigner = (string)(r.DecodeString())
 	}
-	yyj16++
-	if yyhl16 {
-		yyb16 = yyj16 > l
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
 	} else {
-		yyb16 = r.CheckBreak()
+		yyb17 = r.CheckBreak()
 	}
-	if yyb16 {
+	if yyb17 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.ServerRendered = false
+	} else {
+		x.ServerRendered = (bool)(r.DecodeBool())
+	}
+	yyj17++
+	if yyhl17 {
+		yyb17 = yyj17 > l
+	} else {
+		yyb17 = r.CheckBreak()
+	}
+	if yyb17 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -186067,17 +186149,17 @@ func (x *ReleasePack) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		x.Requires.CodecDecodeSelf(d)
 	}
 	for {
-		yyj16++
-		if yyhl16 {
-			yyb16 = yyj16 > l
+		yyj17++
+		if yyhl17 {
+			yyb17 = yyj17 > l
 		} else {
-			yyb16 = r.CheckBreak()
+			yyb17 = r.CheckBreak()
 		}
-		if yyb16 {
+		if yyb17 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj16-1, "")
+		z.DecStructFieldNotFound(yyj17-1, "")
 	}
 	r.ReadArrayEnd()
 }
