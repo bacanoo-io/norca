@@ -34,6 +34,13 @@ bus {
 		`bus { publish = ["a b"] }`,
 		`bus { subscribe = ["$SYS.>"] }`,
 		`bus { subscribe = ["$SYS"] }`,
+		// A rule that would reach the replies of other connections.
+		`bus { subscribe = ["_INBOX.>"] }`,
+		`bus { subscribe = ["_INBOX"] }`,
+		`bus { subscribe = [">"] }`,
+		`bus { subscribe = ["*.events.>"] }`,
+		`bus { publish = [">"] }`,
+		`bus { publish = ["_INBOX.abc.def"] }`,
 	} {
 		_, err := Parse(bad)
 		must.ErrorContains(t, err, "Invalid bus policy", must.Sprint(bad))

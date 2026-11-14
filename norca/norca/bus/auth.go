@@ -4,9 +4,11 @@
 package bus
 
 import (
+	"crypto/subtle"
 	"crypto/tls"
 	"net"
 	"slices"
+	"strings"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 )
@@ -51,14 +53,25 @@ type Grant struct {
 	// connection may publish and subscribe to, unless All is set.
 	Publish   []string
 	Subscribe []string
+
+	// Inbox is the subject prefix of the replies of the connection's own
+	// requests, e.g. "_INBOX.<accessor id>": the connection may subscribe
+	// below it and nowhere else in the inboxes. Empty: the connection gets
+	// no replies (a node only publishes). The connections of one account
+	// share the subjects, so a common "_INBOX.>" would let every connection
+	// read the replies of all the others.
+	Inbox string
 }
+
+// InboxPrefix is the first token of the inbox subjects, as in NATS.
+const InboxPrefix = "_INBOX"
 
 // Equal reports whether two grants allow the same.
 func (g *Grant) Equal(o *Grant) bool {
 	if g == nil || o == nil {
 		return g == o
 	}
-	return g.Kind == o.Kind && g.Name == o.Name && g.All == o.All &&
+	return g.Kind == o.Kind && g.Name == o.Name && g.All == o.All && g.Inbox == o.Inbox &&
 		slices.Equal(g.Publish, o.Publish) && slices.Equal(g.Subscribe, o.Subscribe)
 }
 
@@ -86,7 +99,7 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 	}
 
 	var grant *Grant
-	if creds.Token != "" && creds.Token == s.internalToken {
+	if creds.Token != "" && subtle.ConstantTimeCompare([]byte(creds.Token), []byte(s.internalToken)) == 1 {
 		grant = &Grant{Kind: KindInternal, Name: "server", All: true}
 	} else {
 		g, err := s.authz(creds)
@@ -107,20 +120,32 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 	return true
 }
 
-// permissions converts a grant into NATS permissions. Every connection may
-// receive the replies of its own requests (_INBOX).
+// permissions converts a grant into NATS permissions. A connection may
+// receive the replies of its own requests below its Inbox only. The publish
+// and subscribe subjects of a grant never reach into the inboxes
+// (CoversInbox): the authorizer leaves such subjects out.
 func permissions(g *Grant) *natsserver.Permissions {
 	if g.All {
 		return nil
 	}
+	subscribe := slices.Clone(g.Subscribe)
+	if g.Inbox != "" {
+		subscribe = append(subscribe, g.Inbox+".>")
+	}
 	return &natsserver.Permissions{
-		Publish: &natsserver.SubjectPermission{Allow: nonEmpty(g.Publish)},
-		Subscribe: &natsserver.SubjectPermission{
-			Allow: append(slices.Clone(g.Subscribe), "_INBOX.>"),
-		},
+		Publish:   &natsserver.SubjectPermission{Allow: nonEmpty(g.Publish)},
+		Subscribe: &natsserver.SubjectPermission{Allow: nonEmpty(subscribe)},
 		// Requests to the connection's own subscriptions may be answered.
 		Response: &natsserver.ResponsePermission{MaxMsgs: 1},
 	}
+}
+
+// CoversInbox reports whether a subject of a rule reaches the inbox
+// subjects: its first token is "_INBOX" or a wildcard. Such a rule would let
+// a connection read, or write, the replies of other connections.
+func CoversInbox(subject string) bool {
+	first, _, _ := strings.Cut(subject, ".")
+	return first == InboxPrefix || first == "*" || first == ">"
 }
 
 // nonEmpty returns a list that allows nothing for an empty one: NATS treats

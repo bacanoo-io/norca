@@ -55,6 +55,15 @@ func validateBusSubject(subject string) error {
 		return fmt.Errorf("bus subject %q: the $SYS subjects can't be granted", subject)
 	}
 	tokens := strings.Split(subject, ".")
+	// The replies of requests go to inbox subjects, each connection to its
+	// own. A rule that starts with a wildcard or with _INBOX would reach the
+	// replies of other connections.
+	switch tokens[0] {
+	case "_INBOX":
+		return fmt.Errorf("bus subject %q: the _INBOX subjects can't be granted, a connection gets its own replies", subject)
+	case "*", ">":
+		return fmt.Errorf("bus subject %q: a subject starts with a name, not with a wildcard (it would cover the replies of other connections)", subject)
+	}
 	for i, tok := range tokens {
 		switch {
 		case tok == "":

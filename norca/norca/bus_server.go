@@ -228,6 +228,9 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 		// no access to the bucket of the Consul KV, whose keys are ruled by
 		// the Variables ACL: the clients use it through the ConsulKV RPC
 		// endpoint, which applies the ACL with the token of the request.
+		// It subscribes to nothing, its own replies included (no Inbox): a
+		// node only publishes, and a subscription to the inboxes would show
+		// it the replies of every other connection.
 		return &bus.Grant{
 			Kind:    bus.KindNode,
 			Name:    node.ID,
@@ -254,13 +257,34 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 			name = "leader"
 		}
 	}
-	return &bus.Grant{
+	grant := &bus.Grant{
 		Kind:      bus.KindToken,
 		Name:      name,
 		All:       g.All,
-		Publish:   g.Publish,
-		Subscribe: g.Subscribe,
-	}, nil
+		Publish:   busRuleSubjects(g.Publish),
+		Subscribe: busRuleSubjects(g.Subscribe),
+		// The replies of the token's requests: its own subjects, which no
+		// other token can subscribe to.
+		Inbox: bus.InboxPrefix + "." + structs.BusSubjectToken(name),
+	}
+	if dropped := len(g.Publish) + len(g.Subscribe) - len(grant.Publish) - len(grant.Subscribe); dropped > 0 {
+		s.logger.Warn("system bus: subjects of a bus rule that reach the inboxes are left out; a rule starts with a name, not with a wildcard or _INBOX",
+			"token", name, "subjects", dropped)
+	}
+	return grant, nil
+}
+
+// busRuleSubjects leaves out the subjects of a bus rule that reach the
+// inboxes (policies are checked when they are written; this is for those
+// stored before the check).
+func busRuleSubjects(subjects []string) []string {
+	out := make([]string, 0, len(subjects))
+	for _, subject := range subjects {
+		if !bus.CoversInbox(subject) {
+			out = append(out, subject)
+		}
+	}
+	return out
 }
 
 func constantTimeEqual(a, b string) bool {
