@@ -5,6 +5,7 @@
 package norca
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -359,6 +360,21 @@ func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *struc
 	}
 	if keyMeta.Active() {
 		return fmt.Errorf("active root key cannot be deleted - call rotate first")
+	}
+
+	// Norca: a key that seals values of the Consul KV bucket of the system
+	// bus stays: without it they can never be read again. The state does
+	// not know of the bucket, so it is read here; when it cannot be read
+	// the key is not removed on a guess.
+	ctx, cancel := context.WithTimeout(k.srv.shutdownCtx, consulKVKeyCheckTimeout)
+	sealed, err := k.srv.consulKVKeyIDs(ctx)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("root key %s was not removed: the Consul KV of the system bus cannot be checked for values it encrypts: %w", args.KeyID, err)
+	}
+	if n := sealed[args.KeyID]; n > 0 {
+		return fmt.Errorf("root key %s encrypts %d value(s) of the Consul KV of the system bus - "+
+			"rotate the keyring with -full first, or write or delete those keys", args.KeyID, n)
 	}
 
 	// update via Raft

@@ -175,6 +175,18 @@ func TestConsulKVSeal_KeyInUse(t *testing.T) {
 		return meta
 	}
 	must.NotNil(t, gc(), must.Sprint("the key that seals a value of the Consul KV was removed"))
+
+	// Nor by hand.
+	remove := func() error {
+		return s.srv.RPC("Keyring.Delete", &structs.KeyringDeleteRootKeyRequest{
+			KeyID:        oldKey,
+			WriteRequest: structs.WriteRequest{Region: s.srv.config.Region},
+		}, &structs.KeyringDeleteRootKeyResponse{})
+	}
+	must.ErrorContains(t, remove(), "encrypts 1 value(s) of the Consul KV")
+	meta, err := s.srv.fsm.State().RootKeyMetaByID(nil, oldKey)
+	must.NoError(t, err)
+	must.NotNil(t, meta)
 	must.Eq(t, "sealed with the first key", s.value("kept"))
 
 	// The value written again is sealed with the active key: the old key

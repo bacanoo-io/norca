@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/helper/crypto"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -33,6 +34,10 @@ const (
 	consulKVSealMagic = "\x00norca-kv-sealed-1\x00"
 	consulKVKeyIDLen  = 36
 )
+
+// consulKVKeyCheckTimeout bounds the read of the bucket before a root key
+// is removed by hand.
+const consulKVKeyCheckTimeout = 30 * time.Second
 
 // errConsulKVSealed is the error of a sealed value that no key at hand
 // opens.
