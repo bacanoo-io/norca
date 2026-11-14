@@ -7,8 +7,12 @@ package agent
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/shoenig/test/must"
+	"github.com/shoenig/test/wait"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bacanoo-io/norca/norca/ci"
@@ -70,12 +74,20 @@ func TestHTTP_Keyring_CRUD(t *testing.T) {
 		require.Equal(t, http.StatusConflict, code)
 		require.Equal(t, "active root key cannot be deleted - call rotate first", msg)
 
-		// Delete the old key and verify its gone
-
-		req, err = http.NewRequest(http.MethodDelete, "/v1/operator/keyring/key/"+oldKeyID, nil)
-		require.NoError(t, err)
-		obj, err = s.Server.KeyringRequest(respW, req)
-		require.NoError(t, err)
+		// Delete the old key and verify its gone. Norca: while the
+		// certificate authority of the native mTLS still has its private key
+		// encrypted with the old key, the removal is refused (409); the
+		// leader encrypts it with the active key soon after the rotation,
+		// then the removal goes.
+		must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+			req, err := http.NewRequest(http.MethodDelete, "/v1/operator/keyring/key/"+oldKeyID, nil)
+			require.NoError(t, err)
+			_, err = s.Server.KeyringRequest(respW, req)
+			if err != nil && !strings.Contains(err.Error(), "native mTLS") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			return err
+		}), wait.Timeout(90*time.Second), wait.Gap(100*time.Millisecond)))
 
 		req, err = http.NewRequest(http.MethodGet, "/v1/operator/keyring/keys", nil)
 		require.NoError(t, err)
