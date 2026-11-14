@@ -16,7 +16,7 @@
 //
 // For the full set (Norca's new files against every file of the BSL release,
 // every file of v1.6.5 as the base side) a Norca file is a candidate only if
-// it is at or above the threshold and above the MPL baseline of the BSL file:
+// it is at or above the threshold and above the MPL baseline of the HashiCorp file:
 // the highest similarity of a v1.6.5 file to it. For the fullmod set (the
 // lines Norca added to a changed file against the lines HashiCorp added to
 // the same file up to the BSL release, character level) every pair at or
@@ -88,7 +88,7 @@ if (existsSync(fullKindsFile)) {
   }
 }
 // fullmod-files.tsv: the v1.6.5 path of a changed Norca file, the number of
-// lines Norca added, the BSL files its lines were compared with.
+// lines Norca added, the HashiCorp files its lines were compared with.
 const fullmodFiles = [];
 const fullmodFile = join(resultDir, "fullmod-files.tsv");
 if (existsSync(fullmodFile)) {
@@ -100,7 +100,7 @@ if (existsSync(fullmodFile)) {
 
 const fullmodTargets = new Map(fullmodFiles.map((f) => [f.path, new Set(f.targets)]));
 
-// fullBaseline: BSL file of the full set -> the highest similarity of a
+// fullBaseline: HashiCorp file of the full set -> the highest similarity of a
 // v1.6.5 file (base side) to it.
 const fullBaseline = new Map();
 
@@ -152,7 +152,7 @@ for (const f of readdirSync(resultDir).filter((n) => n.endsWith(".pairs.csv"))) 
     }
     const [n, u] = a.side === "norca" ? [a, b] : [b, a];
     // fullmod: only the added lines of a file against the added lines of its
-    // own BSL file (or the files of the same name it moved to); Dolos compares
+    // own HashiCorp file (or the files of the same name it moved to); Dolos compares
     // every file with every other, and short fragments of unrelated files
     // resemble each other by chance.
     if (n.set === "fullmod" && !(fullmodTargets.get(n.path)?.has(u.path))) continue;
@@ -260,16 +260,16 @@ if (counts.has("full") || fullKinds.size) {
     `${kindCount("new")} new Norca files against every file of the BSL release ` +
     `with the same language, whatever its path (Dolos reports pairs of at least ${threshold / 2}). ` +
     `${countLine("full")}; ${cands.length} candidates for the auditor: Norca files at or above the threshold and ` +
-    "above the MPL baseline of the BSL file (the highest similarity of a v1.6.5 file to it).", "",
+    "above the MPL baseline of the HashiCorp file (the highest similarity of a v1.6.5 file to it).", "",
     "### Candidates", "",
-    "| Norca file | Kind | BSL file | Similarity | MPL baseline | Same path | Longest fragment | Total overlap |",
+    "| Norca file | Kind | HashiCorp file | Similarity | MPL baseline | Same path | Longest fragment | Total overlap |",
     "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ...cands.map((p) => `| ${p.norca} | ${p.kind} | ${p.upstream} | ${fmt(p.similarity)} | ${fmt(p.baseline)} | ${p.samePath} | ${p.longest} | ${p.overlap} |`),
     ...(cands.length ? [] : [none(8)]), "",
     "### Other pairs at or above the threshold", "",
-    "Not candidates: HashiCorp's own MPL code resembles the BSL file at least as much. The 50 highest; " +
+    "Not candidates: HashiCorp's own MPL code resembles the HashiCorp file at least as much. The 50 highest; " +
     "pairs.csv has all of them.", "",
-    "| Norca file | Kind | BSL file | Similarity | MPL baseline | Same path |", "| --- | --- | --- | --- | --- | --- |",
+    "| Norca file | Kind | HashiCorp file | Similarity | MPL baseline | Same path |", "| --- | --- | --- | --- | --- | --- |",
     ...full.filter((p) => !p.candidate).slice(0, 50).map((p) =>
       `| ${p.norca} | ${p.kind} | ${p.upstream} | ${fmt(p.similarity)} | ${fmt(p.baseline)} | ${p.samePath} |`),
     ...(full.some((p) => !p.candidate) ? [] : [none(6)]), "");
@@ -284,11 +284,11 @@ if (counts.has("fullmod") || fullmodFiles.length) {
     `The lines Norca added to ${fullmodFiles.length} changed files (${lines} lines; module path and Norca header ` +
     "lines aside) against the lines HashiCorp added to the same file between the base tag and the BSL release, " +
     `character by character. ${moved.length} files the BSL release no longer has at their path were compared ` +
-    `with its files of the same name. Only the pairs of a file with its own BSL file count: ` +
+    `with its files of the same name. Only the pairs of a file with its own HashiCorp file count: ` +
     `${countLine("fullmod")}; ${mod.length} candidates for the auditor (at or above the threshold with a common ` +
     `fragment of at least ${fullmodMinFragment} k-grams). ${short.length} pairs at or above the threshold share ` +
     "only shorter fragments (an import line, a brace): pairs.csv lists them.", "",
-    "| Norca file (added lines) | BSL file (added lines) | Similarity | Same path | Longest fragment | Total overlap |",
+    "| Norca file (added lines) | HashiCorp file (added lines) | Similarity | Same path | Longest fragment | Total overlap |",
     "| --- | --- | --- | --- | --- | --- |",
     ...mod.map((p) => `| ${p.norca} | ${p.upstream} | ${fmt(p.similarity)} | ${p.samePath} | ${p.longest} | ${p.overlap} |`),
     ...(mod.length ? [] : [none(6)]), "");

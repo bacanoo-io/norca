@@ -74,6 +74,13 @@ tree, everything else (Handlebars, SCSS, and all `bugfix` fragments, which do
 not parse on their own) character by character. Only pairs across the two
 sides are reported.
 
+The report calls the other file of a pair the **HashiCorp file**. It comes from
+a release that is under BSL 1.1 as a whole, but the file itself is not always
+under it: some directories of the later releases kept MPL 2.0 headers (the
+licence review of 2026-11-13 names `api/` and `plugins/` among them). The
+report gives the name of the file, not its license; the header of the file
+says which it is.
+
 ## Running
 
 From the root of a Norca checkout:
@@ -87,7 +94,7 @@ From the root of a Norca checkout:
 The `full` set is run on its own into `clean-room-result-full/`: the published
 `busl` and `bugfix` runs keep comparing with the newest v1 release, the `full`
 run compares with the newest release of any major version. A new file is a
-candidate there only if it resembles a BSL file more than HashiCorp's own
+candidate there only if it resembles a HashiCorp file more than HashiCorp's own
 v1.6.5 code does; a changed file is judged by the lines Norca added to it,
 against the lines HashiCorp added (whole files would measure their common MPL
 ancestor). The review of the candidates, with the auditor's verdict for each,

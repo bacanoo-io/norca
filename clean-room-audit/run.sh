@@ -326,7 +326,7 @@ main() {
 	# full: every Norca file of the Nomad code that Norca wrote (new since the
 	# import) against every file of $FULL_TAG with the same language, whatever
 	# its path. Every file of v1.6.5 of the same languages comes along as the
-	# base: HashiCorp's own MPL code. The MPL baseline of a BSL file is the
+	# base: HashiCorp's own MPL code. The MPL baseline of a HashiCorp file is the
 	# highest similarity of a v1.6.5 file to it; a Norca file is a candidate
 	# only above it, as in the busl set (short Ember files and table-driven
 	# tests resemble each other by their shape). Generated files are left out

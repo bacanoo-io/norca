@@ -114,7 +114,7 @@ module path, the Norca header lines and the server package name
 Nomad code at `NorcaRef` that v1.6.5 does not have, against every file of the
 same languages of `FullTag`, whatever its path. Every file of the same
 languages of v1.6.5 comes along as the base: HashiCorp's own MPL code. The
-**MPL baseline** of a BSL file is the highest similarity of a v1.6.5 file to
+**MPL baseline** of a HashiCorp file is the highest similarity of a v1.6.5 file to
 it; a Norca file is a candidate when it is at or above the threshold and above
 that baseline, as in the busl set: short Ember files and table-driven tests
 resemble each other by their shape. Dolos runs with a 16 GiB heap
@@ -128,7 +128,7 @@ file (against its v1.6.5 file, both normalised as above) are compared, character
 by character, with the lines HashiCorp added to the same file between v1.6.5
 and `FullTag`. A file that `FullTag` no longer has at its path is compared with
 the files of `FullTag` with the same name (HashiCorp moved it), against its
-v1.6.5 file. Only the pairs of a file with its own BSL file count (Dolos
+v1.6.5 file. Only the pairs of a file with its own HashiCorp file count (Dolos
 compares every file with every other). A pair at or above the threshold is a
 candidate when its longest common fragment has at least 10 k-grams; shorter
 ones (a shared import line, a brace) are counted and listed in pairs.csv
