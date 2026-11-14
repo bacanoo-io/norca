@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,10 @@ const (
 	HeaderType      = "Nomad-Type"
 	HeaderNamespace = "Nomad-Namespace"
 	HeaderKey       = "Nomad-Key"
+
+	// HeaderRedacted is set ("true") on an event whose payload left out
+	// parts that may hold secrets (Norca): the Job events.
+	HeaderRedacted = "Norca-Redacted"
 )
 
 const (
@@ -86,6 +91,10 @@ type Event struct {
 	// secret store, the server roles and the backups. They go to the admin
 	// event stream, on AdminEventSubject.
 	Admin bool
+
+	// Redacted is set when JSON left out parts of the event that may hold
+	// secrets; the message gets the HeaderRedacted header.
+	Redacted bool
 }
 
 // SubjectToken replaces the characters a subject token can't contain.
@@ -178,6 +187,9 @@ func EventMessage(prefix, region string, ev *Event) *nats.Msg {
 	if ev.Key != "" {
 		msg.Header.Set(HeaderKey, ev.Key)
 	}
+	if ev.Redacted {
+		msg.Header.Set(HeaderRedacted, "true")
+	}
 	return msg
 }
 
@@ -193,6 +205,61 @@ func withRegion(raw []byte, region string) []byte {
 		out = append(out, ',')
 	}
 	return append(out, rest...)
+}
+
+// The Consul KV notices (Norca): when a key of the Consul KV of the bus is
+// written or deleted through the Consul-compatible API, the leader
+// publishes a notice without the value on
+// <prefix>.<region>.<namespace>.ConsulKV.<type>. It is a live message only:
+// the event stream takes <prefix>.<region>.*.*, one token less, so the
+// notice is not stored; a consumer that missed one reads the key again.
+const (
+	ConsulKVTopic      = "ConsulKV"
+	ConsulKVKeySet     = "KeySet"
+	ConsulKVKeyDeleted = "KeyDeleted"
+)
+
+// EventStreamSubjects are the subjects of the event stream of a region: the
+// events and the gap markers, <prefix>.<region>.<namespace>.<topic>.
+func EventStreamSubjects(prefix, region string) []string {
+	return []string{prefix + "." + SubjectToken(region) + ".*.*"}
+}
+
+// ConsulKVNoticeSubject is the subject of a Consul KV notice.
+func ConsulKVNoticeSubject(prefix, region, namespace, typ string) string {
+	return EventSubject(prefix, region, namespace, ConsulKVTopic) + "." + SubjectToken(typ)
+}
+
+// ConsulKVNotice builds the notice of a written (ConsulKVKeySet) or deleted
+// (ConsulKVKeyDeleted) key of the Consul KV: an event-shaped JSON with the
+// key, never the value.
+func ConsulKVNotice(prefix, region, namespace, key, typ string, now time.Time) *nats.Msg {
+	ev := struct {
+		Region    string
+		Topic     string
+		Type      string
+		Key       string
+		Namespace string
+		Payload   map[string]any
+	}{
+		Region:    region,
+		Topic:     ConsulKVTopic,
+		Type:      typ,
+		Key:       key,
+		Namespace: namespace,
+		Payload:   map[string]any{"ConsulKV": map[string]any{"Key": key, "Time": now.UTC()}},
+	}
+	data, _ := json.Marshal(ev)
+	msg := nats.NewMsg(ConsulKVNoticeSubject(prefix, region, namespace, typ))
+	msg.Data = data
+	msg.Header.Set(HeaderRegion, region)
+	msg.Header.Set(HeaderTopic, ConsulKVTopic)
+	msg.Header.Set(HeaderType, typ)
+	if namespace != "" {
+		msg.Header.Set(HeaderNamespace, namespace)
+	}
+	msg.Header.Set(HeaderKey, key)
+	return msg
 }
 
 // GapMessage builds a gap marker; its JSON has the shape of an event.
@@ -372,10 +439,14 @@ func EnsureStream(ctx context.Context, js jetstream.JetStream, name, description
 	cfg := stream.CachedInfo().Config
 	before := cfg
 	apply(&cfg)
+	// The subjects follow too (Norca: the event stream narrowed to
+	// <prefix>.<region>.*.* so that the Consul KV notices stay out of it).
+	cfg.Subjects = slices.Clone(subjects)
 	if cfg.Replicas == before.Replicas && cfg.MaxAge == before.MaxAge && cfg.MaxBytes == before.MaxBytes &&
 		cfg.MaxMsgSize == before.MaxMsgSize && cfg.Duplicates == before.Duplicates &&
 		cfg.MaxMsgsPerSubject == before.MaxMsgsPerSubject &&
-		cfg.Discard == before.Discard && cfg.Compression == before.Compression {
+		cfg.Discard == before.Discard && cfg.Compression == before.Compression &&
+		slices.Equal(cfg.Subjects, before.Subjects) {
 		return nil
 	}
 	_, err = js.UpdateStream(ctx, cfg)

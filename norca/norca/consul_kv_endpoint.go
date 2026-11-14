@@ -133,6 +133,9 @@ func (k *ConsulKV) Put(args *structs.ConsulKVPutRequest, reply *structs.ConsulKV
 	if err != nil {
 		return consulKVError(err)
 	}
+	if ok {
+		k.srv.consulKVNotify(args.RequestNamespace(), args.Key, bus.ConsulKVKeySet)
+	}
 	reply.Ok = ok
 	return nil
 }
@@ -177,6 +180,9 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 		if err != nil {
 			return consulKVError(err)
 		}
+		if ok {
+			k.srv.consulKVNotify(namespace, args.Key, bus.ConsulKVKeyDeleted)
+		}
 		reply.Ok = ok
 		return nil
 	}
@@ -196,9 +202,31 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 		if _, err := consulkv.Delete(ctx, kv, scope, e.Key, nil); err != nil {
 			return consulKVError(err)
 		}
+		k.srv.consulKVNotify(namespace, e.Key, bus.ConsulKVKeyDeleted)
 	}
 	reply.Ok = true
 	return nil
+}
+
+// consulKVNotify publishes the notice of a written or deleted key on the
+// bus (Norca): a live message with the key, without the value, so that a
+// consumer learns that a setting changed. Best effort: a notice that can't
+// be sent is only logged; the write stands.
+func (s *Server) consulKVNotify(namespace, key, typ string) {
+	cfg := s.config.Bus
+	if cfg == nil || !cfg.Events.Enabled {
+		return
+	}
+	s.consulKV.l.Lock()
+	nc := s.consulKV.nc
+	s.consulKV.l.Unlock()
+	if nc == nil {
+		return
+	}
+	msg := bus.ConsulKVNotice(cfg.Events.SubjectPrefix, s.config.Region, namespace, key, typ, time.Now())
+	if err := nc.PublishMsg(msg); err != nil {
+		s.logger.Debug("system bus: the notice of a Consul KV change was not sent", "key", key, "error", err)
+	}
 }
 
 // authorize resolves the ACL of the request and checks the Variables

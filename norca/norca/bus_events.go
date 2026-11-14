@@ -219,7 +219,7 @@ func (s *Server) ensureEventStream(ctx context.Context, js jetstream.JetStream) 
 	}
 	if err := bus.EnsureStream(ctx, js, bus.EventStreamName(region),
 		"Norca events of region "+region,
-		[]string{cfg.SubjectPrefix + "." + bus.SubjectToken(region) + ".>"},
+		bus.EventStreamSubjects(cfg.SubjectPrefix, region),
 		settings(s.config.Bus.EventStreamMaxBytes())); err != nil {
 		return fmt.Errorf("the stream %s: %w", bus.EventStreamName(region), err)
 	}
@@ -351,7 +351,9 @@ func (s *Server) publishBusEvents(ctx context.Context, js jetstream.JetStream) e
 func (s *Server) busEventMessages(prefix string, events *structs.Events, skip map[string]bool) []*nats.Msg {
 	msgs := make([]*nats.Msg, 0, len(events.Events))
 	for i := range events.Events {
-		ev := &events.Events[i]
+		// Norca: the secrets a job may hold stay out of the bus.
+		redacted, isRedacted := busRedactEvent(&events.Events[i])
+		ev := &redacted
 		raw, err := encodeEventJSON(ev)
 		if err != nil {
 			s.logger.Warn("system bus: an event can't be encoded, skipped", "topic", ev.Topic, "key", ev.Key, "error", err)
@@ -365,6 +367,7 @@ func (s *Server) busEventMessages(prefix string, events *structs.Events, skip ma
 			Key:       ev.Key,
 			JSON:      raw,
 			Admin:     busAdminEvent(ev),
+			Redacted:  isRedacted,
 		}
 		if skip[bus.EventMsgID(s.config.Region, busEvent)] {
 			continue

@@ -97,12 +97,16 @@ func TestBusEvents_Publish(t *testing.T) {
 	must.Eq(t, job.ID, ev.Key)
 	must.Eq(t, index, ev.Index)
 	must.Eq(t, job.ID, ev.Payload.Job.ID)
+	// The job on the bus has no secrets: env values are left out.
+	must.Eq(t, "true", msg.Header.Get(bus.HeaderRedacted))
+	must.StrContains(t, string(msg.Data), busRedacted)
+	must.StrNotContains(t, string(msg.Data), `"FOO":"bar"`)
 
 	// The stream has the configured limits.
 	stream, err := js.Stream(t.Context(), bus.EventStreamName("global"))
 	must.NoError(t, err)
 	cfg := stream.CachedInfo().Config
-	must.Eq(t, []string{"norca.global.>"}, cfg.Subjects)
+	must.Eq(t, []string{"norca.global.*.*"}, cfg.Subjects)
 	must.Eq(t, bus.DefaultEventsMaxAge, cfg.MaxAge)
 	// The admin event stream takes a quarter of bus.events.max_bytes.
 	must.Eq(t, int64(12<<20), cfg.MaxBytes)
