@@ -411,3 +411,15 @@ root key <id> encrypts 1 value(s) of the Consul KV of the system bus - rotate th
 --- PASS: TestKeyringEndpoint_DeleteKeyInUse
 --- PASS: TestConsulKVSeal_KeyInUse
 ```
+
+The refusals, the one of the active key included, were plain errors, which
+the HTTP API answered with `500` and the agent logged as server errors.
+Since 2026-11-14 (later that day) they are `409 Conflict`, and `503` when the
+Consul KV of the bus cannot be read at the moment; found on a dev agent,
+where the CLI printed `Unexpected response code: 500 (...)`:
+
+```text
+before  error: Unexpected response code: 500 (root key <id> encrypts 1 value(s) of the Consul KV of the system bus - ...)
+after   error: Unexpected response code: 409 (root key <id> encrypts 1 value(s) of the Consul KV of the system bus - ...)
+        error: Unexpected response code: 409 (active root key cannot be deleted - call rotate first)
+```
