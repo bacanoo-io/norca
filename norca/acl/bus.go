@@ -13,25 +13,29 @@ import (
 // NATS):
 //
 //	bus {
-//	  subscribe = ["norca.*.>"]
+//	  subscribe = ["app.>"]
 //	  publish   = ["norca.packs.pushed", "norca.packs.pushed.>"]
-//	  leafnode  = false
 //	}
 //
 // The lists hold NATS subjects with the wildcards "*" (one token) and ">"
 // (the rest). A connection with the token may publish and subscribe to the
 // union of the lists of its policies. It is an operator-level rule that is
-// not scoped to a namespace; management tokens may use every subject.
+// not scoped to a namespace; management tokens may use every subject. The
+// change streams of the bus (the events, the admin events and the Consul KV
+// notices) are read with the cdc rule (CDCPolicy), not with this one.
 type BusPolicy struct {
 	Subscribe []string `hcl:"subscribe"`
 	Publish   []string `hcl:"publish"`
 
-	// Leafnode allows connecting a NATS server to the bus as a leaf node,
-	// limited to the subjects of the lists.
-	Leafnode bool `hcl:"leafnode"`
+	// ExtraKeys are the keys of the block the decoder did not know; HCL v1
+	// would ignore them silently.
+	ExtraKeys []string `hcl:",unusedKeys" json:"-"`
 }
 
 func (p *BusPolicy) validate() error {
+	if err := unknownRuleKeys("bus", p.ExtraKeys); err != nil {
+		return err
+	}
 	for _, list := range [][]string{p.Subscribe, p.Publish} {
 		for _, subject := range list {
 			if err := validateBusSubject(subject); err != nil {
@@ -85,9 +89,6 @@ type BusGrant struct {
 	// Publish and Subscribe are the sorted subjects otherwise.
 	Publish   []string
 	Subscribe []string
-
-	// Leafnode allows leaf node connections.
-	Leafnode bool
 }
 
 // Empty reports whether the grant allows nothing.
@@ -101,14 +102,13 @@ func (a *ACL) BusGrant() *BusGrant {
 	switch {
 	// ACL is nil only if ACLs are disabled
 	case a == nil:
-		return &BusGrant{All: true, Leafnode: true}
+		return &BusGrant{All: true}
 	case a.management:
-		return &BusGrant{All: true, Leafnode: true}
+		return &BusGrant{All: true}
 	}
 	return &BusGrant{
 		Publish:   slices.Clone(a.busPublish),
 		Subscribe: slices.Clone(a.busSubscribe),
-		Leafnode:  a.busLeafnode,
 	}
 }
 
@@ -117,7 +117,6 @@ func (a *ACL) BusGrant() *BusGrant {
 func (a *ACL) mergeBusPolicy(p *BusPolicy) {
 	a.busPublish = append(a.busPublish, p.Publish...)
 	a.busSubscribe = append(a.busSubscribe, p.Subscribe...)
-	a.busLeafnode = a.busLeafnode || p.Leafnode
 }
 
 func (a *ACL) finalizeBus() {

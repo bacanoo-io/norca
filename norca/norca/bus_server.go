@@ -250,28 +250,30 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 	if err != nil {
 		return nil, err
 	}
-	g := aclObj.BusGrant()
-	if g.Empty() {
-		return nil, errors.New("the token has no bus rights")
+	g, cdc := aclObj.BusGrant(), aclObj.CDCGrant()
+	if g.Empty() && cdc.Empty() {
+		return nil, errors.New("the token has no bus or cdc rights")
 	}
 	grant := &bus.Grant{
-		Kind:      kind,
-		Name:      name,
-		All:       g.All,
-		Publish:   busRuleSubjects(g.Publish),
-		Subscribe: busRuleSubjects(g.Subscribe),
+		Kind: kind,
+		Name: name,
+		All:  g.All,
 		// The replies of the connection's requests: its own subjects, which
 		// no other token or workload can subscribe to.
 		Inbox: inbox,
 	}
 	if !g.All {
-		// Norca: the admin events the token may not see, as the event
-		// stream API decides (bus_admin_events.go).
+		// Norca: the change streams by the cdc rule, with the reader's own
+		// consumers (cdc.go); the admin events the token may not see, as
+		// the event stream API decides (bus_admin_events.go).
+		var dropped int
+		grant.Publish, grant.Subscribe, dropped = s.busGrantSubjects(g, cdc, kind, name)
 		grant.PublishDeny, grant.SubscribeDeny = s.busAdminDeny(aclObj)
-	}
-	if dropped := len(g.Publish) + len(g.Subscribe) - len(grant.Publish) - len(grant.Subscribe); dropped > 0 {
-		s.logger.Warn("system bus: subjects of a bus rule that reach the inboxes are left out; a rule starts with a name, not with a wildcard or _INBOX",
-			kind, name, "subjects", dropped)
+		grant.SubscribeDeny = append(grant.SubscribeDeny, s.busNonChangeDeny()...)
+		if dropped > 0 {
+			s.logger.Warn("system bus: subjects of a rule are left out: a bus rule doesn't reach the change streams (that is the cdc rule), JetStream or the inboxes, and a cdc rule only the change streams",
+				kind, name, "subjects", dropped)
+		}
 	}
 	return grant, nil
 }

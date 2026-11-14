@@ -17,14 +17,19 @@ func TestBusPolicy_Parse(t *testing.T) {
 bus {
   subscribe = ["norca.*.>", "norca.global.Job"]
   publish   = ["norca.packs.pushed"]
-  leafnode  = true
 }`)
 	must.NoError(t, err)
 	must.NotNil(t, p.Bus)
 	must.Eq(t, []string{"norca.*.>", "norca.global.Job"}, p.Bus.Subscribe)
 	must.Eq(t, []string{"norca.packs.pushed"}, p.Bus.Publish)
-	must.True(t, p.Bus.Leafnode)
 	must.False(t, p.IsEmpty())
+
+	// The leafnode key is replaced by the cdc rule; unknown keys are refused
+	// (HCL v1 would ignore them).
+	_, err = Parse(`bus { leafnode = true }`)
+	must.ErrorContains(t, err, "replaced by the cdc rule")
+	_, err = Parse(`bus { subscribe = ["a.b"] typo = 1 }`)
+	must.ErrorContains(t, err, `unknown key "typo" in the bus rule`)
 
 	for _, bad := range []string{
 		`bus { subscribe = [""] }`,
@@ -70,7 +75,6 @@ bus {
 	must.NoError(t, err)
 	g := a.BusGrant()
 	must.False(t, g.All)
-	must.False(t, g.Leafnode)
 	must.Eq(t, []string{"app.>", "norca.*.>"}, g.Subscribe)
 	must.Eq(t, []string{"norca.packs.pushed"}, g.Publish)
 	must.False(t, g.Empty())

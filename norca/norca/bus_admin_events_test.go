@@ -93,13 +93,16 @@ func TestBusServer_AdminEvents(t *testing.T) {
 	testutil.WaitForLeader(t, s1.RPC)
 	st := s1.fsm.State()
 
-	// A reader of everything on the bus without further rights, and a
+	// A reader of every change on the bus (and of JetStream through its
+	// bus rule, which no longer reaches it) without further rights, and a
 	// reader with node read.
 	reader := mock.ACLPolicy()
 	reader.Name = "bus-reader"
-	reader.Rules = `bus {
-  subscribe = ["norca.>"]
-  publish   = ["$JS.API.>", "$JS.ACK.>"]
+	reader.Rules = `cdc {
+  receive = ["norca.>"]
+}
+bus {
+  publish = ["$JS.API.>", "$JS.ACK.>"]
 }`
 	reader.SetHash()
 	nodeReader := mock.ACLPolicy()
@@ -107,8 +110,8 @@ func TestBusServer_AdminEvents(t *testing.T) {
 	nodeReader.Rules = `node {
   policy = "read"
 }
-bus {
-  subscribe = ["norca.>"]
+cdc {
+  receive = ["norca.>"]
 }`
 	nodeReader.SetHash()
 	must.NoError(t, st.UpsertACLPolicies(structs.MsgTypeTestSetup, 100, []*structs.ACLPolicy{reader, nodeReader}))

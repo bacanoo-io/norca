@@ -120,6 +120,20 @@ func SubjectToken(s string) string {
 	return structs.BusSubjectToken(s)
 }
 
+// SubjectsCollide reports whether two subjects with wildcards match a common
+// subject.
+func SubjectsCollide(a, b string) bool {
+	return natsserver.SubjectsCollide(a, b)
+}
+
+// ChangeStreamSubjects are the subjects of the change streams of a region
+// (change data capture): the events, the Consul KV notices and the admin
+// events.
+func ChangeStreamSubjects(prefix, region string) []string {
+	return append(append(EventStreamSubjects(prefix, region), ConsulKVChangesSubjects(prefix, region)...),
+		prefix+"."+AdminSubjectToken+"."+SubjectToken(region)+".>")
+}
+
 // ValidSubjectPrefix checks a subject prefix: tokens separated by dots.
 func ValidSubjectPrefix(prefix string) error {
 	for _, tok := range strings.Split(prefix, ".") {

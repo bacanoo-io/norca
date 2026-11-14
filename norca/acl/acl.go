@@ -93,11 +93,15 @@ type ACL struct {
 	// backup is the policy for the backups of the region (Norca).
 	backup string
 
-	// busPublish, busSubscribe and busLeafnode are the union of the bus
-	// rules of the policies (Norca).
+	// busPublish and busSubscribe are the union of the bus rules of the
+	// policies (Norca).
 	busPublish   []string
 	busSubscribe []string
-	busLeafnode  bool
+
+	// cdcReceive and cdcLeaf are the union of the cdc rules of the policies
+	// (Norca).
+	cdcReceive []string
+	cdcLeaf    bool
 }
 
 // maxPrivilege returns the policy which grants the most privilege
@@ -337,8 +341,12 @@ func NewACL(management bool, policies []*Policy) (*ACL, error) {
 		if policy.Bus != nil {
 			acl.mergeBusPolicy(policy.Bus)
 		}
+		if policy.CDC != nil {
+			acl.mergeCDCPolicy(policy.CDC)
+		}
 	}
 	acl.finalizeBus()
+	acl.finalizeCDC()
 
 	// Finalize policies with capabilities.
 	acl.namespaces = nsTxn.Commit()

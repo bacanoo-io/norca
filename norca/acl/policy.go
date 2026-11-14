@@ -139,6 +139,7 @@ type Policy struct {
 	Admission   *AdmissionPolicy    `hcl:"admission"`
 	Backup      *BackupPolicy       `hcl:"backup"`
 	Bus         *BusPolicy          `hcl:"bus"`
+	CDC         *CDCPolicy          `hcl:"cdc"`
 	Raw         string              `hcl:"-"`
 }
 
@@ -155,7 +156,8 @@ func (p *Policy) IsEmpty() bool {
 		p.Plugin == nil &&
 		p.Admission == nil &&
 		p.Backup == nil &&
-		p.Bus == nil
+		p.Bus == nil &&
+		p.CDC == nil
 }
 
 // NamespacePolicy is the policy for a specific namespace
@@ -533,6 +535,11 @@ func Parse(rules string) (*Policy, error) {
 	if p.Bus != nil {
 		if err := p.Bus.validate(); err != nil {
 			return nil, fmt.Errorf("Invalid bus policy: %v", err)
+		}
+	}
+	if p.CDC != nil {
+		if err := p.CDC.validate(); err != nil {
+			return nil, fmt.Errorf("Invalid cdc policy: %v", err)
 		}
 	}
 	return p, nil
