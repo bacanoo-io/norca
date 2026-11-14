@@ -1,13 +1,38 @@
-# Clean room similarity audit
+# Similarity audit
 
-Measures how similar Norca's clean room code is to the HashiCorp code it must
-not be derived from, with [Dolos](https://github.com/dodona-edu/dolos) (MIT,
+Measures how similar the code Norca wrote independently is to the HashiCorp
+code it must not be derived from, with [Dolos](https://github.com/dodona-edu/dolos) (MIT,
 Ghent University), and records only file pairs and scores.
+
+## Terms
+
+"Clean room" was used in this project for four different things. None of them
+is the two-team procedure the words usually mean, in which the people who
+write the code have never seen the protected work. Each has its own name now:
+
+| Name | What it is | Earlier name |
+| --- | --- | --- |
+| Independent reimplementation from interfaces | The 45 files of Nomad v1.6.5 with a BUSL-1.1 header were left out of the import and written again from the MPL code that uses them, without the originals | clean room replacements |
+| Independent development under source rules | Features whose Nomad counterpart was Enterprise only, built from Norca's own design; the rules say which sources may be used | clean room development |
+| Independent fix from the public issue | A defect that HashiCorp fixed in a BSL release is fixed from the public issue and the changelog, without the BSL code or diff | clean room rule |
+| Isolated-environment fixes | The fixes of the code review of October 2026, made on an empty drive with only the Norca repositories on it. There is no protected original behind them: the name is about the environment | clean room fixes |
+
+Two labels keep the old words, because the audit finds the code by them: the
+`// clean room bugfix:` comments in the code, and "clean room" in the message
+of a commit made under one of the rules above. They mark where the rules
+applied; they do not say that a protected original existed.
+
+One person, the maintainer, filled the roles of analyst, developer and
+auditor, with AI coding agents (Claude) writing the code. The roles were
+separated by sessions and working environments, not by people. What shows
+that the code is independent is the similarity audit below, which measures
+the result.
 
 ## Who runs it
 
-The **auditor** role only: not a Norca developer and not a Claude session that
-works on Norca code. The clean room rule of Norca (the
+The **auditor** role only: the maintainer, outside the environment in which
+Norca code is written, and never a Claude session that works on Norca code.
+The source rule of Norca (the
 [license page](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md) of the
 documentation) keeps HashiCorp code published under
 BSL 1.1 out of the development environment; this audit needs that code as the
@@ -37,9 +62,9 @@ code outside the development environment and records only the conclusion.
 
 | Set | Norca side | HashiCorp side |
 | --- | --- | --- |
-| `busl` | Every file at `-NorcaRef` with the same extension in the directories of the 45 left-out files (the clean room replacements live there) | The 45 files of Nomad v1.6.5 with a BUSL-1.1 header, as listed in the Norca import commit |
+| `busl` | Every file at `-NorcaRef` with the same extension in the directories of the 45 left-out files (the independent reimplementations live there) | The 45 files of Nomad v1.6.5 with a BUSL-1.1 header, as listed in the Norca import commit |
 | `full` | Every file of the Nomad code that Norca wrote (new since the import); for a file Norca changed, only the lines it added to its v1.6.5 file | For a new file: every file of the same language of `-FullTag` (default: the newest release of any major version), whatever its path, with the MPL baseline; for the added lines: the lines HashiCorp added to the same file between v1.6.5 and `-FullTag` |
-| `bugfix` | The lines each clean room commit added to a file (`commits.txt`, plus every commit whose message mentions "clean room" or the former "white room") | The lines HashiCorp added to the same file between v1.6.5 and `-BslTag` (default: the newest v1.x.y tag) |
+| `bugfix` | The lines each commit made under the rules added to a file (`commits.txt`, plus every commit whose message mentions "clean room" or the former "white room") | The lines HashiCorp added to the same file between v1.6.5 and `-BslTag` (default: the newest v1.x.y tag) |
 
 Go, JavaScript and TypeScript files of the `busl` set are compared by syntax
 tree, everything else (Handlebars, SCSS, and all `bugfix` fragments, which do
@@ -85,7 +110,7 @@ same shape score high. Two measures separate this from copying:
   against each other, because HashiCorp writes them all from the same pattern.
   A file Norca added is a **candidate** only if it is at or above the
   threshold (default 0.4) and above that baseline.
-- **Character level.** Every same-path pair (a clean room replacement and the
+- **Character level.** Every same-path pair (an independent reimplementation and the
   BUSL file it replaces) is compared once more character by character, which
   also counts names, literals and comments. A high syntax score with a low
   character score is shared structure; both high is a reason to look closely.
@@ -102,7 +127,7 @@ legitimately; same-path pairs (Norca and HashiCorp changing the same file)
 matter most.
 
 The auditor records a verdict for every candidate (independent,
-interface-bound, or to be rewritten). The record for the clean room pages is:
+interface-bound, or to be rewritten). The record for the pages of the documentation is:
 date, Dolos version, Norca commit, BSL tag, threshold, the candidates and their
 verdicts.
 

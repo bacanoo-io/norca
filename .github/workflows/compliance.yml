@@ -145,7 +145,7 @@ jobs:
     # snippet match with a license of the explicit list below (GPL, AGPL,
     # LGPL, SSPL, EUPL, OSL, CC-BY-SA). MPL-2.0 is not in the
     # list: the upstream Nomad code itself is MPL-2.0. Matches against BSL
-    # HashiCorp code are the subject of the separate clean room audit.
+    # HashiCorp code are the subject of the separate similarity audit (CLEAN_ROOM.md).
     runs-on: ubuntu-24.04
     permissions:
       contents: read

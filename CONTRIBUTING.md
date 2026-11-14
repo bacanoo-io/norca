@@ -41,7 +41,7 @@ Files that already carry a `SPDX-FileCopyrightText: <year> Norca contributors` l
 - Adding the upstream `github.com/hashicorp/nomad` module (any version) or an upstream version of `github.com/hashicorp/nomad/api` to any `go.mod` file; the latter is replaced by the stand-in in `norca/compat/upstreamapi`.
 - Adding a dependency whose license is not on the allowed list ([licence and attribution](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/introduction/license.md)).
 
-## Clean room rule
+## Independent fix from the public issue
 
 If your change fixes a bug that HashiCorp has already fixed in a BSL release, write the fix from the public issue and the CHANGELOG description, without looking at the BSL code or diff. Link the public issue in the pull request.
 

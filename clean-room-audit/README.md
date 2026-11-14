@@ -1,4 +1,4 @@
-# Clean room similarity audit: how it works
+# Similarity audit: how it works
 
 This directory holds the audit that measures how similar Norca's code is to
 HashiCorp code Norca must not be derived from: the Nomad code published under
@@ -12,7 +12,7 @@ latest result is in [clean-room-result/](../clean-room-result).
 | `audit.ps1` | Starts the throwaway container (PowerShell 5.1 or 7, Docker) |
 | `run.sh` | Runs inside the container: collects the compared files, runs Dolos |
 | `report.mjs` | Turns the Dolos results into `pairs.csv` and `summary.md` |
-| `commits.txt` | Norca commits of clean room work that are always in the bugfix set |
+| `commits.txt` | Norca commits made under the source rules that are always in the bugfix set |
 
 ## Isolation
 
