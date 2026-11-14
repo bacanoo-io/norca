@@ -31,6 +31,10 @@ func TestKeyringEndpoint_CRUD(t *testing.T) {
 	ci.Parallel(t)
 	srv, rootToken, shutdown := TestACLServer(t, func(c *Config) {
 		c.NumSchedulers = 0 // Prevent automatic dequeue
+		// Norca: without the CA of the native mTLS, whose key the CA loop
+		// encrypts at once with the key this test makes active and then
+		// removes (refused, see TestKeyringEndpoint_DeleteKeyOfMTLSRoot).
+		c.MTLSConfig = &config.MTLSConfig{Enabled: pointer.Of(false)}
 	})
 	defer shutdown()
 	testutil.WaitForLeader(t, srv.RPC)

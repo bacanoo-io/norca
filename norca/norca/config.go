@@ -397,6 +397,11 @@ type Config struct {
 	// promotion autopilot asked for.
 	autopilotRaft func(autopilot.Raft) autopilot.Raft
 
+	// mtlsCAInterval, when set, is the interval of the CA loop of the
+	// native mTLS instead of mtlsCAInterval of the package. For tests: a
+	// long interval shows that a root key rotation wakes the loop.
+	mtlsCAInterval time.Duration
+
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)
 	// and this value is ignored.

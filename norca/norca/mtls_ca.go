@@ -5,6 +5,7 @@ package norca
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -28,6 +29,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-memdb"
 )
 
 // Native mTLS certificate authority.
@@ -375,12 +377,33 @@ func (s *Server) runMTLSCA(stopCh <-chan struct{}) {
 	timer := time.NewTimer(0)
 	defer timer.Stop()
 	for {
+		// Norca: a change of the keyring (a rotation of the root key) wakes
+		// the loop at once, so the key of the CA is encrypted with the new
+		// active root key right away: until then the old root key can't be
+		// removed (Keyring.Delete answers 409). The timer stays for the
+		// rest of the maintenance.
+		watchCtx, cancelWatch := context.WithCancel(context.Background())
+		ws := memdb.NewWatchSet()
+		_, _ = s.State().GetActiveRootKeyMeta(ws)
+		keyringChanged := ws.WatchCh(watchCtx)
 		select {
 		case <-stopCh:
+			cancelWatch()
 			return
 		case <-timer.C:
+		case <-keyringChanged:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 		}
+		cancelWatch()
 		interval := mtlsCAInterval
+		if s.config.mtlsCAInterval > 0 {
+			interval = s.config.mtlsCAInterval
+		}
 		if s.IsLeader() {
 			if err := s.mtls.reconcile(); err != nil {
 				interval = min(interval, mtlsCARetryInterval)

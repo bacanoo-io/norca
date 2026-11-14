@@ -330,6 +330,44 @@ func TestMTLS_RotationRewrapAndPrune(t *testing.T) {
 	must.Eq(t, rotate.RootID, all[0].ID)
 }
 
+// TestMTLS_RewrapOnRootKeyRotation checks that a rotation of the root key
+// wakes the CA loop at once: the key of the CA is encrypted with the new
+// root key without waiting for the interval, so the old root key can be
+// removed right away. Before, it waited for the next round of the loop (a
+// minute): Keyring.Delete of the old key answered 409 until then. The CA
+// loop of this server runs every hour.
+func TestMTLS_RewrapOnRootKeyRotation(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, cleanup := TestServer(t, func(c *Config) {
+		c.NumSchedulers = 0
+		c.mtlsCAInterval = time.Hour
+	})
+	defer cleanup()
+	testutil.WaitForLeader(t, srv.RPC)
+	waitForActiveRootKey(t, srv)
+	first := waitForMTLSRoot(t, srv)
+
+	write := structs.WriteRequest{Region: "global"}
+	var keyResp structs.KeyringRotateRootKeyResponse
+	must.NoError(t, srv.RPC("Keyring.Rotate", &structs.KeyringRotateRootKeyRequest{WriteRequest: write}, &keyResp))
+	newKey := keyResp.Key.KeyID
+	must.NotEq(t, first.SigningKeyID, newKey)
+
+	must.Wait(t, wait.InitialSuccess(
+		wait.BoolFunc(func() bool {
+			root, err := srv.State().MTLSRootByID(nil, first.ID)
+			must.NoError(t, err)
+			return root.SigningKeyID == newKey
+		}),
+		wait.Timeout(5*time.Second),
+		wait.Gap(50*time.Millisecond),
+	))
+	must.NoError(t, srv.RPC("Keyring.Delete", &structs.KeyringDeleteRootKeyRequest{
+		KeyID: first.SigningKeyID, WriteRequest: write,
+	}, &structs.KeyringDeleteRootKeyResponse{}))
+}
+
 func TestMTLS_Federation(t *testing.T) {
 	ci.Parallel(t)
 
