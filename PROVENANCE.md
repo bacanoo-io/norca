@@ -51,7 +51,9 @@ Maintainer: Joszef Oszlanczi. Commits before 2026-11-14 appear under the name
   originals.
 - Those first runs, on 2026-11-01 and 2026-11-02, were started from an agent
   session at my request. The audit runs in a container that hands back file
-  names and scores only, no code. The later runs I started myself.
+  names and scores only, no code. Every later run against a BSL release I
+  started myself; agent sessions started the script after that only to test
+  it, against the MPL-licensed tag v1.6.4 in place of a BSL release.
 - As the auditor, after the code existed, I ran the similarity audit. For the
   pairs it listed as candidates I opened the HashiCorp file of the pair, that
   is source code, in HashiCorp's public repository on GitHub, and compared it
