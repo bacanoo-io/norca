@@ -5,6 +5,7 @@
 package norca
 
 import (
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -110,7 +111,10 @@ func TestKeyringEndpoint_CRUD(t *testing.T) {
 
 	delReq.AuthToken = rootToken.SecretID
 	err = msgpackrpc.CallWithCodec(codec, "Keyring.Delete", delReq, &delResp)
-	require.EqualError(t, err, "active root key cannot be deleted - call rotate first")
+	code, msg, ok := structs.CodeFromRPCCodedErr(err)
+	require.True(t, ok, err)
+	require.Equal(t, http.StatusConflict, code)
+	require.Equal(t, "active root key cannot be deleted - call rotate first", msg)
 
 	// set inactive
 	updateReq.RootKey.Meta.SetInactive()
@@ -341,7 +345,11 @@ func TestKeyringEndpoint_DeleteKeyInUse(t *testing.T) {
 
 	// Not the active key any more, and it encrypts the Variable.
 	rotate(false)
-	must.ErrorContains(t, remove(), "encrypts 1 Variable(s)")
+	err := remove()
+	must.ErrorContains(t, err, "encrypts 1 Variable(s)")
+	code, _, ok := structs.CodeFromRPCCodedErr(err)
+	must.True(t, ok)
+	must.Eq(t, http.StatusConflict, code)
 	must.NotNil(t, stored())
 
 	// A full rotation encrypts the Variable with its key: the two older
@@ -362,7 +370,10 @@ func TestKeyringEndpoint_DeleteKeyInUse(t *testing.T) {
 		must.NoError(t, srv.fsm.State().UpsertAllocs(structs.MsgTypeTestSetup, index+1, []*structs.Allocation{alloc}))
 	}
 	upsert()
-	must.ErrorContains(t, remove(), "signed the workload identity of 1 allocation(s)")
+	err = remove()
+	must.ErrorContains(t, err, "signed the workload identity of 1 allocation(s)")
+	code, _, _ = structs.CodeFromRPCCodedErr(err)
+	must.Eq(t, http.StatusConflict, code)
 	must.NotNil(t, stored())
 	index, err := srv.fsm.State().LatestIndex()
 	must.NoError(t, err)

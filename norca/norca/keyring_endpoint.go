@@ -7,6 +7,7 @@ package norca
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -359,10 +360,11 @@ func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *struc
 		return nil // safe to bail out early
 	}
 	if keyMeta.Active() {
-		return fmt.Errorf("active root key cannot be deleted - call rotate first")
+		// Norca: a refusal of the request, not a fault of the server: 409.
+		return structs.NewErrRPCCoded(http.StatusConflict, "active root key cannot be deleted - call rotate first")
 	}
 
-	// Norca: a key the state still needs stays; the garbage collection of
+	// Norca: a key the state still needs stays (409); the garbage collection of
 	// the keyring looks at the same uses (IsRootKeyMetaInUse) before it
 	// calls here. Without the key its Variables can never be read again,
 	// the workload identities it signed no longer verify, and the
@@ -373,13 +375,13 @@ func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *struc
 	}
 	switch {
 	case uses.Variables > 0:
-		return fmt.Errorf("root key %s encrypts %d Variable(s) - "+
+		return structs.NewErrRPCCodedf(http.StatusConflict, "root key %s encrypts %d Variable(s) - "+
 			"rotate the keyring with -full first, or write or delete those Variables", args.KeyID, uses.Variables)
 	case uses.Allocations > 0:
-		return fmt.Errorf("root key %s signed the workload identity of %d allocation(s) that have not ended - "+
+		return structs.NewErrRPCCodedf(http.StatusConflict, "root key %s signed the workload identity of %d allocation(s) that have not ended - "+
 			"their tokens would no longer be accepted; remove the key when they have stopped", args.KeyID, uses.Allocations)
 	case uses.MTLSRoots > 0:
-		return fmt.Errorf("root key %s encrypts the private key of %d certificate authority(ies) of the native mTLS - "+
+		return structs.NewErrRPCCodedf(http.StatusConflict, "root key %s encrypts the private key of %d certificate authority(ies) of the native mTLS - "+
 			"the leader encrypts it with the active root key after a rotation; try again shortly", args.KeyID, uses.MTLSRoots)
 	}
 
@@ -391,10 +393,12 @@ func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *struc
 	sealed, err := k.srv.consulKVKeyIDs(ctx)
 	cancel()
 	if err != nil {
-		return fmt.Errorf("root key %s was not removed: the Consul KV of the system bus cannot be checked for values it encrypts: %w", args.KeyID, err)
+		// Not known now: the caller may try again (503).
+		return structs.NewErrRPCCodedf(http.StatusServiceUnavailable,
+			"root key %s was not removed: the Consul KV of the system bus cannot be checked for values it encrypts: %v", args.KeyID, err)
 	}
 	if n := sealed[args.KeyID]; n > 0 {
-		return fmt.Errorf("root key %s encrypts %d value(s) of the Consul KV of the system bus - "+
+		return structs.NewErrRPCCodedf(http.StatusConflict, "root key %s encrypts %d value(s) of the Consul KV of the system bus - "+
 			"rotate the keyring with -full first, or write or delete those keys", args.KeyID, n)
 	}
 

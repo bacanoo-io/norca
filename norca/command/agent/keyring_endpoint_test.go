@@ -60,6 +60,16 @@ func TestHTTP_Keyring_CRUD(t *testing.T) {
 			}
 		}
 
+		// The active key is not deleted: the refusal of the request is a
+		// 409, not a server error.
+		req, err = http.NewRequest(http.MethodDelete, "/v1/operator/keyring/key/"+newID1, nil)
+		require.NoError(t, err)
+		_, err = s.Server.KeyringRequest(respW, req)
+		require.Error(t, err)
+		code, msg := errCodeFromHandler(err)
+		require.Equal(t, http.StatusConflict, code)
+		require.Equal(t, "active root key cannot be deleted - call rotate first", msg)
+
 		// Delete the old key and verify its gone
 
 		req, err = http.NewRequest(http.MethodDelete, "/v1/operator/keyring/key/"+oldKeyID, nil)

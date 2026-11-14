@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"net/http"
 	"testing"
 
 	"github.com/bacanoo-io/norca/norca/ci"
@@ -183,7 +184,11 @@ func TestConsulKVSeal_KeyInUse(t *testing.T) {
 			WriteRequest: structs.WriteRequest{Region: s.srv.config.Region},
 		}, &structs.KeyringDeleteRootKeyResponse{})
 	}
-	must.ErrorContains(t, remove(), "encrypts 1 value(s) of the Consul KV")
+	refused := remove()
+	must.ErrorContains(t, refused, "encrypts 1 value(s) of the Consul KV")
+	code, _, ok := structs.CodeFromRPCCodedErr(refused)
+	must.True(t, ok)
+	must.Eq(t, http.StatusConflict, code)
 	meta, err := s.srv.fsm.State().RootKeyMetaByID(nil, oldKey)
 	must.NoError(t, err)
 	must.NotNil(t, meta)
