@@ -201,43 +201,82 @@ func (s *Server) busReplicas() int {
 	return min(max(s.raftServers(), 1), 3)
 }
 
+// ensureEventStream creates or updates the event stream and the admin event
+// stream of the region; they share bus.events.max_bytes.
 func (s *Server) ensureEventStream(ctx context.Context, js jetstream.JetStream) error {
 	cfg := s.config.Bus.Events
-	return bus.EnsureStream(ctx, js, bus.EventStreamName(s.config.Region),
-		"Norca events of region "+s.config.Region,
-		[]string{cfg.SubjectPrefix + "." + bus.SubjectToken(s.config.Region) + ".>"},
-		bus.StreamSettings{
+	region := s.config.Region
+	settings := func(maxBytes int64) bus.StreamSettings {
+		return bus.StreamSettings{
 			Replicas:    s.busReplicas(),
 			MaxAge:      cfg.MaxAge,
-			MaxBytes:    cfg.MaxBytes,
+			MaxBytes:    maxBytes,
 			MaxMsgSize:  s.config.Bus.MaxPayload,
 			Duplicates:  2 * time.Minute,
 			Storage:     jetstream.FileStorage,
 			Compression: jetstream.S2Compression,
-		})
+		}
+	}
+	if err := bus.EnsureStream(ctx, js, bus.EventStreamName(region),
+		"Norca events of region "+region,
+		[]string{cfg.SubjectPrefix + "." + bus.SubjectToken(region) + ".>"},
+		settings(s.config.Bus.EventStreamMaxBytes())); err != nil {
+		return fmt.Errorf("the stream %s: %w", bus.EventStreamName(region), err)
+	}
+	if err := bus.EnsureStream(ctx, js, bus.AdminEventStreamName(region),
+		"Norca admin events of region "+region+" (ACL objects, nodes, audit of the secret store, ...)",
+		[]string{cfg.SubjectPrefix + "." + bus.AdminSubjectToken + "." + bus.SubjectToken(region) + ".>"},
+		settings(s.config.Bus.AdminEventStreamMaxBytes())); err != nil {
+		return fmt.Errorf("the stream %s: %w", bus.AdminEventStreamName(region), err)
+	}
+	return nil
+}
+
+// lastBusEvents returns the newest Raft index of the events in the event
+// stream and the admin event stream, and the deduplication IDs of the events
+// of that index in either of them: the events of one index are one batch
+// over both streams.
+func lastBusEvents(ctx context.Context, js jetstream.JetStream, region string) (last uint64, stored map[string]bool, found bool, err error) {
+	stored = map[string]bool{}
+	for _, name := range []string{bus.EventStreamName(region), bus.AdminEventStreamName(region)} {
+		st, err := js.Stream(ctx, name)
+		if err != nil {
+			return 0, nil, false, err
+		}
+		index, ids, ok, err := bus.LastEvents(ctx, st)
+		if err != nil {
+			return 0, nil, false, fmt.Errorf("reading the last event of %s: %w", name, err)
+		}
+		switch {
+		case !ok:
+		case !found || index > last:
+			last, stored, found = index, ids, true
+		case index == last:
+			for id := range ids {
+				stored[id] = true
+			}
+		}
+	}
+	return last, stored, found, nil
 }
 
 // publishBusEvents publishes the events of the event broker into the event
-// stream of the region, from the event after the newest one in the stream.
-// It returns on an error or when ctx ends.
+// streams of the region, from the event after the newest one in them. It
+// returns on an error or when ctx ends.
 func (s *Server) publishBusEvents(ctx context.Context, js jetstream.JetStream) error {
 	cfg := s.config.Bus.Events
 	region := s.config.Region
 	name := bus.EventStreamName(region)
 	if err := s.ensureEventStream(ctx, js); err != nil {
-		return fmt.Errorf("creating the stream %s: %w", name, err)
-	}
-	eventStream, err := js.Stream(ctx, name)
-	if err != nil {
-		return err
+		return fmt.Errorf("creating the event streams: %w", err)
 	}
 	// The events of one Raft index are a batch, and a batch can end half
-	// way (a lost acknowledgement, a leader change): the stream then has
-	// some events of its newest index. Continue with that index, without
+	// way (a lost acknowledgement, a leader change): the streams then have
+	// some events of their newest index. Continue with that index, without
 	// the events of it that are there. Continuing after it lost the rest.
-	last, stored, found, err := bus.LastEvents(ctx, eventStream)
+	last, stored, found, err := lastBusEvents(ctx, js, region)
 	if err != nil {
-		return fmt.Errorf("reading the last event of %s: %w", name, err)
+		return err
 	}
 
 	broker, err := s.State().EventBroker()
@@ -325,6 +364,7 @@ func (s *Server) busEventMessages(prefix string, events *structs.Events, skip ma
 			Namespace: ev.Namespace,
 			Key:       ev.Key,
 			JSON:      raw,
+			Admin:     busAdminEvent(ev),
 		}
 		if skip[bus.EventMsgID(s.config.Region, busEvent)] {
 			continue

@@ -56,6 +56,14 @@ type Grant struct {
 	Publish   []string
 	Subscribe []string
 
+	// PublishDeny and SubscribeDeny are subjects the connection may not
+	// publish or receive although Publish or Subscribe cover them (Norca):
+	// the admin events its token may not see, and the JetStream API of the
+	// admin event stream. NATS also withholds a denied subject from a wider
+	// subscription that covers it.
+	PublishDeny   []string
+	SubscribeDeny []string
+
 	// Inbox is the subject prefix of the replies of the connection's own
 	// requests, e.g. "_INBOX.<accessor id>": the connection may subscribe
 	// below it and nowhere else in the inboxes. Empty: the connection gets
@@ -74,7 +82,8 @@ func (g *Grant) Equal(o *Grant) bool {
 		return g == o
 	}
 	return g.Kind == o.Kind && g.Name == o.Name && g.All == o.All && g.Inbox == o.Inbox &&
-		slices.Equal(g.Publish, o.Publish) && slices.Equal(g.Subscribe, o.Subscribe)
+		slices.Equal(g.Publish, o.Publish) && slices.Equal(g.Subscribe, o.Subscribe) &&
+		slices.Equal(g.PublishDeny, o.PublishDeny) && slices.Equal(g.SubscribeDeny, o.SubscribeDeny)
 }
 
 // Authorizer authenticates the credentials of a connection. It returns nil
@@ -135,8 +144,8 @@ func permissions(g *Grant) *natsserver.Permissions {
 		subscribe = append(subscribe, g.Inbox+".>")
 	}
 	return &natsserver.Permissions{
-		Publish:   &natsserver.SubjectPermission{Allow: nonEmpty(g.Publish)},
-		Subscribe: &natsserver.SubjectPermission{Allow: nonEmpty(subscribe)},
+		Publish:   &natsserver.SubjectPermission{Allow: nonEmpty(g.Publish), Deny: slices.Clone(g.PublishDeny)},
+		Subscribe: &natsserver.SubjectPermission{Allow: nonEmpty(subscribe), Deny: slices.Clone(g.SubscribeDeny)},
 		// Requests to the connection's own subscriptions may be answered.
 		Response: &natsserver.ResponsePermission{MaxMsgs: 1},
 	}

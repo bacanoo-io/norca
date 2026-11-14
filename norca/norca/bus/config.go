@@ -210,6 +210,18 @@ func (c *Config) TelemetryMaxBytes() int64 {
 	return c.MaxStorage / TelemetryStorageShare
 }
 
+// EventStreamMaxBytes and AdminEventStreamMaxBytes are the size limits of
+// the event stream and of the admin event stream: they share
+// bus.events.max_bytes, the admin events a part of AdminEventsShare. 0 is
+// no limit for both.
+func (c *Config) EventStreamMaxBytes() int64 {
+	return c.Events.MaxBytes - c.AdminEventStreamMaxBytes()
+}
+
+func (c *Config) AdminEventStreamMaxBytes() int64 {
+	return c.Events.MaxBytes / AdminEventsShare
+}
+
 func (c *Config) eventsStorage() int64 {
 	if !c.Events.Enabled {
 		return 0

@@ -104,10 +104,17 @@ func TestBusEvents_Publish(t *testing.T) {
 	cfg := stream.CachedInfo().Config
 	must.Eq(t, []string{"norca.global.>"}, cfg.Subjects)
 	must.Eq(t, bus.DefaultEventsMaxAge, cfg.MaxAge)
-	must.Eq(t, int64(16<<20), cfg.MaxBytes)
+	// The admin event stream takes a quarter of bus.events.max_bytes.
+	must.Eq(t, int64(12<<20), cfg.MaxBytes)
 	must.Eq(t, 2*time.Minute, cfg.Duplicates)
 	must.Eq(t, jetstream.S2Compression, cfg.Compression)
 	must.Eq(t, 1, cfg.Replicas)
+	admin, err := js.Stream(t.Context(), bus.AdminEventStreamName("global"))
+	must.NoError(t, err)
+	adminCfg := admin.CachedInfo().Config
+	must.Eq(t, []string{"norca.admin.global.>"}, adminCfg.Subjects)
+	must.Eq(t, bus.DefaultEventsMaxAge, adminCfg.MaxAge)
+	must.Eq(t, int64(4<<20), adminCfg.MaxBytes)
 
 	// The bus status lists the stream.
 	st, err := s1.busStatus()

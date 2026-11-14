@@ -45,6 +45,16 @@ const (
 	// PushSubject is the subject (after the prefix) of pack push notices.
 	PushSubject = "packs.pushed"
 
+	// AdminSubjectToken is the token after the prefix of the admin events:
+	// <prefix>.admin.<region>.<namespace>.<topic>. A region named "admin"
+	// is refused (CheckSubjects).
+	AdminSubjectToken = "admin"
+
+	// AdminEventsShare is the part of bus.events.max_bytes the admin event
+	// stream may take: max_bytes divided by it. The event stream takes the
+	// rest.
+	AdminEventsShare = 4
+
 	// DefaultSubjectPrefix is the first part of the event subjects.
 	DefaultSubjectPrefix = "norca"
 
@@ -69,6 +79,13 @@ type Event struct {
 	Namespace string
 	Key       string
 	JSON      []byte
+
+	// Admin is set for the events that only the holders of a right beyond
+	// reading jobs may see (Norca): the ACL objects, node pools, nodes,
+	// quotas, admission policies, admin network policies, the audit of the
+	// secret store, the server roles and the backups. They go to the admin
+	// event stream, on AdminEventSubject.
+	Admin bool
 }
 
 // SubjectToken replaces the characters a subject token can't contain.
@@ -95,9 +112,22 @@ func EventSubject(prefix, region, namespace, topic string) string {
 	return prefix + "." + SubjectToken(region) + "." + SubjectToken(namespace) + "." + SubjectToken(topic)
 }
 
+// AdminEventSubject is the subject of an admin event (Event.Admin) of a
+// topic of a namespace of a region.
+func AdminEventSubject(prefix, region, namespace, topic string) string {
+	return prefix + "." + AdminSubjectToken + "." + SubjectToken(region) + "." + SubjectToken(namespace) + "." + SubjectToken(topic)
+}
+
 // EventStreamName is the name of the event stream of a region.
 func EventStreamName(region string) string {
 	return regionStreamName("NORCA_EVENTS_", region)
+}
+
+// AdminEventStreamName is the name of the admin event stream of a region.
+// Only the connections whose token may see every admin topic (a management
+// token) reach it through the JetStream API.
+func AdminEventStreamName(region string) string {
+	return regionStreamName("NORCA_ADMIN_EVENTS_", region)
 }
 
 // TelemetryStreamName is the name of the stream of the task group usage
@@ -131,7 +161,11 @@ func EventMessage(prefix, region string, ev *Event) *nats.Msg {
 	if len(data) > 0 && data[0] == '{' {
 		data = withRegion(data, region)
 	}
-	msg := nats.NewMsg(EventSubject(prefix, region, ev.Namespace, ev.Topic))
+	subject := EventSubject(prefix, region, ev.Namespace, ev.Topic)
+	if ev.Admin {
+		subject = AdminEventSubject(prefix, region, ev.Namespace, ev.Topic)
+	}
+	msg := nats.NewMsg(subject)
 	msg.Data = data
 	msg.Header.Set(HeaderMsgID, EventMsgID(region, ev))
 	msg.Header.Set(HeaderRegion, region)
@@ -239,14 +273,26 @@ func LastEventIndex(ctx context.Context, stream jetstream.Stream) (index uint64,
 }
 
 // CheckSubjects checks that the subjects of the streams of a region do not
-// overlap: the events on <prefix>.<region>.>, the pack push notices on
-// <prefix>.packs.pushed, and the usage reports on norca.telemetry.<region>.*.
-// JetStream refuses a stream whose subjects another stream has. With the
-// default prefix a region named "telemetry" or "packs" collides.
+// overlap: the events on <prefix>.<region>.>, the admin events on
+// <prefix>.admin.<region>.>, the pack push notices on <prefix>.packs.pushed,
+// and the usage reports on norca.telemetry.<region>.*. JetStream refuses a
+// stream whose subjects another stream has. With the default prefix a
+// region named "telemetry", "packs" or "admin" collides.
 func CheckSubjects(prefix, region string) error {
 	events := prefix + "." + SubjectToken(region) + ".>"
+	admin := prefix + "." + AdminSubjectToken + "." + SubjectToken(region) + ".>"
 	telemetry := "norca.telemetry." + SubjectToken(region) + ".*"
 	pushes := []string{prefix + "." + PushSubject, prefix + "." + PushSubject + ".>"}
+	if natsserver.SubjectsCollide(events, admin) {
+		return fmt.Errorf("the events of region %q (%s) and its admin events (%s) would share subjects: "+
+			"use another region name or another bus.events.subject_prefix", region, events, admin)
+	}
+	for _, other := range append([]string{telemetry}, pushes...) {
+		if natsserver.SubjectsCollide(admin, other) {
+			return fmt.Errorf("the admin events of region %q (%s) and %s would share subjects: "+
+				"use another bus.events.subject_prefix", region, admin, other)
+		}
+	}
 	if natsserver.SubjectsCollide(events, telemetry) {
 		return fmt.Errorf("the events of region %q (%s) and its usage reports (%s) would share subjects: "+
 			"use another region name or another bus.events.subject_prefix", region, events, telemetry)
