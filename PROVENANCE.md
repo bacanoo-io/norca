@@ -10,9 +10,9 @@ Maintainer: Joszef Oszlanczi. Commits before 2026-11-14 appear under the name
 - **Upstream code** was imported from the releases listed in [NOTICE](NOTICE)
   and in the Origin section of the [README](README.md).
 - **Norca-specific code** was written in 2026 by AI coding agents (Claude) from
-  my own specifications and from designs revised from them. Most of the
-  revised designs are in [design/](design/README.md) of this repository; my
-  own first specifications are not published.
+  my own specifications. These documents are published in
+  [design/](design/README.md) of this repository in a rewritten form, not as
+  they were first written.
 - **One person** filled the roles of analyst, developer and auditor. They were
   separated by agent sessions and working environments, not by people. This is
   not the two-team "clean room" procedure; see the Terms section of
