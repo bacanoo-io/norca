@@ -19,6 +19,22 @@ import (
 // event stream API and the state keep the whole job; a consumer reads it
 // there with read-job.
 
+// busEventJob returns the job an event is about: the key of a Job event,
+// the first filter key (the job ID) of the events of evaluations,
+// allocations, deployments and service registrations; empty for the other
+// topics, whose filter keys are something else.
+func busEventJob(ev *structs.Event) string {
+	switch ev.Topic {
+	case structs.TopicJob:
+		return ev.Key
+	case structs.TopicEvaluation, structs.TopicAllocation, structs.TopicDeployment, structs.TopicService:
+		if len(ev.FilterKeys) > 0 {
+			return ev.FilterKeys[0]
+		}
+	}
+	return ""
+}
+
 // busRedacted replaces a value left out of a bus event.
 const busRedacted = "<redacted>"
 

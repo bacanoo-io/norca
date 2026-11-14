@@ -36,6 +36,11 @@ const (
 	HeaderNamespace = "Nomad-Namespace"
 	HeaderKey       = "Nomad-Key"
 
+	// HeaderJob is the job of an event of the topics Job, Evaluation,
+	// Allocation, Deployment and Service (Norca), so that a consumer filters
+	// the events of its jobs without decoding the payload.
+	HeaderJob = "Norca-Job"
+
 	// HeaderRedacted is set ("true") on an event whose payload left out
 	// parts that may hold secrets (Norca): the Job events.
 	HeaderRedacted = "Norca-Redacted"
@@ -95,6 +100,10 @@ type Event struct {
 	// Redacted is set when JSON left out parts of the event that may hold
 	// secrets; the message gets the HeaderRedacted header.
 	Redacted bool
+
+	// Job is the job the event is about, empty for events of other
+	// topics; the message gets the HeaderJob header.
+	Job string
 }
 
 // SubjectToken replaces the characters a subject token can't contain.
@@ -189,6 +198,9 @@ func EventMessage(prefix, region string, ev *Event) *nats.Msg {
 	}
 	if ev.Redacted {
 		msg.Header.Set(HeaderRedacted, "true")
+	}
+	if ev.Job != "" {
+		msg.Header.Set(HeaderJob, ev.Job)
 	}
 	return msg
 }

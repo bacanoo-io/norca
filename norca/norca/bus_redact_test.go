@@ -68,6 +68,29 @@ func TestBusRedactJob(t *testing.T) {
 	}
 }
 
+func TestBusEventJob(t *testing.T) {
+	ci.Parallel(t)
+
+	tests := []struct {
+		name     string
+		event    structs.Event
+		expected string
+	}{
+		{name: "job", event: structs.Event{Topic: structs.TopicJob, Key: "web"}, expected: "web"},
+		{name: "allocation", event: structs.Event{Topic: structs.TopicAllocation, Key: "a1", FilterKeys: []string{"web", "d1"}}, expected: "web"},
+		{name: "evaluation", event: structs.Event{Topic: structs.TopicEvaluation, FilterKeys: []string{"web", ""}}, expected: "web"},
+		{name: "deployment", event: structs.Event{Topic: structs.TopicDeployment, FilterKeys: []string{"web"}}, expected: "web"},
+		{name: "service", event: structs.Event{Topic: structs.TopicService, FilterKeys: []string{"web", "api"}}, expected: "web"},
+		{name: "custom object", event: structs.Event{Topic: structs.TopicCustomObject, FilterKeys: []string{"db.example.com/Db"}}},
+		{name: "variables", event: structs.Event{Topic: structs.TopicVariables, Key: "nomad/jobs/web"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			must.Eq(t, tt.expected, busEventJob(&tt.event))
+		})
+	}
+}
+
 // TestConsulKVEndpoint_Notice checks the notice of a written and of a
 // deleted key: a live message on <prefix>.<region>.<ns>.ConsulKV.<type> with
 // the key and without the value, which the event stream does not keep.

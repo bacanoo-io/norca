@@ -99,6 +99,7 @@ func TestBusEvents_Publish(t *testing.T) {
 	must.Eq(t, job.ID, ev.Payload.Job.ID)
 	// The job on the bus has no secrets: env values are left out.
 	must.Eq(t, "true", msg.Header.Get(bus.HeaderRedacted))
+	must.Eq(t, job.ID, msg.Header.Get(bus.HeaderJob))
 	must.StrContains(t, string(msg.Data), busRedacted)
 	must.StrNotContains(t, string(msg.Data), `"FOO":"bar"`)
 
