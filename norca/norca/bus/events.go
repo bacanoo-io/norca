@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -188,31 +189,79 @@ func GapMessage(prefix, region string, fromIndex uint64, reason string, now time
 	return msg
 }
 
-// LastEventIndex returns the Raft index of the newest event in a stream, by
-// the Nomad-Index header of its last messages (gap markers have none).
-// found is false for an empty stream or one without events.
-func LastEventIndex(ctx context.Context, stream jetstream.Stream) (index uint64, found bool, err error) {
+// storedLookBack is how many of the newest messages of the event stream are
+// read to find the events of the newest index.
+const storedLookBack = 2048
+
+// LastEvents returns the Raft index of the newest event in a stream, by the
+// Nomad-Index header of its last messages (gap markers have none), and the
+// deduplication IDs of the events of that index that are in the stream. The
+// events of one index are published as one batch, which can end half way:
+// the publisher continues with that index and leaves these out. found is
+// false for an empty stream or one without events.
+func LastEvents(ctx context.Context, stream jetstream.Stream) (index uint64, ids map[string]bool, found bool, err error) {
 	info, err := stream.Info(ctx)
 	if err != nil {
-		return 0, false, err
+		return 0, nil, false, err
 	}
-	const lookBack = 64
-	for seq := info.State.LastSeq; seq >= info.State.FirstSeq && seq > 0 && info.State.LastSeq-seq < lookBack; seq-- {
+	ids = map[string]bool{}
+	for seq := info.State.LastSeq; seq >= info.State.FirstSeq && seq > 0 && info.State.LastSeq-seq < storedLookBack; seq-- {
 		msg, err := stream.GetMsg(ctx, seq)
 		if errors.Is(err, jetstream.ErrMsgNotFound) {
 			continue
 		}
 		if err != nil {
-			return 0, false, err
+			return 0, nil, false, err
 		}
-		if v := msg.Header.Get(HeaderIndex); v != "" {
-			idx, err := strconv.ParseUint(v, 10, 64)
-			if err == nil {
-				return idx, true, nil
-			}
+		v := msg.Header.Get(HeaderIndex)
+		if v == "" {
+			continue // a gap marker
+		}
+		idx, err := strconv.ParseUint(v, 10, 64)
+		if err != nil {
+			continue
+		}
+		if !found {
+			index, found = idx, true
+		}
+		if idx != index {
+			break // the index before: all of the newest one was read
+		}
+		ids[msg.Header.Get(HeaderMsgID)] = true
+	}
+	return index, ids, found, nil
+}
+
+// LastEventIndex returns the Raft index of the newest event in a stream.
+func LastEventIndex(ctx context.Context, stream jetstream.Stream) (index uint64, found bool, err error) {
+	index, _, found, err = LastEvents(ctx, stream)
+	return index, found, err
+}
+
+// CheckSubjects checks that the subjects of the streams of a region do not
+// overlap: the events on <prefix>.<region>.>, the pack push notices on
+// <prefix>.packs.pushed, and the usage reports on norca.telemetry.<region>.*.
+// JetStream refuses a stream whose subjects another stream has. With the
+// default prefix a region named "telemetry" or "packs" collides.
+func CheckSubjects(prefix, region string) error {
+	events := prefix + "." + SubjectToken(region) + ".>"
+	telemetry := "norca.telemetry." + SubjectToken(region) + ".*"
+	pushes := []string{prefix + "." + PushSubject, prefix + "." + PushSubject + ".>"}
+	if natsserver.SubjectsCollide(events, telemetry) {
+		return fmt.Errorf("the events of region %q (%s) and its usage reports (%s) would share subjects: "+
+			"use another region name or another bus.events.subject_prefix", region, events, telemetry)
+	}
+	for _, push := range pushes {
+		if natsserver.SubjectsCollide(events, push) {
+			return fmt.Errorf("the events of region %q (%s) and the pack push notices (%s) would share subjects: "+
+				"use another region name or another bus.events.subject_prefix", region, events, push)
+		}
+		if natsserver.SubjectsCollide(telemetry, push) {
+			return fmt.Errorf("the usage reports of region %q (%s) and the pack push notices (%s) would share subjects: "+
+				"use another bus.events.subject_prefix", region, telemetry, push)
 		}
 	}
-	return 0, false, nil
+	return nil
 }
 
 // StreamSettings are the limits of a stream the server manages.

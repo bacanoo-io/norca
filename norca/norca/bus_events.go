@@ -124,7 +124,7 @@ func (s *Server) ensureConsulKVBucket(ctx context.Context, js jetstream.JetStrea
 	if err != nil {
 		return err
 	}
-	if status.(*jetstream.KeyValueBucketStatus).StreamInfo().Config.Replicas == replicas {
+	if bucket, ok := status.(*jetstream.KeyValueBucketStatus); ok && bucket.StreamInfo().Config.Replicas == replicas {
 		return nil
 	}
 	stream, err := js.Stream(ctx, "KV_"+bus.ConsulKVBucket)
@@ -141,9 +141,16 @@ func (s *Server) ensureConsulKVBucket(ctx context.Context, js jetstream.JetStrea
 func (s *Server) busRetryLoop(ctx context.Context, what string, fn func(context.Context, jetstream.JetStream) error) {
 	failures := 0
 	for ctx.Err() == nil {
+		start := time.Now()
 		err := s.withBusJetStream(ctx, fn)
 		if ctx.Err() != nil {
 			return
+		}
+		// A run that lasted was not part of the failures before it: the
+		// backoff starts again (it stayed at its maximum for the rest of the
+		// life of the loop).
+		if time.Since(start) > 2*busRetryMax {
+			failures = 0
 		}
 		failures++
 		s.logger.Warn("system bus: "+what+" failed, retrying", "error", err)
@@ -216,7 +223,11 @@ func (s *Server) publishBusEvents(ctx context.Context, js jetstream.JetStream) e
 	if err != nil {
 		return err
 	}
-	last, found, err := bus.LastEventIndex(ctx, eventStream)
+	// The events of one Raft index are a batch, and a batch can end half
+	// way (a lost acknowledgement, a leader change): the stream then has
+	// some events of its newest index. Continue with that index, without
+	// the events of it that are there. Continuing after it lost the rest.
+	last, stored, found, err := bus.LastEvents(ctx, eventStream)
 	if err != nil {
 		return fmt.Errorf("reading the last event of %s: %w", name, err)
 	}
@@ -231,13 +242,14 @@ func (s *Server) publishBusEvents(ctx context.Context, js jetstream.JetStream) e
 	}
 	req := &stream.SubscribeRequest{Topics: topics, Namespace: "*"}
 	if found {
-		req.Index, req.StartExactlyAtIndex = last+1, true
+		req.Index, req.StartExactlyAtIndex = last, true
 	}
 	sub, err := broker.Subscribe(req)
 	if errors.Is(err, stream.ErrIndexNotAvailable) {
-		s.logger.Warn("system bus: the event stream can't resume after its newest event, events may be missing; continuing with the newest events",
-			"from_index", last+1)
-		gap := bus.GapMessage(cfg.SubjectPrefix, region, last+1, "index-gone", time.Now())
+		s.logger.Warn("system bus: the event stream can't resume at its newest event, events may be missing; continuing with the newest events",
+			"from_index", last)
+		stored = nil
+		gap := bus.GapMessage(cfg.SubjectPrefix, region, last, "index-gone", time.Now())
 		if _, err := js.PublishMsg(ctx, gap); err != nil {
 			return fmt.Errorf("publishing the gap marker: %w", err)
 		}
@@ -276,17 +288,21 @@ func (s *Server) publishBusEvents(ctx context.Context, js jetstream.JetStream) e
 		if len(events.Events) == 0 {
 			continue
 		}
-		if err := s.publishEventBatch(ctx, js, cfg.SubjectPrefix, &events); err != nil {
+		skip := stored
+		if events.Index != last {
+			skip, stored = nil, nil // past the index the stream ended with
+		}
+		if err := s.publishEventBatch(ctx, js, cfg.SubjectPrefix, &events, skip); err != nil {
 			return err
 		}
 	}
 }
 
-// publishEventBatch publishes the events of one Raft index and waits for
-// their acknowledgements. Republishing after a failure is safe: the stream
-// drops duplicates by Nats-Msg-Id.
-func (s *Server) publishEventBatch(ctx context.Context, js jetstream.JetStream, prefix string, events *structs.Events) error {
-	futures := make([]jetstream.PubAckFuture, 0, len(events.Events))
+// busEventMessages builds the messages of the events of one Raft index,
+// without the events whose deduplication ID is in skip: those the stream
+// has from before, when the batch of this index ended half way.
+func (s *Server) busEventMessages(prefix string, events *structs.Events, skip map[string]bool) []*nats.Msg {
+	msgs := make([]*nats.Msg, 0, len(events.Events))
 	for i := range events.Events {
 		ev := &events.Events[i]
 		raw, err := encodeEventJSON(ev)
@@ -294,17 +310,33 @@ func (s *Server) publishEventBatch(ctx context.Context, js jetstream.JetStream, 
 			s.logger.Warn("system bus: an event can't be encoded, skipped", "topic", ev.Topic, "key", ev.Key, "error", err)
 			continue
 		}
-		msg := bus.EventMessage(prefix, s.config.Region, &bus.Event{
+		busEvent := &bus.Event{
 			Index:     ev.Index,
 			Topic:     string(ev.Topic),
 			Type:      ev.Type,
 			Namespace: ev.Namespace,
 			Key:       ev.Key,
 			JSON:      raw,
-		})
+		}
+		if skip[bus.EventMsgID(s.config.Region, busEvent)] {
+			continue
+		}
+		msgs = append(msgs, bus.EventMessage(prefix, s.config.Region, busEvent))
+	}
+	return msgs
+}
+
+// publishEventBatch publishes the events of one Raft index and waits for
+// their acknowledgements. Republishing after a failure is safe: the stream
+// drops duplicates by Nats-Msg-Id within its duplicate window, and skip are
+// the IDs of the events of this index that the stream has from before.
+func (s *Server) publishEventBatch(ctx context.Context, js jetstream.JetStream, prefix string, events *structs.Events, skip map[string]bool) error {
+	msgs := s.busEventMessages(prefix, events, skip)
+	futures := make([]jetstream.PubAckFuture, 0, len(msgs))
+	for _, msg := range msgs {
 		f, err := js.PublishMsgAsync(msg)
 		if err != nil {
-			return fmt.Errorf("publishing event %d: %w", ev.Index, err)
+			return fmt.Errorf("publishing the events of index %d: %w", events.Index, err)
 		}
 		futures = append(futures, f)
 	}
@@ -375,9 +407,20 @@ func (s *Server) consumePushNotices(ctx context.Context, js jetstream.JetStream)
 			_ = m.Term()
 			return
 		}
-		if err := syncer.handle(&n); err != nil {
+		pushed := time.Now()
+		if meta, err := m.Metadata(); err == nil {
+			pushed = meta.Timestamp
+		}
+		wait, err := syncer.handle(&n, pushed)
+		if err != nil {
 			s.logger.Warn("system bus: pack push notice not handled", "error", err)
 			_ = m.NakWithDelay(30 * time.Second)
+			return
+		}
+		if wait > 0 {
+			// A registry is in its cooldown and was not synced since this
+			// push: the notice comes again when the cooldown is over.
+			_ = m.NakWithDelay(wait)
 			return
 		}
 		_ = m.Ack()
@@ -406,24 +449,30 @@ func (s *Server) consumePushNotices(ctx context.Context, js jetstream.JetStream)
 // pushSyncer syncs the registries matching push notices, at most once per
 // cooldown each.
 type pushSyncer struct {
-	srv  *Server
-	mu   sync.Mutex
+	srv *Server
+	mu  sync.Mutex
+	// last is when the last sync of a registry started.
 	last map[string]time.Time
 }
 
-// handle syncs the registries whose name or source matches the notice. It
-// fails only when the registries can't be read.
-func (p *pushSyncer) handle(n *bus.PushNotice) error {
+// handle syncs the registries whose name or source matches the notice,
+// pushed at the given time. A registry whose last sync started after the
+// push has it already. A registry in its cooldown is left for later: wait is
+// then the time until its cooldown is over, and the notice must be handled
+// again after it (it was acknowledged and dropped before, and the push was
+// not synced until the next one). It fails only when the registries can't be
+// read.
+func (p *pushSyncer) handle(n *bus.PushNotice, pushed time.Time) (wait time.Duration, err error) {
 	if n.Source == "" && n.Registry == "" {
-		return nil
+		return 0, nil
 	}
 	snap, err := p.srv.State().Snapshot()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	iter, err := snap.CustomObjects(nil, structs.ReleaseObjectGroup, structs.PackRegistryKind, "", state.SortDefault)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	source := bus.NormalizeSource(n.Source)
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
@@ -437,10 +486,17 @@ func (p *pushSyncer) handle(n *bus.PushNotice) error {
 			continue
 		}
 		p.mu.Lock()
-		if t, ok := p.last[reg.Name]; ok && time.Since(t) < pushSyncCooldown {
-			p.mu.Unlock()
-			p.srv.logger.Debug("pack registry sync on push skipped: cooldown", "registry", reg.Name)
-			continue
+		if t, ok := p.last[reg.Name]; ok {
+			if !t.Before(pushed) {
+				p.mu.Unlock()
+				continue // synced since this push
+			}
+			if left := pushSyncCooldown - time.Since(t); left > 0 {
+				p.mu.Unlock()
+				p.srv.logger.Debug("pack registry sync on push waits for the cooldown", "registry", reg.Name, "wait", left)
+				wait = max(wait, left)
+				continue
+			}
 		}
 		p.last[reg.Name] = time.Now()
 		p.mu.Unlock()
@@ -450,14 +506,15 @@ func (p *pushSyncer) handle(n *bus.PushNotice) error {
 		}
 		p.srv.logger.Info("pack registry synced on push", "registry", reg.Name)
 	}
-	return nil
+	return wait, nil
 }
 
 // publishPushNotice publishes a push notice on the bus; without the bus it
 // syncs the matching registries of this region directly.
 func (s *Server) publishPushNotice(n *bus.PushNotice) error {
 	if s.bus == nil || !s.config.Bus.Events.Enabled {
-		return (&pushSyncer{srv: s, last: map[string]time.Time{}}).handle(n)
+		_, err := (&pushSyncer{srv: s, last: map[string]time.Time{}}).handle(n, time.Now())
+		return err
 	}
 	data, err := json.Marshal(n)
 	if err != nil {

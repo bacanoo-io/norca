@@ -66,6 +66,9 @@ func (s *Server) setupBus() error {
 		cfg.StoreDir = dir
 	}
 	cfg.Clustered = s.config.BootstrapExpect > 1 || s.raftServers() > 1
+	if err := bus.CheckSubjects(cfg.Events.SubjectPrefix, cfg.Region); err != nil {
+		return fmt.Errorf("system bus: %w", err)
+	}
 
 	if s.config.TLSConfig != nil && s.config.TLSConfig.EnableRPC {
 		clientTLS, clusterTLS, err := busTLS(s.config.TLSConfig, s.config.Region)
