@@ -362,6 +362,22 @@ func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *struc
 		return fmt.Errorf("active root key cannot be deleted - call rotate first")
 	}
 
+	// Norca: a key that encrypts Variables stays: without it they can never
+	// be read again. (The garbage collection of the keyring looks at this
+	// too, before it calls here.)
+	variables, err := snap.GetVariablesByKeyID(ws, args.KeyID)
+	if err != nil {
+		return err
+	}
+	encrypted := 0
+	for variables.Next() != nil {
+		encrypted++
+	}
+	if encrypted > 0 {
+		return fmt.Errorf("root key %s encrypts %d Variable(s) - "+
+			"rotate the keyring with -full first, or write or delete those Variables", args.KeyID, encrypted)
+	}
+
 	// Norca: a key that seals values of the Consul KV bucket of the system
 	// bus stays: without it they can never be read again. The state does
 	// not know of the bucket, so it is read here; when it cannot be read

@@ -14,8 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
+	"github.com/shoenig/test/must"
+	"github.com/shoenig/test/wait"
 )
 
 // TestKeyringEndpoint_CRUD exercises the basic keyring operations
@@ -297,4 +300,56 @@ func TestKeyringEndpoint_Rotate(t *testing.T) {
 
 	gotKey := getResp.Key
 	require.Len(t, gotKey.Key, 32)
+}
+
+// TestKeyringEndpoint_DeleteKeyInUse checks that a root key that encrypts a
+// Variable is not removed by hand, and is after a full rotation encrypted
+// the Variable with the new key.
+func TestKeyringEndpoint_DeleteKeyInUse(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, cleanup := TestServer(t, nil)
+	defer cleanup()
+	testutil.WaitForLeader(t, srv.RPC)
+	waitForActiveRootKey(t, srv)
+	write := structs.WriteRequest{Region: srv.config.Region}
+
+	// The first key of a server is in use by other things: the test has a
+	// key of its own.
+	rotate := func(full bool) string {
+		var resp structs.KeyringRotateRootKeyResponse
+		must.NoError(t, srv.RPC("Keyring.Rotate", &structs.KeyringRotateRootKeyRequest{Full: full, WriteRequest: write}, &resp))
+		return resp.Key.KeyID
+	}
+	oldKey := rotate(false)
+
+	variable := mock.Variable()
+	must.NoError(t, srv.RPC("Variables.Apply", &structs.VariablesApplyRequest{
+		Op: structs.VarOpSet, Var: variable, WriteRequest: write,
+	}, &structs.VariablesApplyResponse{}))
+
+	remove := func() error {
+		return srv.RPC("Keyring.Delete", &structs.KeyringDeleteRootKeyRequest{KeyID: oldKey, WriteRequest: write},
+			&structs.KeyringDeleteRootKeyResponse{})
+	}
+	stored := func() *structs.RootKeyMeta {
+		meta, err := srv.fsm.State().RootKeyMetaByID(nil, oldKey)
+		must.NoError(t, err)
+		return meta
+	}
+
+	// Not the active key any more, and it encrypts the Variable.
+	rotate(false)
+	must.ErrorContains(t, remove(), "encrypts 1 Variable(s)")
+	must.NotNil(t, stored())
+
+	// A full rotation encrypts the Variable with its key: the two older
+	// keys encrypt nothing and go.
+	newKey := rotate(true)
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		v, err := srv.fsm.State().GetVariable(nil, variable.Namespace, variable.Path)
+		return err == nil && v != nil && v.KeyID == newKey
+	}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)))
+	must.NoError(t, remove())
+	must.Nil(t, stored())
 }
