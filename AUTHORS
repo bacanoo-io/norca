@@ -1,0 +1,10 @@
+# The authors of Norca.
+#
+# Norca is built on the source code of HashiCorp Nomad v1.6.5 and the other
+# projects listed in NOTICE and in the Origin section of README.md; their
+# authors are named in the git history and in the file headers.
+#
+# Commits before 2026-11-14 carry the name "bigjoe"; .mailmap maps them to
+# the name below.
+
+Joszef Oszlanczi <backystart@gmail.com> (maintainer)
