@@ -296,6 +296,7 @@ func TestBusServer_TLSRoutes(t *testing.T) {
 		t.Cleanup(func() { _ = os.RemoveAll(store) })
 		cfg.StoreDir = store
 		cfg.MaxMemory, cfg.MaxStorage = 32<<20, 128<<20
+		cfg.ConsulKVMaxBytes = 16 << 20
 		cfg.Events.MaxBytes = 16 << 20
 		cfg.ClientTLS, cfg.ClusterTLS = clientTLS, clusterTLS
 		// A reserved port may still be taken by another test for a moment:

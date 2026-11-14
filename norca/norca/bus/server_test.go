@@ -78,6 +78,7 @@ func testConfig(t *testing.T, name string) *Config {
 	c.StoreDir = store
 	c.MaxMemory = 32 << 20
 	c.MaxStorage = 128 << 20
+	c.ConsulKVMaxBytes = 16 << 20
 	c.Events.MaxBytes = 16 << 20
 	return c
 }

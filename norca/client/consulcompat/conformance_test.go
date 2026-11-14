@@ -57,6 +57,7 @@ func newBusCluster(t *testing.T, acl bool, compat *structsc.ConsulCompatConfig, 
 		c.Bus.Port, c.Bus.ClusterPort = ports[0], ports[1]
 		c.Bus.StoreDir = store
 		c.Bus.MaxMemory, c.Bus.MaxStorage = 32<<20, 128<<20
+		c.Bus.ConsulKVMaxBytes = 16 << 20
 		c.Bus.Events.MaxBytes = 16 << 20
 	}, compat, opts...)
 }
