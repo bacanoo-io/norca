@@ -745,3 +745,89 @@ func TestEventStream_ACLTokenExpiry(t *testing.T) {
 		}
 	}
 }
+
+// TestEventStream_SecretAccessOnFollower checks that a subscription to the
+// audit records of the secret store made on a follower is served by the
+// leader: the records are not written to Raft, only the leader's broker has
+// them, and before the follower never sent one.
+func TestEventStream_SecretAccessOnFollower(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, func(c *Config) {
+		c.EnableEventBroker = true
+		c.BootstrapExpect = 2
+	})
+	defer cleanupS1()
+	s2, cleanupS2 := TestServer(t, func(c *Config) {
+		c.EnableEventBroker = true
+		c.BootstrapExpect = 2
+	})
+	defer cleanupS2()
+	TestJoin(t, s1, s2)
+	testutil.WaitForLeader(t, s1.RPC)
+	testutil.WaitForLeader(t, s2.RPC)
+	leader, follower := s1, s2
+	if s2.IsLeader() {
+		leader, follower = s2, s1
+	}
+
+	handler, err := follower.StreamingRpcHandler("Event.Stream")
+	must.NoError(t, err)
+	p1, p2 := net.Pipe()
+	defer p1.Close()
+	defer p2.Close()
+	go handler(p2)
+
+	got := make(chan structs.Event, 4)
+	go func() {
+		decoder := codec.NewDecoder(p1, structs.MsgpackHandle)
+		for {
+			var msg structs.EventStreamWrapper
+			if err := decoder.Decode(&msg); err != nil {
+				return
+			}
+			if msg.Error != nil {
+				t.Logf("stream error: %v", msg.Error)
+				continue
+			}
+			if msg.Event == nil || bytes.Equal(msg.Event.Data, stream.JsonHeartbeat.Data) {
+				continue
+			}
+			var events structs.Events
+			if json.Unmarshal(msg.Event.Data, &events) == nil {
+				for _, ev := range events.Events {
+					got <- ev
+				}
+			}
+		}
+	}()
+	must.NoError(t, codec.NewEncoder(p1, structs.MsgpackHandle).Encode(structs.EventStreamRequest{
+		Topics:       map[structs.Topic][]string{structs.TopicSecretAccess: {"*"}},
+		QueryOptions: structs.QueryOptions{Region: "global", Namespace: "default"},
+	}))
+
+	// The audit record is published in the leader's broker only.
+	broker, err := leader.State().EventBroker()
+	must.NoError(t, err)
+	index, err := leader.State().LatestIndex()
+	must.NoError(t, err)
+	tick := time.NewTicker(200 * time.Millisecond)
+	defer tick.Stop()
+	timeout := time.After(10 * time.Second)
+	for {
+		select {
+		case ev := <-got:
+			must.Eq(t, structs.TopicSecretAccess, ev.Topic)
+			must.Eq(t, "db/app", ev.Key)
+			return
+		case <-tick.C:
+			broker.Publish(&structs.Events{Index: index, Events: []structs.Event{{
+				Topic: structs.TopicSecretAccess, Type: structs.TypeSecretAccessed,
+				Key: "db/app", Namespace: "default", Index: index,
+				Payload: &structs.SecretAccessEvent{Time: time.Now().UTC(), Namespace: "default", Path: "db/app"},
+			}}})
+		case <-timeout:
+			t.Fatal("the subscription on the follower received no audit record")
+		}
+	}
+}

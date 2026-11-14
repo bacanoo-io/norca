@@ -54,6 +54,26 @@ func (e *Event) stream(conn io.ReadWriteCloser) {
 		return
 	}
 
+	// Norca: the audit records of the secret store (topic SecretAccess) are
+	// not written to Raft; they are published in the broker of the server
+	// that executed the access, which is the leader. A subscription that
+	// asks for the topic is served by the leader, or a follower would never
+	// send one. (A subscription to "*" on a follower has every Raft topic
+	// but no audit records; the full audit is the admin event stream of the
+	// system bus.)
+	if _, wantsAudit := args.Topics[structs.TopicSecretAccess]; wantsAudit {
+		if isLeader, leader := e.srv.getLeader(); !isLeader {
+			if leader == nil {
+				handleJsonResultError(structs.ErrNoLeader, pointer.Of(int64(http.StatusServiceUnavailable)), encoder)
+				return
+			}
+			if err := e.forwardStreamingRPCToServer(leader, "Event.Stream", args, conn); err != nil {
+				handleJsonResultError(err, pointer.Of(int64(500)), encoder)
+			}
+			return
+		}
+	}
+
 	e.srv.MeasureRPCRate("event", structs.RateMetricRead, &args)
 	if authErr != nil {
 		handleJsonResultError(structs.ErrPermissionDenied, pointer.Of(int64(http.StatusForbidden)), encoder)
