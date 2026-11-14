@@ -87,7 +87,41 @@ norca scaling policy list
 norca job scaling-events test-app
 ```
 
-### 5. Rotate the secret
+### 5. The Consul KV is encrypted
+
+The servers encrypt every value of the KV with the active root key of the
+keyring before they store it, as they do with Variables: the files of the
+system bus hold ciphertext only. The dev agent keeps them in a temporary
+directory:
+
+```shell
+curl -X PUT --data 'postgres://app:s3cret@db:5432/app' http://127.0.0.1:8500/v1/kv/test-app/db-url
+curl 'http://127.0.0.1:8500/v1/kv/test-app/db-url?raw'   # in the clear through the API
+
+store=$(ls -d ${TMPDIR:-/tmp}/norca-bus*/jetstream | head -n1)
+grep -rlaF 's3cret' "$store"              # nothing: the value is not on disk in the clear
+grep -rlaF 'norca-kv-sealed-1' "$store"   # .../streams/KV_consul-kv/msgs/1.blk, the sealed value
+```
+
+A root key that still encrypts a value is not removed:
+
+```shell
+first=$(norca operator root keyring list -verbose | awk '$2 == "active" {print $1}')
+norca operator root keyring rotate         # a new active key; the value keeps the first one
+norca operator root keyring remove $first
+# error: ... root key <id> encrypts 1 value(s) of the Consul KV of the system bus -
+#   rotate the keyring with -full first, or write or delete those keys
+
+norca operator root keyring rotate -full   # encrypts the values again with the new key
+curl http://127.0.0.1:8500/v1/kv/test-app/db-url   # the same value; its ModifyIndex moved
+norca operator root keyring remove $first          # now it goes
+```
+
+The leader encrypts the values again in the background; on the dev agent it
+takes a moment. The same holds for Variables, and for a key that signed the
+workload identity of a running allocation.
+
+### 6. Rotate the secret
 
 ```shell
 norca secret put test-app/db username=app password=-
@@ -103,7 +137,7 @@ The `secret` block of the job delivers the new version into
 gets `SIGHUP`); the Vault-style template (`{{ with secret "kv/data/test-app/db" }}`)
 is served by the built-in store because the agent has no Vault integration.
 
-### 6. Install from the catalog
+### 7. Install from the catalog
 
 Cluster pack registries feed the **Packages → Catalog** of the web UI, and
 the install form is built from the `ui`, `validation` and `rule` blocks of
@@ -134,7 +168,7 @@ norca pack status test-app --name=test-ui
 norca pack uninstall test-ui          # or Uninstall in the UI
 ```
 
-### 7. External service and DNS alias (optional)
+### 8. External service and DNS alias (optional)
 
 ```shell
 norca service register -alias db.example.com legacy-db
@@ -142,7 +176,7 @@ dig @127.0.0.1 -p 8600 legacy-db.service.norca    # CNAME db.example.com
 norca service deregister legacy-db
 ```
 
-### 8. Teardown
+### 9. Teardown
 
 ```shell
 norca pack uninstall test-app
@@ -162,7 +196,7 @@ Then stop the agent with Ctrl-C: the dev agent keeps nothing.
   usage history of the task groups.
 - **Packages**: the `test-app` release and its revisions; the **Registries**
   tab with `examples`, the **Catalog** with its packs and the install form
-  (step 6).
+  (step 7).
 - **Topology** and **Clients**: the node in its datacenter `dc1`.
 - **Configuration → Secrets**: the secrets of the built-in secret store with
   their versions and metadata (`norca secret ...` on the command line).

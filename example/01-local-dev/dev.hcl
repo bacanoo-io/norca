@@ -35,7 +35,8 @@ client {
 
   # Consul-compatible HTTP API for tools that only know Consul (Traefik
   # consulcatalog, Prometheus consul_sd_configs, consul-template): the catalog,
-  # read-only, and the Consul KV, kept on the system bus of the servers:
+  # read-only, and the Consul KV, kept on the system bus of the servers and
+  # encrypted there with the keyring:
   #   curl http://127.0.0.1:8500/v1/catalog/services
   #   curl http://127.0.0.1:8500/v1/kv/test-app/motd
   # It listens on Consul's default address, which is also the default of the
