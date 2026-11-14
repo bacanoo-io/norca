@@ -2,7 +2,7 @@ version = 1
 
 # Documentation: MPL 2.0
 [[annotations]]
-path = ["*.md", "NOTICE", "AUTHORS", ".mailmap", ".github/**"]
+path = ["*.md", "NOTICE", "AUTHORS", ".mailmap", "scanoss.json", ".github/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Norca contributors"
 SPDX-License-Identifier = "MPL-2.0"

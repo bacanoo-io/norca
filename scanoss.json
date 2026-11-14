@@ -1,0 +1,18 @@
+{
+  "self": {
+    "name": "norca",
+    "license": "MPL-2.0",
+    "description": "Workload orchestrator built on the HashiCorp Nomad v1.6.5 source code"
+  },
+  "bom": {
+    "include": [
+      { "purl": "pkg:github/hashicorp/nomad", "comment": "Nomad v1.6.5, MPL-2.0: the base of norca/ (NOTICE)" },
+      { "purl": "pkg:github/hashicorp/nomad-pack", "comment": "Nomad Pack v0.4.2, MPL-2.0: norca/pack/ (NOTICE)" },
+      { "purl": "pkg:github/hashicorp/nomad-autoscaler", "comment": "Nomad Autoscaler v0.6.0, MPL-2.0: norca/norca/autoscaler/ (NOTICE)" },
+      { "purl": "pkg:github/hashicorp/nomad-driver-exec2", "comment": "nomad-driver-exec2 v0.1.1, MPL-2.0: norca/drivers/exec2/ (NOTICE)" },
+      { "purl": "pkg:github/cwolsen7905/ubixvault", "comment": "uBixVault v1.5.0, BSD-3-Clause: norca/secretstore/ubix/ (NOTICE)" },
+      { "purl": "pkg:github/nakabonne/tstorage", "comment": "tstorage v0.3.6, Apache-2.0: norca/internal/tstorage/ (NOTICE)" },
+      { "purl": "pkg:github/dgryski/go-tsz", "comment": "go-tsz, BSD-2-Clause: parts of two files of the tstorage copy (NOTICE)" }
+    ]
+  }
+}

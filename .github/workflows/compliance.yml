@@ -143,9 +143,17 @@ jobs:
     # request or push (delta mode) against the open source knowledge base
     # (api.osskb.org; only fingerprints are sent) and fails on a file or
     # snippet match with a license of the explicit list below (GPL, AGPL,
-    # LGPL, SSPL, EUPL, OSL, CC-BY-SA). MPL-2.0 is not in the
-    # list: the upstream Nomad code itself is MPL-2.0. Matches against BSL
-    # HashiCorp code are the subject of the separate similarity audit (CLEAN_ROOM.md).
+    # LGPL, SSPL, EUPL, OSL, CC-BY-SA, and the Business Source License).
+    # MPL-2.0 is not in the list: the upstream Nomad code itself is MPL-2.0.
+    #
+    # The second step reads the result and reports every match in the job
+    # summary. A match with a component declared in scanoss.json (the works
+    # Norca is built on) is only listed; a match with any other component is
+    # a warning on the file, because code taken from an Apache, MIT or BSD
+    # project needs its attribution; a match under the Business Source
+    # License fails the job. The similarity audit (CLEAN_ROOM.md) remains the
+    # thorough comparison with HashiCorp's BSL code; this is the quick one on
+    # every change.
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -155,11 +163,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: scanoss/gha-code-scan@d3c8f659544885761c8e3b96743ea14b830474aa # v1.7.0
+        id: scan
         with:
           scanMode: delta
           policies: copyleft
           # Strong and weak copyleft licenses (comma-separated, no spaces).
-          licenses.copyleft.explicit: GPL-1.0-only,GPL-1.0-or-later,GPL-2.0-only,GPL-2.0-or-later,GPL-3.0-only,GPL-3.0-or-later,AGPL-1.0-only,AGPL-1.0-or-later,AGPL-3.0-only,AGPL-3.0-or-later,LGPL-2.0-only,LGPL-2.0-or-later,LGPL-2.1-only,LGPL-2.1-or-later,LGPL-3.0-only,LGPL-3.0-or-later,SSPL-1.0,EUPL-1.1,EUPL-1.2,OSL-3.0,CC-BY-SA-4.0
+          licenses.copyleft.explicit: GPL-1.0-only,GPL-1.0-or-later,GPL-2.0-only,GPL-2.0-or-later,GPL-3.0-only,GPL-3.0-or-later,AGPL-1.0-only,AGPL-1.0-or-later,AGPL-3.0-only,AGPL-3.0-or-later,LGPL-2.0-only,LGPL-2.0-or-later,LGPL-2.1-only,LGPL-2.1-or-later,LGPL-3.0-only,LGPL-3.0-or-later,SSPL-1.0,EUPL-1.1,EUPL-1.2,OSL-3.0,CC-BY-SA-4.0,BUSL-1.1
+      - name: Report every match
+        if: always()
+        env:
+          RESULT: ${{ steps.scan.outputs.result-filepath }}
+        run: python3 .github/scripts/snippet-matches.py "${RESULT:-scanoss-raw.json}" scanoss.json
 
   dco:
     runs-on: ubuntu-24.04
