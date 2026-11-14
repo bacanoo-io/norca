@@ -350,3 +350,64 @@ before  mkdir /sys/fs/gotest-<id>/shared: no such file or directory
 after   initialized cpuset cgroup manager: parent=/gotest-752e1d51 cpuset=0-31
         --- PASS: TestCpusetManager_V1_Init (0.00s)
 ```
+
+## The order of the key warnings of var put
+
+In Nomad v1.6.5 (MPL 2.0) `var put` (`command/var_put.go`) walks the map of
+its `key=value` arguments, so the warnings of two keys with characters that
+are not valid in an identifier come in a different order from run to run.
+The test of the command (`TestVarPutCommand_KeyWarning/one_good_two_bad`)
+expects the order of the arguments, which the map does not keep, and failed
+now and then.
+
+Norca takes the items in the order of their keys, and the test expects that
+order (2026-11-14, `Source-Rule: independent-development`). It was found from
+the failing test and written from the Norca tree alone. Whether a later Nomad
+release changed this was not looked up; no HashiCorp source or documentation
+of a BSL release was opened or used. The change is in lines added to a file
+that comes from v1.6.5, which is in the `bugfix` set of the audit.
+
+What the test showed (2026-11-14, a full run of the `command` package), and
+after the change:
+
+```text
+before  --- FAIL: TestVarPutCommand_KeyWarning/one_good_two_bad
+        var_put_test.go:269: expected equality via cmp.Equal function
+        -  `"-"`,
+        +  `"."`,
+after   ok   command  (the test run 20 times)
+```
+
+## Removing a root key that is still in use
+
+In Nomad v1.6.5 (MPL 2.0) the garbage collection of the keyring keeps a root
+key that is in use (`IsRootKeyMetaInUse` in `nomad/state/state_store.go`: it
+signed the workload identity of an allocation that has not ended, or it
+encrypts a Variable). `Keyring.Delete` (`nomad/keyring_endpoint.go`), the RPC
+behind `operator root keyring remove`, refuses only the active key: a key
+that was rotated away and still encrypts Variables is removed by hand, and
+those Variables can never be read again.
+
+Norca refuses such a key in `Keyring.Delete` and says what it is in use for
+(2026-11-14, `Source-Rule: independent-development`): Variables, allocations
+whose workload identity it signed, and two uses that are Norca's own, the
+private key of a certificate authority of the native mTLS and the values of
+the Consul KV kept on the system bus. It was found in a review of Norca's own
+change that made the garbage collection keep the keys of the bus KV, and
+written from the Norca tree alone. Whether a later Nomad release changed
+`Keyring.Delete` was not looked up; no HashiCorp source or documentation of a
+BSL release was opened or used. The change is in lines added to a file that
+comes from v1.6.5, which is in the `bugfix` set of the audit, and in a new
+file of the state store.
+
+What the tests show (2026-11-14, `TestKeyringEndpoint_DeleteKeyInUse` and
+`TestConsulKVSeal_KeyInUse`): the refusals, and that the key goes once
+nothing needs it.
+
+```text
+root key <id> encrypts 1 Variable(s) - rotate the keyring with -full first, or write or delete those Variables
+root key <id> signed the workload identity of 1 allocation(s) that have not ended - their tokens would no longer be accepted; remove the key when they have stopped
+root key <id> encrypts 1 value(s) of the Consul KV of the system bus - rotate the keyring with -full first, or write or delete those keys
+--- PASS: TestKeyringEndpoint_DeleteKeyInUse
+--- PASS: TestConsulKVSeal_KeyInUse
+```
