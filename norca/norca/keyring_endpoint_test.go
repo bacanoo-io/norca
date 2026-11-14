@@ -302,9 +302,10 @@ func TestKeyringEndpoint_Rotate(t *testing.T) {
 	require.Len(t, gotKey.Key, 32)
 }
 
-// TestKeyringEndpoint_DeleteKeyInUse checks that a root key that encrypts a
-// Variable is not removed by hand, and is after a full rotation encrypted
-// the Variable with the new key.
+// TestKeyringEndpoint_DeleteKeyInUse checks that a root key the state still
+// needs is not removed by hand: one that encrypts a Variable, until a full
+// rotation encrypted the Variable with the new key, and one that signed the
+// workload identity of an allocation that has not ended.
 func TestKeyringEndpoint_DeleteKeyInUse(t *testing.T) {
 	ci.Parallel(t)
 
@@ -350,6 +351,23 @@ func TestKeyringEndpoint_DeleteKeyInUse(t *testing.T) {
 		v, err := srv.fsm.State().GetVariable(nil, variable.Namespace, variable.Path)
 		return err == nil && v != nil && v.KeyID == newKey
 	}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)))
+
+	// An allocation that has not ended and whose workload identity the key
+	// signed keeps it too, until it is gone.
+	alloc := mock.Alloc()
+	alloc.SigningKeyID = oldKey
+	upsert := func() {
+		index, err := srv.fsm.State().LatestIndex()
+		must.NoError(t, err)
+		must.NoError(t, srv.fsm.State().UpsertAllocs(structs.MsgTypeTestSetup, index+1, []*structs.Allocation{alloc}))
+	}
+	upsert()
+	must.ErrorContains(t, remove(), "signed the workload identity of 1 allocation(s)")
+	must.NotNil(t, stored())
+	index, err := srv.fsm.State().LatestIndex()
+	must.NoError(t, err)
+	must.NoError(t, srv.fsm.State().DeleteEval(index+1, nil, []string{alloc.ID}, false))
+
 	must.NoError(t, remove())
 	must.Nil(t, stored())
 }

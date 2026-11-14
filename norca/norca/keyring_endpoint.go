@@ -362,20 +362,25 @@ func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *struc
 		return fmt.Errorf("active root key cannot be deleted - call rotate first")
 	}
 
-	// Norca: a key that encrypts Variables stays: without it they can never
-	// be read again. (The garbage collection of the keyring looks at this
-	// too, before it calls here.)
-	variables, err := snap.GetVariablesByKeyID(ws, args.KeyID)
+	// Norca: a key the state still needs stays; the garbage collection of
+	// the keyring looks at the same uses (IsRootKeyMetaInUse) before it
+	// calls here. Without the key its Variables can never be read again,
+	// the workload identities it signed no longer verify, and the
+	// certificate authority of the native mTLS loses its private key.
+	uses, err := snap.RootKeyMetaUses(args.KeyID)
 	if err != nil {
 		return err
 	}
-	encrypted := 0
-	for variables.Next() != nil {
-		encrypted++
-	}
-	if encrypted > 0 {
+	switch {
+	case uses.Variables > 0:
 		return fmt.Errorf("root key %s encrypts %d Variable(s) - "+
-			"rotate the keyring with -full first, or write or delete those Variables", args.KeyID, encrypted)
+			"rotate the keyring with -full first, or write or delete those Variables", args.KeyID, uses.Variables)
+	case uses.Allocations > 0:
+		return fmt.Errorf("root key %s signed the workload identity of %d allocation(s) that have not ended - "+
+			"their tokens would no longer be accepted; remove the key when they have stopped", args.KeyID, uses.Allocations)
+	case uses.MTLSRoots > 0:
+		return fmt.Errorf("root key %s encrypts the private key of %d certificate authority(ies) of the native mTLS - "+
+			"the leader encrypts it with the active root key after a rotation; try again shortly", args.KeyID, uses.MTLSRoots)
 	}
 
 	// Norca: a key that seals values of the Consul KV bucket of the system
