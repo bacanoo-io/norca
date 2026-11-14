@@ -71,7 +71,7 @@ Step-by-step deployment examples (development agent, single node, three nodes, m
 
 ### Packs
 
-`norca pack` is the built-in package manager, based on HashiCorp Nomad Pack v0.4.2. It installs packs from git and OCI registries. The operations packs (NATS, the cross-region mTLS gateway, RustFS as the backup store, Consul, the LoadBalancer operator) live in the [Norca pack registry](https://github.com/bacanoo-io/norca-registry):
+`norca pack` is Norca Pack, the built-in package manager, based on HashiCorp Nomad Pack v0.4.2. It installs packs from git and OCI registries. The operations packs (NATS, the cross-region mTLS gateway, RustFS as the backup store, Consul, the LoadBalancer operator) live in the [Norca pack registry](https://github.com/bacanoo-io/norca-registry):
 
 ```shell
 norca pack registry add norca https://github.com/bacanoo-io/norca-registry --ref=v0.3.0
