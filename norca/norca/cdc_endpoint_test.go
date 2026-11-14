@@ -156,3 +156,60 @@ func TestCDCEndpoint_Consumers(t *testing.T) {
 	}, &read))
 	must.Nil(t, read.Consumer)
 }
+
+// TestCDCConsumers_Cleanup checks that the leader removes the consumer of a
+// reader that lost its right: a deleted token, and a policy that no longer
+// has the cdc rule.
+func TestCDCConsumers_Cleanup(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, _, cleanup := TestACLServer(t, enableBus(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	st := s1.fsm.State()
+	codec := rpcClient(t, s1)
+
+	keep, change := mock.ACLPolicy(), mock.ACLPolicy()
+	keep.Name, change.Name = "cdc-keep", "cdc-change"
+	keep.Rules = `cdc { receive = ["norca.global.default.>"] }`
+	change.Rules = keep.Rules
+	keep.SetHash()
+	change.SetHash()
+	must.NoError(t, st.UpsertACLPolicies(structs.MsgTypeTestSetup, 100, []*structs.ACLPolicy{keep, change}))
+	deleted, changed := mock.ACLToken(), mock.ACLToken()
+	deleted.Policies, changed.Policies = []string{keep.Name}, []string{change.Name}
+	deleted.SetHash()
+	changed.SetHash()
+	must.NoError(t, st.UpsertACLTokens(structs.MsgTypeTestSetup, 101, []*structs.ACLToken{deleted, changed}))
+
+	js := busJS(t, s1)
+	waitBus(t, func() (bool, error) {
+		_, err := js.Stream(t.Context(), bus.EventStreamName("global"))
+		return err == nil, err
+	})
+	for _, token := range []*structs.ACLToken{deleted, changed} {
+		var resp structs.CDCConsumerWriteResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(codec, structs.CDCConsumerUpsertRPCMethod, &structs.CDCConsumerUpsertRequest{
+			Stream:       structs.CDCStreamEvents,
+			Consumer:     structs.CDCConsumerSpec{Filters: []string{"norca.global.default.Job"}},
+			WriteRequest: structs.WriteRequest{Region: "global", AuthToken: token.SecretID},
+		}, &resp))
+	}
+	gone := func(name string) bool {
+		_, err := js.Consumer(t.Context(), bus.EventStreamName("global"), name)
+		return err != nil
+	}
+	must.False(t, gone(deleted.AccessorID))
+	must.False(t, gone(changed.AccessorID))
+
+	must.NoError(t, st.DeleteACLTokens(structs.MsgTypeTestSetup, 110, []string{deleted.AccessorID}))
+	changedPolicy := *change
+	change = &changedPolicy
+	change.Rules = `namespace "default" { policy = "read" }`
+	change.SetHash()
+	must.NoError(t, st.UpsertACLPolicies(structs.MsgTypeTestSetup, 111, []*structs.ACLPolicy{change}))
+
+	waitBus(t, func() (bool, error) {
+		return gone(deleted.AccessorID) && gone(changed.AccessorID), nil
+	})
+}

@@ -413,6 +413,11 @@ func (s *Server) busRevalidateLoop() {
 		}
 		lastIndex, lastFull = index, time.Now()
 		s.bus.Revalidate()
+		// Norca: the leader removes the change data capture consumers whose
+		// reader lost its right (cdc.go).
+		if s.IsLeader() {
+			s.cdcCleanupConsumers()
+		}
 	}
 }
 

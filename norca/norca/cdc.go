@@ -4,11 +4,16 @@
 package norca
 
 import (
+	"context"
+	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/bus"
+	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 // Change data capture (CDC) on the system bus: a reader receives the change
@@ -126,4 +131,106 @@ func (s *Server) busNonChangeDeny() []string {
 		prefix + "." + bus.PushSubject,
 		prefix + "." + bus.PushSubject + ".>",
 	}
+}
+
+// cdcCleanupConsumers removes the change data capture consumers whose reader
+// lost its right: a token deleted or expired, an allocation ended, or a cdc
+// rule that no longer covers every filter (the admin stream: no management
+// token). The inactive threshold of the stream removes the rest. It runs on
+// the leader with the revalidation of the bus connections.
+func (s *Server) cdcCleanupConsumers() {
+	if s.bus == nil || !s.bus.JetStreamReady() {
+		return
+	}
+	region := s.config.Region
+	streams := append(cdcReadableStreams(region), bus.AdminEventStreamName(region))
+	err := s.withCDCJetStream(func(ctx context.Context, js jetstream.JetStream) error {
+		for _, name := range streams {
+			stream, err := js.Stream(ctx, name)
+			if err != nil {
+				continue // not made yet
+			}
+			admin := name == bus.AdminEventStreamName(region)
+			lister := stream.ListConsumers(ctx)
+			for info := range lister.Info() {
+				reader, ok := info.Config.Metadata[cdcReaderMeta]
+				if !ok {
+					continue // not a consumer of a reader
+				}
+				filters := info.Config.FilterSubjects
+				if len(filters) == 0 && info.Config.FilterSubject != "" {
+					filters = []string{info.Config.FilterSubject}
+				}
+				if why := s.cdcReaderLost(reader, filters, admin); why != "" {
+					if err := stream.DeleteConsumer(ctx, info.Name); err != nil && !errors.Is(err, jetstream.ErrConsumerNotFound) {
+						s.logger.Warn("change data capture: removing a consumer failed", "consumer", info.Name, "error", err)
+						continue
+					}
+					s.logger.Info("change data capture: removed the consumer of a reader that lost its right",
+						"stream", name, "consumer", info.Name, "reader", reader, "reason", why)
+				}
+			}
+			if err := lister.Err(); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		s.logger.Debug("change data capture: the cleanup of the consumers did not finish", "error", err)
+	}
+}
+
+// cdcReaderLost returns why the reader of a consumer (metadata <kind>:<name>)
+// may no longer read it, or "" when it still may.
+func (s *Server) cdcReaderLost(reader string, filters []string, admin bool) string {
+	kind, name, _ := strings.Cut(reader, ":")
+	snap := s.fsm.State()
+	var aclObj *acl.ACL
+	switch kind {
+	case bus.KindToken:
+		token, err := snap.ACLTokenByAccessorID(nil, name)
+		if err != nil {
+			return ""
+		}
+		if token == nil {
+			return "token deleted"
+		}
+		if token.IsExpired(time.Now().UTC()) {
+			return "token expired"
+		}
+		if aclObj, err = s.ResolveACLForToken(token); err != nil {
+			return ""
+		}
+	case bus.KindWorkload:
+		allocID, task, _ := strings.Cut(name, "/")
+		alloc, err := snap.AllocByID(nil, allocID)
+		if err != nil {
+			return ""
+		}
+		if alloc == nil || alloc.ClientTerminalStatus() {
+			return "allocation ended"
+		}
+		claims := &structs.IdentityClaims{
+			Namespace: alloc.Namespace, JobID: alloc.JobID, AllocationID: alloc.ID, TaskName: task,
+		}
+		if aclObj, err = s.ResolveClaims(claims); err != nil {
+			return ""
+		}
+	default:
+		return ""
+	}
+	grant := aclObj.CDCGrant()
+	if grant.All {
+		return ""
+	}
+	if admin {
+		return "the admin events need a management token"
+	}
+	for _, filter := range filters {
+		if !slices.ContainsFunc(grant.Receive, func(p string) bool { return bus.SubjectIsSubsetMatch(filter, p) }) {
+			return "the cdc rule no longer covers " + filter
+		}
+	}
+	return ""
 }
