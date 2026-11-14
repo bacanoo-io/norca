@@ -106,6 +106,13 @@ type Event struct {
 	// Job is the job the event is about, empty for events of other
 	// topics; the message gets the HeaderJob header.
 	Job string
+
+	// Unique tells apart events that share index, topic, type, namespace
+	// and key (Norca): the audit records of the secret store are not
+	// written to Raft and get the latest index, so two reads of one secret
+	// would otherwise get one deduplication ID and the stream would drop
+	// the second. Empty for the events of Raft changes.
+	Unique string
 }
 
 // SubjectToken replaces the characters a subject token can't contain.
@@ -171,7 +178,11 @@ func regionStreamName(prefix, region string) string {
 // EventMsgID is the deduplication ID of an event: the same event of a
 // region gets the same ID however often it is published.
 func EventMsgID(region string, ev *Event) string {
-	return fmt.Sprintf("%s:%d:%s:%s:%s:%s", region, ev.Index, ev.Topic, ev.Type, ev.Namespace, ev.Key)
+	id := fmt.Sprintf("%s:%d:%s:%s:%s:%s", region, ev.Index, ev.Topic, ev.Type, ev.Namespace, ev.Key)
+	if ev.Unique != "" {
+		id += ":" + ev.Unique
+	}
+	return id
 }
 
 // EventMessage builds the message of an event: its JSON with a "Region"

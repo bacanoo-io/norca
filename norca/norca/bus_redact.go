@@ -5,6 +5,7 @@ package norca
 
 import (
 	"regexp"
+	"strconv"
 
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
@@ -33,6 +34,22 @@ func busEventJob(ev *structs.Event) string {
 		}
 	}
 	return ""
+}
+
+// busEventUnique returns what tells apart an event from others of the same
+// index, topic, type, namespace and key: for an audit record of the secret
+// store its time, operation and result (the same record published again
+// keeps it, so the stream still drops a duplicate). Empty for the other
+// events, which are changes of Raft and unique by their index.
+func busEventUnique(ev *structs.Event) string {
+	if ev.Topic != structs.TopicSecretAccess {
+		return ""
+	}
+	rec, ok := ev.Payload.(*structs.SecretAccessEvent)
+	if !ok || rec == nil {
+		return ""
+	}
+	return strconv.FormatInt(rec.Time.UnixNano(), 10) + "-" + rec.Operation + "-" + rec.Result
 }
 
 // busRedacted replaces a value left out of a bus event.

@@ -385,6 +385,7 @@ func (s *Server) busEventMessages(prefix string, events *structs.Events, skip ma
 			Admin:     busAdminEvent(ev),
 			Redacted:  isRedacted,
 			Job:       busEventJob(ev),
+			Unique:    busEventUnique(ev),
 		}
 		if skip[bus.EventMsgID(s.config.Region, busEvent)] {
 			continue

@@ -282,3 +282,55 @@ func TestBusEvents_ConsumerLimits(t *testing.T) {
 	must.NoError(t, err)
 	must.Eq(t, bus.DefaultEventsMaxAge, c.CachedInfo().Config.InactiveThreshold)
 }
+
+// TestBusEvents_SecretAccessIDs checks that two audit records of the secret
+// store with the same index, path and type are two messages: reads are not
+// written to Raft and get the latest index, and the stream dropped the second
+// read of a secret as a duplicate of the first. The same record published
+// again stays one message.
+func TestBusEvents_SecretAccessIDs(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanup := TestServer(t, enableBus(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	js := busJS(t, s1)
+	var admin jetstream.Stream
+	waitBus(t, func() (bool, error) {
+		var err error
+		admin, err = js.Stream(t.Context(), bus.AdminEventStreamName("global"))
+		return err == nil, err
+	})
+
+	broker, err := s1.State().EventBroker()
+	must.NoError(t, err)
+	index, err := s1.State().LatestIndex()
+	must.NoError(t, err)
+	now := time.Now().UTC()
+	publish := func(at time.Time) {
+		broker.Publish(&structs.Events{Index: index, Events: []structs.Event{{
+			Topic: structs.TopicSecretAccess, Type: structs.TypeSecretAccessed,
+			Key: "db/app", Namespace: "default", Index: index,
+			Payload: &structs.SecretAccessEvent{
+				Time: at, Namespace: "default", Path: "db/app",
+				Operation: structs.SecretOpRead, Result: structs.SecretAccessResultOK,
+			},
+		}}})
+	}
+	publish(now)
+	publish(now.Add(time.Millisecond))
+	publish(now) // the first record again
+
+	subject := "norca.admin.global.default.SecretAccess"
+	count := func() uint64 {
+		info, err := admin.Info(t.Context(), jetstream.WithSubjectFilter(subject))
+		must.NoError(t, err)
+		return info.State.Subjects[subject]
+	}
+	waitBus(t, func() (bool, error) {
+		n := count()
+		return n == 2, fmt.Errorf("%d audit messages", n)
+	})
+	time.Sleep(time.Second)
+	must.Eq(t, uint64(2), count())
+}
