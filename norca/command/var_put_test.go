@@ -204,8 +204,9 @@ func TestVarPutCommand_KeyWarning(t *testing.T) {
 		{
 			name:     "one_good_two_bad",
 			goodKeys: []string{"aardvark"},
+			// The warnings come in the order of the keys.
 			badKeys:  []string{"bad.key", "also-bad"},
-			badChars: []string{`"."`, `"-"`},
+			badChars: []string{`"-"`, `"."`},
 		},
 		{
 			name:     "repeated_bad_char",

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/api"
@@ -288,8 +289,15 @@ func (c *VarPutCommand) Run(args []string) int {
 			return 1
 		}
 
-		for k, v := range data {
-			vs := v.(string)
+		// The items in the order of their keys: the warnings of the keys
+		// come out the same way on every run (the order of a map changes).
+		keys := make([]string, 0, len(data))
+		for k := range data {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			vs := data[k].(string)
 			if vs == "" {
 				if _, ok := sv.Items[k]; ok {
 					verbose(fmt.Sprintf("Removed item %q", k))
