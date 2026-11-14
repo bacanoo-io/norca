@@ -6,6 +6,7 @@ package norca
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,8 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
@@ -381,4 +384,93 @@ func TestKeyringEndpoint_DeleteKeyInUse(t *testing.T) {
 
 	must.NoError(t, remove())
 	must.Nil(t, stored())
+}
+
+// TestKeyringEndpoint_DeleteKeyOfMTLSRoot checks that a root key that
+// encrypts the private key of a certificate authority of the native mTLS is
+// not removed, and that the leader frees it after a rotation, as the
+// refusal says.
+func TestKeyringEndpoint_DeleteKeyOfMTLSRoot(t *testing.T) {
+	ci.Parallel(t)
+
+	const refusal = "certificate authority(ies) of the native mTLS"
+
+	setup := func(t *testing.T, cb func(*Config)) (*Server, func(full bool) string, func(keyID string) error) {
+		srv, cleanup := TestServer(t, cb)
+		t.Cleanup(cleanup)
+		testutil.WaitForLeader(t, srv.RPC)
+		waitForActiveRootKey(t, srv)
+		write := structs.WriteRequest{Region: srv.config.Region}
+		rotate := func(full bool) string {
+			var resp structs.KeyringRotateRootKeyResponse
+			must.NoError(t, srv.RPC("Keyring.Rotate", &structs.KeyringRotateRootKeyRequest{Full: full, WriteRequest: write}, &resp))
+			return resp.Key.KeyID
+		}
+		remove := func(keyID string) error {
+			return srv.RPC("Keyring.Delete", &structs.KeyringDeleteRootKeyRequest{KeyID: keyID, WriteRequest: write},
+				&structs.KeyringDeleteRootKeyResponse{})
+		}
+		return srv, rotate, remove
+	}
+
+	t.Run("refused while a root holds the key", func(t *testing.T) {
+		// The CA loop of the leader is off, so nothing re-encrypts the key
+		// of the root this test stores.
+		srv, rotate, remove := setup(t, func(c *Config) {
+			c.MTLSConfig = &config.MTLSConfig{Enabled: pointer.Of(false)}
+		})
+		key := rotate(false)
+		root, _, err := srv.generateMTLSRoot("test.norca", time.Hour)
+		must.NoError(t, err)
+		must.Eq(t, key, root.SigningKeyID)
+		_, _, err = srv.raftApply(structs.MTLSRootsUpsertRequestType,
+			&structs.MTLSRootsUpsertRequest{Roots: []*structs.MTLSRoot{root}})
+		must.NoError(t, err)
+
+		rotate(false)
+		err = remove(key)
+		must.ErrorContains(t, err, "encrypts the private key of 1 "+refusal)
+		code, _, ok := structs.CodeFromRPCCodedErr(err)
+		must.True(t, ok)
+		must.Eq(t, http.StatusConflict, code)
+		meta, err := srv.fsm.State().RootKeyMetaByID(nil, key)
+		must.NoError(t, err)
+		must.NotNil(t, meta)
+
+		// A retired root has no key any more: the root key goes.
+		_, _, err = srv.raftApply(structs.MTLSRootsUpsertRequestType,
+			&structs.MTLSRootsUpsertRequest{Roots: []*structs.MTLSRoot{retireMTLSRoot(root, time.Now().UTC())}})
+		must.NoError(t, err)
+		must.NoError(t, remove(key))
+		meta, err = srv.fsm.State().RootKeyMetaByID(nil, key)
+		must.NoError(t, err)
+		must.Nil(t, meta)
+	})
+
+	t.Run("freed by the leader after a rotation", func(t *testing.T) {
+		srv, rotate, remove := setup(t, nil)
+		first := waitForMTLSRoot(t, srv).SigningKeyID
+		must.NotEq(t, "", first)
+		second := rotate(false)
+
+		// Until the leader re-encrypted the CA key the removal is refused
+		// with the mTLS reason only; then it succeeds.
+		must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+			err := remove(first)
+			if err == nil {
+				return nil
+			}
+			code, _, _ := structs.CodeFromRPCCodedErr(err)
+			if code != http.StatusConflict || !strings.Contains(err.Error(), refusal) {
+				t.Fatalf("unexpected refusal: %v", err)
+			}
+			return err
+		}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)))
+
+		roots, err := srv.State().MTLSRoots(nil)
+		must.NoError(t, err)
+		active, _, _ := mtlsSplitRoots(srv.Region(), roots)
+		must.NotNil(t, active)
+		must.Eq(t, second, active.SigningKeyID)
+	})
 }
