@@ -18,6 +18,8 @@ const (
 	KindInternal = "internal"
 	KindNode     = "node"
 	KindToken    = "token"
+	// KindWorkload is the workload identity of a task (Norca).
+	KindWorkload = "workload"
 )
 
 // Credentials are what a connection presented in its CONNECT message.
@@ -38,12 +40,12 @@ type Credentials struct {
 
 // Grant is what an authenticated connection may do.
 type Grant struct {
-	// Kind is KindNode or KindToken (KindInternal for the server's own
-	// connections).
+	// Kind is KindNode, KindToken or KindWorkload (KindInternal for the
+	// server's own connections).
 	Kind string
 
-	// Name identifies the connection in the status: the node ID or the
-	// token accessor ID.
+	// Name identifies the connection in the status: the node ID, the
+	// token accessor ID, or <allocation ID>/<task> of a workload identity.
 	Name string
 
 	// All grants every subject of the bus.

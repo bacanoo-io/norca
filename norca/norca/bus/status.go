@@ -95,6 +95,8 @@ func (s *Server) Status() (*structs.BusStatus, error) {
 			conns.Nodes++
 		case KindToken:
 			conns.Tokens++
+		case KindWorkload:
+			conns.Workloads++
 		}
 	}
 	return st, nil

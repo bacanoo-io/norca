@@ -87,10 +87,12 @@ type BusConnections struct {
 	Internal int
 	Nodes    int
 	Tokens   int
-	InMsgs   int64
-	OutMsgs  int64
-	InBytes  int64
-	OutBytes int64
+	// Workloads are the connections of tasks with their workload identity.
+	Workloads int
+	InMsgs    int64
+	OutMsgs   int64
+	InBytes   int64
+	OutBytes  int64
 }
 
 // BusStatus returns the status of the system bus of the server that answers

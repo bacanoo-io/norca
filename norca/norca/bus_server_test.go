@@ -185,6 +185,96 @@ func TestBusServer_Authentication(t *testing.T) {
 	must.True(t, nc.IsConnected())
 }
 
+// TestBusServer_WorkloadIdentity checks that a task connects with its
+// workload identity and gets the bus rules of the policies bound to its job,
+// with its replies under _INBOX.<allocation ID>.<task>, and that the
+// connection is closed when the allocation has ended. Before, the bus
+// resolved only ACL token secrets: a policy bound to a job gave its tasks
+// nothing on the bus.
+func TestBusServer_WorkloadIdentity(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, root, cleanup := TestACLServer(t, enableBus(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	waitForActiveRootKey(t, s1)
+	st := s1.fsm.State()
+
+	// A running allocation of a job with a bound policy, and one of a job
+	// without.
+	running := func(index uint64) (*structs.Allocation, string) {
+		alloc := mock.Alloc()
+		alloc.ClientStatus = structs.AllocClientStatusRunning
+		must.NoError(t, st.UpsertJob(structs.MsgTypeTestSetup, index, nil, alloc.Job))
+		identity, _, err := s1.encrypter.SignClaims(alloc.ToTaskIdentityClaims(alloc.Job, "web"))
+		must.NoError(t, err)
+		must.NoError(t, st.UpsertAllocs(structs.MsgTypeTestSetup, index+1, []*structs.Allocation{alloc}))
+		return alloc, identity
+	}
+	alloc, identity := running(100)
+	_, unbound := running(110)
+	policy := mock.ACLPolicy()
+	policy.Rules = `bus {
+  subscribe = ["svc.>"]
+  publish   = ["svc.>"]
+}`
+	policy.JobACL = &structs.JobACL{Namespace: alloc.Namespace, JobID: alloc.JobID}
+	policy.SetHash()
+	must.NoError(t, st.UpsertACLPolicies(structs.MsgTypeTestSetup, 120, []*structs.ACLPolicy{policy}))
+
+	srv, err := s1.bus.Connect()
+	must.NoError(t, err)
+	defer srv.Close()
+	_, err = srv.Subscribe("svc.echo", func(m *nats.Msg) { _ = m.Respond([]byte("pong")) })
+	must.NoError(t, err)
+	must.NoError(t, srv.Flush())
+
+	// The task's own inbox prefix: the reply arrives.
+	closed := make(chan struct{})
+	task, err := nats.Connect(busURL(s1), nats.Token(identity), nats.NoReconnect(),
+		nats.CustomInboxPrefix(bus.InboxPrefix+"."+alloc.ID+".web"),
+		nats.ClosedHandler(func(*nats.Conn) { close(closed) }))
+	must.NoError(t, err)
+	defer task.Close()
+	reply, err := task.Request("svc.echo", []byte("ping"), 5*time.Second)
+	must.NoError(t, err)
+	must.Eq(t, "pong", string(reply.Data))
+
+	// The inbox of a token is not the task's.
+	other, err := nats.Connect(busURL(s1), nats.Token(identity),
+		nats.CustomInboxPrefix(bus.InboxPrefix+"."+root.AccessorID))
+	must.NoError(t, err)
+	defer other.Close()
+	_, err = other.Request("svc.echo", []byte("ping"), time.Second)
+	must.Error(t, err)
+
+	// A job without a bound bus rule, and a token that is not a valid
+	// identity, are refused.
+	_, err = nats.Connect(busURL(s1), nats.Token(unbound))
+	must.Error(t, err)
+	_, err = nats.Connect(busURL(s1), nats.Token(identity[:len(identity)-4]+"AAAA"))
+	must.Error(t, err)
+
+	// The status counts the workload connections.
+	status, err := s1.busStatus()
+	must.NoError(t, err)
+	must.Eq(t, 2, status.Connections.Workloads)
+
+	// The allocation ends: the connection is closed and the identity no
+	// longer connects.
+	// (The client reports it: a server-side upsert keeps the client status.)
+	ended := alloc.Copy()
+	ended.ClientStatus = structs.AllocClientStatusComplete
+	must.NoError(t, st.UpdateAllocsFromClient(structs.MsgTypeTestSetup, 130, []*structs.Allocation{ended}))
+	select {
+	case <-closed:
+	case <-time.After(3 * busRevalidateInterval):
+		t.Fatal("the connection of the ended allocation was not closed")
+	}
+	_, err = nats.Connect(busURL(s1), nats.Token(identity))
+	must.Error(t, err)
+}
+
 func TestBusServer_Cluster(t *testing.T) {
 	ci.Parallel(t)
 

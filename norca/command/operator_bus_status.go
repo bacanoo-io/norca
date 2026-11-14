@@ -181,6 +181,7 @@ func formatBusStatus(st *api.BusStatus) string {
 			fmt.Sprintf("Total|%d", conns.Total),
 			fmt.Sprintf("Nodes|%d", conns.Nodes),
 			fmt.Sprintf("Tokens|%d", conns.Tokens),
+			fmt.Sprintf("Workloads|%d", conns.Workloads),
 			fmt.Sprintf("Internal|%d", conns.Internal),
 			fmt.Sprintf("Messages In/Out|%d / %d", conns.InMsgs, conns.OutMsgs),
 			fmt.Sprintf("Bytes In/Out|%s / %s", humanize.IBytes(uint64(conns.InBytes)), humanize.IBytes(uint64(conns.OutBytes))),

@@ -132,10 +132,12 @@ type BusConnections struct {
 	Internal int
 	Nodes    int
 	Tokens   int
-	InMsgs   int64
-	OutMsgs  int64
-	InBytes  int64
-	OutBytes int64
+	// Workloads are the connections of tasks with their workload identity.
+	Workloads int
+	InMsgs    int64
+	OutMsgs   int64
+	InBytes   int64
+	OutBytes  int64
 }
 
 // ConsulKVRestoreRequest replaces the Consul KV bucket of the system bus with

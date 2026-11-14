@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/helper/tlsutil"
 	"github.com/bacanoo-io/norca/norca/norca/bus"
 	"github.com/bacanoo-io/norca/norca/norca/metricsstore"
@@ -217,7 +218,8 @@ func busServerCertVerifier(pool *x509.CertPool, region string) func([][]byte, []
 }
 
 // busAuthorize authenticates a bus connection: a node with its ID and
-// secret, anyone else with an ACL token whose policies have a bus rule.
+// secret, anyone else with an ACL token or a workload identity whose
+// policies have a bus rule.
 func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 	if c.Username != "" {
 		node, err := s.fsm.State().NodeByID(nil, c.Username)
@@ -244,7 +246,7 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 	if !s.config.ACLEnabled {
 		return &bus.Grant{Kind: bus.KindToken, Name: "anonymous", All: true}, nil
 	}
-	aclObj, err := s.ResolveToken(c.Token)
+	aclObj, kind, name, inbox, err := s.busIdentity(c.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -252,29 +254,69 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 	if g.Empty() {
 		return nil, errors.New("the token has no bus rights")
 	}
-	name := "anonymous"
-	if c.Token != "" {
-		if token, err := s.ResolveSecretToken(c.Token); err == nil && token != nil {
-			name = token.AccessorID
-		} else {
-			name = "leader"
-		}
-	}
 	grant := &bus.Grant{
-		Kind:      bus.KindToken,
+		Kind:      kind,
 		Name:      name,
 		All:       g.All,
 		Publish:   busRuleSubjects(g.Publish),
 		Subscribe: busRuleSubjects(g.Subscribe),
-		// The replies of the token's requests: its own subjects, which no
-		// other token can subscribe to.
-		Inbox: bus.InboxPrefix + "." + structs.BusSubjectToken(name),
+		// The replies of the connection's requests: its own subjects, which
+		// no other token or workload can subscribe to.
+		Inbox: inbox,
 	}
 	if dropped := len(g.Publish) + len(g.Subscribe) - len(grant.Publish) - len(grant.Subscribe); dropped > 0 {
 		s.logger.Warn("system bus: subjects of a bus rule that reach the inboxes are left out; a rule starts with a name, not with a wildcard or _INBOX",
-			"token", name, "subjects", dropped)
+			kind, name, "subjects", dropped)
 	}
 	return grant, nil
+}
+
+// busIdentity resolves the token of a bus connection, as the RPC
+// authentication does: an ACL token secret (empty: the anonymous token),
+// the secret of the leader, or the workload identity of a task. It returns
+// the ACL object, the kind and name of the connection and the inbox prefix
+// of its replies.
+//
+// Norca: a workload identity gets the bus rules of the policies bound to its
+// job, group or task. Its inbox is _INBOX.<allocation ID>.<task>: both IDs
+// are made by the servers, so it can't meet the inbox of a token
+// (_INBOX.<accessor ID>) or of another task. The connection lasts while the
+// allocation runs: Revalidate verifies the identity again when allocations
+// change.
+func (s *Server) busIdentity(secret string) (aclObj *acl.ACL, kind, name, inbox string, err error) {
+	token, err := s.ResolveSecretToken(secret)
+	switch {
+	case err == nil:
+		aclObj, err = s.ResolveACLForToken(token)
+		if err != nil {
+			return nil, "", "", "", err
+		}
+		name = token.AccessorID
+		if token == structs.AnonymousACLToken {
+			name = "anonymous"
+		}
+		return aclObj, bus.KindToken, name, bus.InboxPrefix + "." + structs.BusSubjectToken(name), nil
+
+	case errors.Is(err, structs.ErrTokenInvalid):
+		// Not a UUID: it may be the workload identity of a task.
+		claims, err := s.VerifyClaim(secret)
+		if err != nil {
+			return nil, "", "", "", err
+		}
+		aclObj, err = s.ResolveClaims(claims)
+		if err != nil {
+			return nil, "", "", "", err
+		}
+		task := structs.BusSubjectToken(claims.TaskName)
+		inbox = bus.InboxPrefix + "." + structs.BusSubjectToken(claims.AllocationID) + "." + task
+		return aclObj, bus.KindWorkload, claims.AllocationID + "/" + claims.TaskName, inbox, nil
+
+	case errors.Is(err, structs.ErrTokenNotFound):
+		if leader := s.getLeaderAcl(); leader != "" && constantTimeEqual(secret, leader) {
+			return acl.ManagementACL, bus.KindToken, "leader", bus.InboxPrefix + ".leader", nil
+		}
+	}
+	return nil, "", "", "", err
 }
 
 // busRuleSubjects leaves out the subjects of a bus rule that reach the
@@ -368,10 +410,11 @@ func (s *Server) busRevalidateLoop() {
 }
 
 // busAuthIndex is the highest index of the tables the bus authentication
-// depends on.
+// depends on. Allocations count for the workload identities: a connection
+// of a task is closed when its allocation has ended.
 func busAuthIndex(st *state.StateStore) uint64 {
 	var max uint64
-	for _, table := range []string{"acl_token", "acl_policy", state.TableACLRoles, "nodes"} {
+	for _, table := range []string{"acl_token", "acl_policy", state.TableACLRoles, "nodes", "allocs"} {
 		if idx, err := st.Index(table); err == nil && idx > max {
 			max = idx
 		}
