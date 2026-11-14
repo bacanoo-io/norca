@@ -89,9 +89,9 @@ For each of the 45 BUSL files:
 
 ## Step 4: the bugfix set
 
-1. Commits: every non-merge commit up to `NorcaRef` whose message mentions
-   "clean room" (or the former "white room"), plus the commits in
-   `commits.txt`.
+1. Commits: every non-merge commit up to `NorcaRef` that has a `Source-Rule:`
+   trailer or whose message mentions "clean room" (or the former "white
+   room"), plus the commits in `commits.txt`.
 2. Files: the Go, JavaScript, TypeScript and Handlebars files each commit
    changed under the Nomad code directory of its layout; a file `BslTag` does
    not have is skipped.

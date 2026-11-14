@@ -17,10 +17,13 @@ write the code have never seen the protected work. Each has its own name now:
 | Independent fix from the public issue | A defect that HashiCorp fixed in a BSL release is fixed from the public issue and the changelog, without the BSL code or diff | clean room rule |
 | Isolated-environment fixes | The fixes of the code review of October 2026, made on an empty drive with only the Norca repositories on it. There is no protected original behind them: the name is about the environment | clean room fixes |
 
-Two labels keep the old words, because the audit finds the code by them: the
-`// clean room bugfix:` comments in the code, and "clean room" in the message
-of a commit made under one of the rules above. They mark where the rules
-applied; they do not say that a protected original existed.
+The audit finds the code by labels. A commit made under one of the rules
+above ends with a `Source-Rule:` trailer that names it:
+`reimplementation`, `independent-development`, `independent-fix` or
+`isolated-environment`. Commits before 2026-11-14 say "clean room" in their
+message instead, and the fixes of October 2026 carry `// clean room bugfix:`
+comments in the code. These older labels stay as they are; they mark where
+the rules applied and do not say that a protected original existed.
 
 One person, the maintainer, filled the roles of analyst, developer and
 auditor, with AI coding agents (Claude) writing the code. The roles were
@@ -64,7 +67,7 @@ code outside the development environment and records only the conclusion.
 | --- | --- | --- |
 | `busl` | Every file at `-NorcaRef` with the same extension in the directories of the 45 left-out files (the independent reimplementations live there) | The 45 files of Nomad v1.6.5 with a BUSL-1.1 header, as listed in the Norca import commit |
 | `full` | Every file of the Nomad code that Norca wrote (new since the import); for a file Norca changed, only the lines it added to its v1.6.5 file | For a new file: every file of the same language of `-FullTag` (default: the newest release of any major version), whatever its path, with the MPL baseline; for the added lines: the lines HashiCorp added to the same file between v1.6.5 and `-FullTag` |
-| `bugfix` | The lines each commit made under the rules added to a file (`commits.txt`, plus every commit whose message mentions "clean room" or the former "white room") | The lines HashiCorp added to the same file between v1.6.5 and `-BslTag` (default: the newest v1.x.y tag) |
+| `bugfix` | The lines each commit made under the rules added to a file (`commits.txt`, plus every commit with a `Source-Rule:` trailer or whose message mentions "clean room" or the former "white room") | The lines HashiCorp added to the same file between v1.6.5 and `-BslTag` (default: the newest v1.x.y tag) |
 
 Go, JavaScript and TypeScript files of the `busl` set are compared by syntax
 tree, everything else (Handlebars, SCSS, and all `bugfix` fragments, which do

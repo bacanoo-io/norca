@@ -45,6 +45,8 @@ Files that already carry a `SPDX-FileCopyrightText: <year> Norca contributors` l
 
 If your change fixes a bug that HashiCorp has already fixed in a BSL release, write the fix from the public issue and the CHANGELOG description, without looking at the BSL code or diff. Link the public issue in the pull request.
 
+End the message of such a commit with the trailer `Source-Rule: independent-fix`. The other values are `independent-development` (a feature whose Nomad counterpart was Enterprise only, built from Norca's own design), `reimplementation` (one of the 45 left-out files) and `isolated-environment`. The similarity audit ([CLEAN_ROOM.md](CLEAN_ROOM.md)) compares the lines of these commits with the lines HashiCorp added to the same files.
+
 ## Third-party code
 
 Code taken from other projects (for example Kubernetes) goes into a separate file with its original license header. If you modify it, mark the modification in the file. State the source and the license in the pull request.

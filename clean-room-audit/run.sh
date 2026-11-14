@@ -287,11 +287,11 @@ main() {
 	# lines HashiCorp added to the same file between v1.6.5 and $BSL_TAG.
 	if [[ ",$SETS," == *,bugfix,* ]]; then
 		mapfile -t commits < <({
-			git -C "$W/norca" log --no-merges --format=%H -i -E --grep='(clean|white) room' "$norca_rev"
+			git -C "$W/norca" log --no-merges --format=%H -i -E --grep='(clean|white) room|^Source-Rule:' "$norca_rev"
 			sed -e 's/#.*//' /audit/commits.txt | awk 'NF {print $1}' |
 				while read -r h; do git -C "$W/norca" rev-parse -q --verify "$h^{commit}" || log "unknown commit $h"; done
 		} | sort -u)
-		log "bugfix: ${#commits[@]} clean room commits, BSL tag $BSL_TAG"
+		log "bugfix: ${#commits[@]} commits made under the source rules, BSL tag $BSL_TAG"
 		for c in "${commits[@]}"; do
 			# The layout of the commit decides where the Nomad code is.
 			Lc=$(layout "$c")
