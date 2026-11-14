@@ -801,6 +801,21 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 			}, nil
 		},
 
+		"cdc": func() (cli.Command, error) {
+			return &CDCCommand{Meta: meta}, nil
+		},
+		"cdc consumer": func() (cli.Command, error) {
+			return &CDCConsumerCommand{Meta: meta}, nil
+		},
+		"cdc consumer apply": func() (cli.Command, error) {
+			return &CDCConsumerApplyCommand{Meta: meta}, nil
+		},
+		"cdc consumer read": func() (cli.Command, error) {
+			return &CDCConsumerReadCommand{Meta: meta}, nil
+		},
+		"cdc consumer delete": func() (cli.Command, error) {
+			return &CDCConsumerDeleteCommand{Meta: meta}, nil
+		},
 		"operator bus": func() (cli.Command, error) {
 			return &OperatorBusCommand{
 				Meta: meta,

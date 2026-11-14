@@ -48,6 +48,13 @@ func (p *CDCPolicy) validate() error {
 	return nil
 }
 
+// ValidCDCSubject checks a subject of a cdc rule or of the filter of a
+// consumer: NATS wildcards as whole tokens, nothing of the NATS system or of
+// the inboxes, no leading wildcard.
+func ValidCDCSubject(subject string) error {
+	return validateBusSubject(subject)
+}
+
 // unknownRuleKeys refuses the keys of a rule block the decoder did not know.
 // The leafnode key of the bus rule is gone: a leaf node attaches with the cdc
 // rule.

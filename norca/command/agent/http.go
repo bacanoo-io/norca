@@ -569,6 +569,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/operator/autopilot/configuration", s.wrap(s.OperatorAutopilotConfiguration))
 	s.mux.HandleFunc("/v1/operator/autopilot/health", s.wrap(s.OperatorServerHealth))
 	s.mux.HandleFunc("/v1/operator/bus", s.wrap(s.OperatorBusStatus))
+	s.mux.HandleFunc("/v1/cdc/consumer/", s.wrap(s.CDCConsumerRequest))
 	s.mux.HandleFunc("/v1/operator/metrics-store", s.wrap(s.OperatorMetricsStoreStatus))
 	s.mux.HandleFunc("/v1/operator/consul-kv/migrate", s.wrap(s.OperatorConsulKVMigrate))
 	s.mux.HandleFunc("/v1/operator/consul-kv/restore", s.wrap(s.OperatorConsulKVRestore))

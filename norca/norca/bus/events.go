@@ -126,6 +126,24 @@ func SubjectsCollide(a, b string) bool {
 	return natsserver.SubjectsCollide(a, b)
 }
 
+// SubjectIsSubsetMatch reports whether every subject the pattern subject
+// matches is also matched by pattern.
+func SubjectIsSubsetMatch(subject, pattern string) bool {
+	st, pt := strings.Split(subject, "."), strings.Split(pattern, ".")
+	for i, p := range pt {
+		if p == ">" {
+			return i < len(st)
+		}
+		if i >= len(st) || st[i] == ">" {
+			return false
+		}
+		if p != "*" && st[i] != p {
+			return false
+		}
+	}
+	return len(st) == len(pt)
+}
+
 // ChangeStreamSubjects are the subjects of the change streams of a region
 // (change data capture): the events, the Consul KV notices and the admin
 // events.

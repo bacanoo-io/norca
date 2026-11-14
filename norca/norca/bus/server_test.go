@@ -399,3 +399,25 @@ func createStream(t *testing.T, js jetstream.JetStream, cfg jetstream.StreamConf
 		return err == nil, err
 	}, func(err error) { t.Fatal(err) })
 }
+
+func TestSubjectIsSubsetMatch(t *testing.T) {
+	tests := []struct {
+		subject, pattern string
+		expected         bool
+	}{
+		{"norca.eu.games.Job", "norca.eu.*.*", true},
+		{"norca.eu.games.*", "norca.eu.*.*", true},
+		{"norca.eu.>", "norca.eu.*.*", false},
+		{"norca.eu.*.*", "norca.>", true},
+		{"norca.eu.games.ConsulKV.*", "norca.eu.*.ConsulKV.*", true},
+		{"norca.eu.games.ConsulKV.*", "norca.eu.*.*", false},
+		{"norca.eu.*.Job", "norca.eu.games.>", false},
+		{"norca.eu", "norca.eu.>", false},
+		{"norca.eu.games.Job", "norca.eu.games.Job", true},
+	}
+	for _, tt := range tests {
+		if got := SubjectIsSubsetMatch(tt.subject, tt.pattern); got != tt.expected {
+			t.Errorf("SubjectIsSubsetMatch(%q, %q) = %v, want %v", tt.subject, tt.pattern, got, tt.expected)
+		}
+	}
+}
