@@ -38,6 +38,13 @@ const (
 	// runs with the events: push notices are small and only needed until
 	// the leader handled them.
 	PushStreamMaxBytes = 64 << 20
+
+	// DefaultConsulKVMaxBytes bounds the bucket of the Consul KV.
+	DefaultConsulKVMaxBytes = 256 << 20
+
+	// TelemetryStorageShare is the part of the storage the stream of the
+	// usage reports may take: MaxStorage divided by it.
+	TelemetryStorageShare = 16
 )
 
 // Config is the configuration of the system bus of one server.
@@ -73,6 +80,10 @@ type Config struct {
 	MaxMemory  int64
 	MaxStorage int64
 
+	// ConsulKVMaxBytes bounds the bucket of the Consul KV of the compat
+	// API. A write beyond it fails; nothing is dropped.
+	ConsulKVMaxBytes int64
+
 	// MaxPayload bounds the size of a message in bytes.
 	MaxPayload int32
 
@@ -107,12 +118,14 @@ type EventsConfig struct {
 // agent enables it on servers.
 func DefaultConfig() *Config {
 	return &Config{
-		Port:           DefaultPort,
-		ClusterPort:    DefaultClusterPort,
-		MaxMemory:      DefaultMaxMemory,
-		MaxStorage:     DefaultMaxStorage,
-		MaxPayload:     DefaultMaxPayload,
-		MaxConnections: DefaultMaxConnections,
+		Port:        DefaultPort,
+		ClusterPort: DefaultClusterPort,
+		MaxMemory:   DefaultMaxMemory,
+		MaxStorage:  DefaultMaxStorage,
+
+		ConsulKVMaxBytes: DefaultConsulKVMaxBytes,
+		MaxPayload:       DefaultMaxPayload,
+		MaxConnections:   DefaultMaxConnections,
 		Events: EventsConfig{
 			Enabled:       true,
 			SubjectPrefix: DefaultSubjectPrefix,
@@ -158,6 +171,9 @@ func (c *Config) Validate() error {
 	if c.MaxPayload <= 0 {
 		errs = append(errs, fmt.Errorf("bus.max_payload must be positive"))
 	}
+	if c.ConsulKVMaxBytes <= 0 {
+		errs = append(errs, fmt.Errorf("bus.consul_kv_max_bytes must be positive"))
+	}
 	if c.MaxConnections <= 0 {
 		errs = append(errs, fmt.Errorf("bus.max_connections must be positive"))
 	}
@@ -171,12 +187,44 @@ func (c *Config) Validate() error {
 		// JetStream reserves the limits of the streams: the event and push
 		// streams must leave room for the streams without a limit (the
 		// Consul KV bucket).
-		if c.Events.MaxBytes+PushStreamMaxBytes >= c.MaxStorage {
-			errs = append(errs, fmt.Errorf("bus.events.max_bytes and the %dMiB of the push notices must fit into bus.max_storage", PushStreamMaxBytes>>20))
-		}
 		if len(c.Events.Topics) == 0 {
 			errs = append(errs, fmt.Errorf("bus.events.topics must name at least one topic or \"*\""))
 		}
 	}
+	// Everything the bus keeps on disk fits into its storage: a stream that
+	// may grow past what is left makes the writes of the others fail.
+	if c.MaxStorage > 0 && c.ConsulKVMaxBytes > 0 {
+		if planned := c.PlannedStorage(); planned > c.MaxStorage {
+			errs = append(errs, fmt.Errorf("the streams of the bus need %dMiB (events %dMiB, pack push notices %dMiB, "+
+				"usage reports %dMiB, Consul KV %dMiB) and bus.max_storage is %dMiB: raise it, or lower "+
+				"bus.events.max_bytes or bus.consul_kv_max_bytes",
+				planned>>20, c.eventsStorage()>>20, c.pushStorage()>>20, c.TelemetryMaxBytes()>>20,
+				c.ConsulKVMaxBytes>>20, c.MaxStorage>>20))
+		}
+	}
 	return errors.Join(errs...)
+}
+
+// TelemetryMaxBytes is the size limit of the stream of the usage reports.
+func (c *Config) TelemetryMaxBytes() int64 {
+	return c.MaxStorage / TelemetryStorageShare
+}
+
+func (c *Config) eventsStorage() int64 {
+	if !c.Events.Enabled {
+		return 0
+	}
+	return c.Events.MaxBytes
+}
+
+func (c *Config) pushStorage() int64 {
+	if !c.Events.Enabled {
+		return 0
+	}
+	return PushStreamMaxBytes
+}
+
+// PlannedStorage is what the streams of the bus may take on disk together.
+func (c *Config) PlannedStorage() int64 {
+	return c.eventsStorage() + c.pushStorage() + c.TelemetryMaxBytes() + c.ConsulKVMaxBytes
 }

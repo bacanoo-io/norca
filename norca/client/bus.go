@@ -33,8 +33,6 @@ type busClient struct {
 }
 
 // setBusServers records the bus addresses of the servers of a heartbeat.
-// An open connection keeps its servers: NATS learns the servers of the
-// cluster from the one it is connected to.
 func (c *Client) setBusServers(servers []*structs.NodeServerInfo) {
 	var addrs []string
 	for _, s := range servers {
@@ -46,7 +44,18 @@ func (c *Client) setBusServers(servers []*structs.NodeServerInfo) {
 	c.bus.l.Lock()
 	defer c.bus.l.Unlock()
 	c.bus.known = true
+	changed := !slices.Equal(addrs, c.bus.addrs)
 	c.bus.addrs = addrs
+	// A connection that is up keeps its servers: NATS tells it the servers
+	// of the cluster. One that is down knows only the servers it had, and
+	// when all of them were replaced meanwhile it would try them for ever:
+	// with another list from the heartbeat it is opened again by the next
+	// use.
+	if changed && c.bus.nc != nil && !c.bus.nc.IsConnected() {
+		c.logger.Info("the bus connection is down and the servers changed: connecting again with the new list", "servers", len(addrs))
+		c.bus.nc.Close()
+		c.bus.nc = nil
+	}
 }
 
 // errNoBus is returned by BusConn when the client has no system bus to use:

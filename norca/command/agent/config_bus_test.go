@@ -137,7 +137,22 @@ server {
 	// An explicit limit beyond the storage, a bad prefix and unknown keys
 	// are refused.
 	_, err = (&BusConfig{MaxStorage: "1GiB", Events: &BusEventsConfig{MaxBytes: "2GiB"}}).toServerConfig(c.Ports)
-	must.ErrorContains(t, err, "must fit into bus.max_storage")
+	must.ErrorContains(t, err, "bus.max_storage is 1024MiB")
+
+	// The bucket of the Consul KV: 256MiB, an eighth of a small storage, or
+	// what is set; everything the bus keeps must fit into the storage.
+	must.Eq(t, int64(256<<20), blocks.bus.ConsulKVMaxBytes)
+	must.Eq(t, int64(128<<20), small.ConsulKVMaxBytes)
+	kv, err := (&BusConfig{MaxStorage: "1GiB", ConsulKVMaxBytes: "64MiB"}).toServerConfig(c.Ports)
+	must.NoError(t, err)
+	must.Eq(t, int64(64<<20), kv.ConsulKVMaxBytes)
+	must.Eq(t, int64((256+64+64+64)<<20), kv.PlannedStorage()) // events, push notices, usage reports, KV
+	_, err = (&BusConfig{MaxStorage: "1GiB", ConsulKVMaxBytes: "900MiB"}).toServerConfig(c.Ports)
+	must.ErrorContains(t, err, "Consul KV 900MiB")
+	_, err = (&BusConfig{ConsulKVMaxBytes: "lots"}).toServerConfig(c.Ports)
+	must.ErrorContains(t, err, "consul_kv_max_bytes")
+	merged := (&BusConfig{ConsulKVMaxBytes: "1GiB"}).Merge(&BusConfig{ConsulKVMaxBytes: "2GiB"})
+	must.Eq(t, "2GiB", merged.ConsulKVMaxBytes)
 	_, err = (&BusConfig{Events: &BusEventsConfig{SubjectPrefix: "a..b"}}).toServerConfig(c.Ports)
 	must.ErrorContains(t, err, "subject_prefix")
 	must.NoError(t, os.WriteFile(path, []byte(`server { bus { events { stream = "X" } } }`), 0o600))

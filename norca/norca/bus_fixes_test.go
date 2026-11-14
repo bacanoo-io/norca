@@ -162,3 +162,53 @@ func TestBus_CheckSubjects(t *testing.T) {
 	}
 	must.ErrorContains(t, err, "would share subjects")
 }
+
+// TestBusKV_SizeLimit checks the size limit of the bucket of the Consul KV:
+// a write beyond it fails with an error that names the setting, the keys
+// that are there stay, and the limit of a bucket follows the configuration.
+func TestBusKV_SizeLimit(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanup := TestServer(t, func(c *Config) {
+		enableBus(t)(c)
+		c.Bus.ConsulKVMaxBytes = 256 << 10
+	})
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	c := &consulKVTest{t: t, srv: s1}
+	c.waitBucket("")
+
+	js := busJS(t, s1)
+	stream, err := js.Stream(t.Context(), "KV_"+bus.ConsulKVBucket)
+	must.NoError(t, err)
+	must.Eq(t, 256<<10, stream.CachedInfo().Config.MaxBytes)
+
+	value := string(make([]byte, 60<<10))
+	var failed error
+	written := 0
+	for i := 0; i < 10 && failed == nil; i++ {
+		_, failed = c.put("", "default", "big/"+string(rune('a'+i)), value, nil)
+		if failed == nil {
+			written++
+		}
+	}
+	must.Positive(t, written)
+	must.Error(t, failed)
+	t.Logf("the error of a write into the full bucket: %v", failed)
+	must.ErrorContains(t, failed, "bus.consul_kv_max_bytes")
+
+	// What was written is still there.
+	resp, err := c.get("", "default", "big/", true, 0)
+	must.NoError(t, err)
+	must.Len(t, written, resp.Entries)
+
+	// A raised limit reaches the bucket (the leader checks it every ten
+	// seconds).
+	s1.config.Bus.ConsulKVMaxBytes = 1 << 20
+	must.NoError(t, s1.ensureConsulKVBucket(t.Context(), js))
+	stream, err = js.Stream(t.Context(), "KV_"+bus.ConsulKVBucket)
+	must.NoError(t, err)
+	must.Eq(t, 1<<20, stream.CachedInfo().Config.MaxBytes)
+	_, err = c.put("", "default", "big/more", value, nil)
+	must.NoError(t, err)
+}

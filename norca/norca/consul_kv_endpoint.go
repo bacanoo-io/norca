@@ -241,6 +241,12 @@ func consulKVError(err error) error {
 		errors.Is(err, jetstream.ErrBucketNotFound), errors.Is(err, jetstream.ErrJetStreamNotEnabled):
 		return consulKVUnavailable(err)
 	}
+	// The bucket is full: its size limit keeps the other streams of the bus
+	// their room. JetStream refuses the write (the bucket discards nothing).
+	var apiErr *jetstream.APIError
+	if errors.As(err, &apiErr) && strings.Contains(apiErr.Description, "maximum bytes exceeded") {
+		return fmt.Errorf("the Consul KV of the system bus is full (bus.consul_kv_max_bytes): %w", err)
+	}
 	return err
 }
 

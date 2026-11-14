@@ -45,6 +45,7 @@ func enableBus(t *testing.T) func(*Config) {
 		c.Bus.MaxMemory = 32 << 20
 		c.Bus.MaxStorage = 128 << 20
 		c.Bus.Events.MaxBytes = 16 << 20
+		c.Bus.ConsulKVMaxBytes = 16 << 20
 	}
 }
 

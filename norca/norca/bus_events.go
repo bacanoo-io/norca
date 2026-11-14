@@ -108,6 +108,7 @@ func (s *Server) ensureConsulKVBucket(ctx context.Context, js jetstream.JetStrea
 			History:     1,
 			Replicas:    replicas,
 			Storage:     jetstream.FileStorage,
+			MaxBytes:    s.config.Bus.ConsulKVMaxBytes,
 		})
 		if errors.Is(err, jetstream.ErrBucketExists) {
 			return nil
@@ -124,8 +125,11 @@ func (s *Server) ensureConsulKVBucket(ctx context.Context, js jetstream.JetStrea
 	if err != nil {
 		return err
 	}
-	if bucket, ok := status.(*jetstream.KeyValueBucketStatus); ok && bucket.StreamInfo().Config.Replicas == replicas {
-		return nil
+	maxBytes := s.config.Bus.ConsulKVMaxBytes
+	if bucket, ok := status.(*jetstream.KeyValueBucketStatus); ok {
+		if cfg := bucket.StreamInfo().Config; cfg.Replicas == replicas && cfg.MaxBytes == maxBytes {
+			return nil
+		}
 	}
 	stream, err := js.Stream(ctx, "KV_"+bus.ConsulKVBucket)
 	if err != nil {
@@ -133,6 +137,10 @@ func (s *Server) ensureConsulKVBucket(ctx context.Context, js jetstream.JetStrea
 	}
 	cfg := stream.CachedInfo().Config
 	cfg.Replicas = replicas
+	// A bucket made before the limit existed has none, and a limit below
+	// what it holds is refused by JetStream: the bucket then keeps its old
+	// limit and the error says so.
+	cfg.MaxBytes = maxBytes
 	_, err = js.UpdateStream(ctx, cfg)
 	return err
 }

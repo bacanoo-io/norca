@@ -27,6 +27,8 @@ import (
 //	  max_payload     = "1MiB"
 //	  max_connections = 10000
 //
+//	  consul_kv_max_bytes = "256MiB"
+//
 //	  events {
 //	    enabled        = true
 //	    subject_prefix = "norca"
@@ -45,6 +47,11 @@ type BusConfig struct {
 
 	// MaxPayload bounds the size of a message.
 	MaxPayload string `hcl:"max_payload"`
+
+	// ConsulKVMaxBytes bounds the bucket of the Consul KV of the compat API
+	// on the bus; a write beyond it fails. Default 256MiB, or an eighth of
+	// max_storage when that is less.
+	ConsulKVMaxBytes string `hcl:"consul_kv_max_bytes"`
 
 	// MaxConnections bounds the client connections of a server.
 	MaxConnections int `hcl:"max_connections"`
@@ -152,6 +159,9 @@ func (a *BusConfig) Merge(b *BusConfig) *BusConfig {
 	if b.MaxPayload != "" {
 		result.MaxPayload = b.MaxPayload
 	}
+	if b.ConsulKVMaxBytes != "" {
+		result.ConsulKVMaxBytes = b.ConsulKVMaxBytes
+	}
 	if b.MaxConnections != 0 {
 		result.MaxConnections = b.MaxConnections
 	}
@@ -209,6 +219,17 @@ func (b *BusConfig) toServerConfig(ports *Ports) (*bus.Config, error) {
 	}
 	if b.MaxConnections != 0 {
 		cfg.MaxConnections = b.MaxConnections
+	}
+
+	// The bucket of the Consul KV takes at most an eighth of the storage
+	// unless its limit is set.
+	cfg.ConsulKVMaxBytes = min(cfg.ConsulKVMaxBytes, cfg.MaxStorage/8)
+	if b.ConsulKVMaxBytes != "" {
+		v, err := humanize.ParseBytes(b.ConsulKVMaxBytes)
+		if err != nil || v > math.MaxInt64 {
+			return nil, fmt.Errorf("bus.consul_kv_max_bytes can't parse size %s", b.ConsulKVMaxBytes)
+		}
+		cfg.ConsulKVMaxBytes = int64(v)
 	}
 
 	// The event stream takes at most a quarter of the storage unless its

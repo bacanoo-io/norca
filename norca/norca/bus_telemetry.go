@@ -79,7 +79,7 @@ func (s *Server) ensureTelemetryStream(ctx context.Context, js jetstream.JetStre
 		bus.StreamSettings{
 			Replicas:    s.busReplicas(),
 			MaxAge:      telemetryStreamMaxAge,
-			MaxBytes:    s.config.Bus.MaxStorage / 16,
+			MaxBytes:    s.config.Bus.TelemetryMaxBytes(),
 			MaxMsgSize:  structs.BusTelemetryMaxMsgSize,
 			Storage:     jetstream.FileStorage,
 			Compression: jetstream.S2Compression,
