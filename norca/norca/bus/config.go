@@ -210,12 +210,17 @@ func (c *Config) TelemetryMaxBytes() int64 {
 	return c.MaxStorage / TelemetryStorageShare
 }
 
-// EventStreamMaxBytes and AdminEventStreamMaxBytes are the size limits of
-// the event stream and of the admin event stream: they share
-// bus.events.max_bytes, the admin events a part of AdminEventsShare. 0 is
-// no limit for both.
+// EventStreamMaxBytes, AdminEventStreamMaxBytes and
+// ConsulKVChangesMaxBytes are the size limits of the event stream, the
+// admin event stream and the stream of the Consul KV notices: they share
+// bus.events.max_bytes, the admin events a part of AdminEventsShare, the
+// notices a part of ConsulKVChangesShare. 0 is no limit for all.
 func (c *Config) EventStreamMaxBytes() int64 {
-	return c.Events.MaxBytes - c.AdminEventStreamMaxBytes()
+	return c.Events.MaxBytes - c.AdminEventStreamMaxBytes() - c.ConsulKVChangesMaxBytes()
+}
+
+func (c *Config) ConsulKVChangesMaxBytes() int64 {
+	return c.Events.MaxBytes / ConsulKVChangesShare
 }
 
 func (c *Config) AdminEventStreamMaxBytes() int64 {

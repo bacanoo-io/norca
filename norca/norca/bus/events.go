@@ -60,10 +60,12 @@ const (
 	// is refused (CheckSubjects).
 	AdminSubjectToken = "admin"
 
-	// AdminEventsShare is the part of bus.events.max_bytes the admin event
-	// stream may take: max_bytes divided by it. The event stream takes the
-	// rest.
-	AdminEventsShare = 4
+	// AdminEventsShare and ConsulKVChangesShare are the parts of
+	// bus.events.max_bytes the admin event stream and the stream of the
+	// Consul KV notices may take: max_bytes divided by them. The event
+	// stream takes the rest.
+	AdminEventsShare     = 4
+	ConsulKVChangesShare = 8
 
 	// DefaultSubjectPrefix is the first part of the event subjects.
 	DefaultSubjectPrefix = "norca"
@@ -222,9 +224,10 @@ func withRegion(raw []byte, region string) []byte {
 // The Consul KV notices (Norca): when a key of the Consul KV of the bus is
 // written or deleted through the Consul-compatible API, the leader
 // publishes a notice without the value on
-// <prefix>.<region>.<namespace>.ConsulKV.<type>. It is a live message only:
-// the event stream takes <prefix>.<region>.*.*, one token less, so the
-// notice is not stored; a consumer that missed one reads the key again.
+// <prefix>.<region>.<namespace>.ConsulKV.<type>, stored in the stream
+// NORCA_KV_CHANGES_<region>. The event stream takes <prefix>.<region>.*.*,
+// one token less, so the two streams do not share subjects and the resume
+// of the event publisher (by Raft index) never meets a notice.
 const (
 	ConsulKVTopic      = "ConsulKV"
 	ConsulKVKeySet     = "KeySet"
@@ -235,6 +238,18 @@ const (
 // events and the gap markers, <prefix>.<region>.<namespace>.<topic>.
 func EventStreamSubjects(prefix, region string) []string {
 	return []string{prefix + "." + SubjectToken(region) + ".*.*"}
+}
+
+// ConsulKVChangesStreamName is the name of the stream of the Consul KV
+// notices of a region.
+func ConsulKVChangesStreamName(region string) string {
+	return regionStreamName("NORCA_KV_CHANGES_", region)
+}
+
+// ConsulKVChangesSubjects are the subjects of the stream of the Consul KV
+// notices of a region: <prefix>.<region>.<namespace>.ConsulKV.<type>.
+func ConsulKVChangesSubjects(prefix, region string) []string {
+	return []string{prefix + "." + SubjectToken(region) + ".*." + ConsulKVTopic + ".*"}
 }
 
 // ConsulKVNoticeSubject is the subject of a Consul KV notice.

@@ -92,8 +92,9 @@ func TestBusEventJob(t *testing.T) {
 }
 
 // TestConsulKVEndpoint_Notice checks the notice of a written and of a
-// deleted key: a live message on <prefix>.<region>.<ns>.ConsulKV.<type> with
-// the key and without the value, which the event stream does not keep.
+// deleted key: a message on <prefix>.<region>.<ns>.ConsulKV.<type> with the
+// key and without the value, stored in NORCA_KV_CHANGES_<region> and not in
+// the event stream.
 func TestConsulKVEndpoint_Notice(t *testing.T) {
 	ci.Parallel(t)
 
@@ -109,6 +110,13 @@ func TestConsulKVEndpoint_Notice(t *testing.T) {
 	sub, err := nc.SubscribeSync("norca.global.*.ConsulKV.>")
 	must.NoError(t, err)
 	must.NoError(t, nc.Flush())
+	// The leader creates the stream of the notices with the event streams.
+	js, err := jetstream.New(nc)
+	must.NoError(t, err)
+	waitBus(t, func() (bool, error) {
+		_, err := js.Stream(t.Context(), bus.ConsulKVChangesStreamName("global"))
+		return err == nil, err
+	})
 
 	ok, err := c.put("", "default", "app/config/level", "debug-SECRET-VALUE", nil)
 	must.NoError(t, err)
@@ -140,14 +148,17 @@ func TestConsulKVEndpoint_Notice(t *testing.T) {
 	_, err = sub.NextMsg(500 * time.Millisecond)
 	must.True(t, errors.Is(err, nats.ErrTimeout), must.Sprintf("an extra notice: %v", err))
 
-	// The event stream does not keep the notices.
-	js, err := jetstream.New(nc)
+	// The notices are stored in their own stream, not in the event stream.
+	changes, err := js.Stream(t.Context(), bus.ConsulKVChangesStreamName("global"))
 	must.NoError(t, err)
-	var stream jetstream.Stream
-	waitBus(t, func() (bool, error) {
-		stream, err = js.Stream(t.Context(), bus.EventStreamName("global"))
-		return err == nil, err
-	})
+	stored, err := changes.GetLastMsgForSubject(t.Context(), "norca.global.default.ConsulKV.KeyDeleted")
+	must.NoError(t, err)
+	must.Eq(t, "app/config/level", stored.Header.Get(bus.HeaderKey))
+	set, err := changes.GetLastMsgForSubject(t.Context(), "norca.global.default.ConsulKV.KeySet")
+	must.NoError(t, err)
+	must.StrNotContains(t, string(set.Data), "SECRET-VALUE")
+	stream, err := js.Stream(t.Context(), bus.EventStreamName("global"))
+	must.NoError(t, err)
 	must.Eq(t, []string{"norca.global.*.*"}, stream.CachedInfo().Config.Subjects)
 	_, err = stream.GetLastMsgForSubject(t.Context(), "norca.global.default.ConsulKV.>")
 	must.True(t, errors.Is(err, jetstream.ErrMsgNotFound), must.Sprintf("a notice in the event stream: %v", err))

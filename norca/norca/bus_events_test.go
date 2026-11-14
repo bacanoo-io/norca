@@ -109,8 +109,9 @@ func TestBusEvents_Publish(t *testing.T) {
 	cfg := stream.CachedInfo().Config
 	must.Eq(t, []string{"norca.global.*.*"}, cfg.Subjects)
 	must.Eq(t, bus.DefaultEventsMaxAge, cfg.MaxAge)
-	// The admin event stream takes a quarter of bus.events.max_bytes.
-	must.Eq(t, int64(12<<20), cfg.MaxBytes)
+	// The admin event stream takes a quarter of bus.events.max_bytes, the
+	// Consul KV changes an eighth.
+	must.Eq(t, int64(10<<20), cfg.MaxBytes)
 	must.Eq(t, 2*time.Minute, cfg.Duplicates)
 	must.Eq(t, jetstream.S2Compression, cfg.Compression)
 	must.Eq(t, 1, cfg.Replicas)
@@ -120,6 +121,11 @@ func TestBusEvents_Publish(t *testing.T) {
 	must.Eq(t, []string{"norca.admin.global.>"}, adminCfg.Subjects)
 	must.Eq(t, bus.DefaultEventsMaxAge, adminCfg.MaxAge)
 	must.Eq(t, int64(4<<20), adminCfg.MaxBytes)
+	kvChanges, err := js.Stream(t.Context(), bus.ConsulKVChangesStreamName("global"))
+	must.NoError(t, err)
+	kvCfg := kvChanges.CachedInfo().Config
+	must.Eq(t, []string{"norca.global.*.ConsulKV.*"}, kvCfg.Subjects)
+	must.Eq(t, int64(2<<20), kvCfg.MaxBytes)
 
 	// The bus status lists the stream.
 	st, err := s1.busStatus()

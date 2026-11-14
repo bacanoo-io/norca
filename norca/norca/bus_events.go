@@ -229,6 +229,12 @@ func (s *Server) ensureEventStream(ctx context.Context, js jetstream.JetStream) 
 		settings(s.config.Bus.AdminEventStreamMaxBytes())); err != nil {
 		return fmt.Errorf("the stream %s: %w", bus.AdminEventStreamName(region), err)
 	}
+	if err := bus.EnsureStream(ctx, js, bus.ConsulKVChangesStreamName(region),
+		"Norca Consul KV changes of region "+region+" (keys, never values)",
+		bus.ConsulKVChangesSubjects(cfg.SubjectPrefix, region),
+		settings(s.config.Bus.ConsulKVChangesMaxBytes())); err != nil {
+		return fmt.Errorf("the stream %s: %w", bus.ConsulKVChangesStreamName(region), err)
+	}
 	return nil
 }
 

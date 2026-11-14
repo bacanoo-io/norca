@@ -24,6 +24,10 @@ import (
 // consulKVMaxValueSize is the largest value of a key, as in Consul.
 const consulKVMaxValueSize = 512 * 1024
 
+// consulKVNoticeTimeout bounds the wait for the stream to store the notice
+// of a change; the write has happened already.
+const consulKVNoticeTimeout = 2 * time.Second
+
 // ConsulKV is the RPC endpoint of the Consul KV kept in the bucket of the
 // system bus (the KV backend "bus" of the Consul-compatible API of the
 // clients). The clients have no access to the bucket: they forward the KV
@@ -209,9 +213,10 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 }
 
 // consulKVNotify publishes the notice of a written or deleted key on the
-// bus (Norca): a live message with the key, without the value, so that a
-// consumer learns that a setting changed. Best effort: a notice that can't
-// be sent is only logged; the write stands.
+// bus (Norca): the key without the value, stored in the stream
+// NORCA_KV_CHANGES_<region>, so that a consumer learns that a setting
+// changed, also after a disconnect. Best effort: a notice that can't be
+// stored is logged; the write stands.
 func (s *Server) consulKVNotify(namespace, key, typ string) {
 	cfg := s.config.Bus
 	if cfg == nil || !cfg.Events.Enabled {
@@ -224,8 +229,14 @@ func (s *Server) consulKVNotify(namespace, key, typ string) {
 		return
 	}
 	msg := bus.ConsulKVNotice(cfg.Events.SubjectPrefix, s.config.Region, namespace, key, typ, time.Now())
-	if err := nc.PublishMsg(msg); err != nil {
-		s.logger.Debug("system bus: the notice of a Consul KV change was not sent", "key", key, "error", err)
+	js, err := jetstream.New(nc)
+	if err == nil {
+		ctx, cancel := context.WithTimeout(s.shutdownCtx, consulKVNoticeTimeout)
+		_, err = js.PublishMsg(ctx, msg)
+		cancel()
+	}
+	if err != nil {
+		s.logger.Warn("system bus: the notice of a Consul KV change was not stored", "key", key, "error", err)
 	}
 }
 
