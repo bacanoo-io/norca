@@ -10,14 +10,24 @@ Status: draft for decision, 2026-11-14. This draft began with finding N1 of
 policy rule does nothing, and neither gateways (phase 5) nor leaf nodes are
 built. On the maintainer's word (2026-11-14) the feature is named **Change
 Data Capture (CDC)**: the one-way change feed of a region to systems outside
-Norca. A leaf node is one connection mode of CDC, not the feature; gateways
-are a link between regions and not part of CDC.
+Norca, and **its transport to those systems is the leaf node**: an outside
+NATS server attached to the region's bus, one way. CDC is the name of the
+feature, the leaf node the way its data leaves the cluster; there is no
+separate "leaf mode" to plan. Gateways are a link between regions and not
+part of CDC.
 
 ## 0. Change Data Capture (CDC)
 
 **What it is.** The changes of a region's state, as events, delivered one
 way to systems outside Norca: they read, they never write back through it.
 Changes are made through the HTTP API.
+
+**Transport.** CDC data reaches outside systems **through leaf nodes**: the
+outside system runs a NATS server that attaches to the region's bus as a
+leaf with a token whose `cdc` rule says what it may receive; its own
+clients read from it. Clients with an ACL token or a workload identity read
+the same streams directly from the bus (inside the cluster, tests, tools);
+they are not the way out of the cluster.
 
 **What it carries** (streams of the region's bus, section 1.4):
 
@@ -29,11 +39,11 @@ Changes are made through the HTTP API.
 
 **Connection modes:**
 
-| Mode | State | Credentials | Catch-up |
-| --- | --- | --- | --- |
-| Client with an ACL token | built | token, inbox `_INBOX.<accessor>` | its own durable consumer, if its rule allows the JetStream API |
-| Task with its workload identity | branch `fix/bus-workload-identity` | identity, inbox `_INBOX.<allocation>.<task>` | as a client |
-| Leaf node | planned (option B) | token with the leaf right; one way, server allow list | the server-owned consumer `leaf-<accessor>` per stream |
+| Mode | Role | State | Credentials | Catch-up |
+| --- | --- | --- | --- | --- |
+| **Leaf node** | **the transport of CDC to outside systems** | to build (option B, sections 3 and 7) | token with a `cdc` rule; one way, server allow list | the server-owned consumer `leaf-<accessor>` per stream |
+| Client with an ACL token | direct reader inside the cluster | built | token, inbox `_INBOX.<accessor>` | its own durable consumer, if its rule allows the JetStream API |
+| Task with its workload identity | direct reader inside the cluster | built | identity, inbox `_INBOX.<allocation>.<task>` | as a client |
 
 **Guarantees.** Events of a region in Raft index order, at least once
 (deduplication by `Nats-Msg-Id` for two minutes), a gap marker when the
@@ -260,7 +270,7 @@ What it costs:
 - Effort: refusal and docs half a day; the RPC registry sync 2-3 days with
   tests and the lab step.
 
-### B. CDC through leaf nodes (leaf nodes only)
+### B. CDC through leaf nodes (leaf nodes only) - decided
 
 - **Agent:** `server { bus { leafnodes { enabled = false } } }` and
   `ports { bus_leafnode = 4652 }`; the listener uses the client TLS of the
@@ -371,14 +381,15 @@ partition question of C stays.
 
 ## 5. Decisions for the Maintainer
 
-1. **Which option now?** Recommendation: **A**. The field is refused when
-   true, the docs say so, and no NATS linking is built. Nothing in Norca
-   needs leaf nodes or gateways today; applications already read the events
-   as clients with a token.
-2. **Refuse or remove the field?** Recommendation: refuse `leafnode = true`
-   in `validate`, accept `false`, keep the struct field (an unknown key
-   would be ignored silently by the HCL decoder, which is worse than a
-   refusal).
+1. **Which option?** Decided by the maintainer (2026-11-14): **B**. Leaf
+   nodes are the transport of CDC to outside systems; gateways are not
+   built (C and D dropped). Option A (refuse the field, build neither) is
+   not taken.
+2. **Refuse or remove the field?** Superseded by decision 12: the `cdc`
+   rule replaces `leafnode` in one step when option B is built. Nothing is
+   released and the field is used nowhere, so no compatibility (no
+   `leafnode = false` kept for old policies). The new rule refuses unknown
+   keys explicitly (the HCL v1 decoder would ignore them silently).
 3. **Cross-region registry syncs:** build them over RPC (`Event.Stream`
    forwarded to the other regions) instead of gateways? Recommendation:
    yes, as a separate small item when wanted; not part of this change.
@@ -388,10 +399,9 @@ partition question of C stays.
    must share bus traffic later, use leaf connections with one JetStream
    domain per region (option B, use 3) instead. Section 2.1, 9 and 10 of the
    bus design are updated to say so.
-5. **Leaf nodes later?** Recommendation: only on a concrete need (the
-   `nats` pack as a leaf, or an edge site), and then with an account per
-   leaf (reversing decision 3 of the bus design), never with `_INBOX.>` on
-   the leaf.
+5. **Leaf nodes?** Decided: yes, as the transport of CDC (decision 1),
+   with an account per leaf (reversing decision 3 of the bus design), never
+   with `_INBOX.>` on the leaf.
 6. **Port 4651 in the docs and the deployer?** Recommendation: drop
    `bus_gateway` from the design's port table until gateways are decided;
    it is in no code and no plan.
@@ -415,10 +425,11 @@ partition question of C stays.
 11. **Consul KV notices stored?** Decided and built: yes, in
     `NORCA_KV_CHANGES_<region>` (an eighth of `bus.events.max_bytes`).
 12. **The `leafnode` policy field.** Decided by the maintainer
-    (2026-11-14): **a `cdc` rule of its own** replaces it: what may be
-    received and by which connection modes (client, workload, leaf). Its
-    shape is designed with option B; until then option A (`leafnode = true`
-    refused).
+    (2026-11-14): **a `cdc` rule of its own** replaces it: what a leaf (and
+    a direct reader) may receive. Its shape is designed and built with
+    option B; until then the field stays as it is (it does nothing and is
+    used nowhere; nothing is released, so the switch touches only the
+    current repositories).
 13. **Consumers of the CDC streams, step 1:** decided and built (2026-11-14,
     `fix/bus-admin-events`): the limits policy set explicitly, at most
     `bus.events.max_consumers` (64) consumers per stream, consumer limits
@@ -427,8 +438,9 @@ partition question of C stays.
     built with option B.
 15. **A reader with several filters:** decided by the maintainer: the server
     creates one consumer with all the filters after checking them against
-    the reader's rights (section 7.1); one filter may still be created
-    through the JetStream API under the reader's name.
+    the reader's rights (section 7.1). Built (phase 1, see 7.2) with one
+    change: every consumer is made by the servers, also one with a single
+    filter; a reader gets no create subject on the bus at all.
 16. **Encryption of the JetStream store at rest:** decided by the maintainer
     (2026-11-14): **optional**, off by default. It protects the stream files
     on the servers' disks (events with their full Raft history of the
@@ -509,6 +521,9 @@ what it processed; it never publishes data to the bus. Registering the job
 and any other change go through the HTTP API, not the bus.
 
 ## 7. Consumers Bound to Their Reader (CDC step 2)
+
+Built in phase 1 of option B (2026-11-15, norca `feat/cdc-rule`, not merged
+yet); what was built is in 7.2.
 
 **Why.** The NATS permissions name a consumer as one whole subject token.
 A rule that lets a reader manage "its" consumers with a wildcard in the
@@ -649,3 +664,173 @@ fails on another reader's.
 **Docs.** The CDC page: one consumer per reader and stream, made by the
 server (`/v1/cdc/consumer`), or for one filter through the JetStream API
 with the reader's own name; the API page of the endpoint; the CLI page.
+
+### 7.2 As built (phase 1 of option B, 2026-11-15)
+
+- **The `cdc` rule** (`acl/cdc.go`): `cdc { receive = [...] leaf = false }`;
+  `ACL.CDCGrant` joins the rules. The `leafnode` key of the bus rule is gone
+  (no compatibility); the `bus` and `cdc` blocks refuse unknown keys (HCL v1
+  ignored them silently), `leafnode` with a hint.
+- **The grants** (`norca/cdc.go`, `busGrantSubjects`): the bus rule keeps
+  its subjects outside the change streams and outside JetStream (`$JS.>`);
+  the cdc rule's subjects that reach the change streams are granted as
+  written, to subscribe live; the telemetry of the nodes and the pack push
+  notices are denied to every connection without all rights (NATS also
+  withholds them from a wider subscription), so `receive = ["norca.>"]`
+  gives the changes only. A subscription can't be wider than a `receive`
+  subject (NATS checks it). A reader gets on the bus only the JetStream
+  subjects of its own consumers of the events and the KV changes streams:
+  `$JS.API.INFO`, `STREAM.INFO.<stream>`, `CONSUMER.INFO|MSG.NEXT.<stream>.<name>`,
+  `$JS.ACK.<stream>.<name>.>`. The first idea, granting the intersection of
+  the rule with the change subjects, was dropped: a reader could then not
+  subscribe to `norca.>`.
+- **Consumer names:** the accessor ID of a token; `<allocation ID>_<task>`
+  of a workload identity; none for the anonymous token and the leader.
+- **The endpoint** (`norca/cdc_endpoint.go`): RPC `CDC.ConsumerUpsert`,
+  `ConsumerRead`, `ConsumerDelete` (forwarded to the leader), HTTP
+  `PUT|GET|DELETE /v1/cdc/consumer/:stream`, `api.CDC()`, CLI
+  `norca cdc consumer apply|read|delete`. ACLs are needed (the consumer is
+  named after the reader). Codes: 400 (unknown stream, a filter outside the
+  stream, overlapping filters, ACLs off), 403 (no rule, a filter outside it,
+  admin without management), 409 (`max_consumers` reached).
+- **The consumer:** durable pull, `FilterSubjects`, explicit acks, ack wait
+  30s, pending at most 1000, `MaxRequestBatch` 256, `MaxRequestMaxBytes`
+  1MiB, `MaxRequestExpires` 1m, metadata `norca.reader=<kind>:<name>`.
+- **Cleanup:** the leader, with the revalidation of the bus connections,
+  removes the consumers whose reader lost its right (token deleted or
+  expired, allocation ended, rule no longer covering every filter, admin
+  without management).
+- **A task** asks for its consumer through the Task API with its workload
+  identity (tried on a dev agent, raw_exec).
+- **Not built yet (phases 2 and 3):** accounts on the bus, the leaf
+  listener, `leaf = true` (accepted in the rule, no leaf connection yet), the
+  server-owned leaf consumer.
+
+### 7.3 As built (phase 2 of option B, 2026-11-15)
+
+Branch norca `feat/bus-accounts`, norca-doc `bus-accounts`, not merged.
+
+- **The account `NORCA`** (`bus/account.go`): every connection (the
+  server's own, nodes, tokens, workload identities) is registered in it;
+  JetStream is enabled for it with the limits of the server, so the streams
+  live in it (`<data_dir>/server/bus/jetstream/NORCA`). The account and its
+  JetStream are configured through the configuration parser of nats-server
+  (`accounts { NORCA { jetstream: enabled } }`): the limits of an account
+  can't be set otherwise from outside the package. The store reader of the
+  standalone-to-clustered carry-over opens the same account.
+- **`Grant.Account`** names another account for a connection; an unknown
+  account refuses the connection; a changed account closes it on
+  Revalidate.
+- **Reader accounts** (`Server.ReaderAccount(spec)`): the account of a
+  reader is made on the running server when asked; `NORCA` exports to it,
+  and to it only (approved account), each live subject of the spec and, per
+  consumer, `$JS.API.CONSUMER.MSG.NEXT.<s>.<c>` (streamed answers),
+  `$JS.API.CONSUMER.INFO.<s>.<c>` and `$JS.ACK.<s>.<c>.>`. The reader
+  account imports exactly these, exports nothing, and `NORCA` imports
+  nothing. Each live subject must lie inside a change stream subject of the
+  region (events, admin events, Consul KV notices), each consumer on one of
+  their streams; telemetry, push notices, `$KV` and the rest of `$JS` can't
+  be exported. Name: `CDC_<reader>_<digest of the spec>`, because nats-server
+  can't remove an import: a changed spec makes a new account, the old one
+  stays empty until the server restarts (an account made at run time lives
+  until then; the next connection of the reader makes it again).
+- **Tested** on one server and on a two-server cluster (stream written
+  through one server, reader on the other): the live subject only, fetch
+  and ack of its consumer, no other consumer, stream, consumer create or
+  KV, its publishes (also on an exported subject, also `STREAM.DELETE`) stay
+  in its account.
+- **Left for phase 3:** who gets a reader account (the leaf connection),
+  the limits of a reader account (connections, subscriptions; settable only
+  through account claims or the configuration parser), the subjects of a
+  reader from its `cdc` rule minus the admin topics it lacks the right for
+  (exports can't deny), the server-owned leaf consumer.
+- **Existing stores:** the streams of the global account stay on disk
+  under `jetstream/$G` and are not used; the leader recreates the streams
+  in `NORCA`, the Consul KV bucket starts empty (nothing is released, no
+  carry-over).
+
+### 7.4 As built (phase 3 of option B, 2026-11-15)
+
+Branches norca `feat/cdc-leaf`, norca-deployer `cdc-leaf`, norca-registry
+`cdc-leaf` (nats 0.7.0), norca-doc `cdc-leaf`, norca-lab `case-cdc-leaf`;
+not merged.
+
+- **Listener:** `server { bus { leafnodes { enabled = false } } }`,
+  `ports { bus_leafnode = 4652 }`; the TLS of the client listener; no leaf
+  users, so nats-server sends the leaf to the custom authentication; the
+  leaf sends the user of its URL as token (`nats-leaf://<secret>@host`).
+- **Who:** ACLs on; an ACL token (not anonymous, not the leader's secret)
+  whose cdc grant has `Leaf` or `All`; a workload identity can't attach a
+  leaf. A leaf grant is refused for a client connection and a client grant
+  for a leaf.
+- **Subjects:** each `receive` subject intersected with the stream subjects
+  (`bus.SubjectIntersect`): events `<p>.<r>.*.*`, KV `<p>.<r>.*.ConsulKV.*`;
+  admin events: all with management, otherwise one live subject per admin
+  topic the token may see, no admin consumer. Subjects contained in another
+  are dropped; partially overlapping ones are refused (duplicates). At most
+  16 per consumer.
+- **Account:** `ReaderAccount` with `Leaf` (account claims set before the
+  imports: 0 clients, 1 leaf, 10000 subscriptions, 4KiB payload) and
+  `Domain` `norca-<region>`: MSG.NEXT and INFO are imported as
+  `$JS.norca-<region>.API.CONSUMER.*` mapped to `$JS.API...` of `NORCA`,
+  because the leaf's NATS answers `$JS.API` with its own JetStream; acks
+  keep `$JS.ACK.<s>.<c>.>`. The leaf's publish allow list is exactly these
+  subjects; subscribe `>` (its account holds only its imports).
+- **Consumers:** `leaf-<accessor>` in events and KV (admin with
+  management), made in the background when the leaf authenticates (again at
+  most once a minute, or when the subjects change), `DeliverAll` for a new
+  one, `MaxWaiting` 16, the request limits and ack settings of the CDC
+  consumers, metadata `norca.reader=leaf:<accessor>`. The leader's cleanup
+  treats kind `leaf` like a token plus the leaf right.
+- **Found and fixed:** when an account limit refuses `RegisterUser`,
+  nats-server closes the connection but the custom authentication had
+  already returned true, and the closed leaf stayed in the server's leaf
+  list for good (a retrying second leaf left eleven entries a second). The
+  authentication checks the limits itself, under one lock with the
+  registration.
+- **Status:** `LeafNodePort`, `Connections.Leaves`.
+- **Deployer:** `bus.leafnodes`, `network.ports.bus_leafnode`,
+  `tuning.firewall.leafnode_cidrs` (default `api_cidrs`).
+- **nats pack 0.7.0:** `norca_bus_leaf`, `norca_bus_servers`,
+  `norca_bus_secret` (items `token`, `ca`), `norca_bus_tls`,
+  `norca_bus_account`.
+- **Not done:** a leaf of another region (domains between regions, option B
+  use 3); store encryption (decision 16); an account made at run time stays
+  until the server restarts even when its leaf is gone.
+
+### 7.5 Review of the day (2026-11-15), fixes on `fix/cdc-leaf-review`
+
+Each reproduced by a test before its fix.
+
+- **Fetches without end grew the server.** A fetch of a reader account
+  crosses the accounts as a service import with streamed answers;
+  nats-server keeps the way back of each for the response threshold (two
+  minutes by default) and does not bound their number (50000 fetches in two
+  seconds left 50000 mappings). Now: threshold 35s on the fetch export, leaf
+  consumers take fetches of at most 30s, and a watch (every 2s) closes the
+  connections of a reader account with more than 32768 requests waiting and
+  refuses them for 30s. This is the flow control of "a leaf must not
+  overload the bus".
+- **Peers logged errors.** The account of a leaf exists only on the server
+  it attached to; every other server logged `Unknown account "CDC_..."` at
+  error level per subscription. They are right to ignore it; logged at debug
+  level now. The leaf can move to another server, which makes the account
+  itself (tested).
+- **A management token could not attach a leaf** (its `>` was filtered as a
+  rule subject with a leading wildcard). Fixed.
+- **Reader accounts are made once**, serialized; a leaf account not
+  completed is made again.
+- **Deployer, firewalld:** turning `bus.leafnodes` off left port 4652 open
+  (firewalld rules have no identifier; the port was no longer named as the
+  deployer's). Fixed.
+- **Checked, no change:** a store written before the account `NORCA`
+  (streams under `jetstream/$G`): the bus starts and works, standalone and
+  clustered; the old streams stay on disk unused, the Consul KV starts
+  empty, and a clustered bus warns once per old stream at every start
+  (`Stream create failed for '$G > ...': JetStream not enabled for
+  account`). Removing `jetstream/$G` by hand frees the space. No carry-over
+  is built (nothing released).
+- **Known, not changed:** the consumer name of a workload identity replaces
+  the characters a name can't hold, so the tasks `a.b` and `a_b` of one
+  allocation would share a consumer.
+
