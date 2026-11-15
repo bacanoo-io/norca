@@ -2031,18 +2031,29 @@ func normalizeAdvertise(addr string, bind string, defport int, dev bool) (string
 // of the default route is read from the kernel: go-sockaddr runs "ip route"
 // for it and, on a host without that program, silently leaves the order to
 // the other criteria, so the address could differ from host to host.
+//
+// A host without a private address gets none, as the template gave an empty
+// string: a client starts with an advertise address without a host, a
+// server fails where its advertise address is resolved.
 func defaultPrivateIP() (string, error) {
 	addrs, err := sockaddr.GetPrivateInterfaces()
 	if err != nil {
 		return "", err
 	}
+	name, _ := defaultroute.InterfaceName()
+	return firstPrivateIP(addrs, name)
+}
+
+// firstPrivateIP returns the first of the addresses that is on the named
+// interface, the first of all if none is, and nothing if there are none.
+func firstPrivateIP(addrs sockaddr.IfAddrs, defaultIface string) (string, error) {
 	if len(addrs) == 0 {
-		return "", errors.New("the host has no private address")
+		return "", nil
 	}
 	chosen := addrs[0]
-	if name, err := defaultroute.InterfaceName(); err == nil {
+	if defaultIface != "" {
 		for _, a := range addrs {
-			if a.Interface.Name == name {
+			if a.Interface.Name == defaultIface {
 				chosen = a
 				break
 			}

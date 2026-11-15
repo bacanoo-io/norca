@@ -824,6 +824,42 @@ func TestConfig_normalizeAddrs_DevMode(t *testing.T) {
 
 // TestConfig_normalizeAddrs_NoAdvertise asserts that normalizeAddrs will
 // fail if no valid advertise address available in non-dev mode.
+func TestConfig_firstPrivateIP(t *testing.T) {
+	ci.Parallel(t)
+
+	on := func(iface, addr string) sockaddr.IfAddr {
+		return sockaddr.IfAddr{
+			SockAddr:  sockaddr.MustIPAddr(addr),
+			Interface: net.Interface{Name: iface},
+		}
+	}
+	addrs := sockaddr.IfAddrs{
+		on("docker0", "172.17.0.1/16"),
+		on("eth0", "10.0.0.5/24"),
+		on("eth0", "10.0.0.6/24"),
+	}
+
+	// The first address of the interface of the default route.
+	ip, err := firstPrivateIP(addrs, "eth0")
+	require.NoError(t, err)
+	require.Equal(t, "10.0.0.5", ip)
+
+	// No default route, or none of the addresses is on its interface: the
+	// first address.
+	ip, err = firstPrivateIP(addrs, "")
+	require.NoError(t, err)
+	require.Equal(t, "172.17.0.1", ip)
+	ip, err = firstPrivateIP(addrs, "wg0")
+	require.NoError(t, err)
+	require.Equal(t, "172.17.0.1", ip)
+
+	// A host without a private address has none, and it is not an error:
+	// the agent of a client starts on it.
+	ip, err = firstPrivateIP(nil, "eth0")
+	require.NoError(t, err)
+	require.Equal(t, "", ip)
+}
+
 func TestConfig_normalizeAddrs_NoAdvertise(t *testing.T) {
 	ci.Parallel(t)
 
