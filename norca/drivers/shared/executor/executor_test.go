@@ -718,3 +718,32 @@ func TestUniversalExecutor_SetContainmentCPU(t *testing.T) {
 		must.InDelta(t, cs.Percent, cs.UserMode+cs.SystemMode, cs.Percent/10)
 	})
 }
+
+// A task whose cgroup could not be made has no containment: stopping it
+// kills the process tree and does not crash the executor.
+func TestUniversalExecutor_Shutdown_WithoutContainment(t *testing.T) {
+	ci.Parallel(t)
+	testExecCmd := testExecutorCommand(t)
+	execCmd, allocDir := testExecCmd.command, testExecCmd.allocDir
+	defer allocDir.Destroy()
+	execCmd.Cmd = "/bin/sleep"
+	execCmd.Args = []string{"100"}
+
+	e := NewExecutor(testlog.HCLogger(t), 0).(*UniversalExecutor)
+	proc, err := e.Launch(execCmd)
+	must.NoError(t, err)
+	must.Positive(t, proc.Pid)
+
+	// What Launch leaves behind on cgroups v1 when the cgroup of the task
+	// cannot be created: the cgroup is asked for, and there is none.
+	e.commandCfg.BasicProcessCgroup = true
+	must.Nil(t, e.containment)
+
+	must.NoError(t, e.Shutdown("SIGTERM", 5*time.Second))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	state, err := e.Wait(ctx)
+	must.NoError(t, err)
+	must.Eq(t, int(syscall.SIGTERM), state.Signal)
+}

@@ -576,8 +576,11 @@ func (e *UniversalExecutor) Shutdown(signal string, grace time.Duration) error {
 		merr.Errors = append(merr.Errors, fmt.Errorf("process did not exit after 15 seconds"))
 	}
 
-	// prefer killing the process via platform-dependent resource containment
-	killByContainment := e.commandCfg.ResourceLimits || e.commandCfg.BasicProcessCgroup
+	// prefer killing the process via platform-dependent resource containment.
+	// There is none where the cgroup of the task could not be made (cgroups v1
+	// without the permission: Launch goes on with a warning).
+	killByContainment := (e.commandCfg.ResourceLimits || e.commandCfg.BasicProcessCgroup) &&
+		e.containment != nil
 
 	if !killByContainment {
 		// there is no containment, so kill the group the old fashioned way by sending
