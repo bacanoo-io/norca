@@ -291,7 +291,8 @@ func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
 // Norca: a workload identity gets the bus rules of the policies bound to its
 // job, group or task. Its inbox is _INBOX.<allocation ID>.<task>: both IDs
 // are made by the servers, so it can't meet the inbox of a token
-// (_INBOX.<accessor ID>) or of another task. The connection lasts while the
+// (_INBOX.<accessor ID>) or of another task (busTaskToken keeps the task
+// names apart that differ only in characters a subject token can't hold). The connection lasts while the
 // allocation runs: Revalidate verifies the identity again when allocations
 // change.
 func (s *Server) busIdentity(secret string) (aclObj *acl.ACL, kind, name, inbox string, err error) {
@@ -318,7 +319,7 @@ func (s *Server) busIdentity(secret string) (aclObj *acl.ACL, kind, name, inbox 
 		if err != nil {
 			return nil, "", "", "", err
 		}
-		task := structs.BusSubjectToken(claims.TaskName)
+		task := busTaskToken(claims.TaskName, structs.BusSubjectToken)
 		inbox = bus.InboxPrefix + "." + structs.BusSubjectToken(claims.AllocationID) + "." + task
 		return aclObj, bus.KindWorkload, claims.AllocationID + "/" + claims.TaskName, inbox, nil
 

@@ -5,6 +5,8 @@ package norca
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"slices"
 	"strings"
@@ -38,17 +40,34 @@ func cdcReadableStreams(region string) []string {
 }
 
 // cdcConsumerName is the name of the consumer the servers keep for a reader:
-// the accessor ID of a token, <allocation ID>_<task> of a workload identity.
-// Empty for the anonymous token and the leader, which get no consumer.
+// the accessor ID of a token, <allocation ID>_<task> of a workload identity
+// (the task as busTaskToken writes it). Empty for the anonymous token and the
+// leader, which get no consumer.
 func cdcConsumerName(kind, name string) string {
 	switch {
 	case kind == bus.KindWorkload:
 		alloc, task, _ := strings.Cut(name, "/")
-		return alloc + "_" + consumerNameToken(task)
+		return alloc + "_" + busTaskToken(task, consumerNameToken)
 	case kind == bus.KindToken && name != "anonymous" && name != "leader" && name != "":
 		return consumerNameToken(name)
 	}
 	return ""
+}
+
+// busTaskToken writes a task name as a token of a subject or of a consumer
+// name: replace changes the characters the token can't hold. A changed name
+// gets "-" and the first eight hex digits of the SHA-256 of the task name
+// appended, so that two tasks of an allocation whose names differ only in
+// such characters ("a.b" and "a_b") get different tokens: they would
+// otherwise share a consumer, or read each other's replies. A name without
+// such characters stays as it is.
+func busTaskToken(task string, replace func(string) string) string {
+	token := replace(task)
+	if token == task {
+		return token
+	}
+	sum := sha256.Sum256([]byte(task))
+	return token + "-" + hex.EncodeToString(sum[:4])
 }
 
 // consumerNameToken replaces the characters a consumer name can't hold.

@@ -5,6 +5,7 @@ package norca
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +24,23 @@ func TestCDCConsumerName(t *testing.T) {
 	ci.Parallel(t)
 
 	must.Eq(t, "0b8f7d2e-1c4a-4f8e-9a6b-2d3c4e5f6a7b", cdcConsumerName(bus.KindToken, "0b8f7d2e-1c4a-4f8e-9a6b-2d3c4e5f6a7b"))
-	must.Eq(t, "a1_web_api", cdcConsumerName(bus.KindWorkload, "a1/web.api"))
+	must.Eq(t, "a1_web", cdcConsumerName(bus.KindWorkload, "a1/web"))
+	must.Eq(t, "a1_web_api", cdcConsumerName(bus.KindWorkload, "a1/web_api"))
+	// A task name with characters a consumer name can't hold: replaced, with
+	// a digest of the name, so it can't meet the task that has the
+	// replacement in its name.
+	dotted := cdcConsumerName(bus.KindWorkload, "a1/web.api")
+	must.RegexMatch(t, regexp.MustCompile(`^a1_web_api-[0-9a-f]{8}$`), dotted)
+	must.Eq(t, dotted, cdcConsumerName(bus.KindWorkload, "a1/web.api"))
+	must.NotEq(t, dotted, cdcConsumerName(bus.KindWorkload, "a1/web api"))
+	must.NotEq(t, dotted, cdcConsumerName(bus.KindWorkload, "a1/web_api"))
+
+	// The inbox token of a task follows the same rule.
+	must.Eq(t, "web_api", busTaskToken("web_api", structs.BusSubjectToken))
+	must.Eq(t, "web+api", busTaskToken("web+api", structs.BusSubjectToken))
+	inbox := busTaskToken("web.api", structs.BusSubjectToken)
+	must.RegexMatch(t, regexp.MustCompile(`^web_api-[0-9a-f]{8}$`), inbox)
+	must.NotEq(t, inbox, busTaskToken("web api", structs.BusSubjectToken))
 	must.Eq(t, "", cdcConsumerName(bus.KindToken, "anonymous"))
 	must.Eq(t, "", cdcConsumerName(bus.KindToken, "leader"))
 	must.Eq(t, "", cdcConsumerName(bus.KindNode, "n1"))
