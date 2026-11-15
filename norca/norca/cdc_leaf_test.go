@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/norca/bus"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
@@ -106,6 +107,16 @@ node { policy = "read" }`),
 	must.NoError(t, err)
 	must.Len(t, 3, got)
 	must.Eq(t, cdcLeafStream{name: admin, subjects: []string{"norca.admin.global.*.Node"}}, got[2])
+
+	// A management token: every change stream, with a consumer of the admin
+	// events too.
+	got, err = s1.cdcLeafStreams(acl.ManagementACL, acl.ManagementACL.CDCGrant())
+	must.NoError(t, err)
+	must.Eq(t, []cdcLeafStream{
+		{name: events, subjects: []string{"norca.global.*.*"}, consumer: true},
+		{name: kv, subjects: []string{"norca.global.*.ConsulKV.*"}, consumer: true},
+		{name: admin, subjects: []string{"norca.admin.global.>"}, consumer: true},
+	}, got)
 
 	_, err = streams("overlap")
 	must.ErrorContains(t, err, "overlap")

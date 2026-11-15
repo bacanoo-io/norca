@@ -67,7 +67,9 @@ type cdcLeafStream struct {
 // refused: a leaf would receive their events twice.
 func (s *Server) cdcLeafStreams(aclObj *acl.ACL, grant *acl.CDCGrant) ([]cdcLeafStream, error) {
 	prefix, region := s.busEventsPrefix(), s.config.Region
-	receive := grant.Receive
+	// The subjects of a rule never start with a wildcard (busRuleSubjects);
+	// a token with every right receives every change stream.
+	receive := busRuleSubjects(grant.Receive)
 	if grant.All {
 		receive = []string{">"}
 	}
@@ -91,7 +93,7 @@ func (s *Server) cdcLeafStreams(aclObj *acl.ACL, grant *acl.CDCGrant) ([]cdcLeaf
 	var out []cdcLeafStream
 	for _, st := range streams {
 		var subjects []string
-		for _, r := range busRuleSubjects(receive) {
+		for _, r := range receive {
 			for _, within := range st.subjects {
 				if sub, ok := bus.SubjectIntersect(r, within); ok {
 					subjects = append(subjects, sub)
@@ -280,8 +282,10 @@ func (s *Server) cdcMakeLeafConsumers(accessor string, streams []cdcLeafStream) 
 				MaxWaiting:         cdcLeafMaxWaiting,
 				MaxRequestBatch:    cdcMaxRequestBatch,
 				MaxRequestMaxBytes: cdcMaxRequestMaxBytes,
-				MaxRequestExpires:  cdcMaxRequestExpires,
-				Metadata:           map[string]string{cdcReaderMeta: bus.KindLeaf + ":" + accessor},
+				// A fetch across the accounts may wait as long as the bus
+				// account keeps its way back.
+				MaxRequestExpires: bus.ReaderMaxFetchExpires,
+				Metadata:          map[string]string{cdcReaderMeta: bus.KindLeaf + ":" + accessor},
 			})
 			if err != nil {
 				errs = append(errs, fmt.Errorf("the consumer %s of %s: %w", name, st.name, err))
