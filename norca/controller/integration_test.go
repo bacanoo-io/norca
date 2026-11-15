@@ -73,7 +73,15 @@ func (g *gatedBackend) Stream(ctx context.Context, ns string, topics map[api.Top
 	}
 	st := &gatedStream{cancel: cancel}
 	g.mu.Lock()
-	g.streams = append(g.streams, st)
+	if g.open == open {
+		g.streams = append(g.streams, st)
+	} else {
+		// The partition began while the stream was being opened: cut did
+		// not see it, so it is cut here. The watcher finds it closed and
+		// subscribes again, which waits for the gate.
+		st.cut.Store(true)
+		cancel()
+	}
 	g.mu.Unlock()
 
 	// The stream of the backend ends some time after its context is
@@ -98,7 +106,8 @@ func (g *gatedBackend) Stream(ctx context.Context, ns string, topics map[api.Top
 }
 
 // cut interrupts the open streams and holds new subscriptions. No event
-// reaches the controller after it returns.
+// that a stream reads after it returns reaches the controller; one that was
+// read before can still be handed over.
 func (g *gatedBackend) cut() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
