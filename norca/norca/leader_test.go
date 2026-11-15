@@ -1627,9 +1627,14 @@ func TestLeader_PausingWorkers(t *testing.T) {
 	require.Eventually(t, checkPaused(0), 50*time.Millisecond, 10*time.Millisecond, "scheduler workers should have unpaused after losing leadership")
 }
 
-// Test doing an inplace upgrade on a server from raft protocol 2 to 3
-// This verifies that removing the server and adding it back with a uuid works
-// even if the server's address stays the same.
+// A server that joins is in the Raft configuration under its ID, and
+// reconciling its member again changes nothing.
+//
+// The test was written for the upgrade of a server in place from Raft
+// protocol 2 to 3 (remove the server known by its address, add it back with
+// its ID). Protocol 2 is gone, every server starts with its ID, so the two
+// calls of reconcileMember below find the server in the configuration with
+// the same ID and address and do nothing.
 func TestServer_ReconcileMember(t *testing.T) {
 	ci.Parallel(t)
 
@@ -1657,13 +1662,9 @@ func TestServer_ReconcileMember(t *testing.T) {
 	})
 	defer cleanupS3()
 
-	// s3 joins both: a server that it did not join learns of it by gossip,
-	// which sends a change of the membership on only twice with the
-	// settings of the test servers, and both times can go to a server that
-	// knows it already. The other server then hears of s3 at the next full
-	// sync, a minute later.
+	// s3 joins s1 and then tells s2 itself (Server.Join), it is not left
+	// to gossip.
 	TestJoin(t, s1, s3)
-	TestJoin(t, s2, s3)
 
 	// The leader, which may be s2, is handed the member below by hand: its
 	// Serf must know s3 by then, or autopilot takes the new Raft server for
@@ -1717,10 +1718,9 @@ func TestServer_ReconcileMember(t *testing.T) {
 		t.Fatalf("failed to reconcile member: %v", err)
 	}
 
-	// This should remove s3 from the config and potentially cause a leader election
 	testutil.WaitForLeader(t, s1.RPC)
 
-	// Figure out the new leader and call reconcile again, this should add s3 with the new ID format
+	// Whoever leads now, a second call changes nothing either.
 	leader = findLeader(t)
 	if err := leader.reconcileMember(upgradedS3Member); err != nil {
 		t.Fatalf("failed to reconcile member: %v", err)
