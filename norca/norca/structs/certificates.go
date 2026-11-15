@@ -459,11 +459,17 @@ func (s *CertificateSpec) RequestHash() string {
 }
 
 // ValidateCertificateDNSName checks a DNS name of a certificate: lower case
-// labels, optionally a wildcard as the whole first label.
+// labels, optionally a wildcard as the whole first label. A wildcard right
+// under a top level name ("*.lab", "*.com") is refused: TLS clients do not
+// match a name against it, so the certificate would be issued and of no
+// use.
 func ValidateCertificateDNSName(name string) error {
 	host := strings.TrimPrefix(name, "*.")
 	if host == "" || len(name) > 253 || host != strings.ToLower(host) {
 		return fmt.Errorf("invalid DNS name %q", name)
+	}
+	if host != name && !strings.Contains(host, ".") {
+		return fmt.Errorf("invalid DNS name %q: a wildcard right under a top level name is not accepted by TLS clients, put it one level lower (for example \"*.apps.%s\")", name, host)
 	}
 	for _, label := range strings.Split(host, ".") {
 		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
