@@ -159,6 +159,12 @@ func TestJobScaleCommand_ACL(t *testing.T) {
 	})
 	defer srv.Shutdown()
 
+	// The cases that monitor the evaluation need the allocations placed:
+	// wait for the node of the agent, or the first of them may be scheduled
+	// before it is ready ("No nodes were eligible for evaluation").
+	client.SetSecretID(srv.RootToken.SecretID)
+	waitForNodes(t, client)
+
 	testCases := []struct {
 		name        string
 		jobPrefix   bool
