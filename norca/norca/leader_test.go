@@ -1657,7 +1657,28 @@ func TestServer_ReconcileMember(t *testing.T) {
 	})
 	defer cleanupS3()
 
+	// s3 joins both: a server that it did not join learns of it by gossip,
+	// which sends a change of the membership on only twice with the
+	// settings of the test servers, and both times can go to a server that
+	// knows it already. The other server then hears of s3 at the next full
+	// sync, a minute later.
 	TestJoin(t, s1, s3)
+	TestJoin(t, s2, s3)
+
+	// The leader, which may be s2, is handed the member below by hand: its
+	// Serf must know s3 by then, or autopilot takes the new Raft server for
+	// a stale one (in the configuration, unknown to Serf) and removes it
+	// again.
+	for _, s := range []*Server{s1, s2, s3} {
+		testutil.WaitForResult(func() (bool, error) {
+			if n := len(s.Members()); n != 3 {
+				return false, fmt.Errorf("%s sees %d of 3 servers", s.config.NodeName, n)
+			}
+			return true, nil
+		}, func(err error) {
+			t.Fatal(err)
+		})
+	}
 
 	// Create a memberlist object for s3, with raft protocol upgraded to 3
 	upgradedS3Member := serf.Member{
@@ -1706,26 +1727,35 @@ func TestServer_ReconcileMember(t *testing.T) {
 	}
 
 	testutil.WaitForLeader(t, s1.RPC)
-	future := s2.raft.GetConfiguration()
-	if err := future.Error(); err != nil {
-		t.Fatal(err)
-	}
-	addrs := 0
-	ids := 0
-	for _, server := range future.Configuration().Servers {
-		if string(server.ID) == string(server.Address) {
-			addrs++
-		} else {
-			ids++
+
+	// After this, all three servers should have IDs in raft. s2 is asked,
+	// which is a follower unless it won an election meanwhile: the leader
+	// commits the change of the configuration with the vote of one other
+	// server, which can be s3, so s2 may learn of it a moment later.
+	testutil.WaitForResult(func() (bool, error) {
+		future := s2.raft.GetConfiguration()
+		if err := future.Error(); err != nil {
+			return false, err
 		}
-	}
-	// After this, all three servers should have IDs in raft
-	if got, want := addrs, 0; got != want {
-		t.Fatalf("got %d server addresses want %d", got, want)
-	}
-	if got, want := ids, 3; got != want {
-		t.Fatalf("got %d server ids want %d: %#v", got, want, future.Configuration().Servers)
-	}
+		addrs := 0
+		ids := 0
+		for _, server := range future.Configuration().Servers {
+			if string(server.ID) == string(server.Address) {
+				addrs++
+			} else {
+				ids++
+			}
+		}
+		if addrs != 0 {
+			return false, fmt.Errorf("got %d server addresses want 0", addrs)
+		}
+		if ids != 3 {
+			return false, fmt.Errorf("got %d server ids want 3: %#v", ids, future.Configuration().Servers)
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatal(err)
+	})
 }
 
 func TestLeader_ReplicateNamespaces(t *testing.T) {
