@@ -51,6 +51,9 @@
         <Objects::NodeGroup @object={{this.object}} />
         <Metrics::NodeGroupHistory @name={{this.object.Name}} class="mb-3" />
       {{/if}}
+      {{#if this.isCertificate}}
+        <Objects::Certificate @object={{this.object}} @region={{this.region}} @onChanged={{this.reload}} />
+      {{/if}}
       {{#if this.isLoadBalancer}}
         <Metrics::LoadBalancerHistory @namespace={{this.object.Namespace}} @name={{this.object.Name}} class="mb-3" />
       {{/if}}

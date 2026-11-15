@@ -186,6 +186,8 @@ Router.map(function () {
     this.route('secret', { path: '/s/*path' });
   });
 
+  this.route('certificates');
+
   this.route('admission', function () {
     this.route('policy', { path: '/:name' });
   });

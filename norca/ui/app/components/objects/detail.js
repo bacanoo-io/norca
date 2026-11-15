@@ -116,6 +116,17 @@ export default class ObjectsDetail extends Component {
     return this.kindId === 'norca.io/LoadBalancer';
   }
 
+  // A certificate the servers keep issued gets its own panel: the names,
+  // the issuer, the secret, the validity and the revocation.
+  get isCertificate() {
+    return this.kindId === 'norca.io/Certificate';
+  }
+
+  @action
+  reload() {
+    return this.load();
+  }
+
   get health() {
     return this.object ? objectHealth(this.object) : null;
   }

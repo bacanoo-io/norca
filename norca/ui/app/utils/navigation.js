@@ -134,6 +134,12 @@ export const NAVIGATION = [
         ability: 'list secret',
       },
       {
+        id: 'certificates',
+        label: 'Certificates',
+        icon: 'shield',
+        route: 'certificates',
+      },
+      {
         id: 'admission',
         label: 'Admission policies',
         icon: 'shield-check',

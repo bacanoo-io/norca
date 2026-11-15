@@ -24,6 +24,7 @@ import {
   findReferencingJobs,
   JOB_SCAN_LIMIT,
 } from 'nomad-ui/utils/secrets';
+import { SECRET_LABEL_CERTIFICATE } from 'nomad-ui/utils/certificates';
 
 const time = (ns) =>
   ns ? moment(ns / 1e6).format('YYYY-MM-DD HH:mm:ss') : '–';
@@ -175,6 +176,12 @@ export default class SecretsDetail extends Component {
     return Object.entries(this.secret?.Labels || {}).map(
       ([k, v]) => `${k}=${v}`
     );
+  }
+
+  // The Certificate object of the namespace the secret is kept for: the
+  // servers write the certificate into a secret with this label.
+  get certificate() {
+    return this.secret?.Labels?.[SECRET_LABEL_CERTIFICATE] || null;
   }
 
   get versions() {

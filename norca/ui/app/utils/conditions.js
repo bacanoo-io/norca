@@ -19,10 +19,20 @@ const TRUE_IS_BAD = {
   RollBlocked: 'warning',
   RollBehind: 'warning',
   Drifted: 'warning',
+  // Certificates: the last attempt to issue failed; the issuer does not
+  // exist or its controller is away.
+  Failed: 'danger',
+  IssuerUnavailable: 'warning',
 };
 
 // Conditions whose True is work in progress.
-const TRUE_IS_WORK = new Set(['Progressing', 'Rolling']);
+const TRUE_IS_WORK = new Set([
+  'Progressing',
+  'Rolling',
+  // Certificates: the first certificate or a renewal is under way.
+  'Issuing',
+  'Renewing',
+]);
 
 // conditionTone returns the tone of a condition of the type with the status
 // ("True", "False" or "Unknown").

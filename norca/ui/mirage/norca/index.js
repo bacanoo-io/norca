@@ -15,8 +15,10 @@ import registerReleaseRoutes, { seedReleases } from './releases';
 import registerPackRoutes, { seedPacks } from './packs';
 import registerObjectRoutes, { seedObjects } from './objects';
 import registerSecretRoutes, { seedSecrets } from './secrets';
+import registerCertificateRoutes, { seedCertificates } from './certificates';
 
 export function registerNorcaAreas(server) {
+  registerCertificateRoutes(server);
   registerBackupRoutes(server);
   registerQuotaRoutes(server);
   registerScalingRoutes(server);
@@ -38,4 +40,5 @@ export function seedNorcaAreas(server) {
   seedPacks(server);
   seedObjects(server);
   seedSecrets(server);
+  seedCertificates(server);
 }

@@ -1,0 +1,114 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div class="row row-cards mb-3" data-test-certificate>
+  <div class="col-lg-7">
+    <Ui::Card @title="Certificate" @subtitle="What is asked for and what the servers keep issued">
+      <:actions>
+        {{#if this.canRevoke}}
+          <Ui::Button @variant="outline-danger" @size="sm" @icon="rotate-clockwise" data-test-revoke-certificate {{on "click" this.openRevoke}}>Revoke</Ui::Button>
+        {{/if}}
+      </:actions>
+      <:default>
+        <Ui::Datagrid data-test-certificate-summary as |g|>
+          <g.Item @title="State">
+            <Ui::StatusIndicator @tone={{this.state.tone}} @label={{this.state.label}} data-test-certificate-state />
+          </g.Item>
+          <g.Item @title="Names" data-test-certificate-names>
+            {{#each this.names as |name|}}<Ui::Badge class="me-1 font-monospace">{{name}}</Ui::Badge>{{else}}–{{/each}}
+          </g.Item>
+          <g.Item @title="Issuer">
+            {{#if this.issuer}}
+              <LinkTo @route="objects.object" @models={{array this.issuerGroup this.issuerKind this.issuer}} data-test-certificate-issuer>{{this.issuer}}</LinkTo>
+              {{#if this.issuedBy}}<div class="small text-secondary">the current certificate is from {{this.issuedBy}}</div>{{/if}}
+            {{else}}–{{/if}}
+          </g.Item>
+          <g.Item @title="Secret" @monospace={{true}}>
+            {{#if this.canSeeSecret}}
+              <LinkTo @route="secrets.secret" @model={{this.secretPath}} @query={{hash namespace=this.namespace}} data-test-certificate-secret>{{this.secretPath}}</LinkTo>
+            {{else}}
+              {{or this.secretPath "–"}}
+            {{/if}}
+            {{#if this.status.secretVersion}}<span class="text-secondary"> v{{this.status.secretVersion}}</span>{{/if}}
+          </g.Item>
+          <g.Item @title="Serial" @monospace={{true}} data-test-certificate-serial>
+            {{#if this.status.serial}}
+              {{this.status.serial}}
+              <Ui::CopyButton @text={{this.status.serial}} @label="Copy the serial number" />
+            {{else}}–{{/if}}
+          </g.Item>
+          <g.Item @title="Issuing CA">
+            {{#if this.status.authority}}
+              <LinkTo @route="certificates" class="font-monospace" title={{this.status.authority}} data-test-certificate-authority>{{this.shortAuthority}}</LinkTo>
+            {{else}}
+              <span class="text-secondary">{{if this.status.serial "of the issuer" "–"}}</span>
+            {{/if}}
+          </g.Item>
+          {{#if this.status.order}}
+            <g.Item @title="Open order">
+              <LinkTo @route="objects.object" @models={{array this.issuerGroup this.orderKind this.status.order}} class="font-monospace" data-test-certificate-order>{{this.status.order}}</LinkTo>
+            </g.Item>
+          {{/if}}
+        </Ui::Datagrid>
+        {{#if this.status.revoke}}
+          <Ui::Alert @tone="info" class="mt-3 mb-0" data-test-certificate-revoking>
+            The certificate with the serial <span class="font-monospace">{{this.status.revoke}}</span> is being revoked; a new one is issued into the same secret.
+          </Ui::Alert>
+        {{/if}}
+        {{#if this.retry}}
+          <Ui::Alert @tone="warning" class="mt-3 mb-0" data-test-certificate-retry>
+            {{this.retry.failures}} {{if (eq this.retry.failures 1) "attempt" "attempts"}} failed in a row{{#if this.retry.at}}; the next one is {{this.retry.at}}{{/if}}. The Failed condition below says why.
+          </Ui::Alert>
+        {{/if}}
+      </:default>
+    </Ui::Card>
+  </div>
+  <div class="col-lg-5">
+    <Ui::Card @title="Validity" @subtitle="The servers renew the certificate before it expires" data-test-certificate-validity>
+      {{#if this.validity}}
+        <div class="d-flex justify-content-between small text-secondary mb-1">
+          <span>{{format-ts this.validity.notBefore}}</span>
+          <span>{{format-ts this.validity.notAfter}}</span>
+        </div>
+        <Ui::Progress @value={{this.validity.percent}} @color={{this.validity.color}} @label="Validity of the certificate" @valueText={{this.validityText}} />
+        <Ui::Datagrid class="mt-3" as |g|>
+          <g.Item @title="Expiry">
+            <Ui::StatusIndicator @tone={{this.validity.tone}} @label={{this.validity.label}} data-test-certificate-expiry />
+          </g.Item>
+          <g.Item @title="Renewal" data-test-certificate-renewal>
+            {{#if this.validity.renewAt}}
+              {{this.renewal}}
+              <div class="small text-secondary">{{format-ts this.validity.renewAt}}</div>
+            {{else}}not reported{{/if}}
+          </g.Item>
+        </Ui::Datagrid>
+      {{else}}
+        <Ui::EmptyState @compact={{true}} @icon="clock" @title="No certificate yet" @message="The validity is shown when the first certificate is issued. The conditions below say what the servers wait for." data-test-certificate-not-issued />
+      {{/if}}
+    </Ui::Card>
+  </div>
+</div>
+
+{{#if this.revoking}}
+  <Ui::Confirm
+    @title={{concat "Revoke the certificate of " @object.Name "?"}}
+    @confirmLabel="Revoke"
+    @confirmIcon="rotate-clockwise"
+    @onConfirm={{this.confirmRevoke}}
+    @onClose={{this.closeRevoke}}
+    @isRunning={{this.isRevoking}}
+    @error={{this.revokeError}}
+    data-test-certificate-revoke-confirm
+  >
+    <p>
+      The serial <span class="font-monospace">{{this.status.serial}}</span> goes on the revocation list of its issuing CA,
+      and a new certificate is issued into the secret
+      <span class="font-monospace">{{this.secretPath}}</span>.
+    </p>
+    <p class="mb-0">
+      Workloads that read the secret get the new certificate. Clients reject the old one only if they check the
+      revocation list.
+    </p>
+  </Ui::Confirm>
+{{/if}}

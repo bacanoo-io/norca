@@ -1,0 +1,170 @@
+{{!
+  SPDX-FileCopyrightText: 2026 Norca contributors
+  SPDX-License-Identifier: MPL-2.0
+~}}
+<div data-test-certificates {{this.setup this.region}}>
+  <Ui::PageHeader @pretitle="Configuration" @title="Certificates" @subtitle={{this.scopeLabel}}>
+    <:actions>
+      <Ui::Button @route="objects" @query={{hash kind=this.certificateKindId}} @icon="box" data-test-certificate-objects>Certificate objects</Ui::Button>
+    </:actions>
+  </Ui::PageHeader>
+  <Ui::PageBody>
+    {{#if this.isLoading}}
+      <Ui::Card><Ui::Spinner @showLabel={{true}} @label="Loading the certificates" /></Ui::Card>
+    {{else if this.error}}
+      <Ui::Alert @tone="danger" @title="The certificates could not be loaded" data-test-certificates-error>{{this.error}}</Ui::Alert>
+    {{else}}
+      <div class="row row-cards mb-3">
+        <div class="col-sm-6 col-lg-3">
+          <Ui::Stat @id="certificates" @label="Certificates" @value={{this.totals.total}} @hint="in the namespaces you can read" @color="blue" />
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <Ui::Stat @id="problems" @label="Failed or expired" @value={{this.totals.problems}} @hint="need attention" @color={{if this.totals.problems "red" "secondary"}} />
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <Ui::Stat @id="waiting" @label="In progress or waiting" @value={{this.totals.waiting}} @hint="issuing, renewing, issuer away" @color={{if this.totals.waiting "orange" "secondary"}} />
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <Ui::Stat @id="issuers" @label="Issuers" @value={{this.issuerRows.length}} @hint="built in and external" @color="azure" />
+        </div>
+      </div>
+
+      <Ui::Card @title="Certificates" @subtitle="The soonest expiry first" @flush={{true}} class="mb-3" data-test-certificate-list>
+        <Ui::Table
+          @inCard={{true}}
+          @caption="Certificates"
+          @columns={{array (hash key="name" label="Certificate") (hash key="namespace" label="Namespace") (hash key="names" label="Names") (hash key="issuer" label="Issuer") (hash key="expires" label="Expiry") (hash key="state" label="State")}}
+          @rows={{this.certificateRows}}
+          @emptyMessage="No certificate is kept issued. A norca.io/Certificate object asks for one: the servers issue it into the secret store and renew it."
+          as |c|
+        >
+          <td>
+            <LinkTo @route="objects.object" @models={{array this.certificateGroup this.certificateKind c.name}} @query={{hash namespace=c.namespace}} data-test-certificate-link={{c.name}}>{{c.name}}</LinkTo>
+          </td>
+          <td>{{c.namespace}}</td>
+          <td>{{#each c.names as |name|}}<Ui::Badge class="me-1 font-monospace">{{name}}</Ui::Badge>{{/each}}</td>
+          <td>
+            {{#if c.issuer}}
+              <LinkTo @route="objects.object" @models={{array this.certificateGroup this.issuerKind c.issuer}}>{{c.issuer}}</LinkTo>
+            {{else}}–{{/if}}
+          </td>
+          <td data-test-certificate-expires={{c.name}}>
+            {{#if c.validity}}
+              <Ui::StatusIndicator @tone={{c.validity.tone}} @label={{c.expires}} />
+              <div class="small text-secondary">{{format-ts c.validity.notAfter}}</div>
+            {{else}}
+              <span class="text-secondary">not issued</span>
+            {{/if}}
+          </td>
+          <td><Ui::StatusIndicator @tone={{c.state.tone}} @label={{c.state.label}} data-test-certificate-row-state={{c.name}} /></td>
+        </Ui::Table>
+      </Ui::Card>
+
+      <div class="row row-cards mb-3">
+        <div class="col-lg-6">
+          <Ui::Card @title="Issuers" @subtitle="Who signs: the issuing CA of the region, or a controller outside the servers" @flush={{true}} data-test-issuer-list>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Issuers"
+              @columns={{array (hash key="name" label="Issuer") (hash key="type" label="Type") (hash key="used" label="Certificates") (hash key="health" label="Health")}}
+              @rows={{this.issuerRows}}
+              @emptyMessage="No issuer. A norca.io/CertificateIssuer object with a builtin block uses the issuing CA of the region."
+              as |i|
+            >
+              <td>
+                <LinkTo @route="objects.object" @models={{array this.certificateGroup this.issuerKind i.name}} data-test-issuer-link={{i.name}}>{{i.name}}</LinkTo>
+              </td>
+              <td>
+                {{i.type}}
+                {{#if i.controller}}
+                  <div class="small text-secondary">controller {{i.controller}}{{#if i.heartbeat}}, heartbeat {{i.heartbeat}}{{else}}, no heartbeat{{/if}}</div>
+                {{/if}}
+              </td>
+              <td class="tabular-nums">{{i.used}}</td>
+              <td><Ui::StatusIndicator @tone={{i.health.tone}} @label={{i.health.label}} /></td>
+            </Ui::Table>
+          </Ui::Card>
+        </div>
+        <div class="col-lg-6">
+          <Ui::Card @title="Open orders" @subtitle="Issuances handed to external issuers; an order is removed when its chain is taken" @flush={{true}} data-test-order-list>
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Open orders"
+              @columns={{array (hash key="name" label="Order") (hash key="certificate" label="For") (hash key="issuer" label="Issuer") (hash key="state" label="State")}}
+              @rows={{this.orderRows}}
+              @emptyMessage="No open order."
+              as |o|
+            >
+              <td>
+                <LinkTo @route="objects.object" @models={{array this.certificateGroup this.orderKind o.name}} class="font-monospace" data-test-order-link={{o.name}}>{{o.name}}</LinkTo>
+                {{#if o.revoke}}<Ui::Badge @color="orange" class="ms-1">revocation</Ui::Badge>{{/if}}
+              </td>
+              <td>
+                <LinkTo @route="objects.object" @models={{array this.certificateGroup this.certificateKind o.certificate.name}} @query={{hash namespace=o.certificate.namespace}}>{{o.certificate.name}}</LinkTo>
+                <div class="small text-secondary">namespace {{o.certificate.namespace}}</div>
+              </td>
+              <td>{{o.issuer}}</td>
+              <td>
+                <Ui::StatusIndicator @tone={{o.tone}} @label={{o.state}} />
+                {{#if o.problem}}<div class="small text-secondary">{{o.problem}}</div>{{/if}}
+              </td>
+            </Ui::Table>
+          </Ui::Card>
+        </div>
+      </div>
+
+      <Ui::Card @title="Issuing CAs of the region" @subtitle="They sign the certificates of the built-in issuer. A retired CA stays in the trust bundle until what it signed has expired." @flush={{true}} data-test-authorities>
+        <:actions>
+          {{#if this.bundle}}
+            <Ui::CopyButton @text={{this.bundle}} @label="Copy the trust bundle" data-test-copy-roots>Copy</Ui::CopyButton>
+            <Ui::Button @href={{this.bundleHref}} @size="sm" @icon="download" download={{this.bundleFile}} data-test-download-roots>Trust bundle</Ui::Button>
+          {{/if}}
+        </:actions>
+        <:default>
+          {{#if this.rootsError}}
+            <div class="p-3"><Ui::Alert @tone="warning" class="mb-0" data-test-roots-error>{{this.rootsError}}</Ui::Alert></div>
+          {{else}}
+            <Ui::Table
+              @inCard={{true}}
+              @caption="Issuing CAs"
+              @columns={{array (hash key="id" label="CA") (hash key="state" label="State") (hash key="origin" label="Origin") (hash key="expires" label="Expiry") (hash key="revoked" label="Revoked") (hash key="actions" label="Actions")}}
+              @rows={{this.authorityRows}}
+              @emptyMessage="The region has no issuing CA yet. The leader makes one when the first certificate of the built-in issuer is asked for."
+              as |a|
+            >
+              <td class="font-monospace" title={{a.id}} data-test-authority={{a.id}}>{{a.shortId}}</td>
+              <td>
+                <Ui::StatusIndicator @tone={{a.tone}} @label={{a.state}} />
+                {{#if a.rotatedOut}}<div class="small text-secondary">rotated out {{a.rotatedOut}}</div>{{/if}}
+              </td>
+              <td>{{a.origin}}</td>
+              <td>
+                {{a.expires}}
+                {{#if a.notAfter}}<div class="small text-secondary">{{format-ts a.notAfter}}</div>{{/if}}
+              </td>
+              <td class="tabular-nums">{{a.revoked}}</td>
+              <td class="text-end">
+                <Ui::Button @size="sm" @variant="ghost" @isLoading={{eq this.crlLoading a.id}} data-test-authority-crl={{a.id}} {{on "click" (fn this.showRevocationList a)}}>Revocation list</Ui::Button>
+              </td>
+            </Ui::Table>
+          {{/if}}
+        </:default>
+      </Ui::Card>
+
+      {{#if this.crl}}
+        <Ui::Modal @title={{concat "Revocation list of the CA " this.crl.shortId}} @size="lg" @onClose={{this.closeRevocationList}} data-test-crl>
+          <:default>
+            {{#if this.crl.error}}
+              <Ui::Alert @tone="danger" class="mb-0" data-test-crl-error>{{this.crl.error}}</Ui::Alert>
+            {{else}}
+              <p class="text-secondary">
+                The list in PEM (RFC 5280), signed by the CA. <span class="font-monospace">norca certificate crl</span> prints the same.
+              </p>
+              <Ui::CodeBlock @code={{this.crl.pem}} @copy={{true}} @label="the revocation list" data-test-crl-pem />
+            {{/if}}
+          </:default>
+        </Ui::Modal>
+      {{/if}}
+    {{/if}}
+  </Ui::PageBody>
+</div>
