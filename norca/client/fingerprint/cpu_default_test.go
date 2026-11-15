@@ -13,6 +13,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/client/config"
 	"github.com/bacanoo-io/norca/norca/client/lib/cgutil"
+	clienttest "github.com/bacanoo-io/norca/norca/client/testutil"
 	"github.com/bacanoo-io/norca/norca/helper/testlog"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/shoenig/test/must"
@@ -22,6 +23,10 @@ func TestCPUFingerprint_Classic(t *testing.T) {
 	ci.Parallel(t)
 
 	logger := testlog.HCLogger(t)
+
+	// The reservable cores are read from the cgroup parent the manager
+	// creates: where the cgroup tree can't be written there is none.
+	clienttest.RequireCgroupsWritable(t)
 
 	// create cpuset manager so we can ensure cgroup tree is correct
 	mgr := cgutil.CreateCPUSetManager("", nil, logger)

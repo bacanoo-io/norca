@@ -10,7 +10,25 @@ import (
 	"testing"
 
 	"github.com/opencontainers/cgroups"
+	"golang.org/x/sys/unix"
 )
+
+// RequireCgroupsWritable skips tests unless the cgroup tree can be written:
+// a test that creates the cgroup parent of the client can't run where it is
+// mounted read-only, as in a container without privileges.
+func RequireCgroupsWritable(t *testing.T) {
+	root := "/sys/fs/cgroup"
+	if !cgroups.IsCgroup2UnifiedMode() {
+		mount, err := cgroups.FindCgroupMountpoint("", "cpuset")
+		if err != nil {
+			t.Skipf("Test requires a writable cgroup tree: no cpuset mount point: %v", err)
+		}
+		root = mount
+	}
+	if err := unix.Access(root, unix.W_OK); err != nil {
+		t.Skipf("Test requires a writable cgroup tree: %s: %v", root, err)
+	}
+}
 
 // CgroupsCompatible returns true if either cgroups.v1 or cgroups.v2 is supported.
 func CgroupsCompatible(t *testing.T) bool {

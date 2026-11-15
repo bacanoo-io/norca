@@ -1,4 +1,5 @@
 // Copyright (c) HashiCorp, Inc.
+// Modifications Copyright (c) 2026 Norca contributors
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !linux
@@ -23,3 +24,7 @@ func CgroupsCompatibleV1(t *testing.T) {
 func CgroupsCompatibleV2(t *testing.T) {
 	t.Skipf("Test requires cgroup.v2 support on Linux")
 }
+
+// RequireCgroupsWritable does nothing on non-Linux operating systems, where
+// no test writes cgroups.
+func RequireCgroupsWritable(t *testing.T) {}
