@@ -579,6 +579,27 @@ func Commands(metaPtr *Meta, agentUi cli.Ui) map[string]cli.CommandFactory {
 		"secret get": func() (cli.Command, error) {
 			return &SecretGetCommand{Meta: meta}, nil
 		},
+		"certificate": func() (cli.Command, error) {
+			return &CertificateCommand{Meta: meta}, nil
+		},
+		"certificate roots": func() (cli.Command, error) {
+			return &CertificateRootsCommand{Meta: meta}, nil
+		},
+		"certificate crl": func() (cli.Command, error) {
+			return &CertificateCRLCommand{Meta: meta}, nil
+		},
+		"certificate revoke": func() (cli.Command, error) {
+			return &CertificateRevokeCommand{Meta: meta}, nil
+		},
+		"certificate ca": func() (cli.Command, error) {
+			return &CertificateCACommand{Meta: meta}, nil
+		},
+		"certificate ca import": func() (cli.Command, error) {
+			return &CertificateCAImportCommand{Meta: meta}, nil
+		},
+		"certificate ca rotate": func() (cli.Command, error) {
+			return &CertificateCARotateCommand{Meta: meta}, nil
+		},
 		"secret put": func() (cli.Command, error) {
 			return &SecretPutCommand{Meta: meta}, nil
 		},

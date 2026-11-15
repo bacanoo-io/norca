@@ -70,6 +70,7 @@ const (
 	CertificateConditionRenewing          = "Renewing"
 	CertificateConditionFailed            = "Failed"
 	CertificateConditionIssuerUnavailable = "IssuerUnavailable"
+	CertificateConditionDegraded          = "Degraded"
 
 	// States of a certificate order.
 	CertificateOrderPending    = "pending"

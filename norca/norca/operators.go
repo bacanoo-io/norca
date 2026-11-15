@@ -24,6 +24,10 @@ import (
 // modify index, and records what it did as object events. Work that takes
 // longer than one pass (an order with an external issuer) keeps its progress
 // in the status, so the next leader continues it.
+//
+// The conditions Ready and Degraded are common to the kinds of the
+// operators: the metrics store counts the objects of every kind and those
+// that are Degraded (norca.objects.count, norca.objects.degraded).
 
 var (
 	// operatorsInterval is how often the operators run when nothing they
@@ -48,17 +52,6 @@ type coreOperator interface {
 	// It adds what it read to the watch set, and returns when it wants to
 	// run again at the latest (the zero time: no wish).
 	reconcile(ws memdb.WatchSet) (time.Time, error)
-
-	// gauges returns the number of objects per kind and namespace, and of
-	// those that are not ready.
-	gauges() []operatorGauge
-}
-
-// operatorGauge is the number of objects of a kind in a namespace.
-type operatorGauge struct {
-	kind, namespace string
-	objects         int
-	notReady        int
 }
 
 // operatorManager runs the built-in operators.
@@ -111,7 +104,6 @@ func (s *Server) operatorsLoop(stopCh chan struct{}) {
 				next = wish
 			}
 		}
-		m.publishGauges()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		timer := time.NewTimer(max(time.Until(next), operatorsSettle))
@@ -130,17 +122,6 @@ func (s *Server) operatorsLoop(stopCh chan struct{}) {
 				return
 			case <-time.After(operatorsSettle):
 			}
-		}
-	}
-}
-
-// publishGauges publishes the object counts of the operators.
-func (m *operatorManager) publishGauges() {
-	for _, op := range m.operators {
-		for _, g := range op.gauges() {
-			labels := []metrics.Label{{Name: "kind", Value: g.kind}, {Name: "ns", Value: g.namespace}}
-			metrics.SetGaugeWithLabels([]string{"nomad", "operator", "objects"}, float32(g.objects), labels)
-			metrics.SetGaugeWithLabels([]string{"nomad", "operator", "objects_not_ready"}, float32(g.notReady), labels)
 		}
 	}
 }

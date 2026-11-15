@@ -301,6 +301,7 @@ func objectGauges(snap *state.StateSnapshot) ([]metricsstore.Gauge, error) {
 		return nil, err
 	}
 	nodeGroupRef := structs.ObjectKindRef(structs.NodeScalingGroup, structs.NodeGroupKind)
+	now := time.Now()
 	var gauges []metricsstore.Gauge
 	for raw := kinds.Next(); raw != nil; raw = kinds.Next() {
 		kind := raw.(*structs.ObjectKind)
@@ -326,6 +327,8 @@ func objectGauges(snap *state.StateSnapshot) ([]metricsstore.Gauge, error) {
 				gauges = append(gauges,
 					metricsstore.Gauge{Metric: metricsstore.MetricLBTargets, Labels: labels, Value: float64(len(targets))},
 					metricsstore.Gauge{Metric: metricsstore.MetricLBReady, Labels: labels, Value: boolValue(conditions["Ready"])})
+			case certificateKindRef:
+				gauges = append(gauges, certificateGauges(obj, conditions, now)...)
 			}
 		}
 		labels := map[string]string{"kind": ref}
@@ -334,6 +337,28 @@ func objectGauges(snap *state.StateSnapshot) ([]metricsstore.Gauge, error) {
 			metricsstore.Gauge{Metric: metricsstore.MetricObjectsDegraded, Labels: labels, Value: float64(degraded)})
 	}
 	return gauges, nil
+}
+
+// certificateKindRef is the kind of the certificates the servers keep
+// issued.
+var certificateKindRef = structs.ObjectKindRef(structs.OperatorsGroup, structs.CertificateKind)
+
+// certificateGauges returns the gauges of a certificate: whether it is
+// ready, and the hours until its current certificate expires.
+func certificateGauges(obj *structs.CustomObject, conditions map[string]bool, now time.Time) []metricsstore.Gauge {
+	labels := map[string]string{"ns": obj.Namespace, "name": obj.Name}
+	gauges := []metricsstore.Gauge{
+		{Metric: metricsstore.MetricCertificateReady, Labels: labels, Value: boolValue(conditions[structs.CertificateConditionReady])},
+	}
+	raw, _ := obj.Status["notAfter"].(string)
+	if notAfter, err := time.Parse(time.RFC3339, raw); err == nil {
+		gauges = append(gauges, metricsstore.Gauge{
+			Metric: metricsstore.MetricCertificateExpiresHours,
+			Labels: labels,
+			Value:  max(notAfter.Sub(now).Hours(), 0),
+		})
+	}
+	return gauges
 }
 
 // nodeGroupGauges returns the gauges of a node group: its replicas, the

@@ -440,6 +440,11 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 
 	s.mux.HandleFunc("/v1/mtls/roots", s.wrap(s.MTLSRootsRequest))
 	s.mux.HandleFunc("/v1/mtls/ca/rotate", s.wrap(s.MTLSRotateRequest))
+	s.mux.HandleFunc("/v1/certificates/roots", s.wrap(s.CertificateRootsRequest))
+	s.mux.HandleFunc("/v1/certificates/crl", s.wrap(s.CertificateCRLRequest))
+	s.mux.HandleFunc("/v1/certificates/ca/import", s.wrap(s.CertificateAuthorityImportRequest))
+	s.mux.HandleFunc("/v1/certificates/ca/rotate", s.wrap(s.CertificateAuthorityRotateRequest))
+	s.mux.HandleFunc("/v1/certificate/", s.wrap(s.CertificateSpecificRequest))
 	s.mux.HandleFunc("/v1/service-intentions", s.wrap(s.ServiceIntentionsRequest))
 	s.mux.HandleFunc("/v1/service-intention", s.wrap(s.ServiceIntentionRequest))
 

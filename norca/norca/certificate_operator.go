@@ -53,8 +53,6 @@ var (
 type certificateOperator struct {
 	srv    *Server
 	logger hclog.Logger
-
-	lastGauges []operatorGauge
 }
 
 func newCertificateOperator(srv *Server, logger hclog.Logger) *certificateOperator {
@@ -62,8 +60,6 @@ func newCertificateOperator(srv *Server, logger hclog.Logger) *certificateOperat
 }
 
 func (o *certificateOperator) kinds() []*structs.ObjectKind { return builtinCertificateKinds() }
-
-func (o *certificateOperator) gauges() []operatorGauge { return o.lastGauges }
 
 // certificatePass is what one pass of the operator read.
 type certificatePass struct {
@@ -166,36 +162,13 @@ func (o *certificateOperator) reconcile(ws memdb.WatchSet) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	counts := map[string]*operatorGauge{}
 	openOrders := map[string]bool{}
 	for _, cert := range certs {
-		ready, order := o.reconcileCertificate(p, cert)
-		g := counts[cert.Namespace]
-		if g == nil {
-			g = &operatorGauge{kind: structs.CertificateKind, namespace: cert.Namespace}
-			counts[cert.Namespace] = g
-		}
-		g.objects++
-		if !ready {
-			g.notReady++
-		}
-		if order != "" {
+		if order := o.reconcileCertificate(p, cert); order != "" {
 			openOrders[order] = true
 		}
 	}
 	o.cleanOrders(p, orders, openOrders)
-
-	gauges := make([]operatorGauge, 0, len(counts)+1)
-	for _, g := range counts {
-		gauges = append(gauges, *g)
-	}
-	issuerGauge := operatorGauge{kind: structs.CertificateIssuerKind, objects: len(issuers)}
-	for _, issuer := range issuers {
-		if !o.issuerAvailable(p, issuer) {
-			issuerGauge.notReady++
-		}
-	}
-	o.lastGauges = append(gauges, issuerGauge)
 	return p.wish, nil
 }
 
@@ -237,6 +210,7 @@ func (o *certificateOperator) reconcileIssuer(p *certificatePass, issuer *struct
 	default:
 		conditions.set(structs.CertificateConditionReady, false, "AuthorityNotReady", "the issuing certificate authority is being created")
 	}
+	conditions.set(structs.CertificateConditionDegraded, p.active == nil && caErr != nil, "", "")
 	status[structs.ObjectStatusConditions] = conditions.list()
 	o.writeStatus(issuer, status, nil)
 }
@@ -287,13 +261,13 @@ type certificateOutcome struct {
 }
 
 // reconcileCertificate brings one certificate to its wanted state. It
-// reports whether the certificate is ready and the name of its open order.
-func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *structs.CustomObject) (ready bool, order string) {
+// returns the name of its open order.
+func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *structs.CustomObject) (order string) {
 	spec := &structs.CertificateSpec{}
 	status := &structs.CertificateStatus{}
 	if err := structs.DecodeObjectPart(obj.Spec, spec); err != nil {
 		o.logger.Warn("certificate with a spec that can't be decoded", "namespace", obj.Namespace, "certificate", obj.Name, "error", err)
-		return false, ""
+		return ""
 	}
 	if err := structs.DecodeObjectPart(obj.Status, status); err != nil {
 		status = &structs.CertificateStatus{}
@@ -301,13 +275,13 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 
 	if obj.Deleting() {
 		o.finishDeletion(obj, spec, status)
-		return false, ""
+		return ""
 	}
 
 	secret, err := p.store.SecretByPath(p.ws, obj.Namespace, spec.SecretPath)
 	if err != nil {
 		o.logger.Warn("secret lookup failed", "namespace", obj.Namespace, "path", spec.SecretPath, "error", err)
-		return false, status.Order
+		return status.Order
 	}
 	ours := secret != nil && secret.Labels[structs.SecretLabelCertificate] == obj.Name
 	have := ours && status.Serial != "" &&
@@ -371,7 +345,7 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 	encoded, err := structs.EncodeObjectPart(&st)
 	if err != nil {
 		o.logger.Warn("status of a certificate can't be encoded", "certificate", obj.Name, "error", err)
-		return out.ready, st.Order
+		return st.Order
 	}
 	conditions := newConditionSet(obj.Status, p.now)
 	conditions.set(structs.CertificateConditionReady, out.ready, "", "")
@@ -379,10 +353,13 @@ func (o *certificateOperator) reconcileCertificate(p *certificatePass, obj *stru
 	conditions.set(structs.CertificateConditionRenewing, out.progress == structs.CertificateConditionRenewing, "", "")
 	conditions.set(structs.CertificateConditionFailed, out.failedReason != "", out.failedReason, out.failedMessage)
 	conditions.set(structs.CertificateConditionIssuerUnavailable, out.unavailable, "", "")
+	// Degraded: something keeps the certificate from being issued or
+	// renewed, whether or not it still has a valid one.
+	conditions.set(structs.CertificateConditionDegraded, out.failedReason != "" || out.unavailable, "", "")
 	encoded[structs.ObjectStatusConditions] = conditions.list()
 	encoded[structs.ObjectStatusObservedGeneration] = obj.Generation
 	o.writeStatus(obj, encoded, &finalizers)
-	return out.ready, st.Order
+	return st.Order
 }
 
 // certificateFailure returns the reason and the message of the Failed

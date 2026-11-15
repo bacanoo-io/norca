@@ -78,8 +78,8 @@ func (m *MetricsStore) local(method, serverID string, args metricsStoreRequest, 
 // the internals of the server (Raft, RPC and the system bus) and the object
 // counts, list-jobs in the namespace (label ns) for the jobs,
 // backup read for the backups, read on the objects of the kind for the
-// node groups and the load balancers (in the namespace of label ns), and
-// csi-read-volume in the namespace (label ns) for the CSI volumes, and
+// node groups, the load balancers and the certificates (in the namespace of
+// label ns), csi-read-volume in the namespace (label ns) for the CSI volumes, and
 // plugin read for the capacity of the CSI plugins.
 func allowGauge(aclObj *acl.ACL, metric string, labels map[string]string) bool {
 	if aclObj == nil {
@@ -112,6 +112,8 @@ func allowGauge(aclObj *acl.ACL, metric string, labels map[string]string) bool {
 			structs.ObjectKindRef(structs.NodeScalingGroup, structs.NodeGroupKind), acl.ObjectCapabilityRead)
 	case strings.HasPrefix(metric, "norca.lb."):
 		return labels["ns"] != "" && aclObj.AllowObjectOperation(labels["ns"], loadBalancerKindRef, acl.ObjectCapabilityRead)
+	case strings.HasPrefix(metric, "norca.certificate."):
+		return labels["ns"] != "" && aclObj.AllowObjectOperation(labels["ns"], certificateKindRef, acl.ObjectCapabilityRead)
 	case strings.HasPrefix(metric, "norca.volume."):
 		return labels["ns"] != "" && aclObj.AllowNsOp(labels["ns"], acl.NamespaceCapabilityCSIReadVolume)
 	case strings.HasPrefix(metric, "norca.csi."):

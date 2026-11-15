@@ -302,6 +302,33 @@ func TestMetricsStore_NodeGroupCertGauges(t *testing.T) {
 	}, gaugeValues(gauges))
 }
 
+// TestMetricsStore_CertificateGauges checks the gauges of a certificate.
+func TestMetricsStore_CertificateGauges(t *testing.T) {
+	ci.Parallel(t)
+
+	now := time.Unix(1_800_000_000, 0).UTC()
+	object := func(name string, status map[string]any) *structs.CustomObject {
+		return &structs.CustomObject{Group: structs.OperatorsGroup, Kind: structs.CertificateKind,
+			Namespace: "team", Name: name, Status: status}
+	}
+	ready := map[string]any{"type": "Ready", "status": "True"}
+	var gauges []metricsstore.Gauge
+	for _, obj := range []*structs.CustomObject{
+		object("issued", map[string]any{"notAfter": now.Add(36 * time.Hour).Format(time.RFC3339), "conditions": []any{ready}}),
+		object("expired", map[string]any{"notAfter": now.Add(-time.Hour).Format(time.RFC3339)}),
+		object("waiting", nil),
+	} {
+		gauges = append(gauges, certificateGauges(obj, objectConditions(obj.Status), now)...)
+	}
+	must.Eq(t, map[string]float64{
+		metricsstore.MetricCertificateReady + "/team/issued":         1,
+		metricsstore.MetricCertificateExpiresHours + "/team/issued":  36,
+		metricsstore.MetricCertificateReady + "/team/expired":        0,
+		metricsstore.MetricCertificateExpiresHours + "/team/expired": 0,
+		metricsstore.MetricCertificateReady + "/team/waiting":        0,
+	}, gaugeValues(gauges))
+}
+
 // TestMetricsStore_ControlPlaneACL checks the ACL of the series of the
 // scheduler, the control plane and the objects.
 func TestMetricsStore_ControlPlaneACL(t *testing.T) {
@@ -320,6 +347,7 @@ func TestMetricsStore_ControlPlaneACL(t *testing.T) {
 	objects := aclFor(`
 namespace "*" { object "norca.io/NodeGroup" { policy = "read" } }
 namespace "web" { object "norca.io/LoadBalancer" { policy = "read" } }`)
+	certificates := aclFor(`namespace "team" { object "norca.io/Certificate" { policy = "read" } }`)
 
 	for _, tc := range []struct {
 		metric string
@@ -338,6 +366,8 @@ namespace "web" { object "norca.io/LoadBalancer" { policy = "read" } }`)
 		{metricsstore.MetricServerRPCRequests, nil, []*acl.ACL{operator}},
 		{metricsstore.MetricServerRPCErrors, nil, []*acl.ACL{operator}},
 		{metricsstore.MetricNodeGroupCertExpiresMinHours, map[string]string{"group": "g"}, []*acl.ACL{objects}},
+		{metricsstore.MetricCertificateReady, map[string]string{"ns": "team", "name": "web-tls"}, []*acl.ACL{certificates}},
+		{metricsstore.MetricCertificateExpiresHours, map[string]string{"ns": "other", "name": "web-tls"}, nil},
 		{metricsstore.MetricBusJetStreamBytes, nil, []*acl.ACL{operator}},
 		{metricsstore.MetricBusRoutes, nil, []*acl.ACL{operator}},
 		{metricsstore.MetricObjectsCount, map[string]string{"kind": "norca.io/NodeGroup"}, []*acl.ACL{operator}},
@@ -348,7 +378,7 @@ namespace "web" { object "norca.io/LoadBalancer" { policy = "read" } }`)
 		{metricsstore.MetricLBTargets, map[string]string{"ns": "web", "name": "lb"}, []*acl.ACL{objects}},
 		{metricsstore.MetricLBTargets, map[string]string{"ns": "other", "name": "lb"}, nil},
 	} {
-		for _, a := range []*acl.ACL{operator, jobs, backups, objects} {
+		for _, a := range []*acl.ACL{operator, jobs, backups, objects, certificates} {
 			want := false
 			for _, b := range tc.allow {
 				want = want || a == b

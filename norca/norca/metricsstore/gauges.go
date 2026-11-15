@@ -275,6 +275,13 @@ const (
 	MetricLBTargets = "norca.lb.targets"
 	MetricLBReady   = "norca.lb.ready"
 
+	// A certificate (labels ns, name) the servers keep issued: 1 while its
+	// Ready condition is True, and the hours until the end of the validity
+	// of its current certificate (0 once it has expired; no point before
+	// the first one is issued).
+	MetricCertificateReady        = "norca.certificate.ready"
+	MetricCertificateExpiresHours = "norca.certificate.expires_hours"
+
 	// The custom objects of a kind (label kind, "group/Kind"), and those
 	// whose Degraded condition is True.
 	MetricObjectsCount    = "norca.objects.count"
@@ -396,6 +403,8 @@ var gaugeLabels = map[string][]string{
 	MetricNodeGroupCertExpiresMinHours: {"group"},
 	MetricLBTargets:                    {"ns", "name"},
 	MetricLBReady:                      {"ns", "name"},
+	MetricCertificateReady:             {"ns", "name"},
+	MetricCertificateExpiresHours:      {"ns", "name"},
 	MetricObjectsCount:                 {"kind"},
 	MetricObjectsDegraded:              {"kind"},
 
