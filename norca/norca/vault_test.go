@@ -1170,6 +1170,10 @@ func TestVaultClient_CreateToken_Root_Target_Role(t *testing.T) {
 func TestVaultClient_CreateToken_Denylist_Role(t *testing.T) {
 	ci.Parallel(t)
 
+	// The version is asked of the binary: without one the test is skipped,
+	// as the tests that start a Vault are.
+	testutil.RequireVault(t)
+
 	// Need to skip if test is 0.6.4
 	version, err := testutil.VaultVersion()
 	if err != nil {

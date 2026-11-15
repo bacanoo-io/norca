@@ -25,7 +25,8 @@ import (
 // server instance in the background and can be initialized with policies, roles
 // and backends mounted. The test Vault instances can be used to run a unit test
 // and offers and easy API to tear itself down on test end. The only
-// prerequisite is that the Vault binary is on the $PATH.
+// prerequisite is that the Vault binary is on the $PATH: without it the test
+// that asks for a TestVault is skipped.
 
 // TestVault wraps a test Vault server launched in dev mode, suitable for
 // testing.
@@ -41,7 +42,24 @@ type TestVault struct {
 	Client    *vapi.Client
 }
 
+// requireVaultBinary skips the test when the Vault binary is not there: a
+// machine without Vault can't run the tests that start one, which is not a
+// failure of the code under test.
+func requireVaultBinary(t testing.T, binary string) {
+	if _, err := exec.LookPath(binary); err != nil {
+		t.Skipf("Test requires Vault: %v", err)
+	}
+}
+
+// RequireVault skips the test when the Vault binary is not on the $PATH.
+// The constructors of TestVault do it themselves; a test that runs Vault
+// before it asks for one calls it first.
+func RequireVault(t testing.T) {
+	requireVaultBinary(t, "vault")
+}
+
 func NewTestVaultFromPath(t testing.T, binary string) *TestVault {
+	requireVaultBinary(t, binary)
 	port := ci.PortAllocator.Grab(1)[0]
 	token := uuid.Generate()
 	bind := fmt.Sprintf("-dev-listen-address=127.0.0.1:%d", port)
@@ -119,6 +137,7 @@ func NewTestVault(t testing.T) *TestVault {
 // Start must be called and it is the callers responsibility to deal with any
 // port conflicts that may occur and retry accordingly.
 func NewTestVaultDelayed(t testing.T) *TestVault {
+	requireVaultBinary(t, "vault")
 	port := ci.PortAllocator.Grab(1)[0]
 	token := uuid.Generate()
 	bind := fmt.Sprintf("-dev-listen-address=127.0.0.1:%d", port)
