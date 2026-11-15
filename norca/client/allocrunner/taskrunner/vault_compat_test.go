@@ -209,8 +209,7 @@ func TestTaskRunner_VaultCompat(t *testing.T) {
 	}, func(err error) { t.Fatalf("the token still works after the task stopped: %v", err) })
 
 	must.NoError(t, db.Close())
-	dbFiles, err := filepath.Glob(filepath.Join(stateDir, "*"))
-	must.NoError(t, err)
+	dbFiles := clientStateFiles(t, stateDir)
 	must.SliceNotEmpty(t, dbFiles)
 	for _, f := range dbFiles {
 		b, err := os.ReadFile(f)

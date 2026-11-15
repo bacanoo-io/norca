@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -570,8 +571,7 @@ func TestTaskRunner_SecretDelivery(t *testing.T) {
 		must.StrNotContains(t, string(b), secretTestCanary, must.Sprint(name))
 	}
 	must.NoError(t, db.Close())
-	dbFiles, err := filepath.Glob(filepath.Join(stateDir, "*"))
-	must.NoError(t, err)
+	dbFiles := clientStateFiles(t, stateDir)
 	must.SliceNotEmpty(t, dbFiles)
 	for _, f := range dbFiles {
 		b, err := os.ReadFile(f)
@@ -632,4 +632,22 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	return l.w.Write(p)
+}
+
+// clientStateFiles returns the files of the client state database under
+// dir. The database keeps its files in a directory of its own.
+func clientStateFiles(t *testing.T, dir string) []string {
+	t.Helper()
+	var files []string
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			files = append(files, path)
+		}
+		return nil
+	})
+	must.NoError(t, err)
+	return files
 }
