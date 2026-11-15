@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/client/config"
+	"github.com/bacanoo-io/norca/norca/helper/defaultroute"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	log "github.com/hashicorp/go-hclog"
-	sockaddr "github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/go-sockaddr/template"
 )
 
@@ -252,11 +252,8 @@ func deriveAddressAliases(iface net.Interface, addr net.IP, config *config.Confi
 		if config.NetworkInterface == iface.Name {
 			aliases = append(aliases, "default")
 		}
-	} else if ri, err := sockaddr.NewRouteInfo(); err == nil {
-		defaultIface, err := ri.GetDefaultInterfaceName()
-		if err == nil && iface.Name == defaultIface {
-			aliases = append(aliases, "default")
-		}
+	} else if defaultIface, err := defaultroute.InterfaceName(); err == nil && iface.Name == defaultIface {
+		aliases = append(aliases, "default")
 	}
 
 	return
@@ -324,17 +321,11 @@ func (f *NetworkFingerprint) createNetworkResources(throughput int, intf *net.In
 func (f *NetworkFingerprint) findInterface(deviceName string) (*net.Interface, error) {
 	// If we aren't given a device, look it up by using the interface with the default route
 	if deviceName == "" {
-		ri, err := sockaddr.NewRouteInfo()
+		// The routing table of the kernel says it: no program of the host
+		// (ip of iproute2) is needed.
+		defaultIfName, err := defaultroute.InterfaceName()
 		if err != nil {
-			return nil, err
-		}
-
-		defaultIfName, err := ri.GetDefaultInterfaceName()
-		if err != nil {
-			return nil, err
-		}
-		if defaultIfName == "" {
-			return nil, fmt.Errorf("no network_interface given and failed to determine interface attached to default route")
+			return nil, fmt.Errorf("no network_interface given and the interface of the default route cannot be determined (set client.network_interface): %w", err)
 		}
 		deviceName = defaultIfName
 	}

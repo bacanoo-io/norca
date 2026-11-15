@@ -23,6 +23,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/client/fingerprint"
 	"github.com/bacanoo-io/norca/norca/helper"
 	"github.com/bacanoo-io/norca/norca/helper/badgerdb"
+	"github.com/bacanoo-io/norca/norca/helper/defaultroute"
 	"github.com/bacanoo-io/norca/norca/helper/pointer"
 	"github.com/bacanoo-io/norca/norca/helper/users"
 	"github.com/bacanoo-io/norca/norca/norca"
@@ -1415,15 +1416,14 @@ func (mode *devModeConfig) networkConfig() error {
 		// if we hit either of the errors here we're in a weird situation
 		// where syscalls to get the list of network interfaces are failing.
 		// rather than throwing errors, we'll fall back to the default.
-		ifAddrs, err := sockaddr.GetDefaultInterfaces()
+		iface, err := defaultroute.InterfaceName()
 		errMsg := "-dev=connect uses network namespaces: %v"
+		if errors.Is(err, defaultroute.ErrNoDefaultRoute) {
+			return fmt.Errorf(errMsg, "could not find public network interface")
+		}
 		if err != nil {
 			return fmt.Errorf(errMsg, err)
 		}
-		if len(ifAddrs) < 1 {
-			return fmt.Errorf(errMsg, "could not find public network interface")
-		}
-		iface := ifAddrs[0].Name
 		mode.iface = iface
 		mode.bindAddr = "0.0.0.0" // allows CLI to "just work"
 		return nil
@@ -2017,11 +2017,42 @@ func normalizeAdvertise(addr string, bind string, defport int, dev bool) (string
 	}
 
 	// Bind is not localhost but not a valid advertise IP, use first private IP
-	addr, err = listenerutil.ParseSingleIPTemplate("{{ GetPrivateIP }}")
+	addr, err = defaultPrivateIP()
 	if err != nil {
 		return "", fmt.Errorf("Unable to parse default advertise address: %v", err)
 	}
 	return net.JoinHostPort(addr, strconv.Itoa(defport)), nil
+}
+
+// defaultPrivateIP returns the private address an agent advertises when
+// nothing else says one: the first private address of the host, an address
+// of the interface of the default route before the others. It is what the
+// go-sockaddr template "{{ GetPrivateIP }}" gives, except that the interface
+// of the default route is read from the kernel: go-sockaddr runs "ip route"
+// for it and, on a host without that program, silently leaves the order to
+// the other criteria, so the address could differ from host to host.
+func defaultPrivateIP() (string, error) {
+	addrs, err := sockaddr.GetPrivateInterfaces()
+	if err != nil {
+		return "", err
+	}
+	if len(addrs) == 0 {
+		return "", errors.New("the host has no private address")
+	}
+	chosen := addrs[0]
+	if name, err := defaultroute.InterfaceName(); err == nil {
+		for _, a := range addrs {
+			if a.Interface.Name == name {
+				chosen = a
+				break
+			}
+		}
+	}
+	ip := sockaddr.ToIPAddr(chosen.SockAddr)
+	if ip == nil {
+		return "", errors.New("the first private address of the host is not an IP address")
+	}
+	return (*ip).NetIP().String(), nil
 }
 
 // isMissingPort returns true if an error is a "missing port" error from
