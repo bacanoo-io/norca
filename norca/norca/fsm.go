@@ -384,6 +384,8 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyBackupRestoreUpsert(msgType, buf[1:], log.Index)
 	case structs.MTLSRootsUpsertRequestType:
 		return n.applyMTLSRootsUpsert(msgType, buf[1:], log.Index)
+	case structs.CertificateAuthoritiesUpsertRequestType:
+		return n.applyCertificateAuthoritiesUpsert(msgType, buf[1:], log.Index)
 	case structs.ServiceIntentionUpsertRequestType:
 		return n.applyServiceIntentionUpsert(msgType, buf[1:], log.Index)
 	case structs.ServiceIntentionDeleteRequestType:
@@ -1989,6 +1991,11 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case CertificateAuthoritySnapshot:
+			if err := restoreCertificateAuthoritySnapshot(restore, dec); err != nil {
+				return err
+			}
+
 		case NetworkPolicySnapshot, AdminNetworkPolicySnapshot:
 			if err := restoreNetworkPolicySnapshot(snapType, restore, dec); err != nil {
 				return err
@@ -2611,6 +2618,10 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		return err
 	}
 	if err := s.persistMTLS(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistCertificateAuthorities(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}

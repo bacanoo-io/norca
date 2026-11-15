@@ -197,6 +197,10 @@ const (
 	SecretEnginePurgeRequestType MessageType = 113
 	SecretLeaseApplyRequestType  MessageType = 114
 	SecretLeasePurgeRequestType  MessageType = 115
+	// Norca certificates (117 assigned to the issuing CAs of the built-in
+	// certificate issuer; 116 is taken by a snapshot type). It is sent with
+	// the IgnoreUnknownTypeFlag set.
+	CertificateAuthoritiesUpsertRequestType MessageType = 117
 )
 
 const (

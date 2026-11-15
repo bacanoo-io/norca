@@ -331,6 +331,11 @@ type Server struct {
 	// mtls is the native mTLS certificate authority (Norca)
 	mtls *mtlsCA
 
+	// certificateCA is the issuing CA of the built-in certificate issuer,
+	// and operators runs the built-in operators on the leader (Norca)
+	certificateCA *certificateCA
+	operators     *operatorManager
+
 	// admission holds the dynamic admission controllers (webhooks and the
 	// CEL policy engine)
 	admission *dynamicAdmission
@@ -544,6 +549,8 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 	}
 	s.encrypter = encrypter
 	s.mtls = newMTLSCA(s, s.logger)
+	s.certificateCA = newCertificateCA(s, s.logger)
+	s.operators = newOperatorManager(s, s.logger)
 
 	// Set up the OIDC provider cache. This is needed by the setupRPC, but must
 	// be done separately so that the server can stop all background processes
@@ -1476,6 +1483,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewNodePoolEndpoint(s, ctx))
 	_ = server.Register(NewAdmissionPolicyEndpoint(s, ctx))
 	_ = server.Register(NewMTLSEndpoint(s, ctx))
+	_ = server.Register(NewCertificateEndpoint(s, ctx))
 	_ = server.Register(NewServiceIntentionEndpoint(s, ctx))
 	_ = server.Register(NewObjectKindEndpoint(s, ctx))
 	_ = server.Register(NewCustomObjectEndpoint(s, ctx))

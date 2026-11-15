@@ -383,6 +383,9 @@ func (k *Keyring) Delete(args *structs.KeyringDeleteRootKeyRequest, reply *struc
 	case uses.MTLSRoots > 0:
 		return structs.NewErrRPCCodedf(http.StatusConflict, "root key %s encrypts the private key of %d certificate authority(ies) of the native mTLS - "+
 			"the leader encrypts it with the active root key after a rotation; try again shortly", args.KeyID, uses.MTLSRoots)
+	case uses.CertificateAuthorities > 0:
+		return structs.NewErrRPCCodedf(http.StatusConflict, "root key %s encrypts the private key of %d issuing certificate authority(ies) - "+
+			"the leader encrypts it with the active root key after a rotation; try again shortly", args.KeyID, uses.CertificateAuthorities)
 	}
 
 	// Norca: a key that seals values of the Consul KV bucket of the system

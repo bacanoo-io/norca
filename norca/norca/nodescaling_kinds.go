@@ -391,7 +391,7 @@ func isManagedObjectKind(group, kind string) bool {
 	if group != structs.NodeScalingGroup {
 		return false
 	}
-	return kind == structs.NodeGroupKind || kind == structs.NodeProviderKind
+	return kind == structs.NodeGroupKind || kind == structs.NodeProviderKind || isCertificateKind(group, kind)
 }
 
 // registerKinds registers the built-in kinds, or updates them if they

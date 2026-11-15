@@ -1100,6 +1100,14 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 			if existing != nil && !structs.ObjectMapsEqual(existing.Spec, obj.Spec) {
 				obj.Generation++
 			}
+
+			// The kinds of certificates: what the writer may ask the
+			// operator of the servers for.
+			if isCertificateKind(kind.Group, kind.Kind) {
+				if err := checkCertificateApply(snap, aclObj, obj); err != nil {
+					return nil, "", err
+				}
+			}
 			return obj, operation, nil
 		},
 	}
@@ -1142,6 +1150,11 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 		build: func(kind *structs.ObjectKind, ns string, existing *structs.CustomObject, aclObj *acl.ACL, snap *state.StateSnapshot) (*structs.CustomObject, string, error) {
 			if existing == nil {
 				return nil, "", structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", kind.KindRef(), args.Name)
+			}
+			if isCertificateKind(kind.Group, kind.Kind) {
+				if err := checkCertificateStatusWrite(existing); err != nil {
+					return nil, "", err
+				}
 			}
 			obj := existing.Copy()
 			obj.ModifyTime = time.Now().UnixNano()

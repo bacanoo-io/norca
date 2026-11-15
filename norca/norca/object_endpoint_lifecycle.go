@@ -234,6 +234,11 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 		if err := checkObjectManagedBy(aclObj, args, existing); err != nil {
 			return err
 		}
+		if isCertificateKind(kind.Group, kind.Kind) {
+			if err := checkCertificateDelete(aclObj, existing); err != nil {
+				return err
+			}
+		}
 
 		if attempt == 1 {
 			if err := c.srv.checkObjectWriteLimits(kind, args); err != nil {

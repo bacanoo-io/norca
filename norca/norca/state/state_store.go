@@ -7353,6 +7353,10 @@ func (s *StateStore) IsRootKeyMetaInUse(keyID string) (bool, error) {
 		return true, nil
 	}
 
-	// Norca: the key may encrypt the private key of a native mTLS CA
-	return isRootKeyInUseByMTLS(txn, keyID)
+	// Norca: the key may encrypt the private key of a native mTLS CA, or of
+	// an issuing CA of the built-in certificate issuer
+	if inUse, err := isRootKeyInUseByMTLS(txn, keyID); err != nil || inUse {
+		return inUse, err
+	}
+	return isRootKeyInUseByCertificates(txn, keyID)
 }

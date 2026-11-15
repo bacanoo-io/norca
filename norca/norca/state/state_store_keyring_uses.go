@@ -18,11 +18,15 @@ type RootKeyUses struct {
 	// MTLSRoots are the certificate authorities of the native mTLS whose
 	// private key is encrypted with the key.
 	MTLSRoots int
+
+	// CertificateAuthorities are the issuing CAs of the built-in
+	// certificate issuer whose private key is encrypted with the key.
+	CertificateAuthorities int
 }
 
 // InUse reports whether anything of the state needs the key.
 func (u *RootKeyUses) InUse() bool {
-	return u.Allocations > 0 || u.Variables > 0 || u.MTLSRoots > 0
+	return u.Allocations > 0 || u.Variables > 0 || u.MTLSRoots > 0 || u.CertificateAuthorities > 0
 }
 
 // RootKeyMetaUses counts the uses of the root key keyID in the state.
@@ -50,6 +54,9 @@ func (s *StateStore) RootKeyMetaUses(keyID string) (*RootKeyUses, error) {
 		return nil, err
 	}
 	if uses.MTLSRoots, err = count(TableMTLSRoots, indexSigningKeyID, keyID); err != nil {
+		return nil, err
+	}
+	if uses.CertificateAuthorities, err = count(TableCertificateAuthorities, indexSigningKeyID, keyID); err != nil {
 		return nil, err
 	}
 	return uses, nil
