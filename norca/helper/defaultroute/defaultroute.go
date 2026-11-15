@@ -39,7 +39,10 @@ const (
 //	Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT
 //
 // with addresses and flags in hexadecimal. A default route has the
-// destination and the mask 00000000.
+// destination and the mask 00000000. A route that drops what it gets
+// (blackhole, throw) has no device, the kernel prints "*" for it: it is not
+// a way out. The kernel prints the metric as a signed number, so one above
+// 2^31 is negative here.
 func parseIPv4(r io.Reader) (string, error) {
 	best, bestMetric := "", uint64(0)
 	scanner := bufio.NewScanner(r)
@@ -49,17 +52,18 @@ func parseIPv4(r io.Reader) (string, error) {
 			continue
 		}
 		iface, destination, mask := fields[0], fields[1], fields[7]
-		if destination != "00000000" || mask != "00000000" {
+		if destination != "00000000" || mask != "00000000" || iface == "*" {
 			continue
 		}
 		flags, err := strconv.ParseUint(fields[3], 16, 32)
 		if err != nil || flags&flagUp == 0 || flags&flagReject != 0 {
 			continue
 		}
-		metric, err := strconv.ParseUint(fields[6], 10, 32)
+		signed, err := strconv.ParseInt(fields[6], 10, 64)
 		if err != nil {
 			continue
 		}
+		metric := uint64(uint32(signed))
 		if best == "" || metric < bestMetric {
 			best, bestMetric = iface, metric
 		}
@@ -82,6 +86,11 @@ func parseIPv4(r io.Reader) (string, error) {
 // all but the interface in hexadecimal. A default route has the destination
 // of 32 zeros and the prefix length 00. A host without an IPv6 default
 // route has one that rejects (on lo), which is not one.
+//
+// Unlike /proc/net/route, which shows the main table only, this file lists
+// the routes of every table (policy routing, VRF) without saying which: on
+// a host with IPv6 only and a default route in another table, that one can
+// be chosen. Such a host names its interface (client.network_interface).
 func parseIPv6(r io.Reader) (string, error) {
 	best, bestMetric := "", uint64(0)
 	scanner := bufio.NewScanner(r)

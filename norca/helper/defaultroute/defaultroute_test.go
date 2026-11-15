@@ -65,6 +65,26 @@ func TestParseIPv4(t *testing.T) {
 			err: ErrNoDefaultRoute,
 		},
 		{
+			name: "a default route without a device (blackhole) is none",
+			table: header +
+				"*\t00000000\t00000000\t0001\t0\t0\t0\t00000000\t0\t0\t0\n" +
+				"eth0\t00000000\t0101A8C0\t0003\t0\t0\t100\t00000000\t0\t0\t0\n",
+			expected: "eth0",
+		},
+		{
+			name: "a metric above 2^31 is printed negative and is the highest",
+			table: header +
+				"eth1\t00000000\t0100000A\t0003\t0\t0\t-1\t00000000\t0\t0\t0\n" +
+				"eth0\t00000000\t0101A8C0\t0003\t0\t0\t4000\t00000000\t0\t0\t0\n",
+			expected: "eth0",
+		},
+		{
+			name: "the only default route has a metric above 2^31",
+			table: header +
+				"eth1\t00000000\t0100000A\t0003\t0\t0\t-2147483648\t00000000\t0\t0\t0\n",
+			expected: "eth1",
+		},
+		{
 			name: "a route to a network is not a default route",
 			table: header +
 				"eth0\t00000000\t00000000\t0001\t0\t0\t0\t000000FF\t0\t0\t0\n" +
