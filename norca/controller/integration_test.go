@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,7 +39,15 @@ type gatedBackend struct {
 	mu      sync.Mutex
 	closed  bool
 	open    chan struct{}
-	cancels []context.CancelFunc
+	streams []*gatedStream
+}
+
+// gatedStream is an open stream of a gatedBackend.
+type gatedStream struct {
+	cancel context.CancelFunc
+
+	// cut is set when the stream is interrupted: nothing passes after it.
+	cut atomic.Bool
 }
 
 func newGated(b controller.Backend) *gatedBackend {
@@ -57,20 +66,48 @@ func (g *gatedBackend) Stream(ctx context.Context, ns string, topics map[api.Top
 		return nil, ctx.Err()
 	}
 	ctx, cancel := context.WithCancel(ctx)
+	in, err := g.Backend.Stream(ctx, ns, topics, index, exact)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	st := &gatedStream{cancel: cancel}
 	g.mu.Lock()
-	g.cancels = append(g.cancels, cancel)
+	g.streams = append(g.streams, st)
 	g.mu.Unlock()
-	return g.Backend.Stream(ctx, ns, topics, index, exact)
+
+	// The stream of the backend ends some time after its context is
+	// cancelled, and delivers what it reads until then. A partition lets
+	// nothing through from the moment it begins, so what arrives after the
+	// cut is dropped here: otherwise the controller sees changes that were
+	// made after cut returned.
+	out := make(chan *api.Events)
+	go func() {
+		defer close(out)
+		for ev := range in {
+			if st.cut.Load() {
+				continue
+			}
+			select {
+			case out <- ev:
+			case <-ctx.Done():
+			}
+		}
+	}()
+	return out, nil
 }
 
+// cut interrupts the open streams and holds new subscriptions. No event
+// reaches the controller after it returns.
 func (g *gatedBackend) cut() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.open = make(chan struct{})
-	for _, c := range g.cancels {
-		c()
+	for _, st := range g.streams {
+		st.cut.Store(true)
+		st.cancel()
 	}
-	g.cancels = nil
+	g.streams = nil
 }
 
 func (g *gatedBackend) restore() {
