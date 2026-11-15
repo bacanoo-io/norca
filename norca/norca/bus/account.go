@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/nats-io/jwt/v2"
 	natsserver "github.com/nats-io/nats-server/v2/server"
@@ -79,7 +80,36 @@ const (
 	// account: the fetch requests and acknowledgements of its consumers are
 	// small.
 	ReaderMaxPayload = 4096
+
+	// ReaderResponseThreshold is how long the bus account keeps the way back
+	// of a fetch of a reader account (the default of nats-server is two
+	// minutes). A fetch waits at most ReaderMaxFetchExpires, which the
+	// consumers of a reader account must not exceed (MaxRequestExpires).
+	ReaderResponseThreshold = 35 * time.Second
+	ReaderMaxFetchExpires   = 30 * time.Second
+
+	// ReaderMaxPendingResponses bounds the requests of a reader account
+	// whose way back the bus account still keeps: every fetch across the
+	// accounts leaves one until ReaderResponseThreshold, whatever the
+	// consumer answers, and nats-server does not bound them. A client that
+	// fetches 900 times a second stays below it; a leaf above it is cut off
+	// for ReaderBanTime.
+	ReaderMaxPendingResponses = 32768
+	ReaderBanTime             = 30 * time.Second
+
+	// readerWatchInterval is how often the fetches of the reader accounts
+	// are counted.
+	readerWatchInterval = 2 * time.Second
 )
+
+// reader is a reader account made on the embedded server.
+type reader struct {
+	spec *ReaderSpec
+
+	// bannedUntil refuses the connections of the account until then: it had
+	// more than the allowed requests waiting.
+	bannedUntil time.Time
+}
 
 // ConsumerRef names a consumer of a stream.
 type ConsumerRef struct {
@@ -196,7 +226,10 @@ func (s *Server) validReaderSpec(spec *ReaderSpec) error {
 // JetStream API but its own consumers.
 //
 // The account lives until the embedded server restarts: then the next
-// connection of the reader makes it again.
+// connection of the reader makes it again. Calls are serialized, so a
+// connection never lands in an account whose imports are still being made;
+// a leaf account whose making failed half way is made again by the next
+// call.
 func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 	if err := s.validReaderSpec(spec); err != nil {
 		return "", err
@@ -206,23 +239,36 @@ func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 	s.nsLock.RLock()
 	defer s.nsLock.RUnlock()
 	ns := s.ns
+	s.readerLock.Lock()
+	defer s.readerLock.Unlock()
+	if s.readersOf != ns {
+		s.readers, s.readersOf = map[string]*reader{}, ns
+	}
+	if _, ok := s.readers[name]; ok {
+		return name, nil
+	}
+
 	bus, err := ns.LookupAccount(AccountName)
 	if err != nil {
 		return "", fmt.Errorf("bus: the account %s: %w", AccountName, err)
 	}
 	acc, isNew := ns.LookupOrRegisterAccount(name)
-	if !isNew {
-		return name, nil
-	}
-	if spec.Leaf {
-		// Set before the imports: the claims replace the imports and
-		// exports of the account.
+	switch {
+	case spec.Leaf:
+		// The limits of a leaf account. The claims replace the imports and
+		// exports of the account, also those of an earlier call that failed
+		// half way, so they are set before the imports.
 		claims := jwt.NewAccountClaims(name)
 		claims.Limits.Conn = 0
 		claims.Limits.LeafNodeConn = 1
 		claims.Limits.Subs = ReaderMaxSubscriptions
 		claims.Limits.Payload = ReaderMaxPayload
 		ns.UpdateAccountClaims(acc, claims)
+	case !isNew:
+		// Without claims nothing removes the imports of an earlier call
+		// (claims would also answer the JetStream API of an account without
+		// JetStream before the imports do).
+		return "", fmt.Errorf("bus: the account %s was not made completely; it stays until the bus restarts", name)
 	}
 	for _, sub := range spec.Subjects {
 		if err := bus.AddStreamExport(sub, []*natsserver.Account{acc}); err != nil {
@@ -244,8 +290,18 @@ func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 			if err := acc.AddServiceImport(bus, imp.from, imp.to); err != nil {
 				return "", fmt.Errorf("bus: importing %q: %w", imp.from, err)
 			}
+			if imp.streamed {
+				// The way back of a fetch is kept for the longest wait of a
+				// fetch, not for the two minutes of nats-server.
+				if err := bus.SetServiceExportResponseThreshold(imp.to, s.responseThreshold); err != nil {
+					return "", fmt.Errorf("bus: the response threshold of %q: %w", imp.to, err)
+				}
+			}
 		}
 	}
+	made := *spec
+	made.Subjects, made.Consumers = slices.Clone(spec.Subjects), slices.Clone(spec.Consumers)
+	s.readers[name] = &reader{spec: &made}
 	s.logger.Debug("reader account made", "account", name, "subjects", spec.Subjects,
 		"consumers", len(spec.Consumers), "leaf", spec.Leaf)
 	return name, nil

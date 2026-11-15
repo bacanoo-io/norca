@@ -28,6 +28,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,6 +74,22 @@ type Server struct {
 	// clients are the authenticated connections by NATS client ID, with the
 	// credentials and grant they were admitted with, for Revalidate.
 	clients map[uint64]*client
+
+	// readerLock guards the reader accounts made on the embedded server
+	// readersOf (account.go); a restarted server starts without them.
+	readerLock sync.Mutex
+	readers    map[string]*reader
+	readersOf  *natsserver.Server
+
+	// The limits of the fetches of a reader account (leafwatch.go), guarded
+	// by readerLock; fields so that tests can shorten them.
+	maxPendingResponses int
+	responseThreshold   time.Duration
+	leafBanTime         time.Duration
+
+	// stopCh is closed by Shutdown.
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 type client struct {
@@ -101,12 +118,18 @@ func New(config *Config, logger hclog.Logger, authz Authorizer) (*Server, error)
 		authz:         authz,
 		internalToken: token,
 		clients:       map[uint64]*client{},
+
+		maxPendingResponses: ReaderMaxPendingResponses,
+		responseThreshold:   ReaderResponseThreshold,
+		leafBanTime:         ReaderBanTime,
+		stopCh:              make(chan struct{}),
 	}
 	ns, opts, err := s.start(config.Clustered, nil)
 	if err != nil {
 		return nil, err
 	}
 	s.ns, s.opts, s.clustered = ns, opts, config.Clustered
+	go s.leafWatchLoop()
 	return s, nil
 }
 
@@ -204,6 +227,7 @@ func (s *Server) Shutdown() {
 	if s == nil {
 		return
 	}
+	s.stopOnce.Do(func() { close(s.stopCh) })
 	if ns := s.server(); ns != nil {
 		ns.Shutdown()
 		ns.WaitForShutdown()
@@ -378,6 +402,20 @@ type natsLogger struct {
 func (l *natsLogger) Noticef(format string, v ...any) { l.logger.Debug(fmt.Sprintf(format, v...)) }
 func (l *natsLogger) Warnf(format string, v ...any)   { l.logger.Warn(fmt.Sprintf(format, v...)) }
 func (l *natsLogger) Fatalf(format string, v ...any)  { l.logger.Error(fmt.Sprintf(format, v...)) }
-func (l *natsLogger) Errorf(format string, v ...any)  { l.logger.Error(fmt.Sprintf(format, v...)) }
-func (l *natsLogger) Debugf(format string, v ...any)  { l.logger.Debug(fmt.Sprintf(format, v...)) }
-func (l *natsLogger) Tracef(format string, v ...any)  { l.logger.Trace(fmt.Sprintf(format, v...)) }
+
+// Errorf logs an error of the embedded server. A reader account exists only
+// on the server its leaf node attached to; the other servers of the region
+// get its subscriptions over their routes and report each as one of an
+// unknown account. They ignore it, which is right: nothing is published in
+// that account on them. Logged at debug level, or a leaf with many
+// subscriptions would fill the logs of every other server with errors.
+func (l *natsLogger) Errorf(format string, v ...any) {
+	msg := fmt.Sprintf(format, v...)
+	if strings.Contains(msg, `Unknown account "`+ReaderAccountPrefix) {
+		l.logger.Debug(msg)
+		return
+	}
+	l.logger.Error(msg)
+}
+func (l *natsLogger) Debugf(format string, v ...any) { l.logger.Debug(fmt.Sprintf(format, v...)) }
+func (l *natsLogger) Tracef(format string, v ...any) { l.logger.Trace(fmt.Sprintf(format, v...)) }

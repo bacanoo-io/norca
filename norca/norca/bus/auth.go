@@ -153,6 +153,11 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 	if accName == "" {
 		accName = AccountName
 	}
+	if until := s.readerBanned(accName); !until.IsZero() {
+		s.logger.Debug("bus connection refused: the account is cut off for its waiting fetches", "account", accName,
+			"name", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote), "until", until)
+		return false
+	}
 	acc, err := a.ns.LookupAccount(accName)
 	if err != nil {
 		s.logger.Warn("bus connection refused: unknown account", "account", accName,

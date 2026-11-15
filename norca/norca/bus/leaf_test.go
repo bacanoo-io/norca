@@ -31,6 +31,17 @@ type leafAuthz struct {
 	other bool // the leaf token also works as a client token
 }
 
+// set changes the bus and the spec of the authorizer; the bus may call
+// authorize at any time.
+func (a *leafAuthz) set(s *Server, spec *ReaderSpec) {
+	a.l.Lock()
+	defer a.l.Unlock()
+	if s != nil {
+		a.s = s
+	}
+	a.spec = spec
+}
+
 func (a *leafAuthz) authorize(c Credentials) (*Grant, error) {
 	a.l.Lock()
 	defer a.l.Unlock()
@@ -121,14 +132,13 @@ func TestBus_LeafNode(t *testing.T) {
 		})
 		must.NoError(t, err)
 	}
-	authz.s = s
-	authz.spec = &ReaderSpec{
+	authz.set(s, &ReaderSpec{
 		Reader:    "leaf-leafer",
 		Subjects:  []string{"norca.global.*.Job"},
 		Consumers: []ConsumerRef{{Stream: stream, Name: "leaf-leafer"}},
 		Domain:    "norca-global",
 		Leaf:      true,
-	}
+	})
 
 	leaf := startLeaf(t, c.LeafNodes.Port, "leafer")
 	waitLeaf(t, s.server(), 1)
@@ -233,14 +243,13 @@ func TestBus_LeafNode(t *testing.T) {
 	// when the grant changes.
 	s.Revalidate()
 	must.Eq(t, 1, leaf.NumLeafNodes())
-	authz.l.Lock()
-	authz.spec = &ReaderSpec{
+	moved := &ReaderSpec{
 		Reader:   "leaf-leafer",
 		Subjects: []string{"norca.global.*.Node"},
 		Domain:   "norca-global",
 		Leaf:     true,
 	}
-	authz.l.Unlock()
+	authz.set(nil, moved)
 	s.Revalidate()
 	// It reconnects into the account of the new spec.
 	testutil.WaitForResult(func() (bool, error) {
@@ -248,7 +257,7 @@ func TestBus_LeafNode(t *testing.T) {
 		if err != nil {
 			return false, err
 		}
-		if len(leafz.Leafs) != 1 || leafz.Leafs[0].Account != ReaderAccountName(authz.spec) {
+		if len(leafz.Leafs) != 1 || leafz.Leafs[0].Account != ReaderAccountName(moved) {
 			return false, fmt.Errorf("leafs %+v", leafz.Leafs)
 		}
 		return true, nil
