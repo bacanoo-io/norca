@@ -1507,6 +1507,17 @@ func TestTracker_evaluateConsulChecks(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// The services of the cases name no provider, and a service
+			// without one registers in the built-in catalog: these are
+			// services of Consul.
+			for _, s := range tc.tg.Services {
+				s.Provider = structs.ServiceProviderConsul
+			}
+			for _, task := range tc.tg.Tasks {
+				for _, s := range task.Services {
+					s.Provider = structs.ServiceProviderConsul
+				}
+			}
 			result := evaluateConsulChecks(tc.tg.ConsulServices(), tc.registrations)
 			must.Eq(t, tc.exp, result)
 		})
