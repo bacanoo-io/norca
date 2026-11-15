@@ -29,6 +29,8 @@ import (
 )
 
 func getTestConsul(t *testing.T) *consultest.TestServer {
+	// Without a Consul binary the test is skipped, not failed.
+	testutil.RequireConsul(t)
 	testConsul, err := consultest.NewTestServerConfigT(t, func(c *consultest.TestServerConfig) {
 		c.Peering = nil         // fix for older versions of Consul (<1.13.0) that don't support peering
 		if !testing.Verbose() { // disable consul logging if -v not set

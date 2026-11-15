@@ -186,6 +186,8 @@ func newTestHarness(t *testing.T, templates []*structs.Template, consul, vault b
 	harness.envBuilder.SetClientTaskRoot(harness.taskDir)
 
 	if consul {
+		// Without a Consul binary the test is skipped, not failed.
+		clienttestutil.RequireConsul(t)
 		var err error
 		harness.consul, err = ctestutil.NewTestServerConfigT(t, func(c *ctestutil.TestServerConfig) {
 			c.Peering = nil // fix for older versions of Consul (<1.13.0) that don't support peering

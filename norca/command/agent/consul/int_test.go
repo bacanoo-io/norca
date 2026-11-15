@@ -19,6 +19,7 @@ import (
 	regMock "github.com/bacanoo-io/norca/norca/client/serviceregistration/mock"
 	"github.com/bacanoo-io/norca/norca/client/serviceregistration/wrapper"
 	"github.com/bacanoo-io/norca/norca/client/state"
+	clienttest "github.com/bacanoo-io/norca/norca/client/testutil"
 	"github.com/bacanoo-io/norca/norca/client/vaultclient"
 	"github.com/bacanoo-io/norca/norca/command/agent/consul"
 	"github.com/bacanoo-io/norca/norca/helper/testlog"
@@ -46,6 +47,7 @@ func TestConsul_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short set; skipping")
 	}
+	clienttest.RequireConsul(t)
 	r := require.New(t)
 
 	// Create an embedded Consul server

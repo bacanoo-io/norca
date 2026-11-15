@@ -11,6 +11,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/client/serviceregistration"
+	clienttest "github.com/bacanoo-io/norca/norca/client/testutil"
 	"github.com/bacanoo-io/norca/norca/helper/testlog"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -21,6 +22,7 @@ import (
 
 func TestConsul_Connect(t *testing.T) {
 	ci.Parallel(t)
+	clienttest.RequireConsul(t)
 
 	// Create an embedded Consul server
 	testconsul, err := testutil.NewTestServerConfigT(t, func(c *testutil.TestServerConfig) {
