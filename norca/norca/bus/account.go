@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nats-io/jwt/v2"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 )
 
@@ -58,7 +59,27 @@ type ReaderSpec struct {
 	// read: fetch (MSG.NEXT), information and acknowledgements of each,
 	// nothing else of the JetStream API.
 	Consumers []ConsumerRef
+
+	// Domain, when set, is the JetStream domain the reader names in the
+	// requests to its consumers ($JS.<Domain>.API.CONSUMER...): the NATS
+	// server of a leaf node answers $JS.API itself when it runs JetStream.
+	Domain string
+
+	// Leaf limits the account to one leaf node connection and no client
+	// connection, with ReaderMaxSubscriptions and ReaderMaxPayload.
+	Leaf bool
 }
+
+const (
+	// ReaderMaxSubscriptions bounds the subscriptions of a leaf account: the
+	// interest of every client behind the leaf node counts.
+	ReaderMaxSubscriptions = 10000
+
+	// ReaderMaxPayload bounds what a leaf node may publish into its
+	// account: the fetch requests and acknowledgements of its consumers are
+	// small.
+	ReaderMaxPayload = 4096
+)
 
 // ConsumerRef names a consumer of a stream.
 type ConsumerRef struct {
@@ -82,24 +103,52 @@ func ReaderAccountName(spec *ReaderSpec) string {
 	for _, c := range spec.Consumers {
 		fmt.Fprintf(h, "c:%s.%s\n", c.Stream, c.Name)
 	}
+	fmt.Fprintf(h, "d:%s\nl:%t\n", spec.Domain, spec.Leaf)
 	return ReaderAccountPrefix + spec.Reader + "_" + hex.EncodeToString(h.Sum(nil))[:12]
 }
 
-// consumerImports are the subjects of the JetStream API a reader account
-// imports for one consumer, and whether the answers are streamed: a fetch
-// answers with many messages.
-func consumerImports(c ConsumerRef) []struct {
-	subject  string
-	streamed bool
-} {
-	return []struct {
-		subject  string
-		streamed bool
-	}{
-		{"$JS.API.CONSUMER.MSG.NEXT." + c.Stream + "." + c.Name, true},
-		{"$JS.API.CONSUMER.INFO." + c.Stream + "." + c.Name, false},
-		{"$JS.ACK." + c.Stream + "." + c.Name + ".>", false},
+// APIPrefix is the prefix of the JetStream API subjects of the reader:
+// "$JS.API", or "$JS.<domain>.API".
+func (spec *ReaderSpec) APIPrefix() string {
+	if spec.Domain == "" {
+		return "$JS.API"
 	}
+	return "$JS." + spec.Domain + ".API"
+}
+
+// consumerImport is a subject of the JetStream API a reader account imports
+// for one of its consumers: from is the subject in the reader account, to
+// the one in the bus account; streamed is set when an answer has many
+// messages (a fetch).
+type consumerImport struct {
+	from, to string
+	streamed bool
+}
+
+func (spec *ReaderSpec) consumerImports(c ConsumerRef) []consumerImport {
+	api, consumer := spec.APIPrefix(), c.Stream+"."+c.Name
+	return []consumerImport{
+		{api + ".CONSUMER.MSG.NEXT." + consumer, "$JS.API.CONSUMER.MSG.NEXT." + consumer, true},
+		{api + ".CONSUMER.INFO." + consumer, "$JS.API.CONSUMER.INFO." + consumer, false},
+		// The acknowledgements go to the reply subject of a delivered
+		// message, which names no domain.
+		{"$JS.ACK." + consumer + ".>", "$JS.ACK." + consumer + ".>", false},
+	}
+}
+
+// ConsumerSubjects are the subjects a reader publishes to for its consumer
+// c: fetch, information and acknowledgements.
+func (spec *ReaderSpec) ConsumerSubjects(c ConsumerRef) []string {
+	var out []string
+	for _, imp := range spec.consumerImports(c) {
+		out = append(out, imp.from)
+	}
+	return out
+}
+
+// validName checks a name that becomes a token of a subject or account.
+func validName(name string) bool {
+	return name != "" && !strings.ContainsAny(name, ". *>\t\r\n")
 }
 
 // validReaderSpec checks a spec against the change streams of the bus.
@@ -107,11 +156,14 @@ func (s *Server) validReaderSpec(spec *ReaderSpec) error {
 	if spec == nil || spec.Reader == "" {
 		return errors.New("bus: a reader account needs a reader")
 	}
-	if strings.ContainsAny(spec.Reader, ". *>\t\r\n") {
+	if !validName(spec.Reader) {
 		return fmt.Errorf("bus: invalid reader name %q", spec.Reader)
 	}
 	if len(spec.Subjects) == 0 && len(spec.Consumers) == 0 {
 		return errors.New("bus: a reader account imports nothing")
+	}
+	if spec.Domain != "" && !validName(spec.Domain) {
+		return fmt.Errorf("bus: invalid domain %q", spec.Domain)
 	}
 	prefix, region := s.config.Events.SubjectPrefix, s.config.Region
 	within := ChangeStreamSubjects(prefix, region)
@@ -128,7 +180,7 @@ func (s *Server) validReaderSpec(spec *ReaderSpec) error {
 		if !slices.Contains(streams, c.Stream) {
 			return fmt.Errorf("bus: %q is not a change stream of the region", c.Stream)
 		}
-		if c.Name == "" || strings.ContainsAny(c.Name, ". *>\t\r\n") {
+		if !validName(c.Name) {
 			return fmt.Errorf("bus: invalid consumer name %q", c.Name)
 		}
 	}
@@ -162,6 +214,16 @@ func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 	if !isNew {
 		return name, nil
 	}
+	if spec.Leaf {
+		// Set before the imports: the claims replace the imports and
+		// exports of the account.
+		claims := jwt.NewAccountClaims(name)
+		claims.Limits.Conn = 0
+		claims.Limits.LeafNodeConn = 1
+		claims.Limits.Subs = ReaderMaxSubscriptions
+		claims.Limits.Payload = ReaderMaxPayload
+		ns.UpdateAccountClaims(acc, claims)
+	}
 	for _, sub := range spec.Subjects {
 		if err := bus.AddStreamExport(sub, []*natsserver.Account{acc}); err != nil {
 			return "", fmt.Errorf("bus: exporting %q: %w", sub, err)
@@ -171,19 +233,20 @@ func (s *Server) ReaderAccount(spec *ReaderSpec) (string, error) {
 		}
 	}
 	for _, c := range spec.Consumers {
-		for _, imp := range consumerImports(c) {
+		for _, imp := range spec.consumerImports(c) {
 			resp := natsserver.Singleton
 			if imp.streamed {
 				resp = natsserver.Streamed
 			}
-			if err := bus.AddServiceExportWithResponse(imp.subject, resp, []*natsserver.Account{acc}); err != nil {
-				return "", fmt.Errorf("bus: exporting %q: %w", imp.subject, err)
+			if err := bus.AddServiceExportWithResponse(imp.to, resp, []*natsserver.Account{acc}); err != nil {
+				return "", fmt.Errorf("bus: exporting %q: %w", imp.to, err)
 			}
-			if err := acc.AddServiceImport(bus, imp.subject, ""); err != nil {
-				return "", fmt.Errorf("bus: importing %q: %w", imp.subject, err)
+			if err := acc.AddServiceImport(bus, imp.from, imp.to); err != nil {
+				return "", fmt.Errorf("bus: importing %q: %w", imp.from, err)
 			}
 		}
 	}
-	s.logger.Debug("reader account made", "account", name, "subjects", spec.Subjects, "consumers", len(spec.Consumers))
+	s.logger.Debug("reader account made", "account", name, "subjects", spec.Subjects,
+		"consumers", len(spec.Consumers), "leaf", spec.Leaf)
 	return name, nil
 }

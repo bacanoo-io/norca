@@ -162,6 +162,58 @@ server {
 	must.ErrorContains(t, err, "stream")
 }
 
+func TestConfig_Bus_LeafNodes(t *testing.T) {
+	ci.Parallel(t)
+
+	// Off by default, on port 4652.
+	c := DefaultConfig()
+	blocks, err := convertNorcaServerBlocks(c.Server, c.Ports)
+	must.NoError(t, err)
+	must.False(t, blocks.bus.LeafNodes.Enabled)
+	must.Eq(t, bus.DefaultLeafNodePort, blocks.bus.LeafNodes.Port)
+
+	hcl := `
+ports {
+  bus_leafnode = 7422
+}
+server {
+  enabled = true
+  bus {
+    leafnodes {
+      enabled = true
+    }
+  }
+}`
+	path := filepath.Join(t.TempDir(), "bus.hcl")
+	must.NoError(t, os.WriteFile(path, []byte(hcl), 0o600))
+	parsed, err := ParseConfigFile(path)
+	must.NoError(t, err)
+	c = DefaultConfig().Merge(parsed)
+	blocks, err = convertNorcaServerBlocks(c.Server, c.Ports)
+	must.NoError(t, err)
+	must.True(t, blocks.bus.LeafNodes.Enabled)
+	must.Eq(t, 7422, blocks.bus.LeafNodes.Port)
+
+	// A later file without the block keeps it; one with enabled = false
+	// turns it off.
+	kept := c.Server.Bus.Merge(&BusConfig{MaxMemory: "64MiB"})
+	must.True(t, *kept.LeafNodes.Enabled)
+	off := c.Server.Bus.Merge(&BusConfig{LeafNodes: &BusLeafNodesConfig{Enabled: pointer.Of(false)}})
+	cfg, err := off.toServerConfig(c.Ports)
+	must.NoError(t, err)
+	must.False(t, cfg.LeafNodes.Enabled)
+
+	// The port must differ from the other bus ports; unknown keys are
+	// refused.
+	same := c.Ports.Copy()
+	same.BusLeafNode = same.Bus
+	_, err = c.Server.Bus.toServerConfig(same)
+	must.ErrorContains(t, err, "bus_leafnode")
+	must.NoError(t, os.WriteFile(path, []byte(`server { bus { leafnodes { port = 1 } } }`), 0o600))
+	_, err = ParseConfigFile(path)
+	must.ErrorContains(t, err, "port")
+}
+
 func TestConfig_ClientBus(t *testing.T) {
 	ci.Parallel(t)
 

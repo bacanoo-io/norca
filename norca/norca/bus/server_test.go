@@ -421,3 +421,32 @@ func TestSubjectIsSubsetMatch(t *testing.T) {
 		}
 	}
 }
+
+func TestSubjectIntersect(t *testing.T) {
+	ci.Parallel(t)
+	tests := []struct {
+		a, b     string
+		expected string
+		ok       bool
+	}{
+		{"norca.>", "norca.eu.*.*", "norca.eu.*.*", true},
+		{"norca.eu.*.*", "norca.>", "norca.eu.*.*", true},
+		{"norca.*.games.>", "norca.eu.*.*", "norca.eu.games.*", true},
+		{"norca.*.games.>", "norca.eu.*.ConsulKV.*", "norca.eu.games.ConsulKV.*", true},
+		{"norca.eu.games.Job", "norca.eu.*.*", "norca.eu.games.Job", true},
+		{"norca.eu.*.Job", "norca.eu.games.*", "norca.eu.games.Job", true},
+		{">", "norca.eu.*.*", "norca.eu.*.*", true},
+		{"norca.>", "norca.>", "norca.>", true},
+		{"norca.us.>", "norca.eu.*.*", "", false},
+		{"norca.eu.*", "norca.eu.*.*", "", false},
+		{"norca.eu.*.*", "norca.eu.*.ConsulKV.*", "", false},
+		{"norca.eu.>", "norca.eu", "", false},
+		{"norca.eu", "norca.eu.>", "", false},
+	}
+	for _, tt := range tests {
+		got, ok := SubjectIntersect(tt.a, tt.b)
+		if got != tt.expected || ok != tt.ok {
+			t.Errorf("SubjectIntersect(%q, %q) = %q, %v, want %q, %v", tt.a, tt.b, got, ok, tt.expected, tt.ok)
+		}
+	}
+}

@@ -144,6 +144,37 @@ func SubjectIsSubsetMatch(subject, pattern string) bool {
 	return len(st) == len(pt)
 }
 
+// SubjectIntersect returns the pattern that matches exactly the subjects
+// both patterns match, and false when they have no subject in common.
+func SubjectIntersect(a, b string) (string, bool) {
+	at, bt := strings.Split(a, "."), strings.Split(b, ".")
+	var out []string
+	for i := 0; ; i++ {
+		switch {
+		case i == len(at) && i == len(bt):
+			return strings.Join(out, "."), true
+		case i < len(at) && at[i] == ">":
+			if i == len(bt) {
+				return "", false // ">" matches one token or more
+			}
+			return strings.Join(append(out, bt[i:]...), "."), true
+		case i < len(bt) && bt[i] == ">":
+			if i == len(at) {
+				return "", false
+			}
+			return strings.Join(append(out, at[i:]...), "."), true
+		case i == len(at) || i == len(bt):
+			return "", false
+		case at[i] == "*":
+			out = append(out, bt[i])
+		case bt[i] == "*" || at[i] == bt[i]:
+			out = append(out, at[i])
+		default:
+			return "", false
+		}
+	}
+}
+
 // ChangeStreamSubjects are the subjects of the change streams of a region
 // (change data capture): the events, the Consul KV notices and the admin
 // events.

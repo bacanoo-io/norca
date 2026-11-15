@@ -219,8 +219,12 @@ func busServerCertVerifier(pool *x509.CertPool, region string) func([][]byte, []
 
 // busAuthorize authenticates a bus connection: a node with its ID and
 // secret, anyone else with an ACL token or a workload identity whose
-// policies have a bus rule.
+// policies have a bus rule; a leaf node with an ACL token whose cdc rule
+// allows a leaf (busLeafGrant).
 func (s *Server) busAuthorize(c bus.Credentials) (*bus.Grant, error) {
+	if c.Leaf {
+		return s.busLeafGrant(c)
+	}
 	if c.Username != "" {
 		node, err := s.fsm.State().NodeByID(nil, c.Username)
 		if err != nil {

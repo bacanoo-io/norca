@@ -1255,6 +1255,9 @@ type Ports struct {
 	// client connections and the routes between the servers.
 	Bus        int `hcl:"bus"`
 	BusCluster int `hcl:"bus_cluster"`
+	// BusLeafNode is the port of the leaf node connections of the bus
+	// (change data capture), used when bus.leafnodes is enabled.
+	BusLeafNode int `hcl:"bus_leafnode"`
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -1477,11 +1480,12 @@ func DefaultConfig() *Config {
 		Datacenter: "dc1",
 		BindAddr:   "0.0.0.0",
 		Ports: &Ports{
-			HTTP:       4646,
-			RPC:        4647,
-			Serf:       4648,
-			Bus:        4649,
-			BusCluster: 4650,
+			HTTP:        4646,
+			RPC:         4647,
+			Serf:        4648,
+			Bus:         4649,
+			BusCluster:  4650,
+			BusLeafNode: 4652,
 		},
 		Addresses:      &Addresses{},
 		AdvertiseAddrs: &AdvertiseAddrs{},
@@ -2621,6 +2625,9 @@ func (a *Ports) Merge(b *Ports) *Ports {
 	}
 	if b.BusCluster != 0 {
 		result.BusCluster = b.BusCluster
+	}
+	if b.BusLeafNode != 0 {
+		result.BusLeafNode = b.BusLeafNode
 	}
 	return &result
 }

@@ -57282,9 +57282,9 @@ func (x *BusStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(11)
+				r.WriteArrayStart(12)
 			} else {
-				r.WriteMapStart(11)
+				r.WriteMapStart(12)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -57409,6 +57409,25 @@ func (x *BusStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 				r.WriteArrayElem()
 				if false {
 				} else {
+					r.EncodeInt(int64(x.LeafNodePort))
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"LeafNodePort\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `LeafNodePort`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					r.EncodeInt(int64(x.LeafNodePort))
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
 					r.EncodeBool(bool(x.TLS))
 				}
 			} else {
@@ -57448,8 +57467,8 @@ func (x *BusStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 				if false {
 				} else if !z.EncBasicHandle().TimeNotBuiltin {
 					r.EncodeTime(x.Started)
-				} else if yyxt25 := z.Extension(z.I2Rtid(x.Started)); yyxt25 != nil {
-					z.EncExtension(x.Started, yyxt25)
+				} else if yyxt28 := z.Extension(z.I2Rtid(x.Started)); yyxt28 != nil {
+					z.EncExtension(x.Started, yyxt28)
 				} else if z.EncBinary() {
 					z.EncBinaryMarshal(x.Started)
 				} else if !z.EncBinary() && z.IsJSONHandle() {
@@ -57468,8 +57487,8 @@ func (x *BusStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 				if false {
 				} else if !z.EncBasicHandle().TimeNotBuiltin {
 					r.EncodeTime(x.Started)
-				} else if yyxt26 := z.Extension(z.I2Rtid(x.Started)); yyxt26 != nil {
-					z.EncExtension(x.Started, yyxt26)
+				} else if yyxt29 := z.Extension(z.I2Rtid(x.Started)); yyxt29 != nil {
+					z.EncExtension(x.Started, yyxt29)
 				} else if z.EncBinary() {
 					z.EncBinaryMarshal(x.Started)
 				} else if !z.EncBinary() && z.IsJSONHandle() {
@@ -57505,14 +57524,14 @@ func (x *BusStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 					}
 				}
 			}
-			var yyn30 bool
+			var yyn33 bool
 			if x.JetStream == nil {
-				yyn30 = true
-				goto LABEL30
+				yyn33 = true
+				goto LABEL33
 			}
-		LABEL30:
+		LABEL33:
 			if yyr2 || yy2arr2 {
-				if yyn30 {
+				if yyn33 {
 					r.WriteArrayElem()
 					r.EncodeNil()
 				} else {
@@ -57531,7 +57550,7 @@ func (x *BusStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 					r.EncodeStringEnc(codecSelferCcUTF8100, `JetStream`)
 				}
 				r.WriteMapElemValue()
-				if yyn30 {
+				if yyn33 {
 					r.EncodeNil()
 				} else {
 					if x.JetStream == nil {
@@ -57541,14 +57560,14 @@ func (x *BusStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 					}
 				}
 			}
-			var yyn33 bool
+			var yyn36 bool
 			if x.Connections == nil {
-				yyn33 = true
-				goto LABEL33
+				yyn36 = true
+				goto LABEL36
 			}
-		LABEL33:
+		LABEL36:
 			if yyr2 || yy2arr2 {
-				if yyn33 {
+				if yyn36 {
 					r.WriteArrayElem()
 					r.EncodeNil()
 				} else {
@@ -57567,7 +57586,7 @@ func (x *BusStatus) CodecEncodeSelf(e *codec1978.Encoder) {
 					r.EncodeStringEnc(codecSelferCcUTF8100, `Connections`)
 				}
 				r.WriteMapElemValue()
-				if yyn33 {
+				if yyn36 {
 					r.EncodeNil()
 				} else {
 					if x.Connections == nil {
@@ -57664,6 +57683,12 @@ func (x *BusStatus) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 			} else {
 				x.ClusterPort = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 			}
+		case "LeafNodePort":
+			if r.TryDecodeAsNil() {
+				x.LeafNodePort = 0
+			} else {
+				x.LeafNodePort = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
+			}
 		case "TLS":
 			if r.TryDecodeAsNil() {
 				x.TLS = false
@@ -57683,8 +57708,8 @@ func (x *BusStatus) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 				if false {
 				} else if !z.DecBasicHandle().TimeNotBuiltin {
 					x.Started = r.DecodeTime()
-				} else if yyxt12 := z.Extension(z.I2Rtid(x.Started)); yyxt12 != nil {
-					z.DecExtension(x.Started, yyxt12)
+				} else if yyxt13 := z.Extension(z.I2Rtid(x.Started)); yyxt13 != nil {
+					z.DecExtension(x.Started, yyxt13)
 				} else if z.DecBinary() {
 					z.DecBinaryUnmarshal(&x.Started)
 				} else if !z.DecBinary() && z.IsJSONHandle() {
@@ -57737,16 +57762,16 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj17 int
-	var yyb17 bool
-	var yyhl17 bool = l >= 0
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	var yyj18 int
+	var yyb18 bool
+	var yyhl18 bool = l >= 0
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57756,13 +57781,13 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Enabled = (bool)(r.DecodeBool())
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57772,13 +57797,13 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Server = (string)(r.DecodeString())
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57788,13 +57813,13 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Cluster = (string)(r.DecodeString())
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57804,13 +57829,13 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.ClientURL = (string)(r.DecodeString())
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57820,13 +57845,29 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.ClusterPort = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.LeafNodePort = 0
+	} else {
+		x.LeafNodePort = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
+	}
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
+	} else {
+		yyb18 = r.CheckBreak()
+	}
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57836,13 +57877,13 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.TLS = (bool)(r.DecodeBool())
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57852,13 +57893,13 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Clustered = (bool)(r.DecodeBool())
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57869,8 +57910,8 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		if false {
 		} else if !z.DecBasicHandle().TimeNotBuiltin {
 			x.Started = r.DecodeTime()
-		} else if yyxt26 := z.Extension(z.I2Rtid(x.Started)); yyxt26 != nil {
-			z.DecExtension(x.Started, yyxt26)
+		} else if yyxt28 := z.Extension(z.I2Rtid(x.Started)); yyxt28 != nil {
+			z.DecExtension(x.Started, yyxt28)
 		} else if z.DecBinary() {
 			z.DecBinaryUnmarshal(&x.Started)
 		} else if !z.DecBinary() && z.IsJSONHandle() {
@@ -57879,13 +57920,13 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 			z.DecFallback(&x.Started, false)
 		}
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57898,13 +57939,13 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 			h.decSlicePtrtoBusRoute((*[]*BusRoute)(&x.Routes), d)
 		}
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57920,13 +57961,13 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 
 		x.JetStream.CodecDecodeSelf(d)
 	}
-	yyj17++
-	if yyhl17 {
-		yyb17 = yyj17 > l
+	yyj18++
+	if yyhl18 {
+		yyb18 = yyj18 > l
 	} else {
-		yyb17 = r.CheckBreak()
+		yyb18 = r.CheckBreak()
 	}
-	if yyb17 {
+	if yyb18 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -57943,17 +57984,17 @@ func (x *BusStatus) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		x.Connections.CodecDecodeSelf(d)
 	}
 	for {
-		yyj17++
-		if yyhl17 {
-			yyb17 = yyj17 > l
+		yyj18++
+		if yyhl18 {
+			yyb18 = yyj18 > l
 		} else {
-			yyb17 = r.CheckBreak()
+			yyb18 = r.CheckBreak()
 		}
-		if yyb17 {
+		if yyb18 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj17-1, "")
+		z.DecStructFieldNotFound(yyj18-1, "")
 	}
 	r.ReadArrayEnd()
 }
@@ -59549,9 +59590,9 @@ func (x *BusConnections) CodecEncodeSelf(e *codec1978.Encoder) {
 			_, _ = yysep2, yy2arr2
 			const yyr2 bool = false // struct tag has 'toArray'
 			if yyr2 || yy2arr2 {
-				r.WriteArrayStart(9)
+				r.WriteArrayStart(10)
 			} else {
-				r.WriteMapStart(9)
+				r.WriteMapStart(10)
 			}
 			if yyr2 || yy2arr2 {
 				r.WriteArrayElem()
@@ -59646,6 +59687,25 @@ func (x *BusConnections) CodecEncodeSelf(e *codec1978.Encoder) {
 				if false {
 				} else {
 					r.EncodeInt(int64(x.Workloads))
+				}
+			}
+			if yyr2 || yy2arr2 {
+				r.WriteArrayElem()
+				if false {
+				} else {
+					r.EncodeInt(int64(x.Leaves))
+				}
+			} else {
+				r.WriteMapElemKey()
+				if z.IsJSONHandle() {
+					z.WriteStr("\"Leaves\"")
+				} else {
+					r.EncodeStringEnc(codecSelferCcUTF8100, `Leaves`)
+				}
+				r.WriteMapElemValue()
+				if false {
+				} else {
+					r.EncodeInt(int64(x.Leaves))
 				}
 			}
 			if yyr2 || yy2arr2 {
@@ -59811,6 +59871,12 @@ func (x *BusConnections) codecDecodeSelfFromMap(l int, d *codec1978.Decoder) {
 			} else {
 				x.Workloads = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 			}
+		case "Leaves":
+			if r.TryDecodeAsNil() {
+				x.Leaves = 0
+			} else {
+				x.Leaves = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
+			}
 		case "InMsgs":
 			if r.TryDecodeAsNil() {
 				x.InMsgs = 0
@@ -59846,16 +59912,16 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	var h codecSelfer100
 	z, r := codec1978.GenHelperDecoder(d)
 	_, _, _ = h, z, r
-	var yyj13 int
-	var yyb13 bool
-	var yyhl13 bool = l >= 0
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	var yyj14 int
+	var yyb14 bool
+	var yyhl14 bool = l >= 0
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -59865,13 +59931,13 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Total = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -59881,13 +59947,13 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Internal = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -59897,13 +59963,13 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Nodes = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -59913,13 +59979,13 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Tokens = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -59929,13 +59995,29 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.Workloads = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
+		r.ReadArrayEnd()
+		return
+	}
+	r.ReadArrayElem()
+	if r.TryDecodeAsNil() {
+		x.Leaves = 0
+	} else {
+		x.Leaves = (int)(z.C.IntV(r.DecodeInt64(), codecSelferBitsize100))
+	}
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
+	} else {
+		yyb14 = r.CheckBreak()
+	}
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -59945,13 +60027,13 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.InMsgs = (int64)(r.DecodeInt64())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -59961,13 +60043,13 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.OutMsgs = (int64)(r.DecodeInt64())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -59977,13 +60059,13 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 	} else {
 		x.InBytes = (int64)(r.DecodeInt64())
 	}
-	yyj13++
-	if yyhl13 {
-		yyb13 = yyj13 > l
+	yyj14++
+	if yyhl14 {
+		yyb14 = yyj14 > l
 	} else {
-		yyb13 = r.CheckBreak()
+		yyb14 = r.CheckBreak()
 	}
-	if yyb13 {
+	if yyb14 {
 		r.ReadArrayEnd()
 		return
 	}
@@ -59994,17 +60076,17 @@ func (x *BusConnections) codecDecodeSelfFromArray(l int, d *codec1978.Decoder) {
 		x.OutBytes = (int64)(r.DecodeInt64())
 	}
 	for {
-		yyj13++
-		if yyhl13 {
-			yyb13 = yyj13 > l
+		yyj14++
+		if yyhl14 {
+			yyb14 = yyj14 > l
 		} else {
-			yyb13 = r.CheckBreak()
+			yyb14 = r.CheckBreak()
 		}
-		if yyb13 {
+		if yyb14 {
 			break
 		}
 		r.ReadArrayElem()
-		z.DecStructFieldNotFound(yyj13-1, "")
+		z.DecStructFieldNotFound(yyj14-1, "")
 	}
 	r.ReadArrayEnd()
 }

@@ -255,6 +255,10 @@ type Server struct {
 	bus         *bus.Server
 	busRoutesCh chan struct{}
 
+	// cdcLeafConsumers remembers the consumers made for the leaf nodes
+	// (cdc_leaf.go).
+	cdcLeafConsumers cdcLeafConsumers
+
 	// busTelemetryForeign counts the task groups left out of usage reports
 	// because their node has no allocation of them; busTelemetryForeignLogged
 	// is when that was logged last (Unix nanoseconds).

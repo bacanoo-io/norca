@@ -65,6 +65,10 @@ type Server struct {
 	opts      *natsserver.Options
 	clustered bool
 
+	// registerLock serializes the limit check and the registration of a
+	// connection in its account (clientAuth.Check).
+	registerLock sync.Mutex
+
 	l sync.Mutex
 	// clients are the authenticated connections by NATS client ID, with the
 	// credentials and grant they were admitted with, for Revalidate.
@@ -148,6 +152,19 @@ func (s *Server) start(clustered bool, routes []string) (*natsserver.Server, *na
 		}
 		opts.Routes = s.routeURLs(routes)
 	}
+	if config.LeafNodes.Enabled {
+		// The leaf nodes authenticate as clients do, through the custom
+		// authentication (no leaf users are configured); the TLS is that of
+		// the client connections.
+		opts.LeafNode = natsserver.LeafNodeOpts{
+			Host: config.BindAddr,
+			Port: config.LeafNodes.Port,
+		}
+		if config.ClientTLS != nil {
+			opts.LeafNode.TLSConfig = config.ClientTLS
+			opts.LeafNode.TLSTimeout = 5
+		}
+	}
 
 	ns, err := natsserver.NewServer(opts)
 	if err != nil {
@@ -163,8 +180,17 @@ func (s *Server) start(clustered bool, routes []string) (*natsserver.Server, *na
 		return nil, nil, fmt.Errorf("bus: the NATS server did not start listening on %s within %s", addr, startTimeout)
 	}
 	s.logger.Info("system bus started", "server", config.ServerName, "addr", addr,
-		"clustered", clustered, "cluster_port", config.ClusterPort, "tls", config.ClientTLS != nil)
+		"clustered", clustered, "cluster_port", config.ClusterPort, "tls", config.ClientTLS != nil,
+		"leafnode_port", leafPort(config))
 	return ns, opts, nil
+}
+
+// leafPort is the port of the leaf node listener, 0 when it is off.
+func leafPort(c *Config) int {
+	if !c.LeafNodes.Enabled {
+		return 0
+	}
+	return c.LeafNodes.Port
 }
 
 func (s *Server) server() *natsserver.Server {

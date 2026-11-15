@@ -57,10 +57,11 @@ type BusStatus struct {
 	Cluster string
 
 	// ClientURL is where nodes and consumers connect, ClusterPort the port
-	// of the routes.
-	ClientURL   string
-	ClusterPort int
-	TLS         bool
+	// of the routes, LeafNodePort the port of the leaf nodes (0: off).
+	ClientURL    string
+	ClusterPort  int
+	LeafNodePort int
+	TLS          bool
 
 	// Clustered is false while the region has a single server and the bus
 	// runs a standalone JetStream.
@@ -134,10 +135,12 @@ type BusConnections struct {
 	Tokens   int
 	// Workloads are the connections of tasks with their workload identity.
 	Workloads int
-	InMsgs    int64
-	OutMsgs   int64
-	InBytes   int64
-	OutBytes  int64
+	// Leaves are the leaf nodes attached for change data capture.
+	Leaves   int
+	InMsgs   int64
+	OutMsgs  int64
+	InBytes  int64
+	OutBytes int64
 }
 
 // ConsulKVRestoreRequest replaces the Consul KV bucket of the system bus with

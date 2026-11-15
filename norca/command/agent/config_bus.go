@@ -18,7 +18,8 @@ import (
 // BusConfig is the server's bus block: the system bus, a NATS server with
 // JetStream embedded in the servers. It listens on ports.bus (clients) and
 // ports.bus_cluster (routes between the servers of a region), with the
-// agent's RPC TLS configuration.
+// agent's RPC TLS configuration, and on ports.bus_leafnode (leaf nodes of
+// change data capture) when leafnodes is enabled.
 //
 //	bus {
 //	  enabled         = true
@@ -36,6 +37,10 @@ import (
 //	    max_bytes      = "1GiB"
 //	    max_consumers  = 64
 //	    topics         = ["*"]
+//	  }
+//
+//	  leafnodes {
+//	    enabled = false
 //	  }
 //	}
 type BusConfig struct {
@@ -60,6 +65,9 @@ type BusConfig struct {
 	// Events configures the event stream the leader publishes.
 	Events *BusEventsConfig `hcl:"events"`
 
+	// LeafNodes configures the listener of the leaf nodes.
+	LeafNodes *BusLeafNodesConfig `hcl:"leafnodes"`
+
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
@@ -76,6 +84,38 @@ type BusEventsConfig struct {
 
 	// ExtraKeysHCL is used by hcl to surface unexpected keys
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
+}
+
+// BusLeafNodesConfig is the leafnodes block of the bus: NATS servers outside
+// the cluster attach as leaf nodes with an ACL token whose cdc rule allows a
+// leaf, and read the change streams one way (change data capture).
+type BusLeafNodesConfig struct {
+	Enabled *bool `hcl:"enabled"`
+
+	// ExtraKeysHCL is used by hcl to surface unexpected keys
+	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
+}
+
+func (l *BusLeafNodesConfig) Copy() *BusLeafNodesConfig {
+	if l == nil {
+		return nil
+	}
+	nl := *l
+	nl.Enabled = pointer.Copy(l.Enabled)
+	nl.ExtraKeysHCL = slices.Clone(l.ExtraKeysHCL)
+	return &nl
+}
+
+// Merge merges b into a copy of a.
+func (a *BusLeafNodesConfig) Merge(b *BusLeafNodesConfig) *BusLeafNodesConfig {
+	if a == nil {
+		return b.Copy()
+	}
+	result := a.Copy()
+	if b != nil && b.Enabled != nil {
+		result.Enabled = pointer.Copy(b.Enabled)
+	}
+	return result
 }
 
 func (e *BusEventsConfig) Copy() *BusEventsConfig {
@@ -119,15 +159,23 @@ func (a *BusEventsConfig) Merge(b *BusEventsConfig) *BusEventsConfig {
 	return result
 }
 
-// extraKeys checks the events block, which UnusedKeys does not descend
-// into.
+// extraKeys checks the events and leafnodes blocks, which UnusedKeys does
+// not descend into.
 func (b *BusConfig) extraKeys() error {
-	if b == nil || b.Events == nil {
+	if b == nil {
 		return nil
 	}
-	helper.RemoveEqualFold(&b.ExtraKeysHCL, "events")
-	if err := helper.UnusedKeys(b.Events); err != nil {
-		return fmt.Errorf("server.bus.events: %w", err)
+	if b.Events != nil {
+		helper.RemoveEqualFold(&b.ExtraKeysHCL, "events")
+		if err := helper.UnusedKeys(b.Events); err != nil {
+			return fmt.Errorf("server.bus.events: %w", err)
+		}
+	}
+	if b.LeafNodes != nil {
+		helper.RemoveEqualFold(&b.ExtraKeysHCL, "leafnodes")
+		if err := helper.UnusedKeys(b.LeafNodes); err != nil {
+			return fmt.Errorf("server.bus.leafnodes: %w", err)
+		}
 	}
 	return nil
 }
@@ -139,6 +187,7 @@ func (b *BusConfig) Copy() *BusConfig {
 	nb := *b
 	nb.Enabled = pointer.Copy(b.Enabled)
 	nb.Events = b.Events.Copy()
+	nb.LeafNodes = b.LeafNodes.Copy()
 	nb.ExtraKeysHCL = slices.Clone(b.ExtraKeysHCL)
 	return &nb
 }
@@ -173,6 +222,9 @@ func (a *BusConfig) Merge(b *BusConfig) *BusConfig {
 	if b.Events != nil {
 		result.Events = result.Events.Merge(b.Events)
 	}
+	if b.LeafNodes != nil {
+		result.LeafNodes = result.LeafNodes.Merge(b.LeafNodes)
+	}
 	return result
 }
 
@@ -189,6 +241,9 @@ func (b *BusConfig) toServerConfig(ports *Ports) (*bus.Config, error) {
 		if ports.BusCluster != 0 {
 			cfg.ClusterPort = ports.BusCluster
 		}
+		if ports.BusLeafNode != 0 {
+			cfg.LeafNodes.Port = ports.BusLeafNode
+		}
 	}
 	if b == nil {
 		b = &BusConfig{}
@@ -196,6 +251,9 @@ func (b *BusConfig) toServerConfig(ports *Ports) (*bus.Config, error) {
 
 	if b.Enabled != nil {
 		cfg.Enabled = *b.Enabled
+	}
+	if b.LeafNodes != nil && b.LeafNodes.Enabled != nil {
+		cfg.LeafNodes.Enabled = *b.LeafNodes.Enabled
 	}
 	sizes := []struct {
 		name  string

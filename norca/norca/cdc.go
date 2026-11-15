@@ -182,13 +182,14 @@ func (s *Server) cdcCleanupConsumers() {
 }
 
 // cdcReaderLost returns why the reader of a consumer (metadata <kind>:<name>)
-// may no longer read it, or "" when it still may.
+// may no longer read it, or "" when it still may. The consumers of a leaf
+// node (kind leaf, the accessor of its token) also need the leaf right.
 func (s *Server) cdcReaderLost(reader string, filters []string, admin bool) string {
 	kind, name, _ := strings.Cut(reader, ":")
 	snap := s.fsm.State()
 	var aclObj *acl.ACL
 	switch kind {
-	case bus.KindToken:
+	case bus.KindToken, bus.KindLeaf:
 		token, err := snap.ACLTokenByAccessorID(nil, name)
 		if err != nil {
 			return ""
@@ -223,6 +224,9 @@ func (s *Server) cdcReaderLost(reader string, filters []string, admin bool) stri
 	grant := aclObj.CDCGrant()
 	if grant.All {
 		return ""
+	}
+	if kind == bus.KindLeaf && !grant.Leaf {
+		return "the cdc rule no longer allows a leaf node"
 	}
 	if admin {
 		return "the admin events need a management token"

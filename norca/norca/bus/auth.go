@@ -20,6 +20,8 @@ const (
 	KindToken    = "token"
 	// KindWorkload is the workload identity of a task (Norca).
 	KindWorkload = "workload"
+	// KindLeaf is a NATS server attached as a leaf node with an ACL token.
+	KindLeaf = "leaf"
 )
 
 // Credentials are what a connection presented in its CONNECT message.
@@ -36,6 +38,10 @@ type Credentials struct {
 
 	// TLS is the TLS state of the connection; nil without TLS.
 	TLS *tls.ConnectionState
+
+	// Leaf is set for a leaf node connection, which authenticates with its
+	// Token only.
+	Leaf bool
 }
 
 // Grant is what an authenticated connection may do.
@@ -106,20 +112,28 @@ type clientAuth struct {
 // and account.
 func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 	s := a.s
-	if c.Kind() != natsserver.CLIENT {
-		return false
-	}
 	opts := c.GetOpts()
 	creds := Credentials{
-		Username: opts.Username,
-		Password: opts.Password,
-		Token:    opts.Token,
-		Remote:   c.RemoteAddress(),
-		TLS:      c.GetTLSConnectionState(),
+		Remote: c.RemoteAddress(),
+		TLS:    c.GetTLSConnectionState(),
+	}
+	switch c.Kind() {
+	case natsserver.CLIENT:
+		creds.Username, creds.Password, creds.Token = opts.Username, opts.Password, opts.Token
+	case natsserver.LEAF:
+		// A leaf sends the user of its URL also as the token
+		// (nats-leaf://<token>@host); it never logs in as a node or with
+		// the internal token.
+		creds.Token, creds.Leaf = opts.Token, true
+		if creds.Token == "" {
+			creds.Token = opts.Username
+		}
+	default:
+		return false
 	}
 
 	var grant *Grant
-	if creds.Token != "" && subtle.ConstantTimeCompare([]byte(creds.Token), []byte(s.internalToken)) == 1 {
+	if !creds.Leaf && creds.Token != "" && subtle.ConstantTimeCompare([]byte(creds.Token), []byte(s.internalToken)) == 1 {
 		grant = &Grant{Kind: KindInternal, Name: "server", All: true}
 	} else {
 		g, err := s.authz(creds)
@@ -128,6 +142,11 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 			return false
 		}
 		grant = g
+	}
+	if creds.Leaf != (grant.Kind == KindLeaf) {
+		s.logger.Warn("bus connection refused: a leaf node connection needs a leaf grant, and only a leaf node gets one",
+			"name", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote))
+		return false
 	}
 
 	accName := grant.Account
@@ -140,11 +159,26 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 			"name", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote), "error", err)
 		return false
 	}
-	c.RegisterUser(&natsserver.User{
-		Username:    grant.Kind + ":" + grant.Name,
-		Permissions: permissions(grant),
-		Account:     acc,
-	})
+	// The limits of the account are checked here: when RegisterUser fails on
+	// them it closes the connection, but the authentication would still
+	// succeed and nats-server would keep a closed leaf connection in its
+	// list of leaf nodes for good. The lock makes the check and the
+	// registration one step for the connections authenticated here.
+	s.registerLock.Lock()
+	full := (creds.Leaf && acc.MaxTotalLeafNodesReached()) || (!creds.Leaf && acc.MaxTotalConnectionsReached())
+	if !full {
+		c.RegisterUser(&natsserver.User{
+			Username:    grant.Kind + ":" + grant.Name,
+			Permissions: permissions(grant),
+			Account:     acc,
+		})
+	}
+	s.registerLock.Unlock()
+	if full {
+		s.logger.Warn("bus connection refused: the account has its maximum of connections", "account", accName,
+			"name", grant.Kind+":"+grant.Name, "remote", addrString(creds.Remote))
+		return false
+	}
 	s.l.Lock()
 	s.clients[c.GetID()] = &client{creds: creds, grant: grant}
 	s.l.Unlock()
@@ -233,12 +267,18 @@ func (s *Server) Revalidate() {
 // openClients returns the IDs of the open client connections.
 func (s *Server) openClients() map[uint64]bool {
 	open := map[uint64]bool{}
-	connz, err := s.server().Connz(&natsserver.ConnzOptions{Limit: s.config.MaxConnections + 100})
+	ns := s.server()
+	connz, err := ns.Connz(&natsserver.ConnzOptions{Limit: s.config.MaxConnections + 100})
 	if err != nil {
 		return open
 	}
 	for _, c := range connz.Conns {
 		open[c.Cid] = true
+	}
+	if leafz, err := ns.Leafz(nil); err == nil {
+		for _, l := range leafz.Leafs {
+			open[l.ID] = true
+		}
 	}
 	return open
 }

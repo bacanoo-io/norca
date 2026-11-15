@@ -5,6 +5,7 @@ package command
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/api"
@@ -122,6 +123,7 @@ func formatBusStatus(st *api.BusStatus) string {
 		fmt.Sprintf("Mode|%s", mode),
 		fmt.Sprintf("Client URL|%s", st.ClientURL),
 		fmt.Sprintf("Cluster Port|%d", st.ClusterPort),
+		fmt.Sprintf("Leaf Node Port|%s", leafNodePort(st.LeafNodePort)),
 		fmt.Sprintf("TLS|%t", st.TLS),
 		fmt.Sprintf("Started|%s", formatTime(st.Started)),
 	}))
@@ -182,10 +184,19 @@ func formatBusStatus(st *api.BusStatus) string {
 			fmt.Sprintf("Nodes|%d", conns.Nodes),
 			fmt.Sprintf("Tokens|%d", conns.Tokens),
 			fmt.Sprintf("Workloads|%d", conns.Workloads),
+			fmt.Sprintf("Leaf nodes|%d", conns.Leaves),
 			fmt.Sprintf("Internal|%d", conns.Internal),
 			fmt.Sprintf("Messages In/Out|%d / %d", conns.InMsgs, conns.OutMsgs),
 			fmt.Sprintf("Bytes In/Out|%s / %s", humanize.IBytes(uint64(conns.InBytes)), humanize.IBytes(uint64(conns.OutBytes))),
 		}))
 	}
 	return b.String()
+}
+
+// leafNodePort shows the port of the leaf node listener, or that it is off.
+func leafNodePort(port int) string {
+	if port == 0 {
+		return "off"
+	}
+	return strconv.Itoa(port)
 }

@@ -21,14 +21,15 @@ func (s *Server) Status() (*structs.BusStatus, error) {
 		return nil, err
 	}
 	st := &structs.BusStatus{
-		Enabled:     true,
-		Server:      s.config.ServerName,
-		Cluster:     s.config.Region,
-		ClientURL:   ns.ClientURL(),
-		Clustered:   s.Clustered(),
-		ClusterPort: s.config.ClusterPort,
-		TLS:         s.config.ClientTLS != nil,
-		Started:     varz.Start,
+		Enabled:      true,
+		Server:       s.config.ServerName,
+		Cluster:      s.config.Region,
+		ClientURL:    ns.ClientURL(),
+		Clustered:    s.Clustered(),
+		ClusterPort:  s.config.ClusterPort,
+		LeafNodePort: leafPort(s.config),
+		TLS:          s.config.ClientTLS != nil,
+		Started:      varz.Start,
 		Connections: &structs.BusConnections{
 			InMsgs:   varz.InMsgs,
 			OutMsgs:  varz.OutMsgs,
@@ -85,6 +86,9 @@ func (s *Server) Status() (*structs.BusStatus, error) {
 		return nil, err
 	}
 	conns := st.Connections
+	if leafz, err := ns.Leafz(nil); err == nil {
+		conns.Leaves = len(leafz.Leafs)
+	}
 	for _, c := range connz.Conns {
 		conns.Total++
 		kind, _, _ := strings.Cut(c.AuthorizedUser, ":")

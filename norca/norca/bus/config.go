@@ -19,6 +19,11 @@ const (
 	// a region.
 	DefaultClusterPort = 4650
 
+	// DefaultLeafNodePort is the port of the leaf node connections: NATS
+	// servers outside the cluster that read the change streams (change data
+	// capture).
+	DefaultLeafNodePort = 4652
+
 	// DefaultMaxMemory and DefaultMaxStorage bound the JetStream memory and
 	// file stores of a server.
 	DefaultMaxMemory  = 256 << 20
@@ -107,6 +112,18 @@ type Config struct {
 
 	// Events configures the event stream the leader publishes.
 	Events EventsConfig
+
+	// LeafNodes configures the leaf node listener.
+	LeafNodes LeafNodesConfig
+}
+
+// LeafNodesConfig configures the listener of the leaf node connections: a
+// NATS server outside the cluster attaches to the bus with an ACL token
+// whose cdc rule allows a leaf, and reads the change streams one way. The
+// listener uses the TLS of the client connections.
+type LeafNodesConfig struct {
+	Enabled bool
+	Port    int
 }
 
 // EventsConfig configures the event stream of the region: the leader
@@ -132,6 +149,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		Port:        DefaultPort,
 		ClusterPort: DefaultClusterPort,
+		LeafNodes:   LeafNodesConfig{Port: DefaultLeafNodePort},
 		MaxMemory:   DefaultMaxMemory,
 		MaxStorage:  DefaultMaxStorage,
 
@@ -174,6 +192,14 @@ func (c *Config) Validate() error {
 	}
 	if c.Port == c.ClusterPort {
 		errs = append(errs, fmt.Errorf("the bus and bus_cluster ports must differ"))
+	}
+	if c.LeafNodes.Enabled {
+		if c.LeafNodes.Port <= 0 || c.LeafNodes.Port > 65535 {
+			errs = append(errs, fmt.Errorf("invalid bus_leafnode port %d", c.LeafNodes.Port))
+		}
+		if c.LeafNodes.Port == c.Port || c.LeafNodes.Port == c.ClusterPort {
+			errs = append(errs, fmt.Errorf("the bus_leafnode port must differ from the bus and bus_cluster ports"))
+		}
 	}
 	if c.MaxMemory <= 0 {
 		errs = append(errs, fmt.Errorf("bus.max_memory must be positive"))
