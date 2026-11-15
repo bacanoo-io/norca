@@ -18,6 +18,72 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// A server that joins one server of its region tells the others itself: it
+// does not leave it to gossip, which can leave a server out.
+func TestServer_Join_SyncsRegionServers(t *testing.T) {
+	ci.Parallel(t)
+
+	// No gossip, no failure detector and no periodic full exchange: what a
+	// server knows of the others, it knows from an exchange at a join.
+	quiet := func(expect int) func(c *Config) {
+		return func(c *Config) {
+			c.BootstrapExpect = expect
+			c.SerfConfig.MemberlistConfig.GossipNodes = 0
+			c.SerfConfig.MemberlistConfig.ProbeInterval = 0
+			c.SerfConfig.MemberlistConfig.PushPullInterval = 0
+		}
+	}
+	s1, cleanupS1 := TestServer(t, quiet(2))
+	defer cleanupS1()
+	s2, cleanupS2 := TestServer(t, quiet(2))
+	defer cleanupS2()
+	TestJoin(t, s1, s2)
+	testutil.WaitForLeader(t, s1.RPC)
+
+	// A server of another region is not asked: s3 does not join it.
+	other, cleanupOther := TestServer(t, func(c *Config) {
+		quiet(1)(c)
+		c.Region = "region2"
+	})
+	defer cleanupOther()
+	TestJoin(t, s1, other)
+
+	s3, cleanupS3 := TestServer(t, quiet(0))
+	defer cleanupS3()
+	TestJoin(t, s1, s3)
+
+	// s2 was not named in the join of s3, and nothing gossips.
+	testutil.WaitForResult(func() (bool, error) {
+		for _, s := range []*Server{s1, s2, s3} {
+			if n := len(s.Members()); n != 4 {
+				return false, fmt.Errorf("%s sees %d of 4 servers", s.config.NodeName, n)
+			}
+		}
+		if n := len(other.Members()); n != 3 {
+			return false, fmt.Errorf("the server of the other region sees %d servers, want 3 (not s3)", n)
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatal(err)
+	})
+
+	// The leader, s1 or s2, adds s3 to Raft.
+	testutil.WaitForResult(func() (bool, error) {
+		for _, s := range []*Server{s1, s2, s3} {
+			future := s.raft.GetConfiguration()
+			if err := future.Error(); err != nil {
+				return false, err
+			}
+			if n := len(future.Configuration().Servers); n != 3 {
+				return false, fmt.Errorf("%s has %d Raft servers, want 3", s.config.NodeName, n)
+			}
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatal(err)
+	})
+}
+
 func TestNomad_JoinPeer(t *testing.T) {
 	ci.Parallel(t)
 

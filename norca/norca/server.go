@@ -15,6 +15,7 @@ import (
 	"net/rpc"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -2026,8 +2027,51 @@ func (s *Server) IsLeader() bool {
 // Join is used to have Nomad join the gossip ring
 // The target address should be another node listening on the
 // Serf address
+//
+// After it this server exchanges its membership with the other servers of
+// its region too, in the background: see syncRegionServers.
 func (s *Server) Join(addrs []string) (int, error) {
-	return s.serf.Join(addrs, true)
+	n, err := s.serf.Join(addrs, true)
+	if n > 0 {
+		go s.syncRegionServers(addrs)
+	}
+	return n, err
+}
+
+// syncRegionServers exchanges the membership with every server of the
+// region that the join of this server did not name. Otherwise they learn of
+// this server by gossip only, and gossip does not reach every server every
+// time: a change of the membership is sent on a fixed number of times
+// (RetransmitMult, four below ten members), and each ping and
+// acknowledgement of the failure detector that carries it counts as one of
+// them, whoever it goes to. A server that is left out hears of the change
+// at the next full exchange, up to a minute later (PushPullInterval), and
+// when it is the leader, this server is added to Raft that much later. A
+// region has a handful of servers, so one exchange with each, once per
+// join, costs little.
+func (s *Server) syncRegionServers(joined []string) {
+	self := s.serf.LocalMember().Name
+	var rest []string
+	for _, m := range s.serf.Members() {
+		if m.Status != serf.StatusAlive || m.Name == self {
+			continue
+		}
+		if ok, parts := isNomadServer(m); !ok || parts.Region != s.config.Region {
+			continue
+		}
+		addr := net.JoinHostPort(m.Addr.String(), strconv.Itoa(int(m.Port)))
+		if !slices.Contains(joined, addr) {
+			rest = append(rest, addr)
+		}
+	}
+	if len(rest) == 0 {
+		return
+	}
+	if _, err := s.serf.Join(rest, true); err != nil {
+		// Not fatal: gossip and the periodic full exchange still tell them.
+		s.logger.Debug("exchanging the membership with the servers of the region failed",
+			"servers", rest, "error", err)
+	}
 }
 
 // LocalMember is used to return the local node
