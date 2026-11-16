@@ -23,6 +23,14 @@ const TRUE_IS_BAD = {
   // exist or its controller is away.
   Failed: 'danger',
   IssuerUnavailable: 'warning',
+  // Tenants, volume requests and DNS records: a resource of the name that
+  // is not the object's own; a namespace that still holds jobs or volumes.
+  Conflict: 'warning',
+  NamespaceNotEmpty: 'warning',
+  // Snapshot schedules: the plugin can't take snapshots. Node groups: the
+  // repair of a down node is held.
+  Unsupported: 'warning',
+  RepairHeld: 'warning',
 };
 
 // Conditions whose True is work in progress.
@@ -34,11 +42,16 @@ const TRUE_IS_WORK = new Set([
   'Renewing',
 ]);
 
+// Conditions that say how an object is set, neither good nor bad either way
+// (a snapshot schedule that is suspended).
+const SETTING = new Set(['Suspended']);
+
 // conditionTone returns the tone of a condition of the type with the status
 // ("True", "False" or "Unknown").
 export function conditionTone(type, status) {
   const s = String(status);
   if (s !== 'True' && s !== 'False') return 'neutral';
+  if (SETTING.has(type)) return 'neutral';
   if (Object.hasOwn(TRUE_IS_BAD, type))
     return s === 'True' ? TRUE_IS_BAD[type] : 'success';
   if (TRUE_IS_WORK.has(type)) return s === 'True' ? 'info' : 'neutral';

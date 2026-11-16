@@ -16,7 +16,7 @@ module('Unit | Utility | conditions', function () {
   });
 
   test('a condition that is a problem when True', function (assert) {
-    assert.expect(14);
+    assert.expect(22);
     assert.strictEqual(conditionTone('Degraded', 'True'), 'danger');
     assert.strictEqual(conditionTone('JoinFailing', 'True'), 'danger');
     for (const type of [
@@ -26,10 +26,19 @@ module('Unit | Utility | conditions', function () {
       'ScaleDownBlocked',
       'DeletionBlocked',
       'Drifted',
+      'Conflict',
+      'NamespaceNotEmpty',
+      'Unsupported',
+      'RepairHeld',
     ]) {
       assert.strictEqual(conditionTone(type, 'True'), 'warning', type);
       assert.strictEqual(conditionTone(type, 'False'), 'success', type);
     }
+  });
+
+  test('a condition that is a setting', function (assert) {
+    assert.strictEqual(conditionTone('Suspended', 'True'), 'neutral');
+    assert.strictEqual(conditionTone('Suspended', 'False'), 'neutral');
   });
 
   test('a condition that is work in progress when True', function (assert) {
