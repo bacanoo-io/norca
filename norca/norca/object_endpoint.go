@@ -1115,6 +1115,13 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 					return nil, "", err
 				}
 			}
+			// Volume requests: what the writer may ask the servers to
+			// create, register and delete.
+			if isVolumeRequestKind(kind.Group, kind.Kind) {
+				if err := checkVolumeRequestApply(aclObj, obj); err != nil {
+					return nil, "", err
+				}
+			}
 			return obj, operation, nil
 		},
 	}
@@ -1165,6 +1172,9 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 			}
 			if isSnapshotKind(kind.Group, kind.Kind) {
 				return nil, "", checkSnapshotStatusWrite()
+			}
+			if isVolumeRequestKind(kind.Group, kind.Kind) {
+				return nil, "", checkVolumeRequestStatusWrite()
 			}
 			obj := existing.Copy()
 			obj.ModifyTime = time.Now().UnixNano()

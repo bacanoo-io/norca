@@ -392,7 +392,7 @@ func isManagedObjectKind(group, kind string) bool {
 		return false
 	}
 	return kind == structs.NodeGroupKind || kind == structs.NodeProviderKind || isCertificateKind(group, kind) ||
-		isSnapshotKind(group, kind)
+		isSnapshotKind(group, kind) || isVolumeRequestKind(group, kind)
 }
 
 // registerKinds registers the built-in kinds, or updates them if they

@@ -406,6 +406,10 @@ type Config struct {
 	// reaches the CSI controller plugins. For tests: a fake plugin.
 	snapshotCSI snapshotCSI
 
+	// volumeCSI, when set, is how the operator of volume requests reaches
+	// the CSI controller plugins. For tests: a fake plugin.
+	volumeCSI volumeCSI
+
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)
 	// and this value is ignored.
