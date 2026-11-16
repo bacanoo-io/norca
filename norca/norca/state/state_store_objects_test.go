@@ -162,6 +162,10 @@ func TestStateStore_CustomObjects(t *testing.T) {
 	must.NoError(t, store.DeleteCustomObject(structs.MsgTypeTestSetup, 20, "db.example.com", "Postgres", "default", "a", 16))
 	must.NoError(t, store.DeleteCustomObject(structs.MsgTypeTestSetup, 21, "db.example.com", "Postgres", "prod", "a", 0))
 	must.ErrorContains(t, store.DeleteCustomObject(structs.MsgTypeTestSetup, 22, "db.example.com", "Postgres", "prod", "a", 0), "not found")
+	// A removal with an expected index of an object that is gone lost a
+	// race with another remover: a conflict, not an error.
+	err = store.DeleteCustomObject(structs.MsgTypeTestSetup, 22, "db.example.com", "Postgres", "prod", "a", 12)
+	must.True(t, structs.IsObjectConflictError(err), must.Sprintf("%v", err))
 
 	idx, err := store.Index(TableCustomObjects)
 	must.NoError(t, err)

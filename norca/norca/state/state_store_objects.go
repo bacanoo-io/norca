@@ -461,6 +461,12 @@ func (s *StateStore) DeleteCustomObjectRequest(msgType structs.MessageType, inde
 		return err
 	}
 	if existing == nil {
+		// A removal with an expected modify index whose object is gone
+		// lost a race: the operator that removed the last finalizer and
+		// the garbage collector both remove the object.
+		if req.ExpectedModifyIndex != 0 {
+			return structs.NewObjectConflictError("%s %q was removed already", kindRef, req.Name)
+		}
 		return structs.NewErrRPCCodedf(http.StatusNotFound, "%s %q not found", kindRef, req.Name)
 	}
 	if req.ExpectedModifyIndex != 0 && existing.ModifyIndex != req.ExpectedModifyIndex {

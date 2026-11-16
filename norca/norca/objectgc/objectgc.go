@@ -304,7 +304,13 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 			continue
 		}
 		if err := c.deps.RemoveObject(obj, obj.DeletionPropagation); err != nil {
-			c.logger.Warn("failed to remove deleted object", "object", obj.KindRef()+"/"+obj.Name,
+			// A conflict: the object changed or was removed by its
+			// operator meanwhile; the next pass sees which.
+			level := c.logger.Warn
+			if structs.IsObjectConflictError(err) {
+				level = c.logger.Debug
+			}
+			level("failed to remove deleted object", "object", obj.KindRef()+"/"+obj.Name,
 				"namespace", obj.Namespace, "error", err)
 			pending = true
 		}
