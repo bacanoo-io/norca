@@ -1122,6 +1122,17 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 					return nil, "", err
 				}
 			}
+			// A tenant: its namespace, ACL policies and roles are replicated
+			// from the authoritative region, so it is kept there.
+			if isTenantKind(kind.Group, kind.Kind) {
+				if auth := c.srv.config.AuthoritativeRegion; auth != "" && auth != c.srv.Region() {
+					return nil, "", structs.NewErrRPCCodedf(http.StatusBadRequest,
+						"tenants are written in the authoritative region %q: their namespaces, ACL policies and roles are replicated from there", auth)
+				}
+				if err := checkTenantApply(snap, existing, obj); err != nil {
+					return nil, "", err
+				}
+			}
 			return obj, operation, nil
 		},
 	}
@@ -1175,6 +1186,9 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 			}
 			if isVolumeRequestKind(kind.Group, kind.Kind) {
 				return nil, "", checkVolumeRequestStatusWrite()
+			}
+			if isTenantKind(kind.Group, kind.Kind) {
+				return nil, "", checkTenantStatusWrite()
 			}
 			obj := existing.Copy()
 			obj.ModifyTime = time.Now().UnixNano()

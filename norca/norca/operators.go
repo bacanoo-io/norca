@@ -68,6 +68,7 @@ func newOperatorManager(srv *Server, logger hclog.Logger) *operatorManager {
 		newCertificateOperator(srv, m.logger),
 		newSnapshotOperator(srv, m.logger),
 		newVolumeRequestOperator(srv, m.logger),
+		newTenantOperator(srv, m.logger),
 	}
 	return m
 }

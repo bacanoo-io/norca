@@ -403,6 +403,21 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 			taken[ref.Key()] = owner
 		}
 	}
+	// Resources a tenant created are the tenant's: a release never takes
+	// them.
+	tenants, err := tenantOwners(snap)
+	if err != nil {
+		return err
+	}
+	var tenantConflicts []string
+	for _, res := range resources {
+		if tenant, ok := tenants[res.Ref().Key()]; ok {
+			tenantConflicts = append(tenantConflicts, fmt.Sprintf("%s belongs to the tenant %q", res.Ref(), tenant))
+		}
+	}
+	if len(tenantConflicts) > 0 {
+		return structs.NewReleaseConflictError("resources of the pack belong to tenants: %s", strings.Join(tenantConflicts, "; "))
+	}
 	if len(conflicts) > 0 && !in.takeOwnership {
 		return structs.NewReleaseConflictError("resources of the pack belong to other releases (use -take-ownership to take them over): %s",
 			strings.Join(conflicts, "; "))
