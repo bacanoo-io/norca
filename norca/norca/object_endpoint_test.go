@@ -182,10 +182,10 @@ func TestObjectKindEndpoint_CRUD(t *testing.T) {
 	listReq := &structs.ObjectKindListRequest{QueryOptions: structs.QueryOptions{Region: "global"}}
 	var listResp structs.ObjectKindListResponse
 	// The two kinds above and the built-in ones: NodeGroup and NodeProvider,
-	// and the kinds of certificates. The leader registers the built-in
-	// kinds after it is elected, on its own time: wait for them instead of
-	// counting on them.
-	want := 2 + len(builtinNodeScalingKinds()) + len(builtinCertificateKinds())
+	// the kinds of certificates and of snapshot schedules. The leader
+	// registers the built-in kinds after it is elected, on its own time:
+	// wait for them instead of counting on them.
+	want := 2 + len(builtinNodeScalingKinds()) + len(builtinCertificateKinds()) + len(builtinSnapshotKinds())
 	testutil.WaitForResult(func() (bool, error) {
 		if err := msgpackrpc.CallWithCodec(c.codec, "ObjectKind.List", listReq, &listResp); err != nil {
 			return false, err

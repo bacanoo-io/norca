@@ -64,7 +64,10 @@ type operatorManager struct {
 
 func newOperatorManager(srv *Server, logger hclog.Logger) *operatorManager {
 	m := &operatorManager{srv: srv, logger: logger.Named("operators")}
-	m.operators = []coreOperator{newCertificateOperator(srv, m.logger)}
+	m.operators = []coreOperator{
+		newCertificateOperator(srv, m.logger),
+		newSnapshotOperator(srv, m.logger),
+	}
 	return m
 }
 

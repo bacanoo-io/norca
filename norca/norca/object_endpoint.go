@@ -1108,6 +1108,13 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 					return nil, "", err
 				}
 			}
+			// Snapshot schedules: what the writer may ask the servers to
+			// take and delete.
+			if isSnapshotKind(kind.Group, kind.Kind) {
+				if err := checkSnapshotApply(aclObj, obj); err != nil {
+					return nil, "", err
+				}
+			}
 			return obj, operation, nil
 		},
 	}
@@ -1155,6 +1162,9 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 				if err := checkCertificateStatusWrite(existing); err != nil {
 					return nil, "", err
 				}
+			}
+			if isSnapshotKind(kind.Group, kind.Kind) {
+				return nil, "", checkSnapshotStatusWrite()
 			}
 			obj := existing.Copy()
 			obj.ModifyTime = time.Now().UnixNano()
