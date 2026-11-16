@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
@@ -1543,76 +1544,80 @@ func (v *CSIVolume) CreateSnapshot(args *structs.CSISnapshotCreateRequest, reply
 		return err
 	}
 
-	method := "ClientCSI.ControllerCreateSnapshot"
 	var mErr multierror.Error
 	for _, snap := range args.Snapshots {
 		if snap == nil {
 			// we intentionally don't multierror here because we're in a weird state
 			return fmt.Errorf("snapshot cannot be nil")
 		}
-
-		vol, err := state.CSIVolumeByID(nil, args.RequestNamespace(), snap.SourceVolumeID)
+		created, err := v.createSnapshot(state, args.RequestNamespace(), snap)
 		if err != nil {
-			multierror.Append(&mErr, fmt.Errorf("error querying volume %q: %v", snap.SourceVolumeID, err))
+			multierror.Append(&mErr, err)
 			continue
 		}
-		if vol == nil {
-			multierror.Append(&mErr, fmt.Errorf("no such volume %q", snap.SourceVolumeID))
-			continue
-		}
-
-		pluginID := snap.PluginID
-		if pluginID == "" {
-			pluginID = vol.PluginID
-		}
-
-		plugin, err := state.CSIPluginByID(nil, pluginID)
-		if err != nil {
-			multierror.Append(&mErr,
-				fmt.Errorf("error querying plugin %q: %v", pluginID, err))
-			continue
-		}
-		if plugin == nil {
-			multierror.Append(&mErr, fmt.Errorf("no such plugin %q", pluginID))
-			continue
-		}
-		if !plugin.HasControllerCapability(structs.CSIControllerSupportsCreateDeleteSnapshot) {
-			multierror.Append(&mErr,
-				fmt.Errorf("plugin %q does not support snapshot", pluginID))
-			continue
-		}
-
-		secrets := vol.Secrets
-		for k, v := range snap.Secrets {
-			// merge request secrets onto volume secrets
-			secrets[k] = v
-		}
-
-		cReq := &cstructs.ClientCSIControllerCreateSnapshotRequest{
-			ExternalSourceVolumeID: vol.ExternalID,
-			Name:                   snap.Name,
-			Secrets:                secrets,
-			Parameters:             snap.Parameters,
-		}
-		cReq.PluginID = pluginID
-		cResp := &cstructs.ClientCSIControllerCreateSnapshotResponse{}
-		err = v.serializedControllerRPC(pluginID, func() error {
-			return v.srv.RPC(method, cReq, cResp)
-		})
-		if err != nil {
-			multierror.Append(&mErr, fmt.Errorf("could not create snapshot: %v", err))
-			continue
-		}
-		reply.Snapshots = append(reply.Snapshots, &structs.CSISnapshot{
-			ID:                     cResp.ID,
-			ExternalSourceVolumeID: cResp.ExternalSourceVolumeID,
-			SizeBytes:              cResp.SizeBytes,
-			CreateTime:             cResp.CreateTime,
-			IsReady:                cResp.IsReady,
-		})
+		reply.Snapshots = append(reply.Snapshots, created)
 	}
 
 	return mErr.ErrorOrNil()
+}
+
+// createSnapshot asks the controller plugin of a volume for a snapshot. It is
+// the work of CreateSnapshot without the checks of the caller's rights, and
+// is what the operator of snapshot schedules calls as well. A snapshot of the
+// same name is created once: the plugin answers again with the one it has.
+func (v *CSIVolume) createSnapshot(snapState *state.StateSnapshot, namespace string, snap *structs.CSISnapshot) (*structs.CSISnapshot, error) {
+	vol, err := snapState.CSIVolumeByID(nil, namespace, snap.SourceVolumeID)
+	if err != nil {
+		return nil, fmt.Errorf("error querying volume %q: %v", snap.SourceVolumeID, err)
+	}
+	if vol == nil {
+		return nil, fmt.Errorf("no such volume %q", snap.SourceVolumeID)
+	}
+
+	pluginID := snap.PluginID
+	if pluginID == "" {
+		pluginID = vol.PluginID
+	}
+
+	plugin, err := snapState.CSIPluginByID(nil, pluginID)
+	if err != nil {
+		return nil, fmt.Errorf("error querying plugin %q: %v", pluginID, err)
+	}
+	if plugin == nil {
+		return nil, fmt.Errorf("no such plugin %q", pluginID)
+	}
+	if !plugin.HasControllerCapability(structs.CSIControllerSupportsCreateDeleteSnapshot) {
+		return nil, fmt.Errorf("plugin %q does not support snapshot", pluginID)
+	}
+
+	// The secrets of the request go over those of the volume.
+	secrets := make(structs.CSISecrets, len(vol.Secrets)+len(snap.Secrets))
+	maps.Copy(secrets, vol.Secrets)
+	maps.Copy(secrets, snap.Secrets)
+
+	cReq := &cstructs.ClientCSIControllerCreateSnapshotRequest{
+		ExternalSourceVolumeID: vol.ExternalID,
+		Name:                   snap.Name,
+		Secrets:                secrets,
+		Parameters:             snap.Parameters,
+	}
+	cReq.PluginID = pluginID
+	cResp := &cstructs.ClientCSIControllerCreateSnapshotResponse{}
+	err = v.serializedControllerRPC(pluginID, func() error {
+		return v.srv.RPC("ClientCSI.ControllerCreateSnapshot", cReq, cResp)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not create snapshot: %v", err)
+	}
+	return &structs.CSISnapshot{
+		ID:                     cResp.ID,
+		ExternalSourceVolumeID: cResp.ExternalSourceVolumeID,
+		SizeBytes:              cResp.SizeBytes,
+		CreateTime:             cResp.CreateTime,
+		IsReady:                cResp.IsReady,
+		SourceVolumeID:         vol.ID,
+		PluginID:               pluginID,
+	}, nil
 }
 
 func (v *CSIVolume) DeleteSnapshot(args *structs.CSISnapshotDeleteRequest, reply *structs.CSISnapshotDeleteResponse) error {
@@ -1651,35 +1656,41 @@ func (v *CSIVolume) DeleteSnapshot(args *structs.CSISnapshotDeleteRequest, reply
 			// we intentionally don't multierror here because we're in a weird state
 			return fmt.Errorf("snapshot cannot be nil")
 		}
-
-		plugin, err := stateSnap.CSIPluginByID(nil, snap.PluginID)
-		if err != nil {
-			multierror.Append(&mErr,
-				fmt.Errorf("could not query plugin %q: %v", snap.PluginID, err))
-			continue
-		}
-		if plugin == nil {
-			multierror.Append(&mErr, fmt.Errorf("no such plugin"))
-			continue
-		}
-		if !plugin.HasControllerCapability(structs.CSIControllerSupportsCreateDeleteSnapshot) {
-			multierror.Append(&mErr, fmt.Errorf("plugin does not support snapshot"))
-			continue
-		}
-
-		method := "ClientCSI.ControllerDeleteSnapshot"
-
-		cReq := &cstructs.ClientCSIControllerDeleteSnapshotRequest{ID: snap.ID}
-		cReq.PluginID = plugin.ID
-		cResp := &cstructs.ClientCSIControllerDeleteSnapshotResponse{}
-		err = v.serializedControllerRPC(plugin.ID, func() error {
-			return v.srv.RPC(method, cReq, cResp)
-		})
-		if err != nil {
-			multierror.Append(&mErr, fmt.Errorf("could not delete %q: %v", snap.ID, err))
+		if err := v.deleteSnapshot(stateSnap, snap); err != nil {
+			multierror.Append(&mErr, err)
 		}
 	}
 	return mErr.ErrorOrNil()
+}
+
+// deleteSnapshot asks a controller plugin to delete a snapshot, with the
+// secrets of the request (the CLI's -secret). It is the work of
+// DeleteSnapshot without the checks of the caller's rights, and is what the
+// operator of snapshot schedules calls as well.
+func (v *CSIVolume) deleteSnapshot(stateSnap *state.StateSnapshot, snap *structs.CSISnapshot) error {
+	plugin, err := stateSnap.CSIPluginByID(nil, snap.PluginID)
+	if err != nil {
+		return fmt.Errorf("could not query plugin %q: %v", snap.PluginID, err)
+	}
+	if plugin == nil {
+		return fmt.Errorf("no such plugin")
+	}
+	if !plugin.HasControllerCapability(structs.CSIControllerSupportsCreateDeleteSnapshot) {
+		return fmt.Errorf("plugin does not support snapshot")
+	}
+
+	// The secrets were dropped here, so a plugin that needs them for a
+	// deletion refused it whatever the caller passed.
+	cReq := &cstructs.ClientCSIControllerDeleteSnapshotRequest{ID: snap.ID, Secrets: snap.Secrets}
+	cReq.PluginID = plugin.ID
+	cResp := &cstructs.ClientCSIControllerDeleteSnapshotResponse{}
+	err = v.serializedControllerRPC(plugin.ID, func() error {
+		return v.srv.RPC("ClientCSI.ControllerDeleteSnapshot", cReq, cResp)
+	})
+	if err != nil {
+		return fmt.Errorf("could not delete %q: %v", snap.ID, err)
+	}
+	return nil
 }
 
 func (v *CSIVolume) ListSnapshots(args *structs.CSISnapshotListRequest, reply *structs.CSISnapshotListResponse) error {

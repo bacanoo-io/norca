@@ -1671,6 +1671,7 @@ func TestCSIVolumeEndpoint_DeleteSnapshot(t *testing.T) {
 			{
 				ID:       "snap-34567",
 				PluginID: "minnie",
+				Secrets:  structs.CSISecrets{"mysecret": "secretvalue"},
 			},
 		},
 		WriteRequest: structs.WriteRequest{
@@ -1682,6 +1683,11 @@ func TestCSIVolumeEndpoint_DeleteSnapshot(t *testing.T) {
 	resp1 := &structs.CSISnapshotDeleteResponse{}
 	err = msgpackrpc.CallWithCodec(codec, "CSIVolume.DeleteSnapshot", req1, resp1)
 	require.NoError(t, err)
+
+	// The plugin gets the secrets of the request (the CLI's -secret).
+	require.Len(t, fake.DeleteSnapshotRequests, 2)
+	require.Equal(t, "snap-34567", fake.DeleteSnapshotRequests[1].ID)
+	require.Equal(t, "secretvalue", fake.DeleteSnapshotRequests[1].Secrets["mysecret"])
 }
 
 func TestCSIVolumeEndpoint_ListSnapshots(t *testing.T) {

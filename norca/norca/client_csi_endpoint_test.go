@@ -49,6 +49,7 @@ type MockClientCSI struct {
 	NextNodeDetachError                error
 	NextNodeExpandError                error
 	LastNodeExpandRequest              *cstructs.ClientCSINodeExpandVolumeRequest
+	DeleteSnapshotRequests             []*cstructs.ClientCSIControllerDeleteSnapshotRequest
 
 	// GetCapacity (Norca): the answer, an error, the requests seen.
 	NextGetCapacityResponse *cstructs.ClientCSIControllerGetCapacityResponse
@@ -123,6 +124,7 @@ func (c *MockClientCSI) ControllerCreateSnapshot(req *cstructs.ClientCSIControll
 }
 
 func (c *MockClientCSI) ControllerDeleteSnapshot(req *cstructs.ClientCSIControllerDeleteSnapshotRequest, resp *cstructs.ClientCSIControllerDeleteSnapshotResponse) error {
+	c.DeleteSnapshotRequests = append(c.DeleteSnapshotRequests, req)
 	return c.NextDeleteSnapshotError
 }
 

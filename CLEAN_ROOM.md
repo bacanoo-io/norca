@@ -423,3 +423,27 @@ before  error: Unexpected response code: 500 (root key <id> encrypts 1 value(s) 
 after   error: Unexpected response code: 409 (root key <id> encrypts 1 value(s) of the Consul KV of the system bus - ...)
         error: Unexpected response code: 409 (active root key cannot be deleted - call rotate first)
 ```
+
+## The secrets of a snapshot deletion
+
+In Nomad v1.6.5 (MPL 2.0) `volume snapshot delete -secret ...` sends
+the secrets to the servers (`api.CSIVolumes.DeleteSnapshot`), and
+`CSIVolume.DeleteSnapshot` (`nomad/csi_endpoint.go`) builds the request to
+the controller plugin with the snapshot ID only, so the plugin never gets
+them. A plugin that needs its secrets to delete a snapshot refuses every
+deletion.
+
+Norca passes them on (2026-11-16, `Source-Rule: independent-development`).
+It was found while the operator of snapshot schedules was written, which
+calls the same code to delete the snapshots its retention lets go, and was
+written from the Norca tree alone (the CLI, the API client, the client
+request struct, which has a `Secrets` field, and the endpoint). Whether a
+later Nomad release changed it was not looked up; no HashiCorp source or
+documentation of a BSL release was opened or used. The change is in lines
+added to a file that comes from v1.6.5, which is in the `bugfix` set of the
+audit.
+
+What the test shows (2026-11-16, `TestCSIVolumeEndpoint_DeleteSnapshot`,
+which now records the requests the fake plugin gets): the secrets of the
+request reach the plugin. Without the change the check fails with an empty
+`Secrets`.
