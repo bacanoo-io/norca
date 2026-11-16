@@ -369,9 +369,9 @@ func (a *TestAgent) config() *Config {
 	conf.Consul = sconfig.DefaultConsulConfig()
 	conf.Vault.Enabled = new(bool)
 
-	// Tighten the Serf timing
+	// Tighten the Serf timing. RetransmitMult keeps its default (4), as in
+	// norca.TestServer: with 2 a membership change is often missed by gossip.
 	config.SerfConfig.MemberlistConfig.SuspicionMult = 2
-	config.SerfConfig.MemberlistConfig.RetransmitMult = 2
 	config.SerfConfig.MemberlistConfig.ProbeTimeout = 50 * time.Millisecond
 	config.SerfConfig.MemberlistConfig.ProbeInterval = 100 * time.Millisecond
 	config.SerfConfig.MemberlistConfig.GossipInterval = 100 * time.Millisecond

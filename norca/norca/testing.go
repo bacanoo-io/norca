@@ -68,10 +68,11 @@ func TestConfigForServer(t testing.T) *Config {
 	// configure logger
 	config.Logger, config.LogOutput = testlog.HCLoggerNode(t, nodeNum)
 
-	// Tighten the Serf timing
+	// Tighten the Serf timing. RetransmitMult keeps its default (4): with 2,
+	// a join or a leave reached every server only by the full exchange, up to
+	// a minute later, in about one test cluster in ten.
 	config.SerfConfig.MemberlistConfig.BindAddr = "127.0.0.1"
 	config.SerfConfig.MemberlistConfig.SuspicionMult = 2
-	config.SerfConfig.MemberlistConfig.RetransmitMult = 2
 	config.SerfConfig.MemberlistConfig.ProbeTimeout = 50 * time.Millisecond
 	config.SerfConfig.MemberlistConfig.ProbeInterval = 100 * time.Millisecond
 	config.SerfConfig.MemberlistConfig.GossipInterval = 100 * time.Millisecond
