@@ -3,9 +3,13 @@ SPDX-FileCopyrightText: 2026 Norca contributors
 SPDX-License-Identifier: MPL-2.0
 -->
 
-# Change Data Capture (CDC) and the Links of the System Bus (draft)
+# Change Data Capture (CDC) and the Links of the System Bus
 
-Status: draft for decision, 2026-11-14. This draft began with finding N1 of
+Status: decided and built. Option B (CDC through leaf nodes) was chosen on
+2026-11-14 and built in three phases on 2026-11-15 (sections 7.2 to 7.5).
+Sections 1 to 4 keep the state and the options as they were before that.
+
+This document began as a draft for decision, with finding N1 of
 `embedded-nats-system-bus.md` section 11: the `leafnode` field of the `bus`
 policy rule does nothing, and neither gateways (phase 5) nor leaf nodes are
 built. On the maintainer's word (2026-11-14) the feature is named **Change
@@ -41,7 +45,7 @@ they are not the way out of the cluster.
 
 | Mode | Role | State | Credentials | Catch-up |
 | --- | --- | --- | --- | --- |
-| **Leaf node** | **the transport of CDC to outside systems** | to build (option B, sections 3 and 7) | token with a `cdc` rule; one way, server allow list | the server-owned consumer `leaf-<accessor>` per stream |
+| **Leaf node** | **the transport of CDC to outside systems** | built (option B, section 7.4) | token with a `cdc` rule; one way, server allow list | the server-owned consumer `leaf-<accessor>` per stream |
 | Client with an ACL token | direct reader inside the cluster | built | token, inbox `_INBOX.<accessor>` | its own durable consumer, if its rule allows the JetStream API |
 | Task with its workload identity | direct reader inside the cluster | built | identity, inbox `_INBOX.<allocation>.<task>` | as a client |
 
@@ -61,7 +65,7 @@ another region, section 1.3).
 connect, the guarantees); the system bus page stays the technical layer
 (streams, subjects, headers).
 
-## 1. Current State
+## 1. State Before Option B (2026-11-14)
 
 ### 1.1 What exists
 
@@ -124,7 +128,7 @@ connect, the guarantees); the system bus page stays the technical layer
   in section 9.2 of the bus design). Today a pipeline calls `notify-push`
   in each region, or each region syncs on its own schedule.
 
-### 1.4 Since the first draft (branches of 2026-11-14, not merged)
+### 1.4 Since the first draft (merged 2026-11-14)
 
 - `fix/bus-workload-identity`: a task connects with its workload identity
   and gets the bus rules of the policies bound to its job; its inbox is
@@ -522,8 +526,8 @@ and any other change go through the HTTP API, not the bus.
 
 ## 7. Consumers Bound to Their Reader (CDC step 2)
 
-Built in phase 1 of option B (2026-11-15, norca `feat/cdc-rule`, not merged
-yet); what was built is in 7.2.
+Built in phase 1 of option B (2026-11-15, merged as norca `24684ca89`); what
+was built is in 7.2.
 
 **Why.** The NATS permissions name a consumer as one whole subject token.
 A rule that lets a reader manage "its" consumers with a wildcard in the
@@ -702,13 +706,13 @@ with the reader's own name; the API page of the endpoint; the CLI page.
   without management).
 - **A task** asks for its consumer through the Task API with its workload
   identity (tried on a dev agent, raw_exec).
-- **Not built yet (phases 2 and 3):** accounts on the bus, the leaf
+- **Left for phases 2 and 3 (sections 7.3 and 7.4):** accounts on the bus, the leaf
   listener, `leaf = true` (accepted in the rule, no leaf connection yet), the
   server-owned leaf consumer.
 
 ### 7.3 As built (phase 2 of option B, 2026-11-15)
 
-Branch norca `feat/bus-accounts`, norca-doc `bus-accounts`, not merged.
+Merged as norca `8bd0d427a`, norca-doc `2bb3a5a`.
 
 - **The account `NORCA`** (`bus/account.go`): every connection (the
   server's own, nodes, tokens, workload identities) is registered in it;
@@ -751,9 +755,8 @@ Branch norca `feat/bus-accounts`, norca-doc `bus-accounts`, not merged.
 
 ### 7.4 As built (phase 3 of option B, 2026-11-15)
 
-Branches norca `feat/cdc-leaf`, norca-deployer `cdc-leaf`, norca-registry
-`cdc-leaf` (nats 0.7.0), norca-doc `cdc-leaf`, norca-lab `case-cdc-leaf`;
-not merged.
+Merged as norca `82059b698`, norca-deployer `b02d63e`, norca-registry
+`e231230` (nats 0.7.0), norca-doc `80c5dce`, norca-lab `0c08aeb`.
 
 - **Listener:** `server { bus { leafnodes { enabled = false } } }`,
   `ports { bus_leafnode = 4652 }`; the TLS of the client listener; no leaf
@@ -798,7 +801,7 @@ not merged.
   use 3); store encryption (decision 16); an account made at run time stays
   until the server restarts even when its leaf is gone.
 
-### 7.5 Review of the day (2026-11-15), fixes on `fix/cdc-leaf-review`
+### 7.5 Review of the day (2026-11-15), fixes merged as norca `6c7ff2390`
 
 Each reproduced by a test before its fix.
 
@@ -830,7 +833,9 @@ Each reproduced by a test before its fix.
   (`Stream create failed for '$G > ...': JetStream not enabled for
   account`). Removing `jetstream/$G` by hand frees the space. No carry-over
   is built (nothing released).
-- **Known, not changed:** the consumer name of a workload identity replaces
-  the characters a name can't hold, so the tasks `a.b` and `a_b` of one
-  allocation would share a consumer.
+- **Fixed after the review** (norca `9d7b8aa3a`): the consumer name of a
+  workload identity replaces the characters a name can't hold, so the tasks
+  `a.b` and `a_b` of one allocation shared a consumer and an inbox. A task
+  name with replaced characters now gets `-` and the first eight hex digits
+  of its SHA-256 appended, in the consumer name and in the inbox.
 
