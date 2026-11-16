@@ -75,6 +75,7 @@ const tenantKindSchema = `{
         "certificate_dns_suffixes": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1, "maxLength": 253}},
         "certificate_ip_addresses": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1}},
         "certificate_issuers": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1}},
+        "dns_suffixes": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1, "maxLength": 253}},
         "adopt": {"type": "array", "items": {"type": "string", "enum": ["namespace", "quota", "acl-policy", "acl-role", "network-policy"]}}
       },
       "additionalProperties": false
@@ -150,6 +151,7 @@ type tenantSpec struct {
 	CertificateDNSSuffixes []string `json:"certificate_dns_suffixes"`
 	CertificateIPAddresses []string `json:"certificate_ip_addresses"`
 	CertificateIssuers     []string `json:"certificate_issuers"`
+	DNSSuffixes            []string `json:"dns_suffixes"`
 	Adopt                  []string `json:"adopt"`
 }
 
@@ -301,6 +303,14 @@ func (s *tenantSpec) validate(name string) error {
 		if strings.HasPrefix(k, "norca.io/certificate-") {
 			return fmt.Errorf("namespace meta %q is written from certificate_dns_suffixes, certificate_ip_addresses and certificate_issuers", k)
 		}
+		if k == structs.NamespaceMetaDNSSuffixes {
+			return fmt.Errorf("namespace meta %q is written from dns_suffixes", k)
+		}
+	}
+	for _, suffix := range s.DNSSuffixes {
+		if !validDNSSuffix(suffix) {
+			return fmt.Errorf("dns_suffixes: %q is not a DNS name", suffix)
+		}
 	}
 	if s.Quota != nil {
 		if len(s.Quota.Region) == 0 {
@@ -362,6 +372,9 @@ func (s *tenantSpec) desired(name string) (*tenantDesired, error) {
 	}
 	if len(s.CertificateIssuers) > 0 {
 		meta[structs.NamespaceMetaCertificateIssuers] = strings.Join(s.CertificateIssuers, ",")
+	}
+	if len(s.DNSSuffixes) > 0 {
+		meta[structs.NamespaceMetaDNSSuffixes] = strings.Join(s.DNSSuffixes, ",")
 	}
 	if len(meta) == 0 {
 		meta = nil
@@ -442,4 +455,25 @@ func (s *tenantSpec) desired(name string) (*tenantDesired, error) {
 		}
 	}
 	return d, nil
+}
+
+// validDNSSuffix reports whether a suffix of dns_suffixes is a DNS name
+// (lower or upper case letters, digits and hyphens in labels of 1 to 63,
+// optionally "*." in front, which allows the same names).
+func validDNSSuffix(s string) bool {
+	s = strings.TrimSuffix(strings.TrimPrefix(s, "*."), ".")
+	if s == "" || len(s) > 253 {
+		return false
+	}
+	for _, label := range strings.Split(s, ".") {
+		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, r := range label {
+			if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-') {
+				return false
+			}
+		}
+	}
+	return true
 }

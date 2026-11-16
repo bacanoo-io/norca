@@ -96,6 +96,7 @@ func TestTenant_Lifecycle(t *testing.T) {
 		"network":                  map[string]any{"isolation": "namespace", "allow_from_namespaces": []any{"ingress"}},
 		"certificate_dns_suffixes": []any{"team-a.example.com"},
 		"certificate_issuers":      []any{"letsencrypt"},
+		"dns_suffixes":             []any{"team-a.example.com", "*.apps.example.com"},
 	})
 	must.NoError(t, err)
 	obj := waitTenant(c, "team-a", "ready", tenantReady)
@@ -113,6 +114,7 @@ func TestTenant_Lifecycle(t *testing.T) {
 	must.Eq(t, "a", ns.Meta["owner"])
 	must.Eq(t, "team-a.example.com", ns.Meta[structs.NamespaceMetaCertificateDNSSuffixes])
 	must.Eq(t, "letsencrypt", ns.Meta[structs.NamespaceMetaCertificateIssuers])
+	must.Eq(t, "team-a.example.com,*.apps.example.com", ns.Meta[structs.NamespaceMetaDNSSuffixes])
 
 	q, err := store.QuotaSpecByName(nil, "team-a")
 	must.NoError(t, err)
@@ -308,6 +310,9 @@ func TestTenant_WriteChecks(t *testing.T) {
 		{"every namespace", map[string]any{"network": map[string]any{
 			"isolation": "namespace", "allow_from_namespaces": []any{"*"}}}, "allow_from_namespaces"},
 		{"bad address", map[string]any{"certificate_ip_addresses": []any{"not-an-ip"}}, "certificate_ip_addresses"},
+		{"dns meta by hand", map[string]any{"namespace": map[string]any{
+			"meta": map[string]any{structs.NamespaceMetaDNSSuffixes: "x"}}}, "dns_suffixes"},
+		{"bad dns suffix", map[string]any{"dns_suffixes": []any{"not a name"}}, "dns_suffixes"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

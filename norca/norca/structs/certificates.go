@@ -45,6 +45,13 @@ const (
 	NamespaceMetaCertificateIPAddresses = "norca.io/certificate-ip-addresses"
 	NamespaceMetaCertificateIssuers     = "norca.io/certificate-issuers"
 
+	// NamespaceMetaDNSSuffixes is the namespace metadata with the DNS
+	// suffixes norca-dns may write names under for the namespace (comma
+	// separated; a suffix allows itself and the names below it). Not the
+	// list of certificates: writing a name and getting a certificate for it
+	// are different rights.
+	NamespaceMetaDNSSuffixes = "norca.io/dns-suffixes"
+
 	// SecretLabelCertificate is the label of a secret written for a
 	// Certificate object: the name of the object.
 	SecretLabelCertificate = "norca.io/certificate"
