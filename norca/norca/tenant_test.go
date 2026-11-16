@@ -22,6 +22,12 @@ func newTenantTest(t *testing.T) (*certTest, func()) {
 	t.Helper()
 	s, root, cleanup := TestACLServer(t, nil)
 	testutil.WaitForLeader(t, s.RPC)
+	// The leader registers the built-in kinds after it is elected, on its
+	// own time: a tenant written before that is refused.
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		kind, err := s.State().ObjectKindByName(nil, structs.OperatorsGroup, structs.TenantKind)
+		return err == nil && kind != nil
+	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)), must.Sprint("the kind Tenant is registered"))
 	return &certTest{t: t, s: s, token: root.SecretID}, cleanup
 }
 
