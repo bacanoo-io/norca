@@ -27,8 +27,15 @@ func funcMap(r *Renderer) template.FuncMap {
 		maps.Copy(f, parser.PackTemplateContextFuncs(r.pv.IsV1()))
 	}
 
-	// Copy the sprig funcs into the funcmap.
-	maps.Copy(f, sprig.TxtFuncMap())
+	// Copy the sprig funcs into the funcmap. A hermetic renderer runs in a
+	// server on a pack its caller chose, so it leaves out the functions that
+	// read the process and its host: the environment (env, expandenv), the
+	// resolver (getHostByName), the clock and the random source.
+	if r != nil && r.Hermetic {
+		maps.Copy(f, sprig.HermeticTxtFuncMap())
+	} else {
+		maps.Copy(f, sprig.TxtFuncMap())
+	}
 
 	// Add debugging functions. These are useful when debugging templates and
 	// variables.
@@ -60,6 +67,13 @@ func funcMap(r *Renderer) template.FuncMap {
 
 	// Add additional custom functions.
 	f["fileContents"] = fileContents
+	if r != nil && r.Hermetic {
+		// The files a hermetic render may read are those of the pack.
+		f["fileContents"] = parser.FileContentsIn(r.PackPath)
+		if r.pv != nil && !r.pv.IsV1() {
+			f["fileRelative"] = parser.FileRelativeIn(r.PackPath)
+		}
+	}
 	f["toStringList"] = toStringList
 	f["tpl"] = tplFunc(r)
 

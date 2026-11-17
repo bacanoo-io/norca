@@ -28,6 +28,10 @@ type Config struct {
 	VariableEnvVars map[string]string
 	UseParserV1     bool
 	AllowUnsetVars  bool
+
+	// Hermetic renders without access to the environment of the process and
+	// to the files outside the pack. The servers set it.
+	Hermetic bool
 }
 
 // PackManager is responsible for loading, parsing, and rendering a Pack and
@@ -161,6 +165,7 @@ func (pm *PackManager) ProcessTemplates(renderAux bool, format bool, ignoreMissi
 	r := new(renderer.Renderer)
 	r.Client = pm.client
 	r.PackPath = pm.cfg.Path
+	r.Hermetic = pm.cfg.Hermetic
 	pm.renderer = r
 
 	// should auxiliary files be rendered as well?

@@ -483,6 +483,9 @@ func RenderPack(in RenderInput) (*api.ReleaseApplyRequest, error) {
 	pm := manager.NewPackManager(&manager.Config{
 		Path:            in.PackDir,
 		VariableCLIArgs: cliVars,
+		// The render runs in the server process: its environment and its
+		// files are not the caller's to read.
+		Hermetic: true,
 	}, nil)
 	rendered, wErrs := pm.ProcessTemplates(false, true, false)
 	if len(wErrs) > 0 {

@@ -294,6 +294,67 @@ func fileRelativeContents(file string, p PackContextable) (string, error) {
 	return string(content), nil
 }
 
+// FileContentsIn returns the fileContents template function of a render that
+// may read the files under root only. The path is the absolute one a
+// template builds from packPath, or one relative to root.
+func FileContentsIn(root string) func(string) (string, error) {
+	return func(file string) (string, error) {
+		content, err := readFileIn(root, file)
+		if err != nil {
+			return "", fmt.Errorf("failed to read %s: %v", file, err)
+		}
+		return string(content), nil
+	}
+}
+
+// FileRelativeIn returns the fileRelative template function of a render that
+// may read the files under root only. The path is relative to the directory
+// of the current pack, as in fileRelativeContents.
+func FileRelativeIn(root string) func(string, PackContextable) (string, error) {
+	return func(file string, p PackContextable) (string, error) {
+		packMeta, ok := p.getMetas()["pack"].(map[string]any)
+		if !ok {
+			return "", errors.New("fileRelative: pack metadata not available in context")
+		}
+		packPath, ok := packMeta["path"].(string)
+		if !ok || packPath == "" {
+			return "", errors.New("fileRelative: pack path not set in metadata; ensure the pack was loaded from disk")
+		}
+		content, err := readFileIn(root, filepath.Join(packPath, file))
+		if err != nil {
+			return "", fmt.Errorf("fileRelative: failed to read %s: %w", file, err)
+		}
+		return string(content), nil
+	}
+}
+
+// readFileIn reads a file under root. A path that leaves root, by its own
+// elements or through a symbolic link, is an error.
+func readFileIn(root, file string) ([]byte, error) {
+	if root == "" {
+		return nil, errors.New("no pack directory to read files from")
+	}
+	rel := file
+	if filepath.IsAbs(file) {
+		absRoot, err := filepath.Abs(root)
+		if err != nil {
+			return nil, err
+		}
+		if rel, err = filepath.Rel(absRoot, file); err != nil {
+			return nil, errors.New("the file is outside the pack")
+		}
+	}
+	if !filepath.IsLocal(rel) {
+		return nil, errors.New("the file is outside the pack")
+	}
+	dir, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer dir.Close()
+	return dir.ReadFile(rel)
+}
+
 func getPackDeps(p PackTemplateContext) PackTemplateContext {
 	out := make(PackTemplateContext, len(p)-1)
 	for k, v := range p {

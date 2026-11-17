@@ -44,6 +44,11 @@ type Renderer struct {
 	// or not
 	Format bool
 
+	// Hermetic is set where the render runs in a server and not for the user
+	// at a command line. The templates then get no function that reads the
+	// environment of the process, and read files of the pack only.
+	Hermetic bool
+
 	// stores the pack information, variables and tpl, so we can perform the
 	// output template rendering after pack deployment.
 	pack *pack.Pack
