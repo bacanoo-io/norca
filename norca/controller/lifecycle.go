@@ -283,7 +283,8 @@ func metaMatches(meta, selector map[string]string) bool {
 // group with its own enabled scaling block (scaling its group, not a custom
 // object) is scaled by the autoscaler, so the controller must not reset
 // its count. It copies the count of such groups from the existing job into
-// the desired job before the controller registers it.
+// the desired job before the controller registers it, limited to the
+// min and max of the desired scaling block.
 func PreserveScaledCounts(desired, existing *api.Job) {
 	if desired == nil || existing == nil {
 		return
@@ -299,7 +300,15 @@ func PreserveScaledCounts(desired, existing *api.Job) {
 			continue
 		}
 		if count, ok := counts[*tg.Name]; ok {
+			// The servers refuse a count outside of the bounds, so new
+			// bounds win over the count the autoscaler set under the old.
 			c := *count
+			if hi := tg.Scaling.Max; hi != nil && int64(c) > *hi {
+				c = int(*hi)
+			}
+			if lo := tg.Scaling.Min; lo != nil && int64(c) < *lo {
+				c = int(*lo)
+			}
 			tg.Count = &c
 		}
 	}

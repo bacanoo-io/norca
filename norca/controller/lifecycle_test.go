@@ -214,4 +214,38 @@ func TestLifecycle_PreserveScaledCounts(t *testing.T) {
 	must.Eq(t, 2, *desired.TaskGroups[2].Count) // the autoscaler scales the object
 }
 
+// The preserved count stays inside the scaling bounds of the desired job:
+// the server refuses a job whose count is outside of them.
+func TestLifecycle_PreserveScaledCounts_Bounds(t *testing.T) {
+	group := func(count int, lo, hi *int64) *api.TaskGroup {
+		tg := api.NewTaskGroup("auto", count)
+		tg.Scaling = &api.ScalingPolicy{Min: lo, Max: hi}
+		return tg
+	}
+	job := func(tg *api.TaskGroup) *api.Job {
+		j := api.NewServiceJob("j", "j", "global", 50)
+		j.TaskGroups = []*api.TaskGroup{tg}
+		return j
+	}
+	existing := job(api.NewTaskGroup("auto", 5))
+
+	// The maximum was lowered below the scaled count.
+	desired := job(group(2, pointer(int64(1)), pointer(int64(3))))
+	controller.PreserveScaledCounts(desired, existing)
+	must.Eq(t, 3, *desired.TaskGroups[0].Count)
+
+	// The minimum was raised above the scaled count.
+	desired = job(group(2, pointer(int64(8)), pointer(int64(10))))
+	controller.PreserveScaledCounts(desired, existing)
+	must.Eq(t, 8, *desired.TaskGroups[0].Count)
+
+	// Inside the bounds, or without them, the scaled count is kept.
+	desired = job(group(2, pointer(int64(1)), pointer(int64(10))))
+	controller.PreserveScaledCounts(desired, existing)
+	must.Eq(t, 5, *desired.TaskGroups[0].Count)
+	desired = job(group(2, nil, nil))
+	controller.PreserveScaledCounts(desired, existing)
+	must.Eq(t, 5, *desired.TaskGroups[0].Count)
+}
+
 func pointer[T any](v T) *T { return &v }
