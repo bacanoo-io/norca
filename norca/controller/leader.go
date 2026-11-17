@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"strconv"
 	"sync"
@@ -30,6 +31,10 @@ const (
 	defaultLeaseDuration   = 20 * time.Second
 	defaultLeaseRenew      = 15 * time.Second
 	defaultLeaseRetryEvery = 4 * time.Second
+
+	// maxLeaseSeconds bounds a stored lease duration, so that it converts
+	// to a time.Duration without overflow (about 31 years).
+	maxLeaseSeconds = 1e9
 )
 
 // LeaderElectionConfig configures a LeaderElector.
@@ -55,8 +60,9 @@ type LeaderElectionConfig struct {
 	LeaseDuration time.Duration
 
 	// RenewDeadline is how long the leader keeps leading without a
-	// successful renewal (default 15s). It must be shorter than
-	// LeaseDuration.
+	// successful renewal (default 15s), counted from the start of the last
+	// successful one; a renewal that is still on its way does not extend
+	// it. It must be shorter than LeaseDuration.
 	RenewDeadline time.Duration
 
 	// RetryPeriod is the interval of acquire and renew attempts (default
@@ -79,8 +85,10 @@ type LeaseRecord struct {
 
 func leaseFromItems(items api.VariableItems) LeaseRecord {
 	r := LeaseRecord{Holder: items[leaseItemHolder]}
-	if s, err := strconv.Atoi(items[leaseItemDuration]); err == nil {
-		r.LeaseDuration = time.Duration(s) * time.Second
+	// Seconds with a fraction; a value that is not a usable duration leaves
+	// it zero, and the reader falls back to its own lease duration.
+	if s, err := strconv.ParseFloat(items[leaseItemDuration], 64); err == nil && s > 0 && s <= maxLeaseSeconds {
+		r.LeaseDuration = time.Duration(math.Round(s * float64(time.Second)))
 	}
 	r.AcquireTime, _ = time.Parse(time.RFC3339Nano, items[leaseItemAcquireTime])
 	r.RenewTime, _ = time.Parse(time.RFC3339Nano, items[leaseItemRenewTime])
@@ -90,7 +98,9 @@ func leaseFromItems(items api.VariableItems) LeaseRecord {
 
 func (r LeaseRecord) items() api.VariableItems {
 	items := api.VariableItems{
-		leaseItemDuration:    strconv.Itoa(int(r.LeaseDuration / time.Second)),
+		// Not whole seconds only: the candidates wait for the duration
+		// stored here, and a truncated one lets them take over early.
+		leaseItemDuration:    strconv.FormatFloat(r.LeaseDuration.Seconds(), 'f', -1, 64),
 		leaseItemAcquireTime: r.AcquireTime.UTC().Format(time.RFC3339Nano),
 		leaseItemRenewTime:   r.RenewTime.UTC().Format(time.RFC3339Nano),
 		leaseItemTransitions: strconv.Itoa(r.Transitions),
@@ -115,6 +125,10 @@ type LeaderElector struct {
 	observed      LeaseRecord
 	observedIndex uint64
 	observedTime  time.Time
+
+	// renewed is when the last successful acquire or renew attempt of this
+	// candidate started; the renew deadline counts from it.
+	renewed time.Time
 }
 
 // NewLeaderElector returns a leader elector. cfg.Path must be set.
@@ -228,38 +242,74 @@ func (le *LeaderElector) acquire(ctx context.Context) bool {
 	}
 }
 
-// renew renews the lease every RetryPeriod; it returns when a renewal did
-// not succeed within RenewDeadline, the lease was taken over, or ctx is
-// canceled.
+// renew renews the lease every RetryPeriod; it returns when RenewDeadline
+// passed since the last successful renewal, the lease was taken over, or
+// ctx is canceled.
+//
+// The deadline counts from the start of the last successful attempt (the
+// candidates count LeaseDuration from a moment after that write), and it
+// also ends an attempt that is still on its way, even if the backend does
+// not return then: a candidate may take the lease over LeaseDuration after
+// that renewal, whatever this side is waiting for.
 func (le *LeaderElector) renew(ctx context.Context) {
-	lastRenew := le.now()
 	ticker := time.NewTicker(le.cfg.RetryPeriod)
 	defer ticker.Stop()
 	for {
+		deadline := le.renewedAt().Add(le.cfg.RenewDeadline)
+		expired := time.NewTimer(deadline.Sub(le.now()))
 		select {
 		case <-ctx.Done():
+			expired.Stop()
+			return
+		case <-expired.C:
+			le.logger.Warn("renew deadline exceeded, giving up the leadership")
 			return
 		case <-ticker.C:
 		}
-		attemptCtx, cancel := context.WithTimeout(ctx, le.cfg.RenewDeadline)
-		ok, err := le.tryAcquireOrRenew(attemptCtx)
-		cancel()
+
+		type result struct {
+			ok  bool
+			err error
+		}
+		attemptCtx, cancel := context.WithCancel(ctx)
+		done := make(chan result, 1)
+		go func() {
+			ok, err := le.tryAcquireOrRenew(attemptCtx)
+			done <- result{ok, err}
+		}()
+		var res result
+		select {
+		case res = <-done:
+			expired.Stop()
+			cancel()
+		case <-expired.C:
+			cancel()
+			le.logger.Warn("renew deadline exceeded during a renewal, giving up the leadership")
+			return
+		case <-ctx.Done():
+			expired.Stop()
+			cancel()
+			return
+		}
 		switch {
-		case ok:
-			lastRenew = le.now()
+		case res.ok:
 			continue
-		case err == nil:
+		case res.err == nil:
 			le.logger.Warn("lost the lease", "leader", le.Leader())
 			return
 		case ctx.Err() != nil:
 			return
 		}
-		le.logger.Warn("renewing the lease failed", "error", err)
-		if le.now().Sub(lastRenew) >= le.cfg.RenewDeadline {
-			le.logger.Warn("renew deadline exceeded, giving up the leadership")
-			return
-		}
+		le.logger.Warn("renewing the lease failed", "error", res.err)
 	}
+}
+
+// renewedAt returns when the last successful attempt of this candidate
+// started.
+func (le *LeaderElector) renewedAt() time.Time {
+	le.mu.Lock()
+	defer le.mu.Unlock()
+	return le.renewed
 }
 
 // tryAcquireOrRenew makes one attempt. It returns true if this candidate
@@ -276,6 +326,9 @@ func (le *LeaderElector) tryAcquireOrRenew(ctx context.Context) (bool, error) {
 
 	v, err := le.vars.ReadVariable(ctx, le.cfg.Namespace, le.cfg.Path)
 	if errors.Is(err, ErrNotFound) {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
 		out, err := le.vars.WriteVariable(ctx, &api.Variable{
 			Namespace: le.cfg.Namespace,
 			Path:      le.cfg.Path,
@@ -292,10 +345,14 @@ func (le *LeaderElector) tryAcquireOrRenew(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
+	// A change of the lease is dated when the read returned, not when it
+	// started: the holder may have renewed while the read was on its way,
+	// and LeaseDuration must pass after a renewal before a takeover.
+	readAt := le.now()
 	cur := leaseFromItems(v.Items)
 	le.mu.Lock()
 	if v.ModifyIndex != le.observedIndex {
-		le.observed, le.observedIndex, le.observedTime = cur, v.ModifyIndex, now
+		le.observed, le.observedIndex, le.observedTime = cur, v.ModifyIndex, readAt
 	}
 	observedTime := le.observedTime
 	le.mu.Unlock()
@@ -304,7 +361,7 @@ func (le *LeaderElector) tryAcquireOrRenew(ctx context.Context) (bool, error) {
 	if duration <= 0 {
 		duration = le.cfg.LeaseDuration
 	}
-	if cur.Holder != "" && cur.Holder != le.cfg.Identity && now.Before(observedTime.Add(duration)) {
+	if cur.Holder != "" && cur.Holder != le.cfg.Identity && readAt.Before(observedTime.Add(duration)) {
 		return false, nil
 	}
 
@@ -313,6 +370,11 @@ func (le *LeaderElector) tryAcquireOrRenew(ctx context.Context) (bool, error) {
 		desired.Transitions = cur.Transitions
 	} else {
 		desired.Transitions = cur.Transitions + 1
+	}
+	// An attempt that was given up (its deadline passed, or Run ended) must
+	// not write any more, also with a backend that ignores the context.
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
 	out, err := le.vars.WriteVariable(ctx, &api.Variable{
 		Namespace:   le.cfg.Namespace,
@@ -329,10 +391,16 @@ func (le *LeaderElector) tryAcquireOrRenew(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+// observe records a successful write of this candidate; now is when the
+// attempt started.
 func (le *LeaderElector) observe(r LeaseRecord, index uint64, now time.Time) {
 	le.mu.Lock()
 	defer le.mu.Unlock()
 	le.observed, le.observedIndex, le.observedTime = r, index, now
+	// Never backwards: an attempt that was given up may still finish late.
+	if now.After(le.renewed) {
+		le.renewed = now
+	}
 }
 
 // release gives up the lease if this candidate still holds it, by clearing
