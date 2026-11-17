@@ -25,10 +25,22 @@
 // Dependents of a deleted owner are never collected while an object with the
 // owner's kind, namespace and name exists again (a re-created or restored
 // owner adopts them).
+//
+// The collector acts with the rights of the servers and has no caller. A
+// dependent whose deletion does more than remove the object (Deps.Guarded: it
+// destroys data in the storage) is deleted only if the deletion of its owner
+// names it (CustomObject.DeletionApproved, ObjectTombstone.ApprovedDependents):
+// whoever deleted the owner was checked for the right to delete that
+// dependent then. The list goes on to the deletions the collector makes
+// itself, so it holds through objects in between. A guarded dependent that is
+// not named (it was written after the check, or the owner was deleted by the
+// servers) is let go of instead: its reference to the owner is removed, and
+// it stays.
 package objectgc
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -70,8 +82,20 @@ type Deps struct {
 	// DeleteObject deletes a dependent object like a deletion in the
 	// background mode: an object with finalizers is marked for deletion,
 	// one without is removed (leaving a tombstone). It checks the modify
-	// index of obj.
-	DeleteObject func(obj *structs.CustomObject) error
+	// index of obj. approved is recorded with the deletion: the guarded
+	// dependents of obj the collector may delete in turn.
+	DeleteObject func(obj *structs.CustomObject, approved []string) error
+
+	// Guarded reports whether the deletion of the object does more than
+	// remove it, so that it needs rights of its own. Optional: without it
+	// no object is guarded.
+	Guarded func(obj *structs.CustomObject) bool
+
+	// ReleaseObject removes the references of a guarded dependent to an
+	// owner that was deleted without the dependent being approved, and
+	// records why it stays. It checks the modify index of obj. It is
+	// needed with Guarded.
+	ReleaseObject func(obj *structs.CustomObject, ownerKindRef, ownerNamespace, ownerName string) error
 
 	// RemoveObject removes an object marked for deletion, with check-and-set
 	// on its modify index, leaving a tombstone for the propagation mode.
@@ -218,6 +242,10 @@ func (c *Collector) run(ctx context.Context, doneCh chan struct{}) {
 type owner struct {
 	group, kind, namespace, name string
 	foreground                   bool
+
+	// approved are the IDs of the guarded dependents that the deletion of
+	// the owner may take with it.
+	approved []string
 }
 
 func (o owner) ref() string {
@@ -294,7 +322,8 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 
 	for _, obj := range deleting {
 		o := owner{group: obj.Group, kind: obj.Kind, namespace: obj.Namespace, name: obj.Name,
-			foreground: obj.DeletionPropagation == structs.ObjectPropagationForeground}
+			foreground: obj.DeletionPropagation == structs.ObjectPropagationForeground,
+			approved:   obj.DeletionApproved}
 		remaining := 0
 		if o.foreground {
 			remaining = c.collectDependents(w, o)
@@ -319,7 +348,8 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 	var done []string
 	for _, t := range tombstones {
 		o := owner{group: t.Group, kind: t.Kind, namespace: t.Namespace, name: t.Name,
-			foreground: t.Propagation == structs.ObjectPropagationForeground}
+			foreground: t.Propagation == structs.ObjectPropagationForeground,
+			approved:   t.ApprovedDependents}
 		remaining := 0
 		// A re-created owner adopts the dependents.
 		if _, exists := w.objects[o.ref()]; !exists {
@@ -354,13 +384,30 @@ func (c *Collector) collectDependents(w *world, o owner) int {
 		if objectRef(dep) == o.ref() || (o.foreground && waitsFor(w, dep, o)) {
 			continue
 		}
-		remaining++
 		if dep.Deleting() {
+			remaining++
 			continue
 		}
+		// Nobody was checked for the right to delete this dependent with
+		// its owner: it is not deleted, and no longer waited for.
+		if c.deps.Guarded != nil && c.deps.Guarded(dep) && !slices.Contains(o.approved, dep.ID) {
+			c.logger.Info("dependent object is not deleted with its owner: its deletion was not approved",
+				"owner", o.name, "object", dep.KindRef()+"/"+dep.Name, "namespace", dep.Namespace)
+			if err := c.deps.ReleaseObject(dep, structs.ObjectKindRef(o.group, o.kind), o.namespace, o.name); err != nil {
+				level := c.logger.Warn
+				if structs.IsObjectConflictError(err) {
+					level = c.logger.Debug
+				}
+				level("failed to release dependent object", "object", dep.KindRef()+"/"+dep.Name,
+					"namespace", dep.Namespace, "error", err)
+				remaining++
+			}
+			continue
+		}
+		remaining++
 		c.logger.Debug("deleting dependent object", "owner", o.name, "object", dep.KindRef()+"/"+dep.Name,
 			"namespace", dep.Namespace)
-		if err := c.deps.DeleteObject(dep); err != nil {
+		if err := c.deps.DeleteObject(dep, o.approved); err != nil {
 			c.logger.Warn("failed to delete dependent object", "object", dep.KindRef()+"/"+dep.Name,
 				"namespace", dep.Namespace, "error", err)
 		}

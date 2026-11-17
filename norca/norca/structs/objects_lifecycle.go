@@ -300,6 +300,11 @@ type ObjectTombstone struct {
 	// DeleteTime (UnixNano) is when the object was deleted.
 	DeleteTime int64
 
+	// ApprovedDependents are the dependents of the deleted object that the
+	// garbage collector may delete although their deletion destroys data in
+	// the storage: see CustomObject.DeletionApproved.
+	ApprovedDependents []string
+
 	CreateIndex uint64
 }
 

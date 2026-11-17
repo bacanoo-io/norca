@@ -264,3 +264,84 @@ plugin { policy = "read" }`)
 	must.NotNil(t, weekly)
 	must.False(t, weekly.Deleting())
 }
+
+// The check of a deletion sees the dependents that exist then. The garbage
+// collector deletes a volume request or a snapshot schedule that destroys
+// storage only if that check named it: one that was written, or made
+// destructive, after the check stays, without its reference to the owner
+// (review finding SEC-8).
+func TestObjectGC_KeepsDependentsNobodyWasCheckedFor(t *testing.T) {
+	ci.Parallel(t)
+	c, volumes, _, cleanup := dependentsTestServer(t)
+	defer cleanup()
+
+	database := func(name string) *structs.ObjectOwnerReference {
+		return ownedBy(testOwnerGroup, testOwnerKind, name)
+	}
+	finalizers := func(name string, add, remove []string) {
+		t.Helper()
+		var resp structs.CustomObjectWriteResponse
+		must.NoError(t, c.s.RPC("CustomObject.UpdateFinalizers", &structs.CustomObjectFinalizersRequest{
+			Group: testOwnerGroup, Kind: testOwnerKind, Name: name, Add: add, Remove: remove,
+			WriteRequest: c.write("default"),
+		}, &resp))
+	}
+	kept := func(name string) {
+		t.Helper()
+		var obj *structs.CustomObject
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			obj = c.object(structs.OperatorsGroup, csiVolumeRequestKind, name)
+			return obj == nil || obj.Deleting() || len(obj.Owners) == 0
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s is let go of", name))
+		must.NotNil(t, obj, must.Sprintf("%s was deleted with its owner", name))
+		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", name))
+		must.NotNil(t, c.volume(name))
+
+		log, err := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, csiVolumeRequestKind, "default", name)
+		must.NoError(t, err)
+		must.NotNil(t, log)
+		must.True(t, slices.ContainsFunc(log.Events, func(e *structs.ObjectEvent) bool {
+			return e.Reason == objectEventDependentKept && e.Type == structs.ObjectEventTypeWarning
+		}), must.Sprintf("%s has no event that says why it stays", name))
+	}
+
+	objects := mock.CreatePolicyAndToken(t, c.s.State(), 1001, "objects", `namespace "default" {
+  object "example.com/Database" { capabilities = ["read", "write"] }
+}`)
+	noVolume := &certTest{t: t, s: c.s, token: objects.SecretID}
+
+	// A request is written as the dependent of an owner that was deleted a
+	// moment ago, when it had no dependent.
+	must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, "early", map[string]any{}))
+	must.NoError(t, noVolume.deleteWith(testOwnerGroup, testOwnerKind, "early", ""))
+	c.waitGone(testOwnerGroup, testOwnerKind, "early")
+	c.volumeRequestOwnedBy("late", "delete", database("early"))
+	kept("late")
+
+	// A request that retained its volume when its owner was deleted, and
+	// does not when the owner goes: the owner waits for a finalizer.
+	must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, "slow", map[string]any{}))
+	finalizers("slow", []string{"example.com/hold"}, nil)
+	c.volumeRequestOwnedBy("changed", "retain", database("slow"))
+	must.NoError(t, noVolume.deleteWith(testOwnerGroup, testOwnerKind, "slow", ""))
+	must.True(t, c.object(testOwnerGroup, testOwnerKind, "slow").Deleting())
+	must.NoError(t, c.applyOwned(structs.OperatorsGroup, csiVolumeRequestKind, "changed",
+		volumeSpec(func(m map[string]any) { m["deletion_policy"] = "delete" }), database("slow")))
+	finalizers("slow", nil, []string{"example.com/hold"})
+	c.waitGone(testOwnerGroup, testOwnerKind, "slow")
+	kept("changed")
+
+	// A dependent that the deleter of the owner was checked for goes, also
+	// when the owner waited for a finalizer in between.
+	must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, "checked", map[string]any{}))
+	finalizers("checked", []string{"example.com/hold"}, nil)
+	c.volumeRequestOwnedBy("named", "delete", database("checked"))
+	must.NoError(t, c.deleteWith(testOwnerGroup, testOwnerKind, "checked", ""))
+	marked := c.object(testOwnerGroup, testOwnerKind, "checked")
+	must.Eq(t, []string{c.object(structs.OperatorsGroup, csiVolumeRequestKind, "named").ID}, marked.DeletionApproved)
+	finalizers("checked", nil, []string{"example.com/hold"})
+	c.waitGone(structs.OperatorsGroup, csiVolumeRequestKind, "named")
+	must.Nil(t, c.volume("named"))
+
+	volumes.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-default-named"}, f.deletes) })
+}

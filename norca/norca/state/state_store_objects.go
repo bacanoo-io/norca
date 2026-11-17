@@ -485,7 +485,13 @@ func (s *StateStore) DeleteCustomObjectRequest(msgType structs.MessageType, inde
 	}
 	switch req.Propagation {
 	case structs.ObjectPropagationBackground, structs.ObjectPropagationForeground:
-		if err := insertObjectTombstoneTxn(txn, index, existing, req.Propagation, req.DeleteTime); err != nil {
+		// The dependents the deleter was checked for: of an object that was
+		// marked for deletion the list of its mark, whoever removes it.
+		approved := req.ApprovedDependents
+		if existing.Deleting() {
+			approved = existing.DeletionApproved
+		}
+		if err := insertObjectTombstoneTxn(txn, index, existing, req.Propagation, req.DeleteTime, approved); err != nil {
 			return err
 		}
 	}

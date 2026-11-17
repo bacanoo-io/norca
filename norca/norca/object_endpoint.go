@@ -1075,6 +1075,7 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 				obj.Finalizers = slices.Clone(existing.Finalizers)
 				obj.DeletionTime = existing.DeletionTime
 				obj.DeletionPropagation = existing.DeletionPropagation
+				obj.DeletionApproved = slices.Clone(existing.DeletionApproved)
 				obj.Generation = existing.Generation
 				obj.CreateTime = existing.CreateTime
 				obj.CreateIndex = existing.CreateIndex

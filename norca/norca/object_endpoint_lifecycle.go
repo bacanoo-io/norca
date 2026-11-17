@@ -146,6 +146,15 @@ func objectReporter(args structs.RequestWithIdentity) string {
 // check-and-set on its modify index, leaving a tombstone for the background
 // and foreground propagation modes.
 func (s *Server) removeCustomObject(obj *structs.CustomObject, propagation string) (uint64, error) {
+	return s.removeCustomObjectApproved(obj, propagation, nil)
+}
+
+// removeCustomObjectApproved removes an object as removeCustomObject does,
+// and records in its tombstone the dependents the garbage collector may
+// delete although their deletion destroys data in the storage (see
+// CustomObject.DeletionApproved). For an object that is marked for deletion
+// the list of the mark is recorded instead.
+func (s *Server) removeCustomObjectApproved(obj *structs.CustomObject, propagation string, approved []string) (uint64, error) {
 	if propagation == "" {
 		propagation = structs.ObjectPropagationBackground
 	}
@@ -157,6 +166,7 @@ func (s *Server) removeCustomObject(obj *structs.CustomObject, propagation strin
 		ExpectedModifyIndex: obj.ModifyIndex,
 		Propagation:         propagation,
 		DeleteTime:          time.Now().UnixNano(),
+		ApprovedDependents:  approved,
 		WriteRequest:        structs.WriteRequest{Region: s.Region()},
 	}
 	_, index, err := s.raftApply(structs.CustomObjectDeleteRequestType|structs.IgnoreUnknownTypeFlag, req)
@@ -304,11 +314,19 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 
 		// What the deletion takes with it: the garbage collector deletes
 		// the dependents with the rights of the servers, so the caller
-		// needs the rights for those whose deletion deletes storage.
+		// needs the rights for those whose deletion deletes storage. The
+		// ones the caller was checked for are recorded with the deletion:
+		// the collector deletes no other one of that sort.
+		var approved []string
 		if propagation != structs.ObjectPropagationOrphan {
-			if _, err := checkObjectDependentsDelete(snap, aclObj, existing); err != nil {
+			deps, err := checkObjectDependentsDelete(snap, aclObj, existing)
+			if err != nil {
 				return err
 			}
+			for _, dep := range deps {
+				approved = append(approved, dep.ID)
+			}
+			slices.Sort(approved)
 		}
 
 		// Validating type-bound webhooks that review deletions. They
@@ -330,6 +348,7 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 			marked = existing.Copy()
 			marked.DeletionTime = time.Now().UnixNano()
 			marked.DeletionPropagation = propagation
+			marked.DeletionApproved = approved
 			marked.ModifyTime = marked.DeletionTime
 		}
 		if args.DryRun {
@@ -346,7 +365,7 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 
 		var index uint64
 		if removeNow {
-			index, err = c.srv.removeCustomObject(existing, propagation)
+			index, err = c.srv.removeCustomObjectApproved(existing, propagation, approved)
 		} else {
 			req := &structs.CustomObjectUpsertStateRequest{
 				Object:              marked,

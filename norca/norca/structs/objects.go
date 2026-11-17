@@ -359,6 +359,13 @@ type CustomObject struct {
 	DeletionTime        int64
 	DeletionPropagation string
 
+	// DeletionApproved is set by the servers with DeletionTime: the IDs of
+	// the dependents whose deletion destroys data in the storage (volume
+	// requests, snapshot schedules) and for which whoever asked for this
+	// deletion had the rights to delete them. The garbage collector deletes
+	// such a dependent only if it is listed, and lets go of it otherwise.
+	DeletionApproved []string
+
 	// Generation increases on every change of the spec.
 	Generation uint64
 
@@ -481,6 +488,7 @@ func (o *CustomObject) Copy() *CustomObject {
 	*no = *o
 	no.Labels = maps.Clone(o.Labels)
 	no.Finalizers = slices.Clone(o.Finalizers)
+	no.DeletionApproved = slices.Clone(o.DeletionApproved)
 	if o.Owners != nil {
 		no.Owners = make([]*ObjectOwnerReference, len(o.Owners))
 		for i, ref := range o.Owners {
@@ -739,6 +747,11 @@ type CustomObjectDeleteStateRequest struct {
 	// DeleteTime (UnixNano) is the time of the deletion recorded in the
 	// tombstone.
 	DeleteTime int64
+
+	// ApprovedDependents is recorded in the tombstone of an object that was
+	// not marked for deletion before: see CustomObject.DeletionApproved. The
+	// tombstone of a marked object gets the list of the mark.
+	ApprovedDependents []string
 
 	WriteRequest
 }

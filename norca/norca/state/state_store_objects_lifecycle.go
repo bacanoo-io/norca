@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	memdb "github.com/hashicorp/go-memdb"
@@ -160,19 +161,20 @@ func deleteObjectEventLogTxn(txn *txn, index uint64, kindRef, namespace, name st
 }
 
 // insertObjectTombstoneTxn records the deletion of an object.
-func insertObjectTombstoneTxn(txn *txn, index uint64, obj *structs.CustomObject, propagation string, deleteTime int64) error {
+func insertObjectTombstoneTxn(txn *txn, index uint64, obj *structs.CustomObject, propagation string, deleteTime int64, approved []string) error {
 	if obj.ID == "" {
 		return nil
 	}
 	tombstone := &structs.ObjectTombstone{
-		ID:          obj.ID,
-		Group:       obj.Group,
-		Kind:        obj.Kind,
-		Namespace:   obj.Namespace,
-		Name:        obj.Name,
-		Propagation: propagation,
-		DeleteTime:  deleteTime,
-		CreateIndex: index,
+		ID:                 obj.ID,
+		Group:              obj.Group,
+		Kind:               obj.Kind,
+		Namespace:          obj.Namespace,
+		Name:               obj.Name,
+		Propagation:        propagation,
+		DeleteTime:         deleteTime,
+		ApprovedDependents: slices.Clone(approved),
+		CreateIndex:        index,
 	}
 	if err := txn.Insert(TableObjectTombstones, tombstone); err != nil {
 		return fmt.Errorf("object tombstone insert failed: %w", err)

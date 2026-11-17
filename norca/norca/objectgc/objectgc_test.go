@@ -4,6 +4,7 @@
 package objectgc
 
 import (
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -27,17 +28,21 @@ type harness struct {
 	gc    *Collector
 	now   time.Time
 
-	l       sync.Mutex
-	index   uint64
-	stopped []string
-	deleted []string
+	l        sync.Mutex
+	index    uint64
+	stopped  []string
+	deleted  []string
+	released []string
 }
+
+// guardedLabel marks the objects of a test whose deletion is guarded.
+const guardedLabel = "guarded"
 
 func newHarness(t *testing.T) *harness {
 	h := &harness{t: t, store: state.TestStateStore(t), now: time.Unix(1_700_000_000, 0), index: 100}
 	h.gc = New(hclog.NewNullLogger(), DefaultConfig(), &Deps{
 		State: func() *state.StateStore { return h.store },
-		DeleteObject: func(obj *structs.CustomObject) error {
+		DeleteObject: func(obj *structs.CustomObject, approved []string) error {
 			h.l.Lock()
 			h.deleted = append(h.deleted, obj.Name)
 			h.l.Unlock()
@@ -45,9 +50,21 @@ func newHarness(t *testing.T) *harness {
 				marked := obj.Copy()
 				marked.DeletionTime = h.now.UnixNano()
 				marked.DeletionPropagation = structs.ObjectPropagationBackground
+				marked.DeletionApproved = approved
 				return h.store.UpsertCustomObject(structs.MsgTypeTestSetup, h.next(), marked, obj.ModifyIndex)
 			}
-			return h.remove(obj, structs.ObjectPropagationBackground)
+			return h.removeApproved(obj, structs.ObjectPropagationBackground, approved)
+		},
+		Guarded: func(obj *structs.CustomObject) bool { return obj.Labels[guardedLabel] == "true" },
+		ReleaseObject: func(obj *structs.CustomObject, kindRef, namespace, name string) error {
+			h.l.Lock()
+			h.released = append(h.released, obj.Name)
+			h.l.Unlock()
+			released := obj.Copy()
+			released.Owners = slices.DeleteFunc(released.Owners, func(r *structs.ObjectOwnerReference) bool {
+				return r.Kind == kindRef && r.Namespace == namespace && r.Name == name
+			})
+			return h.store.UpsertCustomObject(structs.MsgTypeTestSetup, h.next(), released, obj.ModifyIndex)
 		},
 		RemoveObject: h.remove,
 		StopJob: func(namespace, id string) error {
@@ -78,10 +95,33 @@ func (h *harness) next() uint64 {
 }
 
 func (h *harness) remove(obj *structs.CustomObject, propagation string) error {
+	return h.removeApproved(obj, propagation, nil)
+}
+
+// removeApproved removes an object as a deletion does whose caller was
+// checked for the guarded dependents with the IDs given.
+func (h *harness) removeApproved(obj *structs.CustomObject, propagation string, approved []string) error {
 	return h.store.DeleteCustomObjectRequest(structs.MsgTypeTestSetup, h.next(), &structs.CustomObjectDeleteStateRequest{
 		Group: obj.Group, Kind: obj.Kind, Namespace: obj.Namespace, Name: obj.Name,
 		ExpectedModifyIndex: obj.ModifyIndex, Propagation: propagation, DeleteTime: h.now.UnixNano(),
+		ApprovedDependents: approved,
 	})
+}
+
+// guarded creates an object whose deletion is guarded.
+func (h *harness) guarded(name string, owners ...string) *structs.CustomObject {
+	obj := h.object(name, owners...).Copy()
+	obj.Labels = map[string]string{guardedLabel: "true"}
+	must.NoError(h.t, h.store.UpsertCustomObject(structs.MsgTypeTestSetup, h.next(), obj, obj.ModifyIndex))
+	return h.get(name)
+}
+
+// update writes a changed copy of an object.
+func (h *harness) update(name string, change func(obj *structs.CustomObject)) *structs.CustomObject {
+	obj := h.get(name).Copy()
+	change(obj)
+	must.NoError(h.t, h.store.UpsertCustomObject(structs.MsgTypeTestSetup, h.next(), obj, obj.ModifyIndex))
+	return h.get(name)
 }
 
 func (h *harness) object(name string, owners ...string) *structs.CustomObject {
@@ -343,4 +383,100 @@ func TestCollector_Run(t *testing.T) {
 		wait.Timeout(10*time.Second),
 		wait.Gap(10*time.Millisecond),
 	))
+}
+
+// A dependent whose deletion is guarded is deleted with its owner only if
+// the deletion of the owner names it: the collector has no caller, and the
+// list says for which dependents the deleter of the owner was checked. Any
+// other guarded dependent is let go of: it stays, without its reference to
+// the owner (review finding SEC-8).
+func TestCollector_GuardedDependents(t *testing.T) {
+	ci.Parallel(t)
+	h := newHarness(t)
+
+	kept := func(name string) {
+		t.Helper()
+		obj := h.get(name)
+		must.NotNil(t, obj, must.Sprintf("%s was deleted", name))
+		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", name))
+		must.Len(t, 0, obj.Owners, must.Sprintf("%s still has its owner", name))
+	}
+
+	// Background: the approved dependent and the one that is not guarded
+	// go, the other guarded one stays.
+	owner := h.object("owner")
+	h.guarded("approved", "owner")
+	h.guarded("unapproved", "owner")
+	h.object("plain", "owner")
+	must.NoError(t, h.removeApproved(owner, structs.ObjectPropagationBackground, []string{"id-approved"}))
+	h.collect()
+	must.Nil(t, h.get("approved"))
+	must.Nil(t, h.get("plain"))
+	kept("unapproved")
+	h.collect()
+	kept("unapproved")
+	must.Eq(t, []string{"unapproved"}, h.released)
+
+	// The list holds through an object in between, which the collector
+	// deletes itself, with finalizers (marked) or without (removed).
+	for _, between := range []string{"removed", "marked"} {
+		top := h.object("top-" + between)
+		h.object(between, "top-"+between)
+		if between == "marked" {
+			h.update(between, func(obj *structs.CustomObject) { obj.Finalizers = []string{"example.com/hold"} })
+		}
+		h.guarded("deep-"+between, between)
+		h.guarded("deep-late-"+between, between)
+		must.NoError(t, h.removeApproved(top, structs.ObjectPropagationBackground, []string{"id-deep-" + between}))
+		h.collect()
+		if between == "marked" {
+			must.Eq(t, []string{"id-deep-marked"}, h.get(between).DeletionApproved)
+			h.update(between, func(obj *structs.CustomObject) { obj.Finalizers = nil })
+			h.collect()
+		}
+		h.collect()
+		must.Nil(t, h.get(between))
+		must.Nil(t, h.get("deep-"+between), must.Sprintf("deep-%s", between))
+		kept("deep-late-" + between)
+	}
+
+	// An owner that is marked for deletion: the list of its mark goes into
+	// its tombstone, whoever removes the object.
+	h.object("waiting")
+	h.guarded("with-waiting", "waiting")
+	h.update("waiting", func(obj *structs.CustomObject) {
+		obj.Finalizers = []string{"example.com/hold"}
+		obj.DeletionTime = h.now.UnixNano()
+		obj.DeletionPropagation = structs.ObjectPropagationBackground
+		obj.DeletionApproved = []string{"id-with-waiting"}
+	})
+	must.True(t, h.collect())
+	must.NotNil(t, h.get("with-waiting"))
+	h.update("waiting", func(obj *structs.CustomObject) { obj.Finalizers = nil })
+	h.collect()
+	h.collect()
+	must.Nil(t, h.get("waiting"))
+	must.Nil(t, h.get("with-waiting"))
+
+	// Foreground: a guarded dependent that is not approved does not hold
+	// its owner, and stays.
+	h.object("front")
+	h.guarded("behind", "front")
+	h.update("front", func(obj *structs.CustomObject) {
+		obj.DeletionTime = h.now.UnixNano()
+		obj.DeletionPropagation = structs.ObjectPropagationForeground
+	})
+	h.collect()
+	h.collect()
+	must.Nil(t, h.get("front"))
+	kept("behind")
+
+	// A guarded dependent with another owner alive is left alone, with both
+	// references.
+	gone := h.object("gone")
+	h.object("alive")
+	h.guarded("shared", "gone", "alive")
+	must.NoError(t, h.remove(gone, structs.ObjectPropagationBackground))
+	h.collect()
+	must.Len(t, 2, h.get("shared").Owners)
 }
