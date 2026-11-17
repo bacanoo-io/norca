@@ -33,7 +33,7 @@ func (m *releaseManager) computeDrift(snap *state.StateSnapshot, rel *structs.Re
 		switch {
 		case !live.exists():
 			entry.Reason = "missing"
-		case ref.Hash != "" && live.hash != ref.Hash:
+		case ref.Hash != "" && live.refHash != ref.Hash:
 			entry.Reason = "modified"
 		default:
 			continue

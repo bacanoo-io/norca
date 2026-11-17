@@ -599,7 +599,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 			}
 			continue
 		}
-		ref.ModifyIndex, ref.Version, ref.Hash = live.modifyIndex, live.version, live.hash
+		ref.ModifyIndex, ref.Version, ref.Hash = live.modifyIndex, live.version, live.refHash
 		owned = append(owned, ref)
 	}
 
@@ -774,7 +774,7 @@ func (m *releaseManager) ownedAfterFailure(op *releaseOp, previous []*structs.Re
 			continue
 		}
 		ref := *c.ref
-		ref.ModifyIndex, ref.Version, ref.Hash = live.modifyIndex, live.version, live.hash
+		ref.ModifyIndex, ref.Version, ref.Hash = live.modifyIndex, live.version, live.refHash
 		add(&ref)
 	}
 	var out []*structs.ReleaseResourceRef

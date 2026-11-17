@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -30,8 +31,19 @@ type liveResource struct {
 
 	modifyIndex uint64
 	version     uint64
-	hash        string
+
+	// hash is the hash of the content (releaseResourceHash), compared in
+	// memory only. refHash is what the status of the release records and
+	// drift detection compares: the same, except for a Variables entry,
+	// whose items are secret and whose status every reader of the release
+	// gets (releaseVariableHash).
+	hash    string
+	refHash string
 }
+
+// releaseVariableHashPrefix starts the hash of a Variables entry in the
+// status of a release: "hmac-sha256:<root key ID>:<hex>".
+const releaseVariableHashPrefix = "hmac-sha256:"
 
 func (l *liveResource) exists() bool { return l != nil && l.res != nil }
 
@@ -87,6 +99,9 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 		}
 		res.Variable = dv
 		live.modifyIndex = v.ModifyIndex
+		if live.refHash, err = m.releaseVariableHash(ref, v.KeyID, dv.Items); err != nil {
+			return nil, err
+		}
 	case structs.ReleaseResourceObjectKind:
 		group, kind, err := structs.ParseObjectKindRef(ref.Name)
 		if err != nil {
@@ -144,7 +159,54 @@ func (m *releaseManager) readLive(snap *state.StateSnapshot, ref *structs.Releas
 	}
 	live.res = res
 	live.hash = releaseResourceHash(res)
+	if live.refHash == "" {
+		live.refHash = live.hash
+	}
 	return live, nil
+}
+
+// releaseVariableHash is the hash of the items of a Variables entry that
+// the status of a release records for drift detection. The status is read
+// with the read right on the release alone, and a plain hash of the items
+// could be tried offline against a guessed secret item, so the hash is
+// keyed: HMAC-SHA256 with a key derived from a root key of the keyring,
+// bound to the namespace and path. The ID of the root key is part of the
+// hash ("hmac-sha256:<key ID>:<hex>"): a hash recorded in ref is computed
+// again with its key, so that a Variable written again unchanged after a
+// key rotation is no drift. A new hash, and one whose key is no longer in
+// the keyring (which then compares as modified until the release is
+// applied again), uses the key the Variable is encrypted with.
+func (m *releaseManager) releaseVariableHash(ref *structs.ReleaseResourceRef, keyID string, items map[string]string) (string, error) {
+	var key []byte
+	if rest, ok := strings.CutPrefix(ref.Hash, releaseVariableHashPrefix); ok {
+		if id, _, ok := strings.Cut(rest, ":"); ok && id != "" {
+			if k, err := m.srv.encrypter.GetKey(id); err == nil {
+				keyID, key = id, k
+			}
+		}
+	}
+	if key == nil {
+		k, err := m.srv.encrypter.GetKey(keyID)
+		if err != nil {
+			return "", fmt.Errorf("failed to hash variable %q: %w", ref.Name, err)
+		}
+		key = k
+	}
+	// The root key encrypts the Variables: the hash gets its own key.
+	derive := hmac.New(sha256.New, key)
+	derive.Write([]byte("norca release variable hash v1"))
+	mac := hmac.New(sha256.New, derive.Sum(nil))
+	mac.Write([]byte(ref.Namespace))
+	mac.Write([]byte{0})
+	mac.Write([]byte(ref.Name))
+	mac.Write([]byte{0})
+	// encoding/json writes the keys of a map sorted.
+	data, err := json.Marshal(items)
+	if err != nil {
+		return "", err
+	}
+	mac.Write(data)
+	return releaseVariableHashPrefix + keyID + ":" + hex.EncodeToString(mac.Sum(nil)), nil
 }
 
 // releaseResourceHash hashes the user-controlled content of a resource, so
