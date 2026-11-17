@@ -466,17 +466,34 @@ Usage: norca secret engine delete [options] <name>
   deleted: revoke them first with "norca secret lease revoke -engine". The
   engine's admin credential (a built-in secret) is kept.
 
+  Before the engine is deleted, the revocations of its leases are sent to
+  its backend; the delete fails while that fails, or while leases have
+  expired without being revoked yet.
+
   If ACLs are enabled, this command requires the 'write-secret-engine'
-  capability.
+  capability, and with -force a management token.
 
 General Options:
 
-  ` + generalOptionsUsage(usageOptsDefault)
+  ` + generalOptionsUsage(usageOptsDefault) + `
+
+Delete Options:
+
+  -force
+    Delete the engine although the revocations of its leases can't be sent
+    to its backend, for an engine whose operator is gone for good. The
+    credentials of those leases may still be valid at the backend: the
+    server logs the leases, remove their credentials there by hand. Live
+    leases must still be revoked first. Requires a management token.
+`
 	return strings.TrimSpace(helpText)
 }
 
 func (c *SecretEngineDeleteCommand) AutocompleteFlags() complete.Flags {
-	return c.Meta.AutocompleteFlags(FlagSetClient)
+	return mergeAutocompleteFlags(c.Meta.AutocompleteFlags(FlagSetClient),
+		complete.Flags{
+			"-force": complete.PredictNothing,
+		})
 }
 
 func (c *SecretEngineDeleteCommand) AutocompleteArgs() complete.Predictor {
@@ -484,8 +501,10 @@ func (c *SecretEngineDeleteCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *SecretEngineDeleteCommand) Run(args []string) int {
+	var force bool
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
+	flags.BoolVar(&force, "force", false, "")
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
@@ -500,11 +519,20 @@ func (c *SecretEngineDeleteCommand) Run(args []string) int {
 		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
 		return 1
 	}
-	if _, err := client.SecretEngines().Delete(args[0], nil); err != nil {
+	if force {
+		_, err = client.SecretEngines().ForceDelete(args[0], nil)
+	} else {
+		_, err = client.SecretEngines().Delete(args[0], nil)
+	}
+	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error deleting secret engine: %s", err))
 		return 1
 	}
 	c.Ui.Output(fmt.Sprintf("Successfully deleted secret engine %q!", args[0]))
+	if force {
+		c.Ui.Warn("The engine was deleted with -force: revocations that could not be sent to its backend are lost.\n" +
+			"Credentials of its leases may still be valid at the backend; the server log (warn level) names those leases.")
+	}
 	return 0
 }
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -149,8 +150,10 @@ func (s *Server) secretEngineApply(engine *structs.SecretEngine, expected uint64
 }
 
 // secretEngineDelete removes an engine without live leases, with its ended
-// leases.
-func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64) (uint64, error) {
+// leases. With force it is removed although leases have expired without
+// being revoked, or the revocations can't be sent to the backend; those
+// leases are logged, their credentials may still be valid there.
+func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64, force bool) (uint64, error) {
 	lock := s.secrets.engineLock(namespace, name)
 	lock.Lock()
 	defer lock.Unlock()
@@ -170,6 +173,9 @@ func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64) 
 		return 0, err
 	}
 	live, unrevoked := 0, 0
+	// The leases whose credential may still be valid in the backend: those
+	// never revoked, and those whose revocation is to be sent.
+	var neverRevoked, pending []string
 	now := time.Now()
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		l := raw.(*structs.SecretLease)
@@ -180,13 +186,16 @@ func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64) 
 			// Expired, but the lease watcher has not revoked it yet: its
 			// credential may still be valid in the backend.
 			unrevoked++
+			neverRevoked = append(neverRevoked, l.ID)
+		case l.Revoked && l.BackendRef != "" && now.UnixNano() < l.MaxExpireTime:
+			pending = append(pending, l.ID)
 		}
 	}
 	if live > 0 {
 		return 0, structs.NewErrRPCCodedf(http.StatusConflict,
 			"secret engine %q has %d live leases; revoke them first (norca secret lease revoke -engine %s)", name, live, name)
 	}
-	if unrevoked > 0 {
+	if unrevoked > 0 && !force {
 		return 0, structs.NewErrRPCCodedf(http.StatusConflict,
 			"secret engine %q has %d expired leases that are not revoked yet; revoke them first (norca secret lease revoke -engine %s)",
 			name, unrevoked, name)
@@ -210,8 +219,18 @@ func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64) 
 		engine := existing.Copy()
 		if err := backend.Sync(ctx, &secretengine.SyncRequest{Engine: engine, Revoked: revoked,
 			Call: s.secretOperatorCall(engine)}); err != nil {
-			return 0, secretBackendError(existing, "sending the revocations of its leases", err)
+			if !force {
+				return 0, secretBackendError(existing, "sending the revocations of its leases", err)
+			}
+			s.logger.Named("secrets").Warn("forced delete of a secret engine: the revocations of its leases could not be sent "+
+				"to the backend, their credentials may still be valid there",
+				"namespace", namespace, "engine", name, "leases", strings.Join(pending, ","), "error", err)
 		}
+	}
+	if len(neverRevoked) > 0 {
+		s.logger.Named("secrets").Warn("forced delete of a secret engine: leases that expired were never revoked, "+
+			"their credentials may still be valid at the backend",
+			"namespace", namespace, "engine", name, "leases", strings.Join(neverRevoked, ","))
 	}
 	resp, index, err := s.raftApply(structs.SecretEnginePurgeRequestType|structs.IgnoreUnknownTypeFlag,
 		&structs.SecretEnginePurgeRequest{Namespace: namespace, Name: name, ExpectedIndex: existing.ModifyIndex})

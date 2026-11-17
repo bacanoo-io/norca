@@ -526,6 +526,13 @@ type SecretEngineUpsertRequest struct {
 type SecretEngineDeleteRequest struct {
 	Name       string
 	CheckIndex *uint64
+
+	// Force deletes the engine although the revocations of its leases
+	// can't be sent to its backend (the operator is gone for good): the
+	// credentials of those leases may stay valid there. Only a management
+	// token may set it.
+	Force bool
+
 	WriteRequest
 }
 

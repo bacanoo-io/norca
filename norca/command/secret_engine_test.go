@@ -76,4 +76,45 @@ func TestSecretEngineCommands_Usage(t *testing.T) {
 	apply := &SecretEngineApplyCommand{Meta: Meta{Ui: ui}}
 	must.One(t, apply.Run([]string{filepath.Join(t.TempDir(), "missing.hcl")}))
 	must.StrContains(t, ui.ErrorWriter.String(), "Failed to read")
+
+	del := &SecretEngineDeleteCommand{Meta: Meta{Ui: cli.NewMockUi()}}
+	must.StrContains(t, del.Help(), "-force")
+	must.StrContains(t, del.Help(), "may still be valid at the backend")
+	must.StrContains(t, del.Help(), "management token")
+}
+
+func TestSecretEngineDeleteCommand_Force(t *testing.T) {
+	ci.Parallel(t)
+	srv, client, url := testServer(t, false, nil)
+	defer srv.Shutdown()
+
+	write := func() {
+		_, _, err := client.SecretEngines().Write(&api.SecretEngine{
+			Name:     "pg",
+			Type:     api.SecretEngineTypeOperator,
+			Operator: &api.SecretEngineOperator{Service: "pg"},
+			Roles:    []*api.SecretEngineRole{{Name: "worker", TTL: time.Minute}},
+		}, nil)
+		must.NoError(t, err)
+	}
+	engines := func() int {
+		list, _, err := client.SecretEngines().List("", nil)
+		must.NoError(t, err)
+		return len(list)
+	}
+
+	write()
+	ui := cli.NewMockUi()
+	cmd := &SecretEngineDeleteCommand{Meta: Meta{Ui: ui}}
+	must.Zero(t, cmd.Run([]string{"-address=" + url, "pg"}))
+	must.StrNotContains(t, ui.ErrorWriter.String(), "may still be valid")
+	must.Zero(t, engines())
+
+	write()
+	ui = cli.NewMockUi()
+	cmd = &SecretEngineDeleteCommand{Meta: Meta{Ui: ui}}
+	must.Zero(t, cmd.Run([]string{"-address=" + url, "-force", "pg"}))
+	must.StrContains(t, ui.OutputWriter.String(), "Successfully deleted")
+	must.StrContains(t, ui.ErrorWriter.String(), "may still be valid at the backend")
+	must.Zero(t, engines())
 }

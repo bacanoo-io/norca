@@ -145,6 +145,15 @@ func (s *SecretEngines) Delete(name string, q *WriteOptions) (*WriteMeta, error)
 	return s.client.delete(secretEngineEndpoint(name), nil, nil, q)
 }
 
+// ForceDelete deletes an engine although the revocations of its leases
+// can't be sent to its backend, for an engine whose operator is gone for
+// good. The credentials of those leases may stay valid at the backend; the
+// server logs the leases. It requires a management token, and still fails
+// while the engine has live leases.
+func (s *SecretEngines) ForceDelete(name string, q *WriteOptions) (*WriteMeta, error) {
+	return s.client.delete(secretEngineEndpoint(name)+"?force=true", nil, nil, q)
+}
+
 // RevokeLeases revokes every live lease of an engine and returns their IDs.
 func (s *SecretEngines) RevokeLeases(name string, q *WriteOptions) ([]string, *WriteMeta, error) {
 	var out secretLeaseRevokeResult

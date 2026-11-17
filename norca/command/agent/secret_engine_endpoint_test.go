@@ -9,6 +9,7 @@ import (
 
 	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/shoenig/test/must"
 )
@@ -59,5 +60,41 @@ func TestHTTP_SecretEngines(t *testing.T) {
 		list, _, err = engines.List("", nil)
 		must.NoError(t, err)
 		must.Len(t, 0, list)
+
+		// The force parameter of the delete.
+		_, _, err = engines.CheckedWrite(engine, 0, nil)
+		must.NoError(t, err)
+		_, err = client.Raw().Delete("/v1/secret-engine/nats?force=maybe", nil, nil)
+		must.ErrorContains(t, err, "invalid force value")
+		_, err = engines.ForceDelete("nats", nil)
+		must.NoError(t, err)
+		list, _, err = engines.List("", nil)
+		must.NoError(t, err)
+		must.Len(t, 0, list)
+	})
+}
+
+// The force parameter reaches the server: it needs a management token.
+func TestHTTP_SecretEngines_ForceDeleteACL(t *testing.T) {
+	ci.Parallel(t)
+	httpACLTest(t, cb, func(s *TestAgent) {
+		testutil.WaitForLeader(t, s.Agent.RPC)
+		client := s.Client()
+		engines := client.SecretEngines()
+		root := &api.WriteOptions{AuthToken: s.RootToken.SecretID}
+		_, _, err := engines.Write(&api.SecretEngine{
+			Name:     "nats",
+			Type:     api.SecretEngineTypeOperator,
+			Operator: &api.SecretEngineOperator{Service: "pg"},
+			Roles:    []*api.SecretEngineRole{{Name: "worker", TTL: time.Minute}},
+		}, root)
+		must.NoError(t, err)
+
+		writer := mock.CreatePolicyAndToken(t, s.Agent.Server().State(), 1005, "engine-writer",
+			`namespace "default" { capabilities = ["write-secret-engine"] }`)
+		_, err = engines.ForceDelete("nats", &api.WriteOptions{AuthToken: writer.SecretID})
+		must.ErrorContains(t, err, "403")
+		_, err = engines.ForceDelete("nats", root)
+		must.NoError(t, err)
 	})
 }

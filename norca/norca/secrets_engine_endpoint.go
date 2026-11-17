@@ -210,7 +210,9 @@ func (e *SecretEngine) Upsert(args *structs.SecretEngineUpsertRequest, reply *st
 	return nil
 }
 
-// Delete deletes an engine that has no live leases.
+// Delete deletes an engine that has no live leases. With Force (management
+// tokens only) it is deleted even when the revocations of its leases can't
+// be delivered to its backend.
 func (e *SecretEngine) Delete(args *structs.SecretEngineDeleteRequest, reply *structs.SecretEngineWriteResponse) error {
 	authErr := e.srv.Authenticate(e.ctx, args)
 	if done, err := e.srv.forward(structs.SecretEngineDeleteRPCMethod, args, args, reply); done {
@@ -232,10 +234,14 @@ func (e *SecretEngine) Delete(args *structs.SecretEngineDeleteRequest, reply *st
 	if !aclObj.AllowNsOp(namespace, acl.NamespaceCapabilityWriteSecretEngine) {
 		return e.secret.denied(rec)
 	}
+	// Giving up the revocations is not a right of the namespace.
+	if args.Force && aclObj != nil && !aclObj.IsManagement() {
+		return e.secret.denied(rec)
+	}
 	if err := e.srv.secretAudit(rec, false); err != nil {
 		return err
 	}
-	index, err := e.srv.secretEngineDelete(namespace, args.Name, args.CheckIndex)
+	index, err := e.srv.secretEngineDelete(namespace, args.Name, args.CheckIndex, args.Force)
 	if err := e.secret.finish(rec, err); err != nil {
 		return err
 	}

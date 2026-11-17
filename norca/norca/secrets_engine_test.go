@@ -476,3 +476,54 @@ func TestSecretLease_AuditAndRedaction(t *testing.T) {
 	must.True(t, strings.Contains(strings.Join(types, ","), structs.TypeSecretLeaseCreated), must.Sprint(types))
 	_ = fmt.Sprint
 }
+
+// A management token can delete an engine with force although the
+// revocations of its leases can't be sent to the backend (the operator is
+// gone for good); nobody else can, and without force the delete still
+// fails.
+func TestSecretEngineEndpoint_ForceDelete(t *testing.T) {
+	ci.Parallel(t)
+	et := newEngineTest(t, nil)
+	store := et.s.fsm.State()
+	writer := mock.CreatePolicyAndToken(t, store, 1002, "engine-writer",
+		`namespace "default" { capabilities = ["write-secret-engine", "read-secret-engine"] }`)
+	op := startMockOperator(t, et, "")
+	_, err := et.upsert(et.root.SecretID, et.engine())
+	must.NoError(t, err)
+
+	del := func(token string, force bool) error {
+		var resp structs.SecretEngineWriteResponse
+		return et.s.RPC(structs.SecretEngineDeleteRPCMethod, &structs.SecretEngineDeleteRequest{Name: "pg", Force: force,
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: token}}, &resp)
+	}
+	engine := func() *structs.SecretEngine {
+		e, err := store.SecretEngineByName(nil, structs.DefaultNamespace, "pg")
+		must.NoError(t, err)
+		return e
+	}
+
+	_, wi := et.alloc(true)
+	created, err := et.create(wi)
+	must.NoError(t, err)
+
+	// Force does not replace revoking the live leases.
+	must.ErrorContains(t, del(et.root.SecretID, true), "live leases")
+
+	var rev structs.SecretLeaseRevokeResponse
+	must.NoError(t, et.s.RPC(structs.SecretLeaseRevokeRPCMethod, &structs.SecretLeaseRevokeRequest{Engine: "pg",
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: writer.SecretID}}, &rev))
+	ref := et.lease(created.Lease.ID).BackendRef
+
+	// The operator is gone: the revocation can't be delivered.
+	op.status.Store(http.StatusInternalServerError)
+	must.ErrorContains(t, del(writer.SecretID, false), "sending the revocations of its leases")
+	must.ErrorContains(t, del(et.root.SecretID, false), "sending the revocations of its leases")
+	must.EqError(t, del(writer.SecretID, true), structs.ErrPermissionDenied.Error())
+	must.NotNil(t, engine())
+	must.NotNil(t, et.lease(created.Lease.ID))
+
+	must.NoError(t, del(et.root.SecretID, true))
+	must.Nil(t, engine())
+	must.Nil(t, et.lease(created.Lease.ID))
+	must.False(t, op.isRevoked(ref))
+}

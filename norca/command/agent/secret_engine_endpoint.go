@@ -5,6 +5,7 @@ package agent
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -113,6 +114,13 @@ func (s *HTTPServer) secretEngineWrite(resp http.ResponseWriter, req *http.Reque
 
 func (s *HTTPServer) secretEngineDelete(resp http.ResponseWriter, req *http.Request, name string) (interface{}, error) {
 	args := structs.SecretEngineDeleteRequest{Name: name}
+	if raw := req.URL.Query().Get("force"); raw != "" {
+		force, err := strconv.ParseBool(raw)
+		if err != nil {
+			return nil, CodedError(http.StatusBadRequest, "invalid force value")
+		}
+		args.Force = force
+	}
 	s.parseWriteRequest(req, &args.WriteRequest)
 	if isCAS, index, err := parseCAS(req); err != nil {
 		return nil, err
