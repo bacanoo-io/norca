@@ -61,8 +61,17 @@ type releaseOp struct {
 
 	warnings []string
 	changes  []*structs.ReleaseResourceChange
-	applied  []*appliedChange
 	hooks    []*structs.ReleaseHookResult
+
+	// applied are the changes the operation made: the resources applied
+	// with success and the deletions it started. Only these can become
+	// resources of the release after a failure.
+	applied []*appliedChange
+
+	// attempted is the resource whose apply failed, if one did. An atomic
+	// operation restores it too, in case its endpoint wrote before it
+	// failed; it is never recorded as a resource of the release.
+	attempted *appliedChange
 
 	// waited reports whether the operation waited for the deployments.
 	waited bool
@@ -379,6 +388,23 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	for _, res := range in.global {
 		globalKeys[res.Ref().Key()] = true
 	}
+
+	// The caller must be one who may write every resource this region
+	// applies, hooks included, before the release, a revision or a
+	// resource is written and before anything about the resources is
+	// answered (SEC-5). The endpoints of the types check the caller again
+	// when the resources are applied; a dry run reports the resources the
+	// caller may not write in its plan instead.
+	aclObj, err := op.resolveACL()
+	if err != nil {
+		return err
+	}
+	if !in.dryRun {
+		if err := authorizeReleaseResources(aclObj, resources); err != nil {
+			return err
+		}
+	}
+
 	warnings, err := m.admitRelease(snap, op, in)
 	if err != nil {
 		return err
@@ -398,7 +424,10 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	for _, res := range resources {
 		ref := res.Ref()
 		desired[ref.Key()] = res
-		if owner, ok := owners[ref.Key()]; ok && owner != self {
+		// Who owns a resource is said to a caller who may write it only: a
+		// dry run gets here with others, and its plan reports them as
+		// denied.
+		if owner, ok := owners[ref.Key()]; ok && owner != self && allowReleaseResourceWrite(aclObj, res) {
 			conflicts = append(conflicts, fmt.Sprintf("%s belongs to release %q", ref, owner))
 			taken[ref.Key()] = owner
 		}
@@ -411,7 +440,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	}
 	var tenantConflicts []string
 	for _, res := range resources {
-		if tenant, ok := tenants[res.Ref().Key()]; ok {
+		if tenant, ok := tenants[res.Ref().Key()]; ok && allowReleaseResourceWrite(aclObj, res) {
 			tenantConflicts = append(tenantConflicts, fmt.Sprintf("%s belongs to the tenant %q", res.Ref(), tenant))
 		}
 	}
@@ -565,7 +594,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 
 	var execErr error
 	if !in.recordOnly {
-		execErr = op.execute(in, resources, removed)
+		execErr = op.execute(in, aclObj, resources, removed)
 	} else {
 		for _, res := range resources {
 			op.changes = append(op.changes, &structs.ReleaseResourceChange{
@@ -675,7 +704,7 @@ func (m *releaseManager) finishFailed(op *releaseOp, rel *structs.Release, rev *
 	now := time.Now()
 	msg := cause.Error()
 	rolledBack := false
-	if op.atomic && len(op.applied) > 0 {
+	if op.atomic && (len(op.applied) > 0 || op.attempted != nil) {
 		rel.Status.Phase = structs.ReleasePhaseRollingBack
 		if written, err := m.writeLatestRelease(rel); err == nil {
 			rel = written
@@ -746,8 +775,11 @@ func (m *releaseManager) finishFailed(op *releaseOp, rel *structs.Release, rev *
 }
 
 // ownedAfterFailure returns the resources a release owns after a failed
-// operation that was not rolled back: the previous ones and the applied
-// ones that exist.
+// operation that was not rolled back: the previous ones and the ones the
+// operation applied (op.applied: applied with success, through the endpoint
+// of their type with the token of the caller) that exist. A resource whose
+// apply failed, or that was never reached, is not the release's because the
+// request named it.
 func (m *releaseManager) ownedAfterFailure(op *releaseOp, previous []*structs.ReleaseResourceRef) []*structs.ReleaseResourceRef {
 	snap, err := m.srv.State().Snapshot()
 	if err != nil {
@@ -884,6 +916,31 @@ func (m *releaseManager) authorizeAdoption(op *releaseOp, in *applyInput, resour
 		if !aclObj.AllowObjectOperation(ns, structs.ReleaseKindRef, acl.ObjectCapabilityWrite) {
 			return structs.NewErrRPCCodedf(http.StatusForbidden,
 				"Permission denied: the token may not write releases in namespace %q, so it can't take over resources of release %q", ns, owner)
+		}
+	}
+	return nil
+}
+
+// resolveACL returns the ACL of the caller of the operation, nil when ACLs
+// are disabled. An operation without an authenticated request is denied.
+func (op *releaseOp) resolveACL() (*acl.ACL, error) {
+	if !op.m.srv.config.ACLEnabled {
+		return nil, nil
+	}
+	if op.args == nil {
+		return nil, structs.ErrPermissionDenied
+	}
+	return op.m.srv.ResolveACL(op.args)
+}
+
+// authorizeReleaseResources refuses an apply that names a resource the
+// caller may not write, hook jobs of every phase included: a release holds,
+// records and later deletes or runs only what its author could write.
+func authorizeReleaseResources(aclObj *acl.ACL, resources []*structs.ReleaseResource) error {
+	for _, res := range resources {
+		if !allowReleaseResourceWrite(aclObj, res) {
+			return structs.NewErrRPCCodedf(http.StatusForbidden,
+				"Permission denied: the token may not write %s, so it can't be a resource of the release", res.Ref())
 		}
 	}
 	return nil
@@ -1149,7 +1206,11 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 
 // execute runs an install or upgrade: pre hooks, the resources in order, the
 // deletions in reverse order, waiting for the deployments, post hooks.
-func (op *releaseOp) execute(in *applyInput, resources []*structs.ReleaseResource, removed []*structs.ReleaseResourceRef) error {
+//
+// aclObj is the ACL of the caller (nil: ACLs are disabled). Every resource is
+// applied through the endpoint of its type, which checks the caller; what is
+// decided here without an endpoint is decided with aclObj.
+func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, resources []*structs.ReleaseResource, removed []*structs.ReleaseResourceRef) error {
 	pre, post := structs.ReleaseHookPreUpgrade, structs.ReleaseHookPostUpgrade
 	if in.action == structs.ReleaseActionInstall {
 		pre, post = structs.ReleaseHookPreInstall, structs.ReleaseHookPostInstall
@@ -1240,8 +1301,16 @@ func (op *releaseOp) execute(in *applyInput, resources []*structs.ReleaseResourc
 		action := structs.ReleaseChangeCreate
 		if before.exists() {
 			action = structs.ReleaseChangeUpdate
+			// A resource equal to the live one is not written again and
+			// becomes the release's without a call to its endpoint, so the
+			// caller's rights are checked here: to write it, as the endpoint
+			// would, and to read it, because the answer says whether the
+			// live content is the submitted one (SEC-7). Without them the
+			// endpoint decides.
 			if res.Type != structs.ReleaseResourceJob && res.Type != structs.ReleaseResourceObject &&
-				res.Type != structs.ReleaseResourceVariable && !resourceChanged(toApply, before) {
+				res.Type != structs.ReleaseResourceVariable &&
+				allowReleaseResourceWrite(aclObj, res) && allowReleaseResourceRead(aclObj, res) &&
+				!resourceChanged(toApply, before) {
 				op.changes = append(op.changes, &structs.ReleaseResourceChange{
 					Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: structs.ReleaseChangeUnchanged,
 				})
@@ -1249,14 +1318,17 @@ func (op *releaseOp) execute(in *applyInput, resources []*structs.ReleaseResourc
 			}
 		}
 
-		op.applied = append(op.applied, &appliedChange{ref: ref, before: before})
 		result, err := op.applyResource(toApply)
 		change := &structs.ReleaseResourceChange{Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: action}
 		op.changes = append(op.changes, change)
 		if err != nil {
 			change.Error = err.Error()
+			op.attempted = &appliedChange{ref: ref, before: before}
 			return fmt.Errorf("%s: %w", ref, err)
 		}
+		// Applied: only now is the resource one the release may keep as its
+		// own after a failure (SEC-5). One whose endpoint refused it is not.
+		op.applied = append(op.applied, &appliedChange{ref: ref, before: before})
 		if result.warnings != "" {
 			op.warn("%s: %s", ref, result.warnings)
 		}
@@ -1375,9 +1447,14 @@ func (op *releaseOp) withSecrets(res *structs.ReleaseResource, before *liveResou
 
 // restore undoes the changes of a failed atomic operation in reverse order.
 func (op *releaseOp) restore() []error {
+	changes := op.applied
+	if op.attempted != nil {
+		// The failed apply was the last change.
+		changes = append(slices.Clip(changes), op.attempted)
+	}
 	var errs []error
-	for i := len(op.applied) - 1; i >= 0; i-- {
-		c := op.applied[i]
+	for i := len(changes) - 1; i >= 0; i-- {
+		c := changes[i]
 		var err error
 		if c.before.exists() {
 			_, err = op.applyResource(c.before.res)

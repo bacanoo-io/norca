@@ -642,8 +642,10 @@ namespace "default" {
 	var resp structs.ReleaseApplyResponse
 	err := msgpackrpc.CallWithCodec(c.codec, "Release.Apply", req, &resp)
 	must.ErrorContains(t, err, "Permission denied")
-	rel := c.get("default", "app")
-	must.Eq(t, structs.ReleasePhaseFailed, rel.Status.Phase)
+	// The apply is refused before anything is recorded (SEC-5): not a
+	// failed release with a revision of what the caller may not write.
+	must.Nil(t, c.get("default", "app"))
+	must.Len(t, 0, c.history("default", "app"))
 
 	// A token without release permissions can't even start.
 	token2 := mock.CreatePolicyAndToken(t, c.srv.State(), 1001, "jobs-only", `namespace "default" { policy = "write" }`)

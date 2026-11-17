@@ -419,6 +419,13 @@ someone who can't write ACL policies can't install a pack containing one. Readin
 revision (`/revision/:n`) also needs `read-job` in the namespace, as it contains job
 specifications.
 
+The token of an install, upgrade or rollback must be allowed to write **every** resource of the
+pack, hook jobs included, also the ones that the operation would leave unchanged (for a Variables
+entry: to read it too). Otherwise the operation is refused before anything is applied or recorded,
+and no release or revision is created for it. An upgrade of a pack with a namespace, a quota or an
+ACL policy therefore needs the token that could install it. `plan` reports such resources as
+`Permission denied` and says nothing about their state or owner.
+
 ## Older servers and client-side apply
 
 Against servers without the release API, `run`, `plan` and `destroy` behave as Nomad Pack always
