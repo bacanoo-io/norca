@@ -5,15 +5,18 @@ package norca
 
 import (
 	"testing"
+	"time"
 
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	"github.com/shoenig/test/must"
+	"github.com/shoenig/test/wait"
 )
 
 // A caller with node write may set the status of a node, but its connection
@@ -80,5 +83,195 @@ func TestClientEndpoint_UpdateStatus_ConnOfNodeOnly(t *testing.T) {
 		after, ok := s.getNodeConn(node.ID)
 		must.True(t, ok)
 		must.Eq(t, before.Ctx, after.Ctx, must.Sprintf("%s: a token call replaced the node's connection", name))
+	}
+}
+
+// Node.Register and Node.GetClientAllocs keep a connection as the node's
+// only for the node itself, as Node.UpdateStatus does (review finding SEC-3).
+// Sent to a server of one region but addressed to another region, where the
+// node does not exist, both return without an error although nobody checked
+// the node's secret; the first server then took the caller's connection for
+// the newest connection of the node. The node itself still registers its
+// connection through every path: at the server it reaches, and through a
+// follower that forwards to the leader.
+func TestClientEndpoint_RegisterAndGetClientAllocs_ConnOfNodeOnly(t *testing.T) {
+	ci.Parallel(t)
+
+	const otherRegion = "regionB"
+	leader, root, cleanupLeader := TestACLServer(t, func(c *Config) {
+		c.AuthoritativeRegion = "global"
+	})
+	defer cleanupLeader()
+	testutil.WaitForLeader(t, leader.RPC)
+	follower, cleanupFollower := TestServer(t, func(c *Config) {
+		c.BootstrapExpect = 0
+		c.ACLEnabled = true
+		c.AuthoritativeRegion = "global"
+	})
+	defer cleanupFollower()
+	other, _, cleanupOther := TestACLServer(t, func(c *Config) {
+		c.Region = otherRegion
+		c.AuthoritativeRegion = "global"
+		c.ReplicationBackoff = 20 * time.Millisecond
+		c.ReplicationToken = root.SecretID
+	})
+	defer cleanupOther()
+	TestJoin(t, leader, follower)
+	TestJoin(t, leader, other)
+	testutil.WaitForLeader(t, follower.RPC)
+	testutil.WaitForLeader(t, other.RPC)
+	must.True(t, leader.IsLeader())
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return len(leader.Regions()) == 2 && len(follower.Regions()) == 2
+	}), wait.Timeout(20*time.Second), wait.Gap(50*time.Millisecond)))
+	servers := []struct {
+		name string
+		srv  *Server
+	}{{"leader", leader}, {"follower", follower}}
+
+	// A node of the region "global", in the state of both of its servers, so
+	// that either authenticates the node's secret.
+	newNode := func(t *testing.T) *structs.Node {
+		t.Helper()
+		node := mock.Node()
+		_, _, err := leader.raftApply(structs.NodeRegisterRequestType, &structs.NodeRegisterRequest{
+			Node:         node.Copy(),
+			WriteRequest: structs.WriteRequest{Region: "global"},
+		})
+		must.NoError(t, err)
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			out, err := follower.State().NodeByID(nil, node.ID)
+			return err == nil && out != nil
+		}), wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)))
+		return node
+	}
+	// Every caller has a connection of its own.
+	call := func(t *testing.T, s *Server, method string, req, reply any) error {
+		t.Helper()
+		codec := rpcClient(t, s)
+		t.Cleanup(func() { codec.Close() })
+		return msgpackrpc.CallWithCodec(codec, method, req, reply)
+	}
+	register := func(node *structs.Node, region, token string) (string, any, any) {
+		return "Node.Register", &structs.NodeRegisterRequest{
+			Node:         node,
+			WriteRequest: structs.WriteRequest{Region: region, AuthToken: token},
+		}, new(structs.NodeUpdateResponse)
+	}
+	clientAllocs := func(nodeID, secret, region, token string, stale bool) (string, any, any) {
+		return "Node.GetClientAllocs", &structs.NodeSpecificRequest{
+			NodeID:       nodeID,
+			SecretID:     secret,
+			QueryOptions: structs.QueryOptions{Region: region, AuthToken: token, AllowStale: stale},
+		}, new(structs.NodeClientAllocsResponse)
+	}
+	// forged is a node with the ID of another one and a secret of its own.
+	forged := func(id string) *structs.Node {
+		node := mock.Node()
+		node.ID = id
+		return node
+	}
+
+	// A caller without the node's secret, through the other region.
+	takeovers := []struct {
+		name    string
+		request func(victim *structs.Node) (string, any, any)
+	}{
+		{
+			name: "GetClientAllocs addressed to the other region",
+			request: func(victim *structs.Node) (string, any, any) {
+				return clientAllocs(victim.ID, uuid.Generate(), otherRegion, "", false)
+			},
+		},
+		{
+			name: "Register addressed to the other region",
+			request: func(victim *structs.Node) (string, any, any) {
+				return register(forged(victim.ID), otherRegion, "")
+			},
+		},
+	}
+	for _, s := range servers {
+		for _, tc := range takeovers {
+			t.Run(s.name+"/"+tc.name, func(t *testing.T) {
+				victim := newNode(t)
+				method, req, reply := tc.request(victim)
+				// The other region does not know the node and has nothing to
+				// refuse: that the call passes is what the takeover needed.
+				must.NoError(t, call(t, s.srv, method, req, reply))
+				_, ok := s.srv.getNodeConn(victim.ID)
+				must.False(t, ok, must.Sprint("the connection of a caller without the node's secret became the connection of the node"))
+			})
+		}
+	}
+
+	// A caller that did not authenticate as the node, at the node's own
+	// region: the same rule in the handlers.
+	t.Run("leader/Register of a new node without its secret as the token", func(t *testing.T) {
+		node := mock.Node()
+		method, req, reply := register(node, "global", "")
+		must.NoError(t, call(t, leader, method, req, reply))
+		_, ok := leader.getNodeConn(node.ID)
+		must.False(t, ok, must.Sprint("an unauthenticated registration kept its connection as the node's"))
+	})
+	t.Run("leader/GetClientAllocs without the node's secret as the token", func(t *testing.T) {
+		node := newNode(t)
+		method, req, reply := clientAllocs(node.ID, node.SecretID, "global", "", false)
+		must.NoError(t, call(t, leader, method, req, reply))
+		_, ok := leader.getNodeConn(node.ID)
+		must.False(t, ok, must.Sprint("an unauthenticated caller kept its connection as the node's"))
+	})
+
+	// The node itself, as a client sends the requests: its secret is the
+	// token.
+	own := []struct {
+		name    string
+		srv     *Server
+		request func(node *structs.Node) (string, any, any)
+	}{
+		{
+			name: "leader/Register",
+			srv:  leader,
+			request: func(node *structs.Node) (string, any, any) {
+				return register(node.Copy(), "global", node.SecretID)
+			},
+		},
+		{
+			name: "follower/Register forwarded to the leader",
+			srv:  follower,
+			request: func(node *structs.Node) (string, any, any) {
+				return register(node.Copy(), "global", node.SecretID)
+			},
+		},
+		{
+			name: "leader/GetClientAllocs",
+			srv:  leader,
+			request: func(node *structs.Node) (string, any, any) {
+				return clientAllocs(node.ID, node.SecretID, "global", node.SecretID, false)
+			},
+		},
+		{
+			name: "follower/GetClientAllocs forwarded to the leader",
+			srv:  follower,
+			request: func(node *structs.Node) (string, any, any) {
+				return clientAllocs(node.ID, node.SecretID, "global", node.SecretID, false)
+			},
+		},
+		{
+			name: "follower/GetClientAllocs answered by the follower",
+			srv:  follower,
+			request: func(node *structs.Node) (string, any, any) {
+				return clientAllocs(node.ID, node.SecretID, "global", node.SecretID, true)
+			},
+		},
+	}
+	for _, tc := range own {
+		t.Run(tc.name, func(t *testing.T) {
+			node := newNode(t)
+			method, req, reply := tc.request(node)
+			must.NoError(t, call(t, tc.srv, method, req, reply))
+			conn, ok := tc.srv.getNodeConn(node.ID)
+			must.True(t, ok, must.Sprint("the node's own connection is not registered"))
+			must.Eq(t, node.ID, conn.Ctx.NodeID())
+		})
 	}
 }

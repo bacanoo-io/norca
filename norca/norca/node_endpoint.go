@@ -107,7 +107,12 @@ func (n *Node) Register(args *structs.NodeRegisterRequest, reply *structs.NodeUp
 		// We have a valid node connection since there is no error from the
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
-		if err == nil && n.ctx != nil && !isForwarded && n.ctx.setNodeIDIfUnset(args.Node.ID) {
+		// Only for the node itself, as this server authenticated the
+		// caller (see callerIsNode): that the forwarded call passed says
+		// nothing about the caller when it went to another region, where
+		// the node does not exist and the request registers a new one.
+		if err == nil && authErr == nil && n.ctx != nil && !isForwarded && args.Node != nil &&
+			n.callerIsNode(args, args.Node.ID) && n.ctx.setNodeIDIfUnset(args.Node.ID) {
 			n.srv.addNodeConn(n.ctx)
 		}
 
@@ -202,8 +207,12 @@ func (n *Node) Register(args *structs.NodeRegisterRequest, reply *structs.NodeUp
 
 	// We have a valid node connection, so add the mapping to cache the
 	// connection and allow the server to send RPCs to the client. We only cache
-	// the connection if it is not being forwarded from another server.
-	if n.ctx != nil && !args.IsForwarded() && n.ctx.setNodeIDIfUnset(args.Node.ID) {
+	// the connection if it is not being forwarded from another server, and
+	// only for the node itself (see callerIsNode). With ACLs enabled the
+	// first registration of a node is not authenticated (the node is not in
+	// the state yet): its connection is kept at its next request, which
+	// carries the node's secret as the token.
+	if n.ctx != nil && !args.IsForwarded() && n.callerIsNode(args, args.Node.ID) && n.ctx.setNodeIDIfUnset(args.Node.ID) {
 		n.srv.addNodeConn(n.ctx)
 	}
 
@@ -1231,7 +1240,11 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 		// We have a valid node connection since there is no error from the
 		// forwarded server, so add the mapping to cache the
 		// connection and allow the server to send RPCs to the client.
-		if err == nil && n.ctx != nil && !isForwarded && n.ctx.setNodeIDIfUnset(args.NodeID) {
+		// Only for the node itself, as this server authenticated the
+		// caller (see callerIsNode): another region, where the node does
+		// not exist, answers an empty list without checking a secret.
+		if err == nil && authErr == nil && n.ctx != nil && !isForwarded &&
+			n.callerIsNode(args, args.NodeID) && n.ctx.setNodeIDIfUnset(args.NodeID) {
 			n.srv.addNodeConn(n.ctx)
 		}
 
@@ -1275,8 +1288,9 @@ func (n *Node) GetClientAllocs(args *structs.NodeSpecificRequest,
 
 				// We have a valid node connection, so add the mapping to cache the
 				// connection and allow the server to send RPCs to the client. We only cache
-				// the connection if it is not being forwarded from another server.
-				if n.ctx != nil && !args.IsForwarded() && n.ctx.setNodeIDIfUnset(args.NodeID) {
+				// the connection if it is not being forwarded from another server, and
+				// only for the node itself (see callerIsNode).
+				if n.ctx != nil && !args.IsForwarded() && n.callerIsNode(args, args.NodeID) && n.ctx.setNodeIDIfUnset(args.NodeID) {
 					n.srv.addNodeConn(n.ctx)
 				}
 
