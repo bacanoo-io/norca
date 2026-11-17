@@ -447,3 +447,38 @@ What the test shows (2026-11-16, `TestCSIVolumeEndpoint_DeleteSnapshot`,
 which now records the requests the fake plugin gets): the secrets of the
 request reach the plugin. Without the change the check fails with an empty
 `Secrets`.
+
+## The fixes of the code review of November 2026 in files from v1.6.5
+
+A review of Norca's own code (2026-11-16) found defects, and some of their
+fixes (2026-11-17, `Source-Rule: independent-development`) change lines of
+files that come from Nomad v1.6.5 (MPL 2.0), or of the pack code that comes
+from nomad-pack (MPL 2.0). Each was found by reading or testing the Norca
+tree, and written from the Norca tree and public standards alone. Whether a
+later Nomad or nomad-pack release changed the same places was not looked
+up; no HashiCorp source, diff, changelog or documentation of a BSL release
+was opened or used. The changes are in lines added to files that come from
+v1.6.5, which are in the `bugfix` set of the audit. The commit message of
+each names the failing test and its output before the change.
+
+| Commit | File | What changed |
+| --- | --- | --- |
+| `6c2d53d30` | `acl/acl.go` | The checks of a nil ACL object allow instead of panicking |
+| `75b73cc23` | `acl/acl.go` | `AllowVariableSearch` matches whole namespaces and glob namespaces |
+| `210810443` | `acl/acl.go` | `findClosestMatchingGlob`: among equally close globs a deny wins |
+| `5dc0f493a` | `api/event_stream.go` | `stream` no longer writes into the `Params` map of the caller |
+| `491333cd4` | `norca/server.go` | `getTLSConf` checks the RPC name and region of a peer in `VerifyConnection`, so a resumed TLS session is checked too |
+| `b11a5f30a` | `command/agent/*_endpoint.go` | The handlers return when `parse` answered the request with an error |
+| `c949dfb68` | `command/agent/consul/service_client.go` | `UpdateWorkload` keeps the watch of a liveness check that was changed in place |
+| `323df5c03` | `command/job_plan.go` | The suggested `job run` carries `-reset-counts` (a Norca flag) |
+| `5cae088d4` | `pack/internal/cli/helpers.go` | `NORCA_SKIP_VERIFY` is parsed as a boolean |
+| `3b73d2ac2` | `pack/internal/pkg/renderer`, `pack/internal/pkg/variable/parser` | A render by the servers has no environment functions and reads files only inside the pack |
+| `73b09bec4` | `norca/node_endpoint.go` | `Node.UpdateStatus` registers a connection as the node's only for a caller that is the node |
+| `6cf548ae0` | `norca/structs/structs.go`, `client/allocrunner/taskrunner/validate_hook.go`, `helper/users/lookup.go` | A task user in the dynamic form `norca:<id>` is refused |
+
+Two defects of the v1.6.5 code that the review met were left as they are:
+`CSIMountOptions.Equal` treats a missing and an empty block as different
+(`norca/structs/csi.go`; the operator of volume requests sets an empty
+block before it merges), and `UpsertCSIVolume` writes a volume as given
+(`norca/state/state_store.go`; the operator reads the volume again before
+it registers it).
