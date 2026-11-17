@@ -482,6 +482,18 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 		return obj
 	}
 
+	// A register writes the volume as a whole. A volume of the ID that
+	// appeared while the plugin worked is not written over: the next pass
+	// sees whose it is.
+	if appeared, err := o.srv.State().CSIVolumeByID(nil, vol.Namespace, vol.ID); err != nil {
+		o.failure(p, obj, st, out, what, err)
+		return obj
+	} else if appeared != nil {
+		out.notReady("Creating", "a volume %q appeared while it was made", obj.Name)
+		p.want(p.now.Add(operatorsSettle))
+		return obj
+	}
+
 	index, err := o.register(vol)
 	if err != nil {
 		o.failure(p, obj, st, out, what, err)
@@ -567,39 +579,70 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 	// follow the secret store, which changes without the request. Anything
 	// else was changed through the volume API, and is set back.
 	updated := adopted || st.AppliedGeneration != obj.Generation || (len(diff) == 1 && diff[0] == "secrets")
-	changed := vol.Copy()
 
+	// follow returns a copy of a stored volume with what the spec declares.
 	// Merge refuses changes of what a volume can't change, and takes the
 	// rest. The name of an adopted volume stays its own, and the context of
 	// a created volume is the plugin's.
-	mergeIn := *want
-	mergeIn.Name = ""
-	if spec.mode() == volumeRequestModeCreate {
-		mergeIn.Context = maps.Clone(vol.Context)
+	follow := func(stored *structs.CSIVolume) (*structs.CSIVolume, error) {
+		changed := stored.Copy()
+		mergeIn := *want
+		mergeIn.Name = ""
+		if spec.mode() == volumeRequestModeCreate {
+			mergeIn.Context = maps.Clone(stored.Context)
+		}
+		// Merge refuses a change of the mount options of a volume in use,
+		// and takes none (nil) and empty ones for a change: the stored
+		// volume has empty ones where the request has none.
+		if mountOptionsEqual(changed.MountOptions, mergeIn.MountOptions) {
+			mergeIn.MountOptions = changed.MountOptions
+		}
+		if err := changed.Merge(&mergeIn); err != nil {
+			return nil, err
+		}
+		changed.Secrets = maps.Clone(want.Secrets)
+		if spec.mode() == volumeRequestModeRegister {
+			changed.Context = maps.Clone(want.Context)
+		}
+		return changed, nil
 	}
-	// Merge refuses a change of the mount options of a volume in use, and
-	// takes none (nil) and empty ones for a change: the stored volume has
-	// empty ones where the request has none.
-	if mountOptionsEqual(changed.MountOptions, mergeIn.MountOptions) {
-		mergeIn.MountOptions = changed.MountOptions
-	}
-	if err := changed.Merge(&mergeIn); err != nil {
+
+	expanded, err := follow(vol)
+	if err != nil {
 		o.failure(p, obj, st, out, "update the volume", err)
 		return
 	}
-	changed.Secrets = maps.Clone(want.Secrets)
-	if spec.mode() == volumeRequestModeRegister {
-		changed.Context = maps.Clone(want.Context)
-	}
-	if err := o.csi.expand(changed, plugin, &csi.CapacityRange{
+	if err := o.csi.expand(expanded, plugin, &csi.CapacityRange{
 		RequiredBytes: want.RequestedCapacityMin,
 		LimitBytes:    want.RequestedCapacityMax,
 	}); err != nil {
 		o.failure(p, obj, st, out, "expand the volume", err)
 		return
 	}
+
+	// The plugin call can take minutes, and the volume is written as a
+	// whole, with its claims. What is written is therefore the volume as it
+	// is now, not the copy this pass began with: a claim made or released
+	// while the plugin worked stays as it is. A volume that went away in
+	// that time is not written back; the next pass sees that it is gone.
+	live, err := o.srv.State().CSIVolumeByID(nil, vol.Namespace, vol.ID)
+	if err != nil {
+		o.failure(p, obj, st, out, "update the volume", err)
+		return
+	}
+	if live == nil || live.CreateIndex != vol.CreateIndex {
+		out.notReady("VolumeLost", "the volume %q went away while it was updated", obj.Name)
+		p.want(p.now.Add(operatorsSettle))
+		return
+	}
+	changed, err := follow(live)
+	if err != nil {
+		o.failure(p, obj, st, out, "update the volume", err)
+		return
+	}
 	// The plugin may refuse nothing and change nothing (no expansion
 	// needed): the requested values are the spec's either way.
+	changed.Capacity = expanded.Capacity
 	changed.RequestedCapacityMin, changed.RequestedCapacityMax = want.RequestedCapacityMin, want.RequestedCapacityMax
 
 	if _, err := o.register(changed); err != nil {

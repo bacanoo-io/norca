@@ -1037,3 +1037,68 @@ func TestVolumeRequest_DeletionAfterLostCreateAnswer(t *testing.T) {
 	gone("unknown")
 	fake.set(func(f *fakeVolumeCSI) { must.Len(t, 1, f.deletes) })
 }
+
+// A claim made while the plugin expands the volume is kept when the update
+// is written (review finding VOL-3).
+func TestVolumeRequest_UpdateKeepsClaimsMadeMeanwhile(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false)
+	defer cleanup()
+
+	_, err := c.apply("default", csiVolumeRequestKind, "busy", volumeSpec(nil))
+	must.NoError(t, err)
+	c.waitRequest("busy", "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == "True"
+	})
+
+	// An allocation claims the volume while the plugin expands it.
+	var claim *structs.CSIVolumeClaim
+	fake.set(func(f *fakeVolumeCSI) { f.onExpand = func() { claim = c.claim("busy") } })
+	_, err = c.apply("default", csiVolumeRequestKind, "busy", volumeSpec(func(m map[string]any) { m["capacity_min"] = "2GiB" }))
+	must.NoError(t, err)
+	st := c.waitRequest("busy", "expanded or failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Failures > 0 || (st.CapacityBytes == 2*gibibyte && readyReason(obj) == "True")
+	})
+	obj, _ := c.request("busy")
+	must.Zero(t, st.Failures, must.Sprintf("the update failed: %s", volumeRequestFailure(obj.Status)))
+
+	vol := c.volume("busy")
+	must.Eq(t, 2*gibibyte, vol.Capacity)
+	must.NotNil(t, claim)
+	must.MapContainsKey(t, vol.WriteClaims, claim.AllocationID, must.Sprint("the claim made during the expansion is lost"))
+	must.MapContainsKey(t, vol.WriteAllocs, claim.AllocationID)
+	must.True(t, vol.InUse())
+	must.Eq(t, 1, c.waitRequest("busy", "the claim shows", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.WriteAllocs == 1
+	}).WriteAllocs)
+
+	// A volume that is deregistered while the plugin works is not written
+	// back.
+	_, err = c.apply("default", csiVolumeRequestKind, "leaving", volumeSpec(nil))
+	must.NoError(t, err)
+	c.waitRequest("leaving", "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == "True"
+	})
+	deregistered := make(chan error, 1)
+	fake.set(func(f *fakeVolumeCSI) {
+		f.onExpand = func() {
+			_, _, err := c.s.raftApply(structs.CSIVolumeDeregisterRequestType, &structs.CSIVolumeDeregisterRequest{
+				VolumeIDs:    []string{"leaving"},
+				WriteRequest: structs.WriteRequest{Region: "global", Namespace: "default"},
+			})
+			deregistered <- err
+		}
+	})
+	_, err = c.apply("default", csiVolumeRequestKind, "leaving", volumeSpec(func(m map[string]any) { m["capacity_min"] = "3GiB" }))
+	must.NoError(t, err)
+	select {
+	case err := <-deregistered:
+		must.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("the volume was not expanded")
+	}
+	c.waitRequest("leaving", "volume lost", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == "VolumeLost"
+	})
+	must.Nil(t, c.volume("leaving"))
+}
