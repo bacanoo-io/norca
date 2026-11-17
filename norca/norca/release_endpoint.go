@@ -95,6 +95,17 @@ func (r *Release) applyInternal(args *structs.ReleaseApplyRequest, reply *struct
 
 	authErr := r.srv.Authenticate(r.ctx, args)
 	if forwardMethod != "" {
+		// Who sent the request is decided here, on the server the caller
+		// reached: a request this server forwards arrives at the next one
+		// over a connection of this server, which says nothing about the
+		// caller any more. Sent over a connection by anything but a server
+		// of the federation, the request goes on as an ordinary Apply. (A
+		// request without a connection is one this server made itself, see
+		// applyRegion.)
+		if serverRendered && r.ctx != nil && !sentByFederationServer(r.srv, r.ctx) {
+			serverRendered = false
+			forwardMethod = "Release.Apply"
+		}
 		if done, err := r.srv.forward(forwardMethod, args, args, reply); done {
 			return err
 		}
