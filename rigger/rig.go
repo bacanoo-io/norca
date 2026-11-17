@@ -21,6 +21,7 @@ import (
 	"log/slog"
 
 	"github.com/bacanoo-io/norca-rig/host"
+	"github.com/bacanoo-io/norca-rig/oplog"
 	"github.com/bacanoo-io/norca-rig/source"
 )
 
@@ -52,13 +53,13 @@ type Option func(*Engine) error
 
 // New returns an engine configured by the options.
 //
-// Without options the engine logs to slog.Default(), reads the time of the
-// operating system and uses [DefaultLimits]. New returns an error matching
+// Without options the engine logs to the handler of slog.Default(), reads
+// the time of the operating system and uses [DefaultLimits]. New returns an error matching
 // [ErrInvalidOption] when an option is nil or invalid.
 func New(opts ...Option) (*Engine, error) {
 	e := &Engine{
 		clock:  host.SystemClock{},
-		logger: slog.Default(),
+		logger: slog.New(oplog.NewHandler(slog.Default().Handler())),
 		limits: DefaultLimits(),
 	}
 
@@ -170,13 +171,17 @@ func WithClock(c host.Clock) Option {
 // WithLogger sets the logger of the engine. The engine logs with constant
 // messages and puts what varies into attributes; it never logs a sensitive
 // value, and it returns errors instead of logging them.
+//
+// The engine wraps the handler of l with [oplog.NewHandler]: its log is a
+// tree of operations, and every line carries the IDs of the operation it
+// belongs to.
 func WithLogger(l *slog.Logger) Option {
 	return func(e *Engine) error {
 		if l == nil {
 			return invalid("logger")
 		}
 
-		e.logger = l
+		e.logger = slog.New(oplog.NewHandler(l.Handler()))
 
 		return nil
 	}

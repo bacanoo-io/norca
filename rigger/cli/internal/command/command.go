@@ -15,6 +15,9 @@ import (
 	"io"
 	"log/slog"
 	"runtime/debug"
+
+	"github.com/bacanoo-io/norca-rig/cli/internal/logging"
+	"github.com/bacanoo-io/norca-rig/oplog"
 )
 
 // Exit codes. A plan exits with 2 when it has changes (design 9.2), so every
@@ -46,7 +49,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags.SetOutput(stderr)
 	flags.Usage = func() { printUsage(flags) }
 
-	logFormat := flags.String("log-format", "text", "format of the log on standard error: text or json")
+	logFormat := flags.String("log-format", "text", "format of the log on standard error: text (a tree of operations) or json")
 	logLevel := flags.String("log-level", "info", "lowest level logged: debug, info, warn or error")
 
 	if err := flags.Parse(args); err != nil {
@@ -64,16 +67,13 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
-	name := flags.Arg(0)
-	logger.DebugContext(ctx, "command started", "command", name)
-
-	switch name {
+	switch name := flags.Arg(0); name {
 	case cmdVersion:
-		if _, err := fmt.Fprintf(stdout, "rig %s\n", version()); err != nil {
-			return exitError
-		}
+		return run(ctx, logger, stderr, name, func(context.Context) error {
+			_, err := fmt.Fprintf(stdout, "rig %s\n", version())
 
-		return exitOK
+			return err
+		})
 	case cmdHelp:
 		flags.SetOutput(stdout)
 		printUsage(flags)
@@ -91,21 +91,36 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-// newLogger returns the logger of the program: text or JSON on w, from the
-// given level up.
+// run runs a command as the root operation of the log (package oplog) and
+// reports its error once, on standard error.
+func run(ctx context.Context, logger *slog.Logger, stderr io.Writer, name string, cmd func(context.Context) error) int {
+	ctx, span := oplog.Start(ctx, logger, slog.LevelDebug, "command."+name)
+	err := cmd(ctx)
+	span.End(ctx, err)
+
+	if err != nil {
+		warn(stderr, "%v", err)
+
+		return exitError
+	}
+
+	return exitOK
+}
+
+// newLogger returns the logger of the program on w, from the given level
+// up: a tree of operations for a person (text) or flat lines with the IDs
+// of the operations (json).
 func newLogger(w io.Writer, format, level string) (*slog.Logger, error) {
 	var lvl slog.Level
 	if err := lvl.UnmarshalText([]byte(level)); err != nil {
 		return nil, fmt.Errorf("invalid log level %q: want debug, info, warn or error", level)
 	}
 
-	opts := &slog.HandlerOptions{Level: lvl}
-
 	switch format {
 	case "text":
-		return slog.New(slog.NewTextHandler(w, opts)), nil
+		return slog.New(oplog.NewHandler(logging.NewTree(w, lvl))), nil
 	case "json":
-		return slog.New(slog.NewJSONHandler(w, opts)), nil
+		return slog.New(oplog.NewHandler(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: lvl}))), nil
 	default:
 		return nil, fmt.Errorf("invalid log format %q: want text or json", format)
 	}

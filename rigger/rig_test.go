@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/bacanoo-io/norca-rig/host"
+	"github.com/bacanoo-io/norca-rig/oplog"
 	"github.com/bacanoo-io/norca-rig/source"
 )
 
@@ -94,6 +95,13 @@ var (
 	_ host.Clock      = fixedClock{}
 )
 
+// logsTo reports whether the engine logs to h through the handler of oplog.
+func logsTo(e *Engine, h slog.Handler) bool {
+	w, ok := e.logger.Handler().(*oplog.Handler)
+
+	return ok && w.Unwrap() == h
+}
+
 func TestNew_Defaults(t *testing.T) {
 	t.Parallel()
 
@@ -106,8 +114,8 @@ func TestNew_Defaults(t *testing.T) {
 		t.Errorf("clock = %T, want host.SystemClock", e.clock)
 	}
 
-	if e.logger != slog.Default() {
-		t.Error("logger is not slog.Default()")
+	if !logsTo(e, slog.Default().Handler()) {
+		t.Error("the logger does not log to the handler of slog.Default() through oplog")
 	}
 
 	if e.limits != DefaultLimits() {
@@ -138,7 +146,7 @@ func TestNew_Options(t *testing.T) {
 		{name: "store", opt: WithStore(fakeStore{id: 1}), isSet: func(e *Engine) bool { return e.store == fakeStore{id: 1} }},
 		{name: "fetcher", opt: WithFetcher(fakeFetcher{id: 1}), isSet: func(e *Engine) bool { return e.fetcher == fakeFetcher{id: 1} }},
 		{name: "clock", opt: WithClock(clock), isSet: func(e *Engine) bool { return e.clock == clock }},
-		{name: "logger", opt: WithLogger(logger), isSet: func(e *Engine) bool { return e.logger == logger }},
+		{name: "logger", opt: WithLogger(logger), isSet: func(e *Engine) bool { return logsTo(e, logger.Handler()) }},
 		{name: "limits", opt: WithLimits(limits), isSet: func(e *Engine) bool { return e.limits == limits }},
 	}
 

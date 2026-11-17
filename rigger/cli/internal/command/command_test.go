@@ -62,26 +62,69 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func TestRun_JSONLog(t *testing.T) {
+func TestRun_Log(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		format   string
+		expected []string
+	}{
+		{
+			name:   "json",
+			format: "json",
+			expected: []string{
+				`"msg":"started","op":"command.version"`,
+				`"msg":"finished","op":"command.version"`,
+			},
+		},
+		{
+			name:     "tree",
+			format:   "text",
+			expected: []string{"DEBUG command.version started", "DEBUG command.version finished duration="},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr bytes.Buffer
+
+			code := Run(t.Context(), []string{"-log-format", tt.format, "-log-level", "debug", cmdVersion}, &stdout, &stderr)
+			if code != exitOK {
+				t.Fatalf("Run() = %d, want %d (stderr %q)", code, exitOK, stderr.String())
+			}
+
+			lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
+			if len(lines) != len(tt.expected) {
+				t.Fatalf("got %d log lines, want %d:\n%s", len(lines), len(tt.expected), stderr.String())
+			}
+
+			for i, want := range tt.expected {
+				if !strings.Contains(lines[i], want) {
+					t.Errorf("line %d = %q, want it to contain %q", i, lines[i], want)
+				}
+			}
+		})
+	}
+}
+
+func TestRun_JSONLogHasTheIDs(t *testing.T) {
 	t.Parallel()
 
 	var stdout, stderr bytes.Buffer
 
-	code := Run(t.Context(), []string{"-log-format", "json", "-log-level", "debug", cmdVersion}, &stdout, &stderr)
-	if code != exitOK {
-		t.Fatalf("Run() = %d, want %d (stderr %q)", code, exitOK, stderr.String())
+	Run(t.Context(), []string{"-log-format", "json", "-log-level", "debug", cmdVersion}, &stdout, &stderr)
+
+	var record map[string]any
+	if err := json.Unmarshal([]byte(strings.Split(stderr.String(), "\n")[0]), &record); err != nil {
+		t.Fatalf("the first log line is not JSON: %v", err)
 	}
 
-	var record struct {
-		Level   string `json:"level"`
-		Msg     string `json:"msg"`
-		Command string `json:"command"`
-	}
-	if err := json.Unmarshal(stderr.Bytes(), &record); err != nil {
-		t.Fatalf("standard error %q is not one JSON record: %v", stderr.String(), err)
-	}
-
-	if record.Level != "DEBUG" || record.Msg != "command started" || record.Command != cmdVersion {
-		t.Errorf("record = %+v, want the debug record of the version command", record)
+	for _, key := range []string{"trace_id", "span_id", "depth"} {
+		if _, ok := record[key]; !ok {
+			t.Errorf("the line %v has no %s", record, key)
+		}
 	}
 }

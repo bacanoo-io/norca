@@ -762,6 +762,47 @@ There is no state file. What is installed is the releases of the cluster:
 HCL diagnostics with file, line and the expression, for every stage; the
 server's errors are attached to the release and resource they belong to.
 
+### 9.5 The log: a tree of operations
+
+Decided by the maintainer (2026-11-17): the log shows which step belongs to
+which operation, and which subtask to which task.
+
+- **Every operation is a span** (package `oplog`). Its start line and its
+  end line (`op`, `duration`, `outcome`) and every line logged inside it
+  carry `trace_id` (of the root operation), `span_id`, `parent_span_id`
+  and `depth`. The keys are those of the key convention of Norca's
+  OpenTelemetry plan (`norca/design/opentelemetry-plan.md`, section 2).
+- **The tree of a stack** (the names are a proposal, fixed when the
+  operations are built):
+
+  ```
+  stack.apply                 stack, region            info
+    stack.load                                         debug
+    module.resolve            source, version          debug
+      module.fetch, module.verify                      debug
+    release.evaluate          release, module, version debug
+    release.plan              release                  info
+    release.apply             release, revision        info
+      release.wait            release                  debug
+    release.prune             release                  info
+  ```
+
+  `stack.plan`, `module.render` and `module.test` (a span per test) are
+  roots the same way. Lines per resource are debug.
+- **An error is not logged on the way up.** The end line of a failed span
+  says `outcome=error` without the error; the error is returned as a
+  diagnostic and reported once by the host (the rule of a single handling).
+- **Every line is logged with a context** (the `Context` variants of
+  slog); the linter enforces it (`sloglint`, `context: all`). A line
+  without a context belongs to no span.
+- **The rig program** writes the tree for a person (`-log-format text`:
+  indented by depth, the operation first, without the IDs) or flat JSON
+  lines with the IDs, from which the tree is rebuilt (`-log-format json`).
+- **Embedded** the server's handler gets the same IDs. When the
+  OpenTelemetry plan of Norca is built, a host with a tracer gets
+  OpenTelemetry spans with the same IDs (`oplog` uses their sizes); until
+  then the core has no dependency on OpenTelemetry.
+
 ## 10. CLI
 
 ```
@@ -907,7 +948,7 @@ norca-rig/
 | `Fetcher` (optional) | bytes of a module version, when the host has its own cache | the built-in sources | the leader's registry cache |
 | `Store` | the cache of modules, the configuration, values that must outlive a run (section 12.6) | a directory of the user and of the stack | the leader's data directory and objects in Raft |
 | `Clock` | time | the system clock | the system clock |
-| logging | a `*slog.Logger` of the standard library, not a port of Rig (decided by the maintainer, 2026-11-17; the controller SDK of norca takes one the same way); `slog.Default()` when the host gives none | text or JSON on standard error | a handler that writes into the server's hclog |
+| logging | a `*slog.Logger` of the standard library, not a port of Rig (decided by the maintainer, 2026-11-17; the controller SDK of norca takes one the same way); `slog.Default()` when the host gives none; the engine wraps its handler so that the log is a tree of operations (section 9.5) | a tree (text) or JSON on standard error | a handler that writes into the server's hclog |
 
 The job decoder is the host's because the job specification belongs to
 Norca: the core evaluates expressions and hands over a block with all

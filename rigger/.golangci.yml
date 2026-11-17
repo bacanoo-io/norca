@@ -129,8 +129,11 @@ linters:
       allow-whole-block: false
       branch-max-lines: 2
     # Rig: log messages are constant; what varies goes into attributes.
+    # Every line is logged with a context, so that it carries the operation
+    # it belongs to (package oplog).
     sloglint:
       static-msg: true
+      context: all
 
 formatters:
   enable:

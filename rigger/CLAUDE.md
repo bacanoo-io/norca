@@ -30,6 +30,9 @@ file points to it instead of repeating it.
   built from source, modules from the Windows module cache, `GOSUMDB=off`),
   then the targets of the Makefile. golangci-lint v2.15.0 is installed into
   `~/go/bin` from the module cache with `go install`.
+- Logging (design 9.5): a `*slog.Logger`, always the `Context` variants;
+  each operation is an `oplog` span (`oplog.Start` / `Span.End`), so the
+  log is a tree. An error is returned, not logged on the way up.
 - New Go files start with the SPDX header of Norca
   (`SPDX-FileCopyrightText: 2026 Norca contributors`,
   `SPDX-License-Identifier: MPL-2.0`).

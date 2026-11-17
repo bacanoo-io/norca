@@ -70,7 +70,7 @@ func TestSensitive_LogValue(t *testing.T) {
 	var buf bytes.Buffer
 
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
-	logger.Info("secret written", "password", host.NewSensitive(secretText))
+	logger.InfoContext(t.Context(), "secret written", "password", host.NewSensitive(secretText))
 
 	if strings.Contains(buf.String(), secretText) {
 		t.Errorf("log line %q shows the value", buf.String())
