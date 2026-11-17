@@ -6,6 +6,7 @@ package norca
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -651,6 +652,18 @@ func (n *NetworkPolicy) GetAllocRules(args *structs.NetworkPolicyAllocRequest, r
 			reply.Rules, err = networkPolicyAllocRules(ws, store, alloc)
 			if err != nil {
 				return err
+			}
+			if clientID == "" {
+				// Only the node of the allocation needs everything. Another
+				// caller was checked for the namespace of the allocation:
+				// a peer of the policies may select the allocations of any
+				// namespace, and the admin policies take operator read.
+				reply.Rules.Peers = slices.DeleteFunc(reply.Rules.Peers, func(p *structs.NetworkPolicyPeerAlloc) bool {
+					return !aclObj.AllowNsOp(p.Namespace, acl.NamespaceCapabilityReadJob)
+				})
+				if !allowNetworkPolicyOperator(aclObj, false) {
+					reply.Rules.AdminPolicies = nil
+				}
 			}
 
 			var index uint64
