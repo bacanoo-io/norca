@@ -207,19 +207,29 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		return
 	}
 
-	// The quota before the namespace that names it.
+	// The quota before the namespace that names it. A namespace without the
+	// quota its tenant asks for would let its people run without a limit,
+	// so a quota that can't be the tenant's or can't be created stops the
+	// pass, as a namespace that is not the tenant's does.
 	quotaRef := tenantResourceRef{Type: structs.TenantResourceQuota, Name: tenantResourceName(obj.Name, "")}
 	if desired.quota != nil {
 		live, err := p.store.QuotaSpecByName(p.ws, quotaRef.Name)
-		switch {
-		case err != nil:
+		if err != nil {
 			w.failures = append(w.failures, err.Error())
-		case w.take(quotaRef, live != nil):
-			if live == nil || !quotaSpecMatches(live, desired.quota) {
-				w.wrote(quotaRef, live != nil, o.upsertQuota(desired.quota))
+			o.writeTenantStatus(w, ns)
+			return
+		}
+		if !w.take(quotaRef, live != nil) {
+			o.writeTenantStatus(w, ns)
+			return
+		}
+		if live == nil || !quotaSpecMatches(live, desired.quota) {
+			err := o.upsertQuota(desired.quota)
+			w.wrote(quotaRef, live != nil, err)
+			if err != nil && live == nil {
+				o.writeTenantStatus(w, ns)
+				return
 			}
-		default:
-			desired.namespace.Quota = ""
 		}
 	}
 

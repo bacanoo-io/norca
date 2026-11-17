@@ -360,3 +360,42 @@ func TestTenantSpec_Desired(t *testing.T) {
 	must.Eq(t, "a", peers[1].Namespace)
 	must.Eq(t, "b", peers[2].Namespace)
 }
+
+// A quota of the tenant's name that is not the tenant's stops the pass: the
+// namespace is not created without its quota (review finding TEN-4).
+func TestTenant_QuotaConflict(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+
+	var gen structs.GenericResponse
+	must.NoError(t, c.s.RPC("Quota.UpsertQuotaSpecs", &structs.QuotaSpecUpsertRequest{
+		Quotas: []*structs.QuotaSpec{{Name: "team-q", Description: "made by hand", Limits: []*structs.QuotaLimit{
+			{Region: "global", RegionLimit: &structs.Resources{CPU: 100}},
+		}}},
+		WriteRequest: c.write(""),
+	}, &gen))
+
+	_, err := c.apply("", structs.TenantKind, "team-q", map[string]any{
+		"quota": map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 8000}}},
+		"roles": map[string]any{"developer": []any{"submit-job"}},
+	})
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-q", "conflict", func(o *structs.CustomObject) bool {
+		return objectConditionTrue(o.Status, structs.TenantConditionConflict)
+	})
+	must.False(t, objectConditionTrue(obj.Status, structs.CertificateConditionReady))
+
+	// The operator had its pass (the conflict is written at its end): the
+	// namespace and the role must not be there.
+	ns, err := store.NamespaceByName(nil, "team-q")
+	must.NoError(t, err)
+	must.Nil(t, ns, must.Sprint("the namespace was created without its quota"))
+	role, err := store.GetACLRoleByName(nil, "team-q-developer")
+	must.NoError(t, err)
+	must.Nil(t, role)
+	q, err := store.QuotaSpecByName(nil, "team-q")
+	must.NoError(t, err)
+	must.Eq(t, "made by hand", q.Description)
+}
