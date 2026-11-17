@@ -117,6 +117,11 @@ func ReadConsulKV(ctx context.Context, dest Destination, record *structs.BackupR
 	}
 	defer rc.Close()
 	export, err := consulkv.Decode(rc)
+	if err == nil {
+		// Read to the end, so the checksum of the object is verified: the
+		// decoder stops after the JSON value.
+		_, err = io.Copy(io.Discard, rc)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the Consul KV of backup %s: %w", record.ID, err)
 	}

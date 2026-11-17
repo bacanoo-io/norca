@@ -176,6 +176,11 @@ func (m *Manager) Load(ctx context.Context, record *structs.BackupRecord, destNa
 		return nil, err
 	default:
 		loaded.ConsulKV, err = consulkv.Decode(rc)
+		if err == nil {
+			// The decoder stops after the JSON value; the checksum is
+			// verified at the end of the object.
+			_, err = io.Copy(io.Discard, rc)
+		}
 		rc.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load the Consul KV of backup %s: %w", record.ID, err)
