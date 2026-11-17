@@ -111,6 +111,7 @@ type Backup struct {
 	Path                string
 	Destinations        []*BackupDestinationStatus
 	KeyIDs              []string
+	Seals               []*SealInfo
 	Summary             map[string]int
 	Labels              map[string]string
 	Pinned              bool
