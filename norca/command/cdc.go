@@ -227,6 +227,11 @@ func (c *CDCConsumerReadCommand) Run(args []string) int {
 	if err := flags.Parse(args); err != nil {
 		return 1
 	}
+	if len(flags.Args()) != 0 {
+		c.Ui.Error("This command takes no arguments")
+		c.Ui.Error(commandErrorText(c))
+		return 1
+	}
 	client, err := c.Meta.Client()
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
@@ -286,6 +291,11 @@ func (c *CDCConsumerDeleteCommand) Run(args []string) int {
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.StringVar(&stream, "stream", api.CDCStreamEvents, "")
 	if err := flags.Parse(args); err != nil {
+		return 1
+	}
+	if len(flags.Args()) != 0 {
+		c.Ui.Error("This command takes no arguments")
+		c.Ui.Error(commandErrorText(c))
 		return 1
 	}
 	client, err := c.Meta.Client()
