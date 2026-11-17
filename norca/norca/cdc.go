@@ -81,11 +81,24 @@ func consumerNameToken(s string) string {
 	}, s)
 }
 
+// busInternalSubjects are the subjects a bus rule never gives, to subscribe
+// or to publish: they belong to the servers and the nodes.
+//   - $KV.>: the buckets, the Consul KV with the keys and sealed values of
+//     every namespace among them (the Variables ACL rules those keys);
+//   - $JS.>, $JSC.>, $NRG.>: the JetStream API, its acknowledgements and
+//     the replication of the streams; a subscriber of $JS.API.> could
+//     answer the requests of other connections;
+//   - _R_.>: the deliveries of the consumers to the leaf readers;
+//   - norca.telemetry.>: the usage reports of the nodes, which move the
+//     autoscaler.
+var busInternalSubjects = []string{"$KV.>", "$JS.>", "$JSC.>", "$NRG.>", "_R_.>", "norca.telemetry.>"}
+
 // busGrantSubjects builds the subjects of a connection without every right
 // from its bus and cdc rules:
 //   - the bus rule's subjects outside the change streams and outside
-//     JetStream ($JS.>): the change streams are read by the cdc rule only,
-//     and the JetStream API of a reader is its own consumer;
+//     JetStream and the other subjects of the servers (busInternalSubjects):
+//     the change streams are read by the cdc rule only, and the JetStream
+//     API of a reader is its own consumer;
 //   - the cdc rule's subjects inside the change streams, to subscribe live;
 //   - for a reader with a consumer name, the JetStream subjects of its own
 //     consumers of the streams it may read: info, next and acknowledgements.
@@ -97,15 +110,17 @@ func (s *Server) busGrantSubjects(g *acl.BusGrant, cdc *acl.CDCGrant, kind, name
 	collides := func(subject string, with []string) bool {
 		return slices.ContainsFunc(with, func(w string) bool { return bus.SubjectsCollide(subject, w) })
 	}
-	jetStream := append(slices.Clone(change), "$JS.>")
+	// Neither side of a bus rule reaches the change streams or the subjects
+	// of the servers and the nodes (busInternalSubjects).
+	reserved := append(slices.Clone(change), busInternalSubjects...)
 
 	for _, subject := range busRuleSubjects(g.Subscribe) {
-		if !collides(subject, change) {
+		if !collides(subject, reserved) {
 			subscribe = append(subscribe, subject)
 		}
 	}
 	for _, subject := range busRuleSubjects(g.Publish) {
-		if !collides(subject, jetStream) {
+		if !collides(subject, reserved) {
 			publish = append(publish, subject)
 		}
 	}
