@@ -11,7 +11,7 @@ proven.
 | `metadata.hcl` | `metadata.hcl` (`app` and `pack` are one `module` block) |
 | `variables.hcl` | `variables.hcl` without `namespace` and `region`, which are the release's |
 | `redis.norca.hcl` | `templates/redis.nomad.tpl` |
-| `redis.var.hcl` | `templates/redis.var.hcl.tpl` and the `secret` block of `redis_password` |
+| `auth.var.hcl` | `templates/redis.var.hcl.tpl` and the `secret` block of `redis_password` (the file is named after its resource) |
 | `outputs.hcl` | new: the pack had none |
 
 Faults of the pack, kept:

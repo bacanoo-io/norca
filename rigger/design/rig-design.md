@@ -130,6 +130,10 @@ module.
 - Values are typed (`cty`): string, number, bool, list, map, object, with
   optional attributes and defaults.
 - No text is generated and parsed again anywhere.
+- `&&` and `||` evaluate both sides in the hcl of Norca (the version Rig
+  must keep, section 12.2): `x == null || x.a == ""` fails on a null `x`.
+  A guard is the conditional operator, `x == null ? true : x.a == ""`
+  (found while checking the example values, phase 1).
 
 ### 4.2 What is evaluated when
 
@@ -386,6 +390,18 @@ attributes of an object type (also of the objects of a list). With these, every
 `fail` of today's packs can be written as a check (to be confirmed while
 converting, section 14).
 
+As built in phase 1: the constraints of a `validation` block are `pattern`,
+`min_length`, `max_length` (a string), `min`, `max`, `integer` (a number),
+`min_items`, `max_items` (a list, a set or a map), `unique`, `unique_by`,
+`item_of` (a list or a set), `key_pattern` (a map), `one_of` (any value),
+and the blocks `attribute "<name>" { }` and `item { }`, which hold the same
+constraints for an attribute or for every item. `item { }` replaces the
+`item_pattern`, `item_min_length` and `item_options` of the packs. A
+constraint that does not fit the type of its variable is an error when the
+module loads. The hints of the form (`ui`) are `tab`, `group`, `order`,
+`label`, `widget`, `unit`, `presets`, `option_labels`, `show_if`, `help` and
+`placeholder`; the options of a choice are its `one_of` (section 14.1).
+
 ### 6.3 Secrets
 
 - A module never takes a secret as a plain variable. `secret { path, item }`
@@ -449,7 +465,7 @@ module "worker" {
   deployer).
 - **A stack has modules of its own.** `source = "./modules/<name>"` is a
   module that lives in the directory of the stack. It needs no registry, tag,
-  version or signature and is not in the lock file: it is part of the stack's
+  version (its `module` block may leave `version` out) or signature and is not in the lock file: it is part of the stack's
   repository and versioned with it. Registry modules and own modules are
   wired the same way (`examples/stack/platform`).
 - A stack may declare `variable`s (filled from `-f` value files per
@@ -467,7 +483,8 @@ module "worker" {
   depends on is ready (its deployments healthy) before it applies the next.
   Cycles are an error at `plan`.
 - **Declared by a module:** `requires { module "rustfs" { version = ">= 0.2" } }`
-  in `metadata.hcl`. A stack that installs the module without one that satisfies
+  in `metadata.hcl`; with `source = "<address>"` the label is a name of the
+  module's own for the requirement and the address says which module. A stack that installs the module without one that satisfies
   it gets an error naming the missing module (today this is a sentence in a
   README).
 - A `requires { module }` entry may carry `when = "<variable path>"`, so a

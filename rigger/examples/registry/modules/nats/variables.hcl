@@ -171,8 +171,11 @@ variable "norca_bus" {
 
   validation {
     attribute "servers" {
-      min_items    = 1
-      item_pattern = "^[A-Za-z0-9.-]+:[0-9]{1,5}$"
+      min_items = 1
+
+      item {
+        pattern = "^[A-Za-z0-9.-]+:[0-9]{1,5}$"
+      }
     }
   }
 
@@ -194,8 +197,9 @@ rule "ports_differ" {
 }
 
 rule "bus_account_exists" {
-  condition = (
-    var.norca_bus == null || var.norca_bus.account == "" ||
+  # || evaluates both sides, so a null norca_bus is guarded with ?: (design 4.1).
+  condition = var.norca_bus == null ? true : (
+    var.norca_bus.account == "" ||
     contains([for u in var.users : u.account], var.norca_bus.account)
   )
   error_message = "norca_bus.account must be the account of one of the users."

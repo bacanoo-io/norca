@@ -31,13 +31,16 @@ const (
 const (
 	cmdHelp    = "help"
 	cmdVersion = "version"
+	cmdModule  = "module"
 )
 
 const usage = `Usage: rig [flags] <command>
 
 Commands:
-  help      print this help
-  version   print the version of rig
+  help                    print this help
+  version                 print the version of rig
+  module validate [dir]   check a module without a cluster: its files, its
+                          icon, and its example values (dir: the current one)
 
 Flags:
 `
@@ -74,6 +77,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 			return err
 		})
+	case cmdModule:
+		return runModule(ctx, logger, stdout, stderr, flags.Args()[1:])
 	case cmdHelp:
 		flags.SetOutput(stdout)
 		printUsage(flags)
@@ -99,7 +104,9 @@ func run(ctx context.Context, logger *slog.Logger, stderr io.Writer, name string
 	span.End(ctx, err)
 
 	if err != nil {
-		warn(stderr, "%v", err)
+		if !errors.Is(err, errReported) {
+			warn(stderr, "%v", err)
+		}
 
 		return exitError
 	}

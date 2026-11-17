@@ -89,8 +89,11 @@ variable "databases" {
     attribute "name" { pattern = "^[a-z][a-z0-9_]{0,62}$" }
     attribute "owner" { pattern = "^(|[a-z][a-z0-9_]{0,62})$" }
     attribute "extensions" {
-      unique       = true
-      item_pattern = "^[a-z][a-z0-9_-]*$"
+      unique = true
+
+      item {
+        pattern = "^[a-z][a-z0-9_-]*$"
+      }
     }
   }
 

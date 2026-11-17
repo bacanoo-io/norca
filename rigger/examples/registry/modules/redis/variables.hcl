@@ -228,7 +228,7 @@ variable "auth_enabled" {
 
 # The pack's secret { path, item } wrote this value into the item password of
 # the Variable. Here it is a sensitive value that the Variable resource
-# (redis.var.hcl) takes: Rig sends it to the release API as a secret item,
+# (auth.var.hcl) takes: Rig sends it to the release API as a secret item,
 # never in the revision (design 6.3).
 variable "redis_password" {
   type        = string

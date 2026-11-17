@@ -51,8 +51,11 @@ variable "bus_applications" {
   description = "Applications that use the bus; each gets a user in its own account with a generated password."
 
   validation {
-    unique       = true
-    item_pattern = "^[a-z][a-z0-9_-]{0,31}$"
+    unique = true
+
+    item {
+      pattern = "^[a-z][a-z0-9_-]{0,31}$"
+    }
   }
 
   ui { tab = "bus" }

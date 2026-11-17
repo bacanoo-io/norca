@@ -142,7 +142,7 @@ job "nats" {
 
       # The CA of the Norca servers for the leaf node connection.
       dynamic "template" {
-        for_each = var.norca_bus != null && var.norca_bus.tls ? [1] : []
+        for_each = var.norca_bus == null ? [] : (var.norca_bus.tls ? [1] : [])
         content {
           destination = "secrets/norca_bus/ca.pem"
           perms       = "0600"
