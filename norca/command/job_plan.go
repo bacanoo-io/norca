@@ -275,6 +275,10 @@ func (c *JobPlanCommand) Run(args []string) int {
 	}
 
 	runArgs := strings.Builder{}
+	if resetCounts {
+		// Without it the run keeps the scaled counts: not the planned job.
+		runArgs.WriteString("-reset-counts ")
+	}
 	for _, varArg := range c.JobGetter.Vars {
 		runArgs.WriteString(fmt.Sprintf("-var=%q ", varArg))
 	}

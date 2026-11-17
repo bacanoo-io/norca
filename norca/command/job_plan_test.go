@@ -363,3 +363,25 @@ func TestPlanCommand_PolicyOverrideWarning(t *testing.T) {
 	must.StrContains(t, ui.ErrorWriter.String(), policyOverrideWarning)
 	must.StrContains(t, ui.OutputWriter.String(), "Job:")
 }
+
+// TestPlanCommand_RunHintResetCounts asserts that the "job run" command the
+// plan suggests carries -reset-counts when the plan was made with it: without
+// the flag the run keeps the scaled counts, which is not the planned job.
+func TestPlanCommand_RunHintResetCounts(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, _, addr := testServer(t, false, nil)
+	defer srv.Shutdown()
+
+	ui := cli.NewMockUi()
+	cmd := &JobPlanCommand{Meta: Meta{Ui: ui}}
+	code := cmd.Run([]string{"-reset-counts", "-address", addr, "-json", "testdata/example-short.json"})
+	must.NotEq(t, 255, code, must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "norca job run -check-index 0 -reset-counts testdata/example-short.json")
+
+	ui = cli.NewMockUi()
+	cmd = &JobPlanCommand{Meta: Meta{Ui: ui}}
+	code = cmd.Run([]string{"-address", addr, "-json", "testdata/example-short.json"})
+	must.NotEq(t, 255, code, must.Sprint(ui.ErrorWriter.String()))
+	must.StrContains(t, ui.OutputWriter.String(), "norca job run -check-index 0 testdata/example-short.json")
+}
