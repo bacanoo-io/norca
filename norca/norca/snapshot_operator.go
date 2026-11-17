@@ -6,6 +6,7 @@ package norca
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -498,7 +499,7 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 			}
 			continue
 		}
-		if err := o.deleteSnapshot(p, s, secrets); err != nil {
+		if err := o.deleteSnapshot(p, obj.Namespace, s, secrets); err != nil {
 			s.DeleteError = err.Error()
 			keep = append(keep, s)
 			p.want(p.now.Add(operatorsRetry))
@@ -514,7 +515,22 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 	st.Snapshots = keep
 }
 
-func (o *snapshotOperator) deleteSnapshot(p *snapshotPass, s *scheduledSnapshot, secrets structs.CSISecrets) error {
+// deleteSnapshot asks the plugin to delete a snapshot of a schedule of the
+// namespace. The plugin gets what it got when the snapshot was made: the
+// secrets of the volume, if it is still there, and those of secret_path over
+// them. A plugin that needs the secrets of the volume to delete would refuse
+// every deletion otherwise.
+func (o *snapshotOperator) deleteSnapshot(p *snapshotPass, namespace string, s *scheduledSnapshot, secrets structs.CSISecrets) error {
+	vol, err := p.snap.CSIVolumeByID(nil, namespace, s.Volume)
+	if err != nil {
+		return fmt.Errorf("volume lookup failed: %v", err)
+	}
+	if vol != nil && len(vol.Secrets) > 0 {
+		merged := make(structs.CSISecrets, len(vol.Secrets)+len(secrets))
+		maps.Copy(merged, vol.Secrets)
+		maps.Copy(merged, secrets)
+		secrets = merged
+	}
 	return o.csi.delete(p.snap, &structs.CSISnapshot{ID: s.ID, PluginID: s.Plugin, Secrets: secrets})
 }
 
@@ -602,18 +618,20 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 		return
 	}
 	if spec.DeleteSnapshots && len(st.Snapshots) > 0 {
-		secrets, err := o.secrets(obj, spec)
+		// While the secret can't be read, no snapshot is sent to the
+		// plugin: every one of them waits for it.
+		secrets, secretErr := o.secrets(obj, spec)
 		var failed []string
 		var left []*scheduledSnapshot
 		for _, s := range st.Snapshots {
+			err := secretErr
 			if err == nil {
-				err = o.deleteSnapshot(p, s, secrets)
+				err = o.deleteSnapshot(p, obj.Namespace, s, secrets)
 			}
 			if err != nil {
 				s.DeleteError = err.Error()
 				left = append(left, s)
 				failed = append(failed, s.Name)
-				err = nil
 				continue
 			}
 			st.Deleted++

@@ -24,14 +24,16 @@ import (
 // fakeSnapshotCSI is a controller plugin of a test: a snapshot of a name is
 // created once, as CSI asks.
 type fakeSnapshotCSI struct {
-	mu        sync.Mutex
-	byName    map[string]*structs.CSISnapshot
-	creates   []string
-	deletes   []string
-	secrets   []structs.CSISecrets
-	createErr error
-	deleteErr error
-	notReady  bool
+	mu      sync.Mutex
+	byName  map[string]*structs.CSISnapshot
+	creates []string
+	deletes []string
+	secrets []structs.CSISecrets
+	// deleteSecrets are the secrets of every deletion asked for.
+	deleteSecrets []structs.CSISecrets
+	createErr     error
+	deleteErr     error
+	notReady      bool
 }
 
 func newFakeSnapshotCSI() *fakeSnapshotCSI {
@@ -59,6 +61,7 @@ func (f *fakeSnapshotCSI) create(_ *state.StateSnapshot, _ string, req *structs.
 func (f *fakeSnapshotCSI) delete(_ *state.StateSnapshot, req *structs.CSISnapshot) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.deleteSecrets = append(f.deleteSecrets, req.Secrets)
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}
@@ -668,4 +671,137 @@ func TestSnapshotName_UniquePerSchedule(t *testing.T) {
 	must.Eq(t, 89, len(name))
 	must.StrHasSuffix(t, "-11111111-20261113-030000", name)
 	must.NotEq(t, name, snapshotName(other, &snapshotScheduleSpec{}, at))
+}
+
+// farSchedule is a cron expression whose first time is far away: the tests
+// that write the status of a schedule by hand use it.
+const farSchedule = "0 0 0 1 1 * 2099"
+
+// listedSnapshots returns n finished snapshots of the volume "db" for the
+// status of a schedule, the newest first, an hour apart, and puts them into
+// the fake plugin.
+func listedSnapshots(fake *fakeSnapshotCSI, prefix string, n int) []*scheduledSnapshot {
+	var out []*scheduledSnapshot
+	now := time.Now().UTC()
+	for i := 1; i <= n; i++ {
+		name := fmt.Sprintf("%s-%d", prefix, i)
+		out = append(out, &scheduledSnapshot{
+			ID: "snap-" + name, Name: name, Volume: "db", Plugin: "minnie", Ready: true,
+			Scheduled: now.Add(-time.Duration(i) * time.Hour).Format(time.RFC3339),
+		})
+		fake.set(func(f *fakeSnapshotCSI) { f.byName[name] = &structs.CSISnapshot{ID: "snap-" + name, IsReady: true} })
+	}
+	return out
+}
+
+// While the secret of a deleted schedule can't be read, none of its
+// snapshots is sent to the plugin (review finding SNP-10).
+func TestSnapshotSchedule_DeletionHeldBySecret(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServer(t, false, true)
+	defer cleanup()
+
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "held", map[string]any{
+		"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": 5},
+		"secret_path": "csi/later", "delete_snapshots": true,
+	})
+	must.NoError(t, err)
+	c.waitSchedule("held", "finalizer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+	})
+	obj, _ := c.schedule("held")
+	writeTestScheduleStatus(t, c.s, obj, &snapshotScheduleStatus{Snapshots: listedSnapshots(fake, "held", 3)})
+
+	must.NoError(t, c.delete("default", volumeSnapshotScheduleKind, "held"))
+	st := c.waitSchedule("held", "held by the secret", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return obj.Deleting() && len(st.Snapshots) > 0 && st.Snapshots[0].DeleteError != ""
+	})
+	must.Eq(t, 3, len(st.Snapshots))
+	for _, s := range st.Snapshots {
+		must.StrContains(t, s.DeleteError, "csi/later")
+	}
+	fake.set(func(f *fakeSnapshotCSI) { must.Eq(t, 0, len(f.deleteSecrets)) })
+	must.Eq(t, 3, len(fake.existing()))
+
+	// With the secret the snapshots go, each with it.
+	var resp structs.SecretWriteResponse
+	must.NoError(t, c.s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("csi/later", "", structs.SecretItems{"token": "s3cr3t"}), &resp))
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.get("default", volumeSnapshotScheduleKind, "held") == nil
+	}), wait.Timeout(40*time.Second), wait.Gap(100*time.Millisecond)))
+	must.Eq(t, 0, len(fake.existing()))
+	fake.set(func(f *fakeSnapshotCSI) {
+		must.Eq(t, 3, len(f.deleteSecrets))
+		for _, secrets := range f.deleteSecrets {
+			must.Eq(t, structs.CSISecrets{"token": "s3cr3t"}, secrets)
+		}
+	})
+}
+
+// A deletion gets the secrets of the volume, as the creation does, under
+// those of secret_path (review finding SNP-3).
+func TestSnapshotSchedule_DeleteWithVolumeSecrets(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServer(t, false, true)
+	defer cleanup()
+
+	vol, err := c.s.State().CSIVolumeByID(nil, structs.DefaultNamespace, "db")
+	must.NoError(t, err)
+	vol = vol.Copy()
+	vol.Secrets = structs.CSISecrets{"volume-key": "of the volume", "token": "of the volume"}
+	must.NoError(t, c.s.State().UpsertCSIVolume(902, []*structs.CSIVolume{vol}))
+
+	var resp structs.SecretWriteResponse
+	must.NoError(t, c.s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("csi/minnie", "", structs.SecretItems{"token": "s3cr3t"}), &resp))
+
+	_, err = c.apply("default", volumeSnapshotScheduleKind, "db", map[string]any{
+		"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": 1}, "secret_path": "csi/minnie",
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db", "finalizer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+	})
+	obj, _ := c.schedule("db")
+	writeTestScheduleStatus(t, c.s, obj, &snapshotScheduleStatus{Snapshots: listedSnapshots(fake, "db", 2)})
+
+	c.waitSchedule("db", "the older one deleted", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return st.Deleted == 1 && len(st.Snapshots) == 1
+	})
+	fake.set(func(f *fakeSnapshotCSI) {
+		must.Eq(t, []structs.CSISecrets{{"volume-key": "of the volume", "token": "s3cr3t"}}, f.deleteSecrets)
+	})
+}
+
+// An event of an object does not stand in the way of the status write
+// that follows it (the mechanism review finding SNP-5 supposed).
+func TestSnapshotSchedule_StatusWriteAfterEvent(t *testing.T) {
+	ci.Parallel(t)
+	c, _, cleanup := snapshotTestServer(t, false, true)
+	defer cleanup()
+
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "db", map[string]any{
+		"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": 1},
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db", "finalizer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+	})
+	written := 0
+	for i := 1; i <= 20; i++ {
+		cur := c.get("default", volumeSnapshotScheduleKind, "db")
+		c.s.operatorEvent(cur, structs.ObjectEventTypeWarning, "SnapshotDeleteFailed", "an event in the second of the write")
+		changed := cur.Copy()
+		changed.Status = structs.CopyObjectMap(cur.Status)
+		changed.Status["taken"] = i
+		_, err := c.s.writeOperatorObject(changed)
+		if err != nil && structs.IsObjectConflictError(err) {
+			continue
+		}
+		must.NoError(t, err, must.Sprintf("write %d", i))
+		written++
+	}
+	must.Positive(t, written)
+	log, err := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, volumeSnapshotScheduleKind, "default", "db")
+	must.NoError(t, err)
+	must.NotNil(t, log)
 }
