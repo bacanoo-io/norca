@@ -159,7 +159,8 @@ func (s *Server) shutdownBus() {
 // busTLS returns the TLS configurations of the bus listeners from the agent
 // TLS configuration. Client connections need not present a certificate:
 // they authenticate with node secrets or ACL tokens. Routes require the
-// certificate of a server of the region, in both directions.
+// certificate of a server of the region, in both directions. The distrusted
+// CAs of the configuration hold for both.
 func busTLS(conf *config.TLSConfig, region string) (*tls.Config, *tls.Config, error) {
 	tlsConf, err := tlsutil.NewTLSConfiguration(conf, true, true)
 	if err != nil {
@@ -184,38 +185,46 @@ func busTLS(conf *config.TLSConfig, region string) (*tls.Config, *tls.Config, er
 	clusterTLS.RootCAs = pool
 	// The routes dial IP addresses, which the certificates don't name: the
 	// chain and the server name of the region are verified here instead.
+	// crypto/tls verifies nothing for this configuration and builds no
+	// verified chains, so the check of the incoming configuration (the
+	// distrusted CAs), which reads them, would pass everything: the route
+	// check takes its place and runs it on the chains it verified.
 	clusterTLS.InsecureSkipVerify = true
-	clusterTLS.VerifyPeerCertificate = busServerCertVerifier(pool, region)
+	clusterTLS.VerifyConnection = busRouteVerifier(pool, region, incoming.VerifyConnection)
 	return clientTLS, clusterTLS, nil
 }
 
-// busServerCertVerifier verifies that the peer presents a certificate of
-// the CA for "server.<region>.norca".
-func busServerCertVerifier(pool *x509.CertPool, region string) func([][]byte, [][]*x509.Certificate) error {
+// busRouteVerifier returns the VerifyConnection of the routes, for the side
+// that accepts and the side that dials: the peer must present a certificate
+// of the CA for "server.<region>.norca". The checks of the incoming TLS
+// configuration then run on the chains verified here. It is the
+// VerifyConnection and not the VerifyPeerCertificate, which a resumed TLS
+// session skips: every handshake is checked, with the certificates of the
+// session when it is resumed.
+func busRouteVerifier(pool *x509.CertPool, region string, checks ...tlsutil.ConnectionVerifier) tlsutil.ConnectionVerifier {
 	want := "server." + region + ".norca"
-	return func(raw [][]byte, _ [][]*x509.Certificate) error {
-		if len(raw) == 0 {
+	verifyChains := tlsutil.ChainConnectionVerifiers(checks...)
+	return func(cs tls.ConnectionState) error {
+		certs := cs.PeerCertificates
+		if len(certs) == 0 {
 			return errors.New("bus route: no certificate")
-		}
-		certs := make([]*x509.Certificate, 0, len(raw))
-		for _, r := range raw {
-			c, err := x509.ParseCertificate(r)
-			if err != nil {
-				return fmt.Errorf("bus route: %w", err)
-			}
-			certs = append(certs, c)
 		}
 		inter := x509.NewCertPool()
 		for _, c := range certs[1:] {
 			inter.AddCert(c)
 		}
-		_, err := certs[0].Verify(x509.VerifyOptions{
+		chains, err := certs[0].Verify(x509.VerifyOptions{
 			Roots:         pool,
 			Intermediates: inter,
 			DNSName:       want,
 			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 		})
 		if err != nil {
+			return fmt.Errorf("bus route: %w", err)
+		}
+		// cs is a copy: the chains are set for the checks only.
+		cs.VerifiedChains = chains
+		if err := verifyChains(cs); err != nil {
 			return fmt.Errorf("bus route: %w", err)
 		}
 		return nil
