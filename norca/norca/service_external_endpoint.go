@@ -90,6 +90,13 @@ func (s *ServiceRegistration) UpsertExternal(
 		if reg.External.Source == structs.ExternalServiceSourceConsul {
 			return structs.NewErrRPCCoded(http.StatusBadRequest, "invalid source \"consul\"")
 		}
+		// The caller chooses the pool and the datacenters, and with the ID
+		// of the registration the node among them, that runs requests of
+		// its making: it needs what binding to a node by ID needs below.
+		if aclObj != nil && !aclObj.AllowNodeWrite() {
+			return structs.NewErrRPCCoded(http.StatusForbidden,
+				"Permission denied: checked_by makes a client node run the checks and requires node write")
+		}
 	}
 
 	// Bind the registration to the client node it was registered through.
