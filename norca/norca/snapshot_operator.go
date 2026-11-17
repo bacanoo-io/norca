@@ -44,6 +44,10 @@ var (
 	snapshotReadyPoll = 30 * time.Second
 )
 
+// snapshotTimesWindow is the stretch of a schedule that is walked time by
+// time to find the latest one that has come.
+const snapshotTimesWindow = time.Minute
+
 // The conditions of a snapshot schedule besides Ready and Degraded.
 const (
 	snapshotConditionFailed      = "Failed"
@@ -393,7 +397,24 @@ func scheduleTimes(expr *cronexpr.Expression, loc *time.Location, base, now time
 	if floor := now.AddDate(-1, 0, 0); base.Before(floor) {
 		base = floor
 	}
-	t := expr.Next(base.In(loc))
+	lo := base.In(loc)
+	t := expr.Next(lo)
+	if t.IsZero() || t.After(now) {
+		return time.Time{}, t
+	}
+	// A time has come since base. The walk below costs a step for every
+	// time it passes, which is a year of them for a schedule that was
+	// suspended or not ready that long: start it later, at a point that
+	// still has a time between it and now. Halving finds one at most
+	// snapshotTimesWindow before the latest time in a few steps.
+	for hi := now; hi.Sub(lo) > snapshotTimesWindow; {
+		mid := lo.Add(hi.Sub(lo) / 2)
+		if m := expr.Next(mid); !m.IsZero() && !m.After(now) {
+			lo, t = mid, m
+		} else {
+			hi = mid
+		}
+	}
 	for !t.IsZero() && !t.After(now) {
 		due = t
 		t = expr.Next(t)

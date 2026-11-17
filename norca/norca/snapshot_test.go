@@ -592,3 +592,55 @@ func TestSnapshotSchedule_FiniteSchedule(t *testing.T) {
 	must.True(t, due.IsZero())
 	must.True(t, next.IsZero())
 }
+
+// The walk to the latest time that has come does not grow with the time
+// the schedule was not run (review finding SNP-12).
+func TestSnapshotScheduleTimes_LongIdle(t *testing.T) {
+	ci.Parallel(t)
+
+	expr, err := parseCron(everySecond)
+	must.NoError(t, err)
+	now := time.Date(2026, 11, 17, 12, 0, 0, 500, time.UTC)
+
+	type times struct{ due, next time.Time }
+	done := make(chan times, 1)
+	go func() {
+		due, next := scheduleTimes(expr, time.UTC, now.AddDate(0, -11, 0), now)
+		done <- times{due, next}
+	}()
+	select {
+	case got := <-done:
+		must.Eq(t, now.Truncate(time.Second), got.due.UTC())
+		must.Eq(t, now.Truncate(time.Second).Add(time.Second), got.next.UTC())
+	case <-time.After(3 * time.Second):
+		t.Fatal("scheduleTimes walks every time since the last run")
+	}
+
+	// The times are those of the plain walk from the base, also across
+	// the changes of daylight saving time.
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	must.NoError(t, err)
+	for _, schedule := range []string{"0 3 * * *", "30 2 * * *", "*/7 * * * *", "0 0 1 * *", "15 10 * * 1", "0 0 3 1 1 * 2026"} {
+		expr, err := parseCron(schedule)
+		must.NoError(t, err)
+		for _, loc := range []*time.Location{time.UTC, berlin} {
+			for _, base := range []time.Time{
+				time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				time.Date(2026, 10, 20, 7, 3, 0, 0, time.UTC),
+			} {
+				for _, idle := range []time.Duration{time.Second, 50 * time.Minute, 9 * 24 * time.Hour, 40 * 24 * time.Hour} {
+					now := base.Add(idle)
+					var wantDue time.Time
+					wantNext := expr.Next(base.In(loc))
+					for !wantNext.IsZero() && !wantNext.After(now) {
+						wantDue, wantNext = wantNext, expr.Next(wantNext)
+					}
+					due, next := scheduleTimes(expr, loc, base, now)
+					must.True(t, wantDue.Equal(due) && wantNext.Equal(next),
+						must.Sprintf("%s in %s from %s for %s: due %s next %s, the walk has %s and %s",
+							schedule, loc, base, idle, due, next, wantDue, wantNext))
+				}
+			}
+		}
+	}
+}
