@@ -581,16 +581,20 @@ func (a *ACL) AllowVariableSearch(ns string) bool {
 	}
 
 	iter := a.variables.Root().Iterator()
-	iter.SeekPrefix([]byte(ns))
+	iter.SeekPrefix([]byte(ns + "\x00"))
 	_, _, ok := iter.Next()
 	if ok {
 		return true
 	}
 
-	iter = a.wildcardVariables.Root().Iterator()
-	iter.SeekPrefix([]byte(ns))
-	_, _, ok = iter.Next()
-	return ok
+	// The namespace of a rule in the wildcard tree may itself be a glob.
+	allow := false
+	a.wildcardVariables.Root().Walk(func(k []byte, _ capabilitySet) bool {
+		name, _, _ := strings.Cut(string(k), "\x00")
+		allow = name == ns || glob.Glob(name, ns)
+		return allow
+	})
+	return allow
 }
 
 // matchingNamespaceCapabilitySet looks for a capabilitySet that matches the namespace,

@@ -94,3 +94,28 @@ func TestAllowSecretGrant_NamespaceSeparator(t *testing.T) {
 	)
 	must.False(t, a.AllowSecretGrant("prod", "app/*", NamespaceCapabilityReadSecret))
 }
+
+// The variable search check matches the namespace as a whole, and the glob
+// namespaces of the rules as globs (review finding ACL-3).
+func TestAllowVariableSearch_Namespace(t *testing.T) {
+	ci.Parallel(t)
+
+	a := reviewACL(t,
+		`namespace "production" { variables { path "*" { capabilities = ["read"] } } }`,
+		`namespace "staging" { variables { path "exact" { capabilities = ["read"] } } }`,
+	)
+	must.False(t, a.AllowVariableSearch("prod"))
+	must.True(t, a.AllowVariableSearch("production"))
+	must.False(t, a.AllowVariableSearch("stag"))
+	must.True(t, a.AllowVariableSearch("staging"))
+	must.True(t, a.AllowVariableSearch("*"))
+
+	a = reviewACL(t, `namespace "*" { variables { path "*" { capabilities = ["read"] } } }`)
+	must.True(t, a.AllowVariableSearch("prod"))
+	must.True(t, a.AllowVariableOperation("prod", "x", VariablesCapabilityRead, nil))
+
+	a = reviewACL(t, `namespace "dev-*" { variables { path "exact" { capabilities = ["read"] } } }`)
+	must.True(t, a.AllowVariableSearch("dev-1"))
+	must.False(t, a.AllowVariableSearch("prod"))
+	must.False(t, a.AllowVariableSearch("dev"))
+}
