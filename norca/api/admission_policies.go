@@ -51,11 +51,13 @@ func (a *AdmissionPolicies) List(q *QueryOptions) ([]*AdmissionPolicy, *QueryMet
 
 // PrefixList is used to list admission policies whose name matches a prefix.
 func (a *AdmissionPolicies) PrefixList(prefix string, q *QueryOptions) ([]*AdmissionPolicy, *QueryMeta, error) {
-	if q == nil {
-		q = &QueryOptions{}
+	// On a copy: the options of the caller stay as they are.
+	var qc QueryOptions
+	if q != nil {
+		qc = *q
 	}
-	q.Prefix = prefix
-	return a.List(q)
+	qc.Prefix = prefix
+	return a.List(&qc)
 }
 
 // Info is used to fetch a specific admission policy.

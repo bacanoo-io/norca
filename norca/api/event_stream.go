@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -249,9 +250,13 @@ func (e *EventStream) stream(ctx context.Context, topics map[Topic][]string, ind
 	if err != nil {
 		return nil, err
 	}
+	// WithContext copies the options but shares the Params map with the
+	// caller: the parameters of the stream go into a copy of it.
 	q = q.WithContext(ctx)
 	if q.Params == nil {
 		q.Params = map[string]string{}
+	} else {
+		q.Params = maps.Clone(q.Params)
 	}
 	q.Params["index"] = strconv.FormatUint(index, 10)
 	if exact {

@@ -126,13 +126,14 @@ func (n *NetworkPolicies) Register(policy *NetworkPolicy, w *WriteOptions) (*Wri
 	if policy == nil || policy.Name == "" {
 		return nil, errors.New("missing network policy name")
 	}
-	if policy.Namespace != "" {
-		if w == nil {
-			w = &WriteOptions{}
+	if policy.Namespace != "" && (w == nil || w.Namespace == "") {
+		// On a copy: the options of the caller stay as they are.
+		var nw WriteOptions
+		if w != nil {
+			nw = *w
 		}
-		if w.Namespace == "" {
-			w.Namespace = policy.Namespace
-		}
+		nw.Namespace = policy.Namespace
+		w = &nw
 	}
 	return n.client.put("/v1/network-policy/"+url.PathEscape(policy.Name), policy, nil, w)
 }
