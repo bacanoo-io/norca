@@ -1109,3 +1109,103 @@ func TestVolumeRequest_UpdateKeepsClaimsMadeMeanwhile(t *testing.T) {
 	})
 	must.Nil(t, c.volume("leaving"))
 }
+
+// The register of the operator is a check-and-set on the volume it read: a
+// claim committed between its read and its register is not written over.
+// The register is refused, nothing fails, and the next pass makes the update
+// from the volume as it is then (the window left by the fix of VOL-3).
+func TestVolumeRequest_RegisterIsCheckAndSet(t *testing.T) {
+	ci.Parallel(t)
+
+	// before runs once, right before the next register of the operator.
+	var mu sync.Mutex
+	var before func(vol *structs.CSIVolume)
+	registers := 0
+	set := func(f func(vol *structs.CSIVolume)) {
+		mu.Lock()
+		defer mu.Unlock()
+		before, registers = f, 0
+	}
+	c, fake, cleanup := volumeRequestTestServer(t, false, func(c *Config) {
+		c.volumeRequestBeforeRegister = func(vol *structs.CSIVolume) {
+			mu.Lock()
+			f := before
+			before = nil
+			registers++
+			mu.Unlock()
+			if f != nil {
+				f(vol)
+			}
+		}
+	})
+	defer cleanup()
+
+	failedEvents := func(name string) int {
+		t.Helper()
+		log, err := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, csiVolumeRequestKind, "default", name)
+		must.NoError(t, err)
+		n := 0
+		if log != nil {
+			for _, e := range log.Events {
+				if e.Reason == "Failed" {
+					n++
+				}
+			}
+		}
+		return n
+	}
+
+	_, err := c.apply("default", csiVolumeRequestKind, "busy", volumeSpec(nil))
+	must.NoError(t, err)
+	c.waitRequest("busy", "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == "True"
+	})
+
+	// An allocation claims the volume after the operator has read it for
+	// the last time, before its register is applied.
+	var claim *structs.CSIVolumeClaim
+	set(func(*structs.CSIVolume) { claim = c.claim("busy") })
+	_, err = c.apply("default", csiVolumeRequestKind, "busy", volumeSpec(func(m map[string]any) { m["capacity_min"] = "2GiB" }))
+	must.NoError(t, err)
+	st := c.waitRequest("busy", "updated or failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Failures > 0 || (c.volume("busy").RequestedCapacityMin == 2*gibibyte && readyReason(obj) == "True")
+	})
+	obj, _ := c.request("busy")
+	must.Zero(t, st.Failures, must.Sprintf("the update failed: %s", volumeRequestFailure(obj.Status)))
+	must.Eq(t, "", st.RetryAt)
+	must.Zero(t, failedEvents("busy"))
+
+	vol := c.volume("busy")
+	must.NotNil(t, claim)
+	must.MapContainsKey(t, vol.WriteClaims, claim.AllocationID, must.Sprint("the claim made before the register is lost"))
+	must.MapContainsKey(t, vol.WriteAllocs, claim.AllocationID)
+	must.Eq(t, 2*gibibyte, vol.Capacity)
+	must.Eq(t, 2*gibibyte, vol.RequestedCapacityMin)
+	mu.Lock()
+	must.Eq(t, 2, registers, must.Sprint("the refused register and the one of the next pass"))
+	mu.Unlock()
+	// The pass that does it again asks the plugin again: an expansion to a
+	// size the volume has is answered without doing anything.
+	fake.set(func(f *fakeVolumeCSI) { must.Eq(t, []int64{2 * gibibyte, 2 * gibibyte}, f.expands) })
+
+	// A volume of the ID that is registered by hand after the create, right
+	// before the register of the operator, is not written over either.
+	set(func(*structs.CSIVolume) {
+		c.writeVolume(&structs.CSIVolume{
+			ID: "late", Name: "by-hand", Namespace: "default", PluginID: "minnie", ExternalID: "ext-by-hand",
+			Capacity: gibibyte, RequestedCapacityMin: gibibyte,
+			RequestedCapabilities: []*structs.CSIVolumeCapability{{
+				AccessMode: structs.CSIVolumeAccessModeSingleNodeWriter, AttachmentMode: structs.CSIVolumeAttachmentModeFilesystem}},
+		})
+	})
+	_, err = c.apply("default", csiVolumeRequestKind, "late", volumeSpec(nil))
+	must.NoError(t, err)
+	st = c.waitRequest("late", "conflict", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == volumeRequestConditionConflict || st.VolumeCreateIndex != 0 || st.Failures > 0
+	})
+	must.Zero(t, st.VolumeCreateIndex)
+	must.Zero(t, st.Failures)
+	must.Zero(t, failedEvents("late"))
+	must.Eq(t, "by-hand", c.volume("late").Name)
+	must.Eq(t, "ext-by-hand", c.volume("late").ExternalID)
+}

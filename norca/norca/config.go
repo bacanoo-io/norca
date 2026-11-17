@@ -415,6 +415,11 @@ type Config struct {
 	// volumeRequestRetryBase of the package. For tests.
 	volumeRequestRetryBase time.Duration
 
+	// volumeRequestBeforeRegister, when set, runs right before the operator
+	// of volume requests sends the register of a volume it has read. For
+	// tests: what is committed between the read and the register.
+	volumeRequestBeforeRegister func(vol *structs.CSIVolume)
+
 	// DefaultSchedulerConfig configures the initial scheduler config to be persisted in Raft.
 	// Once the cluster is bootstrapped, and Raft persists the config (from here or through API)
 	// and this value is ignored.

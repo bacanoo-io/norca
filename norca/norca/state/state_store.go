@@ -2398,6 +2398,16 @@ func (s *StateStore) JobSummaryByPrefix(ws memdb.WatchSet, namespace, id string)
 
 // UpsertCSIVolume inserts a volume in the state store.
 func (s *StateStore) UpsertCSIVolume(index uint64, volumes []*structs.CSIVolume) error {
+	return s.UpsertCSIVolumeExpected(index, volumes, nil)
+}
+
+// UpsertCSIVolumeExpected inserts volumes as UpsertCSIVolume does, as a
+// check-and-set where expected has the ID of a volume: that volume is written
+// only if the stored one has the modify index given, with 0 only if none is
+// stored. If a check fails nothing is written and the error is a conflict
+// (structs.IsCSIVolumeConflictError). The outcome depends on the arguments
+// and the state alone.
+func (s *StateStore) UpsertCSIVolumeExpected(index uint64, volumes []*structs.CSIVolume, expected map[string]uint64) error {
 	txn := s.db.WriteTxn(index)
 	defer txn.Abort()
 
@@ -2411,6 +2421,16 @@ func (s *StateStore) UpsertCSIVolume(index uint64, volumes []*structs.CSIVolume)
 		obj, err := txn.First("csi_volumes", "id", v.Namespace, v.ID)
 		if err != nil {
 			return fmt.Errorf("volume existence check error: %v", err)
+		}
+		if want, checked := expected[v.ID]; checked {
+			var have uint64
+			if obj != nil {
+				have = obj.(*structs.CSIVolume).ModifyIndex
+			}
+			if have != want {
+				return structs.NewCSIVolumeConflictError("volume %s/%s has modify index %d, expected %d",
+					v.Namespace, v.ID, have, want)
+			}
 		}
 		if obj != nil {
 			// Allow some properties of a volume to be updated in place, but

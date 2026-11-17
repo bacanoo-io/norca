@@ -1449,8 +1449,14 @@ func (n *nomadFSM) applyCSIVolumeRegister(buf []byte, index uint64) interface{} 
 	}
 	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_csi_volume_register"}, time.Now())
 
-	if err := n.state.UpsertCSIVolume(index, req.Volumes); err != nil {
-		n.logger.Error("CSIVolumeRegister failed", "error", err)
+	if err := n.state.UpsertCSIVolumeExpected(index, req.Volumes, req.ExpectedModifyIndex); err != nil {
+		// A failed check-and-set is an answer for the writer, which reads
+		// the volume again: not an error of the servers.
+		if structs.IsCSIVolumeConflictError(err) {
+			n.logger.Debug("CSIVolumeRegister refused", "error", err)
+		} else {
+			n.logger.Error("CSIVolumeRegister failed", "error", err)
+		}
 		return err
 	}
 

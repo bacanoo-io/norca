@@ -49,6 +49,10 @@ const (
 	volumeRequestInUsePoll = 30 * time.Second
 )
 
+// volumeRequestReasonUpdating is the reason of Ready=False of a pass whose
+// update is made again in the next one. Like Creating it is not Degraded.
+const volumeRequestReasonUpdating = "Updating"
+
 // The conditions of a volume request besides Ready and Degraded.
 const (
 	volumeRequestConditionConflict = "Conflict"
@@ -494,7 +498,13 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 		return obj
 	}
 
-	index, err := o.register(vol)
+	index, err := o.register(vol, 0)
+	if structs.IsCSIVolumeConflictError(err) {
+		// The same, after the look above: not a failure.
+		out.notReady("Creating", "a volume %q appeared while it was made", obj.Name)
+		p.want(p.now.Add(operatorsSettle))
+		return obj
+	}
 	if err != nil {
 		o.failure(p, obj, st, out, what, err)
 		return obj
@@ -531,11 +541,20 @@ func (o *volumeRequestOperator) registeredElsewhere(vol *structs.CSIVolume) (*st
 }
 
 // register writes a volume to the state, as a volume register does, and
-// returns its create index.
-func (o *volumeRequestOperator) register(vol *structs.CSIVolume) (uint64, error) {
+// returns its create index. A register writes the volume as a whole, with
+// its claims, so it is a check-and-set: expected is the modify index of the
+// stored volume that vol was built from, 0 if there was none. If the volume
+// was written in between (an allocation claimed or released it), nothing is
+// written and the error is a conflict (structs.IsCSIVolumeConflictError):
+// the next pass does the work again from the volume as it is then.
+func (o *volumeRequestOperator) register(vol *structs.CSIVolume, expected uint64) (uint64, error) {
+	if o.srv.config != nil && o.srv.config.volumeRequestBeforeRegister != nil {
+		o.srv.config.volumeRequestBeforeRegister(vol)
+	}
 	req := &structs.CSIVolumeRegisterRequest{
-		Volumes:      []*structs.CSIVolume{vol},
-		WriteRequest: structs.WriteRequest{Region: o.srv.Region(), Namespace: vol.Namespace},
+		Volumes:             []*structs.CSIVolume{vol},
+		ExpectedModifyIndex: map[string]uint64{vol.ID: expected},
+		WriteRequest:        structs.WriteRequest{Region: o.srv.Region(), Namespace: vol.Namespace},
 	}
 	if _, _, err := o.srv.raftApply(structs.CSIVolumeRegisterRequestType, req); err != nil {
 		return 0, err
@@ -645,7 +664,16 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 	changed.Capacity = expanded.Capacity
 	changed.RequestedCapacityMin, changed.RequestedCapacityMax = want.RequestedCapacityMin, want.RequestedCapacityMax
 
-	if _, err := o.register(changed); err != nil {
+	_, err = o.register(changed, live.ModifyIndex)
+	if structs.IsCSIVolumeConflictError(err) {
+		// The volume was written after it was read here: a claim was made
+		// or released. Nothing was written and nothing failed; the next
+		// pass makes the update from the volume as it is then.
+		out.notReady(volumeRequestReasonUpdating, "the volume %q changed while it was updated: the update is made again", obj.Name)
+		p.want(p.now.Add(operatorsSettle))
+		return
+	}
+	if err != nil {
 		o.failure(p, obj, st, out, "update the volume", err)
 		return
 	}
@@ -720,7 +748,8 @@ func (o *volumeRequestOperator) writeRequest(p *volumeRequestPass, obj *structs.
 	conditions.set(structs.CertificateConditionReady, ready, reason, message)
 	conditions.set(volumeRequestConditionConflict, out.conflict != "", "", out.conflict)
 	conditions.set(volumeRequestConditionFailed, out.failed != "", "", out.failed)
-	conditions.set(structs.CertificateConditionDegraded, !ready && out.notReadyReason != "Creating", "", "")
+	conditions.set(structs.CertificateConditionDegraded,
+		!ready && out.notReadyReason != "Creating" && out.notReadyReason != volumeRequestReasonUpdating, "", "")
 	encoded[structs.ObjectStatusConditions] = conditions.list()
 	encoded[structs.ObjectStatusObservedGeneration] = obj.Generation
 

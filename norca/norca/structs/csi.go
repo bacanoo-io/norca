@@ -935,7 +935,36 @@ func (v *CSIVolume) Merge(other *CSIVolume) error {
 // Request and response wrappers
 type CSIVolumeRegisterRequest struct {
 	Volumes []*CSIVolume
+
+	// ExpectedModifyIndex, when set, makes the register a check-and-set.
+	// It is keyed by volume ID: the volume of the request with that ID is
+	// written only if the stored volume has this modify index, and with 0
+	// only if no volume is stored. If one check fails, nothing of the
+	// request is written and the answer is a conflict
+	// (IsCSIVolumeConflictError). A volume without an entry is written
+	// unchecked, as all are when the map is nil. A register writes a volume
+	// as a whole, with its claims: the check is how a writer that read the
+	// volume keeps what was claimed or released since its read.
+	ExpectedModifyIndex map[string]uint64
+
 	WriteRequest
+}
+
+// errCSIVolumeConflictPrefix starts the message of check-and-set conflicts
+// of a volume register.
+const errCSIVolumeConflictPrefix = "volume modified concurrently"
+
+// NewCSIVolumeConflictError returns the 409 Conflict error of a volume
+// register whose check-and-set failed.
+func NewCSIVolumeConflictError(format string, args ...any) error {
+	return NewErrRPCCoded(409, errCSIVolumeConflictPrefix+": "+fmt.Sprintf(format, args...))
+}
+
+// IsCSIVolumeConflictError reports whether err is a check-and-set conflict
+// of a volume register.
+func IsCSIVolumeConflictError(err error) bool {
+	code, msg, ok := CodeFromRPCCodedErr(err)
+	return ok && code == 409 && strings.HasPrefix(msg, errCSIVolumeConflictPrefix)
 }
 
 type CSIVolumeRegisterResponse struct {
