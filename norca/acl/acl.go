@@ -6,7 +6,6 @@ package acl
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	iradix "github.com/hashicorp/go-immutable-radix/v2"
@@ -725,14 +724,25 @@ func (a *ACL) findClosestMatchingGlob(radix *iradix.Tree[capabilitySet], ns stri
 		return matchingGlobs[0].capabilitySet, true
 	}
 
-	// Stable sort the matched globs, based on the character difference between
-	// the glob definition and the requested namespace. This allows us to be
-	// more consistent about results based on the policy definition.
-	sort.SliceStable(matchingGlobs, func(i, j int) bool {
-		return matchingGlobs[i].difference <= matchingGlobs[j].difference
-	})
+	// Choose the glob with the smallest character difference between the glob
+	// definition and the requested name. Among equally close globs a deny
+	// takes precedence; without one the last of them in the order of the tree
+	// applies, so that the result depends on the policy definitions alone.
+	best, tieDeny := matchingGlobs[0], false
+	for _, m := range matchingGlobs[1:] {
+		switch {
+		case m.difference < best.difference:
+			best, tieDeny = m, false
+		case m.difference == best.difference:
+			tieDeny = tieDeny || best.capabilitySet.Check(PolicyDeny) || m.capabilitySet.Check(PolicyDeny)
+			best = m
+		}
+	}
+	if tieDeny {
+		return capabilitySet{PolicyDeny: {}}, true
+	}
 
-	return matchingGlobs[0].capabilitySet, true
+	return best.capabilitySet, true
 }
 
 func findAllMatchingWildcards(radix *iradix.Tree[capabilitySet], name string) []matchingGlob {

@@ -119,3 +119,68 @@ func TestAllowVariableSearch_Namespace(t *testing.T) {
 	must.False(t, a.AllowVariableSearch("prod"))
 	must.False(t, a.AllowVariableSearch("dev"))
 }
+
+// Among equally specific globs a deny wins, whatever the names of the globs
+// are (review finding ACL-2).
+func TestFindClosestMatchingGlob_TieDeny(t *testing.T) {
+	ci.Parallel(t)
+
+	// The deny is first in the order of the tree.
+	a := reviewACL(t,
+		`namespace "*-prod" { policy = "deny" }`,
+		`namespace "team-*" { policy = "write" }`,
+	)
+	must.False(t, a.AllowNamespaceOperation("team-prod", NamespaceCapabilitySubmitJob))
+	must.False(t, a.AllowNamespace("team-prod"))
+	must.True(t, a.AllowNamespaceOperation("team-dev", NamespaceCapabilitySubmitJob))
+
+	// The deny is last in the order of the tree.
+	a = reviewACL(t,
+		`namespace "a-*" { policy = "deny" }`,
+		`namespace "*-b" { policy = "write" }`,
+	)
+	must.False(t, a.AllowNamespaceOperation("a-b", NamespaceCapabilitySubmitJob))
+	must.True(t, a.AllowNamespaceOperation("c-b", NamespaceCapabilitySubmitJob))
+
+	// A more specific glob still wins over a less specific deny.
+	a = reviewACL(t,
+		`namespace "*" { policy = "deny" }`,
+		`namespace "team-*" { policy = "write" }`,
+	)
+	must.True(t, a.AllowNamespaceOperation("team-prod", NamespaceCapabilitySubmitJob))
+
+	// Without a deny the choice among equally specific globs is the same in
+	// every run: the last one in the order of the tree.
+	a = reviewACL(t,
+		`namespace "*-prod" { policy = "read" }`,
+		`namespace "team-*" { policy = "write" }`,
+	)
+	for i := 0; i < 10; i++ {
+		must.True(t, a.AllowNamespaceOperation("team-prod", NamespaceCapabilitySubmitJob))
+	}
+
+	// The same holds for the other rules matched by globs.
+	a = reviewACL(t,
+		`host_volume "*-prod" { policy = "deny" }`,
+		`host_volume "team-*" { policy = "write" }`,
+		`node_pool "*-prod" { policy = "deny" }`,
+		`node_pool "team-*" { policy = "write" }`,
+		`namespace "ns" { variables {
+		   path "*-prod" { capabilities = ["deny"] }
+		   path "team-*" { capabilities = ["read"] }
+		 } }`,
+		`namespace "ns" {
+		   object "g.io/*K" { policy = "deny" }
+		   object "g.io/K*" { policy = "write" }
+		   secret "*-prod" { capabilities = ["deny"] }
+		   secret "team-*" { capabilities = ["read-secret"] }
+		 }`,
+	)
+	must.False(t, a.AllowHostVolumeOperation("team-prod", HostVolumeCapabilityMountReadOnly))
+	must.False(t, a.AllowNodePoolOperation("team-prod", NodePoolCapabilityRead))
+	must.False(t, a.AllowVariableOperation("ns", "team-prod", VariablesCapabilityRead, nil))
+	must.True(t, a.AllowVariableOperation("ns", "team-dev", VariablesCapabilityRead, nil))
+	must.False(t, a.AllowObjectOperation("ns", "g.io/K", ObjectCapabilityRead))
+	must.False(t, a.AllowSecretOperation("ns", "team-prod", NamespaceCapabilityReadSecret))
+	must.True(t, a.AllowSecretOperation("ns", "team-dev", NamespaceCapabilityReadSecret))
+}
