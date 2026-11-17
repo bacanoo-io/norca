@@ -6,6 +6,7 @@ package consulcompat_test
 import (
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -192,6 +193,66 @@ func TestConsulCompat_KV(t *testing.T) {
 			// sessions are not supported
 			_, _, err = kv.Acquire(&consulapi.KVPair{Key: "lock", Session: "s"}, nil)
 			must.ErrorContains(t, err, "501")
+		})
+	}
+}
+
+// TestConsulCompat_KVDeleteCAS: every backend answers a check-and-set delete
+// with the same body. cas=0 never deletes a key; a stale index does not
+// delete; a key that does not exist is answered true, whatever the index.
+func TestConsulCompat_KVDeleteCAS(t *testing.T) {
+	ci.Parallel(t)
+
+	for name, backend := range kvBackends {
+		t.Run(name, func(t *testing.T) {
+			c := backend.cluster(t, false)
+			kv := c.consul.KV()
+
+			// del sends DELETE /v1/kv/<key>?cas=<cas> and returns the body.
+			del := func(key string, cas uint64) string {
+				t.Helper()
+				req, err := http.NewRequest(http.MethodDelete,
+					"http://"+c.addr+"/v1/kv/"+key+"?cas="+strconv.FormatUint(cas, 10), nil)
+				must.NoError(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				must.NoError(t, err)
+				defer resp.Body.Close()
+				body, _ := io.ReadAll(resp.Body)
+				must.Eq(t, http.StatusOK, resp.StatusCode, must.Sprint(string(body)))
+				return strings.TrimSpace(string(body))
+			}
+			exists := func(key string) bool {
+				t.Helper()
+				pair, _, err := kv.Get(key, nil)
+				must.NoError(t, err)
+				return pair != nil
+			}
+
+			_, err := kv.Put(&consulapi.KVPair{Key: "cas/key", Value: []byte("v")}, nil)
+			must.NoError(t, err)
+			pair, _, err := kv.Get("cas/key", nil)
+			must.NoError(t, err)
+			index := pair.ModifyIndex
+
+			// An existing key: cas=0 and a stale index leave it.
+			must.Eq(t, "false", del("cas/key", 0))
+			must.True(t, exists("cas/key"))
+			must.Eq(t, "false", del("cas/key", index+1000))
+			must.True(t, exists("cas/key"))
+
+			// A key that never was.
+			must.Eq(t, "true", del("cas/never", 0))
+			must.Eq(t, "true", del("cas/never", index))
+			must.False(t, exists("cas/never"))
+
+			// The current index deletes; the deleted key is then like one
+			// that never was.
+			must.Eq(t, "true", del("cas/key", index))
+			must.False(t, exists("cas/key"))
+			must.Eq(t, "true", del("cas/key", 0))
+			must.Eq(t, "true", del("cas/key", index))
+			must.Eq(t, "true", del("cas/key", index+1000))
+			must.False(t, exists("cas/key"))
 		})
 	}
 }

@@ -139,20 +139,31 @@ func Put(ctx context.Context, kv jetstream.KeyValue, scope, key string, value []
 // Delete deletes key. With cas set it only deletes when the revision of the
 // key is *cas and reports false otherwise; a cas of 0 never deletes (in the
 // Consul KV API the index of a delete must be greater than 0 for any
-// action). A tree is deleted by listing its keys with Get and deleting them
-// one by one: not atomic.
+// action). A check-and-set delete of a key that does not exist reports
+// true, whatever the index: there is nothing to delete. A tree is deleted by
+// listing its keys with Get and deleting them one by one: not atomic.
 func Delete(ctx context.Context, kv jetstream.KeyValue, scope, key string, cas *uint64) (bool, error) {
-	if cas != nil && *cas == 0 {
-		// The bucket would take revision 0 as "no check" and delete.
-		return false, nil
-	}
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
+	k := scope + EncodeKey(key)
 	var opts []jetstream.KVDeleteOpt
 	if cas != nil {
+		// The bucket answers a delete with a revision of a missing key like
+		// one with a stale revision, so the key is looked up first. A key
+		// deleted between the two calls is answered false, as stale.
+		switch _, err := kv.Get(ctx, k); {
+		case errors.Is(err, jetstream.ErrKeyNotFound):
+			return true, nil
+		case err != nil:
+			return false, err
+		}
+		if *cas == 0 {
+			// The bucket would take revision 0 as "no check" and delete.
+			return false, nil
+		}
 		opts = append(opts, jetstream.LastRevision(*cas))
 	}
-	err := kv.Delete(ctx, scope+EncodeKey(key), opts...)
+	err := kv.Delete(ctx, k, opts...)
 	if errors.Is(err, jetstream.ErrKeyRevisionMismatch) || isWrongLastSequence(err) {
 		return false, nil
 	}

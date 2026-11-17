@@ -142,12 +142,24 @@ func (v *variablesKV) Delete(r *request, key string, recurse bool, cas *uint64) 
 			return false, err
 		}
 		vd := &structs.VariableDecrypted{VariableMetadata: structs.VariableMetadata{Namespace: v.namespace, Path: path}}
-		op := structs.VarOpDelete
-		if cas != nil {
-			op = structs.VarOpDeleteCAS
-			vd.ModifyIndex = *cas
+		if cas == nil {
+			return v.apply(r, structs.VarOpDelete, vd)
 		}
-		return v.apply(r, op, vd)
+		// With cas 0 the servers delete "if it does not exist": true for a
+		// missing Variable, a conflict for an existing one, so the key is
+		// never deleted. With another index a missing Variable is a
+		// conflict too; like the bucket backends it is answered true: there
+		// is nothing to delete. The conflict of a missing Variable is the
+		// only one with a modify index of 0.
+		vd.ModifyIndex = *cas
+		resp, err := v.applyResponse(r, structs.VarOpDeleteCAS, vd)
+		if err != nil {
+			return false, err
+		}
+		if resp.IsConflict() {
+			return resp.Conflict != nil && resp.Conflict.ModifyIndex == 0, nil
+		}
+		return true, nil
 	}
 
 	// Not atomic: the keys are deleted one by one.
@@ -167,6 +179,16 @@ func (v *variablesKV) Delete(r *request, key string, recurse bool, cas *uint64) 
 
 // apply writes a Variable; a failed check-and-set is false.
 func (v *variablesKV) apply(r *request, op structs.VarOp, vd *structs.VariableDecrypted) (bool, error) {
+	resp, err := v.applyResponse(r, op, vd)
+	if err != nil {
+		return false, err
+	}
+	return !resp.IsConflict(), nil
+}
+
+// applyResponse writes a Variable and returns the response of the servers,
+// which is a success or a conflict (a failed check-and-set).
+func (v *variablesKV) applyResponse(r *request, op structs.VarOp, vd *structs.VariableDecrypted) (*structs.VariablesApplyResponse, error) {
 	args := &structs.VariablesApplyRequest{
 		Op:  op,
 		Var: vd,
@@ -178,15 +200,12 @@ func (v *variablesKV) apply(r *request, op structs.VarOp, vd *structs.VariableDe
 	}
 	var resp structs.VariablesApplyResponse
 	if err := v.backend.RPC(structs.VariablesApplyRPCMethod, args, &resp); err != nil {
-		return false, err
+		return nil, err
 	}
-	if resp.IsConflict() {
-		return false, nil
+	if !resp.IsConflict() && resp.Error != nil {
+		return nil, resp.Error
 	}
-	if resp.Error != nil {
-		return false, resp.Error
-	}
-	return true, nil
+	return &resp, nil
 }
 
 func (v *variablesKV) Close() {}

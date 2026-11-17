@@ -72,6 +72,18 @@ func TestDelete_CAS(t *testing.T) {
 	_, err = kv.Get(ctx, EncodeKey("app/key"))
 	must.ErrorIs(t, err, jetstream.ErrKeyNotFound)
 
+	// A check-and-set delete of a key that does not exist answers true,
+	// whatever the index: of a deleted key and of one that never was.
+	for _, key := range []string{"app/key", "app/never"} {
+		for _, cas := range []uint64{0, rev, stale} {
+			ok, err = Delete(ctx, kv, "", key, &cas)
+			must.NoError(t, err, must.Sprint(key, cas))
+			must.True(t, ok, must.Sprint(key, cas))
+			_, err = kv.Get(ctx, EncodeKey(key))
+			must.ErrorIs(t, err, jetstream.ErrKeyNotFound)
+		}
+	}
+
 	// Without cas the key is deleted.
 	ok, err = Put(ctx, kv, "", "app/other", []byte("v"), nil)
 	must.NoError(t, err)
