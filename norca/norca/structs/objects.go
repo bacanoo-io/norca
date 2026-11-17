@@ -65,6 +65,8 @@ const (
 	maxObjectLabels                = 64
 	maxObjectLabelValueLength      = 256
 	maxObjectOwners                = 16
+	maxObjectOwnerNameLength       = 512
+	maxObjectOwnerIDLength         = 128
 	maxObjectManagedByLength       = 256
 )
 

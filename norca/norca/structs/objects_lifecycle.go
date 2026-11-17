@@ -106,17 +106,37 @@ func ValidateObjectPropagation(propagation string) error {
 		ObjectPropagationBackground, ObjectPropagationForeground, ObjectPropagationOrphan)
 }
 
-// Validate checks the kind of an owner reference.
+// Validate checks an owner reference: its kind, and the form and the length
+// of its other fields. They are stored with the object and are not counted
+// in its size limit, so each of them is bounded here.
 func (r *ObjectOwnerReference) Validate() error {
+	if r.Namespace != "" && !validNamespaceName.MatchString(r.Namespace) {
+		return fmt.Errorf("invalid namespace, must match regex %s", validNamespaceName)
+	}
+	if len(r.ID) > maxObjectOwnerIDLength {
+		return fmt.Errorf("ID longer than %d", maxObjectOwnerIDLength)
+	}
 	switch r.Kind {
 	case ObjectOwnerKindJob, "Variable":
+		if len(r.Name) > maxObjectOwnerNameLength {
+			return fmt.Errorf("name longer than %d", maxObjectOwnerNameLength)
+		}
+		if strings.ContainsFunc(r.Name, func(c rune) bool { return c < 0x20 || c == 0x7f }) {
+			return fmt.Errorf("name contains a control character")
+		}
 		return nil
 	}
 	group, kind, err := ParseObjectKindRef(r.Kind)
 	if err != nil {
 		return err
 	}
-	return ValidateObjectKindName(group, kind)
+	if err := ValidateObjectKindName(group, kind); err != nil {
+		return err
+	}
+	if !validCustomObjectName.MatchString(r.Name) {
+		return fmt.Errorf("invalid name, must match regex %s", validCustomObjectName)
+	}
+	return nil
 }
 
 // IsObject reports whether the reference is to a custom object.
