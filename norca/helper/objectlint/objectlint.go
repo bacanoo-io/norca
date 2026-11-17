@@ -201,7 +201,10 @@ func lintSample(r *Report, kind *structs.ObjectKind, schema *objectschema.Schema
 		spec = map[string]any{}
 	}
 	doc := map[string]any{"spec": spec}
-	schema.ApplyDefaults(doc)
+	if err := schema.ApplyDefaults(doc); err != nil {
+		r.add(SeverityError, subject, "%v", err)
+		return
+	}
 	obj.Spec, _ = doc["spec"].(map[string]any)
 	if err := schema.Validate(map[string]any{"spec": obj.Spec}); err != nil {
 		r.add(SeverityError, subject, "%v", err)

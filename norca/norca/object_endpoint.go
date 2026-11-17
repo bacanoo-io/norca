@@ -852,7 +852,9 @@ func (c *CustomObject) reapplyDefaults(kind *structs.ObjectKind, obj, existing *
 	if obj.Spec == nil {
 		doc["spec"] = map[string]any{}
 	}
-	schema.ApplyDefaults(doc)
+	if err := schema.ApplyDefaults(doc); err != nil {
+		return structs.NewErrRPCCodedf(http.StatusRequestEntityTooLarge, "%s %q: %v", kind.KindRef(), obj.Name, err)
+	}
 	obj.Spec, _ = doc["spec"].(map[string]any)
 	if existing != nil {
 		obj.Generation = existing.Generation
@@ -1097,7 +1099,9 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 				return nil, "", fmt.Errorf("object kind %q has an invalid schema: %v", kind.KindRef(), err)
 			}
 			doc := map[string]any{"spec": structs.CopyObjectMap(spec)}
-			schema.ApplyDefaults(doc)
+			if err := schema.ApplyDefaults(doc); err != nil {
+				return nil, "", structs.NewErrRPCCodedf(http.StatusRequestEntityTooLarge, "%s %q: %v", kind.KindRef(), in.Name, err)
+			}
 			obj.Spec, _ = doc["spec"].(map[string]any)
 
 			if existing != nil && !structs.ObjectMapsEqual(existing.Spec, obj.Spec) {
@@ -1202,7 +1206,9 @@ func (c *CustomObject) UpdateStatus(args *structs.CustomObjectStatusRequest, rep
 					return nil, "", fmt.Errorf("object kind %q has an invalid schema: %v", kind.KindRef(), err)
 				}
 				doc := map[string]any{"spec": structs.CopyObjectMap(existing.Spec), "status": structs.CopyObjectMap(status)}
-				schema.ApplyDefaults(doc)
+				if err := schema.ApplyDefaults(doc); err != nil {
+					return nil, "", structs.NewErrRPCCodedf(http.StatusRequestEntityTooLarge, "%s %q: %v", kind.KindRef(), existing.Name, err)
+				}
 				obj.Status, _ = doc["status"].(map[string]any)
 			}
 			if err := validateObjectStatus(obj); err != nil {

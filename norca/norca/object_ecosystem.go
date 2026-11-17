@@ -317,7 +317,9 @@ func migrateObject(prepared *admission.PreparedMigration, schema *objectschema.S
 		if out.Status != nil {
 			doc["status"] = out.Status
 		}
-		schema.ApplyDefaults(doc)
+		if err := schema.ApplyDefaults(doc); err != nil {
+			return nil, false, err
+		}
 		out.Spec, _ = doc["spec"].(map[string]any)
 		if st, ok := doc["status"].(map[string]any); ok {
 			out.Status = st

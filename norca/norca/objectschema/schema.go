@@ -30,9 +30,28 @@ const (
 	// follows local references and could otherwise loop.
 	maxDefaultDepth = 64
 
+	// maxDefaultBytes bounds what one ApplyDefaults call fills in, counted
+	// as the JSON encoding of the inserted values and their property
+	// names (a lower bound of it). It is the size limit of a custom object
+	// (structs.MaxCustomObjectSize): a document that got more than this
+	// would be refused for its size anyway. Without the bound, nested
+	// defaults that reference each other double the document on every
+	// level.
+	maxDefaultBytes = 256 * 1024
+
+	// maxDefaultSteps bounds the schemas visited by one ApplyDefaults
+	// call: references in allOf can branch on every level without
+	// inserting anything.
+	maxDefaultSteps = 1 << 22
+
 	// maxErrors is the maximum number of validation errors reported.
 	maxErrors = 10
 )
+
+// ErrDefaultsTooLarge is returned by ApplyDefaults when the default values
+// of the schema grow the document beyond the limit. The document is then
+// only partly filled in and must not be used.
+var ErrDefaultsTooLarge = fmt.Errorf("the default values of the schema add more than %d bytes to the document", maxDefaultBytes)
 
 // Schema is a compiled object kind schema.
 type Schema struct {
@@ -96,13 +115,52 @@ func compile(loc, doc string) (*Schema, error) {
 	return s, nil
 }
 
+// defaulter is the state of one default filling: what is left of its
+// limits.
+type defaulter struct {
+	s        *Schema
+	bytes    int
+	steps    int
+	exceeded bool
+}
+
+func (s *Schema) newDefaulter() *defaulter {
+	return &defaulter{s: s, bytes: maxDefaultBytes, steps: maxDefaultSteps}
+}
+
+// jsonCost returns a lower bound of the size of the JSON encoding of v.
+func jsonCost(v any) int {
+	switch t := v.(type) {
+	case map[string]any:
+		n := 2
+		for k, e := range t {
+			n += len(k) + jsonCost(e)
+		}
+		return n
+	case []any:
+		n := 2
+		for _, e := range t {
+			n += jsonCost(e)
+		}
+		return n
+	case string:
+		return len(t) + 2
+	default:
+		return 1
+	}
+}
+
 // checkDefaults validates every default value against the schema that
 // declares it, so a kind can't fill in values that its own schema rejects.
 func (s *Schema) checkDefaults(c *jsonschema.Compiler, loc string) error {
 	var errs []string
+	// The defaults filled into all default values together must stay in
+	// the limits of one filling: a default that (through references) fills
+	// in itself again grows without bound.
+	d := s.newDefaulter()
 	var walk func(schema map[string]any, ptr string, depth int)
 	walk = func(schema map[string]any, ptr string, depth int) {
-		if depth > maxDefaultDepth || len(errs) >= maxErrors {
+		if depth > maxDefaultDepth || len(errs) >= maxErrors || d.exceeded {
 			return
 		}
 		if def, ok := schema["default"]; ok {
@@ -111,6 +169,12 @@ func (s *Schema) checkDefaults(c *jsonschema.Compiler, loc string) error {
 				errs = append(errs, fmt.Sprintf("default at %s: %v", ptrOrRoot(ptr), err))
 			} else if err := describe(sub.Validate(copyJSON(def))); err != nil {
 				errs = append(errs, fmt.Sprintf("default at %s: %v", ptrOrRoot(ptr), err))
+			}
+			if d.apply(schema, copyJSON(def), 0); d.exceeded {
+				errs = append(errs, fmt.Sprintf("default at %s: the default values filled into the defaults of the schema "+
+					"grow without bound (more than %d bytes); a default must not fill in itself through a reference",
+					ptrOrRoot(ptr), maxDefaultBytes))
+				return
 			}
 		}
 		for _, key := range []string{"properties", "$defs", "definitions", "patternProperties"} {
@@ -226,24 +290,38 @@ func dedupe(sorted []string) []string {
 // in doc, in place. A default is filled in for a missing property of an
 // object that exists; defaults of nested properties are then filled into
 // the inserted value too. Array items are defaulted with the items schema.
-func (s *Schema) ApplyDefaults(doc map[string]any) {
-	s.applyDefaults(s.root, doc, 0)
+//
+// What is filled in is limited: ErrDefaultsTooLarge is returned when the
+// defaults add more than the size limit of an object to the document, which
+// is then only partly filled in.
+func (s *Schema) ApplyDefaults(doc map[string]any) error {
+	d := s.newDefaulter()
+	d.apply(s.root, doc, 0)
+	if d.exceeded {
+		return ErrDefaultsTooLarge
+	}
+	return nil
 }
 
-func (s *Schema) applyDefaults(schema map[string]any, value any, depth int) any {
-	if schema == nil || depth > maxDefaultDepth {
+func (d *defaulter) apply(schema map[string]any, value any, depth int) any {
+	if schema == nil || depth > maxDefaultDepth || d.exceeded {
 		return value
 	}
+	if d.steps--; d.steps < 0 {
+		d.exceeded = true
+		return value
+	}
+	s := d.s
 
 	if ref, ok := schema["$ref"].(string); ok {
 		if target := s.resolve(ref); target != nil {
-			value = s.applyDefaults(target, value, depth+1)
+			value = d.apply(target, value, depth+1)
 		}
 	}
 	if all, ok := schema["allOf"].([]any); ok {
 		for _, sub := range all {
 			if m, ok := sub.(map[string]any); ok {
-				value = s.applyDefaults(m, value, depth+1)
+				value = d.apply(m, value, depth+1)
 			}
 		}
 	}
@@ -268,14 +346,18 @@ func (s *Schema) applyDefaults(schema map[string]any, value any, depth int) any 
 				if !hasDefault {
 					continue
 				}
+				if d.bytes -= len(name) + jsonCost(def); d.bytes < 0 {
+					d.exceeded = true
+					return v
+				}
 				v[name] = copyJSON(def)
 			}
-			v[name] = s.applyDefaults(sub, v[name], depth+1)
+			v[name] = d.apply(sub, v[name], depth+1)
 		}
 		if additional, ok := schema["additionalProperties"].(map[string]any); ok {
 			for name, e := range v {
 				if _, declared := props[name]; !declared {
-					v[name] = s.applyDefaults(additional, e, depth+1)
+					v[name] = d.apply(additional, e, depth+1)
 				}
 			}
 		}
@@ -283,7 +365,7 @@ func (s *Schema) applyDefaults(schema map[string]any, value any, depth int) any 
 	case []any:
 		if items, ok := schema["items"].(map[string]any); ok {
 			for i, e := range v {
-				v[i] = s.applyDefaults(items, e, depth+1)
+				v[i] = d.apply(items, e, depth+1)
 			}
 		}
 		return v
