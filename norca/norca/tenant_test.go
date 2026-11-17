@@ -501,3 +501,58 @@ func TestTenant_TakeOnce(t *testing.T) {
 	must.False(t, b2.take(ref, true))
 	must.False(t, b2.owns(ref), must.Sprint("b still lists the namespace of a"))
 }
+
+// What the tenant does not set on its quota and its ACL policies stays when
+// the tenant writes them (review finding TEN-6).
+func TestTenant_KeepsUnmanagedFields(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+
+	spec := func(cpu int, caps ...any) map[string]any {
+		return map[string]any{
+			"quota": map[string]any{"region": map[string]any{"global": map[string]any{"cpu": cpu}}},
+			"roles": map[string]any{"developer": caps},
+		}
+	}
+	_, err := c.apply("", structs.TenantKind, "team-k", spec(8000, "submit-job"))
+	must.NoError(t, err)
+	waitTenant(c, "team-k", "ready", tenantReady)
+
+	// An operator sets what the tenant has no field for.
+	q, err := store.QuotaSpecByName(nil, "team-k")
+	must.NoError(t, err)
+	q = q.Copy()
+	q.TaskMax = &structs.Resources{CPU: 4000}
+	q.TaskDefaults = &structs.Resources{MemoryMB: 64}
+	var gen structs.GenericResponse
+	must.NoError(t, c.s.RPC("Quota.UpsertQuotaSpecs", &structs.QuotaSpecUpsertRequest{
+		Quotas: []*structs.QuotaSpec{q}, WriteRequest: c.write(""),
+	}, &gen))
+	pol, err := store.ACLPolicyByName(nil, "team-k-developer")
+	must.NoError(t, err)
+	changed := *pol
+	changed.JobACL = &structs.JobACL{Namespace: "team-k", JobID: "builder"}
+	must.NoError(t, c.s.RPC("ACL.UpsertPolicies", &structs.ACLPolicyUpsertRequest{
+		Policies: []*structs.ACLPolicy{&changed}, WriteRequest: c.write(""),
+	}, &gen))
+
+	// A change of the tenant writes both again.
+	_, err = c.apply("", structs.TenantKind, "team-k", spec(9000, "submit-job", "read-logs"))
+	must.NoError(t, err)
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		q, _ := store.QuotaSpecByName(nil, "team-k")
+		pol, _ := store.ACLPolicyByName(nil, "team-k-developer")
+		return q != nil && q.Limits[0].RegionLimit.CPU == 9000 && pol != nil && strings.Contains(pol.Rules, "read-logs")
+	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)))
+
+	q, _ = store.QuotaSpecByName(nil, "team-k")
+	must.NotNil(t, q.TaskMax, must.Sprint("the task_max of the quota is gone"))
+	must.Eq(t, 4000, q.TaskMax.CPU)
+	must.NotNil(t, q.TaskDefaults, must.Sprint("the task_defaults of the quota are gone"))
+	must.Eq(t, 64, q.TaskDefaults.MemoryMB)
+	pol, _ = store.ACLPolicyByName(nil, "team-k-developer")
+	must.NotNil(t, pol.JobACL, must.Sprint("the job ACL of the policy is gone"))
+	must.Eq(t, "builder", pol.JobACL.JobID)
+}

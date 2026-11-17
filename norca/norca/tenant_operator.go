@@ -242,7 +242,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			return
 		}
 		if live == nil || !quotaSpecMatches(live, desired.quota) {
-			err := o.upsertQuota(desired.quota)
+			err := o.upsertQuota(live, desired.quota)
 			w.wrote(quotaRef, live != nil, err)
 			if err != nil && live == nil {
 				o.writeTenantStatus(w, ns)
@@ -268,7 +268,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 				continue
 			}
 			if live == nil || live.Rules != policy.Rules || live.Description != policy.Description {
-				w.wrote(ref, live != nil, o.upsertPolicy(policy))
+				w.wrote(ref, live != nil, o.upsertPolicy(live, policy))
 			}
 
 			role := desired.roles[i]
@@ -593,15 +593,31 @@ func (o *tenantOperator) upsertNamespace(live, desired *structs.Namespace) error
 	}, &resp)
 }
 
-func (o *tenantOperator) upsertQuota(q *structs.QuotaSpec) error {
+// upsertQuota writes the quota of a tenant. What a tenant has no field for
+// (the task defaults and the task maximum) stays as the stored quota has
+// it, as upsertNamespace keeps the rest of a namespace.
+func (o *tenantOperator) upsertQuota(live, desired *structs.QuotaSpec) error {
+	q := desired.Copy()
+	if live != nil {
+		q = live.Copy()
+		q.Description, q.Enforce = desired.Description, desired.Enforce
+		q.Limits = desired.Copy().Limits
+	}
+	q.CreateIndex, q.ModifyIndex, q.Hash = 0, 0, nil
 	var resp structs.GenericResponse
 	return o.srv.RPC("Quota.UpsertQuotaSpecs", &structs.QuotaSpecUpsertRequest{
-		Quotas: []*structs.QuotaSpec{q.Copy()}, WriteRequest: o.writeRequest(""),
+		Quotas: []*structs.QuotaSpec{q}, WriteRequest: o.writeRequest(""),
 	}, &resp)
 }
 
-func (o *tenantOperator) upsertPolicy(p *structs.ACLPolicy) error {
+// upsertPolicy writes an ACL policy of a tenant. The job a stored policy
+// is attached to, which a tenant has no field for, stays.
+func (o *tenantOperator) upsertPolicy(live, p *structs.ACLPolicy) error {
 	policy := *p
+	if live != nil && live.JobACL != nil {
+		jobACL := *live.JobACL
+		policy.JobACL = &jobACL
+	}
 	var resp structs.GenericResponse
 	return o.srv.RPC("ACL.UpsertPolicies", &structs.ACLPolicyUpsertRequest{
 		Policies: []*structs.ACLPolicy{&policy}, WriteRequest: o.writeRequest(""),
