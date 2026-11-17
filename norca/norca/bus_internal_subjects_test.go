@@ -42,7 +42,7 @@ func TestBusServer_BusRuleInternalSubjects(t *testing.T) {
 		Subscribe: append([]string{"app.>"}, internal...),
 		Publish:   append([]string{"app.>", "norca.packs.pushed"}, internal...),
 	}
-	publish, subscribe, dropped := s1.busGrantSubjects(grant, &acl.CDCGrant{}, bus.KindToken, "accessor")
+	publish, subscribe, dropped := s1.busGrantSubjects(grant, &acl.CDCGrant{})
 	must.Eq(t, []string{"app.>"}, subscribe, must.Sprint("subscribe subjects of the bus rule"))
 	must.Eq(t, []string{"app.>", "norca.packs.pushed"}, publish, must.Sprint("publish subjects of the bus rule"))
 	must.Eq(t, 2*len(internal), dropped)
