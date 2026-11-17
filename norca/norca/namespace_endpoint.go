@@ -6,6 +6,7 @@ package norca
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
@@ -197,7 +198,20 @@ func (n *Namespace) namespaceTerminalLocally(namespace string) (bool, error) {
 
 // namespaceTerminalInRegion returns if the namespace contains only terminal
 // jobs in the given region .
+//
+// Norca: the other region is asked with the token of the caller, so the
+// caller needs a token that region knows. The leader calls this endpoint
+// too, for a deleted tenant (tenant_operator.go), with its leader ACL, which
+// only this region resolves: it asks with the replication token instead, a
+// global management token, when the servers have one. A caller with a token
+// of its own never gets the replication token.
 func (n *Namespace) namespaceTerminalInRegion(authToken, namespace, region string) (bool, error) {
+	leaderACL := n.srv.getLeaderAcl()
+	asLeader := leaderACL != "" && authToken == leaderACL
+	if replication := n.srv.ReplicationToken(); asLeader && replication != "" {
+		authToken = replication
+	}
+
 	req := &structs.JobListRequest{
 		QueryOptions: structs.QueryOptions{
 			Region:     region,
@@ -212,6 +226,13 @@ func (n *Namespace) namespaceTerminalInRegion(authToken, namespace, region strin
 	if !done {
 		return false, fmt.Errorf("unexpectedly did not forward Job.List to region %q", region)
 	} else if err != nil {
+		if asLeader && strings.Contains(err.Error(), structs.ErrPermissionDenied.Error()) {
+			// Say what is missing: "Permission denied" alone names
+			// neither the region nor the setting.
+			return false, fmt.Errorf("the servers can't ask region %q for the jobs of the namespace %q: "+
+				"set replication_token in the acl block of the servers of this region (%q) "+
+				"to the secret of a global management token: %w", region, namespace, n.srv.Region(), err)
+		}
 		return false, err
 	}
 

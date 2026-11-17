@@ -774,3 +774,127 @@ func TestTenantSpec_RoleObjects(t *testing.T) {
 		must.ErrorContains(t, spec.validate("t1"), `role "dev"`, must.Sprint(name))
 	}
 }
+
+// A deleted tenant of a cluster with two regions and ACLs: the deletion of
+// its namespace asks the other region for the jobs of the namespace, which
+// the leader can do with the replication token only (review finding TEN-2).
+func TestTenant_DeletionWithTwoRegions(t *testing.T) {
+	ci.Parallel(t)
+
+	// regions starts the authoritative region1 and region2, and returns
+	// the first with its root token.
+	regions := func(t *testing.T, replicationToken string) *certTest {
+		s1, root, cleanupS1 := TestACLServer(t, func(c *Config) {
+			c.Region = "region1"
+			c.AuthoritativeRegion = "region1"
+			c.ReplicationToken = replicationToken
+		})
+		t.Cleanup(cleanupS1)
+		s2, _, cleanupS2 := TestACLServer(t, func(c *Config) {
+			c.Region = "region2"
+			c.AuthoritativeRegion = "region1"
+			c.ReplicationBackoff = 20 * time.Millisecond
+			c.ReplicationToken = root.SecretID
+		})
+		t.Cleanup(cleanupS2)
+		TestJoin(t, s1, s2)
+		testutil.WaitForLeader(t, s1.RPC)
+		testutil.WaitForLeader(t, s2.RPC)
+		waitTenantKind(t, s1)
+
+		if replicationToken != "" {
+			// The token the servers of region1 are configured with: a
+			// global management token, which region2 replicates.
+			token := mock.ACLManagementToken()
+			token.SecretID = replicationToken
+			must.NoError(t, s1.State().UpsertACLTokens(structs.MsgTypeTestSetup, 100, []*structs.ACLToken{token}))
+			must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+				out, err := s2.State().ACLTokenBySecretID(nil, replicationToken)
+				return err == nil && out != nil
+			}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)), must.Sprint("the token is replicated to region2"))
+		}
+		return &certTest{t: t, s: s1, token: root.SecretID}
+	}
+	write := func(c *certTest) structs.WriteRequest {
+		return structs.WriteRequest{Region: "region1", AuthToken: c.token}
+	}
+	apply := func(c *certTest, name string) {
+		var resp structs.CustomObjectWriteResponse
+		must.NoError(t, c.s.RPC("CustomObject.Apply", &structs.CustomObjectApplyRequest{
+			Object:       &structs.CustomObject{Group: structs.OperatorsGroup, Kind: structs.TenantKind, Name: name},
+			WriteRequest: write(c),
+		}, &resp))
+		waitTenant(c, name, "ready", tenantReady)
+	}
+	remove := func(c *certTest, name string) {
+		var resp structs.CustomObjectWriteResponse
+		must.NoError(t, c.s.RPC("CustomObject.Delete", &structs.CustomObjectDeleteRequest{
+			Group: structs.OperatorsGroup, Kind: structs.TenantKind, Name: name, WriteRequest: write(c),
+		}, &resp))
+	}
+
+	t.Run("with the replication token", func(t *testing.T) {
+		c := regions(t, uuid.Generate())
+		apply(c, "fed")
+		remove(c, "fed")
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			return c.get("", structs.TenantKind, "fed") == nil
+		}), wait.Timeout(60*time.Second), wait.Gap(100*time.Millisecond)),
+			must.Func(func() string {
+				log, _ := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, structs.TenantKind, "", "fed")
+				var events []string
+				if log != nil {
+					for _, e := range log.Events {
+						events = append(events, e.Reason+": "+e.Message)
+					}
+				}
+				return fmt.Sprintf("the tenant is still there; events: %q", events)
+			}))
+		ns, err := c.s.State().NamespaceByName(nil, "fed")
+		must.NoError(t, err)
+		must.Nil(t, ns)
+	})
+
+	t.Run("without it the event says what to configure", func(t *testing.T) {
+		c := regions(t, "")
+		apply(c, "fed")
+		remove(c, "fed")
+		var message string
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			log, err := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, structs.TenantKind, "", "fed")
+			if err != nil || log == nil {
+				return false
+			}
+			for _, e := range log.Events {
+				if e.Reason == "DeleteFailed" {
+					message = e.Message
+					return true
+				}
+			}
+			return false
+		}), wait.Timeout(60*time.Second), wait.Gap(100*time.Millisecond)), must.Sprint("a DeleteFailed event"))
+		must.StrContains(t, message, "replication_token")
+		must.StrContains(t, message, `region "region2"`)
+		ns, err := c.s.State().NamespaceByName(nil, "fed")
+		must.NoError(t, err)
+		must.NotNil(t, ns)
+	})
+
+	// Who is not the leader keeps its own token: the replication token is
+	// not lent to a caller the other region refuses.
+	t.Run("a caller keeps its own token", func(t *testing.T) {
+		c := regions(t, uuid.Generate())
+		must.NoError(t, c.s.State().UpsertNamespaces(200, []*structs.Namespace{{Name: "plain"}}))
+		// A management token of region1 only: region2 does not know it.
+		local := mock.ACLManagementToken()
+		local.Global = false
+		must.NoError(t, c.s.State().UpsertACLTokens(structs.MsgTypeTestSetup, 201, []*structs.ACLToken{local}))
+		var resp structs.GenericResponse
+		err := c.s.RPC("Namespace.DeleteNamespaces", &structs.NamespaceDeleteRequest{
+			Namespaces:   []string{"plain"},
+			WriteRequest: structs.WriteRequest{Region: "region1", AuthToken: local.SecretID},
+		}, &resp)
+		must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+		must.StrNotContains(t, err.Error(), "replication_token")
+	})
+}
