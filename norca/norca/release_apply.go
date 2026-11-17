@@ -395,12 +395,24 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	// answered (SEC-5). The endpoints of the types check the caller again
 	// when the resources are applied; a dry run reports the resources the
 	// caller may not write in its plan instead.
+	//
+	// The one exception is a resource the stored release owns already and
+	// that the operation leaves as it is: ownedKeys are the resources in
+	// the status of the stored release, never those of the request.
 	aclObj, err := op.resolveACL()
 	if err != nil {
 		return err
 	}
+	ownedKeys := map[string]bool{}
+	if rel != nil {
+		for _, ref := range rel.Status.Resources {
+			if ref != nil && ref.Hook == "" {
+				ownedKeys[ref.Key()] = true
+			}
+		}
+	}
 	if !in.dryRun {
-		if err := authorizeReleaseResources(aclObj, resources); err != nil {
+		if err := m.authorizeReleaseResources(snap, aclObj, ownedKeys, resources); err != nil {
 			return err
 		}
 	}
@@ -427,7 +439,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 		// Who owns a resource is said to a caller who may write it only: a
 		// dry run gets here with others, and its plan reports them as
 		// denied.
-		if owner, ok := owners[ref.Key()]; ok && owner != self && allowReleaseResourceWrite(aclObj, res) {
+		if owner, ok := owners[ref.Key()]; ok && owner != self && allowReleaseResourceApply(aclObj, res) {
 			conflicts = append(conflicts, fmt.Sprintf("%s belongs to release %q", ref, owner))
 			taken[ref.Key()] = owner
 		}
@@ -440,7 +452,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	}
 	var tenantConflicts []string
 	for _, res := range resources {
-		if tenant, ok := tenants[res.Ref().Key()]; ok && allowReleaseResourceWrite(aclObj, res) {
+		if tenant, ok := tenants[res.Ref().Key()]; ok && allowReleaseResourceApply(aclObj, res) {
 			tenantConflicts = append(tenantConflicts, fmt.Sprintf("%s belongs to the tenant %q", res.Ref(), tenant))
 		}
 	}
@@ -475,7 +487,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 	sortRefsForDeletion(removed)
 
 	if in.dryRun {
-		changes, err := op.plan(snap, resources, removed, taken, in.adopted)
+		changes, err := op.plan(snap, resources, removed, taken, in.adopted, ownedKeys)
 		if err != nil {
 			return err
 		}
@@ -594,7 +606,7 @@ func (m *releaseManager) runApply(op *releaseOp, in *applyInput, reply *structs.
 
 	var execErr error
 	if !in.recordOnly {
-		execErr = op.execute(in, aclObj, resources, removed)
+		execErr = op.execute(in, aclObj, ownedKeys, resources, removed)
 	} else {
 		for _, res := range resources {
 			op.changes = append(op.changes, &structs.ReleaseResourceChange{
@@ -935,15 +947,70 @@ func (op *releaseOp) resolveACL() (*acl.ACL, error) {
 
 // authorizeReleaseResources refuses an apply that names a resource the
 // caller may not write, hook jobs of every phase included: a release holds,
-// records and later deletes or runs only what its author could write.
-func authorizeReleaseResources(aclObj *acl.ACL, resources []*structs.ReleaseResource) error {
+// records and later deletes or runs only what its author could write. A
+// resource the release owns and the apply leaves unchanged needs no right
+// (ownedUnchanged).
+func (m *releaseManager) authorizeReleaseResources(snap *state.StateSnapshot, aclObj *acl.ACL,
+	owned map[string]bool, resources []*structs.ReleaseResource) error {
+
 	for _, res := range resources {
-		if !allowReleaseResourceWrite(aclObj, res) {
+		if allowReleaseResourceApply(aclObj, res) {
+			continue
+		}
+		exempt, err := m.ownedUnchanged(snap, owned, res)
+		if err != nil {
+			return err
+		}
+		if !exempt {
 			return structs.NewErrRPCCodedf(http.StatusForbidden,
 				"Permission denied: the token may not write %s, so it can't be a resource of the release", res.Ref())
 		}
 	}
 	return nil
+}
+
+// releaseComparesItself reports whether the release decides itself, without
+// the endpoint of the type, that a resource of the type is unchanged. Jobs
+// and objects are compared by their endpoints and a Variables entry is
+// always written.
+func releaseComparesItself(resourceType string) bool {
+	return resourceType != structs.ReleaseResourceJob && resourceType != structs.ReleaseResourceObject &&
+		resourceType != structs.ReleaseResourceVariable
+}
+
+// ownedUnchanged reports whether res is a resource the stored release owns
+// (owned: the keys of its status) and that is live as res wants it. Such a
+// resource is not written by an upgrade or a rollback, and its caller needs
+// no right on it: the team of a namespace upgrades the release that an
+// operator installed with a namespace, a quota or an ACL policy, as long as
+// it leaves those alone.
+//
+// The live state of a resource that is not owned is never compared here.
+// For an owned one the answer says whether the live content is the
+// submitted one; a reader of the release has the hash of that content in
+// the status of the release and its drift report already.
+func (m *releaseManager) ownedUnchanged(snap *state.StateSnapshot, owned map[string]bool, res *structs.ReleaseResource) (bool, error) {
+	if res.IsHook() || !releaseComparesItself(res.Type) || !owned[res.Ref().Key()] {
+		return false, nil
+	}
+	live, err := m.readLive(snap, res.Ref())
+	if err != nil {
+		return false, err
+	}
+	return !resourceChanged(res, live), nil
+}
+
+// allowReleaseResourceApply reports whether the ACL object has what the
+// endpoint of the resource's type requires to write it. It is
+// allowReleaseResourceWrite without the read of a Variables entry, which
+// only adopting and comparing need: an apply writes the entry through its
+// endpoint and never compares or returns its items.
+func allowReleaseResourceApply(aclObj *acl.ACL, res *structs.ReleaseResource) bool {
+	if aclObj != nil && res.Type == structs.ReleaseResourceVariable {
+		v := res.Variable
+		return aclObj.AllowVariableOperation(v.Namespace, v.Path, acl.VariablesCapabilityWrite, nil)
+	}
+	return allowReleaseResourceWrite(aclObj, res)
 }
 
 // allowReleaseResourceWrite reports whether the ACL object has the
@@ -1090,7 +1157,7 @@ func sortRefsForDeletion(refs []*structs.ReleaseResourceRef) {
 
 // plan computes the changes an apply would make, without writing.
 func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.ReleaseResource,
-	removed []*structs.ReleaseResourceRef, taken, adopted map[string]string) ([]*structs.ReleaseResourceChange, error) {
+	removed []*structs.ReleaseResourceRef, taken, adopted map[string]string, owned map[string]bool) ([]*structs.ReleaseResourceChange, error) {
 
 	var aclObj *acl.ACL
 	if op.m.srv.config.ACLEnabled {
@@ -1123,8 +1190,21 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 		// Variable, ACL policy, quota, namespace or object exists and
 		// whether its content matches the submitted resource.
 		if !allowReleaseResourceWrite(aclObj, res) || !allowReleaseResourceRead(aclObj, res) {
-			change.Action = structs.ReleaseChangeUpdate
-			change.Error = structs.ErrPermissionDenied.Error()
+			exempt, err := op.m.ownedUnchanged(snap, owned, res)
+			switch {
+			case err != nil:
+				return nil, err
+			case exempt:
+				// The apply needs no right for it, see ownedUnchanged.
+				change.Action = structs.ReleaseChangeUnchanged
+			case res.Type == structs.ReleaseResourceVariable && allowReleaseResourceApply(aclObj, res):
+				// Written without being read: the plan does not say
+				// whether it exists or differs.
+				change.Action = structs.ReleaseChangeUpdate
+			default:
+				change.Action = structs.ReleaseChangeUpdate
+				change.Error = structs.ErrPermissionDenied.Error()
+			}
 			continue
 		}
 		live, err := op.m.readLive(snap, ref)
@@ -1209,8 +1289,9 @@ func (op *releaseOp) plan(snap *state.StateSnapshot, resources []*structs.Releas
 //
 // aclObj is the ACL of the caller (nil: ACLs are disabled). Every resource is
 // applied through the endpoint of its type, which checks the caller; what is
-// decided here without an endpoint is decided with aclObj.
-func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, resources []*structs.ReleaseResource, removed []*structs.ReleaseResourceRef) error {
+// decided here without an endpoint is decided with aclObj, or is about a
+// resource of owned, the resources the stored release owns.
+func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, owned map[string]bool, resources []*structs.ReleaseResource, removed []*structs.ReleaseResourceRef) error {
 	pre, post := structs.ReleaseHookPreUpgrade, structs.ReleaseHookPostUpgrade
 	if in.action == structs.ReleaseActionInstall {
 		pre, post = structs.ReleaseHookPreInstall, structs.ReleaseHookPostInstall
@@ -1306,10 +1387,10 @@ func (op *releaseOp) execute(in *applyInput, aclObj *acl.ACL, resources []*struc
 			// caller's rights are checked here: to write it, as the endpoint
 			// would, and to read it, because the answer says whether the
 			// live content is the submitted one (SEC-7). Without them the
-			// endpoint decides.
-			if res.Type != structs.ReleaseResourceJob && res.Type != structs.ReleaseResourceObject &&
-				res.Type != structs.ReleaseResourceVariable &&
-				allowReleaseResourceWrite(aclObj, res) && allowReleaseResourceRead(aclObj, res) &&
+			// endpoint decides, unless the release owns the resource
+			// already (ownedUnchanged).
+			if releaseComparesItself(res.Type) &&
+				(owned[ref.Key()] || allowReleaseResourceWrite(aclObj, res) && allowReleaseResourceRead(aclObj, res)) &&
 				!resourceChanged(toApply, before) {
 				op.changes = append(op.changes, &structs.ReleaseResourceChange{
 					Type: ref.Type, Namespace: ref.Namespace, Name: ref.Name, Action: structs.ReleaseChangeUnchanged,

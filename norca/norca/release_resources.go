@@ -225,6 +225,13 @@ func releaseResourceHash(res *structs.ReleaseResource) string {
 	case structs.ReleaseResourceQuota:
 		q := res.Quota.Copy()
 		q.CreateIndex, q.ModifyIndex, q.Hash = 0, 0, nil
+		// The servers store the hash of every limit too: without this a
+		// stored quota never equals the one of a pack.
+		for _, l := range q.Limits {
+			if l != nil {
+				l.Hash = nil
+			}
+		}
 		v = q
 	case structs.ReleaseResourceACLPolicy:
 		p := *res.ACLPolicy

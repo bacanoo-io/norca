@@ -420,11 +420,18 @@ revision (`/revision/:n`) also needs `read-job` in the namespace, as it contains
 specifications.
 
 The token of an install, upgrade or rollback must be allowed to write **every** resource of the
-pack, hook jobs included, also the ones that the operation would leave unchanged (for a Variables
-entry: to read it too). Otherwise the operation is refused before anything is applied or recorded,
-and no release or revision is created for it. An upgrade of a pack with a namespace, a quota or an
-ACL policy therefore needs the token that could install it. `plan` reports such resources as
-`Permission denied` and says nothing about their state or owner.
+pack, hook jobs included (for a Variables entry the write capability is enough; the entry is written
+without being read). Otherwise the operation is refused before anything is applied or recorded, and
+no release or revision is created for it.
+
+There is one exception: a namespace, quota, ACL policy, object kind, admission policy or external
+service that the release **owns already** (it is among the resources in the status of the release)
+and that the pack leaves **unchanged** needs no right. A team can therefore upgrade or roll back a
+release that an operator installed with such resources, as long as it leaves them as they are; as
+soon as the pack would change one of them, or the live resource is no longer what the pack says,
+the operation needs the right to write it. `plan` reports the resources the token may not write as
+`Permission denied`, and says nothing about the state or the owner of a resource the release does
+not own.
 
 ## Older servers and client-side apply
 
