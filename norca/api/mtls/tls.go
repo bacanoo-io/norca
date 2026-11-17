@@ -193,8 +193,12 @@ func (s *FileSource) ServerConfig(authz *Authorizer, destination string) *tls.Co
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 			return s.Certificate(), nil
 		},
-		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			peer, err := s.Bundle().VerifyRaw(rawCerts)
+		// In VerifyConnection, which runs on every handshake, and not in
+		// VerifyPeerCertificate, which a resumed session skips: a session
+		// ticket must not carry a client past a deny intention or a CA
+		// taken out of the bundle.
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			peer, err := s.Bundle().Verify(cs.PeerCertificates)
 			if err != nil {
 				return err
 			}
@@ -221,15 +225,16 @@ func (s *FileSource) ServerConfig(authz *Authorizer, destination string) *tls.Co
 func (s *FileSource) ClientConfig(verify func(*Peer) error) *tls.Config {
 	return &tls.Config{
 		MinVersion: tls.VersionTLS12,
-		// The chain and identity are verified in VerifyPeerCertificate
-		// against the trust bundle; host names are not part of the
-		// workload identity.
+		// The chain and identity are verified in VerifyConnection against
+		// the trust bundle; host names are not part of the workload
+		// identity. VerifyConnection runs on every handshake, a resumed
+		// session included (VerifyPeerCertificate does not).
 		InsecureSkipVerify: true,
 		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			return s.Certificate(), nil
 		},
-		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			peer, err := s.Bundle().VerifyRaw(rawCerts)
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			peer, err := s.Bundle().Verify(cs.PeerCertificates)
 			if err != nil {
 				return err
 			}
@@ -261,7 +266,8 @@ func ExpectService(namespace, service string) func(*Peer) error {
 
 // PeerFromConnectionState returns the identity of the peer of a completed
 // handshake made with a configuration of this package. The chain was
-// verified during the handshake; this only reads it.
+// verified during the handshake (of a resumed session too); this only reads
+// it.
 func PeerFromConnectionState(cs tls.ConnectionState) (*Peer, error) {
 	if len(cs.PeerCertificates) == 0 {
 		return nil, errors.New("peer presented no certificate")
