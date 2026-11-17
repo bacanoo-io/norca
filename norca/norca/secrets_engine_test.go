@@ -613,3 +613,47 @@ func TestSecretEngineEndpoint_ForceDeleteTrace(t *testing.T) {
 	must.StrContains(t, logs.String(), "leases that expired were never revoked")
 	must.StrContains(t, logs.String(), created.Lease.ID)
 }
+
+// A lease created while the delete of its engine sends the pending
+// revocations to the backend is not purged with the engine: the delete
+// fails, and the lease and its credential stay accounted for.
+func TestSecretEngineEndpoint_DeleteRacesLeaseCreate(t *testing.T) {
+	ci.Parallel(t)
+	et := newEngineTest(t, nil)
+	store := et.s.fsm.State()
+	op := startMockOperator(t, et, "")
+	_, err := et.upsert(et.root.SecretID, et.engine())
+	must.NoError(t, err)
+
+	// A revoked lease: the delete has a revocation to send.
+	_, wi := et.alloc(true)
+	first, err := et.create(wi)
+	must.NoError(t, err)
+	var rev structs.SecretLeaseRevokeResponse
+	must.NoError(t, et.s.RPC(structs.SecretLeaseRevokeRPCMethod, &structs.SecretLeaseRevokeRequest{Engine: "pg",
+		WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: et.root.SecretID}}, &rev))
+	must.Eq(t, []string{first.Lease.ID}, rev.Revoked)
+
+	// The operator answers slowly: the delete stays in the call that sends
+	// the revocation while another task asks for a credential.
+	op.delay = time.Second
+	delErr := make(chan error, 1)
+	go func() {
+		var resp structs.SecretEngineWriteResponse
+		delErr <- et.s.RPC(structs.SecretEngineDeleteRPCMethod, &structs.SecretEngineDeleteRequest{Name: "pg",
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: et.root.SecretID}}, &resp)
+	}()
+	time.Sleep(300 * time.Millisecond)
+	_, wi2 := et.alloc(true)
+	second, createErr := et.create(wi2)
+	err = <-delErr
+
+	must.ErrorContains(t, err, "live leases", must.Sprint("the delete of an engine that got a lease meanwhile"))
+	must.NoError(t, createErr)
+	engine, err := store.SecretEngineByName(nil, structs.DefaultNamespace, "pg")
+	must.NoError(t, err)
+	must.NotNil(t, engine)
+	lease := et.lease(second.Lease.ID)
+	must.NotNil(t, lease)
+	must.True(t, lease.Live(time.Now()))
+}

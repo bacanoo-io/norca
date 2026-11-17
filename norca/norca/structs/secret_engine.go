@@ -155,6 +155,11 @@ var (
 	// engine.
 	ErrSecretEngineNotFound = errors.New("secret engine not found")
 
+	// ErrSecretEngineLeasesChanged is returned by the purge of an engine
+	// when one of its leases was created or changed after the leader
+	// judged them (SecretEnginePurgeRequest.LeasesIndex).
+	ErrSecretEngineLeasesChanged = errors.New("the leases of the secret engine changed during its delete")
+
 	// ErrSecretLeaseNotFound is returned for an unknown lease ID.
 	ErrSecretLeaseNotFound = errors.New("secret lease not found")
 
@@ -562,6 +567,15 @@ type SecretEnginePurgeRequest struct {
 	Namespace     string
 	Name          string
 	ExpectedIndex uint64
+
+	// LeasesIndex is the index of the state in which the leader judged the
+	// leases of the engine (none live, the revocations sent). The purge
+	// fails with ErrSecretEngineLeasesChanged if a lease of the engine was
+	// created or changed after it: leases are created without the engine's
+	// lock, also while the delete talks to the backend. Zero (a request
+	// written before the field existed) checks nothing.
+	LeasesIndex uint64
+
 	WriteRequest
 }
 

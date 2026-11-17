@@ -115,6 +115,23 @@ func TestStateStore_SecretEngines(t *testing.T) {
 	idx, err := s.Index(TableSecretLeases)
 	must.NoError(t, err)
 	must.Eq(t, 32, idx)
+
+	// A purge bound to the state its leader judged the leases in: a lease
+	// written after it refuses the purge, and nothing is removed. (The
+	// purge above, without LeasesIndex, is a request of before the field.)
+	must.ErrorIs(t, s.PurgeSecretEngine(structs.MsgTypeTestSetup, 33,
+		&structs.SecretEnginePurgeRequest{Namespace: structs.DefaultNamespace, Name: "other", ExpectedIndex: 12, LeasesIndex: 20}),
+		structs.ErrSecretEngineLeasesChanged)
+	got, _ = s.SecretEngineByName(nil, structs.DefaultNamespace, "other")
+	must.NotNil(t, got)
+	l3, _ = s.SecretLeaseByID(nil, "l3")
+	must.NotNil(t, l3)
+	must.NoError(t, s.PurgeSecretEngine(structs.MsgTypeTestSetup, 34,
+		&structs.SecretEnginePurgeRequest{Namespace: structs.DefaultNamespace, Name: "other", ExpectedIndex: 12, LeasesIndex: 21}))
+	got, _ = s.SecretEngineByName(nil, structs.DefaultNamespace, "other")
+	must.Nil(t, got)
+	l3, _ = s.SecretLeaseByID(nil, "l3")
+	must.Nil(t, l3)
 }
 
 func TestStateStore_SecretEngineEvents(t *testing.T) {

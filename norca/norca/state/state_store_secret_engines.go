@@ -151,7 +151,10 @@ func (s *StateStore) ApplySecretEngine(msgType structs.MessageType, index uint64
 
 // PurgeSecretEngine removes an engine and all of its leases. It fails with
 // structs.ErrSecretConflict if the engine's ModifyIndex is not
-// req.ExpectedIndex.
+// req.ExpectedIndex, and with structs.ErrSecretEngineLeasesChanged if a
+// lease of the engine was written after req.LeasesIndex (when that is set):
+// nothing is removed then. The check and the removal are one transaction, so
+// no lease the leader has not seen is ever purged.
 func (s *StateStore) PurgeSecretEngine(msgType structs.MessageType, index uint64, req *structs.SecretEnginePurgeRequest) error {
 	txn := s.db.WriteTxnMsgT(msgType, index)
 	defer txn.Abort()
@@ -179,6 +182,9 @@ func (s *StateStore) PurgeSecretEngine(msgType structs.MessageType, index uint64
 	}
 	var leases []any
 	for l := iter.Next(); l != nil; l = iter.Next() {
+		if req.LeasesIndex != 0 && l.(*structs.SecretLease).ModifyIndex > req.LeasesIndex {
+			return structs.ErrSecretEngineLeasesChanged
+		}
 		leases = append(leases, l)
 	}
 	for _, l := range leases {

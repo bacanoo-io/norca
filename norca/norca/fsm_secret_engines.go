@@ -27,7 +27,7 @@ const (
 // lease applies, which the leader handles and which are not logged.
 func isSecretEngineApplyError(err error) bool {
 	return errors.Is(err, structs.ErrSecretConflict) || errors.Is(err, structs.ErrSecretEngineNotFound) ||
-		errors.Is(err, structs.ErrSecretLeaseRevoked)
+		errors.Is(err, structs.ErrSecretLeaseRevoked) || errors.Is(err, structs.ErrSecretEngineLeasesChanged)
 }
 
 func (n *nomadFSM) applySecretEngineApply(msgType structs.MessageType, buf []byte, index uint64) interface{} {

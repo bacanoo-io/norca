@@ -153,12 +153,47 @@ func (s *Server) secretEngineApply(engine *structs.SecretEngine, expected uint64
 // leases. With force it is removed although leases have expired without
 // being revoked, or the revocations can't be sent to the backend; those
 // leases are logged, their credentials may still be valid there.
+//
+// Leases are created without the engine's lock (secretLeaseCreateOperator),
+// also while this function talks to the backend. The purge therefore
+// carries the index of the state the leases were judged in, and is refused
+// in the FSM if a lease of the engine was written after it; the delete then
+// looks again, and fails if the engine has a live lease now.
 func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64, force bool) (uint64, error) {
 	lock := s.secrets.engineLock(namespace, name)
 	lock.Lock()
 	defer lock.Unlock()
 
-	existing, err := s.State().SecretEngineByName(nil, namespace, name)
+	var index uint64
+	var err error
+	for attempt := 0; attempt < secretEngineDeleteAttempts; attempt++ {
+		index, err = s.secretEngineDeleteOnce(namespace, name, checkIndex, force)
+		if !errors.Is(err, structs.ErrSecretEngineLeasesChanged) {
+			return index, err
+		}
+	}
+	return 0, structs.NewErrRPCCodedf(http.StatusConflict,
+		"the leases of secret engine %q keep changing; try again", name)
+}
+
+// secretEngineDeleteAttempts is how often a delete judges the leases of the
+// engine again after they changed under it.
+const secretEngineDeleteAttempts = 3
+
+// secretEngineDeleteOnce is one attempt of secretEngineDelete; the caller
+// holds the engine's lock.
+func (s *Server) secretEngineDeleteOnce(namespace, name string, checkIndex *uint64, force bool) (uint64, error) {
+	// One snapshot for the engine, its leases and the index the purge is
+	// bound to.
+	snap, err := s.State().Snapshot()
+	if err != nil {
+		return 0, err
+	}
+	leasesIndex, err := snap.LatestIndex()
+	if err != nil {
+		return 0, err
+	}
+	existing, err := snap.SecretEngineByName(nil, namespace, name)
 	if err != nil {
 		return 0, err
 	}
@@ -168,7 +203,7 @@ func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64, 
 	if checkIndex != nil && *checkIndex != existing.ModifyIndex {
 		return 0, structs.ErrSecretConflict
 	}
-	iter, err := s.State().SecretLeasesByEngine(nil, namespace, name)
+	iter, err := snap.SecretLeasesByEngine(nil, namespace, name)
 	if err != nil {
 		return 0, err
 	}
@@ -176,6 +211,7 @@ func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64, 
 	// The leases whose credential may still be valid in the backend: those
 	// never revoked, and those whose revocation is to be sent.
 	var neverRevoked, pending []string
+	revoked := map[string]time.Time{}
 	now := time.Now()
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		l := raw.(*structs.SecretLease)
@@ -189,6 +225,7 @@ func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64, 
 			neverRevoked = append(neverRevoked, l.ID)
 		case l.Revoked && l.BackendRef != "" && now.UnixNano() < l.MaxExpireTime:
 			pending = append(pending, l.ID)
+			revoked[l.BackendRef] = time.Unix(0, l.RevokeTime)
 		}
 	}
 	if live > 0 {
@@ -204,11 +241,9 @@ func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64, 
 	// The purge removes the revoked leases too, and with them the only
 	// record of the revocations the backend may not have got yet (the lease
 	// watcher sends them later, and forgets a deleted engine): send them
-	// now, and keep the engine if that fails.
-	revoked, err := s.secretEngineRevocations(namespace, name, now)
-	if err != nil {
-		return 0, err
-	}
+	// now, and keep the engine if that fails. They are those of the
+	// snapshot (as secretEngineRevocations returns them): a lease revoked
+	// later refuses the purge.
 	if len(revoked) > 0 {
 		backend, err := secretengine.For(existing.Type)
 		if err != nil {
@@ -233,7 +268,8 @@ func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64, 
 			"namespace", namespace, "engine", name, "leases", strings.Join(neverRevoked, ","))
 	}
 	resp, index, err := s.raftApply(structs.SecretEnginePurgeRequestType|structs.IgnoreUnknownTypeFlag,
-		&structs.SecretEnginePurgeRequest{Namespace: namespace, Name: name, ExpectedIndex: existing.ModifyIndex})
+		&structs.SecretEnginePurgeRequest{Namespace: namespace, Name: name, ExpectedIndex: existing.ModifyIndex,
+			LeasesIndex: leasesIndex})
 	if err != nil {
 		return 0, err
 	}
