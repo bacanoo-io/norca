@@ -424,8 +424,19 @@ func TestSnapshotSchedule_Deletion(t *testing.T) {
 		must.SliceNotContains(t, held, id)
 	}
 
-	// Without delete_snapshots the snapshots stay.
-	_, st := c.schedule("keep-them")
+	// Without delete_snapshots the snapshots stay. The schedule is brought
+	// to rest first: it takes a snapshot every second and deletes the
+	// fourth, so a list read while it runs may name a snapshot the plugin
+	// has deleted already. Suspended, with nothing left to delete, the
+	// list is what the plugin holds of it.
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "keep-them", map[string]any{
+		"volume": "db", "schedule": everySecond, "keep": map[string]any{"last": 3}, "suspend": true,
+	})
+	must.NoError(t, err)
+	st := c.waitSchedule("keep-them", "at rest", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return objectConditionTrue(obj.Status, snapshotConditionSuspended) && len(st.Snapshots) > 0 && len(st.Snapshots) <= 3 &&
+			!slices.ContainsFunc(st.Snapshots, func(s *scheduledSnapshot) bool { return !s.Ready || s.DeleteError != "" })
+	})
 	kept := st.Snapshots
 	must.NoError(t, c.delete("default", volumeSnapshotScheduleKind, "keep-them"))
 	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
