@@ -50,6 +50,11 @@ type fakeSnapshotCSI struct {
 	// createPasses the pass of the operator each creation was asked in.
 	createDelay  time.Duration
 	createPasses []*state.StateSnapshot
+
+	// createBlock, if set, holds every creation until it is closed, as a
+	// plugin that does not answer; createEntered is told when one waits.
+	createBlock   chan struct{}
+	createEntered chan struct{}
 }
 
 // tuning sets the waits of the operator: it is read once, when the server
@@ -86,9 +91,16 @@ func newFakeSnapshotCSI() *fakeSnapshotCSI {
 
 func (f *fakeSnapshotCSI) create(pass *state.StateSnapshot, _ string, req *structs.CSISnapshot) (*structs.CSISnapshot, error) {
 	f.mu.Lock()
-	delay := f.createDelay
+	delay, block, entered := f.createDelay, f.createBlock, f.createEntered
 	f.mu.Unlock()
 	time.Sleep(delay)
+	if block != nil {
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-block
+	}
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1195,4 +1207,61 @@ func TestSnapshotSchedule_PassBudget(t *testing.T) {
 			must.Eq(t, 1, perPass[pass], must.Sprint("slow calls of one pass"))
 		}
 	})
+}
+
+// Each built-in operator has a loop of its own: while the call of a CSI
+// plugin holds the operator of snapshot schedules, the others go on. When
+// the leadership is lost no pass starts any more, and the loops end once the
+// pass in flight has (review finding SNP-6).
+func TestOperators_OwnLoops(t *testing.T) {
+	ci.Parallel(t)
+	release := make(chan struct{})
+	entered := make(chan struct{}, 1)
+	c, fake, cleanup := snapshotTestServerWith(t, true, true, func(f *fakeSnapshotCSI) {
+		f.createBlock, f.createEntered = release, entered
+	})
+	defer cleanup()
+	waitTenantKind(t, c.s)
+
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "stuck", map[string]any{
+		"volume": "db", "schedule": everySecond, "keep": map[string]any{"last": 5},
+	})
+	must.NoError(t, err)
+	select {
+	case <-entered:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the snapshot operator did not call the plugin")
+	}
+
+	// The plugin does not answer: the pass of the snapshot operator stays
+	// in its call. A tenant written now is still brought about.
+	_, err = c.apply("", structs.TenantKind, "team-loop", map[string]any{
+		"namespace": map[string]any{"description": "written while a plugin call hangs"},
+	})
+	must.NoError(t, err)
+	waitTenant(c, "team-loop", "ready while the snapshot operator waits", tenantReady)
+	creates, _ := fake.counts()
+	must.Eq(t, 0, creates, must.Sprint("the plugin call is still held"))
+
+	// Leadership is lost (the server shuts down): the loops of the idle
+	// operators end, the pass in flight is waited for and no other one
+	// starts.
+	stopped := c.s.operators.stopped()
+	must.NotNil(t, stopped)
+	must.NoError(t, c.s.Shutdown())
+	select {
+	case <-stopped:
+		t.Fatal("the loops ended while a pass was in flight")
+	case <-time.After(time.Second):
+	}
+	close(release)
+	select {
+	case <-stopped:
+	case <-time.After(20 * time.Second):
+		t.Fatal("the loops of the operators did not end")
+	}
+	creates, _ = fake.counts()
+	time.Sleep(1500 * time.Millisecond)
+	after, _ := fake.counts()
+	must.Eq(t, creates, after, must.Sprint("a pass started after the loops ended"))
 }

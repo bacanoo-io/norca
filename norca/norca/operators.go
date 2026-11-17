@@ -6,6 +6,7 @@ package norca
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/helper/uuid"
@@ -19,6 +20,13 @@ import (
 // on the leader only, and use nothing but the core. Each watches the objects
 // of its kinds and brings what they describe about; nothing has to be
 // installed for them and they upgrade with the servers.
+//
+// Each operator has its own loop, watch set and wake time, so an operator
+// that waits (for a CSI plugin, an external issuer) delays only itself. What
+// the operators share is the state store, Raft and the servers' helpers
+// (writeOperatorObject, operatorEvent, the metrics), which are safe to call
+// from several goroutines as the RPC handlers do; an operator keeps no
+// state of its own that another one reads.
 //
 // An operator writes the status of its objects, with a check-and-set on the
 // modify index, and records what it did as object events. Work that takes
@@ -60,6 +68,16 @@ type operatorManager struct {
 	logger hclog.Logger
 
 	operators []coreOperator
+
+	// mu guards run.
+	mu sync.Mutex
+
+	// run is closed when the loops of the last start have all ended. A
+	// start waits for it, so the loops of two leaderships, or of a
+	// leadership that is established again, never run side by side: an
+	// operator makes one pass at a time, whatever happens to the
+	// leadership.
+	run chan struct{}
 }
 
 func newOperatorManager(srv *Server, logger hclog.Logger) *operatorManager {
@@ -73,17 +91,50 @@ func newOperatorManager(srv *Server, logger hclog.Logger) *operatorManager {
 	return m
 }
 
-// operatorsLoop runs the built-in operators while this server is the
-// leader.
-func (s *Server) operatorsLoop(stopCh chan struct{}) {
-	m := s.operators
+// start runs the built-in operators until stopCh is closed: when this
+// server becomes the leader. It does not block. Each operator has a loop of
+// its own, so one that waits for something outside (the call of a CSI plugin
+// may take minutes) does not hold back the others.
+func (m *operatorManager) start(stopCh chan struct{}) {
+	m.mu.Lock()
+	previous := m.run
+	done := make(chan struct{})
+	m.run = done
+	m.mu.Unlock()
 
+	go func() {
+		defer close(done)
+		if previous != nil {
+			// A pass of the last leadership may still be in flight: it
+			// ends on its own, and no operator is run twice at a time.
+			<-previous
+		}
+		m.runOperators(stopCh)
+	}()
+}
+
+// stopped returns a channel that is closed when the loops of the last
+// start have ended (nil: never started).
+func (m *operatorManager) stopped() <-chan struct{} {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.run
+}
+
+// runOperators registers the kinds of the built-in operators, runs the loop
+// of each of them, and returns when all the loops have ended.
+func (m *operatorManager) runOperators(stopCh chan struct{}) {
 	var kinds []*structs.ObjectKind
 	for _, op := range m.operators {
 		kinds = append(kinds, op.kinds()...)
 	}
 	for {
-		err := s.registerKinds(kinds)
+		select {
+		case <-stopCh:
+			return
+		default:
+		}
+		err := m.srv.registerKinds(kinds)
 		if err == nil {
 			break
 		}
@@ -95,25 +146,44 @@ func (s *Server) operatorsLoop(stopCh chan struct{}) {
 		}
 	}
 
+	var loops sync.WaitGroup
+	for _, op := range m.operators {
+		loops.Add(1)
+		go func(op coreOperator) {
+			defer loops.Done()
+			m.operatorLoop(op, stopCh)
+		}(op)
+	}
+	loops.Wait()
+}
+
+// operatorLoop runs one built-in operator while this server is the leader:
+// a pass when something the last pass read changes, at the time the pass
+// asked for, and every operatorsInterval at the least. The passes of an
+// operator follow each other; those of different operators run side by
+// side.
+func (m *operatorManager) operatorLoop(op coreOperator, stopCh chan struct{}) {
+	name := fmt.Sprintf("%T", op)
+	if kinds := op.kinds(); len(kinds) > 0 {
+		name = kinds[0].Kind
+	}
 	for {
+		// No pass starts once the leadership is lost; one in flight ends
+		// on its own.
+		select {
+		case <-stopCh:
+			return
+		default:
+		}
+
 		ws := memdb.NewWatchSet()
 		now := time.Now()
-		next := now.Add(operatorsInterval)
-		for _, op := range m.operators {
-			// An operator may take long (calls of CSI plugins): a
-			// server that lost the leadership meanwhile stops here.
-			select {
-			case <-stopCh:
-				return
-			default:
-			}
-			wish, err := op.reconcile(ws)
-			if err != nil {
-				m.logger.Warn("built-in operator failed, will retry", "error", err)
-				wish = now.Add(operatorsRetry)
-			}
-			next = operatorWake(next, wish, now)
+		wish, err := op.reconcile(ws)
+		if err != nil {
+			m.logger.Warn("built-in operator failed, will retry", "operator", name, "error", err)
+			wish = now.Add(operatorsRetry)
 		}
+		next := operatorWake(now.Add(operatorsInterval), wish, now)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		timer := time.NewTimer(max(time.Until(next), operatorsSettle))
@@ -136,10 +206,10 @@ func (s *Server) operatorsLoop(stopCh chan struct{}) {
 	}
 }
 
-// operatorWake returns when the loop runs next: the earlier of next and the
-// wish of an operator. A wish that is not after the start of the pass has
-// nothing to wait for, and would run all the operators every operatorsSettle
-// without end; such an operator is run again after operatorsRetry instead.
+// operatorWake returns when the loop of an operator runs next: the earlier
+// of next and the wish of the operator. A wish that is not after the start
+// of the pass has nothing to wait for, and would run the operator every
+// operatorsSettle without end; it is run again after operatorsRetry instead.
 func operatorWake(next, wish, started time.Time) time.Time {
 	if wish.IsZero() {
 		return next
