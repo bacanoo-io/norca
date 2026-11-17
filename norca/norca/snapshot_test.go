@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -524,9 +525,9 @@ func TestSnapshotScheduleTimes(t *testing.T) {
 	must.Eq(t, time.Date(2026, 11, 13, 3, 0, 0, 0, time.UTC), due.UTC())
 
 	// The name of a time is the same for every leader.
-	obj := &structs.CustomObject{Namespace: "prod", Name: "db-nightly"}
-	must.Eq(t, "prod-db-nightly-20261113-030000", snapshotName(obj, &snapshotScheduleSpec{}, due))
-	must.Eq(t, "db-20261113-030000", snapshotName(obj, &snapshotScheduleSpec{NamePrefix: "db"}, due.In(berlin)))
+	obj := &structs.CustomObject{ID: "0a1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9", Namespace: "prod", Name: "db-nightly"}
+	must.Eq(t, "prod-db-nightly-0a1b2c3d-20261113-030000", snapshotName(obj, &snapshotScheduleSpec{}, due))
+	must.Eq(t, "db-0a1b2c3d-20261113-030000", snapshotName(obj, &snapshotScheduleSpec{NamePrefix: "db"}, due.In(berlin)))
 }
 
 // A snapshot kept by another rule than max_age, past its max_age, must not
@@ -643,4 +644,28 @@ func TestSnapshotScheduleTimes_LongIdle(t *testing.T) {
 			}
 		}
 	}
+}
+
+// The names of the snapshots of two schedules never meet (review finding
+// SNP-7).
+func TestSnapshotName_UniquePerSchedule(t *testing.T) {
+	ci.Parallel(t)
+
+	at := time.Date(2026, 11, 13, 3, 0, 0, 0, time.UTC)
+	a := &structs.CustomObject{ID: "11111111-aaaa-bbbb-cccc-000000000001", Namespace: "prod", Name: "db-nightly"}
+	b := &structs.CustomObject{ID: "22222222-aaaa-bbbb-cccc-000000000002", Namespace: "prod-db", Name: "nightly"}
+	must.NotEq(t, snapshotName(a, &snapshotScheduleSpec{}, at), snapshotName(b, &snapshotScheduleSpec{}, at))
+
+	// The same name_prefix on two schedules.
+	shared := &snapshotScheduleSpec{NamePrefix: "db"}
+	must.NotEq(t, snapshotName(a, shared, at), snapshotName(b, shared, at))
+
+	// A long namespace and name: the name stays within what CSI allows,
+	// and still tells the schedules apart.
+	long := &structs.CustomObject{ID: a.ID, Namespace: strings.Repeat("n", 128), Name: strings.Repeat("s", 128)}
+	other := &structs.CustomObject{ID: b.ID, Namespace: long.Namespace, Name: long.Name}
+	name := snapshotName(long, &snapshotScheduleSpec{}, at)
+	must.Eq(t, 89, len(name))
+	must.StrHasSuffix(t, "-11111111-20261113-030000", name)
+	must.NotEq(t, name, snapshotName(other, &snapshotScheduleSpec{}, at))
 }

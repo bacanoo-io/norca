@@ -147,13 +147,29 @@ func parseCron(spec string) (expr *cronexpr.Expression, err error) {
 	return expr, nil
 }
 
-// snapshotName is the name of the snapshot a schedule takes for a time.
+// snapshotPrefixMax is how much of the prefix of a snapshot name is used.
+// With the ID part and the time a name is at most 89 bytes: CSI limits its
+// strings to 128.
+const snapshotPrefixMax = 64
+
+// snapshotName is the name of the snapshot a schedule takes for a time:
+// <prefix>-<the first 8 hex digits of the object ID>-<the time in UTC>.
+// The part of the ID keeps the names of two schedules apart, whatever
+// their prefixes are: a plugin makes a snapshot of a name once, so two
+// schedules with one name would share, and delete, each other's snapshot.
 func snapshotName(obj *structs.CustomObject, spec *snapshotScheduleSpec, scheduled time.Time) string {
 	prefix := spec.NamePrefix
 	if prefix == "" {
 		prefix = obj.Namespace + "-" + obj.Name
 	}
-	return prefix + "-" + scheduled.UTC().Format("20060102-150405")
+	if len(prefix) > snapshotPrefixMax {
+		prefix = prefix[:snapshotPrefixMax]
+	}
+	id := strings.ReplaceAll(obj.ID, "-", "")
+	if len(id) > 8 {
+		id = id[:8]
+	}
+	return prefix + "-" + id + "-" + scheduled.UTC().Format("20060102-150405")
 }
 
 // snapshotCSI is how the operator reaches the controller plugins. Tests
