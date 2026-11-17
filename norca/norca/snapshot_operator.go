@@ -101,7 +101,9 @@ type scheduledSnapshot struct {
 }
 
 // parse checks the spec and returns its cron expression, time zone and
-// maximum age.
+// maximum age. A schedule that has ended (one with a year field) is valid
+// here: its last time is still to be taken and its snapshots are still to be
+// retained; only writing one is refused (checkSnapshotApply).
 func (s *snapshotScheduleSpec) parse() (*cronexpr.Expression, *time.Location, time.Duration, error) {
 	expr, err := parseCron(s.Schedule)
 	if err != nil {
@@ -137,9 +139,6 @@ func parseCron(spec string) (expr *cronexpr.Expression, err error) {
 	expr, err = cronexpr.Parse(spec)
 	if err != nil {
 		return nil, fmt.Errorf("schedule %q is not a cron expression: %v", spec, err)
-	}
-	if expr.Next(time.Now()).IsZero() {
-		return nil, fmt.Errorf("schedule %q has no time in the future", spec)
 	}
 	return expr, nil
 }

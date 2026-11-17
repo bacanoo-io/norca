@@ -5,6 +5,7 @@ package norca
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
@@ -23,8 +24,14 @@ func checkSnapshotApply(aclObj *acl.ACL, obj *structs.CustomObject) error {
 	if err := structs.DecodeObjectPart(obj.Spec, spec); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid snapshot schedule: %v", err)
 	}
-	if _, _, _, err := spec.parse(); err != nil {
+	expr, loc, _, err := spec.parse()
+	if err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid snapshot schedule: %v", err)
+	}
+	now := time.Now().In(loc)
+	if expr.Next(now).IsZero() {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest,
+			"invalid snapshot schedule: schedule %q has no time in the future", spec.Schedule)
 	}
 
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)

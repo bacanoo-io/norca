@@ -444,6 +444,7 @@ func TestSnapshotSchedule_WriteChecks(t *testing.T) {
 		want string
 	}{
 		"bad cron":      {base(func(m map[string]any) { m["schedule"] = "every night" }), "not a cron expression"},
+		"ended":         {base(func(m map[string]any) { m["schedule"] = "0 0 3 1 1 * 2025" }), "no time in the future"},
 		"bad zone":      {base(func(m map[string]any) { m["time_zone"] = "Mars/Olympus" }), "time_zone"},
 		"no keep":       {base(func(m map[string]any) { m["keep"] = map[string]any{} }), "keep needs"},
 		"bad max_age":   {base(func(m map[string]any) { m["keep"] = map[string]any{"max_age": "30 days"} }), "max_age"},
@@ -570,4 +571,24 @@ func TestSnapshotOperatorWake(t *testing.T) {
 	must.Eq(t, started.Add(operatorsRetry), operatorWake(next, started, started))
 	// An earlier wish of another operator stands.
 	must.Eq(t, started.Add(time.Second), operatorWake(started.Add(time.Second), started.Add(-time.Hour), started))
+}
+
+// A schedule with a year field ends: its last time is still taken, and the
+// retention goes on after it (review finding SNP-9).
+func TestSnapshotSchedule_FiniteSchedule(t *testing.T) {
+	ci.Parallel(t)
+
+	spec := &snapshotScheduleSpec{Schedule: "0 0 3 1 1 * 2025", Keep: snapshotKeep{Last: 1}}
+	expr, loc, _, err := spec.parse()
+	must.NoError(t, err)
+
+	last := time.Date(2025, 1, 1, 3, 0, 0, 0, time.UTC)
+	due, next := scheduleTimes(expr, loc, last.Add(-time.Hour), last.Add(time.Minute))
+	must.Eq(t, last, due.UTC())
+	must.True(t, next.IsZero())
+
+	// Taken: nothing is due any more.
+	due, next = scheduleTimes(expr, loc, last, last.Add(time.Minute))
+	must.True(t, due.IsZero())
+	must.True(t, next.IsZero())
 }
