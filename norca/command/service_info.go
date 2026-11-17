@@ -277,7 +277,7 @@ func (s *ServiceInfoCommand) formatVerboseOutput(jobIDs []string, jobServices ma
 			}
 			if service.HealthUpdatedAt != 0 {
 				out = append(out, fmt.Sprintf("Health Since|%s",
-					formatTimeDifference(time.Now(), time.Unix(0, service.HealthUpdatedAt), time.Second)+" ago"))
+					formatTimeDifference(time.Unix(0, service.HealthUpdatedAt), time.Now(), time.Second)+" ago"))
 			}
 			out = append(out, fmt.Sprintf("Tags|[%s]\n", strings.Join(service.Tags, ",")))
 			s.Ui.Output(formatKV(out))

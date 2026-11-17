@@ -125,6 +125,24 @@ func TestServiceInfoCommand_Run(t *testing.T) {
 	ui.ErrorWriter.Reset()
 }
 
+// TestServiceInfoCommand_HealthSince checks the verbose "Health Since" line:
+// the time since the health last changed, not a negative duration.
+func TestServiceInfoCommand_HealthSince(t *testing.T) {
+	ci.Parallel(t)
+
+	ui := cli.NewMockUi()
+	cmd := &ServiceInfoCommand{Meta: Meta{Ui: ui}}
+	service := &api.ServiceRegistration{
+		ID:              "s1",
+		ServiceName:     "web",
+		JobID:           "j1",
+		HealthUpdatedAt: time.Now().Add(-5 * time.Minute).UnixNano(),
+	}
+	cmd.formatVerboseOutput([]string{"j1"}, map[string][]*api.ServiceRegistration{"j1": {service}})
+	out := ui.OutputWriter.String()
+	require.Regexp(t, `Health Since\s+= 5m[01]s ago`, out)
+}
+
 func Test_argsWithNewPageToken(t *testing.T) {
 	ci.Parallel(t)
 
