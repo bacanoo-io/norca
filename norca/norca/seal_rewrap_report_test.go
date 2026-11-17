@@ -99,13 +99,48 @@ func TestSealRewrapDone_Reporter(t *testing.T) {
 		must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
 	})
 
+	// A report about a follower that reaches the leader directly: the
+	// leader asks the follower, which did nothing of the kind. Neither done
+	// nor sealed is taken, with no token and with a management token; nor is
+	// the follower's own report while it is not true.
+	for _, token := range []string{"", rootToken.SecretID} {
+		for _, sealed := range []bool{false, true} {
+			req := report(followerID, token)
+			req.Sealed = sealed
+			err := msgpackrpc.CallWithCodec(rpcClient(t, leader), "Operator.SealRewrapDone", req, new(structs.GenericResponse))
+			must.ErrorContains(t, err, structs.ErrPermissionDenied.Error(),
+				must.Sprintf("a forged report (sealed %t) about a follower was taken", sealed))
+		}
+	}
+	err := follower.RPC("Operator.SealRewrapDone", report(followerID, ""), new(structs.GenericResponse))
+	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+
 	// The servers' own reports work: each in process, a follower's
-	// forwarded to the leader. In process a server speaks for itself only.
+	// forwarded to the leader, which the follower confirms once it has
+	// wrapped its keys for that rewrap. In process a server speaks for
+	// itself only.
+	follower.seal.lock.Lock()
+	follower.seal.rewrapped = "no-such-rewrap"
+	follower.seal.lock.Unlock()
 	for _, s := range []*Server{leader, follower} {
 		must.NoError(t, s.RPC("Operator.SealRewrapDone", report(s.seal.localID(), ""), new(structs.GenericResponse)))
 	}
-	err := follower.RPC("Operator.SealRewrapDone", report(leaderID, ""), new(structs.GenericResponse))
+	// It confirms what is true and nothing else: not that it is sealed.
+	sealedReport := report(followerID, "")
+	sealedReport.Sealed = true
+	err = msgpackrpc.CallWithCodec(rpcClient(t, leader), "Operator.SealRewrapDone", sealedReport, new(structs.GenericResponse))
+	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
+	follower.seal.lock.Lock()
+	follower.seal.rewrapped, follower.seal.cantRewrap = "", "no-such-rewrap"
+	follower.seal.lock.Unlock()
+	must.NoError(t, follower.RPC("Operator.SealRewrapDone", sealedReport, new(structs.GenericResponse)))
+
+	err = follower.RPC("Operator.SealRewrapDone", report(leaderID, ""), new(structs.GenericResponse))
 	must.ErrorContains(t, err, "for itself only")
+
+	// The question itself is answered by the server it is about only.
+	err = msgpackrpc.CallWithCodec(rpcClient(t, leader), "Operator.SealRewrapConfirm", sealedReport, new(structs.GenericResponse))
+	must.ErrorContains(t, err, structs.ErrPermissionDenied.Error())
 }
 
 // A server does not take the word of the rewrap record about itself (review

@@ -227,12 +227,59 @@ func (op *Operator) sealRewrapReporter(args *structs.SealRewrapDoneRequest) erro
 	if err := future.Error(); err != nil {
 		return err
 	}
+	member := false
 	for _, server := range future.Configuration().Servers {
 		if string(server.ID) == args.ServerID {
-			return nil
+			member = true
+			break
 		}
 	}
-	return structs.ErrPermissionDenied
+	if !member {
+		return structs.ErrPermissionDenied
+	}
+
+	// Whoever sent the report, the server it names is asked whether it is
+	// true, over the connection this server makes to the address that
+	// server has in Serf: neither the address nor the certificate of the
+	// sender is taken for it.
+	target, err := op.srv.getServer(op.srv.Region(), args.ServerID)
+	if err != nil || target.ID != args.ServerID {
+		op.logger.Warn("rewrap report refused: the server it names is not reachable to confirm it",
+			"rewrap_id", args.RewrapID, "server_id", args.ServerID, "error", err)
+		return structs.ErrPermissionDenied
+	}
+	confirm := &structs.SealRewrapDoneRequest{
+		RewrapID:     args.RewrapID,
+		ServerID:     args.ServerID,
+		Sealed:       args.Sealed,
+		WriteRequest: structs.WriteRequest{Region: op.srv.Region()},
+	}
+	if err := op.srv.forwardServer(target, "Operator.SealRewrapConfirm", confirm, &structs.GenericResponse{}); err != nil {
+		op.logger.Warn("rewrap report refused: the server it names does not confirm it",
+			"rewrap_id", args.RewrapID, "server_id", args.ServerID, "sealed", args.Sealed, "error", err)
+		return structs.ErrPermissionDenied
+	}
+	return nil
+}
+
+// SealRewrapConfirm answers the leader whether a rewrap report about this
+// server is true: without an error when this server, in this process, has
+// wrapped its keys with the seals of the rewrap (Sealed unset) or has found
+// that it can't take part in it (Sealed set). It is an internal RPC of the
+// servers of the region, is never forwarded and changes nothing; the leader
+// calls it before it records a report that reached it over a connection
+// (sealRewrapReporter).
+func (op *Operator) SealRewrapConfirm(args *structs.SealRewrapDoneRequest, reply *structs.GenericResponse) error {
+	if err := validateTLSCertificateLevel(op.srv, op.ctx, tlsCertificateLevelServer); err != nil {
+		return err
+	}
+	if args.RequestRegion() != op.srv.Region() || args.ServerID != op.srv.seal.localID() {
+		return structs.ErrPermissionDenied
+	}
+	if args.RewrapID == "" || !op.srv.seal.rewrapStateIs(args.RewrapID, args.Sealed) {
+		return structs.NewErrRPCCoded(http.StatusConflict, "this server did not report that for the rewrap")
+	}
+	return nil
 }
 
 // Rewrap moves the keys of the region to another seal online (Norca): every

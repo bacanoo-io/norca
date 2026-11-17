@@ -87,6 +87,10 @@ type sealManager struct {
 	// reportedSealed is the ID of the last rewrap this server reported it
 	// can't take part in.
 	reportedSealed string
+	// cantRewrap is the ID of the last rewrap this server found it can't
+	// take part in; what it answers the leader that asks about a report
+	// (Operator.SealRewrapConfirm), set before the report is sent.
+	cantRewrap string
 	// rewrapped is the ID of the last rewrap whose seals this process has
 	// wrapped the keys of this server with. The Done list of the rewrap
 	// record is what servers reported; for itself a server trusts only what
@@ -772,6 +776,13 @@ func (m *sealManager) rewrapLocal(ctx context.Context, rw *structs.SealRewrap) e
 			return err
 		}
 	}
+	// The keys are wrapped: this is what the server answers the leader that
+	// asks about its report, so it is set before the report. A report that
+	// fails is sent again by the next reconcile, which finds the wraps in
+	// place.
+	m.lock.Lock()
+	m.rewrapped = rw.ID
+	m.lock.Unlock()
 	// A server that restarted, or was reported by someone else, is in the
 	// record already: it wrapped its keys again (which changes nothing where
 	// the wraps exist) and has nothing new to report.
@@ -780,10 +791,19 @@ func (m *sealManager) rewrapLocal(ctx context.Context, rw *structs.SealRewrap) e
 			return err
 		}
 	}
-	m.lock.Lock()
-	m.rewrapped = rw.ID
-	m.lock.Unlock()
 	return nil
+}
+
+// rewrapStateIs reports whether this server, in this process, has wrapped
+// its keys with the seals of a rewrap (sealed unset), or has found that it
+// can't take part in it and has not wrapped them since (sealed set).
+func (m *sealManager) rewrapStateIs(rewrapID string, sealed bool) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if sealed {
+		return m.cantRewrap == rewrapID && m.rewrapped != rewrapID
+	}
+	return m.rewrapped == rewrapID
 }
 
 // rewrappedLocal reports whether this process has wrapped the keys of this
@@ -839,6 +859,9 @@ func (m *sealManager) reportSealed(rw *structs.SealRewrap) error {
 	if reported {
 		return nil
 	}
+	m.lock.Lock()
+	m.cantRewrap = rw.ID
+	m.lock.Unlock()
 	if err := m.reportRewrap(rw, true); err != nil {
 		return err
 	}
