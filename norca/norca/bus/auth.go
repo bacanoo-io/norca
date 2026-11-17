@@ -95,6 +95,13 @@ const ReaderUser = "cdc"
 // InboxPrefix is the first token of the inbox subjects, as in NATS.
 const InboxPrefix = "_INBOX"
 
+// InternalInboxPrefix is the inbox prefix of the servers' own connections
+// (Connect): the replies of their JetStream requests and the deliveries of
+// their consumers arrive below it. It is outside _INBOX, which a bus rule
+// may let a connection publish into to answer requests, and no rule reaches
+// it.
+const InternalInboxPrefix = "_NORCA_INBOX"
+
 // Equal reports whether two grants allow the same.
 func (g *Grant) Equal(o *Grant) bool {
 	if g == nil || o == nil {
@@ -200,9 +207,19 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 }
 
 // permissions converts a grant into NATS permissions. A connection may
-// receive the replies of its own requests below its Inbox only. The publish
-// and subscribe subjects of a grant never reach into the inboxes
-// (CoversInbox): the authorizer leaves such subjects out.
+// receive the replies of its own requests below its Inbox only: the
+// subscribe subjects of a grant never reach into the inboxes (CoversInbox),
+// the authorizer leaves such subjects out.
+//
+// No connection gets the response permission of NATS (allow_responses). It
+// lets a connection publish to the reply subject of a message it received,
+// after the allow and the deny list both refused the subject, and NATS does
+// not check the reply subject of a publish: a connection that may publish
+// and subscribe to one common subject sends itself a message with a reply
+// subject of its choice and then publishes there, to the JetStream API, to
+// a bucket, to anything in its account. A connection answers a request by
+// its publish subjects like any other publish: a bus rule names the inboxes
+// it may answer into (publish = ["_INBOX.>"]).
 func permissions(g *Grant) *natsserver.Permissions {
 	if g.All {
 		return nil
@@ -214,8 +231,6 @@ func permissions(g *Grant) *natsserver.Permissions {
 	return &natsserver.Permissions{
 		Publish:   &natsserver.SubjectPermission{Allow: nonEmpty(g.Publish), Deny: slices.Clone(g.PublishDeny)},
 		Subscribe: &natsserver.SubjectPermission{Allow: nonEmpty(subscribe), Deny: slices.Clone(g.SubscribeDeny)},
-		// Requests to the connection's own subscriptions may be answered.
-		Response: &natsserver.ResponsePermission{MaxMsgs: 1},
 	}
 }
 

@@ -52,8 +52,18 @@ const (
 	GapTopic = "Bus"
 	GapType  = "EventGap"
 
-	// PushSubject is the subject (after the prefix) of pack push notices.
+	// PushSubject is the subject (after the prefix) of pack push notices: a
+	// pipeline with the bus rule for it publishes a notice there (and below
+	// it), without an acknowledgement.
 	PushSubject = "packs.pushed"
+
+	// PushStoredSubject is the subject (after the prefix) the servers store
+	// the push notices on, in the stream the leader reads. Only the servers
+	// publish it: a stream acknowledges a message to the reply subject its
+	// publisher names, with the rights of JetStream, so no connection
+	// without every right publishes to a subject of a stream that
+	// acknowledges.
+	PushStoredSubject = "packs.notices"
 
 	// AdminSubjectToken is the token after the prefix of the admin events:
 	// <prefix>.admin.<region>.<namespace>.<topic>. A region named "admin"
@@ -450,7 +460,7 @@ func CheckSubjects(prefix, region string) error {
 	events := prefix + "." + SubjectToken(region) + ".>"
 	admin := prefix + "." + AdminSubjectToken + "." + SubjectToken(region) + ".>"
 	telemetry := "norca.telemetry." + SubjectToken(region) + ".*"
-	pushes := []string{prefix + "." + PushSubject, prefix + "." + PushSubject + ".>"}
+	pushes := []string{prefix + "." + PushSubject, prefix + "." + PushSubject + ".>", prefix + "." + PushStoredSubject}
 	if natsserver.SubjectsCollide(events, admin) {
 		return fmt.Errorf("the events of region %q (%s) and its admin events (%s) would share subjects: "+
 			"use another region name or another bus.events.subject_prefix", region, events, admin)
@@ -502,6 +512,13 @@ type StreamSettings struct {
 	ConsumerLimits jetstream.StreamConsumerLimits
 	Storage        jetstream.StorageType
 	Compression    jetstream.StoreCompression
+
+	// NoAck makes the stream store without acknowledging. It is set for a
+	// stream whose subjects a connection without every right publishes to:
+	// JetStream sends the acknowledgement to the reply subject the
+	// publisher names, with its own rights, whatever the publisher may
+	// publish itself.
+	NoAck bool
 }
 
 // EnsureStream creates a stream or updates the settings of an existing one
@@ -531,6 +548,7 @@ func EnsureStream(ctx context.Context, js jetstream.JetStream, name, description
 			cfg.MaxConsumers = -1
 		}
 		cfg.ConsumerLimits = set.ConsumerLimits
+		cfg.NoAck = set.NoAck
 		if cfg.Storage == jetstream.FileStorage {
 			cfg.Compression = set.Compression
 		}

@@ -85,6 +85,12 @@ func (s *Server) ensureTelemetryStream(ctx context.Context, js jetstream.JetStre
 			Compression: jetstream.S2Compression,
 
 			MaxMsgsPerSubject: telemetryMaxPerNode,
+
+			// The nodes publish their reports without waiting for an
+			// acknowledgement (client/taskgroup_usage.go), and must not get
+			// one: JetStream would send it to the reply subject the node
+			// names, the JetStream API or a bucket of this account.
+			NoAck: true,
 		})
 }
 

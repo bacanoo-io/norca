@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/acl"
@@ -103,6 +104,9 @@ func (s *Server) setupBus() error {
 	go s.busRevalidateLoop()
 	go s.busCarryOverLoop()
 	go s.busRetryLoop(s.shutdownCtx, "consuming the task group usage", s.consumeTelemetry)
+	if s.config.Bus.Events.Enabled {
+		go s.busRetryLoop(s.shutdownCtx, "storing the pack push notices of the bus", s.relayPushNotices)
+	}
 	return nil
 }
 
@@ -358,6 +362,19 @@ func busRuleSubjects(subjects []string) []string {
 	out := make([]string, 0, len(subjects))
 	for _, subject := range subjects {
 		if !bus.CoversInbox(subject) {
+			out = append(out, subject)
+		}
+	}
+	return out
+}
+
+// busRulePublishSubjects leaves out the publish subjects of a bus rule that
+// start with a wildcard. A subject below _INBOX stays: it is how a rule lets
+// a connection answer requests, into the inboxes it names.
+func busRulePublishSubjects(subjects []string) []string {
+	out := make([]string, 0, len(subjects))
+	for _, subject := range subjects {
+		if strings.HasPrefix(subject, bus.InboxPrefix+".") || !bus.CoversInbox(subject) {
 			out = append(out, subject)
 		}
 	}

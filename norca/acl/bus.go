@@ -23,6 +23,13 @@ import (
 // not scoped to a namespace; management tokens may use every subject. The
 // change streams of the bus (the events, the admin events and the Consul KV
 // notices) are read with the cdc rule (CDCPolicy), not with this one.
+//
+// A connection answers a request by publishing to the reply subject of the
+// request, which is an inbox of the requester (_INBOX.<accessor ID of its
+// token>.<...>). That needs the subject in the publish list of the
+// answering side: "_INBOX.>" for any requester, "_INBOX.<accessor ID>.>"
+// for one. No list lets a connection subscribe to the inboxes: it receives
+// its own replies only.
 type BusPolicy struct {
 	Subscribe []string `hcl:"subscribe"`
 	Publish   []string `hcl:"publish"`
@@ -36,12 +43,30 @@ func (p *BusPolicy) validate() error {
 	if err := unknownRuleKeys("bus", p.ExtraKeys); err != nil {
 		return err
 	}
-	for _, list := range [][]string{p.Subscribe, p.Publish} {
-		for _, subject := range list {
-			if err := validateBusSubject(subject); err != nil {
-				return err
-			}
+	for _, subject := range p.Subscribe {
+		if err := validateBusSubject(subject); err != nil {
+			return err
 		}
+	}
+	for _, subject := range p.Publish {
+		if err := validateBusPublishSubject(subject); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateBusPublishSubject checks a subject of a publish list: a subject
+// as validateBusSubject takes it, or one below _INBOX, the inboxes a
+// connection may answer requests into.
+func validateBusPublishSubject(subject string) error {
+	rest, inbox := strings.CutPrefix(subject, "_INBOX.")
+	if !inbox {
+		return validateBusSubject(subject)
+	}
+	// The tokens after _INBOX may start with a wildcard.
+	if err := validateBusSubject("inbox." + rest); err != nil {
+		return fmt.Errorf("bus subject %q: not a valid inbox subject", subject)
 	}
 	return nil
 }
@@ -64,7 +89,7 @@ func validateBusSubject(subject string) error {
 	// replies of other connections.
 	switch tokens[0] {
 	case "_INBOX":
-		return fmt.Errorf("bus subject %q: the _INBOX subjects can't be granted, a connection gets its own replies", subject)
+		return fmt.Errorf("bus subject %q: the _INBOX subjects can't be subscribed to, a connection gets its own replies (a publish list may name inboxes below _INBOX. to answer requests)", subject)
 	case "*", ">":
 		return fmt.Errorf("bus subject %q: a subject starts with a name, not with a wildcard (it would cover the replies of other connections)", subject)
 	}

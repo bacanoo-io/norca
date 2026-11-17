@@ -46,6 +46,18 @@ const (
 	// pushSyncCooldown is the minimum time between two syncs of a registry
 	// triggered by push notices.
 	pushSyncCooldown = time.Minute
+
+	// pushNoticeMaxSize is the largest push notice the stream takes.
+	pushNoticeMaxSize = 64 << 10
+
+	// pushRelayQueue is the queue group of the servers that store the push
+	// notices published on the bus: one of them takes each notice.
+	// pushRelayBuffer bounds the notices that wait to be stored.
+	pushRelayQueue  = "norca-push-relay"
+	pushRelayBuffer = 256
+
+	// pushRelayTimeout bounds the storing of one notice.
+	pushRelayTimeout = 10 * time.Second
 )
 
 // busEventsLeader runs the bus loops of the leader until stopCh closes: the
@@ -434,19 +446,65 @@ func encodeEventJSON(ev *structs.Event) ([]byte, error) {
 	return bytes.TrimRight(buf.Bytes(), "\n"), nil
 }
 
-// ensurePushStream creates the stream of the pack push notices.
+// ensurePushStream creates the stream of the pack push notices. Its subject
+// is the one only the servers publish (bus.PushStoredSubject), so that its
+// acknowledgements go to the servers only; what a pipeline publishes on
+// <prefix>.packs.pushed is stored by relayPushNotices.
 func (s *Server) ensurePushStream(ctx context.Context, js jetstream.JetStream) error {
 	prefix := s.config.Bus.Events.SubjectPrefix
 	return bus.EnsureStream(ctx, js, pushStreamName, "Norca pack push notices",
-		[]string{prefix + "." + bus.PushSubject, prefix + "." + bus.PushSubject + ".>"},
+		[]string{prefix + "." + bus.PushStoredSubject},
 		bus.StreamSettings{
 			Replicas:   s.busReplicas(),
 			MaxAge:     pushStreamMaxAge,
 			MaxBytes:   bus.PushStreamMaxBytes,
-			MaxMsgSize: 64 << 10,
+			MaxMsgSize: pushNoticeMaxSize,
 			Duplicates: time.Minute,
 			Storage:    jetstream.FileStorage,
 		})
+}
+
+// relayPushNotices stores the pack push notices that connections with the
+// bus rule for them publish on <prefix>.packs.pushed (and below it): every
+// server subscribes in one queue group, and the one that gets a notice
+// publishes its body on the subject of the stream. The notice is taken as
+// it is, without its reply subject and its headers: the publisher gets no
+// acknowledgement (a stream would send it wherever the publisher said), and
+// sets no JetStream header of the stored message. A notice published while
+// no server listens, or that can't be stored, is lost; the API
+// (Packs.NotifyPush) confirms a notice.
+func (s *Server) relayPushNotices(ctx context.Context, js jetstream.JetStream) error {
+	if err := s.ensurePushStream(ctx, js); err != nil {
+		return fmt.Errorf("creating the stream %s: %w", pushStreamName, err)
+	}
+	prefix := s.config.Bus.Events.SubjectPrefix
+	nc := js.Conn()
+	notices := make(chan *nats.Msg, pushRelayBuffer)
+	for _, subject := range []string{prefix + "." + bus.PushSubject, prefix + "." + bus.PushSubject + ".>"} {
+		sub, err := nc.ChanQueueSubscribe(subject, pushRelayQueue, notices)
+		if err != nil {
+			return fmt.Errorf("subscribing to %s: %w", subject, err)
+		}
+		defer func() { _ = sub.Unsubscribe() }()
+	}
+	stored := prefix + "." + bus.PushStoredSubject
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-notices:
+			if len(msg.Data) == 0 || len(msg.Data) > pushNoticeMaxSize {
+				s.logger.Debug("system bus: a pack push notice of the bus is left out", "subject", msg.Subject, "size", len(msg.Data))
+				continue
+			}
+			storeCtx, cancel := context.WithTimeout(ctx, pushRelayTimeout)
+			_, err := js.Publish(storeCtx, stored, msg.Data)
+			cancel()
+			if err != nil {
+				return fmt.Errorf("storing a pack push notice of the bus: %w", err)
+			}
+		}
+	}
 }
 
 // consumePushNotices syncs the registries named by pack push notices. The
@@ -595,7 +653,7 @@ func (s *Server) publishPushNotice(n *bus.PushNotice) error {
 		if err := s.ensurePushStream(ctx, js); err != nil {
 			return err
 		}
-		_, err := js.Publish(ctx, s.config.Bus.Events.SubjectPrefix+"."+bus.PushSubject, data)
+		_, err := js.Publish(ctx, s.config.Bus.Events.SubjectPrefix+"."+bus.PushStoredSubject, data)
 		return err
 	})
 }

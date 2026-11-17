@@ -35,6 +35,10 @@ func TestBusServer_BusRuleInternalSubjects(t *testing.T) {
 	internal := []string{
 		"$KV.consul-kv.>", "$KV.>", "$JS.API.>", "$JS.ACK.>", "$JSC.>", "$NRG.>", "_R_.>",
 		"norca.telemetry.>", "norca.telemetry.global.*",
+		// The services every account imports from the NATS system account,
+		// the inboxes of the servers' own connections and the subject the
+		// servers store the pack push notices on.
+		"$SYS.REQ.USER.INFO", "$SYS.>", bus.InternalInboxPrefix + ".>", "norca." + bus.PushStoredSubject,
 	}
 
 	// The subjects a connection gets from the rule.

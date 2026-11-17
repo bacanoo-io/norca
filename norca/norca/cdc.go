@@ -90,8 +90,16 @@ func consumerNameToken(s string) string {
 //     answer the requests of other connections;
 //   - _R_.>: the deliveries of the consumers to the leaf readers;
 //   - norca.telemetry.>: the usage reports of the nodes, which move the
-//     autoscaler.
-var busInternalSubjects = []string{"$KV.>", "$JS.>", "$JSC.>", "$NRG.>", "_R_.>", "norca.telemetry.>"}
+//     autoscaler;
+//   - $SYS.>: the services of the NATS system account that every account
+//     imports (the information of the user and of the account); they
+//     answer to the reply subject of the request;
+//   - the inboxes of the servers' own connections (bus.InternalInboxPrefix).
+//
+// With them goes the subject the servers store the pack push notices on
+// (busGrantSubjects adds it, it lies under the event prefix).
+var busInternalSubjects = []string{"$KV.>", "$JS.>", "$JSC.>", "$NRG.>", "_R_.>", "norca.telemetry.>",
+	"$SYS.>", bus.InternalInboxPrefix + ".>"}
 
 // busGrantSubjects builds the subjects of a connection without every right
 // from its bus and cdc rules:
@@ -111,13 +119,14 @@ func (s *Server) busGrantSubjects(g *acl.BusGrant, cdc *acl.CDCGrant) (publish, 
 	// Neither side of a bus rule reaches the change streams or the subjects
 	// of the servers and the nodes (busInternalSubjects).
 	reserved := append(slices.Clone(change), busInternalSubjects...)
+	reserved = append(reserved, s.busEventsPrefix()+"."+bus.PushStoredSubject)
 
 	for _, subject := range busRuleSubjects(g.Subscribe) {
 		if !collides(subject, reserved) {
 			subscribe = append(subscribe, subject)
 		}
 	}
-	for _, subject := range busRuleSubjects(g.Publish) {
+	for _, subject := range busRulePublishSubjects(g.Publish) {
 		if !collides(subject, reserved) {
 			publish = append(publish, subject)
 		}
@@ -207,6 +216,7 @@ func (s *Server) busNonChangeDeny() []string {
 		"norca.telemetry.>",
 		prefix + "." + bus.PushSubject,
 		prefix + "." + bus.PushSubject + ".>",
+		prefix + "." + bus.PushStoredSubject,
 	}
 }
 

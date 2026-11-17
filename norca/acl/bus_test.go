@@ -45,7 +45,9 @@ bus {
 		`bus { subscribe = [">"] }`,
 		`bus { subscribe = ["*.events.>"] }`,
 		`bus { publish = [">"] }`,
-		`bus { publish = ["_INBOX.abc.def"] }`,
+		`bus { publish = ["_INBOX"] }`,
+		`bus { publish = ["_INBOX.a..b"] }`,
+		`bus { publish = ["_INBOX.>.b"] }`,
 	} {
 		_, err := Parse(bad)
 		must.ErrorContains(t, err, "Invalid bus policy", must.Sprint(bad))
@@ -83,4 +85,26 @@ bus {
 	a, err = NewACL(false, []*Policy{p3})
 	must.NoError(t, err)
 	must.True(t, a.BusGrant().Empty())
+}
+
+// A publish list may name inboxes, to answer requests into them; a
+// subscribe list never does.
+func TestACL_BusPolicy_InboxPublish(t *testing.T) {
+	ci.Parallel(t)
+	for _, good := range []string{
+		`bus { publish = ["_INBOX.>"] }`,
+		`bus { publish = ["_INBOX.0b8f7d2e-1c4a-4f8e-9a6b-2d3c4e5f6a7b.>"] }`,
+		`bus { publish = ["_INBOX.*.reply"] }`,
+	} {
+		policy, err := Parse(good)
+		must.NoError(t, err, must.Sprint(good))
+		must.Len(t, 1, policy.Bus.Publish)
+	}
+	for _, bad := range []string{
+		`bus { subscribe = ["_INBOX.>"] }`,
+		`bus { subscribe = ["_INBOX.0b8f7d2e-1c4a-4f8e-9a6b-2d3c4e5f6a7b.>"] }`,
+	} {
+		_, err := Parse(bad)
+		must.ErrorContains(t, err, "can't be subscribed to", must.Sprint(bad))
+	}
 }

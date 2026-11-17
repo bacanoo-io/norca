@@ -368,6 +368,7 @@ func (s *Server) Connect(options ...nats.Option) (*nats.Conn, error) {
 		nats.Token(s.internalToken),
 		nats.Name("norca-server"),
 		nats.MaxReconnects(-1),
+		nats.CustomInboxPrefix(InternalInboxPrefix),
 	}, options...)
 	return nats.Connect("", options...)
 }
