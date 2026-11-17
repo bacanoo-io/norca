@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"regexp"
 	"slices"
@@ -243,10 +244,18 @@ func (o *Object) SpecHash() string {
 func hashJSON(doc []byte) string {
 	canonical := doc
 	var v any
-	if err := json.Unmarshal(doc, &v); err == nil {
-		// encoding/json sorts map keys, which canonicalizes the document.
-		if b, err := json.Marshal(v); err == nil {
-			canonical = b
+	// Numbers keep their text: as float64, integers above 2^53 that differ
+	// only in their low bits would hash the same.
+	dec := json.NewDecoder(bytes.NewReader(doc))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err == nil {
+		// Like json.Unmarshal, take only a single document.
+		if _, err := dec.Token(); err == io.EOF {
+			// encoding/json sorts map keys, which canonicalizes the
+			// document.
+			if b, err := json.Marshal(v); err == nil {
+				canonical = b
+			}
 		}
 	}
 	sum := sha256.Sum256(canonical)

@@ -126,6 +126,20 @@ func TestObject_SpecHash(t *testing.T) {
 	must.True(t, SpecChanged(b, d))
 }
 
+// Integers above 2^53 that differ only in their low bits are different
+// specs.
+func TestObject_SpecHash_LargeIntegers(t *testing.T) {
+	a := &Object{Spec: json.RawMessage(`{"id":9007199254740993}`)}
+	b := &Object{Spec: json.RawMessage(`{"id": 9007199254740992}`)}
+	must.NotEq(t, a.SpecHash(), b.SpecHash())
+	must.False(t, specEqual(a, b))
+	must.True(t, SpecChanged(a, b))
+
+	// The formatting is still ignored.
+	c := &Object{Spec: json.RawMessage("{ \"id\" : 9007199254740993 }")}
+	must.Eq(t, a.SpecHash(), c.SpecHash())
+}
+
 func TestCommonStatus_SetCondition(t *testing.T) {
 	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	var s CommonStatus
