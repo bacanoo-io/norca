@@ -89,9 +89,10 @@ func (s *Server) autoscalerConfig() *autoscaler.Config {
 }
 
 // isAutoscalerScaling reports whether a request to scale the group is the
-// built-in autoscaler's own, for a policy of its engine.
-func isAutoscalerScaling(group *structs.TaskGroup, args *structs.JobScaleRequest, defaultEngine string) bool {
-	return autoscaler.IsOwnScaling(args.Meta) && group.Scaling != nil &&
+// built-in autoscaler's own, for a policy of its engine. byAutoscaler is
+// whether its identity sent the request (Server.isAutoscalerRequest).
+func isAutoscalerScaling(group *structs.TaskGroup, byAutoscaler bool, defaultEngine string) bool {
+	return byAutoscaler && group.Scaling != nil &&
 		autoscaler.PolicyEngine(group.Scaling, defaultEngine) == structs.ScalingPolicyEngineBuiltin
 }
 
@@ -175,8 +176,9 @@ const scaledByPolicyWarning = "the count of this task group is decided by an ena
 // handMadeScalingWarning returns scaledByPolicyWarning when a request to
 // change the count of the group is not the built-in autoscaler's own and the
 // group is scaled by an enabled policy of the built-in engine; "" otherwise.
-func handMadeScalingWarning(group *structs.TaskGroup, args *structs.JobScaleRequest, defaultEngine string) string {
-	if args.Count == nil || !isScaledGroup(group) || autoscaler.IsOwnScaling(args.Meta) {
+// byAutoscaler is whether the autoscaler's identity sent the request.
+func handMadeScalingWarning(group *structs.TaskGroup, args *structs.JobScaleRequest, byAutoscaler bool, defaultEngine string) string {
+	if args.Count == nil || !isScaledGroup(group) || byAutoscaler {
 		return ""
 	}
 	if autoscaler.PolicyEngine(group.Scaling, defaultEngine) != structs.ScalingPolicyEngineBuiltin {

@@ -5,6 +5,7 @@ package norca
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler"
@@ -98,6 +99,26 @@ func (s *Server) getAutoscalerSecret() string {
 func (s *Server) isAutoscalerSecret(secretID string) bool {
 	secret := s.getAutoscalerSecret()
 	return secret != "" && secretID == secret
+}
+
+// isAutoscalerRequest reports whether a request was sent by the built-in
+// autoscaler: it carries the secret of its system identity, which only this
+// leader knows. The meta of a request does not decide it, and the check
+// does not depend on ACLs being enabled.
+func (s *Server) isAutoscalerRequest(args interface{ GetAuthToken() string }) bool {
+	return s.isAutoscalerSecret(args.GetAuthToken())
+}
+
+// checkAutoscalerMeta refuses the meta keys reserved for the built-in
+// autoscaler (autoscaler.ReservedMetaKey) in a request of anyone else.
+func checkAutoscalerMeta[V any](own bool, meta map[string]V) error {
+	if own {
+		return nil
+	}
+	if key := autoscaler.ReservedMetaKey(meta); key != "" {
+		return structs.NewErrRPCCodedf(http.StatusBadRequest, "meta key %q is reserved for the built-in autoscaler", key)
+	}
+	return nil
 }
 
 // autoscalerDefaultEngine returns the engine of scaling policies that do not

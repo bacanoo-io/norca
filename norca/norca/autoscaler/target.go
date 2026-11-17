@@ -25,10 +25,19 @@ const (
 	metaKeySuspendedUntil = "nomad_autoscaler.suspended_until"
 )
 
-// IsOwnScaling reports whether the meta of a scaling request or event is that
-// of an action of the built-in autoscaler.
-func IsOwnScaling(meta map[string]interface{}) bool {
-	return meta[metaKeyEngine] == structs.ScalingPolicyEngineBuiltin
+// ReservedMetaKey returns a key of the meta of a scaling request or event
+// that only the built-in autoscaler may write, "" if it has none. The
+// autoscaler reads these keys back from the recorded events as its own (the
+// directions of its changes, an oscillation suspension), so the servers
+// accept them from its identity only: the meta says nothing about who sent
+// a request.
+func ReservedMetaKey[V any](meta map[string]V) string {
+	for _, key := range []string{metaKeyEngine, metaKeySuspendedUntil} {
+		if _, ok := meta[key]; ok {
+			return key
+		}
+	}
+	return ""
 }
 
 // targetKey identifies a scaled task group.

@@ -1093,6 +1093,14 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 		return err
 	}
 
+	// Whether the request is the built-in autoscaler's own is decided by
+	// its identity. The meta that marks its events is recorded for it only:
+	// the autoscaler reads it back from the scaling events.
+	byAutoscaler := j.srv.isAutoscalerRequest(args)
+	if err := checkAutoscalerMeta(byAutoscaler, args.Meta); err != nil {
+		return err
+	}
+
 	// Find job
 	snap, err := j.srv.fsm.State().Snapshot()
 	if err != nil {
@@ -1176,7 +1184,7 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 		}
 
 		// A change that is not the policy's own is made, with a warning.
-		reply.Warnings = handMadeScalingWarning(group, args, j.srv.autoscalerDefaultEngine())
+		reply.Warnings = handMadeScalingWarning(group, args, byAutoscaler, j.srv.autoscalerDefaultEngine())
 
 		// Update group count
 		group.Count = int(*args.Count)
@@ -1189,7 +1197,7 @@ func (j *Job) Scale(args *structs.JobScaleRequest, reply *structs.JobRegisterRes
 			return err
 		}
 
-		isOwn := isAutoscalerScaling(group, args, j.srv.autoscalerDefaultEngine())
+		isOwn := isAutoscalerScaling(group, byAutoscaler, j.srv.autoscalerDefaultEngine())
 		if scaleBlockedByDeployment(deployment, job, group, prevCount, *args.Count, isOwn) {
 			return structs.NewErrRPCCoded(400, "job scaling blocked due to active deployment")
 		}

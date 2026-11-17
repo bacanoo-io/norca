@@ -357,6 +357,7 @@ func TestHandMadeScalingWarning(t *testing.T) {
 		name          string
 		group         *structs.TaskGroup
 		args          *structs.JobScaleRequest
+		byAutoscaler  bool
 		defaultEngine string
 		expected      string
 	}{
@@ -374,9 +375,17 @@ func TestHandMadeScalingWarning(t *testing.T) {
 			expected:      scaledByPolicyWarning,
 		},
 		{
-			name:  "the autoscaler's own change",
-			group: scaled(structs.ScalingPolicyEngineBuiltin, true),
-			args:  count(ownMeta),
+			name:         "the autoscaler's own change",
+			group:        scaled(structs.ScalingPolicyEngineBuiltin, true),
+			args:         count(ownMeta),
+			byAutoscaler: true,
+		},
+		{
+			// The meta of a request says nothing about its sender.
+			name:     "a change by hand with the meta of the autoscaler",
+			group:    scaled(structs.ScalingPolicyEngineBuiltin, true),
+			args:     count(ownMeta),
+			expected: scaledByPolicyWarning,
 		},
 		{
 			name:  "a policy of the external engine",
@@ -408,7 +417,7 @@ func TestHandMadeScalingWarning(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			must.Eq(t, tt.expected, handMadeScalingWarning(tt.group, tt.args, tt.defaultEngine))
+			must.Eq(t, tt.expected, handMadeScalingWarning(tt.group, tt.args, tt.byAutoscaler, tt.defaultEngine))
 		})
 	}
 }

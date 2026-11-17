@@ -449,6 +449,10 @@ func (c *CustomObject) RecordEvents(args *structs.CustomObjectEventsRequest, rep
 	}
 	defer metrics.MeasureSince([]string{"nomad", "custom_object", "record_events"}, time.Now())
 
+	if isBuiltinObjectGroup(args.Group) {
+		return errBuiltinObjectGroup(args.Group)
+	}
+
 	if err := structs.ValidateObjectKindName(args.Group, args.Kind); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
 	}
@@ -458,12 +462,23 @@ func (c *CustomObject) RecordEvents(args *structs.CustomObjectEventsRequest, rep
 	case len(args.Events) > structs.MaxObjectEventsPerRequest:
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "at most %d events can be written at once", structs.MaxObjectEventsPerRequest)
 	}
+	// The autoscaler takes its cooldown, the directions of its changes and
+	// its suspension from the log: the "Scaled" reason is written by the
+	// scale subresource only, and the autoscaler's meta by its identity.
+	byAutoscaler := c.srv.isAutoscalerRequest(args)
 	events := make([]*structs.ObjectEvent, len(args.Events))
 	for i, e := range args.Events {
 		if e == nil {
 			return structs.NewErrRPCCodedf(http.StatusBadRequest, "event %d: empty", i)
 		}
 		if err := e.Validate(); err != nil {
+			return structs.NewErrRPCCodedf(http.StatusBadRequest, "event %d: %v", i, err)
+		}
+		if e.Reason == structs.ObjectScaleReason {
+			return structs.NewErrRPCCodedf(http.StatusBadRequest,
+				"event %d: the reason %q is reserved for the scale subresource", i, e.Reason)
+		}
+		if err := checkAutoscalerMeta(byAutoscaler, e.Meta); err != nil {
 			return structs.NewErrRPCCodedf(http.StatusBadRequest, "event %d: %v", i, err)
 		}
 		events[i] = &structs.ObjectEvent{Type: e.Type, Reason: e.Reason, Message: e.Message, Meta: maps.Clone(e.Meta)}
@@ -673,6 +688,9 @@ func (c *CustomObject) Scale(args *structs.CustomObjectScaleRequest, reply *stru
 	event := &structs.ObjectEvent{Reason: structs.ObjectScaleReason, Message: args.Message, Meta: maps.Clone(args.Meta)}
 	if err := event.Validate(); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
+	}
+	if err := checkAutoscalerMeta(c.srv.isAutoscalerRequest(args), args.Meta); err != nil {
+		return err
 	}
 
 	var previous int64
