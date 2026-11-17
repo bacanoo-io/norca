@@ -92,6 +92,7 @@ const volumeRequestKindSchema = `{
         "drifts": {"type": "integer", "minimum": 0},
         "failures": {"type": "integer", "minimum": 0},
         "retryAt": {"type": "string"},
+        "lastFailure": {"type": "string"},
         "conditions": {"type": "array", "items": {"type": "object"}},
         "observedGeneration": {"type": "integer", "minimum": 0}
       },

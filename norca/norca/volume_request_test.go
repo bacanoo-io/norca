@@ -781,3 +781,57 @@ func TestVolumeRequest_SpecChangeEndsTheWait(t *testing.T) {
 	must.False(t, objectConditionTrue(obj.Status, volumeRequestConditionFailed))
 	must.NotNil(t, c.volume("fixed"))
 }
+
+// controllerHealthy sets the health of the controller of the plugin
+// "minnie".
+func (c *certTest) controllerHealthy(healthy bool) {
+	c.t.Helper()
+	iter, err := c.s.State().Nodes(nil)
+	must.NoError(c.t, err)
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		node := raw.(*structs.Node).Copy()
+		info := node.CSIControllerPlugins["minnie"]
+		if info == nil {
+			continue
+		}
+		info.Healthy = healthy
+		index, err := c.s.State().LatestIndex()
+		must.NoError(c.t, err)
+		must.NoError(c.t, c.s.State().UpsertNode(structs.MsgTypeTestSetup, index+100, node))
+	}
+}
+
+// A request that waits for the retry of a failed create is not ready, also
+// after its plugin was away in between (review finding VOL-6).
+func TestVolumeRequest_NotReadyWhileRetrying(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false, func(c *Config) {
+		c.volumeRequestRetryBase = time.Hour
+	})
+	defer cleanup()
+
+	fake.set(func(f *fakeVolumeCSI) { f.createErr = errors.New("quota of the storage exceeded") })
+	_, err := c.apply("default", csiVolumeRequestKind, "late", volumeSpec(nil))
+	must.NoError(t, err)
+	c.waitRequest("late", "failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Failures == 1 && readyReason(obj) == volumeRequestConditionFailed
+	})
+
+	c.controllerHealthy(false)
+	c.waitRequest("late", "plugin away", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == "PluginUnavailable"
+	})
+	c.controllerHealthy(true)
+	c.waitRequest("late", "plugin back", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) != "PluginUnavailable"
+	})
+
+	obj, st := c.request("late")
+	must.Nil(t, c.volume("late"))
+	must.Eq(t, volumeRequestConditionFailed, readyReason(obj), must.Sprint("ready without a volume"))
+	must.True(t, objectConditionTrue(obj.Status, volumeRequestConditionFailed))
+	must.True(t, objectConditionTrue(obj.Status, structs.CertificateConditionDegraded))
+	must.StrContains(t, volumeRequestFailure(obj.Status), "quota of the storage exceeded")
+	must.Eq(t, 1, st.Failures)
+	must.NotEq(t, "", st.RetryAt)
+}

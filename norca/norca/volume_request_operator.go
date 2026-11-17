@@ -69,6 +69,17 @@ type volumeRequestStatus struct {
 	Drifts             int    `json:"drifts"`
 	Failures           int    `json:"failures"`
 	RetryAt            string `json:"retryAt,omitempty"`
+
+	// LastFailure is the error of the last failed attempt while its retry
+	// is waited for. The Failed condition is not the place to read it back
+	// from: a pass that ends before the attempt (no plugin, no secret)
+	// writes that condition false.
+	LastFailure string `json:"lastFailure,omitempty"`
+}
+
+// noFailure forgets the failures of the attempts so far.
+func (st *volumeRequestStatus) noFailure() {
+	st.Failures, st.RetryAt, st.LastFailure = 0, "", ""
 }
 
 // volumeCSI is how the operator reaches the controller plugins. Tests
@@ -223,7 +234,7 @@ func (o *volumeRequestOperator) reconcileRequest(p *volumeRequestPass, obj *stru
 	// The wait after a failure is the wait of the spec that failed: a
 	// changed spec is tried at once.
 	if obj.Status != nil && statusGeneration(obj.Status) != int64(obj.Generation) {
-		st.Failures, st.RetryAt = 0, ""
+		st.noFailure()
 	}
 
 	out := &volumeRequestOutcome{}
@@ -292,13 +303,16 @@ func volumeStatusFrom(st *volumeRequestStatus, vol *structs.CSIVolume) {
 }
 
 // retrying reports whether the last attempt failed and its retry is not
-// due yet.
-func (o *volumeRequestOperator) retrying(p *volumeRequestPass, obj *structs.CustomObject, st *volumeRequestStatus, out *volumeRequestOutcome) bool {
+// due yet. The request is failed until then.
+func (o *volumeRequestOperator) retrying(p *volumeRequestPass, st *volumeRequestStatus, out *volumeRequestOutcome) bool {
 	retryAt, err := time.Parse(time.RFC3339, st.RetryAt)
 	if err != nil || !p.now.Before(retryAt) {
 		return false
 	}
-	out.failed = volumeRequestFailure(obj.Status)
+	out.failed = st.LastFailure
+	if out.failed == "" {
+		out.failed = "the last attempt failed; the next one is made at " + st.RetryAt
+	}
 	p.want(retryAt)
 	return true
 }
@@ -312,6 +326,10 @@ func (o *volumeRequestOperator) failure(p *volumeRequestPass, obj *structs.Custo
 	retryAt := p.now.Add(wait)
 	st.RetryAt = retryAt.Format(time.RFC3339)
 	out.failed = fmt.Sprintf("%s: %v", what, err)
+	st.LastFailure = out.failed
+	if len(st.LastFailure) > 1000 {
+		st.LastFailure = st.LastFailure[:1000]
+	}
 	p.want(retryAt)
 	operatorCount(csiVolumeRequestKind, "failures")
 	o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "Failed",
@@ -343,7 +361,7 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 		p.want(p.now.Add(operatorsRetry))
 		return
 	}
-	if o.retrying(p, obj, st, out) {
+	if o.retrying(p, st, out) {
 		return
 	}
 	vol := spec.volume(obj, secrets)
@@ -382,7 +400,7 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 		return
 	}
 	st.VolumeCreateIndex, st.Creating = index, false
-	st.Failures, st.RetryAt = 0, ""
+	st.noFailure()
 	reason := "Created"
 	if spec.mode() == volumeRequestModeRegister {
 		reason = "Registered"
@@ -438,7 +456,7 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 	want := spec.volume(obj, secrets)
 	diff := volumeDiff(vol, want, spec.mode() == volumeRequestModeRegister)
 	if len(diff) == 0 {
-		st.Failures, st.RetryAt = 0, ""
+		st.noFailure()
 		if !vol.Schedulable {
 			out.notReady("NotSchedulable", "the volume is registered but not schedulable (its plugin is not healthy)")
 		}
@@ -449,7 +467,7 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 		p.want(p.now.Add(operatorsRetry))
 		return
 	}
-	if o.retrying(p, obj, st, out) {
+	if o.retrying(p, st, out) {
 		return
 	}
 
@@ -495,7 +513,7 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 		o.failure(p, obj, st, out, "update the volume", err)
 		return
 	}
-	st.Failures, st.RetryAt = 0, ""
+	st.noFailure()
 	if updated {
 		o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Updated",
 			fmt.Sprintf("the volume follows the request: %s", strings.Join(diff, ", ")))
