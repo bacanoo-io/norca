@@ -230,3 +230,33 @@ func TestConfig_Backup_Merge(t *testing.T) {
 	must.Eq(t, "a", a.Destinations[0].Bucket)
 	must.Eq(t, 3, *a.Retention.MinKeep)
 }
+
+// A later file moves the backups from interval to schedule or back: the one
+// it sets replaces the other one, which can't be set back to empty and
+// excludes it.
+func TestConfig_Backup_Merge_IntervalSchedule(t *testing.T) {
+	ci.Parallel(t)
+
+	m := (&BackupConfig{Interval: "1h"}).Merge(&BackupConfig{Schedule: "0 3 * * *"})
+	must.Eq(t, "", m.Interval)
+	must.Eq(t, "0 3 * * *", m.Schedule)
+	cfg, err := m.toServerConfig()
+	must.NoError(t, err)
+	must.Eq(t, "0 3 * * *", cfg.Schedule)
+
+	m = (&BackupConfig{Schedule: "0 3 * * *"}).Merge(&BackupConfig{Interval: "2h"})
+	must.Eq(t, "2h", m.Interval)
+	must.Eq(t, "", m.Schedule)
+	cfg, err = m.toServerConfig()
+	must.NoError(t, err)
+	must.Eq(t, 2*time.Hour, cfg.Interval)
+
+	// a file that sets neither keeps what there is
+	m = (&BackupConfig{Schedule: "0 3 * * *"}).Merge(&BackupConfig{Jitter: "1m"})
+	must.Eq(t, "0 3 * * *", m.Schedule)
+
+	// one file with both is still an error
+	m = (&BackupConfig{Interval: "1h"}).Merge(&BackupConfig{Interval: "2h", Schedule: "0 3 * * *"})
+	_, err = m.toServerConfig()
+	must.ErrorContains(t, err, "mutually exclusive")
+}

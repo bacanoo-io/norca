@@ -216,11 +216,15 @@ func (a *BackupConfig) Merge(b *BackupConfig) *BackupConfig {
 	if b.Enabled != nil {
 		result.Enabled = pointer.Copy(b.Enabled)
 	}
-	if b.Interval != "" {
-		result.Interval = b.Interval
-	}
-	if b.Schedule != "" {
-		result.Schedule = b.Schedule
+	// interval and schedule exclude each other: a later file that sets one
+	// of them replaces the other one of an earlier file too.
+	switch {
+	case b.Interval != "" && b.Schedule != "":
+		result.Interval, result.Schedule = b.Interval, b.Schedule
+	case b.Interval != "":
+		result.Interval, result.Schedule = b.Interval, ""
+	case b.Schedule != "":
+		result.Interval, result.Schedule = "", b.Schedule
 	}
 	if b.Jitter != "" {
 		result.Jitter = b.Jitter
