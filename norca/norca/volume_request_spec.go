@@ -202,6 +202,17 @@ func volumeRequestName(obj *structs.CustomObject) string {
 	return obj.Namespace + "-" + obj.Name
 }
 
+// makes reports whether vol is the volume the request makes: of its plugin
+// and name, and for a registered volume of its external ID.
+func (s *volumeRequestSpec) makes(obj *structs.CustomObject, vol *structs.CSIVolume) bool {
+	name := s.DisplayName
+	if name == "" {
+		name = volumeRequestName(obj)
+	}
+	return vol.PluginID == s.PluginID && vol.Name == name &&
+		(s.mode() != volumeRequestModeRegister || vol.ExternalID == s.ExternalID)
+}
+
 // volume returns the CSI volume the spec describes, with the secrets.
 func (s *volumeRequestSpec) volume(obj *structs.CustomObject, secrets structs.CSISecrets) *structs.CSIVolume {
 	minBytes, maxBytes, _ := s.capacity()

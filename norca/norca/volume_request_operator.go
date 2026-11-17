@@ -27,8 +27,10 @@ import (
 // CSI volumes have no owner field. The request remembers the volume it
 // manages by the create index of the volume in its status, and a volume of
 // the same ID that it did not make is left alone unless the request says
-// adopt. Before a create the request writes "creating" into its status, so a
-// volume that appears while that is set is the request's own even if the
+// adopt. Right before it calls the plugin the request writes "creating" into
+// its status, and that stays until the volume is made: a volume that appears
+// while it is set, and is the volume the request makes (its plugin and name,
+// for a registered one its external ID), is the request's own even if the
 // write of its create index was lost.
 //
 // A created volume that disappears is not created again: an empty volume in
@@ -226,9 +228,11 @@ func (o *volumeRequestOperator) reconcileRequest(p *volumeRequestPass, obj *stru
 	}
 
 	// The volume is the request's own when it has the create index the
-	// request remembers, or appeared while the request was creating it.
+	// request remembers, or appeared while the request was creating it and
+	// is what the request creates. Any other volume of the ID was made by
+	// somebody else in the meantime.
 	ours := vol != nil && st.VolumeCreateIndex != 0 && vol.CreateIndex == st.VolumeCreateIndex
-	if vol != nil && !ours && st.Creating {
+	if vol != nil && !ours && st.Creating && spec.makes(obj, vol) {
 		ours = true
 		st.VolumeCreateIndex, st.Creating = vol.CreateIndex, false
 	}
@@ -279,15 +283,8 @@ func (o *volumeRequestOperator) reconcileRequest(p *volumeRequestPass, obj *stru
 		out.notReady("VolumeLost", "the volume %q this request created is gone (deregistered or deleted by hand); "+
 			"it is not created again, so its jobs don't get an empty volume in its place: delete the request and write it again", obj.Name)
 
-	case !st.Creating:
-		// The intent first, so the volume is known as the request's own
-		// even if the write after the create is lost.
-		st.Creating = true
-		out.notReady("Creating", "creating the volume")
-		p.want(p.now)
-
 	default:
-		o.make(p, obj, spec, st, plugin, secrets, out)
+		obj = o.make(p, obj, spec, st, plugin, secrets, out, &finalizers)
 	}
 
 	if vol, err = p.store.CSIVolumeByID(nil, obj.Namespace, obj.Name); err == nil && vol != nil &&
@@ -360,37 +357,59 @@ func pluginReady(spec *volumeRequestSpec, plugin *structs.CSIPlugin, out *volume
 	return false
 }
 
-// make creates or registers the volume of a request.
+// make creates or registers the volume of a request. It returns the object
+// as it is stored now: the intent is written before the plugin is called.
 func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomObject, spec *volumeRequestSpec,
-	st *volumeRequestStatus, plugin *structs.CSIPlugin, secrets structs.CSISecrets, out *volumeRequestOutcome) {
+	st *volumeRequestStatus, plugin *structs.CSIPlugin, secrets structs.CSISecrets, out *volumeRequestOutcome,
+	finalizers *[]string) *structs.CustomObject {
 
 	if !pluginReady(spec, plugin, out) {
 		p.want(p.now.Add(operatorsRetry))
-		return
+		return obj
 	}
 	if o.retrying(p, st, out) {
-		return
+		return obj
 	}
 	vol := spec.volume(obj, secrets)
 	if err := pluginSupportsAccessModes(plugin, vol); err != nil {
 		out.notReady("Unsupported", "%v", err)
-		return
+		return obj
 	}
 	vol.Provider, vol.ProviderVersion = plugin.Provider, plugin.Version
+
+	// The intent first, so the volume is known as the request's own even
+	// if the write after the create is lost. It is written only here, when
+	// the plugin is called next: a request that waits for its plugin or
+	// its secret has sent nothing, and a volume of its ID that somebody
+	// makes in that time is not its own. Once set it stays until the
+	// volume is made: an attempt that failed may have made the volume.
+	if !st.Creating {
+		st.Creating = true
+		intent := &volumeRequestOutcome{}
+		intent.notReady("Creating", "creating the volume")
+		written := o.writeRequest(p, obj, st, intent, finalizers)
+		if written == nil {
+			st.Creating = false
+			out.notReady("Creating", "creating the volume")
+			p.want(p.now.Add(operatorsRetry))
+			return obj
+		}
+		obj = written
+	}
 
 	what := "create the volume"
 	if spec.mode() == volumeRequestModeRegister {
 		what = "register the volume"
 		if err := o.csi.validate(vol, plugin); err != nil {
 			o.failure(p, obj, st, out, what, err)
-			return
+			return obj
 		}
 	} else if err := o.csi.create(vol, plugin); err != nil {
 		o.failure(p, obj, st, out, what, err)
-		return
+		return obj
 	} else if other, err := o.registeredElsewhere(vol); err != nil {
 		o.failure(p, obj, st, out, what, err)
-		return
+		return obj
 	} else if other != nil {
 		// The plugin answered a create of a name it knows with the volume
 		// it has under that name. It is somebody else's: not registered a
@@ -398,13 +417,13 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 		o.failure(p, obj, st, out, what, fmt.Errorf("the plugin answered the name %q with the volume %q of the storage, "+
 			"which is registered as %s/%s: the request needs a display_name of its own",
 			vol.Name, vol.ExternalID, other.Namespace, other.ID))
-		return
+		return obj
 	}
 
 	index, err := o.register(vol)
 	if err != nil {
 		o.failure(p, obj, st, out, what, err)
-		return
+		return obj
 	}
 	st.VolumeCreateIndex, st.Creating = index, false
 	st.AppliedGeneration = obj.Generation
@@ -416,6 +435,7 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 	operatorCount(csiVolumeRequestKind, "volumes_"+strings.ToLower(reason))
 	o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, reason,
 		fmt.Sprintf("the volume %s (external ID %s) with the plugin %s", vol.ID, vol.ExternalID, vol.PluginID))
+	return obj
 }
 
 // registeredElsewhere returns a registered volume of any namespace that is
@@ -576,14 +596,15 @@ func volumeRequestFailure(status map[string]any) string {
 	return ""
 }
 
-// writeRequest writes the status of a request with its conditions.
+// writeRequest writes the status of a request with its conditions. It
+// returns the object as it is stored then, nil if the write failed.
 func (o *volumeRequestOperator) writeRequest(p *volumeRequestPass, obj *structs.CustomObject, st *volumeRequestStatus,
-	out *volumeRequestOutcome, finalizers *[]string) {
+	out *volumeRequestOutcome, finalizers *[]string) *structs.CustomObject {
 
 	encoded, err := structs.EncodeObjectPart(st)
 	if err != nil {
 		o.logger.Warn("status of a volume request can't be encoded", "request", obj.Name, "error", err)
-		return
+		return nil
 	}
 	conditions := newConditionSet(obj.Status, p.now)
 	ready := out.notReadyReason == "" && out.failed == ""
@@ -601,20 +622,25 @@ func (o *volumeRequestOperator) writeRequest(p *volumeRequestPass, obj *structs.
 	normalized, err := structs.NormalizeObjectMap(encoded)
 	if err != nil {
 		o.logger.Warn("status of a volume request can't be encoded", "request", obj.Name, "error", err)
-		return
+		return nil
 	}
 	if structs.ObjectMapsEqual(obj.Status, normalized) && (finalizers == nil || slices.Equal(obj.Finalizers, *finalizers)) {
-		return
+		return obj
 	}
 	changed := obj.Copy()
 	changed.Status = normalized
 	if finalizers != nil {
 		changed.Finalizers = slices.Clone(*finalizers)
 	}
-	if _, err := o.srv.writeOperatorObject(changed); err != nil && !structs.IsObjectConflictError(err) {
-		o.logger.Warn("failed to write the status of a volume request", "request", obj.Name,
-			"namespace", obj.Namespace, "error", err)
+	written, err := o.srv.writeOperatorObject(changed)
+	if err != nil {
+		if !structs.IsObjectConflictError(err) {
+			o.logger.Warn("failed to write the status of a volume request", "request", obj.Name,
+				"namespace", obj.Namespace, "error", err)
+		}
+		return nil
 	}
+	return written
 }
 
 // finishDeletion does what the deletion of a request asks of the operator:

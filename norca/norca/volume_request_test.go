@@ -915,3 +915,72 @@ func TestVolumeRequest_UpdatesAreNotDrift(t *testing.T) {
 	})
 	must.Eq(t, 1, reasons()["DriftCorrected"])
 }
+
+// A volume that appears while a request is creating its own is the request's
+// only if it is the volume the request would have made; and a request that
+// has not called the plugin yet is not creating (review finding VOL-4).
+func TestVolumeRequest_CreatingTakesOnlyItsOwnVolume(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false, func(c *Config) {
+		c.volumeRequestRetryBase = time.Hour
+	})
+	defer cleanup()
+
+	byHand := func(id, name, plugin string) *structs.CSIVolume {
+		t.Helper()
+		c.writeVolume(&structs.CSIVolume{
+			ID: id, Name: name, Namespace: "default", PluginID: plugin, ExternalID: "by-hand-" + id,
+			Capacity: gibibyte, RequestedCapacityMin: gibibyte,
+			RequestedCapabilities: []*structs.CSIVolumeCapability{{
+				AccessMode: structs.CSIVolumeAccessModeSingleNodeWriter, AttachmentMode: structs.CSIVolumeAttachmentModeFilesystem}},
+		})
+		return c.volume(id)
+	}
+	conflict := func(name string) {
+		t.Helper()
+		st := c.waitRequest(name, "conflict or taken", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+			return readyReason(obj) == volumeRequestConditionConflict || st.VolumeCreateIndex != 0
+		})
+		must.Zero(t, st.VolumeCreateIndex, must.Sprintf("%s took a volume it did not make as its own", name))
+	}
+
+	// The plugin of the request is not there: nothing was sent to a plugin,
+	// so the request is not creating, and a volume made by hand in the
+	// meantime is not its own.
+	_, err := c.apply("default", csiVolumeRequestKind, "waiting", volumeSpec(func(m map[string]any) {
+		m["plugin_id"] = "ghost"
+		m["deletion_policy"] = "delete"
+	}))
+	must.NoError(t, err)
+	st := c.waitRequest("waiting", "no plugin", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == "PluginNotFound"
+	})
+	must.False(t, st.Creating, must.Sprint("creating is set though no plugin was called"))
+	waiting := byHand("waiting", "default-waiting", "minnie")
+	conflict("waiting")
+
+	// The create failed and waits for its retry. A volume of another name
+	// that is registered by hand is not what the request was creating.
+	fake.set(func(f *fakeVolumeCSI) { f.createErr = errors.New("the storage does not answer") })
+	_, err = c.apply("default", csiVolumeRequestKind, "retrying", volumeSpec(func(m map[string]any) { m["deletion_policy"] = "delete" }))
+	must.NoError(t, err)
+	st = c.waitRequest("retrying", "failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Failures == 1
+	})
+	must.True(t, st.Creating)
+	retrying := byHand("retrying", "somebody-elses", "minnie")
+	conflict("retrying")
+
+	// Deleting the requests leaves the volumes made by hand alone.
+	for _, name := range []string{"waiting", "retrying"} {
+		must.NoError(t, c.delete("default", csiVolumeRequestKind, name))
+	}
+	for _, name := range []string{"waiting", "retrying"} {
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			return c.get("default", csiVolumeRequestKind, name) == nil
+		}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s gone", name))
+	}
+	must.Eq(t, waiting.ModifyIndex, c.volume("waiting").ModifyIndex)
+	must.Eq(t, retrying.ModifyIndex, c.volume("retrying").ModifyIndex)
+	fake.set(func(f *fakeVolumeCSI) { must.Len(t, 0, f.deletes) })
+}
