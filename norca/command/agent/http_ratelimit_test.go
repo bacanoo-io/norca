@@ -124,3 +124,50 @@ func TestHTTP_TokenRateLimit(t *testing.T) {
 		must.Eq(t, http.StatusOK, resp.Code)
 	})
 }
+
+// The health and status endpoints are not limited: requests with unknown
+// tokens, which use up the shared anonymous bucket, do not turn the probes
+// of load balancers and Consul into 429.
+func TestHTTP_TokenRateLimit_ProbesExempt(t *testing.T) {
+	ci.Parallel(t)
+
+	httpTest(t, nil, func(s *TestAgent) {
+		l, err := newTokenRateLimiter(config.Limits{TokenReadRequestsPerSecond: pointer.Of(5)},
+			func(string) string { return anonymousBucket })
+		must.NoError(t, err)
+		s.Server.rateLimiter = l
+
+		get := func(path, token string) int {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			if token != "" {
+				req.Header.Set("X-Nomad-Token", token)
+			}
+			resp := httptest.NewRecorder()
+			s.Server.mux.ServeHTTP(resp, req)
+			return resp.Code
+		}
+
+		// anyone empties the anonymous bucket
+		for i := 0; i < 5; i++ {
+			must.Eq(t, http.StatusOK, get("/v1/regions", "nonsense"))
+		}
+		must.Eq(t, http.StatusTooManyRequests, get("/v1/regions", ""))
+
+		for _, path := range []string{
+			"/v1/agent/health",
+			"/v1/agent/health?type=server",
+			"/v1/status/leader",
+			"/v1/status/peers",
+		} {
+			for i := 0; i < 10; i++ {
+				must.Eq(t, http.StatusOK, get(path, ""), must.Sprint(path))
+				must.Eq(t, http.StatusOK, get(path, "nonsense"), must.Sprint(path))
+			}
+		}
+
+		// and they take nothing from the bucket
+		must.True(t, rateLimitExempt("/v1/agent/health"))
+		must.False(t, rateLimitExempt("/v1/agent/self"))
+		must.False(t, rateLimitExempt("/v1/jobs"))
+	})
+}

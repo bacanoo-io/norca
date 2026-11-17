@@ -155,10 +155,22 @@ func (l *tokenRateLimiter) allow(secret string, read bool) (bool, time.Duration)
 	return true, 0
 }
 
+// rateLimitExempt reports whether the requests of a path are never limited:
+// the health and status endpoints, which load balancers and Consul probe
+// without a token. In the shared anonymous bucket anyone could use up their
+// requests and have the server marked unhealthy.
+func rateLimitExempt(path string) bool {
+	switch path {
+	case "/v1/agent/health", "/v1/status/leader", "/v1/status/peers":
+		return true
+	}
+	return false
+}
+
 // rateLimited answers 429 with Retry-After when the token of the request is
 // over its limit, and reports whether it did.
 func (s *HTTPServer) rateLimited(resp http.ResponseWriter, req *http.Request) bool {
-	if s.rateLimiter == nil {
+	if s.rateLimiter == nil || rateLimitExempt(req.URL.Path) {
 		return false
 	}
 	var secret string
