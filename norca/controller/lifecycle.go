@@ -210,13 +210,14 @@ func IsObjectOwnedBy(obj, owner *Object) bool {
 // ManagedByFromEnv returns the managed_by identity of a controller running
 // as a Nomad task with its workload identity: "workload:<namespace>/<job>"
 // from the NORCA_NAMESPACE and NORCA_JOB_ID variables of the task
-// environment, or "" outside a task.
+// environment, or "" outside a task. "%" and "/" of the job ID are written
+// "%25" and "%2F", as the servers write them in the name of the identity.
 func ManagedByFromEnv() string {
 	ns, job := os.Getenv("NORCA_NAMESPACE"), os.Getenv("NORCA_JOB_ID")
 	if ns == "" || job == "" {
 		return ""
 	}
-	return "workload:" + ns + "/" + job
+	return "workload:" + ns + "/" + strings.NewReplacer("%", "%25", "/", "%2F").Replace(job)
 }
 
 // SetManagedBy marks the job as managed by the identity (see

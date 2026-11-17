@@ -184,6 +184,10 @@ func TestLifecycle_ManagedByFromEnv(t *testing.T) {
 	t.Setenv("NORCA_NAMESPACE", "ops")
 	t.Setenv("NORCA_JOB_ID", "lb-controller")
 	must.Eq(t, "workload:ops/lb-controller", controller.ManagedByFromEnv())
+	// A job ID with a slash is one escaped segment, as in the name the
+	// servers give the workload identity.
+	t.Setenv("NORCA_JOB_ID", "team/lb%controller")
+	must.Eq(t, "workload:ops/team%2Flb%25controller", controller.ManagedByFromEnv())
 
 	job := api.NewServiceJob("j", "j", "global", 50)
 	controller.SetManagedBy(job, "")

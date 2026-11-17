@@ -415,11 +415,24 @@ type CustomObjectScaleResponse struct {
 	WriteMeta
 }
 
+// workloadJobIDEscaper makes a job ID one path segment of a workload
+// identity name: job IDs may contain "/", the separator of the name.
+// Namespace and task names can't.
+var workloadJobIDEscaper = strings.NewReplacer("%", "%25", "/", "%2F")
+
+// ManagedByWorkload returns the managed_by value that names the workload
+// identities of a job: "workload:<namespace>/<job>", with "%" and "/" of
+// the job ID written as "%25" and "%2F".
+func ManagedByWorkload(namespace, jobID string) string {
+	return ManagedByWorkloadPrefix + namespace + "/" + workloadJobIDEscaper.Replace(jobID)
+}
+
 // ManagedByAllows reports whether managedBy names an identity (enforced)
 // and whether the user is that identity (allowed):
 //
 //   - "workload:<namespace>/<job>[/<task>]": a workload identity of the job
-//     (of the task),
+//     (of the task); "%" and "/" in the job ID are written "%25" and "%2F",
+//     so the job "ctrl/x" is not an identity of the job "ctrl",
 //   - "role:<name>" and "policy:<name>": a token with the role or policy,
 //   - "token:<accessor ID>": the token.
 //

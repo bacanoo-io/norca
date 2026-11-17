@@ -417,8 +417,10 @@ func NewAdmissionUser(token *ACLToken, claims *IdentityClaims) *AdmissionUser {
 		}
 		return u
 	case claims != nil:
+		// The job ID is escaped (see ManagedByWorkload): a job ID may
+		// contain "/", and the name must not read as another job's.
 		return &AdmissionUser{
-			Name: fmt.Sprintf("workload:%s/%s/%s", claims.Namespace, claims.JobID, claims.TaskName),
+			Name: ManagedByWorkload(claims.Namespace, claims.JobID) + "/" + claims.TaskName,
 			Type: "workload-identity",
 		}
 	default:
