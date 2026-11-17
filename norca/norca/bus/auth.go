@@ -6,9 +6,11 @@ package bus
 import (
 	"crypto/subtle"
 	"crypto/tls"
+	"math"
 	"net"
 	"slices"
 	"strings"
+	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 )
@@ -185,7 +187,7 @@ func (a *clientAuth) Check(c natsserver.ClientAuthentication) bool {
 		return false
 	}
 	s.l.Lock()
-	s.clients[c.GetID()] = &client{creds: creds, grant: grant}
+	s.clients[c.GetID()] = &client{creds: creds, grant: grant, at: time.Now()}
 	s.l.Unlock()
 	return true
 }
@@ -243,9 +245,18 @@ func (s *Server) Revalidate() {
 	}
 	s.l.Unlock()
 
-	open := s.openClients()
+	// A connection is forgotten only when it is known to be gone: it is
+	// not listed as open, the listing is complete, and it is not so new
+	// that the server may not list it yet (a connection is recorded here
+	// during its CONNECT, a leaf node gets into the list of the server only
+	// after it). A connection forgotten while it is open would never be
+	// checked again.
+	open, listed := s.openClients()
+	retry := false
 	for _, e := range entries {
-		if !open[e.id] {
+		present := open[e.id]
+		recent := time.Since(e.c.at) < connectGrace
+		if listed && !present && !recent {
 			s.l.Lock()
 			delete(s.clients, e.id)
 			s.l.Unlock()
@@ -262,30 +273,55 @@ func (s *Server) Revalidate() {
 			"name", e.c.grant.Kind+":"+e.c.grant.Name, "remote", addrString(e.c.creds.Remote), "error", err)
 		if err := s.server().DisconnectClientByID(e.id); err != nil {
 			s.logger.Debug("failed to close a bus connection", "id", e.id, "error", err)
+			if !present && recent {
+				// Not known to the server yet (or closed a moment ago):
+				// kept, and looked at again when it must be listed.
+				retry = true
+				continue
+			}
 		}
 		s.l.Lock()
 		delete(s.clients, e.id)
 		s.l.Unlock()
 	}
+	if retry {
+		time.AfterFunc(connectGrace, func() {
+			select {
+			case <-s.stopCh:
+			default:
+				s.Revalidate()
+			}
+		})
+	}
 }
 
-// openClients returns the IDs of the open client connections.
-func (s *Server) openClients() map[uint64]bool {
+// connectGrace is how long after its authentication a connection may be
+// missing from the lists of the server without being taken for closed.
+const connectGrace = time.Minute
+
+// openClients returns the IDs of the open client and leaf node connections,
+// and whether the list is complete.
+func (s *Server) openClients() (map[uint64]bool, bool) {
 	open := map[uint64]bool{}
 	ns := s.server()
-	connz, err := ns.Connz(&natsserver.ConnzOptions{Limit: s.config.MaxConnections + 100})
+	// One call without a real limit: pages could skip a connection when
+	// another one closes between them. The server cuts the limit to the
+	// number of connections.
+	connz, err := ns.Connz(&natsserver.ConnzOptions{Limit: math.MaxInt32})
 	if err != nil {
-		return open
+		return open, false
 	}
 	for _, c := range connz.Conns {
 		open[c.Cid] = true
 	}
-	if leafz, err := ns.Leafz(nil); err == nil {
-		for _, l := range leafz.Leafs {
-			open[l.ID] = true
-		}
+	leafz, err := ns.Leafz(nil)
+	if err != nil {
+		return open, false
 	}
-	return open
+	for _, l := range leafz.Leafs {
+		open[l.ID] = true
+	}
+	return open, true
 }
 
 func addrString(a net.Addr) string {

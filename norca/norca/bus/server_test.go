@@ -450,3 +450,44 @@ func TestSubjectIntersect(t *testing.T) {
 		}
 	}
 }
+
+// A connection that the server does not list yet is not forgotten (review
+// finding SRV-23): a leaf node is recorded during its CONNECT and listed
+// only after it. Forgotten, it would never be checked again.
+func TestBus_Revalidate_NotListedYet(t *testing.T) {
+	ci.Parallel(t)
+	authz := newTestAuthz()
+	s := startServer(t, testConfig(t, "s1"), authz.authorize)
+
+	// A connection as clientAuth.Check records it, with an ID the server
+	// does not list.
+	const id = uint64(1) << 40
+	record := func(at time.Time) {
+		grant, err := authz.authorize(Credentials{Token: "reader"})
+		must.NoError(t, err)
+		s.l.Lock()
+		s.clients[id] = &client{creds: Credentials{Token: "reader"}, grant: grant, at: at}
+		s.l.Unlock()
+	}
+	recorded := func() bool {
+		s.l.Lock()
+		defer s.l.Unlock()
+		_, ok := s.clients[id]
+		return ok
+	}
+
+	record(time.Now())
+	s.Revalidate()
+	must.True(t, recorded(), must.Sprint("a new connection that is not listed yet"))
+
+	// Its rights change while it can't be closed yet: it stays known.
+	authz.set("reader", nil)
+	s.Revalidate()
+	must.True(t, recorded(), must.Sprint("a new connection whose rights changed"))
+	authz.set("reader", &Grant{Kind: KindToken, Name: "reader", Subscribe: []string{"events.>"}})
+
+	// A connection that is not listed after the grace time is closed.
+	record(time.Now().Add(-2 * connectGrace))
+	s.Revalidate()
+	must.False(t, recorded())
+}

@@ -95,6 +95,9 @@ type Server struct {
 type client struct {
 	creds Credentials
 	grant *Grant
+
+	// at is when the connection was authenticated.
+	at time.Time
 }
 
 // New starts the embedded NATS server and waits until it accepts
