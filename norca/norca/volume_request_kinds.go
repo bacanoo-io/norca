@@ -122,6 +122,8 @@ func builtinVolumeRequestKinds() []*structs.ObjectKind {
 			immutable("snapshot_id"),
 			immutable("clone_id"),
 			immutable("parameters"),
+			// The topologies of a volume are fixed when it is made.
+			immutable("topology_request"),
 		},
 		Columns: []*structs.ObjectKindColumn{
 			{Name: "Plugin", Path: "spec.plugin_id"},

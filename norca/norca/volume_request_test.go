@@ -523,3 +523,31 @@ func TestVolumeRequest_DeletionWaitsForClaims(t *testing.T) {
 	}), wait.Timeout(70*time.Second), wait.Gap(200*time.Millisecond)))
 	must.Nil(t, c.volume("busy"))
 }
+
+// The topologies of a volume can't change, so the topology request of a
+// request can't either (review finding VOL-8).
+func TestVolumeRequest_TopologyRequestImmutable(t *testing.T) {
+	ci.Parallel(t)
+	c, _, cleanup := volumeRequestTestServer(t, false)
+	defer cleanup()
+
+	zone := func(z string) func(map[string]any) {
+		return func(m map[string]any) {
+			m["topology_request"] = map[string]any{"required": map[string]any{"segments": map[string]any{"zone": z}}}
+		}
+	}
+	_, err := c.apply("default", csiVolumeRequestKind, "plain", volumeSpec(nil))
+	must.NoError(t, err)
+	_, err = c.apply("default", csiVolumeRequestKind, "plain", volumeSpec(zone("a")))
+	must.ErrorContains(t, err, "topology_request can't be changed")
+
+	_, err = c.apply("default", csiVolumeRequestKind, "zoned", volumeSpec(zone("a")))
+	must.NoError(t, err)
+	_, err = c.apply("default", csiVolumeRequestKind, "zoned", volumeSpec(zone("b")))
+	must.ErrorContains(t, err, "topology_request can't be changed")
+	_, err = c.apply("default", csiVolumeRequestKind, "zoned", volumeSpec(func(m map[string]any) {
+		zone("a")(m)
+		m["capacity_min"] = "2GiB"
+	}))
+	must.NoError(t, err)
+}
