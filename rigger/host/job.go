@@ -18,8 +18,9 @@ import (
 // variable, is a runtime reference: the decoder passes it through untouched,
 // as the job decoder of Norca does today (design 4.2).
 //
-// Whether the decoder of Norca can take these values from outside as it is,
-// or needs a small change, is the spike of phase 0 (design, question 4).
+// The decoder of Norca takes such a context through a small exported entry
+// point that norca does not have yet (design, question 4); the spike in
+// design/spikes/jobspec2-decode shows it works.
 type JobSpec struct {
 	// Filename is the file of the block, for diagnostics.
 	Filename string

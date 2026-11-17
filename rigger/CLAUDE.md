@@ -22,6 +22,10 @@ file points to it instead of repeating it.
   state, no environment or working directory, nothing outside the module
   reachable from a module, limits set by the host).
 - Go path and license: `github.com/bacanoo-io/norca-rig`, MPL-2.0.
+- hcl/v2 stays at the commit Norca pins (`go.mod`): Rig's evaluation needs
+  `hcl.EvalContext.UndefinedVariable`, which upstream hcl does not have, and
+  a newer hcl in Rig would break Norca's decoder when the server embeds Rig
+  (design 12.2).
 - Build in Claude's Linux VM: `source ../.tools/go-env.sh` first (Go 1.27.3
   built from source, modules from the Windows module cache, `GOSUMDB=off`),
   then the targets of the Makefile. golangci-lint v2.15.0 is installed into

@@ -915,6 +915,24 @@ install-time values resolved; the same decoder then serves the CLI and the
 server, and the core never follows the job schema by hand (this answers most
 of question 4).
 
+What the spike of phase 0 showed (2026-11-17, `design/spikes/jobspec2-decode/`):
+
+- The core does not hand over a resolved block but the block as parsed and
+  an evaluation context (`host.JobSpec`): `var.*`, `local.*`, `module.*`,
+  `rig.*`, the functions of Rig, and an `UndefinedVariable` callback that
+  gives a runtime reference back as its text. This is the mechanism of
+  Norca's own decoder (`jobspec2`, `types.config.go`), so `dynamic` blocks
+  and runtime references behave as in a job file today.
+- `UndefinedVariable` is a field of the hcl commit Norca pins
+  (`v2.20.2-0.20240517235513-55d9c02d147d`, the Nomad branch); upstream hcl
+  (v2.24.0) has no such field. **The core must stay on the hcl version of
+  Norca**: if it required a newer upstream hcl, the server that embeds it
+  would get that version and its decoder would not compile.
+- Norca's decoder passes every unknown root through, so a misspelled
+  install-time reference (`rig.relase`, `vars.x`) would end up in the job
+  as text. The callback of Rig must refuse the roots of Rig's namespaces
+  and names close to them, with a hint (section 4.2).
+
 ### 12.3 What the core offers
 
 ```go
@@ -1254,6 +1272,19 @@ registry changes before phase 5 (clones) and phase 7 (the real merge).
    small change in norca when the server embeds Rig (phase 7). The
    alternative, a decoder of Rig's own against the API structs, is a second
    job language to keep in step and is not recommended.
+   **Answered by the spike (2026-11-17): not as it is; a small change is
+   enough.** `jobspec2.ParseWithConfig` takes text and takes values only for
+   `variable` blocks of the same file, and it turns an unknown namespace
+   such as `rig.release` silently into the text `"${rig.release}"`. An
+   exported entry point of about 25 lines that runs the decoding of
+   `jobspec2` with a context from outside,
+   `DecodeJob(block *hcl.Block, ctx *hcl.EvalContext) (*api.Job, hcl.Diagnostics)`,
+   decodes a job file of a module correctly: values of `var`, `local` and
+   `rig`, a function of Rig, a `dynamic` block, and the runtime references
+   `${attr.kernel.name}`, `${node.class}` and `${NOMAD_ALLOC_DIR}` passed
+   through. It changes nothing for the callers of today. **Open:** when the
+   change goes into norca. The standalone program needs it from phase 2
+   (apply), while norca is not to be changed before phase 7.
 5. **Keyless signing.** Decided (2026-11-15): **keys first**; Sigstore later
    as a second signer type.
 6. **Reading the cluster** during evaluation (`data` blocks). Decided
@@ -1292,8 +1323,9 @@ registry changes before phase 5 (clones) and phase 7 (the real merge).
     reasons next to the entries; (c) getting listed through an issue form
     and a review.
 
-Open after 2026-11-15: question 4 (the spike of phase 0 decides), question 11
-(a consequence of the development order), question 12 (decided at the end).
+Open after 2026-11-17: when the small change of question 4 goes into norca,
+question 11 (a consequence of the development order), question 12 (decided
+at the end).
 Without a phase yet: evaluation on an observer, apply on the leader (section
 12.7); the audit base module, which sits on the internal bus once Rig is
 embedded (section 12.8).
