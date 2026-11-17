@@ -40,23 +40,32 @@ type fakeSnapshotCSI struct {
 	// gets an error, as when the answer is lost on the way.
 	lostAnswers int
 
-	// retryBase and readyPoll are the waits of the operator of the test's
-	// server, if set: see tuning.
-	retryBase time.Duration
-	readyPoll time.Duration
+	// retryBase, readyPoll and passBudget are the waits of the operator of
+	// the test's server, if set: see tuning.
+	retryBase  time.Duration
+	readyPoll  time.Duration
+	passBudget time.Duration
+
+	// createDelay is how long the plugin takes to answer a creation, and
+	// createPasses the pass of the operator each creation was asked in.
+	createDelay  time.Duration
+	createPasses []*state.StateSnapshot
 }
 
 // tuning sets the waits of the operator: it is read once, when the server
 // of the test makes its operator.
-func (f *fakeSnapshotCSI) tuning() (time.Duration, time.Duration) {
-	retryBase, readyPoll := snapshotRetryBase, snapshotReadyPoll
+func (f *fakeSnapshotCSI) tuning() (time.Duration, time.Duration, time.Duration) {
+	retryBase, readyPoll, passBudget := snapshotRetryBase, snapshotReadyPoll, snapshotPassBudget
+	if f.passBudget > 0 {
+		passBudget = f.passBudget
+	}
 	if f.retryBase > 0 {
 		retryBase = f.retryBase
 	}
 	if f.readyPoll > 0 {
 		readyPoll = f.readyPoll
 	}
-	return retryBase, readyPoll
+	return retryBase, readyPoll, passBudget
 }
 
 // names returns the names of the snapshots the plugin holds, sorted.
@@ -75,9 +84,15 @@ func newFakeSnapshotCSI() *fakeSnapshotCSI {
 	return &fakeSnapshotCSI{byName: map[string]*structs.CSISnapshot{}}
 }
 
-func (f *fakeSnapshotCSI) create(_ *state.StateSnapshot, _ string, req *structs.CSISnapshot) (*structs.CSISnapshot, error) {
+func (f *fakeSnapshotCSI) create(pass *state.StateSnapshot, _ string, req *structs.CSISnapshot) (*structs.CSISnapshot, error) {
+	f.mu.Lock()
+	delay := f.createDelay
+	f.mu.Unlock()
+	time.Sleep(delay)
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.createPasses = append(f.createPasses, pass)
 	f.creates = append(f.creates, req.Name)
 	f.secrets = append(f.secrets, req.Secrets)
 	if f.createErr != nil {
@@ -1148,4 +1163,36 @@ func TestSnapshotStatus_Bounded(t *testing.T) {
 	must.Less(t, structs.MaxCustomObjectSize-16*1024, snapshotStatusSize(obj, st))
 	must.Eq(t, 900, len(st.Snapshots))
 	must.NotEq(t, "", st.Snapshots[0].DeleteError)
+}
+
+// A pass of the operator has a time budget: a plugin that answers slowly
+// does not hold the loop of the built-in operators for all the schedules
+// in one pass, and every schedule gets its turn (review finding SNP-6).
+func TestSnapshotSchedule_PassBudget(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServerWith(t, false, true, func(f *fakeSnapshotCSI) {
+		f.passBudget = 100 * time.Millisecond
+		f.createDelay = 300 * time.Millisecond
+	})
+	defer cleanup()
+
+	names := []string{"slow-a", "slow-b", "slow-c"}
+	for _, name := range names {
+		_, err := c.apply("default", volumeSnapshotScheduleKind, name, map[string]any{
+			"volume": "db", "schedule": everySecond, "keep": map[string]any{"last": 50},
+		})
+		must.NoError(t, err)
+	}
+	for _, name := range names {
+		c.waitSchedule(name, "its turn, twice", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+			return st.Taken >= 2
+		})
+	}
+	fake.set(func(f *fakeSnapshotCSI) {
+		perPass := map[*state.StateSnapshot]int{}
+		for _, pass := range f.createPasses {
+			perPass[pass]++
+			must.Eq(t, 1, perPass[pass], must.Sprint("slow calls of one pass"))
+		}
+	})
 }

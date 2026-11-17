@@ -48,12 +48,20 @@ const (
 	// snapshotReadyPoll is how often a snapshot the plugin has not finished
 	// is asked for again.
 	snapshotReadyPoll = 30 * time.Second
+
+	// snapshotPassBudget is how long a pass goes on beginning with
+	// another schedule. The calls of the plugins are made in the loop all
+	// the built-in operators share, and one may take minutes with a plugin
+	// that does not answer: a pass that has used its budget leaves the
+	// schedules it has not come to for the next one, which begins with
+	// them, and the other operators run in between.
+	snapshotPassBudget = 20 * time.Second
 )
 
 // snapshotTuning is implemented by the plugin of a test that changes the
 // waits of the operator of its server.
 type snapshotTuning interface {
-	tuning() (retryBase, readyPoll time.Duration)
+	tuning() (retryBase, readyPoll, passBudget time.Duration)
 }
 
 // The snapshots of a schedule are listed in its status, and an object is at
@@ -281,8 +289,13 @@ type snapshotOperator struct {
 	logger hclog.Logger
 	csi    snapshotCSI
 
-	retryBase time.Duration
-	readyPoll time.Duration
+	retryBase  time.Duration
+	readyPoll  time.Duration
+	passBudget time.Duration
+
+	// resume is the schedule the next pass begins with: the first one
+	// the last pass did not come to.
+	resume string
 }
 
 func newSnapshotOperator(srv *Server, logger hclog.Logger) *snapshotOperator {
@@ -291,9 +304,9 @@ func newSnapshotOperator(srv *Server, logger hclog.Logger) *snapshotOperator {
 		csi = srv.config.snapshotCSI
 	}
 	o := &snapshotOperator{srv: srv, logger: logger.Named("snapshots"), csi: csi,
-		retryBase: snapshotRetryBase, readyPoll: snapshotReadyPoll}
+		retryBase: snapshotRetryBase, readyPoll: snapshotReadyPoll, passBudget: snapshotPassBudget}
 	if t, ok := csi.(snapshotTuning); ok {
-		o.retryBase, o.readyPoll = t.tuning()
+		o.retryBase, o.readyPoll, o.passBudget = t.tuning()
 	}
 	return o
 }
@@ -327,7 +340,24 @@ func (o *snapshotOperator) reconcile(ws memdb.WatchSet) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+	// The schedules the last pass did not come to are the first ones.
+	key := func(obj *structs.CustomObject) string { return obj.Namespace + "/" + obj.Name }
+	if at := slices.IndexFunc(objs, func(obj *structs.CustomObject) bool { return key(obj) == o.resume }); at > 0 {
+		objs = append(slices.Clone(objs[at:]), objs[:at]...)
+	}
+	o.resume = ""
+	started := time.Now()
 	for _, obj := range objs {
+		// A server that is no longer the leader makes no more calls;
+		// a pass out of its budget goes on in the next one.
+		if !o.srv.IsLeader() {
+			break
+		}
+		if time.Since(started) > o.passBudget {
+			o.resume = key(obj)
+			p.want(time.Now().Add(operatorsSettle))
+			break
+		}
 		o.reconcileSchedule(p, obj)
 	}
 	return p.wish, nil

@@ -100,6 +100,13 @@ func (s *Server) operatorsLoop(stopCh chan struct{}) {
 		now := time.Now()
 		next := now.Add(operatorsInterval)
 		for _, op := range m.operators {
+			// An operator may take long (calls of CSI plugins): a
+			// server that lost the leadership meanwhile stops here.
+			select {
+			case <-stopCh:
+				return
+			default:
+			}
 			wish, err := op.reconcile(ws)
 			if err != nil {
 				m.logger.Warn("built-in operator failed, will retry", "error", err)
