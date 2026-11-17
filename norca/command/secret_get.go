@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/api"
@@ -48,7 +50,10 @@ Get Options:
     Print only the value of the item.
 
   -format ( json | env )
-    Print all items, as a JSON object or as KEY='value' lines.
+    Print all items, as a JSON object or as KEY='value' lines quoted for
+    POSIX shells. The env format is refused when an item key is not a valid
+    name of a shell variable (letters, digits and "_", not starting with a
+    digit): nothing is printed then.
 `
 	return strings.TrimSpace(helpText)
 }
@@ -138,6 +143,20 @@ func (c *SecretGetCommand) Run(args []string) int {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
+		// A key that is not a shell variable name makes no assignment: a
+		// shell runs such a line as a command and reports it, value
+		// included, on its standard error. Print nothing then.
+		var invalid []string
+		for _, k := range keys {
+			if !shellVariableName.MatchString(k) {
+				invalid = append(invalid, strconv.Quote(k))
+			}
+		}
+		if len(invalid) > 0 {
+			c.Ui.Error(fmt.Sprintf("Secret %q can't be printed with -format env: %s not valid as the name of a shell variable; "+
+				"use -format json, or -item for one item", args[0], invalidKeysText(invalid)))
+			return 1
+		}
 		lines := make([]string, len(keys))
 		for i, k := range keys {
 			lines[i] = k + "=" + shellQuote(value.Items[k])
@@ -145,6 +164,18 @@ func (c *SecretGetCommand) Run(args []string) int {
 		c.Ui.Output(strings.Join(lines, "\n"))
 	}
 	return 0
+}
+
+// shellVariableName matches the names a POSIX shell accepts in an
+// assignment.
+var shellVariableName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// invalidKeysText names the quoted keys in a sentence.
+func invalidKeysText(keys []string) string {
+	if len(keys) == 1 {
+		return "the item key " + keys[0] + " is"
+	}
+	return "the item keys " + strings.Join(keys, ", ") + " are"
 }
 
 // shellQuote quotes a value for POSIX shells.
