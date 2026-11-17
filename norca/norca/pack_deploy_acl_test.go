@@ -89,9 +89,9 @@ func TestPacks_DeployAuthorizedBeforeRender(t *testing.T) {
 
 	for name, s := range map[string]*Server{"leader": leader, "follower": follower} {
 		for who, token := range map[string]string{
-			"anonymous":                         "",
+			"anonymous":                          "",
 			"release write in another namespace": otherNamespace.SecretID,
-			"release read":                      reader.SecretID,
+			"release read":                       reader.SecretID,
 		} {
 			// The same answer whether the registry and the pack exist or not.
 			for _, target := range [][2]string{{"local", "hello"}, {"local", "nope"}, {"nope", "hello"}} {
