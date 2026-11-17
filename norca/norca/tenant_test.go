@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -22,13 +23,19 @@ func newTenantTest(t *testing.T) (*certTest, func()) {
 	t.Helper()
 	s, root, cleanup := TestACLServer(t, nil)
 	testutil.WaitForLeader(t, s.RPC)
-	// The leader registers the built-in kinds after it is elected, on its
-	// own time: a tenant written before that is refused.
+	waitTenantKind(t, s)
+	return &certTest{t: t, s: s, token: root.SecretID}, cleanup
+}
+
+// waitTenantKind waits for the kind Tenant. The leader registers the
+// built-in kinds after it is elected, on its own time: a tenant written
+// before that is refused.
+func waitTenantKind(t *testing.T, s *Server) {
+	t.Helper()
 	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
 		kind, err := s.State().ObjectKindByName(nil, structs.OperatorsGroup, structs.TenantKind)
 		return err == nil && kind != nil
 	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)), must.Sprint("the kind Tenant is registered"))
-	return &certTest{t: t, s: s, token: root.SecretID}, cleanup
 }
 
 // waitTenant waits until the tenant satisfies cond.
@@ -42,8 +49,10 @@ func waitTenant(c *certTest, name, what string, cond func(*structs.CustomObject)
 		}),
 		wait.Timeout(30*time.Second),
 		wait.Gap(50*time.Millisecond),
-	), must.Sprintf("waiting for the tenant %s: %s; object: %v", name, what,
-		func() any { return c.get("", structs.TenantKind, name) }()))
+	), must.Func(func() string {
+		// Evaluated when the wait failed: the object as it is then.
+		return fmt.Sprintf("waiting for the tenant %s: %s; object: %v", name, what, c.get("", structs.TenantKind, name))
+	}))
 	return obj
 }
 
@@ -141,13 +150,26 @@ func TestTenant_Lifecycle(t *testing.T) {
 	must.Len(t, 2, np.Ingress[0].Peers)
 	must.Eq(t, "ingress", np.Ingress[0].Peers[1].Namespace)
 
-	// A pass with nothing changed writes nothing: no endless rewrite.
-	before := c.get("", structs.TenantKind, "team-a").ModifyIndex
-	nsBefore := ns.ModifyIndex
+	// A pass with nothing changed writes nothing: no endless rewrite, of
+	// the tenant or of any of its resources.
+	indexes := func() map[string]uint64 {
+		ns, _ := store.NamespaceByName(nil, "team-a")
+		q, _ := store.QuotaSpecByName(nil, "team-a")
+		pol, _ := store.ACLPolicyByName(nil, "team-a-viewer")
+		role, _ := store.GetACLRoleByName(nil, "team-a-viewer")
+		np, _ := store.NetworkPolicyByName(nil, "team-a", structs.TenantNetworkPolicyName)
+		return map[string]uint64{
+			"tenant":         c.get("", structs.TenantKind, "team-a").ModifyIndex,
+			"namespace":      ns.ModifyIndex,
+			"quota":          q.ModifyIndex,
+			"acl-policy":     pol.ModifyIndex,
+			"acl-role":       role.ModifyIndex,
+			"network-policy": np.ModifyIndex,
+		}
+	}
+	before := indexes()
 	time.Sleep(2 * time.Second)
-	must.Eq(t, before, c.get("", structs.TenantKind, "team-a").ModifyIndex)
-	ns, _ = store.NamespaceByName(nil, "team-a")
-	must.Eq(t, nsBefore, ns.ModifyIndex)
+	must.Eq(t, before, indexes())
 
 	// A change through the namespace API is set back.
 	changed := ns.Copy()
@@ -200,7 +222,9 @@ func TestTenant_Lifecycle(t *testing.T) {
 	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
 		return c.get("", structs.TenantKind, "team-a") == nil
 	}), wait.Timeout(60*time.Second), wait.Gap(100*time.Millisecond)),
-		must.Sprintf("tenant still there: %v", func() any { return c.get("", structs.TenantKind, "team-a") }()))
+		must.Func(func() string {
+			return fmt.Sprintf("tenant still there: %v", c.get("", structs.TenantKind, "team-a"))
+		}))
 
 	ns, _ = store.NamespaceByName(nil, "team-a")
 	must.Nil(t, ns)
@@ -255,6 +279,8 @@ func TestTenant_Releases(t *testing.T) {
 	rc, cleanup := newReleaseTestClient(t)
 	defer cleanup()
 	c := &certTest{t: t, s: rc.srv, token: rc.token}
+	// newReleaseTestClient waits for the kinds of releases only.
+	waitTenantKind(t, rc.srv)
 
 	// A namespace of a release is never the tenant's, adopt or not.
 	_, err := rc.apply("default", "rel", &structs.ReleaseApplyRequest{
