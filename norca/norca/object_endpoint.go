@@ -1043,6 +1043,9 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 			if err != nil {
 				return nil, "", err
 			}
+			if err := checkObjectOwnerAccess(aclObj, ns, existing, owners); err != nil {
+				return nil, "", err
+			}
 			now := time.Now().UnixNano()
 			obj := &structs.CustomObject{
 				ID:         uuid.Generate(),
