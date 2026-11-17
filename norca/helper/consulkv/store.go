@@ -137,9 +137,15 @@ func Put(ctx context.Context, kv jetstream.KeyValue, scope, key string, value []
 }
 
 // Delete deletes key. With cas set it only deletes when the revision of the
-// key is *cas and reports false otherwise. A tree is deleted by listing its
-// keys with Get and deleting them one by one: not atomic.
+// key is *cas and reports false otherwise; a cas of 0 never deletes (in the
+// Consul KV API the index of a delete must be greater than 0 for any
+// action). A tree is deleted by listing its keys with Get and deleting them
+// one by one: not atomic.
 func Delete(ctx context.Context, kv jetstream.KeyValue, scope, key string, cas *uint64) (bool, error) {
+	if cas != nil && *cas == 0 {
+		// The bucket would take revision 0 as "no check" and delete.
+		return false, nil
+	}
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 	var opts []jetstream.KVDeleteOpt
