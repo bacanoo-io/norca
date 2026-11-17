@@ -3,7 +3,10 @@
 
 package api
 
-import "net/url"
+import (
+	"errors"
+	"net/url"
+)
 
 // Keyring seal types.
 const (
@@ -102,6 +105,9 @@ type UnsealResponse struct {
 
 // Unseal enters one unseal share on a server.
 func (op *Operator) Unseal(req *UnsealRequest, w *WriteOptions) (*ServerSealStatus, *WriteMeta, error) {
+	if req == nil {
+		return nil, nil, errors.New("missing unseal request")
+	}
 	path := "/v1/operator/unseal"
 	if req.ServerID != "" {
 		path += "?server_id=" + url.QueryEscape(req.ServerID)

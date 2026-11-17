@@ -4,6 +4,7 @@
 package api
 
 import (
+	"errors"
 	"net/url"
 	"strconv"
 	"time"
@@ -115,12 +116,18 @@ func (s *SecretEngines) Info(name string, q *QueryOptions) (*SecretEngine, *Quer
 // Write creates or updates an engine. The servers validate it with its
 // admin credential and configure the backend before it is written.
 func (s *SecretEngines) Write(engine *SecretEngine, q *WriteOptions) (*SecretEngine, *WriteMeta, error) {
+	if engine == nil {
+		return nil, nil, errors.New("missing secret engine")
+	}
 	return s.write(secretEngineEndpoint(engine.Name), engine, q)
 }
 
 // CheckedWrite writes an engine if its modify index is checkIndex; 0
 // creates an engine that must not exist yet.
 func (s *SecretEngines) CheckedWrite(engine *SecretEngine, checkIndex uint64, q *WriteOptions) (*SecretEngine, *WriteMeta, error) {
+	if engine == nil {
+		return nil, nil, errors.New("missing secret engine")
+	}
 	return s.write(secretEngineEndpoint(engine.Name)+"?cas="+strconv.FormatUint(checkIndex, 10), engine, q)
 }
 
