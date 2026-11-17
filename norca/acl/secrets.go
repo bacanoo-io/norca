@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	iradix "github.com/hashicorp/go-immutable-radix/v2"
+	glob "github.com/ryanuber/go-glob"
 )
 
 // Secrets of the built-in secret store (Norca). The capabilities can be
@@ -302,7 +303,8 @@ func (a *ACL) AllowSecretSearch(ns string) bool {
 	allow := false
 	walk := func(k []byte, caps capabilitySet) bool {
 		name, _, _ := strings.Cut(string(k), "\x00")
-		if listing(caps) && (ns == AllNamespacesSentinel || name == ns || strings.Contains(name, "*")) {
+		// name may be a glob: a rule counts only if it matches the namespace.
+		if listing(caps) && (ns == AllNamespacesSentinel || name == ns || glob.Glob(name, ns)) {
 			allow = true
 		}
 		return allow

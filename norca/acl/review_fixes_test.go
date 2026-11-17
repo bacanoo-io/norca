@@ -55,3 +55,18 @@ func TestACL_NilAllows(t *testing.T) {
 	must.True(t, a.AllowObjectKindRead("g.io/K"))
 	must.True(t, a.AllowObjectKindWrite())
 }
+
+// The secret search check counts a glob namespace rule only if the glob
+// matches the namespace (review finding ACL-5).
+func TestAllowSecretSearch_GlobNamespace(t *testing.T) {
+	ci.Parallel(t)
+
+	a := reviewACL(t, `namespace "dev-*" { secret "x" { capabilities = ["list-secrets"] } }`)
+	must.False(t, a.AllowSecretSearch("prod"))
+	must.True(t, a.AllowSecretSearch("dev-1"))
+	must.True(t, a.AllowSecretSearch("*"))
+
+	a = reviewACL(t, `namespace "prod" { secret "x/*" { capabilities = ["list-secrets"] } }`)
+	must.True(t, a.AllowSecretSearch("prod"))
+	must.False(t, a.AllowSecretSearch("dev"))
+}
