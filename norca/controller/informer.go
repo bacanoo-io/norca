@@ -207,11 +207,14 @@ func (i *Informer) sync(ctx context.Context, waitIndex uint64) (uint64, error) {
 		if cached != nil && cached.ModifyIndex == e.modifyIndex {
 			continue
 		}
+		// The listing is the truth, also when its index is lower than the
+		// cached one: the servers may have started again without their
+		// data (a dev agent), and the object was created again.
 		if e.obj != nil {
-			i.put(e.obj)
+			i.put(e.obj, true)
 			continue
 		}
-		if err := i.fetch(ctx, e.key); err != nil {
+		if err := i.fetch(ctx, e.key, true); err != nil {
 			return 0, err
 		}
 	}
@@ -234,9 +237,9 @@ func (i *Informer) sync(ctx context.Context, waitIndex uint64) (uint64, error) {
 	return index, nil
 }
 
-// fetch reads an object and stores it in the cache. A missing object is
-// removed from the cache.
-func (i *Informer) fetch(ctx context.Context, key ObjectKey) error {
+// fetch reads an object and stores it in the cache (see put for replace). A
+// missing object is removed from the cache.
+func (i *Informer) fetch(ctx context.Context, key ObjectKey, replace bool) error {
 	obj, err := i.store.get(ctx, key)
 	switch {
 	case errors.Is(err, ErrNotFound):
@@ -248,14 +251,18 @@ func (i *Informer) fetch(ctx context.Context, key ObjectKey) error {
 	case err != nil:
 		return err
 	}
-	i.put(obj)
+	i.put(obj, replace)
 	return nil
 }
 
-func (i *Informer) put(obj *Object) {
+// put stores an object in the cache and calls the handlers. An object that
+// is not newer than the cached one is dropped (events may arrive after a
+// read that already saw their result), unless replace is set: a listing
+// replaces whatever differs from it.
+func (i *Informer) put(obj *Object, replace bool) {
 	i.mu.Lock()
 	old := i.cache[obj.Key]
-	if old != nil && old.ModifyIndex >= obj.ModifyIndex {
+	if old != nil && (old.ModifyIndex == obj.ModifyIndex || (!replace && old.ModifyIndex > obj.ModifyIndex)) {
 		i.mu.Unlock()
 		return
 	}
@@ -314,8 +321,8 @@ func (i *Informer) apply(ctx context.Context, ev *api.Event) error {
 		return nil
 	}
 	if change.obj != nil {
-		i.put(change.obj)
+		i.put(change.obj, false)
 		return nil
 	}
-	return i.fetch(ctx, change.key)
+	return i.fetch(ctx, change.key, false)
 }
