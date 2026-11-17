@@ -13,6 +13,7 @@ import (
 	"github.com/posener/complete"
 	"github.com/shoenig/test/must"
 
+	"github.com/bacanoo-io/norca/norca/api"
 	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/caching"
 	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/helper/filesystem"
 	"github.com/bacanoo-io/norca/norca/pack/internal/pkg/logging"
@@ -50,6 +51,24 @@ func TestExtractFlagValue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			must.Eq(t, tc.expected, extractFlagValue(tc.args, tc.flag))
 		})
+	}
+}
+
+// TestClientOptsFromEnvironment_SkipVerify checks that NORCA_SKIP_VERIFY is
+// read as a boolean, as the api client reads it: "false" keeps the TLS
+// verification on.
+func TestClientOptsFromEnvironment_SkipVerify(t *testing.T) {
+	for value, insecure := range map[string]bool{
+		"false": false,
+		"0":     false,
+		"maybe": false,
+		"true":  true,
+		"1":     true,
+	} {
+		t.Setenv("NORCA_SKIP_VERIFY", value)
+		conf := api.DefaultConfig()
+		clientOptsFromEnvironment(conf)
+		must.Eq(t, insecure, conf.TLSConfig.Insecure, must.Sprint("NORCA_SKIP_VERIFY=", value))
 	}
 }
 

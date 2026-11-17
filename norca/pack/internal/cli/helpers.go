@@ -6,6 +6,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/bacanoo-io/norca/norca/api"
@@ -520,8 +521,11 @@ func clientOptsFromEnvironment(conf *api.Config) {
 	if v := clienv.Get("TLS_SERVER_NAME"); v != "" {
 		conf.TLSConfig.TLSServerName = v
 	}
-	if _, found := clienv.Lookup("SKIP_VERIFY"); found {
-		conf.TLSConfig.Insecure = true
+	// A boolean, as the api client reads it: "false" does not skip.
+	if v := clienv.Get("SKIP_VERIFY"); v != "" {
+		if insecure, err := strconv.ParseBool(v); err == nil {
+			conf.TLSConfig.Insecure = insecure
+		}
 	}
 }
 

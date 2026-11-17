@@ -413,7 +413,7 @@ func (c *baseCommand) flagSet(bit flagSetBit, f func(*flag.Sets)) *flag.Sets {
 				Target:  &c.nomadConfig.tlsSkipVerify,
 				Default: false,
 				Usage: `Do not verify TLS certificate. This is highly not recommended.
-						Verification will also be skipped if NORCA_SKIP_VERIFY is set.`,
+						Verification will also be skipped if NORCA_SKIP_VERIFY is set to true.`,
 			},
 		})
 	}
