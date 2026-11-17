@@ -87,6 +87,11 @@ type sealManager struct {
 	// reportedSealed is the ID of the last rewrap this server reported it
 	// can't take part in.
 	reportedSealed string
+	// rewrapped is the ID of the last rewrap whose seals this process has
+	// wrapped the keys of this server with. The Done list of the rewrap
+	// record is what servers reported; for itself a server trusts only what
+	// it did.
+	rewrapped string
 }
 
 func newSealManager(s *Server, cfg *config.KeyringConfig) *sealManager {
@@ -655,7 +660,7 @@ func (m *sealManager) run(ctx context.Context) {
 func (m *sealManager) reconcile(ctx context.Context, cfg *structs.SealConfig) error {
 	s := m.srv
 	if rw := cfg.Rewrap; rw != nil {
-		if !slices.Contains(rw.Done, m.localID()) {
+		if !slices.Contains(rw.Done, m.localID()) || !m.rewrappedLocal(rw.ID) {
 			if err := m.rewrapLocal(ctx, rw); err != nil {
 				return err
 			}
@@ -755,7 +760,26 @@ func (m *sealManager) rewrapLocal(ctx context.Context, rw *structs.SealRewrap) e
 			return err
 		}
 	}
-	return m.reportRewrap(rw, false)
+	// A server that restarted, or was reported by someone else, is in the
+	// record already: it wrapped its keys again (which changes nothing where
+	// the wraps exist) and has nothing new to report.
+	if !slices.Contains(rw.Done, m.localID()) {
+		if err := m.reportRewrap(rw, false); err != nil {
+			return err
+		}
+	}
+	m.lock.Lock()
+	m.rewrapped = rw.ID
+	m.lock.Unlock()
+	return nil
+}
+
+// rewrappedLocal reports whether this process has wrapped the keys of this
+// server with the seals of a rewrap.
+func (m *sealManager) rewrappedLocal(rewrapID string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return m.rewrapped == rewrapID
 }
 
 // rewrapKeyFromRecord unwraps the key of a seal of a rewrap from the rewrap
@@ -864,7 +888,7 @@ func (m *sealManager) aliveServers() map[string]bool {
 func (m *sealManager) completeRewrap(cfg *structs.SealConfig) error {
 	s := m.srv
 	rw := cfg.Rewrap
-	if !slices.Contains(rw.Done, m.localID()) {
+	if !slices.Contains(rw.Done, m.localID()) || !m.rewrappedLocal(rw.ID) {
 		return nil
 	}
 	future := s.raft.GetConfiguration()

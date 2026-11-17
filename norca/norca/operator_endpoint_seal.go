@@ -174,10 +174,17 @@ func decodeShare(s string) ([]byte, error) {
 }
 
 // SealRewrapDone records on the leader that a server has wrapped its keys
-// with the seals of a rewrap. Only servers may call it.
+// with the seals of a rewrap. Only servers may call it, each for itself: a
+// server reports in process (sealManager.reportRewrap) and forwards that to
+// the leader, so the only report that arrives over a connection is the one a
+// follower forwarded to the leader. No ACL token stands for a server, and a
+// management token is not one either.
 func (op *Operator) SealRewrapDone(args *structs.SealRewrapDoneRequest, reply *structs.GenericResponse) error {
 	authErr := op.srv.Authenticate(op.ctx, args)
 	if err := validateTLSCertificateLevel(op.srv, op.ctx, tlsCertificateLevelServer); err != nil {
+		return err
+	}
+	if err := op.sealRewrapReporter(args); err != nil {
 		return err
 	}
 	if done, err := op.srv.forward("Operator.SealRewrapDone", args, args, reply); done {
@@ -196,6 +203,36 @@ func (op *Operator) SealRewrapDone(args *structs.SealRewrapDoneRequest, reply *s
 	}
 	reply.Index = index
 	return nil
+}
+
+// sealRewrapReporter checks, before a rewrap report is forwarded, that it
+// can be the report of the server it names.
+func (op *Operator) sealRewrapReporter(args *structs.SealRewrapDoneRequest) error {
+	local := op.srv.seal.localID()
+	if op.ctx == nil {
+		// The report of this server, made in process.
+		if args.ServerID != local {
+			return structs.NewErrRPCCoded(http.StatusBadRequest, "a server reports a rewrap for itself only")
+		}
+		return nil
+	}
+	// A report over a connection: a follower forwarded its own to the
+	// leader. A follower takes none (it would forward it as its own), no
+	// other region has anything to report here, and nobody reports for the
+	// leader but the leader itself.
+	if args.RequestRegion() != op.srv.Region() || !op.srv.IsLeader() || args.ServerID == local {
+		return structs.ErrPermissionDenied
+	}
+	future := op.srv.raft.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return err
+	}
+	for _, server := range future.Configuration().Servers {
+		if string(server.ID) == args.ServerID {
+			return nil
+		}
+	}
+	return structs.ErrPermissionDenied
 }
 
 // Rewrap moves the keys of the region to another seal online (Norca): every
