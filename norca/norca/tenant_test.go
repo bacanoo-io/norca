@@ -1586,3 +1586,29 @@ func TestTenant_PendingOwnCreation(t *testing.T) {
 		must.Eq(t, "", ref.Creating, must.Sprint(key))
 	}
 }
+
+// Between a revoked leadership and the one established after it the leader
+// has no ACL token: a pass of the tenant operator then writes nothing, and
+// records no failure of a tenant.
+func TestTenant_WaitsForTheLeaderToken(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+
+	token := c.s.getLeaderAcl()
+	must.NotEq(t, "", token)
+	c.s.setLeaderAcl("")
+	_, err := c.apply("", structs.TenantKind, "team-gap", map[string]any{
+		"namespace": map[string]any{"description": "written in the gap"},
+	})
+	must.NoError(t, err)
+	time.Sleep(2 * time.Second)
+	obj := c.get("", structs.TenantKind, "team-gap")
+	must.NotNil(t, obj)
+	must.False(t, objectConditionTrue(obj.Status, structs.CertificateConditionDegraded),
+		must.Sprintf("a failure was recorded without the leader token: %v", obj.Status))
+	must.Eq(t, 0, len(obj.Status), must.Sprintf("status: %v", obj.Status))
+
+	c.s.setLeaderAcl(token)
+	waitTenant(c, "team-gap", "ready with the token", tenantReady)
+}
