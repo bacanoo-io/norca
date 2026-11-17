@@ -49,6 +49,20 @@ var (
 	certificateRevokeOrderKeep = 24 * time.Hour
 )
 
+// certificateAuthorityMinRemaining is the life the issuing CA must have left
+// for the built-in issuer to sign with it. A leaf ends with its CA at the
+// latest, and is renewed at two thirds of its validity: with a CA near its
+// end the renewals would follow each other ever faster, and with an expired
+// one every run of the operator would issue again. The leader rotates its
+// own CA long before; an imported CA is the operator's to replace.
+const certificateAuthorityMinRemaining = time.Hour
+
+// certificateAuthorityExpiring reports whether the CA has expired or ends
+// too soon to sign with.
+func certificateAuthorityExpiring(ca *structs.CertificateAuthority, now time.Time) bool {
+	return !now.Add(certificateAuthorityMinRemaining).Before(ca.NotAfter)
+}
+
 // certificateOperator is the built-in operator of certificates.
 type certificateOperator struct {
 	srv    *Server
@@ -145,6 +159,13 @@ func (o *certificateOperator) reconcile(ws memdb.WatchSet) (time.Time, error) {
 		// The rotation of the CA is due at two thirds of its life.
 		p.want(p.active.NotBefore.Add(p.active.NotAfter.Sub(p.active.NotBefore)*2/3 + time.Second))
 	}
+	if p.active != nil && p.active.Imported {
+		// The status of the issuers changes when an imported CA nears its
+		// end.
+		if t := p.active.NotAfter.Add(-certificateAuthorityMinRemaining + time.Second); t.After(p.now) {
+			p.want(t)
+		}
+	}
 
 	for _, issuer := range issuers {
 		o.reconcileIssuer(p, issuer, caErr)
@@ -200,7 +221,14 @@ func (o *certificateOperator) reconcileIssuer(p *certificatePass, issuer *struct
 	}
 	status := map[string]any{structs.ObjectStatusObservedGeneration: issuer.Generation}
 	conditions := newConditionSet(issuer.Status, p.now)
+	expiring := p.active != nil && certificateAuthorityExpiring(p.active, p.now)
 	switch {
+	case expiring:
+		status["authority"] = p.active.ID
+		status["notAfter"] = p.active.NotAfter.UTC().Format(time.RFC3339)
+		conditions.set(structs.CertificateConditionReady, false, "AuthorityExpired", fmt.Sprintf(
+			"the issuing certificate authority %s ends at %s; import or rotate to a new one",
+			p.active.ID, p.active.NotAfter.UTC().Format(time.RFC3339)))
 	case p.active != nil:
 		status["authority"] = p.active.ID
 		status["notAfter"] = p.active.NotAfter.UTC().Format(time.RFC3339)
@@ -210,7 +238,7 @@ func (o *certificateOperator) reconcileIssuer(p *certificatePass, issuer *struct
 	default:
 		conditions.set(structs.CertificateConditionReady, false, "AuthorityNotReady", "the issuing certificate authority is being created")
 	}
-	conditions.set(structs.CertificateConditionDegraded, p.active == nil && caErr != nil, "", "")
+	conditions.set(structs.CertificateConditionDegraded, expiring || (p.active == nil && caErr != nil), "", "")
 	status[structs.ObjectStatusConditions] = conditions.list()
 	o.writeStatus(issuer, status, nil)
 }
@@ -459,6 +487,11 @@ func (o *certificateOperator) issued(p *certificatePass, obj *structs.CustomObje
 	st *structs.CertificateStatus, out *certificateOutcome, cert *x509.Certificate, authority, suggestedRenewal string, version uint64, renewal bool) {
 
 	renewAt := certificateRenewAt(cert, spec, suggestedRenewal)
+	// Never due at once, whatever the certificate says: the renewal would
+	// repeat on every run of the operator.
+	if earliest := p.now.Add(operatorsRetry); renewAt.Before(earliest) {
+		renewAt = earliest
+	}
 	*st = structs.CertificateStatus{
 		Issuer:        spec.Issuer,
 		Authority:     authority,
@@ -527,6 +560,12 @@ func (o *certificateOperator) issueBuiltin(p *certificatePass, obj *structs.Cust
 	if p.active == nil {
 		out.failedReason, out.failedMessage = "AuthorityNotReady", "the issuing certificate authority of the region is not ready yet"
 		p.want(p.now.Add(operatorsRetry))
+		return
+	}
+	if certificateAuthorityExpiring(p.active, p.now) {
+		o.fail(p, obj, st, out, "AuthorityExpired", fmt.Sprintf(
+			"the issuing certificate authority %s ends at %s; nothing is issued with it",
+			p.active.ID, p.active.NotAfter.UTC().Format(time.RFC3339)))
 		return
 	}
 	validity, err := spec.ValidityDuration()

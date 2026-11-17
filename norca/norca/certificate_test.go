@@ -483,6 +483,12 @@ type testCA struct {
 
 func newTestCA(t *testing.T, name string, parent *testCA) *testCA {
 	t.Helper()
+	return newTestCAUntil(t, name, parent, time.Now().Add(240*time.Hour))
+}
+
+// newTestCAUntil returns a CA that is valid until notAfter.
+func newTestCAUntil(t *testing.T, name string, parent *testCA, notAfter time.Time) *testCA {
+	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	must.NoError(t, err)
 	serial, err := randomSerial()
@@ -491,7 +497,7 @@ func newTestCA(t *testing.T, name string, parent *testCA) *testCA {
 		SerialNumber:          serial,
 		Subject:               pkix.Name{CommonName: name},
 		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(240 * time.Hour),
+		NotAfter:              notAfter,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
@@ -848,4 +854,58 @@ func TestCertificate_ExternalIssuerChain(t *testing.T) {
 	})
 	must.Eq(t, "", renewed.Revoke)
 	must.Eq(t, []string{"cert", "key"}, c.secretItems("default", "certs/web").Keys())
+}
+
+// An imported CA is never rotated by the leader. When it is about to expire
+// or has expired nothing is issued with it (review finding SRV-16): a leaf
+// can't outlive its CA, so it would be due for renewal as soon as it is
+// issued, and the operator would issue it again on every run.
+func TestCertificate_ExpiredImportedAuthority(t *testing.T) {
+	ci.Parallel(t)
+
+	c, cleanup := newCertTest(t)
+	defer cleanup()
+	c.allow("default", map[string]string{structs.NamespaceMetaCertificateDNSSuffixes: "example.com"})
+	_, err := c.apply("", structs.CertificateIssuerKind, "internal", map[string]any{"builtin": map[string]any{}})
+	must.NoError(t, err)
+	_, err = c.apply("default", structs.CertificateKind, "web-tls", map[string]any{
+		"issuer": "internal", "dns_names": []any{"web.example.com"}, "secret_path": "certs/web"})
+	must.NoError(t, err)
+	first := c.waitFor("default", "web-tls", "issued", certReady)
+
+	ca := newTestCAUntil(t, "org issuing", nil, time.Now().Add(3*time.Second))
+	var caResp structs.CertificateAuthorityResponse
+	must.NoError(t, c.s.RPC("Certificate.ImportAuthority", &structs.CertificateAuthorityImportRequest{
+		Cert: ca.pem, Key: ca.keyPEM(t), WriteRequest: c.write(""),
+	}, &caResp))
+
+	// Past the end of the CA.
+	time.Sleep(5 * time.Second)
+	_, before := c.certificate("default", "web-tls")
+	time.Sleep(2 * time.Second)
+	obj, after := c.certificate("default", "web-tls")
+	must.Eq(t, before.Serial, after.Serial, must.Sprint("the certificate is issued again and again"))
+	must.Eq(t, first.Serial, after.Serial, must.Sprint("nothing is issued with a CA that ends within the hour"))
+	must.Positive(t, after.Failures)
+	must.False(t, objectConditionTrue(obj.Status, structs.CertificateConditionIssuing))
+
+	issuer := c.get("", structs.CertificateIssuerKind, "internal")
+	must.False(t, objectConditionTrue(issuer.Status, structs.CertificateConditionReady))
+	must.True(t, objectConditionTrue(issuer.Status, structs.CertificateConditionDegraded))
+}
+
+func TestSignCertificate_ExpiredCA(t *testing.T) {
+	ci.Parallel(t)
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	must.NoError(t, err)
+	spec := &structs.CertificateSpec{DNSNames: []string{"web.example.com"}}
+
+	ca := newTestCAUntil(t, "expired", nil, time.Now().Add(-time.Minute))
+	_, _, err = signCertificate(&mtlsSigner{cert: ca.cert, key: ca.key}, key.Public(), spec, time.Hour)
+	must.ErrorContains(t, err, "expired")
+
+	ca = newTestCA(t, "valid", nil)
+	_, cert, err := signCertificate(&mtlsSigner{cert: ca.cert, key: ca.key}, key.Public(), spec, time.Hour)
+	must.NoError(t, err)
+	must.True(t, cert.NotAfter.After(cert.NotBefore))
 }

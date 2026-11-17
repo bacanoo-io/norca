@@ -728,6 +728,11 @@ func signCertificate(signer *mtlsSigner, pub crypto.PublicKey, spec *structs.Cer
 	if notAfter.After(signer.cert.NotAfter) {
 		notAfter = signer.cert.NotAfter
 	}
+	if !notAfter.After(now) {
+		// A leaf never outlives its CA: one of an expired CA would end
+		// before it begins.
+		return "", nil, fmt.Errorf("the issuing CA has expired (%s)", signer.cert.NotAfter.UTC().Format(time.RFC3339))
+	}
 	template := &x509.Certificate{
 		SerialNumber:          serial,
 		DNSNames:              slices.Clone(spec.DNSNames),
