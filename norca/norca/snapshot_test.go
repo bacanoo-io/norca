@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
@@ -263,7 +264,7 @@ func TestSnapshotSchedule_Failures(t *testing.T) {
 	_, err := c.apply("default", volumeSnapshotScheduleKind, "db-fail", map[string]any{
 		"volume":   "db",
 		"schedule": everySecond,
-		"keep":     map[string]any{"max_age": "1h"},
+		"keep":     map[string]any{"max_age": "5m"},
 	})
 	must.NoError(t, err)
 
@@ -500,8 +501,12 @@ func TestSnapshotSchedule_WriteChecks(t *testing.T) {
 		spec map[string]any
 		want string
 	}{
-		"bad cron":      {base(func(m map[string]any) { m["schedule"] = "every night" }), "not a cron expression"},
-		"ended":         {base(func(m map[string]any) { m["schedule"] = "0 0 3 1 1 * 2025" }), "no time in the future"},
+		"bad cron": {base(func(m map[string]any) { m["schedule"] = "every night" }), "not a cron expression"},
+		"ended":    {base(func(m map[string]any) { m["schedule"] = "0 0 3 1 1 * 2025" }), "no time in the future"},
+		"too many kept": {base(func(m map[string]any) {
+			m["schedule"] = "*/5 * * * *"
+			m["keep"] = map[string]any{"max_age": "168h"}
+		}), "more than 500 snapshots"},
 		"bad zone":      {base(func(m map[string]any) { m["time_zone"] = "Mars/Olympus" }), "time_zone"},
 		"no keep":       {base(func(m map[string]any) { m["keep"] = map[string]any{} }), "keep needs"},
 		"bad max_age":   {base(func(m map[string]any) { m["keep"] = map[string]any{"max_age": "30 days"} }), "max_age"},
@@ -1058,4 +1063,89 @@ func TestSnapshotSchedule_RetentionWaitsForSecret(t *testing.T) {
 	fake.set(func(f *fakeSnapshotCSI) {
 		must.Eq(t, []structs.CSISecrets{{"token": "s3cr3t"}, {"token": "s3cr3t"}}, f.deleteSecrets)
 	})
+}
+
+// A status that has no room for another snapshot: the schedule takes none,
+// and says so, instead of making snapshots it can't write down (review
+// finding SNP-1).
+func TestSnapshotSchedule_StatusFull(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServer(t, false, true)
+	defer cleanup()
+
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "db", map[string]any{
+		"volume": "db", "schedule": everySecond, "keep": map[string]any{"last": 500}, "suspend": true,
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db", "suspended", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return objectConditionTrue(obj.Status, snapshotConditionSuspended)
+	})
+
+	// 330 snapshots with long IDs: over 200 KiB of the 256 KiB an object
+	// may have.
+	var listed []*scheduledSnapshot
+	now := time.Now().UTC()
+	for i := 1; i <= 330; i++ {
+		listed = append(listed, &scheduledSnapshot{
+			ID: fmt.Sprintf("snap-%04d-%s", i, strings.Repeat("x", 480)), Name: fmt.Sprintf("old-%04d", i),
+			Volume: "db", Plugin: "minnie", Ready: true,
+			Scheduled: now.Add(-time.Duration(i) * time.Hour).Format(time.RFC3339),
+		})
+	}
+	obj, _ := c.schedule("db")
+	writeTestScheduleStatus(t, c.s, obj, &snapshotScheduleStatus{Snapshots: listed})
+
+	_, err = c.apply("default", volumeSnapshotScheduleKind, "db", map[string]any{
+		"volume": "db", "schedule": everySecond, "keep": map[string]any{"last": 500},
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db", "status full", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		for _, cond := range operatorConditions(obj.Status) {
+			if cond.Type == structs.CertificateConditionReady {
+				return cond.Status == "False" && cond.Reason == "StatusFull"
+			}
+		}
+		return false
+	})
+	time.Sleep(2 * time.Second)
+	creates, _ := fake.counts()
+	must.Zero(t, creates)
+	_, st := c.schedule("db")
+	must.Eq(t, 330, len(st.Snapshots))
+	must.Eq(t, 0, st.Taken)
+
+	// With room again (a shorter retention) the schedule goes on.
+	_, err = c.apply("default", volumeSnapshotScheduleKind, "db", map[string]any{
+		"volume": "db", "schedule": everySecond, "keep": map[string]any{"last": 5},
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db", "taking again", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return st.Taken > 0 && objectConditionTrue(obj.Status, structs.CertificateConditionReady)
+	})
+}
+
+// What a status keeps of a failed deletion is bounded (review finding
+// SNP-1).
+func TestSnapshotStatus_Bounded(t *testing.T) {
+	ci.Parallel(t)
+
+	must.Eq(t, "short", snapshotErrorText(errors.New("short")))
+	long := snapshotErrorText(errors.New(strings.Repeat("\u00e9", 1000)))
+	must.LessEq(t, snapshotDeleteErrorMax, len(long))
+	must.True(t, utf8.ValidString(long))
+
+	// A list whose errors do not fit: the errors go, the snapshots stay.
+	obj := &structs.CustomObject{Spec: map[string]any{"volume": "db"}}
+	st := &snapshotScheduleStatus{}
+	for i := 0; i < 900; i++ {
+		st.Snapshots = append(st.Snapshots, &scheduledSnapshot{
+			ID: fmt.Sprintf("snap-%04d", i), Name: fmt.Sprintf("s-%04d", i), Volume: "db", Plugin: "minnie", Ready: true,
+			Scheduled: "2026-11-17T12:00:00Z", DeleteError: strings.Repeat("e", snapshotDeleteErrorMax),
+		})
+	}
+	must.Greater(t, structs.MaxCustomObjectSize, snapshotStatusSize(obj, st))
+	snapshotFitStatus(obj, st)
+	must.Less(t, structs.MaxCustomObjectSize-16*1024, snapshotStatusSize(obj, st))
+	must.Eq(t, 900, len(st.Snapshots))
+	must.NotEq(t, "", st.Snapshots[0].DeleteError)
 }

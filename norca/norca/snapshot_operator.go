@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -53,6 +54,68 @@ const (
 // waits of the operator of its server.
 type snapshotTuning interface {
 	tuning() (retryBase, readyPoll time.Duration)
+}
+
+// The snapshots of a schedule are listed in its status, and an object is at
+// most structs.MaxCustomObjectSize of JSON. A status that could not be
+// written would stop the schedule from recording anything, so the list is
+// bounded where it grows.
+const (
+	// snapshotMaxKept is how many snapshots the retention of a schedule
+	// may keep: the maximum of keep.last in the schema, and what max_age
+	// may keep at the rate of the schedule (checked when it is written).
+	snapshotMaxKept = 500
+
+	// snapshotStatusBudget is the size of the spec and status up to which
+	// another snapshot is begun. Past it the schedule takes nothing
+	// (reason StatusFull) until its retention has made room: the rest is
+	// left for what is written about the snapshots that are listed.
+	snapshotStatusBudget = structs.MaxCustomObjectSize * 3 / 4
+
+	// snapshotStatusLimit is the size past which the errors of failed
+	// deletions are cut down to snapshotDeleteErrorShort; the conditions
+	// of the status take the rest.
+	snapshotStatusLimit = structs.MaxCustomObjectSize - 16*1024
+
+	// snapshotDeleteErrorMax is how many bytes of the error of a failed
+	// deletion the status keeps for a snapshot.
+	snapshotDeleteErrorMax = 200
+
+	snapshotDeleteErrorShort = "failed"
+)
+
+// snapshotErrorText returns the error of a failed deletion as the status
+// keeps it.
+func snapshotErrorText(err error) string {
+	text := err.Error()
+	if len(text) > snapshotDeleteErrorMax {
+		text = strings.ToValidUTF8(text[:snapshotDeleteErrorMax], "")
+	}
+	return text
+}
+
+// snapshotStatusSize returns the size of the spec of a schedule with a
+// status, without the conditions, as the size limit of objects counts it.
+func snapshotStatusSize(obj *structs.CustomObject, st *snapshotScheduleStatus) int {
+	b, err := json.Marshal(map[string]any{"spec": obj.Spec, "status": st})
+	if err != nil {
+		return structs.MaxCustomObjectSize
+	}
+	return len(b)
+}
+
+// snapshotFitStatus makes a status fit the size limit of objects: the list
+// of snapshots is never cut (it is the only record of them), the errors of
+// failed deletions are.
+func snapshotFitStatus(obj *structs.CustomObject, st *snapshotScheduleStatus) {
+	if snapshotStatusSize(obj, st) <= snapshotStatusLimit {
+		return
+	}
+	for _, s := range st.Snapshots {
+		if s.DeleteError != "" {
+			s.DeleteError = snapshotDeleteErrorShort
+		}
+	}
 }
 
 // snapshotTimesWindow is the stretch of a schedule that is walked time by
@@ -296,6 +359,10 @@ type snapshotRun struct {
 	// due is the latest time of the schedule that has come since the
 	// last run (zero: none).
 	due time.Time
+
+	// full is set when a snapshot is due and the status has no room for
+	// it.
+	full bool
 }
 
 // latestRun returns the latest scheduled time that has come, as the status
@@ -377,6 +444,11 @@ func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.Custo
 	if specErr == nil {
 		o.schedule(p, r, expr, loc)
 		o.finish(p, r)
+		if r.full && out.notReadyReason == "" {
+			out.notReadyReason, out.notReadyMessage = "StatusFull", fmt.Sprintf(
+				"the status lists %d snapshots and has no room for another one: no snapshot is taken until "+
+					"the retention has deleted some (a shorter keep makes room)", len(st.Snapshots))
+		}
 		if secretErr == nil {
 			o.retain(p, r.obj, st, maxAge, spec.Keep.Last, secrets)
 		} else if len(st.Snapshots) > 0 {
@@ -428,6 +500,14 @@ func (o *snapshotOperator) schedule(p *snapshotPass, r *snapshotRun, expr *crone
 	// it is made. A new name now would leave it out of the list if the
 	// plugin made it after all.
 	if slices.ContainsFunc(st.Snapshots, func(s *scheduledSnapshot) bool { return s.ID == "" }) {
+		return
+	}
+
+	// Nor is one begun that the status has no room for: a snapshot that
+	// can't be written down is not made. The retention makes room.
+	if snapshotStatusSize(r.obj, st) > snapshotStatusBudget {
+		r.full = true
+		p.want(p.now.Add(operatorsRetry))
 		return
 	}
 
@@ -637,7 +717,7 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 				o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "SnapshotDeleteFailed",
 					fmt.Sprintf("snapshot %s (%s) could not be deleted: %v", s.Name, s.ID, err))
 			}
-			s.DeleteError = err.Error()
+			s.DeleteError = snapshotErrorText(err)
 			keep = append(keep, s)
 			failed = true
 			continue
@@ -700,6 +780,7 @@ func (o *snapshotOperator) writeSchedule(p *snapshotPass, obj *structs.CustomObj
 	out *snapshotOutcome, suspended bool, finalizers *[]string) *structs.CustomObject {
 
 	st.Kept = len(st.Snapshots)
+	snapshotFitStatus(obj, st)
 	encoded, err := structs.EncodeObjectPart(st)
 	if err != nil {
 		o.logger.Warn("status of a snapshot schedule can't be encoded", "schedule", obj.Name, "error", err)
@@ -809,7 +890,7 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 				}
 			}
 			if err != nil {
-				s.DeleteError = err.Error()
+				s.DeleteError = snapshotErrorText(err)
 				left = append(left, s)
 				failed = append(failed, s.Name)
 				continue

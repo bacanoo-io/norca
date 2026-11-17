@@ -24,7 +24,7 @@ func checkSnapshotApply(aclObj *acl.ACL, obj *structs.CustomObject) error {
 	if err := structs.DecodeObjectPart(obj.Spec, spec); err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid snapshot schedule: %v", err)
 	}
-	expr, loc, _, err := spec.parse()
+	expr, loc, maxAge, err := spec.parse()
 	if err != nil {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid snapshot schedule: %v", err)
 	}
@@ -32,6 +32,18 @@ func checkSnapshotApply(aclObj *acl.ACL, obj *structs.CustomObject) error {
 	if expr.Next(now).IsZero() {
 		return structs.NewErrRPCCodedf(http.StatusBadRequest,
 			"invalid snapshot schedule: schedule %q has no time in the future", spec.Schedule)
+	}
+	// The snapshots a schedule keeps are listed in its status, and an
+	// object has a size limit: max_age may keep as many as keep.last may.
+	if maxAge > 0 {
+		kept, until := 0, now.Add(maxAge)
+		for t := expr.Next(now); !t.IsZero() && !t.After(until); t = expr.Next(t) {
+			if kept++; kept > snapshotMaxKept {
+				return structs.NewErrRPCCodedf(http.StatusBadRequest,
+					"invalid snapshot schedule: keep.max_age %q keeps more than %d snapshots of the schedule %q: "+
+						"shorten max_age or take snapshots less often", spec.Keep.MaxAge, snapshotMaxKept, spec.Schedule)
+			}
+		}
 	}
 
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
