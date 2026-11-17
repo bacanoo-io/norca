@@ -42,6 +42,10 @@ func NewExponentialBackoff[K comparable](base, max time.Duration) *ExponentialBa
 func (r *ExponentialBackoff[K]) When(key K) time.Duration {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.failures == nil {
+		// A struct literal with only Base and Max is a valid value.
+		r.failures = map[K]int{}
+	}
 	n := r.failures[key]
 	r.failures[key] = n + 1
 
