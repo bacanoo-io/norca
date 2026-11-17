@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/helper/redact"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/plugins"
 	"github.com/bacanoo-io/norca/norca/norca/autoscaler/sdk"
 	hclog "github.com/hashicorp/go-hclog"
@@ -103,7 +104,7 @@ func (a *APMPlugin) SetConfig(config map[string]string) error {
 	// create Prometheus client
 	client, err := api.NewClient(promCfg)
 	if err != nil {
-		return fmt.Errorf("failed to initialize Prometheus client: %v", err)
+		return fmt.Errorf("failed to initialize Prometheus client: %v", redact.CallError(err, addr))
 	}
 
 	// store config and client in plugin instance
@@ -152,7 +153,11 @@ func (a *APMPlugin) QueryMultiple(q string, r sdk.TimeRange) ([]sdk.TimestampedM
 		result, warnings, err = v1api.QueryRange(ctx, q, promRange)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to query: %v", err)
+		// The error names the URL of the query, which is the address of the
+		// configuration with its credentials (basic authentication, an API
+		// key in the query). It becomes the message of the evaluation in
+		// the status of the policy, which the readers of the job see.
+		return nil, fmt.Errorf("failed to query: %v", redact.CallError(err, a.config[configKeyAddress]))
 	}
 
 	// If Prometheus returned warnings, report these to the user.

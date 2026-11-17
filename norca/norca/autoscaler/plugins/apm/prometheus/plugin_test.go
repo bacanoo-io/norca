@@ -34,7 +34,7 @@ func TestAPMPlugin_SetConfig(t *testing.T) {
 		},
 		{
 			inputConfig:  map[string]string{"address": "\n\n"},
-			expectOutput: errors.New(`failed to initialize Prometheus client: parse "\n\n": net/url: invalid control character in URL`),
+			expectOutput: errors.New(`failed to initialize Prometheus client: net/url: invalid control character in URL`),
 			name:         "required config parameters set but value malformed",
 		},
 		{

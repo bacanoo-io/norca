@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/helper/redact"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/hashicorp/cap/oidc"
 )
@@ -117,7 +118,9 @@ func (c *ProviderCache) Get(authMethod *structs.ACLAuthMethod) (*oidc.Provider, 
 	// changed. We therefore, need to initialize a new provider.
 	newProvider, err := oidc.NewProvider(oidcCfg)
 	if err != nil {
-		return nil, err
+		// The error is shown to whoever tries to log in: without the
+		// credentials of the discovery URL (Norca).
+		return nil, redact.CallError(err, authMethod.Config.OIDCDiscoveryURL)
 	}
 
 	c.mu.Lock()

@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -280,6 +281,60 @@ func TestWebhook_ReviewErrors(t *testing.T) {
 			must.Error(t, err)
 		})
 	}
+}
+
+// The error of a failed call never names the URL of the webhook: a token as
+// its user name and the values of its query are credentials, and the error
+// is shown to whoever submits the reviewed job.
+func TestWebhook_ReviewErrors_NoURL(t *testing.T) {
+	ci.Parallel(t)
+
+	withCredentials := func(t *testing.T, raw string) string {
+		u, err := url.Parse(raw)
+		must.NoError(t, err)
+		u.User = url.UserPassword("SECRETTOKEN", "SECRETPASS")
+		u.Path = "/hook"
+		u.RawQuery = "api_key=SECRETVALUE&SECRETBARE"
+		return u.String()
+	}
+	review := func(t *testing.T, rawURL string) error {
+		cfg := webhookConfig("hook", rawURL)
+		cfg.Timeout = 100 * time.Millisecond
+		w, err := NewWebhook(cfg)
+		must.NoError(t, err)
+		_, err = w.Review(context.Background(), &ReviewRequest{UID: "1", Job: json.RawMessage(`{}`)})
+		must.Error(t, err)
+		must.StrNotContains(t, err.Error(), "SECRET")
+		must.StrNotContains(t, err.Error(), "/hook")
+		return err
+	}
+
+	t.Run("unreachable", func(t *testing.T) {
+		dead := httptest.NewServer(http.NotFoundHandler())
+		deadURL := dead.URL
+		dead.Close()
+
+		err := review(t, withCredentials(t, deadURL))
+		must.StrContains(t, err.Error(), "connect")
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			time.Sleep(500 * time.Millisecond)
+		}))
+		defer srv.Close()
+
+		err := review(t, withCredentials(t, srv.URL))
+		must.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+
+	t.Run("token as the user name", func(t *testing.T) {
+		review(t, "http://SECRETTOKEN@127.0.0.1:1/hook")
+	})
+
+	t.Run("invalid URL", func(t *testing.T) {
+		review(t, "http://SECRETTOKEN@127.0.0.1:1/hook\x7f?api_key=SECRETVALUE")
+	})
 }
 
 func TestWebhook_TLS(t *testing.T) {

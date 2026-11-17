@@ -15,13 +15,25 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/bacanoo-io/norca/norca/helper"
+	"github.com/bacanoo-io/norca/norca/helper/redact"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
 
 // Validate performs token signature verification and JWT header validation,
 // and returns a list of claims or an error in case any validation or signature
 // verification fails.
+//
+// The error is shown to whoever tried to log in: it never holds the
+// credentials of the JWKS or discovery URL of the auth method (Norca).
 func Validate(ctx context.Context, token string, methodConf *structs.ACLAuthMethodConfig) (map[string]any, error) {
+	claims, err := validate(ctx, token, methodConf)
+	if err != nil {
+		return nil, redact.CallError(err, methodConf.JWKSURL, methodConf.OIDCDiscoveryURL)
+	}
+	return claims, nil
+}
+
+func validate(ctx context.Context, token string, methodConf *structs.ACLAuthMethodConfig) (map[string]any, error) {
 	var (
 		keySet jwt.KeySet
 		err    error

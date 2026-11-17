@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -359,6 +360,45 @@ func TestJobEndpoint_Admission_FailurePolicy(t *testing.T) {
 		must.NoError(t, err)
 		must.StrContains(t, resp.Warnings, `admission webhook "dead" failed and was ignored`)
 		must.StrContains(t, resp.Warnings, `admission webhook "dead-mutating" failed and was ignored`)
+	})
+}
+
+// The submitter of a job does not read the credential in the URL of a
+// webhook that can't be reached, neither in the error nor in the warning.
+func TestJobEndpoint_Admission_FailureHidesWebhookURL(t *testing.T) {
+	ci.Parallel(t)
+
+	dead := httptest.NewServer(http.NotFoundHandler())
+	u, err := url.Parse(dead.URL)
+	must.NoError(t, err)
+	dead.Close()
+	u.User = url.User("SECRETTOKEN")
+	u.Path = "/hook"
+	u.RawQuery = "api_key=SECRETVALUE"
+	deadURL := u.String()
+
+	t.Run("fail", func(t *testing.T) {
+		s, cleanup := admissionServer(t, &config.AdmissionWebhookConfig{
+			Name: "dead", URL: deadURL, Timeout: time.Second,
+		})
+		defer cleanup()
+
+		_, err := admissionRegisterJob(t, s, mock.Job(), "")
+		must.ErrorContains(t, err, `admission webhook "dead" failed`)
+		must.StrNotContains(t, err.Error(), "SECRET")
+	})
+
+	t.Run("ignore", func(t *testing.T) {
+		s, cleanup := admissionServer(t, &config.AdmissionWebhookConfig{
+			Name: "dead", URL: deadURL, Timeout: time.Second,
+			FailurePolicy: config.AdmissionFailurePolicyIgnore,
+		})
+		defer cleanup()
+
+		resp, err := admissionRegisterJob(t, s, mock.Job(), "")
+		must.NoError(t, err)
+		must.StrContains(t, resp.Warnings, `admission webhook "dead" failed and was ignored`)
+		must.StrNotContains(t, resp.Warnings, "SECRET")
 	})
 }
 

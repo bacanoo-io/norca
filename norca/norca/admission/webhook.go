@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bacanoo-io/norca/norca/helper/redact"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/norca/structs/config"
 	"github.com/hashicorp/go-cleanhttp"
@@ -335,16 +336,20 @@ func (w *Webhook) Review(ctx context.Context, req *ReviewRequest) (resp *ReviewR
 		return nil, fmt.Errorf("failed to encode review: %w", err)
 	}
 
+	// The errors of the request name its URL, which may hold the credential
+	// of the webhook (a token as the user name, a query value). They are
+	// shown to whoever submits the reviewed job, variable or object, and
+	// logged: only the reason of the failure is returned.
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, w.cfg.URL, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, redact.CallError(err, w.cfg.URL)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 
 	httpResp, err := w.client.Do(httpReq)
 	if err != nil {
-		return nil, err
+		return nil, redact.CallError(err, w.cfg.URL)
 	}
 	defer httpResp.Body.Close()
 
