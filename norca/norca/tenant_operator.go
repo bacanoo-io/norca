@@ -30,8 +30,10 @@ import (
 // of a release or of another tenant is never taken. A change made to a
 // resource of the tenant through its own API is set back and reported as an
 // event. When the tenant is deleted, the operator waits until its namespace
-// has no jobs and no volumes (condition NamespaceNotEmpty), then deletes what
-// the tenant created, the namespace and then its quota last.
+// has nothing the deletion of a namespace refuses (jobs, volumes, variables,
+// objects; condition NamespaceNotEmpty), then deletes what the tenant
+// created: the network policy and the namespace first, the roles and the
+// policies when the namespace is gone, its quota last.
 
 var (
 	// tenantDriftInterval is how often the operator compares the resources
@@ -518,46 +520,71 @@ func (o *tenantOperator) writeRemaining(obj *structs.CustomObject, owned map[str
 		refs = append(refs, m)
 	}
 	next["resources"] = refs
+	// The wait for the namespace is over when resources are being deleted:
+	// the condition of the wait (the only one a waiting tenant has) must not
+	// go on saying what the namespace had.
+	if objectConditionTrue(obj.Status, structs.TenantConditionNamespaceNotEmpty) {
+		conditions := newConditionSet(obj.Status, time.Now().UTC())
+		conditions.set(structs.TenantConditionNamespaceNotEmpty, false, "", "")
+		next[structs.ObjectStatusConditions] = conditions.list()
+	}
 	o.writeStatus(obj, next, nil)
 }
 
-// namespaceContents says what keeps a namespace from being deleted: its
-// jobs and its CSI volumes; "" when it has none.
+// namespaceContents says what keeps a namespace from being deleted, as far
+// as this region knows: its jobs, its CSI volumes, its variables and the
+// objects of namespaced kinds in it, which is what the deletion of a
+// namespace refuses (StateStore.DeleteNamespaces); "" when it has none.
+// The jobs of the namespace in other regions are not known here: the
+// deletion of the namespace asks them.
 func namespaceContents(store *state.StateStore, ws memdb.WatchSet, namespace string) (string, error) {
-	jobs, err := store.JobsByNamespace(ws, namespace)
-	if err != nil {
-		return "", err
-	}
-	nJobs := 0
-	for raw := jobs.Next(); raw != nil; raw = jobs.Next() {
-		nJobs++
-	}
-	vols, err := store.CSIVolumesByNamespace(ws, namespace, "")
-	if err != nil {
-		return "", err
-	}
-	nVols := 0
-	for raw := vols.Next(); raw != nil; raw = vols.Next() {
-		nVols++
+	count := func(iter memdb.ResultIterator, err error) (int, error) {
+		if err != nil {
+			return 0, err
+		}
+		n := 0
+		for raw := iter.Next(); raw != nil; raw = iter.Next() {
+			n++
+		}
+		return n, nil
 	}
 	var parts []string
-	if nJobs > 0 {
-		parts = append(parts, fmt.Sprintf("%d job(s)", nJobs))
+	add := func(what string, n int, err error) error {
+		if n > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", n, what))
+		}
+		return err
 	}
-	if nVols > 0 {
-		parts = append(parts, fmt.Sprintf("%d volume(s)", nVols))
+	jobs, err := count(store.JobsByNamespace(ws, namespace))
+	if err := add("job(s)", jobs, err); err != nil {
+		return "", err
 	}
-	return strings.Join(parts, " and "), nil
+	vols, err := count(store.CSIVolumesByNamespace(ws, namespace, ""))
+	if err := add("volume(s)", vols, err); err != nil {
+		return "", err
+	}
+	vars, err := count(store.GetVariablesByNamespace(ws, namespace))
+	if err := add("variable(s)", vars, err); err != nil {
+		return "", err
+	}
+	objects, err := count(store.CustomObjectsByNamespace(ws, namespace))
+	if err := add("object(s)", objects, err); err != nil {
+		return "", err
+	}
+	return strings.Join(parts, ", "), nil
 }
 
 // tenantDeleteOrder is the order in which the resources of a tenant are
-// deleted: what lives in the namespace or names a policy first, the
-// namespace before the quota it names.
+// deleted: the network policy, which lives in the namespace, then the
+// namespace, whose deletion can still be refused (a job registered since
+// the namespace was looked into, jobs in another region); the roles and the
+// policies of its people only when it is gone, so that they can still empty
+// it; the quota the namespace named last.
 var tenantDeleteOrder = map[string]int{
 	structs.TenantResourceNetworkPolicy: 0,
-	structs.TenantResourceACLRole:       1,
-	structs.TenantResourceACLPolicy:     2,
-	structs.TenantResourceNamespace:     3,
+	structs.TenantResourceNamespace:     1,
+	structs.TenantResourceACLRole:       2,
+	structs.TenantResourceACLPolicy:     3,
 	structs.TenantResourceQuota:         4,
 }
 

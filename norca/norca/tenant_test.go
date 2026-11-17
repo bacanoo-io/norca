@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bacanoo-io/norca/norca/ci"
+	"github.com/bacanoo-io/norca/norca/helper/uuid"
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
@@ -555,4 +556,75 @@ func TestTenant_KeepsUnmanagedFields(t *testing.T) {
 	pol, _ = store.ACLPolicyByName(nil, "team-k-developer")
 	must.NotNil(t, pol.JobACL, must.Sprint("the job ACL of the policy is gone"))
 	must.Eq(t, "builder", pol.JobACL.JobID)
+}
+
+// A deleted tenant waits for everything the deletion of a namespace refuses,
+// before it deletes anything (review finding TEN-3).
+func TestTenant_DeletionWaitsForVariablesAndObjects(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	s := c.s
+	store := s.State()
+	nextIndex := func() uint64 {
+		index, err := store.LatestIndex()
+		must.NoError(t, err)
+		return index + 1
+	}
+
+	_, err := c.apply("", structs.TenantKind, "team-v", map[string]any{
+		"roles":   map[string]any{"developer": []any{"submit-job"}},
+		"network": map[string]any{"isolation": "namespace"},
+	})
+	must.NoError(t, err)
+	waitTenant(c, "team-v", "ready", tenantReady)
+
+	variable := mock.VariableEncrypted()
+	variable.Namespace = "team-v"
+	must.NoError(t, store.VarSet(nextIndex(), &structs.VarApplyStateRequest{Op: structs.VarOpSet, Var: variable}).Error)
+
+	must.NoError(t, c.delete("", structs.TenantKind, "team-v"))
+	message := func(o *structs.CustomObject) string {
+		for _, cond := range operatorConditions(o.Status) {
+			if cond.Type == structs.TenantConditionNamespaceNotEmpty && cond.Status == "True" {
+				return cond.Message
+			}
+		}
+		return ""
+	}
+	waitTenant(c, "team-v", "waiting for the variable", func(o *structs.CustomObject) bool {
+		return strings.Contains(message(o), "1 variable(s)")
+	})
+	intact := func() {
+		t.Helper()
+		np, err := store.NetworkPolicyByName(nil, "team-v", structs.TenantNetworkPolicyName)
+		must.NoError(t, err)
+		must.NotNil(t, np, must.Sprint("the isolation went before the namespace was empty"))
+		role, err := store.GetACLRoleByName(nil, "team-v-developer")
+		must.NoError(t, err)
+		must.NotNil(t, role, must.Sprint("the role went before the namespace was empty"))
+	}
+	intact()
+
+	// An object of a namespaced kind holds the deletion back too.
+	must.NoError(t, store.UpsertCustomObject(structs.MsgTypeTestSetup, nextIndex(), &structs.CustomObject{
+		ID: uuid.Generate(), Group: structs.OperatorsGroup, Kind: structs.CertificateKind,
+		Namespace: "team-v", Name: "left",
+	}, 0))
+	must.NoError(t, store.VarDelete(nextIndex(), &structs.VarApplyStateRequest{Op: structs.VarOpDelete, Var: variable}).Error)
+	waitTenant(c, "team-v", "waiting for the object", func(o *structs.CustomObject) bool {
+		m := message(o)
+		return strings.Contains(m, "1 object(s)") && !strings.Contains(m, "variable")
+	})
+	intact()
+
+	must.NoError(t, store.DeleteCustomObject(structs.MsgTypeTestSetup, nextIndex(),
+		structs.OperatorsGroup, structs.CertificateKind, "team-v", "left", 0))
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.get("", structs.TenantKind, "team-v") == nil
+	}), wait.Timeout(60*time.Second), wait.Gap(100*time.Millisecond)))
+	ns, _ := store.NamespaceByName(nil, "team-v")
+	must.Nil(t, ns)
+	role, _ := store.GetACLRoleByName(nil, "team-v-developer")
+	must.Nil(t, role)
 }
