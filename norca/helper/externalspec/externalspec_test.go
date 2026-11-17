@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/shoenig/test/must"
+
+	"github.com/bacanoo-io/norca/norca/api"
 )
 
 const sample = `
@@ -131,4 +133,63 @@ external_service "a" {
 	var pe *Error
 	must.True(t, errors.As(err, &pe))
 	must.Eq(t, 3, pe.Problems[0].Line)
+}
+
+// TestFormat_EmptyHeaderAndNilCheck checks that Format does not panic on
+// what the JSON form can carry: a header without values and a null check.
+func TestFormat_EmptyHeaderAndNilCheck(t *testing.T) {
+	svc := &api.ExternalService{Name: "a", Address: "10.0.0.1", Checks: []*api.ExternalServiceCheck{
+		nil,
+		{Type: "http", HTTP: "http://10.0.0.1/", Header: map[string][]string{"X-Empty": {}, "X-Nil": nil, "X-One": {"v"}}},
+	}}
+	text := Format([]*Item{{Service: svc}, nil, {}})
+	items, err := Parse("formatted", text, false)
+	must.NoError(t, err, must.Sprintf("formatted text:\n%s", text))
+	must.Len(t, 1, items)
+	must.Len(t, 1, items[0].Service.Checks)
+	header := items[0].Service.Checks[0].Header
+	must.Eq(t, []string{"v"}, header["X-One"])
+	must.MapContainsKey(t, header, "X-Empty")
+	must.SliceEmpty(t, header["X-Empty"])
+	must.SliceEmpty(t, header["X-Nil"])
+
+	// A file with a null check is refused: it has no meaning.
+	_, err = Parse("x.json", []byte(`{"Name":"a","Address":"10.0.0.1","Checks":[null]}`), true)
+	var pe *Error
+	must.True(t, errors.As(err, &pe), must.Sprint(err))
+	must.StrContains(t, err.Error(), "check 1 is null")
+}
+
+// TestFormat_KeepsWhatParseRefuses checks that the text Format writes for the
+// services of a JSON file is refused where the services are: "service apply"
+// sends that text to the servers to have the whole file checked before
+// anything is written.
+func TestFormat_KeepsWhatParseRefuses(t *testing.T) {
+	// A service of a file is a declared one, which can't be bound to a node.
+	_, err := Parse("x.json", []byte(`{"Name":"a","Address":"10.0.0.1","NodeID":"abc"}`), true)
+	var pe *Error
+	must.True(t, errors.As(err, &pe), must.Sprint(err))
+	must.StrContains(t, err.Error(), `external service "a": a declared service cannot be bound to a node: use checked_by`)
+
+	for name, svc := range map[string]*api.ExternalService{
+		"target on address": {Name: "a", Kind: api.ExternalServiceKindAddress, Address: "x", Target: "y"},
+		"address on alias":  {Name: "a", Kind: api.ExternalServiceKindAlias, Address: "x", Target: "y"},
+		"unknown kind":      {Name: "a", Kind: "weird", Address: "x"},
+	} {
+		text := Format([]*Item{{Service: svc}})
+		_, err := Parse("formatted", text, false)
+		must.Error(t, err, must.Sprintf("%s: formatted text:\n%s", name, text))
+	}
+
+	// What the servers accept still reads back.
+	for name, svc := range map[string]*api.ExternalService{
+		"alias by its target":        {Name: "a", Target: "y"},
+		"alias, address like target": {Name: "a", Kind: api.ExternalServiceKindAlias, Address: "y", Target: "y"},
+	} {
+		text := Format([]*Item{{Service: svc}})
+		items, err := Parse("formatted", text, false)
+		must.NoError(t, err, must.Sprintf("%s: formatted text:\n%s", name, text))
+		must.Eq(t, api.ExternalServiceKindAlias, items[0].Service.Kind)
+		must.Eq(t, "y", items[0].Service.Target)
+	}
 }

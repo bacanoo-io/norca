@@ -133,6 +133,13 @@ func Parse(path string, content []byte, jsonInput bool) ([]*Item, error) {
 	seen := make(map[string]bool)
 	for _, it := range items {
 		it.Service.Declared = true
+		// Only the JSON form can name a node. The servers refuse it for a
+		// declared service; the HCL form, and so Format, has no place for
+		// it, so it is refused here, not dropped.
+		if it.Service.NodeID != "" {
+			return nil, problemf("external service %q: a declared service cannot be bound to a node: use checked_by",
+				it.Service.Name)
+		}
 		id := it.Service.ID
 		if id == "" {
 			id = it.Service.Name
@@ -169,6 +176,11 @@ func parseJSON(content []byte) ([]*Item, error) {
 		svc := list[i].ExternalService
 		if svc.Name == "" {
 			return nil, problemf("external service %d has no Name", i+1)
+		}
+		for n, check := range svc.Checks {
+			if check == nil {
+				return nil, problemf("external service %q: check %d is null", svc.Name, n+1)
+			}
 		}
 		items = append(items, &Item{Namespace: list[i].Namespace, Service: &svc})
 	}
@@ -280,6 +292,10 @@ func (s *serviceSpec) toAPI() (*Item, error) {
 }
 
 func stringList(v []string) cty.Value {
+	if len(v) == 0 {
+		// cty.ListVal panics on an empty list.
+		return cty.ListValEmpty(cty.String)
+	}
 	vals := make([]cty.Value, len(v))
 	for i, s := range v {
 		vals[i] = cty.StringVal(s)
@@ -300,14 +316,20 @@ func setDuration(b *hclwrite.Body, name string, d time.Duration) {
 }
 
 // Format writes the HCL form of services; Parse reads it back to the same
-// services.
+// services. The form has no node: the NodeID of a service is not written
+// (a service edited as HCL is a declared one, which is not bound to a node).
 func Format(items []*Item) []byte {
 	f := hclwrite.NewEmptyFile()
 	root := f.Body()
-	for n, it := range items {
-		if n > 0 {
+	first := true
+	for _, it := range items {
+		if it == nil || it.Service == nil {
+			continue
+		}
+		if !first {
 			root.AppendNewline()
 		}
+		first = false
 		s := it.Service
 		block := root.AppendNewBlock("external_service", []string{s.Name})
 		b := block.Body()
@@ -315,11 +337,22 @@ func Format(items []*Item) []byte {
 			setString(b, "id", s.ID)
 		}
 		setString(b, "namespace", it.Namespace)
-		if s.Kind == api.ExternalServiceKindAlias || (s.Kind == "" && s.Target != "" && s.Address == "") {
+		// What Parse refuses in a block (a target on an address, an address
+		// on an alias, an unknown type) is written too, not dropped: the
+		// text is refused then, as the service is.
+		switch {
+		case s.Kind == api.ExternalServiceKindAlias || (s.Kind == "" && s.Target != "" && s.Address == ""):
 			b.SetAttributeValue("type", cty.StringVal(api.ExternalServiceKindAlias))
 			setString(b, "target", s.Target)
-		} else {
+			if s.Address != s.Target {
+				setString(b, "address", s.Address)
+			}
+		default:
+			if s.Kind != "" && s.Kind != api.ExternalServiceKindAddress {
+				b.SetAttributeValue("type", cty.StringVal(s.Kind))
+			}
 			setString(b, "address", s.Address)
+			setString(b, "target", s.Target)
 		}
 		if s.Port != 0 {
 			b.SetAttributeValue("port", cty.NumberIntVal(int64(s.Port)))
@@ -344,6 +377,9 @@ func Format(items []*Item) []byte {
 			b.SetAttributeValue("deregister_critical_after", cty.StringVal(s.DeregisterCriticalAfter.String()))
 		}
 		for _, c := range s.Checks {
+			if c == nil {
+				continue
+			}
 			b.AppendNewline()
 			cb := b.AppendNewBlock("check", nil).Body()
 			setString(cb, "id", c.ID)
