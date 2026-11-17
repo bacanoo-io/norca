@@ -220,6 +220,12 @@ func (o *volumeRequestOperator) reconcileRequest(p *volumeRequestPass, obj *stru
 		return
 	}
 
+	// The wait after a failure is the wait of the spec that failed: a
+	// changed spec is tried at once.
+	if obj.Status != nil && statusGeneration(obj.Status) != int64(obj.Generation) {
+		st.Failures, st.RetryAt = 0, ""
+	}
+
 	out := &volumeRequestOutcome{}
 	finalizers := slices.Clone(obj.Finalizers)
 	if !slices.Contains(finalizers, structs.OperatorsFinalizer) {

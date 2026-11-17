@@ -752,3 +752,32 @@ func TestVolumeRequest_NamespacesDoNotShareAVolume(t *testing.T) {
 	}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)))
 	fake.set(func(f *fakeVolumeCSI) { must.SliceNotContains(t, f.deletes, first.ExternalID) })
 }
+
+// A changed spec is tried at once: the wait after the failures of the old
+// spec is not its wait (review finding VOL-9).
+func TestVolumeRequest_SpecChangeEndsTheWait(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false, func(c *Config) {
+		c.volumeRequestRetryBase = time.Hour
+	})
+	defer cleanup()
+
+	fake.set(func(f *fakeVolumeCSI) { f.createErr = errors.New("the storage has no room for 1GiB") })
+	_, err := c.apply("default", csiVolumeRequestKind, "fixed", volumeSpec(nil))
+	must.NoError(t, err)
+	c.waitRequest("fixed", "failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Failures == 1 && st.RetryAt != ""
+	})
+
+	fake.set(func(f *fakeVolumeCSI) { f.createErr = nil })
+	_, err = c.apply("default", csiVolumeRequestKind, "fixed", volumeSpec(func(m map[string]any) { m["capacity_min"] = "512MiB" }))
+	must.NoError(t, err)
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		obj, st := c.request("fixed")
+		return readyReason(obj) == "True" && st.Failures == 0 && st.RetryAt == ""
+	}), wait.Timeout(10*time.Second), wait.Gap(100*time.Millisecond)),
+		must.Sprint("the corrected spec waits for the retry time of the old one"))
+	obj, _ := c.request("fixed")
+	must.False(t, objectConditionTrue(obj.Status, volumeRequestConditionFailed))
+	must.NotNil(t, c.volume("fixed"))
+}
