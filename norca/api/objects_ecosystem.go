@@ -192,7 +192,7 @@ func (k *ObjectKinds) approveWebhook(group, kind, webhook string, revoke bool, k
 	}
 	wm, err := k.client.put(endpoint, nil, &resp, w)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, objectWriteError(err)
 	}
 	return &resp, wm, nil
 }

@@ -98,14 +98,15 @@ func (s *HTTPServer) objectKindUpsert(resp http.ResponseWriter, req *http.Reques
 	if objectKind.Group != group || objectKind.Kind != kind {
 		return nil, CodedError(http.StatusBadRequest, "Object kind does not match request path")
 	}
-	dryRun, err := parseBool(req, "dry_run")
+	cas, dryRun, err := parseObjectWriteOptions(req)
 	if err != nil {
 		return nil, CodedError(http.StatusBadRequest, err.Error())
 	}
 
 	args := structs.ObjectKindUpsertRequest{
 		ObjectKind: &objectKind,
-		DryRun:     dryRun != nil && *dryRun,
+		DryRun:     dryRun,
+		CAS:        cas,
 	}
 	s.parseWriteRequest(req, &args.WriteRequest)
 
@@ -296,10 +297,10 @@ func (s *HTTPServer) objectApply(resp http.ResponseWriter, req *http.Request, gr
 	}
 
 	args := structs.CustomObjectApplyRequest{Object: &obj, CAS: cas, DryRun: dryRun}
+	// Without ?namespace= the namespace of the object in the body is the
+	// one of the request (parseWriteRequest leaves a set namespace alone).
+	args.Namespace = obj.Namespace
 	s.parseWriteRequest(req, &args.WriteRequest)
-	if args.Namespace == "" {
-		args.Namespace = obj.Namespace
-	}
 
 	var out structs.CustomObjectWriteResponse
 	if err := s.agent.RPC("CustomObject.Apply", &args, &out); err != nil {

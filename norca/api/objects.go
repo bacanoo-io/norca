@@ -502,7 +502,7 @@ func (k *ObjectKinds) Register(kind *ObjectKind, opts *ObjectWriteOptions, w *Wr
 	endpoint := "/v1/object-kind/" + url.PathEscape(kind.Group) + "/" + url.PathEscape(kind.Kind) + opts.query()
 	wm, err := k.client.put(endpoint, kind, &resp, w)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, objectWriteError(err)
 	}
 	return &resp, wm, nil
 }
