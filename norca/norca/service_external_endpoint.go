@@ -180,15 +180,28 @@ func (s *ServiceRegistration) DeleteExternal(
 	}
 	defer metrics.MeasureSince([]string{"nomad", "service_registration", "delete_external"}, time.Now())
 
-	if err := s.externalServicesEnabled(); err != nil {
-		return err
-	}
+	enabledErr := s.externalServicesEnabled()
 
 	aclObj, err := s.resolveExternalACL(args)
 	if err != nil {
 		return err
 	}
-	if !aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityRegisterExternalService) {
+	allowed := aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilityRegisterExternalService)
+	if enabledErr != nil || !allowed {
+		// The HTTP API sends the deletion of a registration of a service
+		// named "external" here first (DELETE /v1/service/external/:id). It
+		// is not for this endpoint, whatever the checks of external
+		// services say: the answer sends the caller on to DeleteByID. Only
+		// a caller who may delete it there (submit-job) is told so.
+		if aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob) {
+			reg, err := s.srv.fsm.State().GetServiceRegistrationByID(nil, args.RequestNamespace(), args.ID)
+			if err == nil && reg != nil && !reg.IsExternal() {
+				return errNotExternal(args.ID)
+			}
+		}
+		if enabledErr != nil {
+			return enabledErr
+		}
 		return structs.ErrPermissionDenied
 	}
 
