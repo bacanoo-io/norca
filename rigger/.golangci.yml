@@ -107,6 +107,9 @@ linters:
       - vendor$
       - third_party$
       - examples$
+      # The copy of norca's jobspec2 stays as norca has it (SOURCE.md);
+      # Rig's own files there (rig_*.go) are linted.
+      - internal/jobspec2/(functions|hcl_[a-z_]+|parse(_[a-z]+)?|types\.[a-z]+)\.go$
 
   settings:
     dupl:
@@ -152,3 +155,4 @@ formatters:
     paths:
       - third_party$
       - examples$
+      - internal/jobspec2/(functions|hcl_[a-z_]+|parse(_[a-z]+)?|types\.[a-z]+)\.go$

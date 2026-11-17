@@ -919,7 +919,8 @@ norca-rig/
   cli/                    module github.com/bacanoo-io/norca-rig/cli  (the standalone program)
     go.mod                  requires the core and the Norca API client
     cmd/rig/main.go         only main: parse the arguments, wire, run
-    norcaapi/               adapter: the host ports over the Norca HTTP API (public: the deployer may link it)
+    norcaapi/               adapter: the host ports over the Norca HTTP API and its job decoder (public: the deployer may link it)
+    internal/jobspec2/      until phase 7: a copy of norca's jobspec2 with Rig's DecodeJob (question 4)
     localstore/             adapter: Store on the user's and the stack's directories
     internal/command/       the commands of the CLI
 
@@ -956,7 +957,8 @@ install-time values resolved; the same decoder then serves the CLI and the
 server, and the core never follows the job schema by hand (this answers most
 of question 4).
 
-What the spike of phase 0 showed (2026-11-17, `design/spikes/jobspec2-decode/`):
+What the spike of phase 0 showed (2026-11-17; its test is now
+`cli/internal/jobspec2/rig_decode_test.go`):
 
 - The core does not hand over a resolved block but the block as parsed and
   an evaluation context (`host.JobSpec`): `var.*`, `local.*`, `module.*`,
@@ -1288,7 +1290,7 @@ design stays in `design/` and is not published there, as with norca.
 | 4 | Supply chain: digest, sign, verify, trust, bundle, OCI | air-gapped and signed |
 | 5 | The rest of the modules converted; lab case; `norca-rig-deployer` with the `rig:` section | parity with the packs of today |
 | 6 | The global registry repository: namespaces, keys, generated entries, the checks of entries and of stacks; publish workflow; icons in the UI | public catalog |
-| 7 | Into the products: the server embeds the library (server-side evaluation, install form), the deployer and registry branches merged, the pack manager removed | one package manager |
+| 7 | Into the products: the server embeds the library (server-side evaluation, install form), `DecodeJob` moves into norca's `jobspec2` and the copy in `cli/internal/jobspec2` is deleted (question 4), the deployer and registry branches merged, the pack manager removed | one package manager |
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).
@@ -1323,9 +1325,17 @@ registry changes before phase 5 (clones) and phase 7 (the real merge).
    decodes a job file of a module correctly: values of `var`, `local` and
    `rig`, a function of Rig, a `dynamic` block, and the runtime references
    `${attr.kernel.name}`, `${node.class}` and `${NOMAD_ALLOC_DIR}` passed
-   through. It changes nothing for the callers of today. **Open:** when the
-   change goes into norca. The standalone program needs it from phase 2
-   (apply), while norca is not to be changed before phase 7.
+   through. It changes nothing for the callers of today.
+   **Decided by the maintainer (2026-11-17): the change goes into norca in
+   phase 7; until then it is part of this repository.** `cli/internal/jobspec2`
+   holds the non-test files of norca's `jobspec2`, unchanged, and Rig's
+   `DecodeJob` next to them (`SOURCE.md` names the norca commit);
+   `cli/norcaapi` builds the `JobDecoder` on it. `make check-copy` fails when
+   the copy differs from the norca checkout. In phase 7 `DecodeJob` moves
+   into norca and the copy is deleted. The rig program imports norca for
+   this (the CLI module only, never the core): the main module of norca
+   for `jobspec2`, its `api` module for the HTTP client, with norca's own
+   replacements repeated in `cli/go.mod`.
 5. **Keyless signing.** Decided (2026-11-15): **keys first**; Sigstore later
    as a second signer type.
 6. **Reading the cluster** during evaluation (`data` blocks). Decided
@@ -1364,9 +1374,8 @@ registry changes before phase 5 (clones) and phase 7 (the real merge).
     reasons next to the entries; (c) getting listed through an issue form
     and a review.
 
-Open after 2026-11-17: when the small change of question 4 goes into norca,
-question 11 (a consequence of the development order), question 12 (decided
-at the end).
+Open after 2026-11-17: question 11 (a consequence of the development
+order), question 12 (decided at the end).
 Without a phase yet: evaluation on an observer, apply on the leader (section
 12.7); the audit base module, which sits on the internal bus once Rig is
 embedded (section 12.8).

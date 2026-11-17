@@ -16,7 +16,7 @@ Two Go modules in one repository (design 12.1):
 | Path | Module | Holds |
 | --- | --- | --- |
 | `/` | `github.com/bacanoo-io/norca-rig` | the library: package `rig` (the engine), `host` (the ports a host implements), `source` (the port of a fetcher), `resource` (evaluated resources), `oplog` (the log as a tree of operations) |
-| `cli/` | `github.com/bacanoo-io/norca-rig/cli` | the `rig` program, the first host of the library |
+| `cli/` | `github.com/bacanoo-io/norca-rig/cli` | the `rig` program, the first host of the library; `norcaapi` (the ports over Norca); until phase 7 a copy of norca's job decoder (`internal/jobspec2`, see its `SOURCE.md`) |
 
 The library imports nothing of Norca. A host builds the engine from its
 adapters:
@@ -40,7 +40,10 @@ make race lint    # the race detector, golangci-lint v2
 make build        # bin/rig
 ```
 
-`go.work` joins the two modules for development.
+`go.work` joins the two modules for development. The CLI module builds
+against the norca checkout next to this repository (`../norca`);
+`make check-copy` checks that the copy of norca's job decoder still matches
+it.
 
 ## License
 

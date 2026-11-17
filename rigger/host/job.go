@@ -12,20 +12,20 @@ import (
 
 // JobSpec is a job block of a module, ready to be decoded.
 //
-// Body is the block as parsed. EvalContext holds the install-time values
+// Block is the block as parsed; its label is the ID of the job and its
+// ranges place the diagnostics. EvalContext holds the install-time values
 // (var.*, local.*, module.*, rig.*) and the functions of the engine. A
 // reference the context does not hold, such as a node attribute or a task
-// variable, is a runtime reference: the decoder passes it through untouched,
-// as the job decoder of Norca does today (design 4.2).
+// variable, is a runtime reference: the context gives it back as its text
+// (hcl.EvalContext.UndefinedVariable), as the job decoder of Norca does for
+// a job file today (design 4.2).
 //
 // The decoder of Norca takes such a context through a small exported entry
-// point that norca does not have yet (design, question 4); the spike in
-// design/spikes/jobspec2-decode shows it works.
+// point; until norca has it, the rig program carries it in a copy of the
+// decoder (design, question 4).
 type JobSpec struct {
-	// Filename is the file of the block, for diagnostics.
-	Filename string
-	// Body is the content of the job block.
-	Body hcl.Body
+	// Block is the job block.
+	Block *hcl.Block
 	// EvalContext resolves the install-time references of the block.
 	EvalContext *hcl.EvalContext
 }
