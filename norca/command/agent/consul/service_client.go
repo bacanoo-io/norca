@@ -1336,6 +1336,11 @@ func (c *ServiceClient) UpdateWorkload(old, newWorkload *serviceregistration.Wor
 			existingChecks[MakeCheckID(existingID, check)] = check
 		}
 
+		// The IDs under which the checks of the updated service are watched.
+		// For a check executed by the client it is not the Consul check ID:
+		// a change of the check may change the Consul ID and keep it.
+		watched := make(map[string]struct{})
+
 		// Register new checks
 		for _, check := range newSvc.Checks {
 			checkID := MakeCheckID(existingID, check)
@@ -1363,6 +1368,7 @@ func (c *ServiceClient) UpdateWorkload(old, newWorkload *serviceregistration.Wor
 			if check.TriggersRestarts() {
 				watchID := watchCheckID(existingID, newWorkload, check)
 				c.checkWatcher.Watch(newWorkload.AllocInfo.AllocID, newWorkload.Name(), watchID, check, newWorkload.Restarter)
+				watched[watchID] = struct{}{}
 			}
 		}
 
@@ -1370,9 +1376,13 @@ func (c *ServiceClient) UpdateWorkload(old, newWorkload *serviceregistration.Wor
 		for cid, check := range existingChecks {
 			ops.deregChecks = append(ops.deregChecks, cid)
 
-			// Unwatch checks
+			// Unwatch checks, unless the updated check is watched under the
+			// same ID: the Unwatch would end the watch just started above.
 			if check.TriggersRestarts() {
-				c.checkWatcher.Unwatch(watchCheckID(existingID, old, check))
+				watchID := watchCheckID(existingID, old, check)
+				if _, ok := watched[watchID]; !ok {
+					c.checkWatcher.Unwatch(watchID)
+				}
 			}
 		}
 	}

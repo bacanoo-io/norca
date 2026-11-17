@@ -118,3 +118,66 @@ func TestConsul_CheckRoles_LivenessRestart(t *testing.T) {
 		must.Zero(t, atomic.LoadInt64(&restarter.restarts))
 	})
 }
+
+// switchStatuses returns the statuses once failing is set, none before.
+type switchStatuses struct {
+	failing  atomic.Bool
+	statuses staticStatuses
+}
+
+func (s *switchStatuses) Get() (map[string]string, error) {
+	if !s.failing.Load() {
+		return map[string]string{}, nil
+	}
+	return s.statuses.Get()
+}
+
+// A liveness check stays watched when the workload is updated in place with a
+// change of the check that its watch ID (the ID of its result on the client)
+// does not cover, but its Consul check ID does.
+func TestConsul_CheckRoles_LivenessRestart_AfterUpdate(t *testing.T) {
+	ci.Parallel(t)
+
+	changes := map[string]func(*structs.ServiceCheck){
+		"unchanged":              func(*structs.ServiceCheck) {},
+		"success_before_passing": func(c *structs.ServiceCheck) { c.SuccessBeforePassing = 2 },
+		"header":                 func(c *structs.ServiceCheck) { c.Header = map[string][]string{"X-Probe": {"1"}} },
+	}
+	for name, change := range changes {
+		t.Run(name, func(t *testing.T) {
+			ctx := setupFake(t)
+			ctx.Workload = roleChecksWorkload()
+			service := ctx.Workload.Services[0]
+
+			ctx.FakeConsul.SetStatus("passing")
+			local := &switchStatuses{statuses: staticStatuses{
+				string(structs.NomadCheckID(ctx.Workload.AllocInfo.AllocID, "group", service.Checks[2])): string(structs.CheckFailure),
+			}}
+			ctx.ServiceClient.SetLocalCheckStatusGetter(local)
+
+			runCtx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			go ctx.ServiceClient.checkWatcher.Run(runCtx)
+
+			must.NoError(t, ctx.ServiceClient.RegisterWorkload(ctx.Workload))
+			must.NoError(t, ctx.syncOnce(syncNewOps))
+
+			updated := ctx.Workload.Copy()
+			change(updated.Services[0].Checks[2])
+			must.Eq(t,
+				watchCheckID("", ctx.Workload, service.Checks[2]),
+				watchCheckID("", updated, updated.Services[0].Checks[2]))
+			must.NoError(t, ctx.ServiceClient.UpdateWorkload(ctx.Workload, updated))
+			must.NoError(t, ctx.syncOnce(syncNewOps))
+
+			// the liveness check fails after the update
+			local.failing.Store(true)
+			restarter := ctx.Workload.Restarter.(*restartRecorder)
+			must.Wait(t, wait.InitialSuccess(
+				wait.BoolFunc(func() bool { return atomic.LoadInt64(&restarter.restarts) == 1 }),
+				wait.Timeout(5*time.Second),
+				wait.Gap(50*time.Millisecond),
+			))
+		})
+	}
+}
