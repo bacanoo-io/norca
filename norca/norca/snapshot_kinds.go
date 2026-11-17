@@ -76,6 +76,8 @@ const snapshotScheduleKindSchema = `{
         "failures": {"type": "integer", "minimum": 0},
         "retryAt": {"type": "string"},
         "failedRun": {"type": "string"},
+        "deleteFailures": {"type": "integer", "minimum": 0},
+        "deleteRetryAt": {"type": "string"},
         "conditions": {"type": "array", "items": {"type": "object"}},
         "observedGeneration": {"type": "integer", "minimum": 0}
       },

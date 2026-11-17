@@ -383,7 +383,8 @@ func writeTestScheduleStatus(t *testing.T, s *Server, obj *structs.CustomObject,
 
 func TestSnapshotSchedule_Deletion(t *testing.T) {
 	ci.Parallel(t)
-	c, fake, cleanup := snapshotTestServer(t, false, true)
+	// A failed deletion is tried again after the wait of the operator.
+	c, fake, cleanup := snapshotTestServerWith(t, false, true, func(f *fakeSnapshotCSI) { f.retryBase = 500 * time.Millisecond })
 	defer cleanup()
 
 	for _, name := range []string{"keep-them", "drop-them"} {
@@ -946,5 +947,104 @@ func TestSnapshotSchedule_UnfinishedSnapshot(t *testing.T) {
 	c.waitSchedule("slow", "finished under the new ID", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
 		return len(st.Snapshots) == 1 && st.Snapshots[0].ID == "snap-new" && st.Snapshots[0].Ready &&
 			!objectConditionTrue(obj.Status, snapshotConditionFailed)
+	})
+}
+
+// deleteFailedEvents counts the SnapshotDeleteFailed events of a schedule.
+func (c *certTest) deleteFailedEvents(name string) int {
+	c.t.Helper()
+	log, err := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, volumeSnapshotScheduleKind, "default", name)
+	must.NoError(c.t, err)
+	n := 0
+	if log != nil {
+		for _, e := range log.Events {
+			if e.Reason == "SnapshotDeleteFailed" {
+				n += e.Count
+			}
+		}
+	}
+	return n
+}
+
+// A deletion that fails is tried again with a growing wait, and is one
+// event, not one per attempt (review finding SNP-5).
+func TestSnapshotSchedule_DeleteBackoff(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServerWith(t, false, true, func(f *fakeSnapshotCSI) {
+		f.retryBase = time.Second
+		f.deleteErr = errors.New("snapshot in use")
+	})
+	defer cleanup()
+
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "db", map[string]any{
+		"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": 1},
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db", "finalizer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+	})
+	obj, _ := c.schedule("db")
+	writeTestScheduleStatus(t, c.s, obj, &snapshotScheduleStatus{Snapshots: listedSnapshots(fake, "db", 3)})
+
+	// Three rounds of the two deletions.
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		n := 0
+		fake.set(func(f *fakeSnapshotCSI) { n = len(f.deleteSecrets) })
+		return n >= 6
+	}), wait.Timeout(40*time.Second), wait.Gap(100*time.Millisecond)))
+	st := c.waitSchedule("db", "the failures in the status", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return len(st.Snapshots) == 3 && st.Snapshots[1].DeleteError != "" && st.Snapshots[2].DeleteError != ""
+	})
+	must.Eq(t, "", st.Snapshots[0].DeleteError)
+	must.Eq(t, 2, c.deleteFailedEvents("db"))
+	must.GreaterEq(t, 3, st.DeleteFailures)
+	must.NotEq(t, "", st.DeleteRetryAt)
+
+	fake.set(func(f *fakeSnapshotCSI) { f.deleteErr = nil })
+	st = c.waitSchedule("db", "deleted", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return st.Deleted == 2 && len(st.Snapshots) == 1
+	})
+	must.Eq(t, 0, st.DeleteFailures)
+	must.Eq(t, "", st.DeleteRetryAt)
+	must.Eq(t, 2, c.deleteFailedEvents("db"))
+}
+
+// While the secret of a schedule can't be read, its retention sends no
+// deletion to the plugin (review finding SNP-5).
+func TestSnapshotSchedule_RetentionWaitsForSecret(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServer(t, false, true)
+	defer cleanup()
+
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "db", map[string]any{
+		"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": 1}, "secret_path": "csi/later",
+	})
+	must.NoError(t, err)
+	c.waitSchedule("db", "finalizer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+	})
+	obj, _ := c.schedule("db")
+	writeTestScheduleStatus(t, c.s, obj, &snapshotScheduleStatus{Snapshots: listedSnapshots(fake, "db", 3)})
+
+	st := c.waitSchedule("db", "secret unavailable", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		for _, cond := range operatorConditions(obj.Status) {
+			if cond.Type == structs.CertificateConditionReady {
+				return cond.Status == "False" && cond.Reason == "SecretUnavailable"
+			}
+		}
+		return false
+	})
+	must.Eq(t, 3, len(st.Snapshots))
+	must.Eq(t, 0, st.Deleted)
+	fake.set(func(f *fakeSnapshotCSI) { must.Eq(t, 0, len(f.deleteSecrets)) })
+
+	// With the secret the retention goes on.
+	var resp structs.SecretWriteResponse
+	must.NoError(t, c.s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("csi/later", "", structs.SecretItems{"token": "s3cr3t"}), &resp))
+	c.waitSchedule("db", "deleted with the secret", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return st.Deleted == 2 && len(st.Snapshots) == 1
+	})
+	fake.set(func(f *fakeSnapshotCSI) {
+		must.Eq(t, []structs.CSISecrets{{"token": "s3cr3t"}, {"token": "s3cr3t"}}, f.deleteSecrets)
 	})
 }

@@ -104,6 +104,11 @@ type snapshotScheduleStatus struct {
 	// FailedRun is the latest scheduled time that had come when the last
 	// attempt failed: RetryAt holds only until a later time comes.
 	FailedRun string `json:"failedRun,omitempty"`
+
+	// DeleteFailures counts the passes in a row in which a deletion
+	// failed; no deletion is tried before DeleteRetryAt.
+	DeleteFailures int    `json:"deleteFailures,omitempty"`
+	DeleteRetryAt  string `json:"deleteRetryAt,omitempty"`
 }
 
 // scheduledSnapshot is a snapshot a schedule took, or one it has begun: the
@@ -372,7 +377,14 @@ func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.Custo
 	if specErr == nil {
 		o.schedule(p, r, expr, loc)
 		o.finish(p, r)
-		o.retain(p, r.obj, st, maxAge, spec.Keep.Last, secrets)
+		if secretErr == nil {
+			o.retain(p, r.obj, st, maxAge, spec.Keep.Last, secrets)
+		} else if len(st.Snapshots) > 0 {
+			// A deletion without the secret would be refused by a
+			// plugin that needs it, time after time: the retention
+			// waits for the secret. Nothing tells when it is there.
+			p.want(p.now.Add(operatorsRetry))
+		}
 	}
 
 	finalizers := withOperatorsFinalizer(r.obj.Finalizers)
@@ -564,16 +576,40 @@ func (o *snapshotOperator) finish(p *snapshotPass, r *snapshotRun) {
 	}
 }
 
+// deletionsWait reports whether the deletions of a schedule wait for the
+// time the status sets after failed ones.
+func deletionsWait(p *snapshotPass, st *snapshotScheduleStatus) (time.Time, bool) {
+	retryAt, err := time.Parse(time.RFC3339, st.DeleteRetryAt)
+	return retryAt, err == nil && p.now.Before(retryAt)
+}
+
+// deletionsTried records how the deletions of a pass went: after a failed
+// one the next deletions of the schedule wait, a wait that doubles with
+// every pass that fails in a row, as after a failed snapshot.
+func (o *snapshotOperator) deletionsTried(p *snapshotPass, st *snapshotScheduleStatus, failed bool) {
+	if !failed {
+		st.DeleteFailures, st.DeleteRetryAt = 0, ""
+		return
+	}
+	st.DeleteFailures++
+	retryAt := p.now.Add(min(o.retryBase<<min(st.DeleteFailures-1, 16), snapshotRetryMax))
+	st.DeleteRetryAt = retryAt.Format(time.RFC3339)
+	p.want(retryAt)
+}
+
 // retain deletes the snapshots of the schedule its retention rule lets go:
 // one is kept while it is among the last newest, or younger than maxAge.
 // The newest finished snapshot is always kept, and one that is not finished
-// is never deleted.
+// is never deleted. A deletion that fails is in the status (deleteError) and
+// is one event, when it fails first; it is tried again after a growing wait.
 func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st *snapshotScheduleStatus,
 	maxAge time.Duration, last int, secrets structs.CSISecrets) {
 
 	sort.SliceStable(st.Snapshots, func(i, j int) bool { return st.Snapshots[i].Scheduled > st.Snapshots[j].Scheduled })
 	newestReady := slices.IndexFunc(st.Snapshots, func(s *scheduledSnapshot) bool { return s.Ready })
 
+	retryAt, waiting := deletionsWait(p, st)
+	tried, failed := false, false
 	var keep []*scheduledSnapshot
 	for i, s := range st.Snapshots {
 		scheduled, _ := time.Parse(time.RFC3339, s.Scheduled)
@@ -582,6 +618,7 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 			(maxAge > 0 && p.now.Sub(scheduled) < maxAge)
 		if kept {
 			keep = append(keep, s)
+			s.DeleteError = ""
 			// The time it ages out, unless another rule keeps it past
 			// that: a time in the past would run the loop without end.
 			if agesOut := scheduled.Add(maxAge); maxAge > 0 && agesOut.After(p.now) {
@@ -589,12 +626,20 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 			}
 			continue
 		}
+		if waiting {
+			keep = append(keep, s)
+			p.want(retryAt)
+			continue
+		}
+		tried = true
 		if err := o.deleteSnapshot(p, obj.Namespace, s, secrets); err != nil {
+			if s.DeleteError == "" {
+				o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "SnapshotDeleteFailed",
+					fmt.Sprintf("snapshot %s (%s) could not be deleted: %v", s.Name, s.ID, err))
+			}
 			s.DeleteError = err.Error()
 			keep = append(keep, s)
-			p.want(p.now.Add(operatorsRetry))
-			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "SnapshotDeleteFailed",
-				fmt.Sprintf("snapshot %s (%s) could not be deleted: %v", s.Name, s.ID, err))
+			failed = true
 			continue
 		}
 		st.Deleted++
@@ -603,6 +648,9 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 			fmt.Sprintf("snapshot %s (%s) is past the retention", s.Name, s.ID))
 	}
 	st.Snapshots = keep
+	if tried {
+		o.deletionsTried(p, st, failed)
+	}
 }
 
 // deleteSnapshot asks the plugin to delete a snapshot of a schedule of the
@@ -732,6 +780,8 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 		// While the secret can't be read, no snapshot is sent to the
 		// plugin: every one of them waits for it.
 		secrets, secretErr := o.secrets(obj, spec)
+		retryAt, waiting := deletionsWait(p, st)
+		tried, pluginFailed := false, false
 		var failed []string
 		var left []*scheduledSnapshot
 		for _, s := range st.Snapshots {
@@ -743,8 +793,20 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 				continue
 			}
 			err := secretErr
-			if err == nil {
-				err = o.deleteSnapshot(p, obj.Namespace, s, secrets)
+			switch {
+			case err != nil:
+				p.want(p.now.Add(operatorsRetry))
+			case waiting:
+				// Not tried before the wait after the failed ones ends.
+				left = append(left, s)
+				failed = append(failed, s.Name)
+				p.want(retryAt)
+				continue
+			default:
+				tried = true
+				if err = o.deleteSnapshot(p, obj.Namespace, s, secrets); err != nil {
+					pluginFailed = true
+				}
 			}
 			if err != nil {
 				s.DeleteError = err.Error()
@@ -755,9 +817,11 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 			st.Deleted++
 			operatorCount(volumeSnapshotScheduleKind, "snapshots_deleted")
 		}
+		if tried {
+			o.deletionsTried(p, st, pluginFailed)
+		}
 		if len(left) > 0 {
 			st.Snapshots = left
-			p.want(p.now.Add(operatorsRetry))
 			out := &snapshotOutcome{notReadyReason: "Deleting",
 				notReadyMessage: "snapshots that could not be deleted yet: " + strings.Join(failed, ", ")}
 			o.writeSchedule(p, obj, st, out, spec.Suspend, nil)
