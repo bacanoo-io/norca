@@ -124,6 +124,13 @@ func volumeRequestTestServer(t *testing.T, acl bool, cbs ...func(*Config)) (*cer
 	}
 	must.NoError(t, s.State().UpsertNode(structs.MsgTypeTestSetup, 900, node))
 
+	// The leader registers the built-in kinds after it is elected, on its
+	// own time: a request written before that is refused.
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		kind, err := s.State().ObjectKindByName(nil, structs.OperatorsGroup, csiVolumeRequestKind)
+		return err == nil && kind != nil
+	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)), must.Sprint("the kind CSIVolumeRequest is registered"))
+
 	c := &certTest{t: t, s: s}
 	if root != nil {
 		c.token = root.SecretID
