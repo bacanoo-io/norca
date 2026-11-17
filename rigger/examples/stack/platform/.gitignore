@@ -1,0 +1,4 @@
+# Local data of rig for this stack: generated values (encrypted), saved
+# plans, the journal of the last apply. Never the record of what is
+# installed, and not for version control.
+.rig/

@@ -1,0 +1,4 @@
+# The digest of a module is computed over file contents: keep line ends the
+# same on every machine.
+* text=auto eol=lf
+*.png binary
