@@ -1566,8 +1566,22 @@ func (n *nomadFSM) applyNamespaceDelete(buf []byte, index uint64) interface{} {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
+	// Norca: deleting a namespace releases what its allocations use of its
+	// quota; evaluations blocked on the quota can make progress.
+	var trigger []string
+	for _, name := range req.Namespaces {
+		if ns, err := n.state.NamespaceByName(nil, name); err == nil && ns != nil && ns.Quota != "" {
+			trigger = append(trigger, ns.Quota)
+		}
+	}
+
 	if err := n.state.DeleteNamespaces(index, req.Namespaces); err != nil {
 		n.logger.Error("DeleteNamespaces failed", "error", err)
+		return nil
+	}
+
+	for _, quota := range trigger {
+		n.blockedEvals.UnblockQuota(quota, index)
 	}
 
 	return nil

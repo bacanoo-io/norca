@@ -6851,6 +6851,13 @@ func (s *StateStore) DeleteNamespaces(index uint64, names []string) error {
 		if err := txn.Delete(TableNamespaces, existing); err != nil {
 			return fmt.Errorf("namespace deletion failed: %v", err)
 		}
+
+		// Norca: the allocations of a purged or dead job can outlive the
+		// namespace. Their later changes don't find its quota any more, so
+		// what they use of it is released now.
+		if err := s.quotaReconcile(index, txn, "", ns.Quota); err != nil {
+			return err
+		}
 	}
 
 	if err := txn.Insert("index", &IndexEntry{TableNamespaces, index}); err != nil {

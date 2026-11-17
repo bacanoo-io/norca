@@ -341,3 +341,30 @@ func quotaEvents(events []structs.Event) []structs.Event {
 	}
 	return out
 }
+
+// Deleting a namespace releases what its allocations use of its quota
+// (review finding SRV-18): the allocations of a purged job can outlive the
+// namespace, and their later changes no longer find the quota.
+func TestStateStore_QuotaUsage_NamespaceDelete(t *testing.T) {
+	ci.Parallel(t)
+	s := testStateStore(t)
+	spec, ns, job := quotaTestSetup(t, s)
+
+	alloc := quotaTestAlloc(job)
+	must.NoError(t, s.UpsertAllocs(structs.MsgTypeTestSetup, 200, []*structs.Allocation{alloc}))
+	must.Eq(t, int64(1), quotaUsed(t, s, spec.Name).Allocations)
+
+	// The job is purged while its allocation still runs.
+	must.NoError(t, s.DeleteJob(201, job.Namespace, job.ID))
+	must.NoError(t, s.DeleteNamespaces(202, []string{ns.Name}))
+	must.True(t, quotaUsed(t, s, spec.Name).IsZero(), must.Sprintf("usage after the namespace was deleted: %+v", quotaUsed(t, s, spec.Name)))
+	usage, err := s.QuotaUsageByName(nil, spec.Name)
+	must.NoError(t, err)
+	must.Eq(t, uint64(202), usage.ModifyIndex)
+
+	// The scheduler stops the allocation: nothing is released twice.
+	stopped := alloc.Copy()
+	stopped.DesiredStatus = structs.AllocDesiredStatusStop
+	must.NoError(t, s.UpsertAllocs(structs.MsgTypeTestSetup, 203, []*structs.Allocation{stopped}))
+	must.True(t, quotaUsed(t, s, spec.Name).IsZero())
+}
