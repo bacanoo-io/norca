@@ -126,19 +126,34 @@ func (w *tenantWork) owns(ref tenantResourceRef) bool {
 	return ok
 }
 
+// othersResource reports whether the pass knows another tenant as the owner
+// of the resource, and which one.
+func (p *tenantPass) othersResource(tenant string, ref tenantResourceRef) (string, bool) {
+	owner, ok := p.tenants[ref.key()]
+	return owner, ok && owner != tenant
+}
+
 // take decides whether the tenant may write a resource of its name: its
 // own, a new one, or an existing one it adopts. It records a conflict
 // otherwise.
+//
+// A resource has one tenant: what a tenant takes is the pass's knowledge at
+// once, so a tenant later in the same pass can't take it too, and the owner
+// the pass knows is asked before the tenant's own list. Of two tenants
+// that list one resource (which the checks above should never let happen)
+// the one the pass does not know as its owner gives it up.
 func (w *tenantWork) take(ref tenantResourceRef, exists bool) bool {
+	if owner, ok := w.p.othersResource(w.obj.Name, ref); ok {
+		delete(w.owned, ref.key())
+		w.conflicts = append(w.conflicts, fmt.Sprintf("%s belongs to the tenant %s", ref, owner))
+		return false
+	}
 	if w.owns(ref) {
+		w.p.tenants[ref.key()] = w.obj.Name
 		return true
 	}
 	if owner, ok := w.p.releases[ref.key()]; ok {
 		w.conflicts = append(w.conflicts, fmt.Sprintf("%s belongs to the release %s", ref, owner))
-		return false
-	}
-	if owner, ok := w.p.tenants[ref.key()]; ok && owner != w.obj.Name {
-		w.conflicts = append(w.conflicts, fmt.Sprintf("%s belongs to the tenant %s", ref, owner))
 		return false
 	}
 	if exists && !slices.Contains(w.spec.Adopt, ref.Type) {
@@ -149,6 +164,7 @@ func (w *tenantWork) take(ref tenantResourceRef, exists bool) bool {
 		w.o.srv.operatorEvent(w.obj, structs.ObjectEventTypeNormal, "Adopted", fmt.Sprintf("took over the existing %s", ref))
 	}
 	w.owned[ref.key()] = ref
+	w.p.tenants[ref.key()] = w.obj.Name
 	return true
 }
 
@@ -313,6 +329,11 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		if !acls && (ref.Type == structs.TenantResourceACLPolicy || ref.Type == structs.TenantResourceACLRole) {
 			continue
 		}
+		if _, ok := p.othersResource(obj.Name, ref); ok {
+			// Another tenant's: not this one's to delete, or to list.
+			delete(w.owned, ref.key())
+			continue
+		}
 		if err := o.deleteResource(ref); err != nil {
 			w.failures = append(w.failures, fmt.Sprintf("deleting %s: %v", ref, err))
 			o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "DeleteFailed", fmt.Sprintf("deleting %s failed: %v", ref, err))
@@ -418,7 +439,11 @@ func (o *tenantOperator) finishDeletion(p *tenantPass, obj *structs.CustomObject
 	_ = structs.DecodeObjectPart(obj.Status, status)
 	owned := map[string]tenantResourceRef{}
 	for _, ref := range status.Resources {
-		owned[ref.key()] = ref
+		// What the pass knows as another tenant's is not deleted with
+		// this one.
+		if _, ok := p.othersResource(obj.Name, ref); !ok {
+			owned[ref.key()] = ref
+		}
 	}
 	w := &tenantWork{o: o, p: p, obj: obj, owned: owned}
 

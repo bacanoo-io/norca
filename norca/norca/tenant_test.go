@@ -14,6 +14,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
+	"github.com/hashicorp/go-memdb"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
@@ -450,4 +451,53 @@ func TestTenant_InvalidSpecKeepsNamespace(t *testing.T) {
 	})
 	must.Eq(t, "keeps", obj.Status["namespace"], must.Sprintf("status: %v", obj.Status))
 	must.SliceContains(t, tenantResources(obj), "namespace//keeps")
+}
+
+// newTenantPass returns what a pass of the operator reads, for the tests
+// that drive a tenant by hand.
+func newTenantPass(t *testing.T, s *Server) *tenantPass {
+	t.Helper()
+	snap, err := s.State().Snapshot()
+	must.NoError(t, err)
+	p := &tenantPass{now: time.Now().UTC(), store: s.State(), ws: memdb.NewWatchSet()}
+	p.releases, err = releaseOwners(snap)
+	must.NoError(t, err)
+	p.tenants, err = tenantOwners(snap)
+	must.NoError(t, err)
+	return p
+}
+
+// A resource one tenant took in a pass is not taken by another tenant of the
+// same pass, and of two tenants that both list a resource one gives it up
+// (review finding TEN-5).
+func TestTenant_TakeOnce(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	o := newTenantOperator(c.s, c.s.logger)
+	p := newTenantPass(t, c.s)
+
+	tenant := func(name string, adopt ...string) *tenantWork {
+		obj := &structs.CustomObject{Group: structs.OperatorsGroup, Kind: structs.TenantKind, Name: name}
+		return &tenantWork{o: o, p: p, obj: obj, spec: &tenantSpec{Adopt: adopt}, owned: map[string]tenantResourceRef{}}
+	}
+	ref := tenantResourceRef{Type: structs.TenantResourceNamespace, Name: "x"}
+
+	a := tenant("a")
+	must.True(t, a.take(ref, false))
+
+	// b comes later in the same pass: a has created x by now, and b adopts.
+	b := tenant("b", structs.TenantResourceNamespace)
+	must.False(t, b.take(ref, true), must.Sprint("b took the namespace a took in the same pass"))
+	must.False(t, b.owns(ref))
+	must.SliceLen(t, 1, b.conflicts)
+	must.StrContains(t, b.conflicts[0], "belongs to the tenant a")
+
+	// Two tenants that list the resource already: the pass knows one owner,
+	// the other one gives the resource up.
+	p.tenants[ref.key()] = "a"
+	b2 := tenant("b")
+	b2.owned[ref.key()] = ref
+	must.False(t, b2.take(ref, true))
+	must.False(t, b2.owns(ref), must.Sprint("b still lists the namespace of a"))
 }
