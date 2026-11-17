@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"sync"
 	"time"
@@ -20,16 +21,25 @@ import (
 // The request rate limits per ACL token of the HTTP API of a server (Norca,
 // design raft-observers-and-hot-standby.md, phase 4). Off by default.
 
-// anonymousBucket is the key of the requests without a known ACL token:
-// anonymous requests, unknown or expired tokens and workload identities
-// share it, so random tokens do not get a limit each.
+// anonymousBucket is what resolve returns for a request without a known ACL
+// token: anonymous requests, unknown or expired tokens, workload identities,
+// and every request while ACLs are off. Such a request is limited by its
+// client address, so random tokens do not get a limit each, and one client
+// can't use up the requests of the others.
 const anonymousBucket = ""
 
-// tokenRateLimitIdle is how long the buckets of a token that sends no
-// request are kept.
+// tokenRateLimitIdle is how long the buckets of a token or of a client
+// address that sends no request are kept.
 const tokenRateLimitIdle = 10 * time.Minute
 
-// tokenRateLimiter keeps a read and a write token bucket per ACL token.
+// tokenRateLimitMaxBuckets is the most tokens, and the most client addresses,
+// that have buckets of their own at a time. A new token or address beyond it
+// is limited by the shared bucket until idle ones are dropped: the memory of
+// the limiter is bounded, and no request goes unlimited.
+const tokenRateLimitMaxBuckets = 16384
+
+// tokenRateLimiter keeps a read and a write token bucket per ACL token, and
+// per client address for the requests without a known token.
 type tokenRateLimiter struct {
 	readRate, writeRate   rate.Limit
 	readBurst, writeBurst int
@@ -40,8 +50,18 @@ type tokenRateLimiter struct {
 
 	now func() time.Time
 
-	mu        sync.Mutex
-	buckets   map[string]*tokenBuckets
+	// maxBuckets is the cap of each of the two maps.
+	maxBuckets int
+
+	mu sync.Mutex
+	// buckets are those of the ACL tokens, by accessor ID.
+	buckets map[string]*tokenBuckets
+	// clients are those of the client addresses, by clientBucketKey.
+	clients map[string]*tokenBuckets
+	// shared limits the requests that have no bucket of their own: those
+	// without a usable client address, and those of new tokens and
+	// addresses while their map is full.
+	shared    *tokenBuckets
 	lastSweep time.Time
 }
 
@@ -96,10 +116,59 @@ func newTokenRateLimiter(l config.Limits, resolve func(string) string) (*tokenRa
 	return &tokenRateLimiter{
 		readRate: limit(readRate), writeRate: limit(writeRate),
 		readBurst: readBurst, writeBurst: writeBurst,
-		resolve: resolve,
-		now:     time.Now,
-		buckets: make(map[string]*tokenBuckets),
+		resolve:    resolve,
+		now:        time.Now,
+		maxBuckets: tokenRateLimitMaxBuckets,
+		buckets:    make(map[string]*tokenBuckets),
+		clients:    make(map[string]*tokenBuckets),
 	}, nil
+}
+
+// clientBucketKey returns the key of the bucket of the client at a remote
+// address ("ip:port" of the connection, never a header a client can set): an
+// IPv4 address, or the /64 of an IPv6 address, as a host has a whole /64 to
+// send from. It returns "" for an address it can't read.
+func clientBucketKey(remoteAddr string) string {
+	ap, err := netip.ParseAddrPort(remoteAddr)
+	if err != nil {
+		return ""
+	}
+	addr := ap.Addr().Unmap().WithZone("")
+	if addr.Is4() {
+		return addr.String()
+	}
+	prefix, err := addr.Prefix(64)
+	if err != nil {
+		return ""
+	}
+	return prefix.String()
+}
+
+// newBuckets returns a full pair of buckets.
+func (l *tokenRateLimiter) newBuckets() *tokenBuckets {
+	return &tokenBuckets{
+		read:  rate.NewLimiter(l.readRate, l.readBurst),
+		write: rate.NewLimiter(l.writeRate, l.writeBurst),
+	}
+}
+
+// bucketsLocked returns the buckets of key in m, new ones while m has room,
+// else the shared ones.
+func (l *tokenRateLimiter) bucketsLocked(m map[string]*tokenBuckets, key string) *tokenBuckets {
+	if key != "" {
+		if b := m[key]; b != nil {
+			return b
+		}
+		if len(m) < l.maxBuckets {
+			b := l.newBuckets()
+			m[key] = b
+			return b
+		}
+	}
+	if l.shared == nil {
+		l.shared = l.newBuckets()
+	}
+	return l.shared
 }
 
 // isReadRequest reports whether a request counts against the read limit.
@@ -111,31 +180,33 @@ func isReadRequest(req *http.Request) bool {
 	return false
 }
 
-// allow takes a request of the token from its bucket. It returns false and
-// the time to wait when the bucket is empty.
-func (l *tokenRateLimiter) allow(secret string, read bool) (bool, time.Duration) {
-	key := anonymousBucket
+// allow takes a request from the bucket of its token, or without a known
+// token from the bucket of its client address (the remote address of the
+// connection). It returns false and the time to wait when the bucket is
+// empty.
+func (l *tokenRateLimiter) allow(secret, remoteAddr string, read bool) (bool, time.Duration) {
+	accessor := anonymousBucket
 	if secret != "" && l.resolve != nil {
-		key = l.resolve(secret)
+		accessor = l.resolve(secret)
 	}
 	now := l.now()
 
 	l.mu.Lock()
 	if now.Sub(l.lastSweep) > time.Minute {
-		for k, b := range l.buckets {
-			if now.Sub(b.seen) > tokenRateLimitIdle {
-				delete(l.buckets, k)
+		for _, m := range []map[string]*tokenBuckets{l.buckets, l.clients} {
+			for k, b := range m {
+				if now.Sub(b.seen) > tokenRateLimitIdle {
+					delete(m, k)
+				}
 			}
 		}
 		l.lastSweep = now
 	}
-	b := l.buckets[key]
-	if b == nil {
-		b = &tokenBuckets{
-			read:  rate.NewLimiter(l.readRate, l.readBurst),
-			write: rate.NewLimiter(l.writeRate, l.writeBurst),
-		}
-		l.buckets[key] = b
+	var b *tokenBuckets
+	if accessor != anonymousBucket {
+		b = l.bucketsLocked(l.buckets, accessor)
+	} else {
+		b = l.bucketsLocked(l.clients, clientBucketKey(remoteAddr))
 	}
 	b.seen = now
 	l.mu.Unlock()
@@ -157,8 +228,9 @@ func (l *tokenRateLimiter) allow(secret string, read bool) (bool, time.Duration)
 
 // rateLimitExempt reports whether the requests of a path are never limited:
 // the health and status endpoints, which load balancers and Consul probe
-// without a token. In the shared anonymous bucket anyone could use up their
-// requests and have the server marked unhealthy.
+// without a token. Behind a proxy or a NAT they share the address, and so
+// the bucket, of other clients, who could use up their requests and have the
+// server marked unhealthy.
 func rateLimitExempt(path string) bool {
 	switch path {
 	case "/v1/agent/health", "/v1/status/leader", "/v1/status/peers":
@@ -167,8 +239,9 @@ func rateLimitExempt(path string) bool {
 	return false
 }
 
-// rateLimited answers 429 with Retry-After when the token of the request is
-// over its limit, and reports whether it did.
+// rateLimited answers 429 with Retry-After when the token of the request, or
+// without a known token its client address, is over its limit, and reports
+// whether it did.
 func (s *HTTPServer) rateLimited(resp http.ResponseWriter, req *http.Request) bool {
 	if s.rateLimiter == nil || rateLimitExempt(req.URL.Path) {
 		return false
@@ -176,7 +249,7 @@ func (s *HTTPServer) rateLimited(resp http.ResponseWriter, req *http.Request) bo
 	var secret string
 	s.parseToken(req, &secret)
 	read := isReadRequest(req)
-	ok, wait := s.rateLimiter.allow(secret, read)
+	ok, wait := s.rateLimiter.allow(secret, req.RemoteAddr, read)
 	if ok {
 		return false
 	}
@@ -188,7 +261,7 @@ func (s *HTTPServer) rateLimited(resp http.ResponseWriter, req *http.Request) bo
 		[]metrics.Label{{Name: "kind", Value: kind}})
 	resp.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
 	resp.WriteHeader(http.StatusTooManyRequests)
-	fmt.Fprintf(resp, "rate limit of the %s requests of this token exceeded, retry after %s\n",
+	fmt.Fprintf(resp, "rate limit of the %s requests of this token or client address exceeded, retry after %s\n",
 		kind, wait.Round(time.Millisecond))
 	return true
 }
