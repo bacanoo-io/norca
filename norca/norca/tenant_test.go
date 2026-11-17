@@ -6,6 +6,7 @@ package norca
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -486,11 +487,11 @@ func TestTenant_TakeOnce(t *testing.T) {
 	ref := tenantResourceRef{Type: structs.TenantResourceNamespace, Name: "x"}
 
 	a := tenant("a")
-	must.True(t, a.take(ref, false))
+	must.True(t, a.take(ref, nil))
 
 	// b comes later in the same pass: a has created x by now, and b adopts.
 	b := tenant("b", structs.TenantResourceNamespace)
-	must.False(t, b.take(ref, true), must.Sprint("b took the namespace a took in the same pass"))
+	must.False(t, b.take(ref, &tenantOriginal{}), must.Sprint("b took the namespace a took in the same pass"))
 	must.False(t, b.owns(ref))
 	must.SliceLen(t, 1, b.conflicts)
 	must.StrContains(t, b.conflicts[0], "belongs to the tenant a")
@@ -500,7 +501,7 @@ func TestTenant_TakeOnce(t *testing.T) {
 	p.tenants[ref.key()] = "a"
 	b2 := tenant("b")
 	b2.owned[ref.key()] = ref
-	must.False(t, b2.take(ref, true))
+	must.False(t, b2.take(ref, &tenantOriginal{}))
 	must.False(t, b2.owns(ref), must.Sprint("b still lists the namespace of a"))
 }
 
@@ -905,11 +906,12 @@ type tenantByHand struct {
 	c *certTest
 }
 
-func (h tenantByHand) namespace(name string) {
+func (h tenantByHand) namespace(name, quota string, meta map[string]string) {
 	h.c.t.Helper()
 	var resp structs.GenericResponse
 	must.NoError(h.c.t, h.c.s.RPC("Namespace.UpsertNamespaces", &structs.NamespaceUpsertRequest{
-		Namespaces: []*structs.Namespace{{Name: name, Description: "made by hand"}}, WriteRequest: h.c.write(""),
+		Namespaces:   []*structs.Namespace{{Name: name, Description: "made by hand", Quota: quota, Meta: meta}},
+		WriteRequest: h.c.write(""),
 	}, &resp))
 }
 
@@ -918,42 +920,81 @@ func (h tenantByHand) quota(name string) {
 	var resp structs.GenericResponse
 	must.NoError(h.c.t, h.c.s.RPC("Quota.UpsertQuotaSpecs", &structs.QuotaSpecUpsertRequest{
 		Quotas: []*structs.QuotaSpec{{Name: name, Description: "made by hand", Limits: []*structs.QuotaLimit{
-			{Region: "global", RegionLimit: &structs.Resources{CPU: 100}},
+			{Region: "global", RegionLimit: &structs.Resources{CPU: 100, MemoryMB: 200}},
 		}}},
 		WriteRequest: h.c.write(""),
 	}, &resp))
 }
 
-func (h tenantByHand) policyAndRole(name string) {
+func (h tenantByHand) deleteQuota(name string) {
+	h.c.t.Helper()
+	var resp structs.GenericResponse
+	must.NoError(h.c.t, h.c.s.RPC("Quota.DeleteQuotaSpecs", &structs.QuotaSpecDeleteRequest{
+		Names: []string{name}, WriteRequest: h.c.write(""),
+	}, &resp))
+}
+
+func (h tenantByHand) policy(name, rules string) {
 	h.c.t.Helper()
 	var resp structs.GenericResponse
 	must.NoError(h.c.t, h.c.s.RPC("ACL.UpsertPolicies", &structs.ACLPolicyUpsertRequest{
-		Policies:     []*structs.ACLPolicy{{Name: name, Description: "made by hand", Rules: `node { policy = "read" }`}},
+		Policies:     []*structs.ACLPolicy{{Name: name, Description: "made by hand", Rules: rules}},
 		WriteRequest: h.c.write(""),
 	}, &resp))
+}
+
+// policyAndRole makes a policy, a second policy "<name>-other", and a role
+// of the name that links the second one: what a tenant never writes.
+func (h tenantByHand) policyAndRole(name string) {
+	h.c.t.Helper()
+	h.policy(name, `node { policy = "read" }`)
+	h.policy(name+"-other", `agent { policy = "read" }`)
 	var roles structs.ACLRolesUpsertResponse
 	must.NoError(h.c.t, h.c.s.RPC(structs.ACLUpsertRolesRPCMethod, &structs.ACLRolesUpsertRequest{
 		ACLRoles: []*structs.ACLRole{{Name: name, Description: "made by hand",
-			Policies: []*structs.ACLRolePolicyLink{{Name: name}}}},
+			Policies: []*structs.ACLRolePolicyLink{{Name: name + "-other"}}}},
 		WriteRequest: h.c.write(""),
 	}, &roles))
 }
 
-// tenantAdopted returns the keys of the resources the status marks adopted.
-func tenantAdopted(obj *structs.CustomObject) []string {
+func (h tenantByHand) networkPolicy(namespace string) *structs.NetworkPolicy {
+	h.c.t.Helper()
+	np := &structs.NetworkPolicy{
+		Name: structs.TenantNetworkPolicyName, Namespace: namespace, Description: "made by hand",
+		Ingress: []*structs.NetworkPolicyRule{{Name: "office", Peers: []*structs.NetworkPolicyPeer{{CIDR: []string{"192.0.2.0/24"}}}}},
+	}
+	var resp structs.GenericResponse
+	must.NoError(h.c.t, h.c.s.RPC("NetworkPolicy.UpsertNetworkPolicies", &structs.NetworkPolicyUpsertRequest{
+		NetworkPolicies: []*structs.NetworkPolicy{np.Copy()}, WriteRequest: h.c.write(namespace),
+	}, &resp))
+	return np
+}
+
+// tenantRefs returns the resources of the status of a tenant by key.
+func tenantRefs(obj *structs.CustomObject) map[string]tenantResourceRef {
 	st := &tenantStatus{}
 	_ = structs.DecodeObjectPart(obj.Status, st)
-	out := []string{}
+	out := map[string]tenantResourceRef{}
 	for _, r := range st.Resources {
-		if r.Adopted {
-			out = append(out, r.key())
-		}
+		out[r.key()] = r
 	}
 	return out
 }
 
+// tenantAdopted returns the keys of the resources the status marks adopted.
+func tenantAdopted(obj *structs.CustomObject) []string {
+	out := []string{}
+	for key, r := range tenantRefs(obj) {
+		if r.Adopted {
+			out = append(out, key)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // tenantEvents returns the events of a tenant as "Reason: message".
-func tenantEvents(c *certTest, name string) []string {
+func tenantEvents(c *certTest, name string) string {
 	log, err := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, structs.TenantKind, "", name)
 	must.NoError(c.t, err)
 	var out []string
@@ -962,7 +1003,7 @@ func tenantEvents(c *certTest, name string) []string {
 			out = append(out, e.Reason+": "+e.Message)
 		}
 	}
-	return out
+	return strings.Join(out, "\n")
 }
 
 func waitTenantGone(c *certTest, name string) {
@@ -971,22 +1012,25 @@ func waitTenantGone(c *certTest, name string) {
 		return c.get("", structs.TenantKind, name) == nil
 	}), wait.Timeout(60*time.Second), wait.Gap(100*time.Millisecond)),
 		must.Func(func() string {
-			return fmt.Sprintf("the tenant %s is still there: %v; events: %q", name, c.get("", structs.TenantKind, name), tenantEvents(c, name))
+			return fmt.Sprintf("the tenant %s is still there: %v; events: %s", name, c.get("", structs.TenantKind, name), tenantEvents(c, name))
 		}))
 }
 
-// What a tenant took over stays when the tenant is deleted; what it created
-// goes (review finding TEN-8).
-func TestTenant_AdoptedStay(t *testing.T) {
+// What a tenant took over is given back as the tenant found it when the
+// tenant is deleted; what it created goes (review finding TEN-8, adoption as
+// a loan).
+func TestTenant_AdoptedGivenBack(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newTenantTest(t)
 	defer cleanup()
 	store := c.s.State()
 	hand := tenantByHand{c}
 
-	hand.namespace("kept")
+	hand.quota("old-quota")
+	hand.namespace("kept", "old-quota", map[string]string{"team": "old"})
 	hand.quota("team-ad")
 	hand.policyAndRole("team-ad-dev")
+	handNP := hand.networkPolicy("kept")
 
 	_, err := c.apply("", structs.TenantKind, "team-ad", map[string]any{
 		"namespace": map[string]any{"name": "kept", "description": "Team AD", "meta": map[string]any{"owner": "ad"}},
@@ -995,24 +1039,36 @@ func TestTenant_AdoptedStay(t *testing.T) {
 			"dev":   []any{"submit-job"},
 			"extra": []any{"read-job"},
 		},
-		"network":                  map[string]any{"isolation": "namespace"},
-		"dns_suffixes":             []any{"ad.example.com"},
-		"certificate_dns_suffixes": []any{"ad.example.com"},
-		"adopt":                    []any{"namespace", "quota", "acl-policy", "acl-role"},
+		"network":      map[string]any{"isolation": "namespace"},
+		"dns_suffixes": []any{"ad.example.com"},
+		"adopt":        []any{"namespace", "quota", "acl-policy", "acl-role", "network-policy"},
 	})
 	must.NoError(t, err)
 	obj := waitTenant(c, "team-ad", "ready", tenantReady)
-	must.SliceContainsAll(t, tenantAdopted(obj), []string{
-		"namespace//kept", "quota//team-ad", "acl-policy//team-ad-dev", "acl-role//team-ad-dev",
-	}, must.Sprintf("status: %v", obj.Status))
+	must.Eq(t, []string{
+		"acl-policy//team-ad-dev", "acl-role//team-ad-dev", "namespace//kept",
+		"network-policy/kept/tenant-isolation", "quota//team-ad",
+	}, tenantAdopted(obj), must.Sprintf("status: %v", obj.Status))
+	refs := tenantRefs(obj)
+	must.Eq(t, &tenantOriginal{Description: "made by hand", Meta: map[string]string{"team": "old"}, Quota: "old-quota"},
+		refs["namespace//kept"].Original)
+	must.Eq(t, `node { policy = "read" }`, refs["acl-policy//team-ad-dev"].Original.Rules)
+	must.Eq(t, []string{"team-ad-dev-other"}, refs["acl-role//team-ad-dev"].Original.Policies)
+	must.Nil(t, refs["acl-policy//team-ad-extra"].Original)
 
 	// While the tenant lives, what it took over is as its spec says.
 	ns, _ := store.NamespaceByName(nil, "kept")
 	must.Eq(t, "Team AD", ns.Description)
 	must.Eq(t, "team-ad", ns.Quota)
 	must.Eq(t, "ad.example.com", ns.Meta[structs.NamespaceMetaDNSSuffixes])
+	q, _ := store.QuotaSpecByName(nil, "team-ad")
+	must.Eq(t, 8000, q.Limits[0].RegionLimit.CPU)
 	pol, _ := store.ACLPolicyByName(nil, "team-ad-dev")
 	must.StrContains(t, pol.Rules, "submit-job")
+	role, _ := store.GetACLRoleByName(nil, "team-ad-dev")
+	must.Eq(t, "team-ad-dev", role.Policies[0].Name)
+	np, _ := store.NetworkPolicyByName(nil, "kept", structs.TenantNetworkPolicyName)
+	must.Eq(t, "tenant", np.Ingress[0].Name)
 
 	// A variable in the namespace: the tenant does not delete the namespace,
 	// so it does not wait for it to empty.
@@ -1025,34 +1081,41 @@ func TestTenant_AdoptedStay(t *testing.T) {
 	must.NoError(t, c.delete("", structs.TenantKind, "team-ad"))
 	waitTenantGone(c, "team-ad")
 
-	// What it took over is there.
+	// Everything it took over is as it was.
 	ns, _ = store.NamespaceByName(nil, "kept")
-	must.NotNil(t, ns, must.Sprint("the namespace the tenant took over was deleted"))
-	q, _ := store.QuotaSpecByName(nil, "team-ad")
-	must.NotNil(t, q, must.Sprint("the quota the tenant took over was deleted"))
+	must.NotNil(t, ns)
+	must.Eq(t, "made by hand", ns.Description)
+	must.Eq(t, map[string]string{"team": "old"}, ns.Meta)
+	must.Eq(t, "old-quota", ns.Quota)
+	q, _ = store.QuotaSpecByName(nil, "team-ad")
+	must.NotNil(t, q)
+	must.Eq(t, "made by hand", q.Description)
+	must.Len(t, 1, q.Limits)
+	must.Eq(t, 100, q.Limits[0].RegionLimit.CPU)
+	must.Eq(t, 200, q.Limits[0].RegionLimit.MemoryMB)
 	pol, _ = store.ACLPolicyByName(nil, "team-ad-dev")
-	must.NotNil(t, pol, must.Sprint("the policy the tenant took over was deleted"))
-	role, _ := store.GetACLRoleByName(nil, "team-ad-dev")
-	must.NotNil(t, role, must.Sprint("the role the tenant took over was deleted"))
-
-	// The namespace keeps its limit and what is not a right, and loses the
-	// rights the tenant gave it.
-	must.Eq(t, "team-ad", ns.Quota)
-	must.Eq(t, "ad", ns.Meta["owner"])
-	must.MapNotContainsKey(t, ns.Meta, structs.NamespaceMetaDNSSuffixes)
-	must.MapNotContainsKey(t, ns.Meta, structs.NamespaceMetaCertificateDNSSuffixes)
+	must.NotNil(t, pol)
+	must.Eq(t, `node { policy = "read" }`, pol.Rules)
+	must.Eq(t, "made by hand", pol.Description)
+	role, _ = store.GetACLRoleByName(nil, "team-ad-dev")
+	must.NotNil(t, role)
+	must.Eq(t, "made by hand", role.Description)
+	must.Len(t, 1, role.Policies)
+	must.Eq(t, "team-ad-dev-other", role.Policies[0].Name)
+	np, _ = store.NetworkPolicyByName(nil, "kept", structs.TenantNetworkPolicyName)
+	must.NotNil(t, np)
+	must.True(t, networkPolicyMatches(np, handNP), must.Sprintf("network policy: %#v", np))
 
 	// What it created is gone.
 	pol, _ = store.ACLPolicyByName(nil, "team-ad-extra")
 	must.Nil(t, pol)
 	role, _ = store.GetACLRoleByName(nil, "team-ad-extra")
 	must.Nil(t, role)
-	np, _ := store.NetworkPolicyByName(nil, "kept", structs.TenantNetworkPolicyName)
-	must.Nil(t, np)
 }
 
-// A namespace the tenant created goes, the quota it took over stays; the
-// event of the deletion says so while the tenant waits for the namespace.
+// A namespace the tenant created goes, the quota it took over is given back;
+// the event of the deletion says so while the tenant waits for the
+// namespace.
 func TestTenant_AdoptedQuotaCreatedNamespace(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newTenantTest(t)
@@ -1077,8 +1140,8 @@ func TestTenant_AdoptedQuotaCreatedNamespace(t *testing.T) {
 	waitTenant(c, "team-bq", "waiting for the namespace", func(o *structs.CustomObject) bool {
 		return objectConditionTrue(o.Status, structs.TenantConditionNamespaceNotEmpty)
 	})
-	events := strings.Join(tenantEvents(c, "team-bq"), "\n")
-	must.StrContains(t, events, "Released: the deleted tenant leaves in place: quota team-bq (taken over by the tenant)")
+	must.StrContains(t, tenantEvents(c, "team-bq"),
+		"Released: the deleted tenant gives back what it took over, restored to what the tenant found: quota team-bq")
 
 	var deregResp structs.JobDeregisterResponse
 	must.NoError(t, c.s.RPC("Job.Deregister", &structs.JobDeregisterRequest{
@@ -1088,18 +1151,20 @@ func TestTenant_AdoptedQuotaCreatedNamespace(t *testing.T) {
 	ns, _ := store.NamespaceByName(nil, "team-bq")
 	must.Nil(t, ns)
 	q, _ := store.QuotaSpecByName(nil, "team-bq")
-	must.NotNil(t, q, must.Sprint("the quota the tenant took over was deleted"))
+	must.NotNil(t, q)
+	must.Eq(t, 100, q.Limits[0].RegionLimit.CPU)
 }
 
-// A namespace the tenant took over stays with the quota the tenant created
-// for it: a namespace that stays keeps its limit, and the deletion is not
-// stuck on a quota in use.
+// A namespace the tenant took over names its own quota again when the
+// tenant goes, and the quota the tenant created for it is deleted.
 func TestTenant_AdoptedNamespaceCreatedQuota(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newTenantTest(t)
 	defer cleanup()
 	store := c.s.State()
-	tenantByHand{c}.namespace("team-cq")
+	hand := tenantByHand{c}
+	hand.quota("old-quota")
+	hand.namespace("team-cq", "old-quota", nil)
 
 	_, err := c.apply("", structs.TenantKind, "team-cq", map[string]any{
 		"quota": map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 8000}}},
@@ -1109,21 +1174,22 @@ func TestTenant_AdoptedNamespaceCreatedQuota(t *testing.T) {
 	must.NoError(t, err)
 	obj := waitTenant(c, "team-cq", "ready", tenantReady)
 	must.Eq(t, []string{"namespace//team-cq"}, tenantAdopted(obj))
+	ns, _ := store.NamespaceByName(nil, "team-cq")
+	must.Eq(t, "team-cq", ns.Quota)
 
 	must.NoError(t, c.delete("", structs.TenantKind, "team-cq"))
 	waitTenantGone(c, "team-cq")
-	ns, _ := store.NamespaceByName(nil, "team-cq")
-	must.NotNil(t, ns, must.Sprint("the namespace the tenant took over was deleted"))
-	must.Eq(t, "team-cq", ns.Quota)
+	ns, _ = store.NamespaceByName(nil, "team-cq")
+	must.NotNil(t, ns)
+	must.Eq(t, "old-quota", ns.Quota)
 	q, _ := store.QuotaSpecByName(nil, "team-cq")
-	must.NotNil(t, q)
-	must.Eq(t, 8000, q.Limits[0].RegionLimit.CPU)
+	must.Nil(t, q, must.Sprint("the quota the tenant created stayed"))
 	role, _ := store.GetACLRoleByName(nil, "team-cq-dev")
 	must.Nil(t, role)
 }
 
-// A role the tenant took over and that leaves the spec is released, not
-// deleted; one the tenant created is deleted.
+// A role the tenant took over and that leaves the spec is given back as it
+// was; one the tenant created is deleted.
 func TestTenant_AdoptedRoleLeavesSpec(t *testing.T) {
 	ci.Parallel(t)
 	c, cleanup := newTenantTest(t)
@@ -1131,14 +1197,15 @@ func TestTenant_AdoptedRoleLeavesSpec(t *testing.T) {
 	store := c.s.State()
 	tenantByHand{c}.policyAndRole("team-rl-old")
 
-	spec := map[string]any{
+	_, err := c.apply("", structs.TenantKind, "team-rl", map[string]any{
 		"roles": map[string]any{"old": []any{"read-job"}, "new": []any{"submit-job"}},
 		"adopt": []any{"acl-policy", "acl-role"},
-	}
-	_, err := c.apply("", structs.TenantKind, "team-rl", spec)
+	})
 	must.NoError(t, err)
 	obj := waitTenant(c, "team-rl", "ready", tenantReady)
 	must.Eq(t, []string{"acl-policy//team-rl-old", "acl-role//team-rl-old"}, tenantAdopted(obj))
+	role, _ := store.GetACLRoleByName(nil, "team-rl-old")
+	must.Eq(t, "team-rl-old", role.Policies[0].Name)
 
 	// Both roles leave the spec, and adopt with them: the mark stays.
 	_, err = c.apply("", structs.TenantKind, "team-rl", map[string]any{})
@@ -1149,16 +1216,228 @@ func TestTenant_AdoptedRoleLeavesSpec(t *testing.T) {
 	must.Eq(t, []string{"namespace//team-rl"}, tenantResources(obj))
 
 	pol, _ := store.ACLPolicyByName(nil, "team-rl-old")
-	must.NotNil(t, pol, must.Sprint("the policy the tenant took over was deleted"))
-	role, _ := store.GetACLRoleByName(nil, "team-rl-old")
-	must.NotNil(t, role, must.Sprint("the role the tenant took over was deleted"))
+	must.NotNil(t, pol)
+	must.Eq(t, `node { policy = "read" }`, pol.Rules)
+	role, _ = store.GetACLRoleByName(nil, "team-rl-old")
+	must.NotNil(t, role)
+	must.Eq(t, "made by hand", role.Description)
+	must.Eq(t, "team-rl-old-other", role.Policies[0].Name)
 	pol, _ = store.ACLPolicyByName(nil, "team-rl-new")
 	must.Nil(t, pol)
 	role, _ = store.GetACLRoleByName(nil, "team-rl-new")
 	must.Nil(t, role)
 
-	events := strings.Join(tenantEvents(c, "team-rl"), "\n")
-	must.StrContains(t, events, "Released: released acl-role team-rl-old")
-	must.StrContains(t, events, "Released: released acl-policy team-rl-old")
+	events := tenantEvents(c, "team-rl")
+	must.StrContains(t, events, "Restored: gave acl-role team-rl-old back as the tenant found it")
+	must.StrContains(t, events, "Restored: gave acl-policy team-rl-old back as the tenant found it")
 	must.StrContains(t, events, "Deleted: deleted acl-role team-rl-new")
+}
+
+// A resource that can't be given back as it was keeps the tenant, with the
+// condition RestoreFailed, until release_without_restore lets it go as it
+// is.
+func TestTenant_RestoreBlocked(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	hand := tenantByHand{c}
+	hand.quota("orig-q")
+	hand.namespace("team-rb", "orig-q", nil)
+
+	spec := map[string]any{
+		"namespace": map[string]any{"description": "Team RB"},
+		"quota":     map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 8000}}},
+		"adopt":     []any{"namespace"},
+	}
+	_, err := c.apply("", structs.TenantKind, "team-rb", spec)
+	must.NoError(t, err)
+	waitTenant(c, "team-rb", "ready", tenantReady)
+
+	// The quota the namespace named goes meanwhile.
+	hand.deleteQuota("orig-q")
+
+	must.NoError(t, c.delete("", structs.TenantKind, "team-rb"))
+	obj := waitTenant(c, "team-rb", "the restore reported", func(o *structs.CustomObject) bool {
+		return objectConditionTrue(o.Status, structs.TenantConditionRestoreFailed)
+	})
+	var message string
+	for _, cond := range operatorConditions(obj.Status) {
+		if cond.Type == structs.TenantConditionRestoreFailed {
+			message = cond.Message
+		}
+	}
+	must.StrContains(t, message, `namespace team-rb named the quota "orig-q" when the tenant took it over, which no longer exists`)
+	must.StrContains(t, message, "release_without_restore")
+	must.StrContains(t, tenantEvents(c, "team-rb"), "RestoreFailed: giving namespace team-rb back failed")
+	// Nothing was given up meanwhile.
+	ns, _ := store.NamespaceByName(nil, "team-rb")
+	must.Eq(t, "Team RB", ns.Description)
+	must.Eq(t, "team-rb", ns.Quota)
+	must.SliceContains(t, tenantAdopted(obj), "namespace//team-rb")
+
+	// The way out, written into the tenant that is being deleted.
+	spec["release_without_restore"] = true
+	_, err = c.apply("", structs.TenantKind, "team-rb", spec)
+	must.NoError(t, err)
+	waitTenantGone(c, "team-rb")
+	ns, _ = store.NamespaceByName(nil, "team-rb")
+	must.NotNil(t, ns)
+	must.Eq(t, "Team RB", ns.Description)
+	// As it is: it still names the quota of the tenant, which stays.
+	must.Eq(t, "team-rb", ns.Quota)
+	q, _ := store.QuotaSpecByName(nil, "team-rb")
+	must.NotNil(t, q)
+}
+
+// What the tenant took over, was deleted by hand and the tenant made again
+// is the tenant's own: it goes with the tenant.
+func TestTenant_AdoptedRecreated(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	tenantByHand{c}.policyAndRole("team-rc-dev")
+
+	_, err := c.apply("", structs.TenantKind, "team-rc", map[string]any{
+		"roles": map[string]any{"dev": []any{"read-job"}},
+		"adopt": []any{"acl-policy", "acl-role"},
+	})
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-rc", "ready", tenantReady)
+	must.Eq(t, []string{"acl-policy//team-rc-dev", "acl-role//team-rc-dev"}, tenantAdopted(obj))
+
+	var resp structs.GenericResponse
+	must.NoError(t, c.s.RPC("ACL.DeletePolicies", &structs.ACLPolicyDeleteRequest{
+		Names: []string{"team-rc-dev"}, WriteRequest: c.write(""),
+	}, &resp))
+	obj = waitTenant(c, "team-rc", "the policy made again as the tenant's own", func(o *structs.CustomObject) bool {
+		ref, ok := tenantRefs(o)["acl-policy//team-rc-dev"]
+		return tenantReady(o) && ok && !ref.Adopted && !ref.Pending && ref.Original == nil
+	})
+	must.Eq(t, []string{"acl-role//team-rc-dev"}, tenantAdopted(obj))
+	pol, _ := store.ACLPolicyByName(nil, "team-rc-dev")
+	must.NotNil(t, pol)
+
+	must.NoError(t, c.delete("", structs.TenantKind, "team-rc"))
+	waitTenantGone(c, "team-rc")
+	pol, _ = store.ACLPolicyByName(nil, "team-rc-dev")
+	must.Nil(t, pol, must.Sprint("the policy the tenant made again stayed"))
+	role, _ := store.GetACLRoleByName(nil, "team-rc-dev")
+	must.NotNil(t, role)
+	must.Eq(t, "team-rc-dev-other", role.Policies[0].Name)
+}
+
+// A resource whose original does not fit into the status is not taken over.
+func TestTenant_OversizeOriginalRefused(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+
+	rules := `node { policy = "read" }` + "\n" + strings.Repeat("# "+strings.Repeat("x", 98)+"\n", 400)
+	must.Greater(t, tenantOriginalMax, len(rules))
+	tenantByHand{c}.policy("team-big-dev", rules)
+
+	_, err := c.apply("", structs.TenantKind, "team-big", map[string]any{
+		"roles": map[string]any{"dev": []any{"read-job"}},
+		"adopt": []any{"acl-policy", "acl-role"},
+	})
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-big", "conflict", func(o *structs.CustomObject) bool {
+		return objectConditionTrue(o.Status, structs.TenantConditionConflict)
+	})
+	var message string
+	for _, cond := range operatorConditions(obj.Status) {
+		if cond.Type == structs.CertificateConditionReady {
+			message = cond.Message
+		}
+	}
+	must.StrContains(t, message, "acl-policy team-big-dev can't be taken over")
+	must.SliceNotContains(t, tenantResources(obj), "acl-policy//team-big-dev")
+	pol, _ := store.ACLPolicyByName(nil, "team-big-dev")
+	must.Eq(t, rules, pol.Rules)
+}
+
+// A tenant without a quota block leaves the quota its namespace names
+// alone, in a namespace it created and in one it took over.
+func TestTenant_NoQuotaBlockLeavesReference(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	hand := tenantByHand{c}
+	hand.quota("hand-q")
+
+	// Created by the tenant, then given a quota by hand.
+	_, err := c.apply("", structs.TenantKind, "team-nq", map[string]any{"namespace": map[string]any{"description": "Team NQ"}})
+	must.NoError(t, err)
+	waitTenant(c, "team-nq", "ready", tenantReady)
+	ns, _ := store.NamespaceByName(nil, "team-nq")
+	must.Eq(t, "", ns.Quota)
+	changed := ns.Copy()
+	changed.Quota = "hand-q"
+	changed.Description = "changed by hand"
+	var resp structs.GenericResponse
+	must.NoError(t, c.s.RPC("Namespace.UpsertNamespaces", &structs.NamespaceUpsertRequest{
+		Namespaces: []*structs.Namespace{changed}, WriteRequest: c.write(""),
+	}, &resp))
+	// The description is set back (the pass ran), the quota is not.
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		ns, _ := store.NamespaceByName(nil, "team-nq")
+		return ns != nil && ns.Description == "Team NQ"
+	}), wait.Timeout(30*time.Second), wait.Gap(50*time.Millisecond)))
+	ns, _ = store.NamespaceByName(nil, "team-nq")
+	must.Eq(t, "hand-q", ns.Quota, must.Sprint("the tenant without a quota took the quota off its namespace"))
+
+	// Taken over with the quota it names.
+	hand.namespace("taken-nq", "hand-q", nil)
+	_, err = c.apply("", structs.TenantKind, "team-nq2", map[string]any{
+		"namespace": map[string]any{"name": "taken-nq", "description": "Team NQ2"},
+		"adopt":     []any{"namespace"},
+	})
+	must.NoError(t, err)
+	waitTenant(c, "team-nq2", "ready", tenantReady)
+	ns, _ = store.NamespaceByName(nil, "taken-nq")
+	must.Eq(t, "Team NQ2", ns.Description)
+	must.Eq(t, "hand-q", ns.Quota, must.Sprint("the tenant without a quota took the quota off the namespace it took over"))
+}
+
+// A namespace goes from one tenant to another in two steps: the first
+// tenant gives it back, the second one takes over what it finds.
+func TestTenant_HandOver(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	tenantByHand{c}.namespace("shared", "", map[string]string{"team": "old"})
+
+	spec := func(description string) map[string]any {
+		return map[string]any{
+			"namespace":    map[string]any{"name": "shared", "description": description},
+			"dns_suffixes": []any{"shared.example.com"},
+			"adopt":        []any{"namespace"},
+		}
+	}
+	_, err := c.apply("", structs.TenantKind, "first", spec("Of the first"))
+	must.NoError(t, err)
+	waitTenant(c, "first", "ready", tenantReady)
+
+	// While the first tenant has it the second one can't.
+	_, err = c.apply("", structs.TenantKind, "second", spec("Of the second"))
+	must.ErrorContains(t, err, `belongs to the tenant "first"`)
+
+	must.NoError(t, c.delete("", structs.TenantKind, "first"))
+	waitTenantGone(c, "first")
+	ns, _ := store.NamespaceByName(nil, "shared")
+	must.Eq(t, "made by hand", ns.Description)
+	must.Eq(t, map[string]string{"team": "old"}, ns.Meta)
+
+	_, err = c.apply("", structs.TenantKind, "second", spec("Of the second"))
+	must.NoError(t, err)
+	obj := waitTenant(c, "second", "ready", tenantReady)
+	must.Eq(t, &tenantOriginal{Description: "made by hand", Meta: map[string]string{"team": "old"}},
+		tenantRefs(obj)["namespace//shared"].Original)
+	ns, _ = store.NamespaceByName(nil, "shared")
+	must.Eq(t, "Of the second", ns.Description)
 }

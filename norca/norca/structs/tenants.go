@@ -14,6 +14,10 @@ const (
 	TenantConditionConflict          = "Conflict"
 	TenantConditionNamespaceNotEmpty = "NamespaceNotEmpty"
 
+	// TenantConditionRestoreFailed is true while a resource the tenant took
+	// over can't be given back as the tenant found it.
+	TenantConditionRestoreFailed = "RestoreFailed"
+
 	// The types of the resources a tenant keeps, as its status lists them
 	// and as spec.adopt names them.
 	TenantResourceNamespace     = "namespace"

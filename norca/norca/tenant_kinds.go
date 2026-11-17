@@ -76,7 +76,8 @@ const tenantKindSchema = `{
         "certificate_ip_addresses": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1}},
         "certificate_issuers": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1}},
         "dns_suffixes": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1, "maxLength": 253}},
-        "adopt": {"type": "array", "items": {"type": "string", "enum": ["namespace", "quota", "acl-policy", "acl-role", "network-policy"]}}
+        "adopt": {"type": "array", "items": {"type": "string", "enum": ["namespace", "quota", "acl-policy", "acl-role", "network-policy"]}},
+        "release_without_restore": {"type": "boolean"}
       },
       "additionalProperties": false
     },
@@ -94,7 +95,8 @@ const tenantKindSchema = `{
               "namespace": {"type": "string"},
               "id": {"type": "string"},
               "pending": {"type": "boolean"},
-              "adopted": {"type": "boolean"}
+              "adopted": {"type": "boolean"},
+              "original": {"type": "object"}
             },
             "additionalProperties": false
           }
@@ -155,6 +157,11 @@ type tenantSpec struct {
 	CertificateIssuers     []string `json:"certificate_issuers"`
 	DNSSuffixes            []string `json:"dns_suffixes"`
 	Adopt                  []string `json:"adopt"`
+
+	// ReleaseWithoutRestore releases the resources the tenant took over as
+	// they are, when the tenant lets them go, instead of writing back what
+	// it found: the way out when one can't be given back as it was.
+	ReleaseWithoutRestore bool `json:"release_without_restore"`
 }
 
 // tenantQuotaLimit is the limit of a tenant's quota in one region.
@@ -194,9 +201,13 @@ type tenantResourceRef struct {
 	Pending   bool   `json:"pending,omitempty"`
 
 	// Adopted marks a resource that existed and the tenant took over
-	// (spec.adopt). It stays marked while the tenant lists it; the tenant
-	// never deletes it.
-	Adopted bool `json:"adopted,omitempty"`
+	// (spec.adopt), and Original is what it held then in the fields a
+	// tenant writes. The tenant never deletes it: it gives it back as it
+	// was (tenant_restore.go). A resource the tenant took over that was
+	// deleted and that the tenant made again is the tenant's own: it loses
+	// both.
+	Adopted  bool            `json:"adopted,omitempty"`
+	Original *tenantOriginal `json:"original,omitempty"`
 }
 
 func (r tenantResourceRef) key() string { return r.Type + "/" + r.Namespace + "/" + r.Name }
