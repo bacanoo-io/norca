@@ -169,16 +169,49 @@ func (s *Server) secretEngineDelete(namespace, name string, checkIndex *uint64) 
 	if err != nil {
 		return 0, err
 	}
-	live := 0
+	live, unrevoked := 0, 0
 	now := time.Now()
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
-		if raw.(*structs.SecretLease).Live(now) {
+		l := raw.(*structs.SecretLease)
+		switch {
+		case l.Live(now):
 			live++
+		case !l.Revoked && l.BackendRef != "" && now.UnixNano() < l.MaxExpireTime:
+			// Expired, but the lease watcher has not revoked it yet: its
+			// credential may still be valid in the backend.
+			unrevoked++
 		}
 	}
 	if live > 0 {
 		return 0, structs.NewErrRPCCodedf(http.StatusConflict,
 			"secret engine %q has %d live leases; revoke them first (norca secret lease revoke -engine %s)", name, live, name)
+	}
+	if unrevoked > 0 {
+		return 0, structs.NewErrRPCCodedf(http.StatusConflict,
+			"secret engine %q has %d expired leases that are not revoked yet; revoke them first (norca secret lease revoke -engine %s)",
+			name, unrevoked, name)
+	}
+
+	// The purge removes the revoked leases too, and with them the only
+	// record of the revocations the backend may not have got yet (the lease
+	// watcher sends them later, and forgets a deleted engine): send them
+	// now, and keep the engine if that fails.
+	revoked, err := s.secretEngineRevocations(namespace, name, now)
+	if err != nil {
+		return 0, err
+	}
+	if len(revoked) > 0 {
+		backend, err := secretengine.For(existing.Type)
+		if err != nil {
+			return 0, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), secretEngineTimeout)
+		defer cancel()
+		engine := existing.Copy()
+		if err := backend.Sync(ctx, &secretengine.SyncRequest{Engine: engine, Revoked: revoked,
+			Call: s.secretOperatorCall(engine)}); err != nil {
+			return 0, secretBackendError(existing, "sending the revocations of its leases", err)
+		}
 	}
 	resp, index, err := s.raftApply(structs.SecretEnginePurgeRequestType|structs.IgnoreUnknownTypeFlag,
 		&structs.SecretEnginePurgeRequest{Namespace: namespace, Name: name, ExpectedIndex: existing.ModifyIndex})

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,7 +107,7 @@ func TestSecretEngineEndpoint_CRUDAndACL(t *testing.T) {
 		`namespace "default" { capabilities = ["read-secret-engine"] }`)
 	writer := mock.CreatePolicyAndToken(t, store, 1002, "engine-writer",
 		`namespace "default" { capabilities = ["write-secret-engine", "read-secret-engine"] }`)
-	startMockOperator(t, et, "")
+	op := startMockOperator(t, et, "")
 
 	_, err := et.upsert(reader.SecretID, et.engine())
 	must.EqError(t, err, structs.ErrPermissionDenied.Error())
@@ -164,8 +165,24 @@ func TestSecretEngineEndpoint_CRUDAndACL(t *testing.T) {
 	must.Eq(t, []string{created.Lease.ID}, rev.Revoked)
 	must.Eq(t, structs.SecretLeaseRevokeOperator, et.lease(created.Lease.ID).RevokeReason)
 
-	must.NoError(t, et.s.RPC(structs.SecretEngineDeleteRPCMethod, del, &delResp))
+	// The delete removes the revoked leases, so it first sends their
+	// revocations to the backend (the lease watcher, which does it
+	// otherwise, is off here), and fails while that fails (review finding
+	// SRV-17).
+	ref := et.lease(created.Lease.ID).BackendRef
+	must.NotEq(t, "", ref)
+	must.False(t, op.isRevoked(ref))
+	op.status.Store(http.StatusInternalServerError)
+	must.ErrorContains(t, et.s.RPC(structs.SecretEngineDeleteRPCMethod, del, &delResp), "sending the revocations of its leases")
 	e, err := store.SecretEngineByName(nil, structs.DefaultNamespace, "pg")
+	must.NoError(t, err)
+	must.NotNil(t, e)
+	must.NotNil(t, et.lease(created.Lease.ID))
+	op.status.Store(http.StatusOK)
+
+	must.NoError(t, et.s.RPC(structs.SecretEngineDeleteRPCMethod, del, &delResp))
+	must.True(t, op.isRevoked(ref), must.Sprint("the revocation reached the operator before the lease was removed"))
+	e, err = store.SecretEngineByName(nil, structs.DefaultNamespace, "pg")
 	must.NoError(t, err)
 	must.Nil(t, e)
 	must.Nil(t, et.lease(created.Lease.ID))
