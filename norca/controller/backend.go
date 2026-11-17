@@ -223,6 +223,13 @@ func (b *apiBackend) DeleteVariable(ctx context.Context, namespace, path string,
 	_, err := b.client.Variables().CheckedDelete(path, modifyIndex, w)
 	var casErr api.ErrCASConflict
 	if errors.As(err, &casErr) {
+		// The servers answer a check-and-set delete of a Variable that
+		// does not exist with a conflict that has no indexes (a stored
+		// Variable always has them). Deleting a missing Variable is not
+		// an error here.
+		if c := casErr.Conflict; c != nil && c.CreateIndex == 0 && c.ModifyIndex == 0 {
+			return nil
+		}
 		return fmt.Errorf("%w: %v", ErrConflict, casErr)
 	}
 	return err
