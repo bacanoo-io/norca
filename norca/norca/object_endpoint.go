@@ -1045,6 +1045,11 @@ func (c *CustomObject) Apply(args *structs.CustomObjectApplyRequest, reply *stru
 			if err != nil {
 				return nil, "", err
 			}
+			for _, ref := range owners {
+				if ref.Kind == kind.KindRef() && ref.Name == in.Name && (!kind.Namespaced || ref.Namespace == ns) {
+					return nil, "", structs.NewErrRPCCodedf(http.StatusBadRequest, "an object can't be its own owner")
+				}
+			}
 			if err := checkObjectOwnerAccess(aclObj, ns, existing, owners); err != nil {
 				return nil, "", err
 			}

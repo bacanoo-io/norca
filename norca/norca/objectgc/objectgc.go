@@ -348,6 +348,12 @@ func (c *Collector) collectDependents(w *world, o owner) int {
 		if !structs.ObjectOwnedBy(dep, o.group, o.kind, o.namespace, o.name) || !c.ownersGone(w, dep, o) {
 			continue
 		}
+		// An object is not its own dependent, and neither is one of its
+		// owners that waits for it in a foreground deletion of its own:
+		// they would wait for each other forever.
+		if objectRef(dep) == o.ref() || (o.foreground && waitsFor(w, dep, o)) {
+			continue
+		}
 		remaining++
 		if dep.Deleting() {
 			continue
@@ -377,6 +383,41 @@ func (c *Collector) collectDependents(w *world, o owner) int {
 		}
 	}
 	return remaining
+}
+
+// waitsFor reports whether dep is being deleted in the foreground mode and
+// o is one of its dependents, directly or through other objects: dep is then
+// not removed before o is gone.
+func waitsFor(w *world, dep *structs.CustomObject, o owner) bool {
+	if !dep.Deleting() || dep.DeletionPropagation != structs.ObjectPropagationForeground {
+		return false
+	}
+	target := objectRef(dep)
+	seen := map[string]struct{}{}
+	queue := []string{o.ref()}
+	for len(queue) > 0 {
+		ref := queue[0]
+		queue = queue[1:]
+		if _, ok := seen[ref]; ok {
+			continue
+		}
+		seen[ref] = struct{}{}
+		obj, ok := w.objects[ref]
+		if !ok {
+			continue
+		}
+		for _, r := range obj.Owners {
+			if !r.IsObject() {
+				continue
+			}
+			up := r.Kind + "\x00" + r.Namespace + "\x00" + r.Name
+			if up == target {
+				return true
+			}
+			queue = append(queue, up)
+		}
+	}
+	return false
 }
 
 // ownersGone reports whether every custom object owner of dep other than o

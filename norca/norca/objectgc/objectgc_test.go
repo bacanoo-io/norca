@@ -278,6 +278,48 @@ func TestCollector_MultipleOwners(t *testing.T) {
 	must.Nil(t, h.get("shared"))
 }
 
+// An object that owns itself, and objects that own each other, finish a
+// foreground deletion (review finding SRV-29).
+func TestCollector_ForegroundOwnerCycle(t *testing.T) {
+	ci.Parallel(t)
+	h := newHarness(t)
+
+	mark := func(name string) {
+		obj := h.get(name)
+		marked := obj.Copy()
+		marked.DeletionTime = h.now.UnixNano()
+		marked.DeletionPropagation = structs.ObjectPropagationForeground
+		must.NoError(t, h.store.UpsertCustomObject(structs.MsgTypeTestSetup, h.next(), marked, obj.ModifyIndex))
+	}
+
+	h.object("self", "self")
+	mark("self")
+	h.collect()
+	must.Nil(t, h.get("self"), must.Sprint("the object that owns itself"))
+
+	h.object("a", "b")
+	h.object("b", "a")
+	h.object("child", "a")
+	mark("a")
+	mark("b")
+	for i := 0; i < 3; i++ {
+		h.collect()
+	}
+	must.Nil(t, h.get("a"))
+	must.Nil(t, h.get("b"))
+	must.Nil(t, h.get("child"))
+
+	// A cycle of which only one object is deleted: the other one is its
+	// dependent and goes first.
+	h.object("c", "d")
+	h.object("d", "c")
+	mark("c")
+	h.collect()
+	must.Nil(t, h.get("d"))
+	h.collect()
+	must.Nil(t, h.get("c"))
+}
+
 func TestCollector_Run(t *testing.T) {
 	ci.Parallel(t)
 	h := newHarness(t)

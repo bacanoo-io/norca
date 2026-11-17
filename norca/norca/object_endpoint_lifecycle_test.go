@@ -533,3 +533,22 @@ func TestJobEndpoint_ManagedJob(t *testing.T) {
 
 	must.NoError(t, deregister(job.ID, ctrl.SecretID))
 }
+
+// An object can't be its own owner (review finding SRV-29).
+func TestCustomObjectEndpoint_SelfOwner(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanupS := TestServer(t, nil)
+	defer cleanupS()
+	c := &objectClient{t: t, codec: rpcClient(t, s)}
+	testutil.WaitForLeader(t, s.RPC)
+
+	_, err := c.upsertKind(testPGKind(true), false, "")
+	must.NoError(t, err)
+
+	obj := testPGObject("default", "self", map[string]any{"version": "16"})
+	obj.Owners = []*structs.ObjectOwnerReference{{Kind: "db.example.com/PostgresCluster", Name: "self"}}
+	_, err = c.apply(obj, nil, false, "")
+	must.Eq(t, 400, errCode(t, err))
+	must.ErrorContains(t, err, "its own owner")
+}
