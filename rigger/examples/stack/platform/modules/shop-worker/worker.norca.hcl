@@ -1,5 +1,6 @@
 # One group per subject: each scales and restarts on its own.
 job "worker" {
+  id   = rig.release
   name = rig.release
   type = "service"
 

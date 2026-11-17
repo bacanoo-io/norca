@@ -1,4 +1,5 @@
 job "postgres" {
+  id   = local.job
   name = local.job
   type = "service"
 

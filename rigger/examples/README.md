@@ -7,7 +7,7 @@ and they change with the design.
 | Directory | What it shows |
 | --- | --- |
 | `module/web/` | a small module on its own: metadata, variables with validation and form hints, one job, outputs, an example value file, a test |
-| `registry/` | the layout of a registry repository: two larger modules (`nats`, `postgres`), a shared child module (`lib/placement`), and two stacks: `stacks/data-platform` built on the registry's own modules, `stacks/observability` built on the modules of another registry |
+| `registry/` | the layout of a registry repository: three larger modules (`nats`, `postgres`, and `redis`, the built-in pack of norca converted on paper with its faults kept, design 14.1), a shared child module (`lib/placement`), and two stacks: `stacks/data-platform` built on the registry's own modules, `stacks/observability` built on the modules of another registry |
 | `stack/platform/` | a stack built from two registry modules (`postgres`, `nats`) and two modules of its own (`modules/shop-api`, `shop-worker`), wired through outputs, with values per environment, trust and a lock file |
 
 What to look for:

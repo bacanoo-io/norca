@@ -1,8 +1,11 @@
 # Rig: the Package Manager of Norca (design draft)
 
-Status: draft for discussion, 2026-11-15. Nothing is built; `examples/` shows
-a module, a registry with two larger modules and a stack in this language. It starts from the
-maintainer's first sketch (`rig.md` in this directory) and from an inventory of
+Status: draft for discussion, 2026-11-15; phase 0 done 2026-11-18 (section 15:
+the library's ports and constructor, the CLI host, the spikes of the job
+decoder and of the release API, redis and nats converted on paper).
+`examples/` shows a module, a registry with three larger modules and a stack
+in this language; nothing parses them yet. It starts from the
+maintainer's first sketch (`rig.md`, not in this repository) and from an inventory of
 what exists today: the pack manager in norca (about 32k lines, plus about
 13k on the server for registries and releases), the 14 packs of norca-registry,
 and the pack handling of norca-deployer.
@@ -157,6 +160,7 @@ that the value is not known at install time:
 | `runtime("node.datacenter")` | a node attribute or other job interpolation |
 | `runtime_env("NORCA_ALLOC_DIR")` | an environment variable of the task |
 | `secret_ref(path, item, { quote, trim })` | inside a task template: the item of a secret, quoted for where it lands (`"conf"`, `"sql"`, `false`), failing the template when the item is missing |
+| `variable_ref(path, item, { quote, trim })` | the same for an item of a Norca Variable (`nomadVar` of today's packs: the nats pack reads its TLS material and its token there; proposed by the conversion of section 14) |
 | `service_address(name)`, `service_addresses(name, { scheme, exclude_self })` | inside a task template: addresses from the native catalog |
 
 These replace the hand-written `{{ with nomadSecret ... }}` and
@@ -203,8 +207,16 @@ variable "count" {
   type        = number
   default     = 3
   description = "Servers in the region (odd, at least 3 for JetStream)."
-  validation { min = 1, integer = true }
-  ui { tab = "general", widget = "slider" }
+
+  validation {
+    min     = 1
+    integer = true
+  }
+
+  ui {
+    tab    = "general"
+    widget = "slider"
+  }
 }
 
 variable "users" {
@@ -233,6 +245,7 @@ locals {
 ```hcl
 # nats.norca.hcl
 job "nats" {
+  id          = local.job
   name        = local.job
   datacenters = var.datacenters
 
@@ -321,6 +334,10 @@ the decoder can take its values from outside is a spike of phase 0
   registry's operators.
 - **One resource per resource file.** The label of its block is the name the
   module refers to it by; the file name before the extension is the same.
+- **The ID of a job is its `id` attribute**, the label when it has none (as
+  Norca's decoder does). A module that can be installed twice in a namespace
+  sets it from the release (`id = local.job`), or two releases would write
+  one job (found by the conversion of section 14).
 - **The content of a resource file is not thought again either.** Each kind
   keeps the format Norca reads for it today (`policy "<name>" { rules,
   job_acl }`, `kind "<name>" { ... }`, the job specification), with
@@ -374,7 +391,11 @@ converting, section 14).
 - A module never takes a secret as a plain variable. `secret { path, item }`
   says where the built-in secret store holds it; the job reads it at run time.
 - `sensitive = true` marks a value that may not appear in a plan output, a
-  log or a revision.
+  log or a revision. A sensitive variable is not a plain one: a module may
+  take a secret that way when the install form asks for it (the password of
+  the redis pack). The mark goes with the value, so an item of a Variable
+  resource that takes it becomes a secret item of the release
+  (`SecretKeys`, `Secrets` of the release API), never stored in a revision.
 - A stack may *create* secrets once, as the deployer's `secrets.bootstrap`
   does (create-once unless `overwrite`).
 
@@ -1313,6 +1334,51 @@ design stays in `design/` and is not published there, as with norca.
   same list drives the comparison.
 - What this conversion must prove is in question 2.
 
+### 14.1 What the conversion on paper showed (phase 0, 2026-11-18)
+
+**redis** (the built-in pack 0.2.1 of norca) is converted whole:
+`examples/registry/modules/redis`. Its job file was decoded with Norca's
+decoder through `DecodeJob` (with and without persistence): the job is the
+one the pack renders. **nats** (norca-registry, pack 0.7.0: 63 variables, a
+527-line job template, 154 lines of helpers) was gone through construct by
+construct against `examples/registry/modules/nats`, which shows the hard
+parts in a smaller module.
+
+| In the packs | In Rig | Section 4 as it is |
+| --- | --- | --- |
+| `[[ if ]]` around an attribute (`region` when set, `static` when the port is not 0, `host_network`, `args` with persistence) | `x = cond ? v : null`: a null attribute is left out (checked with the decoder for `config`) | covers |
+| `[[ if ]]` around a block (`ephemeral_disk`, `volume`, `volume_mount`, `artifact`, `separate`, `disruption`, a service, the metrics task) | `dynamic "x" { for_each = cond ? [1] : [] }`; about 14 in nats | covers, verbosely |
+| the driver switch: `image` and `ports` for docker, `command` for exec | conditional attributes of `config`, null where they do not apply | covers |
+| helpers (`nats.location` six times over the packs, `nats.port`, `nats.list`, `nats.permissions`, `nats.userpass`) | locals, a library child module (`lib/placement`), `natsconf` (the escaping that `nats.list` worked around is the encoder's) | covers |
+| `namespace` and `region` variables in every pack | the release's: `rig.namespace`, `rig.region` (section 6.4) | covers; the variables go |
+| the checks of `nats.validate` (11 `fail`) | `one_of` (driver, storage, auth_mode), `unique_by` (users), `min` (count), six `rule` blocks | covers (section 6.2 confirmed) |
+| the options of a choice in `ui` only (redis `mode`, `network_mode`) | `validation { one_of }`; the form takes the options from it, `ui` keeps their labels | new rule: a value outside the options was accepted before |
+| `secret { path, item }` of a variable written into a Variable item (redis password) | a `sensitive` variable taken by the item | refined in section 6.3 |
+| `nomadVar` items at run time (TLS material, `client_token`) | `variable_ref()` | missing: added to section 4.2 |
+| `nomadSecret` items at run time, failing when missing, trimmed | `secret_ref(..., { trim, quote })` | covers |
+| `nomadService` routes without the own allocation | `service_addresses(..., { exclude_self })` | covers; the encoder must take a list that mixes known items and the runtime list (the own route first) |
+| `auth_mode = "nkey"`: a Variable item split and looped over at run time; `"config"`: an item inserted as raw configuration | a task template written by hand for that part, appended to the encoded one: `data = "${natsconf(local.config)}\n${local.auth}"`, where `local.auth` is a heredoc with `{{ }}` and install-time `${}` (NATS takes top-level blocks in any order) | covers (section 4.2: a task template may still be written by hand) |
+| `extra_config` indented by 10 | appended after the encoded configuration, no indentation | covers |
+| `meta "pack.name"` as the default job name; `printf "nomad/jobs/%s"` | `rig.release`, `coalesce()` | covers |
+| `outputs.tpl` with `if` and `range` | a heredoc output with `%{ if }`, `%{ for }` | covers |
+| `job [[ var "job_name" ]]`: the ID from a variable | the label is the module's name; the ID is `id` | was wrong in the examples: section 4.5 now says it |
+
+What the packs do wrong, which the conversion keeps (to render the same job)
+and a module version of its own then fixes: redis `mode`, `service_tags` and
+`extra_env` change nothing in the job, the password goes into the Variable
+but Redis does not read it, and the path of the Variable ignores `job_name`.
+Two of them are of a kind `rig module validate` finds by itself: **a variable
+that no expression of the module reads is a warning.**
+
+Result for phase 0: the language of section 4 holds for both packs. Added:
+`variable_ref()`, the `id` of a job, a sensitive variable as the input of a
+secret item, `one_of` as the source of a form's options, the warning on an
+unused variable, and the encoder's lists with runtime parts. The examples
+follow (`id` on every job; a Variable in Norca's format, `items { }`). Parsing
+every file of `examples/` and every `hcl` block of this design found one more
+fault of the drafts: a block written on one line takes one argument only
+(`validation { min = 1, integer = true }` is not HCL); they are written out.
+
 ## 15. Phases
 
 | Phase | Content | Result |
@@ -1325,6 +1391,11 @@ design stays in `design/` and is not published there, as with norca.
 | 5 | The rest of the modules converted; lab case; `norca-rig-deployer` with the `rig:` section | parity with the packs of today |
 | 6 | The global registry repository: namespaces, keys, generated entries, the checks of entries and of stacks; publish workflow; icons in the UI | public catalog |
 | 7 | Into the products: the server embeds the library (server-side evaluation, install form), `DecodeJob` moves into norca's `jobspec2` and the copy in `cli/internal/jobspec2` is deleted (question 4), the deployer and registry branches merged, the pack manager removed | one package manager |
+
+Phase 0 is done (2026-11-18): the ports of section 12.2 as Go, `rig.New`
+with functional options, the log as a tree (section 9.5), the `rig` program
+as the first host, `DecodeJob` and the job decoder (question 4), the release
+API spike (section 12.2), and redis and nats on paper (section 14.1).
 
 Phases 1 to 4 touch only `norca-rig`. Nothing of norca, the deployer or the
 registry changes before phase 5 (clones) and phase 7 (the real merge).

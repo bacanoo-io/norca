@@ -2,6 +2,7 @@
 # release and loads the chosen dashboard sets.
 
 job "load" {
+  id   = "${rig.release}-load"
   name = "${rig.release}-load"
   type = "batch"
 

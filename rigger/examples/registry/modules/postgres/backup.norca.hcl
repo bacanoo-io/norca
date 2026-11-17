@@ -4,6 +4,7 @@
 job "backup" {
   enabled = var.backup.enabled
 
+  id   = "${local.job}-backup"
   name = "${local.job}-backup"
   type = "batch"
 

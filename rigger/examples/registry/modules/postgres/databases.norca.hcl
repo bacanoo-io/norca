@@ -3,6 +3,7 @@
 job "databases" {
   enabled = length(var.databases) > 0
 
+  id   = "${local.job}-databases"
   name = "${local.job}-databases"
   type = "batch"
 

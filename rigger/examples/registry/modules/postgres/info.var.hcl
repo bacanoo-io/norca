@@ -3,7 +3,7 @@
 variable "info" {
   path = "nomad/jobs/${local.job}/info"
 
-  items = {
+  items {
     service   = local.job
     port      = tostring(var.port)
     databases = join(",", [for d in var.databases : d.name])

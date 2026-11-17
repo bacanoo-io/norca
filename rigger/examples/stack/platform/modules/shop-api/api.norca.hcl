@@ -1,4 +1,5 @@
 job "api" {
+  id   = local.name
   name = local.name
   type = "service"
 

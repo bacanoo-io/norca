@@ -77,9 +77,20 @@ variable "ports" {
 
   validation {
     # inside the attributes of an object type
-    attribute "client" { min = 1, max = 65535 }
-    attribute "cluster" { min = 1, max = 65535 }
-    attribute "monitor" { min = 1, max = 65535 }
+    attribute "client" {
+      min = 1
+      max = 65535
+    }
+
+    attribute "cluster" {
+      min = 1
+      max = 65535
+    }
+
+    attribute "monitor" {
+      min = 1
+      max = 65535
+    }
   }
 
   ui { tab = "cluster" }

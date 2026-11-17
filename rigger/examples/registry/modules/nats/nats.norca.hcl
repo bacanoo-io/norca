@@ -1,4 +1,5 @@
 job "nats" {
+  id          = local.job
   name        = local.job
   type        = "service"
   datacenters = module.placement.datacenters

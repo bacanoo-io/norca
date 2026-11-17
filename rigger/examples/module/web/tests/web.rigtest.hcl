@@ -24,8 +24,8 @@ test "with a database" {
   }
 
   assert {
-    condition     = resource.job.web.name == "shop"
-    error_message = "the job is named after the release"
+    condition     = resource.job.web.id == "shop" && resource.job.web.name == "shop"
+    error_message = "the job is named after the release, so two releases of the module do not meet"
   }
 
   assert {

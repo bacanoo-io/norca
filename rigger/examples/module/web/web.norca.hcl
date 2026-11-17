@@ -1,4 +1,5 @@
 job "web" {
+  id          = local.name
   name        = local.name
   type        = "service"
   datacenters = var.datacenters
