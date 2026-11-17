@@ -176,6 +176,14 @@ func (spec *ReaderSpec) consumerImports(c ConsumerRef) []consumerImport {
 	}
 }
 
+// ReaderStreamInfoSubject is the subject, followed by the name of the
+// stream, that the stream information requests of the reader accounts
+// arrive on in the bus account. The Norca servers answer there with the
+// configuration and the state of the stream; the JetStream API would also
+// give every subject of the stream with its message count to a request that
+// asks for it, and a stream holds the changes of every namespace.
+const ReaderStreamInfoSubject = "$NORCA.READER.STREAM.INFO"
+
 // infoImports are the information subjects of the JetStream API a reader
 // account with Info imports: the account and each stream of its consumers.
 func (spec *ReaderSpec) infoImports() []consumerImport {
@@ -188,7 +196,10 @@ func (spec *ReaderSpec) infoImports() []consumerImport {
 	for _, c := range spec.Consumers {
 		if !slices.Contains(streams, c.Stream) {
 			streams = append(streams, c.Stream)
-			out = append(out, consumerImport{api + ".STREAM.INFO." + c.Stream, "$JS.API.STREAM.INFO." + c.Stream, false})
+			// Not the JetStream API, which lists the subjects of the
+			// stream on request: the servers answer (see
+			// ReaderStreamInfoSubject).
+			out = append(out, consumerImport{api + ".STREAM.INFO." + c.Stream, ReaderStreamInfoSubject + "." + c.Stream, false})
 		}
 	}
 	return out

@@ -94,12 +94,14 @@ func consumerNameToken(s string) string {
 //   - $SYS.>: the services of the NATS system account that every account
 //     imports (the information of the user and of the account); they
 //     answer to the reply subject of the request;
-//   - the inboxes of the servers' own connections (bus.InternalInboxPrefix).
+//   - the inboxes of the servers' own connections (bus.InternalInboxPrefix);
+//   - $NORCA.>: the subjects the servers answer requests of the reader
+//     accounts on (bus.ReaderStreamInfoSubject).
 //
 // With them goes the subject the servers store the pack push notices on
 // (busGrantSubjects adds it, it lies under the event prefix).
 var busInternalSubjects = []string{"$KV.>", "$JS.>", "$JSC.>", "$NRG.>", "_R_.>", "norca.telemetry.>",
-	"$SYS.>", bus.InternalInboxPrefix + ".>"}
+	"$SYS.>", bus.InternalInboxPrefix + ".>", "$NORCA.>"}
 
 // busGrantSubjects builds the subjects of a connection without every right
 // from its bus and cdc rules:

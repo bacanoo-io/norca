@@ -39,6 +39,8 @@ func TestBusServer_BusRuleInternalSubjects(t *testing.T) {
 		// the inboxes of the servers' own connections and the subject the
 		// servers store the pack push notices on.
 		"$SYS.REQ.USER.INFO", "$SYS.>", bus.InternalInboxPrefix + ".>", "norca." + bus.PushStoredSubject,
+		// The subjects the servers answer the reader accounts on.
+		bus.ReaderStreamInfoSubject + ".>", "$NORCA.>",
 	}
 
 	// The subjects a connection gets from the rule.

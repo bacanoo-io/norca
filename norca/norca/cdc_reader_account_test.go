@@ -440,3 +440,66 @@ func TestCDC_ReaderAccount_Cluster(t *testing.T) {
 	_, err := kv.Get(t.Context(), key)
 	must.True(t, errors.Is(err, jetstream.ErrKeyNotFound), must.Sprint(err))
 }
+
+// The stream information a reader may ask for says nothing about the
+// subjects of the stream (review finding SEC-16): with a subjects filter
+// the JetStream API lists every subject with its message count, the
+// namespaces outside the reader's cdc rule and their activity among them.
+// The servers answer the reader's request themselves.
+func TestCDC_ReaderStreamInfo(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, _, cleanup := TestACLServer(t, enableBus(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	js, _ := cdcTestBus(t, s1)
+	events := bus.EventStreamName("global")
+
+	reader := cdcTestTokens(t, s1, map[string]string{
+		"cdc-reader": `cdc { receive = ["norca.global.default.>"] }`,
+	})["cdc-reader"]
+	cdcTestConsumer(t, s1, reader, "norca.global.default.Job")
+
+	// A change of a namespace outside the rule.
+	st := s1.fsm.State()
+	index, _ := st.LatestIndex()
+	must.NoError(t, st.UpsertNamespaces(index+1, []*structs.Namespace{{Name: "payroll"}}))
+	job := mock.Job()
+	job.Namespace = "payroll"
+	must.NoError(t, st.UpsertJob(structs.JobRegisterRequestType, index+2, nil, job))
+	waitBus(t, func() (bool, error) {
+		stream, err := js.Stream(t.Context(), events)
+		if err != nil {
+			return false, err
+		}
+		_, err = stream.GetLastMsgForSubject(t.Context(), "norca.global.payroll.Job")
+		return err == nil, err
+	})
+
+	nc, err := nats.Connect(busURL(s1), nats.Token(reader.SecretID))
+	must.NoError(t, err)
+	defer nc.Close()
+	for _, request := range []string{`{"subjects_filter":">"}`, `{"subjects_filter":"norca.global.payroll.>"}`, `{"deleted_details":true}`, ``} {
+		msg, err := nc.Request("$JS.API.STREAM.INFO."+events, []byte(request), 10*time.Second)
+		must.NoError(t, err, must.Sprint(request))
+		must.StrNotContains(t, string(msg.Data), "payroll", must.Sprintf("request %s", request))
+		must.StrNotContains(t, string(msg.Data), `"subjects":{`, must.Sprintf("request %s", request))
+		must.StrContains(t, string(msg.Data), `"name":"`+events+`"`)
+	}
+
+	// The clients still get the stream: its configuration and its state.
+	readerJS, err := jetstream.New(nc)
+	must.NoError(t, err)
+	stream, err := readerJS.Stream(t.Context(), events)
+	must.NoError(t, err)
+	info, err := stream.Info(t.Context(), jetstream.WithSubjectFilter(">"))
+	must.NoError(t, err)
+	must.Eq(t, events, info.Config.Name)
+	must.Positive(t, info.State.Msgs)
+	must.MapEmpty(t, info.State.Subjects)
+
+	// A stream the reader has no consumer of, and a request that did not
+	// come from a reader's account, get no answer.
+	_, err = nc.Request("$JS.API.STREAM.INFO."+bus.AdminEventStreamName("global"), nil, time.Second)
+	must.Error(t, err)
+}
