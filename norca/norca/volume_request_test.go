@@ -984,3 +984,56 @@ func TestVolumeRequest_CreatingTakesOnlyItsOwnVolume(t *testing.T) {
 	must.Eq(t, retrying.ModifyIndex, c.volume("retrying").ModifyIndex)
 	fake.set(func(f *fakeVolumeCSI) { must.Len(t, 0, f.deletes) })
 }
+
+// A create whose answer was lost may have made the volume. A request with
+// the policy delete that is deleted then asks the plugin for the volume once
+// more and deletes it (review finding VOL-10).
+func TestVolumeRequest_DeletionAfterLostCreateAnswer(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false, func(c *Config) {
+		c.volumeRequestRetryBase = time.Hour
+	})
+	defer cleanup()
+
+	gone := func(name string) {
+		t.Helper()
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			return c.get("default", csiVolumeRequestKind, name) == nil
+		}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s gone", name))
+	}
+
+	// The storage made the volumes, the answers did not arrive.
+	fake.set(func(f *fakeVolumeCSI) { f.createErr = errors.New("context deadline exceeded") })
+	for name, policy := range map[string]string{"orphan": "delete", "left": "deregister"} {
+		_, err := c.apply("default", csiVolumeRequestKind, name, volumeSpec(func(m map[string]any) { m["deletion_policy"] = policy }))
+		must.NoError(t, err)
+	}
+	for _, name := range []string{"orphan", "left"} {
+		st := c.waitRequest(name, "failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+			return st.Failures == 1
+		})
+		must.True(t, st.Creating)
+	}
+
+	fake.set(func(f *fakeVolumeCSI) { f.createErr = nil })
+	must.NoError(t, c.delete("default", csiVolumeRequestKind, "orphan"))
+	must.NoError(t, c.delete("default", csiVolumeRequestKind, "left"))
+	gone("orphan")
+	gone("left")
+	must.Nil(t, c.volume("orphan"))
+	fake.set(func(f *fakeVolumeCSI) {
+		must.Eq(t, []string{"ext-default-orphan"}, f.deletes, must.Sprint("the volume of the lost answer is left in the storage"))
+	})
+
+	// The plugin can't be asked when the request is deleted: the request
+	// goes, and says what may be left.
+	fake.set(func(f *fakeVolumeCSI) { f.createErr = errors.New("context deadline exceeded") })
+	_, err := c.apply("default", csiVolumeRequestKind, "unknown", volumeSpec(func(m map[string]any) { m["deletion_policy"] = "delete" }))
+	must.NoError(t, err)
+	c.waitRequest("unknown", "failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Failures == 1
+	})
+	must.NoError(t, c.delete("default", csiVolumeRequestKind, "unknown"))
+	gone("unknown")
+	fake.set(func(f *fakeVolumeCSI) { must.Len(t, 1, f.deletes) })
+}

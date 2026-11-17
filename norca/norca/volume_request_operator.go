@@ -294,6 +294,68 @@ func (o *volumeRequestOperator) reconcileRequest(p *volumeRequestPass, obj *stru
 	o.writeRequest(p, obj, st, out, &finalizers)
 }
 
+// deleteUnregistered deletes the volume that a create of the request may have
+// left in the storage without a volume registered for it. The plugin is
+// asked for the volume once more: a create of the same name answers with the
+// volume that exists (the name is the idempotency key of CSI CreateVolume),
+// which gives its external ID, and that is deleted. It reports whether the
+// deletion of the request can go on; when the volume can't be asked for, the
+// request goes and a warning says what may be left.
+func (o *volumeRequestOperator) deleteUnregistered(obj *structs.CustomObject, spec *volumeRequestSpec,
+	plugin *structs.CSIPlugin, hold func(reason, format string, args ...any)) bool {
+
+	leave := func(format string, args ...any) bool {
+		name := spec.volume(obj, nil).Name
+		message := fmt.Sprintf("a create of the volume was sent to the CSI plugin %q and no volume was registered: "+
+			"a volume named %q may be left in the storage (%s)", spec.PluginID, name, fmt.Sprintf(format, args...))
+		o.logger.Warn("deleted volume request may leave a volume in the storage", "namespace", obj.Namespace,
+			"request", obj.Name, "plugin", spec.PluginID, "volume_name", name, "reason", fmt.Sprintf(format, args...))
+		o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "VolumeMayBeLeft", message)
+		return true
+	}
+
+	if err := spec.validate(); err != nil {
+		return leave("the request is not valid: %v", err)
+	}
+	// As for a registered volume: the deletion waits for the plugin.
+	out := &volumeRequestOutcome{}
+	if !pluginReady(spec, plugin, out) {
+		if out.notReadyReason == "Unsupported" {
+			return leave("%s", out.notReadyMessage)
+		}
+		hold(out.notReadyReason, "a volume this request was creating may be in the storage, and can't be deleted now: %s", out.notReadyMessage)
+		return false
+	}
+	secrets, err := o.secrets(obj, spec)
+	if err != nil {
+		return leave("%v", err)
+	}
+	vol := spec.volume(obj, secrets)
+	if err := pluginSupportsAccessModes(plugin, vol); err != nil {
+		return leave("%v", err)
+	}
+	vol.Provider, vol.ProviderVersion = plugin.Provider, plugin.Version
+	if err := o.csi.create(vol, plugin); err != nil {
+		return leave("asking the plugin for it again failed: %v", err)
+	}
+	other, err := o.registeredElsewhere(vol)
+	if err != nil {
+		return leave("looking up the volume %q failed: %v", vol.ExternalID, err)
+	}
+	if other != nil {
+		// The name is the name of a volume of somebody else: nothing of
+		// this request is in the storage.
+		return true
+	}
+	if err := o.csi.delete(vol, plugin); err != nil {
+		o.srv.operatorEvent(obj, structs.ObjectEventTypeWarning, "DeleteFailed", err.Error())
+		hold("DeleteFailed", "deleting the volume %q failed: %v", vol.ExternalID, err)
+		return false
+	}
+	operatorCount(csiVolumeRequestKind, "volumes_deleted")
+	return true
+}
+
 // volumeStatusFrom copies what the status shows of the volume.
 func volumeStatusFrom(st *volumeRequestStatus, vol *structs.CSIVolume) {
 	st.ExternalID = vol.ExternalID
@@ -646,7 +708,8 @@ func (o *volumeRequestOperator) writeRequest(p *volumeRequestPass, obj *structs.
 // finishDeletion does what the deletion of a request asks of the operator:
 // with "deregister" the volume leaves Norca, with "delete" it is deleted in
 // the storage once no allocation uses it, with "retain" it stays. A volume
-// the request does not own is never touched.
+// the request does not own is never touched. With "delete", a volume that a
+// create without a known answer may have left in the storage is deleted too.
 func (o *volumeRequestOperator) finishDeletion(p *volumeRequestPass, obj *structs.CustomObject, spec *volumeRequestSpec,
 	st *volumeRequestStatus, vol *structs.CSIVolume, plugin *structs.CSIPlugin, ours bool) {
 
@@ -687,6 +750,15 @@ func (o *volumeRequestOperator) finishDeletion(p *volumeRequestPass, obj *struct
 		}
 		operatorCount(csiVolumeRequestKind, "volumes_"+map[string]string{
 			volumeRequestDeregister: "deregistered", volumeRequestDelete: "deleted"}[spec.policy()])
+	}
+
+	// A create was sent to the plugin and no volume was registered: its
+	// answer was lost or it failed, and the storage may have the volume.
+	if vol == nil && st.Creating && st.VolumeCreateIndex == 0 &&
+		spec.mode() == volumeRequestModeCreate && spec.policy() == volumeRequestDelete {
+		if !o.deleteUnregistered(obj, spec, plugin, hold) {
+			return
+		}
 	}
 
 	changed := obj.Copy()
