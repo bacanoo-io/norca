@@ -399,3 +399,29 @@ func TestTenant_QuotaConflict(t *testing.T) {
 	must.NoError(t, err)
 	must.Eq(t, "made by hand", q.Description)
 }
+
+// A stored spec that is invalid keeps the namespace of the status: a later
+// deletion waits for that namespace to empty (review finding TEN-9).
+func TestTenant_InvalidSpecKeepsNamespace(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+
+	_, err := c.apply("", structs.TenantKind, "keeps", map[string]any{})
+	must.NoError(t, err)
+	waitTenant(c, "keeps", "ready", tenantReady)
+
+	// The write checks refuse an invalid spec, so it is stored past them.
+	must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+		changed := c.get("", structs.TenantKind, "keeps").Copy()
+		changed.Spec = map[string]any{"roles": map[string]any{"dev": []any{"no-such-capability"}}}
+		_, err := c.s.writeOperatorObject(changed)
+		return err
+	}), wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
+
+	obj := waitTenant(c, "keeps", "the invalid spec reported", func(o *structs.CustomObject) bool {
+		return !objectConditionTrue(o.Status, structs.CertificateConditionReady)
+	})
+	must.Eq(t, "keeps", obj.Status["namespace"], must.Sprintf("status: %v", obj.Status))
+	must.SliceContains(t, tenantResources(obj), "namespace//keeps")
+}

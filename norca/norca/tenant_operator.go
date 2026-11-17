@@ -180,15 +180,17 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 	for _, ref := range status.Resources {
 		w.owned[ref.key()] = ref
 	}
+	// A spec the operator can't use keeps the namespace the status has: a
+	// deletion waits for that namespace to empty.
 	if err != nil {
 		w.failures = append(w.failures, "the spec is invalid: "+err.Error())
-		o.writeTenantStatus(w, "")
+		o.writeTenantStatus(w, status.Namespace)
 		return
 	}
 	desired, err := spec.desired(obj.Name)
 	if err != nil {
 		w.failures = append(w.failures, err.Error())
-		o.writeTenantStatus(w, "")
+		o.writeTenantStatus(w, status.Namespace)
 		return
 	}
 
