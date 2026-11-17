@@ -63,6 +63,9 @@ func UploadFormat(data []byte) (string, error) {
 // Archives carry no signatures, so a registry with trusted keys takes
 // bundles only.
 func ImportUpload(cacheDir, registryName string, data []byte, trustedKeys []string) (string, error) {
+	if err := ValidateRegistryName(registryName); err != nil {
+		return "", err
+	}
 	if len(data) > MaxUploadSize {
 		return "", fmt.Errorf("the upload is larger than %d MiB", MaxUploadSize>>20)
 	}

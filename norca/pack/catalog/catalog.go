@@ -178,6 +178,14 @@ func SyncSource(cacheDir, registryName, sourceType, source, ref string, trustedK
 	if ref == "" {
 		ref = DefaultRef
 	}
+	// The registry and the ref name directories below cacheDir, which are
+	// removed and written here: never one outside of it.
+	if err := ValidateRegistryName(registryName); err != nil {
+		return err
+	}
+	if err := ValidateRef(sourceType, ref); err != nil {
+		return err
+	}
 	if auth != nil {
 		if err := ValidateSourceAuth(sourceType, source, auth); err != nil {
 			return err
@@ -366,6 +374,9 @@ func copyPackDirectory(src, dst string) error {
 
 // ScanRegistryPacks scans cacheDir/<registryName> and returns all valid packs.
 func ScanRegistryPacks(cacheDir, registryName string, trustedKeys []string) ([]*IndexedPack, error) {
+	if err := ValidateRegistryName(registryName); err != nil {
+		return nil, err
+	}
 	regDir := filepath.Join(cacheDir, registryName)
 	refDirs, err := os.ReadDir(regDir)
 	if err != nil {

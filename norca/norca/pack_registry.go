@@ -5,6 +5,7 @@ package norca
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -360,6 +361,10 @@ func (s *Server) UpsertPackRegistry(args *structs.GenericRequest, reg *PackRegis
 	if reg.Spec.DefaultRef == "" {
 		reg.Spec.DefaultRef = catalog.DefaultRef
 	}
+	// The ref names a directory of the registry in the pack cache.
+	if err := catalog.ValidateRef(reg.Spec.Type, reg.Spec.DefaultRef); err != nil {
+		return nil, 0, structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid default ref: %v", err)
+	}
 	if _, err := reg.Spec.syncInterval(); err != nil {
 		return nil, 0, structs.NewErrRPCCodedf(http.StatusBadRequest, "%v", err)
 	}
@@ -587,90 +592,78 @@ func (s *Server) GetCatalogPack(args *structs.GenericRequest, registryName, pack
 	}, index, nil
 }
 
+// resolveCatalogPackDir returns the directory of a pack of a registry in
+// the pack cache, with its catalog entry and the versions the registry
+// lists of it.
+//
+// packName and versionRef come from the request. They are names, never
+// paths, and they only select among the packs the status of the registry
+// lists: the directory is found by catalog.FindPackDir among those that are
+// in the cache of the registry, and no path is built from them.
 func (s *Server) resolveCatalogPackDir(reg *PackRegistry, packName, versionRef string) (string, *PackCatalogEntry, []string, error) {
+	if err := catalog.ValidatePackName(packName); err != nil {
+		return "", nil, nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid pack name: %v", err)
+	}
+	if err := catalog.ValidatePackVersion(versionRef); err != nil {
+		return "", nil, nil, structs.NewErrRPCCodedf(http.StatusBadRequest, "invalid pack version: %v", err)
+	}
 	cacheDir, err := s.releases.packCachePath()
 	if err != nil {
 		return "", nil, nil, err
 	}
-	regRoot := filepath.Join(cacheDir, reg.Name)
 	if reg, err = s.ensurePackCache(reg, cacheDir); err != nil {
 		return "", nil, nil, err
 	}
+	notFound := structs.NewErrRPCCodedf(http.StatusNotFound, "pack %q (version %q) not found in registry %q", packName, versionRef, reg.Name)
 
+	// The entry of the asked version if the registry lists it; else the
+	// version may be a ref of the registry, and the entry is the first of
+	// the pack. Without a version it is the last one.
 	var versions []string
 	var matched *PackCatalogEntry
+	versionListed := false
 	if reg.Status != nil {
 		for _, p := range reg.Status.Packs {
-			if p != nil && p.Name == packName {
-				versions = append(versions, p.Version)
-				if versionRef == "" || p.Version == versionRef {
-					matched = p
-				}
+			if p == nil || p.Name != packName {
+				continue
+			}
+			versions = append(versions, p.Version)
+			switch {
+			case versionRef != "" && p.Version == versionRef:
+				matched, versionListed = p, true
+			case matched == nil || versionRef == "":
+				matched = p
 			}
 		}
 	}
-	if matched == nil && reg.Status != nil {
-		for _, p := range reg.Status.Packs {
-			if p != nil && p.Name == packName {
-				matched = p
-				break
-			}
-		}
+	if matched == nil {
+		// A directory in the cache is not a pack of the registry unless the
+		// registry lists it.
+		return "", nil, nil, notFound
 	}
 
 	ref := reg.Spec.DefaultRef
 	if ref == "" {
 		ref = catalog.DefaultRef
 	}
-	if versionRef != "" {
-		for _, candidateRef := range []string{versionRef, ref, catalog.DefaultRef} {
-			candidateDir := filepath.Join(cacheDir, reg.Name, candidateRef, packName+"@"+candidateRef)
-			if info, err := os.Stat(candidateDir); err == nil && info.IsDir() {
-				if matched == nil {
-					matched = &PackCatalogEntry{Registry: reg.Name, Name: packName, Version: versionRef}
-				}
-				if len(versions) == 0 {
-					versions = []string{matched.Version}
-				}
-				return candidateDir, matched, versions, nil
-			}
-		}
+	packDir, err := catalog.FindPackDir(catalog.PackLookup{
+		CacheDir: cacheDir,
+		Registry: reg.Name,
+		Pack:     packName,
+		Version:  versionRef,
+		Refs:     []string{ref, catalog.DefaultRef},
+		AnyRef:   versionListed,
+	})
+	switch {
+	case errors.Is(err, catalog.ErrPackNotCached):
+		return "", nil, nil, notFound
+	case err != nil:
+		// The error may name paths of the server.
+		s.logger.Warn("failed to read the pack cache", "registry", reg.Name, "error", err)
+		return "", nil, nil, structs.NewErrRPCCodedf(http.StatusInternalServerError,
+			"the pack cache of registry %q can't be read", reg.Name)
 	}
-
-	refEntries, err := os.ReadDir(regRoot)
-	if err == nil {
-		for _, re := range refEntries {
-			if !re.IsDir() {
-				continue
-			}
-			subDir := filepath.Join(regRoot, re.Name())
-			packEntries, err := os.ReadDir(subDir)
-			if err != nil {
-				continue
-			}
-			for _, pe := range packEntries {
-				if !pe.IsDir() {
-					continue
-				}
-				namePart, verPart, ok := strings.Cut(pe.Name(), "@")
-				if !ok || namePart != packName {
-					continue
-				}
-				if versionRef == "" || verPart == versionRef || (matched != nil && matched.Version == versionRef) {
-					fullPath := filepath.Join(subDir, pe.Name())
-					if matched == nil {
-						matched = &PackCatalogEntry{Registry: reg.Name, Name: packName, Version: verPart}
-					}
-					if len(versions) == 0 {
-						versions = []string{matched.Version}
-					}
-					return fullPath, matched, versions, nil
-				}
-			}
-		}
-	}
-
-	return "", nil, nil, structs.NewErrRPCCodedf(http.StatusNotFound, "pack %q (version %q) not found in registry %q", packName, versionRef, reg.Name)
+	return packDir, matched, versions, nil
 }
 
 // RenderCatalogPack renders a pack from a cluster registry into an api.ReleaseApplyRequest
