@@ -165,7 +165,8 @@ func (n *natsKV) Delete(r *request, key string, recurse bool, cas *uint64) (bool
 		if err != nil {
 			return false, err
 		}
-		return consulkv.Delete(context.Background(), kv, "", key, cas)
+		ok, _, err := consulkv.Delete(context.Background(), kv, "", key, cas)
+		return ok, err
 	}
 
 	// Not atomic: the keys are deleted one by one.

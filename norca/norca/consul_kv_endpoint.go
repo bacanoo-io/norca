@@ -180,11 +180,13 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 	namespace := args.RequestNamespace()
 	scope := consulkv.ScopePrefix(namespace, path)
 	if !args.Recurse {
-		ok, err := consulkv.Delete(ctx, kv, scope, args.Key, args.CAS)
+		ok, deleted, err := consulkv.Delete(ctx, kv, scope, args.Key, args.CAS)
 		if err != nil {
 			return consulKVError(err)
 		}
-		if ok {
+		// ok is the answer, also for a key that did not exist; the notice
+		// is for a key that was deleted.
+		if deleted {
 			k.srv.consulKVNotify(namespace, args.Key, bus.ConsulKVKeyDeleted)
 		}
 		reply.Ok = ok
@@ -203,10 +205,13 @@ func (k *ConsulKV) Delete(args *structs.ConsulKVDeleteRequest, reply *structs.Co
 		if !consulKVAllowed(aclObj, namespace, path, acl.VariablesCapabilityDestroy, e.Key) {
 			return structs.ErrPermissionDenied
 		}
-		if _, err := consulkv.Delete(ctx, kv, scope, e.Key, nil); err != nil {
+		_, deleted, err := consulkv.Delete(ctx, kv, scope, e.Key, nil)
+		if err != nil {
 			return consulKVError(err)
 		}
-		k.srv.consulKVNotify(namespace, e.Key, bus.ConsulKVKeyDeleted)
+		if deleted {
+			k.srv.consulKVNotify(namespace, e.Key, bus.ConsulKVKeyDeleted)
+		}
 	}
 	reply.Ok = true
 	return nil

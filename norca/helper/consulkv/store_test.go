@@ -55,30 +55,39 @@ func TestDelete_CAS(t *testing.T) {
 
 	// cas=0 leaves an existing key alone.
 	zero := uint64(0)
-	ok, err = Delete(ctx, kv, "", "app/key", &zero)
+	ok, deleted, err := Delete(ctx, kv, "", "app/key", &zero)
 	must.NoError(t, err)
 	must.False(t, ok, must.Sprint("cas=0 must not delete an existing key"))
+	must.False(t, deleted)
 	must.Eq(t, rev, revision("app/key"))
 
 	// A stale index does not delete, the current one does.
 	stale := rev + 1000
-	ok, err = Delete(ctx, kv, "", "app/key", &stale)
+	ok, deleted, err = Delete(ctx, kv, "", "app/key", &stale)
 	must.NoError(t, err)
 	must.False(t, ok)
+	must.False(t, deleted)
 	must.Eq(t, rev, revision("app/key"))
-	ok, err = Delete(ctx, kv, "", "app/key", &rev)
+	ok, deleted, err = Delete(ctx, kv, "", "app/key", &rev)
 	must.NoError(t, err)
 	must.True(t, ok)
+	must.True(t, deleted)
 	_, err = kv.Get(ctx, EncodeKey("app/key"))
 	must.ErrorIs(t, err, jetstream.ErrKeyNotFound)
 
-	// A check-and-set delete of a key that does not exist answers true,
-	// whatever the index: of a deleted key and of one that never was.
+	// A delete of a key that does not exist answers true, with any index
+	// and without one, and deletes nothing: of a deleted key and of one
+	// that never was.
 	for _, key := range []string{"app/key", "app/never"} {
+		ok, deleted, err = Delete(ctx, kv, "", key, nil)
+		must.NoError(t, err, must.Sprint(key))
+		must.True(t, ok, must.Sprint(key))
+		must.False(t, deleted, must.Sprint(key))
 		for _, cas := range []uint64{0, rev, stale} {
-			ok, err = Delete(ctx, kv, "", key, &cas)
+			ok, deleted, err = Delete(ctx, kv, "", key, &cas)
 			must.NoError(t, err, must.Sprint(key, cas))
 			must.True(t, ok, must.Sprint(key, cas))
+			must.False(t, deleted, must.Sprint(key, cas))
 			_, err = kv.Get(ctx, EncodeKey(key))
 			must.ErrorIs(t, err, jetstream.ErrKeyNotFound)
 		}
@@ -88,9 +97,10 @@ func TestDelete_CAS(t *testing.T) {
 	ok, err = Put(ctx, kv, "", "app/other", []byte("v"), nil)
 	must.NoError(t, err)
 	must.True(t, ok)
-	ok, err = Delete(ctx, kv, "", "app/other", nil)
+	ok, deleted, err = Delete(ctx, kv, "", "app/other", nil)
 	must.NoError(t, err)
 	must.True(t, ok)
+	must.True(t, deleted)
 	_, err = kv.Get(ctx, EncodeKey("app/other"))
 	must.ErrorIs(t, err, jetstream.ErrKeyNotFound)
 }

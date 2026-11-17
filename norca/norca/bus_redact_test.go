@@ -192,3 +192,96 @@ func TestConsulKVEndpoint_Notice(t *testing.T) {
 	_, err = stream.GetLastMsgForSubject(t.Context(), "norca.global.default.ConsulKV.>")
 	must.True(t, errors.Is(err, jetstream.ErrMsgNotFound), must.Sprintf("a notice in the event stream: %v", err))
 }
+
+// TestConsulKVEndpoint_NoticeOnlyForDeletedKeys checks that KeyDeleted is
+// only sent for a key that was deleted: a delete of a key that does not
+// exist answers true (with a check-and-set index too) and sends nothing.
+func TestConsulKVEndpoint_NoticeOnlyForDeletedKeys(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanup := TestServer(t, enableBus(t))
+	defer cleanup()
+	testutil.WaitForLeader(t, s1.RPC)
+	c := &consulKVTest{t: t, srv: s1}
+	c.waitBucket("")
+
+	nc, err := s1.bus.Connect()
+	must.NoError(t, err)
+	defer nc.Close()
+	sub, err := nc.SubscribeSync("norca.global.*.ConsulKV.>")
+	must.NoError(t, err)
+	must.NoError(t, nc.Flush())
+	js, err := jetstream.New(nc)
+	must.NoError(t, err)
+	waitBus(t, func() (bool, error) {
+		_, err := js.Stream(t.Context(), bus.ConsulKVChangesStreamName("global"))
+		return err == nil, err
+	})
+	next := func(subject, key string) {
+		t.Helper()
+		msg, err := sub.NextMsg(5 * time.Second)
+		must.NoError(t, err, must.Sprint(subject, key))
+		must.Eq(t, subject, msg.Subject)
+		must.Eq(t, key, msg.Header.Get(bus.HeaderKey))
+	}
+	none := func(what string) {
+		t.Helper()
+		msg, err := sub.NextMsg(500 * time.Millisecond)
+		must.True(t, errors.Is(err, nats.ErrTimeout), must.Sprintf("%s: an extra notice: %v %v", what, err, msg))
+	}
+	const set, deleted = "norca.global.default.ConsulKV.KeySet", "norca.global.default.ConsulKV.KeyDeleted"
+
+	// A key that does not exist: true, and no notice, with and without cas.
+	zero, some := uint64(0), uint64(7)
+	for name, cas := range map[string]*uint64{"cas 0": &zero, "cas 7": &some, "no cas": nil} {
+		ok, err := c.delete("", "default", "app/missing", false, cas)
+		must.NoError(t, err, must.Sprint(name))
+		must.True(t, ok, must.Sprint(name))
+		none("delete of a missing key, " + name)
+	}
+
+	// A check-and-set delete that deletes sends the notice; one that does
+	// not (cas 0, a stale index) sends none.
+	ok, err := c.put("", "default", "app/key", "v", nil)
+	must.NoError(t, err)
+	must.True(t, ok)
+	next(set, "app/key")
+	got, err := c.get("", "default", "app/key", false, 0)
+	must.NoError(t, err)
+	must.Len(t, 1, got.Entries)
+	index := got.Entries[0].Revision
+	stale := index + 1000
+	for name, cas := range map[string]*uint64{"cas 0": &zero, "stale cas": &stale} {
+		ok, err = c.delete("", "default", "app/key", false, cas)
+		must.NoError(t, err, must.Sprint(name))
+		must.False(t, ok, must.Sprint(name))
+		none("refused delete, " + name)
+	}
+	ok, err = c.delete("", "default", "app/key", false, &index)
+	must.NoError(t, err)
+	must.True(t, ok)
+	next(deleted, "app/key")
+
+	// The deleted key is a missing one again.
+	ok, err = c.delete("", "default", "app/key", false, &index)
+	must.NoError(t, err)
+	must.True(t, ok)
+	ok, err = c.delete("", "default", "app/key", false, nil)
+	must.NoError(t, err)
+	must.True(t, ok)
+	none("delete of a deleted key")
+
+	// A recursive delete sends a notice for every key it deletes.
+	ok, err = c.put("", "default", "tree/a", "v", nil)
+	must.NoError(t, err)
+	must.True(t, ok)
+	next(set, "tree/a")
+	ok, err = c.delete("", "default", "tree/", true, nil)
+	must.NoError(t, err)
+	must.True(t, ok)
+	next(deleted, "tree/a")
+	ok, err = c.delete("", "default", "tree/", true, nil)
+	must.NoError(t, err)
+	must.True(t, ok)
+	none("recursive delete of nothing")
+}
