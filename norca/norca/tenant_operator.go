@@ -117,6 +117,11 @@ func (o *tenantOperator) reconcile(ws memdb.WatchSet) (time.Time, error) {
 		return time.Time{}, err
 	}
 	for _, t := range tenants {
+		// A server that is no longer the leader writes nothing more: its
+		// writes would go to the new leader with a token of the old one.
+		if !o.srv.IsLeader() {
+			break
+		}
 		if t.Deleting() {
 			o.finishDeletion(p, t)
 			continue

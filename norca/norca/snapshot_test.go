@@ -18,6 +18,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/state"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
+	"github.com/hashicorp/go-memdb"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
@@ -55,6 +56,10 @@ type fakeSnapshotCSI struct {
 	// plugin that does not answer; createEntered is told when one waits.
 	createBlock   chan struct{}
 	createEntered chan struct{}
+
+	// onDelete, when set, runs in every deletion, as something that
+	// happens while the plugin works.
+	onDelete func()
 }
 
 // tuning sets the waits of the operator: it is read once, when the server
@@ -125,6 +130,13 @@ func (f *fakeSnapshotCSI) create(pass *state.StateSnapshot, _ string, req *struc
 }
 
 func (f *fakeSnapshotCSI) delete(_ *state.StateSnapshot, req *structs.CSISnapshot) error {
+	f.mu.Lock()
+	onDelete := f.onDelete
+	f.mu.Unlock()
+	if onDelete != nil {
+		onDelete()
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.deleteSecrets = append(f.deleteSecrets, req.Secrets)
@@ -1264,4 +1276,76 @@ func TestOperators_OwnLoops(t *testing.T) {
 	time.Sleep(1500 * time.Millisecond)
 	after, _ := fake.counts()
 	must.Eq(t, creates, after, must.Sprint("a pass started after the loops ended"))
+}
+
+// A schedule that was written after the pass read it is not acted on, and
+// the retention stops between two deletions when the schedule changes: no
+// snapshot is deleted by a keep rule the schedule no longer has.
+func TestSnapshotSchedule_StaleScheduleIsNotActedOn(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := snapshotTestServer(t, false, true)
+	defer cleanup()
+
+	// The plugin of the operator of the server refuses deletions: after
+	// its first try that operator waits, and the list stays as it is.
+	fake.set(func(f *fakeSnapshotCSI) { f.deleteErr = errors.New("not now") })
+	spec := func(last int) map[string]any {
+		return map[string]any{"volume": "db", "schedule": farSchedule, "keep": map[string]any{"last": last}}
+	}
+	_, err := c.apply("default", volumeSnapshotScheduleKind, "db", spec(5))
+	must.NoError(t, err)
+	c.waitSchedule("db", "finalizer", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return slices.Contains(obj.Finalizers, structs.OperatorsFinalizer)
+	})
+	obj, _ := c.schedule("db")
+	writeTestScheduleStatus(t, c.s, obj, &snapshotScheduleStatus{Snapshots: listedSnapshots(fake, "db", 4)})
+	_, err = c.apply("default", volumeSnapshotScheduleKind, "db", spec(1))
+	must.NoError(t, err)
+	c.waitSchedule("db", "the operator of the server waits", func(obj *structs.CustomObject, st *snapshotScheduleStatus) bool {
+		return st.DeleteRetryAt != "" && len(st.Snapshots) == 4
+	})
+
+	// A second operator with a plugin of its own, driven by hand.
+	plugin := newFakeSnapshotCSI()
+	o := newSnapshotOperator(c.s, c.s.logger)
+	o.csi = plugin
+	pass := func() *snapshotPass {
+		snap, err := c.s.State().Snapshot()
+		must.NoError(t, err)
+		return &snapshotPass{now: time.Now().UTC().Add(2 * time.Hour), store: c.s.State(), snap: snap, ws: memdb.NewWatchSet()}
+	}
+
+	// Read with keep.last 1; the user makes it 2 before the pass comes to
+	// the schedule.
+	read, _ := c.schedule("db")
+	_, err = c.apply("default", volumeSnapshotScheduleKind, "db", spec(2))
+	must.NoError(t, err)
+	o.reconcileSchedule(pass(), read)
+	plugin.set(func(f *fakeSnapshotCSI) {
+		must.Eq(t, 0, len(f.deleteSecrets), must.Sprint("deleted by the keep rule that was changed"))
+	})
+
+	// With keep.last 2 two snapshots go. While the plugin deletes the
+	// first, the user makes it 5: the second one stays.
+	var once sync.Once
+	plugin.set(func(f *fakeSnapshotCSI) {
+		f.onDelete = func() {
+			once.Do(func() {
+				_, err := c.apply("default", volumeSnapshotScheduleKind, "db", spec(5))
+				must.NoError(t, err)
+			})
+		}
+	})
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		// The operator of the server may write the status once more
+		// after the change: the pass needs the schedule as it is stored.
+		cur, _ := c.schedule("db")
+		o.reconcileSchedule(pass(), cur)
+		calls := 0
+		plugin.set(func(f *fakeSnapshotCSI) { calls = len(f.deleteSecrets) })
+		return calls > 0
+	}), wait.Timeout(20*time.Second), wait.Gap(200*time.Millisecond)))
+	plugin.set(func(f *fakeSnapshotCSI) {
+		must.Eq(t, 1, len(f.deleteSecrets), must.Sprint("the retention went on after the schedule changed"))
+	})
 }

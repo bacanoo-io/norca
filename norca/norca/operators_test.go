@@ -129,3 +129,51 @@ func TestOperators_StartWaitsPerOperator(t *testing.T) {
 		must.Eq(t, after, later, must.Sprint("a pass started after the loops ended"))
 	}
 }
+
+// The turns of an operator: a pass ends between two objects when it is out
+// of its budget, but not before its first one, and the next pass begins
+// where it ended; a server that is not the leader goes on with nothing.
+func TestOperators_Turns(t *testing.T) {
+	ci.Parallel(t)
+	s, cleanup := TestServer(t, nil)
+	defer cleanup()
+	testutil.WaitForLeader(t, s.RPC)
+
+	objs := []*structs.CustomObject{
+		{Namespace: "default", Name: "a"}, {Namespace: "default", Name: "b"}, {Namespace: "default", Name: "c"},
+	}
+	turns := &operatorTurns{srv: s, budget: time.Hour}
+	names := func(objs []*structs.CustomObject) (out []string) {
+		for _, obj := range objs {
+			out = append(out, obj.Name)
+		}
+		return out
+	}
+
+	must.Eq(t, []string{"a", "b", "c"}, names(turns.order(objs)))
+	goOn, again := turns.next(time.Now(), 1, objs[1])
+	must.True(t, goOn)
+	must.False(t, again)
+
+	// Out of its budget: the first object still has its turn, the second
+	// one begins the next pass.
+	long := time.Now().Add(-2 * time.Hour)
+	goOn, again = turns.next(long, 0, objs[0])
+	must.True(t, goOn)
+	must.False(t, again)
+	goOn, again = turns.next(long, 1, objs[1])
+	must.False(t, goOn)
+	must.True(t, again)
+	must.Eq(t, []string{"b", "c", "a"}, names(turns.order(objs)))
+	must.Eq(t, []string{"a", "b", "c"}, names(turns.order(objs)))
+
+	// The object is current while it is stored as it was read.
+	must.False(t, s.operatorObjectCurrent(&structs.CustomObject{Group: structs.OperatorsGroup, Kind: "Nothing", Name: "x"}))
+
+	must.NoError(t, s.Shutdown())
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool { return !s.IsLeader() }),
+		wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)))
+	goOn, again = turns.next(time.Now(), 0, objs[0])
+	must.False(t, goOn)
+	must.False(t, again)
+}

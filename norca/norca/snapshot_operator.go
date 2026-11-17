@@ -50,12 +50,8 @@ const (
 	snapshotReadyPoll = 30 * time.Second
 
 	// snapshotPassBudget is how long a pass goes on beginning with
-	// another schedule. The calls of the plugins are made in the loop all
-	// the built-in operators share, and one may take minutes with a plugin
-	// that does not answer: a pass that has used its budget leaves the
-	// schedules it has not come to for the next one, which begins with
-	// them, and the other operators run in between.
-	snapshotPassBudget = 20 * time.Second
+	// another schedule: see operatorTurns.
+	snapshotPassBudget = operatorPassBudget
 )
 
 // snapshotTuning is implemented by the plugin of a test that changes the
@@ -289,13 +285,12 @@ type snapshotOperator struct {
 	logger hclog.Logger
 	csi    snapshotCSI
 
-	retryBase  time.Duration
-	readyPoll  time.Duration
-	passBudget time.Duration
+	retryBase time.Duration
+	readyPoll time.Duration
 
-	// resume is the schedule the next pass begins with: the first one
-	// the last pass did not come to.
-	resume string
+	// turns ends a pass that is out of its budget, or of a server that is
+	// no longer the leader, between two schedules.
+	turns operatorTurns
 }
 
 func newSnapshotOperator(srv *Server, logger hclog.Logger) *snapshotOperator {
@@ -304,9 +299,10 @@ func newSnapshotOperator(srv *Server, logger hclog.Logger) *snapshotOperator {
 		csi = srv.config.snapshotCSI
 	}
 	o := &snapshotOperator{srv: srv, logger: logger.Named("snapshots"), csi: csi,
-		retryBase: snapshotRetryBase, readyPoll: snapshotReadyPoll, passBudget: snapshotPassBudget}
+		retryBase: snapshotRetryBase, readyPoll: snapshotReadyPoll,
+		turns: operatorTurns{srv: srv, budget: snapshotPassBudget}}
 	if t, ok := csi.(snapshotTuning); ok {
-		o.retryBase, o.readyPoll, o.passBudget = t.tuning()
+		o.retryBase, o.readyPoll, o.turns.budget = t.tuning()
 	}
 	return o
 }
@@ -340,22 +336,13 @@ func (o *snapshotOperator) reconcile(ws memdb.WatchSet) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	// The schedules the last pass did not come to are the first ones.
-	key := func(obj *structs.CustomObject) string { return obj.Namespace + "/" + obj.Name }
-	if at := slices.IndexFunc(objs, func(obj *structs.CustomObject) bool { return key(obj) == o.resume }); at > 0 {
-		objs = append(slices.Clone(objs[at:]), objs[:at]...)
-	}
-	o.resume = ""
 	started := time.Now()
-	for _, obj := range objs {
-		// A server that is no longer the leader makes no more calls;
-		// a pass out of its budget goes on in the next one.
-		if !o.srv.IsLeader() {
-			break
-		}
-		if time.Since(started) > o.passBudget {
-			o.resume = key(obj)
+	for i, obj := range o.turns.order(objs) {
+		goOn, again := o.turns.next(started, i, obj)
+		if again {
 			p.want(time.Now().Add(operatorsSettle))
+		}
+		if !goOn {
 			break
 		}
 		o.reconcileSchedule(p, obj)
@@ -417,6 +404,12 @@ func withOperatorsFinalizer(finalizers []string) []string {
 
 // reconcileSchedule brings one schedule to its wanted state.
 func (o *snapshotOperator) reconcileSchedule(p *snapshotPass, obj *structs.CustomObject) {
+	// The schedule was read when the pass began, and the schedules before
+	// it may have taken long: one that was deleted or written since is
+	// not acted on as it was (see operatorObjectCurrent).
+	if !o.srv.operatorObjectCurrent(obj) {
+		return
+	}
 	spec := &snapshotScheduleSpec{}
 	if err := structs.DecodeObjectPart(obj.Spec, spec); err != nil {
 		o.logger.Warn("snapshot schedule with a spec that can't be decoded", "namespace", obj.Namespace,
@@ -625,6 +618,11 @@ func (o *snapshotOperator) finish(p *snapshotPass, r *snapshotRun) {
 			}
 		}
 
+		// Each call may take long: the next one is made only for the
+		// schedule as it still is.
+		if !o.srv.operatorObjectCurrent(r.obj) {
+			return
+		}
 		got, err := o.csi.create(p.snap, r.obj.Namespace, &structs.CSISnapshot{
 			SourceVolumeID: r.vol.ID,
 			PluginID:       r.vol.PluginID,
@@ -719,7 +717,7 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 	newestReady := slices.IndexFunc(st.Snapshots, func(s *scheduledSnapshot) bool { return s.Ready })
 
 	retryAt, waiting := deletionsWait(p, st)
-	tried, failed := false, false
+	tried, failed, stale := false, false, false
 	var keep []*scheduledSnapshot
 	for i, s := range st.Snapshots {
 		scheduled, _ := time.Parse(time.RFC3339, s.Scheduled)
@@ -739,6 +737,15 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 		if waiting {
 			keep = append(keep, s)
 			p.want(retryAt)
+			continue
+		}
+		// A deletion can't be taken back, and the one before it may have
+		// taken long: nothing more is deleted by a server that is no
+		// longer the leader, or by a retention the schedule no longer
+		// has (the keep rule was changed, the schedule deleted). The
+		// next pass decides again.
+		if stale = stale || !o.srv.operatorObjectCurrent(obj); stale {
+			keep = append(keep, s)
 			continue
 		}
 		tried = true
@@ -892,7 +899,7 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 		// plugin: every one of them waits for it.
 		secrets, secretErr := o.secrets(obj, spec)
 		retryAt, waiting := deletionsWait(p, st)
-		tried, pluginFailed := false, false
+		tried, pluginFailed, stale := false, false, false
 		var failed []string
 		var left []*scheduledSnapshot
 		for _, s := range st.Snapshots {
@@ -914,6 +921,14 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 				p.want(retryAt)
 				continue
 			default:
+				// As in retain: no deletion by a server that is no
+				// longer the leader, or for a schedule written since
+				// (delete_snapshots is read from the object as it was).
+				if stale = stale || !o.srv.operatorObjectCurrent(obj); stale {
+					left = append(left, s)
+					failed = append(failed, s.Name)
+					continue
+				}
 				tried = true
 				if err = o.deleteSnapshot(p, obj.Namespace, s, secrets); err != nil {
 					pluginFailed = true
@@ -930,6 +945,9 @@ func (o *snapshotOperator) finishDeletion(p *snapshotPass, obj *structs.CustomOb
 		}
 		if tried {
 			o.deletionsTried(p, st, pluginFailed)
+		}
+		if stale && !tried {
+			return
 		}
 		if len(left) > 0 {
 			st.Snapshots = left

@@ -6,6 +6,7 @@ package norca
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -228,6 +229,70 @@ func (m *operatorManager) operatorLoop(op coreOperator, stopCh chan struct{}) {
 			}
 		}
 	}
+}
+
+// operatorPassBudget is how long a pass of an operator that calls out goes
+// on beginning with another object. The call of a CSI plugin may take
+// minutes: a pass that has used its budget leaves the objects it has not
+// come to for the next one, which begins with them.
+const operatorPassBudget = 20 * time.Second
+
+// operatorTurns gives the objects of an operator that calls out their turn
+// across passes: a pass ends when this server is no longer the leader, or
+// when it has used its budget, and the next pass begins with the object the
+// last one did not come to. It belongs to one operator, and is used by its
+// loop only.
+type operatorTurns struct {
+	srv    *Server
+	budget time.Duration
+
+	// resume is the object the next pass begins with.
+	resume string
+}
+
+func operatorTurnKey(obj *structs.CustomObject) string { return obj.Namespace + "/" + obj.Name }
+
+// order returns the objects of a pass in their turn: beginning with the one
+// the last pass did not come to.
+func (t *operatorTurns) order(objs []*structs.CustomObject) []*structs.CustomObject {
+	at := slices.IndexFunc(objs, func(obj *structs.CustomObject) bool { return operatorTurnKey(obj) == t.resume })
+	t.resume = ""
+	if at > 0 {
+		return append(slices.Clone(objs[at:]), objs[:at]...)
+	}
+	return objs
+}
+
+// next reports whether the pass that started at started goes on with the
+// object at the place i of its order. It does not when this server is no
+// longer the leader: a deposed leader makes no more calls. Nor when the
+// pass is out of its budget, except for its first object, so every pass
+// gets somewhere; again is true then, and the pass asks to run again soon.
+func (t *operatorTurns) next(started time.Time, i int, obj *structs.CustomObject) (goOn, again bool) {
+	if !t.srv.IsLeader() {
+		return false, false
+	}
+	if i > 0 && time.Since(started) > t.budget {
+		t.resume = operatorTurnKey(obj)
+		return false, true
+	}
+	return true, false
+}
+
+// operatorObjectCurrent reports whether an operator may still act on an
+// object it read earlier in its pass: this server is the leader, and the
+// object is stored as the pass has it (the same object, not written since).
+// A pass may take long (a call of a CSI plugin), and what it read at its
+// start may be deleted or changed by then: an operator asks this before it
+// calls out for an object, and again before every call that destroys
+// something. An object that is not current is left to the next pass, which
+// its change has already asked for.
+func (s *Server) operatorObjectCurrent(obj *structs.CustomObject) bool {
+	if !s.IsLeader() {
+		return false
+	}
+	stored, err := s.State().CustomObjectByName(nil, obj.Group, obj.Kind, obj.Namespace, obj.Name)
+	return err == nil && stored != nil && stored.ID == obj.ID && stored.ModifyIndex == obj.ModifyIndex
 }
 
 // operatorWake returns when the loop of an operator runs next: the earlier

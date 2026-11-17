@@ -141,6 +141,10 @@ type volumeRequestOperator struct {
 
 	// retryBase is the wait after the first failed attempt.
 	retryBase time.Duration
+
+	// turns ends a pass that is out of its budget, or of a server that is
+	// no longer the leader, between two requests.
+	turns operatorTurns
 }
 
 func newVolumeRequestOperator(srv *Server, logger hclog.Logger) *volumeRequestOperator {
@@ -152,7 +156,8 @@ func newVolumeRequestOperator(srv *Server, logger hclog.Logger) *volumeRequestOp
 	if srv.config != nil && srv.config.volumeRequestRetryBase > 0 {
 		retryBase = srv.config.volumeRequestRetryBase
 	}
-	return &volumeRequestOperator{srv: srv, logger: logger.Named("volumes"), csi: csi, retryBase: retryBase}
+	return &volumeRequestOperator{srv: srv, logger: logger.Named("volumes"), csi: csi, retryBase: retryBase,
+		turns: operatorTurns{srv: srv, budget: operatorPassBudget}}
 }
 
 func (o *volumeRequestOperator) kinds() []*structs.ObjectKind { return builtinVolumeRequestKinds() }
@@ -179,7 +184,19 @@ func (o *volumeRequestOperator) reconcile(ws memdb.WatchSet) (time.Time, error) 
 	if err != nil {
 		return time.Time{}, err
 	}
-	for _, obj := range objs {
+	// A request may take a call of its CSI plugin, which may take minutes:
+	// a server that is no longer the leader makes no call for the requests
+	// it has not come to, and a pass out of its budget leaves them to the
+	// next one, which begins with them.
+	started := time.Now()
+	for i, obj := range o.turns.order(objs) {
+		goOn, again := o.turns.next(started, i, obj)
+		if again {
+			p.want(time.Now().Add(operatorsSettle))
+		}
+		if !goOn {
+			break
+		}
 		o.reconcileRequest(p, obj)
 	}
 	return p.wish, nil
@@ -207,6 +224,12 @@ func (out *volumeRequestOutcome) notReady(reason, format string, args ...any) {
 
 // reconcileRequest brings one request to its wanted state.
 func (o *volumeRequestOperator) reconcileRequest(p *volumeRequestPass, obj *structs.CustomObject) {
+	// The request was read when the pass began, and the requests before
+	// it may have taken long: one that was deleted or written since is
+	// not acted on as it was (see operatorObjectCurrent).
+	if !o.srv.operatorObjectCurrent(obj) {
+		return
+	}
 	spec := &volumeRequestSpec{}
 	if err := structs.DecodeObjectPart(obj.Spec, spec); err != nil {
 		o.logger.Warn("volume request with a spec that can't be decoded", "namespace", obj.Namespace,
@@ -342,6 +365,11 @@ func (o *volumeRequestOperator) deleteUnregistered(obj *structs.CustomObject, sp
 	if err := o.csi.create(vol, plugin); err != nil {
 		return leave("asking the plugin for it again failed: %v", err)
 	}
+	// The call may have taken long: a server that is no longer the leader
+	// deletes nothing. The request stays, for the leader.
+	if !o.srv.operatorObjectCurrent(obj) {
+		return false
+	}
 	other, err := o.registeredElsewhere(vol)
 	if err != nil {
 		return leave("looking up the volume %q failed: %v", vol.ExternalID, err)
@@ -461,6 +489,14 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 			return obj
 		}
 		obj = written
+	}
+
+	// No write came before the call when the intent was there already (a
+	// retry): the request is looked at once more, so no volume is made for
+	// a request that was deleted or changed since the pass read it.
+	if !o.srv.operatorObjectCurrent(obj) {
+		out.notReady("Creating", "creating the volume")
+		return obj
 	}
 
 	what := "create the volume"
@@ -629,6 +665,10 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 	expanded, err := follow(vol)
 	if err != nil {
 		o.failure(p, obj, st, out, "update the volume", err)
+		return
+	}
+	if !o.srv.operatorObjectCurrent(obj) {
+		out.notReady(volumeRequestReasonUpdating, "the request changed while it was looked at")
 		return
 	}
 	if err := o.csi.expand(expanded, plugin, &csi.CapacityRange{

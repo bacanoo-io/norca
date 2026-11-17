@@ -14,6 +14,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/mock"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/plugins/csi"
+	"github.com/hashicorp/go-memdb"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
@@ -1208,4 +1209,90 @@ func TestVolumeRequest_RegisterIsCheckAndSet(t *testing.T) {
 	must.Zero(t, failedEvents("late"))
 	must.Eq(t, "by-hand", c.volume("late").Name)
 	must.Eq(t, "ext-by-hand", c.volume("late").ExternalID)
+}
+
+// secondVolumeOperator returns an operator of volume requests of the test's
+// server with a plugin of its own: a pass the test drives by hand, beside
+// the loop of the server (whose plugin the test keeps failing).
+func secondVolumeOperator(s *Server) (*volumeRequestOperator, *fakeVolumeCSI) {
+	fake := &fakeVolumeCSI{}
+	o := newVolumeRequestOperator(s, s.logger)
+	o.csi = fake
+	return o, fake
+}
+
+// A request that was deleted after the pass read it is not acted on: no
+// volume is made for it, also when no status write stands before the call
+// of the plugin (the intent is there from a failed attempt).
+func TestVolumeRequest_StaleRequestIsNotActedOn(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false, func(c *Config) {
+		c.volumeRequestRetryBase = time.Hour
+	})
+	defer cleanup()
+
+	fake.set(func(f *fakeVolumeCSI) { f.createErr = errors.New("the storage is away") })
+	_, err := c.apply("default", csiVolumeRequestKind, "stale", volumeSpec(nil))
+	must.NoError(t, err)
+	c.waitRequest("stale", "creating, failed once", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Creating && st.Failures == 1 && st.RetryAt != ""
+	})
+
+	// What a pass read, a moment before the request is deleted. Its retry
+	// is due in that pass.
+	read, _ := c.request("stale")
+	must.NoError(t, c.delete("default", csiVolumeRequestKind, "stale"))
+
+	o, plugin := secondVolumeOperator(c.s)
+	p := &volumeRequestPass{now: time.Now().UTC().Add(2 * time.Hour), store: c.s.State(), ws: memdb.NewWatchSet()}
+	o.reconcileRequest(p, read)
+	plugin.set(func(f *fakeVolumeCSI) {
+		must.Eq(t, 0, len(f.creates), must.Sprint("a volume was made for a request that was deleted"))
+	})
+	must.Nil(t, c.volume("stale"))
+}
+
+// A server that is no longer the leader makes no call for the requests of
+// its pass.
+func TestVolumeRequest_PassEndsWithTheLeadership(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false, func(c *Config) {
+		c.volumeRequestRetryBase = time.Second
+	})
+	defer cleanup()
+
+	fake.set(func(f *fakeVolumeCSI) { f.createErr = errors.New("the storage is away") })
+	for _, name := range []string{"left-a", "left-b"} {
+		_, err := c.apply("default", csiVolumeRequestKind, name, volumeSpec(nil))
+		must.NoError(t, err)
+	}
+	for _, name := range []string{"left-a", "left-b"} {
+		c.waitRequest(name, "creating, failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+			return st.Creating && st.Failures >= 1 && st.RetryAt != ""
+		})
+	}
+
+	must.NoError(t, c.s.Shutdown())
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool { return !c.s.IsLeader() }),
+		wait.Timeout(10*time.Second), wait.Gap(20*time.Millisecond)))
+
+	// The retries of both requests are due in the pass: nothing but the
+	// lost leadership keeps it from calling the plugin.
+	due := time.Now()
+	for _, name := range []string{"left-a", "left-b"} {
+		_, st := c.request(name)
+		retryAt, err := time.Parse(time.RFC3339, st.RetryAt)
+		must.NoError(t, err)
+		if retryAt.After(due) {
+			due = retryAt
+		}
+	}
+	time.Sleep(time.Until(due) + time.Second)
+
+	o, plugin := secondVolumeOperator(c.s)
+	_, err := o.reconcile(memdb.NewWatchSet())
+	must.NoError(t, err)
+	plugin.set(func(f *fakeVolumeCSI) {
+		must.Eq(t, 0, len(f.creates), must.Sprint("a deposed leader called the plugin"))
+	})
 }
