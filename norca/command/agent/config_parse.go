@@ -253,10 +253,17 @@ func extraKeys(c *Config) error {
 		for _, r := range c.Client.Secrets.Routes {
 			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, r.Prefix)
 			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, "route")
+			// UnusedKeys doesn't descend into slices, check the blocks here
+			if err := helper.UnusedKeys(r); err != nil {
+				return fmt.Errorf("client.secrets.route.%s: %w", r.Prefix, err)
+			}
 		}
 		for _, r := range c.Client.Secrets.VaultKV {
 			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, r.Prefix)
 			helper.RemoveEqualFold(&c.Client.Secrets.ExtraKeysHCL, "vault_kv")
+			if err := helper.UnusedKeys(r); err != nil {
+				return fmt.Errorf("client.secrets.vault_kv.%s: %w", r.Prefix, err)
+			}
 		}
 	}
 
@@ -285,16 +292,27 @@ func extraKeys(c *Config) error {
 		for _, p := range c.Server.Autoscaler.APMs {
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, p.Name)
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "apm")
+			helper.RemoveEqualFold(&p.ExtraKeysHCL, "config")
+			if err := helper.UnusedKeys(p); err != nil {
+				return fmt.Errorf("server.autoscaler.apm.%s: %w", p.Name, err)
+			}
 		}
 		for _, p := range c.Server.Autoscaler.Strategies {
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, p.Name)
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "strategy")
+			helper.RemoveEqualFold(&p.ExtraKeysHCL, "config")
+			if err := helper.UnusedKeys(p); err != nil {
+				return fmt.Errorf("server.autoscaler.strategy.%s: %w", p.Name, err)
+			}
 		}
 		if ns := c.Server.Autoscaler.NodeScaling; ns != nil {
 			helper.RemoveEqualFold(&c.Server.Autoscaler.ExtraKeysHCL, "node_scaling")
 			for _, p := range ns.Pools {
 				helper.RemoveEqualFold(&ns.ExtraKeysHCL, p.Name)
 				helper.RemoveEqualFold(&ns.ExtraKeysHCL, "pool")
+				if err := helper.UnusedKeys(p); err != nil {
+					return fmt.Errorf("server.autoscaler.node_scaling.pool.%s: %w", p.Name, err)
+				}
 			}
 		}
 	}
