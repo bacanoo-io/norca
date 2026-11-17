@@ -632,3 +632,47 @@ plugin { policy = "read" }`)
 	}
 	must.NoError(t, c.delete("default", csiVolumeRequestKind, "dropped-too"))
 }
+
+// claim makes a running allocation that claims the volume for writing.
+func (c *certTest) claim(id string) *structs.CSIVolumeClaim {
+	c.t.Helper()
+	alloc := mock.BatchAlloc()
+	alloc.ClientStatus = structs.AllocClientStatusRunning
+	index, err := c.s.State().LatestIndex()
+	must.NoError(c.t, err)
+	must.NoError(c.t, c.s.State().UpsertAllocs(structs.MsgTypeTestSetup, index+100, []*structs.Allocation{alloc}))
+	claim := &structs.CSIVolumeClaim{
+		AllocationID: alloc.ID, NodeID: alloc.NodeID, Mode: structs.CSIVolumeClaimWrite,
+		AccessMode: structs.CSIVolumeAccessModeSingleNodeWriter, AttachmentMode: structs.CSIVolumeAttachmentModeFilesystem,
+		State: structs.CSIVolumeClaimStateTaken,
+	}
+	must.NoError(c.t, c.s.State().CSIVolumeClaim(index+101, "default", id, claim))
+	return claim
+}
+
+// A request without mount options expands its volume while a job uses it
+// (review finding VOL-5).
+func TestVolumeRequest_ExpandInUseWithoutMountOptions(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false)
+	defer cleanup()
+
+	_, err := c.apply("default", csiVolumeRequestKind, "live", volumeSpec(nil))
+	must.NoError(t, err)
+	c.waitRequest("live", "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == "True"
+	})
+	c.claim("live")
+	must.True(t, c.volume("live").InUse())
+
+	_, err = c.apply("default", csiVolumeRequestKind, "live", volumeSpec(func(m map[string]any) { m["capacity_min"] = "2GiB" }))
+	must.NoError(t, err)
+	st := c.waitRequest("live", "expanded or failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Failures > 0 || (st.CapacityBytes == 2*gibibyte && readyReason(obj) == "True")
+	})
+	obj, _ := c.request("live")
+	must.Zero(t, st.Failures, must.Sprintf("the update failed: %s", volumeRequestFailure(obj.Status)))
+	must.Eq(t, 2*gibibyte, c.volume("live").Capacity)
+	must.MapLen(t, 1, c.volume("live").WriteClaims)
+	fake.set(func(f *fakeVolumeCSI) { must.Eq(t, []int64{2 * gibibyte}, f.expands) })
+}

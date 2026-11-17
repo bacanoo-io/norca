@@ -431,6 +431,12 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 	if spec.mode() == volumeRequestModeCreate {
 		mergeIn.Context = maps.Clone(vol.Context)
 	}
+	// Merge refuses a change of the mount options of a volume in use, and
+	// takes none (nil) and empty ones for a change: the stored volume has
+	// empty ones where the request has none.
+	if mountOptionsEqual(changed.MountOptions, mergeIn.MountOptions) {
+		mergeIn.MountOptions = changed.MountOptions
+	}
 	if err := changed.Merge(&mergeIn); err != nil {
 		o.failure(p, obj, st, out, "update the volume", err)
 		return
