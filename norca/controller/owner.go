@@ -13,7 +13,8 @@ import (
 
 // OwnerMetaKey is the reserved job meta key holding the owner reference of
 // jobs created by a controller. Its value is "<namespace>/<object path>",
-// for example "default/crd/norca-io/LoadBalancer/web". OwnerKindMetaKey
+// for example "default/crd/norca-io/LoadBalancer/web"; the namespace is
+// empty for an object of a cluster-scoped kind. OwnerKindMetaKey
 // holds the "group/Kind" of the owner. The server's object garbage
 // collector stops the jobs of deleted native objects (except with the
 // orphan deletion mode).
@@ -47,8 +48,10 @@ func OwnerFromMeta(kind Kind, meta map[string]string) (ObjectKey, bool) {
 	if k, ok := meta[OwnerKindMetaKey]; ok && k != kind.String() {
 		return ObjectKey{}, false
 	}
+	// The namespace is empty for the objects of cluster-scoped kinds: their
+	// reference starts with the "/".
 	ns, path, ok := strings.Cut(ref, "/")
-	if !ok || ns == "" {
+	if !ok {
 		return ObjectKey{}, false
 	}
 	name, ok := kind.NameFromPath(path)
