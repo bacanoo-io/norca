@@ -111,6 +111,8 @@ Command-line flags take precedence. The variables injected into workloads (`NORC
 
 "Implemented" means the feature is in the code and can be used; the others are being built or are postponed. The whole project is alpha. The details, phases and design of each feature are in the linked documents.
 
+State of 2026-11-17. A review of the Norca-specific code in November 2026 found about 150 defects; the fixes of those that needed no design decision are on `main` since 2026-11-17, each with a regression test.
+
 | Feature | Status | Design |
 | --- | --- | --- |
 | Nomad v1.6.5 core features | Implemented (alpha) | – |
@@ -128,7 +130,13 @@ Command-line flags take precedence. The variables injected into workloads (`NORC
 | Health check roles (startup, readiness, liveness) | Implemented (alpha) | [specification, item 6][spec] |
 | Network rules, levels A and B | Implemented (alpha) | [specification, item 7][spec] |
 | Operator framework (custom objects, controller SDK, lifecycle, web UI) | Implemented (alpha), phases 1–4 | [specification, item 8][spec] |
+| Certificates as objects (`Certificate`, `CertificateIssuer`; a built-in issuer and ACME through the `norca-acme` operator, HTTP-01 and DNS-01) | Implemented (alpha) | [certificates](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/certificates.md), [ACME](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/certificates-acme.md) |
+| CSI snapshots on a schedule (`VolumeSnapshotSchedule`) | Implemented (alpha) | [volume snapshot schedules](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/volume-snapshot-schedules.md) |
+| CSI volumes kept as declared (`CSIVolumeRequest`) | Implemented (alpha) | [CSI volume requests](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/csi-volume-requests.md) |
+| Tenants (a namespace with its quota, roles, network isolation and allow lists as one object) | Implemented (alpha), in the authoritative region only | [tenants](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/tenants/_index.md) |
+| DNS records that follow the cluster (`DNSRecord`, the `norca-dns` operator; `rfc2136` zones) | Implemented (alpha) | [DNS records](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/dns-records.md) |
 | System bus: NATS with JetStream embedded in the servers | Implemented (alpha) | [system bus][bus] |
+| Change data capture (consumers of the change streams over the system bus) | Implemented (alpha), phases 1–3 | [change data capture](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/features/change-data-capture.md) |
 | Multiregion deployments | Implemented (alpha) | [development plan][plan] |
 | Server roles: observers and hot standby servers | Implemented (alpha), phases 1–4 | [server roles plan][roles] |
 | Backup and restore (scheduled, encrypted, selective and full restore, web UI) | Implemented (alpha), phases 1–4 | [backup plan][backup] |
@@ -136,7 +144,7 @@ Command-line flags take precedence. The variables injected into workloads (`NORC
 | Full Consul as an option, through the `consul` pack | Implemented (alpha), phase 6 | [Consul independence plan][consul] |
 | Native mTLS (per-region CA, SPIFFE workload certificates, intentions, Envoy sidecar and gateway) | Implemented (alpha), phase 5 | [Consul independence plan][consul] |
 | Package management (`norca pack`, OCI registries, signing, server-side releases, multi-region installs) | Implemented (alpha) | [package management plan][packs] |
-| Norca pack registry (`nats`, `mtls-gateway`, `rustfs`, `consul`, `loadbalancer-operator`) | Implemented (alpha) | [registry](https://github.com/bacanoo-io/norca-registry#readme) |
+| Norca pack registry (`nats`, `mtls-gateway`, `rustfs`, `consul`, `traefik`, `forgejo`, `postgres`, `openobserve`, `otel-collector`, `seaweedfs`, `seaweedfs-csi`, and the operator packs `loadbalancer-operator`, `nodescaler-operator`, `norca-provider`, `norca-acme`, `norca-dns`) | Implemented (alpha) | [registry](https://github.com/bacanoo-io/norca-registry#readme) |
 | Embedded secret storage | In progress, phases 0–4 | [secrets plan][secrets] |
 | New web UI (Ember 6.12 LTS, Tabler, ECharts) | Implemented (alpha), phases 1–4 | [UI plan][ui] |
 
