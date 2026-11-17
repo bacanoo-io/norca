@@ -527,3 +527,47 @@ func TestSnapshotScheduleTimes(t *testing.T) {
 	must.Eq(t, "prod-db-nightly-20261113-030000", snapshotName(obj, &snapshotScheduleSpec{}, due))
 	must.Eq(t, "db-20261113-030000", snapshotName(obj, &snapshotScheduleSpec{NamePrefix: "db"}, due.In(berlin)))
 }
+
+// A snapshot kept by another rule than max_age, past its max_age, must not
+// make the pass ask for a run in the past (review finding SNP-2).
+func TestSnapshotRetain_NoPastWish(t *testing.T) {
+	ci.Parallel(t)
+
+	now := time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)
+	st := &snapshotScheduleStatus{}
+	for i := 1; i <= 3; i++ {
+		st.Snapshots = append(st.Snapshots, &scheduledSnapshot{
+			ID: fmt.Sprintf("snap-%d", i), Name: fmt.Sprintf("s-%d", i), Volume: "db", Plugin: "minnie", Ready: true,
+			Scheduled: now.Add(-time.Duration(i) * 48 * time.Hour).Format(time.RFC3339),
+		})
+	}
+	// One younger than max_age: the pass wants to run when it ages out.
+	st.Snapshots = append(st.Snapshots, &scheduledSnapshot{
+		ID: "snap-0", Name: "s-0", Volume: "db", Plugin: "minnie", Ready: true,
+		Scheduled: now.Add(-time.Hour).Format(time.RFC3339),
+	})
+
+	o := &snapshotOperator{}
+	p := &snapshotPass{now: now}
+	o.retain(p, &structs.CustomObject{Namespace: "default", Name: "db"}, st, 24*time.Hour, 10, nil)
+	must.Eq(t, 4, len(st.Snapshots))
+	must.Eq(t, now.Add(23*time.Hour), p.wish, must.Sprintf("wish %s, now %s", p.wish, now))
+}
+
+// The loop of the operators does not spin on a wish in the past, whichever
+// operator returns it (review finding SNP-2).
+func TestSnapshotOperatorWake(t *testing.T) {
+	ci.Parallel(t)
+
+	started := time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)
+	next := started.Add(operatorsInterval)
+
+	must.Eq(t, next, operatorWake(next, time.Time{}, started))
+	must.Eq(t, started.Add(time.Second), operatorWake(next, started.Add(time.Second), started))
+	must.Eq(t, next, operatorWake(next, next.Add(time.Hour), started))
+	// A wish in the past, or at the start of the pass: not at once.
+	must.Eq(t, started.Add(operatorsRetry), operatorWake(next, started.Add(-time.Hour), started))
+	must.Eq(t, started.Add(operatorsRetry), operatorWake(next, started, started))
+	// An earlier wish of another operator stands.
+	must.Eq(t, started.Add(time.Second), operatorWake(started.Add(time.Second), started.Add(-time.Hour), started))
+}

@@ -455,8 +455,10 @@ func (o *snapshotOperator) retain(p *snapshotPass, obj *structs.CustomObject, st
 			(maxAge > 0 && p.now.Sub(scheduled) < maxAge)
 		if kept {
 			keep = append(keep, s)
-			if maxAge > 0 {
-				p.want(scheduled.Add(maxAge))
+			// The time it ages out, unless another rule keeps it past
+			// that: a time in the past would run the loop without end.
+			if agesOut := scheduled.Add(maxAge); maxAge > 0 && agesOut.After(p.now) {
+				p.want(agesOut)
 			}
 			continue
 		}

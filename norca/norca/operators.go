@@ -105,9 +105,7 @@ func (s *Server) operatorsLoop(stopCh chan struct{}) {
 				m.logger.Warn("built-in operator failed, will retry", "error", err)
 				wish = now.Add(operatorsRetry)
 			}
-			if !wish.IsZero() && wish.Before(next) {
-				next = wish
-			}
+			next = operatorWake(next, wish, now)
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -129,6 +127,23 @@ func (s *Server) operatorsLoop(stopCh chan struct{}) {
 			}
 		}
 	}
+}
+
+// operatorWake returns when the loop runs next: the earlier of next and the
+// wish of an operator. A wish that is not after the start of the pass has
+// nothing to wait for, and would run all the operators every operatorsSettle
+// without end; such an operator is run again after operatorsRetry instead.
+func operatorWake(next, wish, started time.Time) time.Time {
+	if wish.IsZero() {
+		return next
+	}
+	if !wish.After(started) {
+		wish = started.Add(operatorsRetry)
+	}
+	if wish.Before(next) {
+		return wish
+	}
+	return next
 }
 
 // operatorCount counts something an operator did, per kind.
