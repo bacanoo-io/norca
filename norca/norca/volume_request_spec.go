@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,17 +57,27 @@ type volumeTopology struct {
 }
 
 // oneOrMany is a list that is also written as a single item: HCL gives a
-// block that appears once as an object and a repeated one as a list.
+// block that appears once as an object and a repeated one as a list. The
+// schema of the kind can't describe that, so the items are decoded strictly
+// here: a key they don't have is an error, not dropped.
 type oneOrMany[T any] []T
 
 func (o *oneOrMany[T]) UnmarshalJSON(b []byte) error {
-	var list []T
-	if err := json.Unmarshal(b, &list); err == nil {
+	strict := func(out any) error {
+		dec := json.NewDecoder(bytes.NewReader(b))
+		dec.DisallowUnknownFields()
+		return dec.Decode(out)
+	}
+	if trimmed := bytes.TrimSpace(b); len(trimmed) == 0 || trimmed[0] == '[' || string(trimmed) == "null" {
+		var list []T
+		if err := strict(&list); err != nil {
+			return err
+		}
 		*o = list
 		return nil
 	}
 	var one T
-	if err := json.Unmarshal(b, &one); err != nil {
+	if err := strict(&one); err != nil {
 		return err
 	}
 	*o = []T{one}

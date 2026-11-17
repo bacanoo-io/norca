@@ -551,3 +551,44 @@ func TestVolumeRequest_TopologyRequestImmutable(t *testing.T) {
 	}))
 	must.NoError(t, err)
 }
+
+// The blocks whose shape the schema leaves open (capability, the topologies)
+// refuse keys they don't know (review finding VOL-11).
+func TestVolumeRequestSpec_UnknownBlockKeys(t *testing.T) {
+	ci.Parallel(t)
+
+	capability := map[string]any{"access_mode": "single-node-writer", "attachment_mode": "file-system"}
+	withKey := func(m map[string]any, key string) map[string]any {
+		out := map[string]any{key: "x"}
+		for k, v := range m {
+			out[k] = v
+		}
+		return out
+	}
+	topology := map[string]any{"segments": map[string]any{"zone": "a"}}
+
+	for name, tc := range map[string]struct {
+		spec map[string]any
+		want string
+	}{
+		"capability block": {map[string]any{"capability": withKey(capability, "fs_type")}, "fs_type"},
+		"capability list":  {map[string]any{"capability": []any{capability, withKey(capability, "fs_type")}}, "fs_type"},
+		"required topology": {map[string]any{"capability": capability,
+			"topology_request": map[string]any{"required": withKey(topology, "zone")}}, "zone"},
+		"preferred topologies": {map[string]any{"capability": capability,
+			"topology_request": map[string]any{"preferred": []any{topology, withKey(topology, "rack")}}}, "rack"},
+	} {
+		err := structs.DecodeObjectPart(tc.spec, &volumeRequestSpec{})
+		must.ErrorContains(t, err, tc.want, must.Sprintf("%s", name))
+	}
+
+	// What is known is taken, as a block or as a list.
+	spec := &volumeRequestSpec{}
+	must.NoError(t, structs.DecodeObjectPart(map[string]any{
+		"capability":       []any{capability, capability},
+		"topology_request": map[string]any{"required": topology, "preferred": []any{topology}},
+	}, spec))
+	must.Len(t, 2, spec.Capability)
+	must.Len(t, 1, spec.TopologyRequest.Required)
+	must.Len(t, 1, spec.TopologyRequest.Preferred)
+}
