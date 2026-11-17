@@ -70,3 +70,27 @@ func TestAllowSecretSearch_GlobNamespace(t *testing.T) {
 	must.True(t, a.AllowSecretSearch("prod"))
 	must.False(t, a.AllowSecretSearch("dev"))
 }
+
+// A deny of another secret path of any namespace does not refuse the grant
+// of a pattern it cannot match (review finding ACL-4).
+func TestAllowSecretGrant_NamespaceSeparator(t *testing.T) {
+	ci.Parallel(t)
+
+	must.False(t, secretKeysIntersect("*\x00legacy", "prod\x00app/*"))
+	must.True(t, secretKeysIntersect("*\x00app/x*", "prod\x00app/*"))
+	must.False(t, secretKeysIntersect("dev-*\x00app/*", "prod\x00app/*"))
+
+	a := reviewACL(t,
+		`namespace "*" { secret "legacy" { capabilities = ["deny"] } }`,
+		`namespace "prod" { secret "app/*" { capabilities = ["read-secret"] } }`,
+	)
+	must.True(t, a.AllowSecretOperation("prod", "app/x", NamespaceCapabilityReadSecret))
+	must.True(t, a.AllowSecretGrant("prod", "app/*", NamespaceCapabilityReadSecret))
+
+	// A deny that can match a path of the pattern still refuses it.
+	a = reviewACL(t,
+		`namespace "*" { secret "app/legacy" { capabilities = ["deny"] } }`,
+		`namespace "prod" { secret "app/*" { capabilities = ["read-secret"] } }`,
+	)
+	must.False(t, a.AllowSecretGrant("prod", "app/*", NamespaceCapabilityReadSecret))
+}

@@ -216,7 +216,7 @@ func (a *ACL) AllowSecretGrant(ns, pattern, op string) bool {
 	check := func(exact bool) func(k []byte, caps capabilitySet) bool {
 		return func(k []byte, caps capabilitySet) bool {
 			rule := string(k)
-			if rule == key || !globsIntersect(rule, key) {
+			if rule == key || !secretKeysIntersect(rule, key) {
 				return false
 			}
 			if caps.Check(NamespaceCapabilityDeny) {
@@ -243,6 +243,16 @@ func (a *ACL) AllowSecretGrant(ns, pattern, op string) bool {
 		a.wildcardSecrets.Root().Walk(check(false))
 	}
 	return ok
+}
+
+// secretKeysIntersect reports whether two secret rule keys (secretsKey:
+// namespace and path, each of which may contain globs) match a common
+// secret. The namespaces and the paths are compared separately: a "*" of
+// one key never stands for the separator of the other.
+func secretKeysIntersect(a, b string) bool {
+	nsA, pathA, _ := strings.Cut(a, "\x00")
+	nsB, pathB, _ := strings.Cut(b, "\x00")
+	return globsIntersect(nsA, nsB) && globsIntersect(pathA, pathB)
 }
 
 // globsIntersect reports whether two patterns, in which "*" matches any
