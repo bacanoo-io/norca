@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/bus"
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 )
@@ -242,6 +243,19 @@ func (p *Packs) Deploy(args *PackDeployRPCRequest, reply *structs.ReleaseApplyRe
 		return fmt.Errorf("server-side pack rendering is not available on this server")
 	}
 	namespace := args.RequestNamespace()
+	// Before the registry and the pack are looked up, the cache is synced or
+	// anything is rendered: the caller must be one who may read the catalog
+	// and write the release. A multi-region install is authorized by every
+	// region it is applied in (applyMultiregion), which need not include
+	// this one, so here it needs the catalog only.
+	if err := p.srv.authorizePackCatalogRead(args); err != nil {
+		return err
+	}
+	if args.Deploy == nil || len(args.Deploy.Regions) == 0 {
+		if _, err := NewReleaseEndpoint(p.srv, p.ctx).authorize(args, namespace, acl.ObjectCapabilityWrite); err != nil {
+			return err
+		}
+	}
 	rendered, err := p.srv.RenderCatalogPack(p.genericRequest(args.Region, namespace, args.AuthToken), args.Name, args.Deploy)
 	if err != nil {
 		return err
