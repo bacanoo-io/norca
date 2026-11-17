@@ -224,6 +224,7 @@ func (e *SecretEngine) Delete(args *structs.SecretEngineDeleteRequest, reply *st
 	namespace := args.RequestNamespace()
 	rec := e.secret.auditRecord(args.GetIdentity(), structs.SecretOpEngineDelete, namespace, secretEnginePath(args.Name))
 	rec.Engine = args.Name
+	rec.Force = args.Force
 	if authErr != nil {
 		return e.secret.denied(rec)
 	}
@@ -242,6 +243,16 @@ func (e *SecretEngine) Delete(args *structs.SecretEngineDeleteRequest, reply *st
 		return err
 	}
 	index, err := e.srv.secretEngineDelete(namespace, args.Name, args.CheckIndex, args.Force)
+	if args.Force && err == nil {
+		// An override of a management token always leaves a trace in the
+		// log, also when every revocation was delivered.
+		accessor := ""
+		if rec.Accessor != nil {
+			accessor = rec.Accessor.AccessorID
+		}
+		e.srv.logger.Named("secrets").Warn("secret engine deleted with force",
+			"namespace", namespace, "engine", args.Name, "accessor_id", accessor)
+	}
 	if err := e.secret.finish(rec, err); err != nil {
 		return err
 	}

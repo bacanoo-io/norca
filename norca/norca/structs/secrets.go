@@ -665,6 +665,11 @@ type SecretAccessEvent struct {
 	Role    string `json:",omitempty"`
 	LeaseID string `json:",omitempty"`
 	Reason  string `json:",omitempty"`
+
+	// Force marks the delete of an engine that was asked with force: the
+	// engine goes although revocations of its leases could not be sent to
+	// its backend.
+	Force bool `json:",omitempty"`
 }
 
 // SecretRecordAccessRequest is the audit record of a fetch from an external

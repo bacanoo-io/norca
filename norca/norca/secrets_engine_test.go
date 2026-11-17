@@ -527,3 +527,89 @@ func TestSecretEngineEndpoint_ForceDelete(t *testing.T) {
 	must.Nil(t, et.lease(created.Lease.ID))
 	must.False(t, op.isRevoked(ref))
 }
+
+// A forced delete always leaves a trace: a warning in the server log with
+// the caller's accessor and the mark in the audit record, also when nothing
+// was left undelivered. Leases that expired without being revoked block the
+// delete without force, and are named in the log with it.
+func TestSecretEngineEndpoint_ForceDeleteTrace(t *testing.T) {
+	ci.Parallel(t)
+	logs := &syncBuffer{}
+	et := newEngineTest(t, func(c *Config) {
+		c.Logger = hclog.NewInterceptLogger(&hclog.LoggerOptions{Name: "server", Level: hclog.Trace, Output: logs})
+	})
+	store := et.s.fsm.State()
+	broker, err := store.EventBroker()
+	must.NoError(t, err)
+	sub, err := broker.Subscribe(&stream.SubscribeRequest{
+		Topics:    map[structs.Topic][]string{structs.TopicSecretAccess: {"*"}},
+		Namespace: "*",
+	})
+	must.NoError(t, err)
+	defer sub.Unsubscribe()
+	startMockOperator(t, et, "")
+
+	del := func(force bool) error {
+		var resp structs.SecretEngineWriteResponse
+		return et.s.RPC(structs.SecretEngineDeleteRPCMethod, &structs.SecretEngineDeleteRequest{Name: "pg", Force: force,
+			WriteRequest: structs.WriteRequest{Region: "global", Namespace: structs.DefaultNamespace, AuthToken: et.root.SecretID}}, &resp)
+	}
+	// deletes returns the audit records of the engine deletes so far.
+	var deletes []*structs.SecretAccessEvent
+	audited := func(n int) []*structs.SecretAccessEvent {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for len(deletes) < n {
+			events, err := sub.Next(ctx)
+			must.NoError(t, err)
+			for _, e := range events.Events {
+				if rec, ok := e.Payload.(*structs.SecretAccessEvent); ok && rec.Operation == structs.SecretOpEngineDelete &&
+					rec.Result == structs.SecretAccessResultOK {
+					deletes = append(deletes, rec)
+				}
+			}
+		}
+		return deletes
+	}
+
+	// Nothing to deliver: the forced delete is logged and audited all the
+	// same, a normal one is not marked.
+	_, err = et.upsert(et.root.SecretID, et.engine())
+	must.NoError(t, err)
+	must.NoError(t, del(false))
+	must.False(t, audited(1)[0].Force)
+	must.StrNotContains(t, logs.String(), "deleted with force")
+
+	_, err = et.upsert(et.root.SecretID, et.engine())
+	must.NoError(t, err)
+	must.NoError(t, del(true))
+	must.True(t, audited(2)[1].Force)
+	must.Eq(t, et.root.AccessorID, audited(2)[1].Accessor.AccessorID)
+	must.StrContains(t, logs.String(), "secret engine deleted with force")
+	must.StrContains(t, logs.String(), "accessor_id="+et.root.AccessorID)
+
+	// A lease that expired without being revoked (the lease watcher is off
+	// here): its credential may still be valid.
+	_, err = et.upsert(et.root.SecretID, et.engine())
+	must.NoError(t, err)
+	_, wi := et.alloc(true)
+	created, err := et.create(wi)
+	must.NoError(t, err)
+	expired := et.lease(created.Lease.ID).Copy()
+	expired.ExpireTime = time.Now().Add(-time.Minute).UnixNano()
+	must.Greater(t, time.Now().UnixNano(), expired.MaxExpireTime)
+	_, err = et.s.secretLeaseApply([]*structs.SecretLease{expired})
+	must.NoError(t, err)
+	must.False(t, et.lease(created.Lease.ID).Revoked)
+
+	must.ErrorContains(t, del(false), "expired leases that are not revoked yet")
+	must.NotNil(t, et.lease(created.Lease.ID))
+	must.NoError(t, del(true))
+	e, err := store.SecretEngineByName(nil, structs.DefaultNamespace, "pg")
+	must.NoError(t, err)
+	must.Nil(t, e)
+	must.Nil(t, et.lease(created.Lease.ID))
+	must.True(t, audited(3)[2].Force)
+	must.StrContains(t, logs.String(), "leases that expired were never revoked")
+	must.StrContains(t, logs.String(), created.Lease.ID)
+}
