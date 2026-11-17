@@ -668,7 +668,14 @@ stacks/data-platform/
 
 The **tree digest** of the module version, with the module name and version,
 in one small signed statement. The same statement is valid whether the module
-came from git, OCI, a directory or a bundle. Signatures are stored where the
+came from git, OCI, a directory or a bundle.
+
+The statement is a cosign *simple signing* payload whose
+`critical.image.docker-manifest-digest` is the tree digest
+(`sha256:<hex>`) and whose `optional` part names the module and the version
+(`rig.module`, `rig.version`). This is the payload the admission of Norca
+verifies for `trusted_keys` today, so a release of a signed module passes it
+without a change in norca (the spike of phase 0, section 12.2). Signatures are stored where the
 version is published: in the entry of the global registry, as a `.sig` file next to a
 directory or bundle, as a cosign signature in OCI, as a release asset or a
 signed tag note in git.
@@ -975,6 +982,33 @@ What the spike of phase 0 showed (2026-11-17; its test is now
   install-time reference (`rig.relase`, `vars.x`) would end up in the job
   as text. The callback of Rig must refuse the roots of Rig's namespaces
   and names close to them, with a hint (section 4.2).
+
+What the spike of the release API showed (2026-11-17, against a dev agent;
+`cli/norcaapi/release_integration_test.go`, `make integration`). The release
+API of today takes what Rig evaluates, without a pack catalog and without a
+change in norca:
+
+| Rig | In the request (`ReleaseApplyRequest`) | Kept in |
+| --- | --- | --- |
+| the module: name, version, source, tag, tree digest, signatures, `requires` | `Pack` (`Name`, `Version`, `Source`, `Ref`, `Digest`, `Signatures`, `Requires`) | the revision and the release; `Requires` is checked by the server |
+| the digest of a release (module digest, values, settings; section 9.2) | `ValuesHash` | the revision (opaque to the server) |
+| the values without the sensitive ones | `Values` | the revision |
+| the stack that owns the release | `Description` (`rig stack <name>`) | the revision and the release; `List` returns it, so prune needs no revision reads |
+| the evaluated resources | `Resources`, typed by kind (`job`, `variable` ...: the names of `resource.Kind`) | the revision (`ContentDigest` is the server's digest of them) |
+
+- The server's plan of an unchanged request says `unchanged` per resource,
+  but an apply of it makes a new revision all the same: "unchanged
+  (skipped)" is Rig's, by comparing `Pack.Digest` and `ValuesHash` with the
+  current revision before it applies (section 9.2, step 4).
+- With an admission policy with `trusted_keys` on the namespace, an
+  unsigned module is refused ("not signed"), and a module signed as in
+  section 8.1 is admitted with `TrustedSigner` set to the key ID (the
+  SHA-256 of the public key).
+- Gaps for phase 7: the owner has no field of its own (the deployer writes
+  the provenance of GitOps into `Description` as well; once the deployer
+  runs stacks through Rig the marker of Rig is the one written);
+  `ValuesHash` carries more than the values; the server still can't check
+  that the digest belongs to the resources (section 8.2).
 
 ### 12.3 What the core offers
 

@@ -5,7 +5,7 @@
 GO ?= go
 MODULES := . cli
 
-.PHONY: all build test race vet lint fmt tidy audit check-copy clean help
+.PHONY: all build test race vet lint fmt tidy audit check-copy integration clean help
 
 all: vet test build
 
@@ -44,6 +44,10 @@ audit:
 ## check-copy: compare the copy of norca's jobspec2 with the norca checkout
 check-copy:
 	@scripts/check-copy.sh
+
+## integration: the tests against a running agent (norca agent -dev; NORCA_ADDR)
+integration:
+	$(GO) -C cli test -tags integration -count=1 ./...
 
 ## clean: remove build output
 clean:

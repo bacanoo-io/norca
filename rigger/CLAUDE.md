@@ -30,6 +30,12 @@ file points to it instead of repeating it.
   built from source, modules from the Windows module cache, `GOSUMDB=off`),
   then the targets of the Makefile. golangci-lint v2.15.0 is installed into
   `~/go/bin` from the module cache with `go install`.
+- `make integration` runs the tests tagged `integration` against a running
+  agent (`NORCA_ADDR`, default 127.0.0.1:4646). In the VM: build norca from
+  `../norca/norca` with `CGO_ENABLED=1 go build -o ~/bin/norca .` (the
+  build cache carries it over a few calls), then start
+  `~/bin/norca agent -dev -bind 127.0.0.1` in the background and run the
+  tests in the same call: a process does not outlive the call.
 - `cli/internal/jobspec2` is a copy of norca's jobspec2 until phase 7
   (design, question 4): never edit the copied files; Rig's code there is
   `rig_*.go`. `make check-copy` compares the copy with `../norca`; when

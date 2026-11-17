@@ -15,7 +15,8 @@ import (
 )
 
 // Kind is the kind of a resource. The kinds of Norca's releases are built
-// in; more kinds come by registration (design 5, 11).
+// in, under the names the release API uses for them; more kinds come by
+// registration (design 5, 11).
 type Kind string
 
 // The built-in kinds. The file of a resource is named by its kind
@@ -25,11 +26,11 @@ type Kind string
 const (
 	KindNamespace       Kind = "namespace"
 	KindQuota           Kind = "quota"
-	KindACLPolicy       Kind = "acl_policy"
+	KindACLPolicy       Kind = "acl-policy"
 	KindVariable        Kind = "variable"
-	KindObjectKind      Kind = "object_kind"
-	KindAdmissionPolicy Kind = "admission_policy"
-	KindExternalService Kind = "external_service"
+	KindObjectKind      Kind = "object-kind"
+	KindAdmissionPolicy Kind = "admission-policy"
+	KindExternalService Kind = "external-service"
 	KindObject          Kind = "object"
 	KindJob             Kind = "job"
 )
