@@ -357,6 +357,17 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 	} else if err := o.csi.create(vol, plugin); err != nil {
 		o.failure(p, obj, st, out, what, err)
 		return
+	} else if other, err := o.registeredElsewhere(vol); err != nil {
+		o.failure(p, obj, st, out, what, err)
+		return
+	} else if other != nil {
+		// The plugin answered a create of a name it knows with the volume
+		// it has under that name. It is somebody else's: not registered a
+		// second time, and never deleted with this request.
+		o.failure(p, obj, st, out, what, fmt.Errorf("the plugin answered the name %q with the volume %q of the storage, "+
+			"which is registered as %s/%s: the request needs a display_name of its own",
+			vol.Name, vol.ExternalID, other.Namespace, other.ID))
+		return
 	}
 
 	index, err := o.register(vol)
@@ -373,6 +384,24 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 	operatorCount(csiVolumeRequestKind, "volumes_"+strings.ToLower(reason))
 	o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, reason,
 		fmt.Sprintf("the volume %s (external ID %s) with the plugin %s", vol.ID, vol.ExternalID, vol.PluginID))
+}
+
+// registeredElsewhere returns a registered volume of any namespace that is
+// the same volume of the storage (plugin and external ID) as vol under
+// another ID, if there is one.
+func (o *volumeRequestOperator) registeredElsewhere(vol *structs.CSIVolume) (*structs.CSIVolume, error) {
+	iter, err := o.srv.State().CSIVolumes(nil)
+	if err != nil {
+		return nil, err
+	}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		other := raw.(*structs.CSIVolume)
+		if other.PluginID == vol.PluginID && other.ExternalID == vol.ExternalID &&
+			(other.Namespace != vol.Namespace || other.ID != vol.ID) {
+			return other, nil
+		}
+	}
+	return nil, nil
 }
 
 // register writes a volume to the state, as a volume register does, and

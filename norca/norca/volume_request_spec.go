@@ -17,7 +17,9 @@ import (
 )
 
 // volumeRequestSpec is the spec of a CSIVolumeRequest object. The name of
-// the object is the ID of the volume in its namespace.
+// the object is the ID of the volume in its namespace; the name of the
+// volume (what the plugin creates it by) is display_name, or
+// <namespace>-<name> of the object.
 type volumeRequestSpec struct {
 	PluginID        string                      `json:"plugin_id"`
 	Mode            string                      `json:"mode"`
@@ -190,6 +192,16 @@ func (s *volumeRequestSpec) validate() error {
 	return nil
 }
 
+// volumeRequestName is the name of the volume of a request that gives none
+// (display_name). A plugin creates a volume by its name, and answers a
+// second create of the same name with the volume of the first (the name is
+// the idempotency key of CSI CreateVolume): the name has the namespace in
+// it, so that requests of the same name in two namespaces don't get one
+// volume of the storage.
+func volumeRequestName(obj *structs.CustomObject) string {
+	return obj.Namespace + "-" + obj.Name
+}
+
 // volume returns the CSI volume the spec describes, with the secrets.
 func (s *volumeRequestSpec) volume(obj *structs.CustomObject, secrets structs.CSISecrets) *structs.CSIVolume {
 	minBytes, maxBytes, _ := s.capacity()
@@ -208,7 +220,7 @@ func (s *volumeRequestSpec) volume(obj *structs.CustomObject, secrets structs.CS
 		CloneID:              s.CloneID,
 	}
 	if vol.Name == "" {
-		vol.Name = obj.Name
+		vol.Name = volumeRequestName(obj)
 	}
 	maps.Copy(vol.Secrets, secrets)
 	if vol.Parameters == nil {

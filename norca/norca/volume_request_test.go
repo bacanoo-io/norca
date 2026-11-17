@@ -215,7 +215,7 @@ func TestVolumeRequest_CreateExpandAndDrift(t *testing.T) {
 	st := c.waitRequest("db", "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
 		return readyReason(obj) == "True" && st.VolumeCreateIndex > 0
 	})
-	must.Eq(t, "ext-db", st.ExternalID)
+	must.Eq(t, "ext-default-db", st.ExternalID)
 	must.Eq(t, gibibyte, st.CapacityBytes)
 	must.True(t, st.Schedulable)
 	vol := c.volume("db")
@@ -253,7 +253,7 @@ func TestVolumeRequest_CreateExpandAndDrift(t *testing.T) {
 	must.Len(t, 1, vol.RequestedCapabilities)
 	must.Eq(t, st.VolumeCreateIndex, vol.CreateIndex)
 	fake.set(func(f *fakeVolumeCSI) {
-		must.Eq(t, []string{"db"}, f.creates)
+		must.Eq(t, []string{"default-db"}, f.creates)
 		must.Eq(t, []int64{2 * gibibyte}, f.expands)
 	})
 
@@ -335,7 +335,7 @@ func TestVolumeRequest_ConflictAdoptAndRegister(t *testing.T) {
 	must.Eq(t, "z1", vol.Context["zone"])
 	fake.set(func(f *fakeVolumeCSI) {
 		must.Eq(t, []string{"vol-0abc"}, f.validates)
-		must.SliceNotContains(t, f.creates, "outside")
+		must.SliceNotContains(t, f.creates, "default-outside")
 	})
 }
 
@@ -377,7 +377,7 @@ func TestVolumeRequest_FailureAndDeletion(t *testing.T) {
 	must.NotNil(t, c.volume("keep-me"))
 	must.Nil(t, c.volume("forget-me"))
 	must.Nil(t, c.volume("drop-me"))
-	fake.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-drop-me"}, f.deletes) })
+	fake.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-default-drop-me"}, f.deletes) })
 }
 
 func TestVolumeRequest_WriteChecks(t *testing.T) {
@@ -460,7 +460,10 @@ func TestVolumeRequestSpec(t *testing.T) {
 	must.NoError(t, spec.validate())
 	vol := spec.volume(obj, structs.CSISecrets{"k": "v"})
 	must.Eq(t, "db", vol.ID)
-	must.Eq(t, "db", vol.Name)
+	must.Eq(t, "prod-db", vol.Name)
+	spec.DisplayName = "the-db"
+	must.Eq(t, "the-db", spec.volume(obj, nil).Name)
+	spec.DisplayName = ""
 	must.Eq(t, "prod", vol.Namespace)
 	must.Eq(t, 10*gibibyte, vol.RequestedCapacityMin)
 	must.Eq(t, 20*gibibyte, vol.RequestedCapacityMax)
@@ -675,4 +678,77 @@ func TestVolumeRequest_ExpandInUseWithoutMountOptions(t *testing.T) {
 	must.Eq(t, 2*gibibyte, c.volume("live").Capacity)
 	must.MapLen(t, 1, c.volume("live").WriteClaims)
 	fake.set(func(f *fakeVolumeCSI) { must.Eq(t, []int64{2 * gibibyte}, f.expands) })
+}
+
+// Requests of the same name in two namespaces get a volume each: the name
+// the plugin creates the volume by has the namespace in it (review finding
+// VOL-1).
+func TestVolumeRequest_NamespacesDoNotShareAVolume(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false)
+	defer cleanup()
+
+	created := func(ns, name string) *structs.CSIVolume {
+		t.Helper()
+		var vol *structs.CSIVolume
+		must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+			obj := c.get(ns, csiVolumeRequestKind, name)
+			if obj == nil || readyReason(obj) != "True" {
+				return false
+			}
+			var err error
+			vol, err = c.s.State().CSIVolumeByID(nil, ns, name)
+			return err == nil && vol != nil
+		}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("%s/%s created", ns, name))
+		return vol
+	}
+
+	for _, ns := range []string{"staging", "prod"} {
+		c.allow(ns, nil)
+		_, err := c.apply(ns, csiVolumeRequestKind, "db", volumeSpec(func(m map[string]any) { m["deletion_policy"] = "delete" }))
+		must.NoError(t, err)
+	}
+	staging, prod := created("staging", "db"), created("prod", "db")
+	must.Eq(t, "staging-db", staging.Name)
+	must.Eq(t, "prod-db", prod.Name)
+	must.NotEq(t, staging.ExternalID, prod.ExternalID,
+		must.Sprint("two namespaces share one volume of the storage"))
+
+	// Deleting one leaves the volume of the other alone.
+	must.NoError(t, c.delete("staging", csiVolumeRequestKind, "db"))
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.get("staging", csiVolumeRequestKind, "db") == nil
+	}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)))
+	fake.set(func(f *fakeVolumeCSI) { must.SliceNotContains(t, f.deletes, prod.ExternalID) })
+
+	// A name that is given is sent as it is. If the storage answers with a
+	// volume that another request or a volume registered by hand has, the
+	// request fails instead of taking it as its own.
+	c.allow("other", nil)
+	_, err := c.apply("default", csiVolumeRequestKind, "first", volumeSpec(func(m map[string]any) { m["display_name"] = "shared-name" }))
+	must.NoError(t, err)
+	first := created("default", "first")
+	must.Eq(t, "shared-name", first.Name)
+	_, err = c.apply("other", csiVolumeRequestKind, "second", volumeSpec(func(m map[string]any) {
+		m["display_name"] = "shared-name"
+		m["deletion_policy"] = "delete"
+	}))
+	must.NoError(t, err)
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		obj := c.get("other", csiVolumeRequestKind, "second")
+		return obj != nil && (objectConditionTrue(obj.Status, volumeRequestConditionFailed) || readyReason(obj) == "True")
+	}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)))
+	second := c.get("other", csiVolumeRequestKind, "second")
+	must.StrContains(t, volumeRequestFailure(second.Status), "default/first")
+	vol, err := c.s.State().CSIVolumeByID(nil, "other", "second")
+	must.NoError(t, err)
+	must.Nil(t, vol)
+
+	// Deleting the request that failed does not delete the volume of the
+	// other.
+	must.NoError(t, c.delete("other", csiVolumeRequestKind, "second"))
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.get("other", csiVolumeRequestKind, "second") == nil
+	}), wait.Timeout(20*time.Second), wait.Gap(100*time.Millisecond)))
+	fake.set(func(f *fakeVolumeCSI) { must.SliceNotContains(t, f.deletes, first.ExternalID) })
 }
