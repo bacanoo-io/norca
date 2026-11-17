@@ -835,3 +835,83 @@ func TestVolumeRequest_NotReadyWhileRetrying(t *testing.T) {
 	must.Eq(t, 1, st.Failures)
 	must.NotEq(t, "", st.RetryAt)
 }
+
+// What the request or its secret asks for is an update, also when its first
+// attempt failed; only what was changed on the volume is drift (review
+// finding VOL-7).
+func TestVolumeRequest_UpdatesAreNotDrift(t *testing.T) {
+	ci.Parallel(t)
+	c, fake, cleanup := volumeRequestTestServer(t, false, func(c *Config) {
+		c.volumeRequestRetryBase = 200 * time.Millisecond
+	})
+	defer cleanup()
+
+	secret := func(value string) {
+		t.Helper()
+		var resp structs.SecretWriteResponse
+		must.NoError(t, c.s.RPC(structs.SecretUpsertRPCMethod, secretWriteReq("csi/minnie", "", structs.SecretItems{"token": value}), &resp))
+	}
+	spec := func(capacity string) map[string]any {
+		return volumeSpec(func(m map[string]any) {
+			m["capacity_min"] = capacity
+			m["secret_path"] = "csi/minnie"
+		})
+	}
+	reasons := func() map[string]int {
+		t.Helper()
+		log, err := c.s.State().ObjectEventLog(nil, structs.OperatorsGroup, csiVolumeRequestKind, "default", "db")
+		must.NoError(t, err)
+		out := map[string]int{}
+		if log != nil {
+			for _, e := range log.Events {
+				out[e.Reason]++
+			}
+		}
+		return out
+	}
+
+	secret("one")
+	_, err := c.apply("default", csiVolumeRequestKind, "db", spec("1GiB"))
+	must.NoError(t, err)
+	c.waitRequest("db", "created", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == "True"
+	})
+
+	// The first attempt of a change of the spec fails, the next one works.
+	fake.set(func(f *fakeVolumeCSI) { f.expandErr = errors.New("the storage is busy") })
+	_, err = c.apply("default", csiVolumeRequestKind, "db", spec("2GiB"))
+	must.NoError(t, err)
+	c.waitRequest("db", "expansion failed", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Failures > 0
+	})
+	fake.set(func(f *fakeVolumeCSI) { f.expandErr = nil })
+	st := c.waitRequest("db", "expanded", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.CapacityBytes == 2*gibibyte && readyReason(obj) == "True"
+	})
+	must.Zero(t, st.Drifts, must.Sprint("the retry of a failed update was counted as drift"))
+	must.Eq(t, "", st.LastDrift)
+	must.Zero(t, reasons()["DriftCorrected"])
+
+	// The secret changes in the secret store: the volume follows it. A pass
+	// reads the secret; another request written wakes the operator.
+	secret("two")
+	_, err = c.apply("default", csiVolumeRequestKind, "wake", volumeSpec(nil))
+	must.NoError(t, err)
+	must.Wait(t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.volume("db").Secrets["token"] == "two"
+	}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)))
+	st = c.waitRequest("db", "ready", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return readyReason(obj) == "True"
+	})
+	must.Zero(t, st.Drifts, must.Sprint("a changed secret was counted as drift"))
+	must.Zero(t, reasons()["DriftCorrected"])
+
+	// Changed on the volume by hand: that is drift.
+	changed := c.volume("db").Copy()
+	changed.MountOptions = &structs.CSIMountOptions{FSType: "xfs"}
+	c.writeVolume(changed)
+	c.waitRequest("db", "drift set back", func(obj *structs.CustomObject, st *volumeRequestStatus) bool {
+		return st.Drifts == 1 && st.LastDrift != ""
+	})
+	must.Eq(t, 1, reasons()["DriftCorrected"])
+}

@@ -66,9 +66,16 @@ type volumeRequestStatus struct {
 	ControllersHealthy int    `json:"controllersHealthy"`
 	NodesHealthy       int    `json:"nodesHealthy"`
 	LastDrift          string `json:"lastDrift,omitempty"`
-	Drifts             int    `json:"drifts"`
-	Failures           int    `json:"failures"`
-	RetryAt            string `json:"retryAt,omitempty"`
+
+	// AppliedGeneration is the generation of the request the volume was
+	// last seen or made as it declares. While it is behind the generation
+	// of the object, a difference is an update that is still to be done,
+	// not drift.
+	AppliedGeneration uint64 `json:"appliedGeneration,omitempty"`
+
+	Drifts   int    `json:"drifts"`
+	Failures int    `json:"failures"`
+	RetryAt  string `json:"retryAt,omitempty"`
 
 	// LastFailure is the error of the last failed attempt while its retry
 	// is waited for. The Failed condition is not the place to read it back
@@ -400,6 +407,7 @@ func (o *volumeRequestOperator) make(p *volumeRequestPass, obj *structs.CustomOb
 		return
 	}
 	st.VolumeCreateIndex, st.Creating = index, false
+	st.AppliedGeneration = obj.Generation
 	st.noFailure()
 	reason := "Created"
 	if spec.mode() == volumeRequestModeRegister {
@@ -456,6 +464,7 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 	want := spec.volume(obj, secrets)
 	diff := volumeDiff(vol, want, spec.mode() == volumeRequestModeRegister)
 	if len(diff) == 0 {
+		st.AppliedGeneration = obj.Generation
 		st.noFailure()
 		if !vol.Schedulable {
 			out.notReady("NotSchedulable", "the volume is registered but not schedulable (its plugin is not healthy)")
@@ -471,9 +480,11 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 		return
 	}
 
-	// A change of the spec is an update; otherwise the volume was changed
-	// through the volume API, and is set back.
-	updated := adopted || obj.Status == nil || uint64(statusGeneration(obj.Status)) != obj.Generation
+	// A change of the spec is an update, until it is done: its first
+	// attempt may fail. So is a difference of the secrets alone: they
+	// follow the secret store, which changes without the request. Anything
+	// else was changed through the volume API, and is set back.
+	updated := adopted || st.AppliedGeneration != obj.Generation || (len(diff) == 1 && diff[0] == "secrets")
 	changed := vol.Copy()
 
 	// Merge refuses changes of what a volume can't change, and takes the
@@ -513,6 +524,7 @@ func (o *volumeRequestOperator) keep(p *volumeRequestPass, obj *structs.CustomOb
 		o.failure(p, obj, st, out, "update the volume", err)
 		return
 	}
+	st.AppliedGeneration = obj.Generation
 	st.noFailure()
 	if updated {
 		o.srv.operatorEvent(obj, structs.ObjectEventTypeNormal, "Updated",

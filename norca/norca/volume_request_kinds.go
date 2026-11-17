@@ -89,6 +89,7 @@ const volumeRequestKindSchema = `{
         "controllersHealthy": {"type": "integer", "minimum": 0},
         "nodesHealthy": {"type": "integer", "minimum": 0},
         "lastDrift": {"type": "string"},
+        "appliedGeneration": {"type": "integer", "minimum": 0},
         "drifts": {"type": "integer", "minimum": 0},
         "failures": {"type": "integer", "minimum": 0},
         "retryAt": {"type": "string"},
