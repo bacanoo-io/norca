@@ -46,8 +46,7 @@ func checkVolumeRequestApply(aclObj *acl.ACL, obj *structs.CustomObject) error {
 // that; with "retain" the volume is not touched. A spec that can't be read
 // is taken as one that takes the volume away.
 func checkVolumeRequestDelete(aclObj *acl.ACL, existing *structs.CustomObject) error {
-	spec := &volumeRequestSpec{}
-	if err := structs.DecodeObjectPart(existing.Spec, spec); err == nil && spec.policy() == volumeRequestRetain {
+	if !volumeRequestDeletionDestroys(existing) {
 		return nil
 	}
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
@@ -57,6 +56,14 @@ func checkVolumeRequestDelete(aclObj *acl.ACL, existing *structs.CustomObject) e
 			acl.NamespaceCapabilityCSIWriteVolume, existing.Namespace)
 	}
 	return nil
+}
+
+// volumeRequestDeletionDestroys reports whether the deletion of a volume
+// request takes its volume away: any policy but "retain", and a spec that
+// can't be read.
+func volumeRequestDeletionDestroys(obj *structs.CustomObject) bool {
+	spec := &volumeRequestSpec{}
+	return structs.DecodeObjectPart(obj.Spec, spec) != nil || spec.policy() != volumeRequestRetain
 }
 
 // checkVolumeRequestStatusWrite refuses status writes through the object

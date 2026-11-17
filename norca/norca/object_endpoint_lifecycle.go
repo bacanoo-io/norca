@@ -302,6 +302,15 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 			return nil
 		}
 
+		// What the deletion takes with it: the garbage collector deletes
+		// the dependents with the rights of the servers, so the caller
+		// needs the rights for those whose deletion deletes storage.
+		if propagation != structs.ObjectPropagationOrphan {
+			if _, err := checkObjectDependentsDelete(snap, aclObj, existing); err != nil {
+				return err
+			}
+		}
+
 		// Validating type-bound webhooks that review deletions. They
 		// review again after a conflict: the object they are asked about
 		// is the changed one.

@@ -64,8 +64,7 @@ func checkSnapshotApply(aclObj *acl.ACL, obj *structs.CustomObject) error {
 // schedule took, so the caller needs what the snapshot API asks for that. A
 // spec that can't be read is taken as one that deletes them.
 func checkSnapshotDelete(aclObj *acl.ACL, existing *structs.CustomObject) error {
-	spec := &snapshotScheduleSpec{}
-	if err := structs.DecodeObjectPart(existing.Spec, spec); err == nil && !spec.DeleteSnapshots {
+	if !snapshotDeletionDestroys(existing) {
 		return nil
 	}
 	allowVolume := acl.NamespaceValidator(acl.NamespaceCapabilityCSIWriteVolume)
@@ -75,6 +74,14 @@ func checkSnapshotDelete(aclObj *acl.ACL, existing *structs.CustomObject) error 
 			acl.NamespaceCapabilityCSIWriteVolume, existing.Namespace)
 	}
 	return nil
+}
+
+// snapshotDeletionDestroys reports whether the deletion of a snapshot
+// schedule deletes its snapshots: delete_snapshots, and a spec that can't be
+// read.
+func snapshotDeletionDestroys(obj *structs.CustomObject) bool {
+	spec := &snapshotScheduleSpec{}
+	return structs.DecodeObjectPart(obj.Spec, spec) != nil || spec.DeleteSnapshots
 }
 
 // checkSnapshotStatusWrite refuses status writes through the object API: the
