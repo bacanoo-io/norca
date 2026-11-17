@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -248,7 +249,9 @@ func ExpectService(namespace, service string) func(*Peer) error {
 			return fmt.Errorf("peer %s is not in namespace %q", peer.ID, namespace)
 		}
 		for _, s := range peer.Services {
-			if s == service {
+			// The services of a certificate are lower case, the name of
+			// a service need not be (as Evaluate compares them).
+			if strings.EqualFold(s, service) {
 				return nil
 			}
 		}
