@@ -5,6 +5,7 @@ package resourcespec
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,19 +33,41 @@ func isJSONInput(path string, jsonFlag bool) bool {
 // objectEvalContext returns the HCL functions available in specification
 // files: file() reads a file relative to the specification, jsonencode()
 // and jsondecode() convert values.
-func objectEvalContext(path string) *hcl.EvalContext {
-	baseDir := filepath.Dir(path)
-	if path == "stdin.hcl" {
-		baseDir, _ = os.Getwd()
+//
+// file() reads any file the process can read (absolute paths and "~" too),
+// so it is only given, with files set, to the command line, which reads the
+// specification file of its user with the rights of its user. Everywhere
+// else (a text that is not a file of the caller: the resource templates of a
+// pack, which the servers render too) file() reads nothing and fails.
+func objectEvalContext(path string, files bool) *hcl.EvalContext {
+	fileFunc := noFileFunc
+	if files {
+		baseDir := filepath.Dir(path)
+		if path == "stdin.hcl" {
+			baseDir, _ = os.Getwd()
+		}
+		fileFunc = filesystem.MakeFileFunc(baseDir, false)
 	}
 	return &hcl.EvalContext{
 		Functions: map[string]function.Function{
-			"file":       filesystem.MakeFileFunc(baseDir, false),
+			"file":       fileFunc,
 			"jsonencode": stdlib.JSONEncodeFunc,
 			"jsondecode": stdlib.JSONDecodeFunc,
 		},
 	}
 }
+
+// noFileFunc stands for file() where no file may be read: it has the
+// signature of file() and always fails, without touching the path.
+var noFileFunc = function.New(&function.Spec{
+	Params: []function.Parameter{{Name: "path", Type: cty.String}},
+	Type:   function.StaticReturnType(cty.String),
+	Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
+		return cty.UnknownVal(cty.String), errNoFiles
+	},
+})
+
+var errNoFiles = errors.New("file() can't be used here: no file is read for this specification; write the content inline")
 
 // objectKindHCL is the HCL form of an object kind:
 //
@@ -139,7 +162,22 @@ type objectKindScaleHCL struct {
 
 // ParseObjectKind parses an object kind in HCL or, for JSON input, in the
 // API JSON form. In HCL, kinds are namespaced unless namespaced = false.
+//
+// file() reads the files of the machine: this is the parser of the command
+// line only. Never call it in a server or an agent, or on a text of another
+// party; ParseObjectKindNoFiles is for those.
 func ParseObjectKind(path string, content []byte, jsonInput bool) (*api.ObjectKind, error) {
+	return parseObjectKind(path, content, jsonInput, true)
+}
+
+// ParseObjectKindNoFiles is ParseObjectKind without file(): for a text that
+// is not a specification file of the caller, like the rendered resource
+// templates of a pack.
+func ParseObjectKindNoFiles(path string, content []byte, jsonInput bool) (*api.ObjectKind, error) {
+	return parseObjectKind(path, content, jsonInput, false)
+}
+
+func parseObjectKind(path string, content []byte, jsonInput, files bool) (*api.ObjectKind, error) {
 	if isJSONInput(path, jsonInput) {
 		var kind api.ObjectKind
 		if err := json.Unmarshal(content, &kind); err != nil {
@@ -153,7 +191,7 @@ func ParseObjectKind(path string, content []byte, jsonInput bool) (*api.ObjectKi
 		return nil, diags
 	}
 	var spec objectKindHCL
-	if diags := gohcl.DecodeBody(file.Body, objectEvalContext(path), &spec); diags.HasErrors() {
+	if diags := gohcl.DecodeBody(file.Body, objectEvalContext(path, files), &spec); diags.HasErrors() {
 		return nil, diags
 	}
 
@@ -230,7 +268,20 @@ func ParseObjectKind(path string, content []byte, jsonInput bool) (*api.ObjectKi
 // Blocks in the spec become objects; a block type that repeats becomes a
 // list and a labeled block becomes an object keyed by its label. The spec
 // can also be given as an attribute: spec = { ... }.
+//
+// file() reads the files of the machine: this is the parser of the command
+// line only, see ParseObjectKind.
 func ParseCustomObject(path string, content []byte, jsonInput bool) (*api.CustomObject, error) {
+	return parseCustomObject(path, content, jsonInput, true)
+}
+
+// ParseCustomObjectNoFiles is ParseCustomObject without file(), see
+// ParseObjectKindNoFiles.
+func ParseCustomObjectNoFiles(path string, content []byte, jsonInput bool) (*api.CustomObject, error) {
+	return parseCustomObject(path, content, jsonInput, false)
+}
+
+func parseCustomObject(path string, content []byte, jsonInput, files bool) (*api.CustomObject, error) {
 	if isJSONInput(path, jsonInput) {
 		var obj api.CustomObject
 		dec := json.NewDecoder(strings.NewReader(string(content)))
@@ -248,7 +299,7 @@ func ParseCustomObject(path string, content []byte, jsonInput bool) (*api.Custom
 	if !ok {
 		return nil, fmt.Errorf("unexpected HCL body type %T", file.Body)
 	}
-	ctx := objectEvalContext(path)
+	ctx := objectEvalContext(path, files)
 
 	obj := &api.CustomObject{}
 	for name, attr := range body.Attributes {

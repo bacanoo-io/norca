@@ -60,7 +60,10 @@ func IsResourceTemplate(name string) bool {
 	return t != "" && t != api.ReleaseResourceJob
 }
 
-// ParseResource parses a rendered resource template other than a job.
+// ParseResource parses a rendered resource template other than a job. No
+// file is read for it: the servers render packs too, and what a template
+// renders is not theirs to trust (the HCL file() of kinds and objects is
+// off; a pack inlines the content, for example from a helper template).
 func ParseResource(name, content string) (*api.ReleaseResource, error) {
 	typ := TemplateType(name)
 	res := &api.ReleaseResource{Type: typ, Source: name}
@@ -77,13 +80,13 @@ func ParseResource(name, content string) (*api.ReleaseResource, error) {
 	case api.ReleaseResourceVariable:
 		res.Variable, res.SecretKeys, err = resourcespec.ParseVariableWithSecrets(b)
 	case api.ReleaseResourceObjectKind:
-		res.ObjectKind, err = resourcespec.ParseObjectKind(file, b, false)
+		res.ObjectKind, err = resourcespec.ParseObjectKindNoFiles(file, b, false)
 	case api.ReleaseResourceAdmissionPolicy:
 		res.AdmissionPolicy, err = resourcespec.ParseAdmissionPolicy(file, b)
 	case api.ReleaseResourceExternalService:
 		res.ExternalService, err = resourcespec.ParseExternalService(file, b)
 	case api.ReleaseResourceObject:
-		res.Object, err = resourcespec.ParseCustomObject(file, b, false)
+		res.Object, err = resourcespec.ParseCustomObjectNoFiles(file, b, false)
 	case resourceNetworkRule:
 		return nil, fmt.Errorf("%s: network rules are not supported by the servers yet", name)
 	default:

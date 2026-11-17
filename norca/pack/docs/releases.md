@@ -92,6 +92,10 @@ Deletion uses the reverse order. A namespace that references a quota of the same
 first and attached to the quota once it exists. `*.netpol.hcl.tpl` (network rules) is reserved and
 rejected until the servers support network rules.
 
+**No file is read for a rendered resource template:** the HCL function `file()` of the kind and object
+files of the command line is refused in `*.kind.hcl.tpl` and `*.object.hcl.tpl`, because the servers
+render packs too. Write the content inline, for example a schema from a helper template of the pack.
+
 **External services:** a `*.external.hcl.tpl` file holds one `external_service` block (the format of
 [`norca service apply`](https://github.com/bacanoo-io/norca-doc/blob/main/content/docs/commands/service/apply.md)). The release registers the service before its
 jobs start, so the built-in DNS name exists when they do, and deregisters it on uninstall or when an
