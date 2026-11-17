@@ -191,9 +191,76 @@ func (r *backupRestorer) writeRequest(namespace string) structs.WriteRequest {
 	}
 }
 
+// allowItem reports whether the caller has the right the write endpoint of
+// the item's type asks for first. It is checked before the item is looked
+// up, in the backup or in the current state: the preview of a restore (what
+// exists, its version and modify index, the number of keys of a Variable)
+// would otherwise be given for backup read alone, and a dry run never
+// reaches the endpoint that checks the right. The endpoint still makes its
+// full check when the item is written.
+func (r *backupRestorer) allowItem(item *structs.BackupRestoreItem) (bool, error) {
+	aclObj, err := r.b.srv.ResolveACL(r.args)
+	if err != nil {
+		return false, err
+	}
+	if aclObj == nil {
+		return true, nil // ACLs are off
+	}
+	ns := item.Namespace
+	switch item.Type {
+	case structs.BackupRestoreItemJob:
+		return aclObj.AllowNsOp(ns, acl.NamespaceCapabilitySubmitJob), nil
+	case structs.BackupRestoreItemVariable:
+		return aclObj.AllowVariableOperation(ns, item.ID, acl.VariablesCapabilityWrite, nil), nil
+	case structs.BackupRestoreItemSecret:
+		// restoreSecret checks first, and records the refusal in the audit
+		// log of the secrets.
+		return true, nil
+	case structs.BackupRestoreItemConsulKV:
+		path, id := splitConsulKVItemID(item.ID)
+		return aclObj.AllowVariableOperation(ns, consulkv.ACLPath(path, id), acl.VariablesCapabilityWrite, nil), nil
+	case structs.BackupRestoreItemNamespace, structs.BackupRestoreItemACLPolicy, structs.BackupRestoreItemACLRole:
+		return aclObj.IsManagement(), nil
+	case structs.BackupRestoreItemQuota:
+		return aclObj.AllowQuotaWrite(), nil
+	case structs.BackupRestoreItemAdmissionPolicy:
+		return aclObj.AllowAdmissionWrite(), nil
+	case structs.BackupRestoreItemNetworkPolicy:
+		return aclObj.AllowNetworkPolicyWrite(ns), nil
+	case structs.BackupRestoreItemAdminNetworkPolicy:
+		return allowNetworkPolicyOperator(aclObj, true), nil
+	case structs.BackupRestoreItemServiceIntention:
+		return aclObj.AllowNsOp(ns, acl.NamespaceCapabilityWriteIntention), nil
+	case structs.BackupRestoreItemExternalService:
+		return aclObj.AllowNsOp(ns, acl.NamespaceCapabilityRegisterExternalService), nil
+	case structs.BackupRestoreItemCustomObject:
+		parts := strings.SplitN(item.ID, "/", 3)
+		if len(parts) != 3 {
+			return true, nil // restoreCustomObject reports the invalid ID
+		}
+		kind, err := r.b.srv.State().ObjectKindByName(nil, parts[0], parts[1])
+		if err != nil {
+			return false, err
+		}
+		if kind != nil {
+			ns = objectACLNamespace(kind, ns)
+		}
+		return aclObj.AllowObjectOperation(ns, structs.ObjectKindRef(parts[0], parts[1]), acl.ObjectCapabilityWrite), nil
+	}
+	return true, nil
+}
+
 func (r *backupRestorer) restore(item *structs.BackupRestoreItem) *structs.BackupRestoreItemResult {
 	result := &structs.BackupRestoreItemResult{Item: item}
-	var err error
+	allowed, err := r.allowItem(item)
+	switch {
+	case err != nil:
+		result.Error = err.Error()
+		return result
+	case !allowed:
+		result.Error = structs.ErrPermissionDenied.Error()
+		return result
+	}
 	switch item.Type {
 	case structs.BackupRestoreItemJob:
 		err = r.restoreJob(item, result)
