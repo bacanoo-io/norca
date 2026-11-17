@@ -132,17 +132,41 @@ func (a *ACL) matchingObjectsCapabilitySet(ns, kindRef string) (capabilitySet, b
 	return a.findClosestMatchingGlob(a.wildcardObjects, ns+"\x00"+kindRef)
 }
 
+// objectNamespaceDenied reports whether the namespace rule that applies to
+// the namespace denies it. A denied namespace denies its objects too,
+// whatever the object rules say, as it denies its secrets.
+func (a *ACL) objectNamespaceDenied(ns string) bool {
+	caps, ok := a.matchingNamespaceCapabilitySet(ns)
+	return ok && caps.Check(NamespaceCapabilityDeny)
+}
+
+// objectRuleNamespaceDenied reports whether the namespace rule with the
+// name of an object rule's namespace block, which may be a glob, is a deny.
+// It is for the loose checks that walk the object rules.
+func (a *ACL) objectRuleNamespaceDenied(name string) bool {
+	if caps, ok := a.namespaces.Get([]byte(name)); ok && caps.Check(NamespaceCapabilityDeny) {
+		return true
+	}
+	caps, ok := a.wildcardNamespaces.Get([]byte(name))
+	return ok && caps.Check(NamespaceCapabilityDeny)
+}
+
 // AllowObjectOperation checks if the operation is allowed on objects of the
 // kind ("group/Kind") in the namespace. Use ObjectClusterNamespace for
 // cluster-scoped objects. The reference may itself be a glob pattern, for
 // example for event stream subscriptions; it is then checked literally
-// against the rules, which grants it only if a rule covers the pattern.
+// against the rules, which grants it only if a rule covers the pattern. A
+// deny of the namespace, or of the most specific matching object rule,
+// denies.
 func (a *ACL) AllowObjectOperation(ns, kindRef, op string) bool {
 	switch {
 	case a == nil:
 		return true
 	case a.management:
 		return true
+	}
+	if a.objectNamespaceDenied(ns) {
+		return false
 	}
 	caps, ok := a.matchingObjectsCapabilitySet(ns, kindRef)
 	if !ok || caps.Check(ObjectCapabilityDeny) {
@@ -163,8 +187,8 @@ func (a *ACL) AllowObjectOperationInAnyNamespace(kindRef, op string) bool {
 	}
 	allow := false
 	walk := func(k []byte, caps capabilitySet) bool {
-		_, pattern, ok := strings.Cut(string(k), "\x00")
-		if !ok || caps.Check(ObjectCapabilityDeny) || !caps.Check(op) {
+		ns, pattern, ok := strings.Cut(string(k), "\x00")
+		if !ok || caps.Check(ObjectCapabilityDeny) || !caps.Check(op) || a.objectRuleNamespaceDenied(ns) {
 			return false
 		}
 		if pattern == kindRef || glob.Glob(pattern, kindRef) {
@@ -217,8 +241,9 @@ func (a *ACL) AllowAnyObjectOperation(op string) bool {
 		return true
 	}
 	allow := false
-	walk := func(_ []byte, caps capabilitySet) bool {
-		allow = !caps.Check(ObjectCapabilityDeny) && caps.Check(op)
+	walk := func(k []byte, caps capabilitySet) bool {
+		ns, _, _ := strings.Cut(string(k), "\x00")
+		allow = !caps.Check(ObjectCapabilityDeny) && caps.Check(op) && !a.objectRuleNamespaceDenied(ns)
 		return allow
 	}
 	a.objects.Root().Walk(walk)

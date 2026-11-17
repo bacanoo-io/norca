@@ -184,3 +184,45 @@ func TestFindClosestMatchingGlob_TieDeny(t *testing.T) {
 	must.False(t, a.AllowSecretOperation("ns", "team-prod", NamespaceCapabilityReadSecret))
 	must.True(t, a.AllowSecretOperation("ns", "team-dev", NamespaceCapabilityReadSecret))
 }
+
+// A namespace deny denies the objects of the namespace too, whatever object
+// rule another policy has there (review finding ACL-1).
+func TestObjects_NamespaceDeny(t *testing.T) {
+	ci.Parallel(t)
+
+	a := reviewACL(t,
+		`namespace "prod" { policy = "deny" }`,
+		`namespace "prod" { object "g.io/K" { policy = "write" } }`,
+	)
+	must.False(t, a.AllowNamespace("prod"))
+	must.False(t, a.AllowObjectOperation("prod", "g.io/K", ObjectCapabilityWrite))
+	must.False(t, a.AllowObjectOperation("prod", "g.io/K", ObjectCapabilityRead))
+	must.False(t, a.AllowObjectOperationInAnyNamespace("g.io/K", ObjectCapabilityWrite))
+	must.False(t, a.AllowAnyObjectOperation(ObjectCapabilityWrite))
+	must.False(t, a.AllowObjectKindRead("g.io/K"))
+
+	// A denied glob namespace denies the object rules of the same glob, and
+	// of the namespaces it is the closest match of.
+	a = reviewACL(t,
+		`namespace "team-*" { policy = "deny" }`,
+		`namespace "team-*" { object "g.io/K" { policy = "write" } }`,
+		`namespace "*" { object "g.io/K" { policy = "read" } }`,
+	)
+	must.False(t, a.AllowObjectOperation("team-a", "g.io/K", ObjectCapabilityRead))
+	must.True(t, a.AllowObjectOperation("other", "g.io/K", ObjectCapabilityRead))
+	must.True(t, a.AllowObjectOperation(ObjectClusterNamespace, "g.io/K", ObjectCapabilityRead))
+	must.False(t, a.AllowObjectOperationInAnyNamespace("g.io/K", ObjectCapabilityWrite))
+	must.True(t, a.AllowObjectOperationInAnyNamespace("g.io/K", ObjectCapabilityRead))
+	must.False(t, a.AllowAnyObjectOperation(ObjectCapabilityWrite))
+	must.True(t, a.AllowAnyObjectOperation(ObjectCapabilityRead))
+
+	// The rules of another namespace are untouched, and a namespace rule
+	// without capabilities is no deny.
+	a = reviewACL(t,
+		`namespace "prod" { policy = "deny" }`,
+		`namespace "dev" { object "g.io/K" { policy = "write" } }`,
+	)
+	must.True(t, a.AllowObjectOperation("dev", "g.io/K", ObjectCapabilityWrite))
+	must.True(t, a.AllowObjectOperationInAnyNamespace("g.io/K", ObjectCapabilityWrite))
+	must.True(t, a.AllowAnyObjectOperation(ObjectCapabilityWrite))
+}
