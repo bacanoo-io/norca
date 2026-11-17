@@ -1581,9 +1581,16 @@ func (n *nomadFSM) applyNamespaceDelete(buf []byte, index uint64) interface{} {
 		}
 	}
 
+	// Norca: a deletion the state store refuses (a namespace that still
+	// holds jobs, volumes, variables or objects, or that does not exist) is
+	// the response of the apply, as with the other apply functions, so that
+	// the RPC fails with the reason. The state store deletes all of the
+	// namespaces of a request or none, and a refused request changes
+	// nothing: what is applied is the same as when the error was only
+	// logged here.
 	if err := n.state.DeleteNamespaces(index, req.Namespaces); err != nil {
 		n.logger.Error("DeleteNamespaces failed", "error", err)
-		return nil
+		return err
 	}
 
 	for _, quota := range trigger {

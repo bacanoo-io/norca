@@ -337,6 +337,14 @@ func (o *tenantOperator) restore(obj *structs.CustomObject, ref tenantResourceRe
 		if asIs || orig.NetworkPolicy == nil {
 			return tenantGivenBackAsIs, nil
 		}
+		// The namespace of the policy is deleted before it when the
+		// tenant created the namespace: there is nothing to restore a
+		// policy into.
+		if ns, err := store.NamespaceByName(nil, ref.Namespace); err != nil {
+			return "", err
+		} else if ns == nil {
+			return tenantGivenBackAsIs, nil
+		}
 		want := orig.NetworkPolicy.Copy()
 		want.Name, want.Namespace = ref.Name, ref.Namespace
 		if networkPolicyMatches(live, want) {

@@ -16,6 +16,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/norca/structs"
 	"github.com/bacanoo-io/norca/norca/testutil"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
+	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -802,4 +803,88 @@ func TestNamespaceEndpoint_UpsertNamespaces_ACL(t *testing.T) {
 		assert.Nil(err)
 		assert.NotNil(out)
 	}
+}
+
+// A deletion the state store refuses is an error of the RPC, with the
+// reason, and deletes nothing (review finding SEC-13).
+func TestNamespaceEndpoint_DeleteNamespaces_Refused(t *testing.T) {
+	ci.Parallel(t)
+	s1, cleanupS1 := TestServer(t, nil)
+	defer cleanupS1()
+	codec := rpcClient(t, s1)
+	testutil.WaitForLeader(t, s1.RPC)
+	store := s1.fsm.State()
+
+	withVariable, withVolume, withObject, empty := mock.Namespace(), mock.Namespace(), mock.Namespace(), mock.Namespace()
+	must.NoError(t, store.UpsertNamespaces(1000, []*structs.Namespace{withVariable, withVolume, withObject, empty}))
+
+	variable := mock.VariableEncrypted()
+	variable.Namespace = withVariable.Name
+	must.NoError(t, store.VarSet(1001, &structs.VarApplyStateRequest{Op: structs.VarOpSet, Var: variable}).Error)
+
+	volume := mock.CSIVolume(mock.CSIPlugin())
+	volume.Namespace = withVolume.Name
+	must.NoError(t, store.UpsertCSIVolume(1002, []*structs.CSIVolume{volume}))
+
+	must.NoError(t, store.UpsertObjectKind(structs.MsgTypeTestSetup, 1003, &structs.ObjectKind{
+		Group: "example.com", Kind: "Thing", Namespaced: true, Schema: `{"type": "object"}`,
+	}))
+	must.NoError(t, store.UpsertCustomObject(structs.MsgTypeTestSetup, 1004, &structs.CustomObject{
+		ID: uuid.Generate(), Group: "example.com", Kind: "Thing", Namespace: withObject.Name, Name: "left",
+	}, 0))
+
+	remove := func(names ...string) error {
+		req := &structs.NamespaceDeleteRequest{
+			Namespaces:   names,
+			WriteRequest: structs.WriteRequest{Region: "global"},
+		}
+		var resp structs.GenericResponse
+		return msgpackrpc.CallWithCodec(codec, "Namespace.DeleteNamespaces", req, &resp)
+	}
+	exists := func(name string) bool {
+		out, err := store.NamespaceByName(nil, name)
+		must.NoError(t, err)
+		return out != nil
+	}
+
+	cases := []struct {
+		name      string
+		namespace string
+		want      string
+	}{
+		{"a variable", withVariable.Name, "contains at least one variable"},
+		{"a CSI volume", withVolume.Name, "contains at least one CSI volume"},
+		{"a custom object", withObject.Name, "contains at least one custom object"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := remove(tc.namespace)
+			must.Error(t, err, must.Sprint("the deletion the state store refuses was answered as done"))
+			must.StrContains(t, err.Error(), tc.want)
+			must.True(t, exists(tc.namespace))
+		})
+	}
+
+	// Several namespaces are deleted together or not at all.
+	t.Run("all or nothing", func(t *testing.T) {
+		err := remove(empty.Name, withVariable.Name)
+		must.Error(t, err)
+		must.StrContains(t, err.Error(), "contains at least one variable")
+		must.True(t, exists(empty.Name), must.Sprint("a namespace of a refused request was deleted"))
+		must.True(t, exists(withVariable.Name))
+	})
+
+	// A namespace that does not exist is said so, as a 404.
+	t.Run("not found", func(t *testing.T) {
+		err := remove("no-such-namespace")
+		must.Error(t, err)
+		code, msg, ok := structs.CodeFromRPCCodedErr(err)
+		must.True(t, ok, must.Sprintf("not a coded error: %v", err))
+		must.Eq(t, 404, code)
+		must.StrContains(t, msg, `namespace "no-such-namespace" not found`)
+	})
+
+	// What is not refused is deleted.
+	must.NoError(t, remove(empty.Name))
+	must.False(t, exists(empty.Name))
 }

@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -50,8 +51,8 @@ import (
 // event. When the tenant is deleted, the operator waits until its namespace
 // has nothing the deletion of a namespace refuses (jobs, volumes, variables,
 // objects; condition NamespaceNotEmpty), then deletes what the tenant
-// created: the network policy and the namespace first, the roles and the
-// policies when the namespace is gone, its quota last.
+// created: the namespace first, then its network policy, the roles and the
+// policies when the namespace is gone, its quota last (tenantDeleteOrder).
 
 var (
 	// tenantDriftInterval is how often the operator compares the resources
@@ -894,14 +895,16 @@ func namespaceContents(store *state.StateStore, ws memdb.WatchSet, namespace str
 }
 
 // tenantDeleteOrder is the order in which the resources of a tenant are
-// deleted: the network policy, which lives in the namespace, then the
-// namespace, whose deletion can still be refused (a job registered since
-// the namespace was looked into, jobs in another region); the roles and the
-// policies of its people only when it is gone, so that they can still empty
-// it; the quota the namespace named last.
+// deleted: the namespace first, because its deletion can still be refused
+// (something written into it since the tenant looked, jobs in another
+// region) and a refused deletion must take nothing of the tenant with it;
+// then the network policy that isolated it (the deletion of a namespace
+// leaves its network policies, and they can be deleted without it); the
+// roles and the policies of its people only when the namespace is gone, so
+// that they can still empty it; the quota the namespace named last.
 var tenantDeleteOrder = map[string]int{
-	structs.TenantResourceNetworkPolicy: 0,
-	structs.TenantResourceNamespace:     1,
+	structs.TenantResourceNamespace:     0,
+	structs.TenantResourceNetworkPolicy: 1,
 	structs.TenantResourceACLRole:       2,
 	structs.TenantResourceACLPolicy:     3,
 	structs.TenantResourceQuota:         4,
@@ -1000,8 +1003,37 @@ func (o *tenantOperator) upsertNetworkPolicy(p *structs.NetworkPolicy) error {
 	}, &resp)
 }
 
+// resourceExists reports whether a resource of a tenant is in the state.
+func (o *tenantOperator) resourceExists(ref tenantResourceRef) (bool, error) {
+	store := o.srv.State()
+	switch ref.Type {
+	case structs.TenantResourceNamespace:
+		out, err := store.NamespaceByName(nil, ref.Name)
+		return out != nil, err
+	case structs.TenantResourceQuota:
+		out, err := store.QuotaSpecByName(nil, ref.Name)
+		return out != nil, err
+	case structs.TenantResourceACLPolicy:
+		out, err := store.ACLPolicyByName(nil, ref.Name)
+		return out != nil, err
+	case structs.TenantResourceACLRole:
+		out, err := store.GetACLRoleByName(nil, ref.Name)
+		return out != nil, err
+	case structs.TenantResourceNetworkPolicy:
+		out, err := store.NetworkPolicyByName(nil, ref.Namespace, ref.Name)
+		return out != nil, err
+	}
+	return false, fmt.Errorf("unknown resource type %q", ref.Type)
+}
+
 // deleteResource deletes a resource of a tenant; one that is gone is not an
 // error.
+//
+// Whether the resource is gone is read from the state after the call, never
+// from the answer: the text of a refusal can hold names somebody else chose
+// (a job, a volume), so it can't tell "not found" from "refused", and an
+// answer without an error is not trusted either. What still exists was not
+// deleted, whatever the endpoint said.
 func (o *tenantOperator) deleteResource(ref tenantResourceRef) error {
 	var resp structs.GenericResponse
 	var err error
@@ -1036,10 +1068,16 @@ func (o *tenantOperator) deleteResource(ref tenantResourceRef) error {
 	default:
 		return fmt.Errorf("unknown resource type %q", ref.Type)
 	}
-	if isNotFoundError(err) {
+	exists, lookupErr := o.resourceExists(ref)
+	switch {
+	case lookupErr != nil:
+		return errors.Join(err, lookupErr)
+	case !exists:
 		return nil
+	case err != nil:
+		return err
 	}
-	return err
+	return fmt.Errorf("the deletion of %s was answered without an error, but it still exists", ref)
 }
 
 // The comparisons of what exists with what a tenant wants, on the fields

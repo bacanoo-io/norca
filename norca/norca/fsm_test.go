@@ -3880,3 +3880,33 @@ func TestFSM_DeleteACLBindingRules(t *testing.T) {
 	must.NoError(t, err)
 	must.Nil(t, out)
 }
+
+// A deletion the state store refuses is the response of the apply, and
+// changes nothing (review finding SEC-13).
+func TestFSM_DeleteNamespaces_Refused(t *testing.T) {
+	ci.Parallel(t)
+	fsm := testFSM(t)
+
+	ns1 := mock.Namespace()
+	ns2 := mock.Namespace()
+	must.NoError(t, fsm.State().UpsertNamespaces(1000, []*structs.Namespace{ns1, ns2}))
+	variable := mock.VariableEncrypted()
+	variable.Namespace = ns2.Name
+	must.NoError(t, fsm.State().VarSet(1001, &structs.VarApplyStateRequest{Op: structs.VarOpSet, Var: variable}).Error)
+
+	req := structs.NamespaceDeleteRequest{
+		Namespaces: []string{ns1.Name, ns2.Name},
+	}
+	buf, err := structs.Encode(structs.NamespaceDeleteRequestType, req)
+	must.NoError(t, err)
+	resp := fsm.Apply(makeLog(buf))
+	refused, ok := resp.(error)
+	must.True(t, ok, must.Sprintf("the refused deletion answered %v", resp))
+	must.ErrorContains(t, refused, "contains at least one variable")
+
+	for _, ns := range []*structs.Namespace{ns1, ns2} {
+		out, err := fsm.State().NamespaceByName(nil, ns.Name)
+		must.NoError(t, err)
+		must.NotNil(t, out)
+	}
+}

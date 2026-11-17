@@ -553,10 +553,18 @@ START:
 			args := &structs.NamespaceDeleteRequest{
 				Namespaces: delete,
 			}
-			_, _, err := s.raftApply(structs.NamespaceDeleteRequestType, args)
+			_, index, err := s.raftApply(structs.NamespaceDeleteRequestType, args)
 			if err != nil {
 				s.logger.Error("failed to delete namespaces", "error", err)
-				goto ERR_WAIT
+				// Norca: an index says the request was applied and the
+				// state store refused it (a namespace deleted in the
+				// authoritative region still holds something here). That
+				// must not stop the replication of the other namespaces:
+				// go on with the updates, as when the refusal was not
+				// reported.
+				if index == 0 {
+					goto ERR_WAIT
+				}
 			}
 		}
 

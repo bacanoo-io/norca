@@ -6,6 +6,7 @@ package norca
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -104,6 +105,22 @@ func (n *Namespace) DeleteNamespaces(args *structs.NamespaceDeleteRequest, reply
 	for _, ns := range args.Namespaces {
 		if ns == structs.DefaultNamespace {
 			return fmt.Errorf("can not delete default namespace")
+		}
+	}
+
+	// Norca: a namespace that does not exist is said so before anything is
+	// asked of the other regions, as a 404.
+	snap, err := n.srv.fsm.State().Snapshot()
+	if err != nil {
+		return err
+	}
+	for _, ns := range args.Namespaces {
+		out, err := snap.NamespaceByName(nil, ns)
+		if err != nil {
+			return err
+		}
+		if out == nil {
+			return structs.NewErrRPCCodedf(http.StatusNotFound, "namespace %q not found", ns)
 		}
 	}
 

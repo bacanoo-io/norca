@@ -1612,3 +1612,109 @@ func TestTenant_WaitsForTheLeaderToken(t *testing.T) {
 	c.s.setLeaderAcl(token)
 	waitTenant(c, "team-gap", "ready with the token", tenantReady)
 }
+
+// Whether a resource of a tenant is gone is read from the state, never from
+// the text of an error: a refused deletion whose message names something
+// like "nonexistent" is not a deletion (review finding SEC-13).
+func TestTenant_DeleteResourceRefused(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	o := newTenantOperator(c.s, c.s.logger)
+	nextIndex := func() uint64 {
+		index, err := store.LatestIndex()
+		must.NoError(t, err)
+		return index + 1
+	}
+
+	tenantByHand{c}.namespace("held", "", nil)
+	// The name of what holds the namespace is in the refusal, and is the
+	// choice of whoever may write into the namespace.
+	volume := mock.CSIVolume(mock.CSIPlugin())
+	volume.ID, volume.Namespace = "nonexistent-not-found", "held"
+	must.NoError(t, store.UpsertCSIVolume(nextIndex(), []*structs.CSIVolume{volume}))
+
+	ref := tenantResourceRef{Type: structs.TenantResourceNamespace, Name: "held"}
+	err := o.deleteResource(ref)
+	must.Error(t, err, must.Sprint("a refused deletion of the namespace counted as done"))
+	must.StrContains(t, err.Error(), "contains at least one CSI volume")
+	ns, _ := store.NamespaceByName(nil, "held")
+	must.NotNil(t, ns)
+
+	// A namespace that is gone already is fine.
+	must.NoError(t, o.deleteResource(tenantResourceRef{Type: structs.TenantResourceNamespace, Name: "never-there"}))
+	must.NoError(t, o.deleteResource(tenantResourceRef{Type: structs.TenantResourceQuota, Name: "never-there"}))
+	must.NoError(t, o.deleteResource(tenantResourceRef{Type: structs.TenantResourceACLPolicy, Name: "never-there"}))
+	must.NoError(t, o.deleteResource(tenantResourceRef{Type: structs.TenantResourceACLRole, Name: "never-there"}))
+	must.NoError(t, o.deleteResource(tenantResourceRef{
+		Type: structs.TenantResourceNetworkPolicy, Namespace: "held", Name: structs.TenantNetworkPolicyName}))
+}
+
+// A deletion of the namespace that is refused deletes nothing else of the
+// tenant: the network policy, the roles and the policies stay (review
+// finding SEC-13).
+func TestTenant_RefusedNamespaceDeletesNothing(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+	o := newTenantOperator(c.s, c.s.logger)
+	hand := tenantByHand{c}
+
+	hand.namespace("planted", "", nil)
+	hand.networkPolicy("planted")
+	hand.policy("planted-dev", `node { policy = "read" }`)
+	var roles structs.ACLRolesUpsertResponse
+	must.NoError(t, c.s.RPC(structs.ACLUpsertRolesRPCMethod, &structs.ACLRolesUpsertRequest{
+		ACLRoles: []*structs.ACLRole{{Name: "planted-dev",
+			Policies: []*structs.ACLRolePolicyLink{{Name: "planted-dev"}}}},
+		WriteRequest: c.write(""),
+	}, &roles))
+
+	// Written into the namespace after the tenant looked into it: the
+	// status below has no namespace, so the deletion does not look first,
+	// as a write between the look and the deletion would have it.
+	variable := mock.VariableEncrypted()
+	variable.Namespace = "planted"
+	index, err := store.LatestIndex()
+	must.NoError(t, err)
+	must.NoError(t, store.VarSet(index+1, &structs.VarApplyStateRequest{Op: structs.VarOpSet, Var: variable}).Error)
+
+	// A deleted tenant that created all of them; the store does not have
+	// the object, so the loop of the operators never sees it.
+	ghost := &structs.CustomObject{
+		ID: uuid.Generate(), Group: structs.OperatorsGroup, Kind: structs.TenantKind, Name: "planted",
+		Generation: 1, ModifyIndex: 7, DeletionTime: time.Now().UnixNano(),
+		Finalizers: []string{structs.OperatorsFinalizer},
+		Status: map[string]any{"resources": statusRefs(map[string]tenantResourceRef{
+			"ns":   {Type: structs.TenantResourceNamespace, Name: "planted"},
+			"np":   {Type: structs.TenantResourceNetworkPolicy, Namespace: "planted", Name: structs.TenantNetworkPolicyName},
+			"pol":  {Type: structs.TenantResourceACLPolicy, Name: "planted-dev"},
+			"role": {Type: structs.TenantResourceACLRole, Name: "planted-dev"},
+		})},
+	}
+	o.finishDeletion(newTenantPass(t, c.s), ghost)
+
+	ns, _ := store.NamespaceByName(nil, "planted")
+	must.NotNil(t, ns)
+	np, _ := store.NetworkPolicyByName(nil, "planted", structs.TenantNetworkPolicyName)
+	must.NotNil(t, np, must.Sprint("the isolation went although the namespace could not be deleted"))
+	role, _ := store.GetACLRoleByName(nil, "planted-dev")
+	must.NotNil(t, role, must.Sprint("the role went although the namespace could not be deleted"))
+	pol, _ := store.ACLPolicyByName(nil, "planted-dev")
+	must.NotNil(t, pol, must.Sprint("the policy went although the namespace could not be deleted"))
+
+	// With the namespace empty everything goes, the network policy after
+	// its namespace.
+	must.NoError(t, store.VarDelete(index+2, &structs.VarApplyStateRequest{Op: structs.VarOpDelete, Var: variable}).Error)
+	o.finishDeletion(newTenantPass(t, c.s), ghost)
+	ns, _ = store.NamespaceByName(nil, "planted")
+	must.Nil(t, ns)
+	np, _ = store.NetworkPolicyByName(nil, "planted", structs.TenantNetworkPolicyName)
+	must.Nil(t, np)
+	role, _ = store.GetACLRoleByName(nil, "planted-dev")
+	must.Nil(t, role)
+	pol, _ = store.ACLPolicyByName(nil, "planted-dev")
+	must.Nil(t, pol)
+}

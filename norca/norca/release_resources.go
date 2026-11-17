@@ -448,6 +448,15 @@ func (op *releaseOp) deleteResource(ref *structs.ReleaseResourceRef) error {
 	default:
 		return fmt.Errorf("unknown resource type %q", ref.Type)
 	}
+	// The refusal of a namespace deletion names what holds the namespace (a
+	// job, a volume), in words somebody else chose: whether the namespace
+	// is gone is read from the state, not from the text of the error.
+	if ref.Type == structs.ReleaseResourceNamespace && err != nil {
+		if ns, lookupErr := srv.State().NamespaceByName(nil, ref.Name); lookupErr == nil && ns == nil {
+			return nil
+		}
+		return err
+	}
 	if isNotFoundError(err) {
 		return nil
 	}

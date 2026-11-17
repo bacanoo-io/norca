@@ -12,6 +12,7 @@ import (
 	"github.com/bacanoo-io/norca/norca/ci"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
+	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -93,4 +94,38 @@ func TestNamespaceDeleteCommand_AutocompleteArgs(t *testing.T) {
 	res := predictor.Predict(args)
 	assert.Equal(1, len(res))
 	assert.Equal(ns.Name, res[0])
+}
+
+// A deletion the servers refuse fails with the reason, and one of a
+// namespace that does not exist says so (review finding SEC-13).
+func TestNamespaceDeleteCommand_Refused(t *testing.T) {
+	ci.Parallel(t)
+
+	srv, client, url := testServer(t, true, nil)
+	defer srv.Shutdown()
+
+	ns := &api.Namespace{Name: "held"}
+	_, err := client.Namespaces().Register(ns, nil)
+	must.NoError(t, err)
+	_, _, err = client.Variables().Create(&api.Variable{
+		Namespace: ns.Name, Path: "app/var", Items: api.VariableItems{"k": "v"},
+	}, &api.WriteOptions{Namespace: ns.Name})
+	must.NoError(t, err)
+
+	ui := cli.NewMockUi()
+	cmd := &NamespaceDeleteCommand{Meta: Meta{Ui: ui}}
+	code := cmd.Run([]string{"-address=" + url, ns.Name})
+	must.Eq(t, 1, code, must.Sprintf("the refused deletion reported success: %s", ui.OutputWriter.String()))
+	must.StrContains(t, ui.ErrorWriter.String(), "contains at least one variable")
+	must.StrNotContains(t, ui.OutputWriter.String(), "Successfully deleted")
+	out, _, err := client.Namespaces().Info(ns.Name, nil)
+	must.NoError(t, err)
+	must.NotNil(t, out)
+
+	ui = cli.NewMockUi()
+	cmd = &NamespaceDeleteCommand{Meta: Meta{Ui: ui}}
+	code = cmd.Run([]string{"-address=" + url, "no-such-namespace"})
+	must.Eq(t, 1, code)
+	must.StrContains(t, ui.ErrorWriter.String(), `namespace "no-such-namespace" not found`)
+	must.StrContains(t, ui.ErrorWriter.String(), "404")
 }
