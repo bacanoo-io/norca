@@ -250,7 +250,9 @@ func (s *HTTPServer) ClientGCRequest(resp http.ResponseWriter, req *http.Request
 
 	// Build the request and get the requested Node ID
 	args := structs.NodeSpecificRequest{}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 	parseNode(req, &args.NodeID)
 
 	// Determine the handler to use
@@ -284,7 +286,9 @@ func (s *HTTPServer) allocRestart(allocID string, resp http.ResponseWriter, req 
 		AllocID:  allocID,
 		TaskName: "",
 	}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	// Explicitly parse the body separately to disallow overriding AllocID in req Body.
 	var reqBody struct {
@@ -332,7 +336,9 @@ func (s *HTTPServer) allocGC(allocID string, resp http.ResponseWriter, req *http
 	args := structs.AllocSpecificRequest{
 		AllocID: allocID,
 	}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	// Determine the handler to use
 	useLocalClient, useClientRPC, useServerRPC := s.rpcHandlerForAlloc(allocID)
@@ -370,7 +376,9 @@ func (s *HTTPServer) allocSignal(allocID string, resp http.ResponseWriter, req *
 	if err != nil {
 		return nil, CodedError(400, fmt.Sprintf("Failed to decode body: %v", err))
 	}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 	args.AllocID = allocID
 
 	// Determine the handler to use
@@ -423,7 +431,9 @@ func (s *HTTPServer) allocStats(allocID string, resp http.ResponseWriter, req *h
 		AllocID: allocID,
 		Task:    task,
 	}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	// Determine the handler to use
 	useLocalClient, useClientRPC, useServerRPC := s.rpcHandlerForAlloc(allocID)
@@ -455,7 +465,9 @@ func (s *HTTPServer) allocChecks(allocID string, resp http.ResponseWriter, req *
 	args := cstructs.AllocChecksRequest{
 		AllocID: allocID,
 	}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	// Determine the handler to use
 	useLocalClient, useClientRPC, useServerRPC := s.rpcHandlerForAlloc(allocID)
@@ -508,7 +520,9 @@ func (s *HTTPServer) allocExec(allocID string, resp http.ResponseWriter, req *ht
 		Cmd:     command,
 		Tty:     ttyB,
 	}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	conn, err := s.wsUpgrader.Upgrade(resp, req, nil)
 	if err != nil {

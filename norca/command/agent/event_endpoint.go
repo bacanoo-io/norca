@@ -65,7 +65,9 @@ func (s *HTTPServer) EventStream(resp http.ResponseWriter, req *http.Request) (i
 	resp.Header().Set("Cache-Control", "no-cache")
 
 	// Set region, namespace and authtoken to args
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	// Determine the RPC handler to use to find a server
 	var handler structs.StreamingRpcHandler

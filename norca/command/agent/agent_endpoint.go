@@ -224,7 +224,9 @@ func (s *HTTPServer) AgentMonitor(resp http.ResponseWriter, req *http.Request) (
 		resp.Header().Set("Content-Type", "application/json")
 	}
 
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	// Make the RPC
 	var handler structs.StreamingRpcHandler
@@ -411,7 +413,9 @@ func (s *HTTPServer) agentPprof(reqType pprof.ReqType, resp http.ResponseWriter,
 		return nil, CodedError(400, "Cannot target node and server simultaneously")
 	}
 
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	var reply structs.AgentPprofResponse
 	var rpcErr error
@@ -734,7 +738,9 @@ func (s *HTTPServer) AgentHostRequest(resp http.ResponseWriter, req *http.Reques
 		NodeID:   nodeID,
 	}
 
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	var reply structs.HostDataResponse
 	var rpcErr error

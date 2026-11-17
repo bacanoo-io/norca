@@ -16,7 +16,9 @@ func (s *HTTPServer) ClientStatsRequest(resp http.ResponseWriter, req *http.Requ
 
 	// Build the request and get the requested Node ID
 	args := structs.NodeSpecificRequest{}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 	parseNode(req, &args.NodeID)
 
 	// Determine the handler to use

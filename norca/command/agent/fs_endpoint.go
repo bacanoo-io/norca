@@ -68,7 +68,9 @@ func (s *HTTPServer) DirectoryListRequest(resp http.ResponseWriter, req *http.Re
 		AllocID: allocID,
 		Path:    path,
 	}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	// Make the RPC
 	localClient, remoteClient, localServer := s.rpcHandlerForAlloc(allocID)
@@ -108,7 +110,9 @@ func (s *HTTPServer) FileStatRequest(resp http.ResponseWriter, req *http.Request
 		AllocID: allocID,
 		Path:    path,
 	}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 
 	// Make the RPC
 	localClient, remoteClient, localServer := s.rpcHandlerForAlloc(allocID)
@@ -168,7 +172,9 @@ func (s *HTTPServer) FileReadAtRequest(resp http.ResponseWriter, req *http.Reque
 		Limit:     limit,
 		PlainText: true,
 	}
-	s.parse(resp, req, &fsReq.QueryOptions.Region, &fsReq.QueryOptions)
+	if s.parse(resp, req, &fsReq.QueryOptions.Region, &fsReq.QueryOptions) {
+		return nil, nil
+	}
 
 	// Make the request
 	return s.fsStreamImpl(resp, req, "FileSystem.Stream", fsReq, fsReq.AllocID)
@@ -193,7 +199,9 @@ func (s *HTTPServer) FileCatRequest(resp http.ResponseWriter, req *http.Request)
 		Origin:    "start",
 		PlainText: true,
 	}
-	s.parse(resp, req, &fsReq.QueryOptions.Region, &fsReq.QueryOptions)
+	if s.parse(resp, req, &fsReq.QueryOptions.Region, &fsReq.QueryOptions) {
+		return nil, nil
+	}
 
 	// Make the request
 	return s.fsStreamImpl(resp, req, "FileSystem.Stream", fsReq, fsReq.AllocID)
@@ -252,7 +260,9 @@ func (s *HTTPServer) Stream(resp http.ResponseWriter, req *http.Request) (interf
 		Offset:  offset,
 		Follow:  follow,
 	}
-	s.parse(resp, req, &fsReq.QueryOptions.Region, &fsReq.QueryOptions)
+	if s.parse(resp, req, &fsReq.QueryOptions.Region, &fsReq.QueryOptions) {
+		return nil, nil
+	}
 
 	// Make the request
 	return s.fsStreamImpl(resp, req, "FileSystem.Stream", fsReq, fsReq.AllocID)
@@ -326,7 +336,9 @@ func (s *HTTPServer) Logs(resp http.ResponseWriter, req *http.Request) (interfac
 		PlainText: plain,
 		Follow:    follow,
 	}
-	s.parse(resp, req, &fsReq.QueryOptions.Region, &fsReq.QueryOptions)
+	if s.parse(resp, req, &fsReq.QueryOptions.Region, &fsReq.QueryOptions) {
+		return nil, nil
+	}
 
 	// Force the Content-Type to avoid Go's http.ResponseWriter from
 	// detecting an incorrect or unsafe one.

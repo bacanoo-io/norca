@@ -24,7 +24,9 @@ func (s *HTTPServer) NodeMetaRequest(resp http.ResponseWriter, req *http.Request
 func (s *HTTPServer) nodeMetaRead(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	// Build the request by parsing all common parameters and node id
 	args := structs.NodeSpecificRequest{}
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 	parseNode(req, &args.NodeID)
 
 	// Determine the handler to use
@@ -63,7 +65,9 @@ func (s *HTTPServer) nodeMetaApply(resp http.ResponseWriter, req *http.Request) 
 		return nil, CodedError(http.StatusBadRequest, err.Error())
 	}
 
-	s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions)
+	if s.parse(resp, req, &args.QueryOptions.Region, &args.QueryOptions) {
+		return nil, nil
+	}
 	parseNode(req, &args.NodeID)
 
 	// Determine the handler to use
