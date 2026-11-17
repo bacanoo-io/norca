@@ -189,6 +189,14 @@ func (e *SecretEngine) Upsert(args *structs.SecretEngineUpsertRequest, reply *st
 	if err := e.validateNamespace(namespace); err != nil {
 		return e.secret.finish(rec, err)
 	}
+	// The leader asks the operator for credentials with its own server
+	// certificate and with the role configuration of the engine. An operator
+	// of another namespace serves that namespace: pointing an engine at it
+	// needs the right to write engines there too.
+	if op := engine.Operator; op != nil && op.Namespace != "" && op.Namespace != namespace &&
+		!aclObj.AllowNsOp(op.Namespace, acl.NamespaceCapabilityWriteSecretEngine) {
+		return e.secret.denied(rec)
+	}
 
 	if err := e.srv.secretAudit(rec, false); err != nil {
 		return err
