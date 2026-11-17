@@ -95,6 +95,7 @@ const tenantKindSchema = `{
               "namespace": {"type": "string"},
               "id": {"type": "string"},
               "pending": {"type": "boolean"},
+              "creating": {"type": "string"},
               "adopted": {"type": "boolean"},
               "original": {"type": "object"}
             },
@@ -199,6 +200,12 @@ type tenantResourceRef struct {
 	Namespace string `json:"namespace,omitempty"`
 	ID        string `json:"id,omitempty"`
 	Pending   bool   `json:"pending,omitempty"`
+
+	// Creating is, for a pending resource, the fingerprint of what the
+	// tenant is creating (tenantOriginal.fingerprint): how the tenant knows
+	// its own creation when the resource exists and the status still says
+	// pending.
+	Creating string `json:"creating,omitempty"`
 
 	// Adopted marks a resource that existed and the tenant took over
 	// (spec.adopt), and Original is what it held then in the fields a

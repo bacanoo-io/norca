@@ -4,6 +4,8 @@
 package norca
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -65,6 +67,30 @@ func (o *tenantOriginal) size() int {
 		return tenantOriginalsMax + 1
 	}
 	return len(buf)
+}
+
+// fingerprint identifies what a resource holds in the fields a tenant
+// writes: equal for a resource the tenant created and for what the tenant
+// set out to create. Values the endpoints fill in are made equal first.
+func (o *tenantOriginal) fingerprint() string {
+	if o == nil {
+		return ""
+	}
+	c := *o
+	if c.Enforce == "" && c.Limits != nil {
+		c.Enforce = structs.QuotaEnforceSchedule
+	}
+	if c.NetworkPolicy != nil {
+		c.NetworkPolicy = c.NetworkPolicy.Copy()
+		c.NetworkPolicy.Canonicalize()
+		c.NetworkPolicy.CreateIndex, c.NetworkPolicy.ModifyIndex = 0, 0
+	}
+	buf, err := json.Marshal(&c)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(buf)
+	return hex.EncodeToString(sum[:16])
 }
 
 func namespaceOriginal(ns *structs.Namespace) *tenantOriginal {

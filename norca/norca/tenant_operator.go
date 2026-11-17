@@ -30,7 +30,12 @@ import (
 // writes none of them when that write fails: a status write lost later (the
 // object changed during the pass, the leader changed) can't make the tenant
 // forget a resource it created. A listed resource that is not known to
-// exist is marked pending.
+// exist is marked pending, with a fingerprint of what the tenant is
+// creating. Pending is a claim on the name, not ownership: a resource that
+// turns up under a pending entry is the tenant's only if it holds what the
+// tenant was creating (its own creation, whose status write was lost).
+// Anything else was made by somebody else: a conflict, or with spec.adopt
+// an adoption like any other.
 //
 // A resource the tenant took over (spec.adopt) is on loan: the status marks
 // it adopted and keeps what the tenant found (tenant_restore.go). While the
@@ -138,6 +143,11 @@ type tenantWork struct {
 	// restoreFailures are the resources the tenant took over, no longer
 	// wants and could not give back as it found them.
 	restoreFailures []string
+
+	// claimsChanged is set when the pass took a resource, or changed what
+	// the status says the tenant is creating: the status is written before
+	// any resource is.
+	claimsChanged bool
 }
 
 // owns reports whether the tenant created the resource.
@@ -157,7 +167,8 @@ func (p *tenantPass) othersResource(tenant string, ref tenantResourceRef) (strin
 // own, a new one, or an existing one it adopts. It records a conflict
 // otherwise. original is what the resource holds now in the fields a tenant
 // writes, nil when it does not exist: an adoption saves it, to give the
-// resource back as it was.
+// resource back as it was. creating is what the tenant would write into
+// those fields if it created the resource now.
 //
 // A resource has one tenant: what a tenant takes is the pass's knowledge at
 // once, so a tenant later in the same pass can't take it too, and the owner
@@ -165,12 +176,14 @@ func (p *tenantPass) othersResource(tenant string, ref tenantResourceRef) (strin
 // that list one resource (which this and the write checks should never let
 // happen) the one the pass does not know as its owner gives it up.
 //
-// A resource of the tenant's list is the tenant's also when the list says
-// it is pending and it exists now: the tenant wrote its intent down before
-// it created the resource, and the status write that would have said so may
-// have been lost. take writes nothing: the pass records what was taken
-// (recordClaims) before it writes a resource.
-func (w *tenantWork) take(ref tenantResourceRef, original *tenantOriginal) bool {
+// A resource the list says is pending and that exists now is the tenant's
+// when it holds what the list says the tenant was creating: the tenant
+// wrote that down before it created the resource, and the status write that
+// would have cleared pending may have been lost. One that holds anything
+// else is not the tenant's creation: the entry is dropped and the resource
+// is treated as any resource the tenant finds. take writes nothing: the
+// pass records what was taken (recordClaims) before it writes a resource.
+func (w *tenantWork) take(ref tenantResourceRef, original, creating *tenantOriginal) bool {
 	exists := original != nil
 	if owner, ok := w.p.othersResource(w.obj.Name, ref); ok {
 		delete(w.owned, ref.key())
@@ -178,16 +191,29 @@ func (w *tenantWork) take(ref tenantResourceRef, original *tenantOriginal) bool 
 		return false
 	}
 	if mine, ok := w.owned[ref.key()]; ok {
-		mine.Pending = !exists
-		if !exists {
-			// What the tenant took over is gone, and the tenant makes it
-			// again: from now on it is the tenant's own, and there is
-			// nothing to give back.
+		switch {
+		case !exists:
+			// The tenant makes it (again). What the tenant took over
+			// and is gone is the tenant's own from now on, with nothing
+			// to give back.
+			want := creating.fingerprint()
+			if !mine.Pending || mine.Creating != want || mine.Adopted {
+				w.claimsChanged = true
+			}
+			mine.Pending, mine.Creating = true, want
 			mine.Adopted, mine.Original = false, nil
+		case mine.Pending && (mine.Creating == "" || mine.Creating != original.fingerprint()):
+			// Not what the tenant was creating: somebody else made it.
+			delete(w.owned, ref.key())
+			ok = false
+		default:
+			mine.Pending, mine.Creating = false, ""
 		}
-		w.owned[ref.key()] = mine
-		w.p.tenants[ref.key()] = w.obj.Name
-		return true
+		if ok {
+			w.owned[ref.key()] = mine
+			w.p.tenants[ref.key()] = w.obj.Name
+			return true
+		}
 	}
 	if owner, ok := w.p.releases[ref.key()]; ok {
 		w.conflicts = append(w.conflicts, fmt.Sprintf("%s belongs to the release %s", ref, owner))
@@ -215,7 +241,10 @@ func (w *tenantWork) take(ref tenantResourceRef, original *tenantOriginal) bool 
 		}
 		w.adopted = append(w.adopted, ref)
 		ref.Original = original
+	} else {
+		ref.Creating = creating.fingerprint()
 	}
+	w.claimsChanged = true
 	ref.Pending, ref.Adopted = !exists, exists
 	w.owned[ref.key()] = ref
 	w.p.tenants[ref.key()] = w.obj.Name
@@ -234,7 +263,7 @@ func (w *tenantWork) wrote(ref tenantResourceRef, existed bool, err error) {
 		reason, what = "Updated", "set back "
 	}
 	if mine, ok := w.owned[ref.key()]; ok && mine.Pending {
-		mine.Pending = false
+		mine.Pending, mine.Creating = false, ""
 		w.owned[ref.key()] = mine
 	}
 	w.changed = append(w.changed, ref.String())
@@ -298,7 +327,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		stop()
 		return
 	}
-	if !w.take(nsRef, namespaceOriginal(liveNS)) {
+	if !w.take(nsRef, namespaceOriginal(liveNS), namespaceOriginal(desired.namespace)) {
 		stop()
 		return
 	}
@@ -315,7 +344,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 			stop()
 			return
 		}
-		if !w.take(quotaRef, quotaOriginal(live)) {
+		if !w.take(quotaRef, quotaOriginal(live), quotaOriginal(desired.quota)) {
 			stop()
 			return
 		}
@@ -364,7 +393,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 				w.failures = append(w.failures, err.Error())
 				continue
 			}
-			if !w.take(ref, policyOriginal(live)) {
+			if !w.take(ref, policyOriginal(live), policyOriginal(policy)) {
 				continue
 			}
 			writes = append(writes, func() bool {
@@ -381,7 +410,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 				w.failures = append(w.failures, err.Error())
 				continue
 			}
-			if !w.take(roleRef, roleOriginal(liveRole)) {
+			if !w.take(roleRef, roleOriginal(liveRole), roleOriginal(role)) {
 				continue
 			}
 			if liveRole != nil {
@@ -406,7 +435,7 @@ func (o *tenantOperator) reconcileTenant(p *tenantPass, obj *structs.CustomObjec
 		switch {
 		case err != nil:
 			w.failures = append(w.failures, err.Error())
-		case w.take(netRef, networkPolicyOriginal(live)):
+		case w.take(netRef, networkPolicyOriginal(live), networkPolicyOriginal(desired.network)):
 			writes = append(writes, func() bool {
 				if live == nil || !networkPolicyMatches(live, desired.network) {
 					w.wrote(netRef, live != nil, o.upsertNetworkPolicy(desired.network))
@@ -498,7 +527,7 @@ func (w *tenantWork) setRoleID(ref tenantResourceRef, id string) {
 // changed since the pass read it, or the write failed) the pass ends
 // without creating anything, and the next one starts over.
 func (o *tenantOperator) recordClaims(w *tenantWork, listed map[string]bool, namespace string) bool {
-	fresh := false
+	fresh := w.claimsChanged
 	for key := range w.owned {
 		if !listed[key] {
 			fresh = true
@@ -540,6 +569,9 @@ func statusRefs(owned map[string]tenantResourceRef) []any {
 		}
 		if ref.Pending {
 			m["pending"] = true
+		}
+		if ref.Creating != "" {
+			m["creating"] = ref.Creating
 		}
 		if ref.Adopted {
 			m["adopted"] = true

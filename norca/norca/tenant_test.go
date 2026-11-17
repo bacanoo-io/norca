@@ -487,11 +487,11 @@ func TestTenant_TakeOnce(t *testing.T) {
 	ref := tenantResourceRef{Type: structs.TenantResourceNamespace, Name: "x"}
 
 	a := tenant("a")
-	must.True(t, a.take(ref, nil))
+	must.True(t, a.take(ref, nil, &tenantOriginal{}))
 
 	// b comes later in the same pass: a has created x by now, and b adopts.
 	b := tenant("b", structs.TenantResourceNamespace)
-	must.False(t, b.take(ref, &tenantOriginal{}), must.Sprint("b took the namespace a took in the same pass"))
+	must.False(t, b.take(ref, &tenantOriginal{}, &tenantOriginal{}), must.Sprint("b took the namespace a took in the same pass"))
 	must.False(t, b.owns(ref))
 	must.SliceLen(t, 1, b.conflicts)
 	must.StrContains(t, b.conflicts[0], "belongs to the tenant a")
@@ -501,7 +501,7 @@ func TestTenant_TakeOnce(t *testing.T) {
 	p.tenants[ref.key()] = "a"
 	b2 := tenant("b")
 	b2.owned[ref.key()] = ref
-	must.False(t, b2.take(ref, &tenantOriginal{}))
+	must.False(t, b2.take(ref, &tenantOriginal{}, &tenantOriginal{}))
 	must.False(t, b2.owns(ref), must.Sprint("b still lists the namespace of a"))
 }
 
@@ -1440,4 +1440,149 @@ func TestTenant_HandOver(t *testing.T) {
 		tenantRefs(obj)["namespace//shared"].Original)
 	ns, _ = store.NamespaceByName(nil, "shared")
 	must.Eq(t, "Of the second", ns.Description)
+}
+
+// A resource the status lists as pending is a claim on the name, not
+// ownership: one that turns up and is not what the tenant was creating is
+// not the tenant's (review finding TEN-7, the remainder).
+func TestTenant_PendingIsNotOwnership(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+
+	// The quota can't be created (a limit without a region), so the pass
+	// stops with the quota and the namespace listed as pending.
+	spec := map[string]any{
+		"namespace": map[string]any{"description": "Team P7"},
+		"quota":     map[string]any{"region": map[string]any{"": map[string]any{"cpu": 1000}}},
+	}
+	_, err := c.apply("", structs.TenantKind, "team-p7", spec)
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-p7", "the failed write reported", func(o *structs.CustomObject) bool {
+		return o.Status["observedGeneration"] != nil && !objectConditionTrue(o.Status, structs.CertificateConditionReady)
+	})
+	must.True(t, tenantRefs(obj)["namespace//team-p7"].Pending)
+
+	// Somebody makes a namespace of the name by hand meanwhile.
+	tenantByHand{c}.namespace("team-p7", "", map[string]string{"team": "hand"})
+
+	// The spec is repaired: the tenant can create its quota now, and finds
+	// the namespace.
+	spec["quota"] = map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 1000}}}
+	_, err = c.apply("", structs.TenantKind, "team-p7", spec)
+	must.NoError(t, err)
+	obj = waitTenant(c, "team-p7", "the new spec seen", func(o *structs.CustomObject) bool {
+		return toInt64(o.Status["observedGeneration"]) == int64(o.Generation)
+	})
+	must.True(t, objectConditionTrue(obj.Status, structs.TenantConditionConflict),
+		must.Sprintf("the tenant took a namespace it did not create, without adopt; status: %v", obj.Status))
+	ns, _ := store.NamespaceByName(nil, "team-p7")
+	must.Eq(t, "made by hand", ns.Description)
+	must.Eq(t, map[string]string{"team": "hand"}, ns.Meta)
+	must.MapNotContainsKey(t, tenantRefs(obj), "namespace//team-p7")
+	q, _ := store.QuotaSpecByName(nil, "team-p7")
+	must.Nil(t, q, must.Sprint("the pass went on although the namespace is not the tenant's"))
+
+	// With adopt it is taken over like any other: what it held is saved,
+	// and it is given back, not deleted, with the tenant.
+	spec["adopt"] = []any{"namespace"}
+	_, err = c.apply("", structs.TenantKind, "team-p7", spec)
+	must.NoError(t, err)
+	obj = waitTenant(c, "team-p7", "ready", tenantReady)
+	ref := tenantRefs(obj)["namespace//team-p7"]
+	must.True(t, ref.Adopted)
+	must.False(t, ref.Pending)
+	must.Eq(t, &tenantOriginal{Description: "made by hand", Meta: map[string]string{"team": "hand"}}, ref.Original)
+	ns, _ = store.NamespaceByName(nil, "team-p7")
+	must.Eq(t, "Team P7", ns.Description)
+
+	must.NoError(t, c.delete("", structs.TenantKind, "team-p7"))
+	waitTenantGone(c, "team-p7")
+	ns, _ = store.NamespaceByName(nil, "team-p7")
+	must.NotNil(t, ns)
+	must.Eq(t, "made by hand", ns.Description)
+	q, _ = store.QuotaSpecByName(nil, "team-p7")
+	must.Nil(t, q)
+}
+
+// The tenant knows its own creation under a pending entry: what it created
+// holds what the status says it was creating, for every type, also when the
+// status write that clears pending was lost and the spec changed meanwhile.
+func TestTenant_PendingOwnCreation(t *testing.T) {
+	ci.Parallel(t)
+	c, cleanup := newTenantTest(t)
+	defer cleanup()
+	store := c.s.State()
+
+	spec := map[string]any{
+		"namespace":    map[string]any{"description": "Team OC", "meta": map[string]any{"owner": "oc"}},
+		"quota":        map[string]any{"region": map[string]any{"global": map[string]any{"cpu": 8000, "allocations": 5}}},
+		"roles":        map[string]any{"dev": []any{"submit-job"}},
+		"network":      map[string]any{"isolation": "namespace", "allow_from_namespaces": []any{"ingress"}},
+		"dns_suffixes": []any{"oc.example.com"},
+	}
+	_, err := c.apply("", structs.TenantKind, "team-oc", spec)
+	must.NoError(t, err)
+	obj := waitTenant(c, "team-oc", "ready", tenantReady)
+	for key, ref := range tenantRefs(obj) {
+		must.False(t, ref.Pending, must.Sprint(key))
+		must.Eq(t, "", ref.Creating, must.Sprint(key))
+	}
+
+	// What each resource holds after its creation is what the tenant set
+	// out to create.
+	decoded, err := decodeTenantSpec("team-oc", obj.Spec)
+	must.NoError(t, err)
+	d, err := decoded.desired("team-oc")
+	must.NoError(t, err)
+	ns, _ := store.NamespaceByName(nil, "team-oc")
+	q, _ := store.QuotaSpecByName(nil, "team-oc")
+	pol, _ := store.ACLPolicyByName(nil, "team-oc-dev")
+	role, _ := store.GetACLRoleByName(nil, "team-oc-dev")
+	np, _ := store.NetworkPolicyByName(nil, "team-oc", structs.TenantNetworkPolicyName)
+	created := map[string]string{
+		"namespace//team-oc":                      namespaceOriginal(ns).fingerprint(),
+		"quota//team-oc":                          quotaOriginal(q).fingerprint(),
+		"acl-policy//team-oc-dev":                 policyOriginal(pol).fingerprint(),
+		"acl-role//team-oc-dev":                   roleOriginal(role).fingerprint(),
+		"network-policy/team-oc/tenant-isolation": networkPolicyOriginal(np).fingerprint(),
+	}
+	must.Eq(t, map[string]string{
+		"namespace//team-oc":                      namespaceOriginal(d.namespace).fingerprint(),
+		"quota//team-oc":                          quotaOriginal(d.quota).fingerprint(),
+		"acl-policy//team-oc-dev":                 policyOriginal(d.policies[0]).fingerprint(),
+		"acl-role//team-oc-dev":                   roleOriginal(d.roles[0]).fingerprint(),
+		"network-policy/team-oc/tenant-isolation": networkPolicyOriginal(d.network).fingerprint(),
+	}, created)
+
+	// The status as a lost write leaves it: everything created, everything
+	// still pending; and the spec changed meanwhile.
+	must.Wait(t, wait.InitialSuccess(wait.ErrorFunc(func() error {
+		changed := c.get("", structs.TenantKind, "team-oc").Copy()
+		refs := tenantRefs(changed)
+		for key, ref := range refs {
+			ref.Pending, ref.Creating = true, created[key]
+			refs[key] = ref
+		}
+		changed.Status["resources"] = statusRefs(refs)
+		changed.Spec = structs.CopyObjectMap(changed.Spec)
+		changed.Spec["namespace"] = map[string]any{"description": "Team OC, renamed", "meta": map[string]any{"owner": "oc"}}
+		changed.Generation++
+		_, err := c.s.writeOperatorObject(changed)
+		return err
+	}), wait.Timeout(10*time.Second), wait.Gap(50*time.Millisecond)))
+
+	obj = waitTenant(c, "team-oc", "ready with the new spec", func(o *structs.CustomObject) bool {
+		ns, _ := store.NamespaceByName(nil, "team-oc")
+		return tenantReady(o) && ns != nil && ns.Description == "Team OC, renamed"
+	})
+	must.False(t, objectConditionTrue(obj.Status, structs.TenantConditionConflict))
+	refs := tenantRefs(obj)
+	must.MapLen(t, 5, refs)
+	for key, ref := range refs {
+		must.False(t, ref.Pending, must.Sprint(key))
+		must.False(t, ref.Adopted, must.Sprint(key))
+		must.Eq(t, "", ref.Creating, must.Sprint(key))
+	}
 }
