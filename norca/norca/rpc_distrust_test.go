@@ -4,6 +4,7 @@
 package norca
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"os"
@@ -52,7 +53,7 @@ func TestServer_RPCDistrustedCAWithHostnameVerification(t *testing.T) {
 		must.NoError(t, err)
 		itls, _, err := getTLSConf(true, tc, "regionFoo")
 		must.NoError(t, err)
-		return &tlsutilVerifier{itls.VerifyPeerCertificate}
+		return &tlsutilVerifier{itls.VerifyConnection}
 	}
 
 	// Another CA is distrusted: the client of the region passes, one of
@@ -68,9 +69,11 @@ func TestServer_RPCDistrustedCAWithHostnameVerification(t *testing.T) {
 }
 
 type tlsutilVerifier struct {
-	fn func([][]byte, [][]*x509.Certificate) error
+	fn func(tls.ConnectionState) error
 }
 
+// check runs the VerifyConnection of the configuration, the check a resumed
+// session gets too, on the verified chains.
 func (v *tlsutilVerifier) check(chains [][]*x509.Certificate) error {
-	return v.fn(nil, chains)
+	return v.fn(tls.ConnectionState{VerifiedChains: chains})
 }

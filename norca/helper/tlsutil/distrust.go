@@ -5,6 +5,7 @@ package tlsutil
 
 import (
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -93,11 +94,15 @@ func (d *distrustList) current() map[[sha256.Size]byte]string {
 	return d.keys
 }
 
-// verify is the VerifyPeerCertificate of an incoming TLS configuration: it
-// refuses a certificate whose verified chain has a distrusted public key.
-func (d *distrustList) verify(_ [][]byte, chains [][]*x509.Certificate) error {
+// verify is the VerifyConnection of an incoming TLS configuration: it refuses
+// a certificate whose verified chain has a distrusted public key. It is not
+// the VerifyPeerCertificate, which a resumed TLS session skips: the session
+// ticket of a connection made before a CA was listed would keep its holder
+// in until the ticket expires. VerifyConnection runs on every handshake, with
+// the verified chains of the session when it is resumed.
+func (d *distrustList) verify(cs tls.ConnectionState) error {
 	keys := d.current()
-	for _, chain := range chains {
+	for _, chain := range cs.VerifiedChains {
 		for _, cert := range chain {
 			if subject, ok := keys[sha256.Sum256(cert.RawSubjectPublicKeyInfo)]; ok {
 				return fmt.Errorf("the certificate chain has a distrusted CA (%s)", subject)
@@ -107,21 +112,23 @@ func (d *distrustList) verify(_ [][]byte, chains [][]*x509.Certificate) error {
 	return nil
 }
 
-// PeerVerifier is the type of tls.Config.VerifyPeerCertificate.
-type PeerVerifier func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error
+// ConnectionVerifier is the type of tls.Config.VerifyConnection.
+type ConnectionVerifier func(cs tls.ConnectionState) error
 
-// ChainPeerVerifiers returns a VerifyPeerCertificate that runs the checks in
+// ChainConnectionVerifiers returns a VerifyConnection that runs the checks in
 // order and fails with the first error; nil checks are skipped. A user of
 // IncomingTLSConfig that adds a check of its own (the name and region of an
 // RPC peer, for example) must chain it with the check that is there, the
-// distrusted CAs, instead of replacing it.
-func ChainPeerVerifiers(checks ...PeerVerifier) PeerVerifier {
-	return func(raw [][]byte, chains [][]*x509.Certificate) error {
+// distrusted CAs, instead of replacing it. A check on the peer belongs in
+// VerifyConnection: VerifyPeerCertificate does not run when a session is
+// resumed.
+func ChainConnectionVerifiers(checks ...ConnectionVerifier) ConnectionVerifier {
+	return func(cs tls.ConnectionState) error {
 		for _, check := range checks {
 			if check == nil {
 				continue
 			}
-			if err := check(raw, chains); err != nil {
+			if err := check(cs); err != nil {
 				return err
 			}
 		}

@@ -212,6 +212,80 @@ func TestDistrustedCA(t *testing.T) {
 	must.Error(t, p.dial(addr, leafGood, keyGood, good))
 }
 
+// dialResume connects like dial, with a session cache, and reports whether
+// the handshake resumed a session.
+func (p *testPKI) dialResume(addr string, cache tls.ClientSessionCache, version uint16, leaf *x509.Certificate, key crypto.Signer, chain ...*x509.Certificate) (bool, error) {
+	pool := x509.NewCertPool()
+	pool.AddCert(p.ca)
+	raw := [][]byte{leaf.Raw}
+	for _, c := range chain {
+		raw = append(raw, c.Raw)
+	}
+	conn, err := tls.Dial("tcp", addr, &tls.Config{
+		RootCAs: pool, ServerName: "server.global.norca", MinVersion: tls.VersionTLS12, MaxVersion: version,
+		Certificates:       []tls.Certificate{{Certificate: raw, PrivateKey: key}},
+		ClientSessionCache: cache,
+	})
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+	resumed := conn.ConnectionState().DidResume
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Write([]byte{1}); err != nil {
+		return resumed, err
+	}
+	// The server reads the byte and closes (EOF): accepted. The session
+	// ticket of TLS 1.3 arrives with this read.
+	buf := make([]byte, 1)
+	_, err = conn.Read(buf)
+	if err != nil && err.Error() == "EOF" {
+		return resumed, nil
+	}
+	return resumed, err
+}
+
+// TestDistrustedCA_ResumedSession checks that the list holds for a resumed
+// TLS session too: the node of a stolen CA that connected before the CA was
+// listed does not come back with its session ticket.
+func TestDistrustedCA_ResumedSession(t *testing.T) {
+	ci.Parallel(t)
+	for _, version := range []uint16{tls.VersionTLS12, tls.VersionTLS13} {
+		t.Run(tls.VersionName(version), func(t *testing.T) {
+			p := newTestPKI(t)
+			stolenKey := p.key()
+			stolen := p.nodeCA("node CA 1", stolenKey)
+			goodKey := p.key()
+			good := p.nodeCA("node CA 2", goodKey)
+			leafStolen, keyStolen := p.leaf("client.global.norca", stolen, stolenKey)
+			leafGood, keyGood := p.leaf("client.global.norca", good, goodKey)
+
+			// Another CA is listed: the node of the CA that will be stolen
+			// connects, and its session is resumed.
+			list := p.write("distrusted", nil, good)
+			addr, err := p.server(list)
+			must.NoError(t, err)
+			cache := tls.NewLRUClientSessionCache(4)
+			resumed, err := p.dialResume(addr, cache, version, leafStolen, keyStolen, stolen)
+			must.NoError(t, err)
+			must.False(t, resumed)
+			resumed, err = p.dialResume(addr, cache, version, leafStolen, keyStolen, stolen)
+			must.NoError(t, err)
+			must.True(t, resumed, must.Sprint("the test needs a resumed handshake"))
+
+			// The CA is listed: neither the resumed session nor a new
+			// handshake gets in; the node of the other CA does now.
+			p.write("distrusted", nil, stolen)
+			future := time.Now().Add(2 * time.Second)
+			must.NoError(t, os.Chtimes(list, future, future))
+			resumed, err = p.dialResume(addr, cache, version, leafStolen, keyStolen, stolen)
+			must.Error(t, err, must.Sprintf("resumed=%v", resumed))
+			must.Error(t, p.dial(addr, leafStolen, keyStolen, stolen))
+			must.NoError(t, p.dial(addr, leafGood, keyGood, good))
+		})
+	}
+}
+
 func TestDistrustedCA_BadFile(t *testing.T) {
 	ci.Parallel(t)
 	p := newTestPKI(t)
@@ -245,21 +319,21 @@ func TestDistrustedCA_Checksum(t *testing.T) {
 	must.Eq(t, with.DistrustedCAFile, base.Copy().Merge(with).DistrustedCAFile)
 }
 
-func TestChainPeerVerifiers(t *testing.T) {
+func TestChainConnectionVerifiers(t *testing.T) {
 	ci.Parallel(t)
 	var calls []string
-	ok := func(name string) PeerVerifier {
-		return func([][]byte, [][]*x509.Certificate) error { calls = append(calls, name); return nil }
+	ok := func(name string) ConnectionVerifier {
+		return func(tls.ConnectionState) error { calls = append(calls, name); return nil }
 	}
-	fail := func([][]byte, [][]*x509.Certificate) error {
+	fail := func(tls.ConnectionState) error {
 		calls = append(calls, "fail")
 		return errors.New("refused")
 	}
 
-	must.NoError(t, ChainPeerVerifiers(nil, ok("a"), ok("b"))(nil, nil))
+	must.NoError(t, ChainConnectionVerifiers(nil, ok("a"), ok("b"))(tls.ConnectionState{}))
 	must.Eq(t, []string{"a", "b"}, calls)
 
 	calls = nil
-	must.ErrorContains(t, ChainPeerVerifiers(ok("a"), fail, ok("b"))(nil, nil), "refused")
+	must.ErrorContains(t, ChainConnectionVerifiers(ok("a"), fail, ok("b"))(tls.ConnectionState{}), "refused")
 	must.Eq(t, []string{"a", "fail"}, calls) // stops at the first error
 }

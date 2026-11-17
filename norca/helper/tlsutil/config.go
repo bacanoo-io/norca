@@ -386,13 +386,13 @@ func (c *Config) IncomingTLSConfig() (*tls.Config, error) {
 	}
 
 	// The distrusted CAs: checked on the verified chains of the client
-	// certificates.
+	// certificates, on every handshake (a resumed session too).
 	if c.DistrustedCAFile != "" {
 		list, err := newDistrustList(c.DistrustedCAFile)
 		if err != nil {
 			return nil, err
 		}
-		tlsConfig.VerifyPeerCertificate = list.verify
+		tlsConfig.VerifyConnection = list.verify
 	}
 
 	return tlsConfig, nil

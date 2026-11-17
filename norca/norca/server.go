@@ -742,16 +742,22 @@ func getTLSConf(enableRPC bool, tlsConf *tlsutil.Config, region string) (*tls.Co
 		incomingTLS = itls.Clone()
 		// After the check of the TLS configuration (the distrusted CAs), not
 		// instead of it.
-		incomingTLS.VerifyPeerCertificate = tlsutil.ChainPeerVerifiers(itls.VerifyPeerCertificate, rpcNameAndRegionValidator(region))
+		// In VerifyConnection, as the distrusted CAs are: it runs on every
+		// handshake, VerifyPeerCertificate does not when a session is
+		// resumed.
+		validate := rpcNameAndRegionValidator(region)
+		incomingTLS.VerifyConnection = tlsutil.ChainConnectionVerifiers(itls.VerifyConnection, func(cs tls.ConnectionState) error {
+			return validate(nil, cs.VerifiedChains)
+		})
 	} else {
 		incomingTLS = itls
 	}
 	return incomingTLS, tlsWrap, nil
 }
 
-// implements signature of tls.Config.VerifyPeerCertificate which is called
-// after the certs have been verified. We'll ignore the raw certs and only
-// check the verified certs.
+// has the signature of tls.Config.VerifyPeerCertificate; getTLSConf calls it
+// from VerifyConnection with the verified chains of the connection. We'll
+// ignore the raw certs and only check the verified certs.
 func rpcNameAndRegionValidator(region string) func([][]byte, [][]*x509.Certificate) error {
 	return func(_ [][]byte, certificates [][]*x509.Certificate) error {
 		if len(certificates) > 0 && len(certificates[0]) > 0 {
