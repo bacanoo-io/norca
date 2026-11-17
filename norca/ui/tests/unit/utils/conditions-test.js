@@ -16,7 +16,7 @@ module('Unit | Utility | conditions', function () {
   });
 
   test('a condition that is a problem when True', function (assert) {
-    assert.expect(22);
+    assert.expect(24);
     assert.strictEqual(conditionTone('Degraded', 'True'), 'danger');
     assert.strictEqual(conditionTone('JoinFailing', 'True'), 'danger');
     for (const type of [
@@ -28,6 +28,7 @@ module('Unit | Utility | conditions', function () {
       'Drifted',
       'Conflict',
       'NamespaceNotEmpty',
+      'RestoreFailed',
       'Unsupported',
       'RepairHeld',
     ]) {

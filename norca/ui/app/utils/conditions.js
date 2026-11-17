@@ -27,6 +27,8 @@ const TRUE_IS_BAD = {
   // is not the object's own; a namespace that still holds jobs or volumes.
   Conflict: 'warning',
   NamespaceNotEmpty: 'warning',
+  // Tenants: a resource the tenant took over can't be given back as found.
+  RestoreFailed: 'warning',
   // Snapshot schedules: the plugin can't take snapshots. Node groups: the
   // repair of a down node is held.
   Unsupported: 'warning',
