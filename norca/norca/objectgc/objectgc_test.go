@@ -33,6 +33,7 @@ type harness struct {
 	stopped  []string
 	deleted  []string
 	released []string
+	keptJobs []string
 }
 
 // guardedLabel marks the objects of a test whose deletion is guarded.
@@ -77,6 +78,11 @@ func newHarness(t *testing.T) *harness {
 			job.Stop = true
 			return h.store.UpsertJob(structs.MsgTypeTestSetup, h.next(), nil, job)
 		},
+		KeepJob: func(job *structs.Job, kindRef, namespace, name string) {
+			h.l.Lock()
+			h.keptJobs = append(h.keptJobs, job.ID+" of "+name)
+			h.l.Unlock()
+		},
 		DeleteTombstones: func(ids []string) error {
 			return h.store.ApplyObjectGC(structs.MsgTypeTestSetup, h.next(), &structs.ObjectGCRequest{DeleteTombstones: ids})
 		},
@@ -94,8 +100,23 @@ func (h *harness) next() uint64 {
 	return h.index
 }
 
+// remove removes an object as a deletion does whose caller may stop every
+// job there is.
 func (h *harness) remove(obj *structs.CustomObject, propagation string) error {
-	return h.removeApproved(obj, propagation, nil)
+	return h.removeApproved(obj, propagation, h.jobEntries())
+}
+
+// jobEntries returns the entries of the jobs that exist, as the list of the
+// approved dependents of a deletion has them.
+func (h *harness) jobEntries() []string {
+	iter, err := h.store.Jobs(nil)
+	must.NoError(h.t, err)
+	var entries []string
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		job := raw.(*structs.Job)
+		entries = append(entries, structs.ObjectApprovedJob(job.Namespace, job.ID, job.CreateIndex))
+	}
+	return entries
 }
 
 // removeApproved removes an object as a deletion does whose caller was
@@ -207,10 +228,13 @@ func TestCollector_Background(t *testing.T) {
 	must.Eq(t, []string{"id-child", "id-owner"}, h.tombstones())
 
 	// The tombstones are kept for the retention period after the deletion,
-	// so late dependents are collected too.
+	// so late dependents are collected too. A late job is not: nobody was
+	// checked for the right to stop it.
+	h.object("late-child", "owner")
 	h.job("late", "owner")
 	must.True(t, h.collect())
-	must.True(t, h.getJob("late").Stop)
+	must.Nil(t, h.get("late-child"))
+	must.False(t, h.getJob("late").Stop)
 
 	// Once the finalizer is gone and the retention passed, everything is
 	// cleaned up.
@@ -236,6 +260,7 @@ func TestCollector_Foreground(t *testing.T) {
 	marked := owner.Copy()
 	marked.DeletionTime = h.now.UnixNano()
 	marked.DeletionPropagation = structs.ObjectPropagationForeground
+	marked.DeletionApproved = h.jobEntries()
 	must.NoError(t, h.store.UpsertCustomObject(structs.MsgTypeTestSetup, h.next(), marked, owner.ModifyIndex))
 
 	// The dependents are deleted first; the owner stays while the job is
@@ -479,4 +504,81 @@ func TestCollector_GuardedDependents(t *testing.T) {
 	must.NoError(t, h.remove(gone, structs.ObjectPropagationBackground))
 	h.collect()
 	must.Len(t, 2, h.get("shared").Owners)
+}
+
+// A dependent job is stopped with its owner only if the deletion of the
+// owner names it: stopping a job needs a right, and the list says for which
+// jobs the deleter of the owner was checked. Any other job keeps running,
+// untouched, and does not hold its owner.
+func TestCollector_Jobs(t *testing.T) {
+	ci.Parallel(t)
+	h := newHarness(t)
+
+	entry := func(id string) string {
+		job := h.getJob(id)
+		return structs.ObjectApprovedJob(job.Namespace, job.ID, job.CreateIndex)
+	}
+	running := func(id string) {
+		t.Helper()
+		job := h.getJob(id)
+		must.False(t, job.Stop, must.Sprintf("the job %s was stopped", id))
+		must.MapContainsKey(t, job.Meta, structs.JobMetaOwner, must.Sprintf("the meta of the job %s was changed", id))
+	}
+
+	// Background: the job the deleter was checked for stops; the other one,
+	// and one that is attached afterwards, keep running. That is told once.
+	owner := h.object("owner")
+	h.job("approved", "owner")
+	h.job("unapproved", "owner")
+	must.NoError(t, h.removeApproved(owner, structs.ObjectPropagationBackground, []string{entry("approved")}))
+	h.collect()
+	h.job("attached-later", "owner")
+	h.collect()
+	h.collect()
+	must.True(t, h.getJob("approved").Stop)
+	running("unapproved")
+	running("attached-later")
+	must.Eq(t, []string{"unapproved of owner", "attached-later of owner"}, h.keptJobs)
+
+	// A job that is purged and registered again under its ID is another
+	// job: the entry of the first one is not its entry.
+	again := h.object("again")
+	h.job("reborn", "again")
+	first := entry("reborn")
+	must.NoError(t, h.store.DeleteJob(h.next(), "default", "reborn"))
+	h.job("reborn", "again")
+	must.NotEq(t, first, entry("reborn"))
+	must.NoError(t, h.removeApproved(again, structs.ObjectPropagationBackground, []string{first}))
+	h.collect()
+	running("reborn")
+
+	// The list holds through an object in between.
+	top := h.object("top")
+	h.object("middle", "top")
+	h.job("deep", "middle")
+	h.job("deep-unapproved", "middle")
+	must.NoError(t, h.removeApproved(top, structs.ObjectPropagationBackground, []string{entry("deep")}))
+	h.collect()
+	h.collect()
+	must.Nil(t, h.get("middle"))
+	must.True(t, h.getJob("deep").Stop)
+	running("deep-unapproved")
+
+	// Foreground: a job that is not approved does not hold its owner.
+	h.object("front")
+	h.job("behind", "front")
+	h.update("front", func(obj *structs.CustomObject) {
+		obj.DeletionTime = h.now.UnixNano()
+		obj.DeletionPropagation = structs.ObjectPropagationForeground
+	})
+	h.collect()
+	must.Nil(t, h.get("front"))
+	running("behind")
+
+	// A deletion by the servers names nothing.
+	served := h.object("served")
+	h.job("of-served", "served")
+	must.NoError(t, h.removeApproved(served, structs.ObjectPropagationBackground, nil))
+	h.collect()
+	running("of-served")
 }

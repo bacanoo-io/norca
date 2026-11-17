@@ -22,6 +22,7 @@ func (s *Server) setupObjectGC() {
 		ReleaseObject:    s.gcReleaseObject,
 		RemoveObject:     s.gcRemoveObject,
 		StopJob:          s.gcStopJob,
+		KeepJob:          s.gcKeepJob,
 		DeleteTombstones: s.gcDeleteTombstones,
 		ServersReady: func() bool {
 			return ServersMeetMinimumNorcaVersion(s.Members(), s.Region(), false)
@@ -99,6 +100,26 @@ func (s *Server) gcStopJob(namespace, id string) error {
 	}
 	var reply structs.JobDeregisterResponse
 	return s.RPC("Job.Deregister", args, &reply)
+}
+
+// gcKeepJob records that a dependent job was not stopped with its owner:
+// nobody who deleted the owner was checked for the right to stop it. A job
+// has no event log, so the event is recorded for the owner while that still
+// exists (an owner that waits for its dependents in the foreground mode);
+// the collector logs it either way.
+func (s *Server) gcKeepJob(job *structs.Job, ownerKindRef, ownerNamespace, ownerName string) {
+	group, kind, err := structs.ParseObjectKindRef(ownerKindRef)
+	if err != nil {
+		return
+	}
+	owner, err := s.State().CustomObjectByName(nil, group, kind, ownerNamespace, ownerName)
+	if err != nil || owner == nil {
+		return
+	}
+	s.operatorEvent(owner, structs.ObjectEventTypeWarning, objectEventDependentKept, fmt.Sprintf(
+		"the job %q in the namespace %q depends on this object and is not stopped with it: "+
+			"the deletion of this object was not checked for the right to stop that job. Stop the job itself if it is to go.",
+		job.ID, job.Namespace))
 }
 
 func (s *Server) gcDeleteTombstones(ids []string) error {

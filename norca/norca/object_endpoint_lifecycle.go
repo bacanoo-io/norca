@@ -313,20 +313,16 @@ func (c *CustomObject) Delete(args *structs.CustomObjectDeleteRequest, reply *st
 		}
 
 		// What the deletion takes with it: the garbage collector deletes
-		// the dependents with the rights of the servers, so the caller
-		// needs the rights for those whose deletion deletes storage. The
+		// the dependent objects and stops the dependent jobs with the
+		// rights of the servers, so the caller needs the rights for the
+		// objects whose deletion deletes storage and for the jobs. The
 		// ones the caller was checked for are recorded with the deletion:
-		// the collector deletes no other one of that sort.
+		// the collector takes no other one of those.
 		var approved []string
 		if propagation != structs.ObjectPropagationOrphan {
-			deps, err := checkObjectDependentsDelete(snap, aclObj, existing)
-			if err != nil {
+			if approved, err = checkObjectDependentsDelete(snap, aclObj, existing); err != nil {
 				return err
 			}
-			for _, dep := range deps {
-				approved = append(approved, dep.ID)
-			}
-			slices.Sort(approved)
 		}
 
 		// Validating type-bound webhooks that review deletions. They

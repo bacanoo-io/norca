@@ -345,3 +345,128 @@ func TestObjectGC_KeepsDependentsNobodyWasCheckedFor(t *testing.T) {
 
 	volumes.set(func(f *fakeVolumeCSI) { must.Eq(t, []string{"ext-default-named"}, f.deletes) })
 }
+
+// ownedJob registers a job of the default namespace whose meta names an
+// object of the default namespace as its owner, as the controller SDK
+// writes it, managed by its controller.
+func (c *certTest) ownedJob(id, ownerName string) *structs.Job {
+	c.t.Helper()
+	job := mock.Job()
+	job.ID, job.Name = id, id
+	job.Meta = map[string]string{
+		structs.JobMetaOwner:     structs.ObjectOwnerMetaValue(testOwnerGroup, testOwnerKind, "default", ownerName),
+		structs.JobMetaOwnerKind: structs.ObjectKindRef(testOwnerGroup, testOwnerKind),
+		structs.JobMetaManagedBy: structs.ManagedByPolicyPrefix + "database-controller",
+	}
+	var resp structs.JobRegisterResponse
+	must.NoError(c.t, c.s.RPC("Job.Register", &structs.JobRegisterRequest{Job: job, WriteRequest: c.write("default")}, &resp))
+	return c.job(id)
+}
+
+func (c *certTest) job(id string) *structs.Job {
+	c.t.Helper()
+	job, err := c.s.State().JobByID(nil, "default", id)
+	must.NoError(c.t, err)
+	must.NotNil(c.t, job)
+	return job
+}
+
+func (c *certTest) waitJobStopped(id string) {
+	c.t.Helper()
+	must.Wait(c.t, wait.InitialSuccess(wait.BoolFunc(func() bool {
+		return c.job(id).Stop
+	}), wait.Timeout(30*time.Second), wait.Gap(100*time.Millisecond)), must.Sprintf("the job %s is stopped", id))
+}
+
+// The garbage collector stops the jobs that depend on a deleted object, with
+// the token of the leader. Deleting an object in a mode that takes its
+// dependents needs the right to stop those jobs, as stopping them does, and
+// the collector stops only the jobs the deleter was checked for.
+func TestObjectDelete_DependentJobs(t *testing.T) {
+	ci.Parallel(t)
+	c, _, _, cleanup := dependentsTestServer(t)
+	defer cleanup()
+
+	database := func(name string) *structs.ObjectOwnerReference {
+		return ownedBy(testOwnerGroup, testOwnerKind, name)
+	}
+	for _, name := range []string{"web", "site", "loose", "early"} {
+		must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, name, map[string]any{}))
+	}
+	must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, "site-part", map[string]any{}, database("site")))
+	c.ownedJob("web-proxy", "web")
+	c.ownedJob("site-worker", "site-part")
+	c.ownedJob("loose-job", "loose")
+
+	objects := mock.CreatePolicyAndToken(t, c.s.State(), 1001, "objects", `namespace "default" {
+  object "example.com/Database" { capabilities = ["read", "write"] }
+}`)
+	reader := mock.CreatePolicyAndToken(t, c.s.State(), 1003, "reader", `namespace "default" {
+  object "example.com/Database" { capabilities = ["read", "write"] }
+  capabilities = ["list-jobs", "read-job"]
+}`)
+	stopper := mock.CreatePolicyAndToken(t, c.s.State(), 1005, "stopper", `namespace "default" {
+  object "example.com/Database" { capabilities = ["read", "write"] }
+  capabilities = ["submit-job"]
+}`)
+	noJob := &certTest{t: t, s: c.s, token: objects.SecretID}
+	jobReader := &certTest{t: t, s: c.s, token: reader.SecretID}
+	writer := &certTest{t: t, s: c.s, token: stopper.SecretID}
+
+	// Without the right to stop the jobs: refused in the modes that take
+	// the dependents, directly and through an object in between.
+	for _, mode := range []string{"", structs.ObjectPropagationBackground, structs.ObjectPropagationForeground} {
+		for _, name := range []string{"web", "site"} {
+			err := noJob.deleteWith(testOwnerGroup, testOwnerKind, name, mode)
+			must.Eq(t, 403, errCode(t, err), must.Sprintf("%s, mode %q", name, mode))
+			must.ErrorContains(t, err, "submit-job")
+			// The caller may not read jobs: the job is not named.
+			must.StrNotContains(t, err.Error(), "web-proxy")
+			must.StrNotContains(t, err.Error(), "site-worker")
+		}
+		err := jobReader.deleteWith(testOwnerGroup, testOwnerKind, "web", mode)
+		must.Eq(t, 403, errCode(t, err), must.Sprintf("mode %q", mode))
+		must.ErrorContains(t, err, `job "web-proxy"`)
+		err = jobReader.deleteWith(testOwnerGroup, testOwnerKind, "site", mode)
+		must.Eq(t, 403, errCode(t, err), must.Sprintf("mode %q", mode))
+		must.ErrorContains(t, err, `job "site-worker"`)
+	}
+	var resp structs.CustomObjectWriteResponse
+	err := c.s.RPC("CustomObject.Delete", &structs.CustomObjectDeleteRequest{
+		Group: testOwnerGroup, Kind: testOwnerKind, Name: "web", DryRun: true,
+		WriteRequest: noJob.write("default"),
+	}, &resp)
+	must.Eq(t, 403, errCode(t, err))
+	for _, name := range []string{"web", "site", "site-part"} {
+		obj := c.object(testOwnerGroup, testOwnerKind, name)
+		must.NotNil(t, obj)
+		must.False(t, obj.Deleting(), must.Sprintf("%s is marked for deletion", name))
+	}
+	must.False(t, c.job("web-proxy").Stop)
+	must.False(t, c.job("site-worker").Stop)
+
+	// The orphan mode takes no dependent: the object right is enough, and
+	// the job keeps running.
+	must.NoError(t, noJob.deleteWith(testOwnerGroup, testOwnerKind, "loose", structs.ObjectPropagationOrphan))
+	c.waitGone(testOwnerGroup, testOwnerKind, "loose")
+
+	// With the right to stop jobs the same deletions go through and the
+	// jobs stop. The jobs are managed by their controller: nobody else may
+	// stop them directly, and deleting their owner is the way to do it.
+	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "web", ""))
+	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "site", ""))
+	c.waitJobStopped("web-proxy")
+	c.waitJobStopped("site-worker")
+	c.waitGone(testOwnerGroup, testOwnerKind, "site-part")
+
+	// A job that is attached to an owner after the owner was deleted is
+	// not stopped: nobody was checked for it. The object written with it
+	// goes in the same pass of the collector, which shows the pass ran.
+	must.NoError(t, writer.deleteWith(testOwnerGroup, testOwnerKind, "early", ""))
+	c.waitGone(testOwnerGroup, testOwnerKind, "early")
+	c.ownedJob("late-job", "early")
+	must.NoError(t, c.applyOwned(testOwnerGroup, testOwnerKind, "late-part", map[string]any{}, database("early")))
+	c.waitGone(testOwnerGroup, testOwnerKind, "late-part")
+	must.False(t, c.job("late-job").Stop, must.Sprint("a job attached after the deletion of its owner was stopped"))
+	must.False(t, c.job("loose-job").Stop, must.Sprint("the job of an owner deleted in the orphan mode was stopped"))
+}

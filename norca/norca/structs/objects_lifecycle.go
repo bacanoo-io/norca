@@ -9,6 +9,7 @@ import (
 	"math"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
@@ -504,6 +505,17 @@ func ObjectPathGroup(group string) string { return objectPathGroupReplacer.Repla
 // object.
 func ObjectOwnerMetaValue(group, kind, namespace, name string) string {
 	return namespace + "/crd/" + ObjectPathGroup(group) + "/" + kind + "/" + name
+}
+
+// objectApprovedJobPrefix starts the entry of a job in a list of approved
+// dependents. The other entries are IDs of objects, which are UUIDs.
+const objectApprovedJobPrefix = "job:"
+
+// ObjectApprovedJob returns the entry of a job in the list of the dependents
+// a deletion was approved for (CustomObject.DeletionApproved). The create
+// index tells the job from a later job of its namespace and ID.
+func ObjectApprovedJob(namespace, id string, createIndex uint64) string {
+	return objectApprovedJobPrefix + namespace + "/" + id + "@" + strconv.FormatUint(createIndex, 10)
 }
 
 // JobOwnedBy reports whether the meta of a job references the object as its

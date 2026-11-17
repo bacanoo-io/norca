@@ -359,11 +359,14 @@ type CustomObject struct {
 	DeletionTime        int64
 	DeletionPropagation string
 
-	// DeletionApproved is set by the servers with DeletionTime: the IDs of
-	// the dependents whose deletion destroys data in the storage (volume
-	// requests, snapshot schedules) and for which whoever asked for this
-	// deletion had the rights to delete them. The garbage collector deletes
-	// such a dependent only if it is listed, and lets go of it otherwise.
+	// DeletionApproved is set by the servers with DeletionTime: the
+	// dependents for which whoever asked for this deletion had the rights
+	// that taking them needs. They are the IDs of the objects whose
+	// deletion destroys data in the storage (volume requests, snapshot
+	// schedules), and the entries of the jobs, which the deletion stops
+	// (ObjectApprovedJob; an object ID never has their prefix). The garbage
+	// collector deletes such an object and stops a job only if it is
+	// listed, and lets go of it otherwise.
 	DeletionApproved []string
 
 	// Generation increases on every change of the spec.

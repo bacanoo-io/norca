@@ -5,6 +5,7 @@ package norca
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/bacanoo-io/norca/norca/acl"
 	"github.com/bacanoo-io/norca/norca/norca/state"
@@ -19,7 +20,9 @@ import (
 // deleting such an object needs the rights of the volume API
 // (checkVolumeRequestDelete, checkSnapshotDelete). So does deleting an owner
 // of it: otherwise the right to write the kind of the owner would be enough
-// to have the volume or the snapshots deleted.
+// to have the volume or the snapshots deleted. The collector also stops the
+// jobs that depend on a deleted object, which needs the right to stop a job
+// in the same way.
 
 // objectDeletionDestroys reports whether the deletion of the object makes the
 // servers delete, or let go of, data in the storage.
@@ -109,12 +112,104 @@ func destroyingDependents(snap *state.StateSnapshot, owner *structs.CustomObject
 	return out, nil
 }
 
+// dependentJobs returns the running jobs that the deletion of owner may
+// stop: the jobs whose meta names owner, or an object that depends on owner.
+// A job that is stopped already is not one of them: nothing is done to it.
+func dependentJobs(snap *state.StateSnapshot, owner *structs.CustomObject) ([]*structs.Job, error) {
+	iter, err := snap.Jobs(nil)
+	if err != nil {
+		return nil, err
+	}
+	var out, indirect []*structs.Job
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		job := raw.(*structs.Job)
+		if _, owned := job.Meta[structs.JobMetaOwner]; !owned || job.Stop {
+			continue
+		}
+		if structs.JobOwnedBy(job.Meta, owner.Group, owner.Kind, owner.Namespace, owner.Name) {
+			out = append(out, job)
+		} else {
+			indirect = append(indirect, job)
+		}
+	}
+	if len(indirect) == 0 {
+		return out, nil
+	}
+
+	// The owners of the other jobs: the meta of a job names its owner in a
+	// form that is not read back into a kind, so the objects that can
+	// depend on owner (they have owners themselves) are looked up by it.
+	byMeta := map[string][]*structs.CustomObject{}
+	kinds, err := snap.ObjectKinds(nil, "", state.SortDefault)
+	if err != nil {
+		return nil, err
+	}
+	for raw := kinds.Next(); raw != nil; raw = kinds.Next() {
+		kind := raw.(*structs.ObjectKind)
+		objs, err := snap.CustomObjects(nil, kind.Group, kind.Kind, structs.AllNamespacesSentinel, state.SortDefault)
+		if err != nil {
+			return nil, err
+		}
+		for raw := objs.Next(); raw != nil; raw = objs.Next() {
+			obj := raw.(*structs.CustomObject)
+			if len(obj.Owners) > 0 {
+				value := structs.ObjectOwnerMetaValue(obj.Group, obj.Kind, obj.Namespace, obj.Name)
+				byMeta[value] = append(byMeta[value], obj)
+			}
+		}
+	}
+	for _, job := range indirect {
+		for _, obj := range byMeta[job.Meta[structs.JobMetaOwner]] {
+			if !structs.JobOwnedBy(job.Meta, obj.Group, obj.Kind, obj.Namespace, obj.Name) {
+				continue
+			}
+			depends, err := objectDependsOn(snap, obj, owner)
+			if err != nil {
+				return nil, err
+			}
+			if depends {
+				out = append(out, job)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
 // checkObjectDependentsDelete checks the deletion of an object that takes
-// its dependents with it (the background and the foreground mode): the
-// caller needs, for every dependent whose deletion destroys data in the
-// storage, the rights that deleting that dependent itself needs. It returns
-// those dependents.
-func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, owner *structs.CustomObject) ([]*structs.CustomObject, error) {
+// its dependents with it (the background and the foreground mode). The
+// caller needs, for every dependent object whose deletion destroys data in
+// the storage, the rights that deleting that dependent itself needs, and for
+// every dependent job the right to stop it (submit-job in its namespace, as
+// Job.Deregister asks). The protection of a managed job (norca.managed-by)
+// is not asked for: it keeps others from changing the job behind its
+// manager, and the object that owns the job is the way they are meant to
+// take. It returns the list of the dependents the caller was checked for, as
+// it is recorded with the deletion (CustomObject.DeletionApproved).
+func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, owner *structs.CustomObject) ([]string, error) {
+	var approved []string
+
+	jobs, err := dependentJobs(snap, owner)
+	if err != nil {
+		return nil, err
+	}
+	allowStop := acl.NamespaceValidator(acl.NamespaceCapabilitySubmitJob)
+	for _, job := range jobs {
+		if allowStop(aclObj, job.Namespace) {
+			approved = append(approved, structs.ObjectApprovedJob(job.Namespace, job.ID, job.CreateIndex))
+			continue
+		}
+		// The job is named only to a caller who may read it.
+		which := "a job that depends on it"
+		if aclObj.AllowNsOp(job.Namespace, acl.NamespaceCapabilityReadJob) {
+			which = "its dependent job \"" + job.ID + "\""
+		}
+		return nil, structs.NewErrRPCCodedf(http.StatusForbidden,
+			"deleting %s %q would stop %s in the namespace %q: that needs the right %s in that namespace; "+
+				"the propagation mode %q deletes the object and keeps its dependents",
+			owner.KindRef(), owner.Name, which, job.Namespace, acl.NamespaceCapabilitySubmitJob, structs.ObjectPropagationOrphan)
+	}
+
 	deps, err := destroyingDependents(snap, owner)
 	if err != nil {
 		return nil, err
@@ -134,5 +229,9 @@ func checkObjectDependentsDelete(snap *state.StateSnapshot, aclObj *acl.ACL, own
 				"that needs the right %s in that namespace and to read CSI plugins; the propagation mode %q deletes the object and keeps its dependents",
 			owner.KindRef(), owner.Name, which, dep.Namespace, acl.NamespaceCapabilityCSIWriteVolume, structs.ObjectPropagationOrphan)
 	}
-	return deps, nil
+	for _, dep := range deps {
+		approved = append(approved, dep.ID)
+	}
+	slices.Sort(approved)
+	return approved, nil
 }

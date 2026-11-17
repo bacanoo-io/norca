@@ -36,6 +36,11 @@
 // not named (it was written after the check, or the owner was deleted by the
 // servers) is let go of instead: its reference to the owner is removed, and
 // it stays.
+//
+// The same holds for every job: stopping a job needs a right, so a job is
+// stopped only if the list names it (structs.ObjectApprovedJob). A job that
+// is not named keeps running. Nothing of it is changed: its owner is in its
+// meta, and a job whose meta changes is restarted. Deps.KeepJob is told once.
 package objectgc
 
 import (
@@ -104,6 +109,11 @@ type Deps struct {
 	// StopJob stops (deregisters without purging) a job.
 	StopJob func(namespace, id string) error
 
+	// KeepJob is told of a dependent job that is not stopped with its
+	// owner, because the deletion of the owner does not name it: once for a
+	// job and an owner while the collector runs. Optional.
+	KeepJob func(job *structs.Job, ownerKindRef, ownerNamespace, ownerName string)
+
 	// DeleteTombstones removes processed tombstones.
 	DeleteTombstones func(ids []string) error
 
@@ -128,6 +138,10 @@ type Collector struct {
 
 	// kick wakes up the run loop.
 	kick chan struct{}
+
+	// keptJobs are the jobs the last pass did not stop with their owner
+	// (by owner and job): KeepJob was told of them.
+	keptJobs map[string]struct{}
 }
 
 // New returns a stopped collector.
@@ -260,6 +274,9 @@ func objectRef(obj *structs.CustomObject) string {
 type world struct {
 	objects map[string]*structs.CustomObject
 	jobs    []*structs.Job
+
+	// keptJobs are the jobs this pass does not stop with their owner.
+	keptJobs map[string]struct{}
 }
 
 // Collect runs one pass of the collector. It returns whether work is still
@@ -270,7 +287,12 @@ func (c *Collector) Collect(ws memdb.WatchSet, store *state.StateStore) (bool, e
 		return true, err
 	}
 
-	w := &world{objects: map[string]*structs.CustomObject{}}
+	w := &world{objects: map[string]*structs.CustomObject{}, keptJobs: map[string]struct{}{}}
+	defer func() {
+		c.l.Lock()
+		c.keptJobs = w.keptJobs
+		c.l.Unlock()
+	}()
 	var deleting []*structs.CustomObject
 	kinds, err := snap.ObjectKinds(ws, "", state.SortDefault)
 	if err != nil {
@@ -423,6 +445,12 @@ func (c *Collector) collectDependents(w *world, o owner) int {
 			}
 			continue
 		}
+		// Nobody was checked for the right to stop this job with its
+		// owner: it keeps running, and is not waited for.
+		if !slices.Contains(o.approved, structs.ObjectApprovedJob(job.Namespace, job.ID, job.CreateIndex)) {
+			c.keepJob(w, o, job)
+			continue
+		}
 		remaining++
 		c.logger.Debug("stopping dependent job", "owner", o.name, "job", job.ID, "namespace", job.Namespace)
 		if err := c.deps.StopJob(job.Namespace, job.ID); err != nil {
@@ -430,6 +458,25 @@ func (c *Collector) collectDependents(w *world, o owner) int {
 		}
 	}
 	return remaining
+}
+
+// keepJob notes a dependent job that is not stopped with its owner, and
+// tells of it the first time.
+func (c *Collector) keepJob(w *world, o owner, job *structs.Job) {
+	key := o.ref() + "\x00" + job.Namespace + "\x00" + job.ID
+	w.keptJobs[key] = struct{}{}
+	c.l.Lock()
+	_, told := c.keptJobs[key]
+	c.l.Unlock()
+	if told {
+		return
+	}
+	c.logger.Warn("dependent job is not stopped with its owner: the deletion of the owner was not approved for it",
+		"owner", structs.ObjectKindRef(o.group, o.kind)+"/"+o.name, "owner_namespace", o.namespace,
+		"job", job.ID, "namespace", job.Namespace)
+	if c.deps.KeepJob != nil {
+		c.deps.KeepJob(job, structs.ObjectKindRef(o.group, o.kind), o.namespace, o.name)
+	}
 }
 
 // waitsFor reports whether dep is being deleted in the foreground mode and
