@@ -429,12 +429,23 @@ func (r *Release) Delete(args *structs.ReleaseDeleteRequest, reply *structs.Rele
 			}
 		}
 		// Hook jobs kept by their deletion policy go with the release: those
-		// of every kept revision.
+		// of every kept revision. Hook jobs are not among the resources of
+		// the release, so nothing reserves their IDs: only a live job that
+		// carries the marks of this release is one of its hooks.
 		hookRefs, err := releaseHookRefs(snap, namespace, args.Name)
 		if err != nil {
 			return fail(err)
 		}
-		refs = append(refs, hookRefs...)
+		store := r.srv.State()
+		for _, ref := range hookRefs {
+			job, err := store.JobByID(nil, ref.Namespace, ref.Name)
+			if err != nil {
+				return fail(err)
+			}
+			if jobOfRelease(job, namespace, args.Name) {
+				refs = append(refs, ref)
+			}
+		}
 		sortRefsForDeletion(refs)
 		if err := op.deleteResources(refs, false); err != nil {
 			return fail(err)

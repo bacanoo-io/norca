@@ -42,6 +42,13 @@ func hooksOf(resources []*structs.ReleaseResource, phase string) []*structs.Rele
 	return hooks
 }
 
+// jobOfRelease reports whether a live job carries the marks of the release
+// (set on every job a release registers, hook jobs included).
+func jobOfRelease(job *structs.Job, namespace, name string) bool {
+	return job != nil && job.Meta[structs.ReleaseMetaRelease] == name &&
+		job.Meta[structs.ReleaseMetaReleaseNamespace] == namespace
+}
+
 // runHooks runs the hooks of a phase and fails on the first hook that does
 // not succeed.
 func (op *releaseOp) runHooks(resources []*structs.ReleaseResource, phase string) error {
@@ -75,6 +82,19 @@ func (op *releaseOp) runHook(res *structs.ReleaseResource, phase string) *struct
 		return result
 	}
 
+	// Only a previous run of this hook is purged: the ID may be used by a
+	// job that is not of this release, which nothing checks elsewhere (hook
+	// jobs are not among the resources of the release).
+	prev, err := op.m.srv.State().JobByID(nil, job.Namespace, job.ID)
+	if err != nil {
+		result.Status, result.Message = structs.ReleaseHookFailed, fmt.Sprintf("failed to read the previous run: %v", err)
+		return result
+	}
+	if prev != nil && !jobOfRelease(prev, op.namespace, op.name) {
+		result.Status = structs.ReleaseHookFailed
+		result.Message = "a job of this ID exists and does not belong to the release"
+		return result
+	}
 	if err := op.deleteResource(ref); err != nil {
 		return fail(structs.ReleaseHookFailed, "failed to purge the previous run: %v", err)
 	}
