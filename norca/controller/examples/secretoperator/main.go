@@ -62,7 +62,7 @@ func (b *backend) Issue(_ context.Context, req *secrets.IssueRequest) (*secrets.
 	if cred, ok := b.byLease[req.LeaseID]; ok {
 		return cred, nil
 	}
-	user := "v-" + req.Role + "-" + req.LeaseID[:8]
+	user := "v-" + req.Role + "-" + req.LeaseID[:min(len(req.LeaseID), 8)]
 	cred := &secrets.Credential{
 		Items: map[string]string{"username": user, "password": randomHex(), "generation": "1"},
 		Ref:   user,
@@ -94,14 +94,20 @@ func (b *backend) Renew(_ context.Context, req *secrets.RenewRequest) (*secrets.
 	return &secrets.Renewal{Items: cred.Items, Expires: time.Now().Add(time.Hour)}, nil
 }
 
-// Revoke removes the users of the list; unknown ones are ignored.
+// Revoke removes the users of the list; unknown ones are ignored. A
+// reference is the lease ID when the leader never got the answer of the
+// issue, so a user is found by its lease ID too.
 func (b *backend) Revoke(_ context.Context, req *secrets.RevokeRequest) error {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	for ref := range req.Revoked {
 		lease, ok := b.refs[ref]
 		if !ok {
-			continue
+			cred, issued := b.byLease[ref]
+			if !issued {
+				continue
+			}
+			lease, ref = ref, cred.Ref
 		}
 		delete(b.refs, ref)
 		delete(b.byLease, lease)
